@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/clientWithAuth';
+import { backendApi } from '@/services/backendApi';
 import { Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -17,13 +18,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔄 Auth-state listener
+  // 🔄 Initialize authentication state
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔁 Auth state changed:', event, session?.user?.id);
+    const initializeAuth = async () => {
+      console.log('🔄 Initializing authentication...');
+      
+      // Check for backend authentication first
+      if (backendApi.isAuthenticated()) {
+        const currentUser = backendApi.getCurrentUser();
+        if (currentUser) {
+          console.log('✅ Found backend authentication:', currentUser.name);
+          setUser(currentUser);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Fallback: Check Supabase session
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
       setSession(session);
 
       if (session?.user) {
+        console.log('✅ Found Supabase session:', session.user.id);
+        
         const { data: userData, error } = await supabase
           .from('users')
           .select('*')
@@ -33,81 +51,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (userData && !error) {
           setUser(userData);
         } else {
-          setUser(session.user); // fallback
+          setUser(session.user);
         }
       } else {
-        setUser(null);
+        console.log('ℹ️ No authentication found');
       }
 
       setLoading(false);
-    });
+    };
 
-    // 🔄 Initial session fetch
-    supabase.auth.getSession().then(({ data }) => {
-      const session = data.session;
-      setSession(session);
+    initializeAuth();
 
-      if (session?.user) {
-        supabase
-          .from('users')
-          .select('*')
-          .eq('auth_user_id', session.user.id)
-          .single()
-          .then(({ data: userData, error }) => {
-            if (userData && !error) {
-              setUser(userData);
-            } else {
-              setUser(session.user);
-            }
-            setLoading(false);
-          });
-      } else {
-        setLoading(false);
+    // Set up Supabase auth state listener (for fallback)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔁 Supabase auth state changed:', event, session?.user?.id);
+      
+      // Only handle if no backend auth is active
+      if (!backendApi.isAuthenticated()) {
+        setSession(session);
+
+        if (session?.user) {
+          const { data: userData, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('auth_user_id', session.user.id)
+            .single();
+
+          if (userData && !error) {
+            setUser(userData);
+          } else {
+            setUser(session.user);
+          }
+        } else {
+          setUser(null);
+        }
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // 🔐 Login: supports both Supabase Auth & legacy password
+  // 🔐 Login: uses backend API with JWT authentication
   const login = async (nameOrEmail: string, password: string) => {
     setLoading(true);
 
     try {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .or(`name.eq.${nameOrEmail},email.eq.${nameOrEmail}`)
-        .single();
+      console.log('🔐 Attempting login with backend API:', nameOrEmail);
 
-      if (!userData || userError) {
-        console.log('❌ User not found:', userError);
-        return { success: false, error: 'User not found' };
-      }
-
-      // 1️⃣ Try Supabase Auth login
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: userData.email,
-        password,
-      });
-
-      if (!signInError) {
-        console.log('✅ Supabase Auth login succeeded:', userData.name);
+      // Use backend API for login
+      const loginResult = await backendApi.login(nameOrEmail, password);
+      
+      if (loginResult.success && loginResult.user) {
+        console.log('✅ Backend login successful:', loginResult.user.name);
+        setUser(loginResult.user);
+        setSession(null); // No Supabase session for backend auth
         return { success: true };
+      } else {
+        console.log('❌ Backend login failed:', loginResult.error);
+        return { success: false, error: loginResult.error || 'Login failed' };
       }
 
-      // 2️⃣ Try legacy login
-      const isLegacy = userData.password_hash !== 'migrated';
-      if (isLegacy && password === userData.password_hash) {
-        console.log('🕰 Legacy login accepted:', userData.name);
-        setUser(userData); // manually set user
-        setSession(null);  // no auth session
-        return { success: true };
-      }
-
-      return { success: false, error: 'Invalid password' };
     } catch (err: unknown) {
-      console.error('Login error:', err);
+      console.error('❌ Login error:', err);
       return { success: false, error: 'Login failed' };
     } finally {
       setLoading(false);
@@ -115,10 +120,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    console.log('🚪 Logging out...');
+    
+    // Clear backend authentication
+    backendApi.logout();
+    
+    // Also clear Supabase session if exists
     await supabase.auth.signOut();
+    
+    // Clear local state
     setUser(null);
     setSession(null);
-    localStorage.removeItem('runquest_user');
   };
 
   return (

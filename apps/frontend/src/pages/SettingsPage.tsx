@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, AlertCircle, XCircle, ExternalLink, ArrowLeft } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/clientWithAuth';
+import { backendApi } from '@/services/backendApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -16,7 +16,7 @@ interface StravaStatus {
 }
 
 export const SettingsPage: React.FC = () => {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [stravaStatus, setStravaStatus] = useState<StravaStatus>({ connected: false, expired: false });
   const [loading, setLoading] = useState(true);
@@ -24,29 +24,27 @@ export const SettingsPage: React.FC = () => {
 
   const fetchStravaConfig = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('strava-config');
-      if (error) {
-        console.error('⚠️ Error fetching Strava config:', error);
-        return;
+      const result = await backendApi.getStravaConfig();
+      if (result.success && result.data) {
+        console.log('⚙️ Client ID received:', result.data.client_id);
+        setStravaClientId(result.data.client_id);
+      } else {
+        console.error('⚠️ Error fetching Strava config:', result.error);
       }
-      console.log('⚙️ Client ID received:', data.client_id);
-      setStravaClientId(data.client_id);
     } catch (error) {
       console.error('❌ Failed to fetch Strava config:', error);
     }
   };
 
   const fetchStravaStatus = async () => {
-    if (!session) return;
+    if (!backendApi.isAuthenticated()) return;
     try {
-      const { data, error } = await supabase.functions.invoke('strava-status', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (error) {
+      const result = await backendApi.getStravaStatus();
+      if (result.success && result.data) {
+        setStravaStatus(result.data);
+      } else {
         toast.error('Failed to fetch Strava status');
-        return;
       }
-      setStravaStatus(data);
     } catch (error) {
       console.error('❌ Error fetching Strava status:', error);
       toast.error('Failed to fetch Strava status');
@@ -63,28 +61,22 @@ export const SettingsPage: React.FC = () => {
         const code = event.data.stravaCode;
         console.log('📨 Received Strava code:', code);
 
-        if (!session) {
-          toast.error('Session saknas');
+        if (!backendApi.isAuthenticated()) {
+          toast.error('Authentication required');
           return;
         }
 
         try {
-          const { data, error } = await supabase.functions.invoke('strava-callback', {
-            body: { code },
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          });
-
-          if (error) {
-            console.error('❌ strava-callback error:', error);
+          const result = await backendApi.connectStrava(code);
+          
+          if (result.success) {
+            console.log('✅ Strava-koppling lyckades:', result.data);
+            toast.success('Strava-konto kopplat!');
+            fetchStravaStatus();
+          } else {
+            console.error('❌ strava-callback error:', result.error);
             toast.error('Strava-koppling misslyckades');
-            return;
           }
-
-          console.log('✅ Strava-koppling lyckades:', data);
-          toast.success('Strava-konto kopplat!');
-          fetchStravaStatus();
         } catch (err) {
           console.error('❌ Error handling Strava callback:', err);
           toast.error('Fel vid koppling till Strava');
@@ -94,13 +86,13 @@ export const SettingsPage: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [session]);
+  }, []);
 
   useEffect(() => {
     fetchStravaConfig();
-    if (session) fetchStravaStatus();
+    if (backendApi.isAuthenticated()) fetchStravaStatus();
     else setLoading(false);
-  }, [session]);
+  }, []);
 
   const handleConnectStrava = () => {
     if (!stravaClientId) {
@@ -124,26 +116,21 @@ export const SettingsPage: React.FC = () => {
   const handleTestManualStravaCode = async () => {
     const testCode = "a3a25f358f358eea18c72589174c9a1cdcac7e10";
 
-    if (!session) {
-      toast.error("Ingen session");
+    if (!backendApi.isAuthenticated()) {
+      toast.error("Authentication required");
       return;
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke("strava-callback", {
-        body: { code: testCode },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      const result = await backendApi.connectStrava(testCode);
 
-      if (error) {
-        console.error("❌ Error:", error);
-        toast.error("Misslyckades koppla Strava manuellt");
-      } else {
-        console.log("✅ Lyckades manuellt:", data);
+      if (result.success) {
+        console.log("✅ Lyckades manuellt:", result.data);
         toast.success("Testkod skickad – Strava tokens bör vara sparade!");
         fetchStravaStatus();
+      } else {
+        console.error("❌ Error:", result.error);
+        toast.error("Misslyckades koppla Strava manuellt");
       }
     } catch (err) {
       console.error("❌ Exception:", err);
@@ -234,11 +221,11 @@ export const SettingsPage: React.FC = () => {
               <CardTitle>Account Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p><strong>Username:</strong> {user?.name}</p>
-              <p><strong>Email:</strong> {user?.email}</p>
-              <p><strong>Level:</strong> {user?.current_level}</p>
-              <p><strong>Total XP:</strong> {user?.total_xp}</p>
-              <p><strong>Total Distance:</strong> {user?.total_km?.toFixed(1)} km</p>
+              <p><strong>Username:</strong> {(user as any)?.name}</p>
+              <p><strong>Email:</strong> {(user as any)?.email}</p>
+              <p><strong>Level:</strong> {(user as any)?.current_level}</p>
+              <p><strong>Total XP:</strong> {(user as any)?.total_xp}</p>
+              <p><strong>Total Distance:</strong> {(user as any)?.total_km?.toFixed(1)} km</p>
             </CardContent>
           </Card>
         </div>
