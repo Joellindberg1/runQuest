@@ -1,0 +1,76 @@
+
+import React from 'react';
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import Index from "./pages/Index";
+import AdminPage from "./pages/AdminPage";
+import LoginPage from "./pages/LoginPage";
+import SettingsPage from "./pages/SettingsPage";
+import StravaCallbackPage from "./pages/StravaCallbackPage";
+import NotFound from "./pages/NotFound";
+
+const queryClient = new QueryClient();
+
+const AppContent = () => {
+  const { user, loading } = useAuth();
+  const path = window.location.pathname;
+  console.log('🔄 Current path:', path);
+
+  // 🛑 UNDANTAG: Kör aldrig AppRouter på popup-sidan
+  if (path === '/strava-popup.html') {
+    return null; // Låt browsern ladda HTML-filen utan att React tar över
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  const isAdmin = user.name.toLowerCase() === 'admin';
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/strava-callback" element={<StravaCallbackPage />} />
+        {!user ? (
+          <Route path="*" element={<LoginPage />} />
+        ) : (
+          <>
+            <Route path="/" element={isAdmin ? <Navigate to="/admin" replace /> : <Index />} />
+            <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
+            <Route path="/settings" element={isAdmin ? <Navigate to="/admin" replace /> : <SettingsPage />} />
+            <Route path="*" element={<NotFound />} />
+          </>
+        )}
+      </Routes>
+    </BrowserRouter>
+  );
+};
+
+
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <AppContent />
+          <Toaster />
+          <Sonner />
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
+
+export default App;
