@@ -9,7 +9,6 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=@runquest/frontend",
     "dev:frontend": "npm run dev --workspace=@runquest/frontend",
     "dev:backend": "npm run dev --workspace=@runquest/backend",
     "build": "npm run build --workspaces --if-present",
