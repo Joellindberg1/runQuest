@@ -1,0 +1,30 @@
+{
+  "name": "runquest",
+  "version": "0.0.1",
+  "description": "RunQuest - Löparapp med gamification",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@runquest/frontend",
+    "dev:frontend": "npm run dev --workspace=@runquest/frontend",
+    "dev:backend": "npm run dev --workspace=@runquest/backend",
+    "build": "npm run build --workspaces --if-present",
+    "build:frontend": "npm run build --workspace=@runquest/frontend",
+    "build:backend": "npm run build --workspace=@runquest/backend",
+    "lint": "npm run lint --workspaces --if-present",
+    "type-check": "npm run type-check --workspaces --if-present",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.9",
+    "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
