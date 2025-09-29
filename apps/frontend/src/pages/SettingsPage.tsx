@@ -96,16 +96,46 @@ export const SettingsPage: React.FC = () => {
   }, []);
 
   const handleConnectStrava = () => {
+    console.log('🚀 handleConnectStrava called');
+    console.log('🆔 stravaClientId:', stravaClientId);
+    console.log('🌍 window.location.origin:', window.location.origin);
+    console.log('🌐 window.location.href:', window.location.href);
+    
     if (!stravaClientId) {
+      console.error('❌ Strava client ID saknas');
       toast.error('Strava-konfiguration saknas');
       return;
     }
 
-    const redirectUri = `${window.location.origin}/strava-popup.html`;
-    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${stravaClientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=force&scope=activity:read`;
+    // Använd en mer robust metod för att bestämma redirect URI
+    let redirectUri;
+    const currentOrigin = window.location.origin;
+    
+    if (currentOrigin.includes('localhost')) {
+      redirectUri = `${currentOrigin}/strava-popup.html`;
+      console.log('🏠 Localhost detected');
+    } else if (currentOrigin.includes('runquest.dev')) {
+      // Använd samma protokoll och domän som nuvarande sida
+      redirectUri = `${currentOrigin}/strava-popup.html`;
+      console.log('🌐 Production domain detected');
+    } else {
+      // Fallback för Railway eller andra domäner
+      redirectUri = `${currentOrigin}/strava-popup.html`;
+      console.log('� Railway or other domain detected');
+    }
+    
+    console.log('🔗 Strava redirect URI:', redirectUri);
+    
+    const encodedRedirectUri = encodeURIComponent(redirectUri);
+    console.log('📝 Encoded redirect URI:', encodedRedirectUri);
+    
+    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${stravaClientId}&response_type=code&redirect_uri=${encodedRedirectUri}&approval_prompt=force&scope=activity:read`;
+    console.log('🌐 Complete Strava auth URL:', stravaAuthUrl);
 
+    console.log('🪟 Opening popup...');
     const popup = window.open(stravaAuthUrl, '_blank', 'width=500,height=700');
     if (!popup) {
+      console.error('❌ Popup blocked');
       toast.error('Tillåt popup-fönster för att koppla Strava');
     } else {
       console.log('🪟 Popup öppnad');
