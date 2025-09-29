@@ -5,13 +5,18 @@ import cron from 'node-cron';
 export function startStravaScheduler() {
   console.log('🕐 Starting Strava sync scheduler (every 3 hours)...');
   
+  // För Railway, använd localhost eftersom det är samma container
+  // För utveckling, använd också localhost
+  const backendUrl = 'http://localhost:3001';
+  console.log('🌐 Using backend URL for scheduler:', backendUrl);
+  
   // Run every 3 hours: 0 */3 * * *
   cron.schedule('0 */3 * * *', async () => {
     console.log('🔄 Scheduled Strava sync starting...');
     
     try {
       // Call our internal sync endpoint
-      const response = await fetch('http://localhost:3001/api/strava/sync-all');
+      const response = await fetch(`${backendUrl}/api/strava/sync-all`);
       const result = await response.json();
       
       if (result.success) {
@@ -31,8 +36,10 @@ export function startStravaScheduler() {
 export async function triggerManualSync() {
   console.log('🔄 Manual sync trigger...');
   
+  const backendUrl = 'http://localhost:3001';
+  
   try {
-    const response = await fetch('http://localhost:3001/api/strava/sync-all');
+    const response = await fetch(`${backendUrl}/api/strava/sync-all`);
     const result = await response.json();
     
     console.log('📊 Manual sync result:', result);

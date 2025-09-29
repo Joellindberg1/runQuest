@@ -183,7 +183,7 @@ class BackendApiService {
     }
   }
 
-  async getStravaStatus(): Promise<ApiResponse<{ connected: boolean; expired: boolean; expires_at?: number }>> {
+  async getStravaStatus(): Promise<ApiResponse<{ connected: boolean; expired: boolean; expires_at?: number; auto_refreshed?: boolean; refresh_failed?: boolean }>> {
     return this.authenticatedRequest('/strava/status');
   }
 

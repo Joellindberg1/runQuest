@@ -43,6 +43,28 @@ router.get('/status', authenticateJWT, async (req, res) => {
     const now = Math.floor(Date.now() / 1000);
     const expired = tokens.expires_at ? tokens.expires_at < now : false;
     
+    // Om token är expired, försök auto-refresh
+    if (expired && tokens.refresh_token) {
+      console.log('🔄 Token expired, attempting auto-refresh...');
+      
+      const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
+      if (refreshResult.success) {
+        console.log('✅ Token auto-refreshed successfully');
+        return res.json({
+          connected: true,
+          expired: false, // No longer expired after refresh
+          auto_refreshed: true
+        });
+      } else {
+        console.log('❌ Auto-refresh failed, connection truly expired');
+        return res.json({
+          connected: true,
+          expired: true,
+          refresh_failed: true
+        });
+      }
+    }
+    
     console.log('✅ Strava status:', { connected: true, expired, expires_at: tokens.expires_at });
     
     res.json({

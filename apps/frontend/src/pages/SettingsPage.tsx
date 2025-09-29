@@ -13,6 +13,8 @@ interface StravaStatus {
   connected: boolean;
   expired: boolean;
   expires_at?: number;
+  auto_refreshed?: boolean;
+  refresh_failed?: boolean;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -43,6 +45,13 @@ export const SettingsPage: React.FC = () => {
       const result = await backendApi.getStravaStatus();
       if (result.success && result.data) {
         setStravaStatus(result.data);
+        
+        // Visa meddelande om token auto-refreshades
+        if (result.data.auto_refreshed) {
+          toast.success('Strava-anslutning automatiskt förnyad!');
+        } else if (result.data.refresh_failed) {
+          toast.warning('Strava-token kunde inte förnyas automatiskt');
+        }
       } else {
         toast.error('Failed to fetch Strava status');
       }
