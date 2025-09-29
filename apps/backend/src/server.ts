@@ -9,6 +9,8 @@ import { testDatabaseConnection } from './config/database.js';
 import authRoutes from './routes/auth.js';
 // 🔗 Import Strava routes
 import stravaRoutes from './routes/strava.js';
+// 🕐 Import Strava scheduler
+import { startStravaScheduler } from './scheduler/stravaSync.js';
 
 // 📋 Step 1: Load Environment Variables
 console.log('🔧 Step 1: Loading environment variables...');
@@ -171,6 +173,15 @@ server.on('error', (error: any) => {
 
 server.on('listening', () => {
   console.log('✅ Step 4 Complete: Server is actively listening for connections\n');
+  
+  // 🕐 Start Strava sync scheduler
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🕐 Starting Strava sync scheduler for production...');
+    startStravaScheduler();
+  } else {
+    console.log('ℹ️ Strava scheduler disabled in development mode');
+    console.log('💡 Use POST /api/strava/sync for manual testing');
+  }
 });
 
 // Graceful shutdown

@@ -20,6 +20,7 @@ export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const [stravaStatus, setStravaStatus] = useState<StravaStatus>({ connected: false, expired: false });
   const [loading, setLoading] = useState(true);
+  const [syncLoading, setSyncLoading] = useState(false);
   const [stravaClientId, setStravaClientId] = useState<string | null>(null);
 
   const fetchStravaConfig = async () => {
@@ -138,6 +139,37 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleSyncStrava = async () => {
+    if (!backendApi.isAuthenticated()) {
+      toast.error("Authentication required");
+      return;
+    }
+
+    setSyncLoading(true);
+    try {
+      console.log("🔄 Manual Strava sync started...");
+      const result = await backendApi.syncStrava();
+
+      if (result.success && result.data) {
+        console.log("✅ Sync completed:", result.data);
+        toast.success(`Synced ${result.data.newRuns} new runs from Strava!`);
+        
+        // Refresh page data to show new runs
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        console.error("❌ Sync error:", result.error);
+        toast.error(result.error || "Failed to sync Strava activities");
+      }
+    } catch (err) {
+      console.error("❌ Sync exception:", err);
+      toast.error("Failed to sync Strava activities");
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
   const getStatusBadge = () => {
     if (loading) return <Badge variant="secondary">Loading...</Badge>;
     if (!stravaStatus.connected) {
@@ -202,11 +234,30 @@ export const SettingsPage: React.FC = () => {
                   </Button>
                 )}
                 {stravaStatus.connected && !stravaStatus.expired && (
-                  <div className="text-sm text-gray-600">
-                    <p>✅ Your Strava runs are imported automatically every 3 hours.</p>
-                    <p>✅ Only running activities (type "Run") are imported.</p>
-                    <p>✅ Duplicate activities are automatically filtered.</p>
-                  </div>
+                  <>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <p>✅ Your Strava runs are imported automatically every 3 hours.</p>
+                      <p>✅ Only running activities (type "Run") are imported.</p>
+                      <p>✅ Duplicate activities are automatically filtered.</p>
+                    </div>
+                    <Button 
+                      onClick={handleSyncStrava} 
+                      variant="outline" 
+                      className="flex items-center gap-2"
+                      disabled={syncLoading}
+                    >
+                      {syncLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                          Syncing...
+                        </>
+                      ) : (
+                        <>
+                          🔄 Sync Now
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
                 <Separator className="my-4" />
                 <Button variant="outline" onClick={handleTestManualStravaCode}>

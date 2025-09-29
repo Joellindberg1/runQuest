@@ -193,6 +193,12 @@ class BackendApiService {
       body: JSON.stringify({ code }),
     });
   }
+
+  async syncStrava(): Promise<ApiResponse<{ newRuns: number; totalActivities: number; message: string }>> {
+    return this.authenticatedRequest('/strava/sync', {
+      method: 'POST',
+    });
+  }
 }
 
 // Export singleton instance
