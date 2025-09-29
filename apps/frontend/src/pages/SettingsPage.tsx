@@ -56,18 +56,33 @@ export const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      console.log('📨 Message received:', event.data);
+      console.log('🌍 Event origin:', event.origin);
+      console.log('🏠 Window origin:', window.location.origin);
+      
+      if (event.origin !== window.location.origin) {
+        console.log('❌ Origin mismatch, ignoring message');
+        return;
+      }
 
+      // Hantera både gamla och nya message format
+      let code = null;
       if (event.data?.stravaCode) {
-        const code = event.data.stravaCode;
-        console.log('📨 Received Strava code:', code);
+        code = event.data.stravaCode;
+        console.log('📨 Received Strava code (old format):', code);
+      } else if (event.data?.code) {
+        code = event.data.code;
+        console.log('📨 Received Strava code (new format):', code);
+      }
 
+      if (code) {
         if (!backendApi.isAuthenticated()) {
           toast.error('Authentication required');
           return;
         }
 
         try {
+          console.log('🔄 Sending code to backend...');
           const result = await backendApi.connectStrava(code);
           
           if (result.success) {
@@ -82,6 +97,11 @@ export const SettingsPage: React.FC = () => {
           console.error('❌ Error handling Strava callback:', err);
           toast.error('Fel vid koppling till Strava');
         }
+      }
+
+      if (event.data?.error) {
+        console.error('❌ Strava error:', event.data.error);
+        toast.error('Strava-auktorisering misslyckades');
       }
     };
 
