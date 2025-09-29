@@ -10,22 +10,37 @@ const router = express.Router();
 router.post('/login', async (req, res) => {
   try {
     console.log('🔐 Login attempt received');
-    const { name, password } = req.body;
+    const { name, email, password } = req.body;
+    const nameOrEmail = name || email;
 
-    if (!name || !password) {
-      console.log('❌ Missing name or password');
-      return res.status(400).json({ error: 'Name and password required' });
+    if (!nameOrEmail || !password) {
+      console.log('❌ Missing name/email or password');
+      return res.status(400).json({ error: 'Name/email and password required' });
     }
 
-    console.log(`🔍 Looking up user: ${name}`);
+    console.log(`🔍 Looking up user: ${nameOrEmail}`);
     
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
-    const { data: user, error } = await supabase
+    
+    // Try to find user by email first, then by name
+    let { data: user, error } = await supabase
       .from('users')
       .select('id, name, email, password_hash')
-      .eq('name', name)
+      .eq('email', nameOrEmail)
       .single();
+    
+    // If not found by email, try by name
+    if (error || !user) {
+      const { data: userByName, error: errorByName } = await supabase
+        .from('users')
+        .select('id, name, email, password_hash')
+        .eq('name', nameOrEmail)
+        .single();
+      
+      user = userByName;
+      error = errorByName;
+    }
 
     if (error || !user) {
       console.log('❌ User not found or database error:', error?.message);
