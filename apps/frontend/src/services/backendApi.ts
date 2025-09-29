@@ -199,6 +199,12 @@ class BackendApiService {
       method: 'POST',
     });
   }
+
+  async disconnectStrava(): Promise<ApiResponse> {
+    return this.authenticatedRequest('/strava/disconnect', {
+      method: 'DELETE',
+    });
+  }
 }
 
 // Export singleton instance

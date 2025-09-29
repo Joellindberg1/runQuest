@@ -115,7 +115,7 @@ export const SettingsPage: React.FC = () => {
     else setLoading(false);
   }, []);
 
-  const handleConnectStrava = () => {
+  const handleConnectStrava = async () => {
     console.log('🚀 handleConnectStrava called');
     console.log('🆔 stravaClientId:', stravaClientId);
     console.log('🌍 window.location.origin:', window.location.origin);
@@ -125,6 +125,19 @@ export const SettingsPage: React.FC = () => {
       console.error('❌ Strava client ID saknas');
       toast.error('Strava-konfiguration saknas');
       return;
+    }
+
+    // Om vi har en expired token, rensa den först
+    if (stravaStatus.expired && stravaStatus.connected) {
+      console.log('🧹 Clearing expired Strava token before reconnecting...');
+      try {
+        await backendApi.disconnectStrava();
+        setStravaStatus({ connected: false, expired: false });
+        console.log('✅ Expired token cleared');
+        toast.info('Gamla Strava-tokens rensade');
+      } catch (error) {
+        console.warn('⚠️ Could not clear expired token, continuing anyway:', error);
+      }
     }
 
     // Använd en mer robust metod för att bestämma redirect URI

@@ -134,6 +134,35 @@ router.post('/callback', authenticateJWT, async (req, res) => {
   }
 });
 
+// DELETE /api/strava/disconnect - Disconnect Strava account
+router.delete('/disconnect', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user!.user_id;
+    console.log(`🔌 Disconnecting Strava for user: ${req.user!.name}`);
+    
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('strava_tokens')
+      .delete()
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('❌ Failed to delete Strava tokens:', error);
+      return res.status(500).json({ error: 'Failed to disconnect Strava' });
+    }
+    
+    console.log('✅ Strava disconnected successfully');
+    res.json({
+      success: true,
+      message: 'Strava disconnected successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Strava disconnect error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/strava/sync - Manually sync Strava activities
 router.post('/sync', authenticateJWT, async (req, res) => {
   try {
