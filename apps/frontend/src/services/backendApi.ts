@@ -1,6 +1,12 @@
 // 🔗 Backend API Service - Production Ready
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+// Debug logging
+console.log('🔧 Environment check:');
+console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+console.log('API_BASE_URL:', API_BASE_URL);
+console.log('Mode:', import.meta.env.MODE);
+
 export interface LoginResponse {
   success: boolean;
   token?: string;
