@@ -346,7 +346,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
     // Get existing runs to avoid duplicates
     const { data: existingRuns, error: runsError } = await supabase
       .from('runs')
-      .select('external_id')
+      .select('external_id, date, distance')
       .eq('user_id', userId)
       .eq('source', 'strava')
       .not('external_id', 'is', null);
@@ -355,12 +355,21 @@ async function syncUserStravaActivities(userId: string): Promise<{
       return { success: false, error: 'Failed to fetch existing runs' };
     }
     
+    console.log(`💾 Found ${existingRuns?.length || 0} existing Strava runs in database`);
+    if (existingRuns && existingRuns.length > 0) {
+      existingRuns.forEach((run: any) => {
+        console.log(`  - External ID: ${run.external_id}, Date: ${run.date}, Distance: ${run.distance}km`);
+      });
+    }
+    
     const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
     
     // Fetch activities from Strava (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const after = Math.floor(thirtyDaysAgo.getTime() / 1000);
+    
+    console.log(`📅 Fetching activities after: ${new Date(after * 1000).toISOString()}`);
     
     const stravaResponse = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=50`,
@@ -381,6 +390,16 @@ async function syncUserStravaActivities(userId: string): Promise<{
     const activities = await stravaResponse.json();
     console.log(`📊 Fetched ${activities.length} activities from Strava`);
     
+    // Log all activities for debugging
+    if (activities.length > 0) {
+      console.log('🔍 All activities found:');
+      activities.forEach((activity: any, index: number) => {
+        const distance = (activity.distance / 1000).toFixed(2);
+        const date = activity.start_date_local.split('T')[0];
+        console.log(`  ${index + 1}. ${date}: ${distance}km, Type: ${activity.type}, ID: ${activity.id}`);
+      });
+    }
+    
     // Filter for running activities only
     const runningActivities = activities.filter((activity: any) => 
       activity.type === 'Run' && 
@@ -388,6 +407,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
     );
     
     console.log(`🏃‍♂️ Found ${runningActivities.length} new running activities`);
+    console.log(`🚫 Existing activity IDs in database: [${Array.from(existingIds).join(', ')}]`);
     
     if (runningActivities.length === 0) {
       return { 
@@ -456,31 +476,10 @@ async function syncUserStravaActivities(userId: string): Promise<{
     
     // Update user totals if any runs were imported
     if (importedRuns > 0) {
-      const { data: userRuns } = await supabase
-        .from('runs')
-        .select('xp_gained, distance')
-        .eq('user_id', userId);
-      
-      if (userRuns) {
-        const totalXP = userRuns.reduce((sum: number, run: any) => sum + run.xp_gained, 0);
-        const totalKm = userRuns.reduce((sum: number, run: any) => sum + run.distance, 0);
-        const currentLevel = Math.floor(totalXP / 1000) + 1;
-        
-        await supabase
-          .from('users')
-          .update({
-            total_xp: totalXP,
-            total_km: totalKm,
-            current_level: currentLevel
-          })
-          .eq('id', userId);
-      }
-      
-      console.log(`🔄 Updated user totals after importing ${importedRuns} runs`);
+      console.log(`🔄 Updating user totals after importing ${importedRuns} runs...`);
+      // Use new unified calculation function
+      await calculateUserTotals(userId);
     }
-    
-    // Recalculate user totals with consistent level calculation
-    await calculateUserTotals(userId);
     
     return {
       success: true,
