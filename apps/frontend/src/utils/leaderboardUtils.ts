@@ -1,5 +1,6 @@
 
 import { Run, User } from '@/types/run'
+import { getLevelFromXP, getXPForLevel } from './xpCalculation';
 
 export const leaderboardUtils = {
   // Level system with exact XP requirements
@@ -39,9 +40,9 @@ export const leaderboardUtils = {
   },
 
   calculateUserStats(user: User) {
-    const level = user.current_level;
-    const currentLevelXP = this.getXPForLevel(level);
-    const nextLevelXP = level < 30 ? this.getXPForLevel(level + 1) : currentLevelXP;
+    const level = getLevelFromXP(user.total_xp);
+    const currentLevelXP = getXPForLevel(level);
+    const nextLevelXP = getXPForLevel(level + 1);
     const xpProgress = level < 30 ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
     const xpLeftForNextLevel = level < 30 ? Math.round((nextLevelXP - user.total_xp) * 10) / 10 : 0;
 

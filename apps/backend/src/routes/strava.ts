@@ -2,6 +2,8 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { calculateRunXP, metersToKm, getLevelFromXP } from '../utils/xpCalculation.js';
+import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 
 const router = express.Router();
 
@@ -412,11 +414,8 @@ async function syncUserStravaActivities(userId: string): Promise<{
         
         console.log(`🏃‍♂️ Processing run: ${distance.toFixed(2)}km on ${date}`);
         
-        // Simple XP calculation (since we can't import frontend service)
-        const baseXP = 50; // Fixed base XP
-        const kmXP = Math.floor(distance * 10); // 10 XP per km
-        const distanceBonus = distance >= 5 ? 25 : 0; // Bonus for 5km+
-        const totalXP = baseXP + kmXP + distanceBonus;
+        // Use centralized XP calculation
+        const totalXP = calculateRunXP(distance);
         
         // Get user's current streak (simplified)
         const { data: lastRun } = await supabase
@@ -431,20 +430,14 @@ async function syncUserStravaActivities(userId: string): Promise<{
         const streakMultiplier = streakDay >= 5 ? 1.1 : 1.0;
         const finalXP = Math.round(totalXP * streakMultiplier);
         
-        // Save to database with Strava external_id
+        // Save to database with Strava external_id (simplified schema)
         const { error: insertError } = await supabase
           .from('runs')
           .insert({
             user_id: userId,
             date: date,
             distance: distance,
-            xp_gained: finalXP,
-            multiplier: streakMultiplier,
-            streak_day: streakDay,
-            base_xp: baseXP,
-            km_xp: kmXP,
-            distance_bonus: distanceBonus,
-            streak_bonus: Math.round((finalXP - totalXP)),
+            xp: finalXP,  // Use consistent 'xp' field
             source: 'strava',
             external_id: activity.id.toString()
           });
@@ -485,6 +478,9 @@ async function syncUserStravaActivities(userId: string): Promise<{
       
       console.log(`🔄 Updated user totals after importing ${importedRuns} runs`);
     }
+    
+    // Recalculate user totals with consistent level calculation
+    await calculateUserTotals(userId);
     
     return {
       success: true,

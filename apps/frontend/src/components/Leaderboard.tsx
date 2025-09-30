@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { runService } from '@/services/runService';
 import { leaderboardUtils } from '@/utils/leaderboardUtils';
+import { getLevelFromXP } from '@/utils/xpCalculation';
 import { UserTitles } from './leaderboard/UserTitles';
 import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
