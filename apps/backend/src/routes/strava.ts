@@ -364,12 +364,13 @@ async function syncUserStravaActivities(userId: string): Promise<{
     
     const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
     
-    // Fetch activities from Strava (last 30 days)
+    // Fetch activities from Strava (last 30 days + today)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0); // Start from beginning of day
     const after = Math.floor(thirtyDaysAgo.getTime() / 1000);
     
-    console.log(`📅 Fetching activities after: ${new Date(after * 1000).toISOString()}`);
+    console.log(`📅 Fetching activities after: ${new Date(after * 1000).toISOString()} (including today)`);
     
     const stravaResponse = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=50`,
@@ -450,16 +451,27 @@ async function syncUserStravaActivities(userId: string): Promise<{
         const streakMultiplier = streakDay >= 5 ? 1.1 : 1.0;
         const finalXP = Math.round(totalXP * streakMultiplier);
         
-        // Save to database with Strava external_id (simplified schema)
+        // Save to database with all required fields
+        const baseXP = Math.floor(distance * 15); // Base XP from distance
+        const kmXP = Math.floor(distance * 3.75); // Additional km XP
+        const distanceBonus = distance >= 10 ? 5 : distance >= 5 ? 2 : 0; // Distance bonus
+        
         const { error: insertError } = await supabase
           .from('runs')
           .insert({
             user_id: userId,
             date: date,
             distance: distance,
-            xp_gained: finalXP,  // Use correct 'xp_gained' field
+            xp_gained: finalXP,
+            multiplier: streakMultiplier,
+            streak_day: streakDay,
+            base_xp: baseXP,
+            km_xp: kmXP,
+            distance_bonus: distanceBonus,
+            streak_bonus: finalXP - totalXP, // Difference from streak multiplier
             source: 'strava',
-            external_id: activity.id.toString()
+            external_id: activity.id.toString(),
+            created_at: new Date().toISOString()
           });
         
         if (insertError) {
