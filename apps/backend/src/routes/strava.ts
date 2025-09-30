@@ -437,7 +437,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
             user_id: userId,
             date: date,
             distance: distance,
-            xp: finalXP,  // Use consistent 'xp' field
+            xp_gained: finalXP,  // Use correct 'xp_gained' field
             source: 'strava',
             external_id: activity.id.toString()
           });

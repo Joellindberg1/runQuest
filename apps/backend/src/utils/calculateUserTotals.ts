@@ -11,7 +11,7 @@ export async function calculateUserTotals(userId: string) {
     // Get all runs for the user
     const { data: runs, error } = await supabase
       .from('runs')
-      .select('xp, distance, date')
+      .select('xp_gained, distance, date')
       .eq('user_id', userId)
       .order('date', { ascending: true });
 
@@ -26,7 +26,7 @@ export async function calculateUserTotals(userId: string) {
     }
 
     // Calculate totals
-    const totalXP = runs.reduce((sum, run) => sum + (run.xp || 0), 0);
+    const totalXP = runs.reduce((sum, run) => sum + (run.xp_gained || 0), 0);
     const totalDistance = runs.reduce((sum, run) => sum + (run.distance || 0), 0);
     const totalRuns = runs.length;
 
