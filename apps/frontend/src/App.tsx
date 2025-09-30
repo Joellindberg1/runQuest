@@ -1,11 +1,12 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { frontendLevelService } from "@/services/levelService";
 import Index from "./pages/Index";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
@@ -19,6 +20,11 @@ const AppContent = () => {
   const { user, loading } = useAuth();
   const path = window.location.pathname;
   console.log('🔄 Current path:', path);
+
+  // Initialize level service when app starts
+  useEffect(() => {
+    frontendLevelService.initialize().catch(console.error);
+  }, []);
 
   // 🛑 UNDANTAG: Kör aldrig AppRouter på popup-sidan
   if (path === '/strava-popup.html') {

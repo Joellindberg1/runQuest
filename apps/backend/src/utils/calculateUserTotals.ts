@@ -30,8 +30,8 @@ export async function calculateUserTotals(userId: string) {
     const totalDistance = runs.reduce((sum, run) => sum + (run.distance || 0), 0);
     const totalRuns = runs.length;
 
-    // Calculate level from XP
-    const level = getLevelFromXP(totalXP);
+    // Calculate level from XP using database level requirements
+    const level = await getLevelFromXP(totalXP);
 
     // Calculate current streak
     const currentStreak = calculateCurrentStreak(runs);
