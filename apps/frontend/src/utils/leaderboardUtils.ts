@@ -3,23 +3,13 @@ import { Run, User } from '@/types/run'
 import { getLevelFromXP, getXPForLevel } from './xpCalculation';
 
 export const leaderboardUtils = {
-  // Level system with exact XP requirements
-  levelXpRequirements: [
-    0, 50, 102.5, 158.15, 217.139, 280.84712, 349.6518896, 423.9610408, 504.9580155, 594.0546878,
-    693.8429607, 806.6037091, 934.0233548, 1079.281751, 1244.876322, 1436.966025, 1659.790081, 1920.494226,
-    2228.125117, 2591.129568, 3026.73491, 3549.46132, 4181.960276, 4953.609002, 5902.736936, 7089.146852,
-    8584.023347, 10482.5165, 12912.58773, 16071.68033
-  ],
-
-  getXPForLevel(level: number): number {
-    return level <= 30 ? this.levelXpRequirements[level - 1] : this.levelXpRequirements[29];
-  },
-
   filterAndSortUsers(users: User[]): User[] {
     const filteredUsers = users.filter(user => user.name.toLowerCase() !== 'admin');
     return [...filteredUsers].sort((a, b) => {
-      if (a.current_level !== b.current_level) {
-        return b.current_level - a.current_level; // Higher level first
+      const aLevel = getLevelFromXP(a.total_xp);
+      const bLevel = getLevelFromXP(b.total_xp);
+      if (aLevel !== bLevel) {
+        return bLevel - aLevel; // Higher level first
       }
       return b.total_xp - a.total_xp; // Higher XP first if same level
     });
@@ -27,12 +17,14 @@ export const leaderboardUtils = {
 
   getUserPosition(user: User, sortedUsers: User[]): number {
     let position = 1;
+    const userLevel = getLevelFromXP(user.total_xp);
     
     for (const sortedUser of sortedUsers) {
       if (sortedUser.id === user.id) break;
       
-      if (sortedUser.current_level > user.current_level || 
-          (sortedUser.current_level === user.current_level && sortedUser.total_xp > user.total_xp)) {
+      const sortedUserLevel = getLevelFromXP(sortedUser.total_xp);
+      if (sortedUserLevel > userLevel || 
+          (sortedUserLevel === userLevel && sortedUser.total_xp > user.total_xp)) {
         position++;
       }
     }

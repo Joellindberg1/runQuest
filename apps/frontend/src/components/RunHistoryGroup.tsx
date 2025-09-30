@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, Trophy, Zap, Target } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types/run';
+import { getLevelFromXP } from '@/utils/xpCalculation';
 
 interface RunWithUser {
   id: string;
@@ -42,7 +43,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
         .from('runs')
         .select(`
           *,
-          users!inner(name, current_level, profile_picture)
+          users!inner(name, current_level, profile_picture, total_xp)
         `)
         .order('date', { ascending: false })
         .limit(100);
@@ -65,7 +66,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
         streak_bonus: run.streak_bonus,
         source: run.source,
         user_name: run.users.name,
-        user_level: run.users.current_level,
+        user_level: getLevelFromXP(run.users.total_xp || 0),  // Calculate level from XP!
         user_profile_picture: run.users.profile_picture
       })) || [];
 

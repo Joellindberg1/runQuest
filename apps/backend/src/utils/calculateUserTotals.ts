@@ -44,7 +44,7 @@ export async function calculateUserTotals(userId: string) {
         total_distance: totalDistance,
         total_runs: totalRuns,
         current_streak: currentStreak,
-        level: level  // Now consistent with frontend!
+        current_level: level  // Now consistent with frontend!
       })
       .eq('id', userId);
 

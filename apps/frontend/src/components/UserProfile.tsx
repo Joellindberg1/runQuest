@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { runService } from '@/services/runService';
 import { UserTitle, User as UserType, Run } from '@/types/run';
 import { EditRunDialog } from './EditRunDialog';
+import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/utils/xpCalculation';
 
 interface UserProfileProps {
   user: UserType;
@@ -22,30 +23,9 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
   const [editingRun, setEditingRun] = useState<Run | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
 
-  // Level system with exact XP requirements as specified
-  const levelXpRequirements = [
-    0, 50, 102.5, 158.15, 217.139, 280.84712, 349.6518896, 423.9610408, 504.9580155, 594.0546878,
-    693.8429607, 806.6037091, 934.0233548, 1079.281751, 1244.876322, 1436.966025, 1659.790081, 1920.494226,
-    2228.125117, 2591.129568, 3026.73491, 3549.46132, 4181.960276, 4953.609002, 5902.736936, 7089.146852,
-    8584.023347, 10482.5165, 12912.58773, 16071.68033
-  ];
-
-  const getXPForLevel = (level: number) => {
-    return level <= 30 ? levelXpRequirements[level - 1] : levelXpRequirements[29];
-  };
-
-  const getCurrentLevel = (xp: number) => {
-    for (let i = levelXpRequirements.length - 1; i >= 0; i--) {
-      if (xp >= levelXpRequirements[i]) {
-        return Math.min(i + 1, 30);
-      }
-    }
-    return 1;
-  };
-
-  const currentLevel = user.current_level;
+  const currentLevel = getLevelFromXP(user.total_xp);
   const currentLevelXP = getXPForLevel(currentLevel);
-  const nextLevelXP = currentLevel < 30 ? getXPForLevel(currentLevel + 1) : currentLevelXP;
+  const nextLevelXP = currentLevel < 30 ? getXPForNextLevel(currentLevel) : currentLevelXP;
   const xpProgress = currentLevel < 30 ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
 
   const getStreakMultiplier = (streak: number) => {
@@ -212,7 +192,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">Lvl {user.current_level}</div>
+                <div className="text-2xl font-bold text-blue-600">Lvl {currentLevel}</div>
                 <div className="text-sm text-gray-600">Level</div>
               </div>
               <div className="text-center">

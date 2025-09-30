@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { runService } from '@/services/runService';
 import { toast } from 'sonner';
+import { getLevelFromXP } from '@/utils/xpCalculation';
 
 interface Run {
   id: string;
@@ -149,8 +150,10 @@ const Index: React.FC = () => {
 
   // Sort users by level first, then by XP
   const sortedUsers = [...users].sort((a, b) => {
-    if (a.current_level !== b.current_level) {
-      return b.current_level - a.current_level;
+    const aLevel = getLevelFromXP(a.total_xp);
+    const bLevel = getLevelFromXP(b.total_xp);
+    if (aLevel !== bLevel) {
+      return bLevel - aLevel;
     }
     return b.total_xp - a.total_xp;
   });
