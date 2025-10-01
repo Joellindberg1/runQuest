@@ -407,10 +407,10 @@ async function syncUserStravaActivities(userId: string): Promise<{
   try {
     const supabase = getSupabaseClient();
     
-    // Get user's Strava tokens
+    // Get user's Strava tokens (including connection_date)
     const { data: tokens, error: tokenError } = await supabase
       .from('strava_tokens')
-      .select('*')
+      .select('access_token, refresh_token, expires_at, connection_date')
       .eq('user_id', userId)
       .single();
     
@@ -453,11 +453,23 @@ async function syncUserStravaActivities(userId: string): Promise<{
     
     const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
     
-    // Fetch activities from Strava (last 30 days + today)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    thirtyDaysAgo.setHours(0, 0, 0, 0); // Start from beginning of day
-    const after = Math.floor(thirtyDaysAgo.getTime() / 1000);
+    // Fetch activities from Strava (from connection date onwards)
+    let after: number;
+    
+    if (tokens.connection_date) {
+      // Use connection date as starting point
+      const connectionDate = new Date(tokens.connection_date);
+      connectionDate.setHours(0, 0, 0, 0); // Start from beginning of connection day
+      after = Math.floor(connectionDate.getTime() / 1000);
+      console.log(`📅 Using connection date as starting point: ${connectionDate.toISOString()}`);
+    } else {
+      // Fallback to 30 days ago if no connection date (for legacy users)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+      after = Math.floor(thirtyDaysAgo.getTime() / 1000);
+      console.log(`⚠️ No connection date found, falling back to 30 days ago: ${thirtyDaysAgo.toISOString()}`);
+    }
     
     console.log(`📅 Fetching activities after: ${new Date(after * 1000).toISOString()} (including today)`);
     
@@ -524,8 +536,8 @@ async function syncUserStravaActivities(userId: string): Promise<{
         
         console.log(`🏃‍♂️ Processing run: ${distance.toFixed(2)}km on ${date}`);
         
-        // Use centralized XP calculation
-        const totalXP = calculateRunXP(distance);
+        // Use unified XP calculation from admin_settings
+        const xpResult = await calculateRunXP(distance);
         
         // Import the StreakService
         const { StreakService } = await import('../services/streakService.js');
@@ -533,13 +545,24 @@ async function syncUserStravaActivities(userId: string): Promise<{
         // Calculate proper streak using new service
         const streakResult = await StreakService.calculateUserStreaks(userId, date);
         const streakDay = streakResult.streakDayForRun;
-        const streakMultiplier = streakDay >= 5 ? 1.1 : 1.0;
-        const finalXP = Math.round(totalXP * streakMultiplier);
         
-        // Save to database with all required fields
-        const baseXP = Math.floor(distance * 15); // Base XP from distance
-        const kmXP = Math.floor(distance * 3.75); // Additional km XP
-        const distanceBonus = distance >= 10 ? 5 : distance >= 5 ? 2 : 0; // Distance bonus
+        // Get streak multiplier from admin settings
+        const { data: multipliers } = await supabase
+          .from('streak_multipliers')
+          .select('*')
+          .order('days');
+          
+        let streakMultiplier = 1.0;
+        if (multipliers) {
+          for (const mult of multipliers) {
+            if (streakDay >= mult.days) {
+              streakMultiplier = mult.multiplier;
+            }
+          }
+        }
+        
+        const finalXP = Math.round(xpResult.totalXP * streakMultiplier);
+        const streakBonus = finalXP - xpResult.totalXP;
         
         const { error: insertError } = await supabase
           .from('runs')
@@ -550,10 +573,10 @@ async function syncUserStravaActivities(userId: string): Promise<{
             xp_gained: finalXP,
             multiplier: streakMultiplier,
             streak_day: streakDay,
-            base_xp: baseXP,
-            km_xp: kmXP,
-            distance_bonus: distanceBonus,
-            streak_bonus: finalXP - totalXP, // Difference from streak multiplier
+            base_xp: xpResult.baseXP,
+            km_xp: xpResult.kmXP,
+            distance_bonus: xpResult.distanceBonus,
+            streak_bonus: streakBonus,
             source: 'strava',
             external_id: activity.id.toString(),
             created_at: new Date().toISOString()
