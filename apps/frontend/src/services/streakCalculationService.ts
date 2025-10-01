@@ -1,25 +1,25 @@
 
 export const streakCalculationService = {
+  /**
+   * Beräknar streak för en ny run baserat på befintliga runs
+   * Använder samma logik som backend StreakService
+   */
   calculateStreak(existingRuns: any[], newRunDate: string): { streakDay: number, streakBonus: number } {
     const runs = [...existingRuns]
-    const newDate = new Date(newRunDate)
-    
-    runs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    
-    let streakDay = 1
-    let lastDate = newDate
-    
-    for (let i = runs.length - 1; i >= 0; i--) {
-      const runDate = new Date(runs[i].date)
-      const daysDiff = Math.floor((lastDate.getTime() - runDate.getTime()) / (1000 * 60 * 60 * 24))
-      
-      if (daysDiff === 1) {
-        streakDay++
-        lastDate = runDate
-      } else if (daysDiff > 1) {
-        break
-      }
+    if (newRunDate) {
+      runs.push({ date: newRunDate })
     }
+
+    // Skapa set av unika dagar (YYYY-MM-DD format)
+    const uniqueDays = new Set(runs.map((run: any) => run.date))
+    const sortedDays = Array.from(uniqueDays).sort() as string[]
+
+    if (sortedDays.length === 0) {
+      return { streakDay: 1, streakBonus: 0 }
+    }
+
+    // Beräkna streak day för den nya runan
+    const streakDay = this.calculateStreakDayForSpecificRun(sortedDays, newRunDate)
     
     let streakBonus = 0
     if (streakDay === 10 || (streakDay >= 30 && (streakDay - 30) % 30 === 0 && streakDay <= 330)) {
@@ -29,86 +29,125 @@ export const streakCalculationService = {
     return { streakDay, streakBonus }
   },
 
-  calculateCurrentStreak(runs: any[]): number {
-    if (runs.length === 0) return 0;
+  /**
+   * Beräknar vilken streak-dag en specifik run representerar
+   * Matchar backend-logiken exakt
+   */
+  calculateStreakDayForSpecificRun(sortedDays: string[], targetDate: string): number {
+    const targetIndex = sortedDays.indexOf(targetDate)
+    if (targetIndex === -1) return 1
 
-    // Normalisera och extrahera unika datumsträngar (YYYY-MM-DD)
-    const uniqueDates = new Set(
-      runs.map(run => {
-        const date = new Date(run.date);
-        date.setHours(0, 0, 0, 0);
-        return date.toISOString().split('T')[0];
-      })
-    );
-
-    // Konvertera tillbaka till Date-objekt och sortera fallande
-    const sortedDates = Array.from(uniqueDates)
-      .map(dateStr => new Date(dateStr))
-      .sort((a, b) => b.getTime() - a.getTime());
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
-    const firstRunDate = sortedDates[0];
-
-    // Streak måste börja idag eller igår
-    if (firstRunDate.getTime() < yesterday.getTime()) {
-      return 0;
-    }
-
-    let currentStreak = 1;
-    for (let i = 1; i < sortedDates.length; i++) {
+    let streakDay = 1
+    
+    // Räkna bakåt från target datum
+    for (let i = targetIndex - 1; i >= 0; i--) {
+      const currDate = new Date(sortedDays[i])
+      const nextDate = new Date(sortedDays[i + 1])
+      
       const daysDiff = Math.floor(
-        (sortedDates[i - 1].getTime() - sortedDates[i].getTime()) / (1000 * 60 * 60 * 24)
-      );
+        (nextDate.getTime() - currDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
 
       if (daysDiff === 1) {
-        currentStreak++;
+        streakDay++
       } else {
-        break;
+        break
       }
     }
 
-    return currentStreak;
+    return streakDay
   },
 
-  calculateLongestStreak(runs: any[]): number {
-    if (runs.length === 0) return 0;
+  /**
+   * Beräknar nuvarande aktiv streak (från senaste dagen bakåt)
+   * Matchar backend-logiken exakt
+   */
+  calculateCurrentStreak(runs: any[]): number {
+    if (runs.length === 0) return 0
 
-    // Skapa en Set med unika datum (YYYY-MM-DD)
-    const uniqueDates = new Set(
-      runs.map(run => {
-        const date = new Date(run.date);
-        date.setHours(0, 0, 0, 0); // Normalisera till midnatt
-        return date.toISOString().split('T')[0]; // Endast datumsträng
-      })
-    );
+    // Skapa set av unika dagar
+    const uniqueDays = new Set(runs.map((run: any) => {
+      const date = new Date(run.date)
+      date.setHours(0, 0, 0, 0)
+      return date.toISOString().split('T')[0]
+    }))
 
-    // Konvertera tillbaka till array av Date-objekt och sortera
-    const sortedDates = Array.from(uniqueDates)
-      .map(dateStr => new Date(dateStr))
-      .sort((a, b) => a.getTime() - b.getTime());
+    const sortedDays = Array.from(uniqueDays).sort() as string[]
 
-    let longestStreak = 1;
-    let currentStreak = 1;
+    if (sortedDays.length === 0) return 0
 
-    for (let i = 1; i < sortedDates.length; i++) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0]
+
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = yesterday.toISOString().split('T')[0]
+
+    // Kontrollera om senaste run är idag eller igår
+    const latestDay = sortedDays[sortedDays.length - 1]
+    if (latestDay !== todayStr && latestDay !== yesterdayStr) {
+      return 0 // Streak är bruten
+    }
+
+    // Räkna bakåt från senaste dagen
+    let streak = 1
+    for (let i = sortedDays.length - 2; i >= 0; i--) {
+      const currDate = new Date(sortedDays[i])
+      const nextDate = new Date(sortedDays[i + 1])
+      
       const daysDiff = Math.floor(
-        (sortedDates[i].getTime() - sortedDates[i - 1].getTime()) / (1000 * 60 * 60 * 24)
-      );
+        (nextDate.getTime() - currDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
 
       if (daysDiff === 1) {
-        currentStreak++;
+        streak++
       } else {
-        longestStreak = Math.max(longestStreak, currentStreak);
-        currentStreak = 1;
+        break
       }
     }
 
-    return Math.max(longestStreak, currentStreak);
+    return streak
+  },
+
+  /**
+   * Beräknar längsta streak i en lista av runs
+   * Matchar backend-logiken exakt
+   */
+  calculateLongestStreak(runs: any[]): number {
+    if (runs.length === 0) return 0
+
+    // Skapa set av unika dagar
+    const uniqueDays = new Set(runs.map((run: any) => {
+      const date = new Date(run.date)
+      date.setHours(0, 0, 0, 0)
+      return date.toISOString().split('T')[0]
+    }))
+
+    const sortedDays = Array.from(uniqueDays).sort() as string[]
+
+    if (sortedDays.length === 0) return 0
+
+    let longestStreak = 1
+    let currentStreak = 1
+
+    for (let i = 1; i < sortedDays.length; i++) {
+      const prevDate = new Date(sortedDays[i - 1])
+      const currDate = new Date(sortedDays[i])
+      
+      const daysDiff = Math.floor(
+        (currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
+
+      if (daysDiff === 1) {
+        currentStreak++
+      } else {
+        longestStreak = Math.max(longestStreak, currentStreak)
+        currentStreak = 1
+      }
+    }
+
+    return Math.max(longestStreak, currentStreak)
   },
 
   calculateLongestStreakUpToDate(runs: any[], cutoffDate: Date): number {

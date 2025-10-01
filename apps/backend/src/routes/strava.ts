@@ -438,16 +438,12 @@ async function syncUserStravaActivities(userId: string): Promise<{
         // Use centralized XP calculation
         const totalXP = calculateRunXP(distance);
         
-        // Get user's current streak (simplified)
-        const { data: lastRun } = await supabase
-          .from('runs')
-          .select('streak_day')
-          .eq('user_id', userId)
-          .order('date', { ascending: false })
-          .limit(1)
-          .single();
+        // Import the StreakService
+        const { StreakService } = await import('../services/streakService.js');
         
-        const streakDay = (lastRun?.streak_day || 0) + 1;
+        // Calculate proper streak using new service
+        const streakResult = await StreakService.calculateUserStreaks(userId, date);
+        const streakDay = streakResult.streakDayForRun;
         const streakMultiplier = streakDay >= 5 ? 1.1 : 1.0;
         const finalXP = Math.round(totalXP * streakMultiplier);
         

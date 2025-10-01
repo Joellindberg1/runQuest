@@ -33,8 +33,11 @@ export async function calculateUserTotals(userId: string) {
     // Calculate level from XP using database level requirements
     const level = await getLevelFromXP(totalXP);
 
-    // Calculate current streak
-    const currentStreak = calculateCurrentStreak(runs);
+    // Calculate current streak using new StreakService
+    const { StreakService } = await import('../services/streakService.js');
+    const streakResult = await StreakService.calculateUserStreaks(userId);
+    const currentStreak = streakResult.currentStreak;
+    const longestStreak = Math.max(streakResult.longestStreak, currentStreak);
 
     // Update user record with consistent level calculation
     const { error: updateError } = await supabase
@@ -44,6 +47,7 @@ export async function calculateUserTotals(userId: string) {
         total_distance: totalDistance,
         total_runs: totalRuns,
         current_streak: currentStreak,
+        longest_streak: longestStreak,
         current_level: level  // Now consistent with frontend!
       })
       .eq('id', userId);
@@ -57,34 +61,4 @@ export async function calculateUserTotals(userId: string) {
   } catch (error) {
     console.error('Error in calculateUserTotals:', error);
   }
-}
-
-function calculateCurrentStreak(runs: any[]): number {
-  if (!runs || runs.length === 0) return 0;
-
-  // Sort runs by date (most recent first)
-  const sortedRuns = runs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  
-  let streak = 0;
-  let currentDate = new Date();
-  currentDate.setHours(0, 0, 0, 0); // Start of today
-  
-  for (const run of sortedRuns) {
-    const runDate = new Date(run.date);
-    runDate.setHours(0, 0, 0, 0);
-    
-    const daysDiff = Math.floor((currentDate.getTime() - runDate.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (daysDiff === streak) {
-      // This run is on the expected day
-      streak++;
-      currentDate.setDate(currentDate.getDate() - 1); // Move to previous day
-    } else if (daysDiff > streak) {
-      // Gap in the streak, stop counting
-      break;
-    }
-    // If daysDiff < streak, this run is on the same day as a previous run, continue
-  }
-  
-  return streak;
 }
