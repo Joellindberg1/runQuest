@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, AlertCircle, XCircle, ExternalLink, ArrowLeft } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { CheckCircle, AlertCircle, XCircle, ExternalLink, ArrowLeft, Lock } from 'lucide-react';
 import { backendApi } from '@/services/backendApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +25,14 @@ export const SettingsPage: React.FC = () => {
   const [stravaStatus, setStravaStatus] = useState<StravaStatus>({ connected: false, expired: false });
   const [loading, setLoading] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
+  
+  // Password change state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [stravaClientId, setStravaClientId] = useState<string | null>(null);
 
   const fetchStravaConfig = async () => {
@@ -186,6 +196,39 @@ export const SettingsPage: React.FC = () => {
 
   const handleBackClick = () => navigate('/');
 
+  const handleChangePassword = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      toast.error('Please fill in all password fields');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const result = await backendApi.changePassword(passwordData.currentPassword, passwordData.newPassword);
+      if (result.success) {
+        toast.success('Password changed successfully!');
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        toast.error(result.error || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error('Password change error:', error);
+      toast.error('Failed to change password');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const handleTestManualStravaCode = async () => {
     const testCode = "a3a25f358f358eea18c72589174c9a1cdcac7e10";
 
@@ -336,6 +379,65 @@ export const SettingsPage: React.FC = () => {
                   💻 Testa Strava-kod manuellt
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="w-5 h-5" />
+                Change Password
+              </CardTitle>
+              <CardDescription>Update your account password</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                  placeholder="Enter current password"
+                />
+              </div>
+              <div>
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                  placeholder="Enter new password (min 6 chars)"
+                />
+              </div>
+              <div>
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                  placeholder="Confirm new password"
+                />
+              </div>
+              <Button 
+                onClick={handleChangePassword} 
+                disabled={passwordLoading}
+                className="flex items-center gap-2"
+              >
+                {passwordLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Changing...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    Change Password
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
 

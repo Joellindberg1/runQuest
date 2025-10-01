@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { User, Settings, LogOut } from 'lucide-react';
+import { User, Settings, LogOut, Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,6 +12,10 @@ export const ProfileMenu: React.FC = () => {
 
   const handleSettingsClick = () => {
     navigate('/settings');
+  };
+
+  const handleFeaturesClick = () => {
+    navigate('/features');
   };
 
   const handleLogoutClick = () => {
@@ -24,9 +28,9 @@ export const ProfileMenu: React.FC = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="rounded-full w-10 h-10 p-0">
-          {user.profile_picture ? (
+          {(user as any).profile_picture ? (
             <img 
-              src={user.profile_picture} 
+              src={(user as any).profile_picture} 
               alt="Profile" 
               className="w-8 h-8 rounded-full object-cover"
             />
@@ -39,6 +43,10 @@ export const ProfileMenu: React.FC = () => {
         <DropdownMenuItem onClick={handleSettingsClick}>
           <Settings className="w-4 h-4 mr-2" />
           Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleFeaturesClick}>
+          <Info className="w-4 h-4 mr-2" />
+          Features & Version
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogoutClick}>
           <LogOut className="w-4 h-4 mr-2" />

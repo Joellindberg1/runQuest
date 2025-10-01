@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getSupabaseClient } from '../config/database.js';
 
 interface LevelRequirement {
   level: number;
@@ -18,6 +13,7 @@ class LevelService {
     if (this.initialized) return;
 
     try {
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('level_requirements')
         .select('level, xp_required')

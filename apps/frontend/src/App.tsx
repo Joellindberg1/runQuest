@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
 import SettingsPage from "./pages/SettingsPage";
+import FeaturesPage from "./pages/FeaturesPage";
 import StravaCallbackPage from "./pages/StravaCallbackPage";
 import NotFound from "./pages/NotFound";
 
@@ -43,7 +44,7 @@ const AppContent = () => {
     return <LoginPage />;
   }
 
-  const isAdmin = user.name.toLowerCase() === 'admin';
+  const isAdmin = (user as any).name.toLowerCase() === 'admin';
 
   return (
     <BrowserRouter>
@@ -56,6 +57,7 @@ const AppContent = () => {
             <Route path="/" element={isAdmin ? <Navigate to="/admin" replace /> : <Index />} />
             <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
             <Route path="/settings" element={isAdmin ? <Navigate to="/admin" replace /> : <SettingsPage />} />
+            <Route path="/features" element={<FeaturesPage />} />
             <Route path="*" element={<NotFound />} />
           </>
         )}

@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, Users, Trophy, Target, Plus, Save } from 'lucide-react';
+import { Settings, Users, Trophy, Target, Plus, Save, Info, Edit, Key, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { backendApi } from '@/services/backendApi';
+import { toast } from 'sonner';
 
 interface AdminSettings {
   xpPerRun: number;
@@ -23,11 +26,16 @@ interface AdminSettings {
 interface User {
   id: number;
   name: string;
-  password: string;
-  profilePicture?: string;
+  email: string;
+  total_xp?: number;
+  current_level?: number;
+  total_runs?: number;
+  current_streak?: number;
+  created_at?: string;
 }
 
 const AdminPage: React.FC = () => {
+  const navigate = useNavigate();
   const [adminPassword, setAdminPassword] = useState('admin123');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [settings, setSettings] = useState<AdminSettings>({
@@ -68,14 +76,35 @@ const AdminPage: React.FC = () => {
     }
   });
 
-  const [users, setUsers] = useState<User[]>([
-    { id: 1, name: "Alex Runner", password: "pass123" },
-    { id: 2, name: "Sarah Swift", password: "pass456" }
-  ]);
-
-  const [newUser, setNewUser] = useState({ name: '', password: '', profilePicture: '' });
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '' });
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [newPasswordForUser, setNewPasswordForUser] = useState('');
   const [newMultiplierDay, setNewMultiplierDay] = useState('');
   const [newMultiplierValue, setNewMultiplierValue] = useState('');
+
+  // Fetch users from database
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const result = await backendApi.getAllUsers();
+      if (result.success && result.data) {
+        setUsers(result.data);
+      } else {
+        toast.error('Failed to fetch users: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to fetch users');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
 
   const handleSaveSettings = () => {
     // Save settings to localStorage or backend
@@ -91,12 +120,50 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const handleAddUser = () => {
-    if (newUser.name && newUser.password) {
-      const newId = Math.max(...users.map(u => u.id)) + 1;
-      setUsers([...users, { ...newUser, id: newId }]);
-      setNewUser({ name: '', password: '', profilePicture: '' });
-      alert('User added successfully!');
+  const handleAddUser = async () => {
+    if (!newUser.name || !newUser.email || !newUser.password) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    if (newUser.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      const result = await backendApi.createUser(newUser.name, newUser.email, newUser.password);
+      if (result.success && result.data) {
+        setUsers([...users, result.data]);
+        setNewUser({ name: '', email: '', password: '' });
+        toast.success('User created successfully!');
+      } else {
+        toast.error(result.error || 'Failed to create user');
+      }
+    } catch (error) {
+      console.error('Error creating user:', error);
+      toast.error('Failed to create user');
+    }
+  };
+
+  const handleResetUserPassword = async (userId: number) => {
+    if (!newPasswordForUser || newPasswordForUser.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      const result = await backendApi.resetUserPassword(userId, newPasswordForUser);
+      if (result.success) {
+        setEditingUser(null);
+        setNewPasswordForUser('');
+        toast.success('Password reset successfully!');
+      } else {
+        toast.error(result.error || 'Failed to reset password');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast.error('Failed to reset password');
     }
   };
 
@@ -113,10 +180,37 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const handleLogout = () => {
+    backendApi.logout();
+    toast.success('Logged out successfully');
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <div></div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/features')}
+                className="flex items-center gap-2"
+              >
+                <Info className="w-4 h-4" />
+                Features & Version
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </Button>
+            </div>
+          </div>
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Göteborgsvarvet 2026 - Admin Panel</h1>
           <p className="text-lg text-gray-600">Configure Running Challenge Settings</p>
         </header>
@@ -302,19 +396,21 @@ const AdminPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <Label>Password</Label>
+                      <Label>Email</Label>
                       <Input
-                        value={newUser.password}
-                        onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                        placeholder="Enter password"
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                        placeholder="Enter email"
                       />
                     </div>
                     <div>
-                      <Label>Profile Picture URL (optional)</Label>
+                      <Label>Password</Label>
                       <Input
-                        value={newUser.profilePicture}
-                        onChange={(e) => setNewUser({...newUser, profilePicture: e.target.value})}
-                        placeholder="Enter image URL"
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                        placeholder="Enter password (min 6 chars)"
                       />
                     </div>
                   </div>
@@ -330,19 +426,50 @@ const AdminPage: React.FC = () => {
                   <CardTitle>Current Users</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {users.map(user => (
-                      <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <span className="font-semibold">{user.name}</span>
-                          <span className="text-sm text-muted-foreground ml-2">ID: {user.id}</span>
+                  {loadingUsers ? (
+                    <div className="text-center py-4">Loading users...</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {users.map(user => (
+                        <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-semibold">{user.name}</div>
+                            <div className="text-sm text-muted-foreground">{user.email}</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Level {user.current_level} • {user.total_xp} XP • {user.total_runs} runs • {user.current_streak} streak
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {editingUser?.id === user.id ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="password"
+                                  placeholder="New password"
+                                  value={newPasswordForUser}
+                                  onChange={(e) => setNewPasswordForUser(e.target.value)}
+                                  className="w-32"
+                                />
+                                <Button size="sm" onClick={() => handleResetUserPassword(user.id)}>
+                                  <Save className="w-4 h-4" />
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => {setEditingUser(null); setNewPasswordForUser('');}}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button size="sm" variant="outline" onClick={() => setEditingUser(user)}>
+                                <Key className="w-4 h-4 mr-1" />
+                                Reset Password
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          Password: {user.password}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                      {users.length === 0 && !loadingUsers && (
+                        <div className="text-center py-4 text-muted-foreground">No users found</div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -388,10 +515,6 @@ const AdminPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div>
-                    <Label>Current Admin Password</Label>
-                    <Input value={adminPassword} disabled />
-                  </div>
                   <div>
                     <Label>New Admin Password</Label>
                     <Input

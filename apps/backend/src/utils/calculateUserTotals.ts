@@ -1,13 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './xpCalculation.js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function calculateUserTotals(userId: string) {
   try {
+    const supabase = getSupabaseClient();
+    
     // Get all runs for the user
     const { data: runs, error } = await supabase
       .from('runs')
