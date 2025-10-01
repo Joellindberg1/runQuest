@@ -9,6 +9,7 @@ interface AuthContextType {
   login: (nameOrEmail: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   loading: boolean;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,6 +18,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<unknown | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Check if current user is admin
+  const isAdmin = user && typeof user === 'object' && 'is_admin' in user 
+    ? Boolean((user as any).is_admin) 
+    : false;
 
   // 🔄 Initialize authentication state
   useEffect(() => {
@@ -134,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, session, login, logout, loading, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

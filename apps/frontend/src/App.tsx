@@ -18,7 +18,7 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const path = window.location.pathname;
   console.log('🔄 Current path:', path);
 
@@ -44,8 +44,6 @@ const AppContent = () => {
     return <LoginPage />;
   }
 
-  const isAdmin = (user as any).name.toLowerCase() === 'admin';
-
   return (
     <BrowserRouter>
       <Routes>
@@ -54,9 +52,9 @@ const AppContent = () => {
           <Route path="*" element={<LoginPage />} />
         ) : (
           <>
-            <Route path="/" element={isAdmin ? <Navigate to="/admin" replace /> : <Index />} />
+            <Route path="/" element={<Index />} />
             <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
-            <Route path="/settings" element={isAdmin ? <Navigate to="/admin" replace /> : <SettingsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="*" element={<NotFound />} />
           </>

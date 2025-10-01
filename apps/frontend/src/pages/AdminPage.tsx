@@ -8,6 +8,7 @@ import { Settings, Users, Trophy, Target, Plus, Save, Info, Edit, Key, LogOut } 
 import { useNavigate } from 'react-router-dom';
 import { backendApi } from '@/services/backendApi';
 import { toast } from 'sonner';
+import { ProfileMenu } from '@/components/ProfileMenu';
 
 interface AdminSettings {
   xpPerRun: number;
@@ -198,29 +199,16 @@ const AdminPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-8">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center">
             <div></div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => navigate('/features')}
-                className="flex items-center gap-2"
-              >
-                <Info className="w-4 h-4" />
-                Features & Version
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleLogout}
-                className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
-              >
-                <LogOut className="w-4 h-4" />
-                Logout
-              </Button>
+            <div>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">Göteborgsvarvet 2026 - Admin Panel</h1>
+              <p className="text-lg text-gray-600">Configure Running Challenge Settings</p>
+            </div>
+            <div>
+              <ProfileMenu />
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Göteborgsvarvet 2026 - Admin Panel</h1>
-          <p className="text-lg text-gray-600">Configure Running Challenge Settings</p>
         </header>
 
         <Tabs defaultValue="settings" className="w-full">

@@ -2,12 +2,12 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { User, Settings, LogOut, Info } from 'lucide-react';
+import { User, Settings, LogOut, Info, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export const ProfileMenu: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleSettingsClick = () => {
@@ -16,6 +16,10 @@ export const ProfileMenu: React.FC = () => {
 
   const handleFeaturesClick = () => {
     navigate('/features');
+  };
+
+  const handleAdminClick = () => {
+    navigate('/admin');
   };
 
   const handleLogoutClick = () => {
@@ -48,6 +52,12 @@ export const ProfileMenu: React.FC = () => {
           <Info className="w-4 h-4 mr-2" />
           Features & Version
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem onClick={handleAdminClick}>
+            <Shield className="w-4 h-4 mr-2" />
+            Admin Panel
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={handleLogoutClick}>
           <LogOut className="w-4 h-4 mr-2" />
           Log out

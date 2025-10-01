@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/admin.js';
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.post('/login', async (req, res) => {
     // Try to find user by email first, then by name
     let { data: user, error } = await supabase
       .from('users')
-      .select('id, name, email, password_hash')
+      .select('id, name, email, password_hash, is_admin')
       .eq('email', nameOrEmail)
       .single();
     
@@ -35,7 +36,7 @@ router.post('/login', async (req, res) => {
     if (error || !user) {
       const { data: userByName, error: errorByName } = await supabase
         .from('users')
-        .select('id, name, email, password_hash')
+        .select('id, name, email, password_hash, is_admin')
         .eq('name', nameOrEmail)
         .single();
       
@@ -64,13 +65,14 @@ router.post('/login', async (req, res) => {
       {
         user_id: user.id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        is_admin: user.is_admin || false
       },
       process.env.JWT_SECRET as string,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    console.log(`🎉 Login successful for user: ${user.name}`);
+    console.log(`🎉 Login successful for user: ${user.name} (Admin: ${user.is_admin})`);
 
     // Return token and user info
     res.json({
@@ -79,7 +81,8 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        is_admin: user.is_admin || false
       }
     });
 
@@ -168,7 +171,7 @@ router.post('/change-password', authenticateJWT, async (req, res) => {
 });
 
 // GET /api/auth/users - Admin only: Get all users
-router.get('/users', authenticateJWT, async (req, res) => {
+router.get('/users', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     console.log('👥 Admin request to fetch all users');
     console.log('🔑 Request user info:', (req as any).user);
@@ -177,7 +180,7 @@ router.get('/users', authenticateJWT, async (req, res) => {
     
     const { data: users, error } = await supabase
       .from('users')
-      .select('id, name, email, total_xp, current_level, total_runs, current_streak, created_at')
+      .select('id, name, email, total_xp, current_level, total_km, current_streak, longest_streak, created_at')
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -200,7 +203,7 @@ router.get('/users', authenticateJWT, async (req, res) => {
 });
 
 // POST /api/auth/users - Admin only: Create new user
-router.post('/users', authenticateJWT, async (req, res) => {
+router.post('/users', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     console.log('👤 Admin request to create new user');
     const { name, email, password } = req.body;
@@ -271,7 +274,7 @@ router.post('/users', authenticateJWT, async (req, res) => {
 });
 
 // PUT /api/auth/users/:id/password - Admin only: Reset user password
-router.put('/users/:id/password', authenticateJWT, async (req, res) => {
+router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     console.log('🔐 Admin request to reset user password');
     const { id } = req.params;
