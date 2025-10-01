@@ -35,7 +35,8 @@ const LoginPage: React.FC = () => {
     setError('');
     setLoading(true);
     
-    const result = await login('admin', adminPassword);
+    // Use Joel as admin user (change if needed)
+    const result = await login('Joel', adminPassword);
     
     setLoading(false);
     

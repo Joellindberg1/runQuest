@@ -171,6 +171,7 @@ router.post('/change-password', authenticateJWT, async (req, res) => {
 router.get('/users', authenticateJWT, async (req, res) => {
   try {
     console.log('👥 Admin request to fetch all users');
+    console.log('🔑 Request user info:', (req as any).user);
     
     const supabase = getSupabaseClient();
     
@@ -185,6 +186,7 @@ router.get('/users', authenticateJWT, async (req, res) => {
     }
 
     console.log(`✅ Successfully fetched ${users?.length || 0} users`);
+    console.log('📊 User data sample:', users?.slice(0, 2));
 
     res.json({
       success: true,

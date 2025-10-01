@@ -92,14 +92,22 @@ const AdminPage: React.FC = () => {
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
+      console.log('🔍 Admin: Attempting to fetch users...');
+      console.log('🔑 Token available:', !!backendApi.getToken());
+      console.log('🔐 User authenticated:', backendApi.isAuthenticated());
+      
       const result = await backendApi.getAllUsers();
+      console.log('📊 API Response:', result);
+      
       if (result.success && result.data) {
+        console.log('✅ Users fetched successfully:', result.data.length, 'users');
         setUsers(result.data);
       } else {
+        console.error('❌ Failed to fetch users:', result.error);
         toast.error('Failed to fetch users: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('❌ Error fetching users:', error);
       toast.error('Failed to fetch users');
     } finally {
       setLoadingUsers(false);
@@ -423,7 +431,17 @@ const AdminPage: React.FC = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Current Users</CardTitle>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>Current Users</CardTitle>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchUsers}
+                      disabled={loadingUsers}
+                    >
+                      🔄 Refresh Users
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {loadingUsers ? (
