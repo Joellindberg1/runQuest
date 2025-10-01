@@ -4,12 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CheckCircle, AlertCircle, XCircle, ExternalLink, ArrowLeft, Lock } from 'lucide-react';
+import { CheckCircle, AlertCircle, XCircle, ExternalLink, ArrowLeft, Lock, ChevronDown, ChevronRight } from 'lucide-react';
 import { backendApi } from '@/services/backendApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
+import { StravaIcon } from '@/components/ui/StravaIcon';
 
 interface StravaStatus {
   connected: boolean;
@@ -17,12 +18,24 @@ interface StravaStatus {
   expires_at?: number;
   auto_refreshed?: boolean;
   refresh_failed?: boolean;
+  connection_date?: string;
+  last_sync?: string;
+}
+
+interface SyncInfo {
+  last_sync_attempt: string | null;
+  last_sync_status: string;
+  next_sync_estimated: string | null;
+  users_synced?: number;
+  total_users?: number;
+  new_runs?: number;
 }
 
 export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [stravaStatus, setStravaStatus] = useState<StravaStatus>({ connected: false, expired: false });
+  const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
   
@@ -33,6 +46,7 @@ export const SettingsPage: React.FC = () => {
     confirmPassword: ''
   });
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordSectionOpen, setPasswordSectionOpen] = useState(false);
   const [stravaClientId, setStravaClientId] = useState<string | null>(null);
 
   const fetchStravaConfig = async () => {
@@ -52,18 +66,26 @@ export const SettingsPage: React.FC = () => {
   const fetchStravaStatus = async () => {
     if (!backendApi.isAuthenticated()) return;
     try {
-      const result = await backendApi.getStravaStatus();
-      if (result.success && result.data) {
-        setStravaStatus(result.data);
+      const [statusResult, syncResult] = await Promise.all([
+        backendApi.getStravaStatus(),
+        backendApi.getStravaLastSync()
+      ]);
+      
+      if (statusResult.success && statusResult.data) {
+        setStravaStatus(statusResult.data);
         
         // Visa meddelande om token auto-refreshades
-        if (result.data.auto_refreshed) {
+        if (statusResult.data.auto_refreshed) {
           toast.success('Strava-anslutning automatiskt förnyad!');
-        } else if (result.data.refresh_failed) {
+        } else if (statusResult.data.refresh_failed) {
           toast.warning('Strava-token kunde inte förnyas automatiskt');
         }
       } else {
         toast.error('Failed to fetch Strava status');
+      }
+      
+      if (syncResult.success && syncResult.data) {
+        setSyncInfo(syncResult.data);
       }
     } catch (error) {
       console.error('❌ Error fetching Strava status:', error);
@@ -312,11 +334,41 @@ export const SettingsPage: React.FC = () => {
     if (!stravaStatus.connected) {
       return 'Your Strava account is not connected. Connect it to import your runs.';
     }
-    if (stravaStatus.expired) {
-      return 'Your Strava connection has expired. Reconnect to continue importing runs.';
+    return 'Your Strava connection is active and tokens are automatically renewed as needed.';
+  };
+
+  const formatLastSync = (syncInfo: SyncInfo | null) => {
+    if (!syncInfo?.last_sync_attempt) {
+      return 'No server sync yet';
     }
-    const expiresDate = stravaStatus.expires_at ? new Date(stravaStatus.expires_at * 1000) : null;
-    return `Your Strava connection is active.${expiresDate ? ` Expires: ${expiresDate.toLocaleDateString()}` : ''}`;
+    
+    const syncDate = new Date(syncInfo.last_sync_attempt);
+    const hours = syncDate.getHours().toString().padStart(2, '0');
+    const minutes = syncDate.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const formatNextSync = (syncInfo: SyncInfo | null) => {
+    if (!syncInfo?.next_sync_estimated) {
+      return 'Unknown';
+    }
+    
+    const nextSyncDate = new Date(syncInfo.next_sync_estimated);
+    const now = new Date();
+    
+    if (nextSyncDate.getTime() < now.getTime()) {
+      return 'Overdue';
+    }
+    
+    const hours = nextSyncDate.getHours().toString().padStart(2, '0');
+    const minutes = nextSyncDate.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const formatConnectionDate = (connectionDate: string | null | undefined) => {
+    if (!connectionDate) return 'Unknown';
+    const date = new Date(connectionDate);
+    return date.toLocaleDateString();
   };
 
   return (
@@ -336,123 +388,146 @@ export const SettingsPage: React.FC = () => {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                Strava Integration {getStatusBadge()}
-              </CardTitle>
-              <CardDescription>{getStatusDescription()}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {(!stravaStatus.connected || stravaStatus.expired) && (
-                  <Button onClick={handleConnectStrava} className="flex items-center gap-2">
-                    <ExternalLink className="w-4 h-4" /> Connect Strava
-                  </Button>
-                )}
-                {stravaStatus.connected && !stravaStatus.expired && (
-                  <>
-                    <div className="text-sm text-gray-600 space-y-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Strava Integration</CardTitle>
+                  <CardDescription>{getStatusDescription()}</CardDescription>
+                  {stravaStatus.connected && (
+                    <div className="text-sm text-gray-600 space-y-1 mt-6">
                       <p>✅ Your Strava runs are imported automatically every 3 hours.</p>
                       <p>✅ Only running activities (type "Run") are imported.</p>
                       <p>✅ Duplicate activities are automatically filtered.</p>
                     </div>
-                    <Button 
-                      onClick={handleSyncStrava} 
-                      variant="outline" 
-                      className="flex items-center gap-2"
-                      disabled={syncLoading}
-                    >
-                      {syncLoading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                          Syncing...
-                        </>
-                      ) : (
-                        <>
-                          🔄 Sync Now
-                        </>
-                      )}
-                    </Button>
+                  )}
+                </div>
+                {stravaStatus.connected && (
+                  <div className="flex flex-col items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    {getStatusBadge()}
+                    <StravaIcon size={24} />
+                    <div className="text-xs text-gray-500 text-center space-y-1">
+                      <div>Connected: {formatConnectionDate(stravaStatus.connection_date)}</div>
+                      <div>Last sync: {formatLastSync(syncInfo)}</div>
+                      <div>Next sync: {formatNextSync(syncInfo)}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {!stravaStatus.connected && (
+                  <Button onClick={handleConnectStrava} className="flex items-center gap-2">
+                    <ExternalLink className="w-4 h-4" /> Connect Strava
+                  </Button>
+                )}
+                {stravaStatus.connected && (
+                  <>
+                    <div className="flex items-center gap-4">
+                      <Button 
+                        onClick={handleSyncStrava} 
+                        variant="outline" 
+                        className="flex items-center gap-2"
+                        disabled={syncLoading}
+                      >
+                        {syncLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                            Syncing...
+                          </>
+                        ) : (
+                          <>
+                            🔄 Sync Now
+                          </>
+                        )}
+                      </Button>
+                      <span className="text-xs text-gray-400">
+                        Remember, your data will be automatically synced!
+                      </span>
+                    </div>
                   </>
                 )}
                 <Separator className="my-4" />
+                {/* Hidden manual test button - keeping for debugging if needed
                 <Button variant="outline" onClick={handleTestManualStravaCode}>
                   💻 Testa Strava-kod manuellt
                 </Button>
+                */}
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lock className="w-5 h-5" />
-                Change Password
-              </CardTitle>
-              <CardDescription>Update your account password</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="currentPassword">Current Password</Label>
-                <Input
-                  id="currentPassword"
-                  type="password"
-                  value={passwordData.currentPassword}
-                  onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
-                  placeholder="Enter current password"
-                />
-              </div>
-              <div>
-                <Label htmlFor="newPassword">New Password</Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  value={passwordData.newPassword}
-                  onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
-                  placeholder="Enter new password (min 6 chars)"
-                />
-              </div>
-              <div>
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={passwordData.confirmPassword}
-                  onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
-                  placeholder="Confirm new password"
-                />
-              </div>
-              <Button 
-                onClick={handleChangePassword} 
-                disabled={passwordLoading}
-                className="flex items-center gap-2"
-              >
-                {passwordLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Changing...
-                  </>
+            <CardHeader 
+              className="cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => setPasswordSectionOpen(!passwordSectionOpen)}
+            >
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-5 h-5" />
+                  Change Password
+                </div>
+                {passwordSectionOpen ? (
+                  <ChevronDown className="w-5 h-5 text-gray-500" />
                 ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    Change Password
-                  </>
+                  <ChevronRight className="w-5 h-5 text-gray-500" />
                 )}
-              </Button>
-            </CardContent>
+              </CardTitle>
+            </CardHeader>
+            {passwordSectionOpen && (
+              <>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                      placeholder="Enter current password"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                      placeholder="Enter new password (min 6 chars)"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleChangePassword} 
+                    disabled={passwordLoading}
+                    className="flex items-center gap-2"
+                  >
+                    {passwordLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Changing...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        Change Password
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </>
+            )}
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Account Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p><strong>Username:</strong> {(user as any)?.name}</p>
-              <p><strong>Email:</strong> {(user as any)?.email}</p>
-              <p><strong>Level:</strong> {(user as any)?.current_level}</p>
-              <p><strong>Total XP:</strong> {(user as any)?.total_xp}</p>
-              <p><strong>Total Distance:</strong> {(user as any)?.total_km?.toFixed(1)} km</p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

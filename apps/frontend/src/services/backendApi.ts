@@ -334,7 +334,7 @@ class BackendApiService {
     }
   }
 
-  async getStravaStatus(): Promise<ApiResponse<{ connected: boolean; expired: boolean; expires_at?: number; auto_refreshed?: boolean; refresh_failed?: boolean }>> {
+  async getStravaStatus(): Promise<ApiResponse<{ connected: boolean; expired: boolean; expires_at?: number; auto_refreshed?: boolean; refresh_failed?: boolean; connection_date?: string; last_sync?: string }>> {
     return this.authenticatedRequest('/strava/status');
   }
 
@@ -355,6 +355,36 @@ class BackendApiService {
     return this.authenticatedRequest('/strava/disconnect', {
       method: 'DELETE',
     });
+  }
+
+  async getStravaLastSync(): Promise<ApiResponse<{ 
+    last_sync_attempt: string | null; 
+    last_sync_status: string; 
+    next_sync_estimated: string | null; 
+    users_synced?: number; 
+    total_users?: number; 
+    new_runs?: number;
+  }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/strava/last-sync`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        return { success: false, error: result.error || 'Failed to get sync info' };
+      }
+
+      return { success: true, data: result.data };
+      
+    } catch (error) {
+      console.error('❌ Get last sync error:', error);
+      return { success: false, error: 'Failed to get sync info' };
+    }
   }
 }
 

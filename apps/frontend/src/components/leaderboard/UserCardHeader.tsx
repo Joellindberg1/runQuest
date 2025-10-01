@@ -33,28 +33,28 @@ export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
   const isPodium = position <= 3;
 
   return (
-    <div className="flex items-start justify-between">
-      <div className="flex items-start gap-3">
-        <div className="relative">
-          <Avatar className="h-12 w-12">
-            <AvatarImage src={user.profile_picture || ''} />
-            <AvatarFallback className="text-sm font-semibold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
-            {level}
+    <div className="flex items-center justify-between w-full">
+      <div className="relative">
+        <Avatar className="h-12 w-12">
+          <AvatarImage src={user.profile_picture || ''} />
+          <AvatarFallback className="text-sm font-semibold">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+          {level}
+        </div>
+        {isPodium && (
+          <div className="absolute -top-1 -left-1">
+            {getPodiumIcon(position)}
           </div>
-          {isPodium && (
-            <div className="absolute -top-1 -left-1">
-              {getPodiumIcon(position)}
-            </div>
-          )}
-        </div>
-        <div className="flex-1 mt-1">
-          <h3 className="font-semibold text-lg">{user.name}</h3>
-        </div>
+        )}
       </div>
+      
+      <div className="flex-1 flex justify-center">
+        <h3 className="font-semibold text-lg">{user.name}</h3>
+      </div>
+      
       <div className="text-right">
         <span className="text-lg font-bold">#{position}</span>
       </div>

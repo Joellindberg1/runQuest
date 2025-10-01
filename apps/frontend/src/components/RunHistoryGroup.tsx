@@ -7,6 +7,8 @@ import { Calendar, Trophy, Zap, Target } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types/run';
 import { getLevelFromXP } from '@/utils/xpCalculation';
+import { ShowMoreButton } from '@/components/ui/ShowMoreButton';
+import { StravaIcon } from '@/components/ui/StravaIcon';
 
 interface RunWithUser {
   id: string;
@@ -64,10 +66,10 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
         km_xp: run.km_xp,
         distance_bonus: run.distance_bonus,
         streak_bonus: run.streak_bonus,
-        source: run.source,
+        source: run.source || undefined,
         user_name: run.users.name,
         user_level: getLevelFromXP(run.users.total_xp || 0),  // Calculate level from XP!
-        user_profile_picture: run.users.profile_picture
+        user_profile_picture: run.users.profile_picture || undefined
       })) || [];
 
       setRuns(runsWithUser);
@@ -105,7 +107,6 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold mb-2">🏃‍♂️ Group Run History 🏃‍♀️</h2>
-        <p className="text-muted-foreground">See everyone's recent runs</p>
       </div>
 
       <div className="grid gap-6">
@@ -113,22 +114,25 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
           <Card key={run.id} className="overflow-hidden bg-gradient-to-r from-blue-50 via-white to-purple-50 border-l-4 border-l-blue-500 hover:shadow-lg transition-all duration-300">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-12 h-12 border-2 border-blue-200">
-                    <AvatarImage src={run.user_profile_picture} alt={run.user_name} />
-                    <AvatarFallback className="bg-blue-100 text-blue-700 font-bold">
-                      {run.user_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                      {run.user_name}
-                      <div className="flex items-center gap-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                        <Trophy className="w-4 h-4" />
-                        Level {run.user_level}
+                <div className="flex items-start gap-4">
+                  <div className="flex flex-col items-center gap-2 w-12">
+                    <Avatar className="w-12 h-12 border-2 border-blue-200">
+                      <AvatarImage src={run.user_profile_picture} alt={run.user_name} />
+                      <AvatarFallback className="bg-blue-100 text-blue-700 font-bold">
+                        {run.user_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {run.source === 'strava' && (
+                      <div className="opacity-80">
+                        <StravaIcon size={36} />
                       </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 pr-4 flex flex-col justify-start gap-2">
+                    <CardTitle className="text-xl truncate">
+                      {run.user_name}
                     </CardTitle>
-                    <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
                         {new Date(run.date).toLocaleDateString('en-US', {
@@ -138,11 +142,12 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                           day: 'numeric'
                         })}
                       </div>
-                      {run.source === 'strava' && (
-                        <div className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold">
-                          🔗 Strava
-                        </div>
-                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                        <Trophy className="w-3 h-3" />
+                        Lvl {run.user_level}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -182,15 +187,12 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
       </div>
 
       {runs.length > 5 && (
-        <div className="text-center">
-          <Button
-            variant="outline"
-            onClick={() => setShowAll(!showAll)}
-            className="px-8 py-2 border-2 border-blue-300 text-blue-600 hover:bg-blue-50 font-semibold"
-          >
-            {showAll ? '👆 Show less...' : '👇 Show more...'}
-          </Button>
-        </div>
+        <ShowMoreButton
+          showAll={showAll}
+          onClick={() => setShowAll(!showAll)}
+          moreText="Show more..."
+          lessText="Show less..."
+        />
       )}
     </div>
   );

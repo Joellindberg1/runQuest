@@ -55,10 +55,10 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Crown className="w-6 h-6 text-yellow-500" />
-            Competitive Championship Titles
+            Competitive Titles
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Four exclusive titles that change hands when records are broken
+            Fight for four exclusive titles that change hands when records are broken
           </p>
         </CardHeader>
         <CardContent>

@@ -46,7 +46,6 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
       <div className="space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">🏆 Leaderboard 🏆</h1>
-          <p className="text-muted-foreground">Compete with your fellow runners</p>
         </div>
         <div className="text-center py-12">
           <div className="text-2xl text-gray-500 mb-2">No users found</div>
@@ -60,7 +59,6 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
     <div className="space-y-6">
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-2">🏆 Leaderboard 🏆</h1>
-        <p className="text-muted-foreground">Compete with your fellow runners</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -72,13 +70,33 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
           const titles = userTitles[user.id] || [];
           const initials = leaderboardUtils.getInitials(user.name);
           
+          const getPositionStyles = () => {
+            if (position === 1) {
+              // Gold - medium border for better visibility
+              return 'border-2 !border-amber-600 bg-amber-100 shadow-amber-200/40 shadow-lg';
+            } else if (position === 2) {
+              // Silver - medium border for better visibility
+              return 'border-2 !border-zinc-600 bg-zinc-100 shadow-zinc-300/40 shadow-lg';
+            } else if (position === 3) {
+              // Bronze - medium border for better visibility
+              return 'border-2 !border-orange-800 bg-orange-200 shadow-orange-300/40 shadow-lg';
+            }
+            // Default darker gray border for positions 4+ - same width as podium but darker color
+            return 'border-2 !border-gray-500';
+          };
+          
           return (
             <Card 
               key={user.id} 
               className={`relative ${
-                isCurrentUser ? 'ring-2 ring-green-500 bg-green-50/50' : ''
-              } ${isPodium ? 'border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-amber-50' : ''}`}
+                isCurrentUser && position > 3 ? 'ring-2 ring-green-500 bg-green-50/50' : getPositionStyles()
+              }`}
             >
+              {/* Green indicator for current user in top 3 positions */}
+              {isCurrentUser && isPodium && (
+                <div className="absolute top-2 left-2 w-4 h-4 bg-green-500 rounded-full shadow-xl shadow-green-500/70 animate-pulse z-10"></div>
+              )}
+              
               <CardHeader className="pb-3">
                 <UserCardHeader 
                   user={user}

@@ -7,8 +7,11 @@ import { Button } from '@/components/ui/button';
 import { User, Trophy, Calendar, Star, ChevronDown, Crown, Target, Pen } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { runService } from '@/services/runService';
+import { backendApi } from '@/services/backendApi';
+import { leaderboardUtils } from '@/utils/leaderboardUtils';
 import { UserTitle, User as UserType, Run } from '@/types/run';
 import { EditRunDialog } from './EditRunDialog';
+import { ShowMoreButton } from '@/components/ui/ShowMoreButton';
 import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/utils/xpCalculation';
 
 interface UserProfileProps {
@@ -20,6 +23,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
   const [userTitles, setUserTitles] = useState<UserTitle[]>([]);
   const [allTitles, setAllTitles] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<UserType[]>([]);
   const [editingRun, setEditingRun] = useState<Run | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
 
@@ -46,13 +50,18 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
 
   const fetchTitleData = async () => {
     try {
-      const [titles, titleHolders] = await Promise.all([
+      const [titles, titleHolders, usersResult] = await Promise.all([
         runService.getUserTitles(user.id),
-        runService.getTitleHolders()
+        runService.getTitleHolders(),
+        backendApi.getAllUsers()
       ]);
       
       setUserTitles(titles);
       setAllTitles(titleHolders);
+      
+      if (usersResult.success && usersResult.data) {
+        setAllUsers(usersResult.data);
+      }
     } catch (error) {
       console.error('Error fetching title data:', error);
     }
@@ -116,6 +125,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
               {heldTitles.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-green-700 mb-2">🏆 Title Holder</h4>
+                  <div className="space-y-3">
                   {heldTitles.map((title, index) => {
                     const titleData = allTitles.find(t => t.name === title.title_name);
                     const runnerUp = titleData?.runners_up?.[0];
@@ -134,12 +144,14 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               )}
               
               {runnerUpTitles.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-orange-700 mb-2">🥈 Runner-up</h4>
+                  <div className="space-y-3">
                   {runnerUpTitles.map((title, index) => {
                     const titleData = allTitles.find(t => t.name === title.title_name);
                     
@@ -157,6 +169,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               )}
             </div>
@@ -190,7 +203,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
                 </AvatarFallback>
               </Avatar>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 flex-1">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">Lvl {currentLevel}</div>
                 <div className="text-sm text-gray-600">Level</div>
@@ -206,6 +219,10 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">{user.current_streak}</div>
                 <div className="text-sm text-gray-600">Day Streak</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">#{allUsers.length > 0 ? leaderboardUtils.getUserPosition(user, leaderboardUtils.filterAndSortUsers(allUsers)) : '?'}</div>
+                <div className="text-sm text-gray-600">Position</div>
               </div>
             </div>
           </div>
@@ -272,7 +289,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {user.runs.length === 0 ? (
+          {!user.runs || user.runs.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-gray-500 mb-2">No runs logged yet</div>
               <div className="text-sm text-gray-400">Start logging your runs to see them here!</div>
@@ -310,13 +327,12 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
                 </div>
               ))}
               
-              {visibleRuns < user.runs.length && (
-                <div className="text-center pt-4">
-                  <Button onClick={showMoreRuns} variant="outline">
-                    <ChevronDown className="w-4 h-4 mr-2" />
-                    Show More Runs
-                  </Button>
-                </div>
+              {visibleRuns < (user.runs?.length || 0) && (
+                <ShowMoreButton
+                  showAll={false}
+                  onClick={showMoreRuns}
+                  moreText="Show More Runs"
+                />
               )}
             </div>
           )}

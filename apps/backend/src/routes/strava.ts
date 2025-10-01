@@ -67,12 +67,25 @@ router.get('/status', authenticateJWT, async (req, res) => {
       }
     }
     
+    // Get last global sync time (based on most recent Strava run imported by anyone)
+    const { data: lastGlobalStravaRun, error: syncError } = await supabase
+      .from('runs')
+      .select('created_at')
+      .eq('source', 'strava')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    console.log('🔍 Last global sync query result:', { lastGlobalStravaRun, syncError });
+
     console.log('✅ Strava status:', { connected: true, expired, expires_at: tokens.expires_at });
     
     res.json({
       connected: true,
       expired,
-      expires_at: tokens.expires_at
+      expires_at: tokens.expires_at,
+      connection_date: tokens.connection_date,
+      last_sync: lastGlobalStravaRun?.created_at || null
     });
     
   } catch (error) {
@@ -212,12 +225,65 @@ router.post('/sync', authenticateJWT, async (req, res) => {
   }
 });
 
+// Simple sync logging using file system (temporary solution)
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const SYNC_LOG_FILE = join(__dirname, '../../sync-log.json');
+
+async function logSyncAttempt(data: any) {
+  try {
+    let logs = [];
+    try {
+      const existing = await fs.readFile(SYNC_LOG_FILE, 'utf8');
+      logs = JSON.parse(existing);
+    } catch {
+      // File doesn't exist, start fresh
+    }
+    
+    logs.push({ ...data, timestamp: new Date().toISOString() });
+    
+    // Keep only last 50 logs
+    if (logs.length > 50) {
+      logs = logs.slice(-50);
+    }
+    
+    await fs.writeFile(SYNC_LOG_FILE, JSON.stringify(logs, null, 2));
+  } catch (error) {
+    console.error('Failed to log sync attempt:', error);
+  }
+}
+
+async function getLastSyncAttempt() {
+  try {
+    const data = await fs.readFile(SYNC_LOG_FILE, 'utf8');
+    const logs = JSON.parse(data);
+    return logs[logs.length - 1] || null;
+  } catch {
+    return null;
+  }
+}
+
 // GET /api/strava/sync-all - Sync all connected users (internal endpoint)
 router.get('/sync-all', async (req, res) => {
+  const syncStartTime = new Date().toISOString();
+  
   try {
     console.log('🔄 Starting automatic Strava sync for all connected users...');
     
     const supabase = getSupabaseClient();
+    
+    // Log sync attempt start
+    await logSyncAttempt({
+      sync_type: 'strava_automatic',
+      started_at: syncStartTime,
+      status: 'started'
+    });
     
     // Get all users with valid Strava tokens
     const { data: connectedUsers, error } = await supabase
@@ -292,6 +358,18 @@ router.get('/sync-all', async (req, res) => {
     
     console.log(`🎯 Automatic sync completed: ${totalSyncedUsers}/${connectedUsers.length} users synced, ${totalNewRuns} new runs imported`);
     
+    // Log successful sync completion
+    const syncEndTime = new Date().toISOString();
+    await logSyncAttempt({
+      sync_type: 'strava_automatic',
+      started_at: syncStartTime,
+      completed_at: syncEndTime,
+      status: 'completed',
+      users_synced: totalSyncedUsers,
+      total_users: connectedUsers.length,
+      new_runs: totalNewRuns
+    });
+
     res.json({
       success: true,
       message: `Synced ${totalSyncedUsers} users with ${totalNewRuns} new runs`,
@@ -303,6 +381,17 @@ router.get('/sync-all', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Automatic Strava sync error:', error);
+    
+    // Log failed sync
+    const syncEndTime = new Date().toISOString();
+    await logSyncAttempt({
+      sync_type: 'strava_automatic',
+      started_at: syncStartTime,
+      completed_at: syncEndTime,
+      status: 'failed',
+      error_message: error instanceof Error ? error.message : 'Unknown error'
+    });
+      
     res.status(500).json({ error: 'Failed to sync Strava activities' });
   }
 });
@@ -561,5 +650,45 @@ async function refreshStravaToken(refreshToken: string, userId: string): Promise
     return { success: false, error: 'Token refresh failed' };
   }
 }
+
+// GET /api/strava/last-sync - Get last sync attempt info
+router.get('/last-sync', async (req, res) => {
+  try {
+    const lastSync = await getLastSyncAttempt();
+    
+    if (!lastSync) {
+      return res.json({
+        success: true,
+        data: {
+          last_sync_attempt: null,
+          next_sync_estimated: null,
+          status: 'no_sync_yet'
+        }
+      });
+    }
+    
+    // Calculate next sync (3 hours after last attempt)
+    const lastSyncTime = new Date(lastSync.started_at || lastSync.timestamp);
+    const nextSyncTime = new Date(lastSyncTime.getTime() + (3 * 60 * 60 * 1000)); // +3 hours
+    
+    res.json({
+      success: true,
+      data: {
+        last_sync_attempt: lastSync.started_at || lastSync.timestamp,
+        last_sync_status: lastSync.status,
+        last_sync_completed: lastSync.completed_at,
+        users_synced: lastSync.users_synced,
+        total_users: lastSync.total_users,
+        new_runs: lastSync.new_runs,
+        next_sync_estimated: nextSyncTime.toISOString(),
+        error_message: lastSync.error_message
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to get last sync info:', error);
+    res.status(500).json({ error: 'Failed to get sync info' });
+  }
+});
 
 export default router;
