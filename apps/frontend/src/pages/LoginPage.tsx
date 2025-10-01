@@ -147,10 +147,6 @@ const LoginPage: React.FC = () => {
                   Back to User Login
                 </Button>
               </div>
-
-              <div className="mt-4 text-sm text-gray-600">
-                <p>Default admin password: admin123</p>
-              </div>
             </CardContent>
           </Card>
         )}

@@ -183,7 +183,7 @@ const AdminPage: React.FC = () => {
   const handleLogout = () => {
     backendApi.logout();
     toast.success('Logged out successfully');
-    navigate('/login');
+    navigate('/');
   };
 
   return (
