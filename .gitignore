@@ -79,5 +79,12 @@ apps/*/dist
 packages/*/dist
 
 
-DEVELOPMENT_PHASES.md
-Idé bank och pre todo
+# docs/Project mgm
+Idébank.md
+Roadmap.md
+bug_list.md
+Todo.md
+architecture.md
+INTERNAL_API.md
+STRAVA_API.md
+README_API.md
