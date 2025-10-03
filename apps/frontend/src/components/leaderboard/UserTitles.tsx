@@ -5,9 +5,10 @@ import { UserTitle } from '@/types/run';
 
 interface UserTitlesProps {
   titles: UserTitle[];
+  isLoading?: boolean;
 }
 
-export const UserTitles: React.FC<UserTitlesProps> = ({ titles }) => {
+export const UserTitles: React.FC<UserTitlesProps> = ({ titles, isLoading = false }) => {
   const formatTitlesDisplay = (titles: UserTitle[]) => {
     if (titles.length === 0) return null;
 
@@ -24,6 +25,19 @@ export const UserTitles: React.FC<UserTitlesProps> = ({ titles }) => {
   };
 
   const titlesDisplay = formatTitlesDisplay(titles);
+
+  if (isLoading) {
+    return (
+      <div className="mt-3 px-0">
+        <div className="text-xs text-muted-foreground bg-gray-50 border border-gray-300 rounded-md p-2">
+          <div className="flex items-center">
+            <div className="animate-spin h-3 w-3 border-2 border-gray-400 border-t-transparent rounded-full mr-2"></div>
+            <span>Loading titles...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!titlesDisplay) return null;
 

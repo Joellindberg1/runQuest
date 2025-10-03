@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './xpCalculation.js';
+import { enhancedTitleService } from '../services/enhancedTitleService.js';
 
 export async function calculateUserTotals(userId: string) {
   try {
@@ -53,6 +54,25 @@ export async function calculateUserTotals(userId: string) {
       console.error('Error updating user totals:', updateError);
     } else {
       console.log(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
+    }
+
+    // 🏆 Process titles after user totals are updated
+    try {
+      console.log('🏆 Processing titles after user totals update...');
+      await enhancedTitleService.processUserTitlesAfterRun(
+        userId, 
+        runs.map(run => ({
+          date: run.date,
+          distance_km: run.distance,
+          created_at: run.date // For title calculations
+        })), 
+        totalDistance, 
+        longestStreak
+      );
+      console.log('✅ Title processing completed');
+    } catch (titleError) {
+      console.error('❌ Error processing titles:', titleError);
+      // Don't fail the whole operation if title processing fails
     }
 
   } catch (error) {

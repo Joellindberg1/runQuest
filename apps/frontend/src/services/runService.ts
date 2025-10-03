@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { RunData, ProcessedRun } from '@/types/run'
 import { xpCalculationService } from './xpCalculationService'
 import { streakCalculationService } from './streakCalculationService'
-import { titleService } from './titleService'
+import { optimizedTitleService } from './optimizedTitleService' // Use new optimized service
 import { userService } from './userService'
 
 export const runService = {
@@ -228,19 +228,21 @@ export const runService = {
   },
 
   async checkAndUpdateUserTitles(userId: string, runs: any[], totalKm: number, longestStreak: number) {
-    return titleService.checkAndUpdateUserTitles(userId, runs, totalKm, longestStreak)
+    return optimizedTitleService.checkAndUpdateUserTitles(userId, runs, totalKm, longestStreak)
   },
 
   async checkTitle(titleName: string, userId: string, userValue: number, minRequirement: number, earnedAt: string, allRuns: any[]) {
-    return titleService.checkTitle(titleName, userId, userValue, minRequirement, earnedAt, allRuns)
+    // This method is deprecated in the new optimized system
+    console.log('📦 Legacy checkTitle() called - titles are now updated automatically on backend');
+    return Promise.resolve();
   },
 
   async getTitleHolders() {
-    return titleService.getTitleHolders()
+    return optimizedTitleService.getTitleHolders()
   },
 
   async getUserTitles(userId: string) {
-    return titleService.getUserTitles(userId)
+    return optimizedTitleService.getUserTitles(userId)
   },
 
   async recalculateAllTitles() {

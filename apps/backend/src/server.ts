@@ -9,6 +9,8 @@ import { testDatabaseConnection } from './config/database.js';
 import authRoutes from './routes/auth.js';
 // 🔗 Import Strava routes
 import stravaRoutes from './routes/strava.js';
+// 🏆 Import title routes
+import titleRoutes from './routes/titles.js';
 // 🕐 Import Strava scheduler
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 
@@ -133,6 +135,10 @@ app.use('/api/auth', authRoutes);
 // 🔗 Strava routes  
 console.log('🔗 Mounting Strava routes...');
 app.use('/api/strava', stravaRoutes);
+
+// 🏆 Title routes
+console.log('🏆 Mounting title routes...');
+app.use('/api/titles', titleRoutes);
 
 // 404 handler
 app.use((req, res) => {
