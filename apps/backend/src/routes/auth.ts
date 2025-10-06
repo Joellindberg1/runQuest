@@ -336,4 +336,32 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
   }
 });
 
+/**
+ * POST /api/auth/recalculate-totals
+ * Recalculate user totals and trigger title system
+ */
+router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user!.user_id;
+    console.log(`🔄 Recalculating totals for user ${userId}...`);
+    
+    const { calculateUserTotals } = await import('../utils/calculateUserTotals.js');
+    await calculateUserTotals(userId);
+    
+    res.json({
+      success: true,
+      message: 'User totals recalculated successfully',
+      userId: userId,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error recalculating user totals:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to recalculate user totals',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
