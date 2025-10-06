@@ -1,5 +1,5 @@
 // 🔗 Backend API Service - Production Ready
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // Debug logging
 console.log('🔧 Environment check:');
@@ -384,6 +384,69 @@ class BackendApiService {
     } catch (error) {
       console.error('❌ Get last sync error:', error);
       return { success: false, error: 'Failed to get sync info' };
+    }
+  }
+
+  // 🏆 Title System Methods
+  async getTitleLeaderboard(): Promise<ApiResponse<any[]>> {
+    console.log('🏆 Fetching title leaderboard from optimized backend...');
+    const response = await this.authenticatedRequest('/titles/leaderboard');
+    
+    // Extract the actual data from the nested response structure
+    if (response.success && response.data && response.data.data) {
+      return { success: true, data: response.data.data };
+    }
+    
+    return response;
+  }
+
+  async getUserTitles(userId: string): Promise<ApiResponse<any[]>> {
+    console.log(`🏆 BackendAPI: Fetching titles for user ${userId}...`);
+    const response = await this.authenticatedRequest(`/titles/user/${userId}`);
+    console.log(`🔍 BackendAPI Response for user ${userId}:`, response);
+    
+    // Extract the actual data from the nested response structure
+    if (response.success && response.data && response.data.data) {
+      const extractedData = response.data.data;
+      console.log(`🔍 Extracted data:`, extractedData);
+      return { success: true, data: extractedData };
+    }
+    
+    return response;
+  }
+
+  async getAllTitles(): Promise<ApiResponse<any[]>> {
+    console.log('🏆 Fetching all titles...');
+    const response = await this.authenticatedRequest('/titles');
+    
+    // Extract the actual data from the nested response structure
+    if (response.success && response.data && response.data.data) {
+      return { success: true, data: response.data.data };
+    }
+    
+    return response;
+  }
+
+  // 🔄 Refresh title leaderboards after data changes
+  async refreshTitleLeaderboards(): Promise<ApiResponse<any>> {
+    console.log('🔄 BackendAPI: Refreshing title leaderboards...');
+    
+    try {
+      const response = await this.authenticatedRequest('/titles/refresh', {
+        method: 'POST'
+      });
+      
+      if (!response.success) {
+        console.error('❌ Failed to refresh title leaderboards:', response.error);
+        return { success: false, error: response.error };
+      }
+      
+      console.log('✅ Title leaderboards refreshed successfully');
+      return { success: true };
+      
+    } catch (error) {
+      console.error('❌ Error refreshing title leaderboards:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 }

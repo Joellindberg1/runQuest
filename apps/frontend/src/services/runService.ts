@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { RunData, ProcessedRun } from '@/types/run'
 import { xpCalculationService } from './xpCalculationService'
 import { streakCalculationService } from './streakCalculationService'
-import { optimizedTitleService } from './optimizedTitleService' // Use new optimized service
+import { titleService } from './titleService' // Using title service via backend API
 import { userService } from './userService'
 
 export const runService = {
@@ -223,12 +223,70 @@ export const runService = {
   },
 
   async updateUserTotals(userId: string) {
-    const runs = await userService.getUserRuns(userId)
-    await userService.updateUserTotals(userId, runs)
+    try {
+      console.log('🔄 Triggering backend user totals recalculation...');
+      
+      // Call backend API to recalculate totals and trigger title system
+      const backendApi = (await import('./backendApi')).default;
+      const response = await backendApi.authenticatedRequest('/auth/recalculate-totals', {
+        method: 'POST'
+      });
+      
+      if (response.success) {
+        console.log('✅ Backend recalculation completed - titles updated automatically');
+        return;
+      } else {
+        console.error('❌ Backend recalculation failed:', response.error);
+      }
+    } catch (error) {
+      console.error('❌ Error calling backend recalculation:', error);
+    }
+    
+    // Always run fallback to ensure data consistency
+    console.log('🔄 Running fallback: direct user totals update + title trigger...');
+    
+    try {
+      const runs = await userService.getUserRuns(userId);
+      await userService.updateUserTotals(userId, runs);
+      console.log('✅ User totals updated via fallback');
+      
+      await this.triggerTitleRecalculation();
+      console.log('✅ Title recalculation triggered via fallback');
+      
+    } catch (fallbackError) {
+      console.error('❌ Fallback also failed:', fallbackError);
+      throw fallbackError;
+    }
+  },
+
+  async triggerTitleRecalculation() {
+    try {
+      console.log('🏆 Triggering title recalculation via backend...');
+      
+      const response = await fetch('http://localhost:3001/api/titles/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Title recalculation triggered successfully:', result.message);
+        return true;
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Title recalculation failed:', response.status, errorText);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error triggering title recalculation:', error);
+      return false;
+    }
   },
 
   async checkAndUpdateUserTitles(userId: string, runs: any[], totalKm: number, longestStreak: number) {
-    return optimizedTitleService.checkAndUpdateUserTitles(userId, runs, totalKm, longestStreak)
+    return titleService.checkAndUpdateUserTitles(userId, runs, totalKm, longestStreak)
   },
 
   async checkTitle(titleName: string, userId: string, userValue: number, minRequirement: number, earnedAt: string, allRuns: any[]) {
@@ -238,11 +296,11 @@ export const runService = {
   },
 
   async getTitleHolders() {
-    return optimizedTitleService.getTitleHolders()
+    return titleService.getTitleHolders()
   },
 
   async getUserTitles(userId: string) {
-    return optimizedTitleService.getUserTitles(userId)
+    return titleService.getUserTitles(userId)
   },
 
   async recalculateAllTitles() {

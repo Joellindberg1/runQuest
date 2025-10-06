@@ -1,3 +1,3 @@
 
-// Re-export the main title service for backward compatibility
-export { titleService } from './title/titleService'
+// 🔄 Main Title Service Export - Using Hybrid (Optimized + Fallback)
+export { hybridTitleService as titleService } from './title/hybridTitleService'
