@@ -520,79 +520,130 @@ async function syncUserStravaActivities(userId: string): Promise<{
       };
     }
     
-    let importedRuns = 0;
+    // Process each running activity with enhanced async handling
+    console.log(`🔄 Processing ${runningActivities.length} new running activities with enhanced async handling...`);
     
-    // Process each running activity
+    let importedRuns = 0;
+    const processingResults = [];
+    
+    // Option 1: Sequential processing (most reliable)
     for (const activity of runningActivities) {
       try {
-        const distance = activity.distance / 1000; // Convert meters to kilometers
-        const date = activity.start_date_local.split('T')[0]; // Get date part only
+        console.log(`\n🏃‍♂️ Processing activity ${activity.id} sequentially...`);
         
-        // Skip runs with 0 distance
-        if (distance <= 0) {
-          console.log(`⚠️ Skipping activity ${activity.id} with 0 distance`);
-          continue;
-        }
+        const result = await processStravaRunSequentially(activity, userId);
         
-        console.log(`🏃‍♂️ Processing run: ${distance.toFixed(2)}km on ${date}`);
-        
-        // Use unified XP calculation from admin_settings
-        const xpResult = await calculateRunXP(distance);
-        
-        // Import the StreakService
-        const { StreakService } = await import('../services/streakService.js');
-        
-        // Calculate proper streak using new service
-        const streakResult = await StreakService.calculateUserStreaks(userId, date);
-        const streakDay = streakResult.streakDayForRun;
-        
-        // Get streak multiplier from admin settings
-        const { data: multipliers } = await supabase
-          .from('streak_multipliers')
-          .select('*')
-          .order('days');
-          
-        let streakMultiplier = 1.0;
-        if (multipliers) {
-          for (const mult of multipliers) {
-            if (streakDay >= mult.days) {
-              streakMultiplier = mult.multiplier;
-            }
-          }
-        }
-        
-        const finalXP = Math.round(xpResult.totalXP * streakMultiplier);
-        const streakBonus = finalXP - xpResult.totalXP;
-        
-        const { error: insertError } = await supabase
-          .from('runs')
-          .insert({
-            user_id: userId,
-            date: date,
-            distance: distance,
-            xp_gained: finalXP,
-            multiplier: streakMultiplier,
-            streak_day: streakDay,
-            base_xp: xpResult.baseXP,
-            km_xp: xpResult.kmXP,
-            distance_bonus: xpResult.distanceBonus,
-            streak_bonus: streakBonus,
-            source: 'strava',
-            external_id: activity.id.toString(),
-            created_at: new Date().toISOString()
-          });
-        
-        if (insertError) {
-          console.error(`❌ Failed to save run ${activity.id}:`, insertError);
-        } else {
+        if (result.success) {
           importedRuns++;
-          console.log(`✅ Imported run: ${distance.toFixed(2)}km, ${finalXP} XP`);
+          processingResults.push({ activity_id: activity.id, success: true });
+          console.log(`✅ Activity ${activity.id} processed successfully`);
+        } else {
+          processingResults.push({ activity_id: activity.id, success: false, error: result.error });
+          console.error(`❌ Activity ${activity.id} failed: ${result.error}`);
         }
         
-      } catch (activityError) {
-        console.error(`❌ Error processing activity ${activity.id}:`, activityError);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        processingResults.push({ activity_id: activity.id, success: false, error: errorMessage });
+        console.error(`❌ Unexpected error processing activity ${activity.id}:`, errorMessage);
       }
     }
+
+// Helper function for sequential processing of single activity
+async function processStravaRunSequentially(activity: any, userId: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const distance = activity.distance / 1000;
+  const date = activity.start_date_local.split('T')[0];
+  
+  // Skip runs with 0 distance
+  if (distance <= 0) {
+    console.log(`⚠️ Skipping activity ${activity.id} with 0 distance`);
+    return { success: true }; // Not an error, just skip
+  }
+  
+  console.log(`📊 Calculating values for ${distance.toFixed(2)}km run on ${date}...`);
+  
+  // Phase 1: Calculate ALL values with proper async/await
+  const xpResult = await calculateRunXP(distance);
+  console.log(`  ✅ XP calculated: ${xpResult.totalXP} (Base: ${xpResult.baseXP}, KM: ${xpResult.kmXP}, Bonus: ${xpResult.distanceBonus})`);
+  
+  // Import and calculate streak - WAIT for completion
+  const { StreakService } = await import('../services/streakService.js');
+  const streakResult = await StreakService.calculateUserStreaks(userId, date);
+  console.log(`  ✅ Streak calculated: Day ${streakResult.streakDayForRun} of current ${streakResult.currentStreak}-day streak`);
+  
+  // Get multiplier data - WAIT for completion
+  const { data: multipliers } = await supabase
+    .from('streak_multipliers')
+    .select('*')
+    .order('days');
+  console.log(`  ✅ Multipliers loaded: ${multipliers?.length || 0} tiers`);
+  
+  // Calculate final values
+  let streakMultiplier = 1.0;
+  if (multipliers) {
+    for (const mult of multipliers) {
+      if (streakResult.streakDayForRun >= mult.days) {
+        streakMultiplier = mult.multiplier;
+      }
+    }
+  }
+  
+  const finalXP = Math.round(xpResult.totalXP * streakMultiplier);
+  const streakBonus = finalXP - xpResult.totalXP;
+  
+  console.log(`  � Final calculation: ${finalXP} XP (${streakMultiplier}x multiplier = +${streakBonus} bonus)`);
+  
+  // Phase 2: Validate ALL data BEFORE saving
+  if (distance > 0 && finalXP <= 0) {
+    throw new Error(`XP validation failed: ${distance}km run resulted in ${finalXP} XP`);
+  }
+  
+  if (!xpResult.baseXP && !xpResult.kmXP && distance > 0) {
+    throw new Error(`XP breakdown validation failed: base=${xpResult.baseXP}, km=${xpResult.kmXP} for ${distance}km`);
+  }
+  
+  console.log(`  ✅ All validations passed`);
+  
+  // Phase 3: Atomic database save with verification
+  const runData = {
+    user_id: userId,
+    date: date,
+    distance: distance,
+    xp_gained: finalXP,
+    multiplier: streakMultiplier,
+    streak_day: streakResult.streakDayForRun,
+    base_xp: xpResult.baseXP,
+    km_xp: xpResult.kmXP,
+    distance_bonus: xpResult.distanceBonus,
+    streak_bonus: streakBonus,
+    source: 'strava',
+    external_id: activity.id.toString(),
+    created_at: new Date().toISOString()
+  };
+  
+  const { data: savedRun, error: insertError } = await supabase
+    .from('runs')
+    .insert(runData)
+    .select()
+    .single();
+  
+  if (insertError) {
+    throw new Error(`Database insert failed: ${insertError.message}`);
+  }
+  
+  // Phase 4: Verify data integrity
+  if (savedRun.xp_gained !== finalXP) {
+    console.error(`❌ DATA INTEGRITY ERROR: Saved XP ${savedRun.xp_gained} ≠ calculated XP ${finalXP}`);
+    throw new Error(`Data integrity check failed after save`);
+  }
+  
+  console.log(`  ✅ Data integrity verified: Saved run has correct XP (${savedRun.xp_gained})`);
+  
+  return { success: true };
+}
     
     // Update user totals if any runs were imported
     if (importedRuns > 0) {
