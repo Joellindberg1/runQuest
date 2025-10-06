@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings, ChevronDown, ChevronRight, Sparkles, Wrench, Bug, ScrollText } from 'lucide-react';
+import { CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings, ChevronDown, ChevronRight, Sparkles, Wrench, Bug, ScrollText, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProfileMenu } from '@/components/ProfileMenu';
@@ -16,7 +16,7 @@ const FeaturesPage: React.FC = () => {
   const [versionOpen, setVersionOpen] = useState(false);
   const [workingOnOpen, setWorkingOnOpen] = useState(false);
 
-  const currentVersion = "v1.3.0";
+  const currentVersion = "Version 0.1.0";
   const releaseDate = "6 okt 2025";
 
   // Features som visas direkt i 2x3 grid
@@ -56,38 +56,26 @@ const FeaturesPage: React.FC = () => {
   // Working on features
   const workingOnFeatures = [
     {
-      icon: <Users className="w-5 h-5" />,
-      title: "User Password Management",
-      description: "Allow users to change their own passwords",
-      details: ["Password change in settings", "Secure validation", "Email verification"]
-    },
-    {
-      icon: <Trophy className="w-5 h-5" />,
-      title: "Challenge System", 
-      description: "Weekly and monthly challenges",
-      details: ["Distance challenges", "Streak challenges", "Group competitions"]
-    },
-    {
-      icon: <Zap className="w-5 h-5" />,
-      title: "Push Notifications",
-      description: "Real-time updates and reminders", 
-      details: ["Achievement notifications", "Streak reminders", "Challenge updates"]
+      icon: <Moon className="w-5 h-5" />,
+      title: "Dark mode",
+      description: "Change between light and dark themes", 
+      details: ["Runquest will choose system theme first"]
     }
   ];
 
   // Version changelog
-  const versionChanges = {
-    newFeatures: [
-      "Lagt till \"Dark Mode\"",
-      "Ny statistikvy på dashboard"
-    ],
-    improvements: [
-      "Snabbare sidladdning på mobiler"
-    ],
-    bugFixes: [
-      "Fixat problem där vissa användare inte kunde byta lösenord"
-    ]
-  };
+  // const versionChanges = {
+  //   newFeatures: [
+  //     "Lagt till \"Dark Mode\"",
+  //     "Ny statistikvy på dashboard"
+  //   ],
+  //   improvements: [
+  //     "Snabbare sidladdning på mobiler"
+  //   ],
+  //   bugFixes: [
+  //     "Fixat problem där vissa användare inte kunde byta lösenord"
+  //   ]
+  // };
 
   const handleFeaturesToggle = () => {
     if (!featuresOpen) {
@@ -178,7 +166,8 @@ const FeaturesPage: React.FC = () => {
           </Card>
 
           {/* Version Section */}
-          <Card>
+
+          {/* <Card>
             <CardHeader
               className="cursor-pointer hover:bg-gray-50 transition-colors"
               onClick={handleVersionToggle}
@@ -196,9 +185,11 @@ const FeaturesPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             {versionOpen && (
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-6"> */}
+
                 {/* New Features */}
-                <div>
+
+                {/* <div>
                   <h3 className="flex items-center gap-2 font-semibold text-lg mb-3">
                     <Sparkles className="w-5 h-5 text-green-600" />
                     New Features
@@ -211,10 +202,11 @@ const FeaturesPage: React.FC = () => {
                       </li>
                     ))}
                   </ul>
-                </div>
+                </div> */}
 
                 {/* Improvements */}
-                <div>
+
+                {/* <div>
                   <h3 className="flex items-center gap-2 font-semibold text-lg mb-3">
                     <Wrench className="w-5 h-5 text-blue-600" />
                     Improvements
@@ -227,10 +219,11 @@ const FeaturesPage: React.FC = () => {
                       </li>
                     ))}
                   </ul>
-                </div>
+                </div> */}
 
                 {/* Bug Fixes */}
-                <div>
+
+                {/* <div>
                   <h3 className="flex items-center gap-2 font-semibold text-lg mb-3">
                     <Bug className="w-5 h-5 text-red-600" />
                     Bug Fixes
@@ -246,7 +239,7 @@ const FeaturesPage: React.FC = () => {
                 </div>
               </CardContent>
             )}
-          </Card>
+          </Card> */}
 
           {/* Working On Section */}
           <Card>
