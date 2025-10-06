@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './xpCalculation.js';
-import { enhancedTitleService } from '../services/enhancedTitleService.js';
+import { TitleLeaderboardService } from '../services/titleLeaderboardService.js';
 
 export async function calculateUserTotals(userId: string) {
   try {
@@ -24,8 +24,8 @@ export async function calculateUserTotals(userId: string) {
     }
 
     // Calculate totals
-    const totalXP = runs.reduce((sum, run) => sum + (run.xp_gained || 0), 0);
-    const totalDistance = runs.reduce((sum, run) => sum + (run.distance || 0), 0);
+    const totalXP = runs.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
+    const totalDistance = runs.reduce((sum: number, run: any) => sum + (run.distance || 0), 0);
     const totalRuns = runs.length;
 
     // Calculate level from XP using database level requirements
@@ -42,8 +42,7 @@ export async function calculateUserTotals(userId: string) {
       .from('users')
       .update({
         total_xp: totalXP,
-        total_distance: totalDistance,
-        total_runs: totalRuns,
+        total_km: totalDistance,  // ✅ FIXED: Use correct column name 'total_km'
         current_streak: currentStreak,
         longest_streak: longestStreak,
         current_level: level  // Now consistent with frontend!
@@ -56,23 +55,20 @@ export async function calculateUserTotals(userId: string) {
       console.log(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
     }
 
-    // 🏆 Process titles after user totals are updated
-    try {
-      console.log('🏆 Processing titles after user totals update...');
-      await enhancedTitleService.processUserTitlesAfterRun(
-        userId, 
-        runs.map(run => ({
-          date: run.date,
-          distance_km: run.distance,
-          created_at: run.date // For title calculations
-        })), 
-        totalDistance, 
-        longestStreak
-      );
-      console.log('✅ Title processing completed');
-    } catch (titleError) {
-      console.error('❌ Error processing titles:', titleError);
-      // Don't fail the whole operation if title processing fails
+    // 🏆 Trigger automatic title recalculation after user totals are updated
+    // Safety mechanism: Skip if environment variable is set to disable auto-triggers
+    if (process.env.DISABLE_AUTO_TITLE_TRIGGERS === 'true') {
+      console.log('⚠️ Automatic title triggers disabled via environment variable');
+    } else {
+      try {
+        console.log('🏆 Triggering title leaderboard recalculation...');
+        const titleService = new TitleLeaderboardService();
+        await titleService.triggerTitleRecalculation();
+        console.log('✅ Title recalculation completed successfully');
+      } catch (titleError) {
+        console.error('❌ Error triggering title recalculation:', titleError);
+        // Don't fail the whole operation if title processing fails
+      }
     }
 
   } catch (error) {

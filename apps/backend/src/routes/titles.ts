@@ -5,6 +5,35 @@ import { authenticateJWT } from '../middleware/auth';
 const router = express.Router();
 
 /**
+ * GET /api/titles
+ * Returns all titles
+ */
+router.get('/', authenticateJWT, async (req, res) => {
+  try {
+    console.log('🏆 API: Fetching all titles...');
+    
+    const titles = await titleLeaderboardService.getAllTitles();
+    
+    res.json({
+      success: true,
+      data: titles,
+      meta: {
+        total_titles: titles.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ API Error in /titles:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch titles',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * GET /api/titles/leaderboard
  * Returns optimized title leaderboard with holders and runners-up
  */
@@ -67,32 +96,6 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
 });
 
 /**
- * POST /api/titles/refresh
- * Manually refresh all title leaderboards (admin only)
- */
-router.post('/refresh', authenticateJWT, async (req, res) => {
-  try {
-    console.log('🔄 API: Manual title leaderboard refresh requested...');
-    
-    await titleLeaderboardService.refreshAllTitleLeaderboards();
-    
-    res.json({
-      success: true,
-      message: 'All title leaderboards refreshed successfully',
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ API Error in /titles/refresh:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to refresh title leaderboards',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-/**
  * POST /api/titles/refresh/:titleId
  * Refresh leaderboard for a specific title
  */
@@ -116,6 +119,56 @@ router.post('/refresh/:titleId', authenticateJWT, async (req, res) => {
       success: false,
       error: 'Failed to refresh title leaderboard',
       message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/titles/populate
+ * Manually populate title leaderboards from user data (admin only)
+ */
+router.post('/populate', authenticateJWT, async (req, res) => {
+  try {
+    console.log('🔄 API: Manual title leaderboard population requested...');
+    
+    await titleLeaderboardService.populateTitleLeaderboard();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Title leaderboards populated successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ API Error in /titles/populate:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to populate title leaderboards',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/titles/refresh
+ * Refresh title leaderboards - can be called automatically when data changes
+ */
+router.post('/refresh', async (req, res) => {
+  try {
+    console.log('🔄 API: Title leaderboard refresh requested...');
+    
+    await titleLeaderboardService.populateTitleLeaderboard();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Title leaderboards refreshed successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ API Error in /titles/refresh:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to refresh title leaderboards',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
