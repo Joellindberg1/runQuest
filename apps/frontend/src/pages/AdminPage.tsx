@@ -202,7 +202,7 @@ const AdminPage: React.FC = () => {
           <div className="flex justify-between items-center">
             <div></div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-800 mb-2">Göteborgsvarvet 2026 - Admin Panel</h1>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">Runquest - Admin Panel</h1>
               <p className="text-lg text-gray-600">Configure Running Challenge Settings</p>
             </div>
             <div>

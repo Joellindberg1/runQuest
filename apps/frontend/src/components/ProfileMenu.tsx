@@ -10,6 +10,10 @@ export const ProfileMenu: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
+  const handleDashboardClick = () => {
+  navigate('/');
+  };
+  
   const handleSettingsClick = () => {
     navigate('/settings');
   };
@@ -44,6 +48,10 @@ export const ProfileMenu: React.FC = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem onClick={handleDashboardClick}>
+          <Settings className="w-4 h-4 mr-2" />
+          Dashboard
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleSettingsClick}>
           <Settings className="w-4 h-4 mr-2" />
           Settings

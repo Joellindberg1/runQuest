@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
 import { StravaIcon } from '@/components/ui/StravaIcon';
+import { ProfileMenu } from '@/components/ProfileMenu';
 
 interface StravaStatus {
   connected: boolean;
@@ -375,13 +376,15 @@ export const SettingsPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
       <div className="max-w-4xl mx-auto">
         <header className="mb-8">
-          <Button variant="outline" onClick={handleBackClick} className="mb-4 flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
+          <div className="flex justify-between items-start mb-6">
+            <div></div>
+            <ProfileMenu />
+          </div>
           <div className="text-center">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">Settings</h1>
-            <p className="text-lg text-gray-600">Manage your account and Strava connection</p>
+            <p className="text-lg text-gray-600">
+              Manage your account and Strava connection
+            </p>
           </div>
         </header>
 
@@ -394,8 +397,13 @@ export const SettingsPage: React.FC = () => {
                   <CardDescription>{getStatusDescription()}</CardDescription>
                   {stravaStatus.connected && (
                     <div className="text-sm text-gray-600 space-y-1 mt-6">
-                      <p>✅ Your Strava runs are imported automatically every 3 hours.</p>
-                      <p>✅ Only running activities (type "Run") are imported.</p>
+                      <p>
+                        ✅ Your Strava runs are imported automatically every 3
+                        hours.
+                      </p>
+                      <p>
+                        ✅ Only running activities (type "Run") are imported.
+                      </p>
                       <p>✅ Duplicate activities are automatically filtered.</p>
                     </div>
                   )}
@@ -405,7 +413,10 @@ export const SettingsPage: React.FC = () => {
                     {getStatusBadge()}
                     <StravaIcon size={24} />
                     <div className="text-xs text-gray-500 text-center space-y-1">
-                      <div>Connected: {formatConnectionDate(stravaStatus.connection_date)}</div>
+                      <div>
+                        Connected:{" "}
+                        {formatConnectionDate(stravaStatus.connection_date)}
+                      </div>
                       <div>Last sync: {formatLastSync(syncInfo)}</div>
                       <div>Next sync: {formatNextSync(syncInfo)}</div>
                     </div>
@@ -416,16 +427,19 @@ export const SettingsPage: React.FC = () => {
             <CardContent>
               <div className="space-y-4">
                 {!stravaStatus.connected && (
-                  <Button onClick={handleConnectStrava} className="flex items-center gap-2">
+                  <Button
+                    onClick={handleConnectStrava}
+                    className="flex items-center gap-2"
+                  >
                     <ExternalLink className="w-4 h-4" /> Connect Strava
                   </Button>
                 )}
                 {stravaStatus.connected && (
                   <>
                     <div className="flex items-center gap-4">
-                      <Button 
-                        onClick={handleSyncStrava} 
-                        variant="outline" 
+                      <Button
+                        onClick={handleSyncStrava}
+                        variant="outline"
                         className="flex items-center gap-2"
                         disabled={syncLoading}
                       >
@@ -435,9 +449,7 @@ export const SettingsPage: React.FC = () => {
                             Syncing...
                           </>
                         ) : (
-                          <>
-                            🔄 Sync Now
-                          </>
+                          <>🔄 Sync Now</>
                         )}
                       </Button>
                       <span className="text-xs text-gray-400">
@@ -457,7 +469,7 @@ export const SettingsPage: React.FC = () => {
           </Card>
 
           <Card>
-            <CardHeader 
+            <CardHeader
               className="cursor-pointer hover:bg-gray-50 transition-colors"
               onClick={() => setPasswordSectionOpen(!passwordSectionOpen)}
             >
@@ -482,7 +494,12 @@ export const SettingsPage: React.FC = () => {
                       id="currentPassword"
                       type="password"
                       value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                      onChange={(e) =>
+                        setPasswordData({
+                          ...passwordData,
+                          currentPassword: e.target.value,
+                        })
+                      }
                       placeholder="Enter current password"
                     />
                   </div>
@@ -492,22 +509,34 @@ export const SettingsPage: React.FC = () => {
                       id="newPassword"
                       type="password"
                       value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                      onChange={(e) =>
+                        setPasswordData({
+                          ...passwordData,
+                          newPassword: e.target.value,
+                        })
+                      }
                       placeholder="Enter new password (min 6 chars)"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <Label htmlFor="confirmPassword">
+                      Confirm New Password
+                    </Label>
                     <Input
                       id="confirmPassword"
                       type="password"
                       value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                      onChange={(e) =>
+                        setPasswordData({
+                          ...passwordData,
+                          confirmPassword: e.target.value,
+                        })
+                      }
                       placeholder="Confirm new password"
                     />
                   </div>
-                  <Button 
-                    onClick={handleChangePassword} 
+                  <Button
+                    onClick={handleChangePassword}
                     disabled={passwordLoading}
                     className="flex items-center gap-2"
                   >
@@ -527,7 +556,6 @@ export const SettingsPage: React.FC = () => {
               </>
             )}
           </Card>
-
         </div>
       </div>
     </div>

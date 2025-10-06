@@ -2,22 +2,15 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CheckCircle, Clock, AlertTriangle, Trophy, Zap, Target, Users, Smartphone, Settings } from 'lucide-react';
+import { CheckCircle, Clock, AlertTriangle, Trophy, Zap, Target, Users, Smartphone, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { ProfileMenu } from '@/components/ProfileMenu';
 
 const FeaturesPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = (user as any)?.name?.toLowerCase() === 'admin';
-
-  const handleBackClick = () => {
-    if (isAdmin) {
-      navigate('/admin');
-    } else {
-      navigate('/');
-    }
-  };
 
   const currentVersion = "v0.1.0-beta";
   const releaseDate = "October 1, 2025";
@@ -153,10 +146,10 @@ const FeaturesPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8">
-          <Button variant="outline" onClick={handleBackClick} className="mb-4 flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
+          <div className="flex justify-between items-start mb-6">
+            <div></div>
+            <ProfileMenu />
+          </div>
           <div className="text-center">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">RunQuest Features</h1>
             <div className="flex items-center justify-center gap-4 mb-4">
