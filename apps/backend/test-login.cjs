@@ -53,7 +53,7 @@ async function testLogin() {
             // Try to fetch users using our token
             console.log('🔍 Testing admin access...');
             
-            const response = await fetch('http://localhost:3000/api/auth/users', {
+            const response = await fetch('http://localhost:3001/api/auth/users', {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
