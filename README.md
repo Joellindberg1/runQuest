@@ -84,4 +84,3 @@ runquest/
 
 ---
 
-*Built with ❤️ för löparglädje*
