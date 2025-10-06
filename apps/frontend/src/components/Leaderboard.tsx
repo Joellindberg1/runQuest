@@ -9,6 +9,7 @@ import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
 import { User, UserTitle } from '@/types/run';
+import { AuthDebugInfo } from './AuthDebugInfo';
 
 interface LeaderboardProps {
   users: User[];
@@ -23,10 +24,25 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
       const titlesByUser: Record<string, UserTitle[]> = {};
       
       for (const user of users) {
+        console.log(`🔍 Fetching titles for user: ${user.id} (${user.name})`);
         const userTitleData = await runService.getUserTitles(user.id);
-        titlesByUser[user.id] = userTitleData.filter(title => title.is_current_holder);
+        
+        console.log(`📊 Raw response for ${user.name}:`, userTitleData);
+        console.log(`📊 Type of response:`, typeof userTitleData);
+        console.log(`📊 Is array:`, Array.isArray(userTitleData));
+        
+        // Ensure userTitleData is an array
+        if (Array.isArray(userTitleData)) {
+          const currentHolderTitles = userTitleData.filter(title => title.is_current_holder);
+          console.log(`🏆 Current holder titles for ${user.name}:`, currentHolderTitles);
+          titlesByUser[user.id] = currentHolderTitles;
+        } else {
+          console.error('❌ User title data is not an array for user:', user.id, userTitleData);
+          titlesByUser[user.id] = [];
+        }
       }
 
+      console.log(`📈 Final titlesByUser:`, titlesByUser);
       setUserTitles(titlesByUser);
     } catch (error) {
       console.error('Error fetching user titles:', error);

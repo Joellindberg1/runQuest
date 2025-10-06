@@ -59,10 +59,12 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
 
       // Recalculate all runs for this user to ensure correct streaks and XP
       await runService.recalculateAllRuns(run.user_id);
+      
+      // Force a complete recalculation of user totals
       await runService.updateUserTotals(run.user_id);
-
-      // Recalculate titles for all users after run update
-      await runService.recalculateAllTitles();
+      
+      // Force title recalculation as backup
+      await runService.triggerTitleRecalculation();
 
       toast.success('Run updated successfully');
       onRunUpdated();
@@ -90,10 +92,13 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
 
       // Recalculate all runs for this user to ensure correct streaks and XP
       await runService.recalculateAllRuns(run.user_id);
+      
+      // Force a complete recalculation of user totals
+      const userRuns = await runService.getUserRuns(run.user_id);
       await runService.updateUserTotals(run.user_id);
-
-      // Recalculate titles for all users after run deletion
-      await runService.recalculateAllTitles();
+      
+      // Force title recalculation as backup
+      await runService.triggerTitleRecalculation();
 
       toast.success('Run deleted successfully');
       onRunUpdated();

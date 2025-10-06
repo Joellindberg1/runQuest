@@ -488,8 +488,25 @@ const AdminPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="text-sm text-muted-foreground">
-                    Current competitive titles are hardcoded. Future updates will allow customization.
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-muted-foreground">
+                      Current competitive titles are hardcoded. Future updates will allow customization.
+                    </div>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const backendApi = (await import('../services/backendApi')).default;
+                          await backendApi.refreshTitleLeaderboards();
+                          alert('✅ Title leaderboards refreshed successfully!');
+                        } catch (error) {
+                          console.error('❌ Failed to refresh titles:', error);
+                          alert('❌ Failed to refresh title leaderboards');
+                        }
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      🔄 Refresh Title Leaderboards
+                    </Button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 border rounded-lg">
