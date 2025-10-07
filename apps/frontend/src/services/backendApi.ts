@@ -18,7 +18,45 @@ export interface LoginResponse {
   error?: string;
 }
 
-export interface ApiResponse<T = any> {
+// Specific API response types
+interface UserData {
+  id: string;
+  name: string;
+  email: string;
+  total_xp?: number;
+  current_level?: number;
+  total_km?: number;
+  current_streak?: number;
+  longest_streak?: number;
+  profile_picture?: string;
+}
+
+interface RunData {
+  id: string;
+  user_id: string;
+  date: string;
+  distance: number;
+  xp_gained: number;
+  multiplier: number;
+  streak_day: number;
+}
+
+interface TitleData {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  icon?: string;
+}
+
+interface RecalculationResult {
+  user_id: string;
+  runs_updated: number;
+  new_total_xp: number;
+  message: string;
+}
+
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -213,7 +251,7 @@ class BackendApiService {
   }
 
   // 🔐 Admin: Reset user password
-  async resetUserPassword(userId: number, newPassword: string): Promise<ApiResponse> {
+  async resetUserPassword(userId: string, newPassword: string): Promise<ApiResponse> {
     try {
       console.log('🔐 Resetting user password (admin)');
       

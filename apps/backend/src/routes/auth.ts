@@ -9,7 +9,7 @@ import { requireAdmin } from '../middleware/admin.js';
 const router = express.Router();
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', async (req, res): Promise<void> => {
   try {
     console.log('🔐 Login attempt received');
     const { name, email, password } = req.body;
@@ -17,7 +17,8 @@ router.post('/login', async (req, res) => {
 
     if (!nameOrEmail || !password) {
       console.log('❌ Missing name/email or password');
-      return res.status(400).json({ error: 'Name/email and password required' });
+      res.status(400).json({ error: 'Name/email and password required' }); return;
+      return;
     }
 
     console.log(`🔍 Looking up user: ${nameOrEmail}`);
@@ -46,7 +47,8 @@ router.post('/login', async (req, res) => {
 
     if (error || !user) {
       console.log('❌ User not found or database error:', error?.message);
-      return res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' }); return;
+      return;
     }
 
     console.log(`🔑 User found, verifying password for: ${user.name}`);
@@ -55,12 +57,20 @@ router.post('/login', async (req, res) => {
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
       console.log('❌ Password mismatch');
-      return res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' }); return;
     }
 
     console.log('✅ Password verified, creating JWT token');
 
-    // Create JWT token
+    // Create JWT token with proper typing
+    const jwtSecret = process.env.JWT_SECRET;
+    const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
+    
+    if (!jwtSecret) {
+      console.error('❌ JWT_SECRET not configured');
+      res.status(500).json({ error: 'Server configuration error' }); return;
+    }
+
     const token = jwt.sign(
       {
         user_id: user.id,
@@ -68,8 +78,10 @@ router.post('/login', async (req, res) => {
         email: user.email,
         is_admin: user.is_admin || false
       },
-      process.env.JWT_SECRET as string,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      jwtSecret,
+      { 
+        expiresIn: jwtExpiresIn
+      } as jwt.SignOptions
     );
 
     console.log(`🎉 Login successful for user: ${user.name} (Admin: ${user.is_admin})`);
@@ -88,18 +100,18 @@ router.post('/login', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 
 // POST /api/auth/refresh (placeholder for now)
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', async (_req, res) => {
   console.log('🔄 Token refresh requested (not implemented yet)');
   res.json({ message: 'Token refresh - to be implemented' });
 });
 
 // POST /api/auth/change-password
-router.post('/change-password', authenticateJWT, async (req, res) => {
+router.post('/change-password', authenticateJWT, async (req, res): Promise<void> => {
   try {
     console.log('🔐 Password change attempt received');
     const { currentPassword, newPassword } = req.body;
@@ -107,12 +119,14 @@ router.post('/change-password', authenticateJWT, async (req, res) => {
 
     if (!currentPassword || !newPassword) {
       console.log('❌ Missing current or new password');
-      return res.status(400).json({ error: 'Current password and new password required' });
+      res.status(400).json({ error: 'Current password and new password required' }); return;
+      return;
     }
 
     if (newPassword.length < 6) {
       console.log('❌ New password too short');
-      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+      res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
+      return;
     }
 
     console.log(`🔍 Looking up user for password change: ${userId}`);
@@ -128,7 +142,7 @@ router.post('/change-password', authenticateJWT, async (req, res) => {
 
     if (error || !user) {
       console.log('❌ User not found or database error:', error?.message);
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' }); return;
     }
 
     console.log(`🔑 User found, verifying current password for: ${user.name}`);
@@ -137,7 +151,7 @@ router.post('/change-password', authenticateJWT, async (req, res) => {
     const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
     if (!passwordMatch) {
       console.log('❌ Current password is incorrect');
-      return res.status(401).json({ error: 'Current password is incorrect' });
+      res.status(401).json({ error: 'Current password is incorrect' }); return;
     }
 
     console.log('✅ Current password verified, hashing new password');
@@ -154,7 +168,7 @@ router.post('/change-password', authenticateJWT, async (req, res) => {
 
     if (updateError) {
       console.log('❌ Error updating password:', updateError.message);
-      return res.status(500).json({ error: 'Failed to update password' });
+      res.status(500).json({ error: 'Failed to update password' }); return;
     }
 
     console.log(`🎉 Password successfully changed for user: ${user.name}`);
@@ -166,12 +180,12 @@ router.post('/change-password', authenticateJWT, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Password change error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 
 // GET /api/auth/users - Admin only: Get all users
-router.get('/users', authenticateJWT, requireAdmin, async (req, res) => {
+router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     console.log('👥 Admin request to fetch all users');
     console.log('🔑 Request user info:', (req as any).user);
@@ -185,7 +199,7 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res) => {
 
     if (error) {
       console.log('❌ Error fetching users:', error.message);
-      return res.status(500).json({ error: 'Failed to fetch users' });
+      res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
     console.log(`✅ Successfully fetched ${users?.length || 0} users`);
@@ -198,24 +212,24 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error fetching users:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 
 // POST /api/auth/users - Admin only: Create new user
-router.post('/users', authenticateJWT, requireAdmin, async (req, res) => {
+router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     console.log('👤 Admin request to create new user');
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       console.log('❌ Missing required fields');
-      return res.status(400).json({ error: 'Name, email, and password are required' });
+      res.status(400).json({ error: 'Name, email, and password are required' }); return;
     }
 
     if (password.length < 6) {
       console.log('❌ Password too short');
-      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+      res.status(400).json({ error: 'Password must be at least 6 characters long' }); return;
     }
 
     console.log(`🔍 Creating user: ${name} (${email})`);
@@ -223,7 +237,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res) => {
     const supabase = getSupabaseClient();
     
     // Check if user already exists
-    const { data: existingUser, error: checkError } = await supabase
+    const { data: existingUser } = await supabase
       .from('users')
       .select('id')
       .or(`name.eq.${name},email.eq.${email}`)
@@ -231,7 +245,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res) => {
 
     if (existingUser) {
       console.log('❌ User already exists');
-      return res.status(409).json({ error: 'User with this name or email already exists' });
+      res.status(409).json({ error: 'User with this name or email already exists' }); return;
     }
 
     // Hash password
@@ -257,7 +271,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res) => {
 
     if (error) {
       console.log('❌ Error creating user:', error.message);
-      return res.status(500).json({ error: 'Failed to create user' });
+      res.status(500).json({ error: 'Failed to create user' }); return;
     }
 
     console.log(`🎉 Successfully created user: ${newUser.name}`);
@@ -269,12 +283,12 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error creating user:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 
 // PUT /api/auth/users/:id/password - Admin only: Reset user password
-router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res) => {
+router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     console.log('🔐 Admin request to reset user password');
     const { id } = req.params;
@@ -282,12 +296,12 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (!newPassword) {
       console.log('❌ Missing new password');
-      return res.status(400).json({ error: 'New password is required' });
+      res.status(400).json({ error: 'New password is required' }); return;
     }
 
     if (newPassword.length < 6) {
       console.log('❌ New password too short');
-      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+      res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
     }
 
     console.log(`🔍 Resetting password for user ID: ${id}`);
@@ -303,7 +317,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (findError || !user) {
       console.log('❌ User not found:', findError?.message);
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' }); return;
     }
 
     console.log(`✅ User found: ${user.name}, hashing new password`);
@@ -320,7 +334,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (updateError) {
       console.log('❌ Error updating password:', updateError.message);
-      return res.status(500).json({ error: 'Failed to update password' });
+      res.status(500).json({ error: 'Failed to update password' }); return;
     }
 
     console.log(`🎉 Password successfully reset for user: ${user.name}`);
@@ -332,7 +346,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
   } catch (error) {
     console.error('❌ Password reset error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 

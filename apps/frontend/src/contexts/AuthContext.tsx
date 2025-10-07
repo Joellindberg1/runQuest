@@ -3,8 +3,21 @@ import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { backendApi } from '@/services/backendApi';
 import { Session } from '@supabase/supabase-js';
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  is_admin?: boolean;
+  total_xp?: number | null;
+  current_level?: number | null;
+  total_km?: number | null;
+  current_streak?: number | null;
+  longest_streak?: number | null;
+  profile_picture?: string | null;
+}
+
 interface AuthContextType {
-  user: unknown | null;
+  user: User | null;
   session: Session | null;
   login: (nameOrEmail: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -15,14 +28,12 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<unknown | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Check if current user is admin
-  const isAdmin = user && typeof user === 'object' && 'is_admin' in user 
-    ? Boolean((user as any).is_admin) 
-    : false;
+  const isAdmin = user?.is_admin ?? false;
 
   // 🔄 Initialize authentication state
   useEffect(() => {
@@ -55,9 +66,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .single();
 
         if (userData && !error) {
-          setUser(userData);
+          setUser(userData as User);
         } else {
-          setUser(session.user);
+          // Convert Supabase user to our User type
+          setUser({
+            id: session.user.id,
+            name: session.user.user_metadata?.name || session.user.email || 'Unknown',
+            email: session.user.email || ''
+          } as User);
         }
       } else {
         console.log('ℹ️ No authentication found');
@@ -84,9 +100,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .single();
 
           if (userData && !error) {
-            setUser(userData);
+            setUser(userData as User);
           } else {
-            setUser(session.user);
+            // Convert Supabase user to our User type
+            setUser({
+              id: session.user.id,
+              name: session.user.user_metadata?.name || session.user.email || 'Unknown',
+              email: session.user.email || ''
+            } as User);
           }
         } else {
           setUser(null);

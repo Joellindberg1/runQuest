@@ -5,6 +5,10 @@ import { xpCalculationService } from './xpCalculationService'
 import { streakCalculationService } from './streakCalculationService'
 import { titleService } from './titleService' // Using title service via backend API
 import { userService } from './userService'
+import { isAbortError, handleError, withErrorHandling } from '@/utils/errorHandling'
+
+// Request queuing to prevent concurrent recalculations per user
+const userOperationQueues = new Map<string, Promise<any>>()
 
 export const runService = {
   // Re-export methods from other services for backward compatibility
@@ -28,8 +32,8 @@ export const runService = {
     const settings = await xpCalculationService.getAdminSettings()
     
     // This will be calculated after saving and recalculating all runs
-    const baseXP = settings.base_xp
-    const kmXP = runData.distance * settings.xp_per_km
+    const baseXP = settings.base_xp ?? 0
+    const kmXP = runData.distance * (settings.xp_per_km ?? 0)
     const distanceBonus = xpCalculationService.getDistanceBonus(runData.distance, settings)
     
     // Temporary values - will be recalculated after saving
@@ -69,36 +73,71 @@ export const runService = {
   },
 
   async saveRun(userId: string, processedRun: ProcessedRun) {
-    console.log('Saving run to database:', { userId, processedRun })
-    
-    const { data, error } = await supabase
-      .from('runs')
-      .insert({
-        user_id: userId,
-        date: processedRun.date,
-        distance: processedRun.distance,
-        xp_gained: processedRun.xp_gained,
-        multiplier: processedRun.multiplier,
-        streak_day: processedRun.streak_day,
-        base_xp: processedRun.base_xp,
-        km_xp: processedRun.km_xp,
-        distance_bonus: processedRun.distance_bonus,
-        streak_bonus: processedRun.streak_bonus
-      })
-      .select()
-    
-    if (error) {
-      console.error('Error inserting run:', error)
-      throw error
+    // Ensure only one save operation per user at a time to prevent race conditions
+    const existingOperation = userOperationQueues.get(userId)
+    if (existingOperation) {
+      console.log('⏳ Waiting for existing operation to complete for user:', userId)
+      await existingOperation
     }
     
-    console.log('Run saved successfully:', data)
+    // Create new operation promise
+    const operation = this.performSaveRun(userId, processedRun)
+    userOperationQueues.set(userId, operation)
     
-    // Optimized recalculation - only recalculate runs from the new run date onwards
-    await this.recalculateRunsFromDate(userId, processedRun.date)
-    await this.updateUserTotals(userId)
+    try {
+      return await operation
+    } finally {
+      // Clean up completed operation
+      userOperationQueues.delete(userId)
+    }
+  },
+
+  async performSaveRun(userId: string, processedRun: ProcessedRun) {
+    console.log('Saving run to database:', { userId, processedRun })
     
-    return data
+    try {
+      // Database insert operation
+      const { data, error } = await supabase
+        .from('runs')
+        .insert({
+          user_id: userId,
+          date: processedRun.date,
+          distance: processedRun.distance,
+          xp_gained: processedRun.xp_gained,
+          multiplier: processedRun.multiplier,
+          streak_day: processedRun.streak_day,
+          base_xp: processedRun.base_xp,
+          km_xp: processedRun.km_xp,
+          distance_bonus: processedRun.distance_bonus,
+          streak_bonus: processedRun.streak_bonus
+        })
+        .select()
+      
+      if (error) {
+        console.error('Database insert failed:', error)
+        throw new Error(`Failed to save run: ${error.message}`)
+      }
+      
+      console.log('Run saved successfully:', data)
+      
+      // Ensure all follow-up operations complete successfully
+      try {
+        await this.recalculateRunsFromDate(userId, processedRun.date)
+        await this.updateUserTotals(userId)
+      } catch (recalculationError) {
+        console.error('Recalculation failed after saving run:', recalculationError)
+        // Note: Run is already saved, but totals may be inconsistent
+        const errorMessage = recalculationError instanceof Error ? recalculationError.message : 'Unknown recalculation error'
+        throw new Error(`Run saved but recalculation failed: ${errorMessage}`)
+      }
+      
+      return data
+    } catch (error) {
+      console.error('saveRun operation failed:', error)
+      // Re-throw with more context for the caller
+      const errorMessage = handleError(error, 'Run save operation')
+      throw new Error(errorMessage)
+    }
   },
 
   async recalculateRunsFromDate(userId: string, fromDate: string) {
@@ -150,9 +189,9 @@ export const runService = {
       const { streakDay, streakBonus } = streakCalculationService.calculateStreak(runsBeforeThis, run.date)
       const currentMultiplier = xpCalculationService.getStreakMultiplier(streakDay, multipliers)
       
-      // Recalculate XP components
-      const baseXP = settings.base_xp
-      const kmXP = run.distance * settings.xp_per_km
+      // Recalculate XP components with null safety
+      const baseXP = settings.base_xp ?? 0
+      const kmXP = run.distance * (settings.xp_per_km ?? 0)
       const distanceBonus = xpCalculationService.getDistanceBonus(run.distance, settings)
       
       // Apply multiplier to base and km XP only
@@ -166,7 +205,7 @@ export const runService = {
           xp_gained: totalXP,
           multiplier: currentMultiplier,
           streak_day: streakDay,
-          base_xp: baseXP,
+          base_xp: baseXP || undefined,
           km_xp: Math.floor(kmXP),
           distance_bonus: distanceBonus,
           streak_bonus: streakBonus
@@ -187,6 +226,18 @@ export const runService = {
     // Sort runs by date to calculate streaks correctly
     const sortedRuns = [...allRuns].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     
+    // Prepare batch updates array with proper typing
+    const batchUpdates: Array<{
+      id: string
+      xp_gained: number
+      multiplier: number
+      streak_day: number
+      base_xp?: number
+      km_xp: number
+      distance_bonus: number
+      streak_bonus: number
+    }> = []
+    
     for (let i = 0; i < sortedRuns.length; i++) {
       const run = sortedRuns[i]
       const runsBeforeThis = sortedRuns.slice(0, i)
@@ -195,41 +246,77 @@ export const runService = {
       const { streakDay, streakBonus } = streakCalculationService.calculateStreak(runsBeforeThis, run.date)
       const currentMultiplier = xpCalculationService.getStreakMultiplier(streakDay, multipliers)
       
-      // Recalculate XP components
-      const baseXP = settings.base_xp
-      const kmXP = run.distance * settings.xp_per_km
+      // Recalculate XP components with null safety
+      const baseXP = settings.base_xp ?? 0
+      const kmXP = run.distance * (settings.xp_per_km ?? 0)
       const distanceBonus = xpCalculationService.getDistanceBonus(run.distance, settings)
       
       // Apply multiplier to base and km XP only
       const multipliedXP = (baseXP + kmXP) * currentMultiplier
       const totalXP = Math.floor(multipliedXP + distanceBonus + streakBonus)
       
-      // Update the run in database
-      await supabase
-        .from('runs')
-        .update({
-          xp_gained: totalXP,
-          multiplier: currentMultiplier,
-          streak_day: streakDay,
-          base_xp: baseXP,
-          km_xp: Math.floor(kmXP),
-          distance_bonus: distanceBonus,
-          streak_bonus: streakBonus
-        })
-        .eq('id', run.id)
+      // Add to batch update array instead of individual database call
+      batchUpdates.push({
+        id: run.id,
+        xp_gained: totalXP,
+        multiplier: currentMultiplier,
+        streak_day: streakDay,
+        base_xp: baseXP || undefined,
+        km_xp: Math.floor(kmXP),
+        distance_bonus: distanceBonus,
+        streak_bonus: streakBonus
+      })
       
-      console.log(`✅ Updated run ${run.id} with streak day ${streakDay}, multiplier ${currentMultiplier}, XP ${totalXP}`)
+      console.log(`✅ Calculated run ${run.id} with streak day ${streakDay}, multiplier ${currentMultiplier}, XP ${totalXP}`)
+    }
+    
+    // Perform batch update instead of individual updates
+    if (batchUpdates.length > 0) {
+      console.log(`🚀 Performing batch update of ${batchUpdates.length} runs...`)
+      
+      // Use update operations for existing runs instead of upsert
+      const updatePromises = batchUpdates.map(update => 
+        supabase
+          .from('runs')
+          .update({
+            xp_gained: update.xp_gained,
+            multiplier: update.multiplier,
+            streak_day: update.streak_day,
+            base_xp: update.base_xp,
+            km_xp: update.km_xp,
+            distance_bonus: update.distance_bonus,
+            streak_bonus: update.streak_bonus
+          })
+          .eq('id', update.id)
+      )
+      
+      const results = await Promise.all(updatePromises)
+      const errors = results.filter(result => result.error)
+      
+      if (errors.length > 0) {
+        console.error('❌ Some batch updates failed:', errors)
+        throw new Error(`Batch recalculation failed: ${errors.length} updates failed`)
+      }
+      
+      console.log(`✅ Successfully batch updated ${batchUpdates.length} runs`)
     }
   },
 
   async updateUserTotals(userId: string) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ updateUserTotals timeout - aborting request')
+      controller.abort()
+    }, 15000) // 15 second timeout
+    
     try {
       console.log('🔄 Triggering backend user totals recalculation...');
       
       // Call backend API to recalculate totals and trigger title system
       const backendApi = (await import('./backendApi')).default;
       const response = await backendApi.authenticatedRequest('/auth/recalculate-totals', {
-        method: 'POST'
+        method: 'POST',
+        signal: controller.signal // Add abort signal for cleanup
       });
       
       if (response.success) {
@@ -239,11 +326,21 @@ export const runService = {
         console.error('❌ Backend recalculation failed:', response.error);
       }
     } catch (error) {
+      if (isAbortError(error)) {
+        console.log('🔄 Request was aborted due to timeout - cleaned up successfully')
+        throw new Error('User totals update timed out')
+      }
       console.error('❌ Error calling backend recalculation:', error);
+    } finally {
+      // Always clean up timeout
+      clearTimeout(timeoutId)
     }
     
     // Always run fallback to ensure data consistency
     console.log('🔄 Running fallback: direct user totals update + title trigger...');
+    
+    const fallbackController = new AbortController()
+    const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 10000) // 10s for fallback
     
     try {
       const runs = await userService.getUserRuns(userId);
@@ -254,8 +351,16 @@ export const runService = {
       console.log('✅ Title recalculation triggered via fallback');
       
     } catch (fallbackError) {
+      if (isAbortError(fallbackError)) {
+        console.log('🔄 Fallback was aborted due to timeout - cleaned up successfully')
+        throw new Error('Fallback user totals update timed out')
+      }
       console.error('❌ Fallback also failed:', fallbackError);
-      throw fallbackError;
+      const errorMessage = handleError(fallbackError, 'Fallback user totals update')
+      throw new Error(`Both primary and fallback user totals update failed: ${errorMessage}`)
+    } finally {
+      // Always clean up fallback timeout
+      clearTimeout(fallbackTimeoutId)
     }
   },
 

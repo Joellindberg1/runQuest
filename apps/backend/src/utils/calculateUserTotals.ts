@@ -26,7 +26,6 @@ export async function calculateUserTotals(userId: string) {
     // Calculate totals
     const totalXP = runs.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
     const totalDistance = runs.reduce((sum: number, run: any) => sum + (run.distance || 0), 0);
-    const totalRuns = runs.length;
 
     // Calculate level from XP using database level requirements
     const level = await getLevelFromXP(totalXP);

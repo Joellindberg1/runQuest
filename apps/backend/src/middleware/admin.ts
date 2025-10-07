@@ -2,13 +2,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { getSupabaseClient } from '../config/database.js';
 
-export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const user = (req as any).user;
     
     if (!user || !user.user_id) {
       console.log('❌ Admin check: No authenticated user');
-      return res.status(401).json({ error: 'Authentication required' });
+      res.status(401).json({ error: 'Authentication required' });
+      return;
     }
 
     console.log(`🔍 Admin check for user: ${user.name}`);
@@ -24,12 +25,14 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
 
     if (error) {
       console.error('❌ Error checking admin status:', error.message);
-      return res.status(500).json({ error: 'Failed to verify admin status' });
+      res.status(500).json({ error: 'Failed to verify admin status' });
+      return;
     }
 
     if (!userData?.is_admin) {
       console.log(`❌ Access denied: ${user.name} is not admin`);
-      return res.status(403).json({ error: 'Admin access required' });
+      res.status(403).json({ error: 'Admin access required' });
+      return;
     }
 
     console.log(`✅ Admin access granted for: ${user.name}`);

@@ -67,7 +67,7 @@ app.use(cors());
 app.use(express.json());
 
 // Request logging middleware
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   console.log(`📨 ${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
@@ -78,7 +78,7 @@ console.log('✅ Step 2 Complete: Express app initialized\n');
 console.log('🔧 Step 3: Setting up routes...');
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   console.log('💚 Health check requested');
   res.json({ 
     status: 'OK', 
@@ -89,7 +89,7 @@ app.get('/health', (req, res) => {
 });
 
 // API info endpoint
-app.get('/api', (req, res) => {
+app.get('/api', (_req, res) => {
   console.log('📋 API info requested');
   res.json({ 
     message: 'RunQuest API v1.0.0',
@@ -113,7 +113,7 @@ app.get('/api', (req, res) => {
 });
 
 // Database test endpoint
-app.get('/api/database/test', async (req, res) => {
+app.get('/api/database/test', async (_req, res) => {
   console.log('🗄️ Database test requested');
   try {
     const result = await testDatabaseConnection();

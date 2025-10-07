@@ -8,7 +8,7 @@ const router = express.Router();
  * GET /api/titles
  * Returns all titles
  */
-router.get('/', authenticateJWT, async (req, res) => {
+router.get('/', authenticateJWT, async (_req, res) => {
   try {
     console.log('🏆 API: Fetching all titles...');
     
@@ -37,7 +37,7 @@ router.get('/', authenticateJWT, async (req, res) => {
  * GET /api/titles/leaderboard
  * Returns optimized title leaderboard with holders and runners-up
  */
-router.get('/leaderboard', authenticateJWT, async (req, res) => {
+router.get('/leaderboard', authenticateJWT, async (_req, res) => {
   try {
     console.log('📊 API: Fetching title leaderboard...');
     
@@ -127,7 +127,7 @@ router.post('/refresh/:titleId', authenticateJWT, async (req, res) => {
  * POST /api/titles/populate
  * Manually populate title leaderboards from user data (admin only)
  */
-router.post('/populate', authenticateJWT, async (req, res) => {
+router.post('/populate', authenticateJWT, async (_req, res) => {
   try {
     console.log('🔄 API: Manual title leaderboard population requested...');
     
@@ -152,7 +152,7 @@ router.post('/populate', authenticateJWT, async (req, res) => {
  * POST /api/titles/refresh
  * Refresh title leaderboards - can be called automatically when data changes
  */
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', async (_req, res) => {
   try {
     console.log('🔄 API: Title leaderboard refresh requested...');
     

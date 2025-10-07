@@ -60,7 +60,8 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
       setAllTitles(titleHolders);
       
       if (usersResult.success && usersResult.data) {
-        setAllUsers(usersResult.data);
+        const users = usersResult.data as UserType[];
+        setAllUsers(users);
       }
     } catch (error) {
       console.error('Error fetching title data:', error);

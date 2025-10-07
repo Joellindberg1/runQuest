@@ -2,30 +2,30 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
-import { calculateRunXP, metersToKm, getLevelFromXP } from '../utils/xpCalculation.js';
+import { calculateRunXP } from '../utils/xpCalculation.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 
 const router = express.Router();
 
 // GET /api/strava/config - Get Strava client ID
-router.get('/config', async (req, res) => {
+router.get('/config', async (_req, res): Promise<void> => {
   try {
     console.log('⚙️ Strava config requested');
     
     const clientId = process.env.STRAVA_CLIENT_ID;
     if (!clientId) {
-      return res.status(500).json({ error: 'Strava client ID not configured' });
+      res.status(500).json({ error: 'Strava client ID not configured' }); return;
     }
     
-    res.json({ client_id: clientId });
+    res.json({ client_id: clientId }); return;
   } catch (error) {
     console.error('❌ Strava config error:', error);
-    res.status(500).json({ error: 'Failed to get Strava config' });
+    res.status(500).json({ error: 'Failed to get Strava config' }); return;
   }
 });
 
 // GET /api/strava/status - Check user's Strava connection status  
-router.get('/status', authenticateJWT, async (req, res) => {
+router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
     console.log('🔍 Checking Strava status for user:', req.user!.name);
@@ -39,7 +39,7 @@ router.get('/status', authenticateJWT, async (req, res) => {
     
     if (error || !tokens) {
       console.log('❌ No Strava tokens found for user');
-      return res.json({ connected: false, expired: false });
+      res.json({ connected: false, expired: false }); return;
     }
     
     const now = Math.floor(Date.now() / 1000);
@@ -52,14 +52,14 @@ router.get('/status', authenticateJWT, async (req, res) => {
       const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
       if (refreshResult.success) {
         console.log('✅ Token auto-refreshed successfully');
-        return res.json({
+        res.json({
           connected: true,
           expired: false, // No longer expired after refresh
           auto_refreshed: true
         });
       } else {
         console.log('❌ Auto-refresh failed, connection truly expired');
-        return res.json({
+        res.json({
           connected: true,
           expired: true,
           refresh_failed: true
@@ -90,18 +90,18 @@ router.get('/status', authenticateJWT, async (req, res) => {
     
   } catch (error) {
     console.error('❌ Strava status error:', error);
-    res.status(500).json({ error: 'Failed to check Strava status' });
+    res.status(500).json({ error: 'Failed to check Strava status' }); return;
   }
 });
 
 // POST /api/strava/callback - Handle Strava OAuth callback
-router.post('/callback', authenticateJWT, async (req, res) => {
+router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const { code } = req.body;
     const userId = req.user!.user_id;
     
     if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' });
+      res.status(400).json({ error: 'Authorization code required' }); return;
     }
     
     console.log(`🔗 Processing Strava callback for user: ${req.user!.name}`);
@@ -112,7 +112,7 @@ router.post('/callback', authenticateJWT, async (req, res) => {
     const clientSecret = process.env.STRAVA_CLIENT_SECRET;
     
     if (!clientId || !clientSecret) {
-      return res.status(500).json({ error: 'Strava credentials not configured' });
+      res.status(500).json({ error: 'Strava credentials not configured' }); return;
     }
     
     const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
@@ -130,7 +130,7 @@ router.post('/callback', authenticateJWT, async (req, res) => {
     
     if (!tokenResponse.ok) {
       console.error('❌ Strava token exchange failed:', tokenData);
-      return res.status(400).json({ error: 'Failed to exchange authorization code' });
+      res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
     }
     
     console.log('✅ Strava tokens received:', {
@@ -140,7 +140,7 @@ router.post('/callback', authenticateJWT, async (req, res) => {
     
     // Save tokens to database
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('strava_tokens')
       .upsert({
         user_id: userId,
@@ -154,7 +154,7 @@ router.post('/callback', authenticateJWT, async (req, res) => {
     
     if (error) {
       console.error('❌ Failed to save Strava tokens:', error);
-      return res.status(500).json({ error: 'Failed to save Strava connection' });
+      res.status(500).json({ error: 'Failed to save Strava connection' }); return;
     }
     
     console.log('✅ Strava tokens saved successfully');
@@ -167,12 +167,12 @@ router.post('/callback', authenticateJWT, async (req, res) => {
     
   } catch (error) {
     console.error('❌ Strava callback error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 
 // DELETE /api/strava/disconnect - Disconnect Strava account
-router.delete('/disconnect', authenticateJWT, async (req, res) => {
+router.delete('/disconnect', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
     console.log(`🔌 Disconnecting Strava for user: ${req.user!.name}`);
@@ -185,7 +185,7 @@ router.delete('/disconnect', authenticateJWT, async (req, res) => {
     
     if (error) {
       console.error('❌ Failed to delete Strava tokens:', error);
-      return res.status(500).json({ error: 'Failed to disconnect Strava' });
+      res.status(500).json({ error: 'Failed to disconnect Strava' }); return;
     }
     
     console.log('✅ Strava disconnected successfully');
@@ -196,7 +196,7 @@ router.delete('/disconnect', authenticateJWT, async (req, res) => {
     
   } catch (error) {
     console.error('❌ Strava disconnect error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 
@@ -216,12 +216,12 @@ router.post('/sync', authenticateJWT, async (req, res) => {
         totalActivities: result.totalActivities
       });
     } else {
-      res.status(400).json({ error: result.error });
+      res.status(400).json({ error: result.error }); return;
     }
     
   } catch (error) {
     console.error('❌ Manual Strava sync error:', error);
-    res.status(500).json({ error: 'Failed to sync Strava activities' });
+    res.status(500).json({ error: 'Failed to sync Strava activities' }); return;
   }
 });
 
@@ -270,7 +270,7 @@ async function getLastSyncAttempt() {
 }
 
 // GET /api/strava/sync-all - Sync all connected users (internal endpoint)
-router.get('/sync-all', async (req, res) => {
+router.get('/sync-all', async (_req, res) => {
   const syncStartTime = new Date().toISOString();
   
   try {
@@ -299,12 +299,12 @@ router.get('/sync-all', async (req, res) => {
     
     if (error) {
       console.error('❌ Failed to fetch connected users:', error);
-      return res.status(500).json({ error: 'Failed to fetch connected users' });
+      res.status(500).json({ error: 'Failed to fetch connected users' }); return;
     }
     
     if (!connectedUsers || connectedUsers.length === 0) {
       console.log('ℹ️ No users with Strava connections found');
-      return res.json({ 
+      res.json({ 
         success: true, 
         message: 'No users to sync',
         syncedUsers: 0,
@@ -392,7 +392,7 @@ router.get('/sync-all', async (req, res) => {
       error_message: error instanceof Error ? error.message : 'Unknown error'
     });
       
-    res.status(500).json({ error: 'Failed to sync Strava activities' });
+    res.status(500).json({ error: 'Failed to sync Strava activities' }); return;
   }
 });
 
@@ -726,12 +726,12 @@ async function refreshStravaToken(refreshToken: string, userId: string): Promise
 }
 
 // GET /api/strava/last-sync - Get last sync attempt info
-router.get('/last-sync', async (req, res) => {
+router.get('/last-sync', async (_req, res): Promise<void> => {
   try {
     const lastSync = await getLastSyncAttempt();
     
     if (!lastSync) {
-      return res.json({
+      res.json({
         success: true,
         data: {
           last_sync_attempt: null,
@@ -761,7 +761,7 @@ router.get('/last-sync', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Failed to get last sync info:', error);
-    res.status(500).json({ error: 'Failed to get sync info' });
+    res.status(500).json({ error: 'Failed to get sync info' }); return;
   }
 });
 

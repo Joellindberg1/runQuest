@@ -35,12 +35,12 @@ app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'OK', message: 'RunQuest Backend is running' });
 });
 
 // API routes will be added here
-app.get('/api', (req, res) => {
+app.get('/api', (_req, res) => {
   res.json({ message: 'RunQuest API v1' });
 });
 

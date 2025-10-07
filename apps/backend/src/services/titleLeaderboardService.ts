@@ -1,9 +1,40 @@
-import { Request, Response } from 'express';
 import { supabase } from '../config/database';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+// Type definitions for leaderboard data
+interface LeaderboardRow {
+  title_id: string;
+  title_name: string;
+  title_description: string;
+  position: number;
+  value: number;
+  earned_at: string;
+  status: string;
+}
+
+interface UserTitle {
+  title_id: string;
+  value: number;
+  earned_at: string;
+  titles?: {
+    name: string;
+    description: string;
+  };
+}
+
+interface LeaderboardTitle {
+  title_id: string;
+  title_name: string;
+  title_description: string;
+  position: number | null;
+  value: number;
+  earned_at: string;
+  is_current_holder: boolean;
+  status: string;
+}
 
 // ✅ FIXED: ES modules compatible __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -143,7 +174,7 @@ export class TitleLeaderboardService {
       }
 
       // Combine and deduplicate
-      const leaderboardTitles = (leaderboardData || []).map(row => ({
+      const leaderboardTitles = (leaderboardData || []).map((row: LeaderboardRow) => ({
         title_id: row.title_id,
         title_name: row.title_name,
         title_description: row.title_description,
@@ -155,10 +186,10 @@ export class TitleLeaderboardService {
       }));
 
       // Add titles not in leaderboard (position > 10 or no position)
-      const leaderboardTitleIds = new Set(leaderboardTitles.map(t => t.title_id));
+      const leaderboardTitleIds = new Set(leaderboardTitles.map((t: LeaderboardTitle) => t.title_id));
       const additionalTitles = (allUserTitles || [])
-        .filter(ut => !leaderboardTitleIds.has(ut.title_id))
-        .map(ut => ({
+        .filter((ut: UserTitle) => !leaderboardTitleIds.has(ut.title_id))
+        .map((ut: UserTitle) => ({
           title_id: ut.title_id,
           title_name: ut.titles?.name || '',
           title_description: ut.titles?.description || '',

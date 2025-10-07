@@ -25,7 +25,7 @@ interface AdminSettings {
 }
 
 interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   total_xp?: number;
@@ -101,8 +101,9 @@ const AdminPage: React.FC = () => {
       console.log('📊 API Response:', result);
       
       if (result.success && result.data) {
-        console.log('✅ Users fetched successfully:', result.data.length, 'users');
-        setUsers(result.data);
+        const users = result.data as User[];
+        console.log('✅ Users fetched successfully:', users.length, 'users');
+        setUsers(users);
       } else {
         console.error('❌ Failed to fetch users:', result.error);
         toast.error('Failed to fetch users: ' + (result.error || 'Unknown error'));
@@ -143,7 +144,8 @@ const AdminPage: React.FC = () => {
     try {
       const result = await backendApi.createUser(newUser.name, newUser.email, newUser.password);
       if (result.success && result.data) {
-        setUsers([...users, result.data]);
+        const newUserData = result.data as User;
+        setUsers([...users, newUserData]);
         setNewUser({ name: '', email: '', password: '' });
         toast.success('User created successfully!');
       } else {
@@ -155,7 +157,7 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const handleResetUserPassword = async (userId: number) => {
+  const handleResetUserPassword = async (userId: string) => {
     if (!newPasswordForUser || newPasswordForUser.length < 6) {
       toast.error('Password must be at least 6 characters');
       return;
