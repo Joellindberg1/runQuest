@@ -1,0 +1,37 @@
+{
+  "name": "@runquest/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for RunQuest application",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rimraf dist"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./xp": {
+      "import": "./dist/xpCalculation.js",
+      "types": "./dist/xpCalculation.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "peerDependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "rimraf": "^5.0.0"
+  },
+  "keywords": [
+    "runquest",
+    "xp-calculation",
+    "shared-utilities"
+  ]
+}

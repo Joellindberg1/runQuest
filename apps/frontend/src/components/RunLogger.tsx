@@ -17,7 +17,7 @@ interface RunLoggerProps {
   users?: User[];
 }
 
-export const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
+const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [distance, setDistance] = useState('');
   const [loading, setLoading] = useState(false);

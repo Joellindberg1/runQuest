@@ -3,7 +3,7 @@
 // before committing data, preventing partial failures
 
 import { getSupabaseClient } from '../config/database.js';
-import { calculateRunXP } from '../utils/xpCalculation.js';
+import { calculateCompleteRunXP } from '../../../../packages/shared/dist/xpCalculation.js';
 
 /**
  * Enhanced Strava run processing with atomic transactions
@@ -31,8 +31,12 @@ export async function processStravaRunWithTransaction(
     console.log(`📊 Phase 1: Calculating all values for ${distance}km run...`);
     
     // Execute ALL async calculations in parallel where possible
-    const [xpResult, streakResult, multiplierData] = await Promise.all([
-      calculateRunXP(distance),
+    const [adminSettings, streakResult, multiplierData] = await Promise.all([
+      supabase
+        .from('admin_settings')
+        .select('*')
+        .single()
+        .then((result: any) => result.data),
       (async () => {
         const { StreakService } = await import('../services/streakService.js');
         return StreakService.calculateUserStreaks(userId, date);
@@ -44,18 +48,17 @@ export async function processStravaRunWithTransaction(
         .then((result: any) => result.data)
     ]);
     
-    // Calculate final values
-    let streakMultiplier = 1.0;
-    if (multiplierData) {
-      for (const mult of multiplierData) {
-        if (streakResult.streakDayForRun >= mult.days) {
-          streakMultiplier = mult.multiplier;
-        }
-      }
-    }
+    // Use unified XP calculation
+    const xpCalculationResult = await calculateCompleteRunXP(
+      distance,
+      streakResult.streakDayForRun,
+      adminSettings,
+      multiplierData || []
+    );
     
-    const finalXP = Math.round(xpResult.totalXP * streakMultiplier);
-    const streakBonus = finalXP - xpResult.totalXP;
+    const finalXP = xpCalculationResult.finalXP;
+    const streakBonus = xpCalculationResult.streakBonus;
+    const streakMultiplier = xpCalculationResult.multiplier;
     
     // Phase 2: Validate ALL calculated data
     console.log(`✅ Phase 2: Validating calculated values...`);
@@ -64,8 +67,8 @@ export async function processStravaRunWithTransaction(
       throw new Error(`XP calculation failed: ${distance}km resulted in ${finalXP} XP`);
     }
     
-    if (!xpResult.baseXP && !xpResult.kmXP) {
-      throw new Error(`XP breakdown missing: base=${xpResult.baseXP}, km=${xpResult.kmXP}`);
+    if (!xpCalculationResult.baseXP && !xpCalculationResult.kmXP) {
+      throw new Error(`XP breakdown missing: base=${xpCalculationResult.baseXP}, km=${xpCalculationResult.kmXP}`);
     }
     
     console.log(`📋 Calculated values: XP=${finalXP}, Streak=${streakMultiplier}x, Day=${streakResult.streakDayForRun}`);
@@ -80,9 +83,9 @@ export async function processStravaRunWithTransaction(
       xp_gained: finalXP,
       multiplier: streakMultiplier,
       streak_day: streakResult.streakDayForRun,
-      base_xp: xpResult.baseXP,
-      km_xp: xpResult.kmXP,
-      distance_bonus: xpResult.distanceBonus,
+      base_xp: xpCalculationResult.baseXP,
+      km_xp: xpCalculationResult.kmXP,
+      distance_bonus: xpCalculationResult.distanceBonus,
       streak_bonus: streakBonus,
       source: 'strava',
       external_id: activity.id.toString(),
