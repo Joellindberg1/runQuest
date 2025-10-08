@@ -66,6 +66,11 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
       // Force title recalculation as backup
       await runService.triggerTitleRecalculation();
 
+      // Trigger a custom event to notify other components of data changes
+      window.dispatchEvent(new CustomEvent('runsUpdated', { 
+        detail: { userId: run.user_id, action: 'updated' } 
+      }));
+
       toast.success('Run updated successfully');
       onRunUpdated();
       onOpenChange(false);
@@ -98,6 +103,11 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
       
       // Force title recalculation as backup
       await runService.triggerTitleRecalculation();
+
+      // Trigger a custom event to notify other components of data changes
+      window.dispatchEvent(new CustomEvent('runsUpdated', { 
+        detail: { userId: run.user_id, action: 'deleted' } 
+      }));
 
       toast.success('Run deleted successfully');
       onRunUpdated();

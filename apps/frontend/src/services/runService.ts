@@ -384,25 +384,26 @@ export const runService = {
     try {
       console.log('🏆 Triggering title recalculation via backend...');
       
-      const response = await fetch('http://localhost:3001/api/titles/refresh', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      // Use the backend API service for consistent endpoint handling
+      const { backendApi } = await import('./backendApi');
       
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Title recalculation triggered successfully:', result.message);
-        return true;
+      if (backendApi.isAuthenticated()) {
+        const response = await backendApi.refreshTitleLeaderboards();
+        
+        if (response.success) {
+          console.log('✅ Title recalculation triggered successfully');
+          return response;
+        } else {
+          console.warn('⚠️ Title recalculation failed:', response.error);
+          return response;
+        }
       } else {
-        const errorText = await response.text();
-        console.error('❌ Title recalculation failed:', response.status, errorText);
-        return false;
+        console.warn('⚠️ User not authenticated for title recalculation');
+        return { success: false, error: 'Not authenticated' };
       }
     } catch (error) {
       console.error('❌ Error triggering title recalculation:', error);
-      return false;
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   },
 

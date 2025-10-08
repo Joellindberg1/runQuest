@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Leaderboard } from '@/components/Leaderboard';
 import RunLogger from '@/components/RunLogger';
 import { UserProfile } from '@/components/UserProfile';
-import { OptimizedTitleSystem } from '@/components/OptimizedTitleSystem';
+import { TitleSystem } from '@/components/TitleSystem';
 import { ProfileMenu } from '@/components/ProfileMenu';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -118,6 +118,21 @@ const Index: React.FC = () => {
     }
   }, [authUser]);
 
+  // Listen for run updates and refresh all data
+  useEffect(() => {
+    const handleRunUpdate = async (event: any) => {
+      console.log('🔄 Run update event received, refreshing all data...', event.detail);
+      await fetchUsers();
+      toast.success('Data refreshed after run update!');
+    };
+
+    window.addEventListener('runsUpdated', handleRunUpdate);
+    
+    return () => {
+      window.removeEventListener('runsUpdated', handleRunUpdate);
+    };
+  }, []);
+
   const handleRunSubmit = async () => {
     console.log('Run submitted successfully, refreshing data...');
     await fetchUsers(); // Refresh all data after run submission
@@ -211,7 +226,7 @@ const Index: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="titles">
-            <OptimizedTitleSystem users={users} />
+            <TitleSystem users={users} />
           </TabsContent>
 
           <TabsContent value="profile">
