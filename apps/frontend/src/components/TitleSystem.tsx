@@ -1,8 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Crown, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Crown } from 'lucide-react';
 import { runService } from '@/services/runService';
 import { toast } from 'sonner';
 import { TitleCard } from './title/TitleCard';
@@ -16,36 +15,33 @@ interface TitleSystemProps {
 export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
   const [titles, setTitles] = useState<Title[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   // Filter out admin users
   const filteredUsers = users.filter(user => user.name.toLowerCase() !== 'admin');
 
   // Fetch titles using the new direct query approach
-  const fetchTitles = async (showToast = false) => {
+  const fetchTitles = async () => {
     try {
-      if (showToast) setRefreshing(true);
       console.log('🏆 Fetching titles using direct query approach...');
+      
+      // First trigger backend title calculation to ensure fresh data
+      try {
+        await runService.triggerTitleRecalculation();
+        console.log('✅ Backend title calculation triggered');
+      } catch (error) {
+        console.warn('⚠️ Backend title calculation failed, using cached data:', error);
+      }
       
       const titleHolders = await runService.getTitleHolders();
       console.log('✅ Titles loaded:', titleHolders);
       
       setTitles(titleHolders);
-      
-      if (showToast) {
-        toast.success('✅ Titles refreshed successfully!');
-      }
     } catch (error) {
       console.error('Error fetching titles:', error);
       toast.error('Failed to load titles');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  };
-
-  const handleRefresh = () => {
-    fetchTitles(true);
   };
 
   useEffect(() => {
@@ -90,20 +86,9 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
       {/* Competitive Titles */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Crown className="w-6 h-6 text-yellow-500" />
-              <CardTitle>Competitive Titles</CardTitle>
-            </div>
-            <Button 
-              onClick={handleRefresh}
-              variant="outline"
-              size="sm"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+          <div className="flex items-center gap-2">
+            <Crown className="w-6 h-6 text-yellow-500" />
+            <CardTitle>Competitive Titles</CardTitle>
           </div>
           <p className="text-sm text-muted-foreground">
             Fight for four exclusive titles that change hands when records are broken

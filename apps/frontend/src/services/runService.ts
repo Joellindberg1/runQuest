@@ -128,6 +128,20 @@ export const runService = {
         await this.updateUserTotals(userId)
         console.log('✅ User totals updated successfully');
         
+        // Trigger title recalculation after run save
+        try {
+          await this.triggerTitleRecalculation();
+          console.log('✅ Title recalculation triggered after run save');
+        } catch (titleError) {
+          console.warn('⚠️ Title recalculation failed after run save:', titleError);
+          // Don't fail the whole operation if title update fails
+        }
+        
+        // Trigger UI refresh event
+        window.dispatchEvent(new CustomEvent('runsUpdated', { 
+          detail: { userId, action: 'added' } 
+        }));
+        
       } catch (recalculationError) {
         console.error('❌ Primary recalculation failed, trying fallback:', recalculationError)
         
@@ -135,6 +149,19 @@ export const runService = {
         try {
           await this.updateUserTotalsFallback(userId)
           console.log('✅ Fallback totals update succeeded');
+          
+          // Trigger title recalculation after fallback
+          try {
+            await this.triggerTitleRecalculation();
+            console.log('✅ Title recalculation triggered after fallback');
+          } catch (titleError) {
+            console.warn('⚠️ Title recalculation failed after fallback:', titleError);
+          }
+          
+          // Trigger UI refresh event
+          window.dispatchEvent(new CustomEvent('runsUpdated', { 
+            detail: { userId, action: 'added_fallback' } 
+          }));
         } catch (fallbackError) {
           console.error('❌ Both primary and fallback failed:', fallbackError)
           // Note: Run is already saved, but totals may be inconsistent
@@ -418,7 +445,44 @@ export const runService = {
   },
 
   async getTitleHolders() {
-    return titleService.getTitleHolders()
+    try {
+      console.log('🏆 Getting title holders via backend API...');
+      
+      // Use backend API for fresh title data
+      const { backendApi } = await import('./backendApi');
+      
+      if (backendApi.isAuthenticated()) {
+        const response = await backendApi.getTitleLeaderboard();
+        
+        if (response.success && response.data) {
+          console.log('✅ Title leaderboard fetched from backend:', response.data.length, 'titles');
+          
+          // Transform backend response to expected format
+          const transformedTitles = response.data.map((title: any) => ({
+            id: title.id,
+            name: title.name,
+            description: title.description,
+            unlock_requirement: title.unlock_requirement,
+            current_holder_id: title.holder?.user_id || null,
+            current_value: title.holder?.value || null,
+            holder_name: title.holder?.user_name || undefined,
+            runners_up: title.runners_up || []
+          }));
+          
+          return transformedTitles;
+        } else {
+          console.warn('⚠️ Backend title leaderboard failed, falling back to old service');
+          return titleService.getTitleHolders();
+        }
+      } else {
+        console.warn('⚠️ User not authenticated, falling back to old service');
+        return titleService.getTitleHolders();
+      }
+    } catch (error) {
+      console.error('❌ Error getting title holders from backend:', error);
+      console.log('🔄 Falling back to old title service...');
+      return titleService.getTitleHolders();
+    }
   },
 
   async getUserTitles(userId: string) {
