@@ -14,8 +14,6 @@
     "build": "npm run build --workspaces --if-present",
     "build:frontend": "npm run build --workspace=@runquest/frontend",
     "build:backend": "npm run build --workspace=@runquest/backend",
-    "build:all": "npm run build --workspace=@runquest/shared && npm run build --workspace=@runquest/backend",
-    "start:railway": "npm run start --workspace=@runquest/backend",
     "lint": "npm run lint --workspaces --if-present",
     "type-check": "npm run type-check --workspaces --if-present",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist"
