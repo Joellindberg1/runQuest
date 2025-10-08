@@ -93,8 +93,7 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
       // Recalculate all runs for this user to ensure correct streaks and XP
       await runService.recalculateAllRuns(run.user_id);
       
-      // Force a complete recalculation of user totals
-      const userRuns = await runService.getUserRuns(run.user_id);
+      // Force a complete recalculation of user totals after deletion
       await runService.updateUserTotals(run.user_id);
       
       // Force title recalculation as backup
