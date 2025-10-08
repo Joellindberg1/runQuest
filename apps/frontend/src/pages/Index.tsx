@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Leaderboard } from '@/components/Leaderboard';
 import RunLogger from '@/components/RunLogger';
 import { UserProfile } from '@/components/UserProfile';
-import { TitleSystem } from '@/components/TitleSystem';
+import { OptimizedTitleSystem } from '@/components/OptimizedTitleSystem';
 import { ProfileMenu } from '@/components/ProfileMenu';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -211,7 +211,7 @@ const Index: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="titles">
-            <TitleSystem users={users} />
+            <OptimizedTitleSystem users={users} />
           </TabsContent>
 
           <TabsContent value="profile">
