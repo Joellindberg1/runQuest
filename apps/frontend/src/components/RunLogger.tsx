@@ -265,3 +265,5 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
     </div>
   );
 };
+
+export { RunLogger };
