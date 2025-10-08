@@ -378,4 +378,148 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
   }
 });
 
+// GET /api/auth/admin-settings - Get admin settings
+router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    console.log('🔍 Admin: Fetching admin settings...');
+    
+    const supabase = getSupabaseClient();
+    const { data: settings, error } = await supabase
+      .from('admin_settings')
+      .select('*')
+      .single();
+    
+    if (error) {
+      console.error('❌ Failed to fetch admin settings:', error);
+      res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
+    }
+    
+    console.log('✅ Admin settings fetched successfully');
+    res.json({ success: true, data: settings });
+    
+  } catch (error) {
+    console.error('❌ Error fetching admin settings:', error);
+    res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
+  }
+});
+
+// PUT /api/auth/admin-settings - Update admin settings
+router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
+  try {
+    console.log('💾 Admin: Updating admin settings...');
+    const { 
+      base_xp, 
+      xp_per_km, 
+      bonus_5km, 
+      bonus_10km, 
+      bonus_15km, 
+      bonus_20km, 
+      min_run_distance 
+    } = req.body;
+    
+    // Validate required fields
+    if (base_xp === undefined || xp_per_km === undefined) {
+      res.status(400).json({ error: 'base_xp and xp_per_km are required' }); return;
+    }
+    
+    const supabase = getSupabaseClient();
+    
+    // Update admin settings
+    const { data: updatedSettings, error } = await supabase
+      .from('admin_settings')
+      .update({
+        base_xp,
+        xp_per_km,
+        bonus_5km: bonus_5km ?? 5,
+        bonus_10km: bonus_10km ?? 15,
+        bonus_15km: bonus_15km ?? 25,
+        bonus_20km: bonus_20km ?? 50,
+        min_run_distance: min_run_distance ?? 1.0,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', 1) // Assuming single settings row with id=1
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('❌ Failed to update admin settings:', error);
+      res.status(500).json({ error: 'Failed to update admin settings' }); return;
+    }
+    
+    console.log('✅ Admin settings updated successfully');
+    res.json({ 
+      success: true, 
+      data: updatedSettings,
+      message: 'Admin settings updated successfully' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating admin settings:', error);
+    res.status(500).json({ error: 'Failed to update admin settings' }); return;
+  }
+});
+
+// GET /api/auth/streak-multipliers - Get streak multipliers
+router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    console.log('🔍 Admin: Fetching streak multipliers...');
+    
+    const supabase = getSupabaseClient();
+    const { data: multipliers, error } = await supabase
+      .from('streak_multipliers')
+      .select('*')
+      .order('days');
+    
+    if (error) {
+      console.error('❌ Failed to fetch streak multipliers:', error);
+      res.status(500).json({ error: 'Failed to fetch streak multipliers' }); return;
+    }
+    
+    console.log('✅ Streak multipliers fetched successfully');
+    res.json({ success: true, data: multipliers });
+    
+  } catch (error) {
+    console.error('❌ Error fetching streak multipliers:', error);
+    res.status(500).json({ error: 'Failed to fetch streak multipliers' }); return;
+  }
+});
+
+// PUT /api/auth/streak-multipliers - Update streak multipliers
+router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
+  try {
+    console.log('💾 Admin: Updating streak multipliers...');
+    const { multipliers } = req.body;
+    
+    if (!Array.isArray(multipliers)) {
+      res.status(400).json({ error: 'multipliers must be an array' }); return;
+    }
+    
+    const supabase = getSupabaseClient();
+    
+    // Delete existing multipliers and insert new ones
+    await supabase.from('streak_multipliers').delete().neq('id', 0); // Delete all
+    
+    const { data: insertedMultipliers, error } = await supabase
+      .from('streak_multipliers')
+      .insert(multipliers)
+      .select();
+    
+    if (error) {
+      console.error('❌ Failed to update streak multipliers:', error);
+      res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
+    }
+    
+    console.log('✅ Streak multipliers updated successfully');
+    res.json({ 
+      success: true, 
+      data: insertedMultipliers,
+      message: 'Streak multipliers updated successfully' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating streak multipliers:', error);
+    res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
+  }
+});
+
 export default router;

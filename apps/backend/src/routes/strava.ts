@@ -2,7 +2,7 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
-import { calculateRunXP } from '../utils/xpCalculation.js';
+import { calculateCompleteRunXP } from '../../../../packages/shared/dist/xpCalculation.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 
 const router = express.Router();
@@ -565,44 +565,46 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
   
   console.log(`📊 Calculating values for ${distance.toFixed(2)}km run on ${date}...`);
   
-  // Phase 1: Calculate ALL values with proper async/await
-  const xpResult = await calculateRunXP(distance);
-  console.log(`  ✅ XP calculated: ${xpResult.totalXP} (Base: ${xpResult.baseXP}, KM: ${xpResult.kmXP}, Bonus: ${xpResult.distanceBonus})`);
+  // Phase 1: Get admin settings and multipliers
+  const supabase = getSupabaseClient();
+  const [adminSettings, streakResult, multiplierData] = await Promise.all([
+    supabase
+      .from('admin_settings')
+      .select('*')
+      .single()
+      .then((result: any) => result.data),
+    (async () => {
+      const { StreakService } = await import('../services/streakService.js');
+      return StreakService.calculateUserStreaks(userId, date);
+    })(),
+    supabase
+      .from('streak_multipliers')
+      .select('*')
+      .order('days')
+      .then((result: any) => result.data)
+  ]);
   
-  // Import and calculate streak - WAIT for completion
-  const { StreakService } = await import('../services/streakService.js');
-  const streakResult = await StreakService.calculateUserStreaks(userId, date);
-  console.log(`  ✅ Streak calculated: Day ${streakResult.streakDayForRun} of current ${streakResult.currentStreak}-day streak`);
+  // Use unified XP calculation
+  const xpCalculationResult = await calculateCompleteRunXP(
+    distance,
+    streakResult.streakDayForRun,
+    adminSettings,
+    multiplierData || []
+  );
   
-  // Get multiplier data - WAIT for completion
-  const { data: multipliers } = await supabase
-    .from('streak_multipliers')
-    .select('*')
-    .order('days');
-  console.log(`  ✅ Multipliers loaded: ${multipliers?.length || 0} tiers`);
+  const finalXP = xpCalculationResult.finalXP;
+  const streakBonus = xpCalculationResult.streakBonus;
+  const streakMultiplier = xpCalculationResult.multiplier;
   
-  // Calculate final values
-  let streakMultiplier = 1.0;
-  if (multipliers) {
-    for (const mult of multipliers) {
-      if (streakResult.streakDayForRun >= mult.days) {
-        streakMultiplier = mult.multiplier;
-      }
-    }
-  }
-  
-  const finalXP = Math.round(xpResult.totalXP * streakMultiplier);
-  const streakBonus = finalXP - xpResult.totalXP;
-  
-  console.log(`  � Final calculation: ${finalXP} XP (${streakMultiplier}x multiplier = +${streakBonus} bonus)`);
+  console.log(`  ✅ Unified XP calculated: ${finalXP} XP (Base: ${xpCalculationResult.baseXP}, KM: ${xpCalculationResult.kmXP}, Distance Bonus: ${xpCalculationResult.distanceBonus}, Streak: ${streakMultiplier}x)`);
   
   // Phase 2: Validate ALL data BEFORE saving
   if (distance > 0 && finalXP <= 0) {
     throw new Error(`XP validation failed: ${distance}km run resulted in ${finalXP} XP`);
   }
   
-  if (!xpResult.baseXP && !xpResult.kmXP && distance > 0) {
-    throw new Error(`XP breakdown validation failed: base=${xpResult.baseXP}, km=${xpResult.kmXP} for ${distance}km`);
+  if (!xpCalculationResult.baseXP && !xpCalculationResult.kmXP && distance > 0) {
+    throw new Error(`XP breakdown validation failed: base=${xpCalculationResult.baseXP}, km=${xpCalculationResult.kmXP} for ${distance}km`);
   }
   
   console.log(`  ✅ All validations passed`);
@@ -615,9 +617,9 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
     xp_gained: finalXP,
     multiplier: streakMultiplier,
     streak_day: streakResult.streakDayForRun,
-    base_xp: xpResult.baseXP,
-    km_xp: xpResult.kmXP,
-    distance_bonus: xpResult.distanceBonus,
+    base_xp: xpCalculationResult.baseXP,
+    km_xp: xpCalculationResult.kmXP,
+    distance_bonus: xpCalculationResult.distanceBonus,
     streak_bonus: streakBonus,
     source: 'strava',
     external_id: activity.id.toString(),

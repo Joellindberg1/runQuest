@@ -88,7 +88,49 @@ const AdminPage: React.FC = () => {
   // Fetch users from database
   useEffect(() => {
     fetchUsers();
+    fetchAdminSettings();
   }, []);
+
+  const fetchAdminSettings = async () => {
+    try {
+      console.log('🔍 Admin: Fetching admin settings...');
+      const result = await backendApi.getAdminSettings();
+      
+      if (result.success && result.data) {
+        console.log('✅ Admin settings fetched:', result.data);
+        setSettings({
+          xpPerRun: result.data.base_xp || 15,
+          xpPerKm: result.data.xp_per_km || 2,
+          bonus5km: result.data.bonus_5km || 5,
+          bonus10km: result.data.bonus_10km || 15,
+          bonus15km: result.data.bonus_15km || 25,
+          bonus20km: result.data.bonus_20km || 50,
+          minKmForRun: result.data.min_run_distance || 1.0,
+          minKmForStreak: result.data.min_run_distance || 1.0,
+          minRunDate: '2025-06-01',
+          streakBonuses: settings.streakBonuses, // Keep existing
+          multipliers: settings.multipliers // Keep existing for now
+        });
+        
+        // Also fetch streak multipliers
+        const multipliersResult = await backendApi.getStreakMultipliers();
+        if (multipliersResult.success && multipliersResult.data) {
+          const multipliersObject: { [key: number]: number } = {};
+          multipliersResult.data.forEach((mult: any) => {
+            multipliersObject[mult.days] = mult.multiplier;
+          });
+          setSettings(prev => ({ ...prev, multipliers: multipliersObject }));
+        }
+        
+      } else {
+        console.error('❌ Failed to fetch admin settings:', result.error);
+        toast.error('Failed to fetch admin settings: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('❌ Error fetching admin settings:', error);
+      toast.error('Failed to fetch admin settings');
+    }
+  };
 
   const fetchUsers = async () => {
     setLoadingUsers(true);
@@ -116,10 +158,44 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = () => {
-    // Save settings to localStorage or backend
-    localStorage.setItem('adminSettings', JSON.stringify(settings));
-    alert('Settings saved successfully!');
+  const handleSaveSettings = async () => {
+    try {
+      console.log('💾 Saving admin settings to database...');
+      
+      // Save basic XP settings to database
+      const basicSettingsResult = await backendApi.updateAdminSettings({
+        base_xp: settings.xpPerRun,
+        xp_per_km: settings.xpPerKm,
+        bonus_5km: settings.bonus5km,
+        bonus_10km: settings.bonus10km,
+        bonus_15km: settings.bonus15km,
+        bonus_20km: settings.bonus20km,
+        min_run_distance: settings.minKmForRun
+      });
+      
+      if (!basicSettingsResult.success) {
+        throw new Error(basicSettingsResult.error || 'Failed to save basic settings');
+      }
+      
+      // Save streak multipliers to database
+      const multipliersArray = Object.entries(settings.multipliers).map(([days, multiplier]) => ({
+        days: parseInt(days),
+        multiplier: parseFloat(multiplier.toString())
+      }));
+      
+      const multipliersResult = await backendApi.updateStreakMultipliers(multipliersArray);
+      
+      if (!multipliersResult.success) {
+        throw new Error(multipliersResult.error || 'Failed to save streak multipliers');
+      }
+      
+      console.log('✅ All settings saved successfully');
+      toast.success('Settings saved successfully to database!');
+      
+    } catch (error) {
+      console.error('❌ Error saving settings:', error);
+      toast.error('Failed to save settings: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
   };
 
   const handleChangeAdminPassword = () => {
@@ -188,6 +264,7 @@ const AdminPage: React.FC = () => {
       });
       setNewMultiplierDay('');
       setNewMultiplierValue('');
+      toast.success(`Added ${day} days → ${value}x multiplier. Remember to save settings!`);
     }
   };
 

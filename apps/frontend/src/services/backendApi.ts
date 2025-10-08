@@ -60,6 +60,7 @@ export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+  message?: string;
 }
 
 class BackendApiService {
@@ -484,6 +485,117 @@ class BackendApiService {
       
     } catch (error) {
       console.error('❌ Error refreshing title leaderboards:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  // 🔧 Admin Settings Management
+  async getAdminSettings(): Promise<ApiResponse<any>> {
+    try {
+      console.log('🔍 Fetching admin settings from backend...');
+      const response = await fetch(`${API_BASE_URL}/auth/admin-settings`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch admin settings');
+      }
+
+      console.log('✅ Admin settings fetched successfully');
+      return { success: true, data: data.data };
+    } catch (error) {
+      console.error('❌ Error fetching admin settings:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async updateAdminSettings(settings: {
+    base_xp: number;
+    xp_per_km: number;
+    bonus_5km: number;
+    bonus_10km: number;
+    bonus_15km: number;
+    bonus_20km: number;
+    min_run_distance: number;
+  }): Promise<ApiResponse<any>> {
+    try {
+      console.log('💾 Updating admin settings in backend...');
+      const response = await fetch(`${API_BASE_URL}/auth/admin-settings`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update admin settings');
+      }
+
+      console.log('✅ Admin settings updated successfully');
+      return { success: true, data: data.data, message: data.message };
+    } catch (error) {
+      console.error('❌ Error updating admin settings:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async getStreakMultipliers(): Promise<ApiResponse<any[]>> {
+    try {
+      console.log('🔍 Fetching streak multipliers from backend...');
+      const response = await fetch(`${API_BASE_URL}/auth/streak-multipliers`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch streak multipliers');
+      }
+
+      console.log('✅ Streak multipliers fetched successfully');
+      return { success: true, data: data.data };
+    } catch (error) {
+      console.error('❌ Error fetching streak multipliers:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async updateStreakMultipliers(multipliers: Array<{days: number, multiplier: number}>): Promise<ApiResponse<any[]>> {
+    try {
+      console.log('💾 Updating streak multipliers in backend...');
+      const response = await fetch(`${API_BASE_URL}/auth/streak-multipliers`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ multipliers }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update streak multipliers');
+      }
+
+      console.log('✅ Streak multipliers updated successfully');
+      return { success: true, data: data.data, message: data.message };
+    } catch (error) {
+      console.error('❌ Error updating streak multipliers:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
