@@ -123,12 +123,24 @@ export const runService = {
       // Ensure all follow-up operations complete successfully
       try {
         await this.recalculateRunsFromDate(userId, processedRun.date)
+        console.log('✅ Runs recalculated successfully');
+        
         await this.updateUserTotals(userId)
+        console.log('✅ User totals updated successfully');
+        
       } catch (recalculationError) {
-        console.error('Recalculation failed after saving run:', recalculationError)
-        // Note: Run is already saved, but totals may be inconsistent
-        const errorMessage = recalculationError instanceof Error ? recalculationError.message : 'Unknown recalculation error'
-        throw new Error(`Run saved but recalculation failed: ${errorMessage}`)
+        console.error('❌ Primary recalculation failed, trying fallback:', recalculationError)
+        
+        // Try fallback method
+        try {
+          await this.updateUserTotalsFallback(userId)
+          console.log('✅ Fallback totals update succeeded');
+        } catch (fallbackError) {
+          console.error('❌ Both primary and fallback failed:', fallbackError)
+          // Note: Run is already saved, but totals may be inconsistent
+          const errorMessage = fallbackError instanceof Error ? fallbackError.message : 'Unknown recalculation error'
+          throw new Error(`Run saved but totals update failed: ${errorMessage}`)
+        }
       }
       
       return data
@@ -310,7 +322,7 @@ export const runService = {
     }, 15000) // 15 second timeout
     
     try {
-      console.log('🔄 Triggering backend user totals recalculation...');
+      console.log('🔄 Triggering backend user totals recalculation for user:', userId);
       
       // Call backend API to recalculate totals and trigger title system
       const backendApi = (await import('./backendApi')).default;
@@ -319,11 +331,14 @@ export const runService = {
         signal: controller.signal // Add abort signal for cleanup
       });
       
+      console.log('📊 Backend response:', response);
+      
       if (response.success) {
         console.log('✅ Backend recalculation completed - titles updated automatically');
         return;
       } else {
         console.error('❌ Backend recalculation failed:', response.error);
+        throw new Error(`Backend recalculation failed: ${response.error}`);
       }
     } catch (error) {
       if (isAbortError(error)) {
@@ -331,13 +346,14 @@ export const runService = {
         throw new Error('User totals update timed out')
       }
       console.error('❌ Error calling backend recalculation:', error);
+      throw error; // Re-throw to trigger fallback
     } finally {
       // Always clean up timeout
       clearTimeout(timeoutId)
     }
-    
-    // Always run fallback to ensure data consistency
-    console.log('🔄 Running fallback: direct user totals update + title trigger...');
+  },
+
+  async updateUserTotalsFallback(userId: string) {
     
     const fallbackController = new AbortController()
     const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 10000) // 10s for fallback
