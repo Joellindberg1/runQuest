@@ -2,7 +2,7 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
-import { calculateCompleteRunXP } from '../../../../packages/shared/dist/xpCalculation.js';
+import { calculateCompleteRunXP } from '@runquest/shared';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 
 const router = express.Router();

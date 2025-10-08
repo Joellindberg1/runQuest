@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts"
+    "start": "tsx src/server.ts",
+    "build": "echo 'Backend uses tsx directly - no build needed'",
+    "postinstall": "cd ../../packages/shared && npm run build"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",
