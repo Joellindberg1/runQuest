@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Leaderboard } from '@/components/Leaderboard';
-import { RunLogger } from '@/components/RunLogger';
+import RunLogger from '@/components/RunLogger';
 import { UserProfile } from '@/components/UserProfile';
 import { TitleSystem } from '@/components/TitleSystem';
 import { ProfileMenu } from '@/components/ProfileMenu';
