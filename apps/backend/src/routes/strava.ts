@@ -2,7 +2,7 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
-import { calculateRunXP } from '../utils/xpCalculation.js';
+import { calculateCompleteRunXP } from '../../../../packages/shared/dist/xpCalculation.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 
 const router = express.Router();
@@ -565,60 +565,68 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
   
   console.log(`📊 Calculating values for ${distance.toFixed(2)}km run on ${date}...`);
   
-  // Phase 1: Calculate ALL values with proper async/await
-  const xpResult = await calculateRunXP(distance);
-  console.log(`  ✅ XP calculated: ${xpResult.totalXP} (Base: ${xpResult.baseXP}, KM: ${xpResult.kmXP}, Bonus: ${xpResult.distanceBonus})`);
+  // Phase 1: Get ALL required data with proper async/await
+  const supabase = getSupabaseClient();
   
-  // Import and calculate streak - WAIT for completion
+  // Get admin settings
+  const { data: settings, error: settingsError } = await supabase
+    .from('admin_settings')
+    .select('*')
+    .single();
+  
+  if (settingsError) {
+    throw new Error(`Failed to load admin settings: ${settingsError.message}`);
+  }
+  
+  // Calculate streak
   const { StreakService } = await import('../services/streakService.js');
   const streakResult = await StreakService.calculateUserStreaks(userId, date);
-  console.log(`  ✅ Streak calculated: Day ${streakResult.streakDayForRun} of current ${streakResult.currentStreak}-day streak`);
   
-  // Get multiplier data - WAIT for completion
-  const { data: multipliers } = await supabase
+  // Get multiplier data
+  const { data: multipliers, error: multipliersError } = await supabase
     .from('streak_multipliers')
     .select('*')
     .order('days');
-  console.log(`  ✅ Multipliers loaded: ${multipliers?.length || 0} tiers`);
   
-  // Calculate final values
-  let streakMultiplier = 1.0;
-  if (multipliers) {
-    for (const mult of multipliers) {
-      if (streakResult.streakDayForRun >= mult.days) {
-        streakMultiplier = mult.multiplier;
-      }
-    }
+  if (multipliersError) {
+    throw new Error(`Failed to load multipliers: ${multipliersError.message}`);
   }
   
-  const finalXP = Math.round(xpResult.totalXP * streakMultiplier);
-  const streakBonus = finalXP - xpResult.totalXP;
+  console.log(`  ✅ Data loaded: settings, streak day ${streakResult.streakDayForRun}, ${multipliers?.length || 0} multipliers`);
   
-  console.log(`  ✅ Final calculation: ${finalXP} XP (${streakMultiplier}x multiplier = +${streakBonus} bonus)`);
+  // Phase 2: Calculate everything using unified system
+  const result = calculateCompleteRunXP(
+    distance,
+    streakResult.streakDayForRun,
+    settings,
+    multipliers || []
+  );
   
-  // Phase 2: Validate ALL data BEFORE saving
-  if (distance > 0 && finalXP <= 0) {
-    throw new Error(`XP validation failed: ${distance}km run resulted in ${finalXP} XP`);
+  console.log(`  ✅ XP calculated: ${result.finalXP} (Base: ${result.baseXP}, KM: ${result.kmXP}, Bonus: ${result.distanceBonus}, Streak: ${result.streakBonus}, Multiplier: ${result.multiplier})`);
+  
+  // Phase 3: Validate ALL data BEFORE saving
+  if (distance > 0 && result.finalXP <= 0) {
+    throw new Error(`XP validation failed: ${distance}km run resulted in ${result.finalXP} XP`);
   }
   
-  if (!xpResult.baseXP && !xpResult.kmXP && distance > 0) {
-    throw new Error(`XP breakdown validation failed: base=${xpResult.baseXP}, km=${xpResult.kmXP} for ${distance}km`);
+  if (!result.baseXP && !result.kmXP && distance > 0) {
+    throw new Error(`XP breakdown validation failed: base=${result.baseXP}, km=${result.kmXP} for ${distance}km`);
   }
   
   console.log(`  ✅ All validations passed`);
   
-  // Phase 3: Atomic database save with verification
+  // Phase 4: Atomic database save with verification
   const runData = {
     user_id: userId,
     date: date,
     distance: distance,
-    xp_gained: finalXP,
-    multiplier: streakMultiplier,
+    xp_gained: result.finalXP,
+    multiplier: result.multiplier,
     streak_day: streakResult.streakDayForRun,
-    base_xp: xpResult.baseXP,
-    km_xp: xpResult.kmXP,
-    distance_bonus: xpResult.distanceBonus,
-    streak_bonus: streakBonus,
+    base_xp: result.baseXP,
+    km_xp: result.kmXP,
+    distance_bonus: result.distanceBonus,
+    streak_bonus: result.streakBonus,
     source: 'strava',
     external_id: activity.id.toString(),
     created_at: new Date().toISOString()
@@ -634,9 +642,9 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
     throw new Error(`Database insert failed: ${insertError.message}`);
   }
   
-  // Phase 4: Verify data integrity
-  if (savedRun.xp_gained !== finalXP) {
-    console.error(`❌ DATA INTEGRITY ERROR: Saved XP ${savedRun.xp_gained} ≠ calculated XP ${finalXP}`);
+  // Phase 5: Verify data integrity
+  if (savedRun.xp_gained !== result.finalXP) {
+    console.error(`❌ DATA INTEGRITY ERROR: Saved XP ${savedRun.xp_gained} ≠ calculated XP ${result.finalXP}`);
     throw new Error(`Data integrity check failed after save`);
   }
   
