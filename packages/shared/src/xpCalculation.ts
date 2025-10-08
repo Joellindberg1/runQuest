@@ -160,14 +160,15 @@ export function calculateStreakMultiplier(
   multipliers: StreakMultiplier[]
 ): number {
   console.log(`🔥 Calculating streak multiplier for day ${streakDay}...`);
+  console.log(`🔧 Multipliers received:`, typeof multipliers, Array.isArray(multipliers), multipliers?.length || 'undefined');
   
   if (!streakDay || streakDay <= 0) {
     console.log(`📍 Streak day ${streakDay} → 1.0x multiplier (no streak)`);
     return 1.0;
   }
 
-  if (!multipliers || multipliers.length === 0) {
-    console.warn(`⚠️ No multipliers found, using default 1.0x`);
+  if (!multipliers || !Array.isArray(multipliers) || multipliers.length === 0) {
+    console.warn(`⚠️ No valid multipliers found (${typeof multipliers}, isArray: ${Array.isArray(multipliers)}), using default 1.0x`);
     return 1.0;
   }
 
