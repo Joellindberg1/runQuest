@@ -1,11 +1,56 @@
 // Standalone XP calculation functions for production deployment
 // Copied from packages/shared to avoid import path issues
 
+interface AdminSettings {
+  base_xp: number;
+  xp_per_km: number;
+  bonus_5km: number;
+  bonus_10km: number;
+  bonus_15km: number;
+  bonus_20km: number;
+  min_run_distance: number;
+}
+
+interface StreakMultiplier {
+  days: number;
+  multiplier: number;
+}
+
+interface XPResult {
+  baseXP: number;
+  kmXP: number;
+  distanceBonus: number;
+  totalXP: number;
+  breakdown?: {
+    baseCalculation: string;
+    kmCalculation: string;
+    bonusCalculation: string;
+    totalCalculation: string;
+  };
+}
+
+interface CompleteXPResult {
+  baseXP: number;
+  kmXP: number;
+  distanceBonus: number;
+  totalXP: number;
+  streakBonus: number;
+  multiplier: number;
+  finalXP: number;
+  breakdown?: {
+    base: string;
+    km: string;
+    distance: string;
+    streak: string;
+    total: string;
+  };
+}
+
 /**
  * ✅ UNIFIED BASE XP CALCULATION
  * Calculates XP for a run based on distance and admin settings
  */
-function calculateRunXP(distanceKm, settings) {
+function calculateRunXP(distanceKm: number, settings: AdminSettings): XPResult {
   console.log(`🏃 Calculating base XP for ${distanceKm}km run...`);
   
   // Ensure we have valid settings with defaults
@@ -83,7 +128,7 @@ function calculateRunXP(distanceKm, settings) {
  * ✅ UNIFIED STREAK MULTIPLIER CALCULATION
  * Calculates streak multiplier based on streak day
  */
-function calculateStreakMultiplier(streakDay, multipliers) {
+function calculateStreakMultiplier(streakDay: number, multipliers: StreakMultiplier[]): number {
   console.log(`🔥 Calculating streak multiplier for day ${streakDay}...`);
   console.log(`🔧 Multipliers received:`, typeof multipliers, Array.isArray(multipliers), multipliers?.length || 'undefined');
   
@@ -115,7 +160,12 @@ function calculateStreakMultiplier(streakDay, multipliers) {
  * ✅ COMPLETE RUN XP CALCULATION
  * Combines base XP calculation with streak multiplier
  */
-export function calculateCompleteRunXP(distanceKm, streakDay, settings, multipliers) {
+export function calculateCompleteRunXP(
+  distanceKm: number, 
+  streakDay: number, 
+  settings: AdminSettings, 
+  multipliers: StreakMultiplier[]
+): CompleteXPResult {
   console.log(`🏃 Complete XP calculation for ${distanceKm}km run on streak day ${streakDay}`);
   
   // Phase 1: Calculate base XP
@@ -145,6 +195,7 @@ export function calculateCompleteRunXP(distanceKm, streakDay, settings, multipli
     baseXP: xpResult.baseXP,
     kmXP: xpResult.kmXP,
     distanceBonus: xpResult.distanceBonus,
+    totalXP: xpResult.totalXP,
     streakBonus: Math.floor(streakBonus),
     multiplier,
     finalXP,
