@@ -154,12 +154,6 @@ export class EnhancedTitleService {
         return false;
       }
 
-      // If user already has this title with better or equal value, skip
-      if (existingTitle && existingTitle.value && existingTitle.value >= achievementValue) {
-        console.log(`⏭️ User already has better/equal value for ${title.name}: ${existingTitle.value} >= ${achievementValue}`);
-        return false;
-      }
-
       // Add or update user title
       const titleData = {
         user_id: userId,
@@ -169,19 +163,26 @@ export class EnhancedTitleService {
       };
 
       if (existingTitle) {
-        // Update existing
-        const { error: updateError } = await supabase.client
-          .from('user_titles')
-          .update(titleData)
-          .eq('id', existingTitle.id);
+        // Check if value changed
+        const valueChanged = !existingTitle.value || existingTitle.value !== achievementValue;
+        
+        if (valueChanged) {
+          // Update existing with new value
+          const { error: updateError } = await supabase.client
+            .from('user_titles')
+            .update(titleData)
+            .eq('id', existingTitle.id);
 
-        if (updateError) {
-          console.error('❌ Error updating user title:', updateError);
-          return false;
+          if (updateError) {
+            console.error('❌ Error updating user title:', updateError);
+            return false;
+          }
+          console.log(`🔄 Updated title ${title.name} for user ${userId}: ${existingTitle.value} → ${achievementValue}`);
+        } else {
+          console.log(`✓ Title ${title.name} value unchanged: ${achievementValue}`);
         }
-        console.log(`🔄 Updated title ${title.name} for user ${userId}`);
       } else {
-        // Insert new
+        // Insert new title
         const { error: insertError } = await supabase.client
           .from('user_titles')
           .insert(titleData);
@@ -190,9 +191,11 @@ export class EnhancedTitleService {
           console.error('❌ Error inserting user title:', insertError);
           return false;
         }
-        console.log(`🆕 Added new title ${title.name} for user ${userId}`);
+        console.log(`🆕 Added new title ${title.name} for user ${userId} with value ${achievementValue}`);
       }
 
+      // Always return true if user has this title (whether new or existing)
+      // This ensures leaderboard gets refreshed even for existing titles
       return true;
 
     } catch (error) {
