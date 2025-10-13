@@ -53,26 +53,37 @@ export async function calculateUserTotals(userId: string) {
       console.log(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
     }
 
-    // 🏆 Trigger title leaderboard refresh after user totals update
-    // This ensures title rankings stay up-to-date with latest run data
+    // 🏆 Process user titles after totals update
+    // This populates user_titles table with achieved titles
     try {
-      console.log('🏆 Triggering title leaderboard refresh...');
+      console.log('🏆 Processing user titles...');
+      const { EnhancedTitleService } = await import('../services/enhancedTitleService.js');
+      const titleService = new EnhancedTitleService();
+      
+      // Process titles based on user's stats
+      await titleService.processUserTitlesAfterRun(
+        userId,
+        runs,
+        totalDistance,
+        longestStreak
+      );
+      
+      console.log('✅ User titles processed successfully');
+      
+      // Now refresh the title leaderboard with updated user_titles data
+      console.log('🏆 Refreshing title leaderboard...');
       const supabase = getSupabaseClient();
+      const { error: leaderboardError } = await supabase.rpc('update_all_title_leaderboards');
       
-      // Call database function to recalculate all title rankings
-      // This is safe - no circular reference because refreshAllTitleLeaderboards
-      // doesn't call back to calculateUserTotals
-      const { error: titleError } = await supabase.rpc('update_all_title_leaderboards');
-      
-      if (titleError) {
-        console.error('❌ Failed to refresh title leaderboard:', titleError);
-        // Don't throw - user totals were saved successfully
+      if (leaderboardError) {
+        console.error('❌ Failed to refresh title leaderboard:', leaderboardError);
       } else {
         console.log('✅ Title leaderboard refreshed successfully');
       }
+      
     } catch (titleError) {
-      console.error('❌ Error triggering title refresh:', titleError);
-      // Don't throw - this is a non-critical operation
+      console.error('❌ Error processing titles:', titleError);
+      // Don't throw - user totals were saved successfully
     }
 
   } catch (error) {
