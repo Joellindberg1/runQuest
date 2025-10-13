@@ -283,6 +283,72 @@ export class EnhancedTitleService {
 
     return maxStreak;
   }
+
+  /**
+   * Process titles for ALL users
+   * This ensures complete leaderboard rankings
+   */
+  async processAllUsersTitles(): Promise<void> {
+    try {
+      console.log('🏆 Processing titles for ALL users...');
+      
+      // Get all users with their totals
+      const { data: users, error: usersError } = await supabase.client
+        .from('users')
+        .select('id, total_km, longest_streak');
+
+      if (usersError) {
+        console.error('❌ Error fetching users:', usersError);
+        return;
+      }
+
+      console.log(`📊 Found ${users.length} users to process`);
+
+      let processedCount = 0;
+      
+      // Process each user
+      for (const user of users) {
+        try {
+          // Get user's runs
+          const { data: runs, error: runsError } = await supabase.client
+            .from('runs')
+            .select('date, distance, distance as distance_km')
+            .eq('user_id', user.id)
+            .order('date', { ascending: true });
+
+          if (runsError) {
+            console.error(`❌ Error fetching runs for user ${user.id}:`, runsError);
+            continue;
+          }
+
+          if (!runs || runs.length === 0) {
+            console.log(`⏭️ User ${user.id} has no runs, skipping`);
+            continue;
+          }
+
+          // Process titles for this user
+          await this.processUserTitlesAfterRun(
+            user.id,
+            runs,
+            user.total_km || 0,
+            user.longest_streak || 0
+          );
+
+          processedCount++;
+          
+        } catch (userError) {
+          console.error(`❌ Error processing user ${user.id}:`, userError);
+          // Continue with next user
+        }
+      }
+
+      console.log(`✅ Processed titles for ${processedCount}/${users.length} users`);
+
+    } catch (error) {
+      console.error('❌ Error processing all users titles:', error);
+      throw error;
+    }
+  }
 }
 
 export const enhancedTitleService = new EnhancedTitleService();

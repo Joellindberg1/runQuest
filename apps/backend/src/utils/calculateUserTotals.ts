@@ -53,24 +53,20 @@ export async function calculateUserTotals(userId: string) {
       console.log(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
     }
 
-    // 🏆 Process user titles after totals update
-    // This populates user_titles table with achieved titles
+    // 🏆 Process titles for ALL users to ensure complete leaderboard
+    // This is necessary because title rankings depend on ALL users' achievements
     try {
-      console.log('🏆 Processing user titles...');
+      console.log('🏆 Processing titles for all users...');
       const { EnhancedTitleService } = await import('../services/enhancedTitleService.js');
       const titleService = new EnhancedTitleService();
       
-      // Process titles based on user's stats
-      await titleService.processUserTitlesAfterRun(
-        userId,
-        runs,
-        totalDistance,
-        longestStreak
-      );
+      // Process titles for ALL users (not just the one who triggered this)
+      // This ensures leaderboard always shows correct rankings
+      await titleService.processAllUsersTitles();
       
-      console.log('✅ User titles processed successfully');
+      console.log('✅ All users titles processed successfully');
       
-      // Now refresh the title leaderboard with updated user_titles data
+      // Now refresh the title leaderboard with complete user_titles data
       console.log('🏆 Refreshing title leaderboard...');
       const supabase = getSupabaseClient();
       const { error: leaderboardError } = await supabase.rpc('update_all_title_leaderboards');

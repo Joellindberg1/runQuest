@@ -125,17 +125,10 @@ export const runService = {
         await this.recalculateRunsFromDate(userId, processedRun.date)
         console.log('✅ Runs recalculated successfully');
         
+        // Backend now handles ALL title processing automatically
+        // No need for separate title refresh call - it's done in calculateUserTotals
         await this.updateUserTotals(userId)
-        console.log('✅ User totals updated successfully');
-        
-        // Trigger title recalculation after run save
-        try {
-          await this.triggerTitleRecalculation();
-          console.log('✅ Title recalculation triggered after run save');
-        } catch (titleError) {
-          console.warn('⚠️ Title recalculation failed after run save:', titleError);
-          // Don't fail the whole operation if title update fails
-        }
+        console.log('✅ User totals and titles updated successfully');
         
         // Trigger UI refresh event
         window.dispatchEvent(new CustomEvent('runsUpdated', { 
@@ -149,14 +142,6 @@ export const runService = {
         try {
           await this.updateUserTotalsFallback(userId)
           console.log('✅ Fallback totals update succeeded');
-          
-          // Trigger title recalculation after fallback
-          try {
-            await this.triggerTitleRecalculation();
-            console.log('✅ Title recalculation triggered after fallback');
-          } catch (titleError) {
-            console.warn('⚠️ Title recalculation failed after fallback:', titleError);
-          }
           
           // Trigger UI refresh event
           window.dispatchEvent(new CustomEvent('runsUpdated', { 
