@@ -91,17 +91,18 @@ export class EnhancedTitleService {
   }
 
   /**
-   * Calculate weekend average correctly:
+   * Calculate weekend average correctly (matching frontend):
    * 1. Group runs by weekend (Sat-Sun pairs)
-   * 2. Calculate average per weekend
+   * 2. Calculate TOTAL distance per weekend (sum all runs in that weekend)
    * 3. Take last 4 weekends
-   * 4. Calculate average of those 4 weekend averages
+   * 4. Calculate average of those 4 weekend totals
    * 
    * Example:
-   * Week 1: Sat 15km, Sun 7.5km → avg 11.25
-   * Week 2: Sat 10km → avg 10 (only one day)
-   * Week 3: Sat 10km, Sun 6km → avg 8
-   * Total: (11.25 + 10 + 8) / 3 = 9.75
+   * Week 1: Sat 5km + Sun 7km = 12km total
+   * Week 2: Sat 13km + Sun 2km = 15km total
+   * Week 3: Sat 3.7km = 3.7km total
+   * Week 4: Sat 14km + Sun 5km = 19km total
+   * Average: (12 + 15 + 3.7 + 19) / 4 = 12.4km
    */
   private calculateWeekendAverage(runs: any[]): number {
     // 1. Filter weekend runs (Saturday = 6, Sunday = 0)
@@ -114,58 +115,48 @@ export class EnhancedTitleService {
     if (weekendRuns.length === 0) return 0;
 
     // 2. Group runs by weekend (Saturday-Sunday pairs)
-    // Use ISO week number to group correctly
-    const weekendGroups = new Map<string, any[]>();
+    // Use Monday of the week as key to match frontend
+    const weekendTotals = new Map<string, number>();
     
     for (const run of weekendRuns) {
       const date = new Date(run.date);
       const dayOfWeek = date.getDay();
       
-      // Get the Saturday of this weekend as the key
-      const saturday = new Date(date);
-      if (dayOfWeek === 0) {
-        // If Sunday, go back 1 day to get Saturday
-        saturday.setDate(date.getDate() - 1);
-      }
-      // If already Saturday (6), keep it
-      saturday.setHours(0, 0, 0, 0);
+      // Get the Monday of the week containing this weekend day (matching frontend)
+      const monday = new Date(date);
+      monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      monday.setHours(0, 0, 0, 0);
       
-      const weekKey = saturday.toISOString().split('T')[0];
+      const weekKey = monday.toISOString().split('T')[0];
       
-      if (!weekendGroups.has(weekKey)) {
-        weekendGroups.set(weekKey, []);
-      }
-      weekendGroups.get(weekKey)!.push(run);
+      // Sum up total distance for this weekend (not average)
+      const distance = parseFloat(run.distance_km) || 0;
+      weekendTotals.set(weekKey, (weekendTotals.get(weekKey) || 0) + distance);
     }
 
-    // 3. Calculate average distance for each weekend
-    const weekendAverages: { date: Date; avg: number }[] = [];
+    // 3. Get all weekend totals
+    const weekendValues: { date: Date; total: number }[] = [];
     
-    for (const [weekKey, weekRuns] of weekendGroups.entries()) {
-      const weekTotal = weekRuns.reduce((sum, run) => 
-        sum + (parseFloat(run.distance_km) || 0), 0
-      );
-      const weekAvg = weekTotal / weekRuns.length;
-      
-      weekendAverages.push({
+    for (const [weekKey, total] of weekendTotals.entries()) {
+      weekendValues.push({
         date: new Date(weekKey),
-        avg: weekAvg
+        total: total
       });
     }
 
     // 4. Sort by date (most recent first) and take last 4 weekends
-    const recentWeekends = weekendAverages
+    const recentWeekends = weekendValues
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, 4);
 
     if (recentWeekends.length === 0) return 0;
 
-    // 5. Calculate average of the weekend averages
-    const totalAvg = recentWeekends.reduce((sum, w) => sum + w.avg, 0) / recentWeekends.length;
+    // 5. Calculate average of the weekend TOTALS (not averages)
+    const totalAvg = recentWeekends.reduce((sum, w) => sum + w.total, 0) / recentWeekends.length;
 
-    console.log(`📊 Weekend calculation: ${recentWeekends.length} weekends, averages:`, 
-      recentWeekends.map(w => w.avg.toFixed(2)).join(', '),
-      `→ Total avg: ${totalAvg.toFixed(2)}`
+    console.log(`📊 Weekend calculation: ${recentWeekends.length} weekends, totals:`, 
+      recentWeekends.map(w => w.total.toFixed(2)).join(', '),
+      `→ Average of totals: ${totalAvg.toFixed(2)}`
     );
 
     return totalAvg;
