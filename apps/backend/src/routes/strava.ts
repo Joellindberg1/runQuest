@@ -568,14 +568,32 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
   // Phase 1: Get ALL required data with proper async/await
   const supabase = getSupabaseClient();
   
-  // Get admin settings
+  // Get admin settings with fallback
+  console.log('📋 Attempting to load admin_settings from database...');
   const { data: settings, error: settingsError } = await supabase
     .from('admin_settings')
     .select('*')
     .single();
   
+  // Fallback values if database fetch fails
+  const fallbackSettings = {
+    base_xp: 15,
+    xp_per_km: 2,
+    bonus_5km: 10,
+    bonus_10km: 25,
+    bonus_15km: 50,
+    bonus_20km: 100,
+    min_run_distance: 1.0
+  };
+  
+  const safeSettings = settings || fallbackSettings;
+  
   if (settingsError) {
-    throw new Error(`Failed to load admin settings: ${settingsError.message}`);
+    console.warn('⚠️ Failed to load admin_settings from database, using fallback values');
+    console.warn('⚠️ Error details:', settingsError);
+    console.log('🔧 Using fallback settings:', fallbackSettings);
+  } else {
+    console.log('✅ Loaded admin_settings from database:', settings);
   }
   
   // Calculate streak
@@ -595,10 +613,11 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
   console.log(`  ✅ Data loaded: settings, streak day ${streakResult.streakDayForRun}, ${multipliers?.length || 0} multipliers`);
   
   // Phase 2: Calculate everything using unified system
+  console.log(`🧮 Starting XP calculation with safe settings:`, safeSettings);
   const result = calculateCompleteRunXP(
     distance,
     streakResult.streakDayForRun,
-    settings,
+    safeSettings,
     multipliers || []
   );
   
@@ -643,9 +662,26 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
   }
   
   // Phase 5: Verify data integrity
+  console.log(`🔍 Verifying saved run data...`);
+  console.log(`  📊 Calculated: finalXP=${result.finalXP}, baseXP=${result.baseXP}, kmXP=${result.kmXP}, distanceBonus=${result.distanceBonus}`);
+  console.log(`  💾 Saved: xp_gained=${savedRun.xp_gained}, base_xp=${savedRun.base_xp}, km_xp=${savedRun.km_xp}, distance_bonus=${savedRun.distance_bonus}`);
+  
   if (savedRun.xp_gained !== result.finalXP) {
     console.error(`❌ DATA INTEGRITY ERROR: Saved XP ${savedRun.xp_gained} ≠ calculated XP ${result.finalXP}`);
     throw new Error(`Data integrity check failed after save`);
+  }
+  
+  // Critical check: Did we save 0 XP despite having distance?
+  if (savedRun.xp_gained === 0 && distance > 0) {
+    console.error(`🚨 CRITICAL ERROR: Run saved with 0 XP despite ${distance}km distance!`);
+    console.error(`🚨 This should be impossible if calculation worked correctly`);
+    console.error(`🚨 Debug info:`, {
+      calculatedResult: result,
+      savedRun: savedRun,
+      settingsUsed: safeSettings,
+      usedFallback: settingsError !== null
+    });
+    throw new Error(`Critical validation failed: 0 XP for ${distance}km run`);
   }
   
   console.log(`  ✅ Data integrity verified: Saved run has correct XP (${savedRun.xp_gained})`);

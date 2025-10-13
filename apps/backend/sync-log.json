@@ -1,0 +1,34 @@
+[
+  {
+    "sync_type": "strava_automatic",
+    "started_at": "2025-10-10T13:16:40.577Z",
+    "status": "started",
+    "timestamp": "2025-10-10T13:16:40.598Z"
+  },
+  {
+    "sync_type": "strava_automatic",
+    "started_at": "2025-10-10T13:16:40.577Z",
+    "completed_at": "2025-10-10T13:16:46.471Z",
+    "status": "completed",
+    "users_synced": 3,
+    "total_users": 3,
+    "new_runs": 0,
+    "timestamp": "2025-10-10T13:16:46.472Z"
+  },
+  {
+    "sync_type": "strava_automatic",
+    "started_at": "2025-10-10T13:18:07.467Z",
+    "status": "started",
+    "timestamp": "2025-10-10T13:18:07.467Z"
+  },
+  {
+    "sync_type": "strava_automatic",
+    "started_at": "2025-10-10T13:18:07.467Z",
+    "completed_at": "2025-10-10T13:18:14.109Z",
+    "status": "completed",
+    "users_synced": 3,
+    "total_users": 3,
+    "new_runs": 1,
+    "timestamp": "2025-10-10T13:18:14.110Z"
+  }
+]
