@@ -1,6 +1,5 @@
 import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './xpCalculation.js';
-import { TitleLeaderboardService } from '../services/titleLeaderboardService.js';
 
 export async function calculateUserTotals(userId: string) {
   try {
@@ -54,21 +53,8 @@ export async function calculateUserTotals(userId: string) {
       console.log(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
     }
 
-    // 🏆 Trigger automatic title recalculation after user totals are updated
-    // Safety mechanism: Skip if environment variable is set to disable auto-triggers
-    if (process.env.DISABLE_AUTO_TITLE_TRIGGERS === 'true') {
-      console.log('⚠️ Automatic title triggers disabled via environment variable');
-    } else {
-      try {
-        console.log('🏆 Triggering title leaderboard recalculation...');
-        const titleService = new TitleLeaderboardService();
-        await titleService.triggerTitleRecalculation();
-        console.log('✅ Title recalculation completed successfully');
-      } catch (titleError) {
-        console.error('❌ Error triggering title recalculation:', titleError);
-        // Don't fail the whole operation if title processing fails
-      }
-    }
+    // Note: Title leaderboard is updated via database triggers automatically
+    // No manual recalculation needed here to avoid infinite recursion
 
   } catch (error) {
     console.error('Error in calculateUserTotals:', error);
