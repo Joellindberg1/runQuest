@@ -7,8 +7,18 @@ import { titleLeaderboardService } from './titleLeaderboardService';
 export class EnhancedTitleService {
   
   /**
-   * Process titles for a user after run updates
-   * This replaces the old checkAndUpdateUserTitles method
+   * Process titles for a user after run updates          // Get user's runs
+          const { data: runs, error: runsError } = await supabase.client
+            .from('runs')
+            .select('date, distance')
+            .eq('user_id', user.id)
+            .order('date', { ascending: true});
+
+          // Add distance_km alias for compatibility with calculateUserValues
+          const runsWithAlias = runs?.map(run => ({
+            ...run,
+            distance_km: run.distance
+          }));This replaces the old checkAndUpdateUserTitles method
    */
   async processUserTitlesAfterRun(userId: string, runs: any[], totalKm: number, longestStreak: number): Promise<void> {
     try {
@@ -312,7 +322,7 @@ export class EnhancedTitleService {
           // Get user's runs
           const { data: runs, error: runsError } = await supabase.client
             .from('runs')
-            .select('date, distance, distance as distance_km')
+            .select('date, distance')
             .eq('user_id', user.id)
             .order('date', { ascending: true });
 
@@ -326,10 +336,16 @@ export class EnhancedTitleService {
             continue;
           }
 
+          // Add distance_km alias for compatibility with calculateUserValues
+          const runsWithAlias = runs.map((run: any) => ({
+            ...run,
+            distance_km: run.distance
+          }));
+
           // Process titles for this user
           await this.processUserTitlesAfterRun(
             user.id,
-            runs,
+            runsWithAlias,
             user.total_km || 0,
             user.longest_streak || 0
           );
