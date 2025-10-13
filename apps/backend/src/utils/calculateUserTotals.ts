@@ -53,8 +53,27 @@ export async function calculateUserTotals(userId: string) {
       console.log(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
     }
 
-    // Note: Title leaderboard is updated via database triggers automatically
-    // No manual recalculation needed here to avoid infinite recursion
+    // 🏆 Trigger title leaderboard refresh after user totals update
+    // This ensures title rankings stay up-to-date with latest run data
+    try {
+      console.log('🏆 Triggering title leaderboard refresh...');
+      const supabase = getSupabaseClient();
+      
+      // Call database function to recalculate all title rankings
+      // This is safe - no circular reference because refreshAllTitleLeaderboards
+      // doesn't call back to calculateUserTotals
+      const { error: titleError } = await supabase.rpc('update_all_title_leaderboards');
+      
+      if (titleError) {
+        console.error('❌ Failed to refresh title leaderboard:', titleError);
+        // Don't throw - user totals were saved successfully
+      } else {
+        console.log('✅ Title leaderboard refreshed successfully');
+      }
+    } catch (titleError) {
+      console.error('❌ Error triggering title refresh:', titleError);
+      // Don't throw - this is a non-critical operation
+    }
 
   } catch (error) {
     console.error('Error in calculateUserTotals:', error);
