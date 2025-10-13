@@ -1,8 +1,4 @@
 import { supabase } from '../config/database';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 // Type definitions for leaderboard data
 interface LeaderboardRow {
@@ -36,12 +32,6 @@ interface LeaderboardTitle {
   status: string;
 }
 
-// ✅ FIXED: ES modules compatible __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const execAsync = promisify(exec);
-
 /**
  * Optimized title service for high-performance title leaderboard operations
  */
@@ -55,14 +45,10 @@ export class TitleLeaderboardService {
     try {
       console.log('🔄 Triggering title leaderboard recalculation...');
       
-      const scriptPath = path.join(__dirname, '../../titleTriggerSystem.cjs');
-      const { stdout, stderr } = await execAsync(`node "${scriptPath}"`);
+      // Call populateTitleLeaderboard directly instead of using external script
+      await this.populateTitleLeaderboard();
       
-      if (stderr) {
-        console.warn('Title recalculation stderr:', stderr);
-      }
-      
-      console.log('✅ Title recalculation completed:', stdout);
+      console.log('✅ Title recalculation completed successfully');
     } catch (error) {
       console.error('❌ Error triggering title recalculation:', error);
       throw new Error(`Failed to recalculate titles: ${error}`);
