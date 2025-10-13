@@ -1,8 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { getSupabaseClient } from '../config/database.js';
 
 export interface StreakResult {
   currentStreak: number;
@@ -26,6 +22,7 @@ export class StreakService {
    */
   static async calculateUserStreaks(userId: string, newRunDate?: string): Promise<StreakResult> {
     // Hämta alla runs för användaren
+    const supabase = getSupabaseClient();
     const { data: allRuns, error } = await supabase
       .from('runs')
       .select('date')
@@ -175,6 +172,7 @@ export class StreakService {
   static async updateUserStreak(userId: string): Promise<void> {
     const streakResult = await this.calculateUserStreaks(userId);
     
+    const supabase = getSupabaseClient();
     const { error } = await supabase
       .from('users')
       .update({
