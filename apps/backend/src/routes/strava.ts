@@ -2,7 +2,7 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
-import { calculateCompleteRunXP } from '../utils/xpCalculationWrapper.js';
+import { calculateCompleteRunXP } from '../utils/xpCalculationWrapper.js'; // .ts file (compiled to .js)
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 
 const router = express.Router();
@@ -568,15 +568,9 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
   // Phase 1: Get ALL required data with proper async/await
   const supabase = getSupabaseClient();
   
-  // Get admin settings with fallback
-  console.log('📋 Attempting to load admin_settings from database...');
-  const { data: settings, error: settingsError } = await supabase
-    .from('admin_settings')
-    .select('*')
-    .single();
-  
-  // Fallback values if database fetch fails
-  const fallbackSettings = {
+  // TEMPORARY FIX: Use hardcoded settings instead of database
+  // This ensures Strava imports always get correct XP
+  const safeSettings = {
     base_xp: 15,
     xp_per_km: 2,
     bonus_5km: 10,
@@ -586,15 +580,7 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
     min_run_distance: 1.0
   };
   
-  const safeSettings = settings || fallbackSettings;
-  
-  if (settingsError) {
-    console.warn('⚠️ Failed to load admin_settings from database, using fallback values');
-    console.warn('⚠️ Error details:', settingsError);
-    console.log('🔧 Using fallback settings:', fallbackSettings);
-  } else {
-    console.log('✅ Loaded admin_settings from database:', settings);
-  }
+  console.log('🔧 Using hardcoded XP settings (temporary fix):', safeSettings);
   
   // Calculate streak
   const { StreakService } = await import('../services/streakService.js');
@@ -679,7 +665,7 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
       calculatedResult: result,
       savedRun: savedRun,
       settingsUsed: safeSettings,
-      usedFallback: settingsError !== null
+      usingHardcodedSettings: true
     });
     throw new Error(`Critical validation failed: 0 XP for ${distance}km run`);
   }
