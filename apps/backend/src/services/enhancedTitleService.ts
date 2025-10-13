@@ -79,19 +79,8 @@ export class EnhancedTitleService {
     }, 0);
 
     // Calculate weekend average (last 4 weekends)
-    const weekendRuns = runs.filter(run => {
-      const runDate = new Date(run.date);
-      const dayOfWeek = runDate.getDay();
-      return dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
-    });
-
-    const recentWeekendRuns = weekendRuns
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 8); // Last 8 weekend runs (roughly 4 weekends)
-
-    const weekendAvg = recentWeekendRuns.length > 0
-      ? recentWeekendRuns.reduce((sum, run) => sum + (parseFloat(run.distance_km) || 0), 0) / recentWeekendRuns.length
-      : 0;
+    // Correct algorithm: Average of weekend averages, not average of all runs
+    const weekendAvg = this.calculateWeekendAverage(runs);
 
     return {
       totalKm,
@@ -99,6 +88,87 @@ export class EnhancedTitleService {
       longestStreak,
       weekendAvg
     };
+  }
+
+  /**
+   * Calculate weekend average correctly:
+   * 1. Group runs by weekend (Sat-Sun pairs)
+   * 2. Calculate average per weekend
+   * 3. Take last 4 weekends
+   * 4. Calculate average of those 4 weekend averages
+   * 
+   * Example:
+   * Week 1: Sat 15km, Sun 7.5km → avg 11.25
+   * Week 2: Sat 10km → avg 10 (only one day)
+   * Week 3: Sat 10km, Sun 6km → avg 8
+   * Total: (11.25 + 10 + 8) / 3 = 9.75
+   */
+  private calculateWeekendAverage(runs: any[]): number {
+    // 1. Filter weekend runs (Saturday = 6, Sunday = 0)
+    const weekendRuns = runs.filter(run => {
+      const date = new Date(run.date);
+      const day = date.getDay();
+      return day === 0 || day === 6;
+    });
+
+    if (weekendRuns.length === 0) return 0;
+
+    // 2. Group runs by weekend (Saturday-Sunday pairs)
+    // Use ISO week number to group correctly
+    const weekendGroups = new Map<string, any[]>();
+    
+    for (const run of weekendRuns) {
+      const date = new Date(run.date);
+      const dayOfWeek = date.getDay();
+      
+      // Get the Saturday of this weekend as the key
+      const saturday = new Date(date);
+      if (dayOfWeek === 0) {
+        // If Sunday, go back 1 day to get Saturday
+        saturday.setDate(date.getDate() - 1);
+      }
+      // If already Saturday (6), keep it
+      saturday.setHours(0, 0, 0, 0);
+      
+      const weekKey = saturday.toISOString().split('T')[0];
+      
+      if (!weekendGroups.has(weekKey)) {
+        weekendGroups.set(weekKey, []);
+      }
+      weekendGroups.get(weekKey)!.push(run);
+    }
+
+    // 3. Calculate average distance for each weekend
+    const weekendAverages: { date: Date; avg: number }[] = [];
+    
+    for (const [weekKey, weekRuns] of weekendGroups.entries()) {
+      const weekTotal = weekRuns.reduce((sum, run) => 
+        sum + (parseFloat(run.distance_km) || 0), 0
+      );
+      const weekAvg = weekTotal / weekRuns.length;
+      
+      weekendAverages.push({
+        date: new Date(weekKey),
+        avg: weekAvg
+      });
+    }
+
+    // 4. Sort by date (most recent first) and take last 4 weekends
+    const recentWeekends = weekendAverages
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 4);
+
+    if (recentWeekends.length === 0) return 0;
+
+    // 5. Calculate average of the weekend averages
+    const totalAvg = recentWeekends.reduce((sum, w) => sum + w.avg, 0) / recentWeekends.length;
+
+    console.log(`📊 Weekend calculation: ${recentWeekends.length} weekends, averages:`, 
+      recentWeekends.map(w => w.avg.toFixed(2)).join(', '),
+      `→ Total avg: ${totalAvg.toFixed(2)}`
+    );
+
+    return totalAvg;
   }
 
   /**
@@ -240,19 +310,8 @@ export class EnhancedTitleService {
         return this.calculateLongestStreakFromRuns(relevantRuns, earnedAtDate);
 
       case 'weekendAvg':
-        const weekendRuns = relevantRuns.filter(run => {
-          const runDate = new Date(run.date);
-          const dayOfWeek = runDate.getDay();
-          return dayOfWeek === 0 || dayOfWeek === 6;
-        });
-
-        const recentWeekendRuns = weekendRuns
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-          .slice(0, 8);
-
-        return recentWeekendRuns.length > 0
-          ? recentWeekendRuns.reduce((sum, run) => sum + (parseFloat(run.distance_km) || 0), 0) / recentWeekendRuns.length
-          : 0;
+        // Use the correct weekend average calculation
+        return this.calculateWeekendAverage(relevantRuns);
 
       default:
         return 0;
