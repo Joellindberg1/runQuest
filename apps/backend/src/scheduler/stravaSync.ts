@@ -3,17 +3,17 @@ import cron from 'node-cron';
 
 // Simple in-memory scheduler for Strava sync
 export function startStravaScheduler() {
-  console.log('🕐 Starting Strava sync scheduler (every 5 minutes - TESTING MODE)...');
+  console.log('🕐 Starting Strava sync scheduler for production (every 3 hours)...');
   
   // Use PORT environment variable, fallback to 3001 for development
   const port = process.env.PORT || '3001';
   const backendUrl = `http://localhost:${port}`;
   console.log('🌐 Using backend URL for scheduler:', backendUrl);
   
-  // TEMPORARY: Run every 5 minutes for testing: */5 * * * *
-  // PRODUCTION: Change back to every 3 hours: 0 */3 * * *
-  cron.schedule('*/5 * * * *', async () => {
-    console.log('🔄 Scheduled Strava sync starting (5-minute interval)...');
+  // PRODUCTION: Run every 3 hours: 0 */3 * * *
+  // For testing, change to: */5 * * * * (every 5 minutes)
+  cron.schedule('0 */3 * * *', async () => {
+    console.log('🔄 Scheduled Strava sync starting (3-hour interval)...');
     
     try {
       // Call our internal sync endpoint
