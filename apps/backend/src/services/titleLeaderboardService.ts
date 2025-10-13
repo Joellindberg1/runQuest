@@ -39,14 +39,14 @@ export class TitleLeaderboardService {
   
   /**
    * Triggers automatic title leaderboard recalculation
-   * This function executes the Node.js trigger system to recalculate all titles
+   * Uses database function to refresh all title leaderboards
    */
   async triggerTitleRecalculation(): Promise<void> {
     try {
       console.log('🔄 Triggering title leaderboard recalculation...');
       
-      // Call populateTitleLeaderboard directly instead of using external script
-      await this.populateTitleLeaderboard();
+      // Call database function directly to avoid circular reference
+      await this.refreshAllTitleLeaderboards();
       
       console.log('✅ Title recalculation completed successfully');
     } catch (error) {
@@ -280,7 +280,7 @@ export class TitleLeaderboardService {
       
       // Use the robust trigger system instead of clearing and repopulating
       console.log('� Calling triggerTitleRecalculation() instead of clearing table...');
-      await this.triggerTitleRecalculation();
+      await this.refreshAllTitleLeaderboards();
       
       console.log('✅ Title leaderboard populated using trigger system');
       return;
