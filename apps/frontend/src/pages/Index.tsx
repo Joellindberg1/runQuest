@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Leaderboard } from '@/components/Leaderboard';
-import { RunLogger } from '@/components/RunLogger';
-import { UserProfile } from '@/components/UserProfile';
-import { TitleSystem } from '@/components/TitleSystem';
-import { ProfileMenu } from '@/components/ProfileMenu';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Leaderboard } from '@/features/leaderboard';
+import { RunLogger } from '@/features/runs';
+import { UserProfile } from '@/features/profile';
+import { TitleSystem } from '@/features/titles';
+import { ProfileMenu } from '@/features/profile';
+import { Button } from '@/shared/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Trophy, User, Plus, Award, LogOut } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { backendApi } from '@/services/backendApi';
+import { useAuth } from '@/features/auth';
+import { backendApi } from '@/shared/services/backendApi';
 import { runService } from '@/services/runService';
 import { toast } from 'sonner';
 import { getLevelFromXP } from '@/utils/xpCalculation';
-import { logger } from '@/utils/logger';
+import { log } from '@/shared/utils/logger';
 
 interface Run {
   id: string;
@@ -87,7 +87,7 @@ const Index: React.FC = () => {
         setCurrentUser(current || null);
       }
     } catch (error) {
-      logger.error('Failed to fetch users', error);
+      log.error('Failed to fetch users', error);
       toast.error('Failed to load user data');
     } finally {
       setLoading(false);
@@ -225,3 +225,4 @@ const Index: React.FC = () => {
 };
 
 export default Index;
+

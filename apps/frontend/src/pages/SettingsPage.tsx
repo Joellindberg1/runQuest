@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/shared/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Badge } from '@/shared/components/ui/badge';
+import { Input } from '@/shared/components/ui/input';
+import { Label } from '@/shared/components/ui/label';
 import { CheckCircle, AlertCircle, XCircle, ExternalLink, ArrowLeft, Lock, ChevronDown, ChevronRight } from 'lucide-react';
-import { backendApi } from '@/services/backendApi';
-import { useAuth } from '@/contexts/AuthContext';
+import { backendApi } from '@/shared/services/backendApi';
+import { useAuth } from '@/features/auth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Separator } from '@/components/ui/separator';
-import { StravaIcon } from '@/components/ui/StravaIcon';
-import { ProfileMenu } from '@/components/ProfileMenu';
-import { logger } from '@/utils/logger';
+import { Separator } from '@/shared/components/ui/separator';
+import { StravaIcon } from '@/shared/components/ui/StravaIcon';
+import { ProfileMenu } from '@/features/profile';
+import { log } from '@/shared/utils/logger';
 
 interface StravaStatus {
   connected: boolean;
@@ -564,3 +564,4 @@ export const SettingsPage: React.FC = () => {
 };
 
 export default SettingsPage;
+

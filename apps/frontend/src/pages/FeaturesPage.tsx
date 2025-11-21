@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Button } from '@/shared/components/ui/button';
+import { Badge } from '@/shared/components/ui/badge';
 import { CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings, ChevronDown, ChevronRight, Sparkles, Wrench, Bug, ScrollText, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { ProfileMenu } from '@/components/ProfileMenu';
+import { useAuth } from '@/features/auth';
+import { ProfileMenu } from '@/features/profile';
 
 const FeaturesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -290,3 +290,4 @@ const FeaturesPage: React.FC = () => {
 };
 
 export default FeaturesPage;
+

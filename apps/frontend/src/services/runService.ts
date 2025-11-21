@@ -337,7 +337,7 @@ export const runService = {
       console.log('🔄 Triggering backend user totals recalculation for user:', userId);
       
       // Call backend API to recalculate totals and trigger title system
-      const backendApi = (await import('./backendApi')).default;
+      const backendApi = (await import('@/shared/services/backendApi')).default;
       const response = await backendApi.authenticatedRequest('/auth/recalculate-totals', {
         method: 'POST',
         signal: controller.signal // Add abort signal for cleanup
@@ -397,7 +397,7 @@ export const runService = {
       console.log('🏆 Triggering title recalculation via backend...');
       
       // Use the backend API service for consistent endpoint handling
-      const { backendApi } = await import('./backendApi');
+      const { backendApi } = await import('@/shared/services/backendApi');
       
       if (backendApi.isAuthenticated()) {
         const response = await backendApi.refreshTitleLeaderboards();
@@ -434,7 +434,7 @@ export const runService = {
       console.log('🏆 Getting title holders via backend API...');
       
       // Use backend API for fresh title data
-      const { backendApi } = await import('./backendApi');
+      const { backendApi } = await import('@/shared/services/backendApi');
       
       if (backendApi.isAuthenticated()) {
         const response = await backendApi.getTitleLeaderboard();
@@ -534,3 +534,4 @@ export const runService = {
 
 // Re-export types for backward compatibility
 export type { RunData, ProcessedRun }
+

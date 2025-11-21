@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/clientWithAuth';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/features/auth';
 import { toast } from 'sonner';
 
 export const StravaCallbackPage: React.FC = () => {
@@ -79,3 +79,4 @@ export const StravaCallbackPage: React.FC = () => {
 };
 
 export default StravaCallbackPage;
+

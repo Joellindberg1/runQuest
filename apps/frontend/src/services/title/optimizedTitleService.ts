@@ -1,5 +1,5 @@
 // 🏆 Optimized Title Service - Uses backend API for performance
-import { backendApi } from '../backendApi'
+import { backendApi } from '@/shared/services/backendApi'
 
 export const optimizedTitleService = {
   // 📊 Get title leaderboard (optimized with caching)
