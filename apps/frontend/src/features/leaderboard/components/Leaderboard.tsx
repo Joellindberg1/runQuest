@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { runService } from '@/services/runService';
+import { backendApi } from '@/shared/services/backendApi';
 import { leaderboardUtils } from '@/utils/leaderboardUtils';
 import { getLevelFromXP } from '@/utils/xpCalculation';
 import { UserTitles } from './leaderboard/UserTitles';
@@ -25,7 +25,8 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
       const titlesByUser: Record<string, UserTitle[]> = {};
       
       for (const user of users) {
-        const userTitleData = await runService.getUserTitles(user.id);
+        const titleResponse = await backendApi.getUserTitles(user.id);
+        const userTitleData = titleResponse.success ? titleResponse.data : null;
         
         // Ensure userTitleData is an array
         if (Array.isArray(userTitleData)) {

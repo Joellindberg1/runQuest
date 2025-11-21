@@ -4,7 +4,41 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { optimizedTitleService, TitleLeaderboard, UserTitleStatus } from '../services/optimizedTitleService';
+import { backendApi } from '@/shared/services/backendApi';
+
+// Types for title data
+export interface TitleLeaderboard {
+  id: string;
+  name: string;
+  description: string;
+  unlock_requirement: number;
+  holder: {
+    user_id: string;
+    user_name: string;
+    profile_picture?: string;
+    value: number;
+    earned_at: string;
+  } | null;
+  runners_up: Array<{
+    position: number;
+    user_id: string;
+    user_name: string;
+    profile_picture?: string;
+    value: number;
+    earned_at: string;
+  }>;
+}
+
+export interface UserTitleStatus {
+  title_id: string;
+  title_name: string;
+  title_description: string;
+  position: number;
+  value: number;
+  earned_at: string;
+  is_current_holder: boolean;
+  status: 'holder' | 'runner_up' | 'top_10';
+}
 
 // Query keys for consistent cache management
 export const titleQueryKeys = {
@@ -19,7 +53,10 @@ export const titleQueryKeys = {
 export function useTitleLeaderboard() {
   return useQuery({
     queryKey: titleQueryKeys.leaderboard(),
-    queryFn: () => optimizedTitleService.getTitleLeaderboard(),
+    queryFn: async () => {
+      const response = await backendApi.getTitleLeaderboard();
+      return response.success ? response.data : [];
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
@@ -33,7 +70,11 @@ export function useTitleLeaderboard() {
 export function useUserTitles(userId: string | null) {
   return useQuery({
     queryKey: titleQueryKeys.userTitles(userId || ''),
-    queryFn: () => userId ? optimizedTitleService.getUserTitles(userId) : Promise.resolve([]),
+    queryFn: async () => {
+      if (!userId) return [];
+      const response = await backendApi.getUserTitles(userId);
+      return response.success ? response.data : [];
+    },
     enabled: !!userId,
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes
@@ -56,7 +97,10 @@ export function useMultipleUserTitles(userIds: string[]) {
     queryKey: ['multiple-user-titles', userIds.sort()],
     queryFn: async () => {
       const results = await Promise.all(
-        userIds.map(userId => optimizedTitleService.getUserTitles(userId))
+        userIds.map(async (userId) => {
+          const response = await backendApi.getUserTitles(userId);
+          return response.success ? response.data : [];
+        })
       );
       
       const titlesByUser: Record<string, UserTitleStatus[]> = {};
@@ -79,7 +123,7 @@ export function useRefreshTitleLeaderboards() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => optimizedTitleService.refreshAllTitleLeaderboards(),
+    mutationFn: () => backendApi.refreshTitleLeaderboards(),
     onSuccess: () => {
       // Invalidate all title-related queries to force refresh
       queryClient.invalidateQueries({ queryKey: titleQueryKeys.all });
