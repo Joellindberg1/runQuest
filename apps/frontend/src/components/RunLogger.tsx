@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Calendar, Users, Plus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { runService } from '@/services/runService';
+import { backendApi } from '@/services/backendApi';
 import { toast } from 'sonner';
 import { RunHistoryGroup } from './RunHistoryGroup';
 import { User } from '@/types/run';
@@ -24,37 +24,6 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
   const [lastRunResult, setLastRunResult] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("log-run");
   const { user } = useAuth();
-
-  const getStreakMultiplier = (streak: number) => {
-    if (streak >= 270) return 2.0;
-    if (streak >= 240) return 1.9;
-    if (streak >= 220) return 1.8;
-    if (streak >= 180) return 1.7;
-    if (streak >= 120) return 1.6;
-    if (streak >= 90) return 1.5;
-    if (streak >= 60) return 1.4;
-    if (streak >= 30) return 1.3;
-    if (streak >= 15) return 1.2;
-    if (streak >= 5) return 1.1;
-    return 1.0;
-  };
-
-  const calculateXP = (km: number, streakMultiplier: number = 1.0) => {
-    if (km < 1.0) return 0;
-    
-    const baseXP = 15;
-    const kmXP = km * 2;
-    
-    let bonusXP = 0;
-    if (km >= 20) bonusXP = 50;
-    else if (km >= 15) bonusXP = 25;
-    else if (km >= 10) bonusXP = 15;
-    else if (km >= 5) bonusXP = 5;
-    
-    const multipliedXP = (baseXP + kmXP) * streakMultiplier;
-    
-    return Math.floor(multipliedXP + bonusXP);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,13 +60,20 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
     setLoading(true);
     
     try {
-      const processedRun = await runService.calculateRunXP(user.id, { date, distance: km });
+      console.log('📝 Submitting run to backend:', { date, distance: km });
       
-      await runService.saveRun(user.id, processedRun);
+      const result = await backendApi.createRun(date, km, 'manual');
       
-      const resultMessage = `Run logged! You gained ${processedRun.xp_gained} XP for this ${km}km run!`;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create run');
+      }
+
+      const xpGained = result.data?.xp_gained || 0;
+      const resultMessage = `Run logged! You gained ${xpGained} XP for this ${km}km run!`;
       setLastRunResult(resultMessage);
       toast.success(resultMessage);
+      
+      console.log('✅ Run logged successfully:', result.data);
       
       setDistance('');
       setDate(new Date().toISOString().split('T')[0]);
@@ -106,43 +82,15 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
         onSubmit();
       }
     } catch (error) {
-      console.error('Error saving run:', error);
-      toast.error('Failed to log run. Please try again.');
+      console.error('❌ Error saving run:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to log run. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // For preview calculation, use a default streak of 0
-  const previewXP = distance ? calculateXP(parseFloat(distance) || 0, getStreakMultiplier(0)) : 0;
-
-  const getXPBreakdown = (km: number) => {
-    if (km < 1.0) return null;
-    
-    const baseXP = 15;
-    const kmXP = km * 2;
-    const streakMultiplier = getStreakMultiplier(0); // Default for preview
-    let bonusXP = 0;
-    let bonusLabel = '';
-    
-    if (km >= 20) {
-      bonusXP = 50;
-      bonusLabel = '20km+ bonus';
-    } else if (km >= 15) {
-      bonusXP = 25;
-      bonusLabel = '15km+ bonus';
-    } else if (km >= 10) {
-      bonusXP = 15;
-      bonusLabel = '10km+ bonus';
-    } else if (km >= 5) {
-      bonusXP = 5;
-      bonusLabel = '5km+ bonus';
-    }
-    
-    return { baseXP, kmXP, bonusXP, bonusLabel, streakMultiplier };
-  };
-
-  const breakdown = distance ? getXPBreakdown(parseFloat(distance) || 0) : null;
+  // For preview calculation, show a placeholder since backend will calculate actual XP
+  const previewXP = distance ? '~' + Math.floor(15 + parseFloat(distance) * 2) : 0;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -212,22 +160,13 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                     {loading ? 'Logging Run...' : 'Log Run'}
                   </Button>
 
-                  {breakdown && parseFloat(distance) >= 1.0 && (
+                  {distance && parseFloat(distance) >= 1.0 && (
                     <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                       <div className="text-sm font-semibold text-green-800 mb-2">
-                        XP Preview: {previewXP} XP
+                        Estimated XP: {previewXP}
                       </div>
-                      <div className="text-xs text-green-700 space-y-1">
-                        <div>• Base run: {breakdown.baseXP} XP</div>
-                        <div>• Distance: {breakdown.kmXP} XP ({parseFloat(distance)} × 2)</div>
-                        <div>• Multiplier: {breakdown.streakMultiplier}x (current streak will apply)</div>
-                        <div>• Multiplied: {Math.floor((breakdown.baseXP + breakdown.kmXP) * breakdown.streakMultiplier)} XP</div>
-                        {breakdown.bonusXP > 0 &&(
-                          <div>• {breakdown.bonusLabel}: {breakdown.bonusXP} XP</div>
-                        )}
-                        <div className="text-xs text-green-600 mt-2 font-semibold">
-                          Total: {previewXP} XP (actual may vary based on current streak)
-                        </div>
+                      <div className="text-xs text-green-700">
+                        <div>Note: Actual XP will be calculated by the server and may include streak bonuses</div>
                       </div>
                     </div>
                   )}

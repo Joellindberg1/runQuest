@@ -714,6 +714,32 @@ class BackendApiService {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
+
+  async createRun(date: string, distance: number, source: string = 'manual'): Promise<ApiResponse<any>> {
+    try {
+      console.log(`📝 Creating run in backend: ${distance}km on ${date}...`);
+      const response = await fetch(`${API_BASE_URL}/runs`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ date, distance, source }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create run');
+      }
+
+      console.log('✅ Run created successfully with', data.run?.xp_gained || 0, 'XP');
+      return { success: true, data: data.run, message: data.message };
+    } catch (error) {
+      console.error('❌ Error creating run:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
 }
 
 // Export singleton instance
