@@ -50,14 +50,14 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
 
   const fetchTitleData = async () => {
     try {
-      const [titles, titleHolders, usersResult] = await Promise.all([
-        runService.getUserTitles(user.id),
-        runService.getTitleHolders(),
+      const [titlesResult, titleHoldersResult, usersResult] = await Promise.all([
+        backendApi.getUserTitles(user.id),
+        backendApi.getTitleLeaderboard(),
         backendApi.getAllUsers()
       ]);
       
-      setUserTitles(titles);
-      setAllTitles(titleHolders);
+      setUserTitles(titlesResult.success ? titlesResult.data : []);
+      setAllTitles(titleHoldersResult.success ? titleHoldersResult.data : []);
       
       if (usersResult.success && usersResult.data) {
         const users = usersResult.data as UserType[];

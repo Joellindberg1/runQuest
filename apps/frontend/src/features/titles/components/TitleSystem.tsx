@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Crown } from 'lucide-react';
-import { runService } from '@/services/runService';
+import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { TitleCard } from './title/TitleCard';
 import { TitleRequirements } from './title/TitleRequirements';
@@ -26,13 +26,14 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
       
       // First trigger backend title calculation to ensure fresh data
       try {
-        await runService.triggerTitleRecalculation();
+        await backendApi.refreshTitleLeaderboards();
         console.log('✅ Backend title calculation triggered');
       } catch (error) {
         console.warn('⚠️ Backend title calculation failed, using cached data:', error);
       }
       
-      const titleHolders = await runService.getTitleHolders();
+      const titleResponse = await backendApi.getTitleLeaderboard();
+      const titleHolders = titleResponse.success ? titleResponse.data : [];
       console.log('✅ Titles loaded:', titleHolders);
       
       setTitles(titleHolders);

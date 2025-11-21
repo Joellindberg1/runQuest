@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui
 import { Trophy, User, Plus, Award, LogOut } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { backendApi } from '@/shared/services/backendApi';
-import { runService } from '@/services/runService';
 import { toast } from 'sonner';
 import { getLevelFromXP } from '@/utils/xpCalculation';
 import { log } from '@/shared/utils/logger';
