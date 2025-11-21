@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
 import { StravaIcon } from '@/components/ui/StravaIcon';
 import { ProfileMenu } from '@/components/ProfileMenu';
+import { logger } from '@/utils/logger';
 
 interface StravaStatus {
   connected: boolean;

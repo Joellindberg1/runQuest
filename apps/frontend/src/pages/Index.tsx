@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { runService } from '@/services/runService';
 import { toast } from 'sonner';
 import { getLevelFromXP } from '@/utils/xpCalculation';
+import { logger } from '@/utils/logger';
 
 interface Run {
   id: string;
@@ -48,8 +49,6 @@ const Index: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      console.log('=== FETCHING ALL USERS ===');
-      
       // Fetch all users
       const { data: usersData, error: usersError } = await supabase
         .from('users')
@@ -65,9 +64,6 @@ const Index: React.FC = () => {
         .order('date', { ascending: false });
 
       if (runsError) throw runsError;
-
-      console.log('✅ Users loaded:', usersData?.length);
-      console.log('✅ Runs loaded:', runsData?.length);
 
       // Combine users with their runs
       const usersWithRuns = usersData?.map(user => ({
@@ -100,10 +96,9 @@ const Index: React.FC = () => {
       if (authUser) {
         const current = usersWithRuns.find(u => u.id === authUser.id);
         setCurrentUser(current || null);
-        console.log('✅ Current user set:', current?.name);
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
+      logger.error('Failed to fetch users', error);
       toast.error('Failed to load user data');
     } finally {
       setLoading(false);
@@ -121,7 +116,6 @@ const Index: React.FC = () => {
   // Listen for run updates and refresh all data
   useEffect(() => {
     const handleRunUpdate = async (event: any) => {
-      console.log('🔄 Run update event received, refreshing all data...', event.detail);
       await fetchUsers();
       toast.success('Data refreshed after run update!');
     };
@@ -134,7 +128,6 @@ const Index: React.FC = () => {
   }, []);
 
   const handleRunSubmit = async () => {
-    console.log('Run submitted successfully, refreshing data...');
     await fetchUsers(); // Refresh all data after run submission
     toast.success('Data refreshed!');
   };
