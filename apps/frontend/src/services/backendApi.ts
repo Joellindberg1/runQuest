@@ -213,6 +213,39 @@ class BackendApiService {
     }
   }
 
+  // 👥 Get all users with their runs (for leaderboard)
+  async getUsersWithRuns(): Promise<ApiResponse> {
+    try {
+      const token = this.getToken();
+      if (!token) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const response = await fetch(`${this.baseUrl}/auth/users-with-runs`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Failed to fetch users with runs' };
+      }
+
+      return { success: true, data: data.data };
+      
+    } catch (error) {
+      console.error('❌ Error fetching users with runs:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Network error' 
+      };
+    }
+  }
+
   // 👤 Admin: Create new user
   async createUser(name: string, email: string, password: string): Promise<ApiResponse> {
     try {
