@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { supabase } from '@/integrations/supabase/client';
-import { runService } from '@/services/runService';
+import { backendApi } from '@/services/backendApi';
 import { Run } from '@/types/run';
 import { toast } from 'sonner';
 
@@ -46,37 +45,40 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
 
     setIsLoading(true);
     try {
-      // Update the run in the database
-      const { error } = await supabase
-        .from('runs')
-        .update({
-          distance: newDistance,
-          date: date
-        })
-        .eq('id', run.id);
-
-      if (error) throw error;
-
-      // Recalculate all runs for this user to ensure correct streaks and XP
-      await runService.recalculateAllRuns(run.user_id);
+      console.log('\n🌐 FRONTEND: Sending update request to BACKEND API');
+      console.log('📍 Endpoint: PUT http://localhost:3001/api/runs/' + run.id);
+      console.log('📦 Data:', { distance: newDistance, date });
       
-      // Force a complete recalculation of user totals
-      await runService.updateUserTotals(run.user_id);
+      // Update the run via backend API - backend handles XP/streak recalculation
+      const result = await backendApi.updateRun(run.id, {
+        distance: newDistance,
+        date: date
+      });
+
+      console.log('✅ FRONTEND: Received response from BACKEND');
+      console.log('📊 Response:', result);
       
-      // Force title recalculation as backup
-      await runService.triggerTitleRecalculation();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update run');
+      }
+
+      // Show XP information if available
+      if (result.data && result.data.xp_gained) {
+        toast.success(`Run updated! New XP: ${result.data.xp_gained} (Streak: ${result.data.streak_day}, Multiplier: ${result.data.multiplier.toFixed(1)}x)`);
+      } else {
+        toast.success('Run updated successfully - refreshing data...');
+      }
 
       // Trigger a custom event to notify other components of data changes
       window.dispatchEvent(new CustomEvent('runsUpdated', { 
         detail: { userId: run.user_id, action: 'updated' } 
       }));
 
-      toast.success('Run updated successfully');
       onRunUpdated();
       onOpenChange(false);
     } catch (error) {
       console.error('Error updating run:', error);
-      toast.error('Failed to update run');
+      toast.error(error instanceof Error ? error.message : 'Failed to update run');
     } finally {
       setIsLoading(false);
     }
@@ -87,22 +89,12 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
 
     setIsLoading(true);
     try {
-      // Delete the run from the database
-      const { error } = await supabase
-        .from('runs')
-        .delete()
-        .eq('id', run.id);
+      // Delete the run via backend API - backend handles XP/streak recalculation
+      const result = await backendApi.deleteRun(run.id);
 
-      if (error) throw error;
-
-      // Recalculate all runs for this user to ensure correct streaks and XP
-      await runService.recalculateAllRuns(run.user_id);
-      
-      // Force a complete recalculation of user totals after deletion
-      await runService.updateUserTotals(run.user_id);
-      
-      // Force title recalculation as backup
-      await runService.triggerTitleRecalculation();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete run');
+      }
 
       // Trigger a custom event to notify other components of data changes
       window.dispatchEvent(new CustomEvent('runsUpdated', { 
@@ -115,7 +107,7 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
       setShowDeleteDialog(false);
     } catch (error) {
       console.error('Error deleting run:', error);
-      toast.error('Failed to delete run');
+      toast.error(error instanceof Error ? error.message : 'Failed to delete run');
     } finally {
       setIsLoading(false);
     }

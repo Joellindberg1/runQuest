@@ -522,4 +522,52 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
   }
 });
 
+// GET /api/auth/users-with-runs - Get all users with their runs (authenticated users)
+router.get('/users-with-runs', authenticateJWT, async (_req, res): Promise<void> => {
+  try {
+    console.log('👥 Fetching all users with runs');
+    
+    const supabase = getSupabaseClient();
+    
+    // Fetch all users
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('*')
+      .order('total_xp', { ascending: false });
+
+    if (usersError) {
+      console.error('❌ Error fetching users:', usersError.message);
+      res.status(500).json({ error: 'Failed to fetch users' }); return;
+    }
+
+    // Fetch all runs
+    const { data: runs, error: runsError } = await supabase
+      .from('runs')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (runsError) {
+      console.error('❌ Error fetching runs:', runsError.message);
+      res.status(500).json({ error: 'Failed to fetch runs' }); return;
+    }
+
+    // Combine users with their runs
+    const usersWithRuns = users?.map(user => ({
+      ...user,
+      runs: runs?.filter(run => run.user_id === user.id) || []
+    })) || [];
+
+    console.log(`✅ Successfully fetched ${usersWithRuns.length} users with runs`);
+
+    res.json({
+      success: true,
+      data: usersWithRuns
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching users with runs:', error);
+    res.status(500).json({ error: 'Internal server error' }); return;
+  }
+});
+
 export default router;

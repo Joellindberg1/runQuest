@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trophy, User, Plus, Award, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { backendApi } from '@/services/backendApi';
 import { runService } from '@/services/runService';
 import { toast } from 'sonner';
 import { getLevelFromXP } from '@/utils/xpCalculation';
@@ -49,24 +49,13 @@ const Index: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      // Fetch all users
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('*')
-        .order('total_xp', { ascending: false });
+      const result = await backendApi.getUsersWithRuns();
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to fetch users');
+      }
 
-      if (usersError) throw usersError;
-
-      // Fetch all runs for all users
-      const { data: runsData, error: runsError } = await supabase
-        .from('runs')
-        .select('*')
-        .order('date', { ascending: false });
-
-      if (runsError) throw runsError;
-
-      // Combine users with their runs
-      const usersWithRuns = usersData?.map(user => ({
+      const usersWithRuns = result.data.map((user: any) => ({
         id: user.id,
         name: user.name,
         total_xp: user.total_xp || 0,
@@ -75,7 +64,7 @@ const Index: React.FC = () => {
         current_streak: user.current_streak || 0,
         longest_streak: user.longest_streak || 0,
         profile_picture: user.profile_picture || undefined,
-        runs: runsData?.filter(run => run.user_id === user.id).map(run => ({
+        runs: user.runs?.map((run: any) => ({
           id: run.id,
           user_id: run.user_id,
           date: run.date,
@@ -88,13 +77,13 @@ const Index: React.FC = () => {
           distance_bonus: run.distance_bonus,
           streak_bonus: run.streak_bonus
         })) || []
-      })) || [];
+      }));
 
       setUsers(usersWithRuns);
       
       // Find and set current user
       if (authUser) {
-        const current = usersWithRuns.find(u => u.id === authUser.id);
+        const current = usersWithRuns.find((u: any) => u.id === authUser.id);
         setCurrentUser(current || null);
       }
     } catch (error) {

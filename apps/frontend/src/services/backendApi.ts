@@ -213,6 +213,39 @@ class BackendApiService {
     }
   }
 
+  // 👥 Get all users with their runs (for leaderboard)
+  async getUsersWithRuns(): Promise<ApiResponse> {
+    try {
+      const token = this.getToken();
+      if (!token) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const response = await fetch(`${this.baseUrl}/auth/users-with-runs`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Failed to fetch users with runs' };
+      }
+
+      return { success: true, data: data.data };
+      
+    } catch (error) {
+      console.error('❌ Error fetching users with runs:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Network error' 
+      };
+    }
+  }
+
   // 👤 Admin: Create new user
   async createUser(name: string, email: string, password: string): Promise<ApiResponse> {
     try {
@@ -596,6 +629,88 @@ class BackendApiService {
       return { success: true, data: data.data, message: data.message };
     } catch (error) {
       console.error('❌ Error updating streak multipliers:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async updateRun(runId: string, updates: {
+    distance?: number;
+    date?: string;
+    duration?: number;
+    title?: string;
+    description?: string;
+  }): Promise<ApiResponse<any>> {
+    try {
+      console.log(`💾 Updating run ${runId} in backend...`, updates);
+      const response = await fetch(`${API_BASE_URL}/runs/${runId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update run');
+      }
+
+      console.log('✅ Run updated successfully');
+      return { success: true, data: data.run, message: data.message };
+    } catch (error) {
+      console.error('❌ Error updating run:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async deleteRun(runId: string): Promise<ApiResponse<void>> {
+    try {
+      console.log(`🗑️ Deleting run ${runId} in backend...`);
+      const response = await fetch(`${API_BASE_URL}/runs/${runId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete run');
+      }
+
+      console.log('✅ Run deleted successfully');
+      return { success: true, message: data.message };
+    } catch (error) {
+      console.error('❌ Error deleting run:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async getGroupRunHistory(): Promise<ApiResponse<any[]>> {
+    try {
+      console.log('📊 Fetching group run history from backend...');
+      const response = await fetch(`${API_BASE_URL}/runs/group-history`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch group run history');
+      }
+
+      console.log('✅ Group run history fetched successfully');
+      return { success: true, data: data.runs };
+    } catch (error) {
+      console.error('❌ Error fetching group run history:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
