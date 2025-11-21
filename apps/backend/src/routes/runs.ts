@@ -168,6 +168,101 @@ router.get('/group-history', authenticateJWT, async (_req, res): Promise<void> =
   }
 });
 
+// POST /api/runs - Create a new run
+router.post('/', authenticateJWT, async (req, res): Promise<void> => {
+  try {
+    const { date, distance, source = 'manual' } = req.body;
+    const userId = req.user!.user_id;
+
+    console.log('📝 Create run request:', { userId, date, distance, source });
+
+    if (!date || !distance) {
+      res.status(400).json({ error: 'Date and distance are required' }); return;
+    }
+
+    const distanceNum = parseFloat(distance);
+    if (isNaN(distanceNum) || distanceNum < 1.0) {
+      res.status(400).json({ error: 'Distance must be at least 1.0 km' }); return;
+    }
+
+    // Validate date
+    const runDate = new Date(date);
+    const minDate = new Date('2025-06-01');
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    if (runDate < minDate) {
+      res.status(400).json({ error: 'Cannot log runs before June 1, 2025' }); return;
+    }
+
+    if (runDate > today) {
+      res.status(400).json({ error: 'Cannot log runs for future dates' }); return;
+    }
+
+    console.log(`✅ Creating run for user ${userId}: ${distanceNum}km on ${date}`);
+
+    const supabase = getSupabaseClient();
+
+    // Calculate initial XP (will be recalculated with correct streak after)
+    const xpCalc = await calculateRunXP(distanceNum);
+    
+    // Insert the run with calculated XP values
+    const { data: newRun, error: insertError } = await supabase
+      .from('runs')
+      .insert({
+        user_id: userId,
+        date: date,
+        distance: distanceNum,
+        source: source,
+        base_xp: xpCalc.baseXP,
+        km_xp: xpCalc.kmXP,
+        distance_bonus: xpCalc.distanceBonus,
+        streak_bonus: 0,
+        multiplier: 1.0,
+        streak_day: 1,
+        xp_gained: xpCalc.baseXP + xpCalc.kmXP + xpCalc.distanceBonus
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('❌ Error inserting run:', insertError);
+      res.status(500).json({ error: 'Failed to create run' }); return;
+    }
+
+    console.log(`✅ Run created, now reprocessing all runs for user ${userId}...`);
+
+    // Reprocess ALL runs to ensure correct streaks and XP
+    await reprocessAllUserRuns(userId);
+
+    // Recalculate user totals
+    await calculateUserTotals(userId);
+
+    // Fetch the fully processed run
+    const { data: processedRun, error: fetchError } = await supabase
+      .from('runs')
+      .select('*')
+      .eq('id', newRun.id)
+      .single();
+
+    if (fetchError) {
+      console.warn('⚠️ Could not fetch processed run:', fetchError);
+    }
+
+    console.log(`✅ Run created successfully with ${processedRun?.xp_gained || 0} XP`)
+
+    res.json({
+      success: true,
+      message: 'Run created successfully',
+      run: processedRun || newRun
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating run:', error);
+    res.status(500).json({ error: 'Internal server error' }); return;
+  }
+});
+
 // PUT /api/runs/:id - Update a run
 router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
   try {
