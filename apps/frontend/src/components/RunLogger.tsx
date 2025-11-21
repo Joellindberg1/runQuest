@@ -91,9 +91,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
     setLoading(true);
     
     try {
-      console.log('Calculating XP for user:', user.name);
       const processedRun = await runService.calculateRunXP(user.id, { date, distance: km });
-      console.log('Processed run:', processedRun);
       
       await runService.saveRun(user.id, processedRun);
       

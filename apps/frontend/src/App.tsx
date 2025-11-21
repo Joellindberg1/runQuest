@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { frontendLevelService } from "@/services/levelService";
+import { logger } from "@/utils/logger";
 import Index from "./pages/Index";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
@@ -20,11 +21,10 @@ const queryClient = new QueryClient();
 const AppContent = () => {
   const { user, loading, isAdmin } = useAuth();
   const path = window.location.pathname;
-  console.log('🔄 Current path:', path);
 
   // Initialize level service when app starts
   useEffect(() => {
-    frontendLevelService.initialize().catch(console.error);
+    frontendLevelService.initialize().catch((error) => logger.error('Failed to initialize level service', error));
   }, []);
 
   // 🛑 UNDANTAG: Kör aldrig AppRouter på popup-sidan

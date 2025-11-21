@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { backendApi } from '@/services/backendApi';
 import { toast } from 'sonner';
 import { ProfileMenu } from '@/components/ProfileMenu';
+import { logger } from '@/utils/logger';
 
 interface AdminSettings {
   xpPerRun: number;
@@ -93,11 +94,9 @@ const AdminPage: React.FC = () => {
 
   const fetchAdminSettings = async () => {
     try {
-      console.log('🔍 Admin: Fetching admin settings...');
       const result = await backendApi.getAdminSettings();
       
       if (result.success && result.data) {
-        console.log('✅ Admin settings fetched:', result.data);
         setSettings({
           xpPerRun: result.data.base_xp || 15,
           xpPerKm: result.data.xp_per_km || 2,
@@ -123,11 +122,11 @@ const AdminPage: React.FC = () => {
         }
         
       } else {
-        console.error('❌ Failed to fetch admin settings:', result.error);
+        logger.error('Failed to fetch admin settings', result.error);
         toast.error('Failed to fetch admin settings: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
-      console.error('❌ Error fetching admin settings:', error);
+      logger.error('Error fetching admin settings', error);
       toast.error('Failed to fetch admin settings');
     }
   };
@@ -135,19 +134,13 @@ const AdminPage: React.FC = () => {
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
-      console.log('🔍 Admin: Attempting to fetch users...');
-      console.log('🔑 Token available:', !!backendApi.getToken());
-      console.log('🔐 User authenticated:', backendApi.isAuthenticated());
-      
       const result = await backendApi.getAllUsers();
-      console.log('📊 API Response:', result);
       
       if (result.success && result.data) {
         const users = result.data as User[];
-        console.log('✅ Users fetched successfully:', users.length, 'users');
         setUsers(users);
       } else {
-        console.error('❌ Failed to fetch users:', result.error);
+        logger.error('Failed to fetch users', result.error);
         toast.error('Failed to fetch users: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
