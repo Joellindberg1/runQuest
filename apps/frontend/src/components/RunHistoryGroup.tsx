@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, Trophy, Zap, Target } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { backendApi } from '@/services/backendApi';
 import { User } from '@/types/run';
 import { getLevelFromXP } from '@/utils/xpCalculation';
 import { ShowMoreButton } from '@/components/ui/ShowMoreButton';
@@ -41,36 +41,31 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
     try {
       console.log('=== FETCHING GROUP RUN HISTORY ===');
       
-      const { data: runsData, error: runsError } = await supabase
-        .from('runs')
-        .select(`
-          *,
-          users!inner(name, current_level, profile_picture, total_xp)
-        `)
-        .order('date', { ascending: false })
-        .limit(100);
+      const result = await backendApi.getGroupRunHistory();
 
-      if (runsError) throw runsError;
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to fetch group run history');
+      }
 
-      console.log('✅ Group runs loaded:', runsData?.length);
+      console.log('✅ Group runs loaded:', result.data.length);
 
-      const runsWithUser: RunWithUser[] = runsData?.map(run => ({
+      const runsWithUser: RunWithUser[] = result.data.map((run: any) => ({
         id: run.id,
         user_id: run.user_id,
         date: run.date,
-        distance: parseFloat(run.distance.toString()),
+        distance: run.distance,
         xp_gained: run.xp_gained,
-        multiplier: parseFloat(run.multiplier.toString()),
+        multiplier: run.multiplier,
         streak_day: run.streak_day,
         base_xp: run.base_xp,
         km_xp: run.km_xp,
         distance_bonus: run.distance_bonus,
         streak_bonus: run.streak_bonus,
-        source: run.source || undefined,
-        user_name: run.users.name,
-        user_level: getLevelFromXP(run.users.total_xp || 0),  // Calculate level from XP!
-        user_profile_picture: run.users.profile_picture || undefined
-      })) || [];
+        source: run.source,
+        user_name: run.user_name,
+        user_level: run.user_level,
+        user_profile_picture: run.user_profile_picture
+      }));
 
       setRuns(runsWithUser);
     } catch (error) {
