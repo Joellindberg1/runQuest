@@ -1,13 +1,13 @@
 
 import React, { useEffect } from 'react';
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/shared/components/ui/toaster";
+import { Toaster as Sonner } from "@/shared/components/ui/sonner";
+import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { frontendLevelService } from "@/services/levelService";
-import { logger } from "@/utils/logger";
+import { AuthProvider, useAuth } from "@/features/auth";
+import { frontendLevelService } from "@/shared/services/levelService";
+import { log } from "@/shared/utils/logger";
 import Index from "./pages/Index";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";

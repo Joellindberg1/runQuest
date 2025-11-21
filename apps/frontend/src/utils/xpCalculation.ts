@@ -6,4 +6,4 @@ export {
   getLevelFromXPAsync,
   getLevelProgressAsync,
   frontendLevelService
-} from '@/services/levelService';
+} from '@/shared/services/levelService';

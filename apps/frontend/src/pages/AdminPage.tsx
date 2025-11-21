@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Input } from '@/shared/components/ui/input';
+import { Button } from '@/shared/components/ui/button';
+import { Label } from '@/shared/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Settings, Users, Trophy, Target, Plus, Save, Info, Edit, Key, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { backendApi } from '@/services/backendApi';
+import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
-import { ProfileMenu } from '@/components/ProfileMenu';
-import { logger } from '@/utils/logger';
+import { ProfileMenu } from '@/features/profile';
+import { log } from '@/shared/utils/logger';
 
 interface AdminSettings {
   xpPerRun: number;
@@ -567,7 +567,7 @@ const AdminPage: React.FC = () => {
                     <Button
                       onClick={async () => {
                         try {
-                          const backendApi = (await import('../services/backendApi')).default;
+                          const backendApi = (await import('@/shared/services/backendApi')).default;
                           await backendApi.refreshTitleLeaderboards();
                           alert('✅ Title leaderboards refreshed successfully!');
                         } catch (error) {
@@ -633,3 +633,5 @@ const AdminPage: React.FC = () => {
 };
 
 export default AdminPage;
+
+
