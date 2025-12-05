@@ -10,6 +10,7 @@ import { useAuth } from '@/features/auth';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
+import { getLevelFromXP } from '@/shared/services/levelService';
 
 interface Run {
   id: string;
