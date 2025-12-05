@@ -407,6 +407,35 @@ class BackendApiService {
     });
   }
 
+  async debugStravaActivities(): Promise<ApiResponse<{
+    connection_date: string;
+    after_timestamp: number;
+    after_date: string;
+    total_activities: number;
+    running_activities: number;
+    existing_run_ids: string[];
+    existing_runs_count: number;
+    new_runs_count: number;
+    all_activities: Array<{
+      id: number;
+      name: string;
+      type: string;
+      distance: string;
+      date: string;
+      already_imported: boolean;
+    }>;
+    new_runs: Array<{
+      id: number;
+      name: string;
+      distance: string;
+      date: string;
+    }>;
+  }>> {
+    return this.authenticatedRequest('/strava/debug-activities', {
+      method: 'GET',
+    });
+  }
+
   async disconnectStrava(): Promise<ApiResponse> {
     return this.authenticatedRequest('/strava/disconnect', {
       method: 'DELETE',

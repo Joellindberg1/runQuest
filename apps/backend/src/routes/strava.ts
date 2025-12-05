@@ -225,6 +225,112 @@ router.post('/sync', authenticateJWT, async (req, res) => {
   }
 });
 
+// GET /api/strava/debug-activities - Debug endpoint to see what Strava returns
+router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void> => {
+  try {
+    const userId = req.user!.user_id;
+    const supabase = getSupabaseClient();
+    
+    // Get user's Strava tokens
+    const { data: tokens, error: tokenError } = await supabase
+      .from('strava_tokens')
+      .select('access_token, refresh_token, expires_at, connection_date')
+      .eq('user_id', userId)
+      .single();
+    
+    if (tokenError || !tokens) {
+      res.status(400).json({ error: 'User not connected to Strava' }); return;
+    }
+    
+    // Check if token is expired and refresh if needed
+    const now = Math.floor(Date.now() / 1000);
+    let accessToken = tokens.access_token;
+    
+    if (tokens.expires_at && tokens.expires_at < now) {
+      console.log('🔄 Access token expired, refreshing...');
+      const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
+      if (!refreshResult.success) {
+        res.status(400).json({ error: 'Failed to refresh Strava token' }); return;
+      }
+      accessToken = refreshResult.access_token;
+    }
+    
+    // Get existing runs from database
+    const { data: existingRuns } = await supabase
+      .from('runs')
+      .select('external_id, date, distance, source')
+      .eq('user_id', userId)
+      .eq('source', 'strava')
+      .not('external_id', 'is', null);
+    
+    const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
+    
+    // Calculate 'after' timestamp
+    let after: number;
+    if (tokens.connection_date) {
+      const connectionDate = new Date(tokens.connection_date);
+      connectionDate.setHours(0, 0, 0, 0);
+      after = Math.floor(connectionDate.getTime() / 1000);
+    } else {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+      after = Math.floor(thirtyDaysAgo.getTime() / 1000);
+    }
+    
+    // Fetch from Strava
+    const stravaResponse = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=50`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    
+    if (!stravaResponse.ok) {
+      const errorData = await stravaResponse.json();
+      res.status(500).json({ error: 'Strava API error', details: errorData }); return;
+    }
+    
+    const activities = await stravaResponse.json();
+    
+    // Filter for runs
+    const runningActivities = activities.filter((a: any) => a.type === 'Run');
+    const newRuns = runningActivities.filter((a: any) => !existingIds.has(a.id.toString()));
+    
+    res.json({
+      connection_date: tokens.connection_date,
+      after_timestamp: after,
+      after_date: new Date(after * 1000).toISOString(),
+      total_activities: activities.length,
+      running_activities: runningActivities.length,
+      existing_run_ids: Array.from(existingIds),
+      existing_runs_count: existingIds.size,
+      new_runs_count: newRuns.length,
+      all_activities: activities.map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        distance: (a.distance / 1000).toFixed(2) + 'km',
+        date: a.start_date_local.split('T')[0],
+        already_imported: existingIds.has(a.id.toString())
+      })),
+      new_runs: newRuns.map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        distance: (a.distance / 1000).toFixed(2) + 'km',
+        date: a.start_date_local.split('T')[0]
+      }))
+    });
+    
+  } catch (error) {
+    console.error('❌ Debug activities error:', error);
+    res.status(500).json({ error: 'Failed to debug activities' }); return;
+  }
+});
+
 // Simple sync logging using file system (temporary solution)
 import { promises as fs } from 'fs';
 import { join } from 'path';

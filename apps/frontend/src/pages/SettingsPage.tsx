@@ -304,6 +304,48 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleDebugStrava = async () => {
+    if (!backendApi.isAuthenticated()) {
+      toast.error("Authentication required");
+      return;
+    }
+
+    try {
+      console.log("🔍 Fetching Strava debug info...");
+      const result = await backendApi.debugStravaActivities();
+
+      if (result.success && result.data) {
+        console.log("🔍 Debug data:", result.data);
+        
+        // Show detailed info in console
+        console.log("📅 Connection date:", result.data.connection_date);
+        console.log("📅 Fetching activities after:", result.data.after_date);
+        console.log("📊 Total activities from Strava:", result.data.total_activities);
+        console.log("🏃 Running activities:", result.data.running_activities);
+        console.log("💾 Already imported (count):", result.data.existing_runs_count);
+        console.log("💾 Already imported (IDs):", result.data.existing_run_ids);
+        console.log("✨ New runs available:", result.data.new_runs_count);
+        
+        console.log("\n📋 All activities:");
+        result.data.all_activities.forEach(a => {
+          console.log(`  ${a.date}: ${a.name} (${a.distance}, ${a.type}) ${a.already_imported ? '✅ Already imported' : '🆕 New'}`);
+        });
+        
+        if (result.data.new_runs_count > 0) {
+          toast.info(`Found ${result.data.new_runs_count} new runs. Check console for details.`);
+        } else {
+          toast.info("No new runs found. Check console for details.");
+        }
+      } else {
+        console.error("❌ Debug error:", result.error);
+        toast.error(result.error || "Failed to fetch debug info");
+      }
+    } catch (err) {
+      console.error("❌ Debug exception:", err);
+      toast.error("Failed to fetch debug info");
+    }
+  };
+
   const getStatusBadge = () => {
     if (loading) return <Badge variant="secondary">Loading...</Badge>;
     if (!stravaStatus.connected) {
@@ -447,6 +489,13 @@ export const SettingsPage: React.FC = () => {
                         ) : (
                           <>🔄 Sync Now</>
                         )}
+                      </Button>
+                      <Button
+                        onClick={handleDebugStrava}
+                        variant="secondary"
+                        className="flex items-center gap-2"
+                      >
+                        🔍 Debug Strava
                       </Button>
                       <span className="text-xs text-gray-400">
                         Remember, your data will be automatically synced!
