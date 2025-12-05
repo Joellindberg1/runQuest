@@ -4,8 +4,6 @@
  * - Production: Only warnings and errors
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-
 class Logger {
   private isDevelopment = import.meta.env.DEV;
 
@@ -13,7 +11,7 @@ class Logger {
    * Debug logs - only visible in development
    * Use for detailed debugging information
    */
-  debug(message: string, ...args: any[]) {
+  debug(message: string, ...args: unknown[]) {
     if (this.isDevelopment) {
       console.log(`🔍 [DEBUG] ${message}`, ...args);
     }
@@ -23,7 +21,7 @@ class Logger {
    * Info logs - only visible in development
    * Use for general information
    */
-  info(message: string, ...args: any[]) {
+  info(message: string, ...args: unknown[]) {
     if (this.isDevelopment) {
       console.info(`ℹ️ [INFO] ${message}`, ...args);
     }
@@ -33,7 +31,7 @@ class Logger {
    * Warning logs - visible in both dev and production
    * Use for non-critical issues
    */
-  warn(message: string, ...args: any[]) {
+  warn(message: string, ...args: unknown[]) {
     console.warn(`⚠️ [WARN] ${message}`, ...args);
   }
 
@@ -41,7 +39,7 @@ class Logger {
    * Error logs - visible in both dev and production
    * Use for errors and exceptions
    */
-  error(message: string, error?: any) {
+  error(message: string, error?: unknown) {
     console.error(`❌ [ERROR] ${message}`, error);
     // Future: Send to error tracking service (Sentry, etc.)
   }
@@ -50,7 +48,7 @@ class Logger {
    * Success logs - only visible in development
    * Use for successful operations
    */
-  success(message: string, ...args: any[]) {
+  success(message: string, ...args: unknown[]) {
     if (this.isDevelopment) {
       console.log(`✅ [SUCCESS] ${message}`, ...args);
     }

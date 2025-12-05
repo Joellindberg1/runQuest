@@ -1,9 +1,8 @@
 
 import React, { useState } from 'react';
-import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { useAuth } from '@/features/auth';
 import { toast } from 'sonner';
 import { Upload, User } from 'lucide-react';
@@ -85,9 +84,10 @@ export const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUp
       if (onUploadComplete) {
         onUploadComplete();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error uploading profile picture:', error);
-      toast.error(error.message || 'Error uploading profile picture');
+      const errorMessage = error instanceof Error ? error.message : 'Error uploading profile picture';
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
     }

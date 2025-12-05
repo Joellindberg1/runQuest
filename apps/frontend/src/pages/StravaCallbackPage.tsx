@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { useAuth } from '@/features/auth';
 import { toast } from 'sonner';
+import { log } from '@/shared/utils/logger';
 
 export const StravaCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -10,21 +11,11 @@ export const StravaCallbackPage: React.FC = () => {
   const { session, loading } = useAuth();
   const [processing, setProcessing] = useState(false);
 
-  console.log("🔁 StravaCallbackPage RENDER");
-
   useEffect(() => {
     const code = searchParams.get('code');
     const error = searchParams.get('error');
 
-    console.log("🔍 useEffect körs med:", {
-      code,
-      error,
-      loading,
-      sessionReady: !!session,
-    });
-
     if (!code || loading || !session || processing) {
-      console.log("⏳ Väntar på rätt tillstånd...");
       return;
     }
 
@@ -38,15 +29,13 @@ export const StravaCallbackPage: React.FC = () => {
       }
 
       try {
-        console.log("🚀 Anropar Edge Function med code:", code);
-        const { data, error: callbackError } = await supabase.functions.invoke('strava-callback', {
+        log.info('Strava callback: invoking edge function with code');
+        const { error: callbackError } = await supabase.functions.invoke('strava-callback', {
           body: { code },
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
         });
-
-        console.log("📦 Edge Function svar:", data, callbackError);
 
         if (callbackError) throw callbackError;
 
@@ -58,7 +47,7 @@ export const StravaCallbackPage: React.FC = () => {
           navigate('/settings');
         }
       } catch (err) {
-        console.error("❌ Fel vid callback:", err);
+        log.error('Strava callback failed', err);
         toast.error('Kunde inte koppla Strava-konto');
         navigate('/settings');
       }

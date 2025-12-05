@@ -4,15 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { Badge } from '@/shared/components/ui/badge';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { CheckCircle, AlertCircle, XCircle, ExternalLink, ArrowLeft, Lock, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle, AlertCircle, XCircle, ExternalLink, Lock, ChevronDown, ChevronRight } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
-import { useAuth } from '@/features/auth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Separator } from '@/shared/components/ui/separator';
 import { StravaIcon } from '@/shared/components/ui/StravaIcon';
 import { ProfileMenu } from '@/features/profile';
-import { log } from '@/shared/utils/logger';
 
 interface StravaStatus {
   connected: boolean;
@@ -34,7 +32,6 @@ interface SyncInfo {
 }
 
 export const SettingsPage: React.FC = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [stravaStatus, setStravaStatus] = useState<StravaStatus>({ connected: false, expired: false });
   const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
@@ -217,8 +214,6 @@ export const SettingsPage: React.FC = () => {
       console.log('🪟 Popup öppnad');
     }
   };
-
-  const handleBackClick = () => navigate('/');
 
   const handleChangePassword = async () => {
     if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {

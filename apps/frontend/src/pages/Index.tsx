@@ -4,13 +4,11 @@ import { RunLogger } from '@/features/runs';
 import { UserProfile } from '@/features/profile';
 import { TitleSystem } from '@/features/titles';
 import { ProfileMenu } from '@/features/profile';
-import { Button } from '@/shared/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
-import { Trophy, User, Plus, Award, LogOut } from 'lucide-react';
+import { Trophy, User, Plus, Award } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
-import { getLevelFromXP } from '@/utils/xpCalculation';
 import { log } from '@/shared/utils/logger';
 
 interface Run {
@@ -39,8 +37,32 @@ interface User {
   runs: Run[];
 }
 
+interface ApiUser {
+  id: string;
+  name: string;
+  total_xp?: number;
+  current_level?: number;
+  total_km?: number | string;
+  current_streak?: number;
+  longest_streak?: number;
+  profile_picture?: string;
+  runs?: Array<{
+    id: string;
+    user_id: string;
+    date: string;
+    distance: number | string;
+    xp_gained: number;
+    multiplier: number | string;
+    streak_day: number;
+    base_xp: number;
+    km_xp: number;
+    distance_bonus: number;
+    streak_bonus: number;
+  }>;
+}
+
 const Index: React.FC = () => {
-  const { user: authUser, session, logout } = useAuth();
+  const { user: authUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState("leaderboard");
@@ -54,7 +76,7 @@ const Index: React.FC = () => {
         throw new Error(result.error || 'Failed to fetch users');
       }
 
-      const usersWithRuns = result.data.map((user: any) => ({
+      const usersWithRuns = result.data.map((user: ApiUser) => ({
         id: user.id,
         name: user.name,
         total_xp: user.total_xp || 0,
@@ -63,7 +85,7 @@ const Index: React.FC = () => {
         current_streak: user.current_streak || 0,
         longest_streak: user.longest_streak || 0,
         profile_picture: user.profile_picture || undefined,
-        runs: user.runs?.map((run: any) => ({
+        runs: user.runs?.map((run) => ({
           id: run.id,
           user_id: run.user_id,
           date: run.date,
@@ -82,7 +104,7 @@ const Index: React.FC = () => {
       
       // Find and set current user
       if (authUser) {
-        const current = usersWithRuns.find((u: any) => u.id === authUser.id);
+        const current = usersWithRuns.find((u) => u.id === authUser.id);
         setCurrentUser(current || null);
       }
     } catch (error) {
@@ -103,7 +125,7 @@ const Index: React.FC = () => {
 
   // Listen for run updates and refresh all data
   useEffect(() => {
-    const handleRunUpdate = async (event: any) => {
+    const handleRunUpdate = async () => {
       await fetchUsers();
       toast.success('Data refreshed after run update!');
     };
@@ -113,7 +135,7 @@ const Index: React.FC = () => {
     return () => {
       window.removeEventListener('runsUpdated', handleRunUpdate);
     };
-  }, []);
+  }, [fetchUsers]);
 
   const handleRunSubmit = async () => {
     await fetchUsers(); // Refresh all data after run submission

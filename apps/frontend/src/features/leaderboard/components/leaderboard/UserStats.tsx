@@ -16,15 +16,6 @@ interface UserStatsProps {
 }
 
 export const UserStats: React.FC<UserStatsProps> = ({ user, stats }) => {
-  const formatXP = (xp: number): string => {
-    if (xp >= 1000000) {
-      return `${(xp / 1000000).toFixed(1)}M`;
-    } else if (xp >= 1000) {
-      return `${(xp / 1000).toFixed(1)}k`;
-    }
-    return xp.toString();
-  };
-
   return (
     <div className="space-y-3">
       {/* First row: Runs - Longest */}
