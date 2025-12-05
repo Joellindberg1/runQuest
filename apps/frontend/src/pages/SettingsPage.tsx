@@ -320,6 +320,7 @@ export const SettingsPage: React.FC = () => {
         // Show detailed info in console
         console.log("📅 Connection date:", result.data.connection_date);
         console.log("📅 Fetching activities after:", result.data.after_date);
+        console.log("🧮 After calculation method:", result.data.after_calculation_method);
         console.log("📊 Total activities from Strava:", result.data.total_activities);
         console.log("🏃 Running activities:", result.data.running_activities);
         console.log("💾 Already imported (count):", result.data.existing_runs_count);

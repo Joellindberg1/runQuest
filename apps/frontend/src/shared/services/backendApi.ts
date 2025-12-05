@@ -411,6 +411,7 @@ class BackendApiService {
     connection_date: string;
     after_timestamp: number;
     after_date: string;
+    after_calculation_method: string;
     total_activities: number;
     running_activities: number;
     existing_run_ids: string[];

@@ -265,22 +265,38 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     
     const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
     
-    // Calculate 'after' timestamp
+    // Calculate smart 'after' timestamp (same logic as sync)
     let after: number;
-    if (tokens.connection_date) {
+    let afterCalculationMethod: string;
+    
+    if (existingRuns && existingRuns.length > 0) {
+      // Find the most recent imported run date
+      const dates = existingRuns.map((run: any) => new Date(run.date).getTime());
+      const mostRecentRunDate = new Date(Math.max(...dates));
+      
+      // Go back 7 days from most recent run
+      const sevenDaysBeforeMostRecent = new Date(mostRecentRunDate);
+      sevenDaysBeforeMostRecent.setDate(sevenDaysBeforeMostRecent.getDate() - 7);
+      sevenDaysBeforeMostRecent.setHours(0, 0, 0, 0);
+      after = Math.floor(sevenDaysBeforeMostRecent.getTime() / 1000);
+      
+      afterCalculationMethod = `Most recent run (${mostRecentRunDate.toISOString().split('T')[0]}) minus 7 days`;
+    } else if (tokens.connection_date) {
       const connectionDate = new Date(tokens.connection_date);
       connectionDate.setHours(0, 0, 0, 0);
       after = Math.floor(connectionDate.getTime() / 1000);
+      afterCalculationMethod = 'Connection date (no existing runs)';
     } else {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
       after = Math.floor(thirtyDaysAgo.getTime() / 1000);
+      afterCalculationMethod = '30 days ago (fallback)';
     }
     
-    // Fetch from Strava
+    // Fetch from Strava with increased limit
     const stravaResponse = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=50`,
+      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -304,6 +320,7 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
       connection_date: tokens.connection_date,
       after_timestamp: after,
       after_date: new Date(after * 1000).toISOString(),
+      after_calculation_method: afterCalculationMethod,
       total_activities: activities.length,
       running_activities: runningActivities.length,
       existing_run_ids: Array.from(existingIds),
@@ -559,28 +576,42 @@ async function syncUserStravaActivities(userId: string): Promise<{
     
     const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
     
-    // Fetch activities from Strava (from connection date onwards)
+    // Calculate smart 'after' timestamp based on most recent imported run
     let after: number;
     
-    if (tokens.connection_date) {
-      // Use connection date as starting point
+    if (existingRuns && existingRuns.length > 0) {
+      // Find the most recent imported run date
+      const dates = existingRuns.map((run: any) => new Date(run.date).getTime());
+      const mostRecentRunDate = new Date(Math.max(...dates));
+      
+      // Go back 7 days from most recent run to catch any missed activities
+      const sevenDaysBeforeMostRecent = new Date(mostRecentRunDate);
+      sevenDaysBeforeMostRecent.setDate(sevenDaysBeforeMostRecent.getDate() - 7);
+      sevenDaysBeforeMostRecent.setHours(0, 0, 0, 0);
+      after = Math.floor(sevenDaysBeforeMostRecent.getTime() / 1000);
+      
+      console.log(`📅 Most recent imported run: ${mostRecentRunDate.toISOString().split('T')[0]}`);
+      console.log(`📅 Fetching activities from 7 days before that: ${sevenDaysBeforeMostRecent.toISOString().split('T')[0]}`);
+    } else if (tokens.connection_date) {
+      // No existing runs, use connection date
       const connectionDate = new Date(tokens.connection_date);
-      connectionDate.setHours(0, 0, 0, 0); // Start from beginning of connection day
+      connectionDate.setHours(0, 0, 0, 0);
       after = Math.floor(connectionDate.getTime() / 1000);
-      console.log(`📅 Using connection date as starting point: ${connectionDate.toISOString()}`);
+      console.log(`📅 No existing runs, using connection date: ${connectionDate.toISOString().split('T')[0]}`);
     } else {
-      // Fallback to 30 days ago if no connection date (for legacy users)
+      // Fallback to 30 days ago
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
       after = Math.floor(thirtyDaysAgo.getTime() / 1000);
-      console.log(`⚠️ No connection date found, falling back to 30 days ago: ${thirtyDaysAgo.toISOString()}`);
+      console.log(`⚠️ No connection date, falling back to 30 days ago: ${thirtyDaysAgo.toISOString().split('T')[0]}`);
     }
     
-    console.log(`📅 Fetching activities after: ${new Date(after * 1000).toISOString()} (including today)`);
+    console.log(`📅 Final 'after' timestamp: ${new Date(after * 1000).toISOString()}`);
     
+    // Increase per_page to 200 (Strava API max) to catch more activities
     const stravaResponse = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=50`,
+      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
