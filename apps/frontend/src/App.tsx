@@ -5,7 +5,8 @@ import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/features/auth";
+import { AuthProvider } from "@/providers";
+import { useAuth } from "@/features/auth";
 import { frontendLevelService } from "@/shared/services/levelService";
 import { log } from "@/shared/utils/logger";
 import Index from "./pages/Index";
@@ -24,7 +25,7 @@ const AppContent = () => {
 
   // Initialize level service when app starts
   useEffect(() => {
-    frontendLevelService.initialize().catch((error) => logger.error('Failed to initialize level service', error));
+    frontendLevelService.initialize().catch((error) => log.error('Failed to initialize level service', error));
   }, []);
 
   // 🛑 UNDANTAG: Kör aldrig AppRouter på popup-sidan

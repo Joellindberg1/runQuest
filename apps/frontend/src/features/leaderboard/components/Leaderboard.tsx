@@ -1,16 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { backendApi } from '@/shared/services/backendApi';
 import { leaderboardUtils } from '@/utils/leaderboardUtils';
-import { getLevelFromXP } from '@/utils/xpCalculation';
 import { UserTitles } from './leaderboard/UserTitles';
 import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
 import { User, UserTitle } from '@/types/run';
-import { AuthDebugInfo } from '@/shared/components/AuthDebugInfo';
-import { log } from '@/shared/utils/logger';
 
 interface LeaderboardProps {
   users: User[];

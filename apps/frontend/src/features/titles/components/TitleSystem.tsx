@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Crown } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
+import { log } from '@/shared/utils/logger';
 import { TitleCard } from './title/TitleCard';
 import { TitleRequirements } from './title/TitleRequirements';
 import { User, Title } from './title/titleSystemUtils';
@@ -22,19 +23,19 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
   // Fetch titles using the new direct query approach
   const fetchTitles = async () => {
     try {
-      console.log('🏆 Fetching titles using direct query approach...');
+      log.debug('Fetching titles using direct query approach');
       
       // First trigger backend title calculation to ensure fresh data
       try {
         await backendApi.refreshTitleLeaderboards();
-        console.log('✅ Backend title calculation triggered');
+        log.debug('Backend title calculation triggered');
       } catch (error) {
-        console.warn('⚠️ Backend title calculation failed, using cached data:', error);
+        log.warn('Backend title calculation failed, using cached data', error);
       }
       
       const titleResponse = await backendApi.getTitleLeaderboard();
       const titleHolders = titleResponse.success ? titleResponse.data : [];
-      console.log('✅ Titles loaded:', titleHolders);
+      log.debug('Titles loaded', titleHolders);
       
       setTitles(titleHolders);
     } catch (error) {
@@ -52,15 +53,15 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
   // Auto-refresh when users change (when runs are added/removed)
   useEffect(() => {
     if (!loading && users.length > 0) {
-      console.log('👥 Users changed, auto-refreshing titles...');
+      log.debug('Users changed, auto-refreshing titles');
       fetchTitles();
     }
   }, [users]);
 
   // Listen for custom events from run updates/deletions
   useEffect(() => {
-    const handleRunUpdate = (event: any) => {
-      console.log('🔄 Run updated event received, refreshing titles...', event.detail);
+    const handleRunUpdate = () => {
+      log.debug('Run updated event received, refreshing titles');
       fetchTitles();
     };
 
@@ -69,7 +70,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
     return () => {
       window.removeEventListener('runsUpdated', handleRunUpdate);
     };
-  }, []);
+  }, [fetchTitles]);
 
   if (loading) {
     return (

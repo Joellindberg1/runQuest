@@ -1,12 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { Badge } from '@/shared/components/ui/badge';
 import { Progress } from '@/shared/components/ui/progress';
 import { Button } from '@/shared/components/ui/button';
-import { User, Trophy, Calendar, Star, ChevronDown, Crown, Target, Pen } from 'lucide-react';
+import { User, Trophy, Calendar, Crown, Pen } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
-import { runService } from '@/services/runService';
 import { backendApi } from '@/shared/services/backendApi';
 import { leaderboardUtils } from '@/utils/leaderboardUtils';
 import { UserTitle, User as UserType, Run } from '@/types/run';
@@ -22,7 +20,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
   const [visibleRuns, setVisibleRuns] = useState(5);
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
   const [userTitles, setUserTitles] = useState<UserTitle[]>([]);
-  const [allTitles, setAllTitles] = useState<any[]>([]);
+  const [allTitles, setAllTitles] = useState<UserTitle[]>([]);
   const [allUsers, setAllUsers] = useState<UserType[]>([]);
   const [editingRun, setEditingRun] = useState<Run | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);

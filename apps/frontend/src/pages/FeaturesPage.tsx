@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
-import { CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings, ChevronDown, ChevronRight, Sparkles, Wrench, Bug, ScrollText, Moon } from 'lucide-react';
+import { CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings, ChevronDown, ChevronRight, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { ProfileMenu } from '@/features/profile';
 
 const FeaturesPage: React.FC = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = (user as any)?.name?.toLowerCase() === 'admin';
   
   const [featuresOpen, setFeaturesOpen] = useState(true);
   const [versionOpen, setVersionOpen] = useState(false);

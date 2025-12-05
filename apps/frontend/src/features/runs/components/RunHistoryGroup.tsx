@@ -1,12 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { Button } from '@/shared/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
-import { Calendar, Trophy, Zap, Target } from 'lucide-react';
+import { Calendar, Trophy, Zap } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
 import { User } from '@/types/run';
-import { getLevelFromXP } from '@/utils/xpCalculation';
 import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
 import { StravaIcon } from '@/shared/components/ui/StravaIcon';
 
@@ -49,7 +47,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
 
       console.log('✅ Group runs loaded:', result.data.length);
 
-      const runsWithUser: RunWithUser[] = result.data.map((run: any) => ({
+      const runsWithUser: RunWithUser[] = result.data.map((run) => ({
         id: run.id,
         user_id: run.user_id,
         date: run.date,

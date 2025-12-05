@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { User, Settings, LogOut, Info, Shield } from 'lucide-react';
@@ -36,9 +36,9 @@ export const ProfileMenu: React.FC = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="rounded-full w-10 h-10 p-0">
-          {(user as any).profile_picture ? (
+          {user && 'profile_picture' in user && user.profile_picture ? (
             <img 
-              src={(user as any).profile_picture} 
+              src={user.profile_picture} 
               alt="Profile" 
               className="w-8 h-8 rounded-full object-cover"
             />

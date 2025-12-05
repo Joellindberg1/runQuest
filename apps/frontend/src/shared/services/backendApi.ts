@@ -1,4 +1,6 @@
 // 🔗 Backend API Service - Production Ready
+import type { Run, UserTitle } from '@/types/run';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // Debug logging
@@ -18,27 +20,16 @@ export interface LoginResponse {
   error?: string;
 }
 
-// Specific API response types
-interface UserData {
-  id: string;
-  name: string;
-  email: string;
-  total_xp?: number;
-  current_level?: number;
-  total_km?: number;
-  current_streak?: number;
-  longest_streak?: number;
-  profile_picture?: string;
-}
-
-interface RunData {
-  id: string;
-  user_id: string;
-  date: string;
-  distance: number;
-  xp_gained: number;
-  multiplier: number;
-  streak_day: number;
+export interface AdminSettings {
+  base_xp: number;
+  xp_per_km: number;
+  bonus_5km: number;
+  bonus_10km: number;
+  bonus_15km: number;
+  bonus_20km: number;
+  min_run_distance: number;
+  min_streak_distance?: number;
+  min_run_date?: string;
 }
 
 interface TitleData {
@@ -47,13 +38,6 @@ interface TitleData {
   description: string;
   category: string;
   icon?: string;
-}
-
-interface RecalculationResult {
-  user_id: string;
-  runs_updated: number;
-  new_total_xp: number;
-  message: string;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -337,7 +321,7 @@ class BackendApiService {
   }
 
   // 👤 Get current user from localStorage
-  getCurrentUser(): any | null {
+  getCurrentUser(): { id: string; name: string; email: string } | null {
     const userStr = localStorage.getItem('runquest_user');
     if (!userStr) return null;
     
@@ -354,7 +338,7 @@ class BackendApiService {
   }
 
   // 📡 Make authenticated API request
-  async authenticatedRequest<T = any>(
+  async authenticatedRequest<T = unknown>(
     endpoint: string, 
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
@@ -460,9 +444,9 @@ class BackendApiService {
   }
 
   // 🏆 Title System Methods
-  async getTitleLeaderboard(): Promise<ApiResponse<any[]>> {
+  async getTitleLeaderboard(): Promise<ApiResponse<UserTitle[]>> {
     console.log('🏆 Fetching title leaderboard from optimized backend...');
-    const response = await this.authenticatedRequest('/titles/leaderboard');
+    const response = await this.authenticatedRequest<{ data: UserTitle[] }>('/titles/leaderboard');
     
     // Extract the actual data from the nested response structure
     if (response.success && response.data && response.data.data) {
@@ -472,9 +456,9 @@ class BackendApiService {
     return response;
   }
 
-  async getUserTitles(userId: string): Promise<ApiResponse<any[]>> {
+  async getUserTitles(userId: string): Promise<ApiResponse<UserTitle[]>> {
     console.log(`🏆 BackendAPI: Fetching titles for user ${userId}...`);
-    const response = await this.authenticatedRequest(`/titles/user/${userId}`);
+    const response = await this.authenticatedRequest<{ data: UserTitle[] }>(`/titles/user/${userId}`);
     console.log(`🔍 BackendAPI Response for user ${userId}:`, response);
     
     // Extract the actual data from the nested response structure
@@ -487,9 +471,9 @@ class BackendApiService {
     return response;
   }
 
-  async getAllTitles(): Promise<ApiResponse<any[]>> {
+  async getAllTitles(): Promise<ApiResponse<TitleData[]>> {
     console.log('🏆 Fetching all titles...');
-    const response = await this.authenticatedRequest('/titles');
+    const response = await this.authenticatedRequest<{ data: TitleData[] }>('/titles');
     
     // Extract the actual data from the nested response structure
     if (response.success && response.data && response.data.data) {
@@ -500,11 +484,11 @@ class BackendApiService {
   }
 
   // 🔄 Refresh title leaderboards after data changes
-  async refreshTitleLeaderboards(): Promise<ApiResponse<any>> {
+  async refreshTitleLeaderboards(): Promise<ApiResponse<{ message: string; updated: number }>> {
     console.log('🔄 BackendAPI: Refreshing title leaderboards...');
     
     try {
-      const response = await this.authenticatedRequest('/titles/refresh', {
+      const response = await this.authenticatedRequest<{ message: string; updated: number }>('/titles/refresh', {
         method: 'POST'
       });
       
@@ -523,7 +507,7 @@ class BackendApiService {
   }
 
   // 🔧 Admin Settings Management
-  async getAdminSettings(): Promise<ApiResponse<any>> {
+  async getAdminSettings(): Promise<ApiResponse<AdminSettings>> {
     try {
       console.log('🔍 Fetching admin settings from backend...');
       const response = await fetch(`${API_BASE_URL}/auth/admin-settings`, {
@@ -556,7 +540,7 @@ class BackendApiService {
     bonus_15km: number;
     bonus_20km: number;
     min_run_distance: number;
-  }): Promise<ApiResponse<any>> {
+  }): Promise<ApiResponse<AdminSettings>> {
     try {
       console.log('💾 Updating admin settings in backend...');
       const response = await fetch(`${API_BASE_URL}/auth/admin-settings`, {
@@ -582,7 +566,7 @@ class BackendApiService {
     }
   }
 
-  async getStreakMultipliers(): Promise<ApiResponse<any[]>> {
+  async getStreakMultipliers(): Promise<ApiResponse<Array<{ days: number; multiplier: number }>>> {
     try {
       console.log('🔍 Fetching streak multipliers from backend...');
       const response = await fetch(`${API_BASE_URL}/auth/streak-multipliers`, {
@@ -607,7 +591,7 @@ class BackendApiService {
     }
   }
 
-  async updateStreakMultipliers(multipliers: Array<{days: number, multiplier: number}>): Promise<ApiResponse<any[]>> {
+  async updateStreakMultipliers(multipliers: Array<{days: number, multiplier: number}>): Promise<ApiResponse<Array<{ days: number; multiplier: number }>>> {
     try {
       console.log('💾 Updating streak multipliers in backend...');
       const response = await fetch(`${API_BASE_URL}/auth/streak-multipliers`, {
@@ -639,7 +623,7 @@ class BackendApiService {
     duration?: number;
     title?: string;
     description?: string;
-  }): Promise<ApiResponse<any>> {
+  }): Promise<ApiResponse<Run>> {
     try {
       console.log(`💾 Updating run ${runId} in backend...`, updates);
       const response = await fetch(`${API_BASE_URL}/runs/${runId}`, {
@@ -690,7 +674,7 @@ class BackendApiService {
     }
   }
 
-  async getGroupRunHistory(): Promise<ApiResponse<any[]>> {
+  async getGroupRunHistory(): Promise<ApiResponse<Array<Run & { user: { name: string; profile_picture?: string } }>>> {
     try {
       console.log('📊 Fetching group run history from backend...');
       const response = await fetch(`${API_BASE_URL}/runs/group-history`, {
@@ -715,7 +699,7 @@ class BackendApiService {
     }
   }
 
-  async createRun(date: string, distance: number, source: string = 'manual'): Promise<ApiResponse<any>> {
+  async createRun(date: string, distance: number, source: string = 'manual'): Promise<ApiResponse<Run>> {
     try {
       console.log(`📝 Creating run in backend: ${distance}km on ${date}...`);
       const response = await fetch(`${API_BASE_URL}/runs`, {

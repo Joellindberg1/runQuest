@@ -4,12 +4,11 @@ import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
-import { Settings, Users, Trophy, Target, Plus, Save, Info, Edit, Key, LogOut } from 'lucide-react';
+import { Settings, Users, Trophy, Target, Plus, Save, Key } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { ProfileMenu } from '@/features/profile';
-import { log } from '@/shared/utils/logger';
 
 interface AdminSettings {
   xpPerRun: number;
@@ -38,7 +37,6 @@ interface User {
 
 const AdminPage: React.FC = () => {
   const navigate = useNavigate();
-  const [adminPassword, setAdminPassword] = useState('admin123');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [settings, setSettings] = useState<AdminSettings>({
     xpPerRun: 15,
@@ -115,7 +113,7 @@ const AdminPage: React.FC = () => {
         const multipliersResult = await backendApi.getStreakMultipliers();
         if (multipliersResult.success && multipliersResult.data) {
           const multipliersObject: { [key: number]: number } = {};
-          multipliersResult.data.forEach((mult: any) => {
+          multipliersResult.data.forEach((mult) => {
             multipliersObject[mult.days] = mult.multiplier;
           });
           setSettings(prev => ({ ...prev, multipliers: multipliersObject }));
