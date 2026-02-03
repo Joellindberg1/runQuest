@@ -53,14 +53,14 @@ interface CompleteXPResult {
 function calculateRunXP(distanceKm: number, settings: AdminSettings): XPResult {
   console.log(`🏃 Calculating base XP for ${distanceKm}km run...`);
   
-  // Ensure we have valid settings with defaults
+  // Ensure we have valid settings with correct defaults matching admin_settings
   const safeSettings = {
-    base_xp: settings?.base_xp || 5,
-    xp_per_km: settings?.xp_per_km || 6,
-    bonus_5km: settings?.bonus_5km || 10,
-    bonus_10km: settings?.bonus_10km || 25,
-    bonus_15km: settings?.bonus_15km || 50,
-    bonus_20km: settings?.bonus_20km || 100,
+    base_xp: settings?.base_xp || 15,
+    xp_per_km: settings?.xp_per_km || 2,
+    bonus_5km: settings?.bonus_5km || 5,      // Correct: 5 XP for 5km+
+    bonus_10km: settings?.bonus_10km || 15,   // Correct: 15 XP for 10km+
+    bonus_15km: settings?.bonus_15km || 25,   // Correct: 25 XP for 15km+
+    bonus_20km: settings?.bonus_20km || 50,   // Correct: 50 XP for 20km+
     min_run_distance: settings?.min_run_distance || 1.0
   };
 

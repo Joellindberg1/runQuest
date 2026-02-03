@@ -705,19 +705,24 @@ async function processStravaRunSequentially(activity: any, userId: string): Prom
   // Phase 1: Get ALL required data with proper async/await
   const supabase = getSupabaseClient();
   
-  // TEMPORARY FIX: Use hardcoded settings instead of database
-  // This ensures Strava imports always get correct XP
+  // Get admin settings from database, with fallbacks to correct values
+  const { data: dbSettings } = await supabase
+    .from('admin_settings')
+    .select('base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance')
+    .single();
+  
+  // Use database settings or correct fallback values
   const safeSettings = {
-    base_xp: 15,
-    xp_per_km: 2,
-    bonus_5km: 10,
-    bonus_10km: 25,
-    bonus_15km: 50,
-    bonus_20km: 100,
-    min_run_distance: 1.0
+    base_xp: dbSettings?.base_xp ?? 15,
+    xp_per_km: dbSettings?.xp_per_km ?? 2,
+    bonus_5km: dbSettings?.bonus_5km ?? 5,      // Correct: 5 XP for 5km+
+    bonus_10km: dbSettings?.bonus_10km ?? 15,   // Correct: 15 XP for 10km+
+    bonus_15km: dbSettings?.bonus_15km ?? 25,   // Correct: 25 XP for 15km+
+    bonus_20km: dbSettings?.bonus_20km ?? 50,   // Correct: 50 XP for 20km+
+    min_run_distance: dbSettings?.min_run_distance ?? 1.0
   };
   
-  console.log('🔧 Using hardcoded XP settings (temporary fix):', safeSettings);
+  console.log('🔧 Using XP settings:', safeSettings);
   
   // Calculate streak
   const { StreakService } = await import('../services/streakService.js');
