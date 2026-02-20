@@ -56,6 +56,7 @@ const AppContent = () => {
             <Route path="/" element={<Index />} />
             <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/features" element={<FeaturesPage />} />
             <Route path="*" element={<NotFound />} />
           </>
         )}
