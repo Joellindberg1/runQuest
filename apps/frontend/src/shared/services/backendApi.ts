@@ -49,9 +49,16 @@ export interface ApiResponse<T = unknown> {
 
 class BackendApiService {
   private baseUrl: string;
+  onUnauthorized?: () => void;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+  }
+
+  private handleUnauthorized(): void {
+    console.warn('⚠️ Session expired - clearing authentication');
+    this.logout();
+    this.onUnauthorized?.();
   }
 
   // 🔐 Authentication methods
@@ -144,6 +151,10 @@ class BackendApiService {
       const data = await response.json();
       
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         console.error('❌ Password change failed:', data.error);
         return { success: false, error: data.error || 'Password change failed' };
       }
@@ -181,6 +192,10 @@ class BackendApiService {
       const data = await response.json();
       
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         console.error('❌ Failed to fetch users:', data.error);
         return { success: false, error: data.error || 'Failed to fetch users' };
       }
@@ -216,6 +231,10 @@ class BackendApiService {
       const data = await response.json();
       
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         return { success: false, error: data.error || 'Failed to fetch users with runs' };
       }
 
@@ -252,6 +271,10 @@ class BackendApiService {
       const data = await response.json();
       
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         console.error('❌ Failed to create user:', data.error);
         return { success: false, error: data.error || 'Failed to create user' };
       }
@@ -290,6 +313,10 @@ class BackendApiService {
       const data = await response.json();
       
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         console.error('❌ Failed to reset password:', data.error);
         return { success: false, error: data.error || 'Failed to reset password' };
       }
@@ -358,7 +385,12 @@ class BackendApiService {
       });
 
       const data = await response.json();
-      
+
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return { success: false, error: 'Session expired. Please log in again.' };
+      }
+
       return {
         success: response.ok,
         data: response.ok ? data : undefined,
@@ -551,6 +583,10 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         throw new Error(data.error || 'Failed to fetch admin settings');
       }
 
@@ -585,6 +621,10 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         throw new Error(data.error || 'Failed to update admin settings');
       }
 
@@ -610,6 +650,10 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         throw new Error(data.error || 'Failed to fetch streak multipliers');
       }
 
@@ -636,6 +680,10 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         throw new Error(data.error || 'Failed to update streak multipliers');
       }
 
@@ -668,6 +716,10 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         throw new Error(data.error || 'Failed to update run');
       }
 
@@ -693,6 +745,10 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         throw new Error(data.error || 'Failed to delete run');
       }
 
@@ -718,6 +774,10 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         throw new Error(data.error || 'Failed to fetch group run history');
       }
 
@@ -744,6 +804,10 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
         throw new Error(data.error || 'Failed to create run');
       }
 

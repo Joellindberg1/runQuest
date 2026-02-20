@@ -85,6 +85,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
+    // Redirect to login automatically when JWT expires
+    backendApi.onUnauthorized = () => {
+      setUser(null);
+      setSession(null);
+    };
+
     // Set up Supabase auth state listener (for fallback)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       log.debug('Supabase auth state changed', event);
@@ -116,7 +122,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      backendApi.onUnauthorized = undefined;
+    };
   }, []);
 
   // 🔐 Login: uses backend API with JWT authentication
