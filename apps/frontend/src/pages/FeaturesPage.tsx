@@ -1,146 +1,162 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
-import { CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings, ChevronDown, ChevronRight, Moon } from 'lucide-react';
+import {
+  CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings,
+  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { ProfileMenu } from '@/features/profile';
+import {
+  getLatestRelease,
+  getPreviousReleases,
+  type Release,
+  type ChangeType,
+  type ReleaseType
+} from '@/shared/utils/changelogHelpers';
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const releaseTypeMeta: Record<ReleaseType, { label: string; className: string }> = {
+  major: { label: 'Major', className: 'bg-purple-100 text-purple-700 border-purple-200' },
+  minor: { label: 'Minor', className: 'bg-blue-100 text-blue-700 border-blue-200' },
+  patch: { label: 'Patch', className: 'bg-gray-100 text-gray-600 border-gray-200' },
+};
+
+const changeTypeMeta: Record<ChangeType, { icon: React.ReactNode; className: string }> = {
+  feature:     { icon: <Sparkles className="w-4 h-4" />, className: 'text-green-600' },
+  bugfix:      { icon: <Bug className="w-4 h-4" />,      className: 'text-red-500'   },
+  improvement: { icon: <Wrench className="w-4 h-4" />,   className: 'text-blue-500'  },
+};
+
+// ─── Release Card ────────────────────────────────────────────────────────────
+
+interface ReleaseCardProps {
+  release: Release;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) => {
+  const typeMeta = releaseTypeMeta[release.type];
+
+  return (
+    <Card>
+      <CardHeader
+        className="cursor-pointer hover:bg-gray-50 transition-colors"
+        onClick={onToggle}
+      >
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-wrap">
+            <ScrollText className="w-5 h-5 text-purple-600" />
+            <Badge variant="outline" className={typeMeta.className}>
+              {typeMeta.label}
+            </Badge>
+            <span className="font-semibold">v{release.version}</span>
+            <span className="text-gray-500 font-normal text-sm">— {release.title}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400 font-normal hidden sm:block">{release.date}</span>
+            {isOpen
+              ? <ChevronDown className="w-5 h-5 text-gray-500" />
+              : <ChevronRight className="w-5 h-5 text-gray-500" />
+            }
+          </div>
+        </CardTitle>
+      </CardHeader>
+
+      {isOpen && (
+        <CardContent>
+          <p className="text-sm text-gray-400 mb-3 sm:hidden">{release.date}</p>
+          <ul className="space-y-2">
+            {release.changes.map((change, i) => {
+              const meta = changeTypeMeta[change.type];
+              return (
+                <li key={i} className="flex items-start gap-2">
+                  <span className={`mt-0.5 shrink-0 ${meta.className}`}>{meta.icon}</span>
+                  <span className="text-sm text-gray-700">{change.description}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </CardContent>
+      )}
+    </Card>
+  );
+};
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 const FeaturesPage: React.FC = () => {
   const { user } = useAuth();
-  
+  const latest = getLatestRelease();
+  const previous = getPreviousReleases();
+
   const [featuresOpen, setFeaturesOpen] = useState(true);
-  const [versionOpen, setVersionOpen] = useState(false);
   const [workingOnOpen, setWorkingOnOpen] = useState(false);
+  // Tracks which release version is expanded — latest starts open
+  const [openVersion, setOpenVersion] = useState<string | null>(latest.version);
 
-  const currentVersion = "Version 0.1.0";
-  const releaseDate = "6 okt 2025";
+  const toggleRelease = (version: string) => {
+    setOpenVersion(prev => (prev === version ? null : version));
+  };
 
-  // Features som visas direkt i 2x3 grid
   const currentFeatures = [
-    {
-      icon: <Trophy className="w-6 h-6" />,
-      title: "Leaderboard",
-      description: "Real-time ranking and level progression"
-    },
-    {
-      icon: <Trophy className="w-6 h-6" />,
-      title: "Title System",
-      description: "Competitive achievements and titles"
-    },
-    {
-      icon: <Zap className="w-6 h-6" />,
-      title: "Run Logging",
-      description: "Manual run entry with XP calculation"
-    },
-    {
-      icon: <Target className="w-6 h-6" />,
-      title: "Strava Integration",
-      description: "Automatic import from Strava"
-    },
-    {
-      icon: <Users className="w-6 h-6" />,
-      title: "User Profiles",
-      description: "Personal stats and achievements"
-    },
-    {
-      icon: <Smartphone className="w-6 h-6" />,
-      title: "Mobile Responsive",
-      description: "Optimized for all devices"
-    }
+    { icon: <Trophy className="w-6 h-6" />,     title: 'Leaderboard',        description: 'Real-time ranking and level progression' },
+    { icon: <Trophy className="w-6 h-6" />,     title: 'Title System',        description: 'Competitive achievements and titles' },
+    { icon: <Zap className="w-6 h-6" />,        title: 'Run Logging',         description: 'Manual run entry with XP calculation' },
+    { icon: <Target className="w-6 h-6" />,     title: 'Strava Integration',  description: 'Automatic import from Strava' },
+    { icon: <Users className="w-6 h-6" />,      title: 'User Profiles',       description: 'Personal stats and achievements' },
+    { icon: <Smartphone className="w-6 h-6" />, title: 'Mobile Responsive',   description: 'Optimized for all devices' },
   ];
 
-  // Working on features
   const workingOnFeatures = [
     {
       icon: <Moon className="w-5 h-5" />,
-      title: "Dark mode",
-      description: "Change between light and dark themes", 
-      details: ["Runquest will choose system theme first"]
-    }
+      title: 'Dark mode',
+      description: 'Change between light and dark themes',
+      details: ['RunQuest will choose system theme first'],
+    },
   ];
-
-  // Version changelog
-  // const versionChanges = {
-  //   newFeatures: [
-  //     "Lagt till \"Dark Mode\"",
-  //     "Ny statistikvy på dashboard"
-  //   ],
-  //   improvements: [
-  //     "Snabbare sidladdning på mobiler"
-  //   ],
-  //   bugFixes: [
-  //     "Fixat problem där vissa användare inte kunde byta lösenord"
-  //   ]
-  // };
-
-  const handleFeaturesToggle = () => {
-    if (!featuresOpen) {
-      setFeaturesOpen(true);
-      setVersionOpen(false);
-      setWorkingOnOpen(false);
-    }
-  };
-
-  const handleVersionToggle = () => {
-    if (!versionOpen) {
-      setVersionOpen(true);
-      setFeaturesOpen(false);
-      setWorkingOnOpen(false);
-    } else {
-      setVersionOpen(false);
-      setFeaturesOpen(true);
-    }
-  };
-
-  const handleWorkingOnToggle = () => {
-    if (!workingOnOpen) {
-      setWorkingOnOpen(true);
-      setFeaturesOpen(false);
-      setVersionOpen(false);
-    } else {
-      setWorkingOnOpen(false);
-      setFeaturesOpen(true);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8">
           <div className="flex justify-between items-start mb-6">
-            <div></div>
+            <div />
             <ProfileMenu />
           </div>
           <div className="text-center">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">RunQuest Features</h1>
             <div className="flex items-center justify-center gap-4 mb-4">
               <Badge variant="outline" className="text-lg px-4 py-1">
-                {currentVersion}
+                Version {latest.version}
               </Badge>
-              <span className="text-gray-600">Released {releaseDate}</span>
+              <span className="text-gray-600">Released {latest.date}</span>
             </div>
             <p className="text-lg text-gray-600">Features and version information</p>
           </div>
         </header>
 
         <div className="space-y-6">
-          {/* Features Section - Always shows first */}
+
+          {/* Features */}
           <Card>
             <CardHeader
               className="cursor-pointer hover:bg-gray-50 transition-colors"
-              onClick={handleFeaturesToggle}
+              onClick={() => { setFeaturesOpen(true); setWorkingOnOpen(false); }}
             >
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-green-600" />
                   Features
                 </div>
-                {featuresOpen ? (
-                  <ChevronDown className="w-5 h-5 text-gray-500" />
-                ) : (
-                  <ChevronRight className="w-5 h-5 text-gray-500" />
-                )}
+                {featuresOpen
+                  ? <ChevronDown className="w-5 h-5 text-gray-500" />
+                  : <ChevronRight className="w-5 h-5 text-gray-500" />
+                }
               </CardTitle>
             </CardHeader>
             {featuresOpen && (
@@ -162,98 +178,21 @@ const FeaturesPage: React.FC = () => {
             )}
           </Card>
 
-          {/* Version Section */}
-
-          {/* <Card>
-            <CardHeader
-              className="cursor-pointer hover:bg-gray-50 transition-colors"
-              onClick={handleVersionToggle}
-            >
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ScrollText className="w-5 h-5 text-purple-600" />
-                  {currentVersion} – {releaseDate}
-                </div>
-                {versionOpen ? (
-                  <ChevronDown className="w-5 h-5 text-gray-500" />
-                ) : (
-                  <ChevronRight className="w-5 h-5 text-gray-500" />
-                )}
-              </CardTitle>
-            </CardHeader>
-            {versionOpen && (
-              <CardContent className="space-y-6"> */}
-
-                {/* New Features */}
-
-                {/* <div>
-                  <h3 className="flex items-center gap-2 font-semibold text-lg mb-3">
-                    <Sparkles className="w-5 h-5 text-green-600" />
-                    New Features
-                  </h3>
-                  <ul className="space-y-2">
-                    {versionChanges.newFeatures.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2"></div>
-                        <span className="text-gray-700">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div> */}
-
-                {/* Improvements */}
-
-                {/* <div>
-                  <h3 className="flex items-center gap-2 font-semibold text-lg mb-3">
-                    <Wrench className="w-5 h-5 text-blue-600" />
-                    Improvements
-                  </h3>
-                  <ul className="space-y-2">
-                    {versionChanges.improvements.map((improvement, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></div>
-                        <span className="text-gray-700">{improvement}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div> */}
-
-                {/* Bug Fixes */}
-
-                {/* <div>
-                  <h3 className="flex items-center gap-2 font-semibold text-lg mb-3">
-                    <Bug className="w-5 h-5 text-red-600" />
-                    Bug Fixes
-                  </h3>
-                  <ul className="space-y-2">
-                    {versionChanges.bugFixes.map((fix, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-2"></div>
-                        <span className="text-gray-700">{fix}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </CardContent>
-            )}
-          </Card> */}
-
-          {/* Working On Section */}
+          {/* Working On */}
           <Card>
             <CardHeader
               className="cursor-pointer hover:bg-gray-50 transition-colors"
-              onClick={handleWorkingOnToggle}
+              onClick={() => { setWorkingOnOpen(o => !o); setFeaturesOpen(false); }}
             >
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Settings className="w-5 h-5 text-yellow-600" />
                   Working On
                 </div>
-                {workingOnOpen ? (
-                  <ChevronDown className="w-5 h-5 text-gray-500" />
-                ) : (
-                  <ChevronRight className="w-5 h-5 text-gray-500" />
-                )}
+                {workingOnOpen
+                  ? <ChevronDown className="w-5 h-5 text-gray-500" />
+                  : <ChevronRight className="w-5 h-5 text-gray-500" />
+                }
               </CardTitle>
             </CardHeader>
             {workingOnOpen && (
@@ -269,7 +208,7 @@ const FeaturesPage: React.FC = () => {
                       <ul className="text-xs text-gray-500 space-y-1">
                         {feature.details.map((detail, i) => (
                           <li key={i} className="flex items-center gap-1">
-                            <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                            <div className="w-1 h-1 bg-gray-400 rounded-full" />
                             {detail}
                           </li>
                         ))}
@@ -280,6 +219,31 @@ const FeaturesPage: React.FC = () => {
               </CardContent>
             )}
           </Card>
+
+          {/* Releases header */}
+          <p className="text-lg text-gray-600 text-center">Releases</p>
+
+          {/* Latest Release */}
+          <ReleaseCard
+            release={latest}
+            isOpen={openVersion === latest.version}
+            onToggle={() => toggleRelease(latest.version)}
+          />
+
+          {/* Previous Releases */}
+          {previous.length > 0 && (
+            <div className="space-y-3">
+              {previous.map(release => (
+                <ReleaseCard
+                  key={release.version}
+                  release={release}
+                  isOpen={openVersion === release.version}
+                  onToggle={() => toggleRelease(release.version)}
+                />
+              ))}
+            </div>
+          )}
+
         </div>
       </div>
     </div>
@@ -287,4 +251,3 @@ const FeaturesPage: React.FC = () => {
 };
 
 export default FeaturesPage;
-

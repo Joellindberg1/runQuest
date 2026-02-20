@@ -41,7 +41,8 @@ const AppContent = () => {
     );
   }
 
-  if (!user) {
+  // DEV ONLY: Allow /features without login to preview UI
+  if (!user && path !== '/features') {
     return <LoginPage />;
   }
 
@@ -49,6 +50,8 @@ const AppContent = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/strava-callback" element={<StravaCallbackPage />} />
+        {/* DEV ONLY: /features accessible without login */}
+        <Route path="/features" element={<FeaturesPage />} />
         {!user ? (
           <Route path="*" element={<LoginPage />} />
         ) : (
@@ -56,7 +59,6 @@ const AppContent = () => {
             <Route path="/" element={<Index />} />
             <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/features" element={<FeaturesPage />} />
             <Route path="*" element={<NotFound />} />
           </>
         )}

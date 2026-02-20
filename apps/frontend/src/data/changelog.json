@@ -1,0 +1,46 @@
+[
+  {
+    "version": "0.1.1",
+    "type": "patch",
+    "date": "20 februari 2026",
+    "title": "Login fixes",
+    "changes": [
+      {
+        "type": "bugfix",
+        "description": "Sessionen återställs automatiskt när inloggningen behöver förnyas – ingen manuell rensning av cookies krävs längre."
+      },
+      {
+        "type": "improvement",
+        "description": "Du förblir inloggad i 30 dagar istället för 7."
+      }
+    ]
+  },
+  {
+    "version": "0.1.0",
+    "type": "minor",
+    "date": "6 oktober 2025",
+    "title": "Initial Release",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Leaderboard med XP, nivåer, streaks och titlar."
+      },
+      {
+        "type": "feature",
+        "description": "Fyra konkurrenstitlar som uppdateras automatiskt."
+      },
+      {
+        "type": "feature",
+        "description": "Loggning av löprundor manuellt och via Strava."
+      },
+      {
+        "type": "feature",
+        "description": "Användarprofiler med profilbild och personlig statistik."
+      },
+      {
+        "type": "feature",
+        "description": "Adminpanel för användar- och XP-hantering."
+      }
+    ]
+  }
+]
