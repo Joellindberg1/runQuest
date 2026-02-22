@@ -3,7 +3,7 @@
 // before committing data, preventing partial failures
 
 import { getSupabaseClient } from '../config/database.js';
-import { calculateCompleteRunXP } from '@runquest/shared';
+import { calculateCompleteRunXP } from '../utils/xpCalculationWrapper.js';
 
 /**
  * Enhanced Strava run processing with atomic transactions
