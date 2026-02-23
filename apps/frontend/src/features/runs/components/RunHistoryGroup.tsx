@@ -7,6 +7,7 @@ import { backendApi } from '@/shared/services/backendApi';
 import type { User } from '@/types/run';
 import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
 import { StravaIcon } from '@/shared/components/ui/StravaIcon';
+import { getInitials, formatRunDate } from '@/shared/utils/formatters';
 
 interface RunWithUser {
   id: string;
@@ -112,7 +113,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                     <Avatar className="w-12 h-12 border-2 border-blue-200">
                       <AvatarImage src={run.user_profile_picture} alt={run.user_name} />
                       <AvatarFallback className="bg-blue-100 text-blue-700 font-bold">
-                        {run.user_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        {getInitials(run.user_name)}
                       </AvatarFallback>
                     </Avatar>
                     {run.source === 'strava' && (
@@ -128,12 +129,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
-                        {new Date(run.date).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
+                        {formatRunDate(run.date)}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
