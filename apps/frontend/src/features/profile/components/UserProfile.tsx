@@ -1,185 +1,49 @@
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Progress } from '@/shared/components/ui/progress';
-import { Button } from '@/shared/components/ui/button';
-import { User, Trophy, Calendar, Crown, Pen } from 'lucide-react';
+import { User, Calendar } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
-import { backendApi } from '@/shared/services/backendApi';
 import { leaderboardUtils } from '@/utils/leaderboardUtils';
-import type { UserTitle, User as UserType, Run } from '@/types/run';
-import { EditRunDialog } from '@/features/runs/components/EditRunDialog';
-import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
+import type { User as UserType } from '@/types/run';
+import { UserRunHistory } from './UserRunHistory';
+import { UserTitlesList } from './UserTitlesList';
 import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/utils/xpCalculation';
 import { MAX_LEVEL } from '@/constants/appConstants';
 import { getInitials } from '@/shared/utils/formatters';
 
 interface UserProfileProps {
   user: UserType;
+  allUsers: UserType[];
 }
 
-export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
-  const [visibleRuns, setVisibleRuns] = useState(5);
-  const [selectedRun, setSelectedRun] = useState<Run | null>(null);
-  const [userTitles, setUserTitles] = useState<UserTitle[]>([]);
-  const [allTitles, setAllTitles] = useState<UserTitle[]>([]);
-  const [allUsers, setAllUsers] = useState<UserType[]>([]);
-  const [editingRun, setEditingRun] = useState<Run | null>(null);
-  const [showEditDialog, setShowEditDialog] = useState(false);
+const getStreakMultiplier = (streak: number) => {
+  if (streak >= 270) return 2.0;
+  if (streak >= 240) return 1.9;
+  if (streak >= 220) return 1.8;
+  if (streak >= 180) return 1.7;
+  if (streak >= 120) return 1.6;
+  if (streak >= 90) return 1.5;
+  if (streak >= 60) return 1.4;
+  if (streak >= 30) return 1.3;
+  if (streak >= 15) return 1.2;
+  if (streak >= 5) return 1.1;
+  return 1.0;
+};
 
+export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers }) => {
   const currentLevel = getLevelFromXP(user.total_xp);
   const currentLevelXP = getXPForLevel(currentLevel);
   const nextLevelXP = currentLevel < MAX_LEVEL ? getXPForNextLevel(currentLevel) : currentLevelXP;
   const xpProgress = currentLevel < MAX_LEVEL ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
-
-  const getStreakMultiplier = (streak: number) => {
-    if (streak >= 270) return 2.0;
-    if (streak >= 240) return 1.9;
-    if (streak >= 220) return 1.8;
-    if (streak >= 180) return 1.7;
-    if (streak >= 120) return 1.6;
-    if (streak >= 90) return 1.5;
-    if (streak >= 60) return 1.4;
-    if (streak >= 30) return 1.3;
-    if (streak >= 15) return 1.2;
-    if (streak >= 5) return 1.1;
-    return 1.0;
-  };
-
   const currentMultiplier = getStreakMultiplier(user.current_streak);
 
-  const fetchTitleData = async () => {
-    try {
-      const [titlesResult, titleHoldersResult, usersResult] = await Promise.all([
-        backendApi.getUserTitles(user.id),
-        backendApi.getTitleLeaderboard(),
-        backendApi.getAllUsers()
-      ]);
-      
-      setUserTitles(titlesResult.success ? titlesResult.data : []);
-      setAllTitles(titleHoldersResult.success ? titleHoldersResult.data : []);
-      
-      if (usersResult.success && usersResult.data) {
-        const users = usersResult.data as UserType[];
-        setAllUsers(users);
-      }
-    } catch (error) {
-      console.error('Error fetching title data:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchTitleData();
-  }, [user.id]);
-
-  const showMoreRuns = () => {
-    setVisibleRuns(prev => prev + 10);
-  };
-
-  const handleEditRun = (run: Run, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setEditingRun(run);
-    setShowEditDialog(true);
-  };
+  const position = allUsers.length > 0
+    ? leaderboardUtils.getUserPosition(user, leaderboardUtils.filterAndSortUsers(allUsers))
+    : null;
 
   const handleRunUpdated = () => {
-    // Trigger a refresh of the user data
-    window.location.reload();
+    window.dispatchEvent(new Event('runsUpdated'));
   };
-
-  const renderRunDetails = (run: Run) => (
-    <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-      <div>Base XP: {run.base_xp}</div>
-      <div>Distance XP: {run.km_xp} ({run.distance.toFixed(1)}km × 2)</div>
-      <div>Multiplier: {run.multiplier}x</div>
-      <div>Distance Bonus: {run.distance_bonus}</div>
-      <div>Streak Bonus: {run.streak_bonus}</div>
-      <div className="font-semibold mt-1">Total: {run.xp_gained} XP</div>
-    </div>
-  );
-
-  const getValueSuffix = (titleName: string) => {
-    if (titleName.includes('Daaaaaviiiiiid GOGGINGS')) return ' days';
-    if (titleName.includes('Weekend Destroyer')) return 'km avg';
-    return 'km';
-  };
-
-  const renderTitleSection = () => {
-    const heldTitles = userTitles.filter(title => title.is_current_holder);
-    const runnerUpTitles = userTitles.filter(title => !title.is_current_holder);
-
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Crown className="w-5 h-5" />
-            My Titles
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {heldTitles.length === 0 && runnerUpTitles.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">
-              No titles or runner-up positions yet
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {heldTitles.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-green-700 mb-2">🏆 Title Holder</h4>
-                  <div className="space-y-3">
-                  {heldTitles.map((title, index) => {
-                    const titleData = allTitles.find(t => t.name === title.title_name);
-                    const runnerUp = titleData?.runners_up?.[0];
-                    
-                    return (
-                      <div key={index} className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="font-medium">{title.title_name}</div>
-                        <div className="text-sm text-gray-600">
-                          Your Record: {title.value?.toFixed(1)}{getValueSuffix(title.title_name)}
-                        </div>
-                        {runnerUp && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Runner-up: {runnerUp.user_name} ({runnerUp.value.toFixed(1)}{getValueSuffix(title.title_name)})
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  </div>
-                </div>
-              )}
-              
-              {runnerUpTitles.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-orange-700 mb-2">🥈 Runner-up</h4>
-                  <div className="space-y-3">
-                  {runnerUpTitles.map((title, index) => {
-                    const titleData = allTitles.find(t => t.name === title.title_name);
-                    
-                    return (
-                      <div key={index} className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                        <div className="font-medium">{title.title_name}</div>
-                        <div className="text-sm text-gray-600">
-                          Your Record: {title.value?.toFixed(1)}{getValueSuffix(title.title_name)}
-                        </div>
-                        {titleData && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Current Holder: {titleData.holder_name} ({titleData.current_value?.toFixed(1)}{getValueSuffix(title.title_name)})
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -219,7 +83,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
                 <div className="text-sm text-gray-600">Day Streak</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">#{allUsers.length > 0 ? leaderboardUtils.getUserPosition(user, leaderboardUtils.filterAndSortUsers(allUsers)) : '?'}</div>
+                <div className="text-2xl font-bold text-red-600">#{position ?? '?'}</div>
                 <div className="text-sm text-gray-600">Position</div>
               </div>
             </div>
@@ -246,8 +110,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
         </CardContent>
       </Card>
 
-      {/* Title Section */}
-      {renderTitleSection()}
+      <UserTitlesList userId={user.id} />
 
       {/* Streak Information */}
       <Card>
@@ -278,72 +141,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
         </CardContent>
       </Card>
 
-      {/* Run History */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="w-5 h-5" />
-            Run History
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!user.runs || user.runs.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-gray-500 mb-2">No runs logged yet</div>
-              <div className="text-sm text-gray-400">Start logging your runs to see them here!</div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {user.runs.slice(0, visibleRuns).map((run) => (
-                <div key={run.id} className="border rounded-lg">
-                  <div 
-                    className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
-                    onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
-                  >
-                    <div className="flex-1">
-                      <div className="font-semibold">{run.date}</div>
-                      <div className="text-sm text-gray-600">
-                        {run.distance.toFixed(1)}km • Streak Day {run.streak_day}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <div className="font-bold text-green-600">+{run.xp_gained} XP</div>
-                        <div className="text-sm text-gray-600">{run.multiplier}x multiplier</div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => handleEditRun(run, e)}
-                        className="ml-2"
-                      >
-                        <Pen className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  {selectedRun?.id === run.id && renderRunDetails(run)}
-                </div>
-              ))}
-              
-              {visibleRuns < (user.runs?.length || 0) && (
-                <ShowMoreButton
-                  showAll={false}
-                  onClick={showMoreRuns}
-                  moreText="Show More Runs"
-                />
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <EditRunDialog
-        run={editingRun}
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        onRunUpdated={handleRunUpdated}
-      />
+      <UserRunHistory runs={user.runs || []} onRunUpdated={handleRunUpdated} />
     </div>
   );
 };
-
