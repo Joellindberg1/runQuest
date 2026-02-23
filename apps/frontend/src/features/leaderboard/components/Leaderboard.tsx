@@ -7,6 +7,7 @@ import { UserTitles } from './leaderboard/UserTitles';
 import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
+import { log } from '@/shared/utils/logger';
 import type { User, UserTitle } from '@/types/run';
 
 interface LeaderboardProps {
@@ -30,7 +31,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
           const currentHolderTitles = userTitleData.filter(title => title.is_current_holder);
           titlesByUser[user.id] = currentHolderTitles;
         } else {
-          logger.error('User title data is not an array', { userId: user.id, data: userTitleData });
+          log.error('User title data is not an array', { userId: user.id, data: userTitleData });
           titlesByUser[user.id] = [];
         }
       }

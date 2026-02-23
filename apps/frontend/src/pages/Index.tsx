@@ -6,115 +6,26 @@ import { TitleSystem } from '@/features/titles';
 import { ProfileMenu } from '@/features/profile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Trophy, User as UserIcon, Plus, Award } from 'lucide-react';
-import { useAuth } from '@/features/auth';
-import { backendApi } from '@/shared/services/backendApi';
+import { useLeaderboardData } from '@/features/leaderboard/hooks/useLeaderboardData';
 import { toast } from 'sonner';
-import { log } from '@/shared/utils/logger';
-import { getLevelFromXP } from '@/shared/services/levelService';
-import type { Run, User } from '@/types/run';
-
-interface ApiUser {
-  id: string;
-  name: string;
-  total_xp?: number;
-  current_level?: number;
-  total_km?: number | string;
-  current_streak?: number;
-  longest_streak?: number;
-  profile_picture?: string;
-  runs?: Array<{
-    id: string;
-    user_id: string;
-    date: string;
-    distance: number | string;
-    xp_gained: number;
-    multiplier: number | string;
-    streak_day: number;
-    base_xp: number;
-    km_xp: number;
-    distance_bonus: number;
-    streak_bonus: number;
-  }>;
-}
 
 const Index: React.FC = () => {
-  const { user: authUser } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { users, currentUser, loading, refresh } = useLeaderboardData();
   const [activeTab, setActiveTab] = useState("leaderboard");
-  const [loading, setLoading] = useState(true);
-
-  const fetchUsers = async () => {
-    try {
-      const result = await backendApi.getUsersWithRuns();
-      
-      if (!result.success || !result.data) {
-        throw new Error(result.error || 'Failed to fetch users');
-      }
-
-      const usersWithRuns = result.data.map((user: ApiUser) => ({
-        id: user.id,
-        name: user.name,
-        total_xp: user.total_xp || 0,
-        current_level: user.current_level || 1,
-        total_km: parseFloat(user.total_km?.toString() || '0'),
-        current_streak: user.current_streak || 0,
-        longest_streak: user.longest_streak || 0,
-        profile_picture: user.profile_picture || undefined,
-        runs: user.runs?.map((run) => ({
-          id: run.id,
-          user_id: run.user_id,
-          date: run.date,
-          distance: parseFloat(run.distance.toString()),
-          xp_gained: run.xp_gained,
-          multiplier: parseFloat(run.multiplier.toString()),
-          streak_day: run.streak_day,
-          base_xp: run.base_xp,
-          km_xp: run.km_xp,
-          distance_bonus: run.distance_bonus,
-          streak_bonus: run.streak_bonus
-        })) || []
-      }));
-
-      setUsers(usersWithRuns);
-      
-      // Find and set current user
-      if (authUser) {
-        const current = usersWithRuns.find((u) => u.id === authUser.id);
-        setCurrentUser(current || null);
-      }
-    } catch (error) {
-      log.error('Failed to fetch users', error);
-      toast.error('Failed to load user data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (authUser) {
-      fetchUsers();
-    } else {
-      setLoading(false);
-    }
-  }, [authUser]);
 
   // Listen for run updates and refresh all data
   useEffect(() => {
     const handleRunUpdate = async () => {
-      await fetchUsers();
+      await refresh();
       toast.success('Data refreshed after run update!');
     };
 
     window.addEventListener('runsUpdated', handleRunUpdate);
-    
-    return () => {
-      window.removeEventListener('runsUpdated', handleRunUpdate);
-    };
-  }, [fetchUsers]);
+    return () => window.removeEventListener('runsUpdated', handleRunUpdate);
+  }, [refresh]);
 
   const handleRunSubmit = async () => {
-    await fetchUsers(); // Refresh all data after run submission
+    await refresh();
     toast.success('Data refreshed!');
   };
 
@@ -126,14 +37,6 @@ const Index: React.FC = () => {
     );
   }
 
-  if (!authUser) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
-        <div className="text-xl">Please log in to access the app</div>
-      </div>
-    );
-  }
-
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
@@ -141,16 +44,6 @@ const Index: React.FC = () => {
       </div>
     );
   }
-
-  // Sort users by level first, then by XP
-  const sortedUsers = [...users].sort((a, b) => {
-    const aLevel = getLevelFromXP(a.total_xp);
-    const bLevel = getLevelFromXP(b.total_xp);
-    if (aLevel !== bLevel) {
-      return bLevel - aLevel;
-    }
-    return b.total_xp - a.total_xp;
-  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
@@ -170,29 +63,29 @@ const Index: React.FC = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-6 bg-white border-2 border-gray-200 shadow-lg">
-            <TabsTrigger 
-              value="leaderboard" 
+            <TabsTrigger
+              value="leaderboard"
               className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white font-semibold"
             >
               <Trophy className="w-4 h-4" />
               Leaderboard
             </TabsTrigger>
-            <TabsTrigger 
-              value="titles" 
+            <TabsTrigger
+              value="titles"
               className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white font-semibold"
             >
               <Award className="w-4 h-4" />
               Titles
             </TabsTrigger>
-            <TabsTrigger 
-              value="profile" 
+            <TabsTrigger
+              value="profile"
               className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white font-semibold"
             >
               <UserIcon className="w-4 h-4" />
               Profile
             </TabsTrigger>
-            <TabsTrigger 
-              value="log-run" 
+            <TabsTrigger
+              value="log-run"
               className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white font-semibold"
             >
               <Plus className="w-4 h-4" />
@@ -201,7 +94,7 @@ const Index: React.FC = () => {
           </TabsList>
 
           <TabsContent value="leaderboard">
-            <Leaderboard users={sortedUsers} currentUser={currentUser} />
+            <Leaderboard users={users} currentUser={currentUser} />
           </TabsContent>
 
           <TabsContent value="titles">
@@ -222,4 +115,3 @@ const Index: React.FC = () => {
 };
 
 export default Index;
-
