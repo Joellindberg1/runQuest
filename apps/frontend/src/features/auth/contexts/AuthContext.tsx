@@ -38,13 +38,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 🔄 Initialize authentication state
   useEffect(() => {
     const initializeAuth = async () => {
-      console.log('🔄 Initializing authentication...');
-      
       // Check for backend authentication first
       if (backendApi.isAuthenticated()) {
         const currentUser = backendApi.getCurrentUser();
         if (currentUser) {
-          console.log('✅ Found backend authentication:', currentUser.name);
           setUser(currentUser);
           setLoading(false);
           return;
@@ -57,8 +54,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
 
       if (session?.user) {
-        log.debug('Found Supabase session', session.user.id);
-        
         const { data: userData, error } = await supabase
           .from('users')
           .select('*')
@@ -75,8 +70,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: session.user.email || ''
           } as User);
         }
-      } else {
-        console.log('ℹ️ No authentication found');
       }
 
       setLoading(false);
@@ -86,8 +79,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Set up Supabase auth state listener (for fallback)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔁 Supabase auth state changed:', event, session?.user?.id);
-      
       // Only handle if no backend auth is active
       if (!backendApi.isAuthenticated()) {
         setSession(session);
@@ -123,18 +114,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
 
     try {
-      console.log('🔐 Attempting login with backend API:', nameOrEmail);
-
       // Use backend API for login
       const loginResult = await backendApi.login(nameOrEmail, password);
-      
+
       if (loginResult.success && loginResult.user) {
-        console.log('✅ Backend login successful:', loginResult.user.name);
         setUser(loginResult.user);
         setSession(null); // No Supabase session for backend auth
         return { success: true };
       } else {
-        console.log('❌ Backend login failed:', loginResult.error);
         return { success: false, error: loginResult.error || 'Login failed' };
       }
 
@@ -147,8 +134,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    console.log('🚪 Logging out...');
-    
     // Clear backend authentication
     backendApi.logout();
     

@@ -153,8 +153,6 @@ const AdminPage: React.FC = () => {
 
   const handleSaveSettings = async () => {
     try {
-      console.log('💾 Saving admin settings to database...');
-      
       // Save basic XP settings to database
       const basicSettingsResult = await backendApi.updateAdminSettings({
         base_xp: settings.xpPerRun,
@@ -182,7 +180,6 @@ const AdminPage: React.FC = () => {
         throw new Error(multipliersResult.error || 'Failed to save streak multipliers');
       }
       
-      console.log('✅ All settings saved successfully');
       toast.success('Settings saved successfully to database!');
       
     } catch (error) {

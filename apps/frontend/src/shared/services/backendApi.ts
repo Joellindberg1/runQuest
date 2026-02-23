@@ -3,12 +3,6 @@ import type { Run, UserTitle } from '@/types/run';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-// Debug logging
-console.log('🔧 Environment check:');
-console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
-console.log('API_BASE_URL:', API_BASE_URL);
-console.log('Mode:', import.meta.env.MODE);
-
 export interface LoginResponse {
   success: boolean;
   token?: string;
@@ -64,8 +58,6 @@ class BackendApiService {
   // 🔐 Authentication methods
   async login(name: string, password: string): Promise<LoginResponse> {
     try {
-      console.log('🔐 Attempting backend login for:', name);
-      
       const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
         headers: {
@@ -75,14 +67,12 @@ class BackendApiService {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         console.error('❌ Backend login failed:', data.error);
         return { success: false, error: data.error || 'Login failed' };
       }
 
-      console.log('✅ Backend login successful:', data.user?.name);
-      
       // Store JWT token in localStorage
       if (data.token) {
         localStorage.setItem('runquest_token', data.token);
@@ -94,12 +84,12 @@ class BackendApiService {
         token: data.token,
         user: data.user
       };
-      
+
     } catch (error) {
       console.error('❌ Backend login error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Network error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
@@ -122,7 +112,7 @@ class BackendApiService {
 
       const data = await response.json();
       return { success: response.ok, data };
-      
+
     } catch (error) {
       console.error('❌ Token refresh error:', error);
       return { success: false, error: 'Token refresh failed' };
@@ -132,8 +122,6 @@ class BackendApiService {
   // 🔐 Change password
   async changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse> {
     try {
-      console.log('🔐 Attempting password change');
-      
       const token = this.getToken();
       if (!token) {
         return { success: false, error: 'Not authenticated' };
@@ -149,7 +137,7 @@ class BackendApiService {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           this.handleUnauthorized();
@@ -159,14 +147,13 @@ class BackendApiService {
         return { success: false, error: data.error || 'Password change failed' };
       }
 
-      console.log('✅ Password changed successfully');
       return { success: true, data };
-      
+
     } catch (error) {
       console.error('❌ Password change error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Network error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
@@ -174,8 +161,6 @@ class BackendApiService {
   // 👥 Admin: Get all users
   async getAllUsers(): Promise<ApiResponse> {
     try {
-      console.log('👥 Fetching all users (admin)');
-      
       const token = this.getToken();
       if (!token) {
         return { success: false, error: 'Not authenticated' };
@@ -190,7 +175,7 @@ class BackendApiService {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           this.handleUnauthorized();
@@ -200,14 +185,13 @@ class BackendApiService {
         return { success: false, error: data.error || 'Failed to fetch users' };
       }
 
-      console.log('✅ Users fetched successfully');
       return { success: true, data: data.data };
-      
+
     } catch (error) {
       console.error('❌ Error fetching users:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Network error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
@@ -229,7 +213,7 @@ class BackendApiService {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           this.handleUnauthorized();
@@ -239,12 +223,12 @@ class BackendApiService {
       }
 
       return { success: true, data: data.data };
-      
+
     } catch (error) {
       console.error('❌ Error fetching users with runs:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Network error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
@@ -252,8 +236,6 @@ class BackendApiService {
   // 👤 Admin: Create new user
   async createUser(name: string, email: string, password: string): Promise<ApiResponse> {
     try {
-      console.log('👤 Creating new user (admin)');
-      
       const token = this.getToken();
       if (!token) {
         return { success: false, error: 'Not authenticated' };
@@ -269,7 +251,7 @@ class BackendApiService {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           this.handleUnauthorized();
@@ -279,14 +261,13 @@ class BackendApiService {
         return { success: false, error: data.error || 'Failed to create user' };
       }
 
-      console.log('✅ User created successfully');
       return { success: true, data: data.data };
-      
+
     } catch (error) {
       console.error('❌ Error creating user:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Network error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
@@ -294,8 +275,6 @@ class BackendApiService {
   // 🔐 Admin: Reset user password
   async resetUserPassword(userId: string, newPassword: string): Promise<ApiResponse> {
     try {
-      console.log('🔐 Resetting user password (admin)');
-      
       const token = this.getToken();
       if (!token) {
         return { success: false, error: 'Not authenticated' };
@@ -311,7 +290,7 @@ class BackendApiService {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           this.handleUnauthorized();
@@ -321,21 +300,19 @@ class BackendApiService {
         return { success: false, error: data.error || 'Failed to reset password' };
       }
 
-      console.log('✅ Password reset successfully');
       return { success: true, data };
-      
+
     } catch (error) {
       console.error('❌ Error resetting password:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Network error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
 
   // 🚪 Logout
   logout(): void {
-    console.log('🚪 Logging out - clearing tokens');
     localStorage.removeItem('runquest_token');
     localStorage.removeItem('runquest_user');
   }
@@ -351,7 +328,7 @@ class BackendApiService {
   getCurrentUser(): { id: string; name: string; email: string } | null {
     const userStr = localStorage.getItem('runquest_user');
     if (!userStr) return null;
-    
+
     try {
       return JSON.parse(userStr);
     } catch {
@@ -366,7 +343,7 @@ class BackendApiService {
 
   // 📡 Make authenticated API request
   async authenticatedRequest<T = unknown>(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     try {
@@ -396,12 +373,12 @@ class BackendApiService {
         data: response.ok ? data : undefined,
         error: response.ok ? undefined : data.error || 'Request failed'
       };
-      
+
     } catch (error) {
       console.error('❌ Authenticated request error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Network error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
@@ -411,11 +388,11 @@ class BackendApiService {
     try {
       const response = await fetch(`${this.baseUrl}/strava/config`);
       const data = await response.json();
-      
+
       if (!response.ok) {
         return { success: false, error: data.error || 'Failed to get Strava config' };
       }
-      
+
       return { success: true, data };
     } catch (error) {
       return { success: false, error: 'Network error' };
@@ -475,12 +452,12 @@ class BackendApiService {
     });
   }
 
-  async getStravaLastSync(): Promise<ApiResponse<{ 
-    last_sync_attempt: string | null; 
-    last_sync_status: string; 
-    next_sync_estimated: string | null; 
-    users_synced?: number; 
-    total_users?: number; 
+  async getStravaLastSync(): Promise<ApiResponse<{
+    last_sync_attempt: string | null;
+    last_sync_status: string;
+    next_sync_estimated: string | null;
+    users_synced?: number;
+    total_users?: number;
     new_runs?: number;
   }>> {
     try {
@@ -492,13 +469,13 @@ class BackendApiService {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         return { success: false, error: result.error || 'Failed to get sync info' };
       }
 
       return { success: true, data: result.data };
-      
+
     } catch (error) {
       console.error('❌ Get last sync error:', error);
       return { success: false, error: 'Failed to get sync info' };
@@ -507,61 +484,52 @@ class BackendApiService {
 
   // 🏆 Title System Methods
   async getTitleLeaderboard(): Promise<ApiResponse<UserTitle[]>> {
-    console.log('🏆 Fetching title leaderboard from optimized backend...');
     const response = await this.authenticatedRequest<{ data: UserTitle[] }>('/titles/leaderboard');
-    
+
     // Extract the actual data from the nested response structure
     if (response.success && response.data && response.data.data) {
       return { success: true, data: response.data.data };
     }
-    
+
     return response;
   }
 
   async getUserTitles(userId: string): Promise<ApiResponse<UserTitle[]>> {
-    console.log(`🏆 BackendAPI: Fetching titles for user ${userId}...`);
     const response = await this.authenticatedRequest<{ data: UserTitle[] }>(`/titles/user/${userId}`);
-    console.log(`🔍 BackendAPI Response for user ${userId}:`, response);
-    
-    // Extract the actual data from the nested response structure
-    if (response.success && response.data && response.data.data) {
-      const extractedData = response.data.data;
-      console.log(`🔍 Extracted data:`, extractedData);
-      return { success: true, data: extractedData };
-    }
-    
-    return response;
-  }
 
-  async getAllTitles(): Promise<ApiResponse<TitleData[]>> {
-    console.log('🏆 Fetching all titles...');
-    const response = await this.authenticatedRequest<{ data: TitleData[] }>('/titles');
-    
     // Extract the actual data from the nested response structure
     if (response.success && response.data && response.data.data) {
       return { success: true, data: response.data.data };
     }
-    
+
+    return response;
+  }
+
+  async getAllTitles(): Promise<ApiResponse<TitleData[]>> {
+    const response = await this.authenticatedRequest<{ data: TitleData[] }>('/titles');
+
+    // Extract the actual data from the nested response structure
+    if (response.success && response.data && response.data.data) {
+      return { success: true, data: response.data.data };
+    }
+
     return response;
   }
 
   // 🔄 Refresh title leaderboards after data changes
   async refreshTitleLeaderboards(): Promise<ApiResponse<{ message: string; updated: number }>> {
-    console.log('🔄 BackendAPI: Refreshing title leaderboards...');
-    
     try {
       const response = await this.authenticatedRequest<{ message: string; updated: number }>('/titles/refresh', {
         method: 'POST'
       });
-      
+
       if (!response.success) {
         console.error('❌ Failed to refresh title leaderboards:', response.error);
         return { success: false, error: response.error };
       }
-      
-      console.log('✅ Title leaderboards refreshed successfully');
+
       return { success: true };
-      
+
     } catch (error) {
       console.error('❌ Error refreshing title leaderboards:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -571,7 +539,6 @@ class BackendApiService {
   // 🔧 Admin Settings Management
   async getAdminSettings(): Promise<ApiResponse<AdminSettings>> {
     try {
-      console.log('🔍 Fetching admin settings from backend...');
       const response = await fetch(`${API_BASE_URL}/auth/admin-settings`, {
         method: 'GET',
         headers: {
@@ -590,7 +557,6 @@ class BackendApiService {
         throw new Error(data.error || 'Failed to fetch admin settings');
       }
 
-      console.log('✅ Admin settings fetched successfully');
       return { success: true, data: data.data };
     } catch (error) {
       console.error('❌ Error fetching admin settings:', error);
@@ -608,7 +574,6 @@ class BackendApiService {
     min_run_distance: number;
   }): Promise<ApiResponse<AdminSettings>> {
     try {
-      console.log('💾 Updating admin settings in backend...');
       const response = await fetch(`${API_BASE_URL}/auth/admin-settings`, {
         method: 'PUT',
         headers: {
@@ -628,7 +593,6 @@ class BackendApiService {
         throw new Error(data.error || 'Failed to update admin settings');
       }
 
-      console.log('✅ Admin settings updated successfully');
       return { success: true, data: data.data, message: data.message };
     } catch (error) {
       console.error('❌ Error updating admin settings:', error);
@@ -638,7 +602,6 @@ class BackendApiService {
 
   async getStreakMultipliers(): Promise<ApiResponse<Array<{ days: number; multiplier: number }>>> {
     try {
-      console.log('🔍 Fetching streak multipliers from backend...');
       const response = await fetch(`${API_BASE_URL}/auth/streak-multipliers`, {
         method: 'GET',
         headers: {
@@ -657,7 +620,6 @@ class BackendApiService {
         throw new Error(data.error || 'Failed to fetch streak multipliers');
       }
 
-      console.log('✅ Streak multipliers fetched successfully');
       return { success: true, data: data.data };
     } catch (error) {
       console.error('❌ Error fetching streak multipliers:', error);
@@ -667,7 +629,6 @@ class BackendApiService {
 
   async updateStreakMultipliers(multipliers: Array<{days: number, multiplier: number}>): Promise<ApiResponse<Array<{ days: number; multiplier: number }>>> {
     try {
-      console.log('💾 Updating streak multipliers in backend...');
       const response = await fetch(`${API_BASE_URL}/auth/streak-multipliers`, {
         method: 'PUT',
         headers: {
@@ -687,7 +648,6 @@ class BackendApiService {
         throw new Error(data.error || 'Failed to update streak multipliers');
       }
 
-      console.log('✅ Streak multipliers updated successfully');
       return { success: true, data: data.data, message: data.message };
     } catch (error) {
       console.error('❌ Error updating streak multipliers:', error);
@@ -703,7 +663,6 @@ class BackendApiService {
     description?: string;
   }): Promise<ApiResponse<Run>> {
     try {
-      console.log(`💾 Updating run ${runId} in backend...`, updates);
       const response = await fetch(`${API_BASE_URL}/runs/${runId}`, {
         method: 'PUT',
         headers: {
@@ -723,7 +682,6 @@ class BackendApiService {
         throw new Error(data.error || 'Failed to update run');
       }
 
-      console.log('✅ Run updated successfully');
       return { success: true, data: data.run, message: data.message };
     } catch (error) {
       console.error('❌ Error updating run:', error);
@@ -733,7 +691,6 @@ class BackendApiService {
 
   async deleteRun(runId: string): Promise<ApiResponse<void>> {
     try {
-      console.log(`🗑️ Deleting run ${runId} in backend...`);
       const response = await fetch(`${API_BASE_URL}/runs/${runId}`, {
         method: 'DELETE',
         headers: {
@@ -752,7 +709,6 @@ class BackendApiService {
         throw new Error(data.error || 'Failed to delete run');
       }
 
-      console.log('✅ Run deleted successfully');
       return { success: true, message: data.message };
     } catch (error) {
       console.error('❌ Error deleting run:', error);
@@ -762,7 +718,6 @@ class BackendApiService {
 
   async getGroupRunHistory(): Promise<ApiResponse<Array<Run & { user: { name: string; profile_picture?: string } }>>> {
     try {
-      console.log('📊 Fetching group run history from backend...');
       const response = await fetch(`${API_BASE_URL}/runs/group-history`, {
         method: 'GET',
         headers: {
@@ -781,7 +736,6 @@ class BackendApiService {
         throw new Error(data.error || 'Failed to fetch group run history');
       }
 
-      console.log('✅ Group run history fetched successfully');
       return { success: true, data: data.runs };
     } catch (error) {
       console.error('❌ Error fetching group run history:', error);
@@ -791,7 +745,6 @@ class BackendApiService {
 
   async createRun(date: string, distance: number, source: string = 'manual'): Promise<ApiResponse<Run>> {
     try {
-      console.log(`📝 Creating run in backend: ${distance}km on ${date}...`);
       const response = await fetch(`${API_BASE_URL}/runs`, {
         method: 'POST',
         headers: {
@@ -811,7 +764,6 @@ class BackendApiService {
         throw new Error(data.error || 'Failed to create run');
       }
 
-      console.log('✅ Run created successfully with', data.run?.xp_gained || 0, 'XP');
       return { success: true, data: data.run, message: data.message };
     } catch (error) {
       console.error('❌ Error creating run:', error);

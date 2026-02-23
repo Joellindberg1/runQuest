@@ -39,8 +39,6 @@ export const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUp
       const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      console.log('Uploading file:', fileName);
-
       // Delete old profile picture if it exists
       if (user?.profile_picture) {
         const oldFileName = user.profile_picture.split('/').pop();
@@ -66,9 +64,6 @@ export const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUp
       const { data } = supabase.storage
         .from('profile-pictures')
         .getPublicUrl(filePath);
-
-      console.log('File uploaded, updating user profile...');
-      console.log('Public URL:', data.publicUrl);
 
       // Update user's profile_picture in the database
       const { error: updateError } = await supabase

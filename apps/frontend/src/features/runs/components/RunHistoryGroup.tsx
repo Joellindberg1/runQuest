@@ -38,15 +38,11 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
 
   const fetchRuns = async () => {
     try {
-      console.log('=== FETCHING GROUP RUN HISTORY ===');
-      
       const result = await backendApi.getGroupRunHistory();
 
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to fetch group run history');
       }
-
-      console.log('✅ Group runs loaded:', result.data.length);
 
       const runsWithUser: RunWithUser[] = result.data.map((run) => ({
         id: run.id,

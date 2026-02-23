@@ -45,19 +45,12 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
 
     setIsLoading(true);
     try {
-      console.log('\n🌐 FRONTEND: Sending update request to BACKEND API');
-      console.log('📍 Endpoint: PUT http://localhost:3001/api/runs/' + run.id);
-      console.log('📦 Data:', { distance: newDistance, date });
-      
       // Update the run via backend API - backend handles XP/streak recalculation
       const result = await backendApi.updateRun(run.id, {
         distance: newDistance,
         date: date
       });
 
-      console.log('✅ FRONTEND: Received response from BACKEND');
-      console.log('📊 Response:', result);
-      
       if (!result.success) {
         throw new Error(result.error || 'Failed to update run');
       }

@@ -38,8 +38,6 @@ class FrontendLevelService {
 
       this.levelRequirements = data || [];
       this.initialized = true;
-      console.log(`✅ Frontend level service initialized with ${this.levelRequirements.length} levels`);
-      
       // Cache in localStorage for offline use
       localStorage.setItem('levelRequirements', JSON.stringify(this.levelRequirements));
     } catch (error) {
@@ -62,7 +60,6 @@ class FrontendLevelService {
     }));
     
     this.initialized = true;
-    console.log('⚠️ Frontend level service using fallback values');
   }
 
   private loadFromCache(): void {
@@ -71,7 +68,6 @@ class FrontendLevelService {
       if (cached) {
         this.levelRequirements = JSON.parse(cached);
         this.initialized = true;
-        console.log('✅ Frontend level service loaded from cache');
         return;
       }
     } catch (error) {

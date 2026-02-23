@@ -61,8 +61,6 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
     setLoading(true);
     
     try {
-      console.log('📝 Submitting run to backend:', { date, distance: km });
-      
       const result = await backendApi.createRun(date, km, 'manual');
       
       if (!result.success) {
@@ -73,8 +71,6 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
       const resultMessage = `Run logged! You gained ${xpGained} XP for this ${km}km run!`;
       setLastRunResult(resultMessage);
       toast.success(resultMessage);
-      
-      console.log('✅ Run logged successfully:', result.data);
       
       setDistance('');
       setDate(new Date().toISOString().split('T')[0]);
