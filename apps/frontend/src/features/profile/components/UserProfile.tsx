@@ -14,6 +14,7 @@ import { getInitials } from '@/shared/utils/formatters';
 interface UserProfileProps {
   user: UserType;
   allUsers: UserType[];
+  onRunUpdated: () => void;
 }
 
 const getStreakMultiplier = (streak: number) => {
@@ -30,7 +31,7 @@ const getStreakMultiplier = (streak: number) => {
   return 1.0;
 };
 
-export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers }) => {
+export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunUpdated }) => {
   const currentLevel = getLevelFromXP(user.total_xp);
   const currentLevelXP = getXPForLevel(currentLevel);
   const nextLevelXP = currentLevel < MAX_LEVEL ? getXPForNextLevel(currentLevel) : currentLevelXP;
@@ -41,9 +42,6 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers }) => {
     ? leaderboardUtils.getUserPosition(user, leaderboardUtils.filterAndSortUsers(allUsers))
     : null;
 
-  const handleRunUpdated = () => {
-    window.dispatchEvent(new Event('runsUpdated'));
-  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -141,7 +139,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers }) => {
         </CardContent>
       </Card>
 
-      <UserRunHistory runs={user.runs || []} onRunUpdated={handleRunUpdated} />
+      <UserRunHistory runs={user.runs || []} onRunUpdated={onRunUpdated} />
     </div>
   );
 };

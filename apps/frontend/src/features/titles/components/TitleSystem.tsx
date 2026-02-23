@@ -58,19 +58,6 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
     }
   }, [users]);
 
-  // Listen for custom events from run updates/deletions
-  useEffect(() => {
-    const handleRunUpdate = () => {
-      log.debug('Run updated event received, refreshing titles');
-      fetchTitles();
-    };
-
-    window.addEventListener('runsUpdated', handleRunUpdate);
-    
-    return () => {
-      window.removeEventListener('runsUpdated', handleRunUpdate);
-    };
-  }, [fetchTitles]);
 
   if (loading) {
     return (

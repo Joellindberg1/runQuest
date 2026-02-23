@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Leaderboard } from '@/features/leaderboard';
 import { RunLogger } from '@/features/runs';
 import { UserProfile } from '@/features/profile';
@@ -7,27 +7,12 @@ import { ProfileMenu } from '@/features/profile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Trophy, User as UserIcon, Plus, Award } from 'lucide-react';
 import { useLeaderboardData } from '@/features/leaderboard/hooks/useLeaderboardData';
-import { toast } from 'sonner';
+import { useRunUpdates } from '@/features/runs/hooks/useRunUpdates';
 
 const Index: React.FC = () => {
   const { users, currentUser, loading, refresh } = useLeaderboardData();
+  const { onRunUpdated } = useRunUpdates(refresh);
   const [activeTab, setActiveTab] = useState("leaderboard");
-
-  // Listen for run updates and refresh all data
-  useEffect(() => {
-    const handleRunUpdate = async () => {
-      await refresh();
-      toast.success('Data refreshed after run update!');
-    };
-
-    window.addEventListener('runsUpdated', handleRunUpdate);
-    return () => window.removeEventListener('runsUpdated', handleRunUpdate);
-  }, [refresh]);
-
-  const handleRunSubmit = async () => {
-    await refresh();
-    toast.success('Data refreshed!');
-  };
 
   if (loading) {
     return (
@@ -102,11 +87,11 @@ const Index: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="profile">
-            <UserProfile user={currentUser} allUsers={users} />
+            <UserProfile user={currentUser} allUsers={users} onRunUpdated={onRunUpdated} />
           </TabsContent>
 
           <TabsContent value="log-run">
-            <RunLogger onSubmit={handleRunSubmit} users={users} />
+            <RunLogger onSubmit={onRunUpdated} users={users} />
           </TabsContent>
         </Tabs>
       </div>

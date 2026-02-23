@@ -69,11 +69,6 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
         toast.success('Run updated successfully - refreshing data...');
       }
 
-      // Trigger a custom event to notify other components of data changes
-      window.dispatchEvent(new CustomEvent('runsUpdated', { 
-        detail: { userId: run.user_id, action: 'updated' } 
-      }));
-
       onRunUpdated();
       onOpenChange(false);
     } catch (error) {
@@ -95,11 +90,6 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
       if (!result.success) {
         throw new Error(result.error || 'Failed to delete run');
       }
-
-      // Trigger a custom event to notify other components of data changes
-      window.dispatchEvent(new CustomEvent('runsUpdated', { 
-        detail: { userId: run.user_id, action: 'deleted' } 
-      }));
 
       toast.success('Run deleted successfully');
       onRunUpdated();
