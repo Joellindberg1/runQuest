@@ -12,6 +12,7 @@ import { EditRunDialog } from '@/features/runs/components/EditRunDialog';
 import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
 import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/utils/xpCalculation';
 import { MAX_LEVEL } from '@/constants/appConstants';
+import { getInitials } from '@/shared/utils/formatters';
 
 interface UserProfileProps {
   user: UserType;
@@ -179,9 +180,6 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
     );
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

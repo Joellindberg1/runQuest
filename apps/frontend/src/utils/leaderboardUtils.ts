@@ -2,6 +2,7 @@
 import type { Run, User } from '@/types/run'
 import { getLevelFromXP, getXPForLevel } from './xpCalculation';
 import { MAX_LEVEL } from '@/constants/appConstants';
+export { getInitials, formatXPForDisplay } from '@/shared/utils/formatters';
 
 export const leaderboardUtils = {
   filterAndSortUsers(users: User[]): User[] {
@@ -101,19 +102,4 @@ export const leaderboardUtils = {
     return Math.floor(totalXP / 14);
   },
 
-  getInitials(name: string): string {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  },
-
-  formatXPForDisplay(xp: number): string {
-    // Round to 1 decimal place and format with comma
-    const rounded = Math.round(xp * 10) / 10;
-    
-    if (rounded >= 1000000) {
-      return `${(rounded / 1000000).toFixed(1)}M`;
-    } else if (rounded >= 1000) {
-      return `${(rounded / 1000).toFixed(1)}k`;
-    }
-    return rounded.toFixed(1);
-  }
 }

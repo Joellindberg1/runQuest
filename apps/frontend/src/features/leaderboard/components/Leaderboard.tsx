@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { backendApi } from '@/shared/services/backendApi';
-import { leaderboardUtils } from '@/utils/leaderboardUtils';
+import { leaderboardUtils, getInitials } from '@/utils/leaderboardUtils';
 import { UserTitles } from './leaderboard/UserTitles';
 import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
@@ -76,7 +76,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
           const position = leaderboardUtils.getUserPosition(user, sortedUsers);
           const isPodium = position <= 3;
           const titles = userTitles[user.id] || [];
-          const initials = leaderboardUtils.getInitials(user.name);
+          const initials = getInitials(user.name);
           
           const getPositionStyles = () => {
             if (position === 1) {

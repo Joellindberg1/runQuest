@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { ProfileMenu } from '@/features/profile';
+import { validatePassword } from '@/shared/utils/validation';
 
 interface AdminSettings {
   xpPerRun: number;
@@ -203,8 +204,9 @@ const AdminPage: React.FC = () => {
       return;
     }
 
-    if (newUser.password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    const pwError = validatePassword(newUser.password);
+    if (pwError) {
+      toast.error(pwError);
       return;
     }
 
@@ -225,8 +227,9 @@ const AdminPage: React.FC = () => {
   };
 
   const handleResetUserPassword = async (userId: string) => {
-    if (!newPasswordForUser || newPasswordForUser.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    const pwError = validatePassword(newPasswordForUser || '');
+    if (!newPasswordForUser || pwError) {
+      toast.error(pwError || 'Password is required');
       return;
     }
 

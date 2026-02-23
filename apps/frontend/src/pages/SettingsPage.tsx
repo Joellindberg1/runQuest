@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Separator } from '@/shared/components/ui/separator';
 import { StravaIcon } from '@/shared/components/ui/StravaIcon';
 import { ProfileMenu } from '@/features/profile';
+import { validatePassword } from '@/shared/utils/validation';
 
 interface StravaStatus {
   connected: boolean;
@@ -226,8 +227,9 @@ export const SettingsPage: React.FC = () => {
       return;
     }
 
-    if (passwordData.newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters');
+    const passwordError = validatePassword(passwordData.newPassword);
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
 
