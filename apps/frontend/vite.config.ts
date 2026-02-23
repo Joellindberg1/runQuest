@@ -16,6 +16,7 @@ export default defineConfig(() => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@runquest/shared": path.resolve(__dirname, "../../packages/shared/src/index.ts"),
     },
   },
 }));
