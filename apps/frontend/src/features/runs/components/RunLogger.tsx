@@ -12,8 +12,6 @@ import { toast } from 'sonner';
 import { RunHistoryGroup } from './RunHistoryGroup';
 import type { User } from '@/types/run';
 import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
-import { calculateRunXP } from '@runquest/shared';
-import type { AdminSettings } from '@runquest/shared';
 
 interface RunLoggerProps {
   onSubmit?: () => void;
@@ -92,12 +90,13 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
     }
   };
 
-  const DEFAULT_XP_SETTINGS: AdminSettings = {
-    base_xp: 15, xp_per_km: 2,
-    bonus_5km: 5, bonus_10km: 15, bonus_15km: 25, bonus_20km: 50,
-    min_run_distance: 1.0,
-  };
-  const previewXP = distance ? '~' + calculateRunXP(parseFloat(distance), DEFAULT_XP_SETTINGS).totalXP : 0;
+  const previewXP = (() => {
+    if (!distance) return 0;
+    const km = parseFloat(distance);
+    const kmXP = Math.floor(km * 2);
+    const bonus = km >= 20 ? 50 : km >= 15 ? 25 : km >= 10 ? 15 : km >= 5 ? 5 : 0;
+    return '~' + (15 + kmXP + bonus);
+  })();
 
   return (
     <div className="max-w-4xl mx-auto">
