@@ -11,6 +11,7 @@ import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { RunHistoryGroup } from './RunHistoryGroup';
 import type { User } from '@/types/run';
+import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 
 interface RunLoggerProps {
   onSubmit?: () => void;
@@ -34,17 +35,17 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
     
     const km = parseFloat(distance);
     
-    if (km < 1.0) {
+    if (km < MIN_RUN_DISTANCE_KM) {
       toast.error('Minimum distance is 1.0km to count as a run!');
       return;
     }
 
-    // Check if date is before June 1, 2025
+    // Check if date is before project start
     const selectedDate = new Date(date);
-    const minDate = new Date('2025-06-01');
+    const minDate = new Date(MIN_RUN_DATE);
     
     if (selectedDate < minDate) {
-      toast.error('You cannot log runs before June 1, 2025!');
+      toast.error(`You cannot log runs before ${MIN_RUN_DATE}!`);
       return;
     }
 
@@ -129,7 +130,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                       id="date"
                       type="date"
                       value={date}
-                      min="2025-06-01"
+                      min={MIN_RUN_DATE}
                       max={new Date().toISOString().split('T')[0]}
                       onChange={(e) => setDate(e.target.value)}
                       required
@@ -160,7 +161,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                     {loading ? 'Logging Run...' : 'Log Run'}
                   </Button>
 
-                  {distance && parseFloat(distance) >= 1.0 && (
+                  {distance && parseFloat(distance) >= MIN_RUN_DISTANCE_KM && (
                     <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                       <div className="text-sm font-semibold text-green-800 mb-2">
                         Estimated XP: {previewXP}
@@ -171,7 +172,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                     </div>
                   )}
 
-                  {distance && parseFloat(distance) < 1.0 && parseFloat(distance) > 0 && (
+                  {distance && parseFloat(distance) < MIN_RUN_DISTANCE_KM && parseFloat(distance) > 0 && (
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                       <div className="text-sm font-semibold text-red-800">
                         No XP - Distance too short

@@ -11,6 +11,7 @@ import type { UserTitle, User as UserType, Run } from '@/types/run';
 import { EditRunDialog } from '@/features/runs/components/EditRunDialog';
 import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
 import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/utils/xpCalculation';
+import { MAX_LEVEL } from '@/constants/appConstants';
 
 interface UserProfileProps {
   user: UserType;
@@ -27,8 +28,8 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
 
   const currentLevel = getLevelFromXP(user.total_xp);
   const currentLevelXP = getXPForLevel(currentLevel);
-  const nextLevelXP = currentLevel < 30 ? getXPForNextLevel(currentLevel) : currentLevelXP;
-  const xpProgress = currentLevel < 30 ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
+  const nextLevelXP = currentLevel < MAX_LEVEL ? getXPForNextLevel(currentLevel) : currentLevelXP;
+  const xpProgress = currentLevel < MAX_LEVEL ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
 
   const getStreakMultiplier = (streak: number) => {
     if (streak >= 270) return 2.0;
@@ -237,11 +238,11 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Level {currentLevel}</span>
-              <span>Level {Math.min(currentLevel + 1, 30)}</span>
+              <span>Level {Math.min(currentLevel + 1, MAX_LEVEL)}</span>
             </div>
             <Progress value={Math.max(0, Math.min(100, xpProgress))} className="h-3 border border-black" />
             <div className="text-center text-sm text-gray-600">
-              {currentLevel < 30 ? `${(nextLevelXP - user.total_xp).toLocaleString()} XP until next level` : 'Max Level Reached!'}
+              {currentLevel < MAX_LEVEL ? `${(nextLevelXP - user.total_xp).toLocaleString()} XP until next level` : 'Max Level Reached!'}
             </div>
           </div>
         </CardContent>

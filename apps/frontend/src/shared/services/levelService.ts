@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { MAX_LEVEL } from '@/constants/appConstants';
 
 interface LevelRequirement {
   level: number;
@@ -86,7 +87,7 @@ class FrontendLevelService {
     
     for (let i = this.levelRequirements.length - 1; i >= 0; i--) {
       if (totalXP >= this.levelRequirements[i].xp_required) {
-        return Math.min(this.levelRequirements[i].level, 30);
+        return Math.min(this.levelRequirements[i].level, MAX_LEVEL);
       }
     }
     return 1;
@@ -100,7 +101,7 @@ class FrontendLevelService {
   }
 
   async getXPForNextLevel(level: number): Promise<number> {
-    return this.getXPForLevel(Math.min(level + 1, 30));
+    return this.getXPForLevel(Math.min(level + 1, MAX_LEVEL));
   }
 
   async getLevelProgress(totalXP: number): Promise<{
@@ -151,12 +152,12 @@ class FrontendLevelService {
       if (totalXP < 1244) return 14;
       if (totalXP < 1436) return 15;
       // Continue pattern...
-      return Math.min(Math.floor(totalXP / 100) + 1, 30);
+      return Math.min(Math.floor(totalXP / 100) + 1, MAX_LEVEL);
     }
 
     for (let i = this.levelRequirements.length - 1; i >= 0; i--) {
       if (totalXP >= this.levelRequirements[i].xp_required) {
-        return Math.min(this.levelRequirements[i].level, 30);
+        return Math.min(this.levelRequirements[i].level, MAX_LEVEL);
       }
     }
     return 1;
@@ -189,7 +190,7 @@ export function getXPForLevel(level: number): number {
 }
 
 export function getXPForNextLevel(level: number): number {
-  return frontendLevelService.getXPForLevelSync(Math.min(level + 1, 30));
+  return frontendLevelService.getXPForLevelSync(Math.min(level + 1, MAX_LEVEL));
 }
 
 // Async versions for new code

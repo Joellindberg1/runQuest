@@ -1,6 +1,7 @@
 
 import type { Run, User } from '@/types/run'
 import { getLevelFromXP, getXPForLevel } from './xpCalculation';
+import { MAX_LEVEL } from '@/constants/appConstants';
 
 export const leaderboardUtils = {
   filterAndSortUsers(users: User[]): User[] {
@@ -35,15 +36,15 @@ export const leaderboardUtils = {
     const level = getLevelFromXP(user.total_xp);
     const currentLevelXP = getXPForLevel(level);
     const nextLevelXP = getXPForLevel(level + 1);
-    const xpProgress = level < 30 ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
-    const xpLeftForNextLevel = level < 30 ? Math.round((nextLevelXP - user.total_xp) * 10) / 10 : 0;
+    const xpProgress = level < MAX_LEVEL ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
+    const xpLeftForNextLevel = level < MAX_LEVEL ? Math.round((nextLevelXP - user.total_xp) * 10) / 10 : 0;
 
     const numberOfRuns = user.runs?.length || 0;
     const longestRun = numberOfRuns > 0 ? Math.max(...(user.runs?.map(run => run.distance) || [0])) : 0;
     const averageKmPerRun = numberOfRuns > 0 ? (user.total_km / numberOfRuns) : 0;
     const weekendAverage = this.calculateWeekendAverage(user.runs || []);
     const last14DaysXP = this.calculateLast14DaysXP(user);
-    const daysToNextLevel = last14DaysXP > 0 && level < 30 ? Math.ceil(xpLeftForNextLevel / last14DaysXP) : 0;
+    const daysToNextLevel = last14DaysXP > 0 && level < MAX_LEVEL ? Math.ceil(xpLeftForNextLevel / last14DaysXP) : 0;
 
     // Get latest run
     const latestRun = user.runs && user.runs.length > 0 
