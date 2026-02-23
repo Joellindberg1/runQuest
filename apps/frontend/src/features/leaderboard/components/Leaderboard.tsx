@@ -20,21 +20,18 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
 
   const fetchUserTitles = async () => {
     try {
+      const results = await Promise.all(users.map((user) => backendApi.getUserTitles(user.id)));
+
       const titlesByUser: Record<string, UserTitle[]> = {};
-      
-      for (const user of users) {
-        const titleResponse = await backendApi.getUserTitles(user.id);
-        const userTitleData = titleResponse.success ? titleResponse.data : null;
-        
-        // Ensure userTitleData is an array
-        if (Array.isArray(userTitleData)) {
-          const currentHolderTitles = userTitleData.filter(title => title.is_current_holder);
-          titlesByUser[user.id] = currentHolderTitles;
+      users.forEach((user, index) => {
+        const data = results[index].success ? results[index].data : null;
+        if (Array.isArray(data)) {
+          titlesByUser[user.id] = data.filter((title) => title.is_current_holder);
         } else {
-          log.error('User title data is not an array', { userId: user.id, data: userTitleData });
+          log.error('User title data is not an array', { userId: user.id, data });
           titlesByUser[user.id] = [];
         }
-      }
+      });
 
       setUserTitles(titlesByUser);
     } catch (error) {
