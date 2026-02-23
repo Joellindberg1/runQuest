@@ -102,7 +102,7 @@ const Index: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="profile">
-            <UserProfile user={currentUser} />
+            <UserProfile user={currentUser} allUsers={users} />
           </TabsContent>
 
           <TabsContent value="log-run">
