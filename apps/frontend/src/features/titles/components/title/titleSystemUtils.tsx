@@ -1,23 +1,9 @@
 
 import React from 'react';
 import { Trophy, Calendar, Target } from 'lucide-react';
+import { Run, User } from '@/types/run';
 
-export interface Run {
-  id: string;
-  date: string;
-  distance: number;
-}
-
-export interface User {
-  id: string;
-  name: string;
-  total_xp: number;
-  current_level: number;
-  total_km: number;
-  current_streak: number;
-  longest_streak: number;
-  runs: Run[];
-}
+export type { Run, User };
 
 export interface Title {
   id: string;

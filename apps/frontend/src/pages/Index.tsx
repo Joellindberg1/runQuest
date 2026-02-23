@@ -11,32 +11,7 @@ import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
 import { getLevelFromXP } from '@/shared/services/levelService';
-
-interface Run {
-  id: string;
-  user_id: string;
-  date: string;
-  distance: number;
-  xp_gained: number;
-  multiplier: number;
-  streak_day: number;
-  base_xp: number;
-  km_xp: number;
-  distance_bonus: number;
-  streak_bonus: number;
-}
-
-interface User {
-  id: string;
-  name: string;
-  total_xp: number;
-  current_level: number;
-  total_km: number;
-  current_streak: number;
-  longest_streak: number;
-  profile_picture?: string;
-  runs: Run[];
-}
+import { Run, User } from '@/types/run';
 
 interface ApiUser {
   id: string;

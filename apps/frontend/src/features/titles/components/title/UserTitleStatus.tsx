@@ -7,8 +7,8 @@ interface UserTitleStatusProps {
 }
 
 export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ user }) => {
-  const longestRun = getLongestRun(user.runs);
-  const weekendAvg = calculateWeekendAverage(user.runs);
+  const longestRun = getLongestRun(user.runs ?? []);
+  const weekendAvg = calculateWeekendAverage(user.runs ?? []);
   
   return (
     <div className="p-3 border rounded-lg">
