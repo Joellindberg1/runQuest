@@ -2,7 +2,7 @@
 import React from 'react';
 import { Trophy, Medal, Award } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
-import { User } from '@/types/run';
+import type { User } from '@/types/run';
 
 interface UserCardHeaderProps {
   user: User;

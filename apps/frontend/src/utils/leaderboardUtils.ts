@@ -1,5 +1,5 @@
 
-import { Run, User } from '@/types/run'
+import type { Run, User } from '@/types/run'
 import { getLevelFromXP, getXPForLevel } from './xpCalculation';
 
 export const leaderboardUtils = {

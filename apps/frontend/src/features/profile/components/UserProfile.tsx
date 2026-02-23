@@ -7,7 +7,7 @@ import { User, Trophy, Calendar, Crown, Pen } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { backendApi } from '@/shared/services/backendApi';
 import { leaderboardUtils } from '@/utils/leaderboardUtils';
-import { UserTitle, User as UserType, Run } from '@/types/run';
+import type { UserTitle, User as UserType, Run } from '@/types/run';
 import { EditRunDialog } from '@/features/runs/components/EditRunDialog';
 import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
 import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/utils/xpCalculation';

@@ -10,7 +10,7 @@ import { useAuth } from '@/features/auth';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { RunHistoryGroup } from './RunHistoryGroup';
-import { User } from '@/types/run';
+import type { User } from '@/types/run';
 
 interface RunLoggerProps {
   onSubmit?: () => void;

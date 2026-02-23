@@ -7,7 +7,7 @@ import { UserTitles } from './leaderboard/UserTitles';
 import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
-import { User, UserTitle } from '@/types/run';
+import type { User, UserTitle } from '@/types/run';
 
 interface LeaderboardProps {
   users: User[];

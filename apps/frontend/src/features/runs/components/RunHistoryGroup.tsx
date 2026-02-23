@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { Calendar, Trophy, Zap } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
-import { User } from '@/types/run';
+import type { User } from '@/types/run';
 import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
 import { StravaIcon } from '@/shared/components/ui/StravaIcon';
 

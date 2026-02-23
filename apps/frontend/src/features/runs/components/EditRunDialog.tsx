@@ -6,7 +6,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
 import { backendApi } from '@/shared/services/backendApi';
-import { Run } from '@/types/run';
+import type { Run } from '@/types/run';
 import { toast } from 'sonner';
 
 interface EditRunDialogProps {

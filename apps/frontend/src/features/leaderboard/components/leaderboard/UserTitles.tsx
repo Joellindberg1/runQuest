@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Crown } from 'lucide-react';
-import { UserTitle } from '@/types/run';
+import type { UserTitle } from '@/types/run';
 
 interface UserTitlesProps {
   titles: UserTitle[];

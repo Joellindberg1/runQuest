@@ -5,13 +5,13 @@ import { UserProfile } from '@/features/profile';
 import { TitleSystem } from '@/features/titles';
 import { ProfileMenu } from '@/features/profile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
-import { Trophy, User, Plus, Award } from 'lucide-react';
+import { Trophy, User as UserIcon, Plus, Award } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
 import { getLevelFromXP } from '@/shared/services/levelService';
-import { Run, User } from '@/types/run';
+import type { Run, User } from '@/types/run';
 
 interface ApiUser {
   id: string;
@@ -188,7 +188,7 @@ const Index: React.FC = () => {
               value="profile" 
               className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white font-semibold"
             >
-              <User className="w-4 h-4" />
+              <UserIcon className="w-4 h-4" />
               Profile
             </TabsTrigger>
             <TabsTrigger 

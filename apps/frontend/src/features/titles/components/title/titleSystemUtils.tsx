@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Trophy, Calendar, Target } from 'lucide-react';
-import { Run, User } from '@/types/run';
+import type { Run, User } from '@/types/run';
 
 export type { Run, User };
 
