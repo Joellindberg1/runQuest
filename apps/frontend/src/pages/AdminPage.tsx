@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { ProfileMenu } from '@/features/profile';
+import { log } from '@/shared/utils/logger';
 
 interface AdminSettings {
   xpPerRun: number;
@@ -120,11 +121,11 @@ const AdminPage: React.FC = () => {
         }
         
       } else {
-        logger.error('Failed to fetch admin settings', result.error);
+        log.error('Failed to fetch admin settings', result.error);
         toast.error('Failed to fetch admin settings: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
-      logger.error('Error fetching admin settings', error);
+      log.error('Error fetching admin settings', error);
       toast.error('Failed to fetch admin settings');
     }
   };
@@ -138,7 +139,7 @@ const AdminPage: React.FC = () => {
         const users = result.data as User[];
         setUsers(users);
       } else {
-        logger.error('Failed to fetch users', result.error);
+        log.error('Failed to fetch users', result.error);
         toast.error('Failed to fetch users: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
@@ -191,9 +192,8 @@ const AdminPage: React.FC = () => {
 
   const handleChangeAdminPassword = () => {
     if (newAdminPassword.trim()) {
-      setAdminPassword(newAdminPassword);
       setNewAdminPassword('');
-      alert('Admin password changed successfully!');
+      toast.info('Admin password change not yet wired to backend');
     }
   };
 
