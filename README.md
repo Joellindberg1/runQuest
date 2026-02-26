@@ -1,86 +1,111 @@
-# RunQuest 🏃‍♂️
+# RunQuest
 
-En löparapp där du och dina vänner kan tävla, spåra progress, och importera löprundor från Strava med ett XP-system och leaderboards.
+En löparapp där du och dina vänner tävlar, spårar progress och importerar löprundor från Strava — med XP-system, leaderboards och streak-tracking.
 
-## ✨ Features
+**Live:** [runquest.dev](https://www.runquest.dev) · **Version:** 0.1.1
 
-- 🏆 **Leaderboard** - Tävla med dina vänner
-- 📊 **XP & Level System** - Gamification av löpning
-- 🔄 **Strava Integration** - Automatisk import av löprundor
-- 🏅 **Achievements & Titles** - Lås upp belöningar
-- 📈 **Streak Tracking** - Håll koll på löpserier
-- 👤 **Personliga Profiler** - Spåra din progress
+---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- **Frontend:** React, TypeScript, Vite, TailwindCSS, shadcn/ui
-- **Backend:** Node.js, Express (planerat)
-- **Database:** Supabase (PostgreSQL)
-- **Auth:** Supabase Auth + Strava OAuth2
-- **Deployment:** TBD (Railway/Vercel)
+| Del | Teknik |
+|-----|--------|
+| Frontend | React 18, TypeScript, Vite, TailwindCSS, shadcn/ui |
+| Backend | Node.js, Express, TypeScript |
+| Databas | Supabase (PostgreSQL) |
+| Auth | JWT + Strava OAuth2 |
+| Deployment | Railway (backend), Vercel (frontend) |
+| Tester | Vitest |
 
-## 🚧 Current Status
+---
 
-**Fas 0: Planering & Cleanup** 
-- ✅ Database strategy (Supabase) beslutad
-- ✅ Monorepo struktur implementerad
-- ✅ Lovable-referenser borttagna
-- ✅ Git repository fresh start
-- [ ] Authentication architecture 
-- [ ] API design & documentation
-
-Se [docs/DEVELOPMENT_PHASES.md](./docs/DEVELOPMENT_PHASES.md) för detaljerad utvecklingsplan.
-
-## 🚀 Development Setup
-
-```bash
-# Klona repo
-git clone [URL kommer snart]
-cd runquest
-
-# Installera dependencies
-npm install
-
-# Starta development server  
-npm run dev
-```
-
-## 📁 Projektstruktur
+## Projektstruktur
 
 ```
 runquest/
 ├── apps/
-│   ├── frontend/         # React Vite app med TypeScript
-│   │   ├── src/
-│   │   │   ├── components/
-│   │   │   ├── pages/
-│   │   │   ├── services/
-│   │   │   ├── contexts/
-│   │   │   └── utils/
-│   │   └── package.json
-│   └── backend/          # Node.js Express API
-│       ├── src/
-│       │   └── index.ts
-│       └── package.json
-├── packages/
-│   ├── types/           # Gemensamma TypeScript types  
-│   └── config/          # Delad konfiguration
-├── docs/                # Dokumentation
-│   └── DEVELOPMENT_PHASES.md
-└── package.json         # Root workspace config
+│   ├── frontend/
+│   │   └── src/
+│   │       ├── features/       # Feature-moduler (leaderboard, runs, profile, settings, admin, auth, titles)
+│   │       ├── pages/          # Rena glue-komponenter — enbart layout + feature-imports
+│   │       ├── shared/         # Delade UI-komponenter, services, utils, constants
+│   │       └── types/          # Delade TypeScript-typer (run.ts)
+│   └── backend/
+│       └── src/
+│           ├── routes/         # API-routes
+│           ├── services/       # Affärslogik (streak, XP, titles, Strava)
+│           ├── middleware/     # Auth, error handling
+│           └── config/         # Databas, env
+└── packages/
+    └── shared/                 # Delad logik (xpCalculation) — används av både frontend och backend
 ```
-
-## 🎯 Roadmap
-
-- **Fas 1:** Monorepo setup & backend foundation
-- **Fas 2:** Frontend refactoring & integration  
-- **Fas 3:** Deployment & production
-- **Fas 4:** Advanced features (chat, utmaningar, mobile app)
-
-## 👥 Team
-
-- **Joel Lindberg** - Developer & Product Owner
-- Vänner som testar och ger feedback 🙂
 
 ---
 
+## Kom igång
+
+```bash
+# Installera dependencies
+npm install
+
+# Starta frontend + backend parallellt
+npm run dev
+
+# Bara frontend
+npm run dev --workspace=apps/frontend
+
+# Bara backend
+npm run dev --workspace=apps/backend
+```
+
+Kräver en `.env` i `apps/backend/` med Supabase- och JWT-nycklar.
+
+---
+
+## Tester
+
+Testerna ligger nära koden de testar, i `__tests__/`-mappar.
+
+```bash
+# XP-beräkning (packages/shared) — 35 tester
+npm run test --workspace=packages/shared
+
+# Streak-logik (apps/backend) — 17 tester
+npm run test --workspace=apps/backend
+
+# Watch-läge (kör om vid filsparning)
+npm run test:watch --workspace=packages/shared
+npm run test:watch --workspace=apps/backend
+```
+
+### Vad testas
+
+**`packages/shared/src/__tests__/xpCalculation.test.ts`**
+- `calculateRunXP` — base XP, km XP, distance bonuses (5/10/15/20km), edge cases
+- `calculateStreakMultiplier` — multiplikatortrösklar (1.0x → 1.5x), tomma/null-listor
+- `calculateCompleteRunXP` — streak påverkar inte distance bonus, finalXP alltid heltal
+
+**`apps/backend/src/services/__tests__/streakService.test.ts`**
+- `calculateLongestStreak` — konsekutiva dagar, gap, långa serier
+- `calculateStreakDayForSpecificRun` — retroaktivt inlagda rundor, gap precis innan target
+- `calculateCurrentStreak` — bruten streak, aktiv streak från igår/idag
+
+---
+
+## Features
+
+- **Leaderboard** — Realtidsrankning med XP och nivåer
+- **XP & Level System** — Gamification: base XP + km-bonus + distance-bonus + streak-multiplikator
+- **Streak Tracking** — Dagliga löpserier med eskalerande multiplier (upp till 2x)
+- **Strava Integration** — Automatisk import av löprundor via OAuth2
+- **Titles** — Tävlingstitlar (längsta run, längsta streak, mest km, bästa helgsnitt)
+- **Admin Panel** — Konfigurera XP-settings, hantera användare, refresha title-leaderboards
+
+---
+
+## Arkitekturprinciper
+
+- **Pages är ren glue** — en page importerar features och sätter layouten. Ingen affärslogik.
+- **Features äger sin logik** — varje feature har egna komponenter, hooks och utils
+- **Delad logik i packages/shared** — XP-beräkning körs identiskt på frontend (preview) och backend (spara)
+- **En källa för typer** — `types/run.ts` är enda stället där `User`, `Run` etc. definieras
