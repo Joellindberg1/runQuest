@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { useAuth } from '@/features/auth';
 import { toast } from 'sonner';
 import { Upload, User } from 'lucide-react';
+import { log } from '@/shared/utils/logger';
 
 interface ProfilePictureUploadProps {
   onUploadComplete?: () => void;
@@ -80,7 +81,7 @@ export const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUp
         onUploadComplete();
       }
     } catch (error) {
-      console.error('Error uploading profile picture:', error);
+      log.error('Error uploading profile picture', error);
       const errorMessage = error instanceof Error ? error.message : 'Error uploading profile picture';
       toast.error(errorMessage);
     } finally {

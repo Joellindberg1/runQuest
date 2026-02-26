@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Crown } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
 import type { UserTitle } from '@/types/run';
+import { log } from '@/shared/utils/logger';
 
 interface UserTitlesListProps {
   userId: string;
@@ -28,7 +29,7 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
         setUserTitles(titlesResult.success ? titlesResult.data : []);
         setAllTitles(titleHoldersResult.success ? titleHoldersResult.data : []);
       } catch (error) {
-        console.error('Error fetching title data:', error);
+        log.error('Error fetching title data', error);
       }
     };
 

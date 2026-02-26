@@ -7,6 +7,7 @@ import { CheckCircle, AlertCircle, XCircle, ExternalLink } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { StravaIcon } from '@/shared/components/ui/StravaIcon';
+import { log } from '@/shared/utils/logger';
 
 interface StravaStatus {
   connected: boolean;
@@ -63,7 +64,7 @@ export const StravaSettings: React.FC = () => {
         setStravaClientId(result.data.client_id);
       }
     } catch (error) {
-      console.error('Failed to fetch Strava config:', error);
+      log.error('Failed to fetch Strava config', error);
     }
   };
 
@@ -85,7 +86,7 @@ export const StravaSettings: React.FC = () => {
 
       if (syncResult.success && syncResult.data) setSyncInfo(syncResult.data);
     } catch (error) {
-      console.error('Error fetching Strava status:', error);
+      log.error('Error fetching Strava status', error);
       toast.error('Failed to fetch Strava status');
     } finally {
       setLoading(false);
@@ -173,7 +174,7 @@ export const StravaSettings: React.FC = () => {
           ? `Found ${result.data.new_runs_count} new runs. Check console for details.`
           : 'No new runs found. Check console for details.'
         );
-        console.log('Strava debug data:', result.data);
+        log.debug('Strava debug data', result.data);
       } else {
         toast.error(result.error || 'Failed to fetch debug info');
       }
