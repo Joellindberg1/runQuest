@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "build": "echo 'Backend uses tsx directly - no build needed'"
+    "build": "echo 'Backend uses tsx directly - no build needed'",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",
@@ -29,6 +31,7 @@
     "@types/node": "^20.19.17",
     "@types/node-cron": "^3.0.11",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^4.0.18"
   }
 }
