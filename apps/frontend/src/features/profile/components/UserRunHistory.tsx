@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Trophy, Pen } from 'lucide-react';
-import { EditRunDialog } from '@/features/runs/components/EditRunDialog';
-import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
+import { EditRunDialog } from '@/shared/components/EditRunDialog';
+import { ShowMoreButton } from '@/shared/components/ShowMoreButton';
 import type { Run } from '@/types/run';
 
 interface UserRunHistoryProps {

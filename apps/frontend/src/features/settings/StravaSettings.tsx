@@ -6,7 +6,7 @@ import { Separator } from '@/shared/components/ui/separator';
 import { CheckCircle, AlertCircle, XCircle, ExternalLink } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
-import { StravaIcon } from '@/shared/components/ui/StravaIcon';
+import { StravaIcon } from '@/shared/components/StravaIcon';
 import { log } from '@/shared/utils/logger';
 
 interface StravaStatus {

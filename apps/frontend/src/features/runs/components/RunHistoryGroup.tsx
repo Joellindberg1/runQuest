@@ -5,8 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avat
 import { Calendar, Trophy, Zap } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
 import type { User } from '@/types/run';
-import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
-import { StravaIcon } from '@/shared/components/ui/StravaIcon';
+import { ShowMoreButton } from '@/shared/components/ShowMoreButton';
+import { StravaIcon } from '@/shared/components/StravaIcon';
 import { getInitials, formatRunDate } from '@/shared/utils/formatters';
 import { log } from '@/shared/utils/logger';
 
