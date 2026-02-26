@@ -30,6 +30,7 @@ export class StreakService {
       .order('date', { ascending: true });
 
     if (error) {
+      // TODO: replace with a shared backend logger utility when available
       console.error('Error fetching runs:', error);
       return { currentStreak: 0, streakDayForRun: 1, longestStreak: 0 };
     }
@@ -182,6 +183,7 @@ export class StreakService {
       .eq('id', userId);
 
     if (error) {
+      // TODO: replace with a shared backend logger utility when available
       console.error('Error updating user streak:', error);
     }
   }

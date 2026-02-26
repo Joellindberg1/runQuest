@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { backendApi } from '@/shared/services/backendApi';
 import { Session } from '@supabase/supabase-js';
+import { log } from '@/shared/utils/logger';
 
 interface User {
   id: string;
@@ -126,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
     } catch (err: unknown) {
-      console.error('❌ Login error:', err);
+      log.error('Login error', err);
       return { success: false, error: 'Login failed' };
     } finally {
       setLoading(false);

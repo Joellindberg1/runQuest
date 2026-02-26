@@ -8,6 +8,7 @@ import type { User } from '@/types/run';
 import { ShowMoreButton } from '@/shared/components/ui/ShowMoreButton';
 import { StravaIcon } from '@/shared/components/ui/StravaIcon';
 import { getInitials, formatRunDate } from '@/shared/utils/formatters';
+import { log } from '@/shared/utils/logger';
 
 interface RunWithUser {
   id: string;
@@ -64,7 +65,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
 
       setRuns(runsWithUser);
     } catch (error) {
-      console.error('Error fetching group runs:', error);
+      log.error('Error fetching group runs', error);
     } finally {
       setLoading(false);
     }

@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { backendApi } from '@/shared/services/backendApi';
 import type { Run } from '@/types/run';
 import { toast } from 'sonner';
+import { log } from '@/shared/utils/logger';
 
 interface EditRunDialogProps {
   run: Run | null;
@@ -65,7 +66,7 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
       onRunUpdated();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error updating run:', error);
+      log.error('Error updating run', error);
       toast.error(error instanceof Error ? error.message : 'Failed to update run');
     } finally {
       setIsLoading(false);
@@ -89,7 +90,7 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
       onOpenChange(false);
       setShowDeleteDialog(false);
     } catch (error) {
-      console.error('Error deleting run:', error);
+      log.error('Error deleting run', error);
       toast.error(error instanceof Error ? error.message : 'Failed to delete run');
     } finally {
       setIsLoading(false);

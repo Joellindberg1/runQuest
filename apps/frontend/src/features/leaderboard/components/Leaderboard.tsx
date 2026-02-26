@@ -35,7 +35,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
 
       setUserTitles(titlesByUser);
     } catch (error) {
-      console.error('Error fetching user titles:', error);
+      log.error('Error fetching user titles', error);
     }
   };
 

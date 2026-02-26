@@ -39,7 +39,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
       
       setTitles(titleHolders);
     } catch (error) {
-      console.error('Error fetching titles:', error);
+      log.error('Error fetching titles', error);
       toast.error('Failed to load titles');
     } finally {
       setLoading(false);

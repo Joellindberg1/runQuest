@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { RunHistoryGroup } from './RunHistoryGroup';
 import type { User } from '@/types/run';
 import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
+import { log } from '@/shared/utils/logger';
 
 interface RunLoggerProps {
   onSubmit?: () => void;
@@ -79,7 +80,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
         onSubmit();
       }
     } catch (error) {
-      console.error('❌ Error saving run:', error);
+      log.error('Error saving run', error);
       toast.error(error instanceof Error ? error.message : 'Failed to log run. Please try again.');
     } finally {
       setLoading(false);
