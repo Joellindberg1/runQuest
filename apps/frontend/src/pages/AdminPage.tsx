@@ -1,263 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { Input } from '@/shared/components/ui/input';
-import { Button } from '@/shared/components/ui/button';
-import { Label } from '@/shared/components/ui/label';
+import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
-import { Settings, Users, Trophy, Target, Plus, Save, Key } from 'lucide-react';
+import { Settings, Users, Trophy, Target } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { ProfileMenu } from '@/features/profile';
-import { log } from '@/shared/utils/logger';
-import { validatePassword } from '@/shared/utils/validation';
-
-interface AdminSettings {
-  xpPerRun: number;
-  xpPerKm: number;
-  bonus5km: number;
-  bonus10km: number;
-  bonus15km: number;
-  bonus20km: number;
-  minKmForRun: number;
-  minKmForStreak: number;
-  minRunDate: string;
-  streakBonuses: { [key: number]: number };
-  multipliers: { [key: number]: number };
-}
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  total_xp?: number;
-  current_level?: number;
-  total_runs?: number;
-  current_streak?: number;
-  created_at?: string;
-}
+import { useAdminData, XPSettings, UserManagement, TitleConfig, AdminSecurity } from '@/features/admin';
 
 const AdminPage: React.FC = () => {
   const navigate = useNavigate();
-  const [newAdminPassword, setNewAdminPassword] = useState('');
-  const [settings, setSettings] = useState<AdminSettings>({
-    xpPerRun: 15,
-    xpPerKm: 2,
-    bonus5km: 5,
-    bonus10km: 15,
-    bonus15km: 25,
-    bonus20km: 50,
-    minKmForRun: 1.0,
-    minKmForStreak: 1.0,
-    minRunDate: '2025-06-01',
-    streakBonuses: {
-      10: 50,
-      30: 50,
-      60: 50,
-      90: 50,
-      120: 50,
-      150: 50,
-      180: 50,
-      210: 50,
-      240: 50,
-      270: 50,
-      300: 50,
-      330: 50
-    },
-    multipliers: {
-      5: 1.1,
-      15: 1.2,
-      30: 1.3,
-      60: 1.4,
-      90: 1.5,
-      120: 1.6,
-      180: 1.7,
-      220: 1.8,
-      240: 1.9,
-      270: 2.0
-    }
-  });
-
-  const [users, setUsers] = useState<User[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '' });
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [newPasswordForUser, setNewPasswordForUser] = useState('');
-  const [newMultiplierDay, setNewMultiplierDay] = useState('');
-  const [newMultiplierValue, setNewMultiplierValue] = useState('');
-
-  // Fetch users from database
-  useEffect(() => {
-    fetchUsers();
-    fetchAdminSettings();
-  }, []);
-
-  const fetchAdminSettings = async () => {
-    try {
-      const result = await backendApi.getAdminSettings();
-      
-      if (result.success && result.data) {
-        setSettings({
-          xpPerRun: result.data.base_xp || 15,
-          xpPerKm: result.data.xp_per_km || 2,
-          bonus5km: result.data.bonus_5km || 5,
-          bonus10km: result.data.bonus_10km || 15,
-          bonus15km: result.data.bonus_15km || 25,
-          bonus20km: result.data.bonus_20km || 50,
-          minKmForRun: result.data.min_run_distance || 1.0,
-          minKmForStreak: result.data.min_run_distance || 1.0,
-          minRunDate: '2025-06-01',
-          streakBonuses: settings.streakBonuses, // Keep existing
-          multipliers: settings.multipliers // Keep existing for now
-        });
-        
-        // Also fetch streak multipliers
-        const multipliersResult = await backendApi.getStreakMultipliers();
-        if (multipliersResult.success && multipliersResult.data) {
-          const multipliersObject: { [key: number]: number } = {};
-          multipliersResult.data.forEach((mult) => {
-            multipliersObject[mult.days] = mult.multiplier;
-          });
-          setSettings(prev => ({ ...prev, multipliers: multipliersObject }));
-        }
-        
-      } else {
-        log.error('Failed to fetch admin settings', result.error);
-        toast.error('Failed to fetch admin settings: ' + (result.error || 'Unknown error'));
-      }
-    } catch (error) {
-      log.error('Error fetching admin settings', error);
-      toast.error('Failed to fetch admin settings');
-    }
-  };
-
-  const fetchUsers = async () => {
-    setLoadingUsers(true);
-    try {
-      const result = await backendApi.getAllUsers();
-      
-      if (result.success && result.data) {
-        const users = result.data as User[];
-        setUsers(users);
-      } else {
-        log.error('Failed to fetch users', result.error);
-        toast.error('Failed to fetch users: ' + (result.error || 'Unknown error'));
-      }
-    } catch (error) {
-      console.error('❌ Error fetching users:', error);
-      toast.error('Failed to fetch users');
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
-
-  const handleSaveSettings = async () => {
-    try {
-      // Save basic XP settings to database
-      const basicSettingsResult = await backendApi.updateAdminSettings({
-        base_xp: settings.xpPerRun,
-        xp_per_km: settings.xpPerKm,
-        bonus_5km: settings.bonus5km,
-        bonus_10km: settings.bonus10km,
-        bonus_15km: settings.bonus15km,
-        bonus_20km: settings.bonus20km,
-        min_run_distance: settings.minKmForRun
-      });
-      
-      if (!basicSettingsResult.success) {
-        throw new Error(basicSettingsResult.error || 'Failed to save basic settings');
-      }
-      
-      // Save streak multipliers to database
-      const multipliersArray = Object.entries(settings.multipliers).map(([days, multiplier]) => ({
-        days: parseInt(days),
-        multiplier: parseFloat(multiplier.toString())
-      }));
-      
-      const multipliersResult = await backendApi.updateStreakMultipliers(multipliersArray);
-      
-      if (!multipliersResult.success) {
-        throw new Error(multipliersResult.error || 'Failed to save streak multipliers');
-      }
-      
-      toast.success('Settings saved successfully to database!');
-      
-    } catch (error) {
-      console.error('❌ Error saving settings:', error);
-      toast.error('Failed to save settings: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    }
-  };
-
-  const handleChangeAdminPassword = () => {
-    if (newAdminPassword.trim()) {
-      setNewAdminPassword('');
-      toast.info('Admin password change not yet wired to backend');
-    }
-  };
-
-  const handleAddUser = async () => {
-    if (!newUser.name || !newUser.email || !newUser.password) {
-      toast.error('Please fill in all fields');
-      return;
-    }
-
-    const pwError = validatePassword(newUser.password);
-    if (pwError) {
-      toast.error(pwError);
-      return;
-    }
-
-    try {
-      const result = await backendApi.createUser(newUser.name, newUser.email, newUser.password);
-      if (result.success && result.data) {
-        const newUserData = result.data as User;
-        setUsers([...users, newUserData]);
-        setNewUser({ name: '', email: '', password: '' });
-        toast.success('User created successfully!');
-      } else {
-        toast.error(result.error || 'Failed to create user');
-      }
-    } catch (error) {
-      console.error('Error creating user:', error);
-      toast.error('Failed to create user');
-    }
-  };
-
-  const handleResetUserPassword = async (userId: string) => {
-    const pwError = validatePassword(newPasswordForUser || '');
-    if (!newPasswordForUser || pwError) {
-      toast.error(pwError || 'Password is required');
-      return;
-    }
-
-    try {
-      const result = await backendApi.resetUserPassword(userId, newPasswordForUser);
-      if (result.success) {
-        setEditingUser(null);
-        setNewPasswordForUser('');
-        toast.success('Password reset successfully!');
-      } else {
-        toast.error(result.error || 'Failed to reset password');
-      }
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      toast.error('Failed to reset password');
-    }
-  };
-
-  const handleAddMultiplier = () => {
-    const day = parseInt(newMultiplierDay);
-    const value = parseFloat(newMultiplierValue);
-    if (day && value) {
-      setSettings({
-        ...settings,
-        multipliers: { ...settings.multipliers, [day]: value }
-      });
-      setNewMultiplierDay('');
-      setNewMultiplierValue('');
-      toast.success(`Added ${day} days → ${value}x multiplier. Remember to save settings!`);
-    }
-  };
+  const admin = useAdminData();
 
   const handleLogout = () => {
     backendApi.logout();
@@ -302,327 +54,44 @@ const AdminPage: React.FC = () => {
           </TabsList>
 
           <TabsContent value="settings">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Basic XP Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>XP per Run (base)</Label>
-                    <Input
-                      type="number"
-                      value={settings.xpPerRun}
-                      onChange={(e) => setSettings({...settings, xpPerRun: parseInt(e.target.value)})}
-                    />
-                  </div>
-                  <div>
-                    <Label>XP per KM</Label>
-                    <Input
-                      type="number"
-                      value={settings.xpPerKm}
-                      onChange={(e) => setSettings({...settings, xpPerKm: parseInt(e.target.value)})}
-                    />
-                  </div>
-                  <div>
-                    <Label>Minimum KM for Run</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={settings.minKmForRun}
-                      onChange={(e) => setSettings({...settings, minKmForRun: parseFloat(e.target.value)})}
-                    />
-                  </div>
-                  <div>
-                    <Label>Minimum KM for Streak</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={settings.minKmForStreak}
-                      onChange={(e) => setSettings({...settings, minKmForStreak: parseFloat(e.target.value)})}
-                    />
-                  </div>
-                  <div>
-                    <Label>Minimum Run Date</Label>
-                    <Input
-                      type="date"
-                      value={settings.minRunDate}
-                      onChange={(e) => setSettings({...settings, minRunDate: e.target.value})}
-                    />
-                    <div className="text-sm text-muted-foreground mt-1">
-                      Users cannot log runs before this date
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Distance Bonuses</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>5KM Bonus</Label>
-                    <Input
-                      type="number"
-                      value={settings.bonus5km}
-                      onChange={(e) => setSettings({...settings, bonus5km: parseInt(e.target.value)})}
-                    />
-                  </div>
-                  <div>
-                    <Label>10KM Bonus</Label>
-                    <Input
-                      type="number"
-                      value={settings.bonus10km}
-                      onChange={(e) => setSettings({...settings, bonus10km: parseInt(e.target.value)})}
-                    />
-                  </div>
-                  <div>
-                    <Label>15KM Bonus</Label>
-                    <Input
-                      type="number"
-                      value={settings.bonus15km}
-                      onChange={(e) => setSettings({...settings, bonus15km: parseInt(e.target.value)})}
-                    />
-                  </div>
-                  <div>
-                    <Label>20KM+ Bonus</Label>
-                    <Input
-                      type="number"
-                      value={settings.bonus20km}
-                      onChange={(e) => setSettings({...settings, bonus20km: parseInt(e.target.value)})}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Streak Multipliers</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {Object.entries(settings.multipliers).map(([day, multiplier]) => (
-                    <div key={day} className="flex items-center gap-2">
-                      <span className="w-16">{day} days:</span>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={multiplier}
-                        onChange={(e) => setSettings({
-                          ...settings,
-                          multipliers: { ...settings.multipliers, [parseInt(day)]: parseFloat(e.target.value) }
-                        })}
-                        className="w-20"
-                      />
-                      <span>x</span>
-                    </div>
-                  ))}
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Days"
-                      value={newMultiplierDay}
-                      onChange={(e) => setNewMultiplierDay(e.target.value)}
-                      className="w-20"
-                    />
-                    <Input
-                      placeholder="Multiplier"
-                      value={newMultiplierValue}
-                      onChange={(e) => setNewMultiplierValue(e.target.value)}
-                      className="w-24"
-                    />
-                    <Button onClick={handleAddMultiplier} size="sm">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            <div className="mt-6 text-center">
-              <Button onClick={handleSaveSettings} size="lg">
-                <Save className="w-4 h-4 mr-2" />
-                Save All Settings
-              </Button>
-            </div>
+            <XPSettings
+              settings={admin.settings}
+              setSettings={admin.setSettings}
+              newMultiplierDay={admin.newMultiplierDay}
+              setNewMultiplierDay={admin.setNewMultiplierDay}
+              newMultiplierValue={admin.newMultiplierValue}
+              setNewMultiplierValue={admin.setNewMultiplierValue}
+              onSave={admin.handleSaveSettings}
+              onAddMultiplier={admin.handleAddMultiplier}
+            />
           </TabsContent>
 
           <TabsContent value="users">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Add New User</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label>Name</Label>
-                      <Input
-                        value={newUser.name}
-                        onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                        placeholder="Enter name"
-                      />
-                    </div>
-                    <div>
-                      <Label>Email</Label>
-                      <Input
-                        type="email"
-                        value={newUser.email}
-                        onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                        placeholder="Enter email"
-                      />
-                    </div>
-                    <div>
-                      <Label>Password</Label>
-                      <Input
-                        type="password"
-                        value={newUser.password}
-                        onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                        placeholder="Enter password (min 6 chars)"
-                      />
-                    </div>
-                  </div>
-                  <Button onClick={handleAddUser} className="mt-4">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add User
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <CardTitle>Current Users</CardTitle>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={fetchUsers}
-                      disabled={loadingUsers}
-                    >
-                      🔄 Refresh Users
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {loadingUsers ? (
-                    <div className="text-center py-4">Loading users...</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {users.map(user => (
-                        <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div className="flex-1">
-                            <div className="font-semibold">{user.name}</div>
-                            <div className="text-sm text-muted-foreground">{user.email}</div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              Level {user.current_level} • {user.total_xp} XP • {user.total_runs} runs • {user.current_streak} streak
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {editingUser?.id === user.id ? (
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  type="password"
-                                  placeholder="New password"
-                                  value={newPasswordForUser}
-                                  onChange={(e) => setNewPasswordForUser(e.target.value)}
-                                  className="w-32"
-                                />
-                                <Button size="sm" onClick={() => handleResetUserPassword(user.id)}>
-                                  <Save className="w-4 h-4" />
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => {setEditingUser(null); setNewPasswordForUser('');}}>
-                                  Cancel
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button size="sm" variant="outline" onClick={() => setEditingUser(user)}>
-                                <Key className="w-4 h-4 mr-1" />
-                                Reset Password
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {users.length === 0 && !loadingUsers && (
-                        <div className="text-center py-4 text-muted-foreground">No users found</div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <UserManagement
+              users={admin.users}
+              loadingUsers={admin.loadingUsers}
+              newUser={admin.newUser}
+              setNewUser={admin.setNewUser}
+              editingUser={admin.editingUser}
+              setEditingUser={admin.setEditingUser}
+              newPasswordForUser={admin.newPasswordForUser}
+              setNewPasswordForUser={admin.setNewPasswordForUser}
+              onAddUser={admin.handleAddUser}
+              onResetUserPassword={admin.handleResetUserPassword}
+              onRefreshUsers={admin.fetchUsers}
+            />
           </TabsContent>
 
           <TabsContent value="titles">
-            <Card>
-              <CardHeader>
-                <CardTitle>Title Configuration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm text-muted-foreground">
-                      Current competitive titles are hardcoded. Future updates will allow customization.
-                    </div>
-                    <Button
-                      onClick={async () => {
-                        try {
-                          const backendApi = (await import('@/shared/services/backendApi')).default;
-                          await backendApi.refreshTitleLeaderboards();
-                          alert('✅ Title leaderboards refreshed successfully!');
-                        } catch (error) {
-                          console.error('❌ Failed to refresh titles:', error);
-                          alert('❌ Failed to refresh title leaderboards');
-                        }
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      🔄 Refresh Title Leaderboards
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-semibold">The Reborn Eliud Kipchoge</h4>
-                      <p className="text-sm text-muted-foreground">Longest single run (12km+ to unlock)</p>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-semibold">The Daaaaaaaaaaaaaaaaaaaaaaaaavid GOGGINGS</h4>
-                      <p className="text-sm text-muted-foreground">Longest streak (20+ days to unlock)</p>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-semibold">The Ultra Man</h4>
-                      <p className="text-sm text-muted-foreground">Most total km (100km+ to unlock)</p>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-semibold">The Weekend Destroyer</h4>
-                      <p className="text-sm text-muted-foreground">Best weekend average (9km+ to unlock)</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <TitleConfig />
           </TabsContent>
 
           <TabsContent value="admin">
-            <Card>
-              <CardHeader>
-                <CardTitle>Admin Password Management</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label>New Admin Password</Label>
-                    <Input
-                      type="password"
-                      value={newAdminPassword}
-                      onChange={(e) => setNewAdminPassword(e.target.value)}
-                      placeholder="Enter new password"
-                    />
-                  </div>
-                  <Button onClick={handleChangeAdminPassword}>
-                    Change Password
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <AdminSecurity
+              newAdminPassword={admin.newAdminPassword}
+              setNewAdminPassword={admin.setNewAdminPassword}
+              onChangeAdminPassword={admin.handleChangeAdminPassword}
+            />
           </TabsContent>
         </Tabs>
       </div>
@@ -631,5 +100,3 @@ const AdminPage: React.FC = () => {
 };
 
 export default AdminPage;
-
-
