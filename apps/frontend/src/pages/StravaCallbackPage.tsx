@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { useAuth } from '@/features/auth';
+import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
 
@@ -29,15 +29,10 @@ export const StravaCallbackPage: React.FC = () => {
       }
 
       try {
-        log.info('Strava callback: invoking edge function with code');
-        const { error: callbackError } = await supabase.functions.invoke('strava-callback', {
-          body: { code },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
+        log.info('Strava callback: connecting via backend API');
+        const result = await backendApi.connectStrava(code);
 
-        if (callbackError) throw callbackError;
+        if (!result.success) throw new Error(result.error || 'Strava connection failed');
 
         toast.success('Strava-konto kopplat!');
         if (window.opener) {

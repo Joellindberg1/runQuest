@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { backendApi } from '@/shared/services/backendApi';
-import { leaderboardUtils, getInitials } from '@/utils/leaderboardUtils';
+import { leaderboardUtils, getInitials } from '@/shared/utils/leaderboardUtils';
 import { UserTitles } from './leaderboard/UserTitles';
 import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';

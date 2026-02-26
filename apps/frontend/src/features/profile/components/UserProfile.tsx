@@ -3,11 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Progress } from '@/shared/components/ui/progress';
 import { User, Calendar } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
-import { leaderboardUtils } from '@/utils/leaderboardUtils';
+import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import type { User as UserType } from '@/types/run';
 import { UserRunHistory } from './UserRunHistory';
 import { UserTitlesList } from './UserTitlesList';
-import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/utils/xpCalculation';
+import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/shared/services/levelService';
 import { MAX_LEVEL } from '@/constants/appConstants';
 import { getInitials } from '@/shared/utils/formatters';
 

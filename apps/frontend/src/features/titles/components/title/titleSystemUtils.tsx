@@ -2,6 +2,7 @@
 import React from 'react';
 import { Trophy, Calendar, Target } from 'lucide-react';
 import type { Run, User } from '@/types/run';
+import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
 export type { Run, User };
 
@@ -34,26 +35,8 @@ export const getValueSuffix = (titleName: string) => {
   return 'km';
 };
 
-export const calculateWeekendAverage = (runs: Run[]) => {
-  const weekendTotals = new Map<string, number>();
-  
-  runs.forEach(run => {
-    const date = new Date(run.date);
-    const day = date.getDay();
-    
-    if (day === 0 || day === 6) { // Sunday or Saturday
-      // Get the Monday of the week containing this weekend day
-      const monday = new Date(date);
-      monday.setDate(date.getDate() - (date.getDay() === 0 ? 6 : date.getDay() - 1));
-      const weekKey = monday.toISOString().split('T')[0];
-      
-      weekendTotals.set(weekKey, (weekendTotals.get(weekKey) || 0) + run.distance);
-    }
-  });
-
-  const weekends = Array.from(weekendTotals.values());
-  return weekends.length > 0 ? weekends.reduce((sum, total) => sum + total, 0) / weekends.length : 0;
-};
+export const calculateWeekendAverage = (runs: Run[]) =>
+  leaderboardUtils.calculateWeekendAverage(runs);
 
 export const getLongestRun = (runs: Run[]) => {
   return runs.length > 0 ? Math.max(...runs.map(run => run.distance)) : 0;
