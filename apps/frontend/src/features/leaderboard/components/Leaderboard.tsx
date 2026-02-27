@@ -1,14 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
-import { backendApi } from '@/shared/services/backendApi';
 import { leaderboardUtils, getInitials } from '@/shared/utils/leaderboardUtils';
 import { UserTitles } from './leaderboard/UserTitles';
 import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
-import { log } from '@/shared/utils/logger';
-import type { User, UserTitle } from '@/types/run';
+import { useMultipleUserTitles } from '@/shared/hooks/useTitleQueries';
+import type { User } from '@/types/run';
 
 interface LeaderboardProps {
   users: User[];
@@ -16,35 +15,7 @@ interface LeaderboardProps {
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) => {
-  const [userTitles, setUserTitles] = useState<Record<string, UserTitle[]>>({});
-
-  const fetchUserTitles = async () => {
-    try {
-      const results = await Promise.all(users.map((user) => backendApi.getUserTitles(user.id)));
-
-      const titlesByUser: Record<string, UserTitle[]> = {};
-      users.forEach((user, index) => {
-        const data = results[index].success ? results[index].data : null;
-        if (Array.isArray(data)) {
-          titlesByUser[user.id] = data.filter((title) => title.is_current_holder);
-        } else {
-          log.error('User title data is not an array', { userId: user.id, data });
-          titlesByUser[user.id] = [];
-        }
-      });
-
-      setUserTitles(titlesByUser);
-    } catch (error) {
-      log.error('Error fetching user titles', error);
-    }
-  };
-
-  useEffect(() => {
-    if (users.length > 0) {
-      fetchUserTitles();
-    }
-  }, [users]);
-
+  const { data: userTitlesData = {} } = useMultipleUserTitles(users.map((u) => u.id));
   const sortedUsers = leaderboardUtils.filterAndSortUsers(users);
 
   if (sortedUsers.length === 0) {
@@ -73,7 +44,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
           const stats = leaderboardUtils.calculateUserStats(user);
           const position = leaderboardUtils.getUserPosition(user, sortedUsers);
           const isPodium = position <= 3;
-          const titles = userTitles[user.id] || [];
+          const titles = (userTitlesData[user.id] || []).filter((t) => t.is_current_holder);
           const initials = getInitials(user.name);
           
           const getPositionStyles = () => {

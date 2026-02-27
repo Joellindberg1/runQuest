@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Crown } from 'lucide-react';
-import { backendApi } from '@/shared/services/backendApi';
-import type { UserTitle } from '@/types/run';
-import { log } from '@/shared/utils/logger';
+import { useUserTitles, useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
 
 interface UserTitlesListProps {
   userId: string;
@@ -16,25 +14,8 @@ const getValueSuffix = (titleName: string) => {
 };
 
 export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
-  const [userTitles, setUserTitles] = useState<UserTitle[]>([]);
-  const [allTitles, setAllTitles] = useState<UserTitle[]>([]);
-
-  useEffect(() => {
-    const fetchTitles = async () => {
-      try {
-        const [titlesResult, titleHoldersResult] = await Promise.all([
-          backendApi.getUserTitles(userId),
-          backendApi.getTitleLeaderboard(),
-        ]);
-        setUserTitles(titlesResult.success ? titlesResult.data : []);
-        setAllTitles(titleHoldersResult.success ? titleHoldersResult.data : []);
-      } catch (error) {
-        log.error('Error fetching title data', error);
-      }
-    };
-
-    fetchTitles();
-  }, [userId]);
+  const { data: userTitles = [] } = useUserTitles(userId);
+  const { data: allTitles = [] } = useTitleLeaderboard();
 
   const heldTitles = userTitles.filter((title) => title.is_current_holder);
   const runnerUpTitles = userTitles.filter((title) => !title.is_current_holder);

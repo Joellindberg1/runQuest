@@ -7,12 +7,11 @@ import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Calendar, Users, Plus } from 'lucide-react';
 import { useAuth } from '@/features/auth';
-import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { RunHistoryGroup } from './RunHistoryGroup';
+import { useCreateRun } from '../hooks/useCreateRun';
 import type { User } from '@/types/run';
 import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
-import { log } from '@/shared/utils/logger';
 
 interface RunLoggerProps {
   onSubmit?: () => void;
@@ -22,10 +21,10 @@ interface RunLoggerProps {
 const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [distance, setDistance] = useState('');
-  const [loading, setLoading] = useState(false);
   const [lastRunResult, setLastRunResult] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("log-run");
   const { user } = useAuth();
+  const { createRun, loading } = useCreateRun(onSubmit);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,31 +58,11 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
       return;
     }
 
-    setLoading(true);
-    
-    try {
-      const result = await backendApi.createRun(date, km, 'manual');
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create run');
-      }
-
-      const xpGained = result.data?.xp_gained || 0;
-      const resultMessage = `Run logged! You gained ${xpGained} XP for this ${km}km run!`;
-      setLastRunResult(resultMessage);
-      toast.success(resultMessage);
-      
+    const { success, message } = await createRun(date, km);
+    if (success && message) {
+      setLastRunResult(message);
       setDistance('');
       setDate(new Date().toISOString().split('T')[0]);
-      
-      if (onSubmit) {
-        onSubmit();
-      }
-    } catch (error) {
-      log.error('Error saving run', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to log run. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 

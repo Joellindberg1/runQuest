@@ -8,90 +8,12 @@ import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { log } from '@/shared/utils/logger';
-
-interface StravaStatus {
-  connected: boolean;
-  expired: boolean;
-  expires_at?: number;
-  auto_refreshed?: boolean;
-  refresh_failed?: boolean;
-  connection_date?: string;
-  last_sync?: string;
-}
-
-interface SyncInfo {
-  last_sync_attempt: string | null;
-  last_sync_status: string;
-  next_sync_estimated: string | null;
-  users_synced?: number;
-  total_users?: number;
-  new_runs?: number;
-}
-
-const formatTime = (dateStr: string): string => {
-  const d = new Date(dateStr);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-};
-
-const formatConnectionDate = (dateStr: string | null | undefined): string => {
-  if (!dateStr) return 'Unknown';
-  return new Date(dateStr).toLocaleDateString();
-};
-
-const formatLastSync = (syncInfo: SyncInfo | null): string => {
-  if (!syncInfo?.last_sync_attempt) return 'No server sync yet';
-  return formatTime(syncInfo.last_sync_attempt);
-};
-
-const formatNextSync = (syncInfo: SyncInfo | null): string => {
-  if (!syncInfo?.next_sync_estimated) return 'Unknown';
-  const next = new Date(syncInfo.next_sync_estimated);
-  if (next.getTime() < Date.now()) return 'Overdue';
-  return formatTime(syncInfo.next_sync_estimated);
-};
+import { formatConnectionDate } from '@/shared/utils/formatters';
+import { useStravaData, formatLastSync, formatNextSync } from './hooks/useStravaData';
 
 export const StravaSettings: React.FC = () => {
-  const [stravaStatus, setStravaStatus] = useState<StravaStatus>({ connected: false, expired: false });
-  const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { stravaStatus, setStravaStatus, syncInfo, loading, stravaClientId, refreshStatus } = useStravaData();
   const [syncLoading, setSyncLoading] = useState(false);
-  const [stravaClientId, setStravaClientId] = useState<string | null>(null);
-
-  const fetchStravaConfig = async () => {
-    try {
-      const result = await backendApi.getStravaConfig();
-      if (result.success && result.data) {
-        setStravaClientId(result.data.client_id);
-      }
-    } catch (error) {
-      log.error('Failed to fetch Strava config', error);
-    }
-  };
-
-  const fetchStravaStatus = async () => {
-    if (!backendApi.isAuthenticated()) return;
-    try {
-      const [statusResult, syncResult] = await Promise.all([
-        backendApi.getStravaStatus(),
-        backendApi.getStravaLastSync(),
-      ]);
-
-      if (statusResult.success && statusResult.data) {
-        setStravaStatus(statusResult.data);
-        if (statusResult.data.auto_refreshed) toast.success('Strava-anslutning automatiskt förnyad!');
-        else if (statusResult.data.refresh_failed) toast.warning('Strava-token kunde inte förnyas automatiskt');
-      } else {
-        toast.error('Failed to fetch Strava status');
-      }
-
-      if (syncResult.success && syncResult.data) setSyncInfo(syncResult.data);
-    } catch (error) {
-      log.error('Error fetching Strava status', error);
-      toast.error('Failed to fetch Strava status');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Listen for OAuth popup callback
   useEffect(() => {
@@ -105,7 +27,7 @@ export const StravaSettings: React.FC = () => {
           const result = await backendApi.connectStrava(code);
           if (result.success) {
             toast.success('Strava-konto kopplat!');
-            fetchStravaStatus();
+            refreshStatus();
           } else {
             toast.error('Strava-koppling misslyckades');
           }
@@ -118,12 +40,6 @@ export const StravaSettings: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
-
-  useEffect(() => {
-    fetchStravaConfig();
-    if (backendApi.isAuthenticated()) fetchStravaStatus();
-    else setLoading(false);
   }, []);
 
   const handleConnectStrava = async () => {

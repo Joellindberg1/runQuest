@@ -5,10 +5,8 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
-import { backendApi } from '@/shared/services/backendApi';
+import { useRunMutations } from '@/shared/hooks/useRunMutations';
 import type { Run } from '@/types/run';
-import { toast } from 'sonner';
-import { log } from '@/shared/utils/logger';
 
 interface EditRunDialogProps {
   run: Run | null;
@@ -17,16 +15,16 @@ interface EditRunDialogProps {
   onRunUpdated: () => void;
 }
 
-export const EditRunDialog: React.FC<EditRunDialogProps> = ({ 
-  run, 
-  open, 
-  onOpenChange, 
-  onRunUpdated 
+export const EditRunDialog: React.FC<EditRunDialogProps> = ({
+  run,
+  open,
+  onOpenChange,
+  onRunUpdated
 }) => {
   const [distance, setDistance] = useState(run?.distance?.toString() || '');
   const [date, setDate] = useState(run?.date || '');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const { updateRun, deleteRun, isLoading } = useRunMutations(onRunUpdated);
 
   React.useEffect(() => {
     if (run) {
@@ -37,63 +35,18 @@ export const EditRunDialog: React.FC<EditRunDialogProps> = ({
 
   const handleSave = async () => {
     if (!run || !distance || !date) return;
-
     const newDistance = parseFloat(distance);
-    if (isNaN(newDistance) || newDistance <= 0) {
-      toast.error('Please enter a valid distance');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Update the run via backend API - backend handles XP/streak recalculation
-      const result = await backendApi.updateRun(run.id, {
-        distance: newDistance,
-        date: date
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update run');
-      }
-
-      // Show XP information if available
-      if (result.data && result.data.xp_gained) {
-        toast.success(`Run updated! New XP: ${result.data.xp_gained} (Streak: ${result.data.streak_day}, Multiplier: ${result.data.multiplier.toFixed(1)}x)`);
-      } else {
-        toast.success('Run updated successfully - refreshing data...');
-      }
-
-      onRunUpdated();
-      onOpenChange(false);
-    } catch (error) {
-      log.error('Error updating run', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update run');
-    } finally {
-      setIsLoading(false);
-    }
+    if (isNaN(newDistance) || newDistance <= 0) return;
+    const success = await updateRun(run, newDistance, date);
+    if (success) onOpenChange(false);
   };
 
   const handleDelete = async () => {
     if (!run) return;
-
-    setIsLoading(true);
-    try {
-      // Delete the run via backend API - backend handles XP/streak recalculation
-      const result = await backendApi.deleteRun(run.id);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete run');
-      }
-
-      toast.success('Run deleted successfully');
-      onRunUpdated();
+    const success = await deleteRun(run);
+    if (success) {
       onOpenChange(false);
       setShowDeleteDialog(false);
-    } catch (error) {
-      log.error('Error deleting run', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to delete run');
-    } finally {
-      setIsLoading(false);
     }
   };
 

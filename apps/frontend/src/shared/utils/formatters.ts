@@ -20,3 +20,15 @@ export function formatRunDate(dateStr: string): string {
     day: 'numeric',
   });
 }
+
+/** Formats a datetime string to HH:MM. "2026-01-15T14:30:00Z" → "14:30" */
+export function formatTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+}
+
+/** Formats a connection date string to a locale date. null → "Unknown" */
+export function formatConnectionDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'Unknown';
+  return new Date(dateStr).toLocaleDateString();
+}

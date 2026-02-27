@@ -1,12 +1,7 @@
-/**
- * React Query hooks for optimized title data fetching
- * Provides intelligent caching and background updates
- */
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
+import type { UserTitle } from '@/types/run';
 
-// Types for title data
 export interface TitleLeaderboard {
   id: string;
   name: string;
@@ -29,85 +24,58 @@ export interface TitleLeaderboard {
   }>;
 }
 
-export interface UserTitleStatus {
-  title_id: string;
-  title_name: string;
-  title_description: string;
-  position: number;
-  value: number;
-  earned_at: string;
-  is_current_holder: boolean;
-  status: 'holder' | 'runner_up' | 'top_10';
-}
-
-// Query keys for consistent cache management
 export const titleQueryKeys = {
   all: ['titles'] as const,
   leaderboard: () => [...titleQueryKeys.all, 'leaderboard'] as const,
   userTitles: (userId: string) => [...titleQueryKeys.all, 'user', userId] as const,
 };
 
-/**
- * Hook for fetching title leaderboard with intelligent caching
- */
+/** Fetch full title leaderboard with React Query caching. */
 export function useTitleLeaderboard() {
   return useQuery({
     queryKey: titleQueryKeys.leaderboard(),
     queryFn: async () => {
       const response = await backendApi.getTitleLeaderboard();
-      return response.success ? response.data : [];
+      return response.success ? (response.data as TitleLeaderboard[]) : [];
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
-    refetchInterval: 5 * 60 * 1000, // Background refresh every 5 minutes
+    refetchInterval: 5 * 60 * 1000,
   });
 }
 
-/**
- * Hook for fetching user titles with caching
- */
+/** Fetch titles for a single user with React Query caching. */
 export function useUserTitles(userId: string | null) {
   return useQuery({
     queryKey: titleQueryKeys.userTitles(userId || ''),
     queryFn: async () => {
       if (!userId) return [];
       const response = await backendApi.getUserTitles(userId);
-      return response.success ? response.data : [];
+      return response.success ? (response.data as UserTitle[]) : [];
     },
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 }
 
-/**
- * Hook for batch fetching user titles for multiple users
- */
+/** Batch fetch titles for multiple users with React Query caching. */
 export function useMultipleUserTitles(userIds: string[]) {
-  const queries = userIds.map(userId => ({
-    queryKey: titleQueryKeys.userTitles(userId),
-    queryFn: () => optimizedTitleService.getUserTitles(userId),
-    staleTime: 2 * 60 * 1000,
-    cacheTime: 5 * 60 * 1000,
-  }));
-
   return useQuery({
-    queryKey: ['multiple-user-titles', userIds.sort()],
+    queryKey: ['multiple-user-titles', [...userIds].sort()],
     queryFn: async () => {
       const results = await Promise.all(
         userIds.map(async (userId) => {
           const response = await backendApi.getUserTitles(userId);
-          return response.success ? response.data : [];
+          return response.success ? (response.data as UserTitle[]) : [];
         })
       );
-      
-      const titlesByUser: Record<string, UserTitleStatus[]> = {};
+      const titlesByUser: Record<string, UserTitle[]> = {};
       userIds.forEach((userId, index) => {
         titlesByUser[userId] = results[index];
       });
-      
       return titlesByUser;
     },
     enabled: userIds.length > 0,
@@ -116,59 +84,34 @@ export function useMultipleUserTitles(userIds: string[]) {
   });
 }
 
-/**
- * Mutation for refreshing title leaderboards (admin function)
- */
+/** Mutation for refreshing title leaderboard calculations (admin). */
 export function useRefreshTitleLeaderboards() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: () => backendApi.refreshTitleLeaderboards(),
     onSuccess: () => {
-      // Invalidate all title-related queries to force refresh
       queryClient.invalidateQueries({ queryKey: titleQueryKeys.all });
     },
   });
 }
 
-/**
- * Helper hook to invalidate title cache after run operations
- */
+/** Invalidate title cache after run operations. */
 export function useInvalidateTitleQueries() {
   const queryClient = useQueryClient();
-
   return {
-    invalidateLeaderboard: () => {
-      queryClient.invalidateQueries({ queryKey: titleQueryKeys.leaderboard() });
-    },
+    invalidateLeaderboard: () =>
+      queryClient.invalidateQueries({ queryKey: titleQueryKeys.leaderboard() }),
     invalidateUserTitles: (userId?: string) => {
       if (userId) {
         queryClient.invalidateQueries({ queryKey: titleQueryKeys.userTitles(userId) });
       } else {
-        queryClient.invalidateQueries({ 
+        queryClient.invalidateQueries({
           queryKey: titleQueryKeys.all,
-          predicate: (query) => query.queryKey.includes('user')
+          predicate: (query) => query.queryKey.includes('user'),
         });
       }
     },
-    invalidateAll: () => {
-      queryClient.invalidateQueries({ queryKey: titleQueryKeys.all });
-    },
-  };
-}
-
-/**
- * Helper to get cached title data without refetching
- */
-export function useCachedTitleData() {
-  const queryClient = useQueryClient();
-
-  return {
-    getLeaderboard: (): TitleLeaderboard[] | undefined => {
-      return queryClient.getQueryData(titleQueryKeys.leaderboard());
-    },
-    getUserTitles: (userId: string): UserTitleStatus[] | undefined => {
-      return queryClient.getQueryData(titleQueryKeys.userTitles(userId));
-    },
+    invalidateAll: () =>
+      queryClient.invalidateQueries({ queryKey: titleQueryKeys.all }),
   };
 }
