@@ -7,15 +7,15 @@
     "changes": [
       {
         "type": "improvement",
-        "description": "Frontend-arkitekturen har refaktorerats — all datahämtning sker nu via dedikerade hooks med React Query-caching, vilket minskar onödiga API-anrop."
+        "description": "Vi har städat upp bakom kulisserna — sidan gör nu färre onödiga anrop och laddar data snabbare."
       },
       {
         "type": "improvement",
-        "description": "Providers och app-initiering är omstrukturerade för snabbare uppstart."
+        "description": "Appen startar snabbare och är mer stabil under körning."
       },
       {
         "type": "bugfix",
-        "description": "Borttagen död kod i titelsystemet som kunde orsaka inkonsekvent data vid laddning."
+        "description": "Rättat ett fel i titelsystemet som ibland kunde visa fel data vid sidladdning."
       }
     ]
   },
