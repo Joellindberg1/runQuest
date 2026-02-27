@@ -13,7 +13,7 @@ interface TitleSystemProps {
 
 export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
   const filteredUsers = users.filter(user => user.name.toLowerCase() !== 'admin');
-  const { titles, loading } = useTitleSystemData(users);
+  const { titles, loading } = useTitleSystemData();
 
 
   if (loading) {
