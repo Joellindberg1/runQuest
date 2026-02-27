@@ -1,5 +1,25 @@
 [
   {
+    "version": "0.1.2",
+    "type": "patch",
+    "date": "27 februari 2026",
+    "title": "Cleanup & Stabilitet",
+    "changes": [
+      {
+        "type": "improvement",
+        "description": "Frontend-arkitekturen har refaktorerats — all datahämtning sker nu via dedikerade hooks med React Query-caching, vilket minskar onödiga API-anrop."
+      },
+      {
+        "type": "improvement",
+        "description": "Providers och app-initiering är omstrukturerade för snabbare uppstart."
+      },
+      {
+        "type": "bugfix",
+        "description": "Borttagen död kod i titelsystemet som kunde orsaka inkonsekvent data vid laddning."
+      }
+    ]
+  },
+  {
     "version": "0.1.1",
     "type": "patch",
     "date": "20 februari 2026",
