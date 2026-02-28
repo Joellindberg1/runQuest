@@ -146,7 +146,7 @@ const FAKE_RUN = {
 
 /**
  * Build a chainable Supabase stub that handles both insert+single() calls
- * (for the new run) and select+eq+order calls (for reprocessAllUserRuns).
+ * (for the new run) and select+eq+order calls (for reprocessRunsFromDate).
  */
 function buildRunsStub() {
   const runsList = { data: [FAKE_RUN], error: null };

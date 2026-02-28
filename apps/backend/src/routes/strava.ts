@@ -3,8 +3,8 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
-import { calculateCompleteRunXP } from '@runquest/shared';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
+import { reprocessRunsFromDate } from './runs.js';
 
 const router = express.Router();
 
@@ -656,180 +656,59 @@ async function syncUserStravaActivities(userId: string): Promise<{
       };
     }
     
-    // Process each running activity with enhanced async handling
-    console.log(`🔄 Processing ${runningActivities.length} new running activities with enhanced async handling...`);
-    
-    let importedRuns = 0;
-    const processingResults = [];
-    
-    // Option 1: Sequential processing (most reliable)
-    for (const activity of runningActivities) {
-      try {
-        console.log(`\n🏃‍♂️ Processing activity ${activity.id} sequentially...`);
-        
-        const result = await processStravaRunSequentially(activity, userId);
-        
-        if (result.success) {
-          importedRuns++;
-          processingResults.push({ activity_id: activity.id, success: true });
-          console.log(`✅ Activity ${activity.id} processed successfully`);
-        } else {
-          processingResults.push({ activity_id: activity.id, success: false, error: result.error });
-          console.error(`❌ Activity ${activity.id} failed: ${result.error}`);
-        }
-        
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        processingResults.push({ activity_id: activity.id, success: false, error: errorMessage });
-        console.error(`❌ Unexpected error processing activity ${activity.id}:`, errorMessage);
-      }
+    // Insert all new runs in parallel (placeholder XP — reprocessRunsFromDate will recalculate)
+    console.log(`🔄 Inserting ${runningActivities.length} new runs in parallel...`);
+
+    const validActivities = runningActivities.filter((a: any) => a.distance / 1000 > 0);
+
+    const insertResults = await Promise.allSettled(
+      validActivities.map((activity: any) => {
+        const distance = activity.distance / 1000;
+        const date = activity.start_date_local.split('T')[0];
+        return supabase.from('runs').insert({
+          user_id: userId,
+          date,
+          distance,
+          source: 'strava',
+          external_id: activity.id.toString(),
+          base_xp: 0,
+          km_xp: 0,
+          distance_bonus: 0,
+          streak_bonus: 0,
+          multiplier: 1.0,
+          streak_day: 1,
+          xp_gained: 0,
+          created_at: new Date().toISOString()
+        });
+      })
+    );
+
+    const importedRuns = insertResults.filter(r => r.status === 'fulfilled').length;
+    const failedCount = insertResults.filter(r => r.status === 'rejected').length;
+    if (failedCount > 0) {
+      console.error(`❌ ${failedCount} runs failed to insert`);
     }
 
-// Helper function for sequential processing of single activity
-async function processStravaRunSequentially(activity: any, userId: string): Promise<{
-  success: boolean;
-  error?: string;
-}> {
-  const distance = activity.distance / 1000;
-  const date = activity.start_date_local.split('T')[0];
-  
-  // Skip runs with 0 distance
-  if (distance <= 0) {
-    console.log(`⚠️ Skipping activity ${activity.id} with 0 distance`);
-    return { success: true }; // Not an error, just skip
-  }
-  
-  console.log(`📊 Calculating values for ${distance.toFixed(2)}km run on ${date}...`);
-  
-  // Phase 1: Get ALL required data with proper async/await
-  const supabase = getSupabaseClient();
-  
-  // Get admin settings from database, with fallbacks to correct values
-  const { data: dbSettings } = await supabase
-    .from('admin_settings')
-    .select('base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance')
-    .single();
-  
-  // Use database settings or correct fallback values
-  const safeSettings = {
-    base_xp: dbSettings?.base_xp ?? 15,
-    xp_per_km: dbSettings?.xp_per_km ?? 2,
-    bonus_5km: dbSettings?.bonus_5km ?? 5,      // Correct: 5 XP for 5km+
-    bonus_10km: dbSettings?.bonus_10km ?? 15,   // Correct: 15 XP for 10km+
-    bonus_15km: dbSettings?.bonus_15km ?? 25,   // Correct: 25 XP for 15km+
-    bonus_20km: dbSettings?.bonus_20km ?? 50,   // Correct: 50 XP for 20km+
-    min_run_distance: dbSettings?.min_run_distance ?? 1.0
-  };
-  
-  console.log('🔧 Using XP settings:', safeSettings);
-  
-  // Calculate streak
-  const { StreakService } = await import('../services/streakService.js');
-  const streakResult = await StreakService.calculateUserStreaks(userId, date);
-  
-  // Get multiplier data
-  const { data: multipliers, error: multipliersError } = await supabase
-    .from('streak_multipliers')
-    .select('*')
-    .order('days');
-  
-  if (multipliersError) {
-    throw new Error(`Failed to load multipliers: ${multipliersError.message}`);
-  }
-  
-  console.log(`  ✅ Data loaded: settings, streak day ${streakResult.streakDayForRun}, ${multipliers?.length || 0} multipliers`);
-  
-  // Phase 2: Calculate everything using unified system
-  console.log(`🧮 Starting XP calculation with safe settings:`, safeSettings);
-  const result = calculateCompleteRunXP(
-    distance,
-    streakResult.streakDayForRun,
-    safeSettings,
-    multipliers || []
-  );
-  
-  console.log(`  ✅ XP calculated: ${result.finalXP} (Base: ${result.baseXP}, KM: ${result.kmXP}, Bonus: ${result.distanceBonus}, Streak: ${result.streakBonus}, Multiplier: ${result.multiplier})`);
-  
-  // Phase 3: Validate ALL data BEFORE saving
-  if (distance > 0 && result.finalXP <= 0) {
-    throw new Error(`XP validation failed: ${distance}km run resulted in ${result.finalXP} XP`);
-  }
-  
-  if (!result.baseXP && !result.kmXP && distance > 0) {
-    throw new Error(`XP breakdown validation failed: base=${result.baseXP}, km=${result.kmXP} for ${distance}km`);
-  }
-  
-  console.log(`  ✅ All validations passed`);
-  
-  // Phase 4: Atomic database save with verification
-  const runData = {
-    user_id: userId,
-    date: date,
-    distance: distance,
-    xp_gained: result.finalXP,
-    multiplier: result.multiplier,
-    streak_day: streakResult.streakDayForRun,
-    base_xp: result.baseXP,
-    km_xp: result.kmXP,
-    distance_bonus: result.distanceBonus,
-    streak_bonus: result.streakBonus,
-    source: 'strava',
-    external_id: activity.id.toString(),
-    created_at: new Date().toISOString()
-  };
-  
-  const { data: savedRun, error: insertError } = await supabase
-    .from('runs')
-    .insert(runData)
-    .select()
-    .single();
-  
-  if (insertError) {
-    throw new Error(`Database insert failed: ${insertError.message}`);
-  }
-  
-  // Phase 5: Verify data integrity
-  console.log(`🔍 Verifying saved run data...`);
-  console.log(`  📊 Calculated: finalXP=${result.finalXP}, baseXP=${result.baseXP}, kmXP=${result.kmXP}, distanceBonus=${result.distanceBonus}`);
-  console.log(`  💾 Saved: xp_gained=${savedRun.xp_gained}, base_xp=${savedRun.base_xp}, km_xp=${savedRun.km_xp}, distance_bonus=${savedRun.distance_bonus}`);
-  
-  if (savedRun.xp_gained !== result.finalXP) {
-    console.error(`❌ DATA INTEGRITY ERROR: Saved XP ${savedRun.xp_gained} ≠ calculated XP ${result.finalXP}`);
-    throw new Error(`Data integrity check failed after save`);
-  }
-  
-  // Critical check: Did we save 0 XP despite having distance?
-  if (savedRun.xp_gained === 0 && distance > 0) {
-    console.error(`🚨 CRITICAL ERROR: Run saved with 0 XP despite ${distance}km distance!`);
-    console.error(`🚨 This should be impossible if calculation worked correctly`);
-    console.error(`🚨 Debug info:`, {
-      calculatedResult: result,
-      savedRun: savedRun,
-      settingsUsed: safeSettings,
-      usingHardcodedSettings: true
-    });
-    throw new Error(`Critical validation failed: 0 XP for ${distance}km run`);
-  }
-  
-  console.log(`  ✅ Data integrity verified: Saved run has correct XP (${savedRun.xp_gained})`);
-  
-  return { success: true };
-}
-    
-    // Update user totals if any runs were imported
+    console.log(`✅ Inserted ${importedRuns} new runs`);
+
     if (importedRuns > 0) {
-      console.log(`🔄 Updating user totals after importing ${importedRuns} runs...`);
-      // Use new unified calculation function
+      // Reprocess from earliest new run date — one pass fixes streaks + XP for all affected runs
+      const dates = validActivities
+        .map((a: any) => a.start_date_local.split('T')[0])
+        .sort();
+      const earliestDate = dates[0];
+      console.log(`🔄 Reprocessing from ${earliestDate} to recalculate streaks and XP...`);
+      await reprocessRunsFromDate(userId, earliestDate);
       await calculateUserTotals(userId);
     }
-    
+
     return {
       success: true,
       newRuns: importedRuns,
       totalActivities: activities.length,
       message: `Successfully imported ${importedRuns} new runs from Strava`
     };
-    
+
   } catch (error) {
     console.error('❌ Error syncing Strava activities:', error);
     return { success: false, error: 'Failed to sync activities' };
