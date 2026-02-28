@@ -25,12 +25,6 @@ vi.mock('../../config/database.js', () => ({
 
 // ── Mock XP calculation ───────────────────────────────────────────────────────
 vi.mock('../../utils/xpCalculation.js', () => ({
-  calculateRunXP: vi.fn().mockResolvedValue({
-    baseXP: 15,
-    kmXP: 10,
-    distanceBonus: 0,
-    totalXP: 25,
-  }),
   metersToKm: (m: number) => m / 1000,
   getLevelFromXP: vi.fn().mockResolvedValue(1),
   getXPForLevel: vi.fn().mockResolvedValue(0),
