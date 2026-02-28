@@ -28,7 +28,7 @@ export class EnhancedTitleService {
       // Get all titles to check
       const { data: titles, error: titlesError } = await supabase.client
         .from('titles')
-        .select('*');
+        .select('id, name, description, unlock_requirement');
 
       if (titlesError) {
         console.error('❌ Error fetching titles:', titlesError);
@@ -215,7 +215,7 @@ export class EnhancedTitleService {
       // Check if user already has this title with same or better value
       const { data: existingTitle, error: existingError } = await supabase.client
         .from('user_titles')
-        .select('*')
+        .select('id, value, earned_at')
         .eq('user_id', userId)
         .eq('title_id', title.id)
         .single();

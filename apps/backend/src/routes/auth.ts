@@ -376,7 +376,7 @@ router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): 
     const supabase = getSupabaseClient();
     const { data: settings, error } = await supabase
       .from('admin_settings')
-      .select('*')
+      .select('id, base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance, streak_multipliers, updated_at')
       .single();
     
     if (error) {
@@ -428,7 +428,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
         updated_at: new Date().toISOString()
       })
       .eq('id', 1) // Assuming single settings row with id=1
-      .select()
+      .select('id, base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance, streak_multipliers, updated_at')
       .single();
     
     if (error) {
@@ -457,7 +457,7 @@ router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, re
     const supabase = getSupabaseClient();
     const { data: multipliers, error } = await supabase
       .from('streak_multipliers')
-      .select('*')
+      .select('id, days, multiplier')
       .order('days');
     
     if (error) {
@@ -492,7 +492,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     const { data: insertedMultipliers, error } = await supabase
       .from('streak_multipliers')
       .insert(multipliers)
-      .select();
+      .select('id, days, multiplier');
     
     if (error) {
       console.error('❌ Failed to update streak multipliers:', error);

@@ -231,7 +231,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
         streak_day: 1,
         xp_gained: xpCalc.baseXP + xpCalc.kmXP + xpCalc.distanceBonus
       })
-      .select()
+      .select('id')
       .single();
 
     if (insertError) {
@@ -250,7 +250,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     // Fetch the fully processed run
     const { data: processedRun, error: fetchError } = await supabase
       .from('runs')
-      .select('*')
+      .select('id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id')
       .eq('id', newRun.id)
       .single();
 
@@ -350,7 +350,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Fetch the updated run to return
     const { data: updatedRun, error: fetchUpdatedError } = await supabase
       .from('runs')
-      .select('*')
+      .select('id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id')
       .eq('id', id)
       .single();
 
