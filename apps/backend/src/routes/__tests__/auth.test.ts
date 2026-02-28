@@ -95,15 +95,19 @@ afterAll(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Build a Supabase query stub where .single() resolves with `result`.
- * All chained methods (from/select/eq) return `this` so the chain works.
+ * Build a Supabase query stub where .limit() resolves with `result`.
+ * All chained methods (from/select/or) return `this` so the chain works.
+ * data is wrapped in an array to match the real Supabase .limit() response.
  */
 function buildQueryStub(result: { data: any; error: any }) {
+  const limitResult = result.error
+    ? { data: null, error: result.error }
+    : { data: result.data ? [result.data] : [], error: null };
   return {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue(result),
+    or: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue(limitResult),
   };
 }
 
@@ -156,19 +160,8 @@ describe('POST /api/auth/login', () => {
       password_hash: '$2a$10$hashedpassword',
       is_admin: false,
     };
-
-    // The route calls getSupabaseClient() ONCE and reuses the client for both
-    // the email lookup and the name fallback. Set up single() to return
-    // "not found" on the first call (email) and the user on the second (name).
-    const stub = {
-      from: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn()
-        .mockResolvedValueOnce({ data: null, error: { message: 'not found' } })
-        .mockResolvedValueOnce({ data: fakeUser, error: null }),
-    };
-    vi.mocked(getSupabaseClient).mockReturnValue(stub as any);
+    // Single query with .or() finds the user by name
+    vi.mocked(getSupabaseClient).mockReturnValue(buildQueryStub({ data: fakeUser, error: null }) as any);
     vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
 
     const { status, body } = await post('/api/auth/login', {

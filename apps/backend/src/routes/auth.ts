@@ -26,24 +26,14 @@ router.post('/login', async (req, res): Promise<void> => {
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
     
-    // Try to find user by email first, then by name
-    let { data: user, error } = await supabase
+    // Find user by email or name in a single query
+    const { data: users, error } = await supabase
       .from('users')
       .select('id, name, email, password_hash, is_admin')
-      .eq('email', nameOrEmail)
-      .single();
-    
-    // If not found by email, try by name
-    if (error || !user) {
-      const { data: userByName, error: errorByName } = await supabase
-        .from('users')
-        .select('id, name, email, password_hash, is_admin')
-        .eq('name', nameOrEmail)
-        .single();
-      
-      user = userByName;
-      error = errorByName;
-    }
+      .or(`email.eq.${nameOrEmail},name.eq.${nameOrEmail}`)
+      .limit(1);
+
+    const user = users?.[0] ?? null;
 
     if (error || !user) {
       console.log('❌ User not found or database error:', error?.message);
