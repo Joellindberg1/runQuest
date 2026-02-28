@@ -518,40 +518,27 @@ router.get('/users-with-runs', authenticateJWT, async (_req, res): Promise<void>
     console.log('👥 Fetching all users with runs');
     
     const supabase = getSupabaseClient();
-    
-    // Fetch all users
-    const { data: users, error: usersError } = await supabase
+
+    const { data: usersWithRuns, error } = await supabase
       .from('users')
-      .select('*')
+      .select(`
+        id, name, total_xp, current_level, total_km,
+        current_streak, longest_streak, profile_picture,
+        runs(id, user_id, date, distance, xp_gained, multiplier,
+             streak_day, base_xp, km_xp, distance_bonus, streak_bonus)
+      `)
       .order('total_xp', { ascending: false });
 
-    if (usersError) {
-      console.error('❌ Error fetching users:', usersError.message);
+    if (error) {
+      console.error('❌ Error fetching users with runs:', error.message);
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
-    // Fetch all runs
-    const { data: runs, error: runsError } = await supabase
-      .from('runs')
-      .select('*')
-      .order('date', { ascending: false });
-
-    if (runsError) {
-      console.error('❌ Error fetching runs:', runsError.message);
-      res.status(500).json({ error: 'Failed to fetch runs' }); return;
-    }
-
-    // Combine users with their runs
-    const usersWithRuns = users?.map(user => ({
-      ...user,
-      runs: runs?.filter(run => run.user_id === user.id) || []
-    })) || [];
-
-    console.log(`✅ Successfully fetched ${usersWithRuns.length} users with runs`);
+    console.log(`✅ Successfully fetched ${usersWithRuns?.length ?? 0} users with runs`);
 
     res.json({
       success: true,
-      data: usersWithRuns
+      data: usersWithRuns ?? []
     });
 
   } catch (error) {
