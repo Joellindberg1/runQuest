@@ -3,8 +3,9 @@ import { getLevelFromXP } from './xpCalculation.js';
 
 export async function calculateUserTotals(userId: string) {
   try {
+    console.time(`calculateUserTotals:${userId}`);
     const supabase = getSupabaseClient();
-    
+
     // Get all runs for the user
     const { data: runs, error } = await supabase
       .from('runs')
@@ -26,12 +27,12 @@ export async function calculateUserTotals(userId: string) {
     const totalXP = runs.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
     const totalDistance = runs.reduce((sum: number, run: any) => sum + (run.distance || 0), 0);
 
-    // Calculate level from XP using database level requirements
-    const level = await getLevelFromXP(totalXP);
-
-    // Calculate current streak using new StreakService
+    // Fetch level and streak in parallel
     const { StreakService } = await import('../services/streakService.js');
-    const streakResult = await StreakService.calculateUserStreaks(userId);
+    const [level, streakResult] = await Promise.all([
+      getLevelFromXP(totalXP),
+      StreakService.calculateUserStreaks(userId)
+    ]);
     const currentStreak = streakResult.currentStreak;
     const longestStreak = Math.max(streakResult.longestStreak, currentStreak);
 
@@ -82,6 +83,7 @@ export async function calculateUserTotals(userId: string) {
       // Don't throw - user totals were saved successfully
     }
 
+    console.timeEnd(`calculateUserTotals:${userId}`);
   } catch (error) {
     console.error('Error in calculateUserTotals:', error);
   }
