@@ -41,11 +41,12 @@ async function fetchAdminSettings(): Promise<{ xpSettings: AdminSettings; multip
 }
 
 /**
+ * Exported for use by Strava sync.
  * Reprocess runs from a given date onwards for a user.
  * Only runs at or after fromDate are recalculated — earlier runs are unaffected.
  * The streak context from the run immediately before fromDate is preserved.
  */
-async function reprocessRunsFromDate(userId: string, fromDate: string): Promise<void> {
+export async function reprocessRunsFromDate(userId: string, fromDate: string): Promise<void> {
   console.log(`🔄 Reprocessing runs from ${fromDate} for user ${userId}...`);
   const supabase = getSupabaseClient();
 
@@ -125,19 +126,6 @@ async function reprocessRunsFromDate(userId: string, fromDate: string): Promise<
   );
 
   console.log(`✅ Reprocessed ${runs.length} runs successfully`);
-}
-
-/** Reprocess all runs for a user (used by Strava sync). */
-async function reprocessAllUserRuns(userId: string): Promise<void> {
-  const { data: firstRun } = await getSupabaseClient()
-    .from('runs')
-    .select('date')
-    .eq('user_id', userId)
-    .order('date', { ascending: true })
-    .limit(1);
-
-  if (!firstRun?.[0]) return;
-  await reprocessRunsFromDate(userId, firstRun[0].date);
 }
 
 // GET /api/runs/group-history - Get all runs with user info for group history
