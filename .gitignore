@@ -78,6 +78,9 @@ packages/*/node_modules
 apps/*/dist
 packages/*/dist
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 
 # docs/Project mgm
 Idébank.md
