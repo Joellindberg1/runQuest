@@ -3,7 +3,6 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
-import { calculateRunXP } from '../utils/xpCalculation.js';
 import { calculateCompleteRunXP, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
 
 const router = express.Router();
@@ -212,10 +211,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
 
     const supabase = getSupabaseClient();
 
-    // Calculate initial XP (will be recalculated with correct streak after)
-    const xpCalc = await calculateRunXP(distanceNum);
-    
-    // Insert the run with calculated XP values
+    // Insert with placeholder XP — reprocessRunsFromDate recalculates correctly right after
     const { data: newRun, error: insertError } = await supabase
       .from('runs')
       .insert({
@@ -223,13 +219,13 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
         date: date,
         distance: distanceNum,
         source: source,
-        base_xp: xpCalc.baseXP,
-        km_xp: xpCalc.kmXP,
-        distance_bonus: xpCalc.distanceBonus,
+        base_xp: 0,
+        km_xp: 0,
+        distance_bonus: 0,
         streak_bonus: 0,
         multiplier: 1.0,
         streak_day: 1,
-        xp_gained: xpCalc.baseXP + xpCalc.kmXP + xpCalc.distanceBonus
+        xp_gained: 0
       })
       .select('id')
       .single();

@@ -18,7 +18,6 @@ router.post('/login', async (req, res): Promise<void> => {
     if (!nameOrEmail || !password) {
       console.log('❌ Missing name/email or password');
       res.status(400).json({ error: 'Name/email and password required' }); return;
-      return;
     }
 
     console.log(`🔍 Looking up user: ${nameOrEmail}`);
@@ -38,7 +37,6 @@ router.post('/login', async (req, res): Promise<void> => {
     if (error || !user) {
       console.log('❌ User not found or database error:', error?.message);
       res.status(401).json({ error: 'Invalid credentials' }); return;
-      return;
     }
 
     console.log(`🔑 User found, verifying password for: ${user.name}`);
@@ -110,13 +108,11 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     if (!currentPassword || !newPassword) {
       console.log('❌ Missing current or new password');
       res.status(400).json({ error: 'Current password and new password required' }); return;
-      return;
     }
 
     if (newPassword.length < 6) {
       console.log('❌ New password too short');
       res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
-      return;
     }
 
     console.log(`🔍 Looking up user for password change: ${userId}`);
@@ -193,7 +189,6 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
     }
 
     console.log(`✅ Successfully fetched ${users?.length || 0} users`);
-    console.log('📊 User data sample:', users?.slice(0, 2));
 
     res.json({
       success: true,
