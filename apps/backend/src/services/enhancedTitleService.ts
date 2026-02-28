@@ -39,29 +39,22 @@ export class EnhancedTitleService {
       console.log('🎯 Achievement values:', userValues);
 
       const earnedAt = new Date().toISOString();
-      const titlesToUpdate = new Set<string>();
 
-      // Check each title
-      for (const title of titles) {
-        const updated = await this.checkAndUpdateTitle(
-          title,
-          userId,
-          userValues,
-          earnedAt,
-          runs
-        );
-        
-        if (updated) {
-          titlesToUpdate.add(title.id);
-        }
-      }
+      // Check all titles in parallel
+      const titleCheckResults = await Promise.allSettled(
+        titles.map((title: any) => this.checkAndUpdateTitle(title, userId, userValues, earnedAt, runs))
+      );
 
-      // Refresh leaderboards for updated titles
-      for (const titleId of titlesToUpdate) {
-        await titleLeaderboardService.refreshTitleLeaderboard(titleId);
-      }
+      const titlesToUpdate: string[] = titles
+        .filter((_: any, i: number) => titleCheckResults[i].status === 'fulfilled' && (titleCheckResults[i] as PromiseFulfilledResult<boolean>).value)
+        .map((t: any) => t.id);
 
-      console.log(`✅ Processed ${titles.length} titles, updated ${titlesToUpdate.size} leaderboards`);
+      // Refresh leaderboards in parallel
+      await Promise.allSettled(
+        titlesToUpdate.map((titleId: string) => titleLeaderboardService.refreshTitleLeaderboard(titleId))
+      );
+
+      console.log(`✅ Processed ${titles.length} titles, updated ${titlesToUpdate.length} leaderboards`);
 
     } catch (error) {
       console.error('❌ Error processing user titles:', error);
@@ -363,51 +356,30 @@ export class EnhancedTitleService {
       }
 
       console.log(`📊 Found ${users.length} users to process`);
+      console.time('processAllUsersTitles');
 
-      let processedCount = 0;
-      
-      // Process each user
-      for (const user of users) {
-        try {
-          // Get user's runs
+      // Process all users in parallel
+      const userResults = await Promise.allSettled(
+        users.map(async (user: any) => {
           const { data: runs, error: runsError } = await supabase.client
             .from('runs')
             .select('date, distance')
             .eq('user_id', user.id)
             .order('date', { ascending: true });
 
-          if (runsError) {
-            console.error(`❌ Error fetching runs for user ${user.id}:`, runsError);
-            continue;
-          }
+          if (runsError) throw new Error(`Runs fetch failed: ${runsError.message}`);
+          if (!runs || runs.length === 0) return; // skip users with no runs
 
-          if (!runs || runs.length === 0) {
-            console.log(`⏭️ User ${user.id} has no runs, skipping`);
-            continue;
-          }
+          const runsWithAlias = runs.map((run: any) => ({ ...run, distance_km: run.distance }));
+          await this.processUserTitlesAfterRun(user.id, runsWithAlias, user.total_km || 0, user.longest_streak || 0);
+        })
+      );
 
-          // Add distance_km alias for compatibility with calculateUserValues
-          const runsWithAlias = runs.map((run: any) => ({
-            ...run,
-            distance_km: run.distance
-          }));
+      const processedCount = userResults.filter(r => r.status === 'fulfilled').length;
+      const failedCount = userResults.filter(r => r.status === 'rejected').length;
+      if (failedCount > 0) console.error(`❌ Title processing failed for ${failedCount} users`);
 
-          // Process titles for this user
-          await this.processUserTitlesAfterRun(
-            user.id,
-            runsWithAlias,
-            user.total_km || 0,
-            user.longest_streak || 0
-          );
-
-          processedCount++;
-          
-        } catch (userError) {
-          console.error(`❌ Error processing user ${user.id}:`, userError);
-          // Continue with next user
-        }
-      }
-
+      console.timeEnd('processAllUsersTitles');
       console.log(`✅ Processed titles for ${processedCount}/${users.length} users`);
 
     } catch (error) {
