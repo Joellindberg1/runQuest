@@ -2,6 +2,7 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/admin.js';
 import { calculateCompleteRunXP } from '@runquest/shared';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 
@@ -392,23 +393,30 @@ async function getLastSyncAttempt() {
   }
 }
 
-// GET /api/strava/sync-all - Sync all connected users (internal endpoint)
-router.get('/sync-all', async (_req, res) => {
+/**
+ * Sync all Strava-connected users. Used by the scheduler and the admin HTTP endpoint.
+ * Exported so the scheduler can call this directly without an HTTP roundtrip.
+ */
+export async function syncAllStravaUsers(): Promise<{
+  success: boolean;
+  message: string;
+  syncedUsers: number;
+  totalUsers: number;
+  totalNewRuns: number;
+  results: Array<{ userId: string; userName: string; newRuns?: number; totalActivities?: number; error?: string }>;
+}> {
   const syncStartTime = new Date().toISOString();
-  
+  const supabase = getSupabaseClient();
+
+  await logSyncAttempt({
+    sync_type: 'strava_automatic',
+    started_at: syncStartTime,
+    status: 'started'
+  });
+
   try {
-    console.log('🔄 Starting automatic Strava sync for all connected users...');
-    
-    const supabase = getSupabaseClient();
-    
-    // Log sync attempt start
-    await logSyncAttempt({
-      sync_type: 'strava_automatic',
-      started_at: syncStartTime,
-      status: 'started'
-    });
-    
-    // Get all users with valid Strava tokens
+    console.log('🔄 Starting Strava sync for all connected users...');
+
     const { data: connectedUsers, error } = await supabase
       .from('strava_tokens')
       .select(`
@@ -419,34 +427,27 @@ router.get('/sync-all', async (_req, res) => {
         users!inner(name)
       `)
       .not('access_token', 'is', null);
-    
+
     if (error) {
-      console.error('❌ Failed to fetch connected users:', error);
-      res.status(500).json({ error: 'Failed to fetch connected users' }); return;
+      throw new Error(`Failed to fetch connected users: ${error.message}`);
     }
-    
+
     if (!connectedUsers || connectedUsers.length === 0) {
       console.log('ℹ️ No users with Strava connections found');
-      res.json({ 
-        success: true, 
-        message: 'No users to sync',
-        syncedUsers: 0,
-        totalNewRuns: 0
-      });
+      return { success: true, message: 'No users to sync', syncedUsers: 0, totalUsers: 0, totalNewRuns: 0, results: [] };
     }
-    
+
     console.log(`🔍 Found ${connectedUsers.length} users with Strava connections`);
-    
+
     let totalSyncedUsers = 0;
     let totalNewRuns = 0;
-    const results: any[] = [];
-    
-    // Sync each user
+    const results: Array<{ userId: string; userName: string; newRuns?: number; totalActivities?: number; error?: string }> = [];
+
     for (const user of connectedUsers) {
       try {
         console.log(`🔄 Syncing user: ${user.users.name}`);
         const result = await syncUserStravaActivities(user.user_id);
-        
+
         if (result.success) {
           totalSyncedUsers++;
           totalNewRuns += result.newRuns || 0;
@@ -459,29 +460,19 @@ router.get('/sync-all', async (_req, res) => {
           console.log(`✅ Synced ${result.newRuns} new runs for ${user.users.name}`);
         } else {
           console.error(`❌ Failed to sync ${user.users.name}:`, result.error);
-          results.push({
-            userId: user.user_id,
-            userName: user.users.name,
-            error: result.error
-          });
+          results.push({ userId: user.user_id, userName: user.users.name, error: result.error });
         }
-        
-        // Add small delay between users to avoid rate limiting
+
+        // Small delay between users to stay within Strava rate limits
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
       } catch (userError) {
         console.error(`❌ Error syncing user ${user.users.name}:`, userError);
-        results.push({
-          userId: user.user_id,
-          userName: user.users.name,
-          error: 'Sync failed'
-        });
+        results.push({ userId: user.user_id, userName: user.users.name, error: 'Sync failed' });
       }
     }
-    
-    console.log(`🎯 Automatic sync completed: ${totalSyncedUsers}/${connectedUsers.length} users synced, ${totalNewRuns} new runs imported`);
-    
-    // Log successful sync completion
+
+    console.log(`🎯 Sync completed: ${totalSyncedUsers}/${connectedUsers.length} users, ${totalNewRuns} new runs`);
+
     const syncEndTime = new Date().toISOString();
     await logSyncAttempt({
       sync_type: 'strava_automatic',
@@ -493,19 +484,17 @@ router.get('/sync-all', async (_req, res) => {
       new_runs: totalNewRuns
     });
 
-    res.json({
+    return {
       success: true,
       message: `Synced ${totalSyncedUsers} users with ${totalNewRuns} new runs`,
       syncedUsers: totalSyncedUsers,
       totalUsers: connectedUsers.length,
       totalNewRuns,
       results
-    });
-    
+    };
+
   } catch (error) {
-    console.error('❌ Automatic Strava sync error:', error);
-    
-    // Log failed sync
+    console.error('❌ Strava sync-all error:', error);
     const syncEndTime = new Date().toISOString();
     await logSyncAttempt({
       sync_type: 'strava_automatic',
@@ -514,8 +503,18 @@ router.get('/sync-all', async (_req, res) => {
       status: 'failed',
       error_message: error instanceof Error ? error.message : 'Unknown error'
     });
-      
-    res.status(500).json({ error: 'Failed to sync Strava activities' }); return;
+    throw error;
+  }
+}
+
+// GET /api/strava/sync-all - Admin-only endpoint to trigger a full sync
+router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    const result = await syncAllStravaUsers();
+    res.json(result);
+  } catch (error) {
+    console.error('❌ API Error in /strava/sync-all:', error);
+    res.status(500).json({ error: 'Failed to sync Strava activities' });
   }
 });
 

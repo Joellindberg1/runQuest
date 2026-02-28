@@ -1,6 +1,7 @@
 import express from 'express';
 import { titleLeaderboardService } from '../services/titleLeaderboardService';
 import { authenticateJWT } from '../middleware/auth';
+import { requireAdmin } from '../middleware/admin';
 
 const router = express.Router();
 
@@ -127,7 +128,7 @@ router.post('/refresh/:titleId', authenticateJWT, async (req, res) => {
  * POST /api/titles/populate
  * Manually populate title leaderboards from user data (admin only)
  */
-router.post('/populate', authenticateJWT, async (_req, res) => {
+router.post('/populate', authenticateJWT, requireAdmin, async (_req, res) => {
   try {
     console.log('🔄 API: Manual title leaderboard population requested...');
     
@@ -152,7 +153,7 @@ router.post('/populate', authenticateJWT, async (_req, res) => {
  * POST /api/titles/refresh
  * Refresh title leaderboards - can be called automatically when data changes
  */
-router.post('/refresh', async (_req, res) => {
+router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
   try {
     console.log('🔄 API: Title leaderboard refresh requested...');
     
