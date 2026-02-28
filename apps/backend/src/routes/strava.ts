@@ -1,4 +1,5 @@
 // 🔗 Strava Integration Routes
+import { logger } from '../utils/logger.js';
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
@@ -11,7 +12,7 @@ const router = express.Router();
 // GET /api/strava/config - Get Strava client ID
 router.get('/config', async (_req, res): Promise<void> => {
   try {
-    console.log('⚙️ Strava config requested');
+    logger.info('⚙️ Strava config requested');
     
     const clientId = process.env.STRAVA_CLIENT_ID;
     if (!clientId) {
@@ -20,7 +21,7 @@ router.get('/config', async (_req, res): Promise<void> => {
     
     res.json({ client_id: clientId }); return;
   } catch (error) {
-    console.error('❌ Strava config error:', error);
+    logger.error('❌ Strava config error:', error);
     res.status(500).json({ error: 'Failed to get Strava config' }); return;
   }
 });
@@ -29,7 +30,7 @@ router.get('/config', async (_req, res): Promise<void> => {
 router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
-    console.log('🔍 Checking Strava status for user:', req.user!.name);
+    logger.info('🔍 Checking Strava status for user:', req.user!.name);
     
     const supabase = getSupabaseClient();
     const { data: tokens, error } = await supabase
@@ -39,7 +40,7 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       .single();
     
     if (error || !tokens) {
-      console.log('❌ No Strava tokens found for user');
+      logger.info('❌ No Strava tokens found for user');
       res.json({ connected: false, expired: false }); return;
     }
     
@@ -48,18 +49,18 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     
     // Om token är expired, försök auto-refresh
     if (expired && tokens.refresh_token) {
-      console.log('🔄 Token expired, attempting auto-refresh...');
+      logger.info('🔄 Token expired, attempting auto-refresh...');
       
       const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
       if (refreshResult.success) {
-        console.log('✅ Token auto-refreshed successfully');
+        logger.info('✅ Token auto-refreshed successfully');
         res.json({
           connected: true,
           expired: false, // No longer expired after refresh
           auto_refreshed: true
         });
       } else {
-        console.log('❌ Auto-refresh failed, connection truly expired');
+        logger.info('❌ Auto-refresh failed, connection truly expired');
         res.json({
           connected: true,
           expired: true,
@@ -77,9 +78,9 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       .limit(1)
       .single();
 
-    console.log('🔍 Last global sync query result:', { lastGlobalStravaRun, syncError });
+    logger.info('🔍 Last global sync query result:', { lastGlobalStravaRun, syncError });
 
-    console.log('✅ Strava status:', { connected: true, expired, expires_at: tokens.expires_at });
+    logger.info('✅ Strava status:', { connected: true, expired, expires_at: tokens.expires_at });
     
     res.json({
       connected: true,
@@ -90,7 +91,7 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     });
     
   } catch (error) {
-    console.error('❌ Strava status error:', error);
+    logger.error('❌ Strava status error:', error);
     res.status(500).json({ error: 'Failed to check Strava status' }); return;
   }
 });
@@ -105,8 +106,8 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Authorization code required' }); return;
     }
     
-    console.log(`🔗 Processing Strava callback for user: ${req.user!.name}`);
-    console.log(`🔑 Auth code: ${code.substring(0, 10)}...`);
+    logger.info(`🔗 Processing Strava callback for user: ${req.user!.name}`);
+    logger.info(`🔑 Auth code: ${code.substring(0, 10)}...`);
     
     // Exchange code for access token
     const clientId = process.env.STRAVA_CLIENT_ID;
@@ -130,11 +131,11 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     const tokenData = await tokenResponse.json();
     
     if (!tokenResponse.ok) {
-      console.error('❌ Strava token exchange failed:', tokenData);
+      logger.error('❌ Strava token exchange failed:', tokenData);
       res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
     }
     
-    console.log('✅ Strava tokens received:', {
+    logger.info('✅ Strava tokens received:', {
       access_token: tokenData.access_token ? `${tokenData.access_token.substring(0, 10)}...` : 'missing',
       expires_at: tokenData.expires_at
     });
@@ -152,11 +153,11 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       });
 
     if (error) {
-      console.error('❌ Failed to save Strava tokens:', error);
+      logger.error('❌ Failed to save Strava tokens:', error);
       res.status(500).json({ error: 'Failed to save Strava connection' }); return;
     }
     
-    console.log('✅ Strava tokens saved successfully');
+    logger.info('✅ Strava tokens saved successfully');
     
     res.json({
       success: true,
@@ -165,7 +166,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     });
     
   } catch (error) {
-    console.error('❌ Strava callback error:', error);
+    logger.error('❌ Strava callback error:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -174,7 +175,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
 router.delete('/disconnect', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
-    console.log(`🔌 Disconnecting Strava for user: ${req.user!.name}`);
+    logger.info(`🔌 Disconnecting Strava for user: ${req.user!.name}`);
     
     const supabase = getSupabaseClient();
     const { error } = await supabase
@@ -183,18 +184,18 @@ router.delete('/disconnect', authenticateJWT, async (req, res): Promise<void> =>
       .eq('user_id', userId);
     
     if (error) {
-      console.error('❌ Failed to delete Strava tokens:', error);
+      logger.error('❌ Failed to delete Strava tokens:', error);
       res.status(500).json({ error: 'Failed to disconnect Strava' }); return;
     }
     
-    console.log('✅ Strava disconnected successfully');
+    logger.info('✅ Strava disconnected successfully');
     res.json({
       success: true,
       message: 'Strava disconnected successfully'
     });
     
   } catch (error) {
-    console.error('❌ Strava disconnect error:', error);
+    logger.error('❌ Strava disconnect error:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -203,7 +204,7 @@ router.delete('/disconnect', authenticateJWT, async (req, res): Promise<void> =>
 router.post('/sync', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user!.user_id;
-    console.log(`🔄 Manual Strava sync requested for user: ${req.user!.name}`);
+    logger.info(`🔄 Manual Strava sync requested for user: ${req.user!.name}`);
     
     const result = await syncUserStravaActivities(userId);
     
@@ -219,7 +220,7 @@ router.post('/sync', authenticateJWT, async (req, res) => {
     }
     
   } catch (error) {
-    console.error('❌ Manual Strava sync error:', error);
+    logger.error('❌ Manual Strava sync error:', error);
     res.status(500).json({ error: 'Failed to sync Strava activities' }); return;
   }
 });
@@ -246,7 +247,7 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     let accessToken = tokens.access_token;
     
     if (tokens.expires_at && tokens.expires_at < now) {
-      console.log('🔄 Access token expired, refreshing...');
+      logger.info('🔄 Access token expired, refreshing...');
       const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
       if (!refreshResult.success) {
         res.status(400).json({ error: 'Failed to refresh Strava token' }); return;
@@ -342,7 +343,7 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     });
     
   } catch (error) {
-    console.error('❌ Debug activities error:', error);
+    logger.error('❌ Debug activities error:', error);
     res.status(500).json({ error: 'Failed to debug activities' }); return;
   }
 });
@@ -377,7 +378,7 @@ async function logSyncAttempt(data: any) {
     
     await fs.writeFile(SYNC_LOG_FILE, JSON.stringify(logs, null, 2));
   } catch (error) {
-    console.error('Failed to log sync attempt:', error);
+    logger.error('Failed to log sync attempt:', error);
   }
 }
 
@@ -413,7 +414,7 @@ export async function syncAllStravaUsers(): Promise<{
   });
 
   try {
-    console.log('🔄 Starting Strava sync for all connected users...');
+    logger.info('🔄 Starting Strava sync for all connected users...');
 
     const { data: connectedUsers, error } = await supabase
       .from('strava_tokens')
@@ -431,11 +432,11 @@ export async function syncAllStravaUsers(): Promise<{
     }
 
     if (!connectedUsers || connectedUsers.length === 0) {
-      console.log('ℹ️ No users with Strava connections found');
+      logger.info('ℹ️ No users with Strava connections found');
       return { success: true, message: 'No users to sync', syncedUsers: 0, totalUsers: 0, totalNewRuns: 0, results: [] };
     }
 
-    console.log(`🔍 Found ${connectedUsers.length} users with Strava connections`);
+    logger.info(`🔍 Found ${connectedUsers.length} users with Strava connections`);
 
     let totalSyncedUsers = 0;
     let totalNewRuns = 0;
@@ -443,7 +444,7 @@ export async function syncAllStravaUsers(): Promise<{
 
     for (const user of connectedUsers) {
       try {
-        console.log(`🔄 Syncing user: ${user.users.name}`);
+        logger.info(`🔄 Syncing user: ${user.users.name}`);
         const result = await syncUserStravaActivities(user.user_id);
 
         if (result.success) {
@@ -455,21 +456,21 @@ export async function syncAllStravaUsers(): Promise<{
             newRuns: result.newRuns,
             totalActivities: result.totalActivities
           });
-          console.log(`✅ Synced ${result.newRuns} new runs for ${user.users.name}`);
+          logger.info(`✅ Synced ${result.newRuns} new runs for ${user.users.name}`);
         } else {
-          console.error(`❌ Failed to sync ${user.users.name}:`, result.error);
+          logger.error(`❌ Failed to sync ${user.users.name}:`, result.error);
           results.push({ userId: user.user_id, userName: user.users.name, error: result.error });
         }
 
         // Small delay between users to stay within Strava rate limits
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (userError) {
-        console.error(`❌ Error syncing user ${user.users.name}:`, userError);
+        logger.error(`❌ Error syncing user ${user.users.name}:`, userError);
         results.push({ userId: user.user_id, userName: user.users.name, error: 'Sync failed' });
       }
     }
 
-    console.log(`🎯 Sync completed: ${totalSyncedUsers}/${connectedUsers.length} users, ${totalNewRuns} new runs`);
+    logger.info(`🎯 Sync completed: ${totalSyncedUsers}/${connectedUsers.length} users, ${totalNewRuns} new runs`);
 
     const syncEndTime = new Date().toISOString();
     await logSyncAttempt({
@@ -492,7 +493,7 @@ export async function syncAllStravaUsers(): Promise<{
     };
 
   } catch (error) {
-    console.error('❌ Strava sync-all error:', error);
+    logger.error('❌ Strava sync-all error:', error);
     const syncEndTime = new Date().toISOString();
     await logSyncAttempt({
       sync_type: 'strava_automatic',
@@ -511,7 +512,7 @@ router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promis
     const result = await syncAllStravaUsers();
     res.json(result);
   } catch (error) {
-    console.error('❌ API Error in /strava/sync-all:', error);
+    logger.error('❌ API Error in /strava/sync-all:', error);
     res.status(500).json({ error: 'Failed to sync Strava activities' });
   }
 });
@@ -543,7 +544,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
     let accessToken = tokens.access_token;
     
     if (tokens.expires_at && tokens.expires_at < now) {
-      console.log('🔄 Access token expired, refreshing...');
+      logger.info('🔄 Access token expired, refreshing...');
       
       const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
       if (!refreshResult.success) {
@@ -564,10 +565,10 @@ async function syncUserStravaActivities(userId: string): Promise<{
       return { success: false, error: 'Failed to fetch existing runs' };
     }
     
-    console.log(`💾 Found ${existingRuns?.length || 0} existing Strava runs in database`);
+    logger.info(`💾 Found ${existingRuns?.length || 0} existing Strava runs in database`);
     if (existingRuns && existingRuns.length > 0) {
       existingRuns.forEach((run: any) => {
-        console.log(`  - External ID: ${run.external_id}, Date: ${run.date}, Distance: ${run.distance}km`);
+        logger.info(`  - External ID: ${run.external_id}, Date: ${run.date}, Distance: ${run.distance}km`);
       });
     }
     
@@ -587,24 +588,24 @@ async function syncUserStravaActivities(userId: string): Promise<{
       sevenDaysBeforeMostRecent.setHours(0, 0, 0, 0);
       after = Math.floor(sevenDaysBeforeMostRecent.getTime() / 1000);
       
-      console.log(`📅 Most recent imported run: ${mostRecentRunDate.toISOString().split('T')[0]}`);
-      console.log(`📅 Fetching activities from 7 days before that: ${sevenDaysBeforeMostRecent.toISOString().split('T')[0]}`);
+      logger.info(`📅 Most recent imported run: ${mostRecentRunDate.toISOString().split('T')[0]}`);
+      logger.info(`📅 Fetching activities from 7 days before that: ${sevenDaysBeforeMostRecent.toISOString().split('T')[0]}`);
     } else if (tokens.connection_date) {
       // No existing runs, use connection date
       const connectionDate = new Date(tokens.connection_date);
       connectionDate.setHours(0, 0, 0, 0);
       after = Math.floor(connectionDate.getTime() / 1000);
-      console.log(`📅 No existing runs, using connection date: ${connectionDate.toISOString().split('T')[0]}`);
+      logger.info(`📅 No existing runs, using connection date: ${connectionDate.toISOString().split('T')[0]}`);
     } else {
       // Fallback to 30 days ago
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
       after = Math.floor(thirtyDaysAgo.getTime() / 1000);
-      console.log(`⚠️ No connection date, falling back to 30 days ago: ${thirtyDaysAgo.toISOString().split('T')[0]}`);
+      logger.info(`⚠️ No connection date, falling back to 30 days ago: ${thirtyDaysAgo.toISOString().split('T')[0]}`);
     }
     
-    console.log(`📅 Final 'after' timestamp: ${new Date(after * 1000).toISOString()}`);
+    logger.info(`📅 Final 'after' timestamp: ${new Date(after * 1000).toISOString()}`);
     
     // Increase per_page to 200 (Strava API max) to catch more activities
     const stravaResponse = await fetch(
@@ -619,20 +620,20 @@ async function syncUserStravaActivities(userId: string): Promise<{
     
     if (!stravaResponse.ok) {
       const errorData = await stravaResponse.json();
-      console.error('❌ Strava API error:', errorData);
+      logger.error('❌ Strava API error:', errorData);
       return { success: false, error: 'Failed to fetch Strava activities' };
     }
     
     const activities = await stravaResponse.json();
-    console.log(`📊 Fetched ${activities.length} activities from Strava`);
+    logger.info(`📊 Fetched ${activities.length} activities from Strava`);
     
     // Log all activities for debugging
     if (activities.length > 0) {
-      console.log('🔍 All activities found:');
+      logger.info('🔍 All activities found:');
       activities.forEach((activity: any, index: number) => {
         const distance = (activity.distance / 1000).toFixed(2);
         const date = activity.start_date_local.split('T')[0];
-        console.log(`  ${index + 1}. ${date}: ${distance}km, Type: ${activity.type}, ID: ${activity.id}`);
+        logger.info(`  ${index + 1}. ${date}: ${distance}km, Type: ${activity.type}, ID: ${activity.id}`);
       });
     }
     
@@ -642,8 +643,8 @@ async function syncUserStravaActivities(userId: string): Promise<{
       !existingIds.has(activity.id.toString())
     );
     
-    console.log(`🏃‍♂️ Found ${runningActivities.length} new running activities`);
-    console.log(`🚫 Existing activity IDs in database: [${Array.from(existingIds).join(', ')}]`);
+    logger.info(`🏃‍♂️ Found ${runningActivities.length} new running activities`);
+    logger.info(`🚫 Existing activity IDs in database: [${Array.from(existingIds).join(', ')}]`);
     
     if (runningActivities.length === 0) {
       return { 
@@ -655,7 +656,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
     }
     
     // Insert all new runs in parallel (placeholder XP — reprocessRunsFromDate will recalculate)
-    console.log(`🔄 Inserting ${runningActivities.length} new runs in parallel...`);
+    logger.info(`🔄 Inserting ${runningActivities.length} new runs in parallel...`);
 
     const validActivities = runningActivities.filter((a: any) => a.distance / 1000 > 0);
 
@@ -684,10 +685,10 @@ async function syncUserStravaActivities(userId: string): Promise<{
     const importedRuns = insertResults.filter(r => r.status === 'fulfilled').length;
     const failedCount = insertResults.filter(r => r.status === 'rejected').length;
     if (failedCount > 0) {
-      console.error(`❌ ${failedCount} runs failed to insert`);
+      logger.error(`❌ ${failedCount} runs failed to insert`);
     }
 
-    console.log(`✅ Inserted ${importedRuns} new runs`);
+    logger.info(`✅ Inserted ${importedRuns} new runs`);
 
     if (importedRuns > 0) {
       // Reprocess from earliest new run date — one pass fixes streaks + XP for all affected runs
@@ -695,7 +696,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
         .map((a: any) => a.start_date_local.split('T')[0])
         .sort();
       const earliestDate = dates[0];
-      console.log(`🔄 Reprocessing from ${earliestDate} to recalculate streaks and XP...`);
+      logger.info(`🔄 Reprocessing from ${earliestDate} to recalculate streaks and XP...`);
       await reprocessRunsFromDate(userId, earliestDate);
       await calculateUserTotals(userId);
     }
@@ -708,7 +709,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
     };
 
   } catch (error) {
-    console.error('❌ Error syncing Strava activities:', error);
+    logger.error('❌ Error syncing Strava activities:', error);
     return { success: false, error: 'Failed to sync activities' };
   }
 }
@@ -741,7 +742,7 @@ async function refreshStravaToken(refreshToken: string, userId: string): Promise
     const tokenData = await response.json();
     
     if (!response.ok) {
-      console.error('❌ Token refresh failed:', tokenData);
+      logger.error('❌ Token refresh failed:', tokenData);
       return { success: false, error: 'Failed to refresh token' };
     }
     
@@ -757,18 +758,18 @@ async function refreshStravaToken(refreshToken: string, userId: string): Promise
       .eq('user_id', userId);
     
     if (error) {
-      console.error('❌ Failed to update refreshed tokens:', error);
+      logger.error('❌ Failed to update refreshed tokens:', error);
       return { success: false, error: 'Failed to save new tokens' };
     }
     
-    console.log('✅ Strava token refreshed successfully');
+    logger.info('✅ Strava token refreshed successfully');
     return { 
       success: true, 
       access_token: tokenData.access_token 
     };
     
   } catch (error) {
-    console.error('❌ Token refresh error:', error);
+    logger.error('❌ Token refresh error:', error);
     return { success: false, error: 'Token refresh failed' };
   }
 }
@@ -808,7 +809,7 @@ router.get('/last-sync', async (_req, res): Promise<void> => {
     });
     
   } catch (error) {
-    console.error('❌ Failed to get last sync info:', error);
+    logger.error('❌ Failed to get last sync info:', error);
     res.status(500).json({ error: 'Failed to get sync info' }); return;
   }
 });

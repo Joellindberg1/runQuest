@@ -1,4 +1,5 @@
 import { supabase } from '../config/database';
+import { logger } from '../utils/logger.js';
 
 // Type definitions for leaderboard data
 interface LeaderboardRow {
@@ -43,14 +44,14 @@ export class TitleLeaderboardService {
    */
   async triggerTitleRecalculation(): Promise<void> {
     try {
-      console.log('🔄 Triggering title leaderboard recalculation...');
+      logger.info('🔄 Triggering title leaderboard recalculation...');
       
       // Call database function directly to avoid circular reference
       await this.refreshAllTitleLeaderboards();
       
-      console.log('✅ Title recalculation completed successfully');
+      logger.info('✅ Title recalculation completed successfully');
     } catch (error) {
-      console.error('❌ Error triggering title recalculation:', error);
+      logger.error('❌ Error triggering title recalculation:', error);
       throw new Error(`Failed to recalculate titles: ${error}`);
     }
   }
@@ -61,7 +62,7 @@ export class TitleLeaderboardService {
    */
   async getTitleLeaderboard(): Promise<any[]> {
     try {
-      console.log('🏆 Fetching optimized title leaderboard...');
+      logger.info('🏆 Fetching optimized title leaderboard...');
       
       const { data, error } = await supabase.client
         .from('title_leaderboard_view')
@@ -70,12 +71,12 @@ export class TitleLeaderboardService {
         .order('position');
 
       if (error) {
-        console.error('❌ Error fetching title leaderboard:', error);
+        logger.error('❌ Error fetching title leaderboard:', error);
         throw error;
       }
 
-      console.log('🔍 Raw title_leaderboard_view data:', data);
-      console.log('📊 Found', data?.length || 0, 'rows in title_leaderboard_view');
+      logger.info('🔍 Raw title_leaderboard_view data:', data);
+      logger.info('📊 Found', data?.length || 0, 'rows in title_leaderboard_view');
 
       // Group by title for easier frontend consumption
       const titleGroups: Record<string, any> = {};
@@ -113,12 +114,12 @@ export class TitleLeaderboardService {
       }
 
       const result = Object.values(titleGroups);
-      console.log(`✅ Loaded ${result.length} titles with optimized query`);
+      logger.info(`✅ Loaded ${result.length} titles with optimized query`);
       
       return result;
       
     } catch (error) {
-      console.error('❌ Error in getTitleLeaderboard:', error);
+      logger.error('❌ Error in getTitleLeaderboard:', error);
       throw error;
     }
   }
@@ -128,7 +129,7 @@ export class TitleLeaderboardService {
    */
   async getUserTitles(userId: string): Promise<any[]> {
     try {
-      console.log(`🏆 Fetching titles for user: ${userId}`);
+      logger.info(`🏆 Fetching titles for user: ${userId}`);
       
       // First try to get from leaderboard view (top 10 positions)
       const { data: leaderboardData, error: leaderboardError } = await supabase.client
@@ -138,7 +139,7 @@ export class TitleLeaderboardService {
         .order('position');
 
       if (leaderboardError) {
-        console.error('❌ Error fetching user titles from leaderboard:', leaderboardError);
+        logger.error('❌ Error fetching user titles from leaderboard:', leaderboardError);
       }
 
       // Also get ALL user titles (including those not in top 10)
@@ -156,7 +157,7 @@ export class TitleLeaderboardService {
         .eq('user_id', userId);
 
       if (allTitlesError) {
-        console.error('❌ Error fetching all user titles:', allTitlesError);
+        logger.error('❌ Error fetching all user titles:', allTitlesError);
       }
 
       // Combine and deduplicate
@@ -187,11 +188,11 @@ export class TitleLeaderboardService {
         }));
 
       const allTitles = [...leaderboardTitles, ...additionalTitles];
-      console.log(`✅ Found ${allTitles.length} titles for user ${userId} (${leaderboardTitles.length} in leaderboard, ${additionalTitles.length} additional)`);
+      logger.info(`✅ Found ${allTitles.length} titles for user ${userId} (${leaderboardTitles.length} in leaderboard, ${additionalTitles.length} additional)`);
       return allTitles;
       
     } catch (error) {
-      console.error('❌ Error in getUserTitles:', error);
+      logger.error('❌ Error in getUserTitles:', error);
       throw error;
     }
   }
@@ -202,19 +203,19 @@ export class TitleLeaderboardService {
    */
   async refreshAllTitleLeaderboards(): Promise<void> {
     try {
-      console.log('🔄 Refreshing all title leaderboards...');
+      logger.info('🔄 Refreshing all title leaderboards...');
       
       const { error } = await supabase.client.rpc('update_all_title_leaderboards');
       
       if (error) {
-        console.error('❌ Error refreshing title leaderboards:', error);
+        logger.error('❌ Error refreshing title leaderboards:', error);
         throw error;
       }
       
-      console.log('✅ All title leaderboards refreshed');
+      logger.info('✅ All title leaderboards refreshed');
       
     } catch (error) {
-      console.error('❌ Error in refreshAllTitleLeaderboards:', error);
+      logger.error('❌ Error in refreshAllTitleLeaderboards:', error);
       throw error;
     }
   }
@@ -224,21 +225,21 @@ export class TitleLeaderboardService {
    */
   async refreshTitleLeaderboard(titleId: string): Promise<void> {
     try {
-      console.log(`🔄 Refreshing leaderboard for title: ${titleId}`);
+      logger.info(`🔄 Refreshing leaderboard for title: ${titleId}`);
       
       const { error } = await supabase.client.rpc('update_title_leaderboard', { 
         p_title_id: titleId 
       });
       
       if (error) {
-        console.error('❌ Error refreshing title leaderboard:', error);
+        logger.error('❌ Error refreshing title leaderboard:', error);
         throw error;
       }
       
-      console.log(`✅ Leaderboard refreshed for title ${titleId}`);
+      logger.info(`✅ Leaderboard refreshed for title ${titleId}`);
       
     } catch (error) {
-      console.error('❌ Error in refreshTitleLeaderboard:', error);
+      logger.error('❌ Error in refreshTitleLeaderboard:', error);
       throw error;
     }
   }
@@ -249,7 +250,7 @@ export class TitleLeaderboardService {
    */
   async getAllTitles(): Promise<any[]> {
     try {
-      console.log('🏆 Fetching all titles...');
+      logger.info('🏆 Fetching all titles...');
       
       const { data, error } = await supabase.client
         .from('titles')
@@ -257,15 +258,15 @@ export class TitleLeaderboardService {
         .order('name');
 
       if (error) {
-        console.error('❌ Error fetching all titles:', error);
+        logger.error('❌ Error fetching all titles:', error);
         throw error;
       }
 
-      console.log(`✅ Fetched ${data?.length || 0} titles`);
+      logger.info(`✅ Fetched ${data?.length || 0} titles`);
       return data || [];
       
     } catch (error) {
-      console.error('❌ Error in getAllTitles:', error);
+      logger.error('❌ Error in getAllTitles:', error);
       throw error;
     }
   }
@@ -276,17 +277,17 @@ export class TitleLeaderboardService {
    */
   async populateTitleLeaderboard(): Promise<void> {
     try {
-      console.log('🔄 Populating title leaderboard using trigger system...');
+      logger.info('🔄 Populating title leaderboard using trigger system...');
       
       // Use the robust trigger system instead of clearing and repopulating
-      console.log('� Calling triggerTitleRecalculation() instead of clearing table...');
+      logger.info('� Calling triggerTitleRecalculation() instead of clearing table...');
       await this.refreshAllTitleLeaderboards();
       
-      console.log('✅ Title leaderboard populated using trigger system');
+      logger.info('✅ Title leaderboard populated using trigger system');
       return;
       
     } catch (error) {
-      console.error('❌ Error in populateTitleLeaderboard:', error);
+      logger.error('❌ Error in populateTitleLeaderboard:', error);
       throw error;
     }
   }

@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../config/database.js';
+import { logger } from '../utils/logger.js';
 
 interface LevelRequirement {
   level: number;
@@ -20,7 +21,7 @@ class LevelService {
         .order('level', { ascending: true });
 
       if (error) {
-        console.error('Error fetching level requirements:', error);
+        logger.error('Error fetching level requirements:', error);
         // Fallback to hardcoded values if database fails
         this.setFallbackLevels();
         return;
@@ -28,9 +29,9 @@ class LevelService {
 
       this.levelRequirements = data || [];
       this.initialized = true;
-      console.log(`✅ Level service initialized with ${this.levelRequirements.length} levels`);
+      logger.info(`✅ Level service initialized with ${this.levelRequirements.length} levels`);
     } catch (error) {
-      console.error('Error initializing level service:', error);
+      logger.error('Error initializing level service:', error);
       this.setFallbackLevels();
     }
   }
@@ -49,7 +50,7 @@ class LevelService {
     }));
     
     this.initialized = true;
-    console.log('⚠️ Level service using fallback values');
+    logger.info('⚠️ Level service using fallback values');
   }
 
   async getLevelFromXP(totalXP: number): Promise<number> {

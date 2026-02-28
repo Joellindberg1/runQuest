@@ -1,4 +1,5 @@
 // 🏃 Run Management Routes
+import { logger } from '../utils/logger.js';
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
@@ -16,7 +17,7 @@ async function fetchAdminSettings(): Promise<{ xpSettings: AdminSettings; multip
     .single();
 
   if (error || !data) {
-    console.warn('⚠️ Could not fetch admin settings, using defaults');
+    logger.warn('⚠️ Could not fetch admin settings, using defaults');
     return {
       xpSettings: { base_xp: 15, xp_per_km: 2, bonus_5km: 5, bonus_10km: 15, bonus_15km: 25, bonus_20km: 50, min_run_distance: 1.0 },
       multipliers: [
@@ -46,7 +47,7 @@ async function fetchAdminSettings(): Promise<{ xpSettings: AdminSettings; multip
  * The streak context from the run immediately before fromDate is preserved.
  */
 export async function reprocessRunsFromDate(userId: string, fromDate: string): Promise<void> {
-  console.log(`🔄 Reprocessing runs from ${fromDate} for user ${userId}...`);
+  logger.info(`🔄 Reprocessing runs from ${fromDate} for user ${userId}...`);
   const supabase = getSupabaseClient();
 
   // Fetch settings once — no per-run DB calls
@@ -74,11 +75,11 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     .order('date', { ascending: true });
 
   if (error || !runs?.length) {
-    if (error) console.error('❌ Error fetching runs to reprocess:', error);
+    if (error) logger.error('❌ Error fetching runs to reprocess:', error);
     return;
   }
 
-  console.log(`📊 Reprocessing ${runs.length} affected runs (of user's total)`);
+  logger.info(`📊 Reprocessing ${runs.length} affected runs (of user's total)`);
 
   // Calculate all updates in memory — zero DB calls per run
   const updates = runs.map(run => {
@@ -124,13 +125,13 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     )
   );
 
-  console.log(`✅ Reprocessed ${runs.length} runs successfully`);
+  logger.info(`✅ Reprocessed ${runs.length} runs successfully`);
 }
 
 // GET /api/runs/group-history - Get all runs with user info for group history
 router.get('/group-history', authenticateJWT, async (_req, res): Promise<void> => {
   try {
-    console.log('📊 Fetching group run history');
+    logger.info('📊 Fetching group run history');
 
     const supabase = getSupabaseClient();
 
@@ -144,11 +145,11 @@ router.get('/group-history', authenticateJWT, async (_req, res): Promise<void> =
       .limit(100);
 
     if (runsError) {
-      console.error('❌ Error fetching group runs:', runsError);
+      logger.error('❌ Error fetching group runs:', runsError);
       res.status(500).json({ error: 'Failed to fetch group run history' }); return;
     }
 
-    console.log(`✅ Fetched ${runsData?.length || 0} runs for group history`);
+    logger.info(`✅ Fetched ${runsData?.length || 0} runs for group history`);
 
     const runs = runsData?.map((run: any) => ({
       id: run.id,
@@ -171,7 +172,7 @@ router.get('/group-history', authenticateJWT, async (_req, res): Promise<void> =
 
     res.json({ runs });
   } catch (error) {
-    console.error('❌ Error in group history endpoint:', error);
+    logger.error('❌ Error in group history endpoint:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -182,7 +183,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     const { date, distance, source = 'manual' } = req.body;
     const userId = req.user!.user_id;
 
-    console.log('📝 Create run request:', { userId, date, distance, source });
+    logger.info('📝 Create run request:', { userId, date, distance, source });
 
     if (!date || !distance) {
       res.status(400).json({ error: 'Date and distance are required' }); return;
@@ -207,7 +208,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Cannot log runs for future dates' }); return;
     }
 
-    console.log(`✅ Creating run for user ${userId}: ${distanceNum}km on ${date}`);
+    logger.info(`✅ Creating run for user ${userId}: ${distanceNum}km on ${date}`);
 
     const supabase = getSupabaseClient();
 
@@ -231,11 +232,11 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (insertError) {
-      console.error('❌ Error inserting run:', insertError);
+      logger.error('❌ Error inserting run:', insertError);
       res.status(500).json({ error: 'Failed to create run' }); return;
     }
 
-    console.log(`✅ Run created, reprocessing from ${date}...`);
+    logger.info(`✅ Run created, reprocessing from ${date}...`);
 
     // Only reprocess from this run's date — earlier runs are unaffected
     await reprocessRunsFromDate(userId, date);
@@ -251,10 +252,10 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (fetchError) {
-      console.warn('⚠️ Could not fetch processed run:', fetchError);
+      logger.warn('⚠️ Could not fetch processed run:', fetchError);
     }
 
-    console.log(`✅ Run created successfully with ${processedRun?.xp_gained || 0} XP`)
+    logger.info(`✅ Run created successfully with ${processedRun?.xp_gained || 0} XP`)
 
     res.json({
       success: true,
@@ -263,7 +264,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    console.error('❌ Error creating run:', error);
+    logger.error('❌ Error creating run:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -275,7 +276,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     const { distance, date } = req.body;
     const userId = req.user!.user_id;
 
-    console.log('📝 Update request:', { id, distance, date, userId });
+    logger.info('📝 Update request:', { id, distance, date, userId });
 
     if (!distance) {
       res.status(400).json({ error: 'Distance is required' }); return;
@@ -286,7 +287,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Invalid distance' }); return;
     }
 
-    console.log(`🔄 Updating run ${id} for user ${userId}`);
+    logger.info(`🔄 Updating run ${id} for user ${userId}`);
 
     const supabase = getSupabaseClient();
 
@@ -321,27 +322,27 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .eq('id', id);
 
     if (updateError) {
-      console.error('❌ Error updating run:', updateError);
+      logger.error('❌ Error updating run:', updateError);
       res.status(500).json({ error: 'Failed to update run' }); return;
     }
 
     if (dateChanged) {
       // Date changed — reprocess from the earlier of old and new date
       const fromDate = existingRun.date < date ? existingRun.date : date;
-      console.log(`🔄 Date changed (${existingRun.date} → ${date}), reprocessing from ${fromDate}`);
+      logger.info(`🔄 Date changed (${existingRun.date} → ${date}), reprocessing from ${fromDate}`);
       await reprocessRunsFromDate(userId, fromDate);
     } else if (distanceChanged) {
       // Only distance changed — reprocess just this run's date (streak order unchanged)
-      console.log(`⚡ Distance changed, reprocessing from ${existingRun.date}`);
+      logger.info(`⚡ Distance changed, reprocessing from ${existingRun.date}`);
       await reprocessRunsFromDate(userId, existingRun.date);
     }
 
     // Recalculate user totals (always needed)
     await calculateUserTotals(userId);
 
-    console.log('\n' + '='.repeat(80));
-    console.log('✅ BACKEND: UPDATE COMPLETE');
-    console.log('='.repeat(80) + '\n');
+    logger.info('\n' + '='.repeat(80));
+    logger.info('✅ BACKEND: UPDATE COMPLETE');
+    logger.info('='.repeat(80) + '\n');
 
     // Fetch the updated run to return
     const { data: updatedRun, error: fetchUpdatedError } = await supabase
@@ -351,10 +352,10 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (fetchUpdatedError) {
-      console.warn('⚠️ Could not fetch updated run:', fetchUpdatedError);
+      logger.warn('⚠️ Could not fetch updated run:', fetchUpdatedError);
     }
 
-    console.log(`✅ Run ${id} updated and all runs reprocessed successfully`);
+    logger.info(`✅ Run ${id} updated and all runs reprocessed successfully`);
 
     res.json({
       success: true,
@@ -363,7 +364,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    console.error('❌ Error updating run:', error);
+    logger.error('❌ Error updating run:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -374,7 +375,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     const { id } = req.params;
     const userId = req.user!.user_id;
 
-    console.log(`🗑️ Deleting run ${id} for user ${userId}`);
+    logger.info(`🗑️ Deleting run ${id} for user ${userId}`);
 
     const supabase = getSupabaseClient();
 
@@ -402,11 +403,11 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .eq('id', id);
 
     if (deleteError) {
-      console.error('❌ Error deleting run:', deleteError);
+      logger.error('❌ Error deleting run:', deleteError);
       res.status(500).json({ error: 'Failed to delete run' }); return;
     }
 
-    console.log(`✅ Run deleted, reprocessing from ${deletedDate}...`);
+    logger.info(`✅ Run deleted, reprocessing from ${deletedDate}...`);
 
     // Reprocess only runs from the deleted run's date onwards
     await reprocessRunsFromDate(userId, deletedDate);
@@ -414,7 +415,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Recalculate user totals after deletion
     await calculateUserTotals(userId);
 
-    console.log(`✅ Run ${id} deleted and all runs reprocessed successfully`);
+    logger.info(`✅ Run ${id} deleted and all runs reprocessed successfully`);
 
     res.json({
       success: true,
@@ -422,7 +423,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    console.error('❌ Error deleting run:', error);
+    logger.error('❌ Error deleting run:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });

@@ -1,4 +1,5 @@
 // 🛡️ Backend Error Type Guards and Utilities
+import { logger } from './logger.js';
 // Provides consistent error handling and type safety for backend operations
 
 /**
@@ -62,7 +63,7 @@ export function handleBackendError(error: unknown, context: string): {
   message: string;
   code?: string;
 } {
-  console.error(`❌ Backend error in ${context}:`, error);
+  logger.error(`❌ Backend error in ${context}:`, error);
   
   if (isSupabaseError(error)) {
     // Map common Supabase errors to HTTP status codes
@@ -125,12 +126,12 @@ export function logBackendError(context: string, error: unknown, requestInfo?: {
   userId?: string;
 }): void {
   console.group(`❌ Backend Error in ${context}`);
-  console.error('Error:', error);
+  logger.error('Error:', error);
   if (requestInfo) {
     console.table(requestInfo);
   }
   if (isError(error)) {
-    console.error('Stack:', error.stack);
+    logger.error('Stack:', error.stack);
   }
   console.groupEnd();
 }

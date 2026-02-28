@@ -1,4 +1,5 @@
 // 🔐 Authentication Routes
+import { logger } from '../utils/logger.js';
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -11,16 +12,16 @@ const router = express.Router();
 // POST /api/auth/login
 router.post('/login', async (req, res): Promise<void> => {
   try {
-    console.log('🔐 Login attempt received');
+    logger.info('🔐 Login attempt received');
     const { name, email, password } = req.body;
     const nameOrEmail = name || email;
 
     if (!nameOrEmail || !password) {
-      console.log('❌ Missing name/email or password');
+      logger.info('❌ Missing name/email or password');
       res.status(400).json({ error: 'Name/email and password required' }); return;
     }
 
-    console.log(`🔍 Looking up user: ${nameOrEmail}`);
+    logger.info(`🔍 Looking up user: ${nameOrEmail}`);
     
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
@@ -35,27 +36,27 @@ router.post('/login', async (req, res): Promise<void> => {
     const user = users?.[0] ?? null;
 
     if (error || !user) {
-      console.log('❌ User not found or database error:', error?.message);
+      logger.info('❌ User not found or database error:', error?.message);
       res.status(401).json({ error: 'Invalid credentials' }); return;
     }
 
-    console.log(`🔑 User found, verifying password for: ${user.name}`);
+    logger.info(`🔑 User found, verifying password for: ${user.name}`);
 
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
-      console.log('❌ Password mismatch');
+      logger.info('❌ Password mismatch');
       res.status(401).json({ error: 'Invalid credentials' }); return;
     }
 
-    console.log('✅ Password verified, creating JWT token');
+    logger.info('✅ Password verified, creating JWT token');
 
     // Create JWT token with proper typing
     const jwtSecret = process.env.JWT_SECRET;
     const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
     
     if (!jwtSecret) {
-      console.error('❌ JWT_SECRET not configured');
+      logger.error('❌ JWT_SECRET not configured');
       res.status(500).json({ error: 'Server configuration error' }); return;
     }
 
@@ -72,7 +73,7 @@ router.post('/login', async (req, res): Promise<void> => {
       } as jwt.SignOptions
     );
 
-    console.log(`🎉 Login successful for user: ${user.name} (Admin: ${user.is_admin})`);
+    logger.info(`🎉 Login successful for user: ${user.name} (Admin: ${user.is_admin})`);
 
     // Return token and user info
     res.json({
@@ -87,35 +88,35 @@ router.post('/login', async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    console.error('❌ Login error:', error);
+    logger.error('❌ Login error:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 
 // POST /api/auth/refresh (placeholder for now)
 router.post('/refresh', async (_req, res) => {
-  console.log('🔄 Token refresh requested (not implemented yet)');
+  logger.info('🔄 Token refresh requested (not implemented yet)');
   res.json({ message: 'Token refresh - to be implemented' });
 });
 
 // POST /api/auth/change-password
 router.post('/change-password', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    console.log('🔐 Password change attempt received');
+    logger.info('🔐 Password change attempt received');
     const { currentPassword, newPassword } = req.body;
     const userId = (req as any).user.user_id;
 
     if (!currentPassword || !newPassword) {
-      console.log('❌ Missing current or new password');
+      logger.info('❌ Missing current or new password');
       res.status(400).json({ error: 'Current password and new password required' }); return;
     }
 
     if (newPassword.length < 6) {
-      console.log('❌ New password too short');
+      logger.info('❌ New password too short');
       res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
     }
 
-    console.log(`🔍 Looking up user for password change: ${userId}`);
+    logger.info(`🔍 Looking up user for password change: ${userId}`);
     
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
@@ -127,20 +128,20 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
       .single();
 
     if (error || !user) {
-      console.log('❌ User not found or database error:', error?.message);
+      logger.info('❌ User not found or database error:', error?.message);
       res.status(404).json({ error: 'User not found' }); return;
     }
 
-    console.log(`🔑 User found, verifying current password for: ${user.name}`);
+    logger.info(`🔑 User found, verifying current password for: ${user.name}`);
 
     // Verify current password
     const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
     if (!passwordMatch) {
-      console.log('❌ Current password is incorrect');
+      logger.info('❌ Current password is incorrect');
       res.status(401).json({ error: 'Current password is incorrect' }); return;
     }
 
-    console.log('✅ Current password verified, hashing new password');
+    logger.info('✅ Current password verified, hashing new password');
 
     // Hash new password
     const saltRounds = 10;
@@ -153,11 +154,11 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
       .eq('id', userId);
 
     if (updateError) {
-      console.log('❌ Error updating password:', updateError.message);
+      logger.info('❌ Error updating password:', updateError.message);
       res.status(500).json({ error: 'Failed to update password' }); return;
     }
 
-    console.log(`🎉 Password successfully changed for user: ${user.name}`);
+    logger.info(`🎉 Password successfully changed for user: ${user.name}`);
 
     res.json({
       success: true,
@@ -165,7 +166,7 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     });
 
   } catch (error) {
-    console.error('❌ Password change error:', error);
+    logger.error('❌ Password change error:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -173,8 +174,8 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
 // GET /api/auth/users - Admin only: Get all users
 router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
-    console.log('👥 Admin request to fetch all users');
-    console.log('🔑 Request user info:', (req as any).user);
+    logger.info('👥 Admin request to fetch all users');
+    logger.info('🔑 Request user info:', (req as any).user);
     
     const supabase = getSupabaseClient();
     
@@ -184,11 +185,11 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.log('❌ Error fetching users:', error.message);
+      logger.info('❌ Error fetching users:', error.message);
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
-    console.log(`✅ Successfully fetched ${users?.length || 0} users`);
+    logger.info(`✅ Successfully fetched ${users?.length || 0} users`);
 
     res.json({
       success: true,
@@ -196,7 +197,7 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
     });
 
   } catch (error) {
-    console.error('❌ Error fetching users:', error);
+    logger.error('❌ Error fetching users:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -204,20 +205,20 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
 // POST /api/auth/users - Admin only: Create new user
 router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
-    console.log('👤 Admin request to create new user');
+    logger.info('👤 Admin request to create new user');
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-      console.log('❌ Missing required fields');
+      logger.info('❌ Missing required fields');
       res.status(400).json({ error: 'Name, email, and password are required' }); return;
     }
 
     if (password.length < 6) {
-      console.log('❌ Password too short');
+      logger.info('❌ Password too short');
       res.status(400).json({ error: 'Password must be at least 6 characters long' }); return;
     }
 
-    console.log(`🔍 Creating user: ${name} (${email})`);
+    logger.info(`🔍 Creating user: ${name} (${email})`);
     
     const supabase = getSupabaseClient();
     
@@ -229,7 +230,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       .single();
 
     if (existingUser) {
-      console.log('❌ User already exists');
+      logger.info('❌ User already exists');
       res.status(409).json({ error: 'User with this name or email already exists' }); return;
     }
 
@@ -255,11 +256,11 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       .single();
 
     if (error) {
-      console.log('❌ Error creating user:', error.message);
+      logger.info('❌ Error creating user:', error.message);
       res.status(500).json({ error: 'Failed to create user' }); return;
     }
 
-    console.log(`🎉 Successfully created user: ${newUser.name}`);
+    logger.info(`🎉 Successfully created user: ${newUser.name}`);
 
     res.json({
       success: true,
@@ -267,7 +268,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     });
 
   } catch (error) {
-    console.error('❌ Error creating user:', error);
+    logger.error('❌ Error creating user:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -275,21 +276,21 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 // PUT /api/auth/users/:id/password - Admin only: Reset user password
 router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
-    console.log('🔐 Admin request to reset user password');
+    logger.info('🔐 Admin request to reset user password');
     const { id } = req.params;
     const { newPassword } = req.body;
 
     if (!newPassword) {
-      console.log('❌ Missing new password');
+      logger.info('❌ Missing new password');
       res.status(400).json({ error: 'New password is required' }); return;
     }
 
     if (newPassword.length < 6) {
-      console.log('❌ New password too short');
+      logger.info('❌ New password too short');
       res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
     }
 
-    console.log(`🔍 Resetting password for user ID: ${id}`);
+    logger.info(`🔍 Resetting password for user ID: ${id}`);
     
     const supabase = getSupabaseClient();
     
@@ -301,11 +302,11 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       .single();
 
     if (findError || !user) {
-      console.log('❌ User not found:', findError?.message);
+      logger.info('❌ User not found:', findError?.message);
       res.status(404).json({ error: 'User not found' }); return;
     }
 
-    console.log(`✅ User found: ${user.name}, hashing new password`);
+    logger.info(`✅ User found: ${user.name}, hashing new password`);
 
     // Hash new password
     const saltRounds = 10;
@@ -318,11 +319,11 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       .eq('id', id);
 
     if (updateError) {
-      console.log('❌ Error updating password:', updateError.message);
+      logger.info('❌ Error updating password:', updateError.message);
       res.status(500).json({ error: 'Failed to update password' }); return;
     }
 
-    console.log(`🎉 Password successfully reset for user: ${user.name}`);
+    logger.info(`🎉 Password successfully reset for user: ${user.name}`);
 
     res.json({
       success: true,
@@ -330,7 +331,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
     });
 
   } catch (error) {
-    console.error('❌ Password reset error:', error);
+    logger.error('❌ Password reset error:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -342,7 +343,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user!.user_id;
-    console.log(`🔄 Recalculating totals for user ${userId}...`);
+    logger.info(`🔄 Recalculating totals for user ${userId}...`);
     
     const { calculateUserTotals } = await import('../utils/calculateUserTotals.js');
     await calculateUserTotals(userId);
@@ -354,7 +355,7 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Error recalculating user totals:', error);
+    logger.error('❌ Error recalculating user totals:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to recalculate user totals',
@@ -366,7 +367,7 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
 // GET /api/auth/admin-settings - Get admin settings
 router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
   try {
-    console.log('🔍 Admin: Fetching admin settings...');
+    logger.info('🔍 Admin: Fetching admin settings...');
     
     const supabase = getSupabaseClient();
     const { data: settings, error } = await supabase
@@ -375,15 +376,15 @@ router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): 
       .single();
     
     if (error) {
-      console.error('❌ Failed to fetch admin settings:', error);
+      logger.error('❌ Failed to fetch admin settings:', error);
       res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
     }
     
-    console.log('✅ Admin settings fetched successfully');
+    logger.info('✅ Admin settings fetched successfully');
     res.json({ success: true, data: settings });
     
   } catch (error) {
-    console.error('❌ Error fetching admin settings:', error);
+    logger.error('❌ Error fetching admin settings:', error);
     res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
   }
 });
@@ -391,7 +392,7 @@ router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): 
 // PUT /api/auth/admin-settings - Update admin settings
 router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
-    console.log('💾 Admin: Updating admin settings...');
+    logger.info('💾 Admin: Updating admin settings...');
     const { 
       base_xp, 
       xp_per_km, 
@@ -427,11 +428,11 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
       .single();
     
     if (error) {
-      console.error('❌ Failed to update admin settings:', error);
+      logger.error('❌ Failed to update admin settings:', error);
       res.status(500).json({ error: 'Failed to update admin settings' }); return;
     }
     
-    console.log('✅ Admin settings updated successfully');
+    logger.info('✅ Admin settings updated successfully');
     res.json({ 
       success: true, 
       data: updatedSettings,
@@ -439,7 +440,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
     });
     
   } catch (error) {
-    console.error('❌ Error updating admin settings:', error);
+    logger.error('❌ Error updating admin settings:', error);
     res.status(500).json({ error: 'Failed to update admin settings' }); return;
   }
 });
@@ -447,7 +448,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
 // GET /api/auth/streak-multipliers - Get streak multipliers
 router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
   try {
-    console.log('🔍 Admin: Fetching streak multipliers...');
+    logger.info('🔍 Admin: Fetching streak multipliers...');
     
     const supabase = getSupabaseClient();
     const { data: multipliers, error } = await supabase
@@ -456,15 +457,15 @@ router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, re
       .order('days');
     
     if (error) {
-      console.error('❌ Failed to fetch streak multipliers:', error);
+      logger.error('❌ Failed to fetch streak multipliers:', error);
       res.status(500).json({ error: 'Failed to fetch streak multipliers' }); return;
     }
     
-    console.log('✅ Streak multipliers fetched successfully');
+    logger.info('✅ Streak multipliers fetched successfully');
     res.json({ success: true, data: multipliers });
     
   } catch (error) {
-    console.error('❌ Error fetching streak multipliers:', error);
+    logger.error('❌ Error fetching streak multipliers:', error);
     res.status(500).json({ error: 'Failed to fetch streak multipliers' }); return;
   }
 });
@@ -472,7 +473,7 @@ router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, re
 // PUT /api/auth/streak-multipliers - Update streak multipliers
 router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
-    console.log('💾 Admin: Updating streak multipliers...');
+    logger.info('💾 Admin: Updating streak multipliers...');
     const { multipliers } = req.body;
     
     if (!Array.isArray(multipliers)) {
@@ -490,11 +491,11 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
       .select('id, days, multiplier');
     
     if (error) {
-      console.error('❌ Failed to update streak multipliers:', error);
+      logger.error('❌ Failed to update streak multipliers:', error);
       res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
     }
     
-    console.log('✅ Streak multipliers updated successfully');
+    logger.info('✅ Streak multipliers updated successfully');
     res.json({ 
       success: true, 
       data: insertedMultipliers,
@@ -502,7 +503,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     });
     
   } catch (error) {
-    console.error('❌ Error updating streak multipliers:', error);
+    logger.error('❌ Error updating streak multipliers:', error);
     res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
   }
 });
@@ -510,7 +511,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
 // GET /api/auth/users-with-runs - Get all users with their runs (authenticated users)
 router.get('/users-with-runs', authenticateJWT, async (_req, res): Promise<void> => {
   try {
-    console.log('👥 Fetching all users with runs');
+    logger.info('👥 Fetching all users with runs');
     
     const supabase = getSupabaseClient();
 
@@ -525,11 +526,11 @@ router.get('/users-with-runs', authenticateJWT, async (_req, res): Promise<void>
       .order('total_xp', { ascending: false });
 
     if (error) {
-      console.error('❌ Error fetching users with runs:', error.message);
+      logger.error('❌ Error fetching users with runs:', error.message);
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
-    console.log(`✅ Successfully fetched ${usersWithRuns?.length ?? 0} users with runs`);
+    logger.info(`✅ Successfully fetched ${usersWithRuns?.length ?? 0} users with runs`);
 
     res.json({
       success: true,
@@ -537,7 +538,7 @@ router.get('/users-with-runs', authenticateJWT, async (_req, res): Promise<void>
     });
 
   } catch (error) {
-    console.error('❌ Error fetching users with runs:', error);
+    logger.error('❌ Error fetching users with runs:', error);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });

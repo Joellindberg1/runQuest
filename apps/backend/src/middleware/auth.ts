@@ -1,4 +1,5 @@
 // 🔐 JWT Authentication Middleware
+import { logger } from '../utils/logger.js';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 
@@ -25,20 +26,20 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
   const authHeader = req.headers.authorization;
   
   if (!authHeader) {
-    console.log('❌ No authorization header');
+    logger.info('❌ No authorization header');
     return res.status(401).json({ error: 'Authorization header required' });
   }
   
   const token = authHeader.split(' ')[1]; // Bearer TOKEN
   
   if (!token) {
-    console.log('❌ No token in authorization header');
+    logger.info('❌ No token in authorization header');
     return res.status(401).json({ error: 'Token required' });
   }
   
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
-    console.log(`🔐 JWT verified for user: ${decoded.name}`);
+    logger.info(`🔐 JWT verified for user: ${decoded.name}`);
     
     req.user = {
       user_id: decoded.user_id,
@@ -48,7 +49,7 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
     
     next();
   } catch (error) {
-    console.error('❌ JWT verification failed:', error);
+    logger.error('❌ JWT verification failed:', error);
     return res.status(403).json({ error: 'Invalid token' });
   }
 };

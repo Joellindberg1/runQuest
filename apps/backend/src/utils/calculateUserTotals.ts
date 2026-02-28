@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../config/database.js';
+import { logger } from './logger.js';
 import { getLevelFromXP } from './xpCalculation.js';
 
 export async function calculateUserTotals(userId: string) {
@@ -14,12 +15,12 @@ export async function calculateUserTotals(userId: string) {
       .order('date', { ascending: true });
 
     if (error) {
-      console.error('Error fetching user runs:', error);
+      logger.error('Error fetching user runs:', error);
       return;
     }
 
     if (!runs || runs.length === 0) {
-      console.log('No runs found for user');
+      logger.info('No runs found for user');
       return;
     }
 
@@ -49,15 +50,15 @@ export async function calculateUserTotals(userId: string) {
       .eq('id', userId);
 
     if (updateError) {
-      console.error('Error updating user totals:', updateError);
+      logger.error('Error updating user totals:', updateError);
     } else {
-      console.log(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
+      logger.info(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
     }
 
     // 🏆 Process titles for ALL users to ensure complete leaderboard
     // This is necessary because title rankings depend on ALL users' achievements
     try {
-      console.log('🏆 Processing titles for all users...');
+      logger.info('🏆 Processing titles for all users...');
       const { EnhancedTitleService } = await import('../services/enhancedTitleService.js');
       const titleService = new EnhancedTitleService();
       
@@ -65,26 +66,26 @@ export async function calculateUserTotals(userId: string) {
       // This ensures leaderboard always shows correct rankings
       await titleService.processAllUsersTitles();
       
-      console.log('✅ All users titles processed successfully');
+      logger.info('✅ All users titles processed successfully');
       
       // Now refresh the title leaderboard with complete user_titles data
-      console.log('🏆 Refreshing title leaderboard...');
+      logger.info('🏆 Refreshing title leaderboard...');
       const supabase = getSupabaseClient();
       const { error: leaderboardError } = await supabase.rpc('update_all_title_leaderboards');
       
       if (leaderboardError) {
-        console.error('❌ Failed to refresh title leaderboard:', leaderboardError);
+        logger.error('❌ Failed to refresh title leaderboard:', leaderboardError);
       } else {
-        console.log('✅ Title leaderboard refreshed successfully');
+        logger.info('✅ Title leaderboard refreshed successfully');
       }
       
     } catch (titleError) {
-      console.error('❌ Error processing titles:', titleError);
+      logger.error('❌ Error processing titles:', titleError);
       // Don't throw - user totals were saved successfully
     }
 
     console.timeEnd(`calculateUserTotals:${userId}`);
   } catch (error) {
-    console.error('Error in calculateUserTotals:', error);
+    logger.error('Error in calculateUserTotals:', error);
   }
 }
