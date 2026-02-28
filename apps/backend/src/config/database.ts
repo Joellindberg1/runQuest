@@ -1,4 +1,5 @@
 // 🗄️ Supabase Database Connection
+import { logger } from '../utils/logger.js';
 import { createClient } from '@supabase/supabase-js';
 
 let supabaseClient: any = null;
@@ -12,12 +13,12 @@ function initializeSupabase() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  console.log('🔧 Initializing Supabase connection...');
-  console.log(`📍 URL: ${supabaseUrl}`);
-  console.log(`🔑 Service Key: ${supabaseServiceRoleKey ? `${supabaseServiceRoleKey.substring(0, 15)}...` : 'missing'}`);
+  logger.info('🔧 Initializing Supabase connection...');
+  logger.info(`📍 URL: ${supabaseUrl}`);
+  logger.info(`🔑 Service Key: ${supabaseServiceRoleKey ? `${supabaseServiceRoleKey.substring(0, 15)}...` : 'missing'}`);
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    console.error('❌ Missing Supabase configuration!');
+    logger.error('❌ Missing Supabase configuration!');
     throw new Error('Missing Supabase environment variables');
   }
 
@@ -29,7 +30,7 @@ function initializeSupabase() {
     }
   });
 
-  console.log('✅ Supabase client initialized successfully');
+  logger.info('✅ Supabase client initialized successfully');
   return supabaseClient;
 }
 
@@ -43,7 +44,7 @@ export const supabase = {
 // Test database connection function
 export async function testDatabaseConnection() {
   try {
-    console.log('🔍 Testing database connection...');
+    logger.info('🔍 Testing database connection...');
     
     const client = initializeSupabase();
     
@@ -52,12 +53,12 @@ export async function testDatabaseConnection() {
       .select('id', { count: 'exact', head: true });
 
     if (error) {
-      console.error('❌ Database connection failed:', error.message);
+      logger.error('❌ Database connection failed:', error.message);
       return { success: false, error: error.message };
     }
 
-    console.log(`✅ Database connection successful!`);
-    console.log(`📊 Users table accessible, total users: ${count}`);
+    logger.info(`✅ Database connection successful!`);
+    logger.info(`📊 Users table accessible, total users: ${count}`);
 
     return {
       success: true,
@@ -66,7 +67,7 @@ export async function testDatabaseConnection() {
     };
     
   } catch (error) {
-    console.error('❌ Database test failed:', error);
+    logger.error('❌ Database test failed:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

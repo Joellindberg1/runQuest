@@ -1,4 +1,5 @@
 import express from 'express';
+import { logger } from '../utils/logger.js';
 import { titleLeaderboardService } from '../services/titleLeaderboardService';
 import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
@@ -11,7 +12,7 @@ const router = express.Router();
  */
 router.get('/', authenticateJWT, async (_req, res) => {
   try {
-    console.log('🏆 API: Fetching all titles...');
+    logger.info('🏆 API: Fetching all titles...');
     
     const titles = await titleLeaderboardService.getAllTitles();
     
@@ -25,7 +26,7 @@ router.get('/', authenticateJWT, async (_req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ API Error in /titles:', error);
+    logger.error('❌ API Error in /titles:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch titles',
@@ -40,7 +41,7 @@ router.get('/', authenticateJWT, async (_req, res) => {
  */
 router.get('/leaderboard', authenticateJWT, async (_req, res) => {
   try {
-    console.log('📊 API: Fetching title leaderboard...');
+    logger.info('📊 API: Fetching title leaderboard...');
     
     const leaderboard = await titleLeaderboardService.getTitleLeaderboard();
     
@@ -55,7 +56,7 @@ router.get('/leaderboard', authenticateJWT, async (_req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ API Error in /titles/leaderboard:', error);
+    logger.error('❌ API Error in /titles/leaderboard:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch title leaderboard',
@@ -71,7 +72,7 @@ router.get('/leaderboard', authenticateJWT, async (_req, res) => {
 router.get('/user/:userId', authenticateJWT, async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log(`📊 API: Fetching titles for user ${userId}...`);
+    logger.info(`📊 API: Fetching titles for user ${userId}...`);
     
     const userTitles = await titleLeaderboardService.getUserTitles(userId);
     
@@ -87,7 +88,7 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
     });
     
   } catch (error) {
-    console.error(`❌ API Error in /titles/user/${req.params.userId}:`, error);
+    logger.error(`❌ API Error in /titles/user/${req.params.userId}:`, error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch user titles',
@@ -103,7 +104,7 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
 router.post('/refresh/:titleId', authenticateJWT, async (req, res) => {
   try {
     const { titleId } = req.params;
-    console.log(`🔄 API: Refreshing leaderboard for title ${titleId}...`);
+    logger.info(`🔄 API: Refreshing leaderboard for title ${titleId}...`);
     
     await titleLeaderboardService.refreshTitleLeaderboard(titleId);
     
@@ -115,7 +116,7 @@ router.post('/refresh/:titleId', authenticateJWT, async (req, res) => {
     });
     
   } catch (error) {
-    console.error(`❌ API Error in /titles/refresh/${req.params.titleId}:`, error);
+    logger.error(`❌ API Error in /titles/refresh/${req.params.titleId}:`, error);
     res.status(500).json({
       success: false,
       error: 'Failed to refresh title leaderboard',
@@ -130,7 +131,7 @@ router.post('/refresh/:titleId', authenticateJWT, async (req, res) => {
  */
 router.post('/populate', authenticateJWT, requireAdmin, async (_req, res) => {
   try {
-    console.log('🔄 API: Manual title leaderboard population requested...');
+    logger.info('🔄 API: Manual title leaderboard population requested...');
     
     await titleLeaderboardService.populateTitleLeaderboard();
     
@@ -140,7 +141,7 @@ router.post('/populate', authenticateJWT, requireAdmin, async (_req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ API Error in /titles/populate:', error);
+    logger.error('❌ API Error in /titles/populate:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to populate title leaderboards',
@@ -155,7 +156,7 @@ router.post('/populate', authenticateJWT, requireAdmin, async (_req, res) => {
  */
 router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
   try {
-    console.log('🔄 API: Title leaderboard refresh requested...');
+    logger.info('🔄 API: Title leaderboard refresh requested...');
     
     await titleLeaderboardService.populateTitleLeaderboard();
     
@@ -165,7 +166,7 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ API Error in /titles/refresh:', error);
+    logger.error('❌ API Error in /titles/refresh:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to refresh title leaderboards',

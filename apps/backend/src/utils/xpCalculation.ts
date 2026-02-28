@@ -1,4 +1,5 @@
 import { levelService } from '../services/levelService.js';
+import { logger } from './logger.js';
 import { getSupabaseClient } from '../config/database.js';
 
 // Unified XP calculation using admin_settings
@@ -17,7 +18,7 @@ export async function calculateRunXP(distanceKm: number): Promise<{
     .single();
     
   if (error) {
-    console.error('Error fetching admin settings:', error);
+    logger.error('Error fetching admin settings:', error);
     // Fallback to default values
     const baseXP = distanceKm >= 1.6 ? 15 : 0;
     const kmXP = Math.floor(distanceKm * 2);

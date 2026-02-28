@@ -1,4 +1,5 @@
 import { supabase } from '../config/database';
+import { logger } from '../utils/logger.js';
 import { titleLeaderboardService } from './titleLeaderboardService';
 
 /**
@@ -22,8 +23,8 @@ export class EnhancedTitleService {
    */
   async processUserTitlesAfterRun(userId: string, runs: any[], totalKm: number, longestStreak: number): Promise<void> {
     try {
-      console.log('🏆 Processing titles for user:', userId);
-      console.log('📈 Stats:', { totalKm, longestStreak, runsCount: runs.length });
+      logger.info('🏆 Processing titles for user:', userId);
+      logger.info('📈 Stats:', { totalKm, longestStreak, runsCount: runs.length });
 
       // Get all titles to check
       const { data: titles, error: titlesError } = await supabase.client
@@ -31,12 +32,12 @@ export class EnhancedTitleService {
         .select('id, name, description, unlock_requirement');
 
       if (titlesError) {
-        console.error('❌ Error fetching titles:', titlesError);
+        logger.error('❌ Error fetching titles:', titlesError);
         return;
       }
 
       const userValues = this.calculateUserValues(runs, totalKm, longestStreak);
-      console.log('🎯 Achievement values:', userValues);
+      logger.info('🎯 Achievement values:', userValues);
 
       const earnedAt = new Date().toISOString();
 
@@ -54,10 +55,10 @@ export class EnhancedTitleService {
         titlesToUpdate.map((titleId: string) => titleLeaderboardService.refreshTitleLeaderboard(titleId))
       );
 
-      console.log(`✅ Processed ${titles.length} titles, updated ${titlesToUpdate.length} leaderboards`);
+      logger.info(`✅ Processed ${titles.length} titles, updated ${titlesToUpdate.length} leaderboards`);
 
     } catch (error) {
-      console.error('❌ Error processing user titles:', error);
+      logger.error('❌ Error processing user titles:', error);
     }
   }
 
@@ -147,7 +148,7 @@ export class EnhancedTitleService {
     // 5. Calculate average of the weekend TOTALS (not averages)
     const totalAvg = recentWeekends.reduce((sum, w) => sum + w.total, 0) / recentWeekends.length;
 
-    console.log(`📊 Weekend calculation: ${recentWeekends.length} weekends, totals:`, 
+    logger.info(`📊 Weekend calculation: ${recentWeekends.length} weekends, totals:`, 
       recentWeekends.map(w => w.total.toFixed(2)).join(', '),
       `→ Average of totals: ${totalAvg.toFixed(2)}`
     );
@@ -188,22 +189,22 @@ export class EnhancedTitleService {
           titleKey = 'weekendAvg';
           break;
         default:
-          console.log(`⚠️ Unknown title: ${title.name}`);
+          logger.info(`⚠️ Unknown title: ${title.name}`);
           return false;
       }
 
-      console.log(`🔍 Checking title: "${title.name}" - User: ${userValue}, Required: ${title.unlock_requirement}`);
+      logger.info(`🔍 Checking title: "${title.name}" - User: ${userValue}, Required: ${title.unlock_requirement}`);
 
       // Check if user meets basic requirement
       if (userValue < title.unlock_requirement) {
-        console.log(`❌ User doesn't meet requirement (${userValue} < ${title.unlock_requirement})`);
+        logger.info(`❌ User doesn't meet requirement (${userValue} < ${title.unlock_requirement})`);
         return false;
       }
 
       // Calculate precise achievement value based on runs up to earned_at
       const achievementValue = this.calculateAchievementValue(titleKey, allRuns, new Date(earnedAt));
 
-      console.log(`📊 Achievement value: ${achievementValue} for ${title.name}`);
+      logger.info(`📊 Achievement value: ${achievementValue} for ${title.name}`);
 
       // Check if user already has this title with same or better value
       const { data: existingTitle, error: existingError } = await supabase.client
@@ -214,7 +215,7 @@ export class EnhancedTitleService {
         .single();
 
       if (existingError && existingError.code !== 'PGRST116') { // PGRST116 = not found
-        console.error('❌ Error checking existing title:', existingError);
+        logger.error('❌ Error checking existing title:', existingError);
         return false;
       }
 
@@ -238,12 +239,12 @@ export class EnhancedTitleService {
             .eq('id', existingTitle.id);
 
           if (updateError) {
-            console.error('❌ Error updating user title:', updateError);
+            logger.error('❌ Error updating user title:', updateError);
             return false;
           }
-          console.log(`🔄 Updated title ${title.name} for user ${userId}: ${existingTitle.value} → ${achievementValue}`);
+          logger.info(`🔄 Updated title ${title.name} for user ${userId}: ${existingTitle.value} → ${achievementValue}`);
         } else {
-          console.log(`✓ Title ${title.name} value unchanged: ${achievementValue}`);
+          logger.info(`✓ Title ${title.name} value unchanged: ${achievementValue}`);
         }
       } else {
         // Insert new title
@@ -252,10 +253,10 @@ export class EnhancedTitleService {
           .insert(titleData);
 
         if (insertError) {
-          console.error('❌ Error inserting user title:', insertError);
+          logger.error('❌ Error inserting user title:', insertError);
           return false;
         }
-        console.log(`🆕 Added new title ${title.name} for user ${userId} with value ${achievementValue}`);
+        logger.info(`🆕 Added new title ${title.name} for user ${userId} with value ${achievementValue}`);
       }
 
       // Always return true if user has this title (whether new or existing)
@@ -263,7 +264,7 @@ export class EnhancedTitleService {
       return true;
 
     } catch (error) {
-      console.error(`❌ Error checking title ${title.name}:`, error);
+      logger.error(`❌ Error checking title ${title.name}:`, error);
       return false;
     }
   }
@@ -343,7 +344,7 @@ export class EnhancedTitleService {
    */
   async processAllUsersTitles(): Promise<void> {
     try {
-      console.log('🏆 Processing titles for ALL users...');
+      logger.info('🏆 Processing titles for ALL users...');
       
       // Get all users with their totals
       const { data: users, error: usersError } = await supabase.client
@@ -351,11 +352,11 @@ export class EnhancedTitleService {
         .select('id, total_km, longest_streak');
 
       if (usersError) {
-        console.error('❌ Error fetching users:', usersError);
+        logger.error('❌ Error fetching users:', usersError);
         return;
       }
 
-      console.log(`📊 Found ${users.length} users to process`);
+      logger.info(`📊 Found ${users.length} users to process`);
       console.time('processAllUsersTitles');
 
       // Process all users in parallel
@@ -377,13 +378,13 @@ export class EnhancedTitleService {
 
       const processedCount = userResults.filter(r => r.status === 'fulfilled').length;
       const failedCount = userResults.filter(r => r.status === 'rejected').length;
-      if (failedCount > 0) console.error(`❌ Title processing failed for ${failedCount} users`);
+      if (failedCount > 0) logger.error(`❌ Title processing failed for ${failedCount} users`);
 
       console.timeEnd('processAllUsersTitles');
-      console.log(`✅ Processed titles for ${processedCount}/${users.length} users`);
+      logger.info(`✅ Processed titles for ${processedCount}/${users.length} users`);
 
     } catch (error) {
-      console.error('❌ Error processing all users titles:', error);
+      logger.error('❌ Error processing all users titles:', error);
       throw error;
     }
   }

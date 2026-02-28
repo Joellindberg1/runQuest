@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../config/database.js';
+import { logger } from '../utils/logger.js';
 
 export interface StreakResult {
   currentStreak: number;
@@ -31,7 +32,7 @@ export class StreakService {
 
     if (error) {
       // TODO: replace with a shared backend logger utility when available
-      console.error('Error fetching runs:', error);
+      logger.error('Error fetching runs:', error);
       return { currentStreak: 0, streakDayForRun: 1, longestStreak: 0 };
     }
 
@@ -184,7 +185,7 @@ export class StreakService {
 
     if (error) {
       // TODO: replace with a shared backend logger utility when available
-      console.error('Error updating user streak:', error);
+      logger.error('Error updating user streak:', error);
     }
   }
 
@@ -192,41 +193,41 @@ export class StreakService {
    * Testar streak-servicen med exempel data
    */
   static testStreakLogic() {
-    console.log('🧪 Testing Streak Logic...\n');
+    logger.info('🧪 Testing Streak Logic...\n');
 
     // Test case 1: Karl's actual situation
     const karlDays = ['2025-09-30'];
-    console.log('Test 1 - Karl (only 2025-09-30):');
-    console.log('Days:', karlDays);
-    console.log('Longest streak:', this.calculateLongestStreak(karlDays));
-    console.log('Current streak:', this.calculateCurrentStreak(karlDays));
-    console.log('Streak day for 2025-09-30:', this.calculateStreakDayForSpecificRun(karlDays, '2025-09-30'));
-    console.log('');
+    logger.info('Test 1 - Karl (only 2025-09-30):');
+    logger.info('Days:', karlDays);
+    logger.info('Longest streak:', this.calculateLongestStreak(karlDays));
+    logger.info('Current streak:', this.calculateCurrentStreak(karlDays));
+    logger.info('Streak day for 2025-09-30:', this.calculateStreakDayForSpecificRun(karlDays, '2025-09-30'));
+    logger.info('');
 
     // Test case 2: Consecutive days
     const consecutiveDays = ['2025-09-28', '2025-09-29', '2025-09-30'];
-    console.log('Test 2 - Consecutive (28, 29, 30):');
-    console.log('Days:', consecutiveDays);
-    console.log('Longest streak:', this.calculateLongestStreak(consecutiveDays));
-    console.log('Current streak:', this.calculateCurrentStreak(consecutiveDays));
-    console.log('Streak day for 2025-09-30:', this.calculateStreakDayForSpecificRun(consecutiveDays, '2025-09-30'));
-    console.log('');
+    logger.info('Test 2 - Consecutive (28, 29, 30):');
+    logger.info('Days:', consecutiveDays);
+    logger.info('Longest streak:', this.calculateLongestStreak(consecutiveDays));
+    logger.info('Current streak:', this.calculateCurrentStreak(consecutiveDays));
+    logger.info('Streak day for 2025-09-30:', this.calculateStreakDayForSpecificRun(consecutiveDays, '2025-09-30'));
+    logger.info('');
 
     // Test case 3: Adding run in retrospect
     const retroDays = ['2025-09-28', '2025-09-29', '2025-09-30', '2025-10-01'];
-    console.log('Test 3 - Adding runs retrospectively (28, 29, 30, 01):');
-    console.log('Days:', retroDays);
-    console.log('Longest streak:', this.calculateLongestStreak(retroDays));
-    console.log('Current streak:', this.calculateCurrentStreak(retroDays));
-    console.log('Streak day for 2025-09-31 (if added):', this.calculateStreakDayForSpecificRun(retroDays, '2025-09-31'));
-    console.log('');
+    logger.info('Test 3 - Adding runs retrospectively (28, 29, 30, 01):');
+    logger.info('Days:', retroDays);
+    logger.info('Longest streak:', this.calculateLongestStreak(retroDays));
+    logger.info('Current streak:', this.calculateCurrentStreak(retroDays));
+    logger.info('Streak day for 2025-09-31 (if added):', this.calculateStreakDayForSpecificRun(retroDays, '2025-09-31'));
+    logger.info('');
 
     // Test case 4: Multiple runs same day
     const sameDayDays = ['2025-09-28', '2025-09-29', '2025-09-30']; // Multiple runs on same day still count as one
-    console.log('Test 4 - Multiple runs same day:');
-    console.log('Days:', sameDayDays);
-    console.log('Longest streak:', this.calculateLongestStreak(sameDayDays));
-    console.log('Current streak:', this.calculateCurrentStreak(sameDayDays));
-    console.log('');
+    logger.info('Test 4 - Multiple runs same day:');
+    logger.info('Days:', sameDayDays);
+    logger.info('Longest streak:', this.calculateLongestStreak(sameDayDays));
+    logger.info('Current streak:', this.calculateCurrentStreak(sameDayDays));
+    logger.info('');
   }
 }
