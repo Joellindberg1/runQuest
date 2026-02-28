@@ -34,7 +34,7 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     const supabase = getSupabaseClient();
     const { data: tokens, error } = await supabase
       .from('strava_tokens')
-      .select('*')
+      .select('expires_at, refresh_token, connection_date')
       .eq('user_id', userId)
       .single();
     
@@ -149,10 +149,8 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
         refresh_token: tokenData.refresh_token,
         expires_at: tokenData.expires_at,
         connection_date: new Date().toISOString()
-      })
-      .select()
-      .single();
-    
+      });
+
     if (error) {
       console.error('❌ Failed to save Strava tokens:', error);
       res.status(500).json({ error: 'Failed to save Strava connection' }); return;
