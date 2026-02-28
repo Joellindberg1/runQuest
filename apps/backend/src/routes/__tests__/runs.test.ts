@@ -37,6 +37,16 @@ vi.mock('../../utils/xpCalculation.js', () => ({
   getLevelProgress: vi.fn().mockResolvedValue({ level: 1, progress: 0 }),
 }));
 
+// ── Mock @runquest/shared ─────────────────────────────────────────────────────
+vi.mock('@runquest/shared', () => ({
+  calculateCompleteRunXP: vi.fn().mockReturnValue({
+    baseXP: 15, kmXP: 10, distanceBonus: 5, streakBonus: 0,
+    multiplier: 1.0, finalXP: 30,
+  }),
+  calculateRunXP: vi.fn().mockReturnValue({ baseXP: 15, kmXP: 10, distanceBonus: 5, totalXP: 30 }),
+  calculateStreakMultiplier: vi.fn().mockReturnValue(1.0),
+}));
+
 // ── Mock calculateUserTotals ──────────────────────────────────────────────────
 vi.mock('../../utils/calculateUserTotals.js', () => ({
   calculateUserTotals: vi.fn().mockResolvedValue(undefined),
@@ -149,12 +159,11 @@ function buildRunsStub() {
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    lt: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue(runsList),
-    // single() is used for insert result and for the final fetch
+    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     single: vi.fn().mockResolvedValue(singleRun),
-    // For admin_settings fetch inside getStreakMultiplier
-    from_admin_settings: vi.fn().mockResolvedValue(noError),
   };
 }
 

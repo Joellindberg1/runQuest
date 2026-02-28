@@ -4,119 +4,140 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { calculateRunXP } from '../utils/xpCalculation.js';
+import { calculateCompleteRunXP, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
 
 const router = express.Router();
 
-// Helper function to get streak multiplier based on admin settings
-async function getStreakMultiplier(streakDay: number): Promise<number> {
+/** Fetch XP settings and streak multipliers in a single DB call. */
+async function fetchAdminSettings(): Promise<{ xpSettings: AdminSettings; multipliers: StreakMultiplier[] }> {
   const supabase = getSupabaseClient();
-  
-  const { data: multipliers, error } = await supabase
+  const { data, error } = await supabase
     .from('admin_settings')
-    .select('streak_multipliers')
+    .select('base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance, streak_multipliers')
     .single();
-    
-  if (error || !multipliers?.streak_multipliers) {
-    console.warn('Could not fetch streak multipliers, using defaults');
-    // Fallback defaults
-    if (streakDay >= 270) return 2.0;
-    if (streakDay >= 240) return 1.9;
-    if (streakDay >= 220) return 1.8;
-    if (streakDay >= 180) return 1.7;
-    if (streakDay >= 120) return 1.6;
-    if (streakDay >= 90) return 1.5;
-    if (streakDay >= 60) return 1.4;
-    if (streakDay >= 30) return 1.3;
-    if (streakDay >= 15) return 1.2;
-    if (streakDay >= 5) return 1.1;
-    return 1.0;
+
+  if (error || !data) {
+    console.warn('⚠️ Could not fetch admin settings, using defaults');
+    return {
+      xpSettings: { base_xp: 15, xp_per_km: 2, bonus_5km: 5, bonus_10km: 15, bonus_15km: 25, bonus_20km: 50, min_run_distance: 1.0 },
+      multipliers: [
+        { days: 270, multiplier: 2.0 }, { days: 240, multiplier: 1.9 }, { days: 220, multiplier: 1.8 },
+        { days: 180, multiplier: 1.7 }, { days: 120, multiplier: 1.6 }, { days: 90, multiplier: 1.5 },
+        { days: 60, multiplier: 1.4 },  { days: 30, multiplier: 1.3 },  { days: 15, multiplier: 1.2 },
+        { days: 5, multiplier: 1.1 }
+      ]
+    };
   }
-  
-  // Find the highest multiplier threshold that the streak meets
-  const sortedMultipliers = multipliers.streak_multipliers.sort((a: any, b: any) => b.days - a.days);
-  const applicableMultiplier = sortedMultipliers.find((m: any) => streakDay >= m.days);
-  
-  return applicableMultiplier ? applicableMultiplier.multiplier : 1.0;
+
+  return {
+    xpSettings: {
+      base_xp: data.base_xp, xp_per_km: data.xp_per_km,
+      bonus_5km: data.bonus_5km, bonus_10km: data.bonus_10km,
+      bonus_15km: data.bonus_15km, bonus_20km: data.bonus_20km,
+      min_run_distance: data.min_run_distance
+    },
+    multipliers: data.streak_multipliers ?? []
+  };
 }
 
-// Helper function to reprocess all runs for a user
-async function reprocessAllUserRuns(userId: string): Promise<void> {
-  console.log(`🔄 Reprocessing all runs for user ${userId}...`);
-  
+/**
+ * Reprocess runs from a given date onwards for a user.
+ * Only runs at or after fromDate are recalculated — earlier runs are unaffected.
+ * The streak context from the run immediately before fromDate is preserved.
+ */
+async function reprocessRunsFromDate(userId: string, fromDate: string): Promise<void> {
+  console.log(`🔄 Reprocessing runs from ${fromDate} for user ${userId}...`);
   const supabase = getSupabaseClient();
-  
-  // Get all runs sorted by date
+
+  // Fetch settings once — no per-run DB calls
+  const { xpSettings, multipliers } = await fetchAdminSettings();
+
+  // Get the run immediately before fromDate to seed the streak count correctly
+  const { data: prevRuns } = await supabase
+    .from('runs')
+    .select('date, streak_day')
+    .eq('user_id', userId)
+    .lt('date', fromDate)
+    .order('date', { ascending: false })
+    .limit(1);
+
+  const prevRun = prevRuns?.[0] ?? null;
+  let currentStreakCount = prevRun?.streak_day ?? 0;
+  let lastRunDate: Date | null = prevRun ? new Date(prevRun.date) : null;
+
+  // Fetch only the affected runs
   const { data: runs, error } = await supabase
     .from('runs')
-    .select('*')
+    .select('id, date, distance')
     .eq('user_id', userId)
+    .gte('date', fromDate)
     .order('date', { ascending: true });
-    
-  if (error || !runs) {
-    console.error('❌ Error fetching runs:', error);
+
+  if (error || !runs?.length) {
+    if (error) console.error('❌ Error fetching runs to reprocess:', error);
     return;
   }
-  
-  console.log(`📊 Found ${runs.length} runs to reprocess`);
-  
-  // Calculate streaks and XP for each run
-  let currentStreakCount = 0;
-  let lastRunDate: Date | null = null;
-  
-  for (const run of runs) {
+
+  console.log(`📊 Reprocessing ${runs.length} affected runs (of user's total)`);
+
+  // Calculate all updates in memory — zero DB calls per run
+  const updates = runs.map(run => {
     const runDate = new Date(run.date);
-    
-    // Calculate streak
-    if (!lastRunDate) {
+    const daysDiff = lastRunDate
+      ? Math.floor((runDate.getTime() - lastRunDate.getTime()) / (1000 * 60 * 60 * 24))
+      : -1;
+
+    if (!lastRunDate || daysDiff > 1) {
       currentStreakCount = 1;
-    } else {
-      const daysDiff = Math.floor((runDate.getTime() - lastRunDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysDiff === 1) {
-        currentStreakCount++;
-      } else if (daysDiff === 0) {
-        // Same day, keep streak count
-      } else {
-        currentStreakCount = 1; // Reset streak
-      }
+    } else if (daysDiff === 1) {
+      currentStreakCount++;
     }
-    
-    // Get multiplier for this streak
-    const multiplier = await getStreakMultiplier(currentStreakCount);
-    
-    // Calculate XP components
-    const xpCalc = await calculateRunXP(run.distance);
-    const baseXP = xpCalc.baseXP;
-    const kmXP = xpCalc.kmXP;
-    const distanceBonus = xpCalc.distanceBonus;
-    
-    // Apply multiplier to base + km XP, then add distance bonus
-    const streakBonus = Math.floor((baseXP + kmXP) * (multiplier - 1.0));
-    const totalXPGained = Math.floor((baseXP + kmXP) * multiplier) + distanceBonus;
-    
-    console.log(`  📍 Run ${run.date}: ${run.distance}km, Streak ${currentStreakCount}, Mult ${multiplier}x, XP ${totalXPGained}`);
-    
-    // Update the run with recalculated values
-    const { error: updateError } = await supabase
-      .from('runs')
-      .update({
-        streak_day: currentStreakCount,
-        multiplier: multiplier,
-        base_xp: baseXP,
-        km_xp: kmXP,
-        distance_bonus: distanceBonus,
-        streak_bonus: streakBonus,
-        xp_gained: totalXPGained
-      })
-      .eq('id', run.id);
-      
-    if (updateError) {
-      console.error(`❌ Error updating run ${run.id}:`, updateError);
-    }
-    
+    // daysDiff === 0 (same day): keep streak count as-is
+
+    const xp = calculateCompleteRunXP(run.distance, currentStreakCount, xpSettings, multipliers);
     lastRunDate = runDate;
-  }
-  
+
+    return {
+      id: run.id,
+      streak_day: currentStreakCount,
+      multiplier: xp.multiplier,
+      base_xp: xp.baseXP,
+      km_xp: xp.kmXP,
+      distance_bonus: xp.distanceBonus,
+      streak_bonus: xp.streakBonus,
+      xp_gained: xp.finalXP
+    };
+  });
+
+  // Parallel updates instead of sequential
+  await Promise.all(
+    updates.map(u =>
+      supabase.from('runs').update({
+        streak_day: u.streak_day,
+        multiplier: u.multiplier,
+        base_xp: u.base_xp,
+        km_xp: u.km_xp,
+        distance_bonus: u.distance_bonus,
+        streak_bonus: u.streak_bonus,
+        xp_gained: u.xp_gained
+      }).eq('id', u.id)
+    )
+  );
+
   console.log(`✅ Reprocessed ${runs.length} runs successfully`);
+}
+
+/** Reprocess all runs for a user (used by Strava sync). */
+async function reprocessAllUserRuns(userId: string): Promise<void> {
+  const { data: firstRun } = await getSupabaseClient()
+    .from('runs')
+    .select('date')
+    .eq('user_id', userId)
+    .order('date', { ascending: true })
+    .limit(1);
+
+  if (!firstRun?.[0]) return;
+  await reprocessRunsFromDate(userId, firstRun[0].date);
 }
 
 // GET /api/runs/group-history - Get all runs with user info for group history
@@ -230,10 +251,10 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Failed to create run' }); return;
     }
 
-    console.log(`✅ Run created, now reprocessing all runs for user ${userId}...`);
+    console.log(`✅ Run created, reprocessing from ${date}...`);
 
-    // Reprocess ALL runs to ensure correct streaks and XP
-    await reprocessAllUserRuns(userId);
+    // Only reprocess from this run's date — earlier runs are unaffected
+    await reprocessRunsFromDate(userId, date);
 
     // Recalculate user totals
     await calculateUserTotals(userId);
@@ -321,54 +342,14 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     if (dateChanged) {
-      // Date changed - need to reprocess all runs (streak order may change)
-      console.log('\n' + '='.repeat(80));
-      console.log('🔄 BACKEND: DATE CHANGED - REPROCESSING ALL RUNS');
-      console.log(`👤 User: ${userId}`);
-      console.log(`🏃 Updated run: ${id}`);
-      console.log(`📅 Date: ${existingRun.date} → ${date}`);
-      console.log('='.repeat(80) + '\n');
-
-      await reprocessAllUserRuns(userId);
+      // Date changed — reprocess from the earlier of old and new date
+      const fromDate = existingRun.date < date ? existingRun.date : date;
+      console.log(`🔄 Date changed (${existingRun.date} → ${date}), reprocessing from ${fromDate}`);
+      await reprocessRunsFromDate(userId, fromDate);
     } else if (distanceChanged) {
-      // Only distance changed - recalculate XP for this run only
-      console.log('\n' + '='.repeat(80));
-      console.log('⚡ BACKEND: FAST UPDATE - Only recalculating this run');
-      console.log(`👤 User: ${userId}`);
-      console.log(`🏃 Updated run: ${id}`);
-      console.log(`📏 Distance: ${existingRun.distance}km → ${newDistance}km`);
-      console.log('='.repeat(80) + '\n');
-
-      // Recalculate XP for this run only, keeping existing streak_day and multiplier
-      const multiplier = await getStreakMultiplier(existingRun.streak_day);
-      const xpCalc = await calculateRunXP(newDistance);
-      const baseXP = xpCalc.baseXP;
-      const kmXP = xpCalc.kmXP;
-      const distanceBonus = xpCalc.distanceBonus;
-      const streakBonus = Math.floor((baseXP + kmXP) * (multiplier - 1.0));
-      const totalXPGained = Math.floor((baseXP + kmXP) * multiplier) + distanceBonus;
-
-      console.log(`  📍 Recalculated: ${newDistance}km, Streak ${existingRun.streak_day}, Mult ${multiplier}x, XP ${totalXPGained}`);
-
-      const { error: updateXPError } = await supabase
-        .from('runs')
-        .update({
-          base_xp: baseXP,
-          km_xp: kmXP,
-          distance_bonus: distanceBonus,
-          streak_bonus: streakBonus,
-          xp_gained: totalXPGained,
-          multiplier: multiplier
-        })
-        .eq('id', id);
-
-      if (updateXPError) {
-        console.error('❌ Error updating XP:', updateXPError);
-      }
-
-      console.log('\n' + '='.repeat(80));
-      console.log('✅ BACKEND: FAST UPDATE COMPLETE');
-      console.log('='.repeat(80) + '\n');
+      // Only distance changed — reprocess just this run's date (streak order unchanged)
+      console.log(`⚡ Distance changed, reprocessing from ${existingRun.date}`);
+      await reprocessRunsFromDate(userId, existingRun.date);
     }
 
     // Recalculate user totals (always needed)
@@ -413,10 +394,10 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     const supabase = getSupabaseClient();
 
-    // Verify run belongs to user
+    // Verify run belongs to user and fetch date for targeted reprocess
     const { data: existingRun, error: fetchError } = await supabase
       .from('runs')
-      .select('user_id')
+      .select('user_id, date')
       .eq('id', id)
       .single();
 
@@ -427,6 +408,8 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     if (existingRun.user_id !== userId) {
       res.status(403).json({ error: 'Not authorized to delete this run' }); return;
     }
+
+    const deletedDate = existingRun.date;
 
     // Delete the run
     const { error: deleteError } = await supabase
@@ -439,10 +422,10 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Failed to delete run' }); return;
     }
 
-    console.log(`✅ Run deleted, now reprocessing all runs for user ${userId}...`);
+    console.log(`✅ Run deleted, reprocessing from ${deletedDate}...`);
 
-    // Reprocess ALL runs for this user to recalculate XP, streaks, and multipliers
-    await reprocessAllUserRuns(userId);
+    // Reprocess only runs from the deleted run's date onwards
+    await reprocessRunsFromDate(userId, deletedDate);
 
     // Recalculate user totals after deletion
     await calculateUserTotals(userId);
