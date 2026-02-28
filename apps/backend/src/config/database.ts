@@ -47,26 +47,22 @@ export async function testDatabaseConnection() {
     
     const client = initializeSupabase();
     
-    // Try to query users table with more info
-    const { data, error, count } = await client
+    const { error, count } = await client
       .from('users')
-      .select('id, name, email, password_hash, created_at', { count: 'exact' })
-      .limit(10);
-    
+      .select('id', { count: 'exact', head: true });
+
     if (error) {
       console.error('❌ Database connection failed:', error.message);
       return { success: false, error: error.message };
     }
-    
+
     console.log(`✅ Database connection successful!`);
     console.log(`📊 Users table accessible, total users: ${count}`);
-    console.log(`🎯 Sample data:`, data);
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       message: 'Database connection working',
-      usersCount: count,
-      sampleData: data
+      usersCount: count
     };
     
   } catch (error) {
