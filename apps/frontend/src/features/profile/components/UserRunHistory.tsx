@@ -51,7 +51,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
             </div>
           ) : (
             <div className="space-y-3">
-              {runs.slice(0, visibleRuns).map((run) => (
+              {[...runs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, visibleRuns).map((run) => (
                 <div key={run.id} className="border rounded-lg">
                   <div
                     className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
