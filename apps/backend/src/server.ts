@@ -14,6 +14,8 @@ import stravaRoutes from './routes/strava.js';
 import titleRoutes from './routes/titles.js';
 // 🏃 Import run routes
 import runRoutes from './routes/runs.js';
+// 👥 Import group routes
+import groupRoutes from './routes/groups.js';
 // 🕐 Import Strava scheduler
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 
@@ -160,6 +162,10 @@ app.use('/api/titles', titleRoutes);
 // 🏃 Run routes
 logger.info('🏃 Mounting run routes...');
 app.use('/api/runs', runRoutes);
+
+// 👥 Group routes
+logger.info('👥 Mounting group routes...');
+app.use('/api/groups', groupRoutes);
 
 // 404 handler
 app.use((req, res) => {

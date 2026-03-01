@@ -339,17 +339,26 @@ export class EnhancedTitleService {
   }
 
   /**
-   * Process titles for ALL users
+   * Process titles for all users (optionally scoped to a group)
    * This ensures complete leaderboard rankings
    */
-  async processAllUsersTitles(): Promise<void> {
+  async processAllUsersTitles(groupId?: string): Promise<void> {
     try {
-      logger.info('🏆 Processing titles for ALL users...');
-      
-      // Get all users with their totals
-      const { data: users, error: usersError } = await supabase.client
+      logger.info(groupId
+        ? `🏆 Processing titles for users in group ${groupId}...`
+        : '🏆 Processing titles for ALL users...'
+      );
+
+      // Get users with their totals, optionally filtered by group
+      let query = supabase.client
         .from('users')
         .select('id, total_km, longest_streak');
+
+      if (groupId) {
+        query = query.eq('group_id', groupId);
+      }
+
+      const { data: users, error: usersError } = await query;
 
       if (usersError) {
         logger.error('❌ Error fetching users:', usersError);

@@ -128,14 +128,15 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   logger.info(`✅ Reprocessed ${runs.length} runs successfully`);
 }
 
-// GET /api/runs/group-history - Get all runs with user info for group history
-router.get('/group-history', authenticateJWT, async (_req, res): Promise<void> => {
+// GET /api/runs/group-history - Get all runs for users in same group
+router.get('/group-history', authenticateJWT, async (req, res): Promise<void> => {
   try {
     logger.info('📊 Fetching group run history');
 
     const supabase = getSupabaseClient();
+    const groupId = req.user!.group_id;
 
-    const { data: runsData, error: runsError } = await supabase
+    let query = supabase
       .from('runs')
       .select(`
         *,
@@ -143,6 +144,12 @@ router.get('/group-history', authenticateJWT, async (_req, res): Promise<void> =
       `)
       .order('date', { ascending: false })
       .limit(100);
+
+    if (groupId) {
+      query = query.eq('users.group_id', groupId);
+    }
+
+    const { data: runsData, error: runsError } = await query;
 
     if (runsError) {
       logger.error('❌ Error fetching group runs:', runsError);
@@ -241,8 +248,8 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     // Only reprocess from this run's date — earlier runs are unaffected
     await reprocessRunsFromDate(userId, date);
 
-    // Recalculate user totals
-    await calculateUserTotals(userId);
+    // Recalculate user totals (scoped to user's group for title processing)
+    await calculateUserTotals(userId, req.user!.group_id);
 
     // Fetch the fully processed run
     const { data: processedRun, error: fetchError } = await supabase
@@ -337,8 +344,8 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       await reprocessRunsFromDate(userId, existingRun.date);
     }
 
-    // Recalculate user totals (always needed)
-    await calculateUserTotals(userId);
+    // Recalculate user totals (scoped to user's group for title processing)
+    await calculateUserTotals(userId, req.user!.group_id);
 
     logger.info('\n' + '='.repeat(80));
     logger.info('✅ BACKEND: UPDATE COMPLETE');
@@ -412,8 +419,8 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Reprocess only runs from the deleted run's date onwards
     await reprocessRunsFromDate(userId, deletedDate);
 
-    // Recalculate user totals after deletion
-    await calculateUserTotals(userId);
+    // Recalculate user totals (scoped to user's group for title processing)
+    await calculateUserTotals(userId, req.user!.group_id);
 
     logger.info(`✅ Run ${id} deleted and all runs reprocessed successfully`);
 

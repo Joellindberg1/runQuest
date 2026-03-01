@@ -29,7 +29,7 @@ router.post('/login', async (req, res): Promise<void> => {
     // Find user by email or name in a single query
     const { data: users, error } = await supabase
       .from('users')
-      .select('id, name, email, password_hash, is_admin')
+      .select('id, name, email, password_hash, is_admin, group_id')
       .or(`email.eq.${nameOrEmail},name.eq.${nameOrEmail}`)
       .limit(1);
 
@@ -65,7 +65,8 @@ router.post('/login', async (req, res): Promise<void> => {
         user_id: user.id,
         name: user.name,
         email: user.email,
-        is_admin: user.is_admin || false
+        is_admin: user.is_admin || false,
+        group_id: user.group_id ?? null
       },
       jwtSecret,
       { 
@@ -171,18 +172,25 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
   }
 });
 
-// GET /api/auth/users - Admin only: Get all users
+// GET /api/auth/users - Admin only: Get all users in same group
 router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     logger.info('👥 Admin request to fetch all users');
     logger.info('🔑 Request user info:', (req as any).user);
-    
+
     const supabase = getSupabaseClient();
-    
-    const { data: users, error } = await supabase
+    const groupId = req.user!.group_id;
+
+    let query = supabase
       .from('users')
       .select('id, name, email, total_xp, current_level, total_km, current_streak, longest_streak, created_at')
       .order('created_at', { ascending: true });
+
+    if (groupId) {
+      query = query.eq('group_id', groupId);
+    }
+
+    const { data: users, error } = await query;
 
     if (error) {
       logger.info('❌ Error fetching users:', error.message);
@@ -238,7 +246,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create new user
+    // Create new user — assign to same group as the admin creating them
     const { data: newUser, error } = await supabase
       .from('users')
       .insert({
@@ -247,12 +255,12 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
         password_hash: passwordHash,
         total_xp: 0,
         current_level: 1,
-        total_runs: 0,
         current_streak: 0,
         longest_streak: 0,
-        total_km: 0.0
+        total_km: 0.0,
+        group_id: req.user!.group_id ?? null
       })
-      .select('id, name, email, total_xp, current_level, total_runs, current_streak, created_at')
+      .select('id, name, email, total_xp, current_level, current_streak, created_at')
       .single();
 
     if (error) {
@@ -346,7 +354,7 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
     logger.info(`🔄 Recalculating totals for user ${userId}...`);
     
     const { calculateUserTotals } = await import('../utils/calculateUserTotals.js');
-    await calculateUserTotals(userId);
+    await calculateUserTotals(userId, req.user!.group_id);
     
     res.json({
       success: true,
@@ -508,14 +516,15 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
   }
 });
 
-// GET /api/auth/users-with-runs - Get all users with their runs (authenticated users)
-router.get('/users-with-runs', authenticateJWT, async (_req, res): Promise<void> => {
+// GET /api/auth/users-with-runs - Get all users in same group with their runs
+router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    logger.info('👥 Fetching all users with runs');
-    
-    const supabase = getSupabaseClient();
+    logger.info('👥 Fetching users with runs');
 
-    const { data: usersWithRuns, error } = await supabase
+    const supabase = getSupabaseClient();
+    const groupId = req.user!.group_id;
+
+    let query = supabase
       .from('users')
       .select(`
         id, name, total_xp, current_level, total_km,
@@ -524,6 +533,12 @@ router.get('/users-with-runs', authenticateJWT, async (_req, res): Promise<void>
              streak_day, base_xp, km_xp, distance_bonus, streak_bonus)
       `)
       .order('total_xp', { ascending: false });
+
+    if (groupId) {
+      query = query.eq('group_id', groupId);
+    }
+
+    const { data: usersWithRuns, error } = await query;
 
     if (error) {
       logger.error('❌ Error fetching users with runs:', error.message);

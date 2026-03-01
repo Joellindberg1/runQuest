@@ -2,7 +2,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { logger } from './logger.js';
 import { getLevelFromXP } from './xpCalculation.js';
 
-export async function calculateUserTotals(userId: string) {
+export async function calculateUserTotals(userId: string, groupId?: string) {
   try {
     console.time(`calculateUserTotals:${userId}`);
     const supabase = getSupabaseClient();
@@ -62,9 +62,9 @@ export async function calculateUserTotals(userId: string) {
       const { EnhancedTitleService } = await import('../services/enhancedTitleService.js');
       const titleService = new EnhancedTitleService();
       
-      // Process titles for ALL users (not just the one who triggered this)
-      // This ensures leaderboard always shows correct rankings
-      await titleService.processAllUsersTitles();
+      // Process titles for all users in the same group
+      // This ensures leaderboard always shows correct rankings within the group
+      await titleService.processAllUsersTitles(groupId);
       
       logger.info('✅ All users titles processed successfully');
       

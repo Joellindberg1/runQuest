@@ -10,6 +10,7 @@ declare module 'express-serve-static-core' {
       user_id: string;
       name: string;
       email: string;
+      group_id?: string;
     };
   }
 }
@@ -19,6 +20,7 @@ export interface AuthenticatedRequest extends Request {
     user_id: string;
     name: string;
     email: string;
+    group_id?: string;
   };
 }
 
@@ -44,7 +46,8 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
     req.user = {
       user_id: decoded.user_id,
       name: decoded.name,
-      email: decoded.email
+      email: decoded.email,
+      group_id: decoded.group_id ?? undefined
     };
     
     next();

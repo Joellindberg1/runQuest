@@ -8,6 +8,7 @@ export interface User {
   current_streak: number;
   longest_streak: number;
   profile_picture?: string;
+  group_id?: string;
   runs?: Run[];
 }
 
@@ -23,6 +24,8 @@ export interface Run {
   km_xp: number;
   distance_bonus: number;
   streak_bonus: number;
+  source?: string;
+  external_id?: string;
 }
 
 export interface RunData {
