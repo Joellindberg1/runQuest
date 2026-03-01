@@ -4,19 +4,22 @@ import { TooltipProvider } from '@/shared/components/ui/tooltip';
 import { Toaster } from '@/shared/components/ui/toaster';
 import { Toaster as Sonner } from '@/shared/components/ui/sonner';
 import { AuthProvider } from './AuthProvider';
+import { ThemeProvider } from './ThemeProvider';
 
 const queryClient = new QueryClient();
 
 export const AppProviders = ({ children }: { children: React.ReactNode }) => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          {children}
-          <Toaster />
-          <Sonner />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AuthProvider>
+            {children}
+            <Toaster />
+            <Sonner />
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 };
