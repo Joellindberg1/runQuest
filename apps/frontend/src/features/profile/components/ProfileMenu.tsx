@@ -2,15 +2,13 @@
 import React from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
-import { User, Settings, LogOut, Info, Shield, Moon, Sun } from 'lucide-react';
+import { User, Settings, LogOut, Info, Shield } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { useNavigate } from 'react-router-dom';
-import { useTheme } from '@/providers/ThemeProvider';
 
 export const ProfileMenu: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
 
   const handleDashboardClick = () => {
   navigate('/');
@@ -68,10 +66,6 @@ export const ProfileMenu: React.FC = () => {
             Admin Panel
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onClick={toggleTheme}>
-          {theme === 'dark' ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
-          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogoutClick}>
           <LogOut className="w-4 h-4 mr-2" />
           Log out

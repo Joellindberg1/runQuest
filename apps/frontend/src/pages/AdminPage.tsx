@@ -6,7 +6,6 @@ import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { ProfileMenu } from '@/features/profile';
 import { useAdminData, XPSettings, UserManagement, TitleConfig, AdminSecurity } from '@/features/admin';
-import { Logo } from '@/shared/components/Logo';
 
 const AdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -19,14 +18,14 @@ const AdminPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-slate-900 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-8">
           <div className="flex justify-between items-center">
-            <Logo className="h-10" />
+            <div></div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-2">Runquest - Admin Panel</h1>
-              <p className="text-lg text-gray-600 dark:text-gray-400">Configure Running Challenge Settings</p>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">Runquest - Admin Panel</h1>
+              <p className="text-lg text-gray-600">Configure Running Challenge Settings</p>
             </div>
             <div>
               <ProfileMenu />

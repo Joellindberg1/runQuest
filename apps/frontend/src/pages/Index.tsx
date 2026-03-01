@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui
 import { Trophy, User as UserIcon, Plus, Award } from 'lucide-react';
 import { useLeaderboardData } from '@/features/leaderboard/hooks/useLeaderboardData';
 import { useRunUpdates } from '@/features/runs/hooks/useRunUpdates';
-import { Logo } from '@/shared/components/Logo';
 
 const Index: React.FC = () => {
   const { users, currentUser, loading, refresh } = useLeaderboardData();
@@ -17,29 +16,29 @@ const Index: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-slate-900 flex items-center justify-center">
-        <div className="text-xl dark:text-gray-100">Loading...</div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
       </div>
     );
   }
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-slate-900 flex items-center justify-center">
-        <div className="text-xl dark:text-gray-100">User not found</div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
+        <div className="text-xl">User not found</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-slate-900 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-8">
           <div className="flex justify-between items-center">
-            <Logo className="h-10" />
+            <div></div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-2">Göteborgsvarvet 2026</h1>
-              <p className="text-lg text-gray-600 dark:text-gray-400">Run - Rank - Reign</p>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">Göteborgsvarvet 2026</h1>
+              <p className="text-lg text-gray-600">Run - Rank - Reign</p>
             </div>
             <div>
               <ProfileMenu />
@@ -48,7 +47,7 @@ const Index: React.FC = () => {
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6 bg-white dark:bg-slate-800 border-2 border-gray-200 dark:border-slate-700 shadow-lg">
+          <TabsList className="grid w-full grid-cols-4 mb-6 bg-white border-2 border-gray-200 shadow-lg">
             <TabsTrigger
               value="leaderboard"
               className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white font-semibold"
