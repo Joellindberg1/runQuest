@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
@@ -6,6 +5,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { LogIn } from 'lucide-react';
 import { useAuth } from '@/features/auth';
+import { Logo } from '@/shared/components/Logo';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -29,11 +29,11 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-slate-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">RunQuest</h1>
-          <p className="text-lg text-gray-600">Login to continue your journey</p>
+        <div className="flex flex-col items-center mb-8">
+          <Logo className="h-16 mb-4" />
+          <p className="text-lg text-gray-600 dark:text-gray-400">Login to continue your journey</p>
         </div>
 
         {error && (
