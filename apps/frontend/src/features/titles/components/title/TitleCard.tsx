@@ -17,7 +17,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
   } : null);
 
   return (
-    <div className="p-4 border border-gray-200 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50">
+    <div className="p-4 border border-foreground/10 rounded-lg bg-background">
       <div className="flex items-start gap-3">
         {getTitleIcon(title.name)}
         <div className="flex-1">
@@ -41,11 +41,11 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
               
               {title.runners_up && title.runners_up.length > 0 && (
                 <div className="mt-3 border-t pt-2">
-                  <div className="text-xs font-semibold text-gray-700 mb-2">Runners Up:</div>
+                  <div className="text-xs font-semibold text-foreground mb-2">Runners Up:</div>
                   <div className="space-y-1">
                     {title.runners_up.slice(0, 3).map((runner, index) => (
                       <div key={runner.user_id} className="flex justify-between text-xs">
-                        <span className="text-gray-600">#{index + 2} {runner.user_name}</span>
+                        <span className="text-muted-foreground">#{index + 2} {runner.user_name}</span>
                         <span className="font-medium">{runner.value.toFixed(1)}{getValueSuffix(title.name)}</span>
                       </div>
                     ))}

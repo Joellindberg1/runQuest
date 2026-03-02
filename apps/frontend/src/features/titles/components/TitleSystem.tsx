@@ -20,7 +20,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
     return (
       <div className="space-y-6">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
           <div className="text-lg">Loading titles...</div>
         </div>
       </div>
@@ -30,7 +30,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
   return (
     <div className="space-y-6">
       {/* Competitive Titles */}
-      <Card>
+      <Card className="bg-sidebar">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Crown className="w-6 h-6 text-yellow-500" />

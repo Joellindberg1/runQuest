@@ -11,7 +11,7 @@ export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ user }) => {
   const weekendAvg = calculateWeekendAverage(user.runs ?? []);
   
   return (
-    <div className="p-3 border rounded-lg">
+    <div className="p-3 border border-foreground/10 rounded-lg bg-background">
       <div className="font-semibold mb-2">{user.name}</div>
       <div className="text-sm space-y-1 text-muted-foreground">
         <div>Longest Run: {longestRun.toFixed(1)}km {longestRun >= 12 ? '✅' : '❌'}</div>

@@ -10,13 +10,13 @@ interface TitleRequirementsProps {
 
 export const TitleRequirements: React.FC<TitleRequirementsProps> = ({ users }) => {
   return (
-    <Card>
+    <Card className="bg-sidebar">
       <CardHeader>
         <CardTitle>How Title Competition Works</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="p-4 bg-blue-50 rounded-lg">
+          <div className="p-4 bg-background rounded-lg">
             <h4 className="font-semibold mb-2">Title Rules:</h4>
             <ul className="text-sm space-y-1 text-muted-foreground">
               <li>• Each title has a minimum requirement to unlock</li>
@@ -34,8 +34,8 @@ export const TitleRequirements: React.FC<TitleRequirementsProps> = ({ users }) =
             </div>
           ) : (
             <div className="text-center py-8">
-              <div className="text-gray-500 mb-2">No users to display</div>
-              <div className="text-sm text-gray-400">Start logging runs to compete for titles!</div>
+              <div className="text-muted-foreground mb-2">No users to display</div>
+              <div className="text-sm text-muted-foreground">Start logging runs to compete for titles!</div>
             </div>
           )}
         </div>
