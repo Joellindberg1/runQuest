@@ -110,6 +110,32 @@ const MOCK_USERS: User[] = [
       makeRun('u6', 7, 5.0, 195),
     ],
   },
+  {
+    id: 'u7',
+    name: 'Klara Bergström',
+    total_xp: 2900,
+    current_level: 4,
+    total_km: 89.0,
+    current_streak: 0,
+    longest_streak: 4,
+    runs: [
+      makeRun('u7', 3, 5.5, 215),
+      makeRun('u7', 11, 4.0, 160),
+    ],
+  },
+  {
+    id: 'u8',
+    name: 'Mikael Holm',
+    total_xp: 1850,
+    current_level: 3,
+    total_km: 54.2,
+    current_streak: 2,
+    longest_streak: 3,
+    runs: [
+      makeRun('u8', 1, 3.5, 140),
+      makeRun('u8', 6, 4.8, 190),
+    ],
+  },
 ];
 
 // Use the first user as "current user" for preview purposes

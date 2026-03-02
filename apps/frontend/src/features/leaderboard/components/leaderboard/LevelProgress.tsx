@@ -13,8 +13,8 @@ export const LevelProgress: React.FC<LevelProgressProps> = ({
   xpLeftForNextLevel 
 }) => {
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between text-sm">
+    <div className="space-y-1 mt-1">
+      <div className="flex justify-between text-xs">
         <span>Level Progress</span>
         <span className="text-muted-foreground">
           {xpLeftForNextLevel > 0 ? `${formatXPForDisplay(xpLeftForNextLevel)} XP left` : 'Max Level!'}

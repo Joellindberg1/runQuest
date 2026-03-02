@@ -81,7 +81,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
           />
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="p-4 pt-0">
           <UserStats
             user={user}
             stats={{
@@ -131,9 +131,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
       </div>
 
       {/* Desktop: 2nd left, 1st center + higher, 3rd right + lower */}
-      <div className={`hidden md:flex gap-4 ${podiumSlots.length === 1 ? 'justify-center' : ''}`}>
+      <div className="hidden md:flex gap-4 justify-center">
         {podiumSlots.map(({ user, mt }) => (
-          <div key={user.id} className={`flex-1 ${mt}`}>
+          <div key={user.id} className={`w-[340px] ${mt}`}>
             {renderCard(user)}
           </div>
         ))}
@@ -141,8 +141,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
 
       {/* ── Positions 4+: flat grid, all on the same level ── */}
       {restUsers.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {restUsers.map((user) => renderCard(user))}
+        <div className="flex flex-wrap justify-center gap-4">
+          {restUsers.map((user) => (
+            <div key={user.id} className="w-[340px]">
+              {renderCard(user)}
+            </div>
+          ))}
         </div>
       )}
     </div>

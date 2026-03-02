@@ -45,7 +45,7 @@ export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
     <div className="flex items-start justify-between w-full gap-2">
 
       {/* Left: Avatar pushed down so it sits at the title line */}
-      <div className="relative mt-6 shrink-0">
+      <div className="relative mt-4 shrink-0">
         <Avatar className="h-12 w-12">
           <AvatarImage src={user.profile_picture || ''} />
           <AvatarFallback className="text-sm font-semibold">
@@ -71,7 +71,7 @@ export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
       </div>
 
       {/* Right: Position pushed down to sit at the title line */}
-      <div className="mt-6 shrink-0">
+      <div className="mt-4 shrink-0">
         <span className="text-lg font-bold">#{position}</span>
       </div>
 

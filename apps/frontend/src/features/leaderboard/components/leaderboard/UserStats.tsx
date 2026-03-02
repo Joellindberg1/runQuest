@@ -17,9 +17,9 @@ interface UserStatsProps {
 
 export const UserStats: React.FC<UserStatsProps> = ({ user, stats }) => {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* First row: Runs - Longest */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      <div className="grid grid-cols-2 gap-2 text-sm">
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-blue-500" />
           <div>
@@ -38,7 +38,7 @@ export const UserStats: React.FC<UserStatsProps> = ({ user, stats }) => {
       </div>
 
       {/* Second row: Avg run (length km) - Total KM */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      <div className="grid grid-cols-2 gap-2 text-sm">
         <div className="flex items-center gap-2">
           <Timer className="w-4 h-4 text-purple-500" />
           <div>
@@ -57,7 +57,7 @@ export const UserStats: React.FC<UserStatsProps> = ({ user, stats }) => {
       </div>
 
       {/* Third row: Highest streak - Current streak */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      <div className="grid grid-cols-2 gap-2 text-sm">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-indigo-500" />
           <div>
@@ -76,7 +76,7 @@ export const UserStats: React.FC<UserStatsProps> = ({ user, stats }) => {
       </div>
 
       {/* Stats section */}
-      <div className="border-t pt-3 space-y-2">
+      <div className="border-t pt-2 space-y-1">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Total XP:</span>
           <span className="font-semibold">{user.total_xp.toLocaleString()}</span>
