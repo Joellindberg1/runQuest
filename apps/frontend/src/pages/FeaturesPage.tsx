@@ -134,7 +134,7 @@ const FeaturesPage: React.FC = () => {
           <Card className="bg-sidebar border-2 border-foreground/15">
             <CardHeader
               className="cursor-pointer hover:bg-accent transition-colors"
-              onClick={() => { setFeaturesOpen(true); setWorkingOnOpen(false); }}
+              onClick={() => setFeaturesOpen(o => !o)}
             >
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

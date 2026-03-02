@@ -29,36 +29,38 @@ export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle }) => {
       </div>
 
       {/* Center: group name — grid center col so it's truly centered within the full TopBar */}
-      <h1 className="text-2xl md:text-3xl font-bold text-foreground whitespace-nowrap">
+      <h1 className="text-2xl md:text-3xl font-bold text-foreground text-center leading-tight">
         {groupName}
       </h1>
 
-      {/* Right: notification + theme switch + profile icon */}
+      {/* Right: notification + theme switch + profile icon — hidden on mobile (moved to sidebar) */}
       <div className="flex items-center gap-2 md:gap-3 justify-end">
-        {/* Notification (placeholder) */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground"
-          disabled
-          title="Notifications — coming soon"
-        >
-          <Bell className="w-4 h-4" />
-        </Button>
+        <div className="hidden md:contents">
+          {/* Notification (placeholder) */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground"
+            disabled
+            title="Notifications — coming soon"
+          >
+            <Bell className="w-4 h-4" />
+          </Button>
 
-        {/* Light / Dark switch */}
-        <div className="flex items-center gap-1.5">
-          <Sun className="w-3.5 h-3.5 text-muted-foreground" />
-          <Switch
-            checked={isDark}
-            onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-            className="data-[state=checked]:bg-primary border border-foreground/30 [&>span]:border [&>span]:border-foreground/20"
-          />
-          <Moon className="w-3.5 h-3.5 text-muted-foreground" />
+          {/* Light / Dark switch */}
+          <div className="flex items-center gap-1.5">
+            <Sun className="w-3.5 h-3.5 text-muted-foreground" />
+            <Switch
+              checked={isDark}
+              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+              className="data-[state=checked]:bg-primary border border-foreground/30 [&>span]:border [&>span]:border-foreground/20"
+            />
+            <Moon className="w-3.5 h-3.5 text-muted-foreground" />
+          </div>
+
+          {/* Profile dropdown */}
+          <ProfileMenu />
         </div>
-
-        {/* Profile dropdown */}
-        <ProfileMenu />
       </div>
     </header>
   );

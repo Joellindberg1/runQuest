@@ -7,7 +7,6 @@ import { CheckCircle, AlertCircle, XCircle, ExternalLink } from 'lucide-react';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { StravaIcon } from '@/shared/components/StravaIcon';
-import { log } from '@/shared/utils/logger';
 import { formatConnectionDate } from '@/shared/utils/formatters';
 import { useStravaData, formatLastSync, formatNextSync } from './hooks/useStravaData';
 
@@ -81,24 +80,6 @@ export const StravaSettings: React.FC = () => {
     }
   };
 
-  const handleDebugStrava = async () => {
-    if (!backendApi.isAuthenticated()) { toast.error('Authentication required'); return; }
-    try {
-      const result = await backendApi.debugStravaActivities();
-      if (result.success && result.data) {
-        toast.info(result.data.new_runs_count > 0
-          ? `Found ${result.data.new_runs_count} new runs. Check console for details.`
-          : 'No new runs found. Check console for details.'
-        );
-        log.debug('Strava debug data', result.data);
-      } else {
-        toast.error(result.error || 'Failed to fetch debug info');
-      }
-    } catch {
-      toast.error('Failed to fetch debug info');
-    }
-  };
-
   const getStatusBadge = () => {
     if (loading) return <Badge variant="secondary">Loading...</Badge>;
     if (!stravaStatus.connected) return (
@@ -164,9 +145,6 @@ export const StravaSettings: React.FC = () => {
                   ? <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500" />Syncing...</>
                   : <>🔄 Sync Now</>
                 }
-              </Button>
-              <Button onClick={handleDebugStrava} variant="secondary" className="flex items-center gap-2">
-                🔍 Debug Strava
               </Button>
               <span className="text-xs text-muted-foreground">Remember, your data will be automatically synced!</span>
             </div>
