@@ -19,7 +19,7 @@
      LIGHT THEME  (no .dark class on <html>)
   ════════════════════════════════════════════════════════════ */
   :root {
-    --background:   0  0% 95%;           /* Page background     — White smoke        */
+    --background:   0  0% 80%;           /* Page background     — White smoke        */
     --foreground: 330  2% 18%;           /* Default text        — Graphite            */
 
     --card:          33 13% 83%;         /* Card background     — warm dust grey      */
