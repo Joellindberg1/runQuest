@@ -16,7 +16,7 @@ export const TitleRequirements: React.FC<TitleRequirementsProps> = ({ users }) =
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="p-4 bg-background rounded-lg w-fit mx-auto">
+          <div className="p-4 bg-background rounded-lg border border-foreground/50 w-fit mx-auto">
             <h4 className="font-semibold mb-2">Title Rules:</h4>
             <ul className="text-sm space-y-1 text-muted-foreground">
               <li>• Each title has a minimum requirement to unlock</li>
