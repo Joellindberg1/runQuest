@@ -32,14 +32,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
 
   const getPositionStyles = (position: number) => {
     if (position === 1) {
-      // Gold: amber-200 light / darker matte gold dark
-      return 'podium-light border-2 !border-amber-600 bg-amber-200 dark:bg-[#9A8030] dark:!border-amber-800 shadow-amber-400/40 shadow-lg';
+      // Gold: #FFBF00
+      return 'podium-light border-2 !border-[#997300] bg-[#FFBF00] dark:bg-[#FFBF00] dark:!border-[#997300] shadow-amber-400/40 shadow-lg';
     } else if (position === 2) {
       // Silver: zinc-300 light / darker silver dark
       return 'podium-light border-2 !border-zinc-500 bg-zinc-300 dark:bg-[#A0A0A0] dark:!border-zinc-600 shadow-zinc-400/40 shadow-lg';
     } else if (position === 3) {
-      // Bronze: orange-300 light / darker bronze dark
-      return 'podium-light border-2 !border-orange-700 bg-orange-300 dark:bg-[#AE7030] dark:!border-orange-900 shadow-orange-400/40 shadow-lg';
+      // Bronze: #E8AC41
+      return 'podium-light border-2 !border-[#B07A1A] bg-[#E8AC41] dark:bg-[#E8AC41] dark:!border-[#B07A1A] shadow-orange-400/40 shadow-lg';
     }
     return 'border-2 border-foreground/15 bg-accent text-accent-foreground';
   };

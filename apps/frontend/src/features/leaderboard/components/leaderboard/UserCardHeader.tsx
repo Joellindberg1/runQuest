@@ -33,7 +33,7 @@ export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
 
   const getPodiumIcon = (pos: number) => {
     switch (pos) {
-      case 1: return <Trophy className="w-6 h-6 text-yellow-500" />;
+      case 1: return <Trophy className="w-6 h-6 text-yellow-700" />;
       case 2: return <Medal className="w-6 h-6 text-zinc-500" />;
       case 3: return <Award className="w-6 h-6 text-amber-800" />;
       default: return null;
