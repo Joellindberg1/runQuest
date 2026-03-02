@@ -24,30 +24,26 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, active, disabled, onClic
     onClick={!disabled ? onClick : undefined}
     disabled={disabled}
     className={cn(
-      'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-left',
+      'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors text-left',
       active && 'bg-sidebar-primary text-sidebar-primary-foreground',
       !active && !disabled && 'hover:bg-sidebar-accent text-sidebar-foreground cursor-pointer',
-      disabled && 'text-muted-foreground cursor-not-allowed opacity-50'
+      disabled && 'text-muted-foreground cursor-not-allowed opacity-40'
     )}
   >
     <span className="shrink-0">{icon}</span>
-    <span>{label}</span>
-    {disabled && (
-      <span className="ml-auto text-[10px] font-normal opacity-60">snart</span>
-    )}
+    <span className="truncate">{label}</span>
   </button>
 );
 
 const NavSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="mb-5">
-    <p className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+  <div className="mb-4">
+    <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
       {title}
     </p>
     <div className="space-y-0.5">{children}</div>
   </div>
 );
 
-/** Resolves the active tab from the current URL */
 function useActiveTab() {
   const location = useLocation();
   if (location.pathname === '/features') return 'features';
@@ -72,10 +68,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile overlay — darker so sidebar is clearly visible */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          className="fixed inset-0 z-30 bg-black/70 md:hidden"
           onClick={onClose}
         />
       )}
@@ -84,40 +80,45 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       <aside
         className={cn(
           'fixed top-0 left-0 z-40 h-full flex flex-col',
-          'bg-sidebar-background border-r border-sidebar-border',
+          // The only divider: a clear right border separating sidebar from content
+          'bg-sidebar-background border-r-2 border-foreground/15',
           'transition-transform duration-300 ease-in-out',
-          'w-[50vw] md:w-[20%]',
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          // Mobile: 60% wide with strong shadow so it reads as a distinct panel
+          // Desktop: 10% wide
+          'w-[60vw] md:w-[10%]',
+          isOpen
+            ? 'translate-x-0 shadow-2xl'
+            : '-translate-x-full md:translate-x-0'
         )}
       >
-        {/* Logo */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border">
-          <RunQuestLogo className="h-7 w-auto text-sidebar-foreground" />
+        {/* Logo — no bottom divider */}
+        <div className="flex items-center justify-between px-3 pt-5 pb-4">
+          <RunQuestLogo className="h-6 w-auto max-w-full text-sidebar-foreground" />
           <button
             onClick={onClose}
-            className="md:hidden p-1 rounded-md hover:bg-sidebar-accent text-sidebar-foreground"
+            className="md:hidden shrink-0 ml-2 p-1 rounded-md hover:bg-sidebar-accent text-sidebar-foreground"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 overflow-y-auto px-2 pb-4">
           <NavSection title="Game">
             <NavItem
-              icon={<Trophy className="w-4 h-4" />}
+              icon={<Trophy className="w-3.5 h-3.5" />}
               label="Leaderboard"
               active={activeTab === 'leaderboard'}
               onClick={() => handleNav('leaderboard')}
             />
             <NavItem
-              icon={<Award className="w-4 h-4" />}
+              icon={<Award className="w-3.5 h-3.5" />}
               label="Titles"
               active={activeTab === 'titles'}
               onClick={() => handleNav('titles')}
             />
             <NavItem
-              icon={<Gamepad2 className="w-4 h-4" />}
+              icon={<Gamepad2 className="w-3.5 h-3.5" />}
               label="Challenges"
               disabled
             />
@@ -125,13 +126,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           <NavSection title="You">
             <NavItem
-              icon={<User className="w-4 h-4" />}
+              icon={<User className="w-3.5 h-3.5" />}
               label="Profile"
               active={activeTab === 'profile'}
               onClick={() => handleNav('profile')}
             />
             <NavItem
-              icon={<Plus className="w-4 h-4" />}
+              icon={<Plus className="w-3.5 h-3.5" />}
               label="Log Run"
               active={activeTab === 'log-run'}
               onClick={() => handleNav('log-run')}
@@ -140,31 +141,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           <NavSection title="RunQuest">
             <NavItem
-              icon={<Info className="w-4 h-4" />}
+              icon={<Info className="w-3.5 h-3.5" />}
               label="Feature & Version"
               active={activeTab === 'features'}
               onClick={() => handleNav('features')}
             />
             <NavItem
-              icon={<HelpCircle className="w-4 h-4" />}
+              icon={<HelpCircle className="w-3.5 h-3.5" />}
               label="FAQ"
               disabled
             />
             <NavItem
-              icon={<Bug className="w-4 h-4" />}
+              icon={<Bug className="w-3.5 h-3.5" />}
               label="Bug Report"
               disabled
             />
           </NavSection>
         </nav>
 
-        {/* Strava sync — always at the bottom */}
-        <div className="px-4 py-4 border-t border-sidebar-border min-h-[56px] flex items-center">
+        {/* Strava sync — pinned to bottom, no top divider */}
+        <div className="px-3 py-4 min-h-[52px] flex items-center">
           {stravaStatus.connected && (
             <div className="flex items-center gap-2">
-              <StravaIcon size={20} />
-              <span className="text-xs text-muted-foreground leading-tight">
-                You are synced with Strava
+              <StravaIcon size={18} />
+              <span className="text-[10px] text-muted-foreground leading-tight truncate">
+                Synced with Strava
               </span>
             </div>
           )}

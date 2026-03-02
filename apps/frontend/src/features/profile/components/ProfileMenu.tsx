@@ -19,13 +19,13 @@ export const ProfileMenu: React.FC = () => {
   if (!user) {
     return (
       <Button
-        variant="outline"
-        size="sm"
-        className="rounded-full w-9 h-9 p-0 border-border"
+        variant="ghost"
+        size="icon"
+        className="rounded-full w-9 h-9"
         onClick={() => navigate('/')}
         title="Log in"
       >
-        <LogIn className="w-4 h-4" />
+        <LogIn className="w-5 h-5" />
       </Button>
     );
   }
@@ -34,18 +34,19 @@ export const ProfileMenu: React.FC = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
-          size="sm"
-          className="rounded-full w-9 h-9 p-0 border-border hover:border-primary transition-colors"
+          variant="ghost"
+          size="icon"
+          className="rounded-full w-9 h-9 hover:bg-accent transition-colors"
+          title={user.name}
         >
           {user.profile_picture ? (
             <img
               src={user.profile_picture}
               alt="Profile"
-              className="w-7 h-7 rounded-full object-cover"
+              className="w-8 h-8 rounded-full object-cover"
             />
           ) : (
-            <User className="w-4 h-4" />
+            <User className="w-5 h-5" />
           )}
         </Button>
       </DropdownMenuTrigger>

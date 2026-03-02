@@ -15,7 +15,7 @@ export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle }) => {
   const isDark = resolvedTheme === 'dark';
 
   return (
-    <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-border bg-background">
+    <header className="flex items-center justify-between px-4 md:px-6 py-3 bg-background">
       {/* Left: hamburger (mobile) + group name (mobile) */}
       <div className="flex items-center gap-3">
         <Button

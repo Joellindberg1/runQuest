@@ -104,3 +104,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+  Podium cards (gold / silver / bronze) keep light backgrounds and dark text
+  in BOTH light and dark mode by overriding the relevant CSS variables locally.
+*/
+.podium-light {
+  --foreground: 330 2% 18%;
+  --card-foreground: 330 2% 18%;
+  --muted-foreground: 330 2% 38%;
+  color: hsl(330, 2%, 18%);
+}
