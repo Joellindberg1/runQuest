@@ -5,7 +5,7 @@ import { useStravaData, formatLastSync, formatNextSync } from '@/features/settin
 import { formatConnectionDate } from '@/shared/utils/formatters';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { RunQuestLogo } from '@/shared/components/RunQuestLogo';
-import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Gamepad2, X } from 'lucide-react';
+import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Gamepad2, X, CheckCircle } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -166,7 +166,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <div className="rounded-lg bg-sidebar-accent border border-foreground/10 p-3">
               <div className="flex items-center gap-2 mb-2">
                 <StravaIcon size={16} />
-                <span className="text-xs font-semibold text-sidebar-foreground">Connected</span>
+                <span className="flex items-center gap-1 text-xs font-semibold text-green-500">
+                  <CheckCircle className="w-3 h-3" /> Connected
+                </span>
               </div>
               <div className="space-y-0.5 text-xs text-sidebar-foreground/60">
                 <div>Since: {formatConnectionDate(stravaStatus.connection_date)}</div>
