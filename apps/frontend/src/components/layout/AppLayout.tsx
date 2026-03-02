@@ -18,7 +18,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children }) => 
       />
 
       {/* Main area — offset by sidebar width on md+ */}
-      <div className="flex flex-col flex-1 min-w-0 md:ml-[10%]">
+      <div className="flex flex-col flex-1 min-w-0 md:ml-[15%]">
         <TopBar
           groupName={groupName}
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}

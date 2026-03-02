@@ -49,13 +49,17 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
           
           const getPositionStyles = () => {
             if (position === 1) {
-              return 'podium-light border-2 !border-amber-600 bg-amber-100 shadow-amber-200/40 shadow-lg';
+              // Gold: amber-100 light / #EFBF04 dark — both use dark Graphite text via .podium-light
+              return 'podium-light border-2 !border-amber-500 bg-amber-100 dark:bg-[#EFBF04] shadow-amber-300/40 shadow-lg';
             } else if (position === 2) {
-              return 'podium-light border-2 !border-zinc-500 bg-zinc-100 shadow-zinc-300/40 shadow-lg';
+              // Silver
+              return 'podium-light border-2 !border-zinc-400 bg-zinc-100 dark:bg-[#C0C0C0] shadow-zinc-300/40 shadow-lg';
             } else if (position === 3) {
-              return 'podium-light border-2 !border-orange-700 bg-orange-100 shadow-orange-300/40 shadow-lg';
+              // Bronze
+              return 'podium-light border-2 !border-orange-600 bg-orange-100 dark:bg-[#CE8946] shadow-orange-300/40 shadow-lg';
             }
-            return 'border-2 !border-gray-500';
+            // Positions 4+: distinct card bg so they pop against the page background
+            return 'border border-foreground/20 bg-card dark:bg-secondary';
           };
           
           return (

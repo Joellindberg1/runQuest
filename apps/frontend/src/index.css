@@ -56,13 +56,13 @@
   }
 
   .dark {
-    --background: 330 2% 18%;
-    --foreground: 33 13% 83%;
+    --background: 330 2% 18%;       /* #302E2F Graphite */
+    --foreground: 33 13% 83%;       /* #DAD5CF Dust grey */
 
-    --card: 330 2% 22%;
+    --card: 330 2% 27%;             /* clearly lighter than background for card contrast */
     --card-foreground: 33 13% 83%;
 
-    --popover: 330 2% 22%;
+    --popover: 330 2% 27%;
     --popover-foreground: 33 13% 83%;
 
     --primary: 1 75% 64%;

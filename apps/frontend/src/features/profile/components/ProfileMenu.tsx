@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
-import { User, Settings, LogOut, Shield, LogIn } from 'lucide-react';
+import { User, Settings, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,28 +15,20 @@ export const ProfileMenu: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  // Not logged in — show login button
-  if (!user) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        className="rounded-full w-9 h-9"
-        onClick={() => navigate('/')}
-        title="Log in"
-      >
-        <LogIn className="w-5 h-5" />
-      </Button>
-    );
-  }
+  // Not logged in — show nothing (the page handles login separately)
+  if (!user) return null;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
+        {/*
+          Ring makes the button visible in both themes without adding a hard border.
+          bg-foreground/10 gives a subtle fill so the circle reads even on hover.
+        */}
         <Button
           variant="ghost"
           size="icon"
-          className="rounded-full w-9 h-9 hover:bg-accent transition-colors"
+          className="rounded-full w-9 h-9 ring-1 ring-foreground/30 bg-foreground/5 hover:bg-foreground/10 transition-colors"
           title={user.name}
         >
           {user.profile_picture ? (
@@ -50,6 +42,7 @@ export const ProfileMenu: React.FC = () => {
           )}
         </Button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuItem onClick={() => navigate('/settings')}>
           <Settings className="w-4 h-4 mr-2" />

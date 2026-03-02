@@ -68,10 +68,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   return (
     <>
-      {/* Mobile overlay — darker so sidebar is clearly visible */}
+      {/* Mobile overlay — near-solid so sidebar is unmistakably visible */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/70 md:hidden"
+          className="fixed inset-0 z-30 bg-black/85 md:hidden"
           onClick={onClose}
         />
       )}
@@ -85,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           'transition-transform duration-300 ease-in-out',
           // Mobile: 60% wide with strong shadow so it reads as a distinct panel
           // Desktop: 10% wide
-          'w-[60vw] md:w-[10%]',
+          'w-[60vw] md:w-[15%]',
           isOpen
             ? 'translate-x-0 shadow-2xl'
             : '-translate-x-full md:translate-x-0'
