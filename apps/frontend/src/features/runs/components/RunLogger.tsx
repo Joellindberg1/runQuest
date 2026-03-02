@@ -77,7 +77,8 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
   return (
     <div className="max-w-4xl mx-auto">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 m-6 bg-sidebar border-2 border-foreground/15">
+        <div className="px-4 py-4">
+        <TabsList className="grid w-full grid-cols-2 bg-sidebar border-2 border-foreground/15">
           <TabsTrigger
             value="log-run"
             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold"
@@ -93,6 +94,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
             Run History - Group
           </TabsTrigger>
         </TabsList>
+        </div>
 
         <TabsContent value="log-run">
           <div className="max-w-md mx-auto">

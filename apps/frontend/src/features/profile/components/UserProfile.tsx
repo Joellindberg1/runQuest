@@ -69,7 +69,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
                   {getInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
-              <div className="grid grid-cols-3 gap-4 flex-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 flex-1">
                 <div className="text-center">
                   <div className="text-2xl font-bold">Lvl {currentLevel}</div>
                   <div className="text-sm text-muted-foreground">Level</div>
