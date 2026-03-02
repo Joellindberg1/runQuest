@@ -10,13 +10,13 @@ interface TitleRequirementsProps {
 
 export const TitleRequirements: React.FC<TitleRequirementsProps> = ({ users }) => {
   return (
-    <Card className="bg-sidebar">
+    <Card className="bg-sidebar border-2 border-foreground/15">
       <CardHeader>
         <CardTitle>How Title Competition Works</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="p-4 bg-background rounded-lg">
+          <div className="p-4 bg-background rounded-lg w-fit mx-auto">
             <h4 className="font-semibold mb-2">Title Rules:</h4>
             <ul className="text-sm space-y-1 text-muted-foreground">
               <li>• Each title has a minimum requirement to unlock</li>

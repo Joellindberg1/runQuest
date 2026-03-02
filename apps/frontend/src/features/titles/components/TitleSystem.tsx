@@ -30,7 +30,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
   return (
     <div className="space-y-6">
       {/* Competitive Titles */}
-      <Card className="bg-sidebar">
+      <Card className="bg-sidebar border-2 border-foreground/15">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Crown className="w-6 h-6 text-yellow-500" />
