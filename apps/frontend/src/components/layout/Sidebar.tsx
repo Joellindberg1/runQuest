@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { useStravaData } from '@/features/settings/hooks/useStravaData';
+import { useStravaData, formatLastSync, formatNextSync } from '@/features/settings/hooks/useStravaData';
+import { formatConnectionDate } from '@/shared/utils/formatters';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { RunQuestLogo } from '@/shared/components/RunQuestLogo';
 import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Gamepad2, X } from 'lucide-react';
@@ -53,7 +54,7 @@ function useActiveTab() {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { stravaStatus } = useStravaData();
+  const { stravaStatus, syncInfo } = useStravaData();
   const navigate = useNavigate();
   const activeTab = useActiveTab();
 
@@ -159,14 +160,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </NavSection>
         </nav>
 
-        {/* Strava sync — pinned to bottom, no top divider */}
-        <div className="px-3 py-4 min-h-[52px] flex items-center">
+        {/* Strava sync — pinned to bottom */}
+        <div className="px-3 py-3">
           {stravaStatus.connected && (
-            <div className="flex items-center gap-2">
-              <StravaIcon size={18} />
-              <span className="text-xs text-sidebar-foreground/60 leading-tight truncate">
-                Synced with Strava
-              </span>
+            <div className="rounded-lg bg-sidebar-accent border border-foreground/10 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <StravaIcon size={16} />
+                <span className="text-xs font-semibold text-sidebar-foreground">Connected</span>
+              </div>
+              <div className="space-y-0.5 text-xs text-sidebar-foreground/60">
+                <div>Since: {formatConnectionDate(stravaStatus.connection_date)}</div>
+                <div>Last sync: {formatLastSync(syncInfo)}</div>
+                <div>Next sync: {formatNextSync(syncInfo)}</div>
+              </div>
             </div>
           )}
         </div>
