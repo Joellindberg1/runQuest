@@ -25,7 +25,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
   };
 
   const renderRunDetails = (run: Run) => (
-    <div className="bg-background rounded-b-lg px-3 pb-3">
+    <div className="px-3 pb-3">
       <div className="w-4/5 mx-auto border-t border-foreground/15 my-2" />
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <div>Base XP: <span className="font-medium text-foreground">{run.base_xp}</span></div>
@@ -60,11 +60,13 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
           ) : (
             <>
               <div className="space-y-3 flex-1">
-                {pageRuns.map((run) => (
-                  <div key={run.id} className="border border-foreground/10 rounded-lg">
+                {pageRuns.map((run) => {
+                  const isOpen = selectedRun?.id === run.id;
+                  return (
+                  <div key={run.id} className="bg-background border border-foreground/10 rounded-lg">
                     <div
-                      className="flex items-center justify-between p-3 bg-background rounded-lg cursor-pointer hover:bg-accent transition-colors"
-                      onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
+                      className={`flex items-center justify-between p-3 cursor-pointer hover:bg-accent transition-colors ${isOpen ? 'rounded-t-lg' : 'rounded-lg'}`}
+                      onClick={() => setSelectedRun(isOpen ? null : run)}
                     >
                       <div className="flex-1">
                         <div className="font-semibold">{run.date}</div>
@@ -87,9 +89,10 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
                         </Button>
                       </div>
                     </div>
-                    {selectedRun?.id === run.id && renderRunDetails(run)}
+                    {isOpen && renderRunDetails(run)}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {totalPages > 1 && (
