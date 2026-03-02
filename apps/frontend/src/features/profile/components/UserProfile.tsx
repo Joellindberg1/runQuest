@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Progress } from '@/shared/components/ui/progress';
-import { User, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import type { User as UserType } from '@/types/run';
@@ -53,39 +53,36 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
         {/* Profile card — avatar, stats, level progress */}
         <Card className="bg-sidebar border-2 border-foreground/15">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <User className="w-5 h-5" />
-                {user.name}
-              </div>
-              <span className="text-lg font-bold">#{position ?? '?'}</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-start gap-6">
-              <Avatar className="h-24 w-24 shrink-0">
+            {/* Row: avatar left | name center | position right */}
+            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4">
+              <Avatar className="h-16 w-16 shrink-0">
                 <AvatarImage src={user.profile_picture || ''} />
                 <AvatarFallback className="text-lg font-semibold">
                   {getInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 flex-1">
-                <div className="text-center">
-                  <div className="text-2xl font-bold">Lvl {currentLevel}</div>
-                  <div className="text-sm text-muted-foreground">Level</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{user.total_xp.toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground">Total XP</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{user.total_km.toFixed(1)}</div>
-                  <div className="text-sm text-muted-foreground">Total KM</div>
-                </div>
+              <h2 className="text-xl font-bold text-center">{user.name}</h2>
+              <span className="text-lg font-bold shrink-0">#{position ?? '?'}</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold">Lvl {currentLevel}</div>
+                <div className="text-sm text-muted-foreground">Level</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{user.total_xp.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Total XP</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{user.total_km.toFixed(1)}</div>
+                <div className="text-sm text-muted-foreground">Total KM</div>
               </div>
             </div>
 
-            {/* Level Progress — merged into profile card */}
+            {/* XP Progress bar */}
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span>Level {currentLevel}</span>

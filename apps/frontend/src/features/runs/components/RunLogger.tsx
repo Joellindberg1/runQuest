@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
+import { TabsContent } from '@/shared/components/ui/tabs';
+import { PageTabs } from '@/shared/components/PageTabs';
 import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
@@ -74,27 +75,14 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
     return '~' + (15 + kmXP + bonus);
   })();
 
+  const tabs = [
+    { value: 'log-run',           label: 'Log Run',            icon: <Plus className="w-4 h-4" /> },
+    { value: 'run-history-group', label: 'Run History - Group', icon: <Users className="w-4 h-4" /> },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="px-4 py-4">
-        <TabsList className="grid w-full grid-cols-2 bg-sidebar border-2 border-foreground/15">
-          <TabsTrigger
-            value="log-run"
-            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold"
-          >
-            <Plus className="w-4 h-4" />
-            Log Run
-          </TabsTrigger>
-          <TabsTrigger
-            value="run-history-group"
-            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold"
-          >
-            <Users className="w-4 h-4" />
-            Run History - Group
-          </TabsTrigger>
-        </TabsList>
-        </div>
+      <PageTabs value={activeTab} onValueChange={setActiveTab} tabs={tabs}>
 
         <TabsContent value="log-run">
           <div className="max-w-md mx-auto">
@@ -182,7 +170,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
         <TabsContent value="run-history-group">
           <RunHistoryGroup users={users} />
         </TabsContent>
-      </Tabs>
+      </PageTabs>
     </div>
   );
 };
