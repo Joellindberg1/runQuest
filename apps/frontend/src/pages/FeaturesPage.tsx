@@ -40,9 +40,9 @@ const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) 
   const typeMeta = releaseTypeMeta[release.type];
 
   return (
-    <Card>
+    <Card className="bg-sidebar border-2 border-foreground/15">
       <CardHeader
-        className="cursor-pointer hover:bg-gray-50 transition-colors"
+        className="cursor-pointer hover:bg-accent transition-colors"
         onClick={onToggle}
       >
         <CardTitle className="flex items-center justify-between">
@@ -52,13 +52,13 @@ const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) 
               {typeMeta.label}
             </Badge>
             <span className="font-semibold">v{release.version}</span>
-            <span className="text-gray-500 font-normal text-sm">— {release.title}</span>
+            <span className="text-muted-foreground font-normal text-sm">— {release.title}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-400 font-normal hidden sm:block">{release.date}</span>
+            <span className="text-sm text-muted-foreground font-normal hidden sm:block">{release.date}</span>
             {isOpen
-              ? <ChevronDown className="w-5 h-5 text-gray-500" />
-              : <ChevronRight className="w-5 h-5 text-gray-500" />
+              ? <ChevronDown className="w-5 h-5 text-muted-foreground" />
+              : <ChevronRight className="w-5 h-5 text-muted-foreground" />
             }
           </div>
         </CardTitle>
@@ -66,14 +66,14 @@ const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) 
 
       {isOpen && (
         <CardContent>
-          <p className="text-sm text-gray-400 mb-3 sm:hidden">{release.date}</p>
+          <p className="text-sm text-muted-foreground mb-3 sm:hidden">{release.date}</p>
           <ul className="space-y-2">
             {release.changes.map((change, i) => {
               const meta = changeTypeMeta[change.type];
               return (
                 <li key={i} className="flex items-start gap-2">
                   <span className={`mt-0.5 shrink-0 ${meta.className}`}>{meta.icon}</span>
-                  <span className="text-sm text-gray-700">{change.description}</span>
+                  <span className="text-sm text-foreground">{change.description}</span>
                 </li>
               );
             })}
@@ -92,7 +92,6 @@ const FeaturesPage: React.FC = () => {
 
   const [featuresOpen, setFeaturesOpen] = useState(true);
   const [workingOnOpen, setWorkingOnOpen] = useState(false);
-  // Tracks which release version is expanded — latest starts open
   const [openVersion, setOpenVersion] = useState<string | null>(latest.version);
 
   const toggleRelease = (version: string) => {
@@ -132,9 +131,9 @@ const FeaturesPage: React.FC = () => {
         <div className="space-y-6">
 
           {/* Features */}
-          <Card>
+          <Card className="bg-sidebar border-2 border-foreground/15">
             <CardHeader
-              className="cursor-pointer hover:bg-gray-50 transition-colors"
+              className="cursor-pointer hover:bg-accent transition-colors"
               onClick={() => { setFeaturesOpen(true); setWorkingOnOpen(false); }}
             >
               <CardTitle className="flex items-center justify-between">
@@ -143,8 +142,8 @@ const FeaturesPage: React.FC = () => {
                   Features
                 </div>
                 {featuresOpen
-                  ? <ChevronDown className="w-5 h-5 text-gray-500" />
-                  : <ChevronRight className="w-5 h-5 text-gray-500" />
+                  ? <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  : <ChevronRight className="w-5 h-5 text-muted-foreground" />
                 }
               </CardTitle>
             </CardHeader>
@@ -152,12 +151,12 @@ const FeaturesPage: React.FC = () => {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {currentFeatures.map((feature, index) => (
-                    <div key={index} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div key={index} className="bg-background border border-foreground/10 rounded-lg p-4 hover:shadow-md transition-shadow">
                       <div className="flex items-start gap-3">
-                        <div className="text-blue-600 mt-1">{feature.icon}</div>
+                        <div className="text-primary mt-1">{feature.icon}</div>
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
-                          <p className="text-sm text-gray-600">{feature.description}</p>
+                          <p className="text-sm text-muted-foreground">{feature.description}</p>
                         </div>
                       </div>
                     </div>
@@ -168,9 +167,9 @@ const FeaturesPage: React.FC = () => {
           </Card>
 
           {/* Working On */}
-          <Card>
+          <Card className="bg-sidebar border-2 border-foreground/15">
             <CardHeader
-              className="cursor-pointer hover:bg-gray-50 transition-colors"
+              className="cursor-pointer hover:bg-accent transition-colors"
               onClick={() => { setWorkingOnOpen(o => !o); setFeaturesOpen(false); }}
             >
               <CardTitle className="flex items-center justify-between">
@@ -179,8 +178,8 @@ const FeaturesPage: React.FC = () => {
                   Working On
                 </div>
                 {workingOnOpen
-                  ? <ChevronDown className="w-5 h-5 text-gray-500" />
-                  : <ChevronRight className="w-5 h-5 text-gray-500" />
+                  ? <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  : <ChevronRight className="w-5 h-5 text-muted-foreground" />
                 }
               </CardTitle>
             </CardHeader>
@@ -188,16 +187,16 @@ const FeaturesPage: React.FC = () => {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {workingOnFeatures.map((feature, index) => (
-                    <div key={index} className="border rounded-lg p-4">
+                    <div key={index} className="bg-background border border-foreground/10 rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <div className="text-yellow-600">{feature.icon}</div>
                         <h3 className="font-semibold">{feature.title}</h3>
                       </div>
-                      <p className="text-sm text-gray-600 mb-3">{feature.description}</p>
-                      <ul className="text-xs text-gray-500 space-y-1">
+                      <p className="text-sm text-muted-foreground mb-3">{feature.description}</p>
+                      <ul className="text-xs text-muted-foreground space-y-1">
                         {feature.details.map((detail, i) => (
                           <li key={i} className="flex items-center gap-1">
-                            <div className="w-1 h-1 bg-gray-400 rounded-full" />
+                            <div className="w-1 h-1 bg-muted-foreground rounded-full" />
                             {detail}
                           </li>
                         ))}
@@ -210,7 +209,7 @@ const FeaturesPage: React.FC = () => {
           </Card>
 
           {/* Releases header */}
-          <p className="text-lg text-gray-600 text-center">Releases</p>
+          <p className="text-lg text-muted-foreground text-center">Releases</p>
 
           {/* Latest Release */}
           <ReleaseCard
