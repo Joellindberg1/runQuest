@@ -24,14 +24,14 @@ export const PageTabs: React.FC<PageTabsProps> = ({ value, onValueChange, tabs, 
     <Tabs value={value} onValueChange={onValueChange} className="w-full">
       <div className="px-4 py-4">
         <TabsList
-          className="grid w-full p-0 bg-sidebar border-2 border-foreground/15"
+          className="grid w-full p-0 overflow-hidden bg-sidebar border-2 border-foreground/15"
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
         >
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              className="flex items-center gap-2 font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+              className="h-full rounded-none flex items-center gap-2 font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
             >
               {tab.icon}
               {tab.label}

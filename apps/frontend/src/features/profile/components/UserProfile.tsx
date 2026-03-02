@@ -48,7 +48,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
     <div className="max-w-4xl mx-auto space-y-6">
 
       {/* Row 1: Profile card (left) + Streak stats (right) — equal width */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* Profile card — avatar, stats, level progress */}
         <Card className="bg-sidebar border-2 border-foreground/15">
