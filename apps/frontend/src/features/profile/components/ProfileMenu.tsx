@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
-import { User, Settings, LogOut, Info, Shield } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
+import { User, Settings, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,63 +9,36 @@ export const ProfileMenu: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const handleDashboardClick = () => {
-  navigate('/');
-  };
-  
-  const handleSettingsClick = () => {
-    navigate('/settings');
-  };
-
-  const handleFeaturesClick = () => {
-    navigate('/features');
-  };
-
-  const handleAdminClick = () => {
-    navigate('/admin');
-  };
-
-  const handleLogoutClick = () => {
-    logout();
-  };
-
   if (!user) return null;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="rounded-full w-10 h-10 p-0">
+        <Button variant="outline" size="sm" className="rounded-full w-9 h-9 p-0 border-border">
           {user && 'profile_picture' in user && user.profile_picture ? (
-            <img 
-              src={user.profile_picture} 
-              alt="Profile" 
-              className="w-8 h-8 rounded-full object-cover"
+            <img
+              src={user.profile_picture}
+              alt="Profile"
+              className="w-7 h-7 rounded-full object-cover"
             />
           ) : (
             <User className="w-4 h-4" />
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onClick={handleDashboardClick}>
-          <Settings className="w-4 h-4 mr-2" />
-          Dashboard
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSettingsClick}>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem onClick={() => navigate('/settings')}>
           <Settings className="w-4 h-4 mr-2" />
           Settings
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleFeaturesClick}>
-          <Info className="w-4 h-4 mr-2" />
-          Features & Version
-        </DropdownMenuItem>
         {isAdmin && (
-          <DropdownMenuItem onClick={handleAdminClick}>
+          <DropdownMenuItem onClick={() => navigate('/admin')}>
             <Shield className="w-4 h-4 mr-2" />
             Admin Panel
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onClick={handleLogoutClick}>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
           <LogOut className="w-4 h-4 mr-2" />
           Log out
         </DropdownMenuItem>
@@ -74,4 +46,3 @@ export const ProfileMenu: React.FC = () => {
     </DropdownMenu>
   );
 };
-

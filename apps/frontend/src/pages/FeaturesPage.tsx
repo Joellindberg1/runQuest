@@ -5,9 +5,7 @@ import {
   CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings,
   ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/features/auth';
-import { ProfileMenu } from '@/features/profile';
+import { AppLayout } from '@/components/layout/AppLayout';
 import {
   getLatestRelease,
   getPreviousReleases,
@@ -89,7 +87,6 @@ const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 const FeaturesPage: React.FC = () => {
-  const { user } = useAuth();
   const latest = getLatestRelease();
   const previous = getPreviousReleases();
 
@@ -121,24 +118,16 @@ const FeaturesPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-8">
-          <div className="flex justify-between items-start mb-6">
-            <div />
-            <ProfileMenu />
+    <AppLayout groupName="Feature & Version">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-4 mb-2">
+            <Badge variant="outline" className="text-base px-4 py-1">
+              Version {latest.version}
+            </Badge>
+            <span className="text-muted-foreground">Released {latest.date}</span>
           </div>
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">RunQuest Features</h1>
-            <div className="flex items-center justify-center gap-4 mb-4">
-              <Badge variant="outline" className="text-lg px-4 py-1">
-                Version {latest.version}
-              </Badge>
-              <span className="text-gray-600">Released {latest.date}</span>
-            </div>
-            <p className="text-lg text-gray-600">Features and version information</p>
-          </div>
-        </header>
+        </div>
 
         <div className="space-y-6">
 
@@ -246,7 +235,7 @@ const FeaturesPage: React.FC = () => {
 
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 };
 
