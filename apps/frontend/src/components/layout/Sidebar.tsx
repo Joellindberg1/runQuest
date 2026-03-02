@@ -163,8 +163,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Strava sync — pinned to bottom */}
         <div className="px-3 py-3">
           {stravaStatus.connected && (
-            <div className="rounded-lg bg-sidebar-accent border border-foreground/10 p-3">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="rounded-lg bg-sidebar-accent border border-foreground/10 p-3 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
                 <StravaIcon size={16} />
                 <span className="flex items-center gap-1 text-xs font-semibold text-green-500">
                   <CheckCircle className="w-3 h-3" /> Connected
