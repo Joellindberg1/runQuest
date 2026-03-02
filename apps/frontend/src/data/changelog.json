@@ -1,65 +1,101 @@
 [
   {
+    "version": "0.2.0",
+    "type": "minor",
+    "date": "2 March 2026",
+    "title": "Design rework and dark mode",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Dark mode — toggle between light and dark theme from the sidebar or top bar. RunQuest defaults to your system theme and remembers your preference."
+      },
+      {
+        "type": "improvement",
+        "description": "Full design rework — consistent color hierarchy across all pages using theme-aware tokens. Outer containers use sidebar color, inner elements use background color."
+      },
+      {
+        "type": "improvement",
+        "description": "Sidebar redesigned — Strava sync status with last/next sync times, mobile controls (theme toggle, notifications, profile) moved into the sidebar."
+      },
+      {
+        "type": "improvement",
+        "description": "Leaderboard cards redesigned — compact layout, fixed 340px width, centered podium row, positions 4+ fill rows from center outward."
+      },
+      {
+        "type": "improvement",
+        "description": "Profile page redesigned — two-column layout with run history as a right panel, avatar and position in the card header, streak stats beside the profile card."
+      },
+      {
+        "type": "improvement",
+        "description": "Run history now uses pagination (7 runs per page) with previous/next navigation instead of a growing list."
+      },
+      {
+        "type": "improvement",
+        "description": "Mobile optimizations — group name wraps correctly in the top bar, profile and streak cards stack vertically on small screens."
+      }
+    ]
+  },
+  {
     "version": "0.1.2",
     "type": "patch",
-    "date": "27 februari 2026",
-    "title": "Cleanup & Stabilitet",
+    "date": "27 February 2026",
+    "title": "Cleanup & Stability",
     "changes": [
       {
         "type": "improvement",
-        "description": "Vi har städat upp bakom kulisserna — sidan gör nu färre onödiga anrop och laddar data snabbare."
+        "description": "Cleaned up behind the scenes — the app now makes fewer unnecessary requests and loads data faster."
       },
       {
         "type": "improvement",
-        "description": "Appen startar snabbare och är mer stabil under körning."
+        "description": "Faster startup and more stable performance during use."
       },
       {
         "type": "bugfix",
-        "description": "Rättat ett fel i titelsystemet som ibland kunde visa fel data vid sidladdning."
+        "description": "Fixed a bug in the title system that could occasionally show incorrect data on page load."
       }
     ]
   },
   {
     "version": "0.1.1",
     "type": "patch",
-    "date": "20 februari 2026",
+    "date": "20 February 2026",
     "title": "Login fixes",
     "changes": [
       {
         "type": "bugfix",
-        "description": "Sessionen återställs automatiskt när inloggningen behöver förnyas – ingen manuell rensning av cookies krävs längre."
+        "description": "Session is now automatically restored when login needs to be renewed — no more manual cookie clearing."
       },
       {
         "type": "improvement",
-        "description": "Du förblir inloggad i 30 dagar istället för 7."
+        "description": "You stay logged in for 30 days instead of 7."
       }
     ]
   },
   {
     "version": "0.1.0",
     "type": "minor",
-    "date": "6 oktober 2025",
+    "date": "6 October 2025",
     "title": "Initial Release",
     "changes": [
       {
         "type": "feature",
-        "description": "Leaderboard med XP, nivåer, streaks och titlar."
+        "description": "Leaderboard with XP, levels, streaks and titles."
       },
       {
         "type": "feature",
-        "description": "Fyra konkurrenstitlar som uppdateras automatiskt."
+        "description": "Four competitive titles that update automatically."
       },
       {
         "type": "feature",
-        "description": "Loggning av löprundor manuellt och via Strava."
+        "description": "Run logging — manually or via Strava."
       },
       {
         "type": "feature",
-        "description": "Användarprofiler med profilbild och personlig statistik."
+        "description": "User profiles with profile picture and personal stats."
       },
       {
         "type": "feature",
-        "description": "Adminpanel för användar- och XP-hantering."
+        "description": "Admin panel for user and XP management."
       }
     ]
   }

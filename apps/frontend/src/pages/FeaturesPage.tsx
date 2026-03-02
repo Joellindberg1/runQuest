@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Badge } from '@/shared/components/ui/badge';
 import {
   CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings,
-  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText
+  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import {
@@ -105,14 +105,19 @@ const FeaturesPage: React.FC = () => {
     { icon: <Target className="w-6 h-6" />,     title: 'Strava Integration',  description: 'Automatic import from Strava' },
     { icon: <Users className="w-6 h-6" />,      title: 'User Profiles',       description: 'Personal stats and achievements' },
     { icon: <Smartphone className="w-6 h-6" />, title: 'Mobile Responsive',   description: 'Optimized for all devices' },
+    { icon: <Moon className="w-6 h-6" />,       title: 'Dark Mode',           description: 'Switch between light and dark theme — defaults to system preference' },
   ];
 
   const workingOnFeatures = [
     {
-      icon: <Moon className="w-5 h-5" />,
-      title: 'Dark mode',
-      description: 'Change between light and dark themes',
-      details: ['RunQuest will choose system theme first'],
+      icon: <Swords className="w-5 h-5" />,
+      title: 'Challenges',
+      description: 'Send challenges to other players and earn rewards',
+      details: [
+        'Players gain challenges as they level up',
+        'Send challenges to other players',
+        'Complete challenges to earn bonus rewards',
+      ],
     },
   ];
 
