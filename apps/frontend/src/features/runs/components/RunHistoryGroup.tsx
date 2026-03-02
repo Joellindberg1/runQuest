@@ -28,8 +28,8 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
   if (runs.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="text-2xl text-gray-500 mb-2">No runs found</div>
-        <div className="text-gray-400">Start logging runs to see them here!</div>
+        <div className="text-2xl text-muted-foreground mb-2">No runs found</div>
+        <div className="text-muted-foreground">Start logging runs to see them here!</div>
       </div>
     );
   }
@@ -44,14 +44,14 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
 
       <div className="grid gap-6">
         {displayRuns.map((run) => (
-          <Card key={run.id} className="overflow-hidden bg-gradient-to-r from-blue-50 via-white to-purple-50 border-l-4 border-l-blue-500 hover:shadow-lg transition-all duration-300">
+          <Card key={run.id} className="overflow-hidden bg-sidebar border-2 border-foreground/15 border-l-4 border-l-primary hover:shadow-lg transition-all duration-300">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-start gap-4">
                   <div className="flex flex-col items-center gap-2 w-12">
-                    <Avatar className="w-12 h-12 border-2 border-blue-200">
+                    <Avatar className="w-12 h-12 border-2 border-foreground/20">
                       <AvatarImage src={run.user_profile_picture} alt={run.user_name} />
-                      <AvatarFallback className="bg-blue-100 text-blue-700 font-bold">
+                      <AvatarFallback className="bg-background text-foreground font-bold">
                         {getInitials(run.user_name)}
                       </AvatarFallback>
                     </Avatar>
@@ -65,14 +65,14 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                     <CardTitle className="text-xl truncate">
                       {run.user_name}
                     </CardTitle>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
                         {formatRunDate(run.date)}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                      <div className="flex items-center gap-1 bg-primary text-primary-foreground px-2 py-1 rounded-full text-xs font-bold">
                         <Trophy className="w-3 h-3" />
                         Lvl {run.user_level}
                       </div>
@@ -80,7 +80,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-1">
+                  <div className="text-3xl font-bold mb-1">
                     {run.distance.toFixed(1)} km
                   </div>
                   <div className="flex items-center gap-1 text-green-600 font-bold">
@@ -92,21 +92,21 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                <div className="text-center p-3 bg-background border border-foreground/10 rounded-lg">
                   <div className="text-2xl font-bold text-orange-500 mb-1">{run.streak_day}</div>
-                  <div className="text-xs text-gray-600 uppercase tracking-wide">Streak Day</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Streak Day</div>
                 </div>
-                <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                <div className="text-center p-3 bg-background border border-foreground/10 rounded-lg">
                   <div className="text-2xl font-bold text-purple-500 mb-1">{run.multiplier.toFixed(1)}x</div>
-                  <div className="text-xs text-gray-600 uppercase tracking-wide">Multiplier</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Multiplier</div>
                 </div>
-                <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                <div className="text-center p-3 bg-background border border-foreground/10 rounded-lg">
                   <div className="text-2xl font-bold text-blue-500 mb-1">{run.base_xp}</div>
-                  <div className="text-xs text-gray-600 uppercase tracking-wide">Base XP</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Base XP</div>
                 </div>
-                <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                <div className="text-center p-3 bg-background border border-foreground/10 rounded-lg">
                   <div className="text-2xl font-bold text-green-500 mb-1">+{run.distance_bonus}</div>
-                  <div className="text-xs text-gray-600 uppercase tracking-wide">Distance Bonus</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Distance Bonus</div>
                 </div>
               </div>
             </CardContent>

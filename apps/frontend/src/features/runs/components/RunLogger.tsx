@@ -77,17 +77,17 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
   return (
     <div className="max-w-4xl mx-auto">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6 bg-white border-2 border-gray-200 shadow-lg">
-          <TabsTrigger 
-            value="log-run" 
-            className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white font-semibold"
+        <TabsList className="grid w-full grid-cols-2 mb-6 bg-sidebar border-2 border-foreground/15">
+          <TabsTrigger
+            value="log-run"
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold"
           >
             <Plus className="w-4 h-4" />
             Log Run
           </TabsTrigger>
-          <TabsTrigger 
-            value="run-history-group" 
-            className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white font-semibold"
+          <TabsTrigger
+            value="run-history-group"
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold"
           >
             <Users className="w-4 h-4" />
             Run History - Group
@@ -96,7 +96,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
 
         <TabsContent value="log-run">
           <div className="max-w-md mx-auto">
-            <Card>
+            <Card className="bg-sidebar border-2 border-foreground/15">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="w-5 h-5" />
@@ -143,11 +143,11 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                   </Button>
 
                   {distance && parseFloat(distance) >= MIN_RUN_DISTANCE_KM && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="text-sm font-semibold text-green-800 mb-2">
+                    <div className="p-3 bg-background border border-foreground/10 rounded-lg">
+                      <div className="text-sm font-semibold mb-2">
                         Estimated XP: {previewXP}
                       </div>
-                      <div className="text-xs text-green-700">
+                      <div className="text-xs text-muted-foreground">
                         <div>Note: Actual XP will be calculated by the server and may include streak bonuses</div>
                       </div>
                     </div>
@@ -165,8 +165,8 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                   )}
 
                   {lastRunResult && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="text-sm font-semibold text-blue-800">
+                    <div className="p-3 bg-background border border-foreground/10 rounded-lg">
+                      <div className="text-sm font-semibold">
                         {lastRunResult}
                       </div>
                     </div>
