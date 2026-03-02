@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import SettingsPage from './pages/SettingsPage';
 import FeaturesPage from './pages/FeaturesPage';
 import StravaCallbackPage from './pages/StravaCallbackPage';
+import LeaderboardPreviewPage from './pages/LeaderboardPreviewPage';
 import NotFound from './pages/NotFound';
 
 const AppContent = () => {
@@ -24,33 +25,39 @@ const AppContent = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-xl text-foreground">Loading...</div>
       </div>
     );
   }
 
   if (!user) {
-    return <LoginPage />;
+    return (
+      <Routes>
+        <Route path="/preview" element={<LeaderboardPreviewPage />} />
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    );
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/strava-callback" element={<StravaCallbackPage />} />
-        <Route path="/" element={<Index />} />
-        <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/features" element={<FeaturesPage />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/strava-callback" element={<StravaCallbackPage />} />
+      <Route path="/" element={<Index />} />
+      <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
+      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/features" element={<FeaturesPage />} />
+      <Route path="/preview" element={<LeaderboardPreviewPage />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 };
 
 const App = () => (
   <AppProviders>
-    <AppContent />
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   </AppProviders>
 );
 
