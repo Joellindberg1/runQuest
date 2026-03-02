@@ -1,9 +1,9 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { useStravaData } from '@/features/settings/hooks/useStravaData';
 import { StravaIcon } from '@/shared/components/StravaIcon';
+import { RunQuestLogo } from '@/shared/components/RunQuestLogo';
 import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Gamepad2, X } from 'lucide-react';
 
 interface SidebarProps {
@@ -57,7 +57,6 @@ function useActiveTab() {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { resolvedTheme } = useTheme();
   const { stravaStatus } = useStravaData();
   const navigate = useNavigate();
   const activeTab = useActiveTab();
@@ -92,12 +91,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         )}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-4 py-5 border-b border-sidebar-border">
-          <img
-            src={resolvedTheme === 'dark' ? '/logo-light.png' : '/logo-dark.png'}
-            alt="RunQuest"
-            className="h-8 object-contain"
-          />
+        <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border">
+          <RunQuestLogo className="h-7 w-auto text-sidebar-foreground" />
           <button
             onClick={onClose}
             className="md:hidden p-1 rounded-md hover:bg-sidebar-accent text-sidebar-foreground"

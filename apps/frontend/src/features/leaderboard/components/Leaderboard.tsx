@@ -49,16 +49,15 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
           
           const getPositionStyles = () => {
             if (position === 1) {
-              // Gold - medium border for better visibility
-              return 'border-2 !border-amber-600 bg-amber-100 shadow-amber-200/40 shadow-lg';
+              // Gold — light bg in light mode, dark amber in dark mode to keep text readable
+              return 'border-2 !border-amber-600 bg-amber-100 dark:bg-amber-950/60 shadow-amber-200/40 shadow-lg';
             } else if (position === 2) {
-              // Silver - medium border for better visibility
-              return 'border-2 !border-zinc-600 bg-zinc-100 shadow-zinc-300/40 shadow-lg';
+              // Silver
+              return 'border-2 !border-zinc-500 bg-zinc-100 dark:bg-zinc-800/60 shadow-zinc-300/40 shadow-lg';
             } else if (position === 3) {
-              // Bronze - medium border for better visibility
-              return 'border-2 !border-orange-800 bg-orange-200 shadow-orange-300/40 shadow-lg';
+              // Bronze
+              return 'border-2 !border-orange-700 bg-orange-100 dark:bg-orange-950/60 shadow-orange-300/40 shadow-lg';
             }
-            // Default darker gray border for positions 4+ - same width as podium but darker color
             return 'border-2 !border-gray-500';
           };
           
