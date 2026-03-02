@@ -5,7 +5,7 @@ import { Trophy, Pen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { EditRunDialog } from '@/shared/components/EditRunDialog';
 import type { Run } from '@/types/run';
 
-const RUNS_PER_PAGE = 5;
+const RUNS_PER_PAGE = 6;
 
 interface UserRunHistoryProps {
   runs: Run[];
