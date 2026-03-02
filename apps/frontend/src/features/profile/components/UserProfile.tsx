@@ -45,8 +45,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
     : null;
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 items-start">
 
         {/* Left column: profile info + streak + titles */}
         <div className="space-y-6">
@@ -138,6 +137,5 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
         </div>
 
       </div>
-    </div>
   );
 };
