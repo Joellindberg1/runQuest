@@ -130,7 +130,7 @@ export const StravaSettings: React.FC = () => {
             <CardTitle>Strava Integration</CardTitle>
             <CardDescription>{statusDescription}</CardDescription>
             {stravaStatus.connected && (
-              <div className="text-sm text-gray-600 space-y-1 mt-6">
+              <div className="text-sm text-foreground space-y-1 mt-6">
                 <p>✅ Your Strava runs are imported automatically every 3 hours.</p>
                 <p>✅ Only running activities (type "Run") are imported.</p>
                 <p>✅ Duplicate activities are automatically filtered.</p>
@@ -138,10 +138,10 @@ export const StravaSettings: React.FC = () => {
             )}
           </div>
           {stravaStatus.connected && (
-            <div className="flex flex-col items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="flex flex-col items-center gap-2 p-3 bg-sidebar border border-sidebar-border rounded-lg">
               {getStatusBadge()}
               <StravaIcon size={24} />
-              <div className="text-xs text-gray-500 text-center space-y-1">
+              <div className="text-xs text-muted-foreground text-center space-y-1">
                 <div>Connected: {formatConnectionDate(stravaStatus.connection_date)}</div>
                 <div>Last sync: {formatLastSync(syncInfo)}</div>
                 <div>Next sync: {formatNextSync(syncInfo)}</div>
@@ -168,7 +168,7 @@ export const StravaSettings: React.FC = () => {
               <Button onClick={handleDebugStrava} variant="secondary" className="flex items-center gap-2">
                 🔍 Debug Strava
               </Button>
-              <span className="text-xs text-gray-400">Remember, your data will be automatically synced!</span>
+              <span className="text-xs text-muted-foreground">Remember, your data will be automatically synced!</span>
             </div>
           )}
           <Separator className="my-4" />

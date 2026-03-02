@@ -49,7 +49,7 @@ export const PasswordSettings: React.FC = () => {
   return (
     <Card>
       <CardHeader
-        className="cursor-pointer hover:bg-gray-50 transition-colors"
+        className="cursor-pointer hover:bg-accent transition-colors"
         onClick={() => setOpen(!open)}
       >
         <CardTitle className="flex items-center justify-between">
@@ -57,7 +57,7 @@ export const PasswordSettings: React.FC = () => {
             <Lock className="w-5 h-5" />
             Change Password
           </div>
-          {open ? <ChevronDown className="w-5 h-5 text-gray-500" /> : <ChevronRight className="w-5 h-5 text-gray-500" />}
+          {open ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
         </CardTitle>
       </CardHeader>
       {open && (
