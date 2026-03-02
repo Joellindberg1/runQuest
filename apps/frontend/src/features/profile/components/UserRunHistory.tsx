@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
-import { Trophy, Pen } from 'lucide-react';
+import { Trophy, Pen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { EditRunDialog } from '@/shared/components/EditRunDialog';
-import { ShowMoreButton } from '@/shared/components/ShowMoreButton';
 import type { Run } from '@/types/run';
+
+const RUNS_PER_PAGE = 5;
 
 interface UserRunHistoryProps {
   runs: Run[];
@@ -12,7 +13,7 @@ interface UserRunHistoryProps {
 }
 
 export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdated }) => {
-  const [visibleRuns, setVisibleRuns] = useState(5);
+  const [page, setPage] = useState(0);
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
   const [editingRun, setEditingRun] = useState<Run | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -34,27 +35,29 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
     </div>
   );
 
+  const sorted = [...runs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const totalPages = Math.ceil(sorted.length / RUNS_PER_PAGE);
+  const pageRuns = sorted.slice(page * RUNS_PER_PAGE, (page + 1) * RUNS_PER_PAGE);
+
   return (
     <>
-      <Card className="bg-sidebar border-2 border-foreground/15">
-        <CardHeader>
+      <Card className="bg-sidebar border-2 border-foreground/15 h-full flex flex-col">
+        <CardHeader className="shrink-0">
           <CardTitle className="flex items-center gap-2">
             <Trophy className="w-5 h-5" />
             Run History
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 min-h-0 flex flex-col">
           {runs.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-muted-foreground mb-2">No runs logged yet</div>
               <div className="text-sm text-muted-foreground">Start logging your runs to see them here!</div>
             </div>
           ) : (
-            <div className="space-y-3">
-              {[...runs]
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                .slice(0, visibleRuns)
-                .map((run) => (
+            <>
+              <div className="space-y-3 flex-1">
+                {pageRuns.map((run) => (
                   <div key={run.id} className="border border-foreground/10 rounded-lg">
                     <div
                       className="flex items-center justify-between p-3 bg-background rounded-lg cursor-pointer hover:bg-accent transition-colors"
@@ -84,15 +87,32 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
                     {selectedRun?.id === run.id && renderRunDetails(run)}
                   </div>
                 ))}
+              </div>
 
-              {visibleRuns < runs.length && (
-                <ShowMoreButton
-                  showAll={false}
-                  onClick={() => setVisibleRuns((prev) => prev + 10)}
-                  moreText="Show More Runs"
-                />
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-3 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setPage(p => p - 1); setSelectedRun(null); }}
+                    disabled={page === 0}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setPage(p => p + 1); setSelectedRun(null); }}
+                    disabled={page >= totalPages - 1}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
               )}
-            </div>
+            </>
           )}
         </CardContent>
       </Card>
