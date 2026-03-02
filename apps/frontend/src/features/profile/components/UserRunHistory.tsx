@@ -24,7 +24,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
   };
 
   const renderRunDetails = (run: Run) => (
-    <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
+    <div className="mt-2 text-xs text-muted-foreground bg-background p-2 rounded">
       <div>Base XP: {run.base_xp}</div>
       <div>Distance XP: {run.km_xp} ({run.distance.toFixed(1)}km × 2)</div>
       <div>Multiplier: {run.multiplier}x</div>
@@ -36,7 +36,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
 
   return (
     <>
-      <Card>
+      <Card className="bg-sidebar border-2 border-foreground/15">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trophy className="w-5 h-5" />
@@ -46,41 +46,44 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
         <CardContent>
           {runs.length === 0 ? (
             <div className="text-center py-8">
-              <div className="text-gray-500 mb-2">No runs logged yet</div>
-              <div className="text-sm text-gray-400">Start logging your runs to see them here!</div>
+              <div className="text-muted-foreground mb-2">No runs logged yet</div>
+              <div className="text-sm text-muted-foreground">Start logging your runs to see them here!</div>
             </div>
           ) : (
             <div className="space-y-3">
-              {[...runs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, visibleRuns).map((run) => (
-                <div key={run.id} className="border rounded-lg">
-                  <div
-                    className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
-                    onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
-                  >
-                    <div className="flex-1">
-                      <div className="font-semibold">{run.date}</div>
-                      <div className="text-sm text-gray-600">
-                        {run.distance.toFixed(1)}km • Streak Day {run.streak_day}
+              {[...runs]
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .slice(0, visibleRuns)
+                .map((run) => (
+                  <div key={run.id} className="border border-foreground/10 rounded-lg">
+                    <div
+                      className="flex items-center justify-between p-3 bg-background rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                      onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
+                    >
+                      <div className="flex-1">
+                        <div className="font-semibold">{run.date}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {run.distance.toFixed(1)}km • Streak Day {run.streak_day}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="font-bold text-green-600">+{run.xp_gained} XP</div>
+                          <div className="text-sm text-muted-foreground">{run.multiplier}x multiplier</div>
+                        </div>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={(e) => handleEditRun(run, e)}
+                          className="ml-2"
+                        >
+                          <Pen className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <div className="font-bold text-green-600">+{run.xp_gained} XP</div>
-                        <div className="text-sm text-gray-600">{run.multiplier}x multiplier</div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => handleEditRun(run, e)}
-                        className="ml-2"
-                      >
-                        <Pen className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    {selectedRun?.id === run.id && renderRunDetails(run)}
                   </div>
-                  {selectedRun?.id === run.id && renderRunDetails(run)}
-                </div>
-              ))}
+                ))}
 
               {visibleRuns < runs.length && (
                 <ShowMoreButton
