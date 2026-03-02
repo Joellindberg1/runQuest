@@ -61,7 +61,14 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				'podium-gold':          'hsl(var(--podium-gold))',
+				'podium-gold-border':   'hsl(var(--podium-gold-border))',
+				'podium-silver':        'hsl(var(--podium-silver))',
+				'podium-silver-border': 'hsl(var(--podium-silver-border))',
+				'podium-bronze':        'hsl(var(--podium-bronze))',
+				'podium-bronze-border': 'hsl(var(--podium-bronze-border))',
+				success: 'hsl(var(--success))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

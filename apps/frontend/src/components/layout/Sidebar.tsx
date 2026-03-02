@@ -1,15 +1,14 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { useStravaData, formatLastSync, formatNextSync } from '@/features/settings/hooks/useStravaData';
 import { formatConnectionDate } from '@/shared/utils/formatters';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { RunQuestLogo } from '@/shared/components/RunQuestLogo';
-import { Switch } from '@/shared/components/ui/switch';
+import { ThemeToggle } from '@/shared/components/ThemeToggle';
 import { Button } from '@/shared/components/ui/button';
 import { ProfileMenu } from '@/features/profile';
-import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Gamepad2, X, CheckCircle, Sun, Moon, Bell } from 'lucide-react';
+import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Gamepad2, X, CheckCircle, Bell } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -59,8 +58,6 @@ function useActiveTab() {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { stravaStatus, syncInfo } = useStravaData();
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
   const navigate = useNavigate();
   const activeTab = useActiveTab();
 
@@ -169,15 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Mobile-only: theme switch, notifications, profile — hidden on desktop (shown in TopBar) */}
         <div className="md:hidden px-3 pb-3 border-t border-foreground/10 pt-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Sun className="w-3.5 h-3.5 text-sidebar-foreground/60" />
-              <Switch
-                checked={isDark}
-                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                className="data-[state=checked]:bg-primary border border-foreground/30 [&>span]:border [&>span]:border-foreground/20"
-              />
-              <Moon className="w-3.5 h-3.5 text-sidebar-foreground/60" />
-            </div>
+            <ThemeToggle iconClass="text-sidebar-foreground/60" />
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -199,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <div className="rounded-lg bg-sidebar-accent border border-foreground/50 p-3 text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <StravaIcon size={16} />
-                <span className="flex items-center gap-1 text-xs font-semibold text-green-500">
+                <span className="flex items-center gap-1 text-xs font-semibold text-success">
                   <CheckCircle className="w-3 h-3" /> Connected
                 </span>
               </div>

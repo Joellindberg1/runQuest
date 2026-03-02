@@ -93,7 +93,7 @@ export const StravaSettings: React.FC = () => {
       </Badge>
     );
     return (
-      <Badge variant="default" className="flex items-center gap-1 bg-green-500">
+      <Badge variant="default" className="flex items-center gap-1 bg-success">
         <CheckCircle className="w-3 h-3" /> Connected
       </Badge>
     );

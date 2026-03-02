@@ -1,8 +1,7 @@
 import React from 'react';
-import { useTheme } from 'next-themes';
-import { Bell, Menu, Sun, Moon } from 'lucide-react';
+import { Bell, Menu } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
-import { Switch } from '@/shared/components/ui/switch';
+import { ThemeToggle } from '@/shared/components/ThemeToggle';
 import { ProfileMenu } from '@/features/profile';
 
 interface TopBarProps {
@@ -11,9 +10,6 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle }) => {
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
-
   return (
     <header className="grid grid-cols-[1fr_auto_1fr] items-center px-4 md:px-6 py-3 bg-background">
       {/* Left: hamburger (mobile only) */}
@@ -48,15 +44,7 @@ export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle }) => {
           </Button>
 
           {/* Light / Dark switch */}
-          <div className="flex items-center gap-1.5">
-            <Sun className="w-3.5 h-3.5 text-muted-foreground" />
-            <Switch
-              checked={isDark}
-              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-              className="data-[state=checked]:bg-primary border border-foreground/30 [&>span]:border [&>span]:border-foreground/20"
-            />
-            <Moon className="w-3.5 h-3.5 text-muted-foreground" />
-          </div>
+          <ThemeToggle />
 
           {/* Profile dropdown */}
           <ProfileMenu />

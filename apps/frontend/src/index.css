@@ -57,6 +57,17 @@
     --sidebar-accent-foreground:  330  2% 18%; /* Hover item text  — Graphite         */
     --sidebar-border:              33 13% 74%; /* Sidebar divider                     */
     --sidebar-ring:                 1 75% 64%; /* Focus ring in sidebar               */
+
+    /* Podium colours — gold/silver/bronze card backgrounds + borders */
+    --podium-gold:          45 100% 50%;   /* #FFBF00 */
+    --podium-gold-border:   45 100% 30%;   /* #997300 */
+    --podium-silver:       240  5% 84%;    /* zinc-300 */
+    --podium-silver-border:240  4% 46%;    /* zinc-500 */
+    --podium-bronze:        37  76% 58%;   /* #E8AC41 */
+    --podium-bronze-border: 37  74% 39%;   /* #B07A1A */
+
+    /* Semantic status colours */
+    --success:             142  71% 45%;   /* green-500 */
   }
 
   /* ════════════════════════════════════════════════════════════
@@ -99,6 +110,10 @@
     --sidebar-accent-foreground:   33 13% 83%; /* Hover item text  — Dust grey         */
     --sidebar-border:             330  2% 18%; /* Sidebar divider                      */
     --sidebar-ring:                 1 75% 64%; /* Focus ring in sidebar                */
+
+    /* Podium — only silver differs in dark mode */
+    --podium-silver:         0  0% 63%;   /* #A0A0A0 — slightly darker than zinc-300 */
+    --podium-silver-border: 240  4% 37%;  /* zinc-600 */
   }
 }
 

@@ -23,8 +23,8 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
           <p className="text-lg font-semibold text-foreground mb-2">🏆 Leaderboard 🏆</p>
         </div>
         <div className="text-center py-12">
-          <div className="text-2xl text-gray-500 mb-2">No users found</div>
-          <div className="text-gray-400">Start logging runs to appear on the leaderboard!</div>
+          <div className="text-2xl text-muted-foreground mb-2">No users found</div>
+          <div className="text-muted-foreground/70">Start logging runs to appear on the leaderboard!</div>
         </div>
       </div>
     );
@@ -32,14 +32,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
 
   const getPositionStyles = (position: number) => {
     if (position === 1) {
-      // Gold: #FFBF00
-      return 'podium-light border-2 !border-[#997300] bg-[#FFBF00] dark:bg-[#FFBF00] dark:!border-[#997300] shadow-amber-400/40 shadow-lg';
+      return 'podium-light border-2 !border-podium-gold-border bg-podium-gold shadow-podium-gold/40 shadow-lg';
     } else if (position === 2) {
-      // Silver: zinc-300 light / darker silver dark
-      return 'podium-light border-2 !border-zinc-500 bg-zinc-300 dark:bg-[#A0A0A0] dark:!border-zinc-600 shadow-zinc-400/40 shadow-lg';
+      return 'podium-light border-2 !border-podium-silver-border bg-podium-silver shadow-podium-silver/40 shadow-lg';
     } else if (position === 3) {
-      // Bronze: #E8AC41
-      return 'podium-light border-2 !border-[#B07A1A] bg-[#E8AC41] dark:bg-[#E8AC41] dark:!border-[#B07A1A] shadow-orange-400/40 shadow-lg';
+      return 'podium-light border-2 !border-podium-bronze-border bg-podium-bronze shadow-podium-bronze/40 shadow-lg';
     }
     return 'border-2 border-foreground/15 bg-accent text-accent-foreground';
   };
@@ -60,11 +57,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
       <Card
         key={user.id}
         className={`relative ${
-          isCurrentUser && position > 3 ? 'ring-2 ring-green-500 bg-green-50/50' : getPositionStyles(position)
+          isCurrentUser && position > 3 ? 'ring-2 ring-success bg-success/10' : getPositionStyles(position)
         }`}
       >
         {isCurrentUser && isPodium && (
-          <div className="absolute top-2 left-2 w-4 h-4 bg-green-500 rounded-full shadow-xl shadow-green-500/70 animate-pulse z-10" />
+          <div className="absolute top-2 left-2 w-4 h-4 bg-success rounded-full shadow-xl shadow-success/70 animate-pulse z-10" />
         )}
 
         <CardHeader className="pt-3 pb-2">
