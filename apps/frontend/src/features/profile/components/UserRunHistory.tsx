@@ -5,7 +5,7 @@ import { Trophy, Pen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { EditRunDialog } from '@/shared/components/EditRunDialog';
 import type { Run } from '@/types/run';
 
-const RUNS_PER_PAGE = 6;
+const RUNS_PER_PAGE = 7;
 
 interface UserRunHistoryProps {
   runs: Run[];
@@ -25,13 +25,16 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
   };
 
   const renderRunDetails = (run: Run) => (
-    <div className="mt-2 text-xs text-muted-foreground bg-background p-2 rounded">
-      <div>Base XP: {run.base_xp}</div>
-      <div>Distance XP: {run.km_xp} ({run.distance.toFixed(1)}km × 2)</div>
-      <div>Multiplier: {run.multiplier}x</div>
-      <div>Distance Bonus: {run.distance_bonus}</div>
-      <div>Streak Bonus: {run.streak_bonus}</div>
-      <div className="font-semibold mt-1">Total: {run.xp_gained} XP</div>
+    <div className="bg-background rounded-b-lg px-3 pb-3">
+      <div className="w-4/5 mx-auto border-t border-foreground/15 my-2" />
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <div>Base XP: <span className="font-medium text-foreground">{run.base_xp}</span></div>
+        <div>Distance XP: <span className="font-medium text-foreground">{run.km_xp}</span> <span>({run.distance.toFixed(1)}km × 2)</span></div>
+        <div>Multiplier: <span className="font-medium text-foreground">{run.multiplier}x</span></div>
+        <div>Distance Bonus: <span className="font-medium text-foreground">+{run.distance_bonus}</span></div>
+        <div>Streak Bonus: <span className="font-medium text-foreground">+{run.streak_bonus}</span></div>
+        <div className="font-semibold text-foreground">Total: +{run.xp_gained} XP</div>
+      </div>
     </div>
   );
 

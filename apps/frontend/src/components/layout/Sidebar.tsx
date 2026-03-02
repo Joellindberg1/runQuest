@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       >
         {/* Logo — no bottom divider */}
         <div className="flex items-center justify-between px-3 pt-5 pb-4">
-          <RunQuestLogo className="h-10 w-auto max-w-full text-sidebar-foreground mr-2" />
+          <RunQuestLogo className="h-12 w-auto max-w-full text-sidebar-foreground mr-2" />
           <button
             onClick={onClose}
             className="md:hidden shrink-0 ml-2 p-1 rounded-md hover:bg-sidebar-accent text-sidebar-foreground"
