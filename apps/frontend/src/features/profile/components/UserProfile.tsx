@@ -47,15 +47,18 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
   return (
     <div className="max-w-4xl mx-auto space-y-6">
 
-      {/* Row 1: Profile card (left) + Streak stats (right) */}
-      <div className="flex gap-6 items-start">
+      {/* Row 1: Profile card (left) + Streak stats (right) — equal width */}
+      <div className="grid grid-cols-2 gap-6 items-start">
 
         {/* Profile card — avatar, stats, level progress */}
-        <Card className="bg-sidebar border-2 border-foreground/15 flex-1">
+        <Card className="bg-sidebar border-2 border-foreground/15">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="w-5 h-5" />
-              {user.name}
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                {user.name}
+              </div>
+              <span className="text-lg font-bold">#{position ?? '?'}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -66,7 +69,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
                   {getInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 flex-1">
+              <div className="grid grid-cols-3 gap-4 flex-1">
                 <div className="text-center">
                   <div className="text-2xl font-bold">Lvl {currentLevel}</div>
                   <div className="text-sm text-muted-foreground">Level</div>
@@ -78,14 +81,6 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
                 <div className="text-center">
                   <div className="text-2xl font-bold">{user.total_km.toFixed(1)}</div>
                   <div className="text-sm text-muted-foreground">Total KM</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{user.current_streak}</div>
-                  <div className="text-sm text-muted-foreground">Day Streak</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">#{position ?? '?'}</div>
-                  <div className="text-sm text-muted-foreground">Position</div>
                 </div>
               </div>
             </div>
@@ -107,7 +102,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
         </Card>
 
         {/* Streak Stats — right of profile card */}
-        <Card className="bg-sidebar border-2 border-foreground/15 shrink-0 w-44">
+        <Card className="bg-sidebar border-2 border-foreground/15">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Calendar className="w-4 h-4" />
@@ -116,16 +111,16 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="text-center p-2 bg-background rounded-lg">
+              <div className="text-center p-2 bg-background border border-foreground/10 rounded-lg">
                 <div className="text-xl font-bold">{user.current_streak}</div>
                 <div className="text-xs text-muted-foreground">Current</div>
               </div>
-              <div className="text-center p-2 bg-background rounded-lg">
+              <div className="text-center p-2 bg-background border border-foreground/10 rounded-lg">
                 <div className="text-xl font-bold">{currentMultiplier}x</div>
                 <div className="text-xs text-muted-foreground">Multiplier</div>
               </div>
             </div>
-            <div className="text-center p-2 bg-background rounded-lg">
+            <div className="text-center p-2 bg-background border border-foreground/10 rounded-lg">
               <div className="text-xl font-bold">{user.longest_streak}</div>
               <div className="text-xs text-muted-foreground">Longest Streak</div>
             </div>
