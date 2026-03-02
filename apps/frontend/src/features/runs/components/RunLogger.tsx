@@ -133,7 +133,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                   </Button>
 
                   {distance && parseFloat(distance) >= MIN_RUN_DISTANCE_KM && (
-                    <div className="p-3 bg-background border border-foreground/10 rounded-lg">
+                    <div className="p-3 bg-background border border-foreground rounded-lg">
                       <div className="text-sm font-semibold mb-2">
                         Estimated XP: {previewXP}
                       </div>
@@ -155,7 +155,7 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                   )}
 
                   {lastRunResult && (
-                    <div className="p-3 bg-background border border-foreground/10 rounded-lg">
+                    <div className="p-3 bg-background border border-foreground rounded-lg">
                       <div className="text-sm font-semibold">
                         {lastRunResult}
                       </div>

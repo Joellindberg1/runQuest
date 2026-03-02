@@ -111,16 +111,16 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div className="text-center p-2 bg-background border border-foreground/10 rounded-lg">
+                  <div className="text-center p-2 bg-background border border-foreground rounded-lg">
                     <div className="text-xl font-bold">{user.current_streak}</div>
                     <div className="text-xs text-muted-foreground">Current</div>
                   </div>
-                  <div className="text-center p-2 bg-background border border-foreground/10 rounded-lg">
+                  <div className="text-center p-2 bg-background border border-foreground rounded-lg">
                     <div className="text-xl font-bold">{currentMultiplier}x</div>
                     <div className="text-xs text-muted-foreground">Multiplier</div>
                   </div>
                 </div>
-                <div className="text-center p-2 bg-background border border-foreground/10 rounded-lg">
+                <div className="text-center p-2 bg-background border border-foreground rounded-lg">
                   <div className="text-xl font-bold">{user.longest_streak}</div>
                   <div className="text-xs text-muted-foreground">Longest Streak</div>
                 </div>

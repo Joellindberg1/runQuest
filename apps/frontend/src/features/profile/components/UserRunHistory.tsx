@@ -63,7 +63,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
                 {pageRuns.map((run) => {
                   const isOpen = selectedRun?.id === run.id;
                   return (
-                  <div key={run.id} className="bg-background border border-foreground/10 rounded-lg">
+                  <div key={run.id} className="bg-background border border-foreground rounded-lg">
                     <div
                       className={`flex items-center justify-between p-3 cursor-pointer hover:bg-accent transition-colors ${isOpen ? 'rounded-t-lg' : 'rounded-lg'}`}
                       onClick={() => setSelectedRun(isOpen ? null : run)}
