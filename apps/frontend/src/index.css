@@ -38,12 +38,12 @@
     --muted-foreground: 330  2% 20%;     /* Subdued text        — mid Graphite        */
 
     --accent:            30  7% 76%;     /* Accent / sidebar bg — warm beige-grey     */
-    --accent-foreground:  0  0%  5%;     /* Text on accent      — near-black          */
+    --accent-foreground:  0  0%  30%;     /* Text on accent      — near-black          */
 
     --destructive:            0 84.2% 60.2%; /* Error/delete red                     */
     --destructive-foreground: 0  0% 98%;     /* Text on error   — near-white          */
 
-    --border: 33 13% 80%;                /* Default border      — warm mid-grey       */
+    --border: 33 13% 65%;                /* Default border      — warm mid-grey       */
     --input:  33 13% 80%;                /* Input field border  — same               */
     --ring:    1 75% 64%;                /* Focus ring          — Lobster pink        */
 
@@ -82,7 +82,7 @@
     --muted-foreground:  33 13% 60%;     /* Subdued text        — dimmer Dust grey    */
 
     --accent:            131  8% 13%;    /* Accent / card bg    — dark green tint     */
-    --accent-foreground:  33 13% 83%;    /* Text on accent      — Dust grey           */
+    --accent-foreground:  33 13% 65%;    /* Text on accent      — Dust grey           */
 
     --destructive:            0 62.8% 40%; /* Error red         — darker for dark UI  */
     --destructive-foreground: 33 13% 83%;  /* Error text        — Dust grey           */
@@ -117,8 +117,10 @@
   light-coloured podium backgrounds (amber-100, zinc-100, orange-100).
 */
 .podium-light {
-  --foreground:       330  2% 18%; /* Force dark text on light podium bg  */
-  --card-foreground:  330  2% 18%; /* Same for card-specific text         */
-  --muted-foreground: 330  2% 28%; /* Subdued text — still dark but softer */
-  color: hsl(330, 2%, 18%);        /* Direct override for `color` property */
+  --foreground:        330  2% 18%; /* Force dark text on light podium bg  */
+  --card-foreground:   330  2% 18%; /* Same for card-specific text         */
+  --muted-foreground:  330  2% 28%; /* Subdued text — still dark but softer */
+  --accent:             30 20% 88%; /* Lighter warm tint for accent inside podium cards */
+  --accent-foreground: 330  2% 18%; /* Accent text on podium cards         */
+  color: hsl(330, 2%, 18%);         /* Direct override for `color` property */
 }

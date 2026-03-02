@@ -45,7 +45,7 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
                       const titleData = allTitles.find((t) => t.name === title.title_name);
                       const runnerUp = titleData?.runners_up?.[0];
                       return (
-                        <div key={index} className="p-3 bg-background border border-foreground rounded-lg">
+                        <div key={index} className="p-3 bg-background border border-foreground/50 rounded-lg">
                           <div className="font-medium">{title.title_name}</div>
                           <div className="text-sm text-muted-foreground">
                             Your Record: {title.value?.toFixed(1)}{getValueSuffix(title.title_name)}
@@ -72,7 +72,7 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
                     {runnerUpTitles.map((title, index) => {
                       const titleData = allTitles.find((t) => t.name === title.title_name);
                       return (
-                        <div key={index} className="p-3 bg-background border border-foregroun rounded-lg">
+                        <div key={index} className="p-3 bg-background border border-foreground/50 rounded-lg">
                           <div className="font-medium">{title.title_name}</div>
                           <div className="text-sm text-muted-foreground">
                             Your Record: {title.value?.toFixed(1)}{getValueSuffix(title.title_name)}
