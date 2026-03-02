@@ -6,6 +6,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { LogIn } from 'lucide-react';
 import { useAuth } from '@/features/auth';
+import { RunQuestLogo } from '@/shared/components/RunQuestLogo';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -31,8 +32,8 @@ const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">RunQuest</h1>
+        <div className="flex flex-col items-center mb-8">
+          <RunQuestLogo className="h-14 w-auto text-gray-800 mb-3" />
           <p className="text-lg text-gray-600">Login to continue your journey</p>
         </div>
 

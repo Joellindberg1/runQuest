@@ -44,7 +44,7 @@ const Index: React.FC = () => {
   };
 
   return (
-    <AppLayout groupName="Göteborgsvarvet 2026">
+    <AppLayout groupName="Wolfpack - Göteborgsvarvet 2026">
       {renderContent()}
     </AppLayout>
   );

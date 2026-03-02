@@ -15,26 +15,26 @@ export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle }) => {
   const isDark = resolvedTheme === 'dark';
 
   return (
-    <header className="flex items-center px-4 md:px-6 py-3 bg-background">
+    <header className="grid grid-cols-[1fr_auto_1fr] items-center px-4 md:px-6 py-3 bg-background">
       {/* Left: hamburger (mobile only) */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="md:hidden p-2 shrink-0"
-        onClick={onMenuToggle}
-      >
-        <Menu className="w-5 h-5" />
-      </Button>
-
-      {/* Center: group name — flex-1 + text-center so it's centered within the 85% content area */}
-      <div className="flex-1 flex justify-center">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground whitespace-nowrap">
-          {groupName}
-        </h1>
+      <div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="md:hidden p-2"
+          onClick={onMenuToggle}
+        >
+          <Menu className="w-5 h-5" />
+        </Button>
       </div>
 
+      {/* Center: group name — grid center col so it's truly centered within the full TopBar */}
+      <h1 className="text-2xl md:text-3xl font-bold text-foreground whitespace-nowrap">
+        {groupName}
+      </h1>
+
       {/* Right: notification + theme switch + profile icon */}
-      <div className="flex items-center gap-2 md:gap-3 shrink-0">
+      <div className="flex items-center gap-2 md:gap-3 justify-end">
         {/* Notification (placeholder) */}
         <Button
           variant="ghost"
@@ -52,7 +52,7 @@ export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle }) => {
           <Switch
             checked={isDark}
             onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-            className="data-[state=checked]:bg-primary"
+            className="data-[state=checked]:bg-primary border border-foreground/30 [&>span]:border [&>span]:border-foreground/20"
           />
           <Moon className="w-3.5 h-3.5 text-muted-foreground" />
         </div>

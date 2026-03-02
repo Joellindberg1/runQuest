@@ -119,7 +119,7 @@ const MOCK_CURRENT_USER = MOCK_USERS[0];
 
 const LeaderboardPreviewPage: React.FC = () => {
   return (
-    <AppLayout groupName="Göteborgsvarvet 2026">
+    <AppLayout groupName="Wolfpack - Göteborgsvarvet 2026">
       <div className="mb-4 px-3 py-2 rounded-md bg-primary/10 border border-primary/20 text-sm text-primary font-medium inline-block">
         Preview — visar exempeldata
       </div>

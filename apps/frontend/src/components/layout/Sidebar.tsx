@@ -24,10 +24,10 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, active, disabled, onClic
     onClick={!disabled ? onClick : undefined}
     disabled={disabled}
     className={cn(
-      'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors text-left',
+      'w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm font-medium transition-colors text-left',
       active && 'bg-sidebar-primary text-sidebar-primary-foreground',
       !active && !disabled && 'hover:bg-sidebar-accent text-sidebar-foreground cursor-pointer',
-      disabled && 'text-muted-foreground cursor-not-allowed opacity-40'
+      disabled && 'text-sidebar-foreground cursor-not-allowed opacity-40'
     )}
   >
     <span className="shrink-0">{icon}</span>
@@ -37,7 +37,7 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, active, disabled, onClic
 
 const NavSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="mb-4">
-    <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <p className="px-2 mb-1 text-sm font-semibold uppercase tracking-wider text-sidebar-foreground/60">
       {title}
     </p>
     <div className="space-y-0.5">{children}</div>
@@ -71,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Mobile overlay — near-solid so sidebar is unmistakably visible */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/85 md:hidden"
+          className="fixed inset-0 z-30 bg-black/92 md:hidden"
           onClick={onClose}
         />
       )}
@@ -81,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         className={cn(
           'fixed top-0 left-0 z-40 h-full flex flex-col',
           // The only divider: a clear right border separating sidebar from content
-          'bg-sidebar-background border-r-2 border-foreground/15',
+          'bg-sidebar/95 backdrop-blur-sm border-r-2 border-foreground/15',
           'transition-transform duration-300 ease-in-out',
           // Mobile: 60% wide with strong shadow so it reads as a distinct panel
           // Desktop: 10% wide
@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       >
         {/* Logo — no bottom divider */}
         <div className="flex items-center justify-between px-3 pt-5 pb-4">
-          <RunQuestLogo className="h-6 w-auto max-w-full text-sidebar-foreground" />
+          <RunQuestLogo className="h-8 w-auto max-w-full text-sidebar-foreground mr-2" />
           <button
             onClick={onClose}
             className="md:hidden shrink-0 ml-2 p-1 rounded-md hover:bg-sidebar-accent text-sidebar-foreground"
@@ -164,7 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           {stravaStatus.connected && (
             <div className="flex items-center gap-2">
               <StravaIcon size={18} />
-              <span className="text-[10px] text-muted-foreground leading-tight truncate">
+              <span className="text-xs text-sidebar-foreground/60 leading-tight truncate">
                 Synced with Strava
               </span>
             </div>

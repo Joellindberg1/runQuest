@@ -8,16 +8,16 @@ interface RunQuestLogoProps {
  * RunQuest SVG logo — runner figure + "RUNQUEST" in Oswald condensed.
  *
  * Note: Lucide React does not include a running-person icon.
- * The runner here is a bespoke SVG figure sized to read clearly at 24–32px height.
+ * The runner here is a bespoke SVG figure sized to read clearly at 24–40px height.
  * Uses `currentColor` so it adapts automatically to any text/sidebar colour context.
  *
  * Runner anatomy (viewBox 0 0 165 40):
- *   - Head:          filled circle, positioned ahead of torso
- *   - Torso:         strong forward lean (~30°)
- *   - Right arm:     bent upward–forward at elbow (classic sprint arm drive)
- *   - Left arm:      bent downward–backward at elbow
- *   - Right leg:     knee raised, stride forward
- *   - Left leg:      extended and pushing off behind
+ *   - Head:        filled circle, leading slightly ahead of torso
+ *   - Torso:       strong forward lean (~45°)
+ *   - Right arm:   up-forward at shoulder, elbow bends back down (sprint drive)
+ *   - Left arm:    back and down behind torso (counterswing)
+ *   - Right leg:   HIGH knee drive — thigh nearly horizontal, shin drops down
+ *   - Left leg:    pushing off behind, extends back
  */
 export const RunQuestLogo: React.FC<RunQuestLogoProps> = ({ className }) => (
   <svg
@@ -25,42 +25,43 @@ export const RunQuestLogo: React.FC<RunQuestLogoProps> = ({ className }) => (
     xmlns="http://www.w3.org/2000/svg"
     aria-label="RunQuest"
     className={className}
-    fill="none"
+    fill="currentColor"
   >
-    {/* ── Running figure ─────────────────────────────────────── */}
-    <g
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {/* Head */}
-      <circle cx="20" cy="5" r="4.5" />
+{/* ── Running figure (Refined and slightly thinner lines) ────────────────────────────────── */}
+<g
+  stroke="currentColor"
+  strokeWidth="3.5" /* Något smalare linjer för en lite lättare känsla */
+  strokeLinecap="round"
+  strokeLinejoin="round"
+>
+  {/* Huvud — fylld cirkel */}
+  <circle cx="23" cy="3.25" r="3.5" fill="currentColor" stroke="none" />
 
-      {/* Torso */}
-      <line x1="18" y1="10" x2="12" y2="23" />
+  {/* Torso — framåtlutande linje */}
+  <line x1="21" y1="8.5" x2="16" y2="20" />
 
-      {/* Right arm — forward, bent UP at elbow */}
-      <line x1="16" y1="14" x2="25" y2="8"  />
-      <line x1="25" y1="8"  x2="29" y2="15" />
+  {/* Främre arm (löparens högra, till höger i bilden) — "L"-form flyttad lite längre fram */}
+  {/* Justering: Flyttade de yttre punkterna (x2, x2) och den mellersta punkten (x2/y2, x1/y1) något framåt. */}
+  <line x1="20.5" y1="8.5" x2="27.5" y2="17.5" />
+  <line x1="33" y1="13" x2="28.5" y2="16.5" />
 
-      {/* Left arm — back, bent DOWN at elbow */}
-      <line x1="16" y1="14" x2="8"  y2="18" />
-      <line x1="8"  y1="18" x2="6"  y2="25" />
+  {/* Bakre arm (löparens vänstra, till vänster i bilden) — "V"-form bakåt */}
+  <line x1="19.3" y1="8.7" x2="12" y2="10" />
+  <line x1="12" y1="10" x2="10" y2="15" />
 
-      {/* Right leg — knee raised, stride forward */}
-      <line x1="12" y1="23" x2="21" y2="30" />
-      <line x1="21" y1="30" x2="25" y2="40" />
+  {/* Främre ben (löparens högra, till höger i bilden) — lår fram, smalben ner */}
+  <line x1="16" y1="20" x2="23" y2="23.5" />
+  <line x1="23" y1="23.5" x2="20" y2="33" />
 
-      {/* Left leg — pushing off behind */}
-      <line x1="12" y1="23" x2="7"  y2="31" />
-      <line x1="7"  y1="31" x2="3"  y2="40" />
-    </g>
+  {/* Bakre ben (löparens vänstra, till vänster i bilden) — sträckt bakåt och neråt med lite böj */}
+  {/* Justering: Lagt till en mellersta punkt och ändrat banan för att ge en svag böj i knät istället för en helt rak linje. */}
+  <path d="M16 20 L11 27 Q10 29, 6.5 33.5" fill="none" />
+</g>
 
     {/* ── RUNQUEST text ──────────────────────────────────────── */}
     <text
-      x="34"
-      y="33"
+      x="40"
+      y="25"
       fontFamily="'Oswald', 'Arial Narrow', Arial, sans-serif"
       fontWeight="400"
       fontSize="28"
@@ -68,6 +69,17 @@ export const RunQuestLogo: React.FC<RunQuestLogoProps> = ({ className }) => (
       fill="currentColor"
     >
       RUNQUEST
+    </text>
+        <text
+      x="45"
+      y="40.1"
+      fontFamily="'Oswald', 'Arial Narrow', Arial, sans-serif"
+      fontWeight="400"
+      fontSize="12"
+      letterSpacing="0.75"
+      fill="currentColor"
+    >
+      RUN - RANK - REIGN
     </text>
   </svg>
 );

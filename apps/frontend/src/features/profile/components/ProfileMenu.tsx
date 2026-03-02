@@ -15,20 +15,30 @@ export const ProfileMenu: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  // Not logged in — show nothing (the page handles login separately)
-  if (!user) return null;
+  // Not logged in — show icon that navigates to login
+  if (!user) return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="rounded-full w-9 h-9 ring-2 ring-foreground/50 bg-foreground/10 hover:bg-foreground/20 transition-colors"
+      onClick={() => navigate('/')}
+      title="Log in"
+    >
+      <User className="w-5 h-5" />
+    </Button>
+  );
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {/*
           Ring makes the button visible in both themes without adding a hard border.
-          bg-foreground/10 gives a subtle fill so the circle reads even on hover.
+          bg-foreground/5 gives a subtle fill so the circle reads even on hover.
         */}
         <Button
           variant="ghost"
           size="icon"
-          className="rounded-full w-9 h-9 ring-1 ring-foreground/30 bg-foreground/5 hover:bg-foreground/10 transition-colors"
+          className="rounded-full w-9 h-9 ring-2 ring-foreground/50 bg-foreground/10 hover:bg-foreground/20 transition-colors"
           title={user.name}
         >
           {user.profile_picture ? (
