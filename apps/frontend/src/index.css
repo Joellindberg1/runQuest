@@ -35,7 +35,7 @@
     --secondary-foreground: 330  2% 18%; /* Text on secondary   — Graphite            */
 
     --muted:            33  8% 90%;      /* Muted bg            — very light grey     */
-    --muted-foreground: 330  2% 35%;     /* Subdued text        — mid Graphite        */
+    --muted-foreground: 330  2% 20%;     /* Subdued text        — mid Graphite        */
 
     --accent:            30  7% 76%;     /* Accent / sidebar bg — warm beige-grey     */
     --accent-foreground:  0  0%  5%;     /* Text on accent      — near-black          */
