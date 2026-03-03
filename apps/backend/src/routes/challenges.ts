@@ -246,12 +246,14 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       res.json({ success: true, message: 'Challenge declined' }); return;
     }
 
-    // Accept: activate challenge
-    const startDate = new Date().toISOString().split('T')[0];
-    const endDate = new Date(Date.now() + challenge.duration_days * 86400000)
+    // Accept: activate challenge — starts tomorrow so neither party can time their acceptance
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const startDate = tomorrow.toISOString().split('T')[0];
+    const endDate = new Date(tomorrow.getTime() + challenge.duration_days * 86400000)
       .toISOString()
       .split('T')[0];
-    const determineAt = new Date(Date.now() + (challenge.duration_days + 1) * 86400000).toISOString();
+    const determineAt = new Date(tomorrow.getTime() + (challenge.duration_days + 1) * 86400000).toISOString();
 
     await supabase
       .from('challenges')
