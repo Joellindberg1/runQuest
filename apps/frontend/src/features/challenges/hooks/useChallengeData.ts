@@ -6,13 +6,7 @@ import type { LeaderboardEntry } from '../components/ChallengeLeaderboard';
 import type { ChallengeWithProgress } from '../components/ChallengesPage';
 import type { GroupMember } from '../components/SendChallengeModal';
 
-export function useChallengeData(groupMembers: GroupMember[], currentUserId: string) {
-  // Build a name lookup from group members
-  const nameMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    groupMembers.forEach(m => { map[m.id] = m.name; });
-    return map;
-  }, [groupMembers]);
+export function useChallengeData(currentUserId: string) {
 
   // Fetch personal challenges + group active in one call
   const challengesQuery = useQuery({
@@ -37,6 +31,22 @@ export function useChallengeData(groupMembers: GroupMember[], currentUserId: str
     refetchInterval: 5 * 60 * 1000,
     staleTime: 60 * 1000,
   });
+
+  // Build name lookup and group member list from group-stats (already in isLoading)
+  const nameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (statsQuery.data ?? []).forEach(u => { map[u.user_id] = u.name; });
+    return map;
+  }, [statsQuery.data]);
+
+  const groupMembers: GroupMember[] = useMemo(
+    () => (statsQuery.data ?? []).map(u => ({
+      id: u.user_id,
+      name: u.name,
+      challenge_active: u.challenge_active,
+    })),
+    [statsQuery.data]
+  );
 
   // Attach names to a challenge
   const withNames = (c: Challenge): Challenge => ({
@@ -113,6 +123,7 @@ export function useChallengeData(groupMembers: GroupMember[], currentUserId: str
 
   return {
     isLoading,
+    groupMembers,
     allActiveChallenges,
     leaderboard,
     sentChallenge,

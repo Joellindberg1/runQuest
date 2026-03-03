@@ -100,7 +100,6 @@ export const SendChallengeModal: React.FC<SendChallengeModalProps> = ({
           {/* Member picker */}
           <div className="space-y-1">
             <p className="text-sm font-medium text-muted-foreground mb-2">Choose opponent</p>
-            <div className="max-h-48 overflow-y-auto space-y-1">
             {eligible.map(m => (
               <button
                 key={m.id}
@@ -120,7 +119,6 @@ export const SendChallengeModal: React.FC<SendChallengeModalProps> = ({
                 )}
               </button>
             ))}
-            </div>
           </div>
 
           <Button className="w-full" disabled={!canSend} onClick={handleSend}>

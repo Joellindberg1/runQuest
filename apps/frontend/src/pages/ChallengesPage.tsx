@@ -6,7 +6,6 @@ import { useChallengeData } from '@/features/challenges/hooks/useChallengeData';
 import { useChallengeActions } from '@/features/challenges/hooks/useChallengeActions';
 import { backendApi } from '@/shared/services/backendApi';
 import { useAuth } from '@/features/auth';
-import type { GroupMember } from '@/features/challenges/components/SendChallengeModal';
 
 const ChallengesPage: React.FC = () => {
   const { user } = useAuth();
@@ -22,14 +21,9 @@ const ChallengesPage: React.FC = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const groupMembers: GroupMember[] = (groupQuery.data?.members ?? []).map(m => ({
-    id: m.id,
-    name: m.name,
-    challenge_active: m.challenge_active ?? false,
-  }));
-
   const {
     isLoading,
+    groupMembers,
     allActiveChallenges,
     leaderboard,
     sentChallenge,
@@ -38,11 +32,11 @@ const ChallengesPage: React.FC = () => {
     boosts,
     history,
     stats,
-  } = useChallengeData(groupMembers, user?.id ?? '');
+  } = useChallengeData(user?.id ?? '');
 
   const { sendToken, acceptChallenge, declineChallenge } = useChallengeActions();
 
-  if (isLoading || groupQuery.isLoading) {
+  if (isLoading) {
     return (
       <AppLayout groupName={groupQuery.data?.name ?? ''}>
         <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
