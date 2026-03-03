@@ -7,13 +7,14 @@ import { ProfileMenu } from '@/features/profile';
 interface TopBarProps {
   groupName: string;
   onMenuToggle: () => void;
+  leftWidget?: React.ReactNode;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle }) => {
+export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle, leftWidget }) => {
   return (
     <header className="grid grid-cols-[1fr_auto_1fr] items-center px-4 md:px-6 py-3 bg-background">
-      {/* Left: hamburger (mobile only) */}
-      <div>
+      {/* Left: hamburger (mobile) + optional widget (desktop) */}
+      <div className="flex items-center gap-2">
         <Button
           variant="ghost"
           size="sm"
@@ -22,6 +23,11 @@ export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle }) => {
         >
           <Menu className="w-5 h-5" />
         </Button>
+        {leftWidget && (
+          <div className="hidden md:block">
+            {leftWidget}
+          </div>
+        )}
       </div>
 
       {/* Center: group name — grid center col so it's truly centered within the full TopBar */}

@@ -11,13 +11,14 @@ import {
 const router = express.Router();
 
 // ─── GET /api/challenges/my ──────────────────────────────────────────────────
-// Returns: tokens (unsent), active_challenge, received_challenges, boosts, history
+// Returns: tokens, sent_challenge, received_challenges, boosts, history, group_active
 router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
+    const groupId = req.user!.group_id;
     const supabase = getSupabaseClient();
 
-    const [tokensRes, activeChallengeRes, receivedRes, historyRes, boostsRes] = await Promise.all([
+    const [tokensRes, activeChallengeRes, receivedRes, historyRes, boostsRes, groupActiveRes] = await Promise.all([
       // Unsent tokens
       supabase
         .from('user_challenge_tokens')
@@ -56,6 +57,11 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
         .from('user_boosts')
         .select('id, challenge_id, outcome, type, delta, remaining, expires_at, created_at')
         .eq('user_id', userId),
+
+      // All active challenges in the group (for Ongoing tab)
+      groupId
+        ? supabase.from('challenges').select('*').eq('group_id', groupId).eq('status', 'active')
+        : Promise.resolve({ data: [] }),
     ]);
 
     res.json({
@@ -66,6 +72,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
         received_challenges: receivedRes.data ?? [],
         boosts: boostsRes.data ?? [],
         history: historyRes.data ?? [],
+        group_active: groupActiveRes.data ?? [],
       },
     });
   } catch (err) {
@@ -263,7 +270,6 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
 // ─── GET /api/challenges/:id/progress ───────────────────────────────────────
 router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const userId = req.user!.user_id;
     const { id } = req.params;
     const supabase = getSupabaseClient();
 
@@ -276,9 +282,6 @@ router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => 
 
     if (!challenge) {
       res.status(404).json({ error: 'Challenge not found' }); return;
-    }
-    if (challenge.challenger_id !== userId && challenge.opponent_id !== userId) {
-      res.status(403).json({ error: 'Not your challenge' }); return;
     }
 
     // Auto-settle if past determine_at

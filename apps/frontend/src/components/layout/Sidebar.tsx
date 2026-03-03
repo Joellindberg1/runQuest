@@ -13,6 +13,7 @@ import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Gamepad2, X, CheckCir
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  mobileWidget?: React.ReactNode;
 }
 
 interface NavItemProps {
@@ -52,11 +53,12 @@ function useActiveTab() {
   const location = useLocation();
   if (location.pathname === '/features') return 'features';
   if (location.pathname === '/settings') return 'settings';
+  if (location.pathname === '/challenges') return 'challenges';
   const params = new URLSearchParams(location.search);
   return params.get('tab') || 'leaderboard';
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, mobileWidget }) => {
   const { stravaStatus, syncInfo } = useStravaData();
   const navigate = useNavigate();
   const activeTab = useActiveTab();
@@ -64,6 +66,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const handleNav = (tab: string) => {
     if (tab === 'features') {
       navigate('/features');
+    } else if (tab === 'challenges') {
+      navigate('/challenges');
     } else {
       navigate(tab === 'leaderboard' ? '/' : `/?tab=${tab}`);
     }
@@ -124,7 +128,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <NavItem
               icon={<Gamepad2 className="w-3.5 h-3.5" />}
               label="Challenges"
-              disabled
+              active={activeTab === 'challenges'}
+              onClick={() => handleNav('challenges')}
             />
           </NavSection>
 
@@ -163,8 +168,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </NavSection>
         </nav>
 
-        {/* Mobile-only: theme switch, notifications, profile — hidden on desktop (shown in TopBar) */}
-        <div className="md:hidden px-3 pb-3 border-t border-foreground/10 pt-3">
+        {/* Mobile-only: challenge widget + theme switch + notifications + profile */}
+        <div className="md:hidden px-3 pb-3 border-t border-foreground/10 pt-3 space-y-2">
+          {mobileWidget && (
+            <div className="w-full">{mobileWidget}</div>
+          )}
           <div className="flex items-center justify-between">
             <ThemeToggle iconClass="text-sidebar-foreground/60" />
             <div className="flex items-center gap-1">

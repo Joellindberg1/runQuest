@@ -24,36 +24,38 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-export const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
+export const authenticateJWT = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
   
   if (!authHeader) {
     logger.info('❌ No authorization header');
-    return res.status(401).json({ error: 'Authorization header required' });
+    res.status(401).json({ error: 'Authorization header required' });
+    return;
   }
-  
+
   const token = authHeader.split(' ')[1]; // Bearer TOKEN
-  
+
   if (!token) {
     logger.info('❌ No token in authorization header');
-    return res.status(401).json({ error: 'Token required' });
+    res.status(401).json({ error: 'Token required' });
+    return;
   }
-  
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
     logger.info(`🔐 JWT verified for user: ${decoded.name}`);
-    
+
     req.user = {
       user_id: decoded.user_id,
       name: decoded.name,
       email: decoded.email,
       group_id: decoded.group_id ?? undefined
     };
-    
+
     next();
   } catch (error) {
     logger.error('❌ JWT verification failed:', error);
-    return res.status(403).json({ error: 'Invalid token' });
+    res.status(403).json({ error: 'Invalid token' });
   }
 };
 

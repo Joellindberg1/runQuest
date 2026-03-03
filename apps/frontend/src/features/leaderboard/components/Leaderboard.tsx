@@ -5,6 +5,7 @@ import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
 import { useMultipleUserTitles } from '@/shared/hooks/useTitleQueries';
+import { Swords } from 'lucide-react';
 import type { User, UserTitle } from '@/types/run';
 
 interface LeaderboardProps {
@@ -52,16 +53,47 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
         ? [{ title_name: 'Eliud Kipchoge', value: 0, is_current_holder: true }]
         : realTitles;
     const initials = getInitials(user.name);
+    const counts = user.challenge_counts ?? {};
+    const TIERS = ['minor', 'major', 'legendary'] as const;
+    const FLAG_COLORS = {
+      minor:     'bg-blue-500',
+      major:     'bg-orange-500',
+      legendary: 'bg-yellow-500',
+    } as const;
 
     return (
       <Card
         key={user.id}
-        className={`relative ${
+        className={`relative overflow-visible ${
           isCurrentUser && position > 3 ? 'ring-2 ring-success bg-success/10' : getPositionStyles(position)
         }`}
       >
         {isCurrentUser && isPodium && (
           <div className="absolute top-2 left-2 w-4 h-4 bg-success rounded-full shadow-xl shadow-success/70 animate-pulse z-10" />
+        )}
+
+        {/* Per-tier challenge flags hanging from bottom-right corner */}
+        <div className="absolute flex gap-1 z-10" style={{ bottom: -20, right: 14 }}>
+          {TIERS.map(tier => {
+            const count = counts[tier];
+            if (!count) return null;
+            return (
+              <div
+                key={tier}
+                className={`${FLAG_COLORS[tier]} text-white text-[10px] font-bold w-6 flex items-start justify-center pt-1 leading-none select-none`}
+                style={{ clipPath: 'polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%)', height: 28 }}
+              >
+                {count}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Active challenge swords icon — bottom-right whitespace inside card */}
+        {user.challenge_active && (
+          <div className="absolute bottom-3.5 right-3 z-10">
+            <Swords className="w-[18px] h-[18px] text-primary" />
+          </div>
         )}
 
         <CardHeader className="pt-3 pb-2">
@@ -123,12 +155,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
       {/* ── Podium (top 3): mobile stacks 1/2/3, md+ shows stepped layout ── */}
 
       {/* Mobile: simple ordered list */}
-      <div className="md:hidden space-y-4">
+      <div className="md:hidden space-y-6">
         {podiumUsers.map((user) => renderCard(user))}
       </div>
 
       {/* Desktop: 2nd left, 1st center + higher, 3rd right + lower */}
-      <div className="hidden md:flex gap-4 justify-center">
+      <div className="hidden md:flex gap-6 justify-center">
         {podiumSlots.map(({ user, mt }) => (
           <div key={user.id} className={`w-[340px] ${mt}`}>
             {renderCard(user)}
@@ -138,7 +170,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
 
       {/* ── Positions 4+: flat grid, all on the same level ── */}
       {restUsers.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="flex flex-wrap justify-center gap-6">
           {restUsers.map((user) => (
             <div key={user.id} className="w-[340px]">
               {renderCard(user)}

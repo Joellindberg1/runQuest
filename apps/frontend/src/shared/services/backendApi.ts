@@ -1,5 +1,5 @@
 // 🔗 Backend API Service - Production Ready
-import type { Run, UserTitle } from '@/types/run';
+import type { Run, UserTitle, Challenge, ChallengeToken, UserBoost } from '@/types/run';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -742,6 +742,125 @@ class BackendApiService {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
+
+  // ─── Groups ──────────────────────────────────────────────────────────────
+
+  async getGroupInfo(): Promise<ApiResponse<{
+    id: string; name: string; is_owner: boolean; invite_code?: string;
+    members: { id: string; name: string; current_level: number; total_xp: number; profile_picture?: string; challenge_active?: boolean }[];
+  }>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/groups/my`, {
+        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) { this.handleUnauthorized(); return { success: false, error: 'Session expired.' }; }
+        throw new Error(data.error || 'Failed to fetch group info');
+      }
+      return { success: true, data: data.data };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  // ─── Challenges ──────────────────────────────────────────────────────────
+
+  async getMyChallenges(): Promise<ApiResponse<{
+    tokens: ChallengeToken[];
+    sent_challenge: Challenge | null;
+    received_challenges: Challenge[];
+    boosts: UserBoost[];
+    history: Challenge[];
+    group_active: Challenge[];
+  }>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/challenges/my`, {
+        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) { this.handleUnauthorized(); return { success: false, error: 'Session expired.' }; }
+        throw new Error(data.error || 'Failed to fetch challenges');
+      }
+      return { success: true, data: data.data };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async sendChallenge(tokenId: string, opponentId: string): Promise<ApiResponse<{ challenge_id: string }>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/challenges/send`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${this.getToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token_id: tokenId, opponent_id: opponentId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) { this.handleUnauthorized(); return { success: false, error: 'Session expired.' }; }
+        throw new Error(data.error || 'Failed to send challenge');
+      }
+      return { success: true, data: data.data };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async respondToChallenge(challengeId: string, action: 'accept' | 'decline'): Promise<ApiResponse<void>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/challenges/${challengeId}/respond`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${this.getToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) { this.handleUnauthorized(); return { success: false, error: 'Session expired.' }; }
+        throw new Error(data.error || 'Failed to respond to challenge');
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async getChallengeProgress(challengeId: string): Promise<ApiResponse<{ progress: { user_id: string; value: number }[] }>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/challenges/${challengeId}/progress`, {
+        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) { this.handleUnauthorized(); return { success: false, error: 'Session expired.' }; }
+        throw new Error(data.error || 'Failed to fetch progress');
+      }
+      return { success: true, data: data.data };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async getChallengeGroupStats(): Promise<ApiResponse<Array<{
+    user_id: string; name: string; wins: number; draws: number; losses: number;
+    total: number; points: number; challenge_active: boolean; current_level: number; profile_picture: string | null;
+  }>>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/challenges/group-stats`, {
+        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) { this.handleUnauthorized(); return { success: false, error: 'Session expired.' }; }
+        throw new Error(data.error || 'Failed to fetch group stats');
+      }
+      return { success: true, data: data.data };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  // ─── Runs ─────────────────────────────────────────────────────────────────
 
   async createRun(date: string, distance: number, source: string = 'manual'): Promise<ApiResponse<Run>> {
     try {

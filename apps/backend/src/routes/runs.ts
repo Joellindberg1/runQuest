@@ -82,7 +82,7 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   logger.info(`📊 Reprocessing ${runs.length} affected runs (of user's total)`);
 
   // Calculate all updates in memory — zero DB calls per run
-  const updates = runs.map(run => {
+  const updates = runs.map((run: { id: string; date: string; distance: number }) => {
     const runDate = new Date(run.date);
     const daysDiff = lastRunDate
       ? Math.floor((runDate.getTime() - lastRunDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -112,7 +112,7 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
 
   // Parallel updates instead of sequential
   await Promise.all(
-    updates.map(u =>
+    updates.map((u: { id: string; streak_day: number; multiplier: number; base_xp: number; km_xp: number; distance_bonus: number; streak_bonus: number; xp_gained: number }) =>
       supabase.from('runs').update({
         streak_day: u.streak_day,
         multiplier: u.multiplier,

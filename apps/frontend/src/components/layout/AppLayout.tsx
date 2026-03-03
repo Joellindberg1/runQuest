@@ -5,9 +5,10 @@ import { TopBar } from './TopBar';
 interface AppLayoutProps {
   groupName: string;
   children: React.ReactNode;
+  topbarLeftWidget?: React.ReactNode;
 }
 
-export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children }) => {
+export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children, topbarLeftWidget }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -15,6 +16,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children }) => 
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        mobileWidget={topbarLeftWidget}
       />
 
       {/* Main area — offset by sidebar width on md+ */}
@@ -22,6 +24,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children }) => 
         <TopBar
           groupName={groupName}
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}
+          leftWidget={topbarLeftWidget}
         />
         <main className="flex-1 px-4 md:px-8 py-6">{children}</main>
       </div>

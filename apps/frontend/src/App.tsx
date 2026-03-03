@@ -10,6 +10,8 @@ import SettingsPage from './pages/SettingsPage';
 import FeaturesPage from './pages/FeaturesPage';
 import StravaCallbackPage from './pages/StravaCallbackPage';
 import LeaderboardPreviewPage from './pages/LeaderboardPreviewPage';
+import ChallengesPreviewPage from './pages/ChallengesPreviewPage';
+import ChallengesPage from './pages/ChallengesPage';
 import NotFound from './pages/NotFound';
 
 const AppContent = () => {
@@ -35,6 +37,7 @@ const AppContent = () => {
     return (
       <Routes>
         <Route path="/preview" element={<LeaderboardPreviewPage />} />
+        <Route path="/preview/challenges" element={<ChallengesPreviewPage />} />
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );
@@ -47,7 +50,9 @@ const AppContent = () => {
       <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/features" element={<FeaturesPage />} />
+      <Route path="/challenges" element={<ChallengesPage />} />
       <Route path="/preview" element={<LeaderboardPreviewPage />} />
+      <Route path="/preview/challenges" element={<ChallengesPreviewPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

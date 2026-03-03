@@ -33,7 +33,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
 
     const { data: members, error: membersError } = await supabase
       .from('users')
-      .select('id, name, total_xp, current_level, profile_picture')
+      .select('id, name, total_xp, current_level, profile_picture, challenge_active')
       .eq('group_id', groupId)
       .order('total_xp', { ascending: false });
 
