@@ -126,12 +126,12 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
         .single(),
       supabase
         .from('users')
-        .select('id, challenge_active, current_level, group_id')
+        .select('id, current_level, group_id')
         .eq('id', userId)
         .single(),
       supabase
         .from('users')
-        .select('id, challenge_active, current_level, group_id')
+        .select('id, current_level, group_id')
         .eq('id', opponent_id)
         .single(),
     ]);
@@ -146,17 +146,35 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     if (token.sent_at !== null) {
       res.status(400).json({ error: 'Token has already been sent' }); return;
     }
-    if (!challenger || challenger.challenge_active) {
-      res.status(400).json({ error: 'You already have an active challenge' }); return;
+    if (!challenger) {
+      res.status(404).json({ error: 'Challenger not found' }); return;
     }
     if (!opponent) {
       res.status(404).json({ error: 'Opponent not found' }); return;
     }
-    if (opponent.challenge_active) {
-      res.status(400).json({ error: 'Opponent already has an active challenge' }); return;
-    }
     if (groupId && opponent.group_id !== groupId) {
       res.status(400).json({ error: 'Opponent is not in your group' }); return;
+    }
+
+    // Check for existing pending or active challenges for either party
+    const { data: existingChallenges } = await supabase
+      .from('challenges')
+      .select('id, challenger_id, opponent_id')
+      .in('status', ['pending', 'active'])
+      .or(`challenger_id.eq.${userId},opponent_id.eq.${userId},challenger_id.eq.${opponent_id},opponent_id.eq.${opponent_id}`);
+
+    const userBusy = existingChallenges?.some(
+      c => c.challenger_id === userId || c.opponent_id === userId
+    );
+    const opponentBusy = existingChallenges?.some(
+      c => c.challenger_id === opponent_id || c.opponent_id === opponent_id
+    );
+
+    if (userBusy) {
+      res.status(400).json({ error: 'You already have an active or pending challenge' }); return;
+    }
+    if (opponentBusy) {
+      res.status(400).json({ error: 'Opponent already has an active or pending challenge' }); return;
     }
 
     // Fetch reward details
@@ -201,17 +219,11 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Failed to create challenge' }); return;
     }
 
-    // Mark token as sent + link to challenge, mark both users as challenge_active
-    await Promise.all([
-      supabase
-        .from('user_challenge_tokens')
-        .update({ sent_at: sentAt, challenge_id: challenge.id })
-        .eq('id', token_id),
-      supabase
-        .from('users')
-        .update({ challenge_active: true })
-        .in('id', [userId, opponent_id]),
-    ]);
+    // Mark token as sent + link to challenge
+    await supabase
+      .from('user_challenge_tokens')
+      .update({ sent_at: sentAt, challenge_id: challenge.id })
+      .eq('id', token_id);
 
     logger.info(`⚔️ Challenge sent: ${userId} → ${opponent_id} (${token.tier} / ${token.metric})`);
 
@@ -274,10 +286,16 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       .split('T')[0];
     const determineAt = new Date(tomorrow.getTime() + (challenge.duration_days + 1) * 86400000).toISOString();
 
-    await supabase
-      .from('challenges')
-      .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
-      .eq('id', id);
+    await Promise.all([
+      supabase
+        .from('challenges')
+        .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
+        .eq('id', id),
+      supabase
+        .from('users')
+        .update({ challenge_active: true })
+        .in('id', [challenge.challenger_id, challenge.opponent_id]),
+    ]);
 
     logger.info(`✅ Challenge ${id} accepted. Runs ${startDate} → ${endDate}`);
 
