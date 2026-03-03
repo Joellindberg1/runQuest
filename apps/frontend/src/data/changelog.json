@@ -1,5 +1,37 @@
 [
   {
+    "version": "0.3.0",
+    "type": "minor",
+    "date": "3 March 2026",
+    "title": "Challenges",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Challenge system — players earn challenge tokens when leveling up and can send them to group members as 1v1 challenges."
+      },
+      {
+        "type": "feature",
+        "description": "Three challenge tiers: Minor (5–7 days), Major (7–14 days) and Legendary (14–30 days) — each with different metrics (km, runs, XP) and reward multipliers."
+      },
+      {
+        "type": "feature",
+        "description": "Winner gets an XP multiplier boost, loser takes a penalty — challenges are settled automatically when the time window closes."
+      },
+      {
+        "type": "feature",
+        "description": "Challenges page — view active challenges, pending requests, history and a W/D/L leaderboard for the group."
+      },
+      {
+        "type": "feature",
+        "description": "Active challenge widget in the top bar — shows live score and days remaining, links directly to the challenge page."
+      },
+      {
+        "type": "improvement",
+        "description": "Leaderboard now shows tier flags (tokens ready to send) and a swords icon for users currently in an active challenge."
+      }
+    ]
+  },
+  {
     "version": "0.2.0",
     "type": "minor",
     "date": "2 March 2026",

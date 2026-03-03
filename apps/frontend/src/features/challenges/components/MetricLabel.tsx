@@ -2,9 +2,9 @@ import React from 'react';
 import type { ChallengeMetric } from '@/types/run';
 
 const METRIC_LABELS: Record<ChallengeMetric, string> = {
-  km:       'Längst distans',
-  runs:     'Flest rundor',
-  total_xp: 'Mest XP',
+  km:       'Most km',
+  runs:     'Most runs',
+  total_xp: 'Tot XP',
 };
 
 interface MetricLabelProps {

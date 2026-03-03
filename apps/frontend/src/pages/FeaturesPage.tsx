@@ -106,20 +106,10 @@ const FeaturesPage: React.FC = () => {
     { icon: <Users className="w-6 h-6" />,      title: 'User Profiles',       description: 'Personal stats and achievements' },
     { icon: <Smartphone className="w-6 h-6" />, title: 'Mobile Responsive',   description: 'Optimized for all devices' },
     { icon: <Moon className="w-6 h-6" />,       title: 'Dark Mode',           description: 'Switch between light and dark theme — defaults to system preference' },
+    { icon: <Swords className="w-6 h-6" />,     title: 'Challenges',          description: '1v1 challenges between group members — earn tokens at level-up, pick a metric and duration, winner gets a boost' },
   ];
 
-  const workingOnFeatures = [
-    {
-      icon: <Swords className="w-5 h-5" />,
-      title: 'Challenges',
-      description: 'Send challenges to other players and earn rewards',
-      details: [
-        'Players gain challenges as they level up',
-        'Send challenges to other players',
-        'Complete challenges to earn bonus rewards',
-      ],
-    },
-  ];
+  const workingOnFeatures: { icon: React.ReactNode; title: string; description: string; details: string[] }[] = [];
 
   return (
     <AppLayout groupName="Feature & Version">

@@ -2,7 +2,7 @@
 
 A running app where you and your friends compete, track progress and import runs from Strava — with an XP system, leaderboards and streak tracking.
 
-**Live:** [runquest.dev](https://www.runquest.dev) · **Version:** 0.2.0
+**Live:** [runquest.dev](https://www.runquest.dev) · **Version:** 0.3.0
 
 ---
 
@@ -26,7 +26,7 @@ runquest/
 ├── apps/
 │   ├── frontend/
 │   │   └── src/
-│   │       ├── features/       # Feature modules (leaderboard, runs, profile, settings, admin, auth, titles)
+│   │       ├── features/       # Feature modules (leaderboard, runs, profile, settings, admin, auth, titles, challenges)
 │   │       ├── pages/          # Pure glue components — layout + feature imports only
 │   │       ├── providers/      # AppProviders (QueryClient, AuthProvider, Toasters)
 │   │       ├── shared/
@@ -104,6 +104,7 @@ npm run test:watch --workspace=apps/backend
 - **Streak Tracking** — Daily run streaks with escalating multiplier (up to 2x)
 - **Strava Integration** — Automatic run import every 3 hours via OAuth2
 - **Titles** — Competitive titles (longest run, longest streak, most km, best weekend average)
+- **Challenges** — 1v1 challenges between group members across three tiers (Minor/Major/Legendary). Earn tokens at level-up, choose a metric (km, runs, XP) and duration, winner gets an XP multiplier boost
 - **Dark Mode** — Toggle between light and dark theme, defaults to system preference
 - **Admin Panel** — Configure XP settings, manage users, refresh title leaderboards
 
