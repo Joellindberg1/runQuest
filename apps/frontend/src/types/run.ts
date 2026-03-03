@@ -64,3 +64,41 @@ export interface StreakInfo {
   longestStreak: number;
   multiplier: number;
 }
+
+// ─── Challenge System ──────────────────────────────────────────────────────────
+export type ChallengeTier = 'minor' | 'major' | 'legendary';
+export type ChallengeMetric = 'km' | 'runs' | 'total_xp';
+export type ChallengeStatus = 'pending' | 'active' | 'completed' | 'declined';
+
+export interface Challenge {
+  id: string;
+  group_id: string;
+  tier: ChallengeTier;
+  challenger_id: string;
+  challenger_name: string;
+  opponent_id: string;
+  opponent_name: string;
+  metric: ChallengeMetric;
+  duration_days: number;
+  winner_delta: number;
+  winner_duration: number;
+  winner_type: string;
+  loser_delta: number;
+  loser_duration: number;
+  loser_type: string;
+  challenger_level: number;
+  opponent_level: number;
+  start_date?: string;
+  end_date?: string;
+  determine_at?: string;
+  status: ChallengeStatus;
+  winner_id?: string;
+  created_at: string;
+}
+
+export interface ChallengeStats {
+  wins: number;
+  draws: number;
+  losses: number;
+  challenge_active: boolean;
+}

@@ -546,22 +546,20 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
-    // Fetch completed challenge counts per tier for each user
+    // Count unsent tokens per tier per user (= challenges available to send)
     const userIds = (usersWithRuns ?? []).map((u: any) => u.id);
     const challengeCounts: Record<string, { minor: number; major: number; legendary: number }> = {};
     if (userIds.length > 0) {
-      const { data: completedChallenges } = await supabase
-        .from('challenges')
-        .select('tier, challenger_id, opponent_id')
-        .in('status', ['completed'])
-        .or(`challenger_id.in.(${userIds.join(',')}),opponent_id.in.(${userIds.join(',')})`);
+      const { data: unsentTokens } = await supabase
+        .from('user_challenge_tokens')
+        .select('user_id, tier')
+        .is('sent_at', null)
+        .in('user_id', userIds);
 
-      for (const c of completedChallenges ?? []) {
-        const tier = c.tier as 'minor' | 'major' | 'legendary';
-        for (const uid of [c.challenger_id, c.opponent_id]) {
-          if (!challengeCounts[uid]) challengeCounts[uid] = { minor: 0, major: 0, legendary: 0 };
-          challengeCounts[uid][tier]++;
-        }
+      for (const t of unsentTokens ?? []) {
+        const tier = t.tier as 'minor' | 'major' | 'legendary';
+        if (!challengeCounts[t.user_id]) challengeCounts[t.user_id] = { minor: 0, major: 0, legendary: 0 };
+        challengeCounts[t.user_id][tier]++;
       }
     }
 
