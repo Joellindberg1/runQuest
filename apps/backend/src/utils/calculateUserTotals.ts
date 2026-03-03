@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from './logger.js';
 import { getLevelFromXP } from './xpCalculation.js';
+import { awardTokensForLevelUp } from '../services/challengeService.js';
 
 export async function calculateUserTotals(userId: string, groupId?: string) {
   try {
@@ -28,24 +29,26 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
     const totalXP = runs.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
     const totalDistance = runs.reduce((sum: number, run: any) => sum + (run.distance || 0), 0);
 
-    // Fetch level and streak in parallel
+    // Fetch level, streak, and current user level in parallel
     const { StreakService } = await import('../services/streakService.js');
-    const [level, streakResult] = await Promise.all([
+    const [level, streakResult, currentUserRes] = await Promise.all([
       getLevelFromXP(totalXP),
-      StreakService.calculateUserStreaks(userId)
+      StreakService.calculateUserStreaks(userId),
+      supabase.from('users').select('current_level').eq('id', userId).single()
     ]);
     const currentStreak = streakResult.currentStreak;
     const longestStreak = Math.max(streakResult.longestStreak, currentStreak);
+    const oldLevel = currentUserRes.data?.current_level ?? 0;
 
     // Update user record with consistent level calculation
     const { error: updateError } = await supabase
       .from('users')
       .update({
         total_xp: totalXP,
-        total_km: totalDistance,  // ✅ FIXED: Use correct column name 'total_km'
+        total_km: totalDistance,
         current_streak: currentStreak,
         longest_streak: longestStreak,
-        current_level: level  // Now consistent with frontend!
+        current_level: level
       })
       .eq('id', userId);
 
@@ -53,6 +56,10 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
       logger.error('Error updating user totals:', updateError);
     } else {
       logger.info(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
+      // Award challenge tokens if user leveled up
+      if (level > oldLevel) {
+        await awardTokensForLevelUp(userId, oldLevel, level);
+      }
     }
 
     // 🏆 Process titles for ALL users to ensure complete leaderboard

@@ -16,8 +16,11 @@ import titleRoutes from './routes/titles.js';
 import runRoutes from './routes/runs.js';
 // 👥 Import group routes
 import groupRoutes from './routes/groups.js';
-// 🕐 Import Strava scheduler
+// ⚔️ Import challenge routes
+import challengeRoutes from './routes/challenges.js';
+// 🕐 Import schedulers
 import { startStravaScheduler } from './scheduler/stravaSync.js';
+import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
 
 // 📋 Step 1: Load Environment Variables
 logger.info('🔧 Step 1: Loading environment variables...');
@@ -167,6 +170,10 @@ app.use('/api/runs', runRoutes);
 logger.info('👥 Mounting group routes...');
 app.use('/api/groups', groupRoutes);
 
+// ⚔️ Challenge routes
+logger.info('⚔️ Mounting challenge routes...');
+app.use('/api/challenges', challengeRoutes);
+
 // 404 handler
 app.use((req, res) => {
   logger.info(`❓ 404 - Route not found: ${req.method} ${req.originalUrl}`);
@@ -207,13 +214,15 @@ server.on('error', (error: any) => {
 server.on('listening', () => {
   logger.info('✅ Step 4 Complete: Server is actively listening for connections\n');
   
-  // 🕐 Start Strava sync scheduler
+  // 🕐 Start schedulers
   if (process.env.NODE_ENV === 'production') {
     logger.info('🕐 Starting Strava sync scheduler for production...');
     startStravaScheduler();
+    logger.info('⚔️ Starting challenge scheduler for production...');
+    startChallengeScheduler();
   } else {
-    logger.info('ℹ️ Strava scheduler disabled in development mode');
-    logger.info('💡 Use POST /api/strava/sync for manual testing');
+    logger.info('ℹ️ Schedulers disabled in development mode');
+    logger.info('💡 Use POST /api/strava/sync for manual Strava testing');
   }
 });
 
