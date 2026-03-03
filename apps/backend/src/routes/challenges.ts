@@ -19,10 +19,10 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
     const supabase = getSupabaseClient();
 
     const [tokensRes, activeChallengeRes, receivedRes, historyRes, boostsRes, groupActiveRes] = await Promise.all([
-      // Unsent tokens
+      // Unsent tokens — join reward for winner/loser delta display
       supabase
         .from('user_challenge_tokens')
-        .select('id, tier, metric, duration_days, earned_at, reward_id')
+        .select('id, tier, metric, duration_days, earned_at, reward_id, challenge_rewards(winner_delta, winner_duration, winner_type, loser_delta, loser_duration, loser_type)')
         .eq('user_id', userId)
         .is('sent_at', null)
         .order('earned_at', { ascending: false }),
@@ -64,10 +64,29 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
         : Promise.resolve({ data: [] }),
     ]);
 
+    // Flatten reward data into token objects
+    const tokens = (tokensRes.data ?? []).map((t: any) => {
+      const r = t.challenge_rewards ?? {};
+      return {
+        id: t.id,
+        tier: t.tier,
+        metric: t.metric,
+        duration_days: t.duration_days,
+        earned_at: t.earned_at,
+        reward_id: t.reward_id,
+        winner_delta: parseFloat(r.winner_delta ?? 0),
+        winner_duration: r.winner_duration ?? 0,
+        winner_type: r.winner_type ?? '',
+        loser_delta: parseFloat(r.loser_delta ?? 0),
+        loser_duration: r.loser_duration ?? 0,
+        loser_type: r.loser_type ?? '',
+      };
+    });
+
     res.json({
       success: true,
       data: {
-        tokens: tokensRes.data ?? [],
+        tokens,
         sent_challenge: activeChallengeRes.data ?? null,
         received_challenges: receivedRes.data ?? [],
         boosts: boostsRes.data ?? [],
