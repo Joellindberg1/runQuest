@@ -529,6 +529,7 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
       .select(`
         id, name, total_xp, current_level, total_km,
         current_streak, longest_streak, profile_picture,
+        wins, draws, losses, challenge_active,
         runs(id, user_id, date, distance, xp_gained, multiplier,
              streak_day, base_xp, km_xp, distance_bonus, streak_bonus)
       `)
@@ -545,11 +546,35 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
-    logger.info(`✅ Successfully fetched ${usersWithRuns?.length ?? 0} users with runs`);
+    // Fetch completed challenge counts per tier for each user
+    const userIds = (usersWithRuns ?? []).map((u: any) => u.id);
+    const challengeCounts: Record<string, { minor: number; major: number; legendary: number }> = {};
+    if (userIds.length > 0) {
+      const { data: completedChallenges } = await supabase
+        .from('challenges')
+        .select('tier, challenger_id, opponent_id')
+        .in('status', ['completed'])
+        .or(`challenger_id.in.(${userIds.join(',')}),opponent_id.in.(${userIds.join(',')})`);
+
+      for (const c of completedChallenges ?? []) {
+        const tier = c.tier as 'minor' | 'major' | 'legendary';
+        for (const uid of [c.challenger_id, c.opponent_id]) {
+          if (!challengeCounts[uid]) challengeCounts[uid] = { minor: 0, major: 0, legendary: 0 };
+          challengeCounts[uid][tier]++;
+        }
+      }
+    }
+
+    const data = (usersWithRuns ?? []).map((u: any) => ({
+      ...u,
+      challenge_counts: challengeCounts[u.id] ?? { minor: 0, major: 0, legendary: 0 },
+    }));
+
+    logger.info(`✅ Successfully fetched ${data.length} users with runs`);
 
     res.json({
       success: true,
-      data: usersWithRuns ?? []
+      data,
     });
 
   } catch (error) {

@@ -14,6 +14,11 @@ interface ApiUser {
   current_streak?: number;
   longest_streak?: number;
   profile_picture?: string;
+  wins?: number;
+  draws?: number;
+  losses?: number;
+  challenge_active?: boolean;
+  challenge_counts?: { minor?: number; major?: number; legendary?: number };
   runs?: Array<{
     id: string;
     user_id: string;
@@ -59,6 +64,11 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
         current_streak: user.current_streak || 0,
         longest_streak: user.longest_streak || 0,
         profile_picture: user.profile_picture || undefined,
+        wins: user.wins ?? 0,
+        draws: user.draws ?? 0,
+        losses: user.losses ?? 0,
+        challenge_active: user.challenge_active ?? false,
+        challenge_counts: user.challenge_counts ?? {},
         runs: user.runs?.map((run) => ({
           id: run.id,
           user_id: run.user_id,

@@ -9,6 +9,11 @@ export interface User {
   longest_streak: number;
   profile_picture?: string;
   runs?: Run[];
+  wins?: number;
+  draws?: number;
+  losses?: number;
+  challenge_active?: boolean;
+  challenge_counts?: { minor?: number; major?: number; legendary?: number };
 }
 
 export interface Run {
