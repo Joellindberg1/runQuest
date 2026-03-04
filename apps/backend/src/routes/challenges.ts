@@ -43,12 +43,12 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
         .eq('status', 'pending')
         .order('created_at', { ascending: false }),
 
-      // Completed/declined history (both sides)
+      // Completed history (both sides)
       supabase
         .from('challenges')
         .select('*')
         .or(`challenger_id.eq.${userId},opponent_id.eq.${userId}`)
-        .in('status', ['completed', 'declined', 'auto_declined'])
+        .in('status', ['completed'])
         .order('created_at', { ascending: false })
         .limit(20),
 
@@ -265,15 +265,20 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
         res.status(400).json({ error: 'Legendary challenges cannot be declined' }); return;
       }
 
+      // Restore token and reset challenge_active before deleting (FK order)
       await Promise.all([
-        supabase.from('challenges').update({ status: 'declined' }).eq('id', id),
+        supabase
+          .from('user_challenge_tokens')
+          .update({ sent_at: null, challenge_id: null })
+          .eq('challenge_id', id),
         supabase
           .from('users')
           .update({ challenge_active: false })
           .in('id', [challenge.challenger_id, challenge.opponent_id]),
       ]);
+      await supabase.from('challenges').delete().eq('id', id);
 
-      logger.info(`❌ Challenge ${id} declined by ${userId}`);
+      logger.info(`❌ Challenge ${id} declined by ${userId} — token restored to challenger`);
       res.json({ success: true, message: 'Challenge declined' }); return;
     }
 

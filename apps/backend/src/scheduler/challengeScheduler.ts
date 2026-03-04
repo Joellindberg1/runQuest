@@ -75,13 +75,18 @@ async function autoDeclinePendingChallenges(): Promise<void> {
 
   await Promise.all(
     challenges.map(async (c: any) => {
+      // Restore token and reset challenge_active before deleting (FK order)
       await Promise.all([
-        supabase.from('challenges').update({ status: 'auto_declined' }).eq('id', c.id),
+        supabase
+          .from('user_challenge_tokens')
+          .update({ sent_at: null, challenge_id: null })
+          .eq('challenge_id', c.id),
         supabase
           .from('users')
           .update({ challenge_active: false })
           .in('id', [c.challenger_id, c.opponent_id]),
       ]);
+      await supabase.from('challenges').delete().eq('id', c.id);
     })
   );
 }
