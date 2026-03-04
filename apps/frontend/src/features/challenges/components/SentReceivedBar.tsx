@@ -19,6 +19,12 @@ interface SentReceivedBarProps {
   onDecline?: (id: string) => void;
 }
 
+const METRIC_DESCRIPTIONS: Record<string, string> = {
+  total_xp: 'Gather the most XP during the duration of the challenge.',
+  km:       'Run the most kilometers during the duration of the challenge.',
+  runs:     'Complete the most runs during the duration of the challenge.',
+};
+
 function autoStartLabel(legendary_sent_at: string): string {
   const autoStart = new Date(new Date(legendary_sent_at).getTime() + 4 * 24 * 60 * 60 * 1000);
   const diff = autoStart.getTime() - Date.now();
@@ -55,7 +61,10 @@ const ReceivedItem: React.FC<{
       {/* Expanded details */}
       {open && (
         <div className="px-3 pb-3 space-y-3 border-t border-foreground/10 bg-sidebar/50">
-          <div className="pt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          {METRIC_DESCRIPTIONS[challenge.metric] && (
+            <p className="pt-2 text-xs text-muted-foreground italic">{METRIC_DESCRIPTIONS[challenge.metric]}</p>
+          )}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
             <div className="text-muted-foreground">Duration</div>
             <div className="font-medium">{challenge.duration_days} days</div>
             <div className="text-muted-foreground">Winner</div>
@@ -170,6 +179,9 @@ export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
                   <TierBadge tier={sentChallenge.tier} />
                   <span className="font-semibold"><MetricLabel metric={sentChallenge.metric} /></span>
                 </div>
+                {METRIC_DESCRIPTIONS[sentChallenge.metric] && (
+                  <p className="text-xs text-muted-foreground italic pb-1">{METRIC_DESCRIPTIONS[sentChallenge.metric]}</p>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">To</span>
                   <span className="font-medium">{sentChallenge.opponent_name}</span>
