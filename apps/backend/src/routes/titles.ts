@@ -178,6 +178,21 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
 });
 
 /**
+ * POST /api/titles/reprocess-all
+ * Recalculates user_titles for all users from scratch using current algorithm, then refreshes leaderboard.
+ */
+router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) => {
+  try {
+    logger.info('🔄 API: Full title reprocess requested...');
+    await enhancedTitleService.processAllUsersTitles();
+    res.status(200).json({ success: true, message: 'All user titles reprocessed and leaderboards refreshed' });
+  } catch (error) {
+    logger.error('❌ API Error in /titles/reprocess-all:', error);
+    res.status(500).json({ success: false, error: 'Failed to reprocess titles' });
+  }
+});
+
+/**
  * GET /api/titles/group-eligibility
  * Returns server-calculated title achievement values for all users in the caller's group.
  * Single source of truth — frontend should display these values, not recalculate locally.
