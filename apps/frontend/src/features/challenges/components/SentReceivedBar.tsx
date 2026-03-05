@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import {
   Dialog,
@@ -15,16 +15,24 @@ interface SentReceivedBarProps {
   sentChallenge: Challenge | null;
   receivedChallenges: Challenge[];
   currentUserId: string;
-  onAccept?: (id: string) => void;
+  onAccept?: (id: string) => Promise<boolean> | void;
   onDecline?: (id: string) => void;
   onWithdraw?: (id: string) => void;
 }
+
+const OSWALD = "'Oswald', 'Arial Narrow', Arial, sans-serif";
 
 const METRIC_DESCRIPTIONS: Record<string, string> = {
   total_xp: 'Earn the most XP for the duration of the challenge.',
   km:       'Run the most kilometers during the duration of the challenge.',
   runs:     'Complete the most runs during the duration of the challenge.',
 };
+
+function formatStartDate(dateStr: string): string {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+}
 
 function autoStartLabel(legendary_sent_at: string): string {
   const autoStart = new Date(new Date(legendary_sent_at).getTime() + 4 * 24 * 60 * 60 * 1000);
@@ -38,15 +46,29 @@ function autoStartLabel(legendary_sent_at: string): string {
 /** Expandable single received challenge row */
 const ReceivedItem: React.FC<{
   challenge: Challenge;
-  onAccept?: (id: string) => void;
+  onAccept?: (id: string) => Promise<boolean> | void;
   onDecline?: (id: string) => void;
   onClose: () => void;
 }> = ({ challenge, onAccept, onDecline, onClose }) => {
   const [open, setOpen] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [startDate, setStartDate] = useState('');
+
+  useEffect(() => {
+    if (!open) setConfirmed(false);
+  }, [open]);
+
+  const handleAccept = async () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setStartDate(tomorrow.toISOString().split('T')[0]);
+    await (onAccept?.(challenge.id) as Promise<boolean> | undefined);
+    setConfirmed(true);
+  };
 
   return (
     <div className="rounded-lg border border-foreground/15 overflow-hidden">
-      {/* Collapsed header — always visible */}
+      {/* Collapsed header */}
       <button
         className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-accent transition-colors text-left"
         onClick={() => setOpen(o => !o)}
@@ -59,50 +81,71 @@ const ReceivedItem: React.FC<{
         {open ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
       </button>
 
-      {/* Expanded details */}
+      {/* Expanded */}
       {open && (
         <div className="px-3 pb-3 space-y-3 border-t border-foreground/10 bg-sidebar/50">
-          {METRIC_DESCRIPTIONS[challenge.metric] && (
-            <p className="pt-2 text-xs text-muted-foreground italic">{METRIC_DESCRIPTIONS[challenge.metric]}</p>
-          )}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-            <div className="text-muted-foreground">Duration</div>
-            <div className="font-medium">{challenge.duration_days} days</div>
-            <div className="text-muted-foreground">Winner</div>
-            <div className="font-medium text-green-600 dark:text-green-400">
-              +{challenge.winner_delta}x / {challenge.winner_duration}d
+          {confirmed ? (
+            /* ── Accept confirmation ── */
+            <div className="text-center space-y-3 py-3">
+              <p style={{ fontFamily: OSWALD }} className="text-xl font-medium tracking-wide">
+                Challenge Accepted!
+              </p>
+              <p className="text-sm text-muted-foreground">
+                You accepted the <span className="font-semibold text-foreground">
+                  <MetricLabel metric={challenge.metric} />
+                </span> challenge from <span className="font-semibold text-foreground">
+                  {challenge.challenger_name}
+                </span>.
+              </p>
+              {startDate && (
+                <p style={{ fontFamily: OSWALD }} className="text-base font-medium tracking-wide text-foreground">
+                  Starts {formatStartDate(startDate)}
+                </p>
+              )}
+              <Button size="sm" className="w-full" onClick={onClose}>OK</Button>
             </div>
-            <div className="text-muted-foreground">Loser</div>
-            <div className={challenge.tier === 'legendary' ? 'font-medium text-muted-foreground' : 'font-medium text-red-500 dark:text-red-400'}>
-              {challenge.tier === 'legendary' ? 'No penalty' : `${challenge.loser_delta}x / ${challenge.loser_duration}d`}
-            </div>
-          </div>
+          ) : (
+            /* ── Challenge details + actions ── */
+            <>
+              {METRIC_DESCRIPTIONS[challenge.metric] && (
+                <p className="pt-2 text-xs text-muted-foreground italic">{METRIC_DESCRIPTIONS[challenge.metric]}</p>
+              )}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <div className="text-muted-foreground">Duration</div>
+                <div className="font-medium">{challenge.duration_days} days</div>
+                <div className="text-muted-foreground">Winner</div>
+                <div className="font-medium text-green-600 dark:text-green-400">
+                  +{challenge.winner_delta}x / {challenge.winner_duration}d
+                </div>
+                <div className="text-muted-foreground">Loser</div>
+                <div className={challenge.tier === 'legendary' ? 'font-medium text-muted-foreground' : 'font-medium text-red-500 dark:text-red-400'}>
+                  {challenge.tier === 'legendary' ? 'No penalty' : `${challenge.loser_delta}x / ${challenge.loser_duration}d`}
+                </div>
+              </div>
 
-          <div className="flex gap-2">
-            {challenge.tier !== 'legendary' && onDecline && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => { onDecline(challenge.id); onClose(); }}
-              >
-                <X className="w-3.5 h-3.5 mr-1" /> Decline
-              </Button>
-            )}
-            <Button
-              size="sm"
-              className="flex-1"
-              onClick={() => { onAccept?.(challenge.id); onClose(); }}
-            >
-              <Check className="w-3.5 h-3.5 mr-1" /> Accept
-            </Button>
-          </div>
+              <div className="flex gap-2">
+                {challenge.tier !== 'legendary' && onDecline && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => { onDecline(challenge.id); onClose(); }}
+                  >
+                    <X className="w-3.5 h-3.5 mr-1" /> Decline
+                  </Button>
+                )}
+                <Button size="sm" className="flex-1" onClick={handleAccept}>
+                  <Check className="w-3.5 h-3.5 mr-1" /> Accept
+                </Button>
+              </div>
 
-          {challenge.tier === 'legendary' && challenge.legendary_sent_at && (
-            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-              <Clock className="w-3 h-3" />
-              {autoStartLabel(challenge.legendary_sent_at)}
-            </div>
+              {challenge.tier === 'legendary' && challenge.legendary_sent_at && (
+                <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                  <Clock className="w-3 h-3" />
+                  {autoStartLabel(challenge.legendary_sent_at)}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -128,7 +171,7 @@ export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
     <>
       {/* Grid: [empty left] [Sent + Received center] [empty right] */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center mb-3 pb-3 border-b border-foreground/10">
-        <div /> {/* empty left */}
+        <div />
 
         <div className="flex items-center gap-2">
           <Button
@@ -163,7 +206,7 @@ export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
           </Button>
         </div>
 
-        <div /> {/* empty right */}
+        <div />
       </div>
 
       {/* Sent dialog */}

@@ -3,9 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { SendChallengeModal, type GroupMember } from './SendChallengeModal';
-import { Swords, Zap, ChevronRight } from 'lucide-react';
+import { Swords, Zap, ChevronRight, Clock } from 'lucide-react';
 import type { ChallengeToken, UserBoost, ChallengeStats, ChallengeTier, Challenge } from '@/types/run';
 import type { ProgressEntry } from './OngoingChallengeCard';
+
+const OSWALD = "'Oswald', 'Arial Narrow', Arial, sans-serif";
+
+function isPendingStart(startDate?: string): boolean {
+  if (!startDate) return false;
+  return new Date(startDate + 'T00:00:00') > new Date();
+}
+
+function hoursUntilStart(startDate: string): number {
+  return Math.max(0, Math.ceil((new Date(startDate + 'T00:00:00').getTime() - Date.now()) / 3_600_000));
+}
 
 const TIER_ORDER: ChallengeTier[] = ['legendary', 'major', 'minor'];
 
@@ -96,7 +107,7 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
           className="w-full text-left"
           disabled={!onGoToOngoing}
         >
-          <Card className="bg-sidebar border-2 border-primary/30 hover:border-primary/60 transition-colors">
+          <Card className="bg-sidebar border-2 border-primary/30 hover:border-primary/60 transition-colors relative overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Swords className="w-4 h-4 text-primary" />
@@ -104,7 +115,7 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
                 <ChevronRight className="w-3.5 h-3.5 ml-auto text-muted-foreground" />
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-0 space-y-2">
+            <CardContent className={`pt-0 space-y-2 ${isPendingStart(activeChallenge.start_date) ? 'opacity-40' : ''}`}>
               <div className="flex items-center gap-2 flex-wrap">
                 <TierBadge tier={activeChallenge.tier} size="sm" />
                 <span className="text-xs text-muted-foreground">
@@ -114,19 +125,27 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
               <div className="text-xs text-muted-foreground">
                 <MetricLabel metric={activeChallenge.metric} />
               </div>
-              {myProgress && oppProgress && (
+              {!isPendingStart(activeChallenge.start_date) && myProgress && oppProgress && (
                 <div className="flex items-center justify-between text-sm font-semibold">
                   <span className="text-primary">{formatValue(activeChallenge.metric, myProgress.value)}</span>
                   <span className="text-xs text-muted-foreground font-normal">vs</span>
                   <span>{formatValue(activeChallenge.metric, oppProgress.value)}</span>
                 </div>
               )}
-              {activeChallenge.end_date && (
+              {activeChallenge.end_date && !isPendingStart(activeChallenge.start_date) && (
                 <div className="text-xs text-muted-foreground">
                   {daysLeft(activeChallenge.end_date)} days remaining
                 </div>
               )}
             </CardContent>
+            {isPendingStart(activeChallenge.start_date) && activeChallenge.start_date && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 pointer-events-none">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                <span style={{ fontFamily: OSWALD }} className="text-sm font-medium tracking-wide text-foreground">
+                  Starts in {hoursUntilStart(activeChallenge.start_date)}h
+                </span>
+              </div>
+            )}
           </Card>
         </button>
       ) : (
