@@ -63,9 +63,9 @@ export class EnhancedTitleService {
   }
 
   /**
-   * Calculate user achievement values from runs
+   * Calculate user achievement values from runs (public for use in API endpoints)
    */
-  private calculateUserValues(runs: any[], totalKm: number, longestStreak: number) {
+  calculateUserValues(runs: any[], totalKm: number, longestStreak: number) {
     // Calculate longest single run
     const longestRun = runs.reduce((max, run) => {
       const distance = parseFloat(run.distance_km) || 0;
@@ -138,10 +138,9 @@ export class EnhancedTitleService {
       });
     }
 
-    // 4. Sort by date (most recent first) and take last 4 weekends
+    // 4. Sort by date (most recent first) — use ALL weekends (not just last 4)
     const recentWeekends = weekendValues
-      .sort((a, b) => b.date.getTime() - a.date.getTime())
-      .slice(0, 4);
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
 
     if (recentWeekends.length === 0) return 0;
 

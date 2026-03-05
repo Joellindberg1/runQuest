@@ -4,17 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Crown } from 'lucide-react';
 import { TitleCard } from './title/TitleCard';
 import { TitleRequirements } from './title/TitleRequirements';
-import { User } from './title/titleSystemUtils';
 import { useTitleSystemData } from '../hooks/useTitleSystemData';
 
-interface TitleSystemProps {
-  users: User[];
-}
-
-export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
-  const filteredUsers = users.filter(user => user.name.toLowerCase() !== 'admin');
+export const TitleSystem: React.FC = () => {
   const { titles, loading } = useTitleSystemData();
-
 
   if (loading) {
     return (
@@ -50,8 +43,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ users }) => {
       </Card>
 
       {/* Title Requirements */}
-      <TitleRequirements users={filteredUsers} />
+      <TitleRequirements />
     </div>
   );
 };
-

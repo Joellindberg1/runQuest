@@ -1,6 +1,8 @@
 import express from 'express';
 import { logger } from '../utils/logger.js';
 import { titleLeaderboardService } from '../services/titleLeaderboardService';
+import { enhancedTitleService } from '../services/enhancedTitleService';
+import { supabase } from '../config/database';
 import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 
@@ -172,6 +174,73 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
       error: 'Failed to refresh title leaderboards',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
+  }
+});
+
+/**
+ * GET /api/titles/group-eligibility
+ * Returns server-calculated title achievement values for all users in the caller's group.
+ * Single source of truth — frontend should display these values, not recalculate locally.
+ */
+router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
+  try {
+    const callerId: string = req.user.userId;
+
+    // Get caller's group_id
+    const { data: caller, error: callerError } = await supabase.client
+      .from('users')
+      .select('group_id')
+      .eq('id', callerId)
+      .single();
+
+    if (callerError || !caller?.group_id) {
+      res.status(400).json({ success: false, error: 'No group found for user' });
+      return;
+    }
+
+    // Get all non-admin users in the group
+    const { data: users, error: usersError } = await supabase.client
+      .from('users')
+      .select('id, name, total_km, longest_streak')
+      .eq('group_id', caller.group_id)
+      .neq('name', 'Admin');
+
+    if (usersError || !users) {
+      res.status(500).json({ success: false, error: 'Failed to fetch group users' });
+      return;
+    }
+
+    // For each user, fetch runs and calculate values
+    const eligibilityResults = await Promise.all(
+      users.map(async (user: any) => {
+        const { data: runs } = await supabase.client
+          .from('runs')
+          .select('date, distance')
+          .eq('user_id', user.id)
+          .order('date', { ascending: true });
+
+        const runsWithAlias = (runs ?? []).map((r: any) => ({ ...r, distance_km: r.distance }));
+        const values = enhancedTitleService.calculateUserValues(
+          runsWithAlias,
+          user.total_km || 0,
+          user.longest_streak || 0
+        );
+
+        return {
+          userId: user.id,
+          name: user.name,
+          longestRun: values.longestRun,
+          weekendAvg: values.weekendAvg,
+          longestStreak: values.longestStreak,
+          totalKm: values.totalKm,
+        };
+      })
+    );
+
+    res.json({ success: true, data: eligibilityResults });
+  } catch (error) {
+    logger.error('❌ API Error in /titles/group-eligibility:', error);
+    res.status(500).json({ success: false, error: 'Failed to calculate group eligibility' });
   }
 });
 

@@ -88,7 +88,7 @@ const Index: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'titles':
-        return <TitleSystem users={users} />;
+        return <TitleSystem />;
       case 'profile':
         return <UserProfile user={currentUser} allUsers={users} onRunUpdated={onRunUpdated} />;
       case 'log-run':

@@ -505,6 +505,28 @@ class BackendApiService {
     return response;
   }
 
+  async getTitleGroupEligibility(): Promise<ApiResponse<Array<{
+    userId: string;
+    name: string;
+    longestRun: number;
+    weekendAvg: number;
+    longestStreak: number;
+    totalKm: number;
+  }>>> {
+    const response = await this.authenticatedRequest<{ data: Array<{
+      userId: string;
+      name: string;
+      longestRun: number;
+      weekendAvg: number;
+      longestStreak: number;
+      totalKm: number;
+    }> }>('/titles/group-eligibility');
+    if (response.success && response.data && response.data.data) {
+      return { success: true, data: response.data.data };
+    }
+    return response;
+  }
+
   async getAllTitles(): Promise<ApiResponse<TitleData[]>> {
     const response = await this.authenticatedRequest<{ data: TitleData[] }>('/titles');
 

@@ -1,14 +1,21 @@
 
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { UserTitleStatus } from './UserTitleStatus';
-import { User } from './titleSystemUtils';
+import { backendApi } from '@/shared/services/backendApi';
 
-interface TitleRequirementsProps {
-  users: User[];
-}
+export const TitleRequirements: React.FC = () => {
+  const { data: eligibility = [], isLoading } = useQuery({
+    queryKey: ['titles', 'group-eligibility'],
+    queryFn: async () => {
+      const res = await backendApi.getTitleGroupEligibility();
+      if (!res.success) throw new Error(res.error);
+      return res.data ?? [];
+    },
+    staleTime: 2 * 60 * 1000,
+  });
 
-export const TitleRequirements: React.FC<TitleRequirementsProps> = ({ users }) => {
   return (
     <Card className="bg-sidebar border-2 border-foreground/15">
       <CardHeader>
@@ -25,11 +32,13 @@ export const TitleRequirements: React.FC<TitleRequirementsProps> = ({ users }) =
               <li>• Weekend average is calculated per complete weekend (Sat + Sun totals)</li>
             </ul>
           </div>
-          
-          {users.length > 0 ? (
+
+          {isLoading ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">Loading eligibility...</div>
+          ) : eligibility.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {users.map(user => (
-                <UserTitleStatus key={user.id} user={user} />
+              {eligibility.map(e => (
+                <UserTitleStatus key={e.userId} eligibility={e} />
               ))}
             </div>
           ) : (
@@ -43,4 +52,3 @@ export const TitleRequirements: React.FC<TitleRequirementsProps> = ({ users }) =
     </Card>
   );
 };
-
