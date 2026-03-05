@@ -184,7 +184,7 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
  */
 router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
   try {
-    const callerId: string = req.user.userId;
+    const callerId: string = req.user.user_id;
 
     // Get caller's group_id
     const { data: caller, error: callerError } = await supabase.client
