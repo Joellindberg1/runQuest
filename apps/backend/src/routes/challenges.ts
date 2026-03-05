@@ -427,10 +427,10 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Failed to fetch group stats' }); return;
     }
 
-    const pendingUserIds = new Set<string>();
+    // Only flag the sender (challenger) — a receiver can still accept other challenges
+    const pendingChallengerIds = new Set<string>();
     (pendingChallenges ?? []).forEach((c: any) => {
-      pendingUserIds.add(c.challenger_id);
-      pendingUserIds.add(c.opponent_id);
+      pendingChallengerIds.add(c.challenger_id);
     });
 
     const stats = (users ?? []).map((u: any) => {
@@ -445,7 +445,7 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
         total,
         points: Math.round(points * 1000) / 1000,
         challenge_active: u.challenge_active,
-        has_pending_challenge: pendingUserIds.has(u.id),
+        has_pending_challenge: pendingChallengerIds.has(u.id),
         current_level: u.current_level,
         profile_picture: u.profile_picture ?? null,
       };
