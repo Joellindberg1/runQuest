@@ -311,6 +311,50 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
   }
 });
 
+// ─── PUT /api/challenges/:id/withdraw ───────────────────────────────────────
+// Challenger withdraws a pending challenge — restores token, resets both users
+router.put('/:id/withdraw', authenticateJWT, async (req, res): Promise<void> => {
+  try {
+    const userId = req.user!.user_id;
+    const { id } = req.params;
+    const supabase = getSupabaseClient();
+
+    const { data: challenge, error } = await supabase
+      .from('challenges')
+      .select('id, tier, challenger_id, opponent_id, status')
+      .eq('id', id)
+      .eq('challenger_id', userId)
+      .eq('status', 'pending')
+      .single();
+
+    if (error || !challenge) {
+      res.status(404).json({ error: 'Challenge not found or cannot be withdrawn' }); return;
+    }
+
+    if (challenge.tier === 'legendary') {
+      res.status(400).json({ error: 'Legendary challenges cannot be withdrawn' }); return;
+    }
+
+    await Promise.all([
+      supabase
+        .from('user_challenge_tokens')
+        .update({ sent_at: null, challenge_id: null })
+        .eq('challenge_id', id),
+      supabase
+        .from('users')
+        .update({ challenge_active: false })
+        .in('id', [challenge.challenger_id, challenge.opponent_id]),
+    ]);
+    await supabase.from('challenges').delete().eq('id', id);
+
+    logger.info(`↩️ Challenge ${id} withdrawn by challenger ${userId} — token restored`);
+    res.json({ success: true, message: 'Challenge withdrawn' });
+  } catch (err) {
+    logger.error('❌ Error withdrawing challenge:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── GET /api/challenges/:id/progress ───────────────────────────────────────
 router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => {
   try {
@@ -370,12 +414,24 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
       query = query.eq('group_id', groupId);
     }
 
-    const { data: users, error } = await query.order('wins', { ascending: false });
+    const [{ data: users, error }, { data: pendingChallenges }] = await Promise.all([
+      query.order('wins', { ascending: false }),
+      supabase
+        .from('challenges')
+        .select('challenger_id, opponent_id')
+        .eq('status', 'pending'),
+    ]);
 
     if (error) {
       logger.error('❌ Error fetching group stats:', error);
       res.status(500).json({ error: 'Failed to fetch group stats' }); return;
     }
+
+    const pendingUserIds = new Set<string>();
+    (pendingChallenges ?? []).forEach((c: any) => {
+      pendingUserIds.add(c.challenger_id);
+      pendingUserIds.add(c.opponent_id);
+    });
 
     const stats = (users ?? []).map((u: any) => {
       const total = u.wins + u.draws + u.losses;
@@ -389,6 +445,7 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
         total,
         points: Math.round(points * 1000) / 1000,
         challenge_active: u.challenge_active,
+        has_pending_challenge: pendingUserIds.has(u.id),
         current_level: u.current_level,
         profile_picture: u.profile_picture ?? null,
       };

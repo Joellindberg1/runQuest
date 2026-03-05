@@ -34,7 +34,7 @@ const ChallengesPage: React.FC = () => {
     stats,
   } = useChallengeData(user?.id ?? '');
 
-  const { sendToken, acceptChallenge, declineChallenge } = useChallengeActions();
+  const { sendToken, acceptChallenge, declineChallenge, withdrawChallenge } = useChallengeActions();
 
   if (isLoading) {
     return (
@@ -62,6 +62,7 @@ const ChallengesPage: React.FC = () => {
         onSendToken={sendToken}
         onAccept={acceptChallenge}
         onDecline={declineChallenge}
+        onWithdraw={withdrawChallenge}
       />
     </AppLayout>
   );

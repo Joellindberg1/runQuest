@@ -44,6 +44,7 @@ export function useChallengeData(currentUserId: string) {
       id: u.user_id,
       name: u.name,
       challenge_active: u.challenge_active,
+      has_pending_challenge: u.has_pending_challenge ?? false,
     })),
     [statsQuery.data]
   );

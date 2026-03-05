@@ -15,6 +15,7 @@ export interface GroupMember {
   id: string;
   name: string;
   challenge_active: boolean;
+  has_pending_challenge: boolean;
 }
 
 interface SendChallengeModalProps {
@@ -45,10 +46,10 @@ export const SendChallengeModal: React.FC<SendChallengeModalProps> = ({
 
   if (!token) return null;
 
-  // Eligible members sorted: available first, challenge_active last
+  // Eligible members sorted: available first, busy last
   const eligible = groupMembers
     .filter(m => m.id !== currentUserId)
-    .sort((a, b) => Number(a.challenge_active) - Number(b.challenge_active));
+    .sort((a, b) => Number(a.challenge_active || a.has_pending_challenge) - Number(b.challenge_active || b.has_pending_challenge));
 
   const canSend = !!selectedId && !userHasActiveChallenge;
 
@@ -100,25 +101,28 @@ export const SendChallengeModal: React.FC<SendChallengeModalProps> = ({
           {/* Member picker */}
           <div className="space-y-1">
             <p className="text-sm font-medium text-muted-foreground mb-2">Choose opponent</p>
-            {eligible.map(m => (
-              <button
-                key={m.id}
-                disabled={m.challenge_active || userHasActiveChallenge}
-                onClick={() => !m.challenge_active && !userHasActiveChallenge && setSelectedId(m.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                  m.challenge_active || userHasActiveChallenge
-                    ? 'border-foreground/10 text-muted-foreground/40 cursor-not-allowed bg-muted/30'
-                    : selectedId === m.id
-                    ? 'border-primary bg-primary/10 text-primary font-medium'
-                    : 'border-foreground/15 hover:border-foreground/30 hover:bg-accent'
-                }`}
-              >
-                <span>{m.name}</span>
-                {m.challenge_active && (
-                  <span className="text-xs text-muted-foreground/50">Challenge active</span>
-                )}
-              </button>
-            ))}
+            {eligible.map(m => {
+              const isBusy = m.challenge_active || m.has_pending_challenge;
+              return (
+                <button
+                  key={m.id}
+                  disabled={isBusy || userHasActiveChallenge}
+                  onClick={() => !isBusy && !userHasActiveChallenge && setSelectedId(m.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                    isBusy || userHasActiveChallenge
+                      ? 'border-foreground/10 text-muted-foreground/40 cursor-not-allowed bg-muted/30'
+                      : selectedId === m.id
+                      ? 'border-primary bg-primary/10 text-primary font-medium'
+                      : 'border-foreground/15 hover:border-foreground/30 hover:bg-accent'
+                  }`}
+                >
+                  <span>{m.name}</span>
+                  {isBusy && (
+                    <span className="text-xs text-muted-foreground/50">Challenge active</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <Button className="w-full" disabled={!canSend} onClick={handleSend}>

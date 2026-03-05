@@ -37,6 +37,7 @@ interface ChallengesPageProps {
   onSendToken?: (tokenId: string, opponentId: string) => void;
   onAccept?: (challengeId: string) => void;
   onDecline?: (challengeId: string) => void;
+  onWithdraw?: (challengeId: string) => void;
 }
 
 /** Wraps challenge cards in a 2-column flex grid that centers the last odd item */
@@ -64,6 +65,7 @@ export const ChallengesPage: React.FC<ChallengesPageProps> = ({
   onSendToken,
   onAccept,
   onDecline,
+  onWithdraw,
 }) => {
   const [tab, setTab] = useState('leaderboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -96,6 +98,7 @@ export const ChallengesPage: React.FC<ChallengesPageProps> = ({
         currentUserId={currentUserId}
         onAccept={onAccept}
         onDecline={onDecline}
+        onWithdraw={onWithdraw}
       />
 
       <div className="grid lg:grid-cols-[1fr_280px] gap-4 items-start">

@@ -8,7 +8,7 @@ import {
 } from '@/shared/components/ui/dialog';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
-import { Send, Inbox, Check, X, Clock, ChevronDown, ChevronRight } from 'lucide-react';
+import { Send, Inbox, Check, X, Clock, ChevronDown, ChevronRight, Undo2 } from 'lucide-react';
 import type { Challenge } from '@/types/run';
 
 interface SentReceivedBarProps {
@@ -17,10 +17,11 @@ interface SentReceivedBarProps {
   currentUserId: string;
   onAccept?: (id: string) => void;
   onDecline?: (id: string) => void;
+  onWithdraw?: (id: string) => void;
 }
 
 const METRIC_DESCRIPTIONS: Record<string, string> = {
-  total_xp: 'Gather the most XP during the duration of the challenge.',
+  total_xp: 'Earn the most XP for the duration of the challenge.',
   km:       'Run the most kilometers during the duration of the challenge.',
   runs:     'Complete the most runs during the duration of the challenge.',
 };
@@ -115,6 +116,7 @@ export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
   currentUserId,
   onAccept,
   onDecline,
+  onWithdraw,
 }) => {
   const [sentOpen, setSentOpen] = useState(false);
   const [receivedOpen, setReceivedOpen] = useState(false);
@@ -205,6 +207,17 @@ export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
                 <Clock className="w-3.5 h-3.5" />
                 Waiting for {sentChallenge.opponent_name} to respond
               </div>
+              {sentChallenge.tier !== 'legendary' && onWithdraw && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-muted-foreground"
+                  onClick={() => { onWithdraw(sentChallenge.id); setSentOpen(false); }}
+                >
+                  <Undo2 className="w-3.5 h-3.5 mr-1.5" />
+                  Withdraw challenge
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>

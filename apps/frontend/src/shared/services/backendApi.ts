@@ -825,6 +825,23 @@ class BackendApiService {
     }
   }
 
+  async withdrawChallenge(challengeId: string): Promise<ApiResponse<void>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/challenges/${challengeId}/withdraw`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) { this.handleUnauthorized(); return { success: false, error: 'Session expired.' }; }
+        throw new Error(data.error || 'Failed to withdraw challenge');
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
   async getChallengeProgress(challengeId: string): Promise<ApiResponse<{ progress: { user_id: string; value: number }[] }>> {
     try {
       const response = await fetch(`${API_BASE_URL}/challenges/${challengeId}/progress`, {
@@ -843,7 +860,7 @@ class BackendApiService {
 
   async getChallengeGroupStats(): Promise<ApiResponse<Array<{
     user_id: string; name: string; wins: number; draws: number; losses: number;
-    total: number; points: number; challenge_active: boolean; current_level: number; profile_picture: string | null;
+    total: number; points: number; challenge_active: boolean; has_pending_challenge: boolean; current_level: number; profile_picture: string | null;
   }>>> {
     try {
       const response = await fetch(`${API_BASE_URL}/challenges/group-stats`, {

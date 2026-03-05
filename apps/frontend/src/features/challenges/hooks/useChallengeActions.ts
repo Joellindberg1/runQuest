@@ -42,5 +42,16 @@ export function useChallengeActions() {
     return true;
   };
 
-  return { sendToken, acceptChallenge, declineChallenge };
+  const withdrawChallenge = async (challengeId: string): Promise<boolean> => {
+    const res = await backendApi.withdrawChallenge(challengeId);
+    if (!res.success) {
+      toast.error(res.error ?? 'Failed to withdraw challenge');
+      return false;
+    }
+    toast.success('Challenge withdrawn — token returned.');
+    invalidate();
+    return true;
+  };
+
+  return { sendToken, acceptChallenge, declineChallenge, withdrawChallenge };
 }
