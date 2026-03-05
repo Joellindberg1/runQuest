@@ -27,12 +27,12 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
         .is('sent_at', null)
         .order('earned_at', { ascending: false }),
 
-      // Active or pending challenge where user is challenger
+      // Pending challenge where user is challenger (active ones are in group_active/Ongoing)
       supabase
         .from('challenges')
         .select('*')
         .eq('challenger_id', userId)
-        .in('status', ['pending', 'active'])
+        .eq('status', 'pending')
         .maybeSingle(),
 
       // Pending challenges where user is opponent (received)
