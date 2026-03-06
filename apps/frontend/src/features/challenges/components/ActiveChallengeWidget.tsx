@@ -52,34 +52,41 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
   return (
     <Tag
       onClick={onClick}
-      className={`relative flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left leading-tight overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors cursor-pointer' : ''}`}
+      className={`relative px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors cursor-pointer' : ''}`}
     >
-      {/* Content — dimmed when pending */}
-      <div className={pending ? 'opacity-40' : ''}>
-        {/* Row 1: icon + tier + "vs name" | days left */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5">
-            <Swords className="w-3.5 h-3.5 text-primary shrink-0" />
-            <TierBadge tier={challenge.tier} size="sm" />
-            <span className="text-xs text-muted-foreground">
-              vs <span className="font-semibold text-foreground">{opponent.name}</span>
-            </span>
-          </div>
-          {challenge.end_date && !pending && (
-            <span className="text-xs text-muted-foreground shrink-0">
+      {/* 3-col grid, 2 rows — dimmed when pending */}
+      <div className={`grid grid-cols-[auto_1fr_auto] gap-x-2 ${pending ? 'opacity-40' : ''}`}>
+        {/* Row 1 */}
+        <div className="flex items-center justify-center">
+          <Swords className="w-4 h-4 text-primary" />
+        </div>
+        <div className="flex items-center justify-center gap-1.5 text-xs">
+          <span className="font-semibold text-foreground">You</span>
+          <span className="text-muted-foreground">vs</span>
+          <span className="font-semibold text-foreground">{opponent.name}</span>
+        </div>
+        <div className="flex items-center justify-center">
+          {challenge.end_date && !pending ? (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
               {daysLeft(challenge.end_date)}d
             </span>
-          )}
+          ) : <span />}
         </div>
 
-        {/* Row 2: score (only when not pending) */}
-        {!pending && myProg && oppProg && (
-          <div className="flex items-center gap-1 text-xs pl-5">
-            <span className="font-bold text-primary">{formatValue(challenge.metric, myProg.value)}</span>
-            <span className="text-muted-foreground">–</span>
-            <span className="font-bold">{formatValue(challenge.metric, oppProg.value)}</span>
-          </div>
-        )}
+        {/* Row 2 */}
+        <div className="flex items-center justify-center">
+          <TierBadge tier={challenge.tier} size="sm" />
+        </div>
+        <div className="flex items-center justify-center gap-1.5 text-xs">
+          {myProg && oppProg ? (
+            <>
+              <span className="font-bold text-primary">{formatValue(challenge.metric, myProg.value)}</span>
+              <span className="text-muted-foreground">–</span>
+              <span className="font-bold text-foreground">{formatValue(challenge.metric, oppProg.value)}</span>
+            </>
+          ) : <span />}
+        </div>
+        <div />
       </div>
 
       {/* Pending overlay */}
