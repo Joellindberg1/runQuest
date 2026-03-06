@@ -5,6 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 
 import authRoutes from './routes/auth.js';
+import challengeRoutes from './routes/challenges.js';
 import stravaRoutes from './routes/strava.js';
 import titleRoutes from './routes/titles.js';
 import runRoutes from './routes/runs.js';
@@ -37,6 +38,7 @@ app.get('/api', (_req, res) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/challenges', challengeRoutes);
 app.use('/api/strava', stravaRoutes);
 app.use('/api/titles', titleRoutes);
 app.use('/api/runs', runRoutes);
