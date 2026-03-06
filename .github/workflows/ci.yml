@@ -33,10 +33,6 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Deploy to Railway
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: curl -s -X POST "${{ secrets.RAILWAY_DEPLOY_HOOK }}"
-
   frontend:
     name: Frontend — typecheck
     runs-on: ubuntu-latest
