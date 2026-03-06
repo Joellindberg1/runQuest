@@ -164,10 +164,12 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
       .or(`challenger_id.eq.${userId},opponent_id.eq.${userId},challenger_id.eq.${opponent_id},opponent_id.eq.${opponent_id}`);
 
     const userBusy = existingChallenges?.some(
-      c => c.challenger_id === userId || c.opponent_id === userId
+      (c: { id: string; challenger_id: string; opponent_id: string }) =>
+        c.challenger_id === userId || c.opponent_id === userId
     );
     const opponentBusy = existingChallenges?.some(
-      c => c.challenger_id === opponent_id || c.opponent_id === opponent_id
+      (c: { id: string; challenger_id: string; opponent_id: string }) =>
+        c.challenger_id === opponent_id || c.opponent_id === opponent_id
     );
 
     if (userBusy) {
