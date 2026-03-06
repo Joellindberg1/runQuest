@@ -3,36 +3,8 @@ import { useAuth } from '@/features/auth';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
-import type { User } from '@/types/run';
+import type { User } from '@runquest/types';
 
-interface ApiUser {
-  id: string;
-  name: string;
-  total_xp?: number;
-  current_level?: number;
-  total_km?: number | string;
-  current_streak?: number;
-  longest_streak?: number;
-  profile_picture?: string;
-  wins?: number;
-  draws?: number;
-  losses?: number;
-  challenge_active?: boolean;
-  challenge_counts?: { minor?: number; major?: number; legendary?: number };
-  runs?: Array<{
-    id: string;
-    user_id: string;
-    date: string;
-    distance: number | string;
-    xp_gained: number;
-    multiplier: number | string;
-    streak_day: number;
-    base_xp: number;
-    km_xp: number;
-    distance_bonus: number;
-    streak_bonus: number;
-  }>;
-}
 
 interface UseLeaderboardDataResult {
   users: User[];
@@ -55,7 +27,7 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
         throw new Error(result.error || 'Failed to fetch users');
       }
 
-      const usersWithRuns: User[] = result.data.map((user: ApiUser) => ({
+      const usersWithRuns: User[] = result.data.map((user: any) => ({
         id: user.id,
         name: user.name,
         total_xp: user.total_xp || 0,

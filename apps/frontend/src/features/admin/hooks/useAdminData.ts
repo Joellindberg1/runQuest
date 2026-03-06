@@ -3,7 +3,7 @@ import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
 import { validatePassword } from '@/shared/utils/validation';
-import type { User } from '@/types/run';
+import type { User } from '@runquest/types';
 
 export interface AdminSettings {
   xpPerRun: number;

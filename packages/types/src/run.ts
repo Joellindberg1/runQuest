@@ -52,9 +52,14 @@ export interface XPCalculation {
 }
 
 export interface UserTitle {
+  title_id: string;
   title_name: string;
+  title_description: string;
+  position: number;
   value: number;
+  earned_at: string;
   is_current_holder: boolean;
+  status: 'holder' | 'runner_up' | 'top_10';
 }
 
 export interface StreakInfo {
@@ -63,8 +68,7 @@ export interface StreakInfo {
   multiplier: number;
 }
 
-// ─── Challenge System ─────────────────────────────────────────────────────────
-
+// ─── Challenge System ──────────────────────────────────────────────────────────
 export type ChallengeTier = 'minor' | 'major' | 'legendary';
 export type ChallengeMetric = 'km' | 'runs' | 'total_xp';
 export type ChallengeStatus = 'pending' | 'active' | 'completed' | 'declined';

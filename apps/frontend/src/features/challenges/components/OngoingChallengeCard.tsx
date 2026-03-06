@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/shared/components/ui/card';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { Clock } from 'lucide-react';
-import type { Challenge } from '@/types/run';
+import type { Challenge } from '@runquest/types';
 
 export interface ProgressEntry {
   user_id: string;

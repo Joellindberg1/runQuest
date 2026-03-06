@@ -349,48 +349,6 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
 });
 
 // Simple sync logging using file system (temporary solution)
-import { promises as fs } from 'fs';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const SYNC_LOG_FILE = join(__dirname, '../../sync-log.json');
-
-async function logSyncAttempt(data: any) {
-  try {
-    let logs = [];
-    try {
-      const existing = await fs.readFile(SYNC_LOG_FILE, 'utf8');
-      logs = JSON.parse(existing);
-    } catch {
-      // File doesn't exist, start fresh
-    }
-    
-    logs.push({ ...data, timestamp: new Date().toISOString() });
-    
-    // Keep only last 50 logs
-    if (logs.length > 50) {
-      logs = logs.slice(-50);
-    }
-    
-    await fs.writeFile(SYNC_LOG_FILE, JSON.stringify(logs, null, 2));
-  } catch (error) {
-    logger.error('Failed to log sync attempt:', error);
-  }
-}
-
-async function getLastSyncAttempt() {
-  try {
-    const data = await fs.readFile(SYNC_LOG_FILE, 'utf8');
-    const logs = JSON.parse(data);
-    return logs[logs.length - 1] || null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Sync all Strava-connected users. Used by the scheduler and the admin HTTP endpoint.
@@ -404,14 +362,7 @@ export async function syncAllStravaUsers(): Promise<{
   totalNewRuns: number;
   results: Array<{ userId: string; userName: string; newRuns?: number; totalActivities?: number; error?: string }>;
 }> {
-  const syncStartTime = new Date().toISOString();
   const supabase = getSupabaseClient();
-
-  await logSyncAttempt({
-    sync_type: 'strava_automatic',
-    started_at: syncStartTime,
-    status: 'started'
-  });
 
   try {
     logger.info('🔄 Starting Strava sync for all connected users...');
@@ -472,17 +423,6 @@ export async function syncAllStravaUsers(): Promise<{
 
     logger.info(`🎯 Sync completed: ${totalSyncedUsers}/${connectedUsers.length} users, ${totalNewRuns} new runs`);
 
-    const syncEndTime = new Date().toISOString();
-    await logSyncAttempt({
-      sync_type: 'strava_automatic',
-      started_at: syncStartTime,
-      completed_at: syncEndTime,
-      status: 'completed',
-      users_synced: totalSyncedUsers,
-      total_users: connectedUsers.length,
-      new_runs: totalNewRuns
-    });
-
     return {
       success: true,
       message: `Synced ${totalSyncedUsers} users with ${totalNewRuns} new runs`,
@@ -494,14 +434,6 @@ export async function syncAllStravaUsers(): Promise<{
 
   } catch (error) {
     logger.error('❌ Strava sync-all error:', error);
-    const syncEndTime = new Date().toISOString();
-    await logSyncAttempt({
-      sync_type: 'strava_automatic',
-      started_at: syncStartTime,
-      completed_at: syncEndTime,
-      status: 'failed',
-      error_message: error instanceof Error ? error.message : 'Unknown error'
-    });
     throw error;
   }
 }
@@ -773,45 +705,5 @@ async function refreshStravaToken(refreshToken: string, userId: string): Promise
     return { success: false, error: 'Token refresh failed' };
   }
 }
-
-// GET /api/strava/last-sync - Get last sync attempt info
-router.get('/last-sync', async (_req, res): Promise<void> => {
-  try {
-    const lastSync = await getLastSyncAttempt();
-    
-    if (!lastSync) {
-      res.json({
-        success: true,
-        data: {
-          last_sync_attempt: null,
-          next_sync_estimated: null,
-          status: 'no_sync_yet'
-        }
-      });
-    }
-    
-    // Calculate next sync (3 hours after last attempt)
-    const lastSyncTime = new Date(lastSync.started_at || lastSync.timestamp);
-    const nextSyncTime = new Date(lastSyncTime.getTime() + (3 * 60 * 60 * 1000)); // +3 hours
-    
-    res.json({
-      success: true,
-      data: {
-        last_sync_attempt: lastSync.started_at || lastSync.timestamp,
-        last_sync_status: lastSync.status,
-        last_sync_completed: lastSync.completed_at,
-        users_synced: lastSync.users_synced,
-        total_users: lastSync.total_users,
-        new_runs: lastSync.new_runs,
-        next_sync_estimated: nextSyncTime.toISOString(),
-        error_message: lastSync.error_message
-      }
-    });
-    
-  } catch (error) {
-    logger.error('❌ Failed to get last sync info:', error);
-    res.status(500).json({ error: 'Failed to get sync info' }); return;
-  }
-});
 
 export default router;

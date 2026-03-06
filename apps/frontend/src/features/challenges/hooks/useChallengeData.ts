@@ -1,7 +1,7 @@
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { backendApi } from '@/shared/services/backendApi';
-import type { Challenge, ChallengeStats } from '@/types/run';
+import type { Challenge, ChallengeStats } from '@runquest/types';
 import type { LeaderboardEntry } from '../components/ChallengeLeaderboard';
 import type { ChallengeWithProgress } from '../components/ChallengesPage';
 import type { GroupMember } from '../components/SendChallengeModal';

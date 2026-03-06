@@ -5,7 +5,7 @@ import { awardTokensForLevelUp } from '../services/challengeService.js';
 
 export async function calculateUserTotals(userId: string, groupId?: string) {
   try {
-    console.time(`calculateUserTotals:${userId}`);
+    const startTime = Date.now();
     const supabase = getSupabaseClient();
 
     // Get all runs for the user
@@ -91,7 +91,7 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
       // Don't throw - user totals were saved successfully
     }
 
-    console.timeEnd(`calculateUserTotals:${userId}`);
+    logger.info(`✅ calculateUserTotals:${userId} completed in ${Date.now() - startTime}ms`);
   } catch (error) {
     logger.error('Error in calculateUserTotals:', error);
   }

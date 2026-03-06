@@ -4,7 +4,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Plus, Save, Key } from 'lucide-react';
-import type { User } from '@/types/run';
+import type { User } from '@runquest/types';
 
 interface NewUser {
   name: string;

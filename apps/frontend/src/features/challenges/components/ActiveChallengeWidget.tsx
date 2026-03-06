@@ -1,7 +1,7 @@
 import React from 'react';
 import { TierBadge } from './TierBadge';
 import { Swords, Clock } from 'lucide-react';
-import type { Challenge } from '@/types/run';
+import type { Challenge } from '@runquest/types';
 import type { ProgressEntry } from './OngoingChallengeCard';
 
 interface ActiveChallengeWidgetProps {

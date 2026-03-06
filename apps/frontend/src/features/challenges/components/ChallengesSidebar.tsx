@@ -4,7 +4,7 @@ import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { SendChallengeModal, type GroupMember } from './SendChallengeModal';
 import { Swords, Zap, ChevronRight, Clock } from 'lucide-react';
-import type { ChallengeToken, UserBoost, ChallengeStats, ChallengeTier, Challenge } from '@/types/run';
+import type { ChallengeToken, UserBoost, ChallengeStats, ChallengeTier, Challenge } from '@runquest/types';
 import type { ProgressEntry } from './OngoingChallengeCard';
 
 const OSWALD = "'Oswald', 'Arial Narrow', Arial, sans-serif";

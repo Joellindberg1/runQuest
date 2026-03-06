@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { MAX_LEVEL } from '@/constants/appConstants';
 
 interface LevelRequirement {

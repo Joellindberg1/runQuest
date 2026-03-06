@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Button } from '@/shared/components/ui/button';
 import { Trophy, Pen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { EditRunDialog } from '@/shared/components/EditRunDialog';
-import type { Run } from '@/types/run';
+import type { Run } from '@runquest/types';
 
 const RUNS_PER_PAGE = 7;
 

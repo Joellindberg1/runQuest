@@ -9,7 +9,7 @@ import { Button } from '@/shared/components/ui/button';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { Send, AlertCircle } from 'lucide-react';
-import type { ChallengeToken } from '@/types/run';
+import type { ChallengeToken } from '@runquest/types';
 
 export interface GroupMember {
   id: string;

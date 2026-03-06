@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Target, Zap, Calendar, Clock, TrendingUp, Timer, CalendarDays } from 'lucide-react';
-import type { User } from '@/types/run';
+import type { User } from '@runquest/types';
 
 interface UserStatsProps {
   user: User;

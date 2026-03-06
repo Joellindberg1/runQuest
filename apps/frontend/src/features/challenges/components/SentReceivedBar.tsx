@@ -9,7 +9,7 @@ import {
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { Send, Inbox, Check, X, Clock, ChevronDown, ChevronRight, Undo2 } from 'lucide-react';
-import type { Challenge } from '@/types/run';
+import type { Challenge } from '@runquest/types';
 
 interface SentReceivedBarProps {
   sentChallenge: Challenge | null;

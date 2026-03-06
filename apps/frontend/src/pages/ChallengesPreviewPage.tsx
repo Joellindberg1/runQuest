@@ -2,7 +2,7 @@ import React from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ChallengesPage, type ChallengeWithProgress } from '@/features/challenges/components/ChallengesPage';
 import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
-import type { Challenge, ChallengeToken, UserBoost, ChallengeStats } from '@/types/run';
+import type { Challenge, ChallengeToken, UserBoost, ChallengeStats } from '@runquest/types';
 import type { LeaderboardEntry } from '@/features/challenges/components/ChallengeLeaderboard';
 import type { GroupMember } from '@/features/challenges/components/SendChallengeModal';
 

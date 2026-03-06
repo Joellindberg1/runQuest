@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ChallengeMetric } from '@/types/run';
+import type { ChallengeMetric } from '@runquest/types';
 
 const METRIC_LABELS: Record<ChallengeMetric, string> = {
   km:       'Most km',

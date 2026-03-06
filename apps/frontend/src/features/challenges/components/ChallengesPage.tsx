@@ -8,7 +8,7 @@ import { ChallengesRulebook } from './ChallengesRulebook';
 import { ChallengeHistory } from './ChallengeHistory';
 import { ChallengesSidebar } from './ChallengesSidebar';
 import { SentReceivedBar } from './SentReceivedBar';
-import type { Challenge, ChallengeToken, UserBoost, ChallengeStats } from '@/types/run';
+import type { Challenge, ChallengeToken, UserBoost, ChallengeStats } from '@runquest/types';
 import type { GroupMember } from './SendChallengeModal';
 
 const TABS = [

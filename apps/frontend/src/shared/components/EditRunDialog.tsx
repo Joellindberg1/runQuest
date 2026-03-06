@@ -6,7 +6,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
 import { useRunMutations } from '@/shared/hooks/useRunMutations';
-import type { Run } from '@/types/run';
+import type { Run } from '@runquest/types';
 
 interface EditRunDialogProps {
   run: Run | null;

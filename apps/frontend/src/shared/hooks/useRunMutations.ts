@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
-import type { Run } from '@/types/run';
+import type { Run } from '@runquest/types';
 
 export const useRunMutations = (onSuccess: () => void) => {
   const [isLoading, setIsLoading] = useState(false);

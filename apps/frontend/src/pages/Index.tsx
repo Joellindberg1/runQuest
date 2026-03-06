@@ -10,7 +10,7 @@ import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveCh
 import { useLeaderboardData } from '@/features/leaderboard/hooks/useLeaderboardData';
 import { useRunUpdates } from '@/features/runs/hooks/useRunUpdates';
 import { backendApi } from '@/shared/services/backendApi';
-import type { Challenge } from '@/types/run';
+import type { Challenge } from '@runquest/types';
 
 const Index: React.FC = () => {
   const { users, currentUser, loading, refresh } = useLeaderboardData();
@@ -18,6 +18,18 @@ const Index: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const activeTab = searchParams.get('tab') || 'leaderboard';
+
+  // Fetch group info for the layout header
+  const { data: groupData } = useQuery({
+    queryKey: ['group', 'my'],
+    queryFn: async () => {
+      const res = await backendApi.getGroupInfo();
+      if (!res.success) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: !!currentUser,
+    staleTime: 10 * 60 * 1000,
+  });
 
   // Fetch user's challenge data for the widget
   const { data: challengeData } = useQuery({
@@ -99,7 +111,7 @@ const Index: React.FC = () => {
   };
 
   return (
-    <AppLayout groupName="Wolfpack - Göteborgsvarvet 2026" topbarLeftWidget={widget}>
+    <AppLayout groupName={groupData?.name ?? ''} topbarLeftWidget={widget}>
       {renderContent()}
     </AppLayout>
   );

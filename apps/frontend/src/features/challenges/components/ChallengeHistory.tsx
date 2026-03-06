@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import type { Challenge, ChallengeTier, ChallengeMetric } from '@/types/run';
+import type { Challenge, ChallengeTier, ChallengeMetric } from '@runquest/types';
 
 interface ChallengeHistoryProps {
   challenges: Challenge[];

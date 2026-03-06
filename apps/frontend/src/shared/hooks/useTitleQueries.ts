@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
-import type { UserTitle } from '@/types/run';
+import type { UserTitle } from '@runquest/types';
 
 export interface TitleLeaderboard {
   id: string;

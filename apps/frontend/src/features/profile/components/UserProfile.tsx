@@ -4,7 +4,7 @@ import { Progress } from '@/shared/components/ui/progress';
 import { Calendar } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import type { User as UserType } from '@/types/run';
+import type { User as UserType } from '@runquest/types';
 import { UserRunHistory } from './UserRunHistory';
 import { UserTitlesList } from './UserTitlesList';
 import { getLevelFromXP, getXPForLevel, getXPForNextLevel } from '@/shared/services/levelService';

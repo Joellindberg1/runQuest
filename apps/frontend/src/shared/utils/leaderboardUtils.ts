@@ -1,5 +1,5 @@
 
-import type { Run, User } from '@/types/run'
+import type { Run, User } from '@runquest/types'
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { MAX_LEVEL } from '@/constants/appConstants';
 export { getInitials, formatXPForDisplay } from '@/shared/utils/formatters';

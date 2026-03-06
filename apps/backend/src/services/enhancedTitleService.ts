@@ -8,18 +8,8 @@ import { titleLeaderboardService } from './titleLeaderboardService';
 export class EnhancedTitleService {
   
   /**
-   * Process titles for a user after run updates          // Get user's runs
-          const { data: runs, error: runsError } = await supabase.client
-            .from('runs')
-            .select('date, distance')
-            .eq('user_id', user.id)
-            .order('date', { ascending: true});
-
-          // Add distance_km alias for compatibility with calculateUserValues
-          const runsWithAlias = runs?.map(run => ({
-            ...run,
-            distance_km: run.distance
-          }));This replaces the old checkAndUpdateUserTitles method
+   * Process titles for a user after run updates.
+   * Replaces the old checkAndUpdateUserTitles method.
    */
   async processUserTitlesAfterRun(userId: string, runs: any[], totalKm: number, longestStreak: number): Promise<void> {
     try {
@@ -365,7 +355,7 @@ export class EnhancedTitleService {
       }
 
       logger.info(`📊 Found ${users.length} users to process`);
-      console.time('processAllUsersTitles');
+      const startTime = Date.now();
 
       // Process all users in parallel
       const userResults = await Promise.allSettled(
@@ -388,8 +378,7 @@ export class EnhancedTitleService {
       const failedCount = userResults.filter(r => r.status === 'rejected').length;
       if (failedCount > 0) logger.error(`❌ Title processing failed for ${failedCount} users`);
 
-      console.timeEnd('processAllUsersTitles');
-      logger.info(`✅ Processed titles for ${processedCount}/${users.length} users`);
+      logger.info(`✅ Processed titles for ${processedCount}/${users.length} users in ${Date.now() - startTime}ms`);
 
     } catch (error) {
       logger.error('❌ Error processing all users titles:', error);

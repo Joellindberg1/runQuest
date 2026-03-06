@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/components/ui/tabs';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { TierBadge } from './TierBadge';
-import type { ChallengeTier } from '@/types/run';
+import type { ChallengeTier } from '@runquest/types';
 
 // ─── Static rulebook data ──────────────────────────────────────────────────────
 

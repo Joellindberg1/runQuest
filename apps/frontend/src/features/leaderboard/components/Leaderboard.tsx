@@ -6,7 +6,7 @@ import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
 import { useMultipleUserTitles } from '@/shared/hooks/useTitleQueries';
 import { Swords } from 'lucide-react';
-import type { User, UserTitle } from '@/types/run';
+import type { User, UserTitle } from '@runquest/types';
 
 interface LeaderboardProps {
   users: User[];

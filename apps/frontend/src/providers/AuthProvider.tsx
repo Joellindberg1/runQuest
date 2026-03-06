@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { backendApi } from '@/shared/services/backendApi';
 import { log } from '@/shared/utils/logger';
-import { Session } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -19,7 +18,6 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   login: (nameOrEmail: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   loading: boolean;
@@ -30,7 +28,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Check if current user is admin
@@ -38,92 +35,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 🔄 Initialize authentication state
   useEffect(() => {
-    const initializeAuth = async () => {
-      log.debug('Initializing authentication...');
-      
-      // Check for backend authentication first
-      if (backendApi.isAuthenticated()) {
-        const currentUser = backendApi.getCurrentUser();
-        if (currentUser) {
-          log.info('Found backend authentication', currentUser.name);
-          setUser(currentUser);
-          setLoading(false);
-          return;
-        }
+    log.debug('Initializing authentication...');
+
+    if (backendApi.isAuthenticated()) {
+      const currentUser = backendApi.getCurrentUser();
+      if (currentUser) {
+        log.info('Found backend authentication', currentUser.name);
+        setUser(currentUser);
       }
+    } else {
+      log.debug('No authentication found');
+    }
 
-      // Fallback: Check Supabase session
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
-      setSession(session);
-
-      if (session?.user) {
-        log.debug('Found Supabase session', session.user.id);
-        
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('auth_user_id', session.user.id)
-          .single();
-
-        if (userData && !error) {
-          setUser(userData as User);
-        } else {
-          // Convert Supabase user to our User type
-          setUser({
-            id: session.user.id,
-            name: session.user.user_metadata?.name || session.user.email || 'Unknown',
-            email: session.user.email || ''
-          } as User);
-        }
-      } else {
-        log.debug('No authentication found');
-      }
-
-      setLoading(false);
-    };
-
-    initializeAuth();
+    setLoading(false);
 
     // Redirect to login automatically when JWT expires
-    backendApi.onUnauthorized = () => {
-      setUser(null);
-      setSession(null);
-    };
-
-    // Set up Supabase auth state listener (for fallback)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      log.debug('Supabase auth state changed', event);
-      
-      // Only handle if no backend auth is active
-      if (!backendApi.isAuthenticated()) {
-        setSession(session);
-
-        if (session?.user) {
-          const { data: userData, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('auth_user_id', session.user.id)
-            .single();
-
-          if (userData && !error) {
-            setUser(userData as User);
-          } else {
-            // Convert Supabase user to our User type
-            setUser({
-              id: session.user.id,
-              name: session.user.user_metadata?.name || session.user.email || 'Unknown',
-              email: session.user.email || ''
-            } as User);
-          }
-        } else {
-          setUser(null);
-        }
-      }
-    });
+    backendApi.onUnauthorized = () => setUser(null);
 
     return () => {
-      subscription.unsubscribe();
       backendApi.onUnauthorized = undefined;
     };
   }, []);
@@ -141,7 +70,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (loginResult.success && loginResult.user) {
         log.success('Backend login successful', loginResult.user.name);
         setUser(loginResult.user);
-        setSession(null); // No Supabase session for backend auth
         return { success: true };
       } else {
         log.warn('Backend login failed', loginResult.error);
@@ -159,19 +87,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     log.info('Logging out...');
     
-    // Clear backend authentication
     backendApi.logout();
-    
-    // Also clear Supabase session if exists
     await supabase.auth.signOut();
-    
-    // Clear local state
     setUser(null);
-    setSession(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, login, logout, loading, isAdmin }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

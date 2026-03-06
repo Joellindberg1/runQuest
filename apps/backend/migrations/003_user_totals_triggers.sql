@@ -69,15 +69,3 @@ CREATE TRIGGER trigger_update_user_totals_delete
     FOR EACH ROW
     EXECUTE FUNCTION update_user_totals();
 
--- Test the triggers work by checking current state
-SELECT 
-    u.name,
-    u.total_xp,
-    u.total_km,
-    u.current_level,
-    (SELECT COUNT(*) FROM runs WHERE user_id = u.id) as run_count,
-    (SELECT COALESCE(SUM(xp_gained), 0) FROM runs WHERE user_id = u.id) as calculated_xp,
-    (SELECT COALESCE(SUM(distance), 0) FROM runs WHERE user_id = u.id) as calculated_km
-FROM users u
-WHERE u.name ILIKE '%nicklas%'
-ORDER BY u.name;

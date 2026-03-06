@@ -11,7 +11,7 @@ import { useAuth } from '@/features/auth';
 import { toast } from 'sonner';
 import { RunHistoryGroup } from './RunHistoryGroup';
 import { useCreateRun } from '../hooks/useCreateRun';
-import type { User } from '@/types/run';
+import type { User } from '@runquest/types';
 import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 
 interface RunLoggerProps {

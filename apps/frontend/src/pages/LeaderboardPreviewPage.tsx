@@ -2,7 +2,7 @@ import React from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Leaderboard } from '@/features/leaderboard';
 import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
-import type { User, Run, Challenge } from '@/types/run';
+import type { User, Run, Challenge } from '@runquest/types';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 

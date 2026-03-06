@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { Calendar, Trophy, Zap } from 'lucide-react';
-import type { User } from '@/types/run';
+import type { User } from '@runquest/types';
 import { ShowMoreButton } from '@/shared/components/ShowMoreButton';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { getInitials, formatRunDate } from '@/shared/utils/formatters';

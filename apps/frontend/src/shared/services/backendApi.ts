@@ -1,5 +1,5 @@
 // 🔗 Backend API Service - Production Ready
-import type { Run, UserTitle, Challenge, ChallengeToken, UserBoost } from '@/types/run';
+import type { Run, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
