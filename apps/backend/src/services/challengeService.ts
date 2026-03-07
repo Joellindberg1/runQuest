@@ -105,9 +105,10 @@ export async function awardTokensForLevelUp(
 
     if (error) {
       logger.error(`❌ Failed to award ${tier} token at level ${levelReward.level}:`, error);
-    } else {
-      logger.info(`🎁 Awarded ${tier} token to user ${userId} at level ${levelReward.level}`);
+      throw new Error(`Failed to award ${tier} token at level ${levelReward.level}: ${error.message}`);
     }
+
+    logger.info(`🎁 Awarded ${tier} token to user ${userId} at level ${levelReward.level}`);
   }
 }
 

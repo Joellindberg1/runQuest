@@ -40,6 +40,13 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
     const longestStreak = Math.max(streakResult.longestStreak, currentStreak);
     const oldLevel = currentUserRes.data?.current_level ?? 0;
 
+    // Award challenge tokens before updating current_level in DB.
+    // This ensures that if the token insert fails (throws), current_level stays at oldLevel
+    // so the next calculateUserTotals call will detect the level-up and retry.
+    if (level > oldLevel) {
+      await awardTokensForLevelUp(userId, oldLevel, level);
+    }
+
     // Update user record with consistent level calculation
     const { error: updateError } = await supabase
       .from('users')
@@ -56,10 +63,6 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
       logger.error('Error updating user totals:', updateError);
     } else {
       logger.info(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
-      // Award challenge tokens if user leveled up
-      if (level > oldLevel) {
-        await awardTokensForLevelUp(userId, oldLevel, level);
-      }
     }
 
     // 🏆 Process titles for ALL users to ensure complete leaderboard

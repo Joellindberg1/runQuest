@@ -40,7 +40,8 @@ const Index: React.FC = () => {
       return res.data;
     },
     enabled: !!currentUser,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 0,
+    refetchInterval: 60 * 1000,
   });
 
   // Find the current user's active challenge
