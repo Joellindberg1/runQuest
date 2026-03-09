@@ -109,7 +109,26 @@ const FeaturesPage: React.FC = () => {
     { icon: <Swords className="w-6 h-6" />,     title: 'Challenges',          description: '1v1 challenges between group members — earn tokens at level-up, pick a metric and duration, winner gets a boost' },
   ];
 
-  const workingOnFeatures: { icon: React.ReactNode; title: string; description: string; details: string[] }[] = [];
+  const workingOnFeatures: { icon: React.ReactNode; title: string; description: string; details: string[] }[] = [
+    {
+      icon: <Trophy className="w-6 h-6" />,
+      title: 'More Titles',
+      description: 'Expanding the title system with new achievements',
+      details: ['New milestone titles', 'Special event titles', 'Streak-based titles'],
+    },
+    {
+      icon: <Target className="w-6 h-6" />,
+      title: 'More Strava Data',
+      description: 'Richer data imported from your Strava activities',
+      details: ['Pace and heart rate', 'Elevation data', 'Segment performance'],
+    },
+    {
+      icon: <Swords className="w-6 h-6" />,
+      title: 'App Challenges',
+      description: 'Group-wide challenges for everyone to participate in',
+      details: ['Weekly group goals', 'Seasonal events', 'Collaborative milestones'],
+    },
+  ];
 
   return (
     <AppLayout groupName="Feature & Version">

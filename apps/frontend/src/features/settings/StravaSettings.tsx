@@ -9,9 +9,12 @@ import { toast } from 'sonner';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { formatConnectionDate } from '@/shared/utils/formatters';
 import { useStravaData, formatLastSync, formatNextSync } from './hooks/useStravaData';
+import { useAuth } from '@/features/auth/contexts/AuthContext';
 
 export const StravaSettings: React.FC = () => {
   const { stravaStatus, setStravaStatus, syncInfo, loading, stravaClientId, refreshStatus } = useStravaData();
+  const { user } = useAuth();
+  const showSyncButton = user?.name === 'Joel Lindberg';
   const [syncLoading, setSyncLoading] = useState(false);
 
   // Listen for OAuth popup callback
@@ -112,7 +115,7 @@ export const StravaSettings: React.FC = () => {
             <CardDescription>{statusDescription}</CardDescription>
             {stravaStatus.connected && (
               <div className="text-sm text-foreground space-y-1 mt-6">
-                <p>✅ Your Strava runs are imported automatically every 3 hours.</p>
+                <p>✅ Your Strava runs are imported automatically every 30 minutes.</p>
                 <p>✅ Only running activities (type "Run") are imported.</p>
                 <p>✅ Duplicate activities are automatically filtered.</p>
               </div>
@@ -138,7 +141,7 @@ export const StravaSettings: React.FC = () => {
               <ExternalLink className="w-4 h-4" /> Connect Strava
             </Button>
           )}
-          {stravaStatus.connected && (
+          {stravaStatus.connected && showSyncButton && (
             <div className="flex items-center gap-4">
               <Button onClick={handleSyncStrava} variant="outline" className="flex items-center gap-2" disabled={syncLoading}>
                 {syncLoading

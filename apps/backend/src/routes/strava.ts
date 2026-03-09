@@ -6,6 +6,7 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
+import { getSyncInfo } from '../scheduler/stravaSync.js';
 
 const router = express.Router();
 
@@ -437,6 +438,26 @@ export async function syncAllStravaUsers(): Promise<{
     throw error;
   }
 }
+
+// GET /api/strava/last-sync - Get info about the last and next scheduled sync
+router.get('/last-sync', async (_req, res): Promise<void> => {
+  try {
+    const info = getSyncInfo();
+    res.json({
+      data: {
+        last_sync_attempt: info.lastSyncAttempt,
+        last_sync_status: info.lastSyncStatus,
+        next_sync_estimated: info.nextSyncEstimated,
+        users_synced: info.usersSynced,
+        total_users: info.totalUsers,
+        new_runs: info.newRuns,
+      }
+    });
+  } catch (error) {
+    logger.error('❌ Error fetching sync info:', error);
+    res.status(500).json({ error: 'Failed to get sync info' });
+  }
+});
 
 // GET /api/strava/sync-all - Admin-only endpoint to trigger a full sync
 router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
