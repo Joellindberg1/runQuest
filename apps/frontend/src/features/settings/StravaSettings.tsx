@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { formatConnectionDate } from '@/shared/utils/formatters';
 import { useStravaData, formatLastSync, formatNextSync } from './hooks/useStravaData';
-import { useAuth } from '@/features/auth/contexts/AuthContext';
+import { useAuth } from '@/providers/AuthProvider';
 
 export const StravaSettings: React.FC = () => {
   const { stravaStatus, setStravaStatus, syncInfo, loading, stravaClientId, refreshStatus } = useStravaData();
