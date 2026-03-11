@@ -60,7 +60,7 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
       onClick={onClick}
       className={`relative px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors cursor-pointer' : ''}`}
     >
-      {/* 3-col grid, 2 rows — dimmed when pending */}
+      {/* 3-col grid — dimmed when pending */}
       <div className={`grid grid-cols-[auto_1fr_auto] gap-x-2 ${pending ? 'opacity-40' : ''}`}>
         {/* Row 1 */}
         <div className="flex items-center justify-center">
@@ -71,12 +71,14 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
           <span className="text-muted-foreground">vs</span>
           <span className="font-semibold text-foreground">{opponent.name}</span>
         </div>
-        <div className="flex items-center justify-center">
-          {challenge.end_date && !pending ? (
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              Ends: {formatEndDate(challenge.end_date)}
-            </span>
-          ) : <span />}
+        {/* Desktop: "Ends:" + date stacked in col 3 */}
+        <div className="flex items-center justify-end">
+          {challenge.end_date && !pending && (
+            <div className="hidden sm:flex flex-col items-end text-xs text-muted-foreground leading-tight whitespace-nowrap">
+              <span>Ends:</span>
+              <span>{formatEndDate(challenge.end_date)}</span>
+            </div>
+          )}
         </div>
 
         {/* Row 2 */}
@@ -93,6 +95,13 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
           ) : <span />}
         </div>
         <div />
+
+        {/* Row 3: mobile only — end date spanning full width */}
+        {challenge.end_date && !pending && (
+          <div className="col-span-3 flex sm:hidden justify-center text-xs text-muted-foreground pt-1 border-t border-foreground/10 mt-0.5">
+            Ends: {formatEndDate(challenge.end_date)}
+          </div>
+        )}
       </div>
 
       {/* Pending overlay */}
