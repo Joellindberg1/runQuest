@@ -452,6 +452,13 @@ class BackendApiService {
     });
   }
 
+  async backfillStravaExtendedData(): Promise<ApiResponse<{
+    totalUpdated: number;
+    summary: Array<{ user: string; updated: number; error?: string }>;
+  }>> {
+    return this.authenticatedRequest('/strava/backfill-extended', { method: 'POST' });
+  }
+
   async getStravaLastSync(): Promise<ApiResponse<{
     last_sync_attempt: string | null;
     last_sync_status: string;
