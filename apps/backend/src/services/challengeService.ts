@@ -47,69 +47,143 @@ export async function decrementRunBoosts(userId: string): Promise<void> {
   );
 }
 
-// ─── Token award on level-up ─────────────────────────────────────────────────
+// ─── Token reconciliation on level change ────────────────────────────────────
 
 /**
- * Award challenge token(s) if the user passed through level(s) that have rewards.
- * Called from calculateUserTotals after the user's level is updated.
+ * Reconcile challenge tokens for a user against their current level.
+ *
+ * Uses `highest_rewarded_level` on the users table to determine which
+ * levels have already been processed — this prevents retroactive token
+ * bursts for existing users and correctly handles level regression.
+ *
+ * - Level up  (newLevel > highest): awards tokens for newly reached levels,
+ *   then bumps highest_rewarded_level.
+ * - Level down (newLevel < highest): removes UNSENT tokens for levels now
+ *   above newLevel, then lowers highest_rewarded_level.
+ * - No change (newLevel === highest): no-op.
+ *
+ * Sent tokens (linked to an active/pending challenge) are never removed.
+ * Called from calculateUserTotals on every run add / update / delete.
  */
-export async function awardTokensForLevelUp(
+export async function reconcileTokensForLevel(
   userId: string,
-  oldLevel: number,
   newLevel: number
 ): Promise<void> {
-  if (newLevel <= oldLevel) return;
-
   const supabase = getSupabaseClient();
 
-  const { data: levelRewards } = await supabase
-    .from('level_challenge_rewards')
-    .select('level, tier')
-    .gte('level', oldLevel + 1)
-    .lte('level', newLevel);
+  const { data: user } = await supabase
+    .from('users')
+    .select('highest_rewarded_level')
+    .eq('id', userId)
+    .single();
 
-  if (!levelRewards?.length) return;
+  const highestRewarded: number = user?.highest_rewarded_level ?? 0;
 
-  for (const levelReward of levelRewards) {
-    const tier = levelReward.tier;
+  if (newLevel > highestRewarded) {
+    // ── Level up: award tokens for newly reached levels ──────────────────
+    const { data: levelRewards } = await supabase
+      .from('level_challenge_rewards')
+      .select('level, tier')
+      .gt('level', highestRewarded)
+      .lte('level', newLevel);
 
-    const [metricsRes, durationsRes, rewardsRes] = await Promise.all([
-      supabase.from('challenge_metrics').select('id, metric').contains('tier_eligibility', [tier]).eq('active', true),
-      supabase.from('challenge_durations').select('id, duration_days').contains('tier_eligibility', [tier]).eq('active', true),
-      supabase.from('challenge_rewards').select('id').contains('tier_eligibility', [tier]).eq('active', true),
-    ]);
-
-    const metrics = (metricsRes.data ?? []) as { id: string; metric: string }[];
-    const durations = (durationsRes.data ?? []) as { id: string; duration_days: number }[];
-    const challengeRewards = (rewardsRes.data ?? []) as { id: string }[];
-
-    if (!metrics.length || !durations.length || !challengeRewards.length) {
-      logger.warn(`⚠️ No config found for tier "${tier}" at level ${levelReward.level}`);
-      continue;
+    for (const reward of levelRewards ?? []) {
+      await awardTokenForLevel(userId, reward.level, reward.tier);
     }
 
-    const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-    const metric = pick(metrics);
-    const duration = pick(durations);
-    const reward = pick(challengeRewards);
+    // Update after all inserts succeed (throw above keeps this unreached on failure)
+    await supabase
+      .from('users')
+      .update({ highest_rewarded_level: newLevel })
+      .eq('id', userId);
 
-    const { error } = await supabase.from('user_challenge_tokens').insert({
-      user_id: userId,
-      metric_id: metric.id,
-      duration_id: duration.id,
-      reward_id: reward.id,
-      tier,
-      metric: metric.metric,
-      duration_days: duration.duration_days,
-    });
-
-    if (error) {
-      logger.error(`❌ Failed to award ${tier} token at level ${levelReward.level}:`, error);
-      throw new Error(`Failed to award ${tier} token at level ${levelReward.level}: ${error.message}`);
+    if ((levelRewards ?? []).length > 0) {
+      logger.info(`⬆️ User ${userId} rewarded through level ${newLevel}`);
     }
 
-    logger.info(`🎁 Awarded ${tier} token to user ${userId} at level ${levelReward.level}`);
+  } else if (newLevel < highestRewarded) {
+    // ── Level regression: remove unsent tokens for lost levels ───────────
+    const { data: orphaned } = await supabase
+      .from('user_challenge_tokens')
+      .select('id')
+      .eq('user_id', userId)
+      .gt('earned_at_level', newLevel)
+      .is('sent_at', null);
+
+    if (orphaned?.length) {
+      const { error } = await supabase
+        .from('user_challenge_tokens')
+        .delete()
+        .in('id', (orphaned as any[]).map((t) => t.id));
+      if (error) {
+        logger.error('❌ Failed to remove orphaned tokens:', error);
+      } else {
+        logger.info(`🗑️ Removed ${orphaned.length} orphaned token(s) for user ${userId} (regression to level ${newLevel})`);
+      }
+    }
+
+    await supabase
+      .from('users')
+      .update({ highest_rewarded_level: newLevel })
+      .eq('id', userId);
   }
+  // newLevel === highestRewarded → nothing to do
+}
+
+/** Insert a single challenge token for a given level/tier. Idempotent — skips if one already exists. */
+async function awardTokenForLevel(userId: string, level: number, tier: string): Promise<void> {
+  const supabase = getSupabaseClient();
+
+  // Guard against duplicate inserts (e.g. if highest_rewarded_level update failed previously)
+  const { data: existing } = await supabase
+    .from('user_challenge_tokens')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('earned_at_level', level)
+    .maybeSingle();
+
+  if (existing) {
+    logger.info(`ℹ️ Token for level ${level} already exists for user ${userId}, skipping`);
+    return;
+  }
+
+  const [metricsRes, durationsRes, rewardsRes] = await Promise.all([
+    supabase.from('challenge_metrics').select('id, metric').contains('tier_eligibility', [tier]).eq('active', true),
+    supabase.from('challenge_durations').select('id, duration_days').contains('tier_eligibility', [tier]).eq('active', true),
+    supabase.from('challenge_rewards').select('id').contains('tier_eligibility', [tier]).eq('active', true),
+  ]);
+
+  const metrics = (metricsRes.data ?? []) as { id: string; metric: string }[];
+  const durations = (durationsRes.data ?? []) as { id: string; duration_days: number }[];
+  const challengeRewards = (rewardsRes.data ?? []) as { id: string }[];
+
+  if (!metrics.length || !durations.length || !challengeRewards.length) {
+    logger.warn(`⚠️ No config found for tier "${tier}" at level ${level}`);
+    return;
+  }
+
+  const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+  const metric = pick(metrics);
+  const duration = pick(durations);
+  const reward = pick(challengeRewards);
+
+  const { error } = await supabase.from('user_challenge_tokens').insert({
+    user_id: userId,
+    metric_id: metric.id,
+    duration_id: duration.id,
+    reward_id: reward.id,
+    tier,
+    metric: metric.metric,
+    duration_days: duration.duration_days,
+    earned_at_level: level,
+  });
+
+  if (error) {
+    logger.error(`❌ Failed to award ${tier} token at level ${level}:`, error);
+    throw new Error(`Failed to award ${tier} token at level ${level}: ${error.message}`);
+  }
+
+  logger.info(`🎁 Awarded ${tier} token to user ${userId} at level ${level}`);
 }
 
 // ─── Progress ────────────────────────────────────────────────────────────────

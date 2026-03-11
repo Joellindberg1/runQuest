@@ -1,7 +1,7 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from './logger.js';
 import { getLevelFromXP } from './xpCalculation.js';
-import { awardTokensForLevelUp } from '../services/challengeService.js';
+import { reconcileTokensForLevel } from '../services/challengeService.js';
 
 export async function calculateUserTotals(userId: string, groupId?: string) {
   try {
@@ -29,23 +29,18 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
     const totalXP = runs.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
     const totalDistance = runs.reduce((sum: number, run: any) => sum + (run.distance || 0), 0);
 
-    // Fetch level, streak, and current user level in parallel
+    // Fetch level and streak in parallel (current_level no longer needed here)
     const { StreakService } = await import('../services/streakService.js');
-    const [level, streakResult, currentUserRes] = await Promise.all([
+    const [level, streakResult] = await Promise.all([
       getLevelFromXP(totalXP),
       StreakService.calculateUserStreaks(userId),
-      supabase.from('users').select('current_level').eq('id', userId).single()
     ]);
     const currentStreak = streakResult.currentStreak;
     const longestStreak = Math.max(streakResult.longestStreak, currentStreak);
-    const oldLevel = currentUserRes.data?.current_level ?? 0;
 
-    // Award challenge tokens before updating current_level in DB.
-    // This ensures that if the token insert fails (throws), current_level stays at oldLevel
-    // so the next calculateUserTotals call will detect the level-up and retry.
-    if (level > oldLevel) {
-      await awardTokensForLevelUp(userId, oldLevel, level);
-    }
+    // Reconcile challenge tokens against the user's current level.
+    // Awards tokens for newly reached levels; removes unsent tokens if level dropped.
+    await reconcileTokensForLevel(userId, level);
 
     // Update user record with consistent level calculation
     const { error: updateError } = await supabase

@@ -36,7 +36,7 @@ vi.mock('../../config/database.js', () => ({
 vi.mock('../../services/challengeService.js', () => ({
   getProgressForChallenge: vi.fn().mockResolvedValue([]),
   settleChallenge: vi.fn().mockResolvedValue(undefined),
-  awardTokensForLevelUp: vi.fn().mockResolvedValue(undefined),
+  reconcileTokensForLevel: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
