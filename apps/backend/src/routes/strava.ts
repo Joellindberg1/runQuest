@@ -10,6 +10,54 @@ import { getSyncInfo } from '../scheduler/stravaSync.js';
 
 const router = express.Router();
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const RUNNING_SPORT_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun']);
+
+/** Returns the sport_type if it's a valid running type, otherwise null. */
+function normalizeSportType(sportType?: string): string | null {
+  if (sportType && RUNNING_SPORT_TYPES.has(sportType)) return sportType;
+  return null;
+}
+
+/** Returns true for any Strava activity we want to import as a run. */
+function isRunningActivity(activity: any): boolean {
+  // Prefer sport_type (newer field); fall back to type for older data
+  if (activity.sport_type) return RUNNING_SPORT_TYPES.has(activity.sport_type);
+  return activity.type === 'Run';
+}
+
+/**
+ * Compute pace standard deviation (sec/km) from Strava splits_metric.
+ * Returns null if there are fewer than 2 complete splits.
+ */
+function computePaceStdDev(splits?: Array<{ distance: number; moving_time: number }>): number | null {
+  if (!splits || splits.length < 2) return null;
+  const paces = splits
+    .filter(s => s.distance > 0)
+    .map(s => s.moving_time / (s.distance / 1000));
+  if (paces.length < 2) return null;
+  const mean = paces.reduce((a, b) => a + b, 0) / paces.length;
+  const variance = paces.reduce((sum, p) => sum + (p - mean) ** 2, 0) / paces.length;
+  return Math.sqrt(variance);
+}
+
+/** Build the extended-data fields from a Strava activity object. */
+function extractExtendedFields(activity: any) {
+  return {
+    start_time:     activity.start_date_local ?? null,
+    moving_time:    activity.moving_time       ?? null,
+    elevation_gain: activity.total_elevation_gain ?? null,
+    sport_type:     normalizeSportType(activity.sport_type),
+    avg_heartrate:  activity.average_heartrate ?? null,
+    max_heartrate:  activity.max_heartrate     ?? null,
+    suffer_score:   activity.suffer_score      ?? null,
+    start_lat:      activity.start_latlng?.[0] ?? null,
+    start_lng:      activity.start_latlng?.[1] ?? null,
+    pace_std_dev:   computePaceStdDev(activity.splits_metric),
+  };
+}
+
 // GET /api/strava/config - Get Strava client ID
 router.get('/config', async (_req, res): Promise<void> => {
   try {
@@ -314,7 +362,7 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     const activities = await stravaResponse.json();
     
     // Filter for runs
-    const runningActivities = activities.filter((a: any) => a.type === 'Run');
+    const runningActivities = activities.filter((a: any) => isRunningActivity(a));
     const newRuns = runningActivities.filter((a: any) => !existingIds.has(a.id.toString()));
     
     res.json({
@@ -459,6 +507,102 @@ router.get('/last-sync', async (_req, res): Promise<void> => {
   }
 });
 
+// POST /api/strava/backfill-extended - Admin: re-fetch all Strava activities and fill extended fields
+router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: connectedUsers, error } = await supabase
+      .from('strava_tokens')
+      .select('user_id, access_token, refresh_token, expires_at, connection_date, users!inner(name)')
+      .not('access_token', 'is', null);
+
+    if (error || !connectedUsers?.length) {
+      res.json({ success: true, message: 'No connected users', updated: 0 }); return;
+    }
+
+    let totalUpdated = 0;
+    const summary: Array<{ user: string; updated: number; error?: string }> = [];
+
+    for (const user of connectedUsers) {
+      try {
+        // Refresh token if expired
+        const now = Math.floor(Date.now() / 1000);
+        let accessToken = user.access_token;
+        if (user.expires_at && user.expires_at < now) {
+          const refreshed = await refreshStravaToken(user.refresh_token, user.user_id);
+          if (!refreshed.success) throw new Error('Token refresh failed');
+          accessToken = refreshed.access_token!;
+        }
+
+        // Get all existing Strava runs for this user
+        const { data: existingRuns } = await supabase
+          .from('runs')
+          .select('id, external_id')
+          .eq('user_id', user.user_id)
+          .eq('source', 'strava')
+          .not('external_id', 'is', null);
+
+        if (!existingRuns?.length) {
+          summary.push({ user: (user.users as any).name, updated: 0 });
+          continue;
+        }
+
+        const externalIdToRunId = new Map(existingRuns.map((r: any) => [r.external_id, r.id]));
+
+        // Fetch all activities from Strava (paginated)
+        const after = user.connection_date
+          ? Math.floor(new Date(user.connection_date).getTime() / 1000)
+          : Math.floor(Date.now() / 1000) - 365 * 24 * 3600; // fallback: 1 year ago
+
+        let page = 1;
+        let userUpdated = 0;
+
+        while (true) {
+          const stravaRes = await fetch(
+            `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200&page=${page}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (!stravaRes.ok) break;
+          const activities: any[] = await stravaRes.json();
+          if (!activities.length) break;
+
+          // Update matching runs in batches of 10
+          const matches = activities.filter((a: any) => externalIdToRunId.has(a.id.toString()));
+          for (let i = 0; i < matches.length; i += 10) {
+            const batch = matches.slice(i, i + 10);
+            await Promise.allSettled(batch.map((activity: any) =>
+              supabase.from('runs')
+                .update(extractExtendedFields(activity))
+                .eq('id', externalIdToRunId.get(activity.id.toString()))
+            ));
+            userUpdated += batch.length;
+            if (i + 10 < matches.length) await new Promise(r => setTimeout(r, 500));
+          }
+
+          if (activities.length < 200) break;
+          page++;
+          await new Promise(r => setTimeout(r, 1000)); // rate limit between pages
+        }
+
+        totalUpdated += userUpdated;
+        summary.push({ user: (user.users as any).name, updated: userUpdated });
+        logger.info(`✅ Backfilled ${userUpdated} runs for ${(user.users as any).name}`);
+      } catch (userErr) {
+        logger.error(`❌ Backfill failed for user:`, userErr);
+        summary.push({ user: (user.users as any).name, updated: 0, error: 'Failed' });
+      }
+
+      await new Promise(r => setTimeout(r, 2000)); // delay between users
+    }
+
+    logger.info(`🎯 Backfill complete: ${totalUpdated} runs updated across ${connectedUsers.length} users`);
+    res.json({ success: true, totalUpdated, summary });
+  } catch (error) {
+    logger.error('❌ Backfill error:', error);
+    res.status(500).json({ error: 'Backfill failed' }); return;
+  }
+});
+
 // GET /api/strava/sync-all - Admin-only endpoint to trigger a full sync
 router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
   try {
@@ -590,9 +734,9 @@ async function syncUserStravaActivities(userId: string): Promise<{
       });
     }
     
-    // Filter for running activities only
-    const runningActivities = activities.filter((activity: any) => 
-      activity.type === 'Run' && 
+    // Filter for running activities only (new ones not yet in DB)
+    const runningActivities = activities.filter((activity: any) =>
+      isRunningActivity(activity) &&
       !existingIds.has(activity.id.toString())
     );
     
@@ -623,6 +767,8 @@ async function syncUserStravaActivities(userId: string): Promise<{
           distance,
           source: 'strava',
           external_id: activity.id.toString(),
+          ...extractExtendedFields(activity),
+          // XP placeholders — recalculated by reprocessRunsFromDate
           base_xp: 0,
           km_xp: 0,
           distance_bonus: 0,

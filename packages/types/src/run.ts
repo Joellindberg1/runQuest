@@ -32,6 +32,17 @@ export interface Run {
   streak_bonus: number;
   source?: string;
   external_id?: string;
+  // Extended Strava data — all nullable (not all devices/users share this)
+  start_time?: string | null;
+  moving_time?: number | null;
+  elevation_gain?: number | null;
+  sport_type?: string | null;
+  avg_heartrate?: number | null;
+  max_heartrate?: number | null;
+  suffer_score?: number | null;
+  start_lat?: number | null;
+  start_lng?: number | null;
+  pace_std_dev?: number | null;
 }
 
 export interface RunData {
