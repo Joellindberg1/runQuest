@@ -26,8 +26,14 @@ function formatValue(metric: string, value: number): string {
   return `${value} XP`;
 }
 
-function daysLeft(endDate: string): number {
-  return Math.max(0, Math.ceil((new Date(endDate).getTime() - Date.now()) / 86_400_000));
+function formatEndDate(endDate: string): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(endDate + 'T00:00:00');
+  const diff = Math.round((end.getTime() - today.getTime()) / 86_400_000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return endDate;
 }
 
 interface ChallengesSidebarProps {
@@ -134,7 +140,7 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
               )}
               {activeChallenge.end_date && !isPendingStart(activeChallenge.start_date) && (
                 <div className="text-xs text-muted-foreground">
-                  {daysLeft(activeChallenge.end_date)} days remaining
+                  Ends: {formatEndDate(activeChallenge.end_date)}
                 </div>
               )}
             </CardContent>

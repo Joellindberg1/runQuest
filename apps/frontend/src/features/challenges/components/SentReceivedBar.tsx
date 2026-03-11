@@ -34,6 +34,13 @@ function formatStartDate(dateStr: string): string {
   });
 }
 
+/** Expected end date if accepted today (starts tomorrow + duration_days). */
+function expectedEndDate(duration_days: number): string {
+  const end = new Date();
+  end.setDate(end.getDate() + 1 + duration_days);
+  return end.toISOString().split('T')[0];
+}
+
 function autoStartLabel(legendary_sent_at: string): string {
   const autoStart = new Date(new Date(legendary_sent_at).getTime() + 4 * 24 * 60 * 60 * 1000);
   const diff = autoStart.getTime() - Date.now();
@@ -113,6 +120,8 @@ const ReceivedItem: React.FC<{
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                 <div className="text-muted-foreground">Duration</div>
                 <div className="font-medium">{challenge.duration_days} days</div>
+                <div className="text-muted-foreground">Ends</div>
+                <div className="font-medium">{expectedEndDate(challenge.duration_days)}</div>
                 <div className="text-muted-foreground">Winner</div>
                 <div className="font-medium text-green-600 dark:text-green-400">
                   +{challenge.winner_delta}x / {challenge.winner_duration}d
@@ -234,6 +243,10 @@ export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Duration</span>
                   <span className="font-medium">{sentChallenge.duration_days} days</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Ends</span>
+                  <span className="font-medium">{expectedEndDate(sentChallenge.duration_days)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Winner</span>

@@ -27,8 +27,14 @@ function formatValue(metric: string, value: number): string {
   return `${value} XP`;
 }
 
-function daysLeft(endDate: string): number {
-  return Math.max(0, Math.ceil((new Date(endDate).getTime() - Date.now()) / 86_400_000));
+function formatEndDate(endDate: string): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(endDate + 'T00:00:00');
+  const diff = Math.round((end.getTime() - today.getTime()) / 86_400_000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return endDate;
 }
 
 function isPendingStart(startDate?: string): boolean {
@@ -66,7 +72,7 @@ export const OngoingChallengeCard: React.FC<OngoingChallengeCardProps> = ({
           </div>
           {challenge.end_date && !pending && (
             <span className="text-xs text-muted-foreground shrink-0">
-              {daysLeft(challenge.end_date)}d left
+              Ends: {formatEndDate(challenge.end_date)}
             </span>
           )}
         </div>

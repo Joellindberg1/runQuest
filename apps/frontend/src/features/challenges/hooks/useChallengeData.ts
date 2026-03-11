@@ -16,8 +16,8 @@ export function useChallengeData(currentUserId: string) {
       if (!res.success) throw new Error(res.error);
       return res.data!;
     },
-    refetchInterval: 5 * 60 * 1000,
-    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    staleTime: 0,
   });
 
   // Fetch group stats for leaderboard
@@ -28,8 +28,8 @@ export function useChallengeData(currentUserId: string) {
       if (!res.success) throw new Error(res.error);
       return res.data!;
     },
-    refetchInterval: 5 * 60 * 1000,
-    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    staleTime: 0,
   });
 
   // Build name lookup and group member list from group-stats (already in isLoading)
@@ -67,7 +67,7 @@ export function useChallengeData(currentUserId: string) {
         if (!res.success) throw new Error(res.error);
         return { id, progress: res.data!.progress };
       },
-      staleTime: 60 * 1000,
+      staleTime: 0,
     })),
   });
 
