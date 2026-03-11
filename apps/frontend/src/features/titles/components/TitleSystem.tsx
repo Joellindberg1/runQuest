@@ -1,49 +1,56 @@
 
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { Crown } from 'lucide-react';
+import React, { useState } from 'react';
+import { TabsContent } from '@/shared/components/ui/tabs';
+import { PageTabs } from '@/shared/components/PageTabs';
+import { Trophy, BookOpen, Crown } from 'lucide-react';
 import { TitleCard } from './title/TitleCard';
 import { TitleRequirements } from './title/TitleRequirements';
+import { MyTitlesTab } from './MyTitlesTab';
 import { useTitleSystemData } from '../hooks/useTitleSystemData';
+import { useAuth } from '@/features/auth';
+
+const TABS = [
+  { value: 'leaderboard', label: 'Leaderboard', icon: <Trophy className="w-4 h-4" /> },
+  { value: 'titles',      label: 'Titles',       icon: <BookOpen className="w-4 h-4" /> },
+  { value: 'my-titles',   label: 'My Titles',    icon: <Crown className="w-4 h-4" /> },
+];
 
 export const TitleSystem: React.FC = () => {
+  const [tab, setTab] = useState('leaderboard');
   const { titles, loading } = useTitleSystemData();
+  const { user } = useAuth();
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <div className="text-lg">Loading titles...</div>
-        </div>
+      <div className="text-center py-12">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+        <div className="text-sm text-muted-foreground">Loading titles...</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Competitive Titles */}
-      <Card className="bg-sidebar border-2 border-foreground/15">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Crown className="w-6 h-6 text-yellow-500" />
-            <CardTitle>Competitive Titles</CardTitle>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Fight for four exclusive titles that change hands when records are broken
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {titles.map((title) => (
-              <TitleCard key={title.id} title={title} />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+    <PageTabs value={tab} onValueChange={setTab} tabs={TABS}>
+      <TabsContent value="leaderboard" className="px-4 pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {titles.map(title => (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            <TitleCard key={title.id} title={title as any} />
+          ))}
+        </div>
+      </TabsContent>
 
-      {/* Title Requirements */}
-      <TitleRequirements />
-    </div>
+      <TabsContent value="titles" className="px-4 pb-4">
+        <TitleRequirements />
+      </TabsContent>
+
+      <TabsContent value="my-titles" className="px-4 pb-4">
+        <MyTitlesTab
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          titles={titles as any}
+          currentUserId={user?.id ?? ''}
+        />
+      </TabsContent>
+    </PageTabs>
   );
 };
