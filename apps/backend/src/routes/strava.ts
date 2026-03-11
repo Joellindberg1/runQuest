@@ -47,7 +47,7 @@ function extractExtendedFields(activity: any) {
   return {
     start_time:     activity.start_date_local ?? null,
     moving_time:    activity.moving_time       ?? null,
-    elevation_gain: activity.total_elevation_gain ?? null,
+    total_elevation_gain: activity.total_elevation_gain ?? null,
     sport_type:     normalizeSportType(activity.sport_type),
     avg_heartrate:  activity.average_heartrate ?? null,
     max_heartrate:  activity.max_heartrate     ?? null,

@@ -35,7 +35,7 @@ export interface Run {
   // Extended Strava data — all nullable (not all devices/users share this)
   start_time?: string | null;
   moving_time?: number | null;
-  elevation_gain?: number | null;
+  total_elevation_gain?: number | null;
   sport_type?: string | null;
   avg_heartrate?: number | null;
   max_heartrate?: number | null;

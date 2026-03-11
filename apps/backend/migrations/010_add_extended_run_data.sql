@@ -10,6 +10,7 @@
 -- sport_type    : 'Run', 'TrailRun', 'VirtualRun' — NULL for manual runs
 --                 VirtualRun = treadmill; excluded from outdoor-only title calculations
 
+-- Note: total_elevation_gain, start_time, moving_time, sport_type already existed
 ALTER TABLE runs
   ADD COLUMN IF NOT EXISTS pace_std_dev FLOAT,
   ADD COLUMN IF NOT EXISTS avg_heartrate FLOAT,
