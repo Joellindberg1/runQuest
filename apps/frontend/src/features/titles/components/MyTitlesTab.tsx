@@ -6,7 +6,7 @@ import { UserTitleStatus } from './title/UserTitleStatus';
 import { getTitleIcon, getValueSuffix } from './title/titleSystemUtils';
 import { backendApi } from '@/shared/services/backendApi';
 import { useUpdateDisplayedTitles } from '@/shared/hooks/useTitleQueries';
-import { useToast } from '@/shared/hooks/use-toast';
+import { useToast } from '@/shared/components/ui/use-toast';
 import type { TitleLeaderboard } from '@/shared/hooks/useTitleQueries';
 import type { User } from '@runquest/types';
 
