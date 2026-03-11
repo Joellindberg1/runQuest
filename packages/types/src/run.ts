@@ -15,6 +15,7 @@ export interface User {
   losses?: number;
   challenge_active?: boolean;
   challenge_counts?: { minor?: number; major?: number; legendary?: number };
+  displayed_title_ids?: string[];
 }
 
 export interface Run {

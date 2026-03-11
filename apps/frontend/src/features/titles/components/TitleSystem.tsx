@@ -7,7 +7,12 @@ import { TitleCard } from './title/TitleCard';
 import { TitleRequirements } from './title/TitleRequirements';
 import { MyTitlesTab } from './MyTitlesTab';
 import { useTitleSystemData } from '../hooks/useTitleSystemData';
-import { useAuth } from '@/features/auth';
+import type { User } from '@runquest/types';
+
+interface TitleSystemProps {
+  currentUser: User;
+  onRefresh?: () => void;
+}
 
 const TABS = [
   { value: 'leaderboard', label: 'Leaderboard', icon: <Trophy className="w-4 h-4" /> },
@@ -15,10 +20,9 @@ const TABS = [
   { value: 'my-titles',   label: 'My Titles',    icon: <Crown className="w-4 h-4" /> },
 ];
 
-export const TitleSystem: React.FC = () => {
+export const TitleSystem: React.FC<TitleSystemProps> = ({ currentUser, onRefresh }) => {
   const [tab, setTab] = useState('leaderboard');
   const { titles, loading } = useTitleSystemData();
-  const { user } = useAuth();
 
   if (loading) {
     return (
@@ -48,7 +52,8 @@ export const TitleSystem: React.FC = () => {
         <MyTitlesTab
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           titles={titles as any}
-          currentUserId={user?.id ?? ''}
+          currentUser={currentUser}
+          onRefresh={onRefresh}
         />
       </TabsContent>
     </PageTabs>

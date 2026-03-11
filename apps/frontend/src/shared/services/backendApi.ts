@@ -538,6 +538,13 @@ class BackendApiService {
     return response;
   }
 
+  async updateDisplayedTitles(titleIds: string[]): Promise<ApiResponse<void>> {
+    return this.authenticatedRequest<void>('/auth/me/displayed-titles', {
+      method: 'PUT',
+      body: JSON.stringify({ title_ids: titleIds }),
+    });
+  }
+
   // 🔄 Refresh title leaderboards after data changes
   async refreshTitleLeaderboards(): Promise<ApiResponse<{ message: string; updated: number }>> {
     try {

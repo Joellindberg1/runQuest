@@ -84,6 +84,13 @@ export function useMultipleUserTitles(userIds: string[]) {
   });
 }
 
+/** Mutation to save current user's displayed title selection (up to 3, ordered). */
+export function useUpdateDisplayedTitles() {
+  return useMutation({
+    mutationFn: (titleIds: string[]) => backendApi.updateDisplayedTitles(titleIds),
+  });
+}
+
 /** Mutation for refreshing title leaderboard calculations (admin). */
 export function useRefreshTitleLeaderboards() {
   const queryClient = useQueryClient();

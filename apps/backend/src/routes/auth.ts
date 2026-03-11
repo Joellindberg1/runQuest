@@ -516,6 +516,35 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
   }
 });
 
+// PUT /api/auth/me/displayed-titles - Update current user's displayed title IDs
+router.put('/me/displayed-titles', authenticateJWT, async (req, res): Promise<void> => {
+  try {
+    const userId = req.user!.user_id;
+    const { title_ids } = req.body;
+
+    if (!Array.isArray(title_ids) || title_ids.length > 3) {
+      res.status(400).json({ error: 'title_ids must be an array of up to 3 IDs' }); return;
+    }
+
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('users')
+      .update({ displayed_title_ids: title_ids })
+      .eq('id', userId);
+
+    if (error) {
+      logger.error('❌ Error updating displayed titles:', error.message);
+      res.status(500).json({ error: 'Failed to update displayed titles' }); return;
+    }
+
+    logger.info(`✅ Updated displayed titles for user ${userId}: [${title_ids.join(', ')}]`);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('❌ Error updating displayed titles:', error);
+    res.status(500).json({ error: 'Internal server error' }); return;
+  }
+});
+
 // GET /api/auth/users-with-runs - Get all users in same group with their runs
 router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> => {
   try {
@@ -529,7 +558,7 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
       .select(`
         id, name, total_xp, current_level, total_km,
         current_streak, longest_streak, profile_picture,
-        wins, draws, losses, challenge_active,
+        wins, draws, losses, challenge_active, displayed_title_ids,
         runs(id, user_id, date, distance, xp_gained, multiplier,
              streak_day, base_xp, km_xp, distance_bonus, streak_bonus)
       `)

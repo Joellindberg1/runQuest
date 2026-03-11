@@ -41,6 +41,7 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
         losses: user.losses ?? 0,
         challenge_active: user.challenge_active ?? false,
         challenge_counts: user.challenge_counts ?? {},
+        displayed_title_ids: user.displayed_title_ids ?? [],
         runs: user.runs?.map((run) => ({
           id: run.id,
           user_id: run.user_id,
