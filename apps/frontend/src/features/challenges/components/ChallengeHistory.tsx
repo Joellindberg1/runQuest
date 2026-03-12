@@ -40,54 +40,59 @@ const HistoryItem: React.FC<{ challenge: Challenge }> = ({ challenge }) => {
   const isDrawn    = challenge.outcome === 'draw';
   const isDeclined = challenge.outcome === 'declined';
 
-  const outcomeLabel = isDrawn    ? 'Draw'
-                     : isDeclined ? 'Declined'
-                     : `Winner: ${winnerName(challenge)}`;
-
-  const outlineCls = isDrawn || isDeclined
-    ? 'text-muted-foreground'
-    : 'text-foreground font-semibold';
-
   return (
     <div className="bg-background border border-foreground/15 rounded-lg overflow-hidden">
       <button
-        className="w-full flex items-start justify-between p-3 hover:bg-accent transition-colors text-left"
+        className="w-full flex flex-col gap-1 sm:grid sm:grid-cols-[auto_1fr_auto] sm:items-start sm:gap-x-3 sm:gap-y-0 p-3 hover:bg-accent transition-colors text-left"
         onClick={() => setOpen(o => !o)}
       >
-        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <TierBadge tier={challenge.tier} size="sm" />
-            <span className="text-sm font-semibold truncate">
-              {challenge.challenger_name} vs {challenge.opponent_name}
-            </span>
-          </div>
-          <span className={`text-xs pl-0.5 ${outlineCls}`}>{outcomeLabel}</span>
+        {/* Tier badge */}
+        <div>
+          <TierBadge tier={challenge.tier} size="sm" />
         </div>
-        <div className="shrink-0 ml-2 mt-0.5">
-          {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+
+        {/* Names (+ scores on sm+) */}
+        <div className="sm:text-center min-w-0">
+          <div className="text-sm font-semibold leading-tight truncate">
+            {challenge.challenger_name} vs {challenge.opponent_name}
+          </div>
+          {challenge.challenger_final_value != null && challenge.opponent_final_value != null && (
+            <div className="hidden sm:block text-xs text-muted-foreground mt-0.5">
+              {formatVal(challenge.metric, challenge.challenger_final_value)}
+              {' — '}
+              {formatVal(challenge.metric, challenge.opponent_final_value)}
+            </div>
+          )}
+        </div>
+
+        {/* Scores — own row on mobile only */}
+        {challenge.challenger_final_value != null && challenge.opponent_final_value != null && (
+          <div className="text-xs text-muted-foreground sm:hidden">
+            {formatVal(challenge.metric, challenge.challenger_final_value)}
+            {' — '}
+            {formatVal(challenge.metric, challenge.opponent_final_value)}
+          </div>
+        )}
+
+        {/* Outcome + chevron */}
+        <div className="text-xs flex items-center justify-between sm:flex-col sm:items-end sm:gap-0.5">
+          {isDeclined || isDrawn ? (
+            <span className="text-muted-foreground font-medium">{isDrawn ? 'Draw' : 'Declined'}</span>
+          ) : (
+            <span className="text-foreground font-semibold">
+              <span className="text-muted-foreground font-normal">Winner: </span>
+              {winnerName(challenge)}
+            </span>
+          )}
+          <div className="text-muted-foreground sm:mt-0.5">
+            {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </div>
         </div>
       </button>
 
       {open && (
         <div className="px-3 pb-3 border-t border-foreground/10">
-          {/* Final score */}
-          {(challenge.challenger_final_value != null && challenge.opponent_final_value != null) && (
-            <div className="mt-2 mb-2 rounded-lg bg-background border border-foreground/10 px-3 py-2 flex items-center justify-between text-sm">
-              <div className={`font-bold min-w-0 ${challenge.winner_id === challenge.challenger_id ? 'text-green-600 dark:text-green-400' : ''}`}>
-                <div className="truncate">{challenge.challenger_name}</div>
-                <div className="text-base">{formatVal(challenge.metric, challenge.challenger_final_value)}</div>
-              </div>
-              <div className="text-xs text-muted-foreground font-medium px-2 shrink-0">
-                {challenge.outcome === 'draw' ? 'Draw' : 'vs'}
-              </div>
-              <div className={`font-bold text-right min-w-0 ${challenge.winner_id === challenge.opponent_id ? 'text-green-600 dark:text-green-400' : ''}`}>
-                <div className="truncate">{challenge.opponent_name}</div>
-                <div className="text-base">{formatVal(challenge.metric, challenge.opponent_final_value)}</div>
-              </div>
-            </div>
-          )}
-
-          <div className="pt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <div className="pt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <div>Metric: <span className="font-medium text-foreground"><MetricLabel metric={challenge.metric} /></span></div>
             <div>Duration: <span className="font-medium text-foreground">{challenge.duration_days} days</span></div>
             {challenge.end_date && (
