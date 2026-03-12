@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
 import { getSupabaseClient } from '../config/database.js';
 import { settleChallenge } from '../services/challengeService.js';
+import { todayStockholm, addDaysToDate, at3amStockholm } from '../utils/dateUtils.js';
 
 // ─── Settle ended challenges ─────────────────────────────────────────────────
 
@@ -42,12 +43,12 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
   logger.info(`⚔️ Auto-starting ${challenges.length} legendary challenge(s)...`);
 
-  const startDate = new Date().toISOString().split('T')[0];
+  const startDate = todayStockholm();
 
   await Promise.all(
     challenges.map((c: any) => {
-      const endDate = new Date(Date.now() + c.duration_days * 86400000).toISOString().split('T')[0];
-      const determineAt = new Date(Date.now() + (c.duration_days + 1) * 86400000).toISOString();
+      const endDate = addDaysToDate(startDate, c.duration_days);
+      const determineAt = at3amStockholm(addDaysToDate(startDate, c.duration_days + 1)).toISOString();
       return supabase
         .from('challenges')
         .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })

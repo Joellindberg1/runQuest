@@ -7,6 +7,7 @@ import {
   getProgressForChallenge,
   settleChallenge,
 } from '../services/challengeService.js';
+import { tomorrowStockholm, addDaysToDate, at3amStockholm } from '../utils/dateUtils.js';
 
 const router = express.Router();
 
@@ -284,14 +285,10 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       res.json({ success: true, message: 'Challenge declined' }); return;
     }
 
-    // Accept: activate challenge — starts tomorrow so neither party can time their acceptance
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const startDate = tomorrow.toISOString().split('T')[0];
-    const endDate = new Date(tomorrow.getTime() + challenge.duration_days * 86400000)
-      .toISOString()
-      .split('T')[0];
-    const determineAt = new Date(tomorrow.getTime() + (challenge.duration_days + 1) * 86400000).toISOString();
+    // Accept: activate challenge — always starts next midnight Stockholm time
+    const startDate = tomorrowStockholm();
+    const endDate = addDaysToDate(startDate, challenge.duration_days);
+    const determineAt = at3amStockholm(addDaysToDate(startDate, challenge.duration_days + 1)).toISOString();
 
     await Promise.all([
       supabase
