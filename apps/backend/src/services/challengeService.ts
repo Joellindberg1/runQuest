@@ -287,7 +287,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
   // 1. Update challenge record
   await supabase
     .from('challenges')
-    .update({ status: 'completed', winner_id: winnerId, outcome })
+    .update({ status: 'completed', winner_id: winnerId, outcome, challenger_final_value: c.value, opponent_final_value: o.value })
     .eq('id', challengeId);
 
   // 2. Reset challenge_active for both users
