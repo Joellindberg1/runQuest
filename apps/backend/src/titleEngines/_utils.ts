@@ -28,3 +28,17 @@ export function utcMinutes(ts: string): number {
 export function dayOfWeek(dateStr: string): number {
   return new Date(dateStr).getUTCDay();
 }
+
+/** Minutes since midnight in Stockholm local time (handles CET/CEST automatically). */
+export function stockholmMinutes(ts: string): number {
+  const d = new Date(ts);
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(d);
+  const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
+  const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
+  return h * 60 + m;
+}

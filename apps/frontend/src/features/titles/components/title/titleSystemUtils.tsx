@@ -63,10 +63,12 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     case 'bestSingleRunElevation':
       return `${Math.round(value)}m`;
     case 'fastestMarathon': {
+      if (value < -100) return '—';
       const mins = Math.round(720 - value);
       return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}m`;
     }
     case 'fastestHalfMarathon': {
+      if (value < -100) return '—';
       const mins = Math.round(360 - value);
       return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}m`;
     }
