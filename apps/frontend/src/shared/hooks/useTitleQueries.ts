@@ -7,6 +7,7 @@ export interface TitleLeaderboard {
   name: string;
   description: string;
   unlock_requirement: number;
+  metric_key?: string;
   holder: {
     user_id: string;
     user_name: string;

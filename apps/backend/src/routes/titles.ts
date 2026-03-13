@@ -230,7 +230,7 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
       users.map(async (user: any) => {
         const { data: runs } = await supabase.client
           .from('runs')
-          .select('date, distance')
+          .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time')
           .eq('user_id', user.id)
           .order('date', { ascending: true });
 
@@ -244,10 +244,7 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
         return {
           userId: user.id,
           name: user.name,
-          longestRun: values.longestRun,
-          weekendAvg: values.weekendAvg,
-          longestStreak: values.longestStreak,
-          totalKm: values.totalKm,
+          values,
         };
       })
     );

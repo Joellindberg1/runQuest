@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Crown, Check, Save } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { UserTitleStatus } from './title/UserTitleStatus';
-import { getTitleIcon, getValueSuffix } from './title/titleSystemUtils';
+import { getTitleIcon, formatTitleValue } from './title/titleSystemUtils';
 import { backendApi } from '@/shared/services/backendApi';
 import { useUpdateDisplayedTitles } from '@/shared/hooks/useTitleQueries';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -133,7 +133,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
                     <p className="text-sm font-semibold leading-tight">{title.name}</p>
                     {title.holder && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {title.holder.value.toFixed(1)}{getValueSuffix(title.name)}
+                        {formatTitleValue(title.metric_key, title.holder.value)}
                       </p>
                     )}
                   </div>
@@ -169,7 +169,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Your Stats
           </h3>
-          <UserTitleStatus eligibility={myEligibility} />
+          <UserTitleStatus eligibility={myEligibility} titles={titles} />
         </div>
       )}
     </div>

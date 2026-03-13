@@ -88,6 +88,7 @@ export class TitleLeaderboardService {
             name: row.title_name,
             description: row.title_description,
             unlock_requirement: row.unlock_requirement,
+            metric_key: row.metric_key,
             holder: null,
             runners_up: []
           };

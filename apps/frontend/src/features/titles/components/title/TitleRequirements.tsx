@@ -4,8 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { UserTitleStatus } from './UserTitleStatus';
 import { backendApi } from '@/shared/services/backendApi';
+import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
 
 export const TitleRequirements: React.FC = () => {
+  const { data: titles = [] } = useTitleLeaderboard();
+
   const { data: eligibility = [], isLoading } = useQuery({
     queryKey: ['titles', 'group-eligibility'],
     queryFn: async () => {
@@ -16,10 +19,15 @@ export const TitleRequirements: React.FC = () => {
     staleTime: 2 * 60 * 1000,
   });
 
+  // Deduplicate titles by id (leaderboard returns one row per position)
+  const uniqueTitles = titles.filter(
+    (t, i, arr) => arr.findIndex(x => x.id === t.id) === i
+  );
+
   return (
     <Card className="bg-sidebar border-2 border-foreground/15">
       <CardHeader>
-        <CardTitle>How Title Competition Works</CardTitle>
+        <CardTitle>Title Eligibility</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -29,7 +37,6 @@ export const TitleRequirements: React.FC = () => {
               <li>• Each title has a minimum requirement to unlock</li>
               <li>• Once unlocked, you must beat the current holder to claim the title</li>
               <li>• Titles change hands immediately when records are broken</li>
-              <li>• Weekend average is calculated per complete weekend (Sat + Sun totals)</li>
             </ul>
           </div>
 
@@ -37,8 +44,8 @@ export const TitleRequirements: React.FC = () => {
             <div className="text-center py-8 text-sm text-muted-foreground">Loading eligibility...</div>
           ) : eligibility.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {eligibility.map(e => (
-                <UserTitleStatus key={e.userId} eligibility={e} />
+              {eligibility.map((e: any) => (
+                <UserTitleStatus key={e.userId} eligibility={e} titles={uniqueTitles} />
               ))}
             </div>
           ) : (
