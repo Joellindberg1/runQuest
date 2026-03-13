@@ -46,12 +46,12 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
   const myEligibility = eligibility.find(e => e.userId === currentUser.id);
 
   // Initialise selection from the user's saved displayed_title_ids
-  const [selected, setSelected] = useState<string[]>(currentUser.displayed_title_ids ?? []);
+  const [selected, setSelected] = useState<string[]>((currentUser.displayed_title_ids ?? []).slice(0, 3));
   const [dirty, setDirty] = useState(false);
 
   // Sync when user data changes (e.g. after save invalidates cache)
   useEffect(() => {
-    setSelected(currentUser.displayed_title_ids ?? []);
+    setSelected((currentUser.displayed_title_ids ?? []).slice(0, 3));
     setDirty(false);
   }, [currentUser.displayed_title_ids]);
 

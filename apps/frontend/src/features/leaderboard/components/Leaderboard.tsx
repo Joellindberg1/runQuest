@@ -49,10 +49,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
     const isPodium = position <= 3;
     const heldTitles = (userTitlesData[user.id] || []).filter((t) => t.is_current_holder);
     const displayIds = user.displayed_title_ids ?? [];
-    // If user has configured a display order, respect it; otherwise show all held titles
-    const orderedTitles: UserTitle[] = displayIds.length > 0
+    // If user has configured a display order, respect it; otherwise show held titles — always cap at 3
+    const orderedTitles: UserTitle[] = (displayIds.length > 0
       ? displayIds.map(id => heldTitles.find(t => t.title_id === id)).filter(Boolean) as UserTitle[]
-      : heldTitles;
+      : heldTitles).slice(0, 3);
     const titles: UserTitle[] =
       position === 1 && orderedTitles.length === 0
         ? [{ title_name: 'Eliud Kipchoge', value: 0, is_current_holder: true }]
