@@ -570,12 +570,19 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
           const matches = activities.filter((a: any) => externalIdToRunId.has(a.id.toString()));
           for (let i = 0; i < matches.length; i += 10) {
             const batch = matches.slice(i, i + 10);
-            await Promise.allSettled(batch.map((activity: any) =>
-              supabase.from('runs')
-                .update(extractExtendedFields(activity))
-                .eq('id', externalIdToRunId.get(activity.id.toString()))
-            ));
-            userUpdated += batch.length;
+            const results = await Promise.allSettled(batch.map(async (activity: any) => {
+              const fields = extractExtendedFields(activity);
+              const runId = externalIdToRunId.get(activity.id.toString());
+              const { error } = await supabase.from('runs').update(fields).eq('id', runId);
+              if (error) {
+                logger.error(`❌ Failed to update run ${runId} (activity ${activity.id}): ${error.message}`, { fields });
+                throw error;
+              }
+            }));
+            const succeeded = results.filter(r => r.status === 'fulfilled').length;
+            const failed = results.filter(r => r.status === 'rejected').length;
+            if (failed > 0) logger.error(`❌ ${failed}/${batch.length} updates failed in batch`);
+            userUpdated += succeeded;
             if (i + 10 < matches.length) await new Promise(r => setTimeout(r, 500));
           }
 
@@ -758,16 +765,17 @@ async function syncUserStravaActivities(userId: string): Promise<{
     const validActivities = runningActivities.filter((a: any) => a.distance / 1000 > 0);
 
     const insertResults = await Promise.allSettled(
-      validActivities.map((activity: any) => {
+      validActivities.map(async (activity: any) => {
         const distance = activity.distance / 1000;
         const date = activity.start_date_local.split('T')[0];
-        return supabase.from('runs').insert({
+        const fields = extractExtendedFields(activity);
+        const { error } = await supabase.from('runs').insert({
           user_id: userId,
           date,
           distance,
           source: 'strava',
           external_id: activity.id.toString(),
-          ...extractExtendedFields(activity),
+          ...fields,
           // XP placeholders — recalculated by reprocessRunsFromDate
           base_xp: 0,
           km_xp: 0,
@@ -778,6 +786,10 @@ async function syncUserStravaActivities(userId: string): Promise<{
           xp_gained: 0,
           created_at: new Date().toISOString()
         });
+        if (error) {
+          logger.error(`❌ Failed to insert run (activity ${activity.id}): ${error.message}`, { fields });
+          throw error;
+        }
       })
     );
 
