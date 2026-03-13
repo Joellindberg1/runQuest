@@ -11,7 +11,7 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
     // Get all runs for the user
     const { data: runs, error } = await supabase
       .from('runs')
-      .select('xp_gained, distance, date')
+      .select('xp_gained, distance, date, start_time, total_elevation_gain, pace_std_dev, moving_time')
       .eq('user_id', userId)
       .order('date', { ascending: true });
 

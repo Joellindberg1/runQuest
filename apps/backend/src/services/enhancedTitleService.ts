@@ -157,7 +157,7 @@ export class EnhancedTitleService {
         users.map(async (user: any) => {
           const { data: runs, error: runsError } = await supabase.client
             .from('runs')
-            .select('date, distance')
+            .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time')
             .eq('user_id', user.id)
             .order('date', { ascending: true });
 
