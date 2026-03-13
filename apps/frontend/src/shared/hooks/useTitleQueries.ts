@@ -31,6 +31,20 @@ export const titleQueryKeys = {
   userTitles: (userId: string) => [...titleQueryKeys.all, 'user', userId] as const,
 };
 
+/** Fetch all titles (regardless of leaderboard status) for eligibility display. */
+export function useAllTitles() {
+  return useQuery({
+    queryKey: [...titleQueryKeys.all, 'all-titles'] as const,
+    queryFn: async () => {
+      const response = await backendApi.getAllTitles();
+      return response.success ? (response.data ?? []) : [];
+    },
+    staleTime: 10 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
 /** Fetch full title leaderboard with React Query caching. */
 export function useTitleLeaderboard() {
   return useQuery({

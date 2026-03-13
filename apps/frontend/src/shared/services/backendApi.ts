@@ -30,7 +30,9 @@ interface TitleData {
   id: string;
   name: string;
   description: string;
-  category: string;
+  metric_key?: string;
+  unlock_requirement: number;
+  category?: string;
   icon?: string;
 }
 

@@ -4,10 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { UserTitleStatus } from './UserTitleStatus';
 import { backendApi } from '@/shared/services/backendApi';
-import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
+import { useAllTitles } from '@/shared/hooks/useTitleQueries';
 
 export const TitleRequirements: React.FC = () => {
-  const { data: titles = [] } = useTitleLeaderboard();
+  const { data: allTitles = [] } = useAllTitles();
 
   const { data: eligibility = [], isLoading } = useQuery({
     queryKey: ['titles', 'group-eligibility'],
@@ -19,10 +19,7 @@ export const TitleRequirements: React.FC = () => {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Deduplicate titles by id (leaderboard returns one row per position)
-  const uniqueTitles = titles.filter(
-    (t, i, arr) => arr.findIndex(x => x.id === t.id) === i
-  );
+  const uniqueTitles = allTitles;
 
   return (
     <Card className="bg-sidebar border-2 border-foreground/15">
