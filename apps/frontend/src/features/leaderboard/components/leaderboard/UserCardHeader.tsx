@@ -10,15 +10,19 @@ interface UserCardHeaderProps {
   level: number;
   initials: string;
   titles: UserTitle[];
+  totalHeld: number;
 }
 
-const formatTitlesDisplay = (titles: UserTitle[]): string | null => {
+const formatTitlesDisplay = (titles: UserTitle[], totalHeld: number): string | null => {
   if (titles.length === 0) return null;
   const names = titles.map((t) => t.title_name);
-  if (titles.length === 1) return names[0];
-  if (titles.length === 2) return `The one who is a bit too tryhard, ${names[0]} & ${names[1]}`;
-  const last = names.pop();
-  return `The one with too many names, ${names.join(', ')} & ${last}`;
+  if (totalHeld > 3) {
+    if (names.length === 1) return `${names[0]} & The one with too many names to mention!`;
+    return `${names.slice(0, -1).join(', ')}, ${names[names.length - 1]} & The one with too many names to mention!`;
+  }
+  if (names.length === 1) return names[0];
+  const last = names[names.length - 1];
+  return `${names.slice(0, -1).join(', ')} & ${last}`;
 };
 
 export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
@@ -27,9 +31,10 @@ export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
   level,
   initials,
   titles,
+  totalHeld,
 }) => {
   const isPodium = position <= 3;
-  const titlesDisplay = formatTitlesDisplay(titles);
+  const titlesDisplay = formatTitlesDisplay(titles, totalHeld);
 
   const getPodiumIcon = (pos: number) => {
     switch (pos) {

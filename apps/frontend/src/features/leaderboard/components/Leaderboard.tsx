@@ -108,6 +108,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser }) 
             level={stats.level}
             initials={initials}
             titles={titles}
+            totalHeld={heldTitles.length}
           />
           <LevelProgress
             xpProgress={stats.xpProgress}

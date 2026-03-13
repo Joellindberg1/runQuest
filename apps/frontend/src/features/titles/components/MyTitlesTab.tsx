@@ -17,12 +17,15 @@ interface MyTitlesTabProps {
 }
 
 /** Mirrors the leaderboard formatTitlesDisplay logic for the preview. */
-function formatPreview(names: string[]): string {
+function formatPreview(names: string[], totalHeld: number): string {
   if (names.length === 0) return 'No titles selected';
+  if (totalHeld > 3) {
+    if (names.length === 1) return `${names[0]} & The one with too many names to mention!`;
+    return `${names.slice(0, -1).join(', ')}, ${names[names.length - 1]} & The one with too many names to mention!`;
+  }
   if (names.length === 1) return names[0];
-  if (names.length === 2) return `The one who is a bit too tryhard, ${names[0]} & ${names[1]}`;
   const last = names[names.length - 1];
-  return `The one with too many names, ${names.slice(0, -1).join(', ')} & ${last}`;
+  return `${names.slice(0, -1).join(', ')} & ${last}`;
 }
 
 export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, onRefresh }) => {
@@ -148,7 +151,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
           <div className="mt-4 space-y-3">
             <div className="rounded-lg bg-sidebar border border-foreground/10 px-4 py-3">
               <p className="text-xs text-muted-foreground mb-1">Preview on leaderboard:</p>
-              <p className="text-sm italic text-foreground/80">{formatPreview(selectedNames)}</p>
+              <p className="text-sm italic text-foreground/80">{formatPreview(selectedNames, myTitles.length)}</p>
             </div>
             <Button
               size="sm"
