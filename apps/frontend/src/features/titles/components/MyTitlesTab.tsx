@@ -5,7 +5,7 @@ import { Button } from '@/shared/components/ui/button';
 import { UserTitleStatus } from './title/UserTitleStatus';
 import { getTitleIcon, formatTitleValue } from './title/titleSystemUtils';
 import { backendApi } from '@/shared/services/backendApi';
-import { useUpdateDisplayedTitles } from '@/shared/hooks/useTitleQueries';
+import { useUpdateDisplayedTitles, useAllTitles } from '@/shared/hooks/useTitleQueries';
 import { useToast } from '@/shared/components/ui/use-toast';
 import type { TitleLeaderboard } from '@/shared/hooks/useTitleQueries';
 import type { User } from '@runquest/types';
@@ -39,6 +39,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
     staleTime: 2 * 60 * 1000,
   });
 
+  const { data: allTitles = [] } = useAllTitles();
   const updateDisplayed = useUpdateDisplayedTitles();
   const { toast } = useToast();
 
@@ -172,7 +173,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Your Stats
           </h3>
-          <UserTitleStatus eligibility={myEligibility} titles={titles} />
+          <UserTitleStatus eligibility={myEligibility} titles={allTitles} />
         </div>
       )}
     </div>
