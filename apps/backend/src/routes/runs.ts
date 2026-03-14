@@ -53,6 +53,15 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   // Fetch settings once — no per-run DB calls
   const { xpSettings, multipliers } = await fetchAdminSettings();
 
+  // Fetch all user boosts (historical — filter per-run below)
+  const { data: userBoosts } = await supabase
+    .from('user_boosts')
+    .select('delta, created_at, expires_at')
+    .eq('user_id', userId)
+    .eq('type', 'multiplier_days');
+
+  const boosts: { delta: number; created_at: string; expires_at: string }[] = userBoosts ?? [];
+
   // Get the run immediately before fromDate to seed the streak count correctly
   const { data: prevRuns } = await supabase
     .from('runs')
@@ -95,7 +104,13 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     }
     // daysDiff === 0 (same day): keep streak count as-is
 
-    const xp = calculateCompleteRunXP(run.distance, currentStreakCount, xpSettings, multipliers);
+    // Sum deltas of boosts active on this run's date
+    const runDateStr = run.date; // 'YYYY-MM-DD'
+    const boostDelta = boosts
+      .filter(b => b.created_at.slice(0, 10) <= runDateStr && b.expires_at.slice(0, 10) >= runDateStr)
+      .reduce((sum, b) => sum + b.delta, 0);
+
+    const xp = calculateCompleteRunXP(run.distance, currentStreakCount, xpSettings, multipliers, boostDelta);
     lastRunDate = runDate;
 
     return {

@@ -194,16 +194,17 @@ export function calculateCompleteRunXP(
   distanceKm: number,
   streakDay: number,
   settings: AdminSettings,
-  multipliers: StreakMultiplier[]
+  multipliers: StreakMultiplier[],
+  boostDelta: number = 0
 ): CompleteRunXP {
-  console.log(`🏃 Complete XP calculation for ${distanceKm}km run on streak day ${streakDay}`);
-  
+  console.log(`🏃 Complete XP calculation for ${distanceKm}km run on streak day ${streakDay}, boostDelta=${boostDelta}`);
+
   // Phase 1: Calculate base XP
   const xpResult = calculateRunXP(distanceKm, settings);
-  
-  // Phase 2: Calculate streak multiplier
-  const multiplier = calculateStreakMultiplier(streakDay, multipliers);
-  
+
+  // Phase 2: Calculate streak multiplier + add any active challenge boost delta
+  const multiplier = calculateStreakMultiplier(streakDay, multipliers) + boostDelta;
+
   // Phase 3: Apply multiplier to base + km XP only (not distance bonus)
   const multipliedXP = (xpResult.baseXP + xpResult.kmXP) * multiplier;
   const streakBonus = multipliedXP - (xpResult.baseXP + xpResult.kmXP);
