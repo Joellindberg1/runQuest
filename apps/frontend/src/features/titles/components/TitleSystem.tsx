@@ -50,8 +50,8 @@ interface CategorySectionProps {
   titles: Title[];
 }
 
-const CategorySection: React.FC<CategorySectionProps> = ({ label, titles }) => {
-  const [open, setOpen] = useState(true);
+const CategorySection: React.FC<CategorySectionProps & { defaultOpen?: boolean }> = ({ label, titles, defaultOpen = false }) => {
+  const [open, setOpen] = useState(defaultOpen);
 
   if (titles.length === 0) return null;
 
@@ -103,8 +103,8 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ currentUser, onRefresh
   return (
     <PageTabs value={tab} onValueChange={setTab} tabs={TABS}>
       <TabsContent value="leaderboard" className="px-4 pb-4">
-        {categorized.map(cat => (
-          <CategorySection key={cat.id} label={cat.label} titles={cat.titles} />
+        {categorized.map((cat, i) => (
+          <CategorySection key={cat.id} label={cat.label} titles={cat.titles} defaultOpen={i === 0} />
         ))}
       </TabsContent>
 
