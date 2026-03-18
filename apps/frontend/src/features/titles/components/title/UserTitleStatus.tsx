@@ -21,9 +21,12 @@ interface UserTitleStatusProps {
   titles: TitleRef[];
 }
 
-const Section: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+const Section: React.FC<{ label: string; count: number; children: React.ReactNode }> = ({ label, count, children }) => (
   <div className="mb-2">
-    <div className="text-xs font-semibold px-1 mb-1 text-muted-foreground uppercase tracking-wide">{label}</div>
+    <div className="flex items-center justify-between px-2 py-1.5 rounded-md bg-muted/50 mb-1">
+      <span className="text-xs font-semibold">{label}</span>
+      <span className="text-xs text-muted-foreground">{count}</span>
+    </div>
     <div className="space-y-1 px-1">{children}</div>
   </div>
 );
@@ -51,12 +54,12 @@ export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ eligibility, t
     <div className="p-3 border border-foreground/50 rounded-lg bg-background">
       <div className="font-semibold mb-2 text-sm">{name}</div>
       {eligible.length > 0 && (
-        <Section label="Eligible">
+        <Section label="Eligible" count={eligible.length}>
           {eligible.map(t => renderRow(t, true))}
         </Section>
       )}
       {notEligible.length > 0 && (
-        <Section label="Not Eligible">
+        <Section label="Not Eligible" count={notEligible.length}>
           {notEligible.map(t => renderRow(t, false))}
         </Section>
       )}
