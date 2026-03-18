@@ -42,6 +42,27 @@ function computePaceStdDev(splits?: Array<{ distance: number; moving_time: numbe
   return Math.sqrt(variance);
 }
 
+/**
+ * Fetch the detailed Strava activity (includes splits_metric).
+ * Falls back to the summary object on error.
+ */
+async function fetchDetailedActivity(activityId: string | number, accessToken: string): Promise<any> {
+  try {
+    const res = await fetch(
+      `https://www.strava.com/api/v3/activities/${activityId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok) {
+      logger.warn(`⚠️ Could not fetch detailed activity ${activityId}: HTTP ${res.status}`);
+      return null;
+    }
+    return await res.json();
+  } catch (err) {
+    logger.warn(`⚠️ Error fetching detailed activity ${activityId}:`, err);
+    return null;
+  }
+}
+
 /** Build the extended-data fields from a Strava activity object. */
 function extractExtendedFields(activity: any) {
   return {
@@ -549,46 +570,28 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
 
         const externalIdToRunId = new Map(existingRuns.map((r: any) => [r.external_id, r.id]));
 
-        // Fetch all activities from Strava (paginated)
-        const after = user.connection_date
-          ? Math.floor(new Date(user.connection_date).getTime() / 1000)
-          : Math.floor(Date.now() / 1000) - 365 * 24 * 3600; // fallback: 1 year ago
-
-        let page = 1;
+        // Fetch each activity individually (detail endpoint includes splits_metric)
         let userUpdated = 0;
+        const externalIds = Array.from(externalIdToRunId.keys());
 
-        while (true) {
-          const stravaRes = await fetch(
-            `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200&page=${page}`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
-          );
-          if (!stravaRes.ok) break;
-          const activities: any[] = await stravaRes.json();
-          if (!activities.length) break;
-
-          // Update matching runs in batches of 10
-          const matches = activities.filter((a: any) => externalIdToRunId.has(a.id.toString()));
-          for (let i = 0; i < matches.length; i += 10) {
-            const batch = matches.slice(i, i + 10);
-            const results = await Promise.allSettled(batch.map(async (activity: any) => {
-              const fields = extractExtendedFields(activity);
-              const runId = externalIdToRunId.get(activity.id.toString());
-              const { error } = await supabase.from('runs').update(fields).eq('id', runId);
-              if (error) {
-                logger.error(`❌ Failed to update run ${runId} (activity ${activity.id}): ${error.message}`, { fields });
-                throw error;
-              }
-            }));
-            const succeeded = results.filter(r => r.status === 'fulfilled').length;
-            const failed = results.filter(r => r.status === 'rejected').length;
-            if (failed > 0) logger.error(`❌ ${failed}/${batch.length} updates failed in batch`);
-            userUpdated += succeeded;
-            if (i + 10 < matches.length) await new Promise(r => setTimeout(r, 500));
-          }
-
-          if (activities.length < 200) break;
-          page++;
-          await new Promise(r => setTimeout(r, 1000)); // rate limit between pages
+        for (let i = 0; i < externalIds.length; i += 10) {
+          const batch = externalIds.slice(i, i + 10);
+          const results = await Promise.allSettled(batch.map(async (externalId: string) => {
+            const activity = await fetchDetailedActivity(externalId, accessToken);
+            if (!activity) return;
+            const fields = extractExtendedFields(activity);
+            const runId = externalIdToRunId.get(externalId);
+            const { error } = await supabase.from('runs').update(fields).eq('id', runId);
+            if (error) {
+              logger.error(`❌ Failed to update run ${runId} (activity ${externalId}): ${error.message}`, { fields });
+              throw error;
+            }
+          }));
+          const succeeded = results.filter(r => r.status === 'fulfilled').length;
+          const failed = results.filter(r => r.status === 'rejected').length;
+          if (failed > 0) logger.error(`❌ ${failed}/${batch.length} updates failed in batch`);
+          userUpdated += succeeded;
+          if (i + 10 < externalIds.length) await new Promise(r => setTimeout(r, 1000)); // rate limit
         }
 
         totalUpdated += userUpdated;
@@ -768,7 +771,9 @@ async function syncUserStravaActivities(userId: string): Promise<{
       validActivities.map(async (activity: any) => {
         const distance = activity.distance / 1000;
         const date = activity.start_date_local.split('T')[0];
-        const fields = extractExtendedFields(activity);
+        // Fetch detailed activity to get splits_metric for pace_std_dev
+        const detailed = await fetchDetailedActivity(activity.id, accessToken);
+        const fields = extractExtendedFields(detailed ?? activity);
         const { error } = await supabase.from('runs').insert({
           user_id: userId,
           date,
