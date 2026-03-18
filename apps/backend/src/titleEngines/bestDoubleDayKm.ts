@@ -14,19 +14,25 @@ export const bestDoubleDayKmEngine: TitleEngine = {
     }
 
     let best = 0;
+    let bestAttempt = 0; // best double day even if criteria not met
 
     for (const dayRuns of byDate.values()) {
+      if (dayRuns.length < 2) continue;
+
+      // Track best attempt (any day with 2+ runs)
+      const attemptTotal = dayRuns.reduce((sum, r) => sum + r.distance_km, 0);
+      if (attemptTotal > bestAttempt) bestAttempt = attemptTotal;
+
+      // Full qualifying check: both runs ≥5km and ≥4h gap
       const qualifying = dayRuns.filter(
         r => r.distance_km >= MIN_DISTANCE_KM && r.start_time
       );
       if (qualifying.length < 2) continue;
 
-      // Sort by start_time
       const sorted = [...qualifying].sort(
         (a, b) => new Date(a.start_time!).getTime() - new Date(b.start_time!).getTime()
       );
 
-      // Check if any pair has at least 4 h gap
       let validDay = false;
       outer: for (let i = 0; i < sorted.length - 1; i++) {
         for (let j = i + 1; j < sorted.length; j++) {
@@ -41,6 +47,7 @@ export const bestDoubleDayKmEngine: TitleEngine = {
       }
     }
 
-    return best;
+    // Return qualifying value if exists, otherwise best attempt for display
+    return best > 0 ? best : bestAttempt;
   }
 };
