@@ -1,6 +1,5 @@
 
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import React from 'react';
 import { formatTitleValue, resolveGenderedTitle } from './titleSystemUtils';
 
 export interface UserEligibility {
@@ -22,33 +21,12 @@ interface UserTitleStatusProps {
   titles: TitleRef[];
 }
 
-interface SectionProps {
-  label: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-  count: number;
-}
-
-const Section: React.FC<SectionProps> = ({ label, defaultOpen = true, children, count }) => {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="mb-2">
-      <button
-        className="w-full flex items-center justify-between px-2 py-1.5 rounded-md bg-muted/50 hover:bg-muted transition-colors mb-1"
-        onClick={() => setOpen(o => !o)}
-      >
-        <span className="text-xs font-semibold">{label}</span>
-        <span className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">{count}</span>
-          {open
-            ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-            : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-        </span>
-      </button>
-      {open && <div className="space-y-1 px-1">{children}</div>}
-    </div>
-  );
-};
+const Section: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="mb-2">
+    <div className="text-xs font-semibold px-1 mb-1 text-muted-foreground uppercase tracking-wide">{label}</div>
+    <div className="space-y-1 px-1">{children}</div>
+  </div>
+);
 
 export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ eligibility, titles }) => {
   const { name, gender, values } = eligibility;
@@ -73,12 +51,12 @@ export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ eligibility, t
     <div className="p-3 border border-foreground/50 rounded-lg bg-background">
       <div className="font-semibold mb-2 text-sm">{name}</div>
       {eligible.length > 0 && (
-        <Section label="Eligible" defaultOpen={true} count={eligible.length}>
+        <Section label="Eligible">
           {eligible.map(t => renderRow(t, true))}
         </Section>
       )}
       {notEligible.length > 0 && (
-        <Section label="Not Eligible" defaultOpen={false} count={notEligible.length}>
+        <Section label="Not Eligible">
           {notEligible.map(t => renderRow(t, false))}
         </Section>
       )}
