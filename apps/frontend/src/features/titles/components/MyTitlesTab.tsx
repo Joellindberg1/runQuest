@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Crown, Check, Save } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { UserTitleStatus } from './title/UserTitleStatus';
-import { getTitleIcon, formatTitleValue } from './title/titleSystemUtils';
+import { getTitleIcon, formatTitleValue, resolveGenderedTitle } from './title/titleSystemUtils';
 import { backendApi } from '@/shared/services/backendApi';
 import { useUpdateDisplayedTitles, useAllTitles } from '@/shared/hooks/useTitleQueries';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -134,7 +134,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
 
                   {/* Name + value */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold leading-tight">{title.name}</p>
+                    <p className="text-sm font-semibold leading-tight">{resolveGenderedTitle(title.name, currentUser.gender)}</p>
                     {title.holder && (
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {formatTitleValue(title.metric_key, title.holder.value)}

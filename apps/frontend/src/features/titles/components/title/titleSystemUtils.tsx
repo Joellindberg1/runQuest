@@ -47,6 +47,14 @@ export const getTitleIcon = (titleName: string) => {
   return <Trophy className="w-6 h-6 text-gray-500" />;
 };
 
+/** Replace "King/Queen" in a title name based on the holder's gender. */
+export function resolveGenderedTitle(name: string, gender?: string | null): string {
+  if (!name.includes('King/Queen')) return name;
+  if (gender === 'female') return name.replace('King/Queen', 'Queen');
+  if (gender === 'male') return name.replace('King/Queen', 'King');
+  return name;
+}
+
 /** Format a title value for display given its metric_key. */
 export function formatTitleValue(metricKey: string | undefined, value: number): string {
   switch (metricKey) {

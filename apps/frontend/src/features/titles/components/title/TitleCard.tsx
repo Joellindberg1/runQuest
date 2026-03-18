@@ -2,7 +2,7 @@
 import React from 'react';
 import { Badge } from '@/shared/components/ui/badge';
 import { Crown } from 'lucide-react';
-import { getTitleIcon, formatTitleValue, Title } from './titleSystemUtils';
+import { getTitleIcon, formatTitleValue, resolveGenderedTitle, Title } from './titleSystemUtils';
 
 interface TitleCardProps {
   title: Title;
@@ -24,7 +24,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
       <div className="flex items-start gap-3">
         {getTitleIcon(title.name)}
         <div className="flex-1">
-          <h3 className="font-semibold text-lg mb-1">{title.name}</h3>
+          <h3 className="font-semibold text-lg mb-1">{resolveGenderedTitle(title.name, (title as any).holder?.user_gender)}</h3>
           <p className="text-sm text-muted-foreground mb-3">{title.description}</p>
 
           {holder ? (

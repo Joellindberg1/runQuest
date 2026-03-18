@@ -558,7 +558,7 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
       .select(`
         id, name, total_xp, current_level, total_km,
         current_streak, longest_streak, profile_picture,
-        wins, draws, losses, challenge_active, displayed_title_ids,
+        wins, draws, losses, challenge_active, displayed_title_ids, gender,
         runs(id, user_id, date, distance, xp_gained, multiplier,
              streak_day, base_xp, km_xp, distance_bonus, streak_bonus)
       `)

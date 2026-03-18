@@ -98,6 +98,7 @@ export class TitleLeaderboardService {
           titleGroups[row.title_id].holder = {
             user_id: row.user_id,
             user_name: row.user_name,
+            user_gender: row.user_gender ?? null,
             profile_picture: row.profile_picture,
             value: row.value,
             earned_at: row.earned_at
@@ -107,6 +108,7 @@ export class TitleLeaderboardService {
             position: row.position,
             user_id: row.user_id,
             user_name: row.user_name,
+            user_gender: row.user_gender ?? null,
             profile_picture: row.profile_picture,
             value: row.value,
             earned_at: row.earned_at

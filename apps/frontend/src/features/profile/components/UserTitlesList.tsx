@@ -2,13 +2,14 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Crown } from 'lucide-react';
 import { useUserTitles, useTitleLeaderboard, useAllTitles } from '@/shared/hooks/useTitleQueries';
-import { formatTitleValue } from '@/features/titles/components/title/titleSystemUtils';
+import { formatTitleValue, resolveGenderedTitle } from '@/features/titles/components/title/titleSystemUtils';
 
 interface UserTitlesListProps {
   userId: string;
+  userGender?: string | null;
 }
 
-export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
+export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId, userGender }) => {
   const { data: userTitles = [] } = useUserTitles(userId);
   const { data: allTitles = [] } = useTitleLeaderboard();
   const { data: titleDefs = [] } = useAllTitles();
@@ -44,7 +45,7 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
                       const runnerUp = titleData?.runners_up?.[0];
                       return (
                         <div key={index} className="p-3 bg-background border border-foreground/50 rounded-lg">
-                          <div className="font-medium">{title.title_name}</div>
+                          <div className="font-medium">{resolveGenderedTitle(title.title_name, userGender)}</div>
                           <div className="text-sm text-muted-foreground">
                             Your Record: {formatTitleValue(metricKey, title.value ?? 0)}
                           </div>
@@ -74,7 +75,7 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
                       const holder = titleData?.holder;
                       return (
                         <div key={index} className="p-3 bg-background border border-foreground/50 rounded-lg">
-                          <div className="font-medium">{title.title_name}</div>
+                          <div className="font-medium">{resolveGenderedTitle(title.title_name, userGender)}</div>
                           <div className="text-sm text-muted-foreground">
                             Your Record: {formatTitleValue(metricKey, title.value ?? 0)}
                           </div>

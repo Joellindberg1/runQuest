@@ -11,6 +11,7 @@ export interface TitleLeaderboard {
   holder: {
     user_id: string;
     user_name: string;
+    user_gender?: string | null;
     profile_picture?: string;
     value: number;
     earned_at: string;
@@ -19,6 +20,7 @@ export interface TitleLeaderboard {
     position: number;
     user_id: string;
     user_name: string;
+    user_gender?: string | null;
     profile_picture?: string;
     value: number;
     earned_at: string;

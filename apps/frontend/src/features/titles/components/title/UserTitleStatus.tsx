@@ -1,10 +1,11 @@
 
 import React from 'react';
-import { formatTitleValue } from './titleSystemUtils';
+import { formatTitleValue, resolveGenderedTitle } from './titleSystemUtils';
 
 export interface UserEligibility {
   userId: string;
   name: string;
+  gender?: string | null;
   values: Record<string, number>;
 }
 
@@ -21,7 +22,7 @@ interface UserTitleStatusProps {
 }
 
 export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ eligibility, titles }) => {
-  const { name, values } = eligibility;
+  const { name, gender, values } = eligibility;
 
   return (
     <div className="p-3 border border-foreground/50 rounded-lg bg-background">
@@ -33,7 +34,7 @@ export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ eligibility, t
           const eligible = value >= title.unlock_requirement;
           return (
             <div key={title.id} className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground truncate">{title.name}</span>
+              <span className="text-muted-foreground truncate">{resolveGenderedTitle(title.name, gender)}</span>
               <span className={`font-medium shrink-0 ${eligible ? 'text-green-500' : 'text-muted-foreground/60'}`}>
                 {eligible ? '✅' : '❌'} {formatTitleValue(key, value)}
               </span>

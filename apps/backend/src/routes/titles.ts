@@ -216,7 +216,7 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
     // Get all non-admin users in the group
     const { data: users, error: usersError } = await supabase.client
       .from('users')
-      .select('id, name, total_km, longest_streak')
+      .select('id, name, total_km, longest_streak, gender')
       .eq('group_id', caller.group_id)
       .neq('name', 'Admin');
 
@@ -244,6 +244,7 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
         return {
           userId: user.id,
           name: user.name,
+          gender: user.gender ?? null,
           values,
         };
       })

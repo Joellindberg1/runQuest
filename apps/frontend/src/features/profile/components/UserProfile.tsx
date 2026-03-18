@@ -128,7 +128,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
             </Card>
           </div>
 
-          <UserTitlesList userId={user.id} />
+          <UserTitlesList userId={user.id} userGender={user.gender} />
         </div>
 
         {/* Right column: Run History (1/3 width on lg+) */}
