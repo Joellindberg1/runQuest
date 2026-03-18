@@ -87,12 +87,6 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
   }
 }
 
-/** Legacy suffix helper — kept for any remaining call sites. */
-export const getValueSuffix = (titleName: string) => {
-  if (titleName.includes('Daaaaaviiiiiid GOGGINGS')) return ' days';
-  if (titleName.includes('Weekend Destroyer')) return 'km avg';
-  return 'km';
-};
 
 export const calculateWeekendAverage = (runs: Run[]) =>
   leaderboardUtils.calculateWeekendAverage(runs);
