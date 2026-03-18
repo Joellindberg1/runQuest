@@ -20,31 +20,32 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
     : null;
 
   return (
-    <div className="p-4 border border-foreground/50 rounded-lg bg-background">
-      <div className="flex items-start gap-3">
-        {getTitleIcon(title.name)}
-        <div className="flex-1">
-          <h3 className="font-semibold text-lg mb-1">{resolveGenderedTitle(title.name, (title as any).holder?.user_gender)}</h3>
-          <p className="text-sm text-muted-foreground mb-3">{title.description}</p>
+    <div className="p-3 border border-foreground/20 rounded-lg bg-background">
+      <div className="flex items-start gap-2">
+        <div className="mt-0.5 shrink-0 [&>svg]:w-5 [&>svg]:h-5">{getTitleIcon(title.name)}</div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-sm leading-tight mb-0.5 truncate">
+            {resolveGenderedTitle(title.name, (title as any).holder?.user_gender)}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{title.description}</p>
 
           {holder ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Badge variant="default" className="bg-yellow-600">
-                  <Crown className="w-3 h-3 mr-1" />
+            <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant="default" className="bg-yellow-600 text-xs px-1.5 py-0 h-5">
+                  <Crown className="w-2.5 h-2.5 mr-0.5" />
                   {holder.user_name}
                 </Badge>
-                <span className="text-sm font-semibold">{holderValueStr}</span>
+                <span className="text-xs font-semibold">{holderValueStr}</span>
               </div>
 
               {(title as any).runners_up && (title as any).runners_up.length > 0 && (
-                <div className="mt-3 border-t pt-2">
-                  <div className="text-xs font-semibold text-foreground mb-2">Runners Up:</div>
-                  <div className="space-y-1">
+                <div className="mt-1.5 border-t pt-1.5">
+                  <div className="space-y-0.5">
                     {(title as any).runners_up.slice(0, 3).map((runner: any, index: number) => (
                       <div key={runner.user_id} className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">#{index + 2} {runner.user_name}</span>
-                        <span className="font-medium">{formatTitleValue(title.metric_key, runner.value)}</span>
+                        <span className="text-muted-foreground truncate">#{index + 2} {runner.user_name}</span>
+                        <span className="font-medium ml-1 shrink-0">{formatTitleValue(title.metric_key, runner.value)}</span>
                       </div>
                     ))}
                   </div>
@@ -52,12 +53,12 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
               )}
             </div>
           ) : (
-            <div className="space-y-2">
-              <Badge variant="outline" className="text-red-600 border-red-200">
-                No Current Holder
+            <div>
+              <Badge variant="outline" className="text-red-600 border-red-200 text-xs px-1.5 py-0 h-5">
+                No Holder
               </Badge>
-              <div className="text-xs text-muted-foreground">
-                {formatTitleValue(title.metric_key, title.unlock_requirement)} required to unlock
+              <div className="text-xs text-muted-foreground mt-1">
+                {formatTitleValue(title.metric_key, title.unlock_requirement)} to unlock
               </div>
             </div>
           )}
