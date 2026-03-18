@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Trophy, Calendar, Target, Moon, Sunrise, Coffee, Rabbit, Flame, Ghost, Zap, Mountain, TrendingUp, Clock, Timer, AlarmClock, Footprints } from 'lucide-react';
+import { Trophy, Calendar, Target, Moon, Sunrise, Coffee, Rabbit, Flame, Ghost, Zap, Mountain, TrendingUp, Clock, Timer, AlarmClock, Footprints, TreePine } from 'lucide-react';
 import type { Run, User } from '@runquest/types';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
@@ -43,6 +43,7 @@ export const getTitleIcon = (titleName: string) => {
   if (n.includes('goggings'))       return <Calendar className="w-6 h-6 text-orange-500" />;
   if (n.includes('ultra man'))      return <Trophy className="w-6 h-6 text-purple-500" />;
   if (n.includes('weekend destroyer')) return <Target className="w-6 h-6 text-green-500" />;
+  if (n.includes('park runner'))       return <TreePine className="w-6 h-6 text-lime-500" />;
   return <Trophy className="w-6 h-6 text-gray-500" />;
 };
 
@@ -80,6 +81,13 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     case 'lastRunOfWeek': {
       const d = new Date(value * 1000);
       return d.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+    }
+    case 'fastest5km': {
+      if (value < -100) return '—';
+      const totalSeconds = Math.round((60 - value) * 60);
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      return `${mins}:${String(secs).padStart(2, '0')}`;
     }
     // Distance-based (km)
     default:

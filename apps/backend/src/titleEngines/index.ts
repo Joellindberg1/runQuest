@@ -1,4 +1,5 @@
 import { longestRunEngine }            from './longestRun';
+import { fastest5kmEngine }            from './fastest5km';
 import { totalKmEngine }               from './totalKm';
 import { longestStreakEngine }          from './longestStreak';
 import { weekendAvgEngine }            from './weekendAvg';
@@ -40,6 +41,7 @@ const engines: TitleEngine[] = [
   maxKmRolling30Engine,
   totalElevationGainEngine,
   bestSingleRunElevationEngine,
+  fastest5kmEngine,
 ];
 
 export const titleEngineRegistry = new Map(
