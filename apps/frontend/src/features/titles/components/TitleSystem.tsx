@@ -28,12 +28,13 @@ interface Category {
 }
 
 const CATEGORIES: Category[] = [
-  { id: 'time',        label: '⏰ Tid på dagen',   keywords: ['batman', 'rooster', 'lunch breaker'] },
-  { id: 'performance', label: '🏃 Distans & Tempo', keywords: ['half marathoner', 'marathoner', 'park runner', 'kipchoge', 'ultra man'] },
-  { id: 'volume',      label: '📈 Volym',           keywords: ['monthly monster', 'double trouble', 'weekend destroyer'] },
-  { id: 'elevation',   label: '🏔️ Höjd',            keywords: ['mountain goat', 'vertical runner'] },
-  { id: 'consistency', label: '🔄 Konsistens',      keywords: ['commuter', 'goggings', 'hamster', 'finisher', 'consistent'] },
-  { id: 'comeback',    label: '🌟 Comeback',        keywords: ['ghost', 'phoenix'] },
+  { id: 'time',        label: '⏰ Time of Day',  keywords: ['batman', 'rooster', 'lunch breaker'] },
+  { id: 'distance',    label: '📏 Distance',     keywords: ['ultra man', 'kipchoge', 'monthly monster', 'double trouble', 'weekend destroyer'] },
+  { id: 'pace',        label: '⚡ Pace',          keywords: ['half marathoner', 'marathoner', 'park runner', 'consistent'] },
+  { id: 'volume',      label: '📈 Volume',        keywords: ['hamster', 'finisher', 'commuter'] },
+  { id: 'altitude',    label: '🏔️ Altitude',      keywords: ['mountain goat', 'vertical runner'] },
+  { id: 'consistency', label: '🔄 Consistency',   keywords: ['goggings'] },
+  { id: 'comeback',    label: '🌟 Comeback',      keywords: ['ghost', 'phoenix'] },
 ];
 
 function getCategoryId(title: Title): string {
@@ -62,7 +63,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({ label, titles }) => {
       >
         <span className="text-sm font-semibold">{label}</span>
         <span className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{titles.length} titlar</span>
+          <span className="text-xs text-muted-foreground">{titles.length} {titles.length === 1 ? 'title' : 'titles'}</span>
           {open
             ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
             : <ChevronRight className="w-4 h-4 text-muted-foreground" />}

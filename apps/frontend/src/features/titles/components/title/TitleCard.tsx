@@ -20,7 +20,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
     : null;
 
   return (
-    <div className="p-3 border border-foreground/20 rounded-lg bg-background">
+    <div className="p-3 border border-foreground/20 rounded-lg bg-sidebar">
       <div className="flex items-start gap-2">
         <div className="mt-0.5 shrink-0 [&>svg]:w-5 [&>svg]:h-5">{getTitleIcon(title.name)}</div>
         <div className="flex-1 min-w-0">
