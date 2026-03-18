@@ -73,7 +73,8 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
       const mins = Math.round(360 - value);
       return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}m`;
     }
-    case 'lowestPaceStdDev': {
+    case 'lowestPaceStdDev':
+    case 'avgPaceStdDev': {
       if (value <= 0) return '—';
       const stdDev = (10000 / value).toFixed(1);
       return `${stdDev}s/km std`;
