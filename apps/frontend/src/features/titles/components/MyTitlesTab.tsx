@@ -109,7 +109,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
             {myTitles.map(title => {
               const pos = cleanSelected.indexOf(title.id);
               const isSelected = pos !== -1;
@@ -120,7 +120,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
                   key={title.id}
                   onClick={() => toggle(title.id)}
                   disabled={!isSelected && atMax}
-                  className={`w-full text-left p-3 rounded-lg border-2 transition-colors flex items-center gap-3
+                  className={`text-left p-3 rounded-lg border-2 transition-colors flex flex-col gap-1.5
                     ${isSelected
                       ? 'border-primary/50 bg-primary/5'
                       : atMax
@@ -128,18 +128,18 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
                         : 'border-foreground/15 bg-sidebar hover:border-foreground/30'
                     }`}
                 >
-                  {/* Order badge */}
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold
-                    ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-foreground/10 text-foreground/40'}`}>
-                    {isSelected ? pos + 1 : <Check className="w-3 h-3 opacity-0" />}
+                  {/* Icon + order badge */}
+                  <div className="flex items-center justify-between">
+                    <div className="shrink-0">{getTitleIcon(title.name)}</div>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold
+                      ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-foreground/10 text-foreground/40'}`}>
+                      {isSelected ? pos + 1 : <Check className="w-3 h-3 opacity-0" />}
+                    </div>
                   </div>
 
-                  {/* Icon */}
-                  <div className="shrink-0">{getTitleIcon(title.name)}</div>
-
                   {/* Name + value */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold leading-tight">{resolveGenderedTitle(title.name, currentUser.gender)}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold leading-tight">{resolveGenderedTitle(title.name, currentUser.gender)}</p>
                     {title.holder && (
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {formatTitleValue(title.metric_key, title.holder.value)}
