@@ -1,21 +1,17 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Crown } from 'lucide-react';
-import { useUserTitles, useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
+import { useUserTitles, useTitleLeaderboard, useAllTitles } from '@/shared/hooks/useTitleQueries';
+import { formatTitleValue } from '@/features/titles/components/title/titleSystemUtils';
 
 interface UserTitlesListProps {
   userId: string;
 }
 
-const getValueSuffix = (titleName: string) => {
-  if (titleName.includes('Daaaaaviiiiiid GOGGINGS')) return ' days';
-  if (titleName.includes('Weekend Destroyer')) return 'km avg';
-  return 'km';
-};
-
 export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
   const { data: userTitles = [] } = useUserTitles(userId);
   const { data: allTitles = [] } = useTitleLeaderboard();
+  const { data: titleDefs = [] } = useAllTitles();
 
   const heldTitles = userTitles.filter((title) => title.is_current_holder);
   const runnerUpTitles = userTitles.filter((title) => !title.is_current_holder);
@@ -43,16 +39,18 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
                   <div className="space-y-3">
                     {heldTitles.map((title, index) => {
                       const titleData = allTitles.find((t) => t.name === title.title_name);
+                      const titleDef = titleDefs.find((t) => t.id === title.title_id);
+                      const metricKey = titleDef?.metric_key;
                       const runnerUp = titleData?.runners_up?.[0];
                       return (
                         <div key={index} className="p-3 bg-background border border-foreground/50 rounded-lg">
                           <div className="font-medium">{title.title_name}</div>
                           <div className="text-sm text-muted-foreground">
-                            Your Record: {title.value?.toFixed(1)}{getValueSuffix(title.title_name)}
+                            Your Record: {formatTitleValue(metricKey, title.value ?? 0)}
                           </div>
                           {runnerUp && (
                             <div className="text-xs text-muted-foreground mt-1">
-                              Runner-up: {runnerUp.user_name} ({runnerUp.value.toFixed(1)}{getValueSuffix(title.title_name)})
+                              Runner-up: {runnerUp.user_name} ({formatTitleValue(metricKey, runnerUp.value)})
                             </div>
                           )}
                         </div>
@@ -71,15 +69,18 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId }) => {
                   <div className="space-y-3">
                     {runnerUpTitles.map((title, index) => {
                       const titleData = allTitles.find((t) => t.name === title.title_name);
+                      const titleDef = titleDefs.find((t) => t.id === title.title_id);
+                      const metricKey = titleDef?.metric_key;
+                      const holder = titleData?.holder;
                       return (
                         <div key={index} className="p-3 bg-background border border-foreground/50 rounded-lg">
                           <div className="font-medium">{title.title_name}</div>
                           <div className="text-sm text-muted-foreground">
-                            Your Record: {title.value?.toFixed(1)}{getValueSuffix(title.title_name)}
+                            Your Record: {formatTitleValue(metricKey, title.value ?? 0)}
                           </div>
-                          {titleData && (
+                          {holder && (
                             <div className="text-xs text-muted-foreground mt-1">
-                              Current Holder: {titleData.holder_name} ({titleData.current_value?.toFixed(1)}{getValueSuffix(title.title_name)})
+                              Current Holder: {holder.user_name} ({formatTitleValue(metricKey, holder.value)})
                             </div>
                           )}
                         </div>

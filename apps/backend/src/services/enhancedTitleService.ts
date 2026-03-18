@@ -29,6 +29,10 @@ export class EnhancedTitleService {
       const runData: RunData[] = runs.map((r: any) => ({
         date: r.date,
         distance_km: parseFloat(r.distance_km) || 0,
+        start_time: r.start_time ?? null,
+        total_elevation_gain: r.total_elevation_gain ?? null,
+        pace_std_dev: r.pace_std_dev ?? null,
+        moving_time: r.moving_time ?? null,
       }));
       const userStats: UserStats = { totalKm, longestStreak };
 
@@ -63,6 +67,10 @@ export class EnhancedTitleService {
     const runData: RunData[] = runs.map((r: any) => ({
       date: r.date,
       distance_km: parseFloat(r.distance_km) || 0,
+      start_time: r.start_time ?? null,
+      total_elevation_gain: r.total_elevation_gain ?? null,
+      pace_std_dev: r.pace_std_dev ?? null,
+      moving_time: r.moving_time ?? null,
     }));
     const userStats: UserStats = { totalKm, longestStreak };
 
