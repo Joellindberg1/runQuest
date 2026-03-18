@@ -568,7 +568,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
           continue;
         }
 
-        const externalIdToRunId = new Map(existingRuns.map((r: any) => [r.external_id, r.id]));
+        const externalIdToRunId = new Map<string, string>(existingRuns.map((r: any) => [r.external_id, r.id] as [string, string]));
 
         // Fetch each activity individually (detail endpoint includes splits_metric)
         let userUpdated = 0;
