@@ -4,15 +4,15 @@ export const maxKmRolling30Engine: TitleEngine = {
   metricKey: 'maxKmRolling30',
   calculate(runs: RunData[], _: UserStats): number {
     if (runs.length === 0) return 0;
-    const sorted = [...runs].sort((a, b) => a.date.localeCompare(b.date));
-    const todayDate = new Date().toISOString().split('T')[0];
 
-    const cutoff = new Date(todayDate);
-    cutoff.setUTCDate(cutoff.getUTCDate() - 30);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
+    // Previous calendar month (title changes hands once per month, not daily)
+    const now = new Date();
+    const prevMonthYear = now.getUTCMonth() === 0 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+    const prevMonth = now.getUTCMonth() === 0 ? 12 : now.getUTCMonth();
+    const prefix = `${prevMonthYear}-${String(prevMonth).padStart(2, '0')}`;
 
-    return sorted
-      .filter(r => r.date >= cutoffStr)
+    return runs
+      .filter(r => r.date.startsWith(prefix))
       .reduce((sum, r) => sum + r.distance_km, 0);
   }
 };
