@@ -217,7 +217,11 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
       </Card>
 
       {/* Active boosts */}
-      {boosts.length > 0 && (
+      {boosts.filter(b => {
+        if (b.remaining != null) return b.remaining > 0;
+        if (b.expires_at) return new Date(b.expires_at) > new Date();
+        return true;
+      }).length > 0 && (
         <Card className="bg-sidebar border-2 border-foreground/15">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -226,7 +230,11 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-1.5">
-            {boosts.map(b => (
+            {boosts.filter(b => {
+              if (b.remaining != null) return b.remaining > 0;
+              if (b.expires_at) return new Date(b.expires_at) > new Date();
+              return true;
+            }).map(b => (
               <div key={b.id} className="flex justify-between text-sm">
                 <span className={b.delta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}>
                   {b.delta >= 0 ? '+' : ''}{b.delta}× multiplier

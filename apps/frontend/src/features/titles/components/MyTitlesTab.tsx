@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Crown, Check, Save } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
@@ -56,20 +56,25 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
     setDirty(false);
   }, [currentUser.displayed_title_ids]);
 
+  // Only count IDs the user still holds — filters out lost titles from the selection
+  const myTitleIds = useMemo(() => new Set(myTitles.map(t => t.id)), [myTitles]);
+  const cleanSelected = selected.filter(id => myTitleIds.has(id));
+
   const toggle = (titleId: string) => {
     setSelected(prev => {
-      const next = prev.includes(titleId)
-        ? prev.filter(id => id !== titleId)
-        : prev.length < 3
-          ? [...prev, titleId]
-          : prev; // already at 3, ignore
+      const clean = prev.filter(id => myTitleIds.has(id));
+      const next = clean.includes(titleId)
+        ? clean.filter(id => id !== titleId)
+        : clean.length < 3
+          ? [...clean, titleId]
+          : clean;
       setDirty(true);
       return next;
     });
   };
 
   const handleSave = async () => {
-    const res = await updateDisplayed.mutateAsync(selected);
+    const res = await updateDisplayed.mutateAsync(cleanSelected);
     if (res.success) {
       toast({ title: 'Saved', description: 'Your title display has been updated.' });
       setDirty(false);
@@ -79,7 +84,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
     }
   };
 
-  const selectedNames = selected
+  const selectedNames = cleanSelected
     .map(id => myTitles.find(t => t.id === id)?.name)
     .filter(Boolean) as string[];
 
@@ -92,7 +97,7 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Choose Display (max 3)
           </h3>
-          <span className="text-xs text-muted-foreground">{selected.length}/3 selected</span>
+          <span className="text-xs text-muted-foreground">{cleanSelected.length}/3 selected</span>
         </div>
 
         {myTitles.length === 0 ? (
@@ -106,9 +111,9 @@ export const MyTitlesTab: React.FC<MyTitlesTabProps> = ({ titles, currentUser, o
         ) : (
           <div className="space-y-2">
             {myTitles.map(title => {
-              const pos = selected.indexOf(title.id);
+              const pos = cleanSelected.indexOf(title.id);
               const isSelected = pos !== -1;
-              const atMax = selected.length >= 3;
+              const atMax = cleanSelected.length >= 3;
 
               return (
                 <button
