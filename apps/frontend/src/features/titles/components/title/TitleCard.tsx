@@ -27,29 +27,27 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
           <h3 className="font-semibold text-sm leading-tight mb-0.5 truncate">
             {resolveGenderedTitle(title.name, (title as any).holder?.user_gender)}
           </h3>
-          <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{title.description}</p>
+          <p className="text-xs text-muted-foreground mb-2">{title.description}</p>
 
           {holder ? (
-            <div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <Badge variant="default" className="bg-yellow-600 text-xs px-1.5 py-0 h-5">
-                  <Crown className="w-2.5 h-2.5 mr-0.5" />
-                  {holder.user_name}
-                </Badge>
-                <span className="text-xs font-semibold">{holderValueStr}</span>
+            <div className="border-t pt-1.5 space-y-0.5">
+              <div className="flex justify-between text-xs">
+                <span className="truncate">
+                  <Badge variant="default" className="bg-yellow-600 text-xs px-1.5 py-0 h-5 mr-1">
+                    <Crown className="w-2.5 h-2.5 mr-0.5" />
+                    {holder.user_name}
+                  </Badge>
+                </span>
+                <span className="font-semibold ml-1 shrink-0">{holderValueStr}</span>
               </div>
 
               {(title as any).runners_up && (title as any).runners_up.length > 0 && (
-                <div className="mt-1.5 border-t pt-1.5">
-                  <div className="space-y-0.5">
-                    {(title as any).runners_up.slice(0, 3).map((runner: any, index: number) => (
-                      <div key={runner.user_id} className="flex justify-between text-xs">
-                        <span className="text-muted-foreground truncate">#{index + 2} {runner.user_name}</span>
-                        <span className="font-medium ml-1 shrink-0">{formatTitleValue(title.metric_key, runner.value)}</span>
-                      </div>
-                    ))}
+                (title as any).runners_up.slice(0, 3).map((runner: any, index: number) => (
+                  <div key={runner.user_id} className="flex justify-between text-xs">
+                    <span className="text-muted-foreground truncate">#{index + 2} {runner.user_name}</span>
+                    <span className="font-medium ml-1 shrink-0">{formatTitleValue(title.metric_key, runner.value)}</span>
                   </div>
-                </div>
+                ))
               )}
             </div>
           ) : (
