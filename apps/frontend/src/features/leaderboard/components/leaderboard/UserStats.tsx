@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { Target, Zap, Calendar, Clock, TrendingUp, Timer, CalendarDays } from 'lucide-react';
 import type { User } from '@runquest/types';
 
 interface UserStatsProps {
@@ -15,97 +14,72 @@ interface UserStatsProps {
   };
 }
 
+const bebas = { fontFamily: 'Bebas Neue, sans-serif' };
+const barlow = { fontFamily: 'Barlow Condensed, sans-serif' };
+const mono = { fontFamily: 'Share Tech Mono, monospace' };
+
+const Block: React.FC<{ value: string; label: string; hero?: boolean }> = ({ value, label, hero }) => (
+  <div
+    className="flex flex-col gap-0.5 px-2 py-2"
+    style={{ background: 'var(--rq-surface-2)', border: '1px solid var(--rq-border-2)' }}
+  >
+    <span
+      className="leading-none"
+      style={{
+        ...bebas,
+        fontSize: hero ? '1.5rem' : '1.15rem',
+        color: hero ? 'var(--rq-gold)' : 'hsl(var(--foreground))',
+      }}
+    >
+      {value}
+    </span>
+    <span
+      className="leading-none uppercase tracking-wide"
+      style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-soft)' }}
+    >
+      {label}
+    </span>
+  </div>
+);
+
 export const UserStats: React.FC<UserStatsProps> = ({ user, stats }) => {
   return (
-    <div className="space-y-2">
-      {/* First row: Runs - Longest */}
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div className="flex items-center gap-2">
-          <Target className="w-4 h-4 text-blue-500" />
-          <div>
-            <div className="font-semibold">{stats.numberOfRuns}</div>
-            <div className="text-muted-foreground text-xs">Runs</div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-orange-500" />
-          <div>
-            <div className="font-semibold">{stats.longestRun.toFixed(1)}km</div>
-            <div className="text-muted-foreground text-xs">Longest</div>
-          </div>
-        </div>
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
+        <Block value={`${user.total_km.toFixed(0)} km`} label="Total" hero />
+        <Block value={`${stats.longestRun.toFixed(1)} km`} label="Longest" />
+        <Block value={String(stats.numberOfRuns)} label="Runs" />
       </div>
 
-      {/* Second row: Avg run (length km) - Total KM */}
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div className="flex items-center gap-2">
-          <Timer className="w-4 h-4 text-purple-500" />
-          <div>
-            <div className="font-semibold">{stats.averageKmPerRun.toFixed(1)}km</div>
-            <div className="text-muted-foreground text-xs">Avg run</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-green-500" />
-          <div>
-            <div className="font-semibold">{user.total_km.toFixed(1)}km</div>
-            <div className="text-muted-foreground text-xs">Total KM</div>
-          </div>
-        </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        <Block value={`${stats.averageKmPerRun.toFixed(1)} km`} label="Avg run" />
+        <Block value={`${user.current_streak}d`} label="Streak" />
+        <Block value={`${user.longest_streak}d`} label="Best" />
       </div>
 
-      {/* Third row: Highest streak - Current streak */}
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-indigo-500" />
-          <div>
-            <div className="font-semibold">{user.longest_streak}</div>
-            <div className="text-muted-foreground text-xs">Highest Streak</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-pink-500" />
-          <div>
-            <div className="font-semibold">{user.current_streak}</div>
-            <div className="text-muted-foreground text-xs">Current Streak</div>
-          </div>
-        </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        <Block value={user.total_xp.toLocaleString()} label="XP total" hero />
+        <Block value={`${stats.avgXpPer14Days}/d`} label="14D XP Avg" />
+        <Block
+          value={stats.daysToNextLevel > 0 ? `${stats.daysToNextLevel}d` : 'MAX'}
+          label="Next lvl"
+          hero
+        />
       </div>
 
-      {/* Stats section */}
-      <div className="border-t pt-2 space-y-1">
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Total XP:</span>
-          <span className="font-semibold">{user.total_xp.toLocaleString()}</span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Avg/day (14d):</span>
-          <span className="font-semibold">{stats.avgXpPer14Days} XP</span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">To next level (avg 14d XP):</span>
-          <span className="font-semibold">
-            {stats.daysToNextLevel > 0 ? `${stats.daysToNextLevel} days` : 'Max Level'}
+      {stats.latestRun && (
+        <div
+          className="flex items-center justify-between px-2 py-1.5"
+          style={{ background: 'var(--rq-surface-1)', border: '1px solid var(--rq-border-1)' }}
+        >
+          <span style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Last run
+          </span>
+          <span style={{ ...mono, fontSize: '0.75rem', color: 'var(--rq-text-soft)' }}>
+            {new Date(stats.latestRun.date).toLocaleDateString()} · {stats.latestRun.distance.toFixed(1)} km
           </span>
         </div>
-        
-        {/* Latest run section */}
-        {stats.latestRun && (
-          <div className="flex items-center gap-2 pt-2 border-t">
-            <CalendarDays className="w-4 h-4 text-blue-500" />
-            <div className="flex-1">
-              <div className="text-xs text-muted-foreground">Latest run:</div>
-              <div className="text-xs font-semibold">
-                {new Date(stats.latestRun.date).toLocaleDateString()} - {stats.latestRun.distance.toFixed(1)}km
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };
-

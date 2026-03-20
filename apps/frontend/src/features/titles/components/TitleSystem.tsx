@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { TabsContent } from '@/shared/components/ui/tabs';
 import { PageTabs } from '@/shared/components/PageTabs';
-import { Trophy, BookOpen, Crown, ChevronDown, ChevronRight } from 'lucide-react';
+import { Trophy, BookOpen, Crown, ChevronDown, ChevronRight, Clock, Route, Zap, TrendingUp, Mountain, RefreshCw, Flame } from 'lucide-react';
 import { TitleCard } from './title/TitleCard';
 import { TitleRequirements } from './title/TitleRequirements';
 import { MyTitlesTab } from './MyTitlesTab';
@@ -24,17 +24,18 @@ const TABS = [
 interface Category {
   id: string;
   label: string;
+  icon: React.ReactNode;
   keywords: string[];
 }
 
 const CATEGORIES: Category[] = [
-  { id: 'time',        label: '⏰ Time of Day',  keywords: ['batman', 'rooster', 'lunch breaker'] },
-  { id: 'distance',    label: '📏 Distance',     keywords: ['ultra man', 'kipchoge', 'monthly monster', 'double trouble', 'weekend destroyer'] },
-  { id: 'pace',        label: '⚡ Pace',          keywords: ['half marathoner', 'marathoner', 'park runner', 'consistent'] },
-  { id: 'volume',      label: '📈 Volume',        keywords: ['hamster', 'finisher', 'commuter'] },
-  { id: 'altitude',    label: '🏔️ Altitude',      keywords: ['mountain goat', 'vertical runner'] },
-  { id: 'consistency', label: '🔄 Consistency',   keywords: ['goggings'] },
-  { id: 'comeback',    label: '🌟 Comeback',      keywords: ['ghost', 'phoenix'] },
+  { id: 'time',        label: 'Time of Day',  icon: <Clock className="w-3.5 h-3.5" />,      keywords: ['batman', 'rooster', 'lunch breaker'] },
+  { id: 'distance',    label: 'Distance',     icon: <Route className="w-3.5 h-3.5" />,      keywords: ['ultra man', 'kipchoge', 'monthly monster', 'double trouble', 'weekend destroyer'] },
+  { id: 'pace',        label: 'Pace',         icon: <Zap className="w-3.5 h-3.5" />,        keywords: ['half marathoner', 'marathoner', 'park runner', 'consistent'] },
+  { id: 'volume',      label: 'Volume',       icon: <TrendingUp className="w-3.5 h-3.5" />, keywords: ['hamster', 'finisher', 'commuter'] },
+  { id: 'altitude',    label: 'Altitude',     icon: <Mountain className="w-3.5 h-3.5" />,   keywords: ['mountain goat', 'vertical runner'] },
+  { id: 'consistency', label: 'Consistency',  icon: <RefreshCw className="w-3.5 h-3.5" />,  keywords: ['goggings'] },
+  { id: 'comeback',    label: 'Comeback',     icon: <Flame className="w-3.5 h-3.5" />,      keywords: ['ghost', 'phoenix'] },
 ];
 
 function getCategoryId(title: Title): string {
@@ -47,10 +48,11 @@ function getCategoryId(title: Title): string {
 
 interface CategorySectionProps {
   label: string;
+  icon: React.ReactNode;
   titles: Title[];
 }
 
-const CategorySection: React.FC<CategorySectionProps & { defaultOpen?: boolean }> = ({ label, titles, defaultOpen = false }) => {
+const CategorySection: React.FC<CategorySectionProps & { defaultOpen?: boolean }> = ({ label, icon, titles, defaultOpen = false }) => {
   const [open, setOpen] = useState(defaultOpen);
 
   if (titles.length === 0) return null;
@@ -58,10 +60,13 @@ const CategorySection: React.FC<CategorySectionProps & { defaultOpen?: boolean }
   return (
     <div className="mb-4">
       <button
-        className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors mb-2"
+        className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-sidebar border border-foreground/15 hover:bg-accent transition-colors mb-2"
         onClick={() => setOpen(o => !o)}
       >
-        <span className="text-sm font-semibold">{label}</span>
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <span style={{ color: 'var(--rq-gold)' }}>{icon}</span>
+          {label}
+        </span>
         <span className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{titles.length} {titles.length === 1 ? 'title' : 'titles'}</span>
           {open
@@ -104,7 +109,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ currentUser, onRefresh
     <PageTabs value={tab} onValueChange={setTab} tabs={TABS}>
       <TabsContent value="leaderboard" className="px-4 pb-4">
         {categorized.map((cat, i) => (
-          <CategorySection key={cat.id} label={cat.label} titles={cat.titles} defaultOpen={i === 0} />
+          <CategorySection key={cat.id} label={cat.label} icon={cat.icon} titles={cat.titles} defaultOpen={i === 0} />
         ))}
       </TabsContent>
 

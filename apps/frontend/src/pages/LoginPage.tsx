@@ -30,15 +30,15 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="flex flex-col items-center mb-8">
-          <RunQuestLogo className="h-14 w-auto text-gray-800 mb-3" />
-          <p className="text-lg text-gray-600">Login to continue your journey</p>
+          <RunQuestLogo className="h-14 w-auto mb-3" />
+          <p className="text-lg text-muted-foreground">Login to continue your journey</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          <div className="mb-4 p-3 bg-destructive/10 border border-destructive/40 text-destructive rounded">
             {error}
           </div>
         )}

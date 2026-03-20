@@ -58,6 +58,8 @@ export const leaderboardUtils = {
       level,
       xpProgress: Math.max(0, Math.min(100, xpProgress)),
       xpLeftForNextLevel,
+      xpInLevel: level < MAX_LEVEL ? Math.round(user.total_xp - currentLevelXP) : 0,
+      xpLevelRange: level < MAX_LEVEL ? Math.round(nextLevelXP - currentLevelXP) : 0,
       numberOfRuns,
       longestRun,
       averageKmPerRun,

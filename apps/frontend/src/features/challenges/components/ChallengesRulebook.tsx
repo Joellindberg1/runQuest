@@ -118,11 +118,11 @@ export const ChallengesRulebook: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <div className="text-xs text-muted-foreground mb-0.5">Winner</div>
-                    <div className="font-medium text-green-600 dark:text-green-400">{r.winner}</div>
+                    <div className="font-medium" style={{ color: 'var(--rq-success)' }}>{r.winner}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground mb-0.5">Loser</div>
-                    <div className="font-medium text-red-500 dark:text-red-400">{r.loser}</div>
+                    <div className="font-medium" style={{ color: 'var(--rq-danger)' }}>{r.loser}</div>
                   </div>
                 </div>
               </CardContent>

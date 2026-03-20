@@ -1,60 +1,45 @@
 import React from 'react';
-import { Bell, Menu } from 'lucide-react';
+import { Menu, Bell } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { ThemeToggle } from '@/shared/components/ThemeToggle';
 import { ProfileMenu } from '@/features/profile';
+import { RunQuestLogo } from '@/shared/components/RunQuestLogo';
 
 interface TopBarProps {
-  groupName: string;
   onMenuToggle: () => void;
-  leftWidget?: React.ReactNode;
+  groupName?: string;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ groupName, onMenuToggle, leftWidget }) => {
+export const TopBar: React.FC<TopBarProps> = ({ onMenuToggle }) => {
   return (
-    <header className="grid grid-cols-[1fr_auto_1fr] items-center px-4 md:px-6 py-3 bg-background">
-      {/* Left: hamburger (mobile) + optional widget (desktop) */}
-      <div className="flex items-center gap-2">
+    <header className="flex items-center justify-between px-4 md:px-6 py-3 bg-background">
+      {/* Left: hamburger (mobile) + logo (desktop) */}
+      <div className="flex items-center gap-3">
         <Button
           variant="ghost"
           size="sm"
-          className="md:hidden p-2"
+          className="md:hidden p-2 shrink-0"
           onClick={onMenuToggle}
         >
           <Menu className="w-5 h-5" />
         </Button>
-        {leftWidget && (
-          <div className="hidden md:block">
-            {leftWidget}
-          </div>
-        )}
+
+        <RunQuestLogo className="h-14 w-auto text-foreground" />
       </div>
 
-      {/* Center: group name — grid center col so it's truly centered within the full TopBar */}
-      <h1 className="text-2xl md:text-3xl font-bold text-foreground text-center leading-tight">
-        {groupName}
-      </h1>
-
-      {/* Right: notification + theme switch + profile icon — hidden on mobile (moved to sidebar) */}
-      <div className="flex items-center gap-2 md:gap-3 justify-end">
-        <div className="hidden md:contents">
-          {/* Notification (placeholder) */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground"
-            disabled
-            title="Notifications — coming soon"
-          >
-            <Bell className="w-4 h-4" />
-          </Button>
-
-          {/* Light / Dark switch */}
-          <ThemeToggle />
-
-          {/* Profile dropdown */}
-          <ProfileMenu />
-        </div>
+      {/* Right: utility icons — desktop only, moved to sidebar on mobile */}
+      <div className="hidden md:flex items-center gap-3">
+        <ThemeToggle />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground"
+          disabled
+          title="Notifications — coming soon"
+        >
+          <Bell className="w-4 h-4" />
+        </Button>
+        <ProfileMenu />
       </div>
     </header>
   );

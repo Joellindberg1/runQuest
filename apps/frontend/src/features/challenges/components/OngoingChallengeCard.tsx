@@ -1,5 +1,4 @@
 import React from 'react';
-import { Card, CardContent } from '@/shared/components/ui/card';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { Clock } from 'lucide-react';
@@ -19,12 +18,25 @@ interface OngoingChallengeCardProps {
   isOwn?: boolean;
 }
 
-const OSWALD = "'Oswald', 'Arial Narrow', Arial, sans-serif";
+const bebas = { fontFamily: 'Bebas Neue, sans-serif' };
+const barlow = { fontFamily: 'Barlow Condensed, sans-serif' };
+
+const TIER_COLOR: Record<string, string> = {
+  minor: '#3b82f6',
+  major: '#f97316',
+  legendary: 'var(--rq-gold)',
+};
 
 function formatValue(metric: string, value: number): string {
-  if (metric === 'km') return `${value.toFixed(1)} km`;
-  if (metric === 'runs') return `${value} runs`;
-  return `${value} XP`;
+  if (metric === 'km') return `${value.toFixed(1)}`;
+  if (metric === 'runs') return `${value}`;
+  return `${value}`;
+}
+
+function formatUnit(metric: string): string {
+  if (metric === 'km') return 'km';
+  if (metric === 'runs') return 'runs';
+  return 'xp';
 }
 
 function formatEndDate(endDate: string): string {
@@ -32,9 +44,10 @@ function formatEndDate(endDate: string): string {
   today.setHours(0, 0, 0, 0);
   const end = new Date(endDate + 'T00:00:00');
   const diff = Math.round((end.getTime() - today.getTime()) / 86_400_000);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Tomorrow';
-  return endDate;
+  if (diff === 0) return 'ends today';
+  if (diff === 1) return 'ends tomorrow';
+  if (diff < 0) return 'ended';
+  return `${diff}d left`;
 }
 
 function isPendingStart(startDate?: string): boolean {
@@ -57,85 +70,138 @@ export const OngoingChallengeCard: React.FC<OngoingChallengeCardProps> = ({
   const goalValue = sorted[0]?.goalValue;
   const pending = isPendingStart(challenge.start_date);
   const hours = pending && challenge.start_date ? hoursUntilStart(challenge.start_date) : 0;
+  const tierColor = TIER_COLOR[challenge.tier] ?? 'var(--rq-gold)';
 
   return (
-    <Card className={`border-2 relative ${isOwn ? 'border-primary/50 bg-primary/5' : 'border-foreground/15 bg-sidebar'}`}>
-      <CardContent className={`pt-4 pb-4 space-y-3 ${pending ? 'opacity-40 select-none' : ''}`}>
-        {/* Header row */}
+    <div
+      className="relative overflow-hidden"
+      style={{
+        background: 'var(--rq-surface-1)',
+        border: `1px solid var(--rq-border-2)`,
+        borderLeft: isOwn ? `3px solid ${tierColor}` : `1px solid var(--rq-border-2)`,
+        opacity: pending ? 0.5 : 1,
+      }}
+    >
+      {/* Tier accent line */}
+      <div style={{ height: '2px', background: `linear-gradient(to right, color-mix(in srgb, ${tierColor} 60%, transparent), transparent)` }} />
+
+      <div className="px-3 pt-2.5 pb-3 space-y-2.5">
+        {/* Header */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <TierBadge tier={challenge.tier} />
-            <span className="text-sm font-semibold">
+          <div className="flex items-center gap-1.5">
+            <TierBadge tier={challenge.tier} size="sm" />
+            <span
+              className="uppercase tracking-wide"
+              style={{ ...barlow, fontSize: '0.85rem', fontWeight: 600, color: 'var(--rq-text-strong)' }}
+            >
               <MetricLabel metric={challenge.metric} />
             </span>
-            <span className="text-xs text-muted-foreground">· {challenge.duration_days}d</span>
+            <span style={{ ...barlow, fontSize: '0.75rem', color: 'var(--rq-text-dim)' }}>
+              · {challenge.duration_days}d
+            </span>
           </div>
           {challenge.end_date && !pending && (
-            <span className="text-xs text-muted-foreground shrink-0">
-              Ends: {formatEndDate(challenge.end_date)}
+            <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {formatEndDate(challenge.end_date)}
             </span>
           )}
         </div>
 
+        {/* VS blocks */}
         {isGoalBased && goalValue != null ? (
           <div className="space-y-2">
             {sorted.map(p => {
               const isMe = p.user_id === currentUserId;
               const pct = Math.min(100, Math.round((p.value / goalValue) * 100));
               return (
-                <div key={p.user_id} className="space-y-0.5">
-                  <div className="flex justify-between text-sm">
-                    <span className={`font-medium ${isMe ? 'text-primary' : ''}`}>{p.name}</span>
-                    <span className="font-semibold">{formatValue(challenge.metric, p.value)}</span>
+                <div key={p.user_id}>
+                  <div className="flex justify-between items-baseline mb-0.5">
+                    <span style={{ ...barlow, fontSize: '0.8rem', fontWeight: isMe ? 700 : 500, color: isMe ? 'var(--rq-gold)' : 'var(--rq-text-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {p.name}
+                    </span>
+                    <span style={{ ...bebas, fontSize: '1rem', color: isMe ? 'var(--rq-gold)' : 'var(--rq-text-soft)' }}>
+                      {formatValue(challenge.metric, p.value)} <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{formatUnit(challenge.metric)}</span>
+                    </span>
                   </div>
-                  <div className="h-2 rounded-full bg-foreground/10 overflow-hidden">
+                  <div className="h-1.5 overflow-hidden" style={{ background: 'var(--rq-border-1)' }}>
                     <div
-                      className={`h-full rounded-full ${isMe ? 'bg-primary' : 'bg-foreground/30'}`}
-                      style={{ width: `${pct}%` }}
+                      style={{
+                        width: `${pct}%`,
+                        height: '100%',
+                        background: isMe ? tierColor : 'var(--rq-text-dim)',
+                      }}
                     />
                   </div>
-                  <div className="text-xs text-muted-foreground text-right">{pct}% of goal</div>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-2">
-            {sorted.map((p, idx) => {
-              const isMe = p.user_id === currentUserId;
-              const isLeading = idx === 0;
-              return (
-                <React.Fragment key={p.user_id}>
-                  {idx > 0 && <span className="text-xs text-muted-foreground font-medium shrink-0">—</span>}
-                  <div className={`flex flex-col ${idx === 0 ? 'items-start' : 'items-end'} flex-1 min-w-0`}>
-                    <span className={`text-xs truncate ${isMe ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-                      {p.name}
-                    </span>
-                    <span className={`text-lg font-bold leading-tight ${isLeading ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {formatValue(challenge.metric, p.value)}
-                    </span>
-                  </div>
-                </React.Fragment>
-              );
-            })}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            {/* Left player */}
+            {sorted[0] && (
+              <div className="space-y-0" style={{ background: 'var(--rq-surface-2)', border: '1px solid var(--rq-border-1)', padding: '6px 8px' }}>
+                <div style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }} className="truncate">
+                  {sorted[0].name}
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span style={{ ...bebas, fontSize: '1.6rem', lineHeight: 1, color: sorted[0].user_id === currentUserId ? 'var(--rq-gold)' : 'var(--rq-text-strong)' }}>
+                    {formatValue(challenge.metric, sorted[0].value)}
+                  </span>
+                  <span style={{ ...barlow, fontSize: '0.65rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase' }}>
+                    {formatUnit(challenge.metric)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* VS */}
+            <span style={{ ...bebas, fontSize: '0.9rem', color: 'var(--rq-text-dim)', letterSpacing: '0.05em' }}>VS</span>
+
+            {/* Right player */}
+            {sorted[1] && (
+              <div className="space-y-0 text-right" style={{ background: 'var(--rq-surface-2)', border: '1px solid var(--rq-border-1)', padding: '6px 8px' }}>
+                <div style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }} className="truncate">
+                  {sorted[1].name}
+                </div>
+                <div className="flex items-baseline gap-1 justify-end">
+                  <span style={{ ...bebas, fontSize: '1.6rem', lineHeight: 1, color: sorted[1].user_id === currentUserId ? 'var(--rq-gold)' : 'var(--rq-text-muted)' }}>
+                    {formatValue(challenge.metric, sorted[1].value)}
+                  </span>
+                  <span style={{ ...barlow, fontSize: '0.65rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase' }}>
+                    {formatUnit(challenge.metric)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        <div className="text-xs text-muted-foreground border-t border-foreground/10 pt-2 flex gap-4">
-          <span>Winner: <span className="text-green-600 dark:text-green-400 font-medium">+{challenge.winner_delta}x/{challenge.winner_duration}d</span></span>
-          <span>Loser: <span className="text-red-500 dark:text-red-400 font-medium">{challenge.loser_delta}x/{challenge.loser_duration}d</span></span>
+        {/* Stakes footer */}
+        <div
+          className="flex gap-4 pt-2"
+          style={{ borderTop: '1px solid var(--rq-border-1)' }}
+        >
+          <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Win <span style={{ color: 'var(--rq-success)', fontWeight: 700 }}>+{challenge.winner_delta}x/{challenge.winner_duration}d</span>
+          </span>
+          {challenge.tier !== 'legendary' && (
+            <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Lose <span style={{ color: 'var(--rq-danger)', fontWeight: 700 }}>{challenge.loser_delta}x/{challenge.loser_duration}d</span>
+            </span>
+          )}
         </div>
-      </CardContent>
+      </div>
 
       {/* Pending overlay */}
       {pending && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-[inherit] pointer-events-none">
-          <Clock className="w-4 h-4 text-muted-foreground" />
-          <span style={{ fontFamily: OSWALD }} className="text-base font-medium tracking-wide text-foreground">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 pointer-events-none" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <Clock className="w-4 h-4" style={{ color: 'var(--rq-text-muted)' }} />
+          <span style={{ ...bebas, fontSize: '1.1rem', letterSpacing: '0.05em', color: 'var(--rq-text-strong)' }}>
             Starts in {hours}h
           </span>
         </div>
       )}
-    </Card>
+    </div>
   );
 };

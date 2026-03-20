@@ -26,12 +26,12 @@ export const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUp
           disabled={uploading}
           className="mt-2"
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Max file size: 5MB. Supported formats: JPG, PNG, GIF
         </p>
       </div>
       {uploading && (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Upload className="w-4 h-4 animate-spin" />
           Uploading...
         </div>

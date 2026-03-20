@@ -74,7 +74,7 @@ export const AdminSecurity: React.FC<AdminSecurityProps> = ({
             <div className="text-sm space-y-1 pt-1">
               <p className="font-medium">Total updated: {backfillResult.totalUpdated} runs</p>
               {backfillResult.summary.map(s => (
-                <p key={s.user} className={s.error ? 'text-red-500' : 'text-muted-foreground'}>
+                <p key={s.user} className={s.error ? 'text-destructive' : 'text-muted-foreground'}>
                   {s.user}: {s.error ?? `${s.updated} runs`}
                 </p>
               ))}

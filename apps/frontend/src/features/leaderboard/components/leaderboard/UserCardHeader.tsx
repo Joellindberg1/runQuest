@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { Trophy, Medal, Award } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import type { User, UserTitle } from '@runquest/types';
 
@@ -21,8 +20,13 @@ const formatTitlesDisplay = (titles: UserTitle[], totalHeld: number): string | n
     return `${names.slice(0, -1).join(', ')}, ${names[names.length - 1]} & The one with too many names to mention!`;
   }
   if (names.length === 1) return names[0];
-  const last = names[names.length - 1];
-  return `${names.slice(0, -1).join(', ')} & ${last}`;
+  return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
+};
+
+const RANK: Record<number, string> = {
+  1: 'var(--rq-rank-1)',
+  2: 'var(--rq-rank-2)',
+  3: 'var(--rq-rank-3)',
 };
 
 export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
@@ -33,54 +37,56 @@ export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
   titles,
   totalHeld,
 }) => {
-  const isPodium = position <= 3;
   const titlesDisplay = formatTitlesDisplay(titles, totalHeld);
-
-  const getPodiumIcon = (pos: number) => {
-    switch (pos) {
-      case 1: return <Trophy className="w-6 h-6 text-yellow-700" />;
-      case 2: return <Medal className="w-6 h-6 text-zinc-500" />;
-      case 3: return <Award className="w-6 h-6 text-amber-800" />;
-      default: return null;
-    }
-  };
+  const accent = RANK[position];
 
   return (
-    // Single row: avatar left, name+title center, position right — items-start so name floats to top
-    <div className="flex items-start justify-between w-full gap-2">
+    <div className="flex items-center gap-3 w-full">
 
-      {/* Left: Avatar pushed down so it sits at the title line */}
-      <div className="relative mt-4 shrink-0">
-        <Avatar className="h-12 w-12">
+      {/* Avatar */}
+      <div className="relative shrink-0">
+        <Avatar
+          className="h-12 w-12"
+          style={{ border: `1.5px solid ${accent ?? 'var(--rq-avatar-border)'}` }}
+        >
           <AvatarImage src={user.profile_picture || ''} />
-          <AvatarFallback className="text-sm font-semibold">
+          <AvatarFallback
+            className="text-sm font-bold"
+            style={{ fontFamily: 'Silkscreen, monospace', background: 'hsl(var(--muted))', color: accent ?? 'var(--rq-text-muted)' }}
+          >
             {initials}
           </AvatarFallback>
         </Avatar>
-        <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+        <div
+          className="absolute -bottom-1 -right-1 text-[14px] w-5 h-5 flex items-center justify-center font-bold"
+          style={{ fontFamily: 'Barlow Condensed, sans-serif', background: 'var(--rq-gold)', color: '#000' }}
+        >
           {level}
         </div>
-        {isPodium && (
-          <div className="absolute -top-1 -left-1">
-            {getPodiumIcon(position)}
-          </div>
-        )}
       </div>
 
-      {/* Center: Name at top, title below — fills the space between avatar and position */}
-      <div className="flex-1 flex flex-col items-center min-w-0">
-        <h3 className="font-semibold text-lg leading-tight text-center">{user.name}</h3>
-        {titlesDisplay && (
-          <p className="text-xs italic mt-1 text-center">{titlesDisplay}</p>
-        )}
-      </div>
-
-      {/* Right: Position pushed down to sit at the title line */}
-      <div className="mt-4 shrink-0">
-        <span className="text-lg font-bold">#{position}</span>
+      {/* Name + titles */}
+      <div className="flex flex-col min-w-0 flex-1" style={{ minHeight: '75px' }}>
+        <h3
+          className="font-bold leading-tight tracking-wide uppercase truncate"
+          style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.2rem' }}
+        >
+          {user.name}
+        </h3>
+        <p
+          className="text-[13px] leading-snug mt-0.5 tracking-wide"
+          style={{
+            fontFamily: 'Barlow Condensed, sans-serif',
+            color: titlesDisplay ? (accent ?? 'var(--rq-text-muted)') : 'transparent',
+            opacity: 1,
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+          }}
+        >
+          {titlesDisplay ?? '​'}
+        </p>
       </div>
 
     </div>
   );
 };
-

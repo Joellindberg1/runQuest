@@ -11,7 +11,7 @@ interface ActiveChallengeWidgetProps {
   onClick?: () => void;
 }
 
-const OSWALD = "'Oswald', 'Arial Narrow', Arial, sans-serif";
+const OSWALD = "'Bebas Neue', sans-serif";
 
 function formatValue(metric: string, value: number): string {
   if (metric === 'km') return `${value.toFixed(1)} km`;
@@ -58,7 +58,7 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
   return (
     <Tag
       onClick={onClick}
-      className={`relative px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors cursor-pointer' : ''}`}
+      className={`relative w-full px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors cursor-pointer' : ''}`}
     >
       {/* 3-col grid — dimmed when pending */}
       <div className={`grid grid-cols-[auto_1fr_auto] gap-x-2 ${pending ? 'opacity-40' : ''}`}>

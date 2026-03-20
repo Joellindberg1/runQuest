@@ -76,7 +76,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-right">
-                          <div className="font-bold text-green-600">+{run.xp_gained} XP</div>
+                          <div className="font-bold" style={{ color: 'var(--rq-gold)' }}>+{run.xp_gained} XP</div>
                           <div className="text-sm text-muted-foreground">{run.multiplier}x multiplier</div>
                         </div>
                         <Button
