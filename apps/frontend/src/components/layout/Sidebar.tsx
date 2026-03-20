@@ -150,8 +150,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 pl-2 pr-0 pb-2">
+        {/* Navigation — scrollable so bottom bar always stays visible */}
+        <nav className="flex-1 overflow-y-auto pl-2 pr-0 pb-2">
           <NavSection title="Game">
             <NavItem
               icon={<Trophy className="w-3.5 h-3.5" />}
