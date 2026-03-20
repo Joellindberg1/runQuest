@@ -57,7 +57,7 @@ export const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({ entr
               >
                 <span className="text-muted-foreground font-medium">{idx + 1}</span>
                 <span className={`truncate font-medium ${isMe ? 'text-primary' : ''}`}>{entry.name}</span>
-                <span className="text-center font-semibold text-green-600 dark:text-green-400">{entry.wins}</span>
+                <span className="text-center font-semibold" style={{ color: 'var(--rq-success)' }}>{entry.wins}</span>
                 <span className="text-center text-muted-foreground">{entry.draws}</span>
                 <span className="text-center text-muted-foreground">{entry.losses}</span>
                 <span className="text-center font-semibold text-xs">

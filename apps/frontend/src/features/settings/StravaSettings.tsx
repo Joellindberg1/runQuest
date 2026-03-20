@@ -96,7 +96,7 @@ export const StravaSettings: React.FC = () => {
       </Badge>
     );
     return (
-      <Badge variant="default" className="flex items-center gap-1 bg-success">
+      <Badge variant="default" className="flex items-center gap-1" style={{ background: 'var(--rq-success)', color: '#fff' }}>
         <CheckCircle className="w-3 h-3" /> Connected
       </Badge>
     );
@@ -145,7 +145,7 @@ export const StravaSettings: React.FC = () => {
             <div className="flex items-center gap-4">
               <Button onClick={handleSyncStrava} variant="outline" className="flex items-center gap-2" disabled={syncLoading}>
                 {syncLoading
-                  ? <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500" />Syncing...</>
+                  ? <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />Syncing...</>
                   : <>🔄 Sync Now</>
                 }
               </Button>

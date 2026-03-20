@@ -28,7 +28,7 @@ interface SendChallengeModalProps {
   onSend?: (tokenId: string, opponentId: string) => Promise<boolean> | void;
 }
 
-const OSWALD = "'Oswald', 'Arial Narrow', Arial, sans-serif";
+const OSWALD = "'Bebas Neue', sans-serif";
 
 export const SendChallengeModal: React.FC<SendChallengeModalProps> = ({
   token,
@@ -102,16 +102,16 @@ export const SendChallengeModal: React.FC<SendChallengeModalProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Winner</span>
-                <span className="font-medium text-green-600 dark:text-green-400">+{token.winner_delta}x / {token.winner_duration}d</span>
+                <span className="font-medium" style={{ color: 'var(--rq-success)' }}>+{token.winner_delta}x / {token.winner_duration}d</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Loser</span>
-                <span className="font-medium text-red-500 dark:text-red-400">{token.loser_delta}x / {token.loser_duration}d</span>
+                <span className="font-medium" style={{ color: 'var(--rq-danger)' }}>{token.loser_delta}x / {token.loser_duration}d</span>
               </div>
             </div>
 
             {userHasActiveChallenge && (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+              <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: 'color-mix(in srgb, var(--rq-gold) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--rq-gold) 30%, transparent)', color: 'var(--rq-gold)' }}>
                 <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span>You already have an active challenge. Complete it before sending a new one.</span>
               </div>

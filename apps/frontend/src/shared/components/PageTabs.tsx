@@ -26,14 +26,17 @@ export const PageTabs: React.FC<PageTabsProps> = ({ value, onValueChange, tabs, 
     <Tabs value={value} onValueChange={onValueChange} className="w-full">
       <div className="px-4 py-4">
         <TabsList
-          className={`grid w-full p-0 overflow-hidden bg-sidebar border-2 border-foreground/15 ${tabsGridClass ? `${tabsGridClass} !h-auto` : ''}`}
+          className={`grid w-full p-0 bg-transparent border-b border-foreground/10 ${tabsGridClass ? `${tabsGridClass} !h-auto` : ''}`}
           style={tabsGridClass ? undefined : { gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
         >
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              className="h-full rounded-none flex items-center gap-1.5 font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+              className="rounded-none flex items-center gap-1.5 py-2.5 border-b-2 border-transparent bg-transparent text-foreground/40 transition-all
+                data-[state=active]:border-[var(--rq-gold)] data-[state=active]:text-[var(--rq-gold)] data-[state=active]:bg-transparent data-[state=active]:shadow-none
+                hover:text-foreground/70"
+              style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: '0.9rem', letterSpacing: '0.08em', fontWeight: 600, textTransform: 'uppercase' }}
             >
               {tab.icon}
               {tab.label}

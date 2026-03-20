@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useGroupName } from '@/shared/hooks/useGroupName';
 import {
   getLatestRelease,
   getPreviousReleases,
@@ -17,15 +18,15 @@ import {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const releaseTypeMeta: Record<ReleaseType, { label: string; className: string }> = {
-  major: { label: 'Major', className: 'bg-purple-100 text-purple-700 border-purple-200' },
-  minor: { label: 'Minor', className: 'bg-blue-100 text-blue-700 border-blue-200' },
-  patch: { label: 'Patch', className: 'bg-gray-100 text-gray-600 border-gray-200' },
+  major: { label: 'Major', className: 'border-[var(--rq-gold)] text-[var(--rq-gold)]' },
+  minor: { label: 'Minor', className: 'border-foreground/30 text-muted-foreground' },
+  patch: { label: 'Patch', className: 'border-foreground/15 text-muted-foreground/60' },
 };
 
-const changeTypeMeta: Record<ChangeType, { icon: React.ReactNode; className: string }> = {
-  feature:     { icon: <Sparkles className="w-4 h-4" />, className: 'text-green-600' },
-  bugfix:      { icon: <Bug className="w-4 h-4" />,      className: 'text-red-500'   },
-  improvement: { icon: <Wrench className="w-4 h-4" />,   className: 'text-blue-500'  },
+const changeTypeMeta: Record<ChangeType, { icon: React.ReactNode; color: string }> = {
+  feature:     { icon: <Sparkles className="w-4 h-4" />, color: 'var(--rq-success)' },
+  bugfix:      { icon: <Bug className="w-4 h-4" />,      color: 'var(--rq-danger)'  },
+  improvement: { icon: <Wrench className="w-4 h-4" />,   color: 'var(--rq-text-soft)' },
 };
 
 // ─── Release Card ────────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) 
       >
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-wrap">
-            <ScrollText className="w-5 h-5 text-purple-600" />
+            <ScrollText className="w-5 h-5 text-muted-foreground" />
             <Badge variant="outline" className={typeMeta.className}>
               {typeMeta.label}
             </Badge>
@@ -72,7 +73,7 @@ const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) 
               const meta = changeTypeMeta[change.type];
               return (
                 <li key={i} className="flex items-start gap-2">
-                  <span className={`mt-0.5 shrink-0 ${meta.className}`}>{meta.icon}</span>
+                  <span className="mt-0.5 shrink-0" style={{ color: meta.color }}>{meta.icon}</span>
                   <span className="text-sm text-foreground">{change.description}</span>
                 </li>
               );
@@ -87,6 +88,7 @@ const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 const FeaturesPage: React.FC = () => {
+  const groupName = useGroupName();
   const latest = getLatestRelease();
   const previous = getPreviousReleases();
 
@@ -131,7 +133,7 @@ const FeaturesPage: React.FC = () => {
   ];
 
   return (
-    <AppLayout groupName="Feature & Version">
+    <AppLayout groupName={groupName}>
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-4 mb-2">
@@ -152,7 +154,7 @@ const FeaturesPage: React.FC = () => {
             >
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <CheckCircle className="w-5 h-5" style={{ color: 'var(--rq-success)' }} />
                   Features
                 </div>
                 {featuresOpen
@@ -188,7 +190,7 @@ const FeaturesPage: React.FC = () => {
             >
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-yellow-600" />
+                  <Settings className="w-5 h-5" style={{ color: 'var(--rq-gold)' }} />
                   Working On
                 </div>
                 {workingOnOpen
@@ -203,7 +205,7 @@ const FeaturesPage: React.FC = () => {
                   {workingOnFeatures.map((feature, index) => (
                     <div key={index} className="bg-background border border-foreground/50 rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="text-yellow-600">{feature.icon}</div>
+                        <div style={{ color: 'var(--rq-gold)' }}>{feature.icon}</div>
                         <h3 className="font-semibold">{feature.title}</h3>
                       </div>
                       <p className="text-sm text-muted-foreground mb-3">{feature.description}</p>

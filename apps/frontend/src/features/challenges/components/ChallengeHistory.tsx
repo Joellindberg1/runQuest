@@ -34,73 +34,85 @@ function formatVal(metric: string, value: number): string {
   return `${value} XP`;
 }
 
+const bebas = { fontFamily: 'Bebas Neue, sans-serif' };
+const barlow = { fontFamily: 'Barlow Condensed, sans-serif' };
+
+const TIER_COLOR: Record<string, string> = {
+  minor: '#3b82f6', major: '#f97316', legendary: 'var(--rq-gold)',
+};
+
 const HistoryItem: React.FC<{ challenge: Challenge }> = ({ challenge }) => {
   const [open, setOpen] = useState(false);
 
   const isDrawn    = challenge.outcome === 'draw';
   const isDeclined = challenge.outcome === 'declined';
+  const tierColor  = TIER_COLOR[challenge.tier] ?? 'var(--rq-gold)';
 
   return (
-    <div className="bg-background border border-foreground/15 rounded-lg overflow-hidden">
+    <div style={{ background: 'var(--rq-surface-1)', border: '1px solid var(--rq-border-1)', borderLeft: `2px solid color-mix(in srgb, ${tierColor} 40%, transparent)` }}>
       <button
-        className="w-full flex flex-col gap-1 sm:grid sm:grid-cols-[auto_1fr_auto] sm:items-start sm:gap-x-3 sm:gap-y-0 p-3 hover:bg-accent transition-colors text-left"
+        className="w-full p-3 hover:bg-[var(--rq-surface-2)] transition-colors text-left"
         onClick={() => setOpen(o => !o)}
       >
-        {/* Tier badge */}
-        <div>
+        <div className="flex items-center gap-2.5">
           <TierBadge tier={challenge.tier} size="sm" />
-        </div>
 
-        {/* Names (+ scores on sm+) */}
-        <div className="sm:text-center min-w-0">
-          <div className="text-sm font-semibold leading-tight truncate">
-            {challenge.challenger_name} vs {challenge.opponent_name}
-          </div>
-          {challenge.challenger_final_value != null && challenge.opponent_final_value != null && (
-            <div className="hidden sm:block text-xs text-muted-foreground mt-0.5">
-              {formatVal(challenge.metric, challenge.challenger_final_value)}
-              {' — '}
-              {formatVal(challenge.metric, challenge.opponent_final_value)}
+          <div className="flex-1 min-w-0">
+            <div
+              className="truncate"
+              style={{ ...barlow, fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--rq-text-strong)' }}
+            >
+              {challenge.challenger_name} vs {challenge.opponent_name}
             </div>
-          )}
-        </div>
-
-        {/* Scores — own row on mobile only */}
-        {challenge.challenger_final_value != null && challenge.opponent_final_value != null && (
-          <div className="text-xs text-muted-foreground sm:hidden">
-            {formatVal(challenge.metric, challenge.challenger_final_value)}
-            {' — '}
-            {formatVal(challenge.metric, challenge.opponent_final_value)}
+            {challenge.challenger_final_value != null && challenge.opponent_final_value != null && (
+              <div style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {formatVal(challenge.metric, challenge.challenger_final_value)}
+                {' — '}
+                {formatVal(challenge.metric, challenge.opponent_final_value)}
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Outcome + chevron */}
-        <div className="text-xs flex items-center justify-between sm:flex-col sm:items-end sm:gap-0.5">
-          {isDeclined || isDrawn ? (
-            <span className="text-muted-foreground font-medium">{isDrawn ? 'Draw' : 'Declined'}</span>
-          ) : (
-            <span className="text-foreground font-semibold">
-              <span className="text-muted-foreground font-normal">Winner: </span>
-              {winnerName(challenge)}
-            </span>
-          )}
-          <div className="text-muted-foreground sm:mt-0.5">
-            {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          <div className="flex items-center gap-2 shrink-0">
+            {isDeclined || isDrawn ? (
+              <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                {isDrawn ? 'Draw' : 'Declined'}
+              </span>
+            ) : (
+              <span style={{ ...barlow, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--rq-text-muted)', fontWeight: 600 }}>
+                {winnerName(challenge)}
+              </span>
+            )}
+            <div style={{ color: 'var(--rq-text-dim)' }}>
+              {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </div>
           </div>
         </div>
       </button>
 
       {open && (
-        <div className="px-3 pb-3 border-t border-foreground/10">
-          <div className="pt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <div>Metric: <span className="font-medium text-foreground"><MetricLabel metric={challenge.metric} /></span></div>
-            <div>Duration: <span className="font-medium text-foreground">{challenge.duration_days} days</span></div>
+        <div className="px-3 pb-3" style={{ borderTop: '1px solid var(--rq-border-1)' }}>
+          <div className="pt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+            <div style={{ ...barlow, fontSize: '0.75rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Metric <span style={{ color: 'var(--rq-text-soft)', fontWeight: 700 }}><MetricLabel metric={challenge.metric} /></span>
+            </div>
+            <div style={{ ...barlow, fontSize: '0.75rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Duration <span style={{ color: 'var(--rq-text-soft)', fontWeight: 700 }}>{challenge.duration_days}d</span>
+            </div>
             {challenge.end_date && (
-              <div>Ended: <span className="font-medium text-foreground">{challenge.end_date}</span></div>
+              <div style={{ ...barlow, fontSize: '0.75rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Ended <span style={{ color: 'var(--rq-text-soft)', fontWeight: 700 }}>{challenge.end_date}</span>
+              </div>
             )}
             <div className="col-span-2 pt-1 flex gap-4">
-              <span>Winner boost: <span className="text-green-600 dark:text-green-400 font-medium">+{challenge.winner_delta}x/{challenge.winner_duration}d</span></span>
-              <span>Loser penalty: <span className="text-red-500 dark:text-red-400 font-medium">{challenge.loser_delta}x/{challenge.loser_duration}d</span></span>
+              <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Win <span style={{ color: 'var(--rq-success)', fontWeight: 700 }}>+{challenge.winner_delta}x/{challenge.winner_duration}d</span>
+              </span>
+              {challenge.tier !== 'legendary' && (
+                <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Lose <span style={{ color: 'var(--rq-danger)', fontWeight: 700 }}>{challenge.loser_delta}x/{challenge.loser_duration}d</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -137,16 +149,23 @@ export const ChallengeHistory: React.FC<ChallengeHistoryProps> = ({ challenges, 
       <div className="space-y-2">
         {/* Tier multi-select */}
         <div className="flex flex-wrap gap-1.5 items-center">
-          <span className="text-xs text-muted-foreground font-medium mr-1">Tier:</span>
+          <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Tier:</span>
           {ALL_TIERS.map(t => (
             <button
               key={t}
               onClick={() => setSelTiers(prev => toggle(prev, t))}
-              className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
-                selTiers.has(t)
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'border-foreground/20 hover:border-foreground/40 text-muted-foreground'
-              }`}
+              style={{
+                ...barlow,
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                padding: '3px 10px',
+                border: selTiers.has(t) ? '1px solid var(--rq-gold)' : '1px solid var(--rq-border-2)',
+                background: selTiers.has(t) ? 'var(--rq-gold-mid)' : 'transparent',
+                color: selTiers.has(t) ? 'var(--rq-gold)' : 'var(--rq-text-muted)',
+                transition: 'all 0.15s',
+              }}
             >
               {TIER_LABELS[t]}
             </button>
@@ -154,7 +173,7 @@ export const ChallengeHistory: React.FC<ChallengeHistoryProps> = ({ challenges, 
           {selTiers.size > 0 && (
             <button
               onClick={() => setSelTiers(new Set())}
-              className="text-xs text-muted-foreground hover:text-foreground underline"
+              style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textDecoration: 'underline', textTransform: 'uppercase', letterSpacing: '0.05em' }}
             >
               Clear
             </button>
@@ -163,16 +182,23 @@ export const ChallengeHistory: React.FC<ChallengeHistoryProps> = ({ challenges, 
 
         {/* Metric multi-select */}
         <div className="flex flex-wrap gap-1.5 items-center">
-          <span className="text-xs text-muted-foreground font-medium mr-1">Metric:</span>
+          <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Metric:</span>
           {ALL_METRICS.map(m => (
             <button
               key={m}
               onClick={() => setSelMetrics(prev => toggle(prev, m))}
-              className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
-                selMetrics.has(m)
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'border-foreground/20 hover:border-foreground/40 text-muted-foreground'
-              }`}
+              style={{
+                ...barlow,
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                padding: '3px 10px',
+                border: selMetrics.has(m) ? '1px solid var(--rq-gold)' : '1px solid var(--rq-border-2)',
+                background: selMetrics.has(m) ? 'var(--rq-gold-mid)' : 'transparent',
+                color: selMetrics.has(m) ? 'var(--rq-gold)' : 'var(--rq-text-muted)',
+                transition: 'all 0.15s',
+              }}
             >
               {METRIC_LABELS[m]}
             </button>
@@ -180,7 +206,7 @@ export const ChallengeHistory: React.FC<ChallengeHistoryProps> = ({ challenges, 
           {selMetrics.size > 0 && (
             <button
               onClick={() => setSelMetrics(new Set())}
-              className="text-xs text-muted-foreground hover:text-foreground underline"
+              style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textDecoration: 'underline', textTransform: 'uppercase', letterSpacing: '0.05em' }}
             >
               Clear
             </button>
@@ -188,14 +214,23 @@ export const ChallengeHistory: React.FC<ChallengeHistoryProps> = ({ challenges, 
         </div>
 
         {/* Scope toggle */}
-        <div className="flex rounded-md border border-foreground/20 overflow-hidden w-fit text-xs">
+        <div className="flex overflow-hidden w-fit" style={{ border: '1px solid var(--rq-border-2)' }}>
           {(['group', 'me'] as ScopeFilter[]).map(s => (
             <button
               key={s}
               onClick={() => setScope(s)}
-              className={`px-3 py-1.5 font-medium transition-colors ${
-                scope === s ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-accent'
-              }`}
+              style={{
+                ...barlow,
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                padding: '4px 14px',
+                background: scope === s ? 'var(--rq-gold-mid)' : 'transparent',
+                color: scope === s ? 'var(--rq-gold)' : 'var(--rq-text-dim)',
+                borderRight: s === 'group' ? '1px solid var(--rq-border-1)' : 'none',
+                transition: 'all 0.15s',
+              }}
             >
               {s === 'group' ? 'All' : 'Just me'}
             </button>

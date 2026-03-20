@@ -112,7 +112,7 @@ const Index: React.FC = () => {
   };
 
   return (
-    <AppLayout groupName={groupData?.name ?? ''} topbarLeftWidget={widget}>
+    <AppLayout groupName={groupData?.name ?? ''} sidebarWidget={widget}>
       {renderContent()}
     </AppLayout>
   );

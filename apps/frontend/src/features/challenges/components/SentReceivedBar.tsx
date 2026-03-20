@@ -20,7 +20,7 @@ interface SentReceivedBarProps {
   onWithdraw?: (id: string) => void;
 }
 
-const OSWALD = "'Oswald', 'Arial Narrow', Arial, sans-serif";
+const OSWALD = "'Bebas Neue', sans-serif";
 
 const METRIC_DESCRIPTIONS: Record<string, string> = {
   total_xp: 'Earn the most XP for the duration of the challenge.',
@@ -123,11 +123,11 @@ const ReceivedItem: React.FC<{
                 <div className="text-muted-foreground">Ends</div>
                 <div className="font-medium">{expectedEndDate(challenge.duration_days)}</div>
                 <div className="text-muted-foreground">Winner</div>
-                <div className="font-medium text-green-600 dark:text-green-400">
+                <div className="font-medium" style={{ color: 'var(--rq-success)' }}>
                   +{challenge.winner_delta}x / {challenge.winner_duration}d
                 </div>
                 <div className="text-muted-foreground">Loser</div>
-                <div className={challenge.tier === 'legendary' ? 'font-medium text-muted-foreground' : 'font-medium text-red-500 dark:text-red-400'}>
+                <div className={challenge.tier === 'legendary' ? 'font-medium text-muted-foreground' : 'font-medium'} style={challenge.tier !== 'legendary' ? { color: 'var(--rq-danger)' } : undefined}>
                   {challenge.tier === 'legendary' ? 'No penalty' : `${challenge.loser_delta}x / ${challenge.loser_duration}d`}
                 </div>
               </div>
@@ -149,7 +149,7 @@ const ReceivedItem: React.FC<{
               </div>
 
               {challenge.tier === 'legendary' && challenge.legendary_sent_at && (
-                <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--rq-gold)' }}>
                   <Clock className="w-3 h-3" />
                   {autoStartLabel(challenge.legendary_sent_at)}
                 </div>
@@ -176,46 +176,66 @@ export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
   const hasSent     = sentChallenge !== null;
   const hasReceived = receivedChallenges.length > 0;
 
+  const TIER_COLOR: Record<string, string> = {
+    minor: '#3b82f6', major: '#f97316', legendary: 'var(--rq-gold)',
+  };
+  const sentColor  = hasSent     ? TIER_COLOR[sentChallenge!.tier]           : 'var(--rq-text-dim)';
+  const recvColor  = hasReceived  ? TIER_COLOR[receivedChallenges[0].tier]    : 'var(--rq-text-dim)';
+
+  const tierGradient = (color: string) =>
+    color.startsWith('var(')
+      ? `linear-gradient(to right, color-mix(in srgb, ${color} 10%, transparent), transparent)`
+      : `linear-gradient(to right, ${color}18, transparent)`;
+
   return (
     <>
-      {/* Grid: [empty left] [Sent + Received center] [empty right] */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center mb-3 pb-3 border-b border-foreground/10">
-        <div />
+      <div className="flex items-center justify-center gap-3 mb-4 pb-3 border-b border-foreground/10">
+        {/* Sent pill */}
+        <button
+          disabled={!hasSent}
+          onClick={() => hasSent && setSentOpen(true)}
+          className="flex items-center gap-1.5 transition-opacity"
+          style={{
+            opacity: hasSent ? 1 : 0.3,
+            cursor: hasSent ? 'pointer' : 'default',
+            borderLeft: `2px solid ${sentColor}`,
+            background: tierGradient(sentColor),
+            padding: '5px 10px 5px 8px',
+            fontFamily: 'Barlow Condensed, sans-serif',
+            fontSize: '0.8rem',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: hasSent ? sentColor : 'inherit',
+          }}
+        >
+          <Send className="w-3 h-3" />
+          {hasSent ? `Sent · ${sentChallenge!.opponent_name}` : 'Sent'}
+        </button>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!hasSent}
-            onClick={() => hasSent && setSentOpen(true)}
-            className={`flex items-center gap-1.5 text-xs ${!hasSent ? 'opacity-40 cursor-default' : 'border-foreground/20'}`}
-          >
-            <Send className="w-3.5 h-3.5" />
-            {hasSent ? `Sent (${sentChallenge!.opponent_name})` : 'Sent'}
-          </Button>
+        <div className="w-px h-4 bg-foreground/10" />
 
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!hasReceived}
-            onClick={() => hasReceived && setReceivedOpen(true)}
-            className={`flex items-center gap-1.5 text-xs ${
-              hasReceived
-                ? 'border-primary/40 bg-primary/5 text-primary'
-                : 'opacity-40 cursor-default'
-            }`}
-          >
-            <Inbox className="w-3.5 h-3.5" />
-            Received
-            {hasReceived && (
-              <span className="bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                {receivedChallenges.length}
-              </span>
-            )}
-          </Button>
-        </div>
-
-        <div />
+        {/* Received pill */}
+        <button
+          disabled={!hasReceived}
+          onClick={() => hasReceived && setReceivedOpen(true)}
+          className="flex items-center gap-1.5 transition-opacity"
+          style={{
+            opacity: hasReceived ? 1 : 0.3,
+            cursor: hasReceived ? 'pointer' : 'default',
+            borderLeft: `2px solid ${recvColor}`,
+            background: tierGradient(recvColor),
+            padding: '5px 10px 5px 8px',
+            fontFamily: 'Barlow Condensed, sans-serif',
+            fontSize: '0.8rem',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: hasReceived ? recvColor : 'inherit',
+            animation: hasReceived ? 'goldPulse 3s ease-in-out infinite' : 'none',
+          }}
+        >
+          <Inbox className="w-3 h-3" />
+          {hasReceived ? `${receivedChallenges.length} Incoming` : 'Received'}
+        </button>
       </div>
 
       {/* Sent dialog */}
@@ -250,11 +270,11 @@ export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Winner</span>
-                  <span className="font-medium text-green-600 dark:text-green-400">+{sentChallenge.winner_delta}x/{sentChallenge.winner_duration}d</span>
+                  <span className="font-medium" style={{ color: 'var(--rq-success)' }}>+{sentChallenge.winner_delta}x/{sentChallenge.winner_duration}d</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Loser</span>
-                  <span className={sentChallenge.tier === 'legendary' ? 'font-medium text-muted-foreground' : 'font-medium text-red-500 dark:text-red-400'}>
+                  <span className={sentChallenge.tier === 'legendary' ? 'font-medium text-muted-foreground' : 'font-medium'} style={sentChallenge.tier !== 'legendary' ? { color: 'var(--rq-danger)' } : undefined}>
                     {sentChallenge.tier === 'legendary' ? 'No penalty' : `${sentChallenge.loser_delta}x/${sentChallenge.loser_duration}d`}
                   </span>
                 </div>

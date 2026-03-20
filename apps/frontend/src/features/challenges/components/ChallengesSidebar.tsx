@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { SendChallengeModal, type GroupMember } from './SendChallengeModal';
@@ -7,16 +6,8 @@ import { Swords, Zap, ChevronRight, Clock } from 'lucide-react';
 import type { ChallengeToken, UserBoost, ChallengeStats, ChallengeTier, Challenge } from '@runquest/types';
 import type { ProgressEntry } from './OngoingChallengeCard';
 
-const OSWALD = "'Oswald', 'Arial Narrow', Arial, sans-serif";
-
-function isPendingStart(startDate?: string): boolean {
-  if (!startDate) return false;
-  return new Date(startDate + 'T00:00:00') > new Date();
-}
-
-function hoursUntilStart(startDate: string): number {
-  return Math.max(0, Math.ceil((new Date(startDate + 'T00:00:00').getTime() - Date.now()) / 3_600_000));
-}
+const bebas = { fontFamily: 'Bebas Neue, sans-serif' };
+const barlow = { fontFamily: 'Barlow Condensed, sans-serif' };
 
 const TIER_ORDER: ChallengeTier[] = ['legendary', 'major', 'minor'];
 
@@ -35,6 +26,41 @@ function formatEndDate(endDate: string): string {
   if (diff === 1) return 'Tomorrow';
   return endDate;
 }
+
+function isPendingStart(startDate?: string): boolean {
+  if (!startDate) return false;
+  return new Date(startDate + 'T00:00:00') > new Date();
+}
+
+function hoursUntilStart(startDate: string): number {
+  return Math.max(0, Math.ceil((new Date(startDate + 'T00:00:00').getTime() - Date.now()) / 3_600_000));
+}
+
+interface SectionProps {
+  icon: React.ReactNode;
+  title: string;
+  badge?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+const Section: React.FC<SectionProps> = ({ icon, title, badge, children }) => (
+  <div style={{ background: 'var(--rq-surface-1)', border: '1px solid var(--rq-border-1)' }}>
+    <div
+      className="flex items-center gap-2 px-3 py-2.5"
+      style={{ borderBottom: '1px solid var(--rq-border-1)' }}
+    >
+      <span style={{ color: 'var(--rq-text-dim)' }}>{icon}</span>
+      <span
+        className="flex-1 uppercase tracking-widest"
+        style={{ ...barlow, fontSize: '0.7rem', fontWeight: 700, color: 'var(--rq-text-muted)', letterSpacing: '0.15em' }}
+      >
+        {title}
+      </span>
+      {badge}
+    </div>
+    <div className="px-3 py-3">{children}</div>
+  </div>
+);
 
 interface ChallengesSidebarProps {
   tokens: ChallengeToken[];
@@ -79,173 +105,184 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
     setModalOpen(true);
   };
 
-  return (
-    <div className="space-y-4">
-      {/* W/D/L stats */}
-      <Card className="bg-sidebar border-2 border-foreground/15">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Swords className="w-4 h-4" />
-            My Stats
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-4 gap-2 text-center">
-            {[
-              { label: 'W', value: stats.wins,   cls: 'text-green-600 dark:text-green-400' },
-              { label: 'D', value: stats.draws,  cls: 'text-muted-foreground' },
-              { label: 'L', value: stats.losses, cls: 'text-red-500 dark:text-red-400' },
-              { label: '%', value: pts !== null ? pts.toFixed(3) : '—', cls: 'text-foreground font-bold' },
-            ].map(({ label, value, cls }) => (
-              <div key={label} className="space-y-0.5">
-                <div className={`text-lg font-bold ${cls}`}>{value}</div>
-                <div className="text-xs text-muted-foreground">{label}</div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+  const activeBoosts = boosts.filter(b => {
+    if (b.remaining != null) return b.remaining > 0;
+    if (b.expires_at) return new Date(b.expires_at) > new Date();
+    return true;
+  });
 
-      {/* Active challenge — clickable → go to ongoing */}
+  return (
+    <div className="space-y-3">
+      {/* W/D/L stats */}
+      <Section icon={<Swords className="w-3.5 h-3.5" />} title="My Record">
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { label: 'Wins',   value: String(stats.wins),   color: 'var(--rq-success)' },
+            { label: 'Draw',   value: String(stats.draws),  color: 'var(--rq-text-muted)' },
+            { label: 'Loss',   value: String(stats.losses), color: 'var(--rq-danger)' },
+            { label: 'Pct',    value: pts !== null ? pts.toFixed(3) : '—', color: 'var(--rq-gold)' },
+          ].map(({ label, value, color }) => (
+            <div
+              key={label}
+              className="flex flex-col items-center gap-0.5 py-1.5"
+              style={{ background: 'var(--rq-surface-2)', border: '1px solid var(--rq-border-1)' }}
+            >
+              <span style={{ ...bebas, fontSize: '1.3rem', lineHeight: 1, color }}>{value}</span>
+              <span style={{ ...barlow, fontSize: '0.6rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Active challenge */}
       {activeChallenge && opponent ? (
         <button
           onClick={onGoToOngoing}
           className="w-full text-left"
           disabled={!onGoToOngoing}
+          style={{ display: 'block' }}
         >
-          <Card className="bg-sidebar border-2 border-primary/30 hover:border-primary/60 transition-colors relative overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Swords className="w-4 h-4 text-primary" />
-                Challenge Ongoing
-                <ChevronRight className="w-3.5 h-3.5 ml-auto text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className={`pt-0 space-y-2 ${isPendingStart(activeChallenge.start_date) ? 'opacity-40' : ''}`}>
-              <div className="flex items-center gap-2 flex-wrap">
+          <div
+            style={{
+              background: 'var(--rq-surface-1)',
+              border: '1px solid var(--rq-border-1)',
+              borderLeft: '3px solid color-mix(in srgb, var(--rq-gold) 60%, transparent)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            className="hover:bg-[var(--rq-surface-2)] transition-colors"
+          >
+            <div
+              className="flex items-center gap-2 px-3 py-2.5"
+              style={{ borderBottom: '1px solid var(--rq-border-1)' }}
+            >
+              <Swords className="w-3.5 h-3.5" style={{ color: 'var(--rq-gold)' }} />
+              <span
+                className="flex-1 uppercase tracking-widest"
+                style={{ ...barlow, fontSize: '0.7rem', fontWeight: 700, color: 'var(--rq-text-muted)', letterSpacing: '0.15em' }}
+              >
+                Live Challenge
+              </span>
+              <ChevronRight className="w-3.5 h-3.5" style={{ color: 'var(--rq-text-dim)' }} />
+            </div>
+
+            <div className={`px-3 py-3 space-y-2 ${isPendingStart(activeChallenge.start_date) ? 'opacity-40' : ''}`}>
+              <div className="flex items-center gap-2">
                 <TierBadge tier={activeChallenge.tier} size="sm" />
-                <span className="text-xs text-muted-foreground">
-                  vs <span className="font-semibold text-foreground">{opponent.name}</span>
+                <span style={{ ...barlow, fontSize: '0.8rem', color: 'var(--rq-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  vs <span style={{ color: 'var(--rq-text-strong)', fontWeight: 700 }}>{opponent.name}</span>
                 </span>
               </div>
-              <div className="text-xs text-muted-foreground">
-                <MetricLabel metric={activeChallenge.metric} />
-              </div>
+
               {!isPendingStart(activeChallenge.start_date) && myProgress && oppProgress && (
-                <div className="flex items-center justify-between text-sm font-semibold">
-                  <span className="text-primary">{formatValue(activeChallenge.metric, myProgress.value)}</span>
-                  <span className="text-xs text-muted-foreground font-normal">vs</span>
-                  <span>{formatValue(activeChallenge.metric, oppProgress.value)}</span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span style={{ ...bebas, fontSize: '1.4rem', color: 'var(--rq-gold)', lineHeight: 1 }}>
+                    {formatValue(activeChallenge.metric, myProgress.value)}
+                  </span>
+                  <span style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase' }}>vs</span>
+                  <span style={{ ...bebas, fontSize: '1.4rem', color: 'var(--rq-text-muted)', lineHeight: 1 }}>
+                    {formatValue(activeChallenge.metric, oppProgress.value)}
+                  </span>
                 </div>
               )}
+
               {activeChallenge.end_date && !isPendingStart(activeChallenge.start_date) && (
-                <div className="text-xs text-muted-foreground">
-                  Ends: {formatEndDate(activeChallenge.end_date)}
-                </div>
+                <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Ends {formatEndDate(activeChallenge.end_date)}
+                </span>
               )}
-            </CardContent>
+            </div>
+
             {isPendingStart(activeChallenge.start_date) && activeChallenge.start_date && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 pointer-events-none">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span style={{ fontFamily: OSWALD }} className="text-sm font-medium tracking-wide text-foreground">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 pointer-events-none" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                <Clock className="w-4 h-4" style={{ color: 'var(--rq-text-muted)' }} />
+                <span style={{ ...bebas, fontSize: '1.1rem', letterSpacing: '0.05em', color: 'var(--rq-text-strong)' }}>
                   Starts in {hoursUntilStart(activeChallenge.start_date)}h
                 </span>
               </div>
             )}
-          </Card>
+          </div>
         </button>
       ) : (
-        <Card className="bg-sidebar border-2 border-foreground/15">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Swords className="w-4 h-4" />
-              Challenge Ongoing
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-xs text-muted-foreground">No active challenge</p>
-          </CardContent>
-        </Card>
+        <Section icon={<Swords className="w-3.5 h-3.5" />} title="Live Challenge">
+          <p style={{ ...barlow, fontSize: '0.78rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>No active challenge</p>
+        </Section>
       )}
 
       {/* Tokens grouped by tier */}
-      <Card className="bg-sidebar border-2 border-foreground/15">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Swords className="w-4 h-4" />
-            My Challenges
-            {tokens.length > 0 && (
-              <span className="ml-auto bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                {tokens.length}
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {tokens.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-1">
-              No challenges to send. Earn them by leveling up.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {TIER_ORDER.map(tier => {
-                const tierTokens = tokens.filter(t => t.tier === tier);
-                if (tierTokens.length === 0) return null;
-                return (
-                  <div key={tier}>
-                    <div className="mb-1.5">
-                      <TierBadge tier={tier} size="sm" />
-                    </div>
-                    <div className="space-y-0.5 ml-1">
-                      {tierTokens.map(t => (
-                        <button
-                          key={t.id}
-                          onClick={() => openModal(t)}
-                          className="w-full text-left text-xs px-2 py-1.5 rounded-md hover:bg-accent transition-colors flex items-center justify-between text-muted-foreground hover:text-foreground"
-                        >
-                          <MetricLabel metric={t.metric} />
-                          <span className="text-muted-foreground/50">{t.duration_days}d →</span>
-                        </button>
-                      ))}
-                    </div>
+      <Section
+        icon={<Swords className="w-3.5 h-3.5" />}
+        title="My Challenges"
+        badge={tokens.length > 0 ? (
+          <span
+            style={{
+              ...bebas,
+              fontSize: '0.9rem',
+              lineHeight: 1,
+              color: 'var(--rq-gold)',
+              background: 'var(--rq-gold-mid)',
+              border: '1px solid color-mix(in srgb, var(--rq-gold) 30%, transparent)',
+              padding: '1px 7px',
+            }}
+          >
+            {tokens.length}
+          </span>
+        ) : undefined}
+      >
+        {tokens.length === 0 ? (
+          <p style={{ ...barlow, fontSize: '0.78rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            No challenges to send. Earn them by leveling up.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {TIER_ORDER.map(tier => {
+              const tierTokens = tokens.filter(t => t.tier === tier);
+              if (tierTokens.length === 0) return null;
+              return (
+                <div key={tier}>
+                  <div className="mb-1.5">
+                    <TierBadge tier={tier} size="sm" />
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <div className="space-y-0.5">
+                    {tierTokens.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => openModal(t)}
+                        className="w-full text-left px-2 py-1.5 hover:bg-[var(--rq-surface-2)] transition-colors flex items-center justify-between"
+                        style={{ borderLeft: '1px solid var(--rq-border-1)' }}
+                      >
+                        <span style={{ ...barlow, fontSize: '0.8rem', color: 'var(--rq-text-soft)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                          <MetricLabel metric={t.metric} />
+                        </span>
+                        <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {t.duration_days}d →
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
 
       {/* Active boosts */}
-      {boosts.filter(b => {
-        if (b.remaining != null) return b.remaining > 0;
-        if (b.expires_at) return new Date(b.expires_at) > new Date();
-        return true;
-      }).length > 0 && (
-        <Card className="bg-sidebar border-2 border-foreground/15">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Zap className="w-4 h-4" />
-              Active Boosts
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0 space-y-1.5">
-            {boosts.filter(b => {
-              if (b.remaining != null) return b.remaining > 0;
-              if (b.expires_at) return new Date(b.expires_at) > new Date();
-              return true;
-            }).map(b => (
-              <div key={b.id} className="flex justify-between text-sm">
-                <span className={b.delta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}>
+      {activeBoosts.length > 0 && (
+        <Section icon={<Zap className="w-3.5 h-3.5" />} title="Active Boosts">
+          <div className="space-y-1.5">
+            {activeBoosts.map(b => (
+              <div key={b.id} className="flex justify-between items-baseline">
+                <span style={{ ...barlow, fontSize: '0.85rem', fontWeight: 700, color: b.delta >= 0 ? 'var(--rq-success)' : 'var(--rq-danger)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {b.delta >= 0 ? '+' : ''}{b.delta}× multiplier
                 </span>
-                <span className="text-xs text-muted-foreground">
-                  {b.remaining != null ? `${b.remaining}d left` : b.expires_at ? new Date(b.expires_at).toLocaleDateString('en') : ''}
+                <span style={{ ...barlow, fontSize: '0.72rem', color: 'var(--rq-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {b.remaining != null ? `${b.remaining}d` : b.expires_at ? new Date(b.expires_at).toLocaleDateString('en') : ''}
                 </span>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </Section>
       )}
 
       <SendChallengeModal

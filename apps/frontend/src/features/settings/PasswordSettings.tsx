@@ -94,7 +94,7 @@ export const PasswordSettings: React.FC = () => {
           </div>
           <Button onClick={handleChangePassword} disabled={loading} className="flex items-center gap-2">
             {loading
-              ? <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />Changing...</>
+              ? <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />Changing...</>
               : <><Lock className="w-4 h-4" />Change Password</>
             }
           </Button>

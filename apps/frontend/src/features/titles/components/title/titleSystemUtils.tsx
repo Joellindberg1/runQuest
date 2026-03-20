@@ -25,16 +25,16 @@ export interface Title {
 export const getTitleIcon = (titleName: string) => {
   const n = titleName.toLowerCase();
   if (n.includes('batman'))         return <Moon className="w-6 h-6 text-indigo-500" />;
-  if (n.includes('rooster'))        return <Sunrise className="w-6 h-6 text-amber-400" />;
-  if (n.includes('lunch'))          return <Coffee className="w-6 h-6 text-yellow-600" />;
+  if (n.includes('rooster'))        return <Sunrise className="w-6 h-6" style={{ color: 'var(--rq-gold)' }} />;
+  if (n.includes('lunch'))          return <Coffee className="w-6 h-6" style={{ color: 'var(--rq-gold)' }} />;
   if (n.includes('hamster'))        return <Rabbit className="w-6 h-6 text-pink-400" />;
   if (n.includes('phoenix'))        return <Flame className="w-6 h-6 text-orange-500" />;
   if (n.includes('ghost'))          return <Ghost className="w-6 h-6 text-slate-400" />;
   if (n.includes('consistent'))     return <Zap className="w-6 h-6 text-cyan-500" />;
   if (n.includes('commuter'))       return <Footprints className="w-6 h-6 text-green-500" />;
   if (n.includes('double trouble')) return <Timer className="w-6 h-6 text-rose-500" />;
-  if (n.includes('marathoner') && !n.includes('half')) return <Trophy className="w-6 h-6 text-gold-500 text-yellow-500" />;
-  if (n.includes('half marathoner')) return <Trophy className="w-6 h-6 text-silver-500 text-gray-400" />;
+  if (n.includes('marathoner') && !n.includes('half')) return <Trophy className="w-6 h-6" style={{ color: 'var(--rq-gold)' }} />;
+  if (n.includes('half marathoner')) return <Trophy className="w-6 h-6 text-muted-foreground" />;
   if (n.includes('finisher'))       return <AlarmClock className="w-6 h-6 text-violet-500" />;
   if (n.includes('monthly monster')) return <TrendingUp className="w-6 h-6 text-emerald-500" />;
   if (n.includes('mountain goat'))  return <Mountain className="w-6 h-6 text-stone-500" />;
@@ -44,7 +44,7 @@ export const getTitleIcon = (titleName: string) => {
   if (n.includes('ultra man'))      return <Trophy className="w-6 h-6 text-purple-500" />;
   if (n.includes('weekend destroyer')) return <Target className="w-6 h-6 text-green-500" />;
   if (n.includes('park runner'))       return <TreePine className="w-6 h-6 text-lime-500" />;
-  return <Trophy className="w-6 h-6 text-gray-500" />;
+  return <Trophy className="w-6 h-6 text-muted-foreground" />;
 };
 
 /** Replace "King/Queen" in a title name based on the holder's gender. */

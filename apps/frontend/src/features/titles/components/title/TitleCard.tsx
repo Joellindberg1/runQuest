@@ -33,7 +33,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
             <div className="border-t pt-1.5 space-y-1">
               <div className="flex justify-between text-xs">
                 <span className="truncate">
-                  <Badge variant="default" className="bg-yellow-600 text-xs px-1.5 py-0 h-5 mr-1">
+                  <Badge variant="default" className="text-xs px-1.5 py-0 h-5 mr-1" style={{ background: 'var(--rq-gold)', color: 'var(--rq-gold-fg, #1a1200)' }}>
                     <Crown className="w-2.5 h-2.5 mr-0.5" />
                     {holder.user_name}
                   </Badge>
@@ -54,7 +54,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
             </div>
           ) : (
             <div>
-              <Badge variant="outline" className="text-red-600 border-red-200 text-xs px-1.5 py-0 h-5">
+              <Badge variant="outline" className="text-destructive border-destructive/30 text-xs px-1.5 py-0 h-5">
                 No Holder
               </Badge>
               <div className="text-xs text-muted-foreground mt-1">

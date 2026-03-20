@@ -249,11 +249,18 @@ const STATS: ChallengeStats = { wins: 5, draws: 1, losses: 2, challenge_active: 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 const ChallengesPreviewPage: React.FC = () => {
+  const myEntry = ALL_ACTIVE.find(e => e.challenge.challenger_id === ME_ID || e.challenge.opponent_id === ME_ID);
+  const widget = myEntry ? (
+    <ActiveChallengeWidget
+      challenge={myEntry.challenge}
+      progress={myEntry.progress}
+      currentUserId={ME_ID}
+      onClick={() => {}}
+    />
+  ) : undefined;
+
   return (
-    <AppLayout groupName="Wolfpack - Göteborgsvarvet 2026">
-      <div className="mb-4 px-3 py-2 rounded-md bg-primary/10 border border-primary/20 text-sm text-primary font-medium inline-block">
-        Preview — example data (Challenges)
-      </div>
+    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget} themeClass="runquest-hybrid">
       <ChallengesPage
         currentUserId={ME_ID}
         leaderboard={LEADERBOARD}

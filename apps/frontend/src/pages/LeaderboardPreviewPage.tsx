@@ -51,6 +51,23 @@ const MOCK_USERS: User[] = [
 
 const MOCK_CURRENT_USER = MOCK_USERS[0];
 
+// Mock titles for preview — tests display of 3 titles + overflow label
+const MOCK_TITLE_OVERRIDES: Record<string, import('@runquest/types').UserTitle[]> = {
+  'u1': [{ title_id: 't0', title_name: 'The Iron Queen',                  value: 0, is_current_holder: true }],
+  'u2': [
+    { title_id: 't1', title_name: 'The Daaaaaviiiiiid GOGGINGS',      value: 0, is_current_holder: true },
+    { title_id: 't2', title_name: 'The Reborn Eliud Kipchoge',         value: 0, is_current_holder: true },
+    { title_id: 't3', title_name: 'The Weekend Destroyer',             value: 0, is_current_holder: true },
+    { title_id: 't4', title_name: 'The Silent Pavement Predator',      value: 0, is_current_holder: true },
+  ],
+  'u3': [{ title_id: 't5', title_name: 'Dawn Patrol Champion',            value: 0, is_current_holder: true }],
+  'u4': [{ title_id: 't6', title_name: 'The Pavement Philosopher',        value: 0, is_current_holder: true }],
+  'u5': [{ title_id: 't7', title_name: 'Midnight Mile Muncher',           value: 0, is_current_holder: true }],
+  'u6': [{ title_id: 't8', title_name: 'The Reluctant Runner',            value: 0, is_current_holder: true }],
+  'u7': [{ title_id: 't9', title_name: 'Perpetual Beginner',              value: 0, is_current_holder: true }],
+  'u8': [{ title_id: 't10', title_name: 'Still Lacing Up',                value: 0, is_current_holder: true }],
+};
+
 // Active challenge widget data
 const endDate = new Date();
 endDate.setDate(endDate.getDate() + 5);
@@ -86,11 +103,8 @@ const LeaderboardPreviewPage: React.FC = () => {
   );
 
   return (
-    <AppLayout groupName="Wolfpack - Göteborgsvarvet 2026" topbarLeftWidget={widget}>
-      <div className="mb-4 px-3 py-2 rounded-md bg-primary/10 border border-primary/20 text-sm text-primary font-medium inline-block">
-        Preview — visar exempeldata
-      </div>
-      <Leaderboard users={MOCK_USERS} currentUser={MOCK_CURRENT_USER} />
+    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget} themeClass="runquest-hybrid">
+      <Leaderboard users={MOCK_USERS} currentUser={MOCK_CURRENT_USER} titleOverrides={MOCK_TITLE_OVERRIDES} />
     </AppLayout>
   );
 };

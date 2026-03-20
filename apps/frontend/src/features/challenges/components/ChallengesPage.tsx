@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TabsContent } from '@/shared/components/ui/tabs';
 import { PageTabs } from '@/shared/components/PageTabs';
-import { Trophy, Clock, BookOpen, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, Swords, BookOpen, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { ChallengeLeaderboard, type LeaderboardEntry } from './ChallengeLeaderboard';
 import { OngoingChallengeCard, type ProgressEntry } from './OngoingChallengeCard';
 import { ChallengesRulebook } from './ChallengesRulebook';
@@ -12,10 +12,10 @@ import type { Challenge, ChallengeToken, UserBoost, ChallengeStats } from '@runq
 import type { GroupMember } from './SendChallengeModal';
 
 const TABS = [
-  { value: 'leaderboard', label: 'Leaderboard',     icon: <Trophy className="w-4 h-4" /> },
-  { value: 'ongoing',     label: 'Ongoing',          icon: <Clock className="w-4 h-4" /> },
-  { value: 'challenges',  label: 'Challenges Info',  icon: <BookOpen className="w-4 h-4" /> },
-  { value: 'history',     label: 'History',          icon: <History className="w-4 h-4" /> },
+  { value: 'leaderboard', label: 'Standings',  icon: <Trophy className="w-3.5 h-3.5" /> },
+  { value: 'ongoing',     label: 'Live',       icon: <Swords className="w-3.5 h-3.5" /> },
+  { value: 'challenges',  label: 'Playbook',   icon: <BookOpen className="w-3.5 h-3.5" /> },
+  { value: 'history',     label: 'History',    icon: <History className="w-3.5 h-3.5" /> },
 ];
 
 export interface ChallengeWithProgress {
@@ -108,11 +108,25 @@ export const ChallengesPage: React.FC<ChallengesPageProps> = ({
             {/* Mobile sidebar toggle — between tab bar and tab content */}
             <div className="lg:hidden px-4 pb-3">
               <button
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-sidebar border-2 border-foreground/15 rounded-lg text-sm font-semibold"
+                className="w-full flex items-center justify-between px-3 py-2.5 transition-all"
+                style={{
+                  borderLeft: '2px solid var(--rq-gold)',
+                  background: sidebarOpen
+                    ? `linear-gradient(to right, var(--rq-gold-mid), transparent)`
+                    : 'linear-gradient(to right, color-mix(in srgb, var(--rq-gold) 4%, transparent), transparent)',
+                  fontFamily: 'Barlow Condensed, sans-serif',
+                  fontSize: '0.9rem',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                  color: 'var(--rq-gold)',
+                }}
                 onClick={() => setSidebarOpen(o => !o)}
               >
                 <span>My Stats &amp; Challenges</span>
-                {sidebarOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {sidebarOpen
+                  ? <ChevronUp className="w-3.5 h-3.5" />
+                  : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
               {sidebarOpen && (
                 <div className="mt-2">

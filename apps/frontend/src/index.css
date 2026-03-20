@@ -68,6 +68,32 @@
 
     /* Semantic status colours */
     --success:             142  71% 45%;   /* green-500 */
+
+    /* RunQuest component tokens — leaderboard surfaces, borders, text */
+    --rq-gold:         #B8860B;   /* Dark goldenrod — reads as gold on light bg */
+    --rq-gold-mid:       rgba(205,127,50,0.14);
+    --rq-rank-1:         #B8860B;
+    --rq-rank-1-subtle:  rgba(184,134,11,0.10);
+    --rq-rank-1-border:  rgba(184,134,11,0.50);
+    --rq-rank-2:         #a8a8a8;
+    --rq-rank-2-subtle:  rgba(168,168,168,0.08);
+    --rq-rank-2-border:  rgba(168,168,168,0.50);
+    --rq-rank-3:         #cd7f32;
+    --rq-rank-3-subtle:  rgba(205,127,50,0.10);
+    --rq-rank-3-border:  rgba(205,127,50,0.50);
+    --rq-surface-1:    rgba(0,0,0,0.04);
+    --rq-surface-2:    rgba(0,0,0,0.06);
+    --rq-border-1:     rgba(0,0,0,0.08);
+    --rq-border-2:     rgba(0,0,0,0.13);
+    --rq-avatar-border:rgba(0,0,0,0.18);
+    --rq-watermark:    rgba(0,0,0,1);
+    --rq-text-dim:     rgba(0,0,0,0.28);
+    --rq-text-muted:   rgba(0,0,0,0.45);
+    --rq-text-soft:    rgba(0,0,0,0.62);
+    --rq-text-strong:  rgba(0,0,0,0.80);
+    --rq-success:      #15803d;
+    --rq-danger:       #dc2626;
+    --rq-gold-fg:      #1a1200;  /* Text on gold/bronze badge */
   }
 
   /* ════════════════════════════════════════════════════════════
@@ -114,6 +140,31 @@
     /* Podium — only silver differs in dark mode */
     --podium-silver:         0  0% 63%;   /* #A0A0A0 — slightly darker than zinc-300 */
     --podium-silver-border: 240  4% 37%;  /* zinc-600 */
+
+    /* RunQuest component tokens — dark values */
+    --rq-gold:         #ffd700;
+    --rq-gold-mid:       rgba(255,215,0,0.14);
+    --rq-rank-1:         #ffd700;
+    --rq-rank-1-subtle:  rgba(255,215,0,0.08);
+    --rq-rank-1-border:  rgba(255,215,0,0.55);
+    --rq-rank-2:         #a8a8a8;
+    --rq-rank-2-subtle:  rgba(168,168,168,0.06);
+    --rq-rank-2-border:  rgba(168,168,168,0.55);
+    --rq-rank-3:         #cd7f32;
+    --rq-rank-3-subtle:  rgba(205,127,50,0.06);
+    --rq-rank-3-border:  rgba(205,127,50,0.55);
+    --rq-surface-1:    rgba(255,255,255,0.025);
+    --rq-surface-2:    rgba(255,255,255,0.04);
+    --rq-border-1:     rgba(255,255,255,0.06);
+    --rq-border-2:     rgba(255,255,255,0.09);
+    --rq-avatar-border:rgba(255,255,255,0.15);
+    --rq-watermark:    rgba(255,255,255,1);
+    --rq-text-dim:     rgba(255,255,255,0.30);
+    --rq-text-muted:   rgba(255,255,255,0.50);
+    --rq-text-soft:    rgba(255,255,255,0.72);
+    --rq-text-strong:  rgba(255,255,255,0.85);
+    --rq-success:      #4ade80;
+    --rq-danger:       #f87171;
   }
 }
 
@@ -124,6 +175,222 @@
   body {
     @apply bg-background text-foreground; /* Page uses the CSS variable tokens above */
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DARK OPS THEME — experimental (branch: ui/dark-ops-experiment)
+   Apply the .dark-ops class to a wrapper div to activate.
+─────────────────────────────────────────────────────────────────────────────── */
+.dark-ops {
+  --background:         0  0%  4%;    /* Near-black               #0a0a0a */
+  --foreground:         0  0% 85%;    /* Soft white text          #d9d9d9 */
+  --card:               0  0%  7%;    /* Dark card bg             #111111 */
+  --card-foreground:    0  0% 85%;    /* Card text                        */
+  --border:             0  0% 15%;    /* Subtle dark border               */
+  --muted:              0  0% 10%;    /* Muted surface                    */
+  --muted-foreground:   0  0% 42%;    /* Dim label text                   */
+  --primary:          120 100% 50%;   /* Neon green               #00ff00 */
+  --primary-foreground: 0  0%  0%;    /* Black text on neon green         */
+  --accent:             0  0% 10%;    /* Accent surface                   */
+  --accent-foreground:  0  0% 85%;    /* Accent text                      */
+  --success:          120 100% 50%;   /* Neon green                       */
+  --radius: 0rem;                     /* Sharp corners — no rounding      */
+  font-family: 'Share Tech Mono', monospace;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCANDINAVIAN ULTRA THEME — experimental (branch: ui/dark-ops-experiment)
+   Apply the .scandinavian-ultra class to a wrapper div to activate.
+─────────────────────────────────────────────────────────────────────────────── */
+.scandinavian-ultra {
+  --background:         33  30% 95%;   /* Warm cream               #f5f0eb */
+  --foreground:        330   5% 14%;   /* Near-black               #222020 */
+  --card:                0   0% 100%;  /* White cards                      */
+  --card-foreground:   330   5% 14%;   /* Card text                        */
+  --border:             33  15% 87%;   /* Barely-there warm border         */
+  --muted:              33  20% 92%;   /* Muted surface                    */
+  --muted-foreground:  330   3% 50%;   /* Subdued label text               */
+  --primary:           145  41% 28%;   /* Forest green             #2d6a4f */
+  --primary-foreground:  0   0% 98%;   /* White on green                   */
+  --accent:             33  20% 90%;   /* Warm accent surface              */
+  --accent-foreground: 330   5% 14%;   /* Accent text                      */
+  --success:           145  41% 28%;   /* Forest green                     */
+  --radius: 0.25rem;                   /* Subtle rounding                  */
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.scandinavian-ultra .mono {
+  font-family: 'Share Tech Mono', monospace;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RETRO ARCADE THEME — experimental (branch: ui/dark-ops-experiment)
+─────────────────────────────────────────────────────────────────────────────── */
+.retro-arcade {
+  --background:     240  28%  7%;   /* Deep dark navy       #0d0d1a */
+  --foreground:       0   0% 90%;   /* Near white                   */
+  --card:           240  22% 12%;   /* Slightly lighter dark #181826 */
+  --card-foreground:  0   0% 90%;
+  --border:         240  28% 22%;   /* Dark blue border             */
+  --muted:          240  22% 15%;
+  --muted-foreground: 0   0% 52%;   /* Dim text                     */
+  --primary:         25 100% 58%;   /* Arcade orange        #ff6b2b */
+  --primary-foreground: 0 0% 0%;
+  --accent:         240  22% 16%;
+  --accent-foreground: 0  0% 90%;
+  --success:         90  80% 50%;   /* Pixel green                  */
+  --radius: 0rem;
+  font-family: 'Silkscreen', monospace;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   NIKE PREMIUM THEME — experimental (branch: ui/dark-ops-experiment)
+─────────────────────────────────────────────────────────────────────────────── */
+.nike-premium {
+  --background:       0   0%  4%;   /* Pure black           #0a0a0a */
+  --foreground:       0   0% 96%;   /* Crisp white          #f5f5f5 */
+  --card:             0   0%  7%;   /* Near-black card      #111111 */
+  --card-foreground:  0   0% 96%;
+  --border:           0   0% 14%;   /* Subtle dark line             */
+  --muted:            0   0% 10%;
+  --muted-foreground: 0   0% 45%;   /* Dim label text               */
+  --primary:         51 100% 50%;   /* Electric yellow      #ffd700 */
+  --primary-foreground: 0 0%  0%;
+  --accent:           0   0% 10%;
+  --accent-foreground:0   0% 96%;
+  --success:         51 100% 50%;
+  --radius: 0rem;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RUNQUEST HYBRID THEME — stil 5, kombinerar det bästa från 1-4
+─────────────────────────────────────────────────────────────────────────────── */
+.runquest-hybrid {
+  --background:     145  28%  5%;   /* Very dark forest     #070e09 */
+  --foreground:       0   0% 93%;
+  --card:             0   0% 13%;   /* Neutral dark grey — pops vs green bg */
+  --card-foreground:  0   0% 93%;
+  --border:           0   0% 22%;   /* Clearly visible neutral border       */
+  --muted:            0   0% 10%;
+  --muted-foreground: 0   0% 46%;
+  --primary:         51 100% 50%;   /* Electric yellow      #ffd700 */
+  --primary-foreground: 0 0%  0%;
+  --accent:           0   0% 14%;
+  --accent-foreground:0   0% 93%;
+  --success:         51 100% 50%;
+  --radius: 0rem;
+  font-family: 'Barlow Condensed', sans-serif;
+
+  /* RunQuest component tokens — same as dark */
+  --rq-gold:         #ffd700;
+  --rq-gold-mid:       rgba(255,215,0,0.14);
+  --rq-rank-1:         #ffd700;
+  --rq-rank-1-subtle:  rgba(255,215,0,0.08);
+  --rq-rank-1-border:  rgba(255,215,0,0.55);
+  --rq-rank-2:         #a8a8a8;
+  --rq-rank-2-subtle:  rgba(168,168,168,0.06);
+  --rq-rank-2-border:  rgba(168,168,168,0.55);
+  --rq-rank-3:         #cd7f32;
+  --rq-rank-3-subtle:  rgba(205,127,50,0.06);
+  --rq-rank-3-border:  rgba(205,127,50,0.55);
+  --rq-surface-1:    rgba(255,255,255,0.025);
+  --rq-surface-2:    rgba(255,255,255,0.04);
+  --rq-border-1:     rgba(255,255,255,0.06);
+  --rq-border-2:     rgba(255,255,255,0.09);
+  --rq-avatar-border:rgba(255,255,255,0.15);
+  --rq-watermark:    rgba(255,255,255,1);
+  --rq-text-muted:   rgba(255,255,255,0.50);
+  --rq-text-soft:    rgba(255,255,255,0.72);
+  --rq-text-strong:  rgba(255,255,255,0.85);
+}
+
+/* Light mode override for runquest-hybrid — Bronze theme */
+html:not(.dark) .runquest-hybrid {
+  /* Page: warm cream */
+  --background:         33  45% 94%;
+  --foreground:        330   2% 15%;
+
+  /* Cards: white with warm border */
+  --card:                0   0% 100%;
+  --card-foreground:   330   2% 15%;
+  --border:             33  15% 84%;
+  --muted:              33  12% 92%;
+  --muted-foreground:  330   2% 42%;
+  --accent:             33  12% 88%;
+  --accent-foreground: 330   2% 15%;
+
+  /* Sidebar: warm tan, dark text */
+  --sidebar-background:  33  18% 82%;
+  --sidebar-foreground: 330   2% 15%;
+  --sidebar-accent:      33  15% 74%;
+  --sidebar-accent-foreground: 330 2% 15%;
+  --sidebar-border:      33  12% 68%;
+
+  /* Bronze as primary accent — replaces gold */
+  --primary:            30 61% 50%;    /* Bronze — hsl(30,61%,50%) ≈ #cd8032 */
+  --primary-foreground:  0  0% 100%;   /* White text on bronze */
+  --rq-gold:         #cd7f32;
+  --rq-gold-mid:     rgba(205,127,50,0.14);
+
+  /* Rank colors for podium */
+  --rq-rank-1:         #B8860B;
+  --rq-rank-1-subtle:  rgba(184,134,11,0.30);
+  --rq-rank-1-border:  rgba(184,134,11,0.75);
+  --rq-rank-2:         #888888;
+  --rq-rank-2-subtle:  rgba(136,136,136,0.30);
+  --rq-rank-2-border:  rgba(136,136,136,0.60);
+  --rq-rank-3:         #8B4513;
+  --rq-rank-3-subtle:  rgba(139,69,19,0.30);
+  --rq-rank-3-border:  rgba(139,69,19,0.65);
+
+  /* rq-* tokens: dark transparencies over white cards */
+  --rq-surface-1:    rgba(0,0,0,0.03);
+  --rq-surface-2:    rgba(0,0,0,0.05);
+  --rq-border-1:     rgba(0,0,0,0.07);
+  --rq-border-2:     rgba(0,0,0,0.11);
+  --rq-avatar-border:rgba(0,0,0,0.15);
+  --rq-watermark:    rgba(0,0,0,0.07);
+  --rq-text-dim:     rgba(0,0,0,0.28);
+  --rq-text-muted:   rgba(0,0,0,0.40);
+  --rq-text-soft:    rgba(0,0,0,0.58);
+  --rq-text-strong:  rgba(0,0,0,0.80);
+  --rq-success:      #15803d;
+  --rq-danger:       #dc2626;
+}
+
+html:not(.dark) .runquest-hybrid .nav-item-hover:hover {
+  background: linear-gradient(to right, rgba(205,127,50,0.08), transparent);
+  border-left-color: rgba(205,127,50,0.4) !important;
+}
+
+html:not(.dark) .runquest-hybrid .nav-item-active::after {
+  background: linear-gradient(to right, #cd7f32, rgba(205,127,50,0.15) 55%, transparent);
+}
+
+.nav-item-hover:hover {
+  background: linear-gradient(to right, color-mix(in srgb, var(--rq-gold) 5%, transparent), transparent);
+  border-left-color: color-mix(in srgb, var(--rq-gold) 30%, transparent) !important;
+}
+
+.nav-item-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(to right, var(--rq-gold), color-mix(in srgb, var(--rq-gold) 12%, transparent) 55%, transparent);
+}
+
+@keyframes goldPulse {
+  0%, 100% { box-shadow: 0 0 18px color-mix(in srgb, var(--rq-gold) 9%, transparent), inset 0 0 30px color-mix(in srgb, var(--rq-gold) 2%, transparent); }
+  50%       { box-shadow: 0 0 32px color-mix(in srgb, var(--rq-gold) 19%, transparent), inset 0 0 40px color-mix(in srgb, var(--rq-gold) 6%, transparent); }
+}
+
+@keyframes legendaryFlagGlow {
+  0%, 100% { filter: drop-shadow(0 3px 5px color-mix(in srgb, var(--rq-gold) 55%, transparent)); }
+  50%       { filter: drop-shadow(0 3px 12px color-mix(in srgb, var(--rq-gold) 90%, transparent)); }
 }
 
 /*

@@ -83,7 +83,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                   <div className="text-3xl font-bold mb-1">
                     {run.distance.toFixed(1)} km
                   </div>
-                  <div className="flex items-center gap-1 text-green-600 font-bold">
+                  <div className="flex items-center gap-1 font-bold" style={{ color: 'var(--rq-gold)' }}>
                     <Zap className="w-4 h-4" />
                     +{run.xp_gained} XP
                   </div>
@@ -93,19 +93,19 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-500 mb-1">{run.streak_day}</div>
+                  <div className="text-2xl font-bold text-foreground mb-1">{run.streak_day}</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Streak Day</div>
                 </div>
                 <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-500 mb-1">{run.multiplier.toFixed(1)}x</div>
+                  <div className="text-2xl font-bold text-foreground mb-1">{run.multiplier.toFixed(1)}x</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Multiplier</div>
                 </div>
                 <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-500 mb-1">{run.base_xp}</div>
+                  <div className="text-2xl font-bold text-foreground mb-1">{run.base_xp}</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Base XP</div>
                 </div>
                 <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-500 mb-1">+{run.distance_bonus}</div>
+                  <div className="text-2xl font-bold text-foreground mb-1">+{run.distance_bonus}</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Distance Bonus</div>
                 </div>
               </div>

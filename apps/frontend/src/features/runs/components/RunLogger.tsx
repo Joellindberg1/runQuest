@@ -144,11 +144,11 @@ const RunLogger: React.FC<RunLoggerProps> = ({ onSubmit, users = [] }) => {
                   )}
 
                   {distance && parseFloat(distance) < MIN_RUN_DISTANCE_KM && parseFloat(distance) > 0 && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <div className="text-sm font-semibold text-red-800">
+                    <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+                      <div className="text-sm font-semibold text-destructive">
                         No XP - Distance too short
                       </div>
-                      <div className="text-xs text-red-600">
+                      <div className="text-xs text-destructive/80">
                         Minimum 1.0km required for XP
                       </div>
                     </div>
