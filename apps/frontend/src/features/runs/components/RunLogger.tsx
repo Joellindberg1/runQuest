@@ -7,7 +7,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Calendar, Users, Plus } from 'lucide-react';
-import { useAuth } from '@/features/auth';
+import { useAuth } from '@/providers/AuthProvider';
 import { toast } from 'sonner';
 import { RunHistoryGroup } from './RunHistoryGroup';
 import { useCreateRun } from '../hooks/useCreateRun';

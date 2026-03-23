@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 import { User, Settings, LogOut, Shield } from 'lucide-react';
-import { useAuth } from '@/features/auth';
+import { useAuth } from '@/providers/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 
 export const ProfileMenu: React.FC = () => {

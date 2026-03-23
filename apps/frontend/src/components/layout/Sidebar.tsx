@@ -6,7 +6,7 @@ import { formatConnectionDate } from '@/shared/utils/formatters';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { ThemeToggle } from '@/shared/components/ThemeToggle';
 import { Button } from '@/shared/components/ui/button';
-import { ProfileMenu } from '@/features/profile';
+import { ProfileMenu } from '@/features/profile/components/ProfileMenu';
 import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Swords, X, CheckCircle, Bell } from 'lucide-react';
 
 interface SidebarProps {

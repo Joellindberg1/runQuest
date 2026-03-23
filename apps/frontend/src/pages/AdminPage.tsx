@@ -2,7 +2,11 @@ import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Settings, Users, Trophy, Target } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useAdminData, XPSettings, UserManagement, TitleConfig, AdminSecurity } from '@/features/admin';
+import { XPSettings } from '@/features/admin/XPSettings';
+import { UserManagement } from '@/features/admin/UserManagement';
+import { TitleConfig } from '@/features/admin/TitleConfig';
+import { AdminSecurity } from '@/features/admin/AdminSecurity';
+import { useAdminData } from '@/features/admin/hooks/useAdminData';
 import { useGroupName } from '@/shared/hooks/useGroupName';
 
 const AdminPage: React.FC = () => {

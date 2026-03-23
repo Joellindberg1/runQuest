@@ -418,8 +418,6 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
   }
 });
 
-// Simple sync logging using file system (temporary solution)
-
 /**
  * Sync all Strava-connected users. Used by the scheduler and the admin HTTP endpoint.
  * Exported so the scheduler can call this directly without an HTTP roundtrip.

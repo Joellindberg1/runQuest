@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Leaderboard } from '@/features/leaderboard';
+import { Leaderboard } from '@/features/leaderboard/components/Leaderboard';
 import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
 import type { User, Run, Challenge } from '@runquest/types';
 

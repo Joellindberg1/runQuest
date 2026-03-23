@@ -2,7 +2,7 @@ import React from 'react';
 import { Menu, Bell } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { ThemeToggle } from '@/shared/components/ThemeToggle';
-import { ProfileMenu } from '@/features/profile';
+import { ProfileMenu } from '@/features/profile/components/ProfileMenu';
 import { RunQuestLogo } from '@/shared/components/RunQuestLogo';
 
 interface TopBarProps {

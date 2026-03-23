@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Leaderboard } from '@/features/leaderboard';
-import { RunLogger } from '@/features/runs';
-import { UserProfile } from '@/features/profile';
-import { TitleSystem } from '@/features/titles';
+import { Leaderboard } from '@/features/leaderboard/components/Leaderboard';
+import { RunLogger } from '@/features/runs/components/RunLogger';
+import { UserProfile } from '@/features/profile/components/UserProfile';
+import { TitleSystem } from '@/features/titles/components/TitleSystem';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
 import { useLeaderboardData } from '@/features/leaderboard/hooks/useLeaderboardData';

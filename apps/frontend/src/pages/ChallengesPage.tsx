@@ -1,11 +1,11 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { ChallengesPage as ChallengesFeaturePage } from '@/features/challenges';
+import { ChallengesPage as ChallengesFeaturePage } from '@/features/challenges/components/ChallengesPage';
 import { useChallengeData } from '@/features/challenges/hooks/useChallengeData';
 import { useChallengeActions } from '@/features/challenges/hooks/useChallengeActions';
 import { backendApi } from '@/shared/services/backendApi';
-import { useAuth } from '@/features/auth';
+import { useAuth } from '@/providers/AuthProvider';
 
 const ChallengesPage: React.FC = () => {
   const { user } = useAuth();

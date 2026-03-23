@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AppProviders } from '@/providers';
-import { useAuth } from '@/features/auth';
+import { AppProviders } from '@/providers/AppProviders';
+import { useAuth } from '@/providers/AuthProvider';
 import { useAppInit } from '@/shared/hooks/useAppInit';
 import Index from './pages/Index';
 import AdminPage from './pages/AdminPage';
