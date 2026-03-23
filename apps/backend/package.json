@@ -9,7 +9,8 @@
     "start": "tsx src/server.ts",
     "build": "echo 'Backend uses tsx directly - no build needed'",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",
