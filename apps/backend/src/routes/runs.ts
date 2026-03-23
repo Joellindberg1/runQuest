@@ -186,6 +186,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       distance_bonus: run.distance_bonus,
       streak_bonus: run.streak_bonus,
       source: run.source || undefined,
+      is_treadmill: run.is_treadmill ?? null,
       user_name: run.users.name,
       user_level: run.users.current_level,
       user_total_xp: run.users.total_xp,

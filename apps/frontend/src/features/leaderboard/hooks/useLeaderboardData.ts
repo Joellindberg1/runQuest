@@ -54,6 +54,7 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
           km_xp: run.km_xp,
           distance_bonus: run.distance_bonus,
           streak_bonus: run.streak_bonus,
+          is_treadmill: (run as any).is_treadmill ?? null,
         })) || [],
       }));
 

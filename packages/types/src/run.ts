@@ -44,6 +44,7 @@ export interface Run {
   start_lat?: number | null;
   start_lng?: number | null;
   pace_std_dev?: number | null;
+  is_treadmill?: boolean | null;
 }
 
 export interface RunData {

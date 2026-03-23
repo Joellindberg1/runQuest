@@ -79,7 +79,17 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end">
+                  {run.is_treadmill === true && (
+                    <span className="text-xs font-semibold px-2 py-0.5 mb-2 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                      Treadmill
+                    </span>
+                  )}
+                  {run.is_treadmill === false && (
+                    <span className="text-xs font-semibold px-2 py-0.5 mb-2 rounded-full bg-green-500/15 text-green-500 border border-green-500/30">
+                      Outdoor
+                    </span>
+                  )}
                   <div className="text-3xl font-bold mb-1">
                     {run.distance.toFixed(1)} km
                   </div>

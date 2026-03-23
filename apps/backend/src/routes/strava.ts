@@ -76,6 +76,7 @@ function extractExtendedFields(activity: any) {
     start_lat:      activity.start_latlng?.[0] ?? null,
     start_lng:      activity.start_latlng?.[1] ?? null,
     pace_std_dev:   computePaceStdDev(activity.splits_metric),
+    is_treadmill:   activity.trainer === true,
   };
 }
 

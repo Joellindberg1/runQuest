@@ -70,8 +70,18 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
                     >
                       <div className="flex-1">
                         <div className="font-semibold">{run.date}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {run.distance.toFixed(1)}km • Streak Day {run.streak_day}
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>{run.distance.toFixed(1)}km • Streak Day {run.streak_day}</span>
+                          {run.is_treadmill === true && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                              Treadmill
+                            </span>
+                          )}
+                          {run.is_treadmill === false && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-500 border border-green-500/30">
+                              Outdoor
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
