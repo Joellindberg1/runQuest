@@ -22,6 +22,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3",
+    "esbuild": "^0.25.10",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
@@ -32,7 +33,6 @@
     "@types/node": "^20.19.17",
     "@types/node-cron": "^3.0.11",
     "@types/supertest": "^6.0.2",
-    "esbuild": "^0.25.10",
     "supertest": "^7.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.2",
