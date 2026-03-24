@@ -7,6 +7,7 @@ import { requireAdmin } from '../middleware/admin.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
+import { WeatherService } from '../services/weatherService.js';
 
 const router = express.Router();
 
@@ -773,7 +774,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
         // Fetch detailed activity to get splits_metric for pace_std_dev
         const detailed = await fetchDetailedActivity(activity.id, accessToken);
         const fields = extractExtendedFields(detailed ?? activity);
-        const { error } = await supabase.from('runs').insert({
+        const { data: insertedRun, error } = await supabase.from('runs').insert({
           user_id: userId,
           date,
           distance,
@@ -789,15 +790,17 @@ async function syncUserStravaActivities(userId: string): Promise<{
           streak_day: 1,
           xp_gained: 0,
           created_at: new Date().toISOString()
-        });
+        }).select('id, start_lat, start_lng, start_time, moving_time, is_treadmill').single();
         if (error) {
           logger.error(`❌ Failed to insert run (activity ${activity.id}): ${error.message}`, { fields });
           throw error;
         }
+        return insertedRun;
       })
     );
 
-    const importedRuns = insertResults.filter(r => r.status === 'fulfilled').length;
+    const fulfilledResults = insertResults.filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled');
+    const importedRuns = fulfilledResults.length;
     const failedCount = insertResults.filter(r => r.status === 'rejected').length;
     if (failedCount > 0) {
       logger.error(`❌ ${failedCount} runs failed to insert`);
@@ -813,6 +816,11 @@ async function syncUserStravaActivities(userId: string): Promise<{
       const earliestDate = dates[0];
       logger.info(`🔄 Reprocessing from ${earliestDate} to recalculate streaks and XP...`);
       await reprocessRunsFromDate(userId, earliestDate);
+
+      // Fetch weather before title calculation so all data is available
+      const newRunData = fulfilledResults.map(r => r.value).filter(Boolean);
+      await WeatherService.fetchAndSaveWeatherForRuns(newRunData);
+
       await calculateUserTotals(userId);
     }
 

@@ -1,5 +1,49 @@
 [
   {
+    "version": "0.3.2",
+    "type": "patch",
+    "date": "24 March 2026",
+    "title": "Weather API",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Weather data is now saved for every outdoor run — temperature, feels-like, humidity, wind speed and gusts, precipitation, snowfall, snow depth, UV index and visibility."
+      },
+      {
+        "type": "feature",
+        "description": "Data is fetched automatically after Strava sync using the run's GPS coordinates and start time via Open-Meteo — no setup required."
+      },
+      {
+        "type": "feature",
+        "description": "Historical weather is also backfilled for older runs that have location data, so your full run history gets enriched over time."
+      },
+      {
+        "type": "improvement",
+        "description": "Foundation for upcoming weather-based titles and challenges — run in the rain, wind or snow and let it count."
+      }
+    ]
+  },
+  {
+    "version": "0.3.1",
+    "type": "patch",
+    "date": "20 March 2026",
+    "title": "Treadmill & Outdoor Separation",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Runs are now tagged as treadmill or outdoor — detected automatically from Strava's trainer flag."
+      },
+      {
+        "type": "improvement",
+        "description": "Titles and stats that require outdoor running correctly exclude treadmill sessions — no more indoor runs inflating outdoor achievements."
+      },
+      {
+        "type": "improvement",
+        "description": "Backfill applied to all existing Strava runs so historical data is accurate from day one."
+      }
+    ]
+  },
+  {
     "version": "0.3.0",
     "type": "minor",
     "date": "3 March 2026",

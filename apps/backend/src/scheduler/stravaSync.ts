@@ -2,6 +2,7 @@
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
 import { syncAllStravaUsers } from '../routes/strava.js';
+import { WeatherService } from '../services/weatherService.js';
 
 const SYNC_INTERVAL_MINUTES = 30;
 
@@ -50,6 +51,9 @@ export function startStravaScheduler() {
       syncState.newRuns = result.totalNewRuns;
       syncState.nextSyncEstimated = computeNextSync();
       logger.info(`✅ Scheduled sync completed: ${result.message}`);
+
+      // Backfill weather for any runs still missing it (new + retries from previous failures)
+      await WeatherService.backfillMissingWeather();
     } catch (error) {
       syncState.lastSyncStatus = 'error';
       syncState.nextSyncEstimated = computeNextSync();

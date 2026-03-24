@@ -102,7 +102,7 @@ const FeaturesPage: React.FC = () => {
 
   const currentFeatures = [
     { icon: <Trophy className="w-6 h-6" />,     title: 'Leaderboard',        description: 'Real-time ranking and level progression' },
-    { icon: <Trophy className="w-6 h-6" />,     title: 'Title System',        description: 'Competitive achievements and titles' },
+    { icon: <Trophy className="w-6 h-6" />,     title: 'Title System',        description: '20 competitive titles — from longest streak to fastest marathon, night runs to mountain elevation' },
     { icon: <Zap className="w-6 h-6" />,        title: 'Run Logging',         description: 'Manual run entry with XP calculation' },
     { icon: <Target className="w-6 h-6" />,     title: 'Strava Integration',  description: 'Automatic import from Strava' },
     { icon: <Users className="w-6 h-6" />,      title: 'User Profiles',       description: 'Personal stats and achievements' },
@@ -114,21 +114,27 @@ const FeaturesPage: React.FC = () => {
   const workingOnFeatures: { icon: React.ReactNode; title: string; description: string; details: string[] }[] = [
     {
       icon: <Trophy className="w-6 h-6" />,
-      title: 'More Titles',
-      description: 'Expanding the title system with new achievements',
-      details: ['New milestone titles', 'Special event titles', 'Streak-based titles'],
+      title: 'Badges',
+      description: 'Visual achievements earned by hitting milestones and running in tough conditions',
+      details: ['Weather-based badges', 'Streak and distance milestones', 'Special event badges'],
     },
     {
-      icon: <Target className="w-6 h-6" />,
-      title: 'More Strava Data',
-      description: 'Richer data imported from your Strava activities',
-      details: ['Pace and heart rate', 'Elevation data', 'Segment performance'],
+      icon: <Users className="w-6 h-6" />,
+      title: 'Public Profiles',
+      description: 'Visit any member\'s profile to see their stats, titles and run history',
+      details: ['Public stats and titles', 'Full run history', 'Accessible from the leaderboard'],
     },
     {
       icon: <Swords className="w-6 h-6" />,
       title: 'App Challenges',
-      description: 'Group-wide challenges for everyone to participate in',
-      details: ['Weekly group goals', 'Seasonal events', 'Collaborative milestones'],
+      description: 'Group-wide challenges triggered by real weather forecasts',
+      details: ['Rain, wind and cold-weather runs', 'Automatic challenge triggers', 'Collaborative group goals'],
+    },
+    {
+      icon: <Smartphone className="w-6 h-6" />,
+      title: 'Notifications',
+      description: 'Stay updated on challenges, titles and group activity',
+      details: ['Challenge invites and results', 'Title changes', 'Group milestones'],
     },
   ];
 
@@ -201,7 +207,7 @@ const FeaturesPage: React.FC = () => {
             </CardHeader>
             {workingOnOpen && (
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {workingOnFeatures.map((feature, index) => (
                     <div key={index} className="bg-background border border-foreground/50 rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-2">
