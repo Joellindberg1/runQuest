@@ -27,10 +27,6 @@ jobs:
         run: npm ci
         working-directory: .
 
-      - name: Build shared package
-        run: npm run build --workspace=@runquest/shared
-        working-directory: .
-
       - name: Typecheck
         run: npx tsc --noEmit
 
