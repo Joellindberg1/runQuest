@@ -1,2 +1,5 @@
+[build]
+buildCommand = "npm run build --workspace=@runquest/backend"
+
 [deploy]
 startCommand = "npm run start --workspace=@runquest/backend"

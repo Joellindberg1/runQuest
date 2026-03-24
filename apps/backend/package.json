@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
-    "build": "echo 'Backend uses tsx directly - no build needed'",
+    "start": "node dist/server.js",
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --sourcemap --packages=external",
     "test": "vitest run",
     "test:watch": "vitest",
     "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts"
@@ -32,6 +32,7 @@
     "@types/node": "^20.19.17",
     "@types/node-cron": "^3.0.11",
     "@types/supertest": "^6.0.2",
+    "esbuild": "^0.25.10",
     "supertest": "^7.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.2",
