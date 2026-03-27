@@ -12,6 +12,7 @@ import StravaCallbackPage from './pages/StravaCallbackPage';
 import LeaderboardPreviewPage from './pages/LeaderboardPreviewPage';
 import ChallengesPreviewPage from './pages/ChallengesPreviewPage';
 import ChallengesPage from './pages/ChallengesPage';
+import PlaybookPage from './pages/PlaybookPage';
 import NotFound from './pages/NotFound';
 
 const AppContent = () => {
@@ -51,6 +52,7 @@ const AppContent = () => {
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/challenges" element={<ChallengesPage />} />
+      <Route path="/playbook" element={<PlaybookPage />} />
       <Route path="/preview" element={<LeaderboardPreviewPage />} />
       <Route path="/preview/challenges" element={<ChallengesPreviewPage />} />
       <Route path="*" element={<NotFound />} />

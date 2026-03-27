@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Trophy, Pen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { EditRunDialog } from '@/shared/components/EditRunDialog';
 import type { Run } from '@runquest/types';
 
-const RUNS_PER_PAGE = 7;
+// Height of a single collapsed run card (px) — used to fit as many as possible
+const RUN_CARD_H = 80;
+// Height of the pagination bar (px)
+const PAGINATOR_H = 44;
+// Minimum cards to show even if the container is very small
+const MIN_RUNS = 3;
 
 interface UserRunHistoryProps {
   runs: Run[];
@@ -17,6 +22,25 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
   const [editingRun, setEditingRun] = useState<Run | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [runsPerPage, setRunsPerPage] = useState(MIN_RUNS);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Dynamically compute how many run cards fit in the available container height
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const height = entry.contentRect.height;
+      setRunsPerPage(Math.max(MIN_RUNS, Math.floor((height - PAGINATOR_H) / RUN_CARD_H)));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Reset to first page whenever page size or run list changes
+  useEffect(() => {
+    setPage(0);
+  }, [runsPerPage, runs.length]);
 
   const handleEditRun = (run: Run, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -39,8 +63,8 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
   );
 
   const sorted = [...runs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const totalPages = Math.ceil(sorted.length / RUNS_PER_PAGE);
-  const pageRuns = sorted.slice(page * RUNS_PER_PAGE, (page + 1) * RUNS_PER_PAGE);
+  const totalPages = Math.ceil(sorted.length / runsPerPage);
+  const pageRuns = sorted.slice(page * runsPerPage, (page + 1) * runsPerPage);
 
   return (
     <>
@@ -51,7 +75,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
             Run History
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 min-h-0 flex flex-col">
+        <CardContent ref={containerRef} className="flex-1 min-h-0 flex flex-col">
           {runs.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-muted-foreground mb-2">No runs logged yet</div>
@@ -63,7 +87,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
                 {pageRuns.map((run) => {
                   const isOpen = selectedRun?.id === run.id;
                   return (
-                  <div key={run.id} className="bg-background border border-foreground/50 rounded-lg">
+                  <div key={run.id} className="bg-background border border-foreground/10 rounded-lg">
                     <div
                       className={`flex items-center justify-between p-3 cursor-pointer hover:bg-accent transition-colors ${isOpen ? 'rounded-t-lg' : 'rounded-lg'}`}
                       onClick={() => setSelectedRun(isOpen ? null : run)}
