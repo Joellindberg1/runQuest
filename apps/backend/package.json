@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "npm run build --workspace=@runquest/shared && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --sourcemap --packages=external",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --sourcemap --packages=external --alias:@runquest/shared=../../packages/shared/src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts"
