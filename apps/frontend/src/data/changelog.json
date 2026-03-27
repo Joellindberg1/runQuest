@@ -1,5 +1,33 @@
 [
   {
+    "version": "0.3.3",
+    "type": "patch",
+    "date": "27 March 2026",
+    "title": "Profile redesign & Playbook",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Playbook page — full game rules documentation covering XP formula, streak multipliers, levels, titles and challenge tokens. Accessible from the sidebar."
+      },
+      {
+        "type": "improvement",
+        "description": "Profile page redesigned — stats and run history now in a proper two-column layout that fills the full viewport height on desktop."
+      },
+      {
+        "type": "improvement",
+        "description": "Run history pagination is now dynamic — the number of cards per page adapts automatically to the available height so the list always fills the panel without overflow."
+      },
+      {
+        "type": "improvement",
+        "description": "Frodo Journey updated — The Shire and MORDOR are now shown below the bar, intermediate checkpoints (Bree, Rivendell, Moria, Rauros, The Black Gate) are above at alternating heights with connecting tick lines."
+      },
+      {
+        "type": "bugfix",
+        "description": "Streak multiplier displayed on the profile stats page now reflects the actual value stored per run (calculated by the backend with live DB settings) instead of a hardcoded frontend approximation."
+      }
+    ]
+  },
+  {
     "version": "0.3.2",
     "type": "patch",
     "date": "24 March 2026",

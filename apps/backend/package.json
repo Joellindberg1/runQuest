@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "npm run build --workspace=@runquest/shared && esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --sourcemap --packages=external",
+    "build": "npm run build --workspace=@runquest/shared && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --sourcemap --packages=external",
     "test": "vitest run",
     "test:watch": "vitest",
     "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts"
@@ -22,10 +22,10 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3",
-    "esbuild": "^0.25.10",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
+    "esbuild": "^0.25.10",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",

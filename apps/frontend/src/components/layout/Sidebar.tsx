@@ -7,7 +7,7 @@ import { StravaIcon } from '@/shared/components/StravaIcon';
 import { ThemeToggle } from '@/shared/components/ThemeToggle';
 import { Button } from '@/shared/components/ui/button';
 import { ProfileMenu } from '@/features/profile/components/ProfileMenu';
-import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Swords, X, CheckCircle, Bell } from 'lucide-react';
+import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Swords, BookOpen, X, CheckCircle, Bell } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -78,6 +78,7 @@ function useActiveTab() {
   if (location.pathname === '/features') return 'features';
   if (location.pathname === '/settings') return 'settings';
   if (location.pathname === '/challenges') return 'challenges';
+  if (location.pathname === '/playbook') return 'playbook';
   const params = new URLSearchParams(location.search);
   return params.get('tab') || 'leaderboard';
 }
@@ -92,6 +93,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
       navigate('/features');
     } else if (tab === 'challenges') {
       navigate('/challenges');
+    } else if (tab === 'playbook') {
+      navigate('/playbook');
     } else {
       navigate(tab === 'leaderboard' ? '/' : `/?tab=${tab}`);
     }
@@ -116,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
           'bg-sidebar border-r-2 border-foreground/15 overflow-x-visible',
           'transition-transform duration-300 ease-in-out',
           // Mobile: 60% wide with strong shadow so it reads as a distinct panel
-          // Desktop: 10% wide
+          // Desktop: 15% wide
           'w-[60vw] md:w-[15%]',
           isOpen
             ? 'translate-x-0 shadow-2xl'
@@ -189,6 +192,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
           </NavSection>
 
           <NavSection title="RunQuest" separator>
+            <NavItem
+              icon={<BookOpen className="w-3.5 h-3.5" />}
+              label="Playbook"
+              active={activeTab === 'playbook'}
+              onClick={() => handleNav('playbook')}
+            />
             <NavItem
               icon={<Info className="w-3.5 h-3.5" />}
               label="Feature & Version"

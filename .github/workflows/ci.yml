@@ -30,6 +30,10 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Build
+        run: npm run build --workspace=@runquest/backend
+        working-directory: .
+
       - name: Run tests
         run: npm test
 
