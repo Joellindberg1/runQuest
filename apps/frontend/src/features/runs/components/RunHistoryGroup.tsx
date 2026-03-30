@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent, CardTitle } from '@/shared/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { Calendar, Trophy, Zap } from 'lucide-react';
 import type { User } from '@runquest/types';
@@ -44,51 +44,59 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
       <div className="grid gap-6">
         {displayRuns.map((run) => (
           <Card key={run.id} className="overflow-hidden bg-sidebar border-2 border-foreground/15 border-l-4 border-l-primary hover:shadow-lg transition-all duration-300">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="flex flex-col items-center gap-2 w-12">
-                    <Avatar className="w-12 h-12 border-2 border-foreground/20">
-                      <AvatarImage src={run.user_profile_picture} alt={run.user_name} />
-                      <AvatarFallback className="bg-background text-foreground font-bold">
-                        {getInitials(run.user_name)}
-                      </AvatarFallback>
-                    </Avatar>
+            <CardContent className="p-4 md:p-6">
+              {/*
+                Mobile: 2-col grid
+                  Row 1: User info | Km + XP
+                  Row 2: Streak Day | Multiplier
+                  Row 3: Base XP | Km XP
+                  Row 4: Distance Bonus (col-span-2)
+                Desktop: 4-col × 2-row grid
+              */}
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-[auto_1fr_1fr_1fr] md:grid-rows-2 md:items-center">
+
+                {/* Col 1: User info – top-left aligned, spans both rows on desktop */}
+                <div className="md:row-span-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-start self-start">
+                  <Avatar className="w-12 h-12 border-2 border-foreground/20 row-span-2">
+                    <AvatarImage src={run.user_profile_picture} alt={run.user_name} />
+                    <AvatarFallback className="bg-background text-foreground font-bold">
+                      {getInitials(run.user_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <CardTitle className="text-xl truncate">
+                    {run.user_name}
+                  </CardTitle>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground col-start-2">
+                    <Calendar className="w-4 h-4" />
+                    {formatRunDate(run.date)}
+                  </div>
+                  <div className="flex items-center gap-2 col-span-2 mt-1">
                     {run.source === 'strava' && (
                       <div className="opacity-80">
-                        <StravaIcon size={36} />
+                        <StravaIcon size={28} />
                       </div>
                     )}
+                    <div className="flex items-center gap-1 bg-primary text-primary-foreground px-2 py-1 rounded-full text-xs font-bold">
+                      <Trophy className="w-3 h-3" />
+                      Lvl {run.user_level}
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0 pr-4 flex flex-col justify-start gap-2">
-                    <CardTitle className="text-xl truncate">
-                      {run.user_name}
-                    </CardTitle>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        {formatRunDate(run.date)}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 bg-primary text-primary-foreground px-2 py-1 rounded-full text-xs font-bold">
-                        <Trophy className="w-3 h-3" />
-                        Lvl {run.user_level}
-                      </div>
-                    </div>
+                  <div className="col-span-2 mt-1 flex">
+                    {run.is_treadmill === true && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                        Treadmill
+                      </span>
+                    )}
+                    {run.is_treadmill === false && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-500 border border-green-500/30">
+                        Outdoor
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="text-right flex flex-col items-end">
-                  {run.is_treadmill === true && (
-                    <span className="text-xs font-semibold px-2 py-0.5 mb-2 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
-                      Treadmill
-                    </span>
-                  )}
-                  {run.is_treadmill === false && (
-                    <span className="text-xs font-semibold px-2 py-0.5 mb-2 rounded-full bg-green-500/15 text-green-500 border border-green-500/30">
-                      Outdoor
-                    </span>
-                  )}
+
+                {/* Mobile row 1 col 2 / Desktop col 4 row 1: Distance + XP */}
+                <div className="text-right flex flex-col items-end justify-start md:order-none order-none md:col-start-4 md:row-start-1">
                   <div className="text-3xl font-bold mb-1">
                     {run.distance.toFixed(1)} km
                   </div>
@@ -97,40 +105,33 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                     +{run.xp_gained} XP
                   </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/*
-                Desktop (md): 4-col 2-row grid
-                  Col 1: Streak Day (row 1) + Multiplier (row 2)
-                  Col 2: Base XP (spans both rows)
-                  Col 3: Km XP (spans both rows)
-                  Col 4: Distance Bonus (spans both rows)
-                Mobile: 2-col flow
-              */}
-              <div className="grid grid-cols-2 md:grid-cols-4 md:grid-rows-2 gap-4">
 
-                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-1 md:row-start-1">
+                {/* Mobile row 2 col 1 / Desktop col 2 row 1: Streak Day */}
+                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-2 md:row-start-1">
                   <div className="text-2xl font-bold text-foreground mb-1">{run.streak_day}</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Streak Day</div>
                 </div>
 
-                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-1 md:row-start-2">
+                {/* Mobile row 2 col 2 / Desktop col 2 row 2: Multiplier */}
+                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-2 md:row-start-2">
                   <div className="text-2xl font-bold text-foreground mb-1">{run.multiplier.toFixed(1)}x</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Multiplier</div>
                 </div>
 
-                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-2 md:row-span-2 flex flex-col items-center justify-center">
+                {/* Mobile row 3 col 1 / Desktop col 3 row 1: Base XP */}
+                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-3 md:row-start-1">
                   <div className="text-2xl font-bold text-foreground mb-1">{run.base_xp}</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Base XP</div>
                 </div>
 
-                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-3 md:row-span-2 flex flex-col items-center justify-center">
+                {/* Mobile row 3 col 2 / Desktop col 3 row 2: Km XP */}
+                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-3 md:row-start-2">
                   <div className="text-2xl font-bold text-foreground mb-1">{run.km_xp}</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Km XP</div>
                 </div>
 
-                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-4 md:row-span-2 flex flex-col items-center justify-center">
+                {/* Mobile row 4 full-width / Desktop col 4 row 2: Distance Bonus */}
+                <div className="col-span-2 md:col-span-1 text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-4 md:row-start-2">
                   <div className="text-2xl font-bold text-foreground mb-1">+{run.distance_bonus}</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Distance Bonus</div>
                 </div>
