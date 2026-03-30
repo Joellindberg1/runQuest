@@ -72,16 +72,16 @@ async function scheduleMorningEvents(): Promise<void> {
 }
 
 /**
- * Körs varje kväll 19:00 Stockholm — skapar Lunch Run för imorgon.
- * Lunch Run: 11:30–14:30 (window_hours=3).
+ * Körs varje kväll 19:00 Stockholm — skapar Kvällsrunda för imorgon.
+ * Kvällsrunda: 18:00–22:00 (window_hours=4).
  */
-async function scheduleLunchEvents(): Promise<void> {
+async function scheduleEveningEvents(): Promise<void> {
   const tomorrow = tomorrowStockholm();
-  const startsAt = atStockholm(tomorrow, 11, 30);
-  const endsAt   = atStockholm(tomorrow, 14, 30);
+  const startsAt = atStockholm(tomorrow, 18, 0);
+  const endsAt   = atStockholm(tomorrow, 22, 0);
 
-  logger.info(`📅 [EventScheduler] Scheduling Lunch Run for ${tomorrow}`);
-  await createForAllGroups('Lunch Run', startsAt, endsAt);
+  logger.info(`📅 [EventScheduler] Scheduling Kvällsrunda for ${tomorrow}`);
+  await createForAllGroups('Kvällsrunda', startsAt, endsAt);
 }
 
 // ─── Helg-event ───────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ export function startEventScheduler(): void {
     try {
       await Promise.allSettled([
         scheduleMorningEvents(),
-        scheduleLunchEvents(),
+        scheduleEveningEvents(),
         maybeScheduleStormChaser(),
       ]);
     } catch (e) {

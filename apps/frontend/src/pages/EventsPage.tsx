@@ -321,8 +321,33 @@ const HistorySection: React.FC<{ items: HistoryEvent[] }> = ({ items }) => {
               }
             </div>
 
-            {isOpen && item.leaderboard.length > 0 && (
+            {isOpen && (
               <div className="px-4 pb-4 border-t border-foreground/8">
+                {/* Regler */}
+                <div className="flex flex-wrap gap-2 pt-3 pb-2">
+                  {item.template.minKm > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full border border-foreground/15 text-muted-foreground"
+                      style={{ fontFamily: 'Barlow Condensed, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      min {item.template.minKm} km
+                    </span>
+                  )}
+                  {item.type === 'participation' && item.template.rewardXp > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full border border-foreground/15 text-muted-foreground"
+                      style={{ fontFamily: 'Barlow Condensed, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      +{item.template.rewardXp} XP
+                    </span>
+                  )}
+                  {item.type === 'competition' && (
+                    <span className="text-xs px-2 py-0.5 rounded-full border border-foreground/15 text-muted-foreground"
+                      style={{ fontFamily: 'Barlow Condensed, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      🥇{item.template.rewardXp1st} 🥈{item.template.rewardXp2nd} 🥉{item.template.rewardXp3rd} XP
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            {isOpen && item.leaderboard.length > 0 && (
+              <div className="px-4 pb-4">
                 <div className="rounded-lg border border-foreground/10 overflow-hidden mt-3">
                   {item.leaderboard.map(entry => (
                     <div key={entry.userId}
