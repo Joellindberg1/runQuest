@@ -5,6 +5,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { calculateCompleteRunXP, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
+import { checkEventQualification } from '../services/eventService.js';
 
 const router = express.Router();
 
@@ -266,6 +267,15 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
 
     // Recalculate user totals (scoped to user's group for title processing)
     await calculateUserTotals(userId, req.user!.group_id);
+
+    // Check if this run qualifies for any active events (fire-and-forget, non-blocking)
+    checkEventQualification({
+      userId,
+      runId: newRun.id,
+      runDate: date,
+      distanceKm: distanceNum,
+      groupId: req.user!.group_id,
+    }).catch(e => logger.error('❌ checkEventQualification error:', e));
 
     // Fetch the fully processed run
     const { data: processedRun, error: fetchError } = await supabase
