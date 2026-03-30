@@ -458,3 +458,71 @@ export async function getAllGroupIds(): Promise<string[]> {
   }
   return (data ?? []).map((g: any) => g.id);
 }
+
+// ─── getDailyPoolTemplates ─────────────────────────────────────────────────────
+
+export interface DailyPoolTemplate {
+  name: string;
+  spawnChance: number;
+  startHour: number;
+  endHour: number;
+  endMinute: number;
+  requiresWeather: string | null;
+}
+
+/**
+ * Hämtar templates som ingår i den dagliga 19:00-poolen.
+ * (Morgonrunda, Kvällsrunda, Storm Chaser)
+ * Tidsfönster och vikter hämtas från DB.
+ */
+export async function getDailyPoolTemplates(): Promise<DailyPoolTemplate[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('event_templates')
+    .select('name, spawn_chance, start_hour, end_hour, end_minute, requires_weather')
+    .in('name', ['Morgonrunda', 'Kvällsrunda', 'Storm Chaser'])
+    .eq('active', true);
+
+  if (error) {
+    logger.error('❌ [EventService] getDailyPoolTemplates error:', error);
+    return [];
+  }
+
+  return (data ?? []).map((t: any) => ({
+    name: t.name,
+    spawnChance: Number(t.spawn_chance),
+    startHour: Number(t.start_hour),
+    endHour: Number(t.end_hour),
+    endMinute: Number(t.end_minute),
+    requiresWeather: t.requires_weather ?? null,
+  }));
+}
+
+// ─── getTemplateTimeWindow ────────────────────────────────────────────────────
+
+export interface TemplateTimeWindow {
+  startHour: number;
+  endHour: number;
+  endMinute: number;
+  spawnChance: number;
+}
+
+/**
+ * Hämtar tidsfönster och spawn_chance för ett enskilt template.
+ */
+export async function getTemplateTimeWindow(name: string): Promise<TemplateTimeWindow | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('event_templates')
+    .select('spawn_chance, start_hour, end_hour, end_minute')
+    .eq('name', name)
+    .single();
+
+  if (error || !data) return null;
+  return {
+    spawnChance: Number(data.spawn_chance),
+    startHour: Number(data.start_hour),
+    endHour: Number(data.end_hour),
+    endMinute: Number(data.end_minute),
+  };
+}

@@ -25,27 +25,27 @@ export type EventWidgetData = ParticipationWidgetData | CompetitionWidgetData;
 
 function formatCountdown(endsAt: string): string {
   const diff = new Date(endsAt).getTime() - Date.now();
-  if (diff <= 0) return 'Stänger nu';
+  if (diff <= 0) return 'Closing now';
   const h = Math.floor(diff / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
-  if (h > 0) return `${h}h ${m}m kvar`;
-  return `${m}m kvar`;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
 }
 
 function formatOpensIn(startsAt: string): string {
   const diff = new Date(startsAt).getTime() - Date.now();
-  if (diff <= 0) return 'Öppnar nu';
+  if (diff <= 0) return 'Opens now';
   const h = Math.floor(diff / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
-  if (h > 0) return `Om ${h}h ${m}m`;
-  return `Om ${m}m`;
+  if (h > 0) return `In ${h}h ${m}m`;
+  return `In ${m}m`;
 }
 
 function formatDaysLeft(endsAt: string): string {
   const days = Math.ceil((new Date(endsAt).getTime() - Date.now()) / 86_400_000);
-  if (days <= 0) return 'Stänger snart';
-  if (days === 1) return '1d kvar';
-  return `${days}d kvar`;
+  if (days <= 0) return 'Closing soon';
+  if (days === 1) return '1d left';
+  return `${days}d left`;
 }
 
 function formatMetricValue(value: number, metric: 'km' | 'elevation'): string {
@@ -78,7 +78,7 @@ export const EventWidget: React.FC<Props> = ({ data }) => {
             }
           </div>
           {data.done
-            ? <span className="text-xs" style={{ color: 'var(--rq-success)' }}>Klar!</span>
+            ? <span className="text-xs" style={{ color: 'var(--rq-success)' }}>Done!</span>
             : data.scheduled
             ? (
               <div className="flex items-center gap-1 text-xs text-muted-foreground">

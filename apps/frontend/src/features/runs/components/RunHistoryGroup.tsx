@@ -8,6 +8,22 @@ import { StravaIcon } from '@/shared/components/StravaIcon';
 import { getInitials, formatRunDate } from '@/shared/utils/formatters';
 import { useGroupRunHistory } from '../hooks/useGroupRunHistory';
 
+function wmoWeather(code: number): { emoji: string; label: string; isPrecip: boolean } {
+  if (code === 0)                       return { emoji: '☀️',  label: 'Clear',            isPrecip: false };
+  if (code === 1)                       return { emoji: '🌤️', label: 'Mainly clear',      isPrecip: false };
+  if (code === 2)                       return { emoji: '⛅',  label: 'Partly cloudy',     isPrecip: false };
+  if (code === 3)                       return { emoji: '☁️',  label: 'Overcast',          isPrecip: false };
+  if (code === 45 || code === 48)       return { emoji: '🌫️', label: 'Fog',               isPrecip: false };
+  if (code >= 51 && code <= 55)         return { emoji: '🌦️', label: 'Drizzle',           isPrecip: true  };
+  if (code >= 61 && code <= 65)         return { emoji: '🌧️', label: 'Rain',              isPrecip: true  };
+  if (code >= 71 && code <= 77)         return { emoji: '🌨️', label: 'Snow',              isPrecip: true  };
+  if (code >= 80 && code <= 82)         return { emoji: '🌧️', label: 'Rain showers',      isPrecip: true  };
+  if (code === 85 || code === 86)       return { emoji: '🌨️', label: 'Snow showers',      isPrecip: true  };
+  if (code === 95)                      return { emoji: '⛈️',  label: 'Thunderstorm',      isPrecip: true  };
+  if (code === 96 || code === 99)       return { emoji: '⛈️',  label: 'Thunderstorm',      isPrecip: true  };
+  return { emoji: '🌡️', label: 'Unknown', isPrecip: false };
+}
+
 interface RunHistoryGroupProps {
   users?: User[];
 }
@@ -93,6 +109,20 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                       </span>
                     )}
                   </div>
+                  {run.weather_code != null && run.temperature_c != null && (() => {
+                    const w = wmoWeather(run.weather_code);
+                    return (
+                      <div className="col-span-2 mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>{w.emoji}</span>
+                        <span>{Math.round(run.temperature_c!)}°C</span>
+                        {w.isPrecip && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
+                            {w.label}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Mobile row 1 col 2 / Desktop col 4 row 1: Distance + XP */}
@@ -112,11 +142,22 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Streak Day</div>
                 </div>
 
-                {/* Mobile row 2 col 2 / Desktop col 2 row 2: Multiplier */}
-                <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-2 md:row-start-2">
-                  <div className="text-2xl font-bold text-foreground mb-1">{run.multiplier.toFixed(1)}x</div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Multiplier</div>
-                </div>
+                {/* Mobile row 2 col 2 / Desktop col 2 row 2: Multiplier & XP */}
+                {(() => {
+                  const bonus = Math.round((run.base_xp + run.km_xp) * (run.multiplier - 1));
+                  const bonusColor = bonus === 0 ? undefined : bonus > 0 ? 'var(--rq-success)' : 'var(--rq-danger)';
+                  const bonusLabel = bonus >= 0 ? `+${bonus}` : `${bonus}`;
+                  return (
+                    <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-2 md:row-start-2">
+                      <div className="text-xl font-bold text-foreground mb-1 flex items-baseline justify-center gap-1.5 flex-wrap">
+                        <span>{run.multiplier.toFixed(2)}x</span>
+                        <span className="text-muted-foreground font-normal text-base">=</span>
+                        <span style={{ color: bonusColor }}>{bonusLabel} XP</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide">Multiplier & XP</div>
+                    </div>
+                  );
+                })()}
 
                 {/* Mobile row 3 col 1 / Desktop col 3 row 1: Base XP */}
                 <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-3 md:row-start-1">

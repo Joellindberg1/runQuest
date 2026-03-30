@@ -8,6 +8,8 @@ import {
   settleCompetitionEvents,
   settleExpiredParticipationEvents,
   checkStormChaserForecast,
+  getDailyPoolTemplates,
+  getTemplateTimeWindow,
 } from '../services/eventService.js';
 
 const STOCKHOLM = 'Europe/Stockholm';
@@ -67,22 +69,19 @@ interface DailyDrawResult {
 async function runDailyParticipationDraw(): Promise<DailyDrawResult> {
   const tomorrow = tomorrowStockholm();
 
-  // Bygg kandidatpool
-  const candidates: Array<{
-    name: string;
-    weight: number;
-    startHour: number;
-    endHour: number;
-    endMinute: number;
-  }> = [
-    { name: 'Morgonrunda', weight: 0.10, startHour: 6,  endHour: 10, endMinute: 0 },
-    { name: 'Kvällsrunda', weight: 0.10, startHour: 18, endHour: 22, endMinute: 0 },
-  ];
-
+  // Hämta kandidatpool från DB (Morgonrunda, Kvällsrunda, Storm Chaser)
+  const allTemplates = await getDailyPoolTemplates();
   const stormQualifies = await checkStormChaserForecast();
-  if (stormQualifies) {
-    candidates.push({ name: 'Storm Chaser', weight: 0.30, startHour: 0, endHour: 23, endMinute: 59 });
-  }
+
+  const candidates = allTemplates
+    .filter(t => t.name !== 'Storm Chaser' || stormQualifies)
+    .map(t => ({
+      name: t.name,
+      weight: t.spawnChance,
+      startHour: t.startHour,
+      endHour: t.endHour,
+      endMinute: t.endMinute,
+    }));
 
   const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
   const pool = candidates.map(c => ({
@@ -131,15 +130,17 @@ export async function scheduleDailyParticipationEventTest(): Promise<DailyDrawRe
  * Spawn chance: 20% — triggar bara en av fem helgkvällar.
  */
 async function scheduleHangoverRun(): Promise<void> {
-  const SPAWN_CHANCE = 0.20;
-  if (Math.random() >= SPAWN_CHANCE) {
-    logger.info('📅 [EventScheduler] Hangover Run roll miss (20% chance)');
+  const tmpl = await getTemplateTimeWindow('Hangover Run');
+  if (!tmpl) { logger.error('❌ [EventScheduler] Hangover Run template not found'); return; }
+
+  if (Math.random() >= tmpl.spawnChance) {
+    logger.info(`📅 [EventScheduler] Hangover Run roll miss (${(tmpl.spawnChance * 100).toFixed(0)}% chance)`);
     return;
   }
 
   const tomorrow = tomorrowStockholm();
-  const startsAt = atStockholm(tomorrow, 0, 0);
-  const endsAt   = atStockholm(tomorrow, 23, 59);
+  const startsAt = atStockholm(tomorrow, tmpl.startHour, 0);
+  const endsAt   = atStockholm(tomorrow, tmpl.endHour, tmpl.endMinute);
 
   logger.info(`📅 [EventScheduler] Hangover Run triggered for ${tomorrow}`);
   await createForAllGroups('Hangover Run', startsAt, endsAt);
@@ -153,15 +154,17 @@ async function scheduleHangoverRun(): Promise<void> {
  * Spawn chance: 30% — triggar ungefär var tredje vecka.
  */
 async function scheduleFridayEvent(): Promise<void> {
-  const SPAWN_CHANCE = 0.30;
-  if (Math.random() >= SPAWN_CHANCE) {
-    logger.info('📅 [EventScheduler] 5K Friday roll miss (30% chance)');
+  const tmpl = await getTemplateTimeWindow('5K Friday');
+  if (!tmpl) { logger.error('❌ [EventScheduler] 5K Friday template not found'); return; }
+
+  if (Math.random() >= tmpl.spawnChance) {
+    logger.info(`📅 [EventScheduler] 5K Friday roll miss (${(tmpl.spawnChance * 100).toFixed(0)}% chance)`);
     return;
   }
 
   const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
-  const startsAt = atStockholm(tomorrow, 0, 0);
-  const endsAt   = atStockholm(tomorrow, 23, 59);
+  const startsAt = atStockholm(tomorrow, tmpl.startHour, 0);
+  const endsAt   = atStockholm(tomorrow, tmpl.endHour, tmpl.endMinute);
 
   logger.info(`📅 [EventScheduler] 5K Friday triggered for ${tomorrow}`);
   await createForAllGroups('5K Friday', startsAt, endsAt);

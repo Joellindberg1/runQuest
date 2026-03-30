@@ -20,26 +20,26 @@ type ApiEvent = Awaited<ReturnType<typeof backendApi.getEvents>>['data'] extends
 
 function formatCountdown(endsAt: string): string {
   const diff = new Date(endsAt).getTime() - Date.now();
-  if (diff <= 0) return 'Stänger nu';
+  if (diff <= 0) return 'Closing now';
   const h = Math.floor(diff / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
-  if (h > 0) return `${h}h ${m}m kvar`;
-  return `${m}m kvar`;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
 }
 
 function formatOpensIn(startsAt: string): string {
   const diff = new Date(startsAt).getTime() - Date.now();
-  if (diff <= 0) return 'Öppnar nu';
+  if (diff <= 0) return 'Opens now';
   const h = Math.floor(diff / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
-  if (h > 0) return `Öppnar om ${h}h ${m}m`;
-  return `Öppnar om ${m}m`;
+  if (h > 0) return `Opens in ${h}h ${m}m`;
+  return `Opens in ${m}m`;
 }
 
 function formatCompetitionEnd(endsAt: string): string {
   const end = new Date(endsAt);
   const days = Math.ceil((end.getTime() - Date.now()) / 86_400_000);
-  const daysStr = days <= 0 ? 'Stänger snart' : days === 1 ? '1d kvar' : `${days}d kvar`;
+  const daysStr = days <= 0 ? 'Closing soon' : days === 1 ? '1d left' : `${days}d left`;
   const y = end.getFullYear();
   const mo = String(end.getMonth() + 1).padStart(2, '0');
   const d = String(end.getDate()).padStart(2, '0');
@@ -144,7 +144,7 @@ const ParticipationCard: React.FC<{ event: ApiEvent }> = ({ event }) => {
           <div className="flex items-center justify-between rounded-lg px-4 py-3 border border-foreground/15 bg-background">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="w-4 h-4 shrink-0" />
-              <span>Kommer snart</span>
+              <span>Coming soon</span>
             </div>
             <span className="font-semibold text-sm text-muted-foreground">{timeLabel}</span>
           </div>
@@ -155,14 +155,14 @@ const ParticipationCard: React.FC<{ event: ApiEvent }> = ({ event }) => {
             <div className="flex items-center justify-between rounded-lg px-4 py-3 border border-foreground/15 bg-background">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="w-4 h-4 shrink-0" />
-                <span>Fönster stänger</span>
+                <span>Window closes</span>
               </div>
               <span className="font-semibold text-sm" style={{ color: 'var(--rq-gold)' }}>{timeLabel}</span>
             </div>
             <div className="flex items-center justify-between rounded-lg px-4 py-3 border"
               style={{ background: 'rgba(201,168,76,0.07)', borderColor: 'rgba(201,168,76,0.25)' }}>
               <span className="text-sm" style={{ color: 'var(--rq-gold)' }}>
-                Logga ett pass ≥ {event.template.minKm} km
+                Log a run ≥ {event.template.minKm} km
               </span>
               <ChevronRight className="w-4 h-4" style={{ color: 'var(--rq-gold)' }} />
             </div>
@@ -174,7 +174,7 @@ const ParticipationCard: React.FC<{ event: ApiEvent }> = ({ event }) => {
             style={{ background: 'rgba(76,175,114,0.08)', borderColor: 'rgba(76,175,114,0.3)' }}>
             <CheckCircle className="w-4 h-4 shrink-0" style={{ color: 'var(--rq-success)' }} />
             <span className="text-sm font-medium" style={{ color: 'var(--rq-success)' }}>
-              Klar! +{event.myEntry!.xpAwarded} XP intjänat
+              Done! +{event.myEntry!.xpAwarded} XP earned
             </span>
           </div>
         )}
@@ -204,7 +204,7 @@ const CompetitionCard: React.FC<{ event: ApiEvent }> = ({ event }) => {
             <span style={{ color: 'var(--rq-gold)' }}><Trophy className="w-5 h-5" /></span>
             <div>
               <div className="text-base font-bold tracking-wide">{event.template.name}</div>
-              <div className="text-xs text-muted-foreground font-normal">Competition · {event.metric === 'km' ? 'Total distans' : 'Total höjdmeter'}</div>
+              <div className="text-xs text-muted-foreground font-normal">Competition · {event.metric === 'km' ? 'Total distance' : 'Total elevation'}</div>
             </div>
           </div>
           <span className="text-xs text-muted-foreground text-right leading-tight shrink-0">
@@ -214,7 +214,7 @@ const CompetitionCard: React.FC<{ event: ApiEvent }> = ({ event }) => {
       </CardHeader>
       <CardContent className="space-y-4">
         {leaderboard.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-2">Inga deltagare ännu</p>
+          <p className="text-sm text-muted-foreground text-center py-2">No participants yet</p>
         ) : (
           <div className="rounded-lg border border-foreground/10 overflow-hidden">
             {leaderboard.map(entry => (
@@ -251,7 +251,7 @@ const CompetitionCard: React.FC<{ event: ApiEvent }> = ({ event }) => {
         )}
 
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>XP-pris:</span>
+          <span>XP rewards:</span>
           <span className="flex items-center gap-1">🥇 <span style={{ color: 'var(--rq-gold)' }}>{rewardXp1st}</span></span>
           <span className="flex items-center gap-1">🥈 <span style={{ color: '#aaa' }}>{rewardXp2nd}</span></span>
           <span className="flex items-center gap-1">🥉 <span style={{ color: '#c87533' }}>{rewardXp3rd}</span></span>
@@ -282,7 +282,7 @@ const HistorySection: React.FC<{ items: HistoryEvent[] }> = ({ items }) => {
 
         const resultLabel =
           item.type === 'participation'
-            ? qualified ? '✓ Klar' : 'Missad'
+            ? qualified ? '✓ Done' : 'Missed'
             : rank != null ? `#${rank}` : '—';
 
         const resultColor =
@@ -374,7 +374,7 @@ const HistorySection: React.FC<{ items: HistoryEvent[] }> = ({ items }) => {
 
                       <span className="flex-1"
                         style={{ color: entry.isMe ? 'var(--rq-gold)' : undefined, fontWeight: entry.isMe ? 600 : undefined }}>
-                        {entry.isMe ? '▶ Du' : entry.userName}
+                        {entry.isMe ? '▶ You' : entry.userName}
                       </span>
 
                       {item.type === 'competition' && (
@@ -464,7 +464,7 @@ const EventsPage: React.FC = () => {
                 <SectionHeader icon={<CalendarDays className="w-3.5 h-3.5" />} title="Participation" />
                 {participationEvents.length > 0
                   ? participationEvents.map(e => <ParticipationCard key={e.id} event={e} />)
-                  : <EmptyState message="Inga aktiva participation events just nu" />
+                  : <EmptyState message="No active participation events right now" />
                 }
               </div>
 
@@ -472,7 +472,7 @@ const EventsPage: React.FC = () => {
                 <SectionHeader icon={<Trophy className="w-3.5 h-3.5" />} title="Competition" />
                 {competitionEvents.length > 0
                   ? competitionEvents.map(e => <CompetitionCard key={e.id} event={e} />)
-                  : <EmptyState message="Inga aktiva tävlingar just nu" />
+                  : <EmptyState message="No active competitions right now" />
                 }
               </div>
             </div>
@@ -482,7 +482,7 @@ const EventsPage: React.FC = () => {
               <SectionHeader icon={<ChevronRight className="w-3.5 h-3.5" />} title="History" />
               {historyItems.length > 0
                 ? <HistorySection items={historyItems} />
-                : <EmptyState message="Ingen historik ännu" />
+                : <EmptyState message="No history yet" />
               }
             </div>
 
