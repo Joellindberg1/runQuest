@@ -7,7 +7,7 @@ import { StravaIcon } from '@/shared/components/StravaIcon';
 import { ThemeToggle } from '@/shared/components/ThemeToggle';
 import { Button } from '@/shared/components/ui/button';
 import { ProfileMenu } from '@/features/profile/components/ProfileMenu';
-import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Swords, BookOpen, X, CheckCircle, Bell } from 'lucide-react';
+import { Trophy, Award, User, Plus, Info, HelpCircle, Bug, Swords, BookOpen, CalendarDays, X, CheckCircle, Bell } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -79,6 +79,7 @@ function useActiveTab() {
   if (location.pathname === '/settings') return 'settings';
   if (location.pathname === '/challenges') return 'challenges';
   if (location.pathname === '/playbook') return 'playbook';
+  if (location.pathname === '/events') return 'events';
   const params = new URLSearchParams(location.search);
   return params.get('tab') || 'leaderboard';
 }
@@ -95,6 +96,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
       navigate('/challenges');
     } else if (tab === 'playbook') {
       navigate('/playbook');
+    } else if (tab === 'events') {
+      navigate('/events');
     } else {
       navigate(tab === 'leaderboard' ? '/' : `/?tab=${tab}`);
     }
@@ -174,6 +177,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
               active={activeTab === 'challenges'}
               onClick={() => handleNav('challenges')}
             />
+            <NavItem
+              icon={<CalendarDays className="w-3.5 h-3.5" />}
+              label="Events"
+              active={activeTab === 'events'}
+              onClick={() => handleNav('events')}
+            />
           </NavSection>
 
           <NavSection title="You" separator>
@@ -239,21 +248,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
             <ProfileMenu />
           </div>
 
-          {/* Strava sync */}
+          {/* Strava sync — full card on desktop, compact indicator on mobile */}
           {stravaStatus.connected && (
-            <div className="rounded-lg bg-sidebar-accent border border-foreground/50 p-3 text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <StravaIcon size={16} />
-                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--rq-success)' }}>
-                  <CheckCircle className="w-3 h-3" /> Connected
-                </span>
+            <>
+              <div className="hidden md:block rounded-lg bg-sidebar-accent border border-foreground/50 p-3 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <StravaIcon size={16} />
+                  <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--rq-success)' }}>
+                    <CheckCircle className="w-3 h-3" /> Connected
+                  </span>
+                </div>
+                <div className="space-y-0.5 text-xs text-sidebar-foreground/60">
+                  <div>Since: {formatConnectionDate(stravaStatus.connection_date)}</div>
+                  <div>Last sync: {formatLastSync(syncInfo)}</div>
+                  <div>Next sync: {formatNextSync(syncInfo)}</div>
+                </div>
               </div>
-              <div className="space-y-0.5 text-xs text-sidebar-foreground/60">
-                <div>Since: {formatConnectionDate(stravaStatus.connection_date)}</div>
-                <div>Last sync: {formatLastSync(syncInfo)}</div>
-                <div>Next sync: {formatNextSync(syncInfo)}</div>
+              <div className="md:hidden flex items-center justify-center gap-1.5 py-0.5">
+                <StravaIcon size={14} />
+                <CheckCircle className="w-3.5 h-3.5" style={{ color: 'var(--rq-success)' }} />
               </div>
-            </div>
+            </>
           )}
         </div>
       </aside>

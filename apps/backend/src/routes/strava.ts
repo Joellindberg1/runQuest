@@ -6,6 +6,7 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
+import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
 
@@ -822,6 +823,18 @@ async function syncUserStravaActivities(userId: string): Promise<{
       await WeatherService.fetchAndSaveWeatherForRuns(newRunData);
 
       await calculateUserTotals(userId);
+
+      // Check event qualification for each new run (fire-and-forget)
+      for (const run of newRunData) {
+        const activity = validActivities.find((a: any) => a.id.toString() === run.external_id);
+        if (!activity) continue;
+        checkEventQualification({
+          userId,
+          runId: run.id,
+          runDate: activity.start_date_local.split('T')[0],
+          distanceKm: activity.distance / 1000,
+        }).catch((e: unknown) => logger.error('❌ checkEventQualification (strava) error:', e));
+      }
     }
 
     return {

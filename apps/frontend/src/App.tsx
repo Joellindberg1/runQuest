@@ -13,6 +13,7 @@ import LeaderboardPreviewPage from './pages/LeaderboardPreviewPage';
 import ChallengesPreviewPage from './pages/ChallengesPreviewPage';
 import ChallengesPage from './pages/ChallengesPage';
 import PlaybookPage from './pages/PlaybookPage';
+import EventsPage from './pages/EventsPage';
 import NotFound from './pages/NotFound';
 
 const AppContent = () => {
@@ -53,6 +54,7 @@ const AppContent = () => {
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/challenges" element={<ChallengesPage />} />
       <Route path="/playbook" element={<PlaybookPage />} />
+      <Route path="/events" element={<EventsPage />} />
       <Route path="/preview" element={<LeaderboardPreviewPage />} />
       <Route path="/preview/challenges" element={<ChallengesPreviewPage />} />
       <Route path="*" element={<NotFound />} />
