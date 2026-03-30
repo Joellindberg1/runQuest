@@ -156,7 +156,8 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       .from('runs')
       .select(`
         *,
-        users!inner(name, current_level, profile_picture, total_xp)
+        users!inner(name, current_level, profile_picture, total_xp),
+        run_weather(weather_code, temperature_c)
       `)
       .order('date', { ascending: false })
       .limit(100);
@@ -188,6 +189,8 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       streak_bonus: run.streak_bonus,
       source: run.source || undefined,
       is_treadmill: run.is_treadmill ?? null,
+      weather_code: run.run_weather?.weather_code ?? null,
+      temperature_c: run.run_weather?.temperature_c != null ? parseFloat(run.run_weather.temperature_c.toString()) : null,
       user_name: run.users.name,
       user_level: run.users.current_level,
       user_total_xp: run.users.total_xp,

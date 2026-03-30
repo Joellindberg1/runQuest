@@ -16,6 +16,8 @@ export interface RunWithUser {
   streak_bonus: number;
   source?: string;
   is_treadmill?: boolean | null;
+  weather_code?: number | null;
+  temperature_c?: number | null;
   user_name: string;
   user_level: number;
   user_profile_picture?: string;
@@ -48,6 +50,8 @@ export const useGroupRunHistory = () => {
           streak_bonus: run.streak_bonus,
           source: run.source,
           is_treadmill: (run as any).is_treadmill ?? null,
+          weather_code: (run as any).weather_code ?? null,
+          temperature_c: (run as any).temperature_c ?? null,
           user_name: run.user_name,
           user_level: run.user_level,
           user_profile_picture: run.user_profile_picture,
