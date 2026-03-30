@@ -18,6 +18,8 @@ import runRoutes from './routes/runs.js';
 import groupRoutes from './routes/groups.js';
 // ⚔️ Import challenge routes
 import challengeRoutes from './routes/challenges.js';
+// 📅 Import event routes
+import eventRoutes from './routes/events.js';
 // 🕐 Import schedulers
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
@@ -174,6 +176,10 @@ app.use('/api/groups', groupRoutes);
 // ⚔️ Challenge routes
 logger.info('⚔️ Mounting challenge routes...');
 app.use('/api/challenges', challengeRoutes);
+
+// 📅 Event routes
+logger.info('📅 Mounting event routes...');
+app.use('/api/events', eventRoutes);
 
 // 404 handler
 app.use((req, res) => {

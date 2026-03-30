@@ -2,7 +2,13 @@
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
 import { tomorrowStockholm, addDaysToDate } from '../utils/dateUtils.js';
-import { maybeCreateEvent, getAllGroupIds } from '../services/eventService.js';
+import {
+  maybeCreateEvent,
+  getAllGroupIds,
+  settleCompetitionEvents,
+  settleExpiredParticipationEvents,
+  checkStormChaserForecast,
+} from '../services/eventService.js';
 
 const STOCKHOLM = 'Europe/Stockholm';
 
@@ -29,6 +35,25 @@ async function createForAllGroups(
   await Promise.allSettled(
     groups.map(groupId => maybeCreateEvent(templateName, groupId, startsAt, endsAt))
   );
+}
+
+// ─── Storm Chaser — väderbaserat event ───────────────────────────────────────
+
+/**
+ * Körs dagligen 19:00 Stockholm — kollar prognos för imorgon.
+ * Om dåligt väder förväntas (regn/åska/hård vind) skapas Storm Chaser för imorgon.
+ * Storm Chaser: hela dygnet 00:00–23:59.
+ */
+async function maybeScheduleStormChaser(): Promise<void> {
+  const qualifies = await checkStormChaserForecast();
+  if (!qualifies) return;
+
+  const tomorrow = tomorrowStockholm();
+  const startsAt = atStockholm(tomorrow, 0, 0);
+  const endsAt   = atStockholm(tomorrow, 23, 59);
+
+  logger.info(`🌩️ [EventScheduler] Storm Chaser triggered for ${tomorrow}`);
+  await createForAllGroups('Storm Chaser', startsAt, endsAt);
 }
 
 // ─── Dagliga participation events ────────────────────────────────────────────
@@ -118,9 +143,13 @@ export function startEventScheduler(): void {
   // Dagligen 19:00 Stockholm ≈ 17:00 UTC (täcker CET och CEST)
   // Skapar Morgonrunda + Lunch Run för imorgon
   cron.schedule('0 17 * * *', async () => {
-    logger.info('⏰ [EventScheduler] Daily morning/lunch event creation...');
+    logger.info('⏰ [EventScheduler] Daily morning/lunch/storm event creation...');
     try {
-      await Promise.allSettled([scheduleMorningEvents(), scheduleLunchEvents()]);
+      await Promise.allSettled([
+        scheduleMorningEvents(),
+        scheduleLunchEvents(),
+        maybeScheduleStormChaser(),
+      ]);
     } catch (e) {
       logger.error('❌ [EventScheduler] Daily event creation error:', e);
     }
@@ -156,6 +185,26 @@ export function startEventScheduler(): void {
       await scheduleWeeklyCompetitions();
     } catch (e) {
       logger.error('❌ [EventScheduler] Weekly competition creation error:', e);
+    }
+  });
+
+  // Söndag 23:55 Stockholm ≈ 21:55 UTC (täcker CET och CEST)
+  // Settlerar avslutade competition-events och delar ut poolad XP
+  cron.schedule('55 21 * * 0', async () => {
+    logger.info('⏰ [EventScheduler] Sunday settlement — settling competition events...');
+    try {
+      await settleCompetitionEvents();
+    } catch (e) {
+      logger.error('❌ [EventScheduler] Competition settlement error:', e);
+    }
+  });
+
+  // Varje timme vid :05 — markerar expired participation-events som settled
+  cron.schedule('5 * * * *', async () => {
+    try {
+      await settleExpiredParticipationEvents();
+    } catch (e) {
+      logger.error('❌ [EventScheduler] Participation settlement error:', e);
     }
   });
 

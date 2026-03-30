@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { GlobalSidebarWidget } from '@/components/GlobalSidebarWidget';
 
 interface AppLayoutProps {
   groupName: string;
@@ -18,7 +19,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children, sideb
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         groupName={groupName}
-        bottomWidget={sidebarWidget}
+        bottomWidget={sidebarWidget ?? <GlobalSidebarWidget />}
       />
 
       {/* Main area — offset by sidebar width on md+ */}

@@ -155,7 +155,7 @@ export async function checkEventQualification(params: {
       type,
       starts_at,
       ends_at,
-      event_templates ( min_km )
+      event_templates ( min_km, reward_xp )
     `)
     .eq('group_id', groupId)
     .eq('status', 'active')
@@ -172,6 +172,7 @@ export async function checkEventQualification(params: {
           logger.info(`ℹ️ [EventQual] ${params.userId} did not meet min_km (${params.distanceKm.toFixed(1)} < ${minKm}) for event ${event.id}`);
           continue;
         }
+        const rewardXp = Number(event.event_templates?.reward_xp ?? 0);
         // Skapa entry — UNIQUE(event_id, user_id) förhindrar dubbletter
         const { error: insertErr } = await supabase
           .from('event_entries')
@@ -180,11 +181,14 @@ export async function checkEventQualification(params: {
             user_id: params.userId,
             run_id: params.runId,
             qualified_at: now,
+            xp_awarded: rewardXp,
           });
         if (insertErr && insertErr.code !== '23505') { // 23505 = unique_violation
           logger.error(`❌ [EventQual] Failed to insert participation entry:`, insertErr);
         } else if (!insertErr) {
-          logger.info(`✅ [EventQual] User ${params.userId} qualified for participation event ${event.id}`);
+          // Lägg till XP direkt på användaren
+          await supabase.rpc('increment_event_xp', { p_user_id: params.userId, p_xp: rewardXp });
+          logger.info(`✅ [EventQual] User ${params.userId} qualified for participation event ${event.id} (+${rewardXp} XP)`);
         }
 
       } else if (event.type === 'competition') {
@@ -208,6 +212,223 @@ export async function checkEventQualification(params: {
     } catch (e) {
       logger.error(`❌ [EventQual] Unexpected error for event ${event.id}:`, e);
     }
+  }
+}
+
+// ─── settleCompetitionEvents ──────────────────────────────────────────────────
+
+/**
+ * Körs söndag 23:55. Hittar alla aktiva competition-events vars ends_at har passerat,
+ * rankar deltagarna efter total_value (km eller höjdmeter), delar ut XP från poolen
+ * och markerar eventet som settled.
+ *
+ * Pool: reward_xp från template. Distribution: 50% / 30% / 20% för plats 1–3.
+ * Restpott om < 3 deltagare fördelas till vinnaren.
+ */
+export async function settleCompetitionEvents(): Promise<void> {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+
+  const { data: events, error } = await supabase
+    .from('events')
+    .select(`
+      id,
+      metric,
+      starts_at,
+      ends_at,
+      event_templates ( reward_xp_1st, reward_xp_2nd, reward_xp_3rd )
+    `)
+    .eq('type', 'competition')
+    .eq('status', 'active')
+    .lte('ends_at', now);
+
+  if (error) {
+    logger.error('❌ [Settlement] Fetch competition events error:', error);
+    return;
+  }
+  if (!events?.length) {
+    logger.info('ℹ️ [Settlement] No competition events to settle');
+    return;
+  }
+
+  for (const event of events) {
+    try {
+      const tmpl = event.event_templates as any;
+      const xpPerRank = [
+        Number(tmpl?.reward_xp_1st ?? 0),
+        Number(tmpl?.reward_xp_2nd ?? 0),
+        Number(tmpl?.reward_xp_3rd ?? 0),
+      ];
+
+      // Hämta entries
+      const { data: entries, error: entryErr } = await supabase
+        .from('event_entries')
+        .select('id, user_id')
+        .eq('event_id', event.id);
+
+      if (entryErr) {
+        logger.error(`❌ [Settlement] Fetch entries for event ${event.id}:`, entryErr);
+        continue;
+      }
+
+      const participants = entries ?? [];
+      if (!participants.length) {
+        await supabase.from('events').update({ status: 'settled' }).eq('id', event.id);
+        continue;
+      }
+
+      // Beräkna total_value per användare utifrån faktiska runs under eventet
+      const isKm = event.metric === 'km';
+      const scored: Array<{ entryId: string; userId: string; totalValue: number }> = [];
+
+      for (const entry of participants) {
+        const { data: runs } = await supabase
+          .from('runs')
+          .select(isKm ? 'distance' : 'total_elevation_gain')
+          .eq('user_id', entry.user_id)
+          .gte('date', event.starts_at.slice(0, 10))
+          .lte('date', event.ends_at.slice(0, 10));
+
+        const totalValue = (runs ?? []).reduce((sum: number, r: any) => {
+          return sum + Number(isKm ? r.distance : r.total_elevation_gain ?? 0);
+        }, 0);
+
+        scored.push({ entryId: entry.id, userId: entry.user_id, totalValue });
+      }
+
+      // Sortera fallande
+      scored.sort((a, b) => b.totalValue - a.totalValue);
+
+      // Dela ut XP per placering
+      for (let i = 0; i < scored.length; i++) {
+        const { entryId, userId, totalValue } = scored[i];
+        const xp = i < xpPerRank.length ? xpPerRank[i] : 0;
+        const rank = i + 1;
+
+        await supabase
+          .from('event_entries')
+          .update({ rank, xp_awarded: xp, total_value: totalValue })
+          .eq('id', entryId);
+
+        if (xp > 0) {
+          await supabase.rpc('increment_event_xp', { p_user_id: userId, p_xp: xp });
+          logger.info(`✅ [Settlement] User ${userId} rank ${rank} for event ${event.id} (+${xp} XP, ${totalValue.toFixed(1)} ${event.metric})`);
+        }
+      }
+
+      // Markera eventet som settled
+      await supabase.from('events').update({ status: 'settled' }).eq('id', event.id);
+      logger.info(`✅ [Settlement] Competition event ${event.id} settled (${scored.length} participants)`);
+    } catch (e) {
+      logger.error(`❌ [Settlement] Unexpected error settling event ${event.id}:`, e);
+    }
+  }
+}
+
+// ─── settleExpiredParticipationEvents ─────────────────────────────────────────
+
+/**
+ * Körs varje timme. Markerar participation-events vars ends_at har passerat
+ * som settled (XP delades redan ut vid kvalificering).
+ */
+export async function settleExpiredParticipationEvents(): Promise<void> {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+
+  const { data: events, error } = await supabase
+    .from('events')
+    .select('id')
+    .eq('type', 'participation')
+    .eq('status', 'active')
+    .lte('ends_at', now);
+
+  if (error) {
+    logger.error('❌ [Settlement] Fetch expired participation events error:', error);
+    return;
+  }
+  if (!events?.length) return;
+
+  const ids = events.map((e: any) => e.id);
+  const { error: updateErr } = await supabase
+    .from('events')
+    .update({ status: 'settled' })
+    .in('id', ids);
+
+  if (updateErr) {
+    logger.error('❌ [Settlement] Failed to settle participation events:', updateErr);
+  } else {
+    logger.info(`✅ [Settlement] Settled ${ids.length} expired participation event(s)`);
+  }
+}
+
+// ─── checkStormChaserForecast ─────────────────────────────────────────────────
+
+// Stockholm som default-koordinater (appen är primärt för svenska grupper)
+const STOCKHOLM_LAT = 59.33;
+const STOCKHOLM_LNG = 18.07;
+
+/**
+ * WMO-koder som räknas som "dåligt väder" för Storm Chaser:
+ * 51-67  = duggregn / regn
+ * 71-77  = snöfall / frysande dimma
+ * 80-86  = regnskurar / snöskurar
+ * 95-99  = åska
+ */
+function isStormyCode(code: number): boolean {
+  return (code >= 51 && code <= 67) ||
+         (code >= 71 && code <= 77) ||
+         (code >= 80 && code <= 86) ||
+         (code >= 95 && code <= 99);
+}
+
+/**
+ * Kollar imorgondagens timprognos för Stockholm via Open-Meteo (gratis, ingen API-nyckel).
+ * Returnerar true om minst 3 timmar av dagen förväntas ha dåligt väder (regn/åska)
+ * ELLER om det finns timgustar >= 12 m/s under 3+ timmar.
+ */
+export async function checkStormChaserForecast(): Promise<boolean> {
+  try {
+    const url =
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${STOCKHOLM_LAT}&longitude=${STOCKHOLM_LNG}` +
+      `&hourly=weather_code,wind_gusts_10m` +
+      `&forecast_days=2` +
+      `&timezone=Europe%2FStockholm`;
+
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'RunQuest/1.0 (storm chaser event check)' },
+    });
+
+    if (!res.ok) {
+      logger.warn(`⚠️ [StormChaser] Open-Meteo responded ${res.status}`);
+      return false;
+    }
+
+    const json = await res.json() as any;
+    const times: string[] = json?.hourly?.time ?? [];
+    const codes: number[] = json?.hourly?.weather_code ?? [];
+    const gusts: number[] = json?.hourly?.wind_gusts_10m ?? [];
+
+    // Hitta imorgondatumets timmar (index 24–47 vid 2-dagars forecast)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+    let stormyHours = 0;
+    let gustyHours = 0;
+
+    for (let i = 0; i < times.length; i++) {
+      if (!times[i].startsWith(tomorrowStr)) continue;
+      if (isStormyCode(codes[i])) stormyHours++;
+      if ((gusts[i] ?? 0) >= 12) gustyHours++;
+    }
+
+    const qualifies = stormyHours >= 3 || gustyHours >= 3;
+    logger.info(`🌩️ [StormChaser] Tomorrow ${tomorrowStr}: ${stormyHours} stormy hours, ${gustyHours} gusty hours → ${qualifies ? 'TRIGGER' : 'no event'}`);
+    return qualifies;
+  } catch (err) {
+    logger.error('❌ [StormChaser] Forecast check failed:', err);
+    return false;
   }
 }
 

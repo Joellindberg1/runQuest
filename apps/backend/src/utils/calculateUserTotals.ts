@@ -25,8 +25,17 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
       return;
     }
 
+    // Fetch event_xp separately — accumulated from event settlements
+    const { data: userData } = await supabase
+      .from('users')
+      .select('event_xp')
+      .eq('id', userId)
+      .single();
+    const eventXP: number = userData?.event_xp ?? 0;
+
     // Calculate totals
-    const totalXP = runs.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
+    const runsXP = runs.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
+    const totalXP = runsXP + eventXP;
     const totalDistance = runs.reduce((sum: number, run: any) => sum + (run.distance || 0), 0);
 
     // Fetch level and streak in parallel (current_level no longer needed here)

@@ -915,6 +915,60 @@ class BackendApiService {
     }
   }
 
+  // ─── Events ───────────────────────────────────────────────────────────────
+
+  async getEventsHistory(): Promise<ApiResponse<{
+    events: Array<{
+      id: string;
+      type: 'participation' | 'competition';
+      metric: string | null;
+      status: 'settled';
+      startsAt: string;
+      endsAt: string;
+      template: {
+        name: string; icon: string; description: string;
+        minKm: number; rewardXp: number;
+        rewardXp1st: number; rewardXp2nd: number; rewardXp3rd: number;
+      };
+      myEntry: {
+        qualified: boolean; qualifiedAt: string;
+        rank: number | null; xpAwarded: number; totalValue: number | null;
+      } | null;
+      leaderboard: Array<{
+        userId: string; userName: string; totalValue: number; rank: number | null; xpAwarded: number; qualified: boolean; isMe: boolean;
+      }>;
+    }>;
+  }>> {
+    return this.authenticatedRequest('/events/history');
+  }
+
+  async getEvents(): Promise<ApiResponse<{
+    events: Array<{
+      id: string;
+      type: 'participation' | 'competition';
+      metric: string | null;
+      status: 'active' | 'scheduled';
+      startsAt: string;
+      endsAt: string;
+      template: {
+        name: string; icon: string; description: string;
+        minKm: number; rewardXp: number;
+        rewardXp1st: number; rewardXp2nd: number; rewardXp3rd: number;
+        requiresWeather: string[] | null;
+      };
+      myEntry: {
+        qualified: boolean; qualifiedAt: string;
+        rank: number | null; xpAwarded: number; totalValue: number | null;
+      } | null;
+      leaderboard: Array<{
+        userId: string; userName: string; totalValue: number; rank: number; isMe: boolean;
+      }> | null;
+      participantCount: number;
+    }>;
+  }>> {
+    return this.authenticatedRequest('/events');
+  }
+
   // ─── Runs ─────────────────────────────────────────────────────────────────
 
   async createRun(date: string, distance: number, source: string = 'manual'): Promise<ApiResponse<Run>> {
