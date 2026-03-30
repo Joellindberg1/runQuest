@@ -3,9 +3,9 @@ import { Badge } from '@/shared/components/ui/badge';
 import { TabsContent } from '@/shared/components/ui/tabs';
 import { PageTabs } from '@/shared/components/PageTabs';
 import {
-  Zap, Trophy, Flame, Swords, Activity,
+  Zap, Trophy, Flame, Swords, Activity, CalendarDays,
   ChevronRight, Star, Clock, Mountain, Moon, Sun, Coffee,
-  Calendar, TrendingUp, Repeat, Timer, BarChart3,
+  Calendar, TrendingUp, Repeat, Timer, BarChart3, CloudLightning,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useGroupName } from '@/shared/hooks/useGroupName';
@@ -22,6 +22,7 @@ const TABS = [
   { value: 'streak',     label: 'Streak',         icon: <Flame className="w-4 h-4" /> },
   { value: 'titles',     label: 'Titles',         icon: <Trophy className="w-4 h-4" /> },
   { value: 'challenges', label: 'Challenges',     icon: <Swords className="w-4 h-4" /> },
+  { value: 'events',     label: 'Events',         icon: <CalendarDays className="w-4 h-4" /> },
   { value: 'strava',     label: 'Strava',         icon: <Activity className="w-4 h-4" /> },
 ];
 
@@ -402,6 +403,77 @@ const ChallengesTab: React.FC = () => (
   </div>
 );
 
+const EventsTab: React.FC = () => (
+  <div className="space-y-6">
+    <div>
+      <SectionTitle>What are events?</SectionTitle>
+      <p className="text-sm text-muted-foreground mb-4">
+        Events are app-wide challenges that trigger automatically — either on a schedule or based on real-world conditions like weather. They come in two types: <strong className="text-foreground">Participation</strong> and <strong className="text-foreground">Competition</strong>.
+      </p>
+    </div>
+
+    <div>
+      <SectionTitle>Participation events</SectionTitle>
+      <p className="text-sm text-muted-foreground mb-3">
+        A time window opens and closes. Log a run that meets the distance requirement within that window and you earn XP instantly — no ranking, everyone who qualifies wins.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {[
+          { icon: <Sun className="w-4 h-4" />,              name: 'Morgonrunda',  window: '06:00–10:00 daily',       minKm: '3 km',  xp: '25 XP' },
+          { icon: <Moon className="w-4 h-4" />,             name: 'Kvällsrunda',  window: '18:00–22:00 daily',       minKm: '3 km',  xp: '25 XP' },
+          { icon: <Zap className="w-4 h-4" />,              name: '5K Friday',    window: 'All Friday',              minKm: '5 km',  xp: '25 XP' },
+          { icon: <Flame className="w-4 h-4" />,            name: 'Hangover Run', window: 'All of Sat / Sun',        minKm: '3 km',  xp: '30 XP' },
+          { icon: <CloudLightning className="w-4 h-4" />,   name: 'Storm Chaser', window: 'All day (weather only)',  minKm: '5 km',  xp: '40 XP' },
+        ].map(e => (
+          <div key={e.name} className="bg-background border border-foreground/15 rounded-lg p-3 flex items-start gap-3">
+            <div className="mt-0.5 shrink-0" style={{ color: 'var(--rq-gold)' }}>{e.icon}</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">{e.name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{e.window} · min {e.minKm}</p>
+              <p className="text-xs mt-1 font-medium" style={{ color: 'var(--rq-success)' }}>+{e.xp}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <ExampleBox title="Storm Chaser — weather trigger">
+      <p className="text-sm text-muted-foreground">
+        Storm Chaser only appears when tomorrow's forecast shows at least 3 hours of rain, drizzle, thunderstorm, or gusts above 12 m/s. The app checks every evening at 19:00 and creates the event automatically if conditions are met.
+      </p>
+    </ExampleBox>
+
+    <div>
+      <SectionTitle>Competition events</SectionTitle>
+      <p className="text-sm text-muted-foreground mb-3">
+        Weekly competitions run Monday 00:01 to Sunday 23:59. The app tallies your total km or elevation across all runs during that window and ranks everyone in the group. XP is awarded at settlement on Sunday evening.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {[
+          { icon: <Trophy className="w-4 h-4" />,   name: 'Weekly km',         metric: 'Total distance',  xp: '40 / 30 / 20 XP' },
+          { icon: <Mountain className="w-4 h-4" />, name: 'Weekly höjdmeter',  metric: 'Total elevation', xp: '40 / 30 / 20 XP' },
+        ].map(e => (
+          <div key={e.name} className="bg-background border border-foreground/15 rounded-lg p-3 flex items-start gap-3">
+            <div className="mt-0.5 shrink-0" style={{ color: 'var(--rq-gold)' }}>{e.icon}</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">{e.name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{e.metric} · Mon–Sun</p>
+              <p className="text-xs mt-1 font-medium" style={{ color: 'var(--rq-success)' }}>🥇{e.xp.split('/')[0].trim()} 🥈{e.xp.split('/')[1].trim()} 🥉{e.xp.split('/')[2].trim()}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div>
+      <SectionTitle>How XP works with events</SectionTitle>
+      <p className="text-sm text-muted-foreground">
+        Event XP is separate from run XP and is tracked in its own column. It's included in your total XP and counts toward leveling up — but it won't show up in the per-run breakdown. Participation XP is awarded immediately when you qualify. Competition XP is awarded when the event settles on Sunday at 23:55.
+      </p>
+    </div>
+  </div>
+);
+
 const StravaTab: React.FC = () => (
   <div className="space-y-6">
     <div>
@@ -459,12 +531,13 @@ const PlaybookPage: React.FC = () => {
     <AppLayout groupName={groupName}>
       <div className="max-w-4xl mx-auto">
         <div className="bg-sidebar border-2 border-foreground/15 rounded-lg">
-          <PageTabs value={activeTab} onValueChange={setActiveTab} tabs={TABS} tabsGridClass="grid-cols-3 md:grid-cols-6">
+          <PageTabs value={activeTab} onValueChange={setActiveTab} tabs={TABS} tabsGridClass="grid-cols-4 md:grid-cols-7">
             <TabsContent value="xp"         className="px-4 pb-4"><XPTab /></TabsContent>
             <TabsContent value="levels"     className="px-4 pb-4"><LevelsTab /></TabsContent>
             <TabsContent value="streak"     className="px-4 pb-4"><StreakTab /></TabsContent>
             <TabsContent value="titles"     className="px-4 pb-4"><TitlesTab /></TabsContent>
             <TabsContent value="challenges" className="px-4 pb-4"><ChallengesTab /></TabsContent>
+            <TabsContent value="events"     className="px-4 pb-4"><EventsTab /></TabsContent>
             <TabsContent value="strava"     className="px-4 pb-4"><StravaTab /></TabsContent>
           </PageTabs>
         </div>

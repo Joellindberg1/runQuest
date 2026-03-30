@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Badge } from '@/shared/components/ui/badge';
 import {
   CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings,
-  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords
+  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords, CalendarDays
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useGroupName } from '@/shared/hooks/useGroupName';
@@ -109,7 +109,8 @@ const FeaturesPage: React.FC = () => {
     { icon: <ScrollText className="w-6 h-6" />, title: 'Playbook',            description: 'Full game rules in one place — XP formula, streak multipliers, level thresholds, titles and challenge tokens explained' },
     { icon: <Smartphone className="w-6 h-6" />, title: 'Mobile Responsive',   description: 'Optimized for all devices' },
     { icon: <Moon className="w-6 h-6" />,       title: 'Dark Mode',           description: 'Switch between light and dark theme — defaults to system preference' },
-    { icon: <Swords className="w-6 h-6" />,     title: 'Challenges',          description: '1v1 challenges between group members — earn tokens at level-up, pick a metric and duration, winner gets a boost' },
+    { icon: <Swords className="w-6 h-6" />,       title: 'Challenges',  description: '1v1 challenges between group members — earn tokens at level-up, pick a metric and duration, winner gets a boost' },
+    { icon: <CalendarDays className="w-6 h-6" />, title: 'Events',      description: 'App-wide challenges that trigger automatically — daily time windows for morning and evening runs, weekly km and elevation competitions, and Storm Chaser events triggered by real weather forecasts' },
   ];
 
   const workingOnFeatures: { icon: React.ReactNode; title: string; description: string; details: string[] }[] = [
@@ -124,12 +125,6 @@ const FeaturesPage: React.FC = () => {
       title: 'Public Profiles',
       description: 'Visit any member\'s profile to see their stats, titles and run history',
       details: ['Public stats and titles', 'Full run history', 'Accessible from the leaderboard'],
-    },
-    {
-      icon: <Swords className="w-6 h-6" />,
-      title: 'App Challenges',
-      description: 'Group-wide challenges triggered by real weather forecasts',
-      details: ['Rain, wind and cold-weather runs', 'Automatic challenge triggers', 'Collaborative group goals'],
     },
     {
       icon: <Smartphone className="w-6 h-6" />,

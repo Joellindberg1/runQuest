@@ -84,6 +84,26 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
       };
     });
 
+    // Berika group_active med challenger_name och opponent_name via users-tabellen
+    const rawGroupActive: any[] = groupActiveRes.data ?? [];
+    let group_active = rawGroupActive;
+    if (rawGroupActive.length > 0) {
+      const userIds = [...new Set([
+        ...rawGroupActive.map(c => c.challenger_id),
+        ...rawGroupActive.map(c => c.opponent_id),
+      ])];
+      const { data: nameRows } = await supabase
+        .from('users')
+        .select('id, name')
+        .in('id', userIds);
+      const nameMap = new Map((nameRows ?? []).map((u: any) => [u.id, u.name]));
+      group_active = rawGroupActive.map(c => ({
+        ...c,
+        challenger_name: nameMap.get(c.challenger_id) ?? 'Unknown',
+        opponent_name: nameMap.get(c.opponent_id) ?? 'Unknown',
+      }));
+    }
+
     res.json({
       success: true,
       data: {
@@ -92,7 +112,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
         received_challenges: receivedRes.data ?? [],
         boosts: boostsRes.data ?? [],
         history: historyRes.data ?? [],
-        group_active: groupActiveRes.data ?? [],
+        group_active,
       },
     });
   } catch (err) {

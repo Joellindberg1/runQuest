@@ -1,5 +1,37 @@
 [
   {
+    "version": "0.3.4",
+    "type": "minor",
+    "date": "30 March 2026",
+    "title": "Events system",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Events system — app-wide challenges that trigger automatically on a schedule or based on real weather. Two types: Participation (earn XP by running within a time window) and Competition (weekly ranking by total km or elevation)."
+      },
+      {
+        "type": "feature",
+        "description": "Five participation events: Morgonrunda (06:00–10:00), Kvällsrunda (18:00–22:00), 5K Friday, Hangover Run (weekends), and Storm Chaser — only triggered when tomorrow's forecast shows rain, drizzle, thunderstorm or strong gusts."
+      },
+      {
+        "type": "feature",
+        "description": "Two weekly competition events: Weekly km and Weekly höjdmeter — ranking everyone in the group, settled Sunday at 23:55 with XP awarded per place (40/30/20)."
+      },
+      {
+        "type": "feature",
+        "description": "Events page — shows active and upcoming events, live competition leaderboard, and full history with per-event results and group completion status."
+      },
+      {
+        "type": "feature",
+        "description": "Event widgets in the sidebar — active participation events show a countdown to close, competition events show your current rank. Upcoming events show a countdown to open."
+      },
+      {
+        "type": "feature",
+        "description": "Playbook updated with an Events tab explaining all event types, rules, XP values, and how Storm Chaser weather detection works."
+      }
+    ]
+  },
+  {
     "version": "0.3.3",
     "type": "patch",
     "date": "27 March 2026",
