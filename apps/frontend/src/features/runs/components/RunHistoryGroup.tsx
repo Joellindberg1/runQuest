@@ -125,26 +125,30 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
               </CardHeader>
 
               <CardContent className="pb-3 px-4">
-                <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
 
-                  {/* Km XP box — Base XP shown above as secondary */}
-                  <div className="p-3 bg-background border border-foreground/50 rounded-lg">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Base XP</span>
-                      <span className="text-xs font-semibold text-muted-foreground">{run.base_xp}</span>
-                    </div>
-                    <div className="text-xl font-bold text-foreground">{run.km_xp}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">Km XP</div>
+                  {/* Streak Day */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
+                    <div className="text-2xl font-bold text-foreground mb-1">{run.streak_day}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Streak Day</div>
                   </div>
 
-                  {/* Multiplier box — Streak Day shown above as secondary */}
-                  <div className="p-3 bg-background border border-foreground/50 rounded-lg">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Streak Day</span>
-                      <span className="text-xs font-semibold text-muted-foreground">{run.streak_day}</span>
-                    </div>
-                    <div className="text-xl font-bold text-foreground">{run.multiplier.toFixed(1)}x</div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">Multiplier</div>
+                  {/* Base XP */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
+                    <div className="text-2xl font-bold text-foreground mb-1">{run.base_xp}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Base XP</div>
+                  </div>
+
+                  {/* Multiplier */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
+                    <div className="text-2xl font-bold text-foreground mb-1">{run.multiplier.toFixed(1)}x</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Multiplier</div>
+                  </div>
+
+                  {/* Km XP */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
+                    <div className="text-2xl font-bold text-foreground mb-1">{run.km_xp}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Km XP</div>
                   </div>
 
                 </div>
