@@ -125,7 +125,7 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
               </CardHeader>
 
               <CardContent className="pb-3 px-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-3">
 
                   {/* Km XP box — Base XP shown above as secondary */}
                   <div className="p-3 bg-background border border-foreground/50 rounded-lg">
