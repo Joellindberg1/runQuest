@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Badge } from '@/shared/components/ui/badge';
 import {
   CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings,
-  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords, CalendarDays
+  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords, CalendarDays, Sailboat
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useGroupName } from '@/shared/hooks/useGroupName';
@@ -131,6 +131,12 @@ const FeaturesPage: React.FC = () => {
       title: 'Notifications',
       description: 'Stay updated on challenges, titles and group activity',
       details: ['Challenge invites and results', 'Title changes', 'Group milestones'],
+    },
+        {
+      icon: <Sailboat className="w-6 h-6" />,
+      title: 'Onboarding system',
+      description: 'Guided introduction for new users to get started quickly',
+      details: ['Step-by-step tutorials', 'Feature highlights', 'Personalized tips'],
     },
   ];
 
