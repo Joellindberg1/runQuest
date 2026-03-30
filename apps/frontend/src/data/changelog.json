@@ -1,6 +1,6 @@
 [
   {
-    "version": "0.3.4",
+    "version": "0.4.0",
     "type": "minor",
     "date": "30 March 2026",
     "title": "Events system",
@@ -11,7 +11,7 @@
       },
       {
         "type": "feature",
-        "description": "Five participation events: Morgonrunda (06:00–10:00), Kvällsrunda (18:00–22:00), 5K Friday, Hangover Run (weekends), and Storm Chaser — only triggered when tomorrow's forecast shows rain, drizzle, thunderstorm or strong gusts."
+        "description": "Five participation events: Morning run (06:00–10:00), Evening run (18:00–22:00), 5K Friday, Hangover Run (weekends), and Storm Chaser — only triggered when tomorrow's forecast shows rain, drizzle, thunderstorm or strong gusts."
       },
       {
         "type": "feature",
@@ -28,6 +28,10 @@
       {
         "type": "feature",
         "description": "Playbook updated with an Events tab explaining all event types, rules, XP values, and how Storm Chaser weather detection works."
+      },
+      {
+        "type": "improvement",
+        "description": "UI changes for Run history - group. You can now clearly see how the XP is gained."
       }
     ]
   },
