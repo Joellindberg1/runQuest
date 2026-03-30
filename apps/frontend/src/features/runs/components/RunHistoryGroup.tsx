@@ -125,30 +125,37 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
               </CardHeader>
 
               <CardContent className="pb-3 px-4">
-                <div className="grid grid-cols-2 gap-3">
+                {/* Desktop: 4-col 2-row grid — Streak/Multiplier stacked in col 1, others span full height */}
+                <div className="grid grid-cols-2 md:grid-cols-4 md:grid-rows-2 gap-4">
 
-                  {/* Streak Day */}
-                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
+                  {/* Streak Day — col 1, row 1 */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-1 md:row-start-1">
                     <div className="text-2xl font-bold text-foreground mb-1">{run.streak_day}</div>
                     <div className="text-xs text-muted-foreground uppercase tracking-wide">Streak Day</div>
                   </div>
 
-                  {/* Base XP */}
-                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
-                    <div className="text-2xl font-bold text-foreground mb-1">{run.base_xp}</div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Base XP</div>
-                  </div>
-
-                  {/* Multiplier */}
-                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
+                  {/* Multiplier — col 1, row 2 */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-1 md:row-start-2">
                     <div className="text-2xl font-bold text-foreground mb-1">{run.multiplier.toFixed(1)}x</div>
                     <div className="text-xs text-muted-foreground uppercase tracking-wide">Multiplier</div>
                   </div>
 
-                  {/* Km XP */}
-                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg">
+                  {/* Base XP — col 2, spans both rows */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-2 md:row-span-2 flex flex-col items-center justify-center">
+                    <div className="text-2xl font-bold text-foreground mb-1">{run.base_xp}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Base XP</div>
+                  </div>
+
+                  {/* Km XP — col 3, spans both rows */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-3 md:row-span-2 flex flex-col items-center justify-center">
                     <div className="text-2xl font-bold text-foreground mb-1">{run.km_xp}</div>
                     <div className="text-xs text-muted-foreground uppercase tracking-wide">Km XP</div>
+                  </div>
+
+                  {/* Distance Bonus — col 4, spans both rows */}
+                  <div className="text-center p-3 bg-background border border-foreground/50 rounded-lg md:col-start-4 md:row-span-2 flex flex-col items-center justify-center">
+                    <div className="text-2xl font-bold text-foreground mb-1">+{run.distance_bonus}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Distance Bonus</div>
                   </div>
 
                 </div>
