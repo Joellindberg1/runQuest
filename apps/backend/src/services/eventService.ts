@@ -419,12 +419,16 @@ export async function checkStormChaserForecast(): Promise<boolean> {
 
     for (let i = 0; i < times.length; i++) {
       if (!times[i].startsWith(tomorrowStr)) continue;
+      // Open-Meteo returns Stockholm local time — only count daytime hours (6:00–21:00)
+      const hour = parseInt(times[i].slice(11, 13), 10);
+      if (hour < 6 || hour > 21) continue;
       if (isStormyCode(codes[i])) stormyHours++;
-      if ((gusts[i] ?? 0) >= 12) gustyHours++;
+      if ((gusts[i] ?? 0) >= 15) gustyHours++; // Raised from 12 → 15 m/s
     }
 
-    const qualifies = stormyHours >= 3 || gustyHours >= 3;
-    logger.info(`🌩️ [StormChaser] Tomorrow ${tomorrowStr}: ${stormyHours} stormy hours, ${gustyHours} gusty hours → ${qualifies ? 'TRIGGER' : 'no event'}`);
+    // Require 4+ gusty hours (raised from 3) — 15 m/s gusts for 4h is genuinely rough
+    const qualifies = stormyHours >= 3 || gustyHours >= 4;
+    logger.info(`🌩️ [StormChaser] Tomorrow ${tomorrowStr}: ${stormyHours} stormy hours (≥3?), ${gustyHours} gusty hours ≥15m/s (≥4?) → ${qualifies ? 'TRIGGER' : 'no event'}`);
     return qualifies;
   } catch (err) {
     logger.error('❌ [StormChaser] Forecast check failed:', err);
