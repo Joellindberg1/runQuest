@@ -21,6 +21,7 @@ import challengeRoutes from './routes/challenges.js';
 // 🕐 Import schedulers
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
+import { startEventScheduler } from './scheduler/eventScheduler.js';
 
 // 📋 Step 1: Load Environment Variables
 logger.info('🔧 Step 1: Loading environment variables...');
@@ -220,6 +221,8 @@ server.on('listening', () => {
     startStravaScheduler();
     logger.info('⚔️ Starting challenge scheduler for production...');
     startChallengeScheduler();
+    logger.info('📅 Starting event scheduler for production...');
+    startEventScheduler();
   } else {
     logger.info('ℹ️ Schedulers disabled in development mode');
     logger.info('💡 Use POST /api/strava/sync for manual Strava testing');
