@@ -3,6 +3,8 @@ import { logger } from '../utils/logger.js';
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/admin.js';
+import { scheduleDailyParticipationEventTest } from '../scheduler/eventScheduler.js';
 
 const router = express.Router();
 
@@ -303,6 +305,20 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
     res.json({ events: result });
   } catch (err) {
     logger.error('❌ [EventsRoute] History unexpected error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/events/admin/trigger-daily-draw ────────────────────────────────
+// Admin-only: kör dagliga participation-lottningen manuellt (för testning).
+// Returnerar vilket event som valdes, eller att inget triggas.
+router.post('/admin/trigger-daily-draw', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    logger.info('🎲 [EventsRoute] Manual daily draw triggered by admin');
+    const result = await scheduleDailyParticipationEventTest();
+    res.json(result);
+  } catch (err) {
+    logger.error('❌ [EventsRoute] Manual daily draw error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

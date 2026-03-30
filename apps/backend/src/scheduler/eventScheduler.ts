@@ -56,7 +56,15 @@ async function createForAllGroups(
  *   Kvällsrunda  10%
  *   Storm Chaser 30%  (ingår bara om väderprognosen kvalificerar)
  */
-async function scheduleDailyParticipationEvent(): Promise<void> {
+interface DailyDrawResult {
+  fired: boolean;
+  picked: string | null;
+  stormQualifies: boolean;
+  totalWeight: number;
+  pool: Array<{ name: string; weight: number; sharePct: number }>;
+}
+
+async function runDailyParticipationDraw(): Promise<DailyDrawResult> {
   const tomorrow = tomorrowStockholm();
 
   // Bygg kandidatpool
@@ -71,23 +79,27 @@ async function scheduleDailyParticipationEvent(): Promise<void> {
     { name: 'Kvällsrunda', weight: 0.10, startHour: 18, endHour: 22, endMinute: 0 },
   ];
 
-  // Storm Chaser läggs till i poolen om prognosen är tillräckligt dålig
   const stormQualifies = await checkStormChaserForecast();
   if (stormQualifies) {
     candidates.push({ name: 'Storm Chaser', weight: 0.30, startHour: 0, endHour: 23, endMinute: 59 });
   }
 
   const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
+  const pool = candidates.map(c => ({
+    name: c.name,
+    weight: c.weight,
+    sharePct: Math.round((c.weight / totalWeight) * 100),
+  }));
 
   // Steg 1: gemensam tärning — händer något alls?
   if (Math.random() >= totalWeight) {
     logger.info(`📅 [EventScheduler] Daily roll: no event for ${tomorrow} (combined weight ${(totalWeight * 100).toFixed(0)}%)`);
-    return;
+    return { fired: false, picked: null, stormQualifies, totalWeight, pool };
   }
 
   // Steg 2: viktad tärning — välj ETT event från poolen
   let rand = Math.random() * totalWeight;
-  let picked = candidates[candidates.length - 1]; // fallback = sista kandidaten
+  let picked = candidates[candidates.length - 1];
   for (const c of candidates) {
     rand -= c.weight;
     if (rand <= 0) { picked = c; break; }
@@ -98,6 +110,17 @@ async function scheduleDailyParticipationEvent(): Promise<void> {
 
   logger.info(`📅 [EventScheduler] Daily roll: "${picked.name}" selected for ${tomorrow} (weight ${picked.weight} / total ${totalWeight.toFixed(2)})`);
   await createForAllGroups(picked.name, startsAt, endsAt);
+
+  return { fired: true, picked: picked.name, stormQualifies, totalWeight, pool };
+}
+
+async function scheduleDailyParticipationEvent(): Promise<void> {
+  await runDailyParticipationDraw();
+}
+
+/** Exponerad för admin-endpoint — kör draget och returnerar resultat. */
+export async function scheduleDailyParticipationEventTest(): Promise<DailyDrawResult> {
+  return runDailyParticipationDraw();
 }
 
 // ─── Helg-event ───────────────────────────────────────────────────────────────

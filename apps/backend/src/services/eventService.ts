@@ -30,20 +30,30 @@ export async function maybeCreateEvent(
     return false;
   }
 
-  // Kolla om det redan finns ett event från samma template för denna grupp
-  // som överlappar med det önskade fönstret
-  const { data: existing } = await supabase
+  // Participation-events: kolla att inget annat participation-event (oavsett template)
+  // redan täcker samma dag. Förhindrar att Morgonrunda + Hangover Run + 5K Friday
+  // hamnar på samma dag.
+  // Competition-events: kolla bara duplikat på samma template.
+  let dupQuery = supabase
     .from('events')
-    .select('id')
-    .eq('template_id', template.id)
+    .select('id, event_templates(name)')
     .eq('group_id', groupId)
     .in('status', ['scheduled', 'active'])
     .gte('ends_at', startsAt.toISOString())
     .lte('starts_at', endsAt.toISOString())
     .limit(1);
 
+  if ((template as any).type === 'participation') {
+    dupQuery = dupQuery.eq('type', 'participation');
+  } else {
+    dupQuery = dupQuery.eq('template_id', template.id);
+  }
+
+  const { data: existing } = await dupQuery;
+
   if (existing && existing.length > 0) {
-    logger.info(`ℹ️ [EventService] "${templateName}" already exists for group ${groupId}, skipping`);
+    const existingName = (existing[0] as any).event_templates?.name ?? 'unknown';
+    logger.info(`ℹ️ [EventService] Participation event "${existingName}" already covers this window for group ${groupId}, skipping "${templateName}"`);
     return false;
   }
 
