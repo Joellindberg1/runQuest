@@ -337,10 +337,45 @@ export async function settleCompetitionEvents(): Promise<void> {
   }
 }
 
+// ─── activateScheduledEvents ──────────────────────────────────────────────────
+
+/**
+ * Körs var 5:e minut. Övergår events från scheduled → active när starts_at har passerat.
+ * Utan detta stannar events i "scheduled" för alltid.
+ */
+export async function activateScheduledEvents(): Promise<void> {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+
+  const { data: events, error } = await supabase
+    .from('events')
+    .select('id')
+    .eq('status', 'scheduled')
+    .lte('starts_at', now);
+
+  if (error) {
+    logger.error('❌ [Activation] Fetch scheduled events error:', error);
+    return;
+  }
+  if (!events?.length) return;
+
+  const ids = events.map((e: any) => e.id);
+  const { error: updateErr } = await supabase
+    .from('events')
+    .update({ status: 'active' })
+    .in('id', ids);
+
+  if (updateErr) {
+    logger.error('❌ [Activation] Failed to activate events:', updateErr);
+  } else {
+    logger.info(`✅ [Activation] Activated ${ids.length} event(s)`);
+  }
+}
+
 // ─── settleExpiredParticipationEvents ─────────────────────────────────────────
 
 /**
- * Körs varje timme. Markerar participation-events vars ends_at har passerat
+ * Körs var 5:e minut. Markerar participation-events vars ends_at har passerat
  * som settled (XP delades redan ut vid kvalificering).
  */
 export async function settleExpiredParticipationEvents(): Promise<void> {

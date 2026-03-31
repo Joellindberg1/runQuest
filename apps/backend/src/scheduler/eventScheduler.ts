@@ -7,6 +7,7 @@ import {
   getAllGroupIds,
   settleCompetitionEvents,
   settleExpiredParticipationEvents,
+  activateScheduledEvents,
   checkStormChaserForecast,
   getDailyPoolTemplates,
   getTemplateTimeWindow,
@@ -247,12 +248,13 @@ export function startEventScheduler(): void {
     }
   });
 
-  // Varje timme vid :05 — markerar expired participation-events som settled
-  cron.schedule('5 * * * *', async () => {
+  // Var 5:e minut — aktiverar schemalagda events + settlar utgångna
+  cron.schedule('*/5 * * * *', async () => {
     try {
+      await activateScheduledEvents();
       await settleExpiredParticipationEvents();
     } catch (e) {
-      logger.error('❌ [EventScheduler] Participation settlement error:', e);
+      logger.error('❌ [EventScheduler] Lifecycle tick error:', e);
     }
   });
 
