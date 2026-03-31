@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { GlobalSidebarWidget } from '@/components/GlobalSidebarWidget';
+import { Bot } from 'lucide-react';
 
 interface AppLayoutProps {
   groupName: string;
@@ -31,7 +32,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children, sideb
 
         {/* Separator */}
         <div className="mx-4 md:mx-8">
-          <div className="h-px" style={{ background: 'linear-gradient(to right, color-mix(in srgb, var(--rq-gold) 40%, transparent), color-mix(in srgb, var(--rq-gold) 8%, transparent) 60%, transparent)' }} />
+          <div className=" h-px" style={{ marginBottom: '5px', background: 'linear-gradient(to right, color-mix(in srgb, var(--rq-gold) 40%, transparent), color-mix(in srgb, var(--rq-gold) 8%, transparent) 60%, transparent)' }} />
         </div>
 
         <main className="flex-1 px-4 md:px-8 pt-0 pb-16 md:pb-3">{children}</main>

@@ -15,6 +15,7 @@ import ChallengesPage from './pages/ChallengesPage';
 import PlaybookPage from './pages/PlaybookPage';
 import EventsPage from './pages/EventsPage';
 import NotFound from './pages/NotFound';
+import { OnboardingOrchestrator } from './features/onboarding/components/OnboardingOrchestrator';
 
 const AppContent = () => {
   const { user, loading, isAdmin } = useAuth();
@@ -46,7 +47,9 @@ const AppContent = () => {
   }
 
   return (
-    <Routes>
+    <>
+      <OnboardingOrchestrator />
+      <Routes>
       <Route path="/strava-callback" element={<StravaCallbackPage />} />
       <Route path="/" element={<Index />} />
       <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
@@ -59,6 +62,7 @@ const AppContent = () => {
       <Route path="/preview/challenges" element={<ChallengesPreviewPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   );
 };
 

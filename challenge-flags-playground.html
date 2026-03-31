@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RunQuest — Challenge Flag Playground</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ui-bg: #0f0f0f;
+    --ui-surface: #1a1a1a;
+    --ui-border: #2a2a2a;
+    --ui-text: #e8e8e8;
+    --ui-muted: #666;
+    --ui-accent: #cd7f32;
+    --ui-input-bg: #111;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    grid-column: 1 / -1;
+    background: var(--ui-surface);
+    border-bottom: 1px solid var(--ui-border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ui-accent);
+  }
+  header span { font-size: 0.75rem; color: var(--ui-muted); }
+
+  /* ── Controls panel ── */
+  #controls {
+    background: var(--ui-surface);
+    border-right: 1px solid var(--ui-border);
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .section-title {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ui-muted);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--ui-border);
+  }
+
+  .control-group { display: flex; flex-direction: column; gap: 10px; }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .control-row label {
+    font-size: 0.75rem;
+    color: #aaa;
+    white-space: nowrap;
+    min-width: 90px;
+  }
+  .control-row input[type=range] {
+    flex: 1;
+    accent-color: var(--ui-accent);
+    height: 4px;
+    cursor: pointer;
+  }
+  .control-row .val {
+    font-size: 0.7rem;
+    font-family: monospace;
+    color: var(--ui-accent);
+    min-width: 32px;
+    text-align: right;
+  }
+
+  /* Toggle */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #aaa;
+  }
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    cursor: pointer;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: #333;
+    border-radius: 20px;
+    transition: background 0.2s;
+  }
+  .toggle input:checked + .toggle-track { background: var(--ui-accent); }
+  .toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    pointer-events: none;
+  }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(16px); }
+
+  /* Presets */
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .preset-btn {
+    background: var(--ui-input-bg);
+    border: 1px solid var(--ui-border);
+    color: #bbb;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .preset-btn:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
+  .preset-btn.active { border-color: var(--ui-accent); color: var(--ui-accent); background: rgba(205,127,50,0.1); }
+
+  /* ── Right panel ── */
+  #right {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    overflow: hidden;
+  }
+
+  /* Preview */
+  #preview-area {
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    transition: background 0.3s;
+    position: relative;
+  }
+
+  .cards-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-end;
+  }
+
+  .mock-card {
+    position: relative;
+    width: 220px;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: background 0.3s, border-color 0.3s;
+  }
+
+  .card-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    opacity: 0.5;
+  }
+  .card-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .card-sub { font-size: 0.7rem; opacity: 0.4; }
+
+  .flag-row {
+    position: absolute;
+    bottom: -36px;
+    left: 14px;
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+  }
+
+  .flag {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 3px;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: default;
+    user-select: none;
+    transition: filter 0.2s;
+  }
+
+  @keyframes legendaryFlagGlow {
+    0%, 100% { filter: drop-shadow(0 3px 5px rgba(205,127,50,0.55)); }
+    50%       { filter: drop-shadow(0 3px 12px rgba(205,127,50,0.90)); }
+  }
+  @keyframes legendaryFlagGlowGold {
+    0%, 100% { filter: drop-shadow(0 3px 5px rgba(255,215,0,0.55)); }
+    50%       { filter: drop-shadow(0 3px 12px rgba(255,215,0,0.90)); }
+  }
+
+  /* ── Output ── */
+  #output-panel {
+    background: #0a0a0a;
+    border-top: 1px solid var(--ui-border);
+    padding: 12px 16px;
+    max-height: 220px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .output-header span {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ui-muted);
+  }
+  #copy-btn {
+    background: transparent;
+    border: 1px solid var(--ui-border);
+    color: #999;
+    font-size: 0.7rem;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  #copy-btn:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
+  #copy-btn.copied { border-color: #4ade80; color: #4ade80; }
+
+  #prompt-text {
+    font-family: monospace;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: #ccc;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    flex: 1;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚑ RunQuest — Challenge Flag Explorer</h1>
+  <span>Justera flaggornas utseende och kopiera JSX-koden</span>
+</header>
+
+<!-- Controls -->
+<div id="controls">
+
+  <div>
+    <div class="section-title">Presets</div>
+    <div class="presets">
+      <button class="preset-btn active" onclick="applyPreset('default')">Default</button>
+      <button class="preset-btn" onclick="applyPreset('tall')">Tall</button>
+      <button class="preset-btn" onclick="applyPreset('wide')">Wide</button>
+      <button class="preset-btn" onclick="applyPreset('subtle')">Subtle</button>
+      <button class="preset-btn" onclick="applyPreset('bold')">Bold</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Storlek</div>
+    <div class="control-group">
+      <div class="control-row">
+        <label>Minor height</label>
+        <input type="range" min="16" max="50" id="minorH" oninput="setState('minorH', +this.value)" />
+        <span class="val" id="minorH-val">26</span>
+      </div>
+      <div class="control-row">
+        <label>Major height</label>
+        <input type="range" min="16" max="50" id="majorH" oninput="setState('majorH', +this.value)" />
+        <span class="val" id="majorH-val">30</span>
+      </div>
+      <div class="control-row">
+        <label>Legendary height</label>
+        <input type="range" min="16" max="60" id="legendH" oninput="setState('legendH', +this.value)" />
+        <span class="val" id="legendH-val">36</span>
+      </div>
+      <div class="control-row">
+        <label>Width (alla)</label>
+        <input type="range" min="16" max="48" id="flagW" oninput="setState('flagW', +this.value)" />
+        <span class="val" id="flagW-val">24</span>
+      </div>
+      <div class="control-row">
+        <label>Gap mellan</label>
+        <input type="range" min="1" max="10" id="flagGap" oninput="setState('flagGap', +this.value)" />
+        <span class="val" id="flagGap-val">4</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Glow</div>
+    <div class="control-group">
+      <div class="control-row">
+        <label>Minor glow</label>
+        <input type="range" min="0" max="20" id="minorGlow" oninput="setState('minorGlow', +this.value)" />
+        <span class="val" id="minorGlow-val">4</span>
+      </div>
+      <div class="control-row">
+        <label>Major glow</label>
+        <input type="range" min="0" max="20" id="majorGlow" oninput="setState('majorGlow', +this.value)" />
+        <span class="val" id="majorGlow-val">5</span>
+      </div>
+      <div class="control-row">
+        <label>Legendary glow</label>
+        <input type="range" min="0" max="30" id="legendGlow" oninput="setState('legendGlow', +this.value)" />
+        <span class="val" id="legendGlow-val">6</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Pil-spets</div>
+    <div class="control-group">
+      <div class="control-row">
+        <label>Notch depth %</label>
+        <input type="range" min="60" max="95" id="notch" oninput="setState('notch', +this.value)" />
+        <span class="val" id="notch-val">78</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Tema & Visning</div>
+    <div class="control-group">
+      <div class="toggle-row">
+        <span>Dark mode</span>
+        <label class="toggle">
+          <input type="checkbox" id="darkMode" checked onchange="setState('darkMode', this.checked)" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span>Bronze mode (light)</span>
+        <label class="toggle">
+          <input type="checkbox" id="bronzeMode" onchange="setState('bronzeMode', this.checked)" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span>Visa antal</span>
+        <label class="toggle">
+          <input type="checkbox" id="showCount" checked onchange="setState('showCount', this.checked)" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span>Legendary pulse</span>
+        <label class="toggle">
+          <input type="checkbox" id="legendPulse" checked onchange="setState('legendPulse', this.checked)" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Visa flaggor</div>
+    <div class="control-group">
+      <div class="toggle-row">
+        <span>Minor (blå)</span>
+        <label class="toggle">
+          <input type="checkbox" id="showMinor" checked onchange="setState('showMinor', this.checked)" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span>Major (orange)</span>
+        <label class="toggle">
+          <input type="checkbox" id="showMajor" checked onchange="setState('showMajor', this.checked)" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span>Legendary (guld)</span>
+        <label class="toggle">
+          <input type="checkbox" id="showLegend" checked onchange="setState('showLegend', this.checked)" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Right: preview + output -->
+<div id="right">
+  <div id="preview-area">
+    <div class="cards-row" id="cards-row"></div>
+  </div>
+
+  <div id="output-panel">
+    <div class="output-header">
+      <span>JSX / CSS Output</span>
+      <button id="copy-btn" onclick="copyPrompt()">Kopiera</button>
+    </div>
+    <pre id="prompt-text"></pre>
+  </div>
+</div>
+
+<script>
+const DEFAULTS = {
+  minorH: 26, majorH: 30, legendH: 36,
+  flagW: 24, flagGap: 4, notch: 78,
+  minorGlow: 4, majorGlow: 5, legendGlow: 6,
+  darkMode: true, bronzeMode: false,
+  showCount: true, legendPulse: true,
+  showMinor: true, showMajor: true, showLegend: true,
+};
+
+const PRESETS = {
+  default: { ...DEFAULTS },
+  tall:    { ...DEFAULTS, minorH: 34, majorH: 40, legendH: 50, flagW: 26 },
+  wide:    { ...DEFAULTS, minorH: 28, majorH: 32, legendH: 40, flagW: 36 },
+  subtle:  { ...DEFAULTS, minorGlow: 1, majorGlow: 1, legendGlow: 2, legendPulse: false },
+  bold:    { ...DEFAULTS, minorH: 30, majorH: 38, legendH: 46, flagW: 30, minorGlow: 8, majorGlow: 10, legendGlow: 16, notch: 72 },
+};
+
+const state = { ...DEFAULTS };
+
+function setState(key, val) {
+  state[key] = val;
+  updateAll();
+}
+
+function applyPreset(name) {
+  Object.assign(state, PRESETS[name]);
+  syncInputs();
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[onclick="applyPreset('${name}')"]`).classList.add('active');
+  updateAll();
+}
+
+function syncInputs() {
+  for (const [key, val] of Object.entries(state)) {
+    const el = document.getElementById(key);
+    if (!el) continue;
+    if (el.type === 'checkbox') el.checked = val;
+    else el.value = val;
+    const valEl = document.getElementById(key + '-val');
+    if (valEl) valEl.textContent = val;
+  }
+}
+
+// ── Render ──────────────────────────────────────────────────────────
+
+function getGoldColor() {
+  return (!state.darkMode && state.bronzeMode) ? '#cd7f32' : '#ffd700';
+}
+function getGoldDark() {
+  const g = getGoldColor();
+  return g === '#cd7f32' ? '#7a4a10' : '#a07800';
+}
+function getGoldGlowRgb() {
+  return (!state.darkMode && state.bronzeMode) ? '205,127,50' : '255,215,0';
+}
+
+function clipPath(notch) {
+  return `polygon(0 0, 100% 0, 100% ${notch}%, 50% 100%, 0 ${notch}%)`;
+}
+
+function makeFlag(tier, count) {
+  const { flagW, notch, showCount } = state;
+  const configs = {
+    minor: {
+      h: state.minorH, glow: state.minorGlow,
+      bg: `linear-gradient(to bottom, #60a5fa 0%, #1d4ed8 100%)`,
+      glowColor: '37,99,235',
+      color: '#fff',
+      anim: '',
+    },
+    major: {
+      h: state.majorH, glow: state.majorGlow,
+      bg: `linear-gradient(to bottom, #fb923c 0%, #c2410c 100%)`,
+      glowColor: '234,88,12',
+      color: '#fff',
+      anim: '',
+    },
+    legendary: {
+      h: state.legendH, glow: state.legendGlow,
+      bg: `linear-gradient(to bottom, ${getGoldColor()} 0%, ${getGoldDark()} 100%)`,
+      glowColor: getGoldGlowRgb(),
+      color: (!state.darkMode && state.bronzeMode) ? '#3a1f00' : '#1a1200',
+      anim: state.legendPulse ? (state.bronzeMode && !state.darkMode ? 'legendaryFlagGlow 2.5s ease-in-out infinite' : 'legendaryFlagGlowGold 2.5s ease-in-out infinite') : '',
+    },
+  };
+  const c = configs[tier];
+  const filter = c.glow > 0 ? `drop-shadow(0 2px ${c.glow}px rgba(${c.glowColor},0.65))` : 'none';
+  const div = document.createElement('div');
+  div.className = 'flag';
+  div.style.cssText = `
+    width:${flagW}px;
+    height:${c.h}px;
+    background:${c.bg};
+    color:${c.color};
+    clip-path:${clipPath(notch)};
+    filter:${filter};
+    animation:${c.anim};
+  `;
+  div.textContent = showCount ? count : '';
+  return div;
+}
+
+function makeCard(label, tiers) {
+  const { darkMode, flagGap } = state;
+  const card = document.createElement('div');
+  card.className = 'mock-card';
+  card.style.marginBottom = `${Math.max(state.minorH, state.majorH, state.legendH) + 12}px`;
+
+  if (darkMode) {
+    card.style.background = 'linear-gradient(135deg, #1a1f1a 0%, #111 100%)';
+    card.style.borderColor = 'rgba(255,255,255,0.08)';
+  } else {
+    card.style.background = state.bronzeMode
+      ? 'linear-gradient(135deg, #f5ede0 0%, #ede0cc 100%)'
+      : 'linear-gradient(135deg, #fff 0%, #f5f0e8 100%)';
+    card.style.borderColor = 'rgba(0,0,0,0.10)';
+    card.style.color = '#1a1a1a';
+  }
+
+  card.innerHTML = `
+    <div class="card-label" style="color:${darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}">Spelare</div>
+    <div class="card-name" style="color:${darkMode ? '#fff' : '#111'}; font-family:sans-serif">${label}</div>
+    <div class="card-sub" style="color:${darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}">Lvl 12 · 4 820 XP</div>
+  `;
+
+  const row = document.createElement('div');
+  row.className = 'flag-row';
+  row.style.gap = flagGap + 'px';
+
+  tiers.forEach(([tier, count]) => {
+    row.appendChild(makeFlag(tier, count));
+  });
+  card.appendChild(row);
+  return card;
+}
+
+function renderPreview() {
+  const area = document.getElementById('preview-area');
+  const row = document.getElementById('cards-row');
+  row.innerHTML = '';
+
+  // Background
+  area.style.background = state.darkMode
+    ? '#070e09'
+    : (state.bronzeMode ? '#f5ede0' : '#f0f0f0');
+
+  // Build tier list
+  const tiers = [];
+  if (state.showMinor)  tiers.push(['minor', 3]);
+  if (state.showMajor)  tiers.push(['major', 1]);
+  if (state.showLegend) tiers.push(['legendary', 2]);
+
+  if (tiers.length === 0) {
+    row.innerHTML = `<div style="color:rgba(255,255,255,0.3);font-size:0.8rem;letter-spacing:0.1em">Välj minst en flagg-typ</div>`;
+    return;
+  }
+
+  // Card 1: all selected
+  row.appendChild(makeCard('Erik Lindberg', tiers));
+
+  // Card 2: only legendary (if enabled)
+  if (state.showLegend) {
+    row.appendChild(makeCard('Anna S.', [['legendary', 1]]));
+  }
+
+  // Card 3: only minor (if enabled)
+  if (state.showMinor) {
+    row.appendChild(makeCard('Johan K.', [['minor', 2]]));
+  }
+}
+
+// ── Prompt output ────────────────────────────────────────────────────
+
+function buildJSX() {
+  const { minorH, majorH, legendH, flagW, flagGap, notch,
+          minorGlow, majorGlow, legendGlow, legendPulse, bronzeMode } = state;
+
+  const gold = bronzeMode ? 'var(--rq-gold)' : 'var(--rq-gold)';
+  const cp = `polygon(0 0, 100% 0, 100% ${notch}%, 50% 100%, 0 ${notch}%)`;
+
+  return `// FLAG_STYLES i Leaderboard.tsx
+const FLAG_STYLES = {
+  minor: {
+    height: ${minorH},
+    style: {
+      background: 'linear-gradient(to bottom, #60a5fa 0%, #1d4ed8 100%)',
+      color: '#fff',
+      filter: 'drop-shadow(0 2px ${minorGlow}px rgba(37,99,235,0.65))',
+    },
+  },
+  major: {
+    height: ${majorH},
+    style: {
+      background: 'linear-gradient(to bottom, #fb923c 0%, #c2410c 100%)',
+      color: '#fff',
+      filter: 'drop-shadow(0 2px ${majorGlow}px rgba(234,88,12,0.65))',
+    },
+  },
+  legendary: {
+    height: ${legendH},
+    style: {
+      background: \`linear-gradient(to bottom, \${VAR_GOLD} 0%, color-mix(in srgb, \${VAR_GOLD} 55%, #000) 100%)\`,
+      color: 'var(--rq-gold-fg, #1a1200)',${legendPulse ? `
+      animation: 'legendaryFlagGlow 2.5s ease-in-out infinite',` : ''}
+    },
+  },
+};
+
+// Rendering (i renderCard):
+<div className="flag"
+  style={{
+    width: ${flagW},
+    clipPath: '${cp}',
+    height,
+    ...style,
+  }}
+>
+  {count}
+</div>
+
+// CSS (i index.css):
+@keyframes legendaryFlagGlow {
+  0%, 100% { filter: drop-shadow(0 3px ${legendGlow - 1}px color-mix(in srgb, var(--rq-gold) 55%, transparent)); }
+  50%       { filter: drop-shadow(0 3px ${legendGlow + 6}px color-mix(in srgb, var(--rq-gold) 90%, transparent)); }
+}`.replace('VAR_GOLD', '${var(--rq-gold)}');
+}
+
+function updatePrompt() {
+  document.getElementById('prompt-text').textContent = buildJSX();
+}
+
+function updateAll() {
+  // Sync val labels
+  ['minorH','majorH','legendH','flagW','flagGap','notch','minorGlow','majorGlow','legendGlow'].forEach(k => {
+    const el = document.getElementById(k + '-val');
+    if (el) el.textContent = state[k];
+  });
+  renderPreview();
+  updatePrompt();
+}
+
+function copyPrompt() {
+  navigator.clipboard.writeText(document.getElementById('prompt-text').textContent);
+  const btn = document.getElementById('copy-btn');
+  btn.textContent = 'Kopierat!';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'Kopiera'; btn.classList.remove('copied'); }, 1800);
+}
+
+// Init
+syncInputs();
+updateAll();
+</script>
+</body>
+</html>
