@@ -17,12 +17,20 @@ const STOCKHOLM = 'Europe/Stockholm';
 
 // ─── Timezone helper ──────────────────────────────────────────────────────────
 
-/** Returnerar en Date för hour:minute Stockholm-tid på ett givet "YYYY-MM-DD" datum. */
+/** Returnerar en Date för hour:minute Stockholm-tid på ett givet "YYYY-MM-DD" datum.
+ *  Använder Intl.DateTimeFormat.formatToParts för att bestämma UTC-offset —
+ *  korrekt oavsett serverns lokala tidszon och hanterar DST automatiskt. */
 function atStockholm(dateStr: string, hour: number, minute: number = 0): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
-  const noonUTC = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-  const noonStockholm = new Date(noonUTC.toLocaleString('en-US', { timeZone: STOCKHOLM }));
-  const offsetHours = Math.round((noonStockholm.getTime() - noonUTC.getTime()) / 3_600_000);
+  // Sond mot kl 12:00 UTC samma dag för att hämta Stockholms faktiska offset (hanterar DST)
+  const probe = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: STOCKHOLM,
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(probe);
+  const stockholmNoon = Number(parts.find(p => p.type === 'hour')?.value ?? '12');
+  const offsetHours = stockholmNoon - 12;
   return new Date(Date.UTC(y, m - 1, d, hour - offsetHours, minute, 0));
 }
 
