@@ -18,7 +18,7 @@ interface TitleSystemProps {
 const TABS = [
   { value: 'leaderboard', label: 'Leaderboard', icon: <Trophy className="w-4 h-4" /> },
   { value: 'titles',      label: 'Titles',       icon: <BookOpen className="w-4 h-4" /> },
-  { value: 'my-titles',   label: 'My Titles',    icon: <Crown className="w-4 h-4" /> },
+  { value: 'my-titles',   label: 'My Titles',    icon: <Crown className="w-4 h-4" />, tourAnchor: 'titles-my-titles-tab' },
 ];
 
 interface Category {
@@ -107,7 +107,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ currentUser, onRefresh
 
   return (
     <PageTabs value={tab} onValueChange={setTab} tabs={TABS}>
-      <TabsContent value="leaderboard" className="px-4 pb-4">
+      <TabsContent value="leaderboard" className="px-4 pb-4" data-tour="titles-progress">
         {categorized.map((cat, i) => (
           <CategorySection key={cat.id} label={cat.label} icon={cat.icon} titles={cat.titles} defaultOpen={i === 0} />
         ))}
@@ -117,7 +117,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ currentUser, onRefresh
         <TitleRequirements />
       </TabsContent>
 
-      <TabsContent value="my-titles" className="px-4 pb-4">
+      <TabsContent value="my-titles" className="px-4 pb-4" data-tour="titles-unlocked">
         <MyTitlesTab
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           titles={titles as any}

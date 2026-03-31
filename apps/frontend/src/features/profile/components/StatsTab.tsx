@@ -199,6 +199,7 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
       </div>
 
       {/* Fun Facts */}
+      <div data-tour="profile-fun-fact">
       <SectionCard title="Fun Facts" icon={<Map className="w-4 h-4" />}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
           <div>
@@ -210,6 +211,7 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
           </div>
         </div>
       </SectionCard>
+      </div>
     </div>
   );
 };

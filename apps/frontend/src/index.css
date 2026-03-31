@@ -406,3 +406,98 @@ html:not(.dark) .runquest-hybrid .nav-item-active::after {
   --accent-foreground: 330  2% 18%; /* Accent text on podium cards         */
   color: hsl(330, 2%, 18%);         /* Direct override for `color` property */
 }
+
+/* ── Driver.js RunQuest theme ───────────────────────────────────────────────
+   Override driver.js default white popover with RunQuest dark/gold style.
+   Applied via popoverClass: 'rq-tour-popover' in OnboardingTour.tsx        */
+
+/* Prevent overlay from bleeding through transparent/gradient card backgrounds */
+.driver-active-element {
+  background: hsl(var(--card)) !important;
+}
+
+.rq-tour-popover {
+  background-color: hsl(var(--sidebar)) !important;
+  border: 2px solid var(--rq-gold) !important;
+  border-radius: 12px !important;
+  padding: 20px !important;
+  min-width: 280px !important;
+  max-width: 340px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+}
+
+.rq-tour-popover * {
+  font-family: system-ui, sans-serif !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.rq-tour-popover .driver-popover-title {
+  font-family: 'Bebas Neue', sans-serif !important;
+  font-size: 1.4rem !important;
+  letter-spacing: 0.05em !important;
+  color: var(--rq-gold) !important;
+  margin-bottom: 6px !important;
+  padding-right: 24px !important;
+}
+
+.rq-tour-popover .driver-popover-description {
+  font-size: 0.875rem !important;
+  line-height: 1.55 !important;
+  color: hsl(var(--foreground) / 0.8) !important;
+}
+
+.rq-tour-popover .driver-popover-close-btn {
+  color: hsl(var(--foreground) / 0.4) !important;
+  font-size: 16px !important;
+}
+
+.rq-tour-popover .driver-popover-close-btn:hover {
+  color: hsl(var(--foreground)) !important;
+}
+
+.rq-tour-popover .driver-popover-footer {
+  margin-top: 16px !important;
+  border-top: 1px solid color-mix(in srgb, var(--rq-gold) 25%, transparent) !important;
+  padding-top: 12px !important;
+}
+
+.rq-tour-popover .driver-popover-progress-text {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  color: hsl(var(--foreground) / 0.45) !important;
+}
+
+.rq-tour-popover .driver-popover-navigation-btns button {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  border-radius: 6px !important;
+  padding: 5px 12px !important;
+  background-color: transparent !important;
+  border-color: color-mix(in srgb, var(--rq-gold) 40%, transparent) !important;
+  color: hsl(var(--foreground) / 0.7) !important;
+  text-shadow: none !important;
+}
+
+.rq-tour-popover .driver-popover-navigation-btns button:last-child {
+  background-color: var(--rq-gold) !important;
+  border-color: var(--rq-gold) !important;
+  color: #000 !important;
+}
+
+.rq-tour-popover .driver-popover-navigation-btns button:hover {
+  opacity: 0.9 !important;
+}
+
+/* Arrow matches border color */
+.rq-tour-popover .driver-popover-arrow {
+  border-color: var(--rq-gold) !important;
+}
+.rq-tour-popover .driver-popover-arrow-side-left { border-left-color: var(--rq-gold) !important; }
+.rq-tour-popover .driver-popover-arrow-side-right { border-right-color: var(--rq-gold) !important; }
+.rq-tour-popover .driver-popover-arrow-side-top { border-top-color: var(--rq-gold) !important; }
+.rq-tour-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--rq-gold) !important; }

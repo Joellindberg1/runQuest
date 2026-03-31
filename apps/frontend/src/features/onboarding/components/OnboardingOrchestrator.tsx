@@ -7,6 +7,7 @@ import { PatchNotesModal } from './PatchNotesModal';
 import { OnboardingTour } from './OnboardingTour';
 import { PATCH_NOTES } from '../patchNotes';
 import { ONBOARDING_V1_STEPS } from '../onboardingSteps';
+import { sidebarBridge } from '../sidebarBridge';
 
 // Inner component: knows which slug to show, handles markSeen
 function OnboardingItem({ slug }: { slug: string }) {
@@ -18,12 +19,22 @@ function OnboardingItem({ slug }: { slug: string }) {
     return <PatchNotesModal note={patchNote} onClose={() => markSeen()} />;
   }
 
-  // First-login tour?
+  // First-login tour — open sidebar on mobile so nav elements are visible
   if (slug === 'onboarding_v1') {
-    return <OnboardingTour steps={ONBOARDING_V1_STEPS} onDone={() => markSeen()} />;
+    return (
+      <OnboardingTour
+        steps={ONBOARDING_V1_STEPS}
+        onDone={() => markSeen()}
+        beforeStart={() => { if (window.innerWidth < 768) sidebarBridge.open(); }}
+        afterEnd={() => { if (window.innerWidth < 768) sidebarBridge.close(); }}
+      />
+    );
   }
 
-  // Unknown slug — mark as seen via effect so queue advances (never call mutations during render)
+  // Feature tour slug — handled by page-level FeatureTour, not by the orchestrator
+  if (slug.startsWith('tour_')) return null;
+
+  // Truly unknown slug — mark as seen so queue advances (never call mutations during render)
   React.useEffect(() => { markSeen(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }

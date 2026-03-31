@@ -61,7 +61,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, ti
     return {};
   };
 
-  const renderCard = (user: User) => {
+  const renderCard = (user: User, tourAnchor?: string) => {
     const isCurrentUser = user.id === currentUser.id;
     const stats = leaderboardUtils.calculateUserStats(user);
     const position = leaderboardUtils.getUserPosition(user, sortedUsers);
@@ -115,6 +115,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, ti
     return (
       <Card
         key={user.id}
+        {...(tourAnchor ? { 'data-tour': tourAnchor } : {})}
         className={`relative overflow-visible ${getPositionStyles(position)}`}
         style={cardStyle}
       >
@@ -182,7 +183,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, ti
           />
         </CardHeader>
 
-        <CardContent className="p-4 pt-0 pb-8">
+        <CardContent className="p-4 pt-0 pb-8" data-tour="leaderboard-run-history">
           <LevelProgress
             xpProgress={stats.xpProgress}
             xpLeftForNextLevel={stats.xpLeftForNextLevel}
@@ -227,7 +228,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, ti
   const stepLabels: Record<number, string> = { 1: '1ST', 2: '2ND', 3: '3RD' };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-tour="leaderboard-table">
 
       {/* Mobile: simple ordered list */}
       <div className="md:hidden space-y-6">
@@ -241,7 +242,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, ti
             return (
               <div key={user.id} className="flex flex-col items-center w-[380px]">
                 <div className={`${mt} w-full`} style={{ minHeight: '380px', display: 'flex', flexDirection: 'column' }}>
-                  {renderCard(user)}
+                  {renderCard(user, step === 1 ? 'leaderboard-card' : undefined)}
                 </div>
                 {/* Podium step platform */}
                 <div

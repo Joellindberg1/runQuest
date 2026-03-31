@@ -158,6 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
 
         {/* Navigation — scrollable so bottom bar always stays visible */}
         <nav className="flex-1 overflow-y-auto pl-2 pr-0 pb-2">
+          <div data-tour="sidebar-game-section">
           <NavSection title="Game">
             <div data-tour="sidebar-leaderboard">
               <NavItem
@@ -167,12 +168,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
                 onClick={() => handleNav('leaderboard')}
               />
             </div>
-            <NavItem
-              icon={<Award className="w-3.5 h-3.5" />}
-              label="Titles"
-              active={activeTab === 'titles'}
-              onClick={() => handleNav('titles')}
-            />
+            <div data-tour="sidebar-titles">
+              <NavItem
+                icon={<Award className="w-3.5 h-3.5" />}
+                label="Titles"
+                active={activeTab === 'titles'}
+                onClick={() => handleNav('titles')}
+              />
+            </div>
             <div data-tour="sidebar-challenges">
               <NavItem
                 icon={<Swords className="w-3.5 h-3.5" />}
@@ -190,7 +193,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
               />
             </div>
           </NavSection>
+          </div>
 
+          <div data-tour="sidebar-you-section">
           <NavSection title="You" separator>
             <NavItem
               icon={<User className="w-3.5 h-3.5" />}
@@ -205,7 +210,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
               onClick={() => handleNav('log-run')}
             />
           </NavSection>
+          </div>
 
+          <div data-tour="sidebar-runquest-section">
           <NavSection title="RunQuest" separator>
             <NavItem
               icon={<BookOpen className="w-3.5 h-3.5" />}
@@ -230,6 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
               disabled
             />
           </NavSection>
+          </div>
         </nav>
 
         {/* Bottom — pinned, never scrolls */}
