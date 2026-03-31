@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RunQuest — Events Page Playground</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #111; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* Layout */
+  .shell { display: flex; flex: 1; min-height: 0; }
+  .controls { width: 280px; min-width: 280px; background: #1a1a1a; border-right: 1px solid #2a2a2a; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+  .preview-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .preview-scroll { flex: 1; overflow-y: auto; padding: 24px; background: #0e0e0e; }
+  .prompt-bar { background: #1a1a1a; border-top: 1px solid #2a2a2a; padding: 12px 16px; display: flex; gap: 10px; align-items: flex-start; }
+  .prompt-text { flex: 1; font-size: 12px; color: #aaa; line-height: 1.5; font-family: monospace; }
+  .copy-btn { background: #2a2a2a; border: 1px solid #444; color: #ccc; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap; }
+  .copy-btn:hover { background: #333; }
+
+  /* Controls UI */
+  .ctrl-group { display: flex; flex-direction: column; gap: 8px; }
+  .ctrl-group h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .15em; color: #666; padding-bottom: 4px; border-bottom: 1px solid #222; }
+  .ctrl-row { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-row label { font-size: 11px; color: #999; }
+  select, input[type=range] { width: 100%; background: #222; border: 1px solid #333; color: #ddd; border-radius: 4px; padding: 4px 6px; font-size: 12px; }
+  .pill-group { display: flex; gap: 4px; flex-wrap: wrap; }
+  .pill { padding: 4px 10px; border-radius: 20px; border: 1px solid #333; background: #222; color: #999; font-size: 11px; cursor: pointer; transition: all .15s; }
+  .pill.active { background: #c9a84c22; border-color: #c9a84c; color: #c9a84c; }
+
+  /* ──────────────────────────────────────────────
+     RunQuest Design Tokens
+  ────────────────────────────────────────────── */
+  :root {
+    --rq-gold: #c9a84c;
+    --rq-gold-dim: rgba(201,168,76,0.12);
+    --rq-gold-mid: rgba(201,168,76,0.07);
+    --rq-success: #4caf72;
+    --rq-success-dim: rgba(76,175,114,0.12);
+    --rq-danger: #e05555;
+    --rq-muted: rgba(255,255,255,0.45);
+    --rq-border: rgba(255,255,255,0.12);
+    --rq-sidebar: #181818;
+    --rq-bg: #111;
+    --rq-card: #1c1c1c;
+  }
+
+  /* ──────────────────────────────────────────────
+     Events Page Styles
+  ────────────────────────────────────────────── */
+  .rq-page { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+  .rq-page-title {
+    font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    font-size: 13px; text-transform: uppercase; letter-spacing: .18em;
+    color: var(--rq-muted); text-align: center; padding-bottom: 4px;
+  }
+
+  /* Event card base */
+  .rq-event-card {
+    background: var(--rq-sidebar);
+    border: 2px solid var(--rq-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .rq-event-card.state-done { border-color: rgba(76,175,114,0.4); }
+  .rq-event-card.state-missed { opacity: 0.5; }
+  .rq-event-card.state-active { border-color: rgba(201,168,76,0.4); }
+
+  .rq-event-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--rq-border);
+  }
+  .rq-event-header-left { display: flex; align-items: center; gap: 10px; }
+  .rq-event-icon { font-size: 20px; }
+  .rq-event-name {
+    font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    font-size: 17px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+    color: #eee;
+  }
+  .rq-event-type-tag {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--rq-muted); margin-top: 1px;
+  }
+  .rq-xp-badge {
+    font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    font-size: 15px; font-weight: 700; color: var(--rq-gold);
+    background: var(--rq-gold-dim); border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 6px; padding: 3px 10px; white-space: nowrap;
+  }
+
+  .rq-event-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* Participation: window + progress */
+  .rq-window-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--rq-muted); }
+  .rq-window-time { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 15px; color: #ddd; letter-spacing: .05em; }
+
+  .rq-progress-wrap { display: flex; flex-direction: column; gap: 5px; }
+  .rq-progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--rq-muted); }
+  .rq-progress-track { height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+  .rq-progress-fill { height: 100%; border-radius: 3px; background: var(--rq-gold); transition: width .3s; }
+  .rq-progress-fill.success { background: var(--rq-success); }
+
+  .rq-pills-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .rq-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 12px;
+    border: 1px solid var(--rq-border); color: var(--rq-muted);
+    font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    letter-spacing: .06em; text-transform: uppercase;
+  }
+
+  .rq-cta {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--rq-gold-dim); border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; color: var(--rq-gold); cursor: pointer;
+  }
+  .rq-cta-done {
+    display: flex; align-items: center; gap-8px;
+    background: var(--rq-success-dim); border: 1px solid rgba(76,175,114,0.3);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; color: var(--rq-success); gap: 8px;
+  }
+  .rq-missed-banner {
+    background: rgba(224,85,85,0.08); border: 1px solid rgba(224,85,85,0.2);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; color: var(--rq-danger); text-align: center;
+  }
+
+  /* Competition leaderboard */
+  .rq-lb-table { width: 100%; border-collapse: collapse; }
+  .rq-lb-table tr { border-bottom: 1px solid var(--rq-border); }
+  .rq-lb-table tr:last-child { border-bottom: none; }
+  .rq-lb-table td { padding: 7px 4px; font-size: 13px; }
+  .rq-lb-rank { width: 28px; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 14px; color: var(--rq-muted); }
+  .rq-lb-rank.gold { color: var(--rq-gold); }
+  .rq-lb-rank.silver { color: #aaa; }
+  .rq-lb-rank.bronze { color: #c87533; }
+  .rq-lb-name { color: #ddd; }
+  .rq-lb-name.me { color: var(--rq-gold); font-weight: 600; }
+  .rq-lb-value { text-align: right; color: var(--rq-muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .rq-lb-value.me { color: var(--rq-gold); }
+  .rq-lb-xp { text-align: right; width: 52px; }
+  .rq-xp-small { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--rq-gold-dim); color: var(--rq-gold); border: 1px solid rgba(201,168,76,0.2); }
+  .rq-lb-me-row { background: var(--rq-gold-mid); }
+
+  .rq-lb-footer { display: flex; gap: 12px; padding-top: 8px; border-top: 1px solid var(--rq-border); font-size: 11px; color: var(--rq-muted); }
+  .rq-lb-prize { display: flex; align-items: center; gap: 4px; }
+
+  .rq-meta-row { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--rq-muted); padding-bottom: 2px; }
+  .rq-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--rq-border); }
+
+  /* Empty state */
+  .rq-empty {
+    background: var(--rq-sidebar); border: 2px dashed var(--rq-border);
+    border-radius: 10px; padding: 32px; text-align: center;
+    display: flex; flex-direction: column; gap: 8px; align-items: center;
+  }
+  .rq-empty-icon { font-size: 28px; opacity: 0.5; }
+  .rq-empty-title { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 16px; text-transform: uppercase; letter-spacing: .1em; color: #aaa; }
+  .rq-empty-sub { font-size: 12px; color: var(--rq-muted); max-width: 260px; line-height: 1.5; }
+
+  /* History */
+  .rq-section-label {
+    font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    font-size: 12px; text-transform: uppercase; letter-spacing: .18em;
+    color: var(--rq-muted); text-align: center;
+  }
+  .rq-history-item {
+    background: var(--rq-sidebar); border: 1px solid var(--rq-border);
+    border-radius: 8px; padding: 10px 14px;
+    display: grid; grid-template-columns: 22px 1fr auto auto;
+    align-items: center; gap: 10px; font-size: 12px; cursor: pointer;
+    transition: background .15s;
+  }
+  .rq-history-item:hover { background: #1f1f1f; }
+  .rq-history-chevron { color: var(--rq-muted); font-size: 10px; }
+  .rq-history-name { color: #ccc; font-weight: 500; }
+  .rq-history-date { color: var(--rq-muted); font-size: 11px; }
+  .rq-history-result { font-size: 11px; }
+  .rq-history-result.done { color: var(--rq-success); }
+  .rq-history-result.missed { color: var(--rq-danger); }
+  .rq-history-result.rank { color: var(--rq-gold); }
+  .rq-history-xp { font-size: 11px; color: var(--rq-gold); text-align: right; white-space: nowrap; }
+  .rq-history-expanded { padding: 0 14px 10px; display: none; }
+  .rq-history-expanded.open { display: block; }
+
+  .rq-days-left {
+    font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    font-size: 13px; color: var(--rq-muted); letter-spacing: .05em;
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ── Controls ── -->
+  <div class="controls">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:.12em;color:#c9a84c;padding-bottom:4px;">
+      Events Page
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Page state</h3>
+      <div class="ctrl-row">
+        <label>Active events</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="hasEvents" data-val="yes" onclick="setPill(this)">Has events</div>
+          <div class="pill" data-group="hasEvents" data-val="no" onclick="setPill(this)">Empty</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-group" id="ctrl-participation">
+      <h3>Participation event</h3>
+      <div class="ctrl-row">
+        <label>Show</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="showParticipation" data-val="yes" onclick="setPill(this)">Show</div>
+          <div class="pill" data-group="showParticipation" data-val="no" onclick="setPill(this)">Hide</div>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>State</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="partState" data-val="active" onclick="setPill(this)">Active</div>
+          <div class="pill" data-group="partState" data-val="done" onclick="setPill(this)">Done</div>
+          <div class="pill" data-group="partState" data-val="missed" onclick="setPill(this)">Missed</div>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>Event type</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="partType" data-val="morning" onclick="setPill(this)">Morgonrunda</div>
+          <div class="pill" data-group="partType" data-val="hangover" onclick="setPill(this)">Hangover Run</div>
+          <div class="pill" data-group="partType" data-val="storm" onclick="setPill(this)">Storm Chaser</div>
+          <div class="pill" data-group="partType" data-val="5k" onclick="setPill(this)">5K Friday</div>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>Window progress: <span id="progressVal">55</span>%</label>
+        <input type="range" min="0" max="100" value="55" oninput="state.windowProgress=+this.value;document.getElementById('progressVal').textContent=this.value;updateAll()">
+      </div>
+    </div>
+
+    <div class="ctrl-group" id="ctrl-competition">
+      <h3>Competition event</h3>
+      <div class="ctrl-row">
+        <label>Show</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="showCompetition" data-val="yes" onclick="setPill(this)">Show</div>
+          <div class="pill" data-group="showCompetition" data-val="no" onclick="setPill(this)">Hide</div>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>My rank</label>
+        <div class="pill-group">
+          <div class="pill" data-group="myRank" data-val="1" onclick="setPill(this)">#1</div>
+          <div class="pill active" data-group="myRank" data-val="2" onclick="setPill(this)">#2</div>
+          <div class="pill" data-group="myRank" data-val="3" onclick="setPill(this)">#3</div>
+          <div class="pill" data-group="myRank" data-val="4" onclick="setPill(this)">#4+</div>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>Type</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="compType" data-val="km" onclick="setPill(this)">Weekly km</div>
+          <div class="pill" data-group="compType" data-val="elev" onclick="setPill(this)">Weekly höjd</div>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>Days left: <span id="daysVal">4</span></label>
+        <input type="range" min="1" max="7" value="4" oninput="state.daysLeft=+this.value;document.getElementById('daysVal').textContent=this.value;updateAll()">
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>History</h3>
+      <div class="ctrl-row">
+        <label>Show</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="showHistory" data-val="yes" onclick="setPill(this)">Show</div>
+          <div class="pill" data-group="showHistory" data-val="no" onclick="setPill(this)">Hide</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Preview + Prompt ── -->
+  <div class="preview-area">
+    <div class="preview-scroll">
+      <div id="preview" class="rq-page"></div>
+    </div>
+    <div class="prompt-bar">
+      <div class="prompt-text" id="prompt-text">—</div>
+      <button class="copy-btn" onclick="copyPrompt()">Copy prompt</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  hasEvents: 'yes',
+  showParticipation: 'yes',
+  partState: 'active',
+  partType: 'morning',
+  windowProgress: 55,
+  showCompetition: 'yes',
+  myRank: '2',
+  compType: 'km',
+  daysLeft: 4,
+  showHistory: 'yes',
+};
+
+function setPill(el) {
+  const group = el.dataset.group;
+  document.querySelectorAll(`.pill[data-group="${group}"]`).forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  state[group] = el.dataset.val;
+  updateAll();
+}
+
+// ── Data ──────────────────────────────────────────────────────
+
+const PART_EVENTS = {
+  morning:  { icon: '🌅', name: 'Morgonrunda',    window: '04:00 – 07:00', xp: 25, tags: ['Utomhus', 'Strava', 'min 3 km'], minKm: 3 },
+  hangover: { icon: '🍺', name: 'Hangover Run',   window: '04:00 – 10:00', xp: 25, tags: ['Utomhus', 'Strava', 'min 3 km'], minKm: 3 },
+  storm:    { icon: '⛈️', name: 'Storm Chaser',   window: '00:00 – 23:59', xp: 25, tags: ['Utomhus', 'Strava', 'min 3 km', 'Regn'], minKm: 3 },
+  '5k':     { icon: '🏃', name: '5K Friday',      window: '00:00 – 23:59', xp: 25, tags: ['Strava', 'min 5 km', 'Fredag'], minKm: 5 },
+};
+
+const COMP_DATA_KM = [
+  { name: 'Kalle',  km: 42.1, elev: 380 },
+  { name: 'Du',     km: 31.4, elev: 295 },
+  { name: 'Anna',   km: 28.0, elev: 240 },
+  { name: 'Per',    km: 12.1, elev: 88  },
+  { name: 'Sofia',  km: 8.3,  elev: 55  },
+];
+const XP_PRIZES = [40, 30, 20];
+
+// ── Render ────────────────────────────────────────────────────
+
+function renderPreview() {
+  const el = document.getElementById('preview');
+  const parts = [];
+
+  parts.push(`<div class="rq-page-title">Events</div>`);
+
+  if (state.hasEvents === 'no') {
+    parts.push(renderEmpty());
+  } else {
+    if (state.showParticipation === 'yes') parts.push(renderParticipation());
+    if (state.showCompetition === 'yes')   parts.push(renderCompetition());
+  }
+
+  if (state.showHistory === 'yes') parts.push(renderHistory());
+
+  el.innerHTML = parts.join('');
+}
+
+function renderParticipation() {
+  const ev = PART_EVENTS[state.partType];
+  const s = state.partState;
+  const pct = state.windowProgress;
+
+  const stateClass = s === 'done' ? 'state-done' : s === 'missed' ? 'state-missed' : 'state-active';
+
+  const tagsHtml = ev.tags.map(t => `<span class="rq-tag">${t}</span>`).join('');
+
+  let bodyBottom = '';
+  if (s === 'active') {
+    bodyBottom = `
+      <div class="rq-progress-wrap">
+        <div class="rq-progress-label"><span>Fönster kvar</span><span>${Math.round(100-pct)}%</span></div>
+        <div class="rq-progress-track"><div class="rq-progress-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="rq-cta">
+        <span>Logga ett pass ≥ ${ev.minKm} km</span>
+        <span>→</span>
+      </div>`;
+  } else if (s === 'done') {
+    bodyBottom = `
+      <div class="rq-progress-wrap">
+        <div class="rq-progress-track"><div class="rq-progress-fill success" style="width:100%"></div></div>
+      </div>
+      <div class="rq-cta-done">
+        <span>✓</span>
+        <span>Klar! +${ev.xp} XP intjänat</span>
+      </div>`;
+  } else {
+    bodyBottom = `<div class="rq-missed-banner">✕ Fönstret stängde — missad</div>`;
+  }
+
+  return `
+    <div class="rq-event-card ${stateClass}">
+      <div class="rq-event-header">
+        <div class="rq-event-header-left">
+          <span class="rq-event-icon">${ev.icon}</span>
+          <div>
+            <div class="rq-event-name">${ev.name}</div>
+            <div class="rq-event-type-tag">Participation · Dagligt event</div>
+          </div>
+        </div>
+        <div class="rq-xp-badge">+${ev.xp} XP</div>
+      </div>
+      <div class="rq-event-body">
+        <div class="rq-window-row">
+          <span>Fönster</span>
+          <span class="rq-window-time">${ev.window}</span>
+        </div>
+        <div class="rq-pills-row">${tagsHtml}</div>
+        ${bodyBottom}
+      </div>
+    </div>`;
+}
+
+function renderCompetition() {
+  const isKm = state.compType === 'km';
+  const myRankIdx = parseInt(state.myRank) - 1;
+  const days = state.daysLeft;
+
+  // Build sorted players, insert "Du" at correct rank
+  const players = COMP_DATA_KM.map((p,i) => ({ ...p, origIdx: i }));
+  // Sort by relevant metric
+  players.sort((a,b) => isKm ? b.km - a.km : b.elev - a.elev);
+
+  // Replace slot at myRankIdx with "Du"
+  const finalPlayers = players.map((p,i) => ({
+    name: i === myRankIdx ? 'Du' : p.name === 'Du' ? players[myRankIdx].name : p.name,
+    val: isKm
+      ? (i === myRankIdx ? 31.4 : p.km).toFixed(1) + ' km'
+      : (i === myRankIdx ? 295 : p.elev) + ' m',
+    isMe: i === myRankIdx,
+  }));
+
+  const rows = finalPlayers.map((p, i) => {
+    const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+    const xpCell = i < 3
+      ? `<span class="rq-xp-small">${XP_PRIZES[i]} XP</span>`
+      : `<span style="color:#444;font-size:11px">—</span>`;
+    return `
+      <tr class="${p.isMe ? 'rq-lb-me-row' : ''}">
+        <td class="rq-lb-rank ${rankClass}">#${i+1}</td>
+        <td class="rq-lb-name ${p.isMe ? 'me' : ''}">${p.isMe ? '▶ Du' : p.name}</td>
+        <td class="rq-lb-value ${p.isMe ? 'me' : ''}">${p.val}</td>
+        <td class="rq-lb-xp">${xpCell}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <div class="rq-event-card state-active">
+      <div class="rq-event-header">
+        <div class="rq-event-header-left">
+          <span class="rq-event-icon">${isKm ? '🏆' : '⛰️'}</span>
+          <div>
+            <div class="rq-event-name">${isKm ? 'Weekly km' : 'Weekly höjdmeter'}</div>
+            <div class="rq-event-type-tag">Competition · Veckovis</div>
+          </div>
+        </div>
+        <div class="rq-days-left">${days}d kvar</div>
+      </div>
+      <div class="rq-event-body">
+        <table class="rq-lb-table">${rows}</table>
+        <div class="rq-lb-footer">
+          <span style="color:#666;font-size:11px">XP-pris:</span>
+          <span class="rq-lb-prize"><span style="color:var(--rq-gold)">🥇</span> 40 XP</span>
+          <span class="rq-lb-prize"><span style="color:#aaa">🥈</span> 30 XP</span>
+          <span class="rq-lb-prize"><span style="color:#c87533">🥉</span> 20 XP</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderEmpty() {
+  return `
+    <div class="rq-empty">
+      <div class="rq-empty-icon">🎲</div>
+      <div class="rq-empty-title">Inga aktiva events just nu</div>
+      <div class="rq-empty-sub">Events triggas slumpmässigt varje dag — håll utkik!</div>
+    </div>`;
+}
+
+function renderHistory() {
+  const items = [
+    { icon:'🏆', name:'Weekly km',    date:'Mån 23–Sön 29 mar', result:'#2 av 5',  resultClass:'rank',   xp:'+30 XP' },
+    { icon:'🌅', name:'Morgonrunda',  date:'27 mars',           result:'✓ Klar',   resultClass:'done',   xp:'+25 XP' },
+    { icon:'🍺', name:'Hangover Run', date:'22 mars',           result:'Missad',   resultClass:'missed', xp:'—' },
+    { icon:'⛈️', name:'Storm Chaser', date:'19 mars',           result:'✓ Klar',   resultClass:'done',   xp:'+25 XP' },
+  ];
+  const rows = items.map(it => `
+    <div class="rq-history-item">
+      <span>${it.icon}</span>
+      <div>
+        <div class="rq-history-name">${it.name}</div>
+        <div class="rq-history-date">${it.date}</div>
+      </div>
+      <span class="rq-history-result ${it.resultClass}">${it.result}</span>
+      <span class="rq-history-xp">${it.xp}</span>
+    </div>`).join('');
+
+  return `
+    <div class="rq-section-label">Historik</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">${rows}</div>`;
+}
+
+// ── Prompt ────────────────────────────────────────────────────
+
+function updatePrompt() {
+  const parts = [];
+  const ev = PART_EVENTS[state.partType];
+
+  if (state.hasEvents === 'no') {
+    parts.push('Events-sidan visar empty state — inga aktiva events.');
+  } else {
+    if (state.showParticipation === 'yes') {
+      parts.push(`Participation-event: "${ev.name}" i state "${state.partState}" (fönster ${ev.window}, fönsterförbrukning ${state.windowProgress}%).`);
+    }
+    if (state.showCompetition === 'yes') {
+      parts.push(`Competition-event: "${state.compType === 'km' ? 'Weekly km' : 'Weekly höjdmeter'}", användaren på plats #${state.myRank}, ${state.daysLeft} dagar kvar.`);
+    }
+  }
+  if (state.showHistory === 'yes') parts.push('Historik-sektion visas under aktiva events.');
+
+  document.getElementById('prompt-text').textContent = parts.length
+    ? 'Events-sidan: ' + parts.join(' ')
+    : '—';
+}
+
+function updateAll() { renderPreview(); updatePrompt(); }
+
+function copyPrompt() {
+  const t = document.getElementById('prompt-text').textContent;
+  navigator.clipboard.writeText(t).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy prompt', 1500);
+  });
+}
+
+updateAll();
+</script>
+</body>
+</html>

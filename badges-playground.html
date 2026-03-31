@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RunQuest — Badges Playground</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #070e09;
+  --bg2: #0f1a10;
+  --card: #1a1a1a;
+  --card2: #212121;
+  --fg: #ededed;
+  --fg-strong: rgba(255,255,255,0.85);
+  --fg-soft: rgba(255,255,255,0.72);
+  --fg-muted: rgba(255,255,255,0.50);
+  --fg-dim: rgba(255,255,255,0.30);
+  --border: rgba(255,255,255,0.09);
+  --border2: rgba(255,255,255,0.13);
+  --primary: #ffd700;
+  --primary-fg: #000;
+  --pink: #e85f5c;
+  --success: #4ade80;
+  --ctrl-bg: #111;
+  --ctrl-border: rgba(255,255,255,0.12);
+  --ctrl-hover: rgba(255,255,255,0.06);
+  --font: 'Barlow Condensed', system-ui, sans-serif;
+}
+
+body.light {
+  --bg: hsl(33,45%,94%);
+  --bg2: hsl(33,35%,88%);
+  --card: #ffffff;
+  --card2: #f8f4ef;
+  --fg: hsl(330,2%,15%);
+  --fg-strong: rgba(0,0,0,0.85);
+  --fg-soft: rgba(0,0,0,0.65);
+  --fg-muted: rgba(0,0,0,0.45);
+  --fg-dim: rgba(0,0,0,0.25);
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.13);
+  --primary: #cd8032;
+  --primary-fg: #fff;
+  --ctrl-bg: #fff;
+  --ctrl-border: rgba(0,0,0,0.15);
+  --ctrl-hover: rgba(0,0,0,0.04);
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  grid-template-rows: 48px 1fr;
+  transition: background .25s, color .25s;
+}
+
+/* ── Top bar ── */
+.topbar {
+  grid-column: 1 / -1;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+}
+.topbar-logo {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.topbar-logo span { color: var(--fg-muted); font-weight: 400; }
+.topbar-spacer { flex: 1; }
+.theme-toggle {
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-border);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  padding: 5px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all .15s;
+}
+.theme-toggle:hover { background: var(--ctrl-hover); }
+
+/* ── Sidebar ── */
+.controls {
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.ctrl-section h3 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
+.btn-filter {
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-border);
+  color: var(--fg-soft);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  padding: 4px 9px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all .15s;
+}
+.btn-filter:hover { background: var(--ctrl-hover); color: var(--fg); }
+.btn-filter.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-fg);
+}
+
+/* Level filter pills — colored when active */
+.btn-filter[data-val="1"].active  { background:#6e7a7a; border-color:#9ab0b0; color:#fff; }
+.btn-filter[data-val="2"].active  { background:#1d5c2e; border-color:#3aaa5e; color:#fff; }
+.btn-filter[data-val="3"].active  { background:#1a3a5c; border-color:#4a90d9; color:#fff; }
+.btn-filter[data-val="4"].active  { background:#5a4200; border-color:#d4a800; color:#fff; }
+.btn-filter[data-val="5"].active  { background:#3b1060; border-color:#a855f7; color:#fff; }
+.btn-filter[data-val="6"].active  { background:#5a2000; border-color:#ff8c00; color:#fff; }
+
+/* Style controls */
+.style-row { display: flex; flex-direction: column; gap: 5px; }
+.style-row label { font-size: 11px; color: var(--fg-muted); font-weight: 600; text-transform: uppercase; letter-spacing:.04em; display:flex; justify-content:space-between; }
+.style-row input[type=range] { width: 100%; accent-color: var(--primary); }
+.style-row select {
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-border);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 5px 7px;
+  width: 100%;
+}
+.val-display { color: var(--primary); font-weight: 700; }
+
+/* Player card */
+.player-card-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 12px;
+}
+.player-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin-bottom: 10px;
+}
+.player-slots { display: flex; gap: 6px; }
+.player-slot {
+  flex: 1;
+  aspect-ratio: 1;
+  border: 1px dashed var(--ctrl-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  position: relative;
+  overflow: visible;
+}
+.player-slot:empty::after {
+  content: '+';
+  font-size: 16px;
+  color: var(--fg-dim);
+}
+/* The mini badge inside a slot */
+.slot-badge {
+  width: 80%;
+  height: 80%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.slot-badge svg { position: absolute; top:0; left:0; width:100%; height:100%; }
+.slot-badge .emoji { position: relative; z-index:1; font-size: 1.4em; }
+/* Slot badge glow — static for 1-2, dynamic for 3-6 via applyGlowStyles() */
+.slot-badge[data-level="1"] { filter: drop-shadow(0 0 3px rgba(120,144,156,0.4)); }
+.slot-badge[data-level="2"] { filter: drop-shadow(0 0 4px rgba(58,170,94,0.5)); }
+.player-slot .slot-remove {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 15px; height: 15px;
+  background: var(--pink);
+  color: #fff;
+  font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 10;
+}
+.player-slot:hover .slot-remove { opacity: 1; }
+
+/* ── Main ── */
+.main { display: flex; flex-direction: column; overflow: hidden; }
+.preview-area { flex: 1; overflow-y: auto; padding: 20px; }
+
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+/* ── Badge card ── */
+.badge-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 14px 12px;
+  cursor: pointer;
+  transition: transform .15s;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  user-select: none;
+}
+.badge-card:hover { transform: translateY(-2px); }
+
+.badge-card.owned::before {
+  content: '✓';
+  position: absolute;
+  top: 6px; right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+/* ── Icon ── */
+.badge-icon {
+  width: 72px; height: 72px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  font-size: 30px;
+}
+.badge-icon svg { position: absolute; top:0; left:0; width:100%; height:100%; }
+.badge-icon .emoji { position: relative; z-index: 1; }
+
+/* Level glow — static for common/uncommon, dynamic for 3-6 via JS */
+.badge-card[data-level="1"] .badge-icon { filter: drop-shadow(0 0 3px rgba(160,175,175,0.35)); }
+.badge-card[data-level="2"] .badge-icon { filter: drop-shadow(0 0 5px rgba(58,170,94,0.45)); }
+/* Levels 3-6: animations injected dynamically by applyGlowStyles() */
+
+/* Light theme — badge card bg tints per level */
+body.light .badge-card[data-level="1"] { background: #f2f3f3; border-color: #b0bec5; }
+body.light .badge-card[data-level="2"] { background: #f0f7f3; border-color: #3aaa5e; }
+body.light .badge-card[data-level="3"] { background: #f0f5fc; border-color: #4a90d9; }
+body.light .badge-card[data-level="4"] { background: #fdf8e8; border-color: #d4a800; }
+body.light .badge-card[data-level="5"] { background: #f8f0fd; border-color: #a855f7; }
+body.light .badge-card[data-level="6"] { background: #fff5ea; border-color: #ff8c00; }
+
+/* Light theme — name + desc text */
+body.light .badge-name { color: rgba(0,0,0,0.80); }
+body.light .badge-sub  { color: rgba(0,0,0,0.50); }
+body.light .badge-req  { color: rgba(0,0,0,0.45); border-top-color: rgba(0,0,0,0.10); }
+
+/* Level tag */
+.badge-level-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border: 1px solid;
+}
+/* Common — grey/silver */
+.badge-card[data-level="1"] .badge-level-tag { color: #b0bec5; border-color: #78909c; background: rgba(100,120,125,0.15); }
+/* Uncommon — green */
+.badge-card[data-level="2"] .badge-level-tag { color: #4caf7d; border-color: #3aaa5e; background: rgba(30,94,50,0.2); }
+/* Rare — blue */
+.badge-card[data-level="3"] .badge-level-tag { color: #64b5f6; border-color: #4a90d9; background: rgba(26,58,92,0.25); }
+/* Heroic — yellow/gold */
+.badge-card[data-level="4"] .badge-level-tag { color: #ffd54f; border-color: #d4a800; background: rgba(90,66,0,0.25); }
+/* Epic — purple */
+.badge-card[data-level="5"] .badge-level-tag { color: #ce93d8; border-color: #a855f7; background: rgba(59,16,96,0.3); }
+/* Legendary — orange/gold */
+.badge-card[data-level="6"] .badge-level-tag { color: #ffab40; border-color: #ff8c00; background: rgba(90,32,0,0.3); }
+
+.badge-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--fg-strong);
+  text-align: center;
+  line-height: 1.2;
+}
+.badge-sub {
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-align: center;
+  line-height: 1.3;
+  font-style: italic;
+}
+.badge-percentile {
+  font-size: 10px;
+  color: var(--fg-dim);
+  letter-spacing: .03em;
+}
+/* Percentile color per rarity */
+.badge-card[data-level="1"] .badge-percentile .pct { color: #9ab0b0; }
+.badge-card[data-level="2"] .badge-percentile .pct { color: #4caf7d; }
+.badge-card[data-level="3"] .badge-percentile .pct { color: #64b5f6; }
+.badge-card[data-level="4"] .badge-percentile .pct { color: #ffd54f; }
+.badge-card[data-level="5"] .badge-percentile .pct { color: #ce93d8; }
+.badge-card[data-level="6"] .badge-percentile .pct { color: #ffab40; }
+
+.badge-req {
+  font-size: 10px;
+  color: var(--fg-muted);
+  text-align: center;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  width: 100%;
+}
+.badge-add-btn {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all .15s;
+  width: 100%;
+}
+.badge-add-btn:hover { background: var(--primary); color: var(--primary-fg); }
+.badge-add-btn:disabled { opacity: .3; cursor: default; }
+.badge-add-btn:disabled:hover { background: transparent; color: var(--primary); }
+
+/* Prompt bar */
+.prompt-bar {
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding: 12px 18px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.prompt-text {
+  flex: 1;
+  font-size: 11px;
+  color: var(--fg-soft);
+  line-height: 1.6;
+  font-family: 'Courier New', monospace;
+}
+.copy-btn {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: none;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.copy-btn:hover { opacity: .85; }
+
+/* ── Upgrade popup ── */
+.upgrade-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity .2s;
+  backdrop-filter: blur(6px);
+}
+.upgrade-overlay.show { opacity: 1; pointer-events: all; }
+.upgrade-popup {
+  background: var(--card2);
+  border: 1px solid;
+  padding: 36px;
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  transform: scale(.88);
+  transition: transform .22s;
+  position: relative;
+}
+.upgrade-overlay.show .upgrade-popup { transform: scale(1); }
+.upgrade-popup .popup-icon { font-size: 60px; animation: popBounce .35s .05s both; }
+@keyframes popBounce {
+  0% { transform: scale(.2); opacity: 0; }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.upgrade-popup h2 {
+  font-size: 18px; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.upgrade-popup p { font-size: 13px; color: var(--fg-soft); line-height: 1.5; }
+.upgrade-popup .dismiss {
+  background: var(--primary); color: var(--primary-fg);
+  border: none; font-family: var(--font);
+  font-size: 13px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase;
+  padding: 9px 26px; cursor: pointer; margin-top: 6px;
+}
+.glow-blob {
+  position: absolute; top: -28px; left: 50%; transform: translateX(-50%);
+  width: 70px; height: 70px; border-radius: 50%;
+  filter: blur(28px); opacity: .45;
+  animation: blobPulse 1.6s ease-in-out infinite;
+}
+@keyframes blobPulse { 0%,100%{opacity:.3;transform:translateX(-50%) scale(1)} 50%{opacity:.65;transform:translateX(-50%) scale(1.35)} }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">RunQuest <span>/ Badges</span></div>
+  <div class="topbar-spacer"></div>
+  <button class="theme-toggle" id="themeToggle">☾ Dark</button>
+</div>
+
+<div class="controls">
+  <div class="ctrl-section">
+    <h3>Level</h3>
+    <div class="btn-group" id="levelFilter">
+      <button class="btn-filter active" data-val="all">All</button>
+      <button class="btn-filter" data-val="1">Common</button>
+      <button class="btn-filter" data-val="2">Uncommon</button>
+      <button class="btn-filter" data-val="3">Rare</button>
+      <button class="btn-filter" data-val="4">Heroic</button>
+      <button class="btn-filter" data-val="5">Epic</button>
+      <button class="btn-filter" data-val="6">Legendary</button>
+    </div>
+  </div>
+
+  <div class="ctrl-section">
+    <h3>Category</h3>
+    <div class="btn-group" id="catFilter">
+      <button class="btn-filter active" data-val="all">All</button>
+      <button class="btn-filter" data-val="distance">Distance</button>
+      <button class="btn-filter" data-val="streak">Streak</button>
+      <button class="btn-filter" data-val="elevation">Elevation</button>
+      <button class="btn-filter" data-val="time">Time</button>
+      <button class="btn-filter" data-val="weather">Weather</button>
+      <button class="btn-filter" data-val="speed">Speed</button>
+      <button class="btn-filter" data-val="social">Social</button>
+    </div>
+  </div>
+
+  <div class="ctrl-section">
+    <h3>Badge Style</h3>
+    <div class="style-row">
+      <label>Icon size <span class="val-display" id="sizeVal">72px</span></label>
+      <input type="range" id="sizeSlider" min="48" max="96" value="72">
+    </div>
+    <div class="style-row" style="margin-top:6px">
+      <label>Shape</label>
+      <select id="shapeSelect">
+        <option value="shield">Shield</option>
+        <option value="hex">Hexagon</option>
+        <option value="circle">Circle</option>
+        <option value="diamond">Diamond</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="ctrl-section">
+    <h3>Glow per nivå</h3>
+    <div class="style-row">
+      <label style="color:#64b5f6">Rare <span class="val-display" id="glowVal3">Medium</span></label>
+      <input type="range" id="glowSlider3" min="0" max="3" value="1" step="1" style="accent-color:#4a90d9">
+    </div>
+    <div class="style-row" style="margin-top:6px">
+      <label style="color:#ffd54f">Heroic <span class="val-display" id="glowVal4">Medium</span></label>
+      <input type="range" id="glowSlider4" min="0" max="3" value="1" step="1" style="accent-color:#d4a800">
+    </div>
+    <div class="style-row" style="margin-top:6px">
+      <label style="color:#ce93d8">Epic <span class="val-display" id="glowVal5">Medium</span></label>
+      <input type="range" id="glowSlider5" min="0" max="3" value="1" step="1" style="accent-color:#a855f7">
+    </div>
+    <div class="style-row" style="margin-top:6px">
+      <label style="color:#ffab40">Legendary <span class="val-display" id="glowVal6">Medium</span></label>
+      <input type="range" id="glowSlider6" min="0" max="3" value="1" step="1" style="accent-color:#ff8c00">
+    </div>
+  </div>
+
+  <div class="ctrl-section">
+    <h3>Player Card</h3>
+    <p style="font-size:11px;color:var(--fg-muted);margin-bottom:8px;line-height:1.4">Click "+ Add to card" on any badge to showcase it (max 3).</p>
+    <div class="player-card-section">
+      <div class="player-card-title">My Showcase Badges</div>
+      <div class="player-slots" id="playerSlots">
+        <div class="player-slot" data-slot="0"></div>
+        <div class="player-slot" data-slot="1"></div>
+        <div class="player-slot" data-slot="2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="preview-area">
+    <div class="badge-grid" id="badgeGrid"></div>
+  </div>
+  <div class="prompt-bar">
+    <div class="prompt-text" id="promptText">Loading...</div>
+    <button class="copy-btn" id="copyBtn">Copy Prompt</button>
+  </div>
+</div>
+
+<div class="upgrade-overlay" id="upgradeOverlay">
+  <div class="upgrade-popup" id="upgradePopup">
+    <div class="glow-blob" id="glowBlob"></div>
+    <div class="popup-icon" id="popupIcon">🏆</div>
+    <h2 id="popupTitle">Badge Evolved!</h2>
+    <p id="popupDesc">Your badge has leveled up!</p>
+    <button class="dismiss" id="popupDismiss">Claim Reward</button>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+const state = {
+  theme: 'dark',
+  levelFilter: 'all',
+  catFilter: 'all',
+  iconSize: 72,
+  shape: 'shield',
+  glow: { 3:1, 4:1, 5:1, 6:1 },
+  playerCard: [null, null, null],
+};
+
+// ── Level definitions ──────────────────────────────────────
+const LEVELS = {
+  1: { name: 'Common',   color: '#9ab0b0', glow: '#78909c',  popupBorder: '#78909c', blobColor: '#78909c' },
+  2: { name: 'Uncommon', color: '#4caf7d', glow: '#3aaa5e',  popupBorder: '#3aaa5e', blobColor: '#2d7a44' },
+  3: { name: 'Rare',     color: '#64b5f6', glow: '#4a90d9',  popupBorder: '#4a90d9', blobColor: '#1a4a8a' },
+  4: { name: 'Heroic',   color: '#ffd54f', glow: '#d4a800',  popupBorder: '#d4a800', blobColor: '#b08a00' },
+  5: { name: 'Epic',     color: '#ce93d8', glow: '#a855f7',  popupBorder: '#a855f7', blobColor: '#7c3aed' },
+  6: { name: 'Legendary',color: '#ffab40', glow: '#ff8c00',  popupBorder: '#ff8c00', blobColor: '#e65c00' },
+};
+
+const GLOWS = ['None', 'Subtle', 'Medium', 'Intense'];
+const GLOW_BLURS  = [0, 4, 9, 18];   // px blur per level 0-3
+const GLOW_OPACS  = [0, .55, .75, .95]; // opacity per level 0-3
+// Per-level glow config: [color, secondaryColor (legendary only)]
+const GLOW_CFG = {
+  3: { c:'74,144,217',  c2:null },
+  4: { c:'212,168,0',   c2:null },
+  5: { c:'168,85,247',  c2:null },
+  6: { c:'255,140,0',   c2:'255,200,0' },
+};
+
+// ── Badge data (60 badges — 10 types × 6 levels) ──────────
+const BADGES = [
+  // Distance: Milestoner
+  { id:'mil_1', name:'Milestoner', sub:'First 5 km',      cat:'distance', level:1, icon:'🏃', req:'Complete a single run of 5 km',           percentile:78 },
+  { id:'mil_2', name:'Milestoner', sub:'10 km Strong',    cat:'distance', level:2, icon:'🏃', req:'Complete a single run of 10 km',          percentile:55 },
+  { id:'mil_3', name:'Milestoner', sub:'Half Marathon',   cat:'distance', level:3, icon:'🏃', req:'Complete a single run of 21.1 km',        percentile:28 },
+  { id:'mil_4', name:'Milestoner', sub:'30 km Beast',     cat:'distance', level:4, icon:'🏃', req:'Complete a single run of 30 km',          percentile:12 },
+  { id:'mil_5', name:'Milestoner', sub:'42 km Legend',    cat:'distance', level:5, icon:'🏃', req:'Complete a full marathon — 42.2 km',      percentile:5  },
+  { id:'mil_6', name:'Milestoner', sub:'Ultra Runner',    cat:'distance', level:6, icon:'🏃', req:'Complete a single run of 50+ km',         percentile:1  },
+
+  // Distance: Earth Trotter
+  { id:'trot_1', name:'Earth Trotter', sub:'100 km Total',   cat:'distance', level:1, icon:'🌍', req:'100 km total lifetime distance',        percentile:65 },
+  { id:'trot_2', name:'Earth Trotter', sub:'500 km Total',   cat:'distance', level:2, icon:'🌍', req:'500 km total lifetime distance',        percentile:42 },
+  { id:'trot_3', name:'Earth Trotter', sub:'1 000 km',       cat:'distance', level:3, icon:'🌍', req:'1,000 km total distance',              percentile:22 },
+  { id:'trot_4', name:'Earth Trotter', sub:'2 000 km',       cat:'distance', level:4, icon:'🌍', req:'2,000 km total distance',              percentile:10 },
+  { id:'trot_5', name:'Earth Trotter', sub:'4 015 km',       cat:'distance', level:5, icon:'🌍', req:'4,015 km — width of the USA',          percentile:3  },
+  { id:'trot_6', name:'Earth Trotter', sub:'Around the World',cat:'distance',level:6, icon:'🌍', req:'40,000 km — circumference of Earth',   percentile:0  },
+
+  // Elevation: The Climber
+  { id:'clmb_1', name:'The Climber', sub:'Empire State',  cat:'elevation', level:1, icon:'⛰️', req:'500 m total elevation gain',            percentile:58 },
+  { id:'clmb_2', name:'The Climber', sub:'Ben Nevis',     cat:'elevation', level:2, icon:'⛰️', req:'1,345 m total elevation gain',          percentile:40 },
+  { id:'clmb_3', name:'The Climber', sub:'Mont Blanc',    cat:'elevation', level:3, icon:'⛰️', req:'4,800 m total elevation gain',          percentile:22 },
+  { id:'clmb_4', name:'The Climber', sub:'Kilimanjaro',   cat:'elevation', level:4, icon:'⛰️', req:'5,895 m total elevation gain',          percentile:10 },
+  { id:'clmb_5', name:'The Climber', sub:'K2',            cat:'elevation', level:5, icon:'⛰️', req:'8,611 m total elevation gain',          percentile:3  },
+  { id:'clmb_6', name:'The Climber', sub:'Everest',       cat:'elevation', level:6, icon:'⛰️', req:'8,848 m total elevation gain',          percentile:1  },
+
+  // Streak: Streak Keeper
+  { id:'str_1', name:'Streak Keeper', sub:'3 Days',   cat:'streak', level:1, icon:'🔥', req:'3 consecutive days of running',              percentile:72 },
+  { id:'str_2', name:'Streak Keeper', sub:'7 Days',   cat:'streak', level:2, icon:'🔥', req:'7 consecutive days — a full week',           percentile:50 },
+  { id:'str_3', name:'Streak Keeper', sub:'14 Days',  cat:'streak', level:3, icon:'🔥', req:'14 consecutive days',                        percentile:28 },
+  { id:'str_4', name:'Streak Keeper', sub:'30 Days',  cat:'streak', level:4, icon:'🔥', req:'30 consecutive days',                        percentile:12 },
+  { id:'str_5', name:'Streak Keeper', sub:'60 Days',  cat:'streak', level:5, icon:'🔥', req:'60 consecutive days',                        percentile:4  },
+  { id:'str_6', name:'Streak Keeper', sub:'100 Days', cat:'streak', level:6, icon:'🔥', req:'100 consecutive days — Run Streak elite',    percentile:1  },
+
+  // Time: Early Bird
+  { id:'bird_1', name:'Early Bird', sub:'5 Dawn Runs',   cat:'time', level:1, icon:'🌅', req:'5 runs started before 07:00',               percentile:55 },
+  { id:'bird_2', name:'Early Bird', sub:'15 Dawn Runs',  cat:'time', level:2, icon:'🌅', req:'15 runs started before 07:00',              percentile:38 },
+  { id:'bird_3', name:'Early Bird', sub:'50 Dawn Runs',  cat:'time', level:3, icon:'🌅', req:'50 runs started before 07:00',              percentile:20 },
+  { id:'bird_4', name:'Early Bird', sub:'100 Dawn Runs', cat:'time', level:4, icon:'🌅', req:'100 runs started before 07:00',             percentile:8  },
+  { id:'bird_5', name:'Early Bird', sub:'Alarm Club',    cat:'time', level:5, icon:'🌅', req:'50 runs started before 06:00',              percentile:3  },
+  { id:'bird_6', name:'Early Bird', sub:'Before the Sun',cat:'time', level:6, icon:'🌅', req:'100 runs started before 06:00',             percentile:1  },
+
+  // Time: Night Owl
+  { id:'owl_1', name:'Night Owl', sub:'5 Night Runs',   cat:'time', level:1, icon:'🦉', req:'5 runs started after 21:00',                percentile:62 },
+  { id:'owl_2', name:'Night Owl', sub:'15 Night Runs',  cat:'time', level:2, icon:'🦉', req:'15 runs started after 21:00',               percentile:44 },
+  { id:'owl_3', name:'Night Owl', sub:'50 Night Runs',  cat:'time', level:3, icon:'🦉', req:'50 runs started after 21:00',               percentile:22 },
+  { id:'owl_4', name:'Night Owl', sub:'100 Night Runs', cat:'time', level:4, icon:'🦉', req:'100 runs started after 21:00',              percentile:9  },
+  { id:'owl_5', name:'Night Owl', sub:'Midnight Watch', cat:'time', level:5, icon:'🦉', req:'25 runs started after 22:30',               percentile:4  },
+  { id:'owl_6', name:'Night Owl', sub:'Midnight Run',   cat:'time', level:6, icon:'🦉', req:'A run starting between 23:55–00:05',         percentile:2  },
+
+  // Weather: Weathered Soul
+  { id:'wthr_1', name:'Weathered Soul', sub:'Cold Start',  cat:'weather', level:1, icon:'🌧️', req:'Run in rain or under 10°C',           percentile:69 },
+  { id:'wthr_2', name:'Weathered Soul', sub:'Storm Chaser',cat:'weather', level:2, icon:'🌧️', req:'10 runs in rain or under 10°C',       percentile:48 },
+  { id:'wthr_3', name:'Weathered Soul', sub:'Frost Runner', cat:'weather',level:3, icon:'❄️', req:'Run in sub-zero temperatures',         percentile:30 },
+  { id:'wthr_4', name:'Weathered Soul', sub:'Ice Walker',   cat:'weather',level:4, icon:'❄️', req:'10 runs in sub-zero temperatures',     percentile:14 },
+  { id:'wthr_5', name:'Weathered Soul', sub:'Arctic Soul',  cat:'weather',level:5, icon:'🧊', req:'Run in temperatures below −10°C',      percentile:5  },
+  { id:'wthr_6', name:'Weathered Soul', sub:'Polar Warrior',cat:'weather',level:6, icon:'🧊', req:'10 runs below −10°C',                  percentile:1  },
+
+  // Speed: The Speedster
+  { id:'spd_1', name:'The Speedster', sub:'Sub 35 min 5k', cat:'speed', level:1, icon:'⚡', req:'5 km in under 35 minutes',               percentile:74 },
+  { id:'spd_2', name:'The Speedster', sub:'Sub 30 min 5k', cat:'speed', level:2, icon:'⚡', req:'5 km in under 30 minutes',               percentile:55 },
+  { id:'spd_3', name:'The Speedster', sub:'Sub 25 min 5k', cat:'speed', level:3, icon:'⚡', req:'5 km in under 25 minutes',               percentile:32 },
+  { id:'spd_4', name:'The Speedster', sub:'Sub 22 min 5k', cat:'speed', level:4, icon:'⚡', req:'5 km in under 22 minutes',               percentile:15 },
+  { id:'spd_5', name:'The Speedster', sub:'Sub 20 min 5k', cat:'speed', level:5, icon:'⚡', req:'5 km in under 20 minutes',               percentile:6  },
+  { id:'spd_6', name:'The Speedster', sub:'Sub 18 min 5k', cat:'speed', level:6, icon:'⚡', req:'5 km in under 18 minutes — elite level', percentile:1  },
+
+  // Social: The Socialite
+  { id:'soc_1', name:'The Socialite', sub:'Run Partner',   cat:'social', level:1, icon:'👥', req:'Log a run the same day as 1 other member', percentile:71 },
+  { id:'soc_2', name:'The Socialite', sub:'Crew of 3',     cat:'social', level:2, icon:'👥', req:'Run same day as 3 other members',          percentile:52 },
+  { id:'soc_3', name:'The Socialite', sub:'Group of 5',    cat:'social', level:3, icon:'👥', req:'Run same day as 5 members',                percentile:30 },
+  { id:'soc_4', name:'The Socialite', sub:'Team Spirit',   cat:'social', level:4, icon:'👥', req:'Run same day as the whole group, 5+ times', percentile:13 },
+  { id:'soc_5', name:'The Socialite', sub:'Rally Leader',  cat:'social', level:5, icon:'👑', req:'Get 5 people running on 10 different days', percentile:5  },
+  { id:'soc_6', name:'The Socialite', sub:'Pack Leader',   cat:'social', level:6, icon:'👑', req:'Get 10 people to run the same day as you',  percentile:2  },
+
+  // Precision: The Precisionist
+  { id:'prec_1', name:'Precisionist', sub:'3 Clean Runs',    cat:'distance', level:1, icon:'🎯', req:'Finish 3 runs on an exact whole km',           percentile:45 },
+  { id:'prec_2', name:'Precisionist', sub:'10 Clean Runs',   cat:'distance', level:2, icon:'🎯', req:'Finish 10 runs on an exact whole km',          percentile:28 },
+  { id:'prec_3', name:'Precisionist', sub:'25 Clean Runs',   cat:'distance', level:3, icon:'🎯', req:'Finish 25 runs on an exact whole km',          percentile:14 },
+  { id:'prec_4', name:'Precisionist', sub:'50 Clean Runs',   cat:'distance', level:4, icon:'🎯', req:'Finish 50 runs on an exact whole km',          percentile:6  },
+  { id:'prec_5', name:'Precisionist', sub:'The Half',        cat:'distance', level:5, icon:'🎯', req:'Finish a run at exactly 21.10 km',             percentile:4  },
+  { id:'prec_6', name:'Precisionist', sub:'Holy Distance',   cat:'distance', level:6, icon:'🎯', req:'Finish at exactly 10.00, 21.10 or 42.20 km',  percentile:2  },
+];
+
+// ── Dynamic glow styles ────────────────────────────────────
+let glowStyleEl = null;
+function applyGlowStyles() {
+  if (!glowStyleEl) {
+    glowStyleEl = document.createElement('style');
+    glowStyleEl.id = 'dynGlow';
+    document.head.appendChild(glowStyleEl);
+  }
+  let css = '';
+  [3,4,5,6].forEach(lvl => {
+    const g = state.glow[lvl];
+    const cfg = GLOW_CFG[lvl];
+    const blur = GLOW_BLURS[g];
+    const op = GLOW_OPACS[g];
+    const ds = g === 0 ? 'none' : `drop-shadow(0 0 ${blur}px rgba(${cfg.c},${op}))${cfg.c2 ? ` drop-shadow(0 0 ${Math.round(blur*0.5)}px rgba(${cfg.c2},${op*0.7}))` : ''}`;
+    css += `
+      .badge-card[data-level="${lvl}"] .badge-icon { filter:${ds}; }
+      .slot-badge[data-level="${lvl}"] { filter:${ds}; }
+    `;
+  });
+  glowStyleEl.textContent = css;
+}
+
+// ── SVG shape ──────────────────────────────────────────────
+function getPath(shape) {
+  switch(shape) {
+    case 'shield':  return '<path d="M36 4L64 14L64 38Q64 58 36 70Q8 58 8 38L8 14Z"/>';
+    case 'hex':     return '<path d="M36 4L64 20L64 52L36 68L8 52L8 20Z"/>';
+    case 'circle':  return '<circle cx="36" cy="36" r="30"/>';
+    case 'diamond': return '<path d="M36 4L66 36L36 68L6 36Z"/>';
+    default:        return '<path d="M36 4L64 14L64 38Q64 58 36 70Q8 58 8 38L8 14Z"/>';
+  }
+}
+
+const LEVEL_FILLS = {
+  dark: {
+    1: { fill:'#1e2424', stroke:'#78909c' },
+    2: { fill:'#0d2e18', stroke:'#3aaa5e' },
+    3: { fill:'#0d2040', stroke:'#4a90d9' },
+    4: { fill:'#2e2000', stroke:'#d4a800' },
+    5: { fill:'#1e0838', stroke:'#a855f7' },
+    6: { fill:'#2e1000', stroke:'#ff8c00' },
+  },
+  light: {
+    1: { fill:'#dce6e8', stroke:'#78909c' },
+    2: { fill:'#d0eedb', stroke:'#2d8a4e' },
+    3: { fill:'#d0e4f7', stroke:'#2f72c4' },
+    4: { fill:'#fae9a0', stroke:'#b08800' },
+    5: { fill:'#ead6f7', stroke:'#8b3ec9' },
+    6: { fill:'#fdddb0', stroke:'#cc6600' },
+  },
+};
+
+function buildSvg(level, shape) {
+  const col = LEVEL_FILLS[state.theme][level];
+  const shapePart = getPath(shape);
+  const tagName = shapePart.startsWith('<circle') ? 'circle' : 'path';
+  const attrs = tagName === 'circle'
+    ? `fill="${col.fill}" stroke="${col.stroke}" stroke-width="2"`
+    : `fill="${col.fill}" stroke="${col.stroke}" stroke-width="2"`;
+  const svgShape = shapePart
+    .replace('<path ', `<path ${attrs} `)
+    .replace('<circle ', `<circle ${attrs} `);
+
+  // Gradient highlight inside shape
+  const gradId = `g${level}${shape}`;
+  return `<svg viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="${gradId}" cx="40%" cy="30%" r="60%">
+        <stop offset="0%" stop-color="${col.stroke}" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="${col.stroke}" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <g>
+      ${svgShape}
+      ${shapePart.replace('<path ', `<path fill="url(#${gradId})" stroke="none" `).replace('<circle ', `<circle fill="url(#${gradId})" stroke="none" `)}
+    </g>
+  </svg>`;
+}
+
+// ── Render badges ──────────────────────────────────────────
+function renderBadges() {
+  const grid = document.getElementById('badgeGrid');
+  grid.innerHTML = '';
+
+  const filtered = BADGES.filter(b => {
+    if (state.levelFilter !== 'all' && b.level !== +state.levelFilter) return false;
+    if (state.catFilter !== 'all' && b.cat !== state.catFilter) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    const el = document.createElement('div');
+    el.style.cssText = 'grid-column:1/-1;text-align:center;padding:48px;color:var(--fg-dim);font-size:14px;letter-spacing:.04em';
+    el.textContent = 'No badges match the current filters.';
+    grid.appendChild(el);
+    return;
+  }
+
+  filtered.forEach(badge => {
+    const inCard = state.playerCard.includes(badge.id);
+    const svg = buildSvg(badge.level, state.shape);
+    const lvl = LEVELS[badge.level];
+
+    const card = document.createElement('div');
+    card.className = 'badge-card' + (inCard ? ' owned' : '');
+    card.dataset.level = badge.level;
+    card.dataset.cat = badge.cat;
+    card.innerHTML = `
+      <div class="badge-icon" style="width:${state.iconSize}px;height:${state.iconSize}px;font-size:${Math.round(state.iconSize*0.42)}px">
+        ${svg}
+        <span class="emoji">${badge.icon}</span>
+      </div>
+      <div class="badge-level-tag">${lvl.name}</div>
+      <div class="badge-name">${badge.name}</div>
+      <div class="badge-sub">${badge.sub}</div>
+      <div class="badge-percentile">Top <span class="pct">${badge.percentile}%</span> of users</div>
+      <div class="badge-req">${badge.req}</div>
+      <button class="badge-add-btn" ${inCard?'disabled':''}>
+        ${inCard ? '✓ On card' : '+ Add to card'}
+      </button>
+    `;
+
+    card.querySelector('.badge-add-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      addToCard(badge);
+    });
+    card.addEventListener('click', () => showPopup(badge));
+    grid.appendChild(card);
+  });
+}
+
+// ── Player card ────────────────────────────────────────────
+function addToCard(badge) {
+  const slot = state.playerCard.indexOf(null);
+  if (slot === -1 || state.playerCard.includes(badge.id)) return;
+  state.playerCard[slot] = badge.id;
+  renderPlayerCard();
+  renderBadges();
+  updatePrompt();
+}
+
+function renderPlayerCard() {
+  document.querySelectorAll('.player-slot').forEach((slot, i) => {
+    const id = state.playerCard[i];
+    if (id) {
+      const b = BADGES.find(x => x.id === id);
+      const svg = buildSvg(b.level, state.shape);
+      slot.innerHTML = `
+        <div class="slot-badge" data-level="${b.level}">
+          ${svg}
+          <span class="emoji">${b.icon}</span>
+        </div>
+        <div class="slot-remove" data-slot="${i}">✕</div>`;
+      slot.querySelector('.slot-remove').addEventListener('click', e => {
+        e.stopPropagation();
+        state.playerCard[i] = null;
+        renderPlayerCard(); renderBadges(); updatePrompt();
+      });
+    } else {
+      slot.innerHTML = '';
+    }
+  });
+}
+
+// ── Popup ──────────────────────────────────────────────────
+function showPopup(badge) {
+  const lvl = LEVELS[badge.level];
+  const nextLevel = Math.min(badge.level + 1, 6);
+  const nextLvl = LEVELS[nextLevel];
+  const evolved = badge.level < 6;
+
+  document.getElementById('popupIcon').textContent = badge.icon;
+  document.getElementById('popupTitle').textContent = evolved
+    ? `${badge.name} → ${nextLvl.name}!`
+    : `${badge.name} — ${lvl.name}!`;
+  document.getElementById('popupDesc').textContent = evolved
+    ? `Congratulations! Reach the next tier and your "${badge.name}" badge evolves to ${nextLvl.name}. You'd be in the top ${Math.max(1, Math.round(badge.percentile * 0.35))}% of all runners.`
+    : `Maximum tier reached. "${badge.sub}" — you're among the ${badge.percentile}% elite who hold this achievement.`;
+
+  const popup = document.getElementById('upgradePopup');
+  const blob = document.getElementById('glowBlob');
+  popup.style.borderColor = lvl.popupBorder;
+  document.getElementById('popupTitle').style.color = lvl.color;
+  blob.style.background = lvl.blobColor;
+
+  document.getElementById('upgradeOverlay').classList.add('show');
+}
+
+document.getElementById('popupDismiss').addEventListener('click', () =>
+  document.getElementById('upgradeOverlay').classList.remove('show'));
+document.getElementById('upgradeOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('show');
+});
+
+// ── Prompt ─────────────────────────────────────────────────
+function updatePrompt() {
+  const cardBadges = state.playerCard.filter(Boolean).map(id => BADGES.find(b=>b.id===id));
+  const lvlLabel = state.levelFilter === 'all' ? 'all 6 tiers' : `${LEVELS[+state.levelFilter].name} tier only`;
+  const catLabel = state.catFilter === 'all' ? 'all categories' : state.catFilter;
+  const card = cardBadges.length
+    ? `Player card showcases: ${cardBadges.map(b=>`${b.name} (${LEVELS[b.level].name})`).join(', ')}.`
+    : 'Player card is empty.';
+
+  document.getElementById('promptText').textContent =
+    `RunQuest badge system — 6 tiers: Common (grey/silver), Uncommon (green), Rare (blue), Heroic (yellow), Epic (purple), Legendary (orange/gold). ` +
+    `Shape: ${state.shape}, icon size: ${state.iconSize}px. Glow — Rare: ${GLOWS[state.glow[3]]}, Heroic: ${GLOWS[state.glow[4]]}, Epic: ${GLOWS[state.glow[5]]}, Legendary: ${GLOWS[state.glow[6]]}. ` +
+    `Filter: ${lvlLabel}, ${catLabel}. ${card} ` +
+    `Heroic/Epic/Legendary badges animate with level-appropriate colored glows. Users pick 3 badges for their Player Card with percentile rarity shown.`;
+}
+
+// ── Controls wiring ────────────────────────────────────────
+document.getElementById('themeToggle').addEventListener('click', function() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  document.body.classList.toggle('light', state.theme === 'light');
+  this.textContent = state.theme === 'dark' ? '☾ Dark' : '☀ Light';
+  updateAll();
+});
+
+function wireFilter(id, key) {
+  document.getElementById(id).addEventListener('click', e => {
+    const btn = e.target.closest('.btn-filter');
+    if (!btn) return;
+    document.querySelectorAll(`#${id} .btn-filter`).forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state[key] = btn.dataset.val;
+    updateAll();
+  });
+}
+wireFilter('levelFilter', 'levelFilter');
+wireFilter('catFilter', 'catFilter');
+
+document.getElementById('sizeSlider').addEventListener('input', function() {
+  state.iconSize = +this.value;
+  document.getElementById('sizeVal').textContent = state.iconSize + 'px';
+  updateAll();
+});
+document.getElementById('shapeSelect').addEventListener('change', function() {
+  state.shape = this.value;
+  updateAll();
+});
+[3,4,5,6].forEach(lvl => {
+  document.getElementById(`glowSlider${lvl}`).addEventListener('input', function() {
+    state.glow[lvl] = +this.value;
+    document.getElementById(`glowVal${lvl}`).textContent = GLOWS[state.glow[lvl]];
+    updateAll();
+  });
+});
+document.getElementById('copyBtn').addEventListener('click', function() {
+  navigator.clipboard.writeText(document.getElementById('promptText').textContent);
+  this.textContent = '✓ Copied!';
+  setTimeout(() => this.textContent = 'Copy Prompt', 1800);
+});
+
+function updateAll() { applyGlowStyles(); renderBadges(); renderPlayerCard(); updatePrompt(); }
+updateAll();
+</script>
+</body>
+</html>

@@ -158,33 +158,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
 
         {/* Navigation — scrollable so bottom bar always stays visible */}
         <nav className="flex-1 overflow-y-auto pl-2 pr-0 pb-2">
+          <div data-tour="sidebar-game-section">
           <NavSection title="Game">
-            <NavItem
-              icon={<Trophy className="w-3.5 h-3.5" />}
-              label="Leaderboard"
-              active={activeTab === 'leaderboard'}
-              onClick={() => handleNav('leaderboard')}
-            />
-            <NavItem
-              icon={<Award className="w-3.5 h-3.5" />}
-              label="Titles"
-              active={activeTab === 'titles'}
-              onClick={() => handleNav('titles')}
-            />
-            <NavItem
-              icon={<Swords className="w-3.5 h-3.5" />}
-              label="Challenges"
-              active={activeTab === 'challenges'}
-              onClick={() => handleNav('challenges')}
-            />
-            <NavItem
-              icon={<CalendarDays className="w-3.5 h-3.5" />}
-              label="Events"
-              active={activeTab === 'events'}
-              onClick={() => handleNav('events')}
-            />
+            <div data-tour="sidebar-leaderboard">
+              <NavItem
+                icon={<Trophy className="w-3.5 h-3.5" />}
+                label="Leaderboard"
+                active={activeTab === 'leaderboard'}
+                onClick={() => handleNav('leaderboard')}
+              />
+            </div>
+            <div data-tour="sidebar-titles">
+              <NavItem
+                icon={<Award className="w-3.5 h-3.5" />}
+                label="Titles"
+                active={activeTab === 'titles'}
+                onClick={() => handleNav('titles')}
+              />
+            </div>
+            <div data-tour="sidebar-challenges">
+              <NavItem
+                icon={<Swords className="w-3.5 h-3.5" />}
+                label="Challenges"
+                active={activeTab === 'challenges'}
+                onClick={() => handleNav('challenges')}
+              />
+            </div>
+            <div data-tour="sidebar-events">
+              <NavItem
+                icon={<CalendarDays className="w-3.5 h-3.5" />}
+                label="Events"
+                active={activeTab === 'events'}
+                onClick={() => handleNav('events')}
+              />
+            </div>
           </NavSection>
+          </div>
 
+          <div data-tour="sidebar-you-section">
           <NavSection title="You" separator>
             <NavItem
               icon={<User className="w-3.5 h-3.5" />}
@@ -199,7 +210,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
               onClick={() => handleNav('log-run')}
             />
           </NavSection>
+          </div>
 
+          <div data-tour="sidebar-runquest-section">
           <NavSection title="RunQuest" separator>
             <NavItem
               icon={<BookOpen className="w-3.5 h-3.5" />}
@@ -224,6 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
               disabled
             />
           </NavSection>
+          </div>
         </nav>
 
         {/* Bottom — pinned, never scrolls */}
@@ -250,7 +264,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
 
           {/* Strava sync — full card on desktop, compact indicator on mobile */}
           {stravaStatus.connected && (
-            <>
+            <div data-tour="sidebar-strava">
               <div className="hidden md:block rounded-lg bg-sidebar-accent border border-foreground/50 p-3 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <StravaIcon size={16} />
@@ -268,7 +282,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, groupName, bo
                 <StravaIcon size={14} />
                 <CheckCircle className="w-3.5 h-3.5" style={{ color: 'var(--rq-success)' }} />
               </div>
-            </>
+            </div>
           )}
         </div>
       </aside>

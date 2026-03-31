@@ -56,6 +56,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
+                  {...(tab.value === 'titles' ? { 'data-tour': 'profile-titles-tab' } : {})}
                   disabled={'disabled' in tab && tab.disabled}
                   className="rounded-none py-2.5 border-b-2 border-transparent bg-transparent text-foreground/40 transition-all
                     data-[state=active]:border-[var(--rq-gold)] data-[state=active]:text-[var(--rq-gold)] data-[state=active]:bg-transparent data-[state=active]:shadow-none
@@ -70,7 +71,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
 
           {/* Tab content — scrollable */}
           <div className="flex-1 overflow-y-auto px-4 pt-4 min-h-0">
-            <TabsContent value="stats"  className="mt-0">
+            <TabsContent value="stats"  className="mt-0" data-tour="profile-stats">
               <StatsTab user={user} allUsers={allUsers} />
             </TabsContent>
             <TabsContent value="titles" className="mt-0">

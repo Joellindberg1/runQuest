@@ -8,6 +8,8 @@ import {
 import { Badge } from '@/shared/components/ui/badge';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useGroupName } from '@/shared/hooks/useGroupName';
+import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
+import { TOUR_EVENTS_V1 } from '@/features/onboarding/featureTourSteps';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/providers/AuthProvider';
 import { backendApi } from '@/shared/services/backendApi';
@@ -450,6 +452,7 @@ const EventsPage: React.FC = () => {
 
   return (
     <AppLayout groupName={groupName}>
+      <FeatureTour slug="tour_events_v1" steps={TOUR_EVENTS_V1} />
       <div className="pt-4 md:pt-6">
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
@@ -460,7 +463,7 @@ const EventsPage: React.FC = () => {
 
             {/* Left column — active events */}
             <div className="space-y-6">
-              <div className="space-y-3">
+              <div className="space-y-3" data-tour="events-participation">
                 <SectionHeader icon={<CalendarDays className="w-3.5 h-3.5" />} title="Participation" />
                 {participationEvents.length > 0
                   ? participationEvents.map(e => <ParticipationCard key={e.id} event={e} />)
@@ -468,7 +471,7 @@ const EventsPage: React.FC = () => {
                 }
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3" data-tour="events-competition">
                 <SectionHeader icon={<Trophy className="w-3.5 h-3.5" />} title="Competition" />
                 {competitionEvents.length > 0
                   ? competitionEvents.map(e => <CompetitionCard key={e.id} event={e} />)
@@ -478,7 +481,7 @@ const EventsPage: React.FC = () => {
             </div>
 
             {/* Right column — history */}
-            <div className="space-y-3 lg:sticky lg:top-4">
+            <div className="space-y-3 lg:sticky lg:top-4" data-tour="events-history">
               <SectionHeader icon={<ChevronRight className="w-3.5 h-3.5" />} title="History" />
               {historyItems.length > 0
                 ? <HistorySection items={historyItems} />

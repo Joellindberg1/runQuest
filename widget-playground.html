@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RunQuest — Widget Playground</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #111; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; }
+
+  .shell { display: flex; flex: 1; min-height: 0; }
+  .controls { width: 280px; min-width: 280px; background: #1a1a1a; border-right: 1px solid #2a2a2a; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+  .preview-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .preview-scroll { flex: 1; overflow-y: auto; padding: 24px; background: #0e0e0e; display: flex; justify-content: center; align-items: flex-start; }
+  .prompt-bar { background: #1a1a1a; border-top: 1px solid #2a2a2a; padding: 12px 16px; display: flex; gap: 10px; align-items: flex-start; }
+  .prompt-text { flex: 1; font-size: 12px; color: #aaa; line-height: 1.5; font-family: monospace; }
+  .copy-btn { background: #2a2a2a; border: 1px solid #444; color: #ccc; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap; }
+  .copy-btn:hover { background: #333; }
+
+  .ctrl-group { display: flex; flex-direction: column; gap: 8px; }
+  .ctrl-group h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .15em; color: #666; padding-bottom: 4px; border-bottom: 1px solid #222; }
+  .ctrl-row { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-row label { font-size: 11px; color: #999; }
+  .pill-group { display: flex; gap: 4px; flex-wrap: wrap; }
+  .pill { padding: 4px 10px; border-radius: 20px; border: 1px solid #333; background: #222; color: #999; font-size: 11px; cursor: pointer; transition: all .15s; }
+  .pill.active { background: #c9a84c22; border-color: #c9a84c; color: #c9a84c; }
+
+  /* ── Design tokens ── */
+  :root {
+    --rq-gold: #c9a84c;
+    --rq-gold-dim: rgba(201,168,76,0.12);
+    --rq-gold-mid: rgba(201,168,76,0.06);
+    --rq-success: #4caf72;
+    --rq-success-dim: rgba(76,175,114,0.12);
+    --rq-muted: rgba(255,255,255,0.45);
+    --rq-border: rgba(255,255,255,0.12);
+    --rq-sidebar: #181818;
+    --rq-accent: #1f1f1f;
+  }
+
+  /* ── Sidebar mock ── */
+  .sidebar-mock {
+    background: var(--rq-sidebar);
+    border: 1px solid var(--rq-border);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width .25s;
+  }
+
+  /* Top nav stub */
+  .sb-nav-stub { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; min-height: 180px; }
+  .sb-nav-item { height: 28px; border-radius: 5px; background: rgba(255,255,255,0.04); display: flex; align-items: center; padding: 0 10px; gap: 8px; }
+  .sb-nav-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.1); }
+  .sb-nav-line { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.07); flex: 1; }
+  .sb-nav-item.active { background: var(--rq-gold-dim); border-left: 2px solid var(--rq-gold); }
+  .sb-nav-item.active .sb-nav-dot { background: var(--rq-gold); }
+  .sb-nav-item.active .sb-nav-line { background: rgba(201,168,76,0.35); }
+  .sb-nav-label { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--rq-muted); }
+  .sb-nav-item.active .sb-nav-label { color: var(--rq-gold); font-weight: 700; }
+
+  .sb-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 12px; }
+
+  /* Bottom section */
+  .sb-bottom { padding: 10px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+
+  /* ── Widget base ── */
+  .rq-widget {
+    border: 1.5px solid var(--rq-border);
+    border-radius: 8px;
+    background: var(--rq-sidebar);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .rq-widget:hover { border-color: rgba(201,168,76,0.3); }
+
+  /* Challenge widget */
+  .cw-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+  .cw-row1 { display: flex; align-items: center; gap-6px; justify-content: space-between; }
+  .cw-title { font-size: 11px; display: flex; align-items: center; gap: 5px; }
+  .cw-vs { font-size: 10px; color: var(--rq-muted); }
+  .cw-score { font-family: 'Barlow Condensed','Arial Narrow',sans-serif; font-size: 14px; color: var(--rq-gold); letter-spacing: .04em; }
+  .cw-badge { font-size: 9px; padding: 1px 6px; border-radius: 10px; background: rgba(255,255,255,0.06); color: var(--rq-muted); border: 1px solid var(--rq-border); text-transform: uppercase; letter-spacing: .08em; font-family: 'Barlow Condensed','Arial Narrow',sans-serif; }
+  .cw-end { font-size: 10px; color: var(--rq-muted); text-align: right; }
+
+  /* Event widget */
+  .ew-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
+  .ew-row1 { display: flex; align-items: center; justify-content: space-between; }
+  .ew-name { font-family: 'Barlow Condensed','Arial Narrow',sans-serif; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #ddd; display: flex; align-items: center; gap: 5px; }
+  .ew-xp { font-size: 10px; color: var(--rq-gold); background: var(--rq-gold-dim); border: 1px solid rgba(201,168,76,0.2); border-radius: 4px; padding: 1px 5px; font-family: 'Barlow Condensed','Arial Narrow',sans-serif; }
+  .ew-meta { font-size: 10px; color: var(--rq-muted); display: flex; align-items: center; gap: 4px; }
+  .ew-done { font-size: 10px; color: var(--rq-success); display: flex; align-items: center; gap: 3px; }
+  .ew-rank { font-size: 10px; color: var(--rq-gold); font-family: 'Barlow Condensed','Arial Narrow',sans-serif; }
+  .ew-progress { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; margin-top: 2px; overflow: hidden; }
+  .ew-progress-fill { height: 100%; background: var(--rq-gold); border-radius: 2px; }
+  .ew-progress-fill.done { background: var(--rq-success); }
+
+  /* Dual widget — tab variant */
+  .dual-tabs { display: flex; border-bottom: 1px solid var(--rq-border); }
+  .dual-tab {
+    flex: 1; padding: 6px 4px; font-size: 10px; text-align: center;
+    font-family: 'Barlow Condensed','Arial Narrow',sans-serif; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--rq-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+  }
+  .dual-tab.active { color: var(--rq-gold); border-bottom-color: var(--rq-gold); }
+  .dual-content { /* shown/hidden via js */ }
+
+  /* Dual widget — dot variant */
+  .dot-nav { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 4px 8px 0; }
+  .dot-ind { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.15); cursor: pointer; transition: background .15s; }
+  .dot-ind.active { background: var(--rq-gold); }
+  .dot-arr { font-size: 10px; color: var(--rq-muted); cursor: pointer; padding: 0 2px; user-select: none; }
+  .dot-arr:hover { color: #ddd; }
+
+  /* Strava block */
+  .strava-full {
+    background: var(--rq-accent); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px; padding: 10px; text-align: center;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .strava-mini {
+    background: var(--rq-accent); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px; padding: 5px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10px; color: var(--rq-muted);
+  }
+  .strava-icon { display: inline-flex; align-items: center; gap: 4px; }
+  .strava-orange { color: #fc4c02; font-weight: 700; }
+  .strava-connected { color: var(--rq-success); display: flex; align-items: center; gap: 3px; font-size: 10px; }
+
+  /* Mobile controls row */
+  .sb-mobile-row { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 4px 0; }
+  .sb-icon-btn { width: 28px; height: 28px; border-radius: 6px; background: rgba(255,255,255,0.04); border: none; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; color: var(--rq-muted); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ── Controls ── -->
+  <div class="controls">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:.12em;color:#c9a84c;padding-bottom:4px;">
+      Widget
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Aktiva objekt</h3>
+      <div class="ctrl-row">
+        <label>Vad är aktivt?</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="activeItems" data-val="challenge" onclick="setPill(this)">Bara utmaning</div>
+          <div class="pill" data-group="activeItems" data-val="event" onclick="setPill(this)">Bara event</div>
+          <div class="pill" data-group="activeItems" data-val="both" onclick="setPill(this)">Båda</div>
+          <div class="pill" data-group="activeItems" data-val="none" onclick="setPill(this)">Inget</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-group" id="ctrl-event-type">
+      <h3>Event-typ</h3>
+      <div class="ctrl-row">
+        <label>Typ</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="eventType" data-val="participation" onclick="setPill(this)">Participation</div>
+          <div class="pill" data-group="eventType" data-val="competition" onclick="setPill(this)">Competition</div>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>State</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="eventState" data-val="active" onclick="setPill(this)">Pågående</div>
+          <div class="pill" data-group="eventState" data-val="done" onclick="setPill(this)">Klar</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-group" id="ctrl-dual">
+      <h3>Dual-variant (båda aktiva)</h3>
+      <div class="ctrl-row">
+        <label>Navigationsdesign</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="dualVariant" data-val="tabs" onclick="setPill(this)">Tab-pills</div>
+          <div class="pill" data-group="dualVariant" data-val="dots" onclick="setPill(this)">Dot-indikator</div>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>Aktivt fönster</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="activeTab" data-val="challenge" onclick="setPill(this)">Utmaning</div>
+          <div class="pill" data-group="activeTab" data-val="event" onclick="setPill(this)">Event</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Viewport</h3>
+      <div class="ctrl-row">
+        <label>Enhet</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="viewport" data-val="desktop" onclick="setPill(this)">Desktop</div>
+          <div class="pill" data-group="viewport" data-val="mobile" onclick="setPill(this)">Mobil</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Strava-block</h3>
+      <div class="ctrl-row">
+        <label>Desktop-format</label>
+        <div class="pill-group">
+          <div class="pill active" data-group="stravaFormat" data-val="mini" onclick="setPill(this)">Mini (ny)</div>
+          <div class="pill" data-group="stravaFormat" data-val="full" onclick="setPill(this)">Full (nu)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Preview ── -->
+  <div class="preview-area">
+    <div class="preview-scroll">
+      <div id="preview" style="width:100%;max-width:240px;"></div>
+    </div>
+    <div class="prompt-bar">
+      <div class="prompt-text" id="prompt-text">—</div>
+      <button class="copy-btn" onclick="copyPrompt()">Copy prompt</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  activeItems: 'challenge',
+  eventType: 'participation',
+  eventState: 'active',
+  dualVariant: 'tabs',
+  activeTab: 'challenge',
+  viewport: 'desktop',
+  stravaFormat: 'mini',
+};
+
+function setPill(el) {
+  const group = el.dataset.group;
+  document.querySelectorAll(`.pill[data-group="${group}"]`).forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  state[group] = el.dataset.val;
+  updateAll();
+}
+
+// ── Render ─────────────────────────────────────────────────────
+
+function renderPreview() {
+  const el = document.getElementById('preview');
+  const isMobile = state.viewport === 'mobile';
+  const width = isMobile ? 200 : 200; // same width, different content
+
+  let bottomHtml = '';
+
+  const hasCh = state.activeItems === 'challenge' || state.activeItems === 'both';
+  const hasEv = state.activeItems === 'event' || state.activeItems === 'both';
+  const hasBoth = state.activeItems === 'both';
+
+  if (hasBoth) {
+    bottomHtml = state.dualVariant === 'tabs'
+      ? renderDualTabs()
+      : renderDualDots();
+  } else if (hasCh) {
+    bottomHtml = renderChallengeWidget();
+  } else if (hasEv) {
+    bottomHtml = renderEventWidget();
+  }
+
+  const stravaHtml = !isMobile
+    ? (state.stravaFormat === 'mini' ? renderStratvaMini() : renderStravaFull())
+    : '';
+
+  const mobileIconsHtml = isMobile
+    ? `<div class="sb-mobile-row">
+        <button class="sb-icon-btn">☀</button>
+        <button class="sb-icon-btn">🔔</button>
+        <button class="sb-icon-btn">👤</button>
+       </div>`
+    : '';
+
+  // Nav stubs
+  const navItems = [
+    { label: 'Leaderboard', active: true },
+    { label: 'Titles', active: false },
+    { label: 'Challenges', active: false },
+    { label: 'Events', active: false },
+    { label: 'Profile', active: false },
+  ];
+  const navHtml = navItems.map(n => `
+    <div class="sb-nav-item ${n.active ? 'active' : ''}">
+      <div class="sb-nav-dot"></div>
+      <div class="sb-nav-label">${n.label}</div>
+    </div>`).join('');
+
+  el.innerHTML = `
+    <div class="sidebar-mock" style="width:${width}px;">
+      <div style="padding:14px 12px 8px;font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;letter-spacing:.04em;color:#eee;">Gruppen</div>
+      <div class="sb-nav-stub">
+        ${navHtml}
+      </div>
+      <div class="sb-divider"></div>
+      <div class="sb-bottom">
+        ${bottomHtml}
+        ${mobileIconsHtml}
+        ${stravaHtml}
+      </div>
+    </div>`;
+}
+
+function renderChallengeWidget() {
+  return `
+    <div class="rq-widget">
+      <div class="cw-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">
+          <div class="cw-title">
+            <span style="font-size:13px;">⚔️</span>
+            <span style="font-size:11px;color:#ddd;">Du <span class="cw-vs">vs</span> Kalle</span>
+          </div>
+          <span style="font-size:10px;color:var(--rq-muted);">3d kvar</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="cw-badge">Major · km</span>
+          <span class="cw-score">8.3 – 5.1</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderEventWidget() {
+  const isParticipation = state.eventType === 'participation';
+  const isDone = state.eventState === 'done';
+
+  if (isParticipation) {
+    return `
+      <div class="rq-widget">
+        <div class="ew-body">
+          <div class="ew-row1">
+            <div class="ew-name"><span>🌅</span> Morgonrunda</div>
+            <span class="ew-xp">+25 XP</span>
+          </div>
+          ${isDone
+            ? `<div class="ew-done">✓ Klar!</div>
+               <div class="ew-progress"><div class="ew-progress-fill done" style="width:100%"></div></div>`
+            : `<div class="ew-meta">04:00–07:00 &nbsp;·&nbsp; 1h 42m kvar</div>
+               <div class="ew-progress"><div class="ew-progress-fill" style="width:55%"></div></div>`
+          }
+        </div>
+      </div>`;
+  } else {
+    return `
+      <div class="rq-widget">
+        <div class="ew-body">
+          <div class="ew-row1">
+            <div class="ew-name"><span>🏆</span> Weekly km</div>
+            <span style="font-size:10px;color:var(--rq-muted);">4d kvar</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="ew-rank">#2 · 31.4 km</span>
+            <span style="font-size:10px;color:var(--rq-muted);">Kalle 42.1</span>
+          </div>
+        </div>
+      </div>`;
+  }
+}
+
+function renderDualTabs() {
+  const isChallenge = state.activeTab === 'challenge';
+  const content = isChallenge ? challengeContent() : eventContent();
+
+  return `
+    <div class="rq-widget">
+      <div class="dual-tabs">
+        <div class="dual-tab ${isChallenge ? 'active' : ''}"
+             onclick="state.activeTab='challenge';document.querySelectorAll('.pill[data-group=activeTab]').forEach(p=>p.classList.remove('active'));document.querySelector('.pill[data-group=activeTab][data-val=challenge]').classList.add('active');updateAll()">
+          ⚔️ Utmaning
+        </div>
+        <div class="dual-tab ${!isChallenge ? 'active' : ''}"
+             onclick="state.activeTab='event';document.querySelectorAll('.pill[data-group=activeTab]').forEach(p=>p.classList.remove('active'));document.querySelector('.pill[data-group=activeTab][data-val=event]').classList.add('active');updateAll()">
+          📅 Event
+        </div>
+      </div>
+      <div class="dual-content">${content}</div>
+    </div>`;
+}
+
+function renderDualDots() {
+  const isChallenge = state.activeTab === 'challenge';
+  const content = isChallenge ? challengeContent() : eventContent();
+
+  return `
+    <div class="rq-widget">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px 0;">
+        <span style="font-size:10px;color:var(--rq-muted);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.08em;">
+          ${isChallenge ? '⚔️ Utmaning' : '📅 Event'}
+        </span>
+        <div class="dot-nav">
+          <div class="dot-ind ${isChallenge ? 'active' : ''}"
+               onclick="state.activeTab='challenge';document.querySelectorAll('.pill[data-group=activeTab]').forEach(p=>p.classList.remove('active'));document.querySelector('.pill[data-group=activeTab][data-val=challenge]').classList.add('active');updateAll()"></div>
+          <div class="dot-ind ${!isChallenge ? 'active' : ''}"
+               onclick="state.activeTab='event';document.querySelectorAll('.pill[data-group=activeTab]').forEach(p=>p.classList.remove('active'));document.querySelector('.pill[data-group=activeTab][data-val=event]').classList.add('active');updateAll()"></div>
+          <span class="dot-arr"
+                onclick="state.activeTab=state.activeTab==='challenge'?'event':'challenge';document.querySelectorAll('.pill[data-group=activeTab]').forEach(p=>p.classList.remove('active'));document.querySelector('.pill[data-group=activeTab][data-val='+state.activeTab+']').classList.add('active');updateAll()">›</span>
+        </div>
+      </div>
+      <div class="dual-content">${content}</div>
+    </div>`;
+}
+
+function challengeContent() {
+  return `
+    <div class="cw-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">
+        <span style="font-size:11px;color:#ddd;">Du <span class="cw-vs">vs</span> Kalle</span>
+        <span style="font-size:10px;color:var(--rq-muted);">3d kvar</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span class="cw-badge">Major · km</span>
+        <span class="cw-score">8.3 – 5.1</span>
+      </div>
+    </div>`;
+}
+
+function eventContent() {
+  const isDone = state.eventState === 'done';
+  const isComp = state.eventType === 'competition';
+  if (isComp) {
+    return `
+      <div class="ew-body">
+        <div class="ew-row1">
+          <div class="ew-name"><span>🏆</span> Weekly km</div>
+          <span style="font-size:10px;color:var(--rq-muted);">4d kvar</span>
+        </div>
+        <span class="ew-rank">#2 · 31.4 km</span>
+      </div>`;
+  }
+  return `
+    <div class="ew-body">
+      <div class="ew-row1">
+        <div class="ew-name"><span>🌅</span> Morgonrunda</div>
+        <span class="ew-xp">+25 XP</span>
+      </div>
+      ${isDone
+        ? `<div class="ew-done">✓ Klar!</div>`
+        : `<div class="ew-meta">04:00–07:00 &nbsp;·&nbsp; 1h 42m kvar</div>
+           <div class="ew-progress"><div class="ew-progress-fill" style="width:55%"></div></div>`
+      }
+    </div>`;
+}
+
+function renderStratvaMini() {
+  return `
+    <div class="strava-mini">
+      <div class="strava-icon">
+        <span class="strava-orange" style="font-size:11px;font-weight:800;">S</span>
+        <span class="strava-connected">✓ Synkat 4m sedan</span>
+      </div>
+      <span style="font-size:9px;color:rgba(255,255,255,0.2);">nästa: 26m</span>
+    </div>`;
+}
+
+function renderStravaFull() {
+  return `
+    <div class="strava-full">
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:2px;">
+        <span class="strava-orange" style="font-size:13px;font-weight:800;">S</span>
+        <span class="strava-connected">✓ Connected</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;font-size:10px;color:var(--rq-muted);">
+        <span>Since: Oct 2025</span>
+        <span>Last sync: 4m ago</span>
+        <span>Next sync: 26m</span>
+      </div>
+    </div>`;
+}
+
+// ── Prompt ─────────────────────────────────────────────────────
+
+function updatePrompt() {
+  const parts = [];
+  const isMobile = state.viewport === 'mobile';
+
+  const modeMap = { challenge: 'bara aktiv utmaning', event: 'bara aktivt event', both: 'utmaning och event samtidigt', none: 'inget aktivt' };
+  parts.push(`Viewport: ${isMobile ? 'mobil' : 'desktop'}. Aktiva objekt: ${modeMap[state.activeItems]}.`);
+
+  if (state.activeItems === 'both') {
+    parts.push(`Dual-widget använder ${state.dualVariant === 'tabs' ? 'tab-pills' : 'dot-indikator'}-navigation. Aktivt fönster: ${state.activeTab === 'challenge' ? 'utmaning' : 'event'}.`);
+  }
+  if (state.activeItems !== 'challenge') {
+    parts.push(`Event: ${state.eventType === 'participation' ? 'Participation (Morgonrunda)' : 'Competition (Weekly km)'}, state: ${state.eventState === 'done' ? 'klar' : 'pågående'}.`);
+  }
+  if (!isMobile) {
+    parts.push(`Strava-block: ${state.stravaFormat === 'mini' ? 'komprimerad mini-rad' : 'fullt block (nuvarande design)'}.`);
+  }
+
+  document.getElementById('prompt-text').textContent = 'Widget: ' + parts.join(' ');
+}
+
+function updateAll() { renderPreview(); updatePrompt(); }
+
+function copyPrompt() {
+  const t = document.getElementById('prompt-text').textContent;
+  navigator.clipboard.writeText(t).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy prompt', 1500);
+  });
+}
+
+updateAll();
+</script>
+</body>
+</html>

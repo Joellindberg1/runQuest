@@ -69,7 +69,7 @@ export const UserRunHistory: React.FC<UserRunHistoryProps> = ({ runs, onRunUpdat
   return (
     <>
       <Card className="bg-sidebar border-2 border-foreground/15 h-full flex flex-col">
-        <CardHeader className="shrink-0">
+        <CardHeader className="shrink-0" data-tour="profile-run-history">
           <CardTitle className="flex items-center gap-2">
             <Trophy className="w-5 h-5" />
             Run History

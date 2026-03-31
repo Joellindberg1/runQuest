@@ -6,6 +6,8 @@ import { useChallengeData } from '@/features/challenges/hooks/useChallengeData';
 import { useChallengeActions } from '@/features/challenges/hooks/useChallengeActions';
 import { backendApi } from '@/shared/services/backendApi';
 import { useAuth } from '@/providers/AuthProvider';
+import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
+import { TOUR_CHALLENGES_V1 } from '@/features/onboarding/featureTourSteps';
 
 const ChallengesPage: React.FC = () => {
   const { user } = useAuth();
@@ -48,6 +50,7 @@ const ChallengesPage: React.FC = () => {
 
   return (
     <AppLayout groupName={groupQuery.data?.name ?? ''}>
+      <FeatureTour slug="tour_challenges_v1" steps={TOUR_CHALLENGES_V1} />
       <ChallengesFeaturePage
         currentUserId={user?.id ?? ''}
         leaderboard={leaderboard}

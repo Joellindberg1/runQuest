@@ -9,6 +9,8 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useLeaderboardData } from '@/features/leaderboard/hooks/useLeaderboardData';
 import { useRunUpdates } from '@/features/runs/hooks/useRunUpdates';
 import { backendApi } from '@/shared/services/backendApi';
+import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
+import { TOUR_LEADERBOARD_V1, TOUR_TITLES_V1, TOUR_PROFILE_V1 } from '@/features/onboarding/featureTourSteps';
 
 const Index: React.FC = () => {
   const { users, currentUser, loading, refresh } = useLeaderboardData();
@@ -61,6 +63,9 @@ const Index: React.FC = () => {
 
   return (
     <AppLayout groupName={groupData?.name ?? ''}>
+      {activeTab === 'leaderboard' && <FeatureTour slug="tour_leaderboard_v1" steps={TOUR_LEADERBOARD_V1} />}
+      {activeTab === 'titles' && <FeatureTour slug="tour_titles_v1" steps={TOUR_TITLES_V1} />}
+      {activeTab === 'profile' && <FeatureTour slug="tour_profile_v1" steps={TOUR_PROFILE_V1} />}
       {renderContent()}
     </AppLayout>
   );

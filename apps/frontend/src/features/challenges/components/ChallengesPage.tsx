@@ -13,7 +13,7 @@ import type { GroupMember } from './SendChallengeModal';
 
 const TABS = [
   { value: 'leaderboard', label: 'Standings',  icon: <Trophy className="w-3.5 h-3.5" /> },
-  { value: 'ongoing',     label: 'Live',       icon: <Swords className="w-3.5 h-3.5" /> },
+  { value: 'ongoing',     label: 'Live',       icon: <Swords className="w-3.5 h-3.5" />, tourAnchor: 'challenges-live-tab' },
   { value: 'challenges',  label: 'Playbook',   icon: <BookOpen className="w-3.5 h-3.5" /> },
   { value: 'history',     label: 'History',    icon: <History className="w-3.5 h-3.5" /> },
 ];
@@ -136,14 +136,14 @@ export const ChallengesPage: React.FC<ChallengesPageProps> = ({
             </div>
 
             {/* ── Leaderboard ──────────────────────────────── */}
-            <TabsContent value="leaderboard" className="px-4 pb-4">
+            <TabsContent value="leaderboard" className="px-4 pb-4" data-tour="challenges-leaderboard">
               <ChallengeLeaderboard entries={leaderboard} currentUserId={currentUserId} />
             </TabsContent>
 
             {/* ── Ongoing ──────────────────────────────────── */}
             <TabsContent value="ongoing" className="px-4 pb-4 space-y-6">
               {/* My Challenge */}
-              <div>
+              <div data-tour="challenges-active">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                   My Challenge
                 </h3>

@@ -5,6 +5,7 @@ interface Tab {
   value: string;
   label: string;
   icon?: React.ReactNode;
+  tourAnchor?: string;
 }
 
 interface PageTabsProps {
@@ -33,6 +34,7 @@ export const PageTabs: React.FC<PageTabsProps> = ({ value, onValueChange, tabs, 
             <TabsTrigger
               key={tab.value}
               value={tab.value}
+              data-tour={tab.tourAnchor}
               className="rounded-none flex items-center gap-1.5 py-2.5 border-b-2 border-transparent bg-transparent text-foreground/40 transition-all
                 data-[state=active]:border-[var(--rq-gold)] data-[state=active]:text-[var(--rq-gold)] data-[state=active]:bg-transparent data-[state=active]:shadow-none
                 hover:text-foreground/70"

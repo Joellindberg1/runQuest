@@ -210,6 +210,7 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
       )}
 
       {/* Tokens grouped by tier */}
+      <div data-tour="challenges-tokens">
       <Section
         icon={<Swords className="w-3.5 h-3.5" />}
         title="My Challenges"
@@ -266,6 +267,8 @@ export const ChallengesSidebar: React.FC<ChallengesSidebarProps> = ({
           </div>
         )}
       </Section>
+
+      </div>
 
       {/* Active boosts */}
       {activeBoosts.length > 0 && (

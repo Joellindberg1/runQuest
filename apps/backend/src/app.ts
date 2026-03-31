@@ -6,6 +6,9 @@ import helmet from 'helmet';
 
 import authRoutes from './routes/auth.js';
 import challengeRoutes from './routes/challenges.js';
+import eventRoutes from './routes/events.js';
+import groupRoutes from './routes/groups.js';
+import onboardingRoutes from './routes/onboarding.js';
 import stravaRoutes from './routes/strava.js';
 import titleRoutes from './routes/titles.js';
 import runRoutes from './routes/runs.js';
@@ -39,6 +42,9 @@ app.get('/api', (_req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/groups', groupRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/strava', stravaRoutes);
 app.use('/api/titles', titleRoutes);
 app.use('/api/runs', runRoutes);
