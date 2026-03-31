@@ -1,6 +1,7 @@
 // 📅 Event Service
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
+import { getLevelFromXP } from '../utils/xpCalculation.js';
 
 // ─── maybeCreateEvent ─────────────────────────────────────────────────────────
 
@@ -198,8 +199,17 @@ export async function checkEventQualification(params: {
         if (insertErr && insertErr.code !== '23505') { // 23505 = unique_violation
           logger.error(`❌ [EventQual] Failed to insert participation entry:`, insertErr);
         } else if (!insertErr) {
-          // Lägg till XP direkt på användaren
+          // Lägg till XP (ökar både event_xp och total_xp via RPC)
           await supabase.rpc('increment_event_xp', { p_user_id: params.userId, p_xp: rewardXp });
+
+          // Räkna om level baserat på ny total_xp
+          const { data: userData } = await supabase
+            .from('users').select('total_xp').eq('id', params.userId).single();
+          if (userData) {
+            const newLevel = await getLevelFromXP(userData.total_xp);
+            await supabase.from('users').update({ current_level: newLevel }).eq('id', params.userId);
+          }
+
           logger.info(`✅ [EventQual] User ${params.userId} qualified for participation event ${event.id} (+${rewardXp} XP)`);
         }
 
