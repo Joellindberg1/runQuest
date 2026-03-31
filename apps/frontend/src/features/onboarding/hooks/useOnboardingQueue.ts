@@ -27,13 +27,15 @@ function buildQueue(): string[] {
 }
 
 export function useOnboardingQueue() {
-  const { data: seen = [], isLoading } = useQuery({
+  const { data: seen = [], isLoading, isError } = useQuery({
     queryKey: ONBOARDING_QUERY_KEY,
     queryFn: fetchOnboardingStatus,
     staleTime: ONBOARDING_STALE_TIME,
+    retry: false,
   });
 
-  if (isLoading) return { currentItem: null, isLoading: true };
+  // Never block the app — if onboarding status can't be fetched, skip silently
+  if (isLoading || isError) return { currentItem: null, isLoading };
 
   const queue = buildQueue();
   const currentItem = queue.find(slug => !seen.includes(slug)) ?? null;

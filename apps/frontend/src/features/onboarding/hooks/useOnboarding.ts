@@ -12,6 +12,7 @@ export function useOnboarding(slug: string) {
     queryKey: ONBOARDING_QUERY_KEY,
     queryFn: fetchOnboardingStatus,
     staleTime: ONBOARDING_STALE_TIME,
+    retry: false,
   });
 
   const { mutate: markSeen, isPending } = useMutation({

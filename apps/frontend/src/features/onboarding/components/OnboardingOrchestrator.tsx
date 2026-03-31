@@ -23,8 +23,8 @@ function OnboardingItem({ slug }: { slug: string }) {
     return <OnboardingTour steps={ONBOARDING_V1_STEPS} onDone={() => markSeen()} />;
   }
 
-  // Unknown slug — mark as seen silently so queue advances
-  markSeen();
+  // Unknown slug — mark as seen via effect so queue advances (never call mutations during render)
+  React.useEffect(() => { markSeen(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 
