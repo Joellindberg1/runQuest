@@ -9,9 +9,7 @@ import {
   settleExpiredParticipationEvents,
   activateScheduledEvents,
   checkStormChaserForecast,
-  getDailyPoolTemplates,
-  getThursdayPoolTemplates,
-  getTemplateTimeWindow,
+  getEventPool,
 } from '../services/eventService.js';
 
 const STOCKHOLM = 'Europe/Stockholm';
@@ -79,31 +77,32 @@ interface DailyDrawResult {
 async function runDailyParticipationDraw(): Promise<DailyDrawResult> {
   const tomorrow = tomorrowStockholm();
 
-  // Hämta kandidatpool från DB (Morgonrunda, Kvällsrunda, Storm Chaser)
-  const allTemplates = await getDailyPoolTemplates();
+  const eventPool = await getEventPool('daily');
+  if (!eventPool) {
+    logger.error('❌ [EventScheduler] Daily pool not found in DB');
+    return { fired: false, picked: null, stormQualifies: false, totalWeight: 0, pool: [] };
+  }
+
   const stormQualifies = await checkStormChaserForecast();
 
-  const candidates = allTemplates
-    .filter(t => t.name !== 'Storm Chaser' || stormQualifies)
-    .map(t => ({
-      name: t.name,
-      weight: t.spawnChance,
-      startHour: t.startHour,
-      endHour: t.endHour,
-      endMinute: t.endMinute,
-    }));
-
+  // Filter out weather-conditioned members unless storm qualifies
+  const candidates = eventPool.members.filter(m => m.condition !== 'weather' || stormQualifies);
   const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
   const pool = candidates.map(c => ({
     name: c.name,
     weight: c.weight,
-    sharePct: Math.round((c.weight / totalWeight) * 100),
+    sharePct: totalWeight > 0 ? Math.round((c.weight / totalWeight) * 100) : 0,
   }));
 
-  // Steg 1: gemensam tärning — händer något alls?
-  if (Math.random() >= totalWeight) {
-    logger.info(`📅 [EventScheduler] Daily roll: no event for ${tomorrow} (combined weight ${(totalWeight * 100).toFixed(0)}%)`);
+  // Steg 1: pool trigger chance gate — händer något alls?
+  if (Math.random() >= eventPool.triggerChance) {
+    logger.info(`📅 [EventScheduler] Daily roll: no event for ${tomorrow} (trigger chance ${(eventPool.triggerChance * 100).toFixed(0)}%)`);
     return { fired: false, picked: null, stormQualifies, totalWeight, pool };
+  }
+
+  if (!candidates.length) {
+    logger.info(`📅 [EventScheduler] Daily roll: pool triggered but no eligible candidates`);
+    return { fired: false, picked: null, stormQualifies, totalWeight: 0, pool: [] };
   }
 
   // Steg 2: viktad tärning — välj ETT event från poolen
@@ -115,7 +114,7 @@ async function runDailyParticipationDraw(): Promise<DailyDrawResult> {
   }
 
   const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endsAt   = atStockholm(tomorrow, picked.endHour,   picked.endMinute);
+  const endsAt   = atStockholm(tomorrow, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Daily roll: "${picked.name}" selected for ${tomorrow} (weight ${picked.weight} / total ${totalWeight.toFixed(2)})`);
   await createForAllGroups(picked.name, startsAt, endsAt);
@@ -140,20 +139,24 @@ export async function scheduleDailyParticipationEventTest(): Promise<DailyDrawRe
  * Spawn chance: 20% — triggar bara en av fem helgkvällar.
  */
 async function scheduleHangoverRun(): Promise<void> {
-  const tmpl = await getTemplateTimeWindow('Hangover Run');
-  if (!tmpl) { logger.error('❌ [EventScheduler] Hangover Run template not found'); return; }
-
-  if (Math.random() >= tmpl.spawnChance) {
-    logger.info(`📅 [EventScheduler] Hangover Run roll miss (${(tmpl.spawnChance * 100).toFixed(0)}% chance)`);
+  const pool = await getEventPool('weekend');
+  if (!pool || !pool.members.length) {
+    logger.error('❌ [EventScheduler] Weekend pool not found or empty');
     return;
   }
 
+  if (Math.random() >= pool.triggerChance) {
+    logger.info(`📅 [EventScheduler] Hangover Run roll miss (${(pool.triggerChance * 100).toFixed(0)}% trigger chance)`);
+    return;
+  }
+
+  const picked = pool.members[0];
   const tomorrow = tomorrowStockholm();
-  const startsAt = atStockholm(tomorrow, tmpl.startHour, 0);
-  const endsAt   = atStockholm(tomorrow, tmpl.endHour, tmpl.endMinute);
+  const startsAt = atStockholm(tomorrow, picked.startHour, 0);
+  const endsAt   = atStockholm(tomorrow, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Hangover Run triggered for ${tomorrow}`);
-  await createForAllGroups('Hangover Run', startsAt, endsAt);
+  await createForAllGroups(picked.name, startsAt, endsAt);
 }
 
 // ─── Torsdags-event — 5K Friday ───────────────────────────────────────────────
@@ -164,21 +167,23 @@ async function scheduleHangoverRun(): Promise<void> {
  * Spawn chance: 30% — triggar ungefär var tredje vecka.
  */
 async function scheduleFridayEvent(): Promise<void> {
-  const candidates = await getThursdayPoolTemplates();
-  if (!candidates.length) { logger.error('❌ [EventScheduler] Thursday pool empty'); return; }
+  const pool = await getEventPool('thursday');
+  if (!pool || !pool.members.length) {
+    logger.error('❌ [EventScheduler] Thursday pool not found or empty');
+    return;
+  }
 
-  const totalWeight = candidates.reduce((s, c) => s + c.spawnChance, 0);
-
-  // Steg 1: gemensam tärning — händer något alls?
-  if (Math.random() >= totalWeight) {
-    logger.info(`📅 [EventScheduler] Thursday roll miss (combined ${(totalWeight * 100).toFixed(0)}%)`);
+  // Steg 1: pool trigger chance gate — händer något alls?
+  if (Math.random() >= pool.triggerChance) {
+    logger.info(`📅 [EventScheduler] Thursday roll miss (${(pool.triggerChance * 100).toFixed(0)}% trigger chance)`);
     return;
   }
 
   // Steg 2: viktad tärning — välj ETT event
+  const totalWeight = pool.members.reduce((s, c) => s + c.weight, 0);
   let rand = Math.random() * totalWeight;
-  let picked = candidates[candidates.length - 1];
-  for (const c of candidates) { rand -= c.spawnChance; if (rand <= 0) { picked = c; break; } }
+  let picked = pool.members[pool.members.length - 1];
+  for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
 
   const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
   const startsAt = atStockholm(tomorrow, picked.startHour, 0);

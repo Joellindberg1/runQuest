@@ -334,6 +334,13 @@ export async function settleCompetitionEvents(): Promise<void> {
 
         if (xp > 0) {
           await supabase.rpc('increment_event_xp', { p_user_id: userId, p_xp: xp });
+          // Räkna om level baserat på ny total_xp
+          const { data: userData } = await supabase
+            .from('users').select('total_xp').eq('id', userId).single();
+          if (userData) {
+            const newLevel = await getLevelFromXP(userData.total_xp);
+            await supabase.from('users').update({ current_level: newLevel }).eq('id', userId);
+          }
           logger.info(`✅ [Settlement] User ${userId} rank ${rank} for event ${event.id} (+${xp} XP, ${totalValue.toFixed(1)} ${event.metric})`);
         }
       }
@@ -506,97 +513,58 @@ export async function getAllGroupIds(): Promise<string[]> {
   return (data ?? []).map((g: any) => g.id);
 }
 
-// ─── getDailyPoolTemplates ─────────────────────────────────────────────────────
+// ─── getEventPool ─────────────────────────────────────────────────────────────
 
-export interface DailyPoolTemplate {
+export interface PoolMember {
   name: string;
-  spawnChance: number;
+  weight: number;
   startHour: number;
   endHour: number;
   endMinute: number;
-  requiresWeather: string | null;
+  condition: string | null;
+}
+
+export interface EventPool {
+  triggerChance: number;
+  members: PoolMember[];
 }
 
 /**
- * Hämtar templates som ingår i den dagliga 19:00-poolen.
- * (Morning run, Evening run, Storm Chaser)
- * Tidsfönster och vikter hämtas från DB.
+ * Hämtar en pool med alla dess members från DB.
+ * Schedulern filtrerar bort members med condition='weather' om väder inte kvalificerar.
+ *
+ * Hierarki: Pool (trigger_chance) → Members (weight) → Events
  */
-export async function getDailyPoolTemplates(): Promise<DailyPoolTemplate[]> {
+export async function getEventPool(poolName: string): Promise<EventPool | null> {
   const supabase = getSupabaseClient();
+
   const { data, error } = await supabase
-    .from('event_templates')
-    .select('name, spawn_chance, start_hour, end_hour, end_minute, requires_weather')
-    .in('name', ['Morning run', 'Evening run', 'Storm Chaser'])
-    .eq('active', true);
+    .from('event_pool_members')
+    .select(`
+      weight,
+      condition,
+      event_pools!inner ( trigger_chance ),
+      event_templates!inner ( name, start_hour, end_hour, end_minute, active )
+    `)
+    .eq('event_pools.name', poolName)
+    .eq('event_templates.active', true);
 
   if (error) {
-    logger.error('❌ [EventService] getDailyPoolTemplates error:', error);
-    return [];
+    logger.error(`❌ [EventService] getEventPool(${poolName}) error:`, error);
+    return null;
   }
+  if (!data?.length) return null;
 
-  return (data ?? []).map((t: any) => ({
-    name: t.name,
-    spawnChance: Number(t.spawn_chance),
-    startHour: Number(t.start_hour),
-    endHour: Number(t.end_hour),
-    endMinute: Number(t.end_minute),
-    requiresWeather: t.requires_weather ?? null,
+  const triggerChance = Number((data[0] as any).event_pools.trigger_chance);
+
+  const members: PoolMember[] = data.map((row: any) => ({
+    name: row.event_templates.name,
+    weight: Number(row.weight),
+    startHour: Number(row.event_templates.start_hour),
+    endHour: Number(row.event_templates.end_hour),
+    endMinute: Number(row.event_templates.end_minute),
+    condition: row.condition ?? null,
   }));
-}
 
-/**
- * Hämtar templates som ingår i torsdagens 18:00-pool.
- * (5K Friday, Half Marathon Chaser) — 50/50 med kombinerad 30% chans.
- */
-export async function getThursdayPoolTemplates(): Promise<DailyPoolTemplate[]> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('event_templates')
-    .select('name, spawn_chance, start_hour, end_hour, end_minute, requires_weather')
-    .in('name', ['5K Friday', 'Half Marathon Chaser'])
-    .eq('active', true);
-
-  if (error) {
-    logger.error('❌ [EventService] getThursdayPoolTemplates error:', error);
-    return [];
-  }
-
-  return (data ?? []).map((t: any) => ({
-    name: t.name,
-    spawnChance: Number(t.spawn_chance),
-    startHour: Number(t.start_hour),
-    endHour: Number(t.end_hour),
-    endMinute: Number(t.end_minute),
-    requiresWeather: t.requires_weather ?? null,
-  }));
-}
-
-// ─── getTemplateTimeWindow ────────────────────────────────────────────────────
-
-export interface TemplateTimeWindow {
-  startHour: number;
-  endHour: number;
-  endMinute: number;
-  spawnChance: number;
-}
-
-/**
- * Hämtar tidsfönster och spawn_chance för ett enskilt template.
- */
-export async function getTemplateTimeWindow(name: string): Promise<TemplateTimeWindow | null> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('event_templates')
-    .select('spawn_chance, start_hour, end_hour, end_minute')
-    .eq('name', name)
-    .single();
-
-  if (error || !data) return null;
-  return {
-    spawnChance: Number(data.spawn_chance),
-    startHour: Number(data.start_hour),
-    endHour: Number(data.end_hour),
-    endMinute: Number(data.end_minute),
-  };
+  return { triggerChance, members };
 }
