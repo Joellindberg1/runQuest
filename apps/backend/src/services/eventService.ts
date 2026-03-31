@@ -108,7 +108,7 @@ export async function getActiveParticipationEventsOnDates(
     `)
     .eq('group_id', groupId)
     .eq('type', 'participation')
-    .eq('status', 'active')
+    .in('status', ['active', 'scheduled'])
     .lte('starts_at', latest)
     .gte('ends_at', earliest);
 
@@ -157,7 +157,9 @@ export async function checkEventQualification(params: {
 
   const now = new Date().toISOString();
 
-  // Hämta alla aktiva events för gruppen som passet faller inom
+  // Hämta alla aktiva/schemalagda events för gruppen som passet faller inom.
+  // 'scheduled' inkluderas eftersom events inte övergår till 'active' automatiskt —
+  // vi behandlar ett startat scheduled-event som aktivt.
   const { data: events, error } = await supabase
     .from('events')
     .select(`
@@ -168,8 +170,8 @@ export async function checkEventQualification(params: {
       event_templates ( min_km, reward_xp )
     `)
     .eq('group_id', groupId)
-    .eq('status', 'active')
-    .lte('starts_at', `${params.runDate}T23:59:59Z`)
+    .in('status', ['active', 'scheduled'])
+    .lte('starts_at', now)
     .gte('ends_at', `${params.runDate}T00:00:00Z`);
 
   if (error || !events?.length) return;
@@ -349,7 +351,7 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
     .from('events')
     .select('id')
     .eq('type', 'participation')
-    .eq('status', 'active')
+    .in('status', ['active', 'scheduled'])
     .lte('ends_at', now);
 
   if (error) {
