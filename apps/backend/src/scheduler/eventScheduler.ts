@@ -10,6 +10,7 @@ import {
   activateScheduledEvents,
   checkStormChaserForecast,
   getDailyPoolTemplates,
+  getThursdayPoolTemplates,
   getTemplateTimeWindow,
 } from '../services/eventService.js';
 
@@ -163,20 +164,28 @@ async function scheduleHangoverRun(): Promise<void> {
  * Spawn chance: 30% — triggar ungefär var tredje vecka.
  */
 async function scheduleFridayEvent(): Promise<void> {
-  const tmpl = await getTemplateTimeWindow('5K Friday');
-  if (!tmpl) { logger.error('❌ [EventScheduler] 5K Friday template not found'); return; }
+  const candidates = await getThursdayPoolTemplates();
+  if (!candidates.length) { logger.error('❌ [EventScheduler] Thursday pool empty'); return; }
 
-  if (Math.random() >= tmpl.spawnChance) {
-    logger.info(`📅 [EventScheduler] 5K Friday roll miss (${(tmpl.spawnChance * 100).toFixed(0)}% chance)`);
+  const totalWeight = candidates.reduce((s, c) => s + c.spawnChance, 0);
+
+  // Steg 1: gemensam tärning — händer något alls?
+  if (Math.random() >= totalWeight) {
+    logger.info(`📅 [EventScheduler] Thursday roll miss (combined ${(totalWeight * 100).toFixed(0)}%)`);
     return;
   }
 
-  const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
-  const startsAt = atStockholm(tomorrow, tmpl.startHour, 0);
-  const endsAt   = atStockholm(tomorrow, tmpl.endHour, tmpl.endMinute);
+  // Steg 2: viktad tärning — välj ETT event
+  let rand = Math.random() * totalWeight;
+  let picked = candidates[candidates.length - 1];
+  for (const c of candidates) { rand -= c.spawnChance; if (rand <= 0) { picked = c; break; } }
 
-  logger.info(`📅 [EventScheduler] 5K Friday triggered for ${tomorrow}`);
-  await createForAllGroups('5K Friday', startsAt, endsAt);
+  const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
+  const startsAt = atStockholm(tomorrow, picked.startHour, 0);
+  const endsAt   = atStockholm(tomorrow, picked.endHour, picked.endMinute);
+
+  logger.info(`📅 [EventScheduler] Thursday roll: "${picked.name}" selected for ${tomorrow}`);
+  await createForAllGroups(picked.name, startsAt, endsAt);
 }
 
 // ─── Lördag — Weekly competition events ──────────────────────────────────────

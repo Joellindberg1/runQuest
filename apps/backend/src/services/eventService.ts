@@ -519,7 +519,7 @@ export interface DailyPoolTemplate {
 
 /**
  * Hämtar templates som ingår i den dagliga 19:00-poolen.
- * (Morgonrunda, Kvällsrunda, Storm Chaser)
+ * (Morning run, Evening run, Storm Chaser)
  * Tidsfönster och vikter hämtas från DB.
  */
 export async function getDailyPoolTemplates(): Promise<DailyPoolTemplate[]> {
@@ -527,11 +527,38 @@ export async function getDailyPoolTemplates(): Promise<DailyPoolTemplate[]> {
   const { data, error } = await supabase
     .from('event_templates')
     .select('name, spawn_chance, start_hour, end_hour, end_minute, requires_weather')
-    .in('name', ['Morgonrunda', 'Kvällsrunda', 'Storm Chaser'])
+    .in('name', ['Morning run', 'Evening run', 'Storm Chaser'])
     .eq('active', true);
 
   if (error) {
     logger.error('❌ [EventService] getDailyPoolTemplates error:', error);
+    return [];
+  }
+
+  return (data ?? []).map((t: any) => ({
+    name: t.name,
+    spawnChance: Number(t.spawn_chance),
+    startHour: Number(t.start_hour),
+    endHour: Number(t.end_hour),
+    endMinute: Number(t.end_minute),
+    requiresWeather: t.requires_weather ?? null,
+  }));
+}
+
+/**
+ * Hämtar templates som ingår i torsdagens 18:00-pool.
+ * (5K Friday, Half Marathon Chaser) — 50/50 med kombinerad 30% chans.
+ */
+export async function getThursdayPoolTemplates(): Promise<DailyPoolTemplate[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('event_templates')
+    .select('name, spawn_chance, start_hour, end_hour, end_minute, requires_weather')
+    .in('name', ['5K Friday', 'Half Marathon Chaser'])
+    .eq('active', true);
+
+  if (error) {
+    logger.error('❌ [EventService] getThursdayPoolTemplates error:', error);
     return [];
   }
 
