@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Flame, Map } from 'lucide-react';
+import { BarChart3, Flame, Map, Navigation } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { Progress } from '@/shared/components/ui/progress';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
@@ -172,6 +172,13 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
         </div>
       </div>
 
+      {/* Frodo's Journey — full width, prominent placement */}
+      <div data-tour="profile-fun-fact">
+        <SectionCard title="Frodo's Journey" icon={<Navigation className="w-4 h-4" />}>
+          <FrodoJourney totalKm={user.total_km} />
+        </SectionCard>
+      </div>
+
       {/* Distance + Streak */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SectionCard title="Distance" icon={<BarChart3 className="w-4 h-4" />}>
@@ -199,19 +206,10 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
       </div>
 
       {/* Fun Facts */}
-      <div data-tour="profile-fun-fact">
       <SectionCard title="Fun Facts" icon={<Map className="w-4 h-4" />}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-          <div>
-            <StatRow label="Marathon equivalents total"        value={totalMarathons} />
-            <StatRow label={`Marathon equivalents ${currentYear}`} value={thisYearMarathons} />
-          </div>
-          <div className="pt-2 md:pt-0 md:border-l md:border-foreground/10 md:pl-8">
-            <FrodoJourney totalKm={user.total_km} />
-          </div>
-        </div>
+        <StatRow label="Marathon equivalents total"        value={totalMarathons} />
+        <StatRow label={`Marathon equivalents ${currentYear}`} value={thisYearMarathons} />
       </SectionCard>
-      </div>
     </div>
   );
 };
