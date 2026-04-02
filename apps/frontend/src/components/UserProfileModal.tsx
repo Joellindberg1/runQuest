@@ -114,10 +114,8 @@ export const UserProfileModal: React.FC<Props> = ({ userId, onClose }) => {
                 className="h-11 w-11 shrink-0"
                 style={{ boxShadow: '0 0 0 2px color-mix(in srgb, var(--rq-gold) 40%, transparent)' }}
               >
+                <AvatarImage src={user.profile_picture || ''} />
                 <AvatarFallback className="font-bold">{getInitials(user.name)}</AvatarFallback>
-                <Avatar>
-                  <AvatarImage src={user.profile_picture || ''} />
-                </Avatar>
               </Avatar>
               <div className="min-w-0">
                 <div className="font-bold text-base leading-tight truncate">{user.name}</div>
