@@ -107,9 +107,11 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
   return (
     <div className="space-y-4 pb-4">
 
-      {/* Me card */}
-      <div className="flex justify-center">
-        <div className="bg-background/50 border border-foreground/15 rounded-xl p-5 w-full max-w-lg">
+      {/* Top row: Me card (left) + Frodo's Journey (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* Me card */}
+        <div className="bg-background/50 border border-foreground/15 rounded-xl p-5">
           <div className="flex items-center gap-4">
             <Avatar
               className="h-16 w-16 shrink-0"
@@ -170,13 +172,14 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Frodo's Journey — full width, prominent placement */}
-      <div data-tour="profile-fun-fact">
-        <SectionCard title="Frodo's Journey" icon={<Navigation className="w-4 h-4" />}>
-          <FrodoJourney totalKm={user.total_km} />
-        </SectionCard>
+        {/* Frodo's Journey */}
+        <div data-tour="profile-fun-fact">
+          <SectionCard title="Frodo's Journey" icon={<Navigation className="w-4 h-4" />}>
+            <FrodoJourney totalKm={user.total_km} />
+          </SectionCard>
+        </div>
+
       </div>
 
       {/* Distance + Streak */}
