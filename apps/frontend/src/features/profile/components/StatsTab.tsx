@@ -107,7 +107,7 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
   return (
     <div className="space-y-4 pb-4">
 
-      {/* Top row: Me card (left) + Frodo's Journey (right) */}
+      {/* Top row: Me card (left) + Fun Facts (right) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Me card */}
@@ -173,13 +173,19 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
           </div>
         </div>
 
-        {/* Frodo's Journey */}
-        <div data-tour="profile-fun-fact">
-          <SectionCard title="Frodo's Journey" icon={<Navigation className="w-4 h-4" />}>
-            <FrodoJourney totalKm={user.total_km} />
-          </SectionCard>
-        </div>
+        {/* Fun Facts */}
+        <SectionCard title="Fun Facts" icon={<Map className="w-4 h-4" />}>
+          <StatRow label="Marathon equivalents total"            value={totalMarathons} />
+          <StatRow label={`Marathon equivalents ${currentYear}`} value={thisYearMarathons} />
+        </SectionCard>
 
+      </div>
+
+      {/* Frodo's Journey — full width */}
+      <div data-tour="profile-fun-fact">
+        <SectionCard title="Frodo's Journey" icon={<Navigation className="w-4 h-4" />}>
+          <FrodoJourney totalKm={user.total_km} />
+        </SectionCard>
       </div>
 
       {/* Distance + Streak */}
@@ -208,11 +214,6 @@ export const StatsTab: React.FC<{ user: UserType; allUsers: UserType[] }> = ({ u
         </SectionCard>
       </div>
 
-      {/* Fun Facts */}
-      <SectionCard title="Fun Facts" icon={<Map className="w-4 h-4" />}>
-        <StatRow label="Marathon equivalents total"        value={totalMarathons} />
-        <StatRow label={`Marathon equivalents ${currentYear}`} value={thisYearMarathons} />
-      </SectionCard>
     </div>
   );
 };
