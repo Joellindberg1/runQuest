@@ -80,8 +80,10 @@ export const GlobalSidebarWidget: React.FC = () => {
   const eventWidgets = useMemo(() => {
     const events = eventsData?.events ?? [];
     return events
-      .filter(e => e.status === 'active')
+      .filter(e => e.status === 'active' || e.status === 'scheduled')
       .map(e => {
+        const scheduled = e.status === 'scheduled';
+
         if (e.type === 'participation') {
           return (
             <EventWidget
@@ -93,7 +95,7 @@ export const GlobalSidebarWidget: React.FC = () => {
                 endsAt: e.endsAt,
                 rewardXp: e.template.rewardXp,
                 done: !!e.myEntry?.qualified,
-                scheduled: e.status === 'scheduled',
+                scheduled,
               }}
             />
           );
@@ -110,10 +112,12 @@ export const GlobalSidebarWidget: React.FC = () => {
             data={{
               kind: 'competition',
               title: e.template.name,
+              startsAt: e.startsAt,
               endsAt: e.endsAt,
               myRank: myLiveEntry?.rank ?? myEntry.rank ?? 0,
               myValue: myLiveEntry?.totalValue ?? myEntry.totalValue ?? 0,
               metric: e.metric === 'km' ? 'km' : 'elevation',
+              scheduled,
             }}
           />
         );
