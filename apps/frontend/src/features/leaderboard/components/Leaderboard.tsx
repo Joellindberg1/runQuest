@@ -5,6 +5,7 @@ import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
 import { useMultipleUserTitles } from '@/shared/hooks/useTitleQueries';
+import { useUserProfileModal } from '@/providers/UserProfileModalProvider';
 import { Swords } from 'lucide-react';
 import type { User, UserTitle } from '@runquest/types';
 
@@ -21,6 +22,7 @@ interface LeaderboardProps {
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, titleOverrides }) => {
+  const { openProfile } = useUserProfileModal();
   const { data: fetchedTitles = {} } = useMultipleUserTitles(users.map((u) => u.id));
   const userTitlesData = titleOverrides
     ? { ...fetchedTitles, ...titleOverrides }
@@ -116,8 +118,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, ti
       <Card
         key={user.id}
         {...(tourAnchor ? { 'data-tour': tourAnchor } : {})}
-        className={`relative overflow-visible ${getPositionStyles(position)}`}
+        className={`relative overflow-visible cursor-pointer hover:brightness-105 transition-[filter] ${getPositionStyles(position)}`}
         style={cardStyle}
+        onClick={() => openProfile(user.id)}
       >
         {/* Active user indicator — top of card, inset from left border */}
         {isCurrentUser && (

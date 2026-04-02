@@ -7,6 +7,7 @@ import { ShowMoreButton } from '@/shared/components/ShowMoreButton';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { getInitials, formatRunDate } from '@/shared/utils/formatters';
 import { useGroupRunHistory } from '../hooks/useGroupRunHistory';
+import { useUserProfileModal } from '@/providers/UserProfileModalProvider';
 
 function wmoWeather(code: number): { emoji: string; label: string; isPrecip: boolean } {
   if (code === 0)                       return { emoji: '☀️',  label: 'Clear',            isPrecip: false };
@@ -31,6 +32,7 @@ interface RunHistoryGroupProps {
 export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) => {
   const { runs, loading } = useGroupRunHistory();
   const [showAll, setShowAll] = useState(false);
+  const { openProfile } = useUserProfileModal();
 
   if (loading) {
     return (
@@ -73,13 +75,19 @@ export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = ({ users = [] }) 
 
                 {/* Col 1: User info – top-left aligned, spans both rows on desktop */}
                 <div className="md:row-span-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-start self-start">
-                  <Avatar className="w-12 h-12 border-2 border-foreground/20 row-span-2">
+                  <Avatar
+                    className="w-12 h-12 border-2 border-foreground/20 row-span-2 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => openProfile(run.user_id)}
+                  >
                     <AvatarImage src={run.user_profile_picture} alt={run.user_name} />
                     <AvatarFallback className="bg-background text-foreground font-bold">
                       {getInitials(run.user_name)}
                     </AvatarFallback>
                   </Avatar>
-                  <CardTitle className="text-xl truncate">
+                  <CardTitle
+                    className="text-xl truncate cursor-pointer hover:underline"
+                    onClick={() => openProfile(run.user_id)}
+                  >
                     {run.user_name}
                   </CardTitle>
                   <div className="flex items-center gap-1 text-sm text-muted-foreground col-start-2">

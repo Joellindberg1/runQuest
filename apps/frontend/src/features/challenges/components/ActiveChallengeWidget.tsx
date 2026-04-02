@@ -1,6 +1,7 @@
 import React from 'react';
 import { TierBadge } from './TierBadge';
 import { Swords, Clock } from 'lucide-react';
+import { useUserProfileModal } from '@/providers/UserProfileModalProvider';
 import type { Challenge } from '@runquest/types';
 import type { ProgressEntry } from './OngoingChallengeCard';
 
@@ -44,6 +45,7 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
   currentUserId,
   onClick,
 }) => {
+  const { openProfile } = useUserProfileModal();
   const opponent = challenge.challenger_id === currentUserId
     ? { id: challenge.opponent_id,   name: challenge.opponent_name }
     : { id: challenge.challenger_id, name: challenge.challenger_name };
@@ -69,7 +71,10 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
         <div className="flex items-center justify-center gap-1.5 text-xs">
           <span className="font-semibold text-foreground">You</span>
           <span className="text-muted-foreground">vs</span>
-          <span className="font-semibold text-foreground">{opponent.name}</span>
+          <span
+            className="font-semibold text-foreground cursor-pointer hover:underline"
+            onClick={(e) => { e.stopPropagation(); openProfile(opponent.id); }}
+          >{opponent.name}</span>
         </div>
         {/* Desktop: "Ends:" + date stacked in col 3 */}
         <div className="flex items-center justify-end">

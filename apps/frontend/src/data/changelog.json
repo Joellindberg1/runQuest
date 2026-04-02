@@ -1,5 +1,45 @@
 [
   {
+    "version": "0.4.2",
+    "type": "patch",
+    "date": "2 April 2026",
+    "title": "Public profiles",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Public profiles — tap any leaderboard card, group run history name or challenge opponent to open their full profile in a modal. Shows stats, Frodo's Journey progress and titles."
+      },
+      {
+        "type": "improvement",
+        "description": "Scheduled events now appear in the sidebar widget with the same coming-soon countdown overlay as pending challenges."
+      }
+    ]
+  },
+  {
+    "version": "0.4.1",
+    "type": "patch",
+    "date": "2 April 2026",
+    "title": "Onboarding system",
+    "changes": [
+      {
+        "type": "feature",
+        "description": "Onboarding system — interactive feature tours guide new members through the leaderboard, challenges, events and profile page step by step."
+      },
+      {
+        "type": "feature",
+        "description": "Patch notes — new features trigger an in-app notification so you always know what changed. Full release history on the Features page."
+      },
+      {
+        "type": "improvement",
+        "description": "Frodo's Journey expanded with 24 new Tolkien waypoints (Weathertop, Lothlórien, Cirith Ungol and more) and a three-level zoom function to see your local progress in detail."
+      },
+      {
+        "type": "improvement",
+        "description": "Journey moved to its own full-width card directly below the profile header for better visibility."
+      }
+    ]
+  },
+  {
     "version": "0.4.0",
     "type": "minor",
     "date": "30 March 2026",

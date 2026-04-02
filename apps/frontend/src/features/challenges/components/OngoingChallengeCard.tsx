@@ -2,6 +2,7 @@ import React from 'react';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { Clock } from 'lucide-react';
+import { useUserProfileModal } from '@/providers/UserProfileModalProvider';
 import type { Challenge } from '@runquest/types';
 
 export interface ProgressEntry {
@@ -65,6 +66,7 @@ export const OngoingChallengeCard: React.FC<OngoingChallengeCardProps> = ({
   currentUserId,
   isOwn = false,
 }) => {
+  const { openProfile } = useUserProfileModal();
   const sorted = [...progress].sort((a, b) => b.value - a.value);
   const isGoalBased = sorted.some(p => p.goalValue != null);
   const goalValue = sorted[0]?.goalValue;
@@ -116,7 +118,11 @@ export const OngoingChallengeCard: React.FC<OngoingChallengeCardProps> = ({
               return (
                 <div key={p.user_id}>
                   <div className="flex justify-between items-baseline mb-0.5">
-                    <span style={{ ...barlow, fontSize: '0.8rem', fontWeight: isMe ? 700 : 500, color: isMe ? 'var(--rq-gold)' : 'var(--rq-text-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <span
+                      onClick={() => openProfile(p.user_id)}
+                      className="cursor-pointer hover:underline"
+                      style={{ ...barlow, fontSize: '0.8rem', fontWeight: isMe ? 700 : 500, color: isMe ? 'var(--rq-gold)' : 'var(--rq-text-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                    >
                       {p.name}
                     </span>
                     <span style={{ ...bebas, fontSize: '1rem', color: isMe ? 'var(--rq-gold)' : 'var(--rq-text-soft)' }}>
@@ -141,7 +147,11 @@ export const OngoingChallengeCard: React.FC<OngoingChallengeCardProps> = ({
             {/* Left player */}
             {sorted[0] && (
               <div className="space-y-0" style={{ background: 'var(--rq-surface-2)', border: '1px solid var(--rq-border-1)', padding: '6px 8px' }}>
-                <div style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }} className="truncate">
+                <div
+                  onClick={() => openProfile(sorted[0].user_id)}
+                  className="truncate cursor-pointer hover:underline"
+                  style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}
+                >
                   {sorted[0].name}
                 </div>
                 <div className="flex items-baseline gap-1">
@@ -161,7 +171,11 @@ export const OngoingChallengeCard: React.FC<OngoingChallengeCardProps> = ({
             {/* Right player */}
             {sorted[1] && (
               <div className="space-y-0 text-right" style={{ background: 'var(--rq-surface-2)', border: '1px solid var(--rq-border-1)', padding: '6px 8px' }}>
-                <div style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }} className="truncate">
+                <div
+                  onClick={() => openProfile(sorted[1].user_id)}
+                  className="truncate cursor-pointer hover:underline"
+                  style={{ ...barlow, fontSize: '0.7rem', color: 'var(--rq-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}
+                >
                   {sorted[1].name}
                 </div>
                 <div className="flex items-baseline gap-1 justify-end">

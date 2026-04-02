@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Badge } from '@/shared/components/ui/badge';
 import {
   CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings,
-  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords, CalendarDays, Sailboat
+  ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords, CalendarDays, GraduationCap
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useGroupName } from '@/shared/hooks/useGroupName';
@@ -101,16 +101,17 @@ const FeaturesPage: React.FC = () => {
   };
 
   const currentFeatures = [
-    { icon: <Trophy className="w-6 h-6" />,     title: 'Leaderboard',        description: 'Real-time ranking and level progression' },
-    { icon: <Trophy className="w-6 h-6" />,     title: 'Title System',        description: '20 competitive titles — from longest streak to fastest marathon, night runs to mountain elevation' },
-    { icon: <Zap className="w-6 h-6" />,        title: 'Run Logging',         description: 'Manual run entry with XP calculation' },
-    { icon: <Target className="w-6 h-6" />,     title: 'Strava Integration',  description: 'Automatic import from Strava' },
-    { icon: <Users className="w-6 h-6" />,      title: 'User Profiles',       description: 'Personal stats, run history and Frodo journey — see exactly where your total km puts you on the road to Mordor' },
-    { icon: <ScrollText className="w-6 h-6" />, title: 'Playbook',            description: 'Full game rules in one place — XP formula, streak multipliers, level thresholds, titles and challenge tokens explained' },
-    { icon: <Smartphone className="w-6 h-6" />, title: 'Mobile Responsive',   description: 'Optimized for all devices' },
-    { icon: <Moon className="w-6 h-6" />,       title: 'Dark Mode',           description: 'Switch between light and dark theme — defaults to system preference' },
-    { icon: <Swords className="w-6 h-6" />,       title: 'Challenges',  description: '1v1 challenges between group members — earn tokens at level-up, pick a metric and duration, winner gets a boost' },
-    { icon: <CalendarDays className="w-6 h-6" />, title: 'Events',      description: 'App-wide challenges that trigger automatically — daily time windows for morning and evening runs, weekly km and elevation competitions, and Storm Chaser events triggered by real weather forecasts' },
+    { icon: <Trophy className="w-6 h-6" />,         title: 'Leaderboard',       description: 'Real-time ranking and level progression' },
+    { icon: <Trophy className="w-6 h-6" />,         title: 'Title System',      description: '20 competitive titles — from longest streak to fastest marathon, night runs to mountain elevation' },
+    { icon: <Target className="w-6 h-6" />,         title: 'Strava Integration', description: 'Automatic import from Strava' },
+    { icon: <Users className="w-6 h-6" />,          title: 'User Profiles',     description: 'Personal stats, Frodo\'s Journey and titles — see exactly where your total km puts you on the road to Mordor' },
+    { icon: <Zap className="w-6 h-6" />,            title: 'Public Profiles',   description: 'Tap any leaderboard card, run history entry or challenge opponent to open their full profile — stats, journey progress and titles in a modal' },
+    { icon: <GraduationCap className="w-6 h-6" />,  title: 'Onboarding System', description: 'Interactive feature tours guide new members through each page step by step. Patch notes pop up automatically when new features ship' },
+    { icon: <ScrollText className="w-6 h-6" />,     title: 'Playbook',          description: 'Full game rules in one place — XP formula, streak multipliers, level thresholds, titles and challenge tokens explained' },
+    { icon: <Smartphone className="w-6 h-6" />,     title: 'Mobile Responsive', description: 'Optimized for all devices' },
+    { icon: <Moon className="w-6 h-6" />,           title: 'Dark Mode',         description: 'Switch between light and dark theme — defaults to system preference' },
+    { icon: <Swords className="w-6 h-6" />,         title: 'Challenges',        description: '1v1 challenges between group members — earn tokens at level-up, pick a metric and duration, winner gets a boost' },
+    { icon: <CalendarDays className="w-6 h-6" />,   title: 'Events',            description: 'App-wide challenges that trigger automatically — daily time windows for morning and evening runs, weekly km and elevation competitions, and Storm Chaser events triggered by real weather forecasts' },
   ];
 
   const workingOnFeatures: { icon: React.ReactNode; title: string; description: string; details: string[] }[] = [
@@ -121,22 +122,10 @@ const FeaturesPage: React.FC = () => {
       details: ['Weather-based badges', 'Streak and distance milestones', 'Special event badges'],
     },
     {
-      icon: <Users className="w-6 h-6" />,
-      title: 'Public Profiles',
-      description: 'Visit any member\'s profile to see their stats, titles and run history',
-      details: ['Public stats and titles', 'Full run history', 'Accessible from the leaderboard'],
-    },
-    {
       icon: <Smartphone className="w-6 h-6" />,
       title: 'Notifications',
       description: 'Stay updated on challenges, titles and group activity',
       details: ['Challenge invites and results', 'Title changes', 'Group milestones'],
-    },
-        {
-      icon: <Sailboat className="w-6 h-6" />,
-      title: 'Onboarding system',
-      description: 'Guided introduction for new users to get started quickly',
-      details: ['Step-by-step tutorials', 'Feature highlights', 'Personalized tips'],
     },
   ];
 

@@ -64,6 +64,11 @@ export const TOUR_LEADERBOARD_V1: TourStep[] = [
     title: 'Challenge Flags',
     description: 'The colored flags in the lower left corner represent the challenges that player has won. The crossed swords icon in the lower right corner indicates that the player is currently in an active challenge.',
   },
+  {
+    element: '[data-tour="leaderboard-card"]',
+    title: 'Player Profiles',
+    description: 'Tap any card to open that player\'s full profile — stats, Frodo\'s Journey progress and titles. You can also open profiles from the group run history and challenge views.',
+  },
 ];
 
 // ── / (titles tab) — tour_titles_v1 ──────────────────────────────────────
