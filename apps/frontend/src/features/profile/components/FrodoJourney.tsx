@@ -217,7 +217,7 @@ export const FrodoJourney: React.FC<{ totalKm: number }> = ({ totalKm }) => {
         {!done && totalKm > 0 && (
           <button
             onClick={cycleZoom}
-            className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded border border-foreground/20 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+            className="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded border border-foreground/20 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
           >
             {zoom < 2 ? <ZoomInIcon /> : <ZoomOutIcon />}
             {zoomLabels[zoom]}
@@ -232,7 +232,7 @@ export const FrodoJourney: React.FC<{ totalKm: number }> = ({ totalKm }) => {
         {computed.map(w => w.showLabel && (
           <span
             key={w.name}
-            className="absolute text-[10px] leading-none whitespace-nowrap transition-[left] duration-300 ease-in-out"
+            className="absolute text-xs leading-none whitespace-nowrap transition-[left] duration-300 ease-in-out"
             style={{
               top:       w.labelTop,
               left:      `${pctInView(w.km, vStart, vEnd)}%`,
@@ -306,7 +306,7 @@ export const FrodoJourney: React.FC<{ totalKm: number }> = ({ totalKm }) => {
 
         {/* Endpoint labels */}
         <span
-          className="absolute text-[10px] leading-none font-bold whitespace-nowrap"
+          className="absolute text-xs leading-none font-bold whitespace-nowrap"
           style={{
             top:   belowLabelTop,
             left:  0,
@@ -316,7 +316,7 @@ export const FrodoJourney: React.FC<{ totalKm: number }> = ({ totalKm }) => {
           {startLabel}
         </span>
         <span
-          className="absolute text-[10px] leading-none font-bold whitespace-nowrap"
+          className="absolute text-xs leading-none font-bold whitespace-nowrap"
           style={{
             top:   belowLabelTop,
             right: 0,
@@ -336,15 +336,20 @@ export const FrodoJourney: React.FC<{ totalKm: number }> = ({ totalKm }) => {
           </p>
         ) : (
           <>
-            <div className="text-xs text-muted-foreground">
-              <span
-                className="inline-block w-2.5 h-2.5 rounded-full border-2 border-background align-middle mr-1.5"
-                style={{ background: 'var(--rq-gold)', boxShadow: '0 0 4px color-mix(in srgb, var(--rq-gold) 60%, transparent)' }}
-              />
-              Last checkpoint: <span className="font-medium text-foreground">{checkpoint.name}</span>
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                <span
+                  className="inline-block w-2.5 h-2.5 rounded-full border-2 border-background align-middle mr-1.5"
+                  style={{ background: 'var(--rq-gold)', boxShadow: '0 0 4px color-mix(in srgb, var(--rq-gold) 60%, transparent)' }}
+                />
+                Last checkpoint: <span className="font-medium text-foreground">{checkpoint.name}</span>
+              </span>
+              <span>
+                {((posKm / JOURNEY_END_KM) * 100).toFixed(1)}% · {Math.round(totalKm).toLocaleString()} / {JOURNEY_END_KM.toLocaleString()} km
+              </span>
             </div>
             {nextCp && (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 <span
                   className="inline-block w-2.5 h-2.5 rounded-full align-middle mr-1.5"
                   style={{ border: '2px solid var(--rq-gold)', background: 'transparent' }}
@@ -353,9 +358,6 @@ export const FrodoJourney: React.FC<{ totalKm: number }> = ({ totalKm }) => {
                 {' — '}{nextCp.remaining.toLocaleString()} km away
               </div>
             )}
-            <div className="text-xs text-muted-foreground pl-4">
-              {((posKm / JOURNEY_END_KM) * 100).toFixed(1)}% · {Math.round(totalKm).toLocaleString()} / {JOURNEY_END_KM.toLocaleString()} km
-            </div>
           </>
         )}
       </div>

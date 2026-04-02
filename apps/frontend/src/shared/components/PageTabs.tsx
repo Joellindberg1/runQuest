@@ -6,6 +6,7 @@ interface Tab {
   label: string;
   icon?: React.ReactNode;
   tourAnchor?: string;
+  disabled?: boolean;
 }
 
 interface PageTabsProps {
@@ -35,9 +36,10 @@ export const PageTabs: React.FC<PageTabsProps> = ({ value, onValueChange, tabs, 
               key={tab.value}
               value={tab.value}
               data-tour={tab.tourAnchor}
+              disabled={tab.disabled}
               className="rounded-none flex items-center gap-1.5 py-2.5 border-b-2 border-transparent bg-transparent text-foreground/40 transition-all
                 data-[state=active]:border-[var(--rq-gold)] data-[state=active]:text-[var(--rq-gold)] data-[state=active]:bg-transparent data-[state=active]:shadow-none
-                hover:text-foreground/70"
+                hover:text-foreground/70 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-foreground/40"
               style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: '0.9rem', letterSpacing: '0.08em', fontWeight: 600, textTransform: 'uppercase' }}
             >
               {tab.icon}

@@ -37,7 +37,7 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId, userGend
                 const metricKey = titleDef?.metric_key;
                 const runnerUp = titleData?.runners_up?.[0];
                 return (
-                  <div key={title.title_id} className="p-3 bg-background border border-foreground/15 rounded-lg">
+                  <div key={title.title_id} className="p-3 bg-sidebar border-2 border-foreground/15 rounded-lg">
                     <div className="font-medium">{resolveGenderedTitle(title.title_name, userGender)}</div>
                     <div className="text-sm text-muted-foreground">
                       Your Record: {formatTitleValue(metricKey, title.value ?? 0)}
@@ -67,7 +67,7 @@ export const UserTitlesList: React.FC<UserTitlesListProps> = ({ userId, userGend
                 const metricKey = titleDef?.metric_key;
                 const holder = titleData?.holder;
                 return (
-                  <div key={title.title_id} className="p-3 bg-background border border-foreground/15 rounded-lg">
+                  <div key={title.title_id} className="p-3 bg-sidebar border-2 border-foreground/15 rounded-lg">
                     <div className="font-medium">{resolveGenderedTitle(title.title_name, userGender)}</div>
                     <div className="text-sm text-muted-foreground">
                       Your Record: {formatTitleValue(metricKey, title.value ?? 0)}

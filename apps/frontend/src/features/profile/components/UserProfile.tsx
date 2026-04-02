@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/components/ui/tabs';
+import { TabsContent } from '@/shared/components/ui/tabs';
 import { Medal } from 'lucide-react';
-import { UserRunHistory } from './UserRunHistory';
+import { PageTabs } from '@/shared/components/PageTabs';
 import { UserTitlesList } from './UserTitlesList';
 import { StatsTab } from './StatsTab';
 import type { User as UserType } from '@runquest/types';
@@ -19,12 +19,12 @@ const BadgesTab: React.FC = () => (
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
 const TABS = [
-  { value: 'stats',  label: 'Stats' },
-  { value: 'titles', label: 'Titles' },
-  { value: 'badges', label: 'Badges', disabled: true },
-] as const;
+  { value: 'stats',   label: 'Stats' },
+  { value: 'titles',  label: 'Titles', tourAnchor: 'profile-titles-tab' },
+  { value: 'badges',  label: 'Badges', disabled: true },
+];
 
-type TabValue = typeof TABS[number]['value'];
+type TabValue = 'stats' | 'titles' | 'badges';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -40,54 +40,16 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
   const [activeTab, setActiveTab] = useState<TabValue>('stats');
 
   return (
-    <div className="flex gap-4 h-auto md:h-[calc(100vh-5.5rem)] flex-col md:flex-row">
-
-      {/* Left: tab area */}
-      <div className="flex-1 min-w-0 flex flex-col bg-sidebar border-2 border-foreground/15 rounded-xl overflow-hidden">
-
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
-          {/* Tab list */}
-          <div className="px-4 pt-3 pb-0 border-b border-foreground/10 shrink-0">
-            <TabsList
-              className="grid w-full p-0 bg-transparent border-0"
-              style={{ gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))` }}
-            >
-              {TABS.map((tab) => (
-                <TabsTrigger
-                  key={tab.value}
-                  value={tab.value}
-                  {...(tab.value === 'titles' ? { 'data-tour': 'profile-titles-tab' } : {})}
-                  disabled={'disabled' in tab && tab.disabled}
-                  className="rounded-none py-2.5 border-b-2 border-transparent bg-transparent text-foreground/40 transition-all
-                    data-[state=active]:border-[var(--rq-gold)] data-[state=active]:text-[var(--rq-gold)] data-[state=active]:bg-transparent data-[state=active]:shadow-none
-                    hover:text-foreground/70 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-foreground/40"
-                  style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: '0.9rem', letterSpacing: '0.08em', fontWeight: 600, textTransform: 'uppercase' }}
-                >
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-
-          {/* Tab content — scrollable */}
-          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 min-h-0">
-            <TabsContent value="stats"  className="mt-0" data-tour="profile-stats">
-              <StatsTab user={user} allUsers={allUsers} />
-            </TabsContent>
-            <TabsContent value="titles" className="mt-0">
-              <UserTitlesList userId={user.id} userGender={user.gender} />
-            </TabsContent>
-            <TabsContent value="badges" className="mt-0">
-              <BadgesTab />
-            </TabsContent>
-          </div>
-        </Tabs>
-      </div>
-
-      {/* Right: Run History — always visible */}
-      <div className="w-full md:w-96 shrink-0 md:h-full">
-        <UserRunHistory runs={user.runs || []} onRunUpdated={onRunUpdated} />
-      </div>
-    </div>
+    <PageTabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)} tabs={TABS}>
+      <TabsContent value="stats" className="px-4 pb-4" data-tour="profile-stats">
+        <StatsTab user={user} allUsers={allUsers} onRunUpdated={onRunUpdated} />
+      </TabsContent>
+      <TabsContent value="titles" className="px-4 pb-4">
+        <UserTitlesList userId={user.id} userGender={user.gender} />
+      </TabsContent>
+      <TabsContent value="badges" className="px-4 pb-4">
+        <BadgesTab />
+      </TabsContent>
+    </PageTabs>
   );
 };
