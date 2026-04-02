@@ -70,7 +70,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allUsers, onRunU
           </div>
 
           {/* Tab content — scrollable */}
-          <div className="flex-1 overflow-y-auto px-4 pt-4 min-h-0">
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 min-h-0">
             <TabsContent value="stats"  className="mt-0" data-tour="profile-stats">
               <StatsTab user={user} allUsers={allUsers} />
             </TabsContent>

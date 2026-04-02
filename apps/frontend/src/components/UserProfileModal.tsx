@@ -152,7 +152,7 @@ export const UserProfileModal: React.FC<Props> = ({ userId, onClose }) => {
                 </TabsList>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto pb-4">
                 <TabsContent value="stats" className="mt-0 px-5 pt-4">
                   <StatsTab user={user} allUsers={allUsers} />
                 </TabsContent>
