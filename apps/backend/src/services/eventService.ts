@@ -521,6 +521,7 @@ export interface PoolMember {
   startHour: number;
   endHour: number;
   endMinute: number;
+  endDayOffset: number;
   condition: string | null;
 }
 
@@ -544,7 +545,7 @@ export async function getEventPool(poolName: string): Promise<EventPool | null> 
       weight,
       condition,
       event_pools!inner ( trigger_chance ),
-      event_templates!inner ( name, start_hour, end_hour, end_minute, active )
+      event_templates!inner ( name, start_hour, end_hour, end_minute, end_day_offset, active )
     `)
     .eq('event_pools.name', poolName)
     .eq('event_templates.active', true);
@@ -563,6 +564,7 @@ export async function getEventPool(poolName: string): Promise<EventPool | null> 
     startHour: Number(row.event_templates.start_hour),
     endHour: Number(row.event_templates.end_hour),
     endMinute: Number(row.event_templates.end_minute),
+    endDayOffset: Number(row.event_templates.end_day_offset ?? 0),
     condition: row.condition ?? null,
   }));
 

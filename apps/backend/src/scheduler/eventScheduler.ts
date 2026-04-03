@@ -114,7 +114,8 @@ async function runDailyParticipationDraw(): Promise<DailyDrawResult> {
   }
 
   const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endsAt   = atStockholm(tomorrow, picked.endHour, picked.endMinute);
+  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
+  const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Daily roll: "${picked.name}" selected for ${tomorrow} (weight ${picked.weight} / total ${totalWeight.toFixed(2)})`);
   await createForAllGroups(picked.name, startsAt, endsAt);
@@ -153,7 +154,8 @@ async function scheduleHangoverRun(): Promise<void> {
   const picked = pool.members[0];
   const tomorrow = tomorrowStockholm();
   const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endsAt   = atStockholm(tomorrow, picked.endHour, picked.endMinute);
+  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
+  const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Hangover Run triggered for ${tomorrow}`);
   await createForAllGroups(picked.name, startsAt, endsAt);
@@ -187,9 +189,10 @@ async function scheduleFridayEvent(): Promise<void> {
 
   const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
   const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endsAt   = atStockholm(tomorrow, picked.endHour, picked.endMinute);
+  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
+  const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
 
-  logger.info(`📅 [EventScheduler] Thursday roll: "${picked.name}" selected for ${tomorrow}`);
+  logger.info(`📅 [EventScheduler] Thursday roll: "${picked.name}" selected for ${tomorrow} (ends ${endDate})`);
   await createForAllGroups(picked.name, startsAt, endsAt);
 }
 

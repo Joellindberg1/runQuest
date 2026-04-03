@@ -791,7 +791,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
           streak_day: 1,
           xp_gained: 0,
           created_at: new Date().toISOString()
-        }).select('id, start_lat, start_lng, start_time, moving_time, is_treadmill').single();
+        }).select('id, external_id, start_lat, start_lng, start_time, moving_time, is_treadmill').single();
         if (error) {
           logger.error(`❌ Failed to insert run (activity ${activity.id}): ${error.message}`, { fields });
           throw error;
