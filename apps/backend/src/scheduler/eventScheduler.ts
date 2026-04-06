@@ -199,7 +199,7 @@ async function scheduleFridayEvent(): Promise<void> {
 // ─── Lördag — Weekly competition events ──────────────────────────────────────
 
 /**
- * Körs Lördag 20:00 Stockholm — skapar Weekly km + Weekly höjdmeter för nästa vecka.
+ * Körs Lördag 20:00 Stockholm — skapar Weekly km + Weekly elevation för nästa vecka.
  * Tävlingarna startar Måndag 00:01 och slutar Söndag 23:59.
  * Alltid deterministisk — ingen spawn chance.
  */
@@ -213,7 +213,7 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
   logger.info(`📅 [EventScheduler] Weekly competitions: ${monday} 00:01 → ${sunday} 23:59`);
   await Promise.allSettled([
     createForAllGroups('Weekly km', startsAt, endsAt),
-    createForAllGroups('Weekly höjdmeter', startsAt, endsAt),
+    createForAllGroups('Weekly elevation', startsAt, endsAt),
   ]);
 }
 
@@ -253,7 +253,7 @@ export function startEventScheduler(): void {
     }
   });
 
-  // Lördag 20:00 Stockholm ≈ 18:00 UTC — Weekly km + Weekly höjdmeter (deterministisk)
+  // Lördag 20:00 Stockholm ≈ 18:00 UTC — Weekly km + Weekly elevation (deterministisk)
   cron.schedule('0 18 * * 6', async () => {
     logger.info('⏰ [EventScheduler] Saturday — scheduling weekly competitions...');
     try {
@@ -263,8 +263,8 @@ export function startEventScheduler(): void {
     }
   });
 
-  // Söndag 23:55 Stockholm ≈ 21:55 UTC — settlement av competition-events
-  cron.schedule('55 21 * * 0', async () => {
+  // 23:05 UTC varje söndag — alltid efter weekly events ends_at (22:59 UTC vintertid, 21:59 UTC sommartid)
+  cron.schedule('5 23 * * 0', async () => {
     logger.info('⏰ [EventScheduler] Sunday settlement...');
     try {
       await settleCompetitionEvents();

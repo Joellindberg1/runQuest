@@ -5,6 +5,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { scheduleDailyParticipationEventTest } from '../scheduler/eventScheduler.js';
+import { toStockholmDate } from '../utils/dateUtils.js';
 
 const router = express.Router();
 
@@ -107,8 +108,8 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
             .from('runs')
             .select(isKm ? 'distance' : 'total_elevation_gain')
             .eq('user_id', p.user_id)
-            .gte('date', event.starts_at.slice(0, 10))
-            .lte('date', event.ends_at.slice(0, 10));
+            .gte('date', toStockholmDate(event.starts_at))
+            .lte('date', toStockholmDate(event.ends_at));
 
           const totalValue = (runs ?? []).reduce((sum: number, r: any) =>
             sum + Number(isKm ? r.distance : r.total_elevation_gain ?? 0), 0

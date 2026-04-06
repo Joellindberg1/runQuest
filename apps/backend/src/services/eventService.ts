@@ -2,6 +2,7 @@
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from '../utils/xpCalculation.js';
+import { toStockholmDate } from '../utils/dateUtils.js';
 
 // ─── maybeCreateEvent ─────────────────────────────────────────────────────────
 
@@ -308,8 +309,8 @@ export async function settleCompetitionEvents(): Promise<void> {
           .from('runs')
           .select(isKm ? 'distance' : 'total_elevation_gain')
           .eq('user_id', entry.user_id)
-          .gte('date', event.starts_at.slice(0, 10))
-          .lte('date', event.ends_at.slice(0, 10));
+          .gte('date', toStockholmDate(event.starts_at))
+          .lte('date', toStockholmDate(event.ends_at));
 
         const totalValue = (runs ?? []).reduce((sum: number, r: any) => {
           return sum + Number(isKm ? r.distance : r.total_elevation_gain ?? 0);

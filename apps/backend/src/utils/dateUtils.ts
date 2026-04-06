@@ -20,6 +20,11 @@ export function addDaysToDate(dateStr: string, days: number): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: STOCKHOLM }).format(result);
 }
 
+/** Konverterar en UTC ISO-sträng (timestamptz) till "YYYY-MM-DD" i Stockholm-tid. */
+export function toStockholmDate(isoString: string): string {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date(isoString));
+}
+
 /** Returns a Date representing 03:00 Stockholm time on the given "YYYY-MM-DD" date */
 export function at3amStockholm(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
