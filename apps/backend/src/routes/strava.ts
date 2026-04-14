@@ -833,6 +833,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
           runId: run.id,
           runDate: activity.start_date_local.split('T')[0],
           distanceKm: activity.distance / 1000,
+          isTreadmill: activity.trainer === true,
         }).catch((e: unknown) => logger.error('❌ checkEventQualification (strava) error:', e));
       }
     }

@@ -141,6 +141,7 @@ export async function checkEventQualification(params: {
   runId: string;
   runDate: string;    // "YYYY-MM-DD"
   distanceKm: number;
+  isTreadmill?: boolean;
   groupId?: string;   // om ej känt hämtas det från users-tabellen
 }): Promise<void> {
   const supabase = getSupabaseClient();
@@ -167,6 +168,7 @@ export async function checkEventQualification(params: {
     .select(`
       id,
       type,
+      metric,
       starts_at,
       ends_at,
       event_templates ( min_km, reward_xp )
@@ -215,6 +217,12 @@ export async function checkEventQualification(params: {
         }
 
       } else if (event.type === 'competition') {
+        // Löpbandsrundor kvalificerar inte för höjdmeter-tävlingar
+        if (params.isTreadmill && event.metric === 'elevation') {
+          logger.info(`ℹ️ [EventQual] Treadmill run skipped for elevation competition ${event.id}`);
+          continue;
+        }
+
         // Upsert — samma unika constraint, om entry redan finns gör ingenting
         const { error: upsertErr } = await supabase
           .from('event_entries')
@@ -305,12 +313,16 @@ export async function settleCompetitionEvents(): Promise<void> {
       const scored: Array<{ entryId: string; userId: string; totalValue: number }> = [];
 
       for (const entry of participants) {
-        const { data: runs } = await supabase
+        let runsQuery = supabase
           .from('runs')
           .select(isKm ? 'distance' : 'total_elevation_gain')
           .eq('user_id', entry.user_id)
           .gte('date', toStockholmDate(event.starts_at))
           .lte('date', toStockholmDate(event.ends_at));
+
+        if (!isKm) runsQuery = runsQuery.eq('is_treadmill', false);
+
+        const { data: runs } = await runsQuery;
 
         const totalValue = (runs ?? []).reduce((sum: number, r: any) => {
           return sum + Number(isKm ? r.distance : r.total_elevation_gain ?? 0);

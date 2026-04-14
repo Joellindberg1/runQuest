@@ -199,22 +199,38 @@ async function scheduleFridayEvent(): Promise<void> {
 // ─── Lördag — Weekly competition events ──────────────────────────────────────
 
 /**
- * Körs Lördag 20:00 Stockholm — skapar Weekly km + Weekly elevation för nästa vecka.
- * Tävlingarna startar Måndag 00:01 och slutar Söndag 23:59.
- * Alltid deterministisk — ingen spawn chance.
+ * Körs Lördag 20:00 Stockholm.
+ * Drar ur poolen "weekly_competition" — 35% chans att något triggas,
+ * sedan 50/50 mellan "Weekly km" och "Weekly elevation".
+ * Tävlingen startar Måndag 00:01 och slutar Söndag 23:59.
  */
 async function scheduleWeeklyCompetitions(): Promise<void> {
+  const pool = await getEventPool('weekly_competition');
+  if (!pool || !pool.members.length) {
+    logger.error('❌ [EventScheduler] Weekly competition pool not found or empty');
+    return;
+  }
+
+  // Steg 1: pool trigger chance gate — händer något alls?
+  if (Math.random() >= pool.triggerChance) {
+    logger.info(`📅 [EventScheduler] Weekly competition roll miss (${(pool.triggerChance * 100).toFixed(0)}% trigger chance)`);
+    return;
+  }
+
+  // Steg 2: viktad tärning — välj ETT event
+  const totalWeight = pool.members.reduce((s, c) => s + c.weight, 0);
+  let rand = Math.random() * totalWeight;
+  let picked = pool.members[pool.members.length - 1];
+  for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
+
   const today   = new Intl.DateTimeFormat('sv-SE', { timeZone: STOCKHOLM }).format(new Date());
   const monday  = addDaysToDate(today, 2);
   const sunday  = addDaysToDate(today, 8);
   const startsAt = atStockholm(monday, 0, 1);
   const endsAt   = atStockholm(sunday, 23, 59);
 
-  logger.info(`📅 [EventScheduler] Weekly competitions: ${monday} 00:01 → ${sunday} 23:59`);
-  await Promise.allSettled([
-    createForAllGroups('Weekly km', startsAt, endsAt),
-    createForAllGroups('Weekly elevation', startsAt, endsAt),
-  ]);
+  logger.info(`📅 [EventScheduler] Weekly competition: "${picked.name}" selected for ${monday}→${sunday} (weight ${picked.weight} / total ${totalWeight.toFixed(2)})`);
+  await createForAllGroups(picked.name, startsAt, endsAt);
 }
 
 // ─── Scheduler entry point ───────────────────────────────────────────────────

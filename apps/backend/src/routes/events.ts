@@ -104,12 +104,16 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
         const scored: Array<{ userId: string; userName: string; totalValue: number; rank: number }> = [];
         for (const p of participants) {
-          const { data: runs } = await supabase
+          let runsQuery = supabase
             .from('runs')
             .select(isKm ? 'distance' : 'total_elevation_gain')
             .eq('user_id', p.user_id)
             .gte('date', toStockholmDate(event.starts_at))
             .lte('date', toStockholmDate(event.ends_at));
+
+          if (!isKm) runsQuery = runsQuery.eq('is_treadmill', false);
+
+          const { data: runs } = await runsQuery;
 
           const totalValue = (runs ?? []).reduce((sum: number, r: any) =>
             sum + Number(isKm ? r.distance : r.total_elevation_gain ?? 0), 0
