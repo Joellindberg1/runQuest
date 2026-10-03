@@ -473,7 +473,8 @@ class BackendApiService {
       const response = await fetch(`${this.baseUrl}/strava/last-sync`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.getToken()}`
         }
       });
 
@@ -488,6 +489,42 @@ class BackendApiService {
     } catch (error) {
       console.error('❌ Get last sync error:', error);
       return { success: false, error: 'Failed to get sync info' };
+    }
+  }
+
+  // 👤 User Methods
+  async uploadProfilePicture(file: File): Promise<ApiResponse<{ profile_picture: string }>> {
+    try {
+      const token = this.getToken();
+      if (!token) {
+        return { success: false, error: 'No authentication token' };
+      }
+
+      const response = await fetch(`${this.baseUrl}/users/profile-picture`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': file.type,
+        },
+        body: file,
+      });
+
+      const result = await response.json();
+
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return { success: false, error: 'Session expired. Please log in again.' };
+      }
+
+      if (!response.ok) {
+        return { success: false, error: result.error || 'Failed to upload profile picture' };
+      }
+
+      return { success: true, data: result.data };
+
+    } catch (error) {
+      console.error('❌ Upload profile picture error:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Network error' };
     }
   }
 

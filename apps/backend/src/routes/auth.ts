@@ -26,14 +26,23 @@ router.post('/login', async (req, res): Promise<void> => {
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
     
-    // Find user by email or name in a single query
-    const { data: users, error } = await supabase
+    // Find user by email, then by name. .eq() skickar värdet parametriserat —
+    // användarinput får aldrig bli en del av filteruttrycket (PostgREST-injektion).
+    const { data: byEmail, error } = await supabase
       .from('users')
       .select('id, name, email, password_hash, is_admin, group_id')
-      .or(`email.eq.${nameOrEmail},name.eq.${nameOrEmail}`)
+      .eq('email', nameOrEmail)
       .limit(1);
 
-    const user = users?.[0] ?? null;
+    let user = byEmail?.[0] ?? null;
+    if (!user && !error) {
+      const { data: byName } = await supabase
+        .from('users')
+        .select('id, name, email, password_hash, is_admin, group_id')
+        .eq('name', nameOrEmail)
+        .limit(1);
+      user = byName?.[0] ?? null;
+    }
 
     if (error || !user) {
       logger.info('❌ User not found or database error:', error?.message);

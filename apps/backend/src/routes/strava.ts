@@ -510,7 +510,7 @@ export async function syncAllStravaUsers(): Promise<{
 }
 
 // GET /api/strava/last-sync - Get info about the last and next scheduled sync
-router.get('/last-sync', async (_req, res): Promise<void> => {
+router.get('/last-sync', authenticateJWT, async (_req, res): Promise<void> => {
   try {
     const info = getSyncInfo();
     res.json({

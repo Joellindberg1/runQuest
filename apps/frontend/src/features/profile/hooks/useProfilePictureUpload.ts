@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/clientWithAuth';
-import { useAuth } from '@/providers/AuthProvider';
+import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
 
@@ -8,7 +7,6 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export function useProfilePictureUpload(onUploadComplete?: () => void) {
   const [uploading, setUploading] = useState(false);
-  const { user } = useAuth();
 
   const upload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -28,30 +26,13 @@ export function useProfilePictureUpload(onUploadComplete?: () => void) {
         throw new Error('Only image files are allowed');
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+      // Uppladdning + users-uppdatering sker i backend (service role) —
+      // frontend har ingen skrivåtkomst mot storage/users i RLS.
+      const result = await backendApi.uploadProfilePicture(file);
 
-      if (user?.profile_picture) {
-        const oldFileName = user.profile_picture.split('/').pop();
-        if (oldFileName && oldFileName !== fileName) {
-          await supabase.storage.from('profile-pictures').remove([oldFileName]);
-        }
+      if (!result.success) {
+        throw new Error(result.error || 'Error uploading profile picture');
       }
-
-      const { error: uploadError } = await supabase.storage
-        .from('profile-pictures')
-        .upload(fileName, file, { cacheControl: '3600', upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from('profile-pictures').getPublicUrl(fileName);
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ profile_picture: data.publicUrl })
-        .eq('id', user?.id);
-
-      if (updateError) throw updateError;
 
       toast.success('Profile picture updated successfully!');
       onUploadComplete?.();

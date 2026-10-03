@@ -5,7 +5,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 // 🗄️ Import database
-import { testDatabaseConnection } from './config/database.js';
 // 🔐 Import auth routes
 import authRoutes from './routes/auth.js';
 // 🔗 Import Strava routes
@@ -22,6 +21,8 @@ import challengeRoutes from './routes/challenges.js';
 import eventRoutes from './routes/events.js';
 // 🎓 Import onboarding routes
 import onboardingRoutes from './routes/onboarding.js';
+// 👤 Import user routes
+import userRoutes from './routes/users.js';
 // 🕐 Import schedulers
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
@@ -123,7 +124,6 @@ app.get('/api', (_req, res) => {
     endpoints: {
       health: '/health',
       api: '/api',
-      database: '/api/database/test',
       auth: {
         login: '/api/auth/login',
         refresh: '/api/auth/refresh'
@@ -137,22 +137,6 @@ app.get('/api', (_req, res) => {
     version: '1.0.0',
     environment: requiredEnvVars.NODE_ENV
   });
-});
-
-// Database test endpoint
-app.get('/api/database/test', async (_req, res) => {
-  logger.info('🗄️ Database test requested');
-  try {
-    const result = await testDatabaseConnection();
-    res.json(result);
-  } catch (error) {
-    logger.error('❌ Database test error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Database connection failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
 });
 
 // 🔐 Auth routes
@@ -186,6 +170,10 @@ app.use('/api/events', eventRoutes);
 // 🎓 Onboarding routes
 logger.info('🎓 Mounting onboarding routes...');
 app.use('/api/onboarding', onboardingRoutes);
+
+// 👤 User routes
+logger.info('👤 Mounting user routes...');
+app.use('/api/users', userRoutes);
 
 // 404 handler
 app.use((req, res) => {

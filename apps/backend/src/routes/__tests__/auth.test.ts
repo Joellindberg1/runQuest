@@ -96,7 +96,7 @@ afterAll(() => {
 
 /**
  * Build a Supabase query stub where .limit() resolves with `result`.
- * All chained methods (from/select/or) return `this` so the chain works.
+ * All chained methods (from/select/eq) return `this` so the chain works.
  * data is wrapped in an array to match the real Supabase .limit() response.
  */
 function buildQueryStub(result: { data: any; error: any }) {
@@ -106,7 +106,7 @@ function buildQueryStub(result: { data: any; error: any }) {
   return {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
-    or: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue(limitResult),
   };
 }

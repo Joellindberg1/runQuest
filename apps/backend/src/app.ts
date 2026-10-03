@@ -12,6 +12,7 @@ import onboardingRoutes from './routes/onboarding.js';
 import stravaRoutes from './routes/strava.js';
 import titleRoutes from './routes/titles.js';
 import runRoutes from './routes/runs.js';
+import userRoutes from './routes/users.js';
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/strava', stravaRoutes);
 app.use('/api/titles', titleRoutes);
 app.use('/api/runs', runRoutes);
+app.use('/api/users', userRoutes);
 
 // 404 handler
 app.use((req, res) => {
