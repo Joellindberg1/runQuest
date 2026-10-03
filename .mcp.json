@@ -13,11 +13,11 @@
       "command": "npx",
       "args": [
         "-y",
-        "@supabase/mcp-server-supabase",
-        "--access-token",
-        "sbp_1178ca447ae9da6d731e0a03cfa012eb4512dd01"
+        "@supabase/mcp-server-supabase"
       ],
-      "env": {}
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
     }
   }
 }
