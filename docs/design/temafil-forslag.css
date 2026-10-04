@@ -400,6 +400,22 @@
   --rq-duels-sheet-edge-w: 2px;                                       /* guld toppkant på bottensheeten (desktop 1 px runtom) */
   --rq-duels-sheet-actions-dir: column;                               /* desktop: row (Send + Cancel) */
   --rq-duels-sheet-cancel-display: none;                              /* mobil stänger med ✕; desktop visar Cancel */
+
+  /* ── 1.24 Events-mått (inkrement 6) ────────────────────────────────────────
+     Mått ur App-/Web-prototypens events-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala (ringens siffra är undantaget: klockan i ringen har
+     egen storlek, mobil 15 · desktop 22). Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/events/events.css. */
+  --rq-events-split-cols: minmax(0, 1fr);                  /* desktop: öppet/up next/veckan | Your record + historik (340 px) */
+  --rq-events-week-cols: minmax(0, 1fr);                   /* "This week": mobil rader, desktop 3 kort bredvid varandra */
+  --rq-events-ring: 88px;                                  /* nedräkningsringen (desktop 132) */
+  --rq-events-ring-inset: 6px;                             /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-events-ring-fs: 15px;                               /* tiden i ringen (desktop 22) */
+  --rq-events-ring-order: 0;                               /* mobil: ringen före texten; desktop: efter (1) */
+  --rq-events-live-gap: 14px;                              /* ring ↔ text (desktop 28) */
+  --rq-events-sweep-w: 70px;                               /* sweep-bandet på levande kort (desktop 80) */
+  --rq-events-board-cols: 26px minmax(0, 1fr) 70px 64px;   /* tävlingstabell: plats · namn · värde · pris (desktop 40 · 1fr · 100 · 90) */
+  --rq-events-pager-btn: 24px;                             /* sidknappens minsta bredd */
 }
 
 
@@ -461,6 +477,15 @@
     --rq-duels-sheet-edge-w: 1px;
     --rq-duels-sheet-actions-dir: row;
     --rq-duels-sheet-cancel-display: inline-flex;
+    --rq-events-split-cols: minmax(0, 1fr) 340px;
+    --rq-events-week-cols: repeat(3, minmax(0, 1fr));
+    --rq-events-ring: 132px;
+    --rq-events-ring-inset: 8px;
+    --rq-events-ring-fs: 22px;
+    --rq-events-ring-order: 1;
+    --rq-events-live-gap: 28px;
+    --rq-events-sweep-w: 80px;
+    --rq-events-board-cols: 40px minmax(0, 1fr) 100px 90px;
   }
 }
 

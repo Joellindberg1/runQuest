@@ -8,6 +8,8 @@ import {
 // inom fönstret; ett competition-event rankar gruppen på total km/höjdmeter och betalar topp tre när veckan avräknas.
 // Events dras slumpmässigt kvällen före — det finns inget framtida "schema", så "This week" visar bara det som faktiskt är schemalagt.
 
+/** Sökparametern för historikens sida (ADR 006: historiken sidas med ?page=). */
+export const PAGE_PARAM = 'page';
 /** Historiksidor om sex rader, som designens pager. */
 export const HISTORY_PAGE_SIZE = 6;
 /** Mitt facit läser hela historiken i sidor om 50 (endpointens max) — högst så här många sidor. */
