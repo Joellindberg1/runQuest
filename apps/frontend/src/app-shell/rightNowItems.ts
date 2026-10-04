@@ -178,7 +178,15 @@ function duelItem(input: RightNowInput): RightNowItem | null {
 
 function stravaItem(input: RightNowInput): RightNowItem | null {
   const { strava, now } = input;
-  if (!strava?.connected || !strava.nextSyncAt) return null;
+  if (!strava) return null;
+  if (!strava.connected) {
+    // Ej kopplat: en väg in för nya användare, och ankare för tour-steget.
+    return {
+      id: 'strava', kind: 'strava', label: 'Strava', note: 'Not connected', value: 'Connect',
+      tone: 'up', icon: 'sync', to: paths.settings, tourAnchor: 'right-now-strava',
+    };
+  }
+  if (!strava.nextSyncAt) return null;
   const msLeft = new Date(strava.nextSyncAt).getTime() - now.getTime();
   if (Number.isNaN(msLeft)) return null;
   return {

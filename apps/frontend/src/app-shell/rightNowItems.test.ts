@@ -84,8 +84,11 @@ describe('buildRightNow', () => {
     expect(items[0].value).toMatch(/^(\d+h|\d+ m|1 d)$/);
   });
 
-  it('Strava: bara när kopplad och nästa sync är känd; förfallen sync visas som Overdue', () => {
-    expect(buildRightNow({ ...baseInput, strava: { connected: false, nextSyncAt: '2026-10-04T18:30:00Z' } })).toEqual([]);
+  it('Strava: ej kopplat ger Connect-pill (länk till /settings, tour-ankare); kopplad utan känd sync ger ingen; förfallen sync visas som Overdue', () => {
+    const connect = buildRightNow({ ...baseInput, strava: { connected: false, nextSyncAt: null } });
+    expect(connect).toHaveLength(1);
+    expect(connect[0]).toMatchObject({ kind: 'strava', value: 'Connect', tone: 'up', to: '/settings', tourAnchor: 'right-now-strava' });
+    expect(buildRightNow({ ...baseInput, strava: null })).toEqual([]);
     expect(buildRightNow({ ...baseInput, strava: { connected: true, nextSyncAt: null } })).toEqual([]);
 
     const soon = buildRightNow({ ...baseInput, strava: { connected: true, nextSyncAt: '2026-10-04T18:28:00Z' } });

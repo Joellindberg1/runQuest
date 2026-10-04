@@ -164,10 +164,19 @@ describe('Header', () => {
 });
 
 describe('Right now', () => {
-  it('visar inga piller när data saknas', async () => {
+  it('visar inga piller när data saknas (Strava okänd/ej hämtad)', async () => {
+    handlers.getStravaStatus = () => ({ success: false, error: 'down' });
     renderWithApp(<Tree />, { entry: '/board', width: MOBILE_WIDTH });
     await screen.findByText('Wolfpack');
     expect(screen.queryByRole('list', { name: 'Right now' })).toBeNull();
+  });
+
+  it('Strava ej kopplat: Connect-pillen länkar till /settings och bär tour-ankaret', async () => {
+    const { container } = renderWithApp(<Tree />, { entry: '/board', width: MOBILE_WIDTH });
+    const pill = await screen.findByRole('link', { name: /Strava.*Connect/ });
+
+    expect(pill).toHaveAttribute('href', '/settings');
+    expect(container.querySelector('[data-tour="right-now-strava"]')).toBe(pill);
   });
 
   it('visar event- och Strava-piller ur befintliga endpoints, med Strava som tour-ankare', async () => {

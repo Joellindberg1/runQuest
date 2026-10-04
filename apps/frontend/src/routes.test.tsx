@@ -45,7 +45,7 @@ describe('varje route renderar utan krasch inne i skalet', () => {
     renderWithApp(<AppRoutes />, { entry: '/news', width: MOBILE });
 
     expect(await screen.findByRole('heading', { name: 'Pack News' })).toBeInTheDocument();
-    expect(screen.getByText('Pack News kommer i inkrement 9.')).toBeInTheDocument();
+    expect(screen.getByText('Coming soon — every title takeover, duel and level up in one feed.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Back to the board' }));
     await waitFor(() => expect(location()).toBe('/board'));
   });
