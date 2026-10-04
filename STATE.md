@@ -83,7 +83,10 @@ Produkt: ny kod kräver tester · hela sviten grön + CI-status före merge ·
          release-preview + användarens "kör vidare" före live · release =
          tagg + changelog · hotfix: direkt till builder-par, full svit + rök
          före deploy (hoppa councils, aldrig verifiering) · error tracking
-         aktiv (Sentry — GAP, ej uppsatt) · previewns databas enligt
-         staging-ADR (GAP, öppet vägval), aldrig prod.
+         aktiv (Sentry — GAP, ej uppsatt) · previewns databas: ÄGARBESLUT
+         2026-10-05 — ingen staging så länge appen har EN testgrupp;
+         preview/verifiering får ske mot prod med testgruppen som testare.
+         OMPRÖVAS när multi-grupp byggs (då krävs staging enligt
+         ursprungsregeln; baslinjen 000_baseline.sql gör den snabb att resa).
          Frontend-typecheck/lint: blockerande, 0 fel/0 varningar (ADR 001,
          skulden betald 2026-10-04).
