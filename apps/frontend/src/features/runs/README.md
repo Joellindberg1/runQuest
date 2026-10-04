@@ -1,57 +1,8 @@
 # Runs Feature
 
-Run logging, editing, and history display.
+Det som blev kvar av `features/runs` när Log-skärmen byggdes om (inkrement 7): bara `hooks/useRunUpdates.ts`.
 
-## Structure
-
-- **components/** - Run-related components
-  - `RunLogger.tsx` - Manual run entry form
-  - `EditRunDialog.tsx` - Edit existing runs
-  - `RunHistoryGroup.tsx` - Group run history feed
-- **index.ts** - Public API exports
-
-## Components
-
-### RunLogger
-Manual run entry with date and distance.
-
-**Features:**
-- Date picker (max: today)
-- Distance input with validation
-- Smart XP calculation preview
-- Strava import option
-
-### EditRunDialog
-Edit or delete existing runs.
-
-**Features:**
-- Update distance
-- Update date
-- Delete run
-- Automatic XP recalculation
-
-### RunHistoryGroup
-Chronological feed of all users' runs.
-
-**Features:**
-- User avatars and names
-- Run details (distance, XP, streak)
-- Strava/Manual indicators
-- Date grouping
-
-## Usage
-
-```tsx
-import { RunLogger, EditRunDialog, RunHistoryGroup } from '@/features/runs';
-
-<RunLogger onRunSubmit={handleSubmit} />
-<EditRunDialog run={selectedRun} onClose={handleClose} />
-<RunHistoryGroup />
-```
-
-## API Integration
-
-- Create run: `backendApi.createRun()`
-- Update run: `backendApi.updateRun()`
-- Delete run: `backendApi.deleteRun()`
-- Get history: `backendApi.getGroupRunHistory()`
+- **Logga runda och Group history** → `features/log` (se dess README). `RunLogger`, `RunHistoryGroup`, `useCreateRun` och `useGroupRunHistory` är borta.
+- **Redigera/radera en runda** ligger i Profile: `features/profile/components/UserRunHistory` → `shared/components/EditRunDialog` →
+  `shared/hooks/useRunMutations` (`PUT/DELETE /runs/:id`). Efter en ändring anropas `onRunUpdated` (`useRunUpdates`), som hämtar om `users-with-runs`.
+  Profile ritas om i inkrement 8 — flytta `useRunUpdates` dit då, så kan den här mappen tas bort.

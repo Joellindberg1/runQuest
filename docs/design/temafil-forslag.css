@@ -416,6 +416,26 @@
   --rq-events-sweep-w: 70px;                               /* sweep-bandet på levande kort (desktop 80) */
   --rq-events-board-cols: 26px minmax(0, 1fr) 70px 64px;   /* tävlingstabell: plats · namn · värde · pris (desktop 40 · 1fr · 100 · 90) */
   --rq-events-pager-btn: 24px;                             /* sidknappens minsta bredd */
+  /* ── 1.25 Log-mått (inkrement 7) ───────────────────────────────────────────
+     Mått ur App-/Web-prototypens log-skärm som saknade token. Endast mått — ingen typskala, med undantaget att
+     historikcellernas siffra/etikett (Bebas 16/24, etikett 9/12) och Estimated XP-siffran (52/68) har egen storlek i
+     prototypen. Löpbandets blå är samma blå som minor-nivån (tier-minor), under eget namn så att rollen syns.
+     Mobil = standard; desktop skriver över i avsnitt 2. Konsument: features/log/log.css. */
+  --rq-log-split-cols: minmax(0, 1fr);                     /* desktop: formulär | Estimated XP + effekter (400 px) */
+  --rq-log-fields-cols: minmax(0, 1fr);                    /* datum + distans: mobil staplade, desktop bredvid varandra */
+  --rq-log-xp-size: 52px;                                  /* Estimated XP-siffran (desktop 68) */
+  --rq-log-avatar: 38px;                                   /* avatar i historikkortet (desktop 46) */
+  --rq-log-run-cols: minmax(0, 1fr) auto;                  /* historikkort: mobil vem | km+XP, celler under; desktop vem | celler | km+XP (250 · 1fr · 210) */
+  --rq-log-run-areas: "who totals" "cells cells";
+  --rq-log-run-gap: 10px;                                  /* desktop 24 */
+  --rq-log-run-align: start;                               /* desktop center */
+  --rq-log-totals-gap: 4px;                                /* km ↔ XP (desktop 14) */
+  --rq-log-tag-break: none;                                /* desktop: underlaget på egen rad, väder + källa under (block) */
+  --rq-log-cell-fs: 16px;                                  /* historikcellens siffra (desktop 24) */
+  --rq-log-cell-label-fs: 9px;                             /* … och etikett (desktop 12) */
+  --rq-log-cell-pad: 7px 5px;                              /* desktop 14px 11px */
+  --rq-log-treadmill-rgb: var(--rq-tier-minor-rgb);        /* löpband = samma blå som minor-nivån */
+  --rq-log-treadmill: var(--rq-tier-minor-fg);
 }
 
 
@@ -486,6 +506,19 @@
     --rq-events-live-gap: 28px;
     --rq-events-sweep-w: 80px;
     --rq-events-board-cols: 40px minmax(0, 1fr) 100px 90px;
+    --rq-log-split-cols: minmax(0, 1fr) 400px;
+    --rq-log-fields-cols: repeat(2, minmax(0, 1fr));
+    --rq-log-xp-size: 68px;
+    --rq-log-avatar: 46px;
+    --rq-log-run-cols: 250px minmax(0, 1fr) 210px;
+    --rq-log-run-areas: "who cells totals";
+    --rq-log-run-gap: 24px;
+    --rq-log-run-align: center;
+    --rq-log-totals-gap: 14px;
+    --rq-log-tag-break: block;
+    --rq-log-cell-fs: 24px;
+    --rq-log-cell-label-fs: 12px;
+    --rq-log-cell-pad: 14px 11px;
   }
 }
 

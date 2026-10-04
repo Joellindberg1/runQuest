@@ -2,7 +2,7 @@
 import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
-  ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse,
+  ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
 } from '@runquest/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -78,16 +78,6 @@ export interface AdminUser {
   longest_streak: number;
   created_at: string;
   total_runs: number;
-}
-
-/** Shape of each row from GET /runs/group-history. */
-export interface GroupRunHistoryEntry extends Run {
-  weather_code?: number | null;
-  temperature_c?: number | null;
-  user_name: string;
-  user_level: number;
-  user_total_xp?: number;
-  user_profile_picture?: string;
 }
 
 /** Shape of each row from GET /titles/group-eligibility. */
@@ -922,31 +912,12 @@ class BackendApiService {
     }
   }
 
-  async getGroupRunHistory(): Promise<ApiResponse<GroupRunHistoryEntry[]>> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/runs/group-history`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.getToken()}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          this.handleUnauthorized();
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
-        throw new Error(data.error || 'Failed to fetch group run history');
-      }
-
-      return { success: true, data: data.runs };
-    } catch (error) {
-      console.error('❌ Error fetching group run history:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-    }
+  /**
+   * GET /runs/group-history — gruppens rundor, nyast först (ADR 007 B9). Offset-sidor: `meta.has_more` säger om det finns fler
+   * (sidstorlek default 100, max 200). Svaret behåller nyckeln `runs` + additivt `meta`.
+   */
+  async getGroupRunHistoryPage(limit: number, offset: number): Promise<ApiResponse<GroupRunHistoryResponse>> {
+    return this.authenticatedRequest<GroupRunHistoryResponse>(`/runs/group-history?limit=${limit}&offset=${offset}`);
   }
 
   // ─── Groups ──────────────────────────────────────────────────────────────
@@ -1100,7 +1071,8 @@ class BackendApiService {
 
   // ─── Runs ─────────────────────────────────────────────────────────────────
 
-  async createRun(date: string, distance: number, source: string = 'manual'): Promise<ApiResponse<Run>> {
+  /** POST /runs. `isTreadmill` utelämnas → kolumnen förblir NULL (okänt); formuläret skickar alltid en bool. */
+  async createRun(date: string, distance: number, source: string = 'manual', isTreadmill?: boolean): Promise<ApiResponse<Run>> {
     try {
       const response = await fetch(`${API_BASE_URL}/runs`, {
         method: 'POST',
@@ -1108,7 +1080,7 @@ class BackendApiService {
           'Authorization': `Bearer ${this.getToken()}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ date, distance, source }),
+        body: JSON.stringify({ date, distance, source, ...(isTreadmill !== undefined && { is_treadmill: isTreadmill }) }),
       });
 
       const data = await response.json();

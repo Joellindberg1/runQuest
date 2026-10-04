@@ -1,0 +1,127 @@
+/* Log runs-skärmen (inkrement 7): rubrik · flikar (Log a run / Group history) · Strava-rad · formulär · Estimated XP ·
+   "What this run does" · group history. ENDAST tokens (regel 1). Måtten (--rq-log-*) definieras i temafilen, sektion 1.25
+   (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
+   Ligger utanför @layer, så reglerna här slår de delade .rq-*-primitiverna (som ligger i @layer components). */
+
+/* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
+.rq-log { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-log__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-log__title { margin: 0; font-weight: 400; text-transform: uppercase; }
+.rq-log__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-log__tabs { display: flex; flex-wrap: wrap; gap: var(--rq-sp-6); }
+.rq-log__tabs > [role="tab"] { display: inline-flex; align-items: center; gap: var(--rq-sp-6); padding: var(--rq-sp-6) var(--rq-sp-12); font-family: var(--rq-font-ui); }
+.rq-log__tabs > [role="tab"]:not([aria-selected="true"]) { background: none; }
+.rq-log__panel { min-width: 0; }
+.rq-log__split { display: grid; grid-template-columns: var(--rq-log-split-cols); gap: var(--rq-sp-16); align-items: start; }
+.rq-log__main, .rq-log__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); min-width: 0; }
+
+/* ── Strava-raden (mobil): statuschip-receptet i bannerstorlek ─────────────── */
+.rq-log-strava {
+  --rq-log-tone-rgb: var(--rq-ink-rgb); --rq-log-tone: var(--rq-text-3);
+  display: flex; align-items: center; gap: var(--rq-sp-10); padding: var(--rq-sp-10) var(--rq-sp-12);
+  border: var(--rq-hair) solid var(--rq-line-4); color: var(--rq-log-tone);
+}
+.rq-log-strava[data-tone="up"] { --rq-log-tone-rgb: var(--rq-up-rgb); --rq-log-tone: var(--rq-up); }
+.rq-log-strava[data-tone="down"] { --rq-log-tone-rgb: var(--rq-down-rgb); --rq-log-tone: var(--rq-down); }
+.rq-log-strava[data-tone="up"], .rq-log-strava[data-tone="down"] {
+  background: rgb(var(--rq-log-tone-rgb) / var(--rq-tint-status)); border-color: rgb(var(--rq-log-tone-rgb) / var(--rq-edge-status));
+}
+.rq-log-strava__text { flex: 1; min-width: 0; }
+.rq-log-strava__title { margin: 0; font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-btn-sm); text-transform: uppercase; }
+.rq-log-strava__sub { margin: 0; font-size: var(--rq-fs-label); color: var(--rq-text-4); }
+.rq-log-strava[data-tone="muted"] .rq-log-strava__title { color: var(--rq-text-2); }
+
+/* ── Formuläret ───────────────────────────────────────────────────────────── */
+.rq-log-form { display: flex; flex-direction: column; gap: var(--rq-sp-14); }
+.rq-log-form__fields { display: grid; grid-template-columns: var(--rq-log-fields-cols); gap: var(--rq-gap-stack) var(--rq-sp-16); }
+.rq-log-field { min-width: 0; }
+.rq-log-label { display: block; margin-bottom: var(--rq-sp-6); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-log-note { margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+.rq-log-note[data-tone="error"] { color: var(--rq-down); }
+.rq-log-quick { display: flex; flex-wrap: wrap; gap: var(--rq-sp-6); }
+.rq-log-quick > .rq-filter { padding: var(--rq-sp-6) var(--rq-sp-12); font-family: var(--rq-font-ui); font-weight: 600; letter-spacing: var(--rq-ls-chip); }
+
+/* Utomhus (grön) / löpband (blå): valt = statuschip-receptet i accentens färg, vilande = hårlinje */
+.rq-log-surface { display: flex; gap: var(--rq-sp-8); }
+.rq-log-surface__option {
+  flex: 1; padding: var(--rq-sp-8); text-align: center; cursor: pointer; background: none;
+  font-family: var(--rq-font-ui); font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-chip); text-transform: uppercase;
+  border: var(--rq-hair) solid var(--rq-line-5); color: var(--rq-text-4);
+}
+.rq-log-surface__option[data-surface="outdoor"][aria-pressed="true"] {
+  background: rgb(var(--rq-up-rgb) / var(--rq-tint-status)); border-color: rgb(var(--rq-up-rgb) / var(--rq-edge-status)); color: var(--rq-up);
+}
+.rq-log-surface__option[data-surface="treadmill"][aria-pressed="true"] {
+  background: rgb(var(--rq-log-treadmill-rgb) / var(--rq-tint-status)); border-color: rgb(var(--rq-log-treadmill-rgb) / var(--rq-edge-status)); color: var(--rq-log-treadmill);
+}
+.rq-log-surface__option[data-surface="treadmill"]:hover:not([aria-pressed="true"]) { border-color: rgb(var(--rq-log-treadmill-rgb) / var(--rq-edge-status)); color: var(--rq-log-treadmill); }
+
+/* Bekräftelse och serverfel: permanenta live-regioner som inte tar plats (eller flex-gap) när de är tomma */
+.rq-log-notice-slot:empty { height: 0; margin-top: calc(var(--rq-sp-14) * -1); }
+.rq-log-notice {
+  margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); font-size: var(--rq-fs-meta); color: var(--rq-text-2);
+  background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w) solid var(--rq-up);
+}
+.rq-log-notice[data-tone="error"] { border-color: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); border-left-color: var(--rq-down); color: var(--rq-down); }
+
+/* ── Estimated XP ─────────────────────────────────────────────────────────── */
+.rq-card.rq-log-xp { text-align: center; border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-status)); }
+.rq-log-xp__eyebrow { margin: 0; }
+.rq-log-xp__total { margin: var(--rq-sp-2) 0 var(--rq-sp-10); font-family: var(--rq-font-display); font-size: var(--rq-log-xp-size); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+.rq-log-xp__rows, .rq-log-effects__rows { margin: 0; padding: 0; list-style: none; text-align: left; }
+.rq-log-xp__row, .rq-log-effects__row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: var(--rq-sp-12);
+  padding: var(--rq-sp-8) var(--rq-pad-row-x); background: var(--rq-cell);
+}
+.rq-log-xp__label { font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-log-xp__value { flex-shrink: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-body); color: var(--rq-text-2); }
+.rq-log-xp__note { margin: var(--rq-sp-10) 0 0; text-align: left; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+.rq-log-xp__note + .rq-log-xp__note { margin-top: var(--rq-sp-4); }
+
+/* ── What this run does ───────────────────────────────────────────────────── */
+.rq-log-effects__eyebrow { margin: 0 0 var(--rq-sp-8); }
+.rq-log-effects__label { font-size: var(--rq-fs-body); color: var(--rq-text-3); }
+.rq-log-effects__value { text-align: right; font-weight: 600; font-size: var(--rq-fs-body); color: var(--rq-text-2); }
+.rq-log-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) var(--rq-pad-card); }
+
+/* Tonerna delas av uppställningen, effekterna och historikcellerna */
+.rq-log-xp__value[data-tone="muted"], .rq-log-effects__value[data-tone="muted"], .rq-log-cell__value[data-tone="muted"] { color: var(--rq-text-4); }
+.rq-log-xp__value[data-tone="gold"], .rq-log-effects__value[data-tone="gold"], .rq-log-cell__value[data-tone="gold"] { color: var(--rq-gold-text); }
+.rq-log-xp__value[data-tone="up"], .rq-log-effects__value[data-tone="up"], .rq-log-cell__value[data-tone="up"] { color: var(--rq-up); }
+.rq-log-xp__value[data-tone="down"], .rq-log-effects__value[data-tone="down"], .rq-log-cell__value[data-tone="down"] { color: var(--rq-down); }
+
+/* ── Group history ────────────────────────────────────────────────────────── */
+.rq-log-history { display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+.rq-log-history__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+.rq-card.rq-log-run {
+  display: grid; grid-template-columns: var(--rq-log-run-cols); grid-template-areas: var(--rq-log-run-areas);
+  gap: var(--rq-sp-10) var(--rq-log-run-gap); align-items: var(--rq-log-run-align);
+}
+/* Min egen runda: guldkant (samma markering som "jag" i Events och Duels) */
+.rq-log-run[data-me="true"] { --rq-edge: var(--rq-card-edge-hero); --rq-edge-line: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); }
+.rq-log-run__who { grid-area: who; display: flex; align-items: flex-start; gap: var(--rq-sp-12); min-width: 0; }
+.rq-log-run__avatar { width: var(--rq-log-avatar); height: var(--rq-log-avatar); flex-shrink: 0; overflow: hidden; padding: 0; cursor: pointer; font-size: var(--rq-fs-label); }
+.rq-log-run__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.rq-log-run__id { min-width: 0; }
+.rq-log-run__name { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; font-weight: 700; font-size: var(--rq-fs-name); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-2); }
+.rq-log-run__name:hover { color: var(--rq-text-1); }
+.rq-log-run__date { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); color: var(--rq-text-4); }
+.rq-log-run__tags { margin: var(--rq-sp-6) 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); }
+.rq-log-tag {
+  padding: var(--rq-sp-2) var(--rq-sp-8); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase;
+  border: var(--rq-hair) solid var(--rq-line-5); color: var(--rq-text-3);
+}
+.rq-log-tag[data-surface="outdoor"] { background: rgb(var(--rq-up-rgb) / var(--rq-tint-status)); border-color: rgb(var(--rq-up-rgb) / var(--rq-edge-status)); color: var(--rq-up); }
+.rq-log-tag[data-surface="treadmill"] { background: rgb(var(--rq-log-treadmill-rgb) / var(--rq-tint-status)); border-color: rgb(var(--rq-log-treadmill-rgb) / var(--rq-edge-status)); color: var(--rq-log-treadmill); }
+.rq-log-run__break { display: var(--rq-log-tag-break); flex-basis: 100%; height: 0; }
+.rq-log-run__weather { display: inline-flex; align-items: center; gap: var(--rq-sp-4); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-log-run__source { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-log-run__source[data-strava="true"] { color: var(--rq-strava); }
+.rq-log-run__totals { grid-area: totals; margin: 0; display: flex; flex-direction: column; align-items: flex-end; gap: var(--rq-log-totals-gap); }
+.rq-log-run__km { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); white-space: nowrap; }
+.rq-log-run__xp { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); white-space: nowrap; }
+.rq-log-run__cells { grid-area: cells; margin: 0; padding: 0; list-style: none; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.rq-log-cell { display: flex; flex-direction: column; align-items: center; padding: var(--rq-log-cell-pad); background: var(--rq-cell); }
+.rq-log-cell__value { font-family: var(--rq-font-display); font-size: var(--rq-log-cell-fs); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+.rq-log-cell__label { margin-top: var(--rq-sp-2); font-size: var(--rq-log-cell-label-fs); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-log-more { width: 100%; }

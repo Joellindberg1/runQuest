@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/providers/authContext';
 import { backendApi } from '@/shared/services/backendApi';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
+import { useStravaLastSync, useStravaStatus } from '@/shared/hooks/useStravaQueries';
 import { eventPhase } from '@/features/events/eventsModel';
 import { useOpenEvents } from '@/features/events/hooks/useEventsQueries';
 import { buildRightNow, type RightNowItem, type ShellDuel, type ShellEvent } from './rightNowItems';
@@ -41,28 +42,9 @@ export function useRightNow(): RightNowState {
     refetchInterval: STALE_MS,
   });
 
-  const stravaStatus = useQuery({
-    queryKey: ['strava', 'status'],
-    queryFn: async () => {
-      const res = await backendApi.getStravaStatus();
-      if (!res.success) throw new Error(res.error);
-      return res.data;
-    },
-    enabled,
-    staleTime: 5 * STALE_MS,
-  });
-
-  const stravaSync = useQuery({
-    queryKey: ['strava', 'last-sync'],
-    queryFn: async () => {
-      const res = await backendApi.getStravaLastSync();
-      if (!res.success) throw new Error(res.error);
-      return res.data;
-    },
-    enabled,
-    staleTime: STALE_MS,
-    refetchInterval: 5 * STALE_MS,
-  });
+  // EN definition för Strava-queries: Log-skärmens Strava-rad delar nycklar, form och inställningar.
+  const stravaStatus = useStravaStatus(enabled);
+  const stravaSync = useStravaLastSync(enabled);
 
   const shellEvents = useMemo<ShellEvent[]>(() => {
     const list = events.data?.events ?? [];

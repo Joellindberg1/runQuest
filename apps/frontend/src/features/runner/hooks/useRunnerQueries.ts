@@ -10,8 +10,10 @@ const RETRIES = 1;
 /** Antal senaste möten i head-to-head-listan ("kompakt"; endpointens default är 5, max 20). */
 export const HEAD_TO_HEAD_LIMIT = 5;
 
+export const HEAD_TO_HEAD_ROOT = ['runner', 'head-to-head'] as const;
+
 export const RUNNER_QUERY_KEYS = {
-  headToHead: (userId: string) => ['runner', 'head-to-head', userId] as const,
+  headToHead: (userId: string) => [...HEAD_TO_HEAD_ROOT, userId] as const,
   // Under 'titles'-roten så att titleQueryKeys.all-invalideringar (efter en runda) når den också.
   titles: (userId: string) => [...titleQueryKeys.all, 'runner', userId] as const,
 };
