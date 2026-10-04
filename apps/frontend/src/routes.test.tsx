@@ -6,6 +6,18 @@ import { renderWithApp } from '@/test/renderApp';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turerna startar driver.js efter en timer; de har egna tester och stör inte routingen.
+// RunnerCard kastar på begäran, för att prova felgränsen runt desktop-overlayn.
+const crash = vi.hoisted(() => ({ runnerCard: false }));
+vi.mock('@/features/runner/components/RunnerCard', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/runner/components/RunnerCard')>();
+  return {
+    ...actual,
+    RunnerCard: (props: Parameters<typeof actual.RunnerCard>[0]) => {
+      if (crash.runnerCard) throw new Error('runner card exploded');
+      return actual.RunnerCard(props);
+    },
+  };
+});
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
 
 const MOBILE = 390;
@@ -166,5 +178,31 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
 
     fireEvent.click((await screen.findAllByText(OTHER.name))[0]);
     await waitFor(() => expect(location()).toBe(`/runner/${OTHER.id}`));
+  });
+});
+
+describe('felgräns runt Runner-overlayn (desktop)', () => {
+  const openedFromBoard = [
+    '/board',
+    { pathname: '/runner/u-karl', state: { background: { pathname: '/board', search: '', hash: '', state: null, key: 'bg' } } },
+  ];
+
+  it('ett fel i overlayn ger felkortet, bakgrundssidan och skalet står kvar, och Close tar en ur felläget', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    crash.runnerCard = true;
+    renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('Something broke')).toBeInTheDocument();
+    // Bakgrundssidan (Leaderboard i skalet) står kvar under felkortet.
+    expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1);
+    expect((await screen.findAllByText(OTHER.name)).length).toBeGreaterThan(0);
+
+    crash.runnerCard = false;
+    fireEvent.click(within(alert).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    await waitFor(() => expect(location()).toBe('/board'));
+    expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1);
+    spy.mockRestore();
   });
 });

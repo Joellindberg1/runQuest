@@ -89,8 +89,9 @@ export function useGroupHistory(enabled: boolean) {
 }
 
 /**
- * Mitt head-to-head mot varje möjlig motståndare, för tipsen i send-sheeten. Samma queries (nyckel och sidstorlek) som Runner
- * card, så cachen delas. En liten grupp → ett litet svar per medlem; fel lämnar bara den raden utan tips.
+ * Mitt head-to-head mot varje möjlig motståndare, för tipsen i send-sheeten. Delar Runner cards query FULLT ut: samma nyckel,
+ * sidstorlek OCH dataform (hela HeadToHeadResponse). Två queryFn:er med olika form under samma nyckel skriver över varandras
+ * cache och kraschar den andra konsumenten; `record` härleds därför i `combine`. Fel lämnar bara den raden utan tips.
  */
 export function useOpponentRecords(opponentIds: readonly string[], enabled: boolean): Record<string, HeadToHeadRecord | undefined> {
   return useQueries({
@@ -99,12 +100,12 @@ export function useOpponentRecords(opponentIds: readonly string[], enabled: bool
       queryFn: async () => {
         const res = await backendApi.getHeadToHead(id, HEAD_TO_HEAD_LIMIT);
         if (!res.success || !res.data) throw new Error(res.error || 'Failed to load head to head');
-        return { id, record: res.data.record };
+        return res.data;
       },
       enabled,
       staleTime: REFRESH_MS,
       retry: false,
     })),
-    combine: (results) => Object.fromEntries(results.flatMap((result) => (result.data ? [[result.data.id, result.data.record]] : []))),
+    combine: (results) => Object.fromEntries(opponentIds.map((id, index) => [id, results[index]?.data?.record])),
   });
 }
