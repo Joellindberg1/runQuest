@@ -29,8 +29,8 @@ const open = (id: string, name: string, over: Partial<EventItem> = {}) =>
 
 // Som renderWithApp, men med DEFAULT gcTime (renderWithApp har 0, så en query raderas när sidan som läste den avmonteras) och
 // med klienten utlämnad så att testet kan tvinga fram en ny hämtning.
-function renderShell(entry: string) {
-  setViewportWidth(390);
+function renderShell(entry: string, width = 390) {
+  setViewportWidth(width);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const auth: AuthContextType = {
     user: { id: ME.id, name: ME.name, email: 'joel@example.com', is_admin: false },
@@ -101,6 +101,39 @@ describe('Skalet och skärmen säger samma sak under cron-släpet (klockan avgö
     expect(await screen.findByRole('img', { name: 'Event open now' })).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Open now and up next' })).getByText('Open now')).toBeInTheDocument();
     expect((await rightNow()).getByText('3h')).toBeInTheDocument(); // "slutar om", inte "in 0 m"
+  });
+
+  const notEnteredCompetition = () => {
+    handlers.getEventList = () => ({
+      success: true,
+      data: {
+        events: [event({
+          id: 'c1', type: 'competition', metric: 'km', startsAt: at(-2 * MS_HOUR), endsAt: at(3 * 24 * MS_HOUR + 30_000),
+          template: { name: 'Weekly km', ...TEMPLATE, description: 'Most kilometres in the week', rewardXp1st: 100 },
+          myEntry: null, leaderboard: [], participantCount: 0,
+        })],
+      },
+    });
+  };
+
+  it('en pågående tävling jag inte är med i än: pill, kalenderprick och öppet-kort i båda (samma regel)', async () => {
+    notEnteredCompetition();
+    renderShell('/events');
+    expect(await screen.findByRole('img', { name: 'Event open now' })).toBeInTheDocument();
+    const region = within(screen.getByRole('region', { name: 'Open now and up next' }));
+    expect(region.getByText('Open now')).toBeInTheDocument();
+    expect(region.getByText(/You are not on the board yet/)).toBeInTheDocument();
+    const pills = await rightNow();
+    expect(pills.getByText('Weekly km')).toBeInTheDocument();
+  });
+
+  it('desktop: samma tävling i Right now-panelen med noteringen "Not entered"', async () => {
+    notEnteredCompetition();
+    renderShell('/events', 1280);
+    expect(await screen.findByText(/You are not on the board yet/)).toBeInTheDocument();
+    const panel = within(await screen.findByRole('region', { name: 'Right now' }));
+    expect(panel.getByText('Weekly km')).toBeInTheDocument();
+    expect(panel.getByText('Not entered')).toBeInTheDocument();
   });
 
   it('ett participation-event som passerat sitt slut (men inte hunnit avräknas) saknas i båda', async () => {
