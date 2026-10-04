@@ -95,6 +95,10 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
 
 ## Skal & delat
+- **Logout rensar inte användarspecifika query-cachar** (utom onboarding, som
+  rensas sedan i10b): users-with-runs m.fl. ligger kvar om en annan användare
+  loggar in i samma flik. Låg risk i en vängrupp; åtgärd = qc.clear() vid
+  logout/401 — tas i en senare skalrunda.
 - RÄTTAT 2026-10-04: Toastern ÄR monterad (AppProviders) och gamla `toast()`-
   anrop visas. Nya features använder ändå permanenta `role=status`-ytor —
   motivet är konsekvens och pålitlig uppläsning, inte att Toastern saknas.

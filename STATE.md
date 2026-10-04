@@ -13,7 +13,7 @@ Pågående: redesign på `redesign/integration` (plan: docs/design/redesign-plan
                    EN events-query (getEvents borta) och klock-regeln eventPhase;
                    i6b: skalet visar tävling utan entry ("Not entered").
                    i7 Log mergad (XP-preview via shared-formeln, group history,
-                   Strava-queries delade i shared/hooks). i8 Profile mergad (heatmap, delad Frodo-väg, edit/delete + full invalideringskedja via runEffects, toast-sanering). i10 Landing mergad (publik /, hårdskriven dummy-data, ägarbeslut 4). ÄGARBESLUT 2026-10-04: migration 034 GODKÄND. Näst: i9 Pack News (data-spår: migration 034 + activity_log + news-endpoints + source-fält i users-with-runs + checkEventQualification efter PUT/DELETE; sedan frontend).
+                   Strava-queries delade i shared/hooks). i8 Profile mergad (heatmap, delad Frodo-väg, edit/delete + full invalideringskedja via runEffects, toast-sanering). i10+i10b Landing mergad och integrationskritiker-godkänd (publik /, dummy-data; login-felvisning och onboarding-cachen fixade på vägen). ÄGARBESLUT 2026-10-04: migration 034 GODKÄND. Näst: i9 Pack News (data-spår: migration 034 + activity_log + news-endpoints + source-fält i users-with-runs + checkEventQualification efter PUT/DELETE; sedan frontend).
                    Antaganden + backend-kontraktsfrågor:
                    docs/open-assumptions.md (NY — Lead underhåller). Öppna
                    ägarbeslut: titelkategorier (Finisher/Commuter/Hamster);
@@ -28,7 +28,7 @@ Pågående: redesign på `redesign/integration` (plan: docs/design/redesign-plan
 - Databas: Supabase Postgres, projekt `yrrqaxdngayakcivfrck` (24 tabeller, RLS på; migration 030 2026-10-04 tog bort anonyma skrivpolicyer). Storage-bucket `profile-pictures`. Enda DB-miljön är prod — ingen staging/preview.
 - Hosting: Railway, två tjänster — runQuest-frontend (www.runquest.dev), runQuest-backend (api.runquest.dev). Deploy vid push till `main`, OBEROENDE av CI (CI är merge-grinden via branch protection, inte deploy-grinden). `NODE_ENV=production` satt på backend-tjänsten (verifierat i Railway).
 - Externa API:er: Strava (OAuth2), Open-Meteo (väder, ingen nyckel).
-- Test/CI: Vitest ^4 (backend 67, packages/shared 35, frontend 0). CI (fixad 2026-10-04): blockerande = backend tsc+build+test, shared-tester, frontend-build; icke-blockerande (känd skuld) = frontend `tsc -b` (~98 fel) + eslint (15 fel/22 varn). Branch protection på main kräver grön CI (admin-undantag finns). Node 20 i CI.
+- Test/CI: Vitest ^4 (backend 235, packages/shared 84, frontend 1114 på redesign/integration). CI: blockerande = backend tsc+build+test, shared-tester, frontend tsc -b + eslint --max-warnings 0 + test + build (skulden betald 2026-10-04). Branch protection på main kräver grön CI (admin-undantag finns). Node 20 i CI.
 - Miljövariabler: backend `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `CORS_ORIGIN`, `NODE_ENV`, `PORT`; frontend `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`. Nycklarna roterade 2026-10-03/04 (gamla verifierat döda, 401); hemligheter aldrig i kod — se docs/permissions.md.
 - Arkitekturdiagram: `docs/architecture/runquest-architecture.json` (SSOT) + renderad `.html` (ej archify-validerad ännu).
 
