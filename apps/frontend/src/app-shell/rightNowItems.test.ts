@@ -98,6 +98,14 @@ describe('buildRightNow', () => {
     expect(late[0].value).toBe('Overdue');
   });
 
+  it('en tävling efter slutdatum står som Settling, inte som noll tid kvar', () => {
+    const items = buildRightNow({
+      ...baseInput,
+      events: [event({ id: 'comp', kind: 'competition', name: 'Weekly km', endsAt: new Date(NOW.getTime() - 60_000).toISOString() })],
+    });
+    expect(items[0]).toMatchObject({ label: 'Weekly km', value: 'Settling' });
+  });
+
   it('ordning: streak → event → duell → Strava', () => {
     const items = buildRightNow({
       now: NOW,

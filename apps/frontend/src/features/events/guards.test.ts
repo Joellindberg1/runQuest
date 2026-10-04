@@ -99,6 +99,7 @@ describe('Events-filerna följer designspråket', () => {
     const animations = [...code.matchAll(/animation:\s*([^;}]+)/g)].map((m) => m[1].trim());
     expect(animations).toEqual(['rqSweep 5s linear infinite']);
     expect(code).not.toMatch(/transition\s*:/);
+    expect(code).toMatch(/\[data-state="settling"\]::before\s*\{\s*display:\s*none/);
   });
 
   it('varje --rq-events-*-mått som events.css läser finns i temafilen (index.css) OCH i docs/design/temafil-forslag.css — och tvärtom', () => {
