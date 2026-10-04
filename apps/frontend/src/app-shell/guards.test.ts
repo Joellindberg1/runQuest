@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Vakttester över källkoden (ADR 006 beslut 8 + designspråkets regel 1 och 10).
@@ -73,11 +75,14 @@ describe('nya skal-filer följer designspråket', () => {
   });
 
   it('skalets CSS använder bara tokens: inga px-mått, hex eller rgba()', () => {
-    const [, css] = byPath(/app-shell\/app-shell\.css$/)[0];
+    // Läses från disk: vitest (css: false) tömmer ?raw-importer av .css, så globben ger en tom sträng.
+    const css = readFileSync(resolve(process.cwd(), 'src/app-shell/app-shell.css'), 'utf8');
+    expect(css.length).toBeGreaterThan(200);
     const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
     expect(withoutComments.match(/[\d.]+px/g) ?? []).toEqual([]);
     expect(withoutComments.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([]);
-    expect(withoutComments.match(/rgba?\(/g) ?? []).toEqual([]);
+    // rgb(var(--rq-…-rgb) / alfa) är det sanktionerade alfa-receptet; bokstavliga rgb()/rgba() är det inte.
+    expect(withoutComments.match(/rgba\(|rgb\(\s*\d/g) ?? []).toEqual([]);
     expect(withoutComments.match(/border-radius:\s*(?!0|var\(--rq-radius)/g) ?? []).toEqual([]);
   });
 });

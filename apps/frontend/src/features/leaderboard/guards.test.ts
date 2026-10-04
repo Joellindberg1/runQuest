@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -75,14 +76,27 @@ describe('Board-filerna följer designspråket', () => {
     }
   });
 
-  it('token-blocket i board.css definierar bara mått (--rq-board-*), aldrig färger eller typskala', () => {
+  it('board.css har inga egna :root-definitioner; lokala variabler pekar bara på andra tokens', () => {
     const [, css] = cssFiles.find(([path]) => path.endsWith('board.css'))!;
-    const declared = [...stripComments(css).matchAll(/^\s*(--rq-[a-z0-9-]+):/gm)].map((m) => m[1]);
-    const rootDeclared = declared.filter((name) => name.startsWith('--rq-board-'));
-    expect(rootDeclared.length).toBeGreaterThan(5);
-    // Allt som inte är --rq-board-* är lokala hjälpvariabler (rank/acc/tier) som bara pekar på andra tokens.
-    for (const name of declared.filter((n) => !n.startsWith('--rq-board-'))) {
+    const code = stripComments(css);
+    expect(code).not.toMatch(/:root/);
+    const declared = [...code.matchAll(/^s*(--rq-[a-z0-9-]+):/gm)].map((m) => m[1]);
+    for (const name of declared.filter((n) => !n.startsWith('--rq-board-plinth'))) {
       expect(name).toMatch(/^--rq-(rank-solid|rank-edge|rank-subtle|ring-c|tier-rgb|tier-stroke|tier-fg|acc|acc-edge|edge|edge-line)$/);
+    }
+  });
+
+  it('varje --rq-board-*-mått som board.css läser finns i temafilen (index.css) OCH i docs/design/temafil-forslag.css', () => {
+    const [, css] = cssFiles.find(([path]) => path.endsWith('board.css'))!;
+    const used = new Set([...css.matchAll(/var\((--rq-board-[a-z0-9-]+)\)/g)].map((m) => m[1]));
+    used.delete('--rq-board-plinth'); // sätts lokalt per rank i board.css
+    expect(used.size).toBeGreaterThan(8);
+    const index = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+    const facit = readFileSync(resolve(process.cwd(), '../../docs/design/temafil-forslag.css'), 'utf8');
+    for (const name of used) {
+      const declaration = new RegExp(`^\\s*${name}:`, 'm');
+      expect({ name, index: declaration.test(index) }).toEqual({ name, index: true });
+      expect({ name, facit: declaration.test(facit) }).toEqual({ name, facit: true });
     }
   });
 });

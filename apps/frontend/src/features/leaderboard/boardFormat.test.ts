@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  daysBetween, deltaLabel, deltaView, formatCountdown, formatHoursMinutes, formatInt, formatRunAge, isoWeekNumber, preciseRunTime,
+  daysBetween, deltaLabel, deltaView, latestRunOf, formatCountdown, formatHoursMinutes, formatInt, formatRunAge, isoWeekNumber, preciseRunTime,
 } from './boardFormat';
 
 // Fast klocka: 2026-10-04 12:00 Stockholm (CEST, UTC+2) = 10:00 UTC.
@@ -86,5 +86,30 @@ describe('deltaView — rank_delta positivt = klättrat (ADR 007)', () => {
     expect(deltaLabel(deltaView(2))).toBe('Up 2 places');
     expect(deltaLabel(deltaView(-1))).toBe('Down 1 place');
     expect(deltaLabel(deltaView(0))).toBe('No change');
+  });
+});
+
+describe('latestRunOf', () => {
+  it('senaste datum vinner; tom/saknad lista → null', () => {
+    expect(latestRunOf([{ date: '2026-10-01' }, { date: '2026-10-03' }, { date: '2026-10-02' }])).toEqual({ date: '2026-10-03' });
+    expect(latestRunOf([])).toBeNull();
+    expect(latestRunOf(undefined)).toBeNull();
+  });
+
+  it('samma dag: senaste exakta tidpunkt vinner, numeriskt (blandade tidsformat sorterar rätt)', () => {
+    const early = { date: '2026-10-04', start_time: '2026-10-04T05:00:00Z' };
+    // +02:00-format: strängjämförelse skulle ranka den "senare" (T07 > T05) men tidpunkten är 05:00Z = lika, 06:30+02 = 04:30Z = tidigare
+    const offset = { date: '2026-10-04', start_time: '2026-10-04T06:30:00+02:00' };
+    const later = { date: '2026-10-04', start_time: '2026-10-04T09:00:00Z' };
+    expect(latestRunOf([early, offset])).toBe(early);
+    expect(latestRunOf([offset, early, later])).toBe(later);
+  });
+
+  it('en tidsatt runda slår en utan tidpunkt samma dag; lika → den första', () => {
+    const timed = { date: '2026-10-04', start_time: '2026-10-04T05:00:00Z' };
+    const plain = { date: '2026-10-04' };
+    expect(latestRunOf([plain, timed])).toBe(timed);
+    const other = { date: '2026-10-04' };
+    expect(latestRunOf([plain, other])).toBe(plain);
   });
 });

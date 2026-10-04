@@ -337,7 +337,7 @@ describe('Streaks-vyn (?view=streaks)', () => {
     expect(within(alert).getByText('Your streak dies in')).toBeInTheDocument();
     expect(within(alert).getByRole('timer')).toHaveTextContent('12h 00m 00s');
     // Joel: 4 dagar → dag 5 = 1.3×; 10 km: floor((15+20)·1.3 + 15) = 60 mot 50 utan streak.
-    expect(within(alert).getByText('Any run today keeps 1.3×. Miss it and your next 10 km run drops from 60 to 50 XP.')).toBeInTheDocument();
+    expect(within(alert).getByText('Your run today earns 1.3×. Miss it and your next 10 km run drops from 60 to 50 XP.')).toBeInTheDocument();
     expect(within(alert).getByRole('link', { name: 'Log a run' })).toHaveAttribute('href', '/log');
     expect(alert).toHaveAttribute('data-state', 'at-risk');
   });
@@ -490,7 +490,7 @@ describe('tour-ankare (leaderboard-touren)', () => {
     handlers.getUsersWithRuns = () => ({ success: true, data: PACK });
     renderBoard('/board');
     await screen.findByTestId('podium-1');
-    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-slug', 'tour_leaderboard_v1');
+    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-slug', 'tour_leaderboard_v2');
     fireEvent.click(screen.getByRole('tab', { name: 'Week' }));
     await screen.findByRole('table', { name: 'This week' });
     expect(screen.queryByTestId('feature-tour')).toBeNull();

@@ -48,7 +48,7 @@ export const TOUR_CHALLENGES_V1: TourStep[] = [
   },
 ];
 
-// ── / (leaderboard tab) — tour_leaderboard_v1 ────────────────────────────
+// ── / (leaderboard tab) — tour_leaderboard_v2 ────────────────────────────
 export const TOUR_LEADERBOARD_V1: TourStep[] = [
   {
     title: 'Leaderboard',

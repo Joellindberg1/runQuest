@@ -139,7 +139,7 @@ function StreakAlert({ user, config, meId }: AlertProps) {
           <div className="rq-counter" role="timer">{formatCountdown(row.msLeft)}</div>
           <p className="rq-body rq-board-alert__text">
             {outcome.keep.xp > outcome.broken.xp
-              ? `Any run today keeps ${formatMultiplier(outcome.keep.multiplier)}. Miss it and your next ${NEXT_RUN_KM} km run drops from ${outcome.keep.xp} to ${outcome.broken.xp} XP.`
+              ? `Your run today earns ${formatMultiplier(outcome.keep.multiplier)}. Miss it and your next ${NEXT_RUN_KM} km run drops from ${outcome.keep.xp} to ${outcome.broken.xp} XP.`
               : 'Any run today keeps your streak alive.'}
           </p>
           <Link to={paths.log} className="rq-btn rq-btn--primary rq-btn--block">Log a run</Link>

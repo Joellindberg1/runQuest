@@ -1,7 +1,7 @@
 import type { User, UserTitle } from '@runquest/types';
 import { MAX_LEVEL } from '@/constants/appConstants';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { deltaView, formatDecimal, formatInt, formatRunAge, type DeltaView } from './boardFormat';
+import { deltaView, formatDecimal, formatInt, formatRunAge, latestRunOf, type DeltaView } from './boardFormat';
 
 // Season-/All-time-vyns vymodell: allt som korten visar, härlett ur users-with-runs + titlar + rank-delta.
 // Ren logik — rendering och datahämtning ligger i komponenterna/hooks.
@@ -64,21 +64,13 @@ export function titleLine(names: string[], heldCount: number): string {
   return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
 }
 
-function latestRun(user: User) {
-  const runs = user.runs ?? [];
-  if (runs.length === 0) return null;
-  // Samma dag → den med senast tidsstämpel.
-  const stamp = (run: (typeof runs)[number]) => `${run.date.slice(0, 10)}|${run.start_time ?? run.created_at ?? ''}`;
-  return runs.reduce((best, run) => (stamp(run) > stamp(best) ? run : best));
-}
-
 export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] {
   const sorted = leaderboardUtils.filterAndSortUsers(users);
 
   const partial = sorted.map((user) => {
     const stats = leaderboardUtils.calculateUserStats(user);
     const { names, heldCount } = displayedTitleNames(user, input.titlesByUser[user.id] ?? []);
-    const latest = latestRun(user);
+    const latest = latestRunOf(user.runs);
     const counts = user.challenge_counts ?? {};
     const tokens: TierTokens = { minor: counts.minor ?? 0, major: counts.major ?? 0, legendary: counts.legendary ?? 0 };
     const atMax = stats.level >= MAX_LEVEL;

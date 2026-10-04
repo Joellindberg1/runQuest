@@ -1,39 +1,7 @@
 /* Board-skärmen (inkrement 2): Season/All-time · Week · Streaks, mobil och desktop.
-   ENDAST tokens ur index.css utanför token-blocket nedan (regel 1). Blocket definierar komponentmått
-   som prototyperna använder men temafilen saknar token för — ingen färg, ingen typskala.
+   ENDAST tokens (regel 1). Måtten (--rq-board-*) definieras i temafilen, sektion 1.20 (index.css +
+   docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
    Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
-
-/* ── Board-mått (mobil först; desktop skriver över i media-blocket) ───────── */
-:root {
-  --rq-board-avatar: 36px;
-  --rq-board-bar-h: 5px;            /* nivåstapel i podiekort */
-  --rq-board-bar-h-thin: 4px;       /* nivåstapel i listrad */
-  --rq-board-ribbon-w: 22px;
-  --rq-board-ribbon-h: 27px;
-  --rq-board-ribbon-font: 15px;     /* siffran i skölden (SVG-enheter) */
-  --rq-board-daybars-h: 34px;
-  --rq-board-streak-bar-h: 6px;
-  --rq-board-plinth-1: 78px;
-  --rq-board-plinth-2: 52px;
-  --rq-board-plinth-3: 38px;
-  --rq-board-side-w: 300px;
-  --rq-board-delta-w: 26px;         /* desktop: fast kolumn för ▲/▼ framför namnet */
-  --rq-board-rest-cols: 26px 1fr 74px;
-  --rq-board-week-cols: 24px 1fr 62px;
-  --rq-board-streak-cols: 1fr;
-}
-@media (min-width: 1024px) {
-  :root {
-    --rq-board-avatar: 42px;
-    --rq-board-bar-h: 6px;
-    --rq-board-bar-h-thin: 6px;
-    --rq-board-daybars-h: 44px;
-    --rq-board-streak-bar-h: 8px;
-    --rq-board-rest-cols: 40px 300px 1fr 78px 84px 88px 112px;
-    --rq-board-week-cols: 38px 190px 1fr 128px 92px;
-    --rq-board-streak-cols: 190px 96px 1fr 150px;
-  }
-}
 
 /* ── Rankfärger: ett attribut (data-rank) sätter alla rankderivat ─────────── */
 .rq-board [data-rank="1"] { --rq-rank-solid: var(--rq-rank-1); --rq-rank-edge: var(--rq-rank-1-edge); --rq-rank-subtle: var(--rq-rank-1-subtle); --rq-ring-c: var(--rq-rank-1); --rq-board-plinth: var(--rq-board-plinth-1); }

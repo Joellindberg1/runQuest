@@ -47,7 +47,7 @@ const BoardPage: React.FC = () => {
   return (
     <div className="rq-board">
       {/* Ankaret (leaderboard-card) finns först när podiet är ritat, och bara i Season-vyn. */}
-      {view === 'season' && usersQuery.data && <FeatureTour slug="tour_leaderboard_v1" steps={TOUR_LEADERBOARD_V1} />}
+      {view === 'season' && usersQuery.data && <FeatureTour slug="tour_leaderboard_v2" steps={TOUR_LEADERBOARD_V1} />}
 
       <header className="rq-board__head">
         {isDesktop ? (

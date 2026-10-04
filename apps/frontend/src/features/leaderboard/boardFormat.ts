@@ -50,6 +50,21 @@ export function preciseRunTime(run: Pick<Run, 'date' | 'start_time' | 'created_a
   return null;
 }
 
+/**
+ * Senaste rundan: senast `date`, och samma dag den med senast exakt tidpunkt (numerisk jämförelse via
+ * preciseRunTime — blandade tidsformat sorterar fel som strängar). Lika → den första.
+ */
+export function latestRunOf<T extends Pick<Run, 'date' | 'start_time' | 'created_at'>>(runs: T[] | undefined): T | null {
+  if (!runs || runs.length === 0) return null;
+  const key = (run: T): [string, number] => [run.date.slice(0, 10), preciseRunTime(run) ?? Number.NEGATIVE_INFINITY];
+  return runs.reduce((best, run) => {
+    const [bestDate, bestTime] = key(best);
+    const [date, time] = key(run);
+    if (date !== bestDate) return date > bestDate ? run : best;
+    return time > bestTime ? run : best;
+  });
+}
+
 /** "5 h ago", "4 d ago", "today" (kalenderdag utan klockslag), "just now". */
 export function formatRunAge(run: Pick<Run, 'date' | 'start_time' | 'created_at'>, now: Date): string {
   const precise = preciseRunTime(run);

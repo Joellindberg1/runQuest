@@ -2,7 +2,7 @@ import type { User } from '@runquest/types';
 import { calculateCompleteRunXP, calculateStreakMultiplier } from '@runquest/shared';
 import type { XpConfigResponse } from '@runquest/shared';
 import { streakDeadline } from '@/app-shell/rightNowItems';
-import { formatHoursMinutes, formatRunAge } from './boardFormat';
+import { formatHoursMinutes, formatRunAge, latestRunOf } from './boardFormat';
 
 // Streaks-vyns vymodell. Statusgrenen (safe / at risk / broken) går genom samma `streakDeadline`
 // som Right now-pillen, så de två aldrig kan vara oense. Trappan kommer ur /api/config/xp — inga
@@ -55,15 +55,8 @@ export function formatMultiplier(multiplier: number): string {
   return `${multiplier.toFixed(1)}×`;
 }
 
-function latestRunOf(user: User) {
-  const runs = user.runs ?? [];
-  if (runs.length === 0) return null;
-  const stamp = (run: (typeof runs)[number]) => `${run.date.slice(0, 10)}|${run.start_time ?? run.created_at ?? ''}`;
-  return runs.reduce((best, run) => (stamp(run) > stamp(best) ? run : best));
-}
-
 export function buildStreakRow(user: User, now: Date, ladder: LadderStep[], meId?: string): StreakRow {
-  const last = latestRunOf(user);
+  const last = latestRunOf(user.runs);
   const deadline = streakDeadline(last?.date ?? null, now);
   const alive = user.current_streak > 0 && deadline !== null;
   const status: StreakStatus = !alive ? 'broken' : deadline.ranToday ? 'safe' : 'at-risk';
