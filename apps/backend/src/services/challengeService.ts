@@ -244,11 +244,20 @@ export async function settleChallenge(challengeId: string): Promise<void> {
 
   logger.info(`🏁 Settling challenge ${challengeId}: ${outcome} (${c.value} vs ${o.value})`);
 
-  // 1. Update challenge record
-  await supabase
+  // 1. Claim: markera completed ENDAST om fortfarande active (bugg #6) —
+  // vid överlappande instanser vinner exakt en, så W/D/L och boosts kan
+  // aldrig delas ut dubbelt.
+  const { data: claimed } = await supabase
     .from('challenges')
     .update({ status: 'completed', winner_id: winnerId, outcome, challenger_final_value: c.value, opponent_final_value: o.value })
-    .eq('id', challengeId);
+    .eq('id', challengeId)
+    .eq('status', 'active')
+    .select('id');
+
+  if (!claimed?.length) {
+    logger.info(`↷ Challenge ${challengeId} already settled by another instance`);
+    return;
+  }
 
   // 2. Reset challenge_active for both users
   await supabase

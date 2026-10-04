@@ -6,11 +6,12 @@ import jwt from 'jsonwebtoken';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
+import { loginRateLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
 // POST /api/auth/login
-router.post('/login', async (req, res): Promise<void> => {
+router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
   try {
     logger.info('🔐 Login attempt received');
     const { name, email, password } = req.body;
@@ -190,9 +191,11 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
     const supabase = getSupabaseClient();
     const groupId = req.user!.group_id;
 
+    // runs(count) ger total_runs — admin-UI:t visade tidigare ett tomt fält
+    // eftersom kolumnen aldrig selectades (bugg #12)
     let query = supabase
       .from('users')
-      .select('id, name, email, total_xp, current_level, total_km, current_streak, longest_streak, created_at')
+      .select('id, name, email, total_xp, current_level, total_km, current_streak, longest_streak, created_at, runs(count)')
       .order('created_at', { ascending: true });
 
     if (groupId) {
@@ -206,11 +209,16 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
-    logger.info(`✅ Successfully fetched ${users?.length || 0} users`);
+    const usersWithRunCount = (users ?? []).map((u: any) => {
+      const { runs, ...rest } = u;
+      return { ...rest, total_runs: runs?.[0]?.count ?? 0 };
+    });
+
+    logger.info(`✅ Successfully fetched ${usersWithRunCount.length} users`);
 
     res.json({
       success: true,
-      data: users
+      data: usersWithRunCount
     });
 
   } catch (error) {

@@ -284,6 +284,22 @@ export async function settleCompetitionEvents(): Promise<void> {
 
   for (const event of events) {
     try {
+      // Idempotens (bugg #6): claima eventet FÖRE utbetalning — vid
+      // överlappande instanser (t.ex. deploy-överlapp) vinner exakt en.
+      // Krasch efter claim ger ett settlat event utan utbetalning, vilket
+      // syns i loggen — hellre det än dubbel XP till användarna.
+      const { data: claimed } = await supabase
+        .from('events')
+        .update({ status: 'settled', settled_at: now })
+        .eq('id', event.id)
+        .eq('status', 'active')
+        .select('id');
+
+      if (!claimed?.length) {
+        logger.info(`↷ [Settlement] Event ${event.id} already claimed by another instance`);
+        continue;
+      }
+
       const tmpl = event.event_templates as any;
       const xpPerRank = [
         Number(tmpl?.reward_xp_1st ?? 0),
@@ -304,8 +320,7 @@ export async function settleCompetitionEvents(): Promise<void> {
 
       const participants = entries ?? [];
       if (!participants.length) {
-        await supabase.from('events').update({ status: 'settled' }).eq('id', event.id);
-        continue;
+        continue; // redan markerat settled i claimen ovan
       }
 
       // Beräkna total_value per användare utifrån faktiska runs under eventet
@@ -358,8 +373,6 @@ export async function settleCompetitionEvents(): Promise<void> {
         }
       }
 
-      // Markera eventet som settled
-      await supabase.from('events').update({ status: 'settled' }).eq('id', event.id);
       logger.info(`✅ [Settlement] Competition event ${event.id} settled (${scored.length} participants)`);
     } catch (e) {
       logger.error(`❌ [Settlement] Unexpected error settling event ${event.id}:`, e);

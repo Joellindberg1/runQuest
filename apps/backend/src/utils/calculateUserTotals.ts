@@ -20,10 +20,11 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
       return;
     }
 
-    if (!runs || runs.length === 0) {
-      logger.info('No runs found for user');
-      return;
-    }
+    // OBS: ingen tidig return vid noll rundor (bugg #3). Raderas sista rundan
+    // måste totaler, level, streak, tokens och titlar nollställas/omräknas —
+    // annars står gammal XP/streak kvar. Beräkningen nedan hanterar tom lista:
+    // totalXP = event_xp, distans 0, streak 0, titlar återkallas.
+    const userRuns = runs ?? [];
 
     // Fetch event_xp separately — accumulated from event settlements
     const { data: userData } = await supabase
@@ -34,9 +35,9 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
     const eventXP: number = userData?.event_xp ?? 0;
 
     // Calculate totals
-    const runsXP = runs.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
+    const runsXP = userRuns.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
     const totalXP = runsXP + eventXP;
-    const totalDistance = runs.reduce((sum: number, run: any) => sum + (run.distance || 0), 0);
+    const totalDistance = userRuns.reduce((sum: number, run: any) => sum + (run.distance || 0), 0);
 
     // Fetch level and streak in parallel (current_level no longer needed here)
     const { StreakService } = await import('../services/streakService.js');

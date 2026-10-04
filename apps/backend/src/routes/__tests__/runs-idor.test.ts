@@ -177,6 +177,22 @@ describe('PUT /api/runs/:id', () => {
     expect(body.error).toMatch(/distance is required/i);
   });
 
+  // Bugg #8: PUT saknade POST:ens validering — dessa två failade före fixen
+  it('returns 400 when distance is below the 1.0 km minimum', async () => {
+    vi.mocked(getSupabaseClient).mockReturnValue(buildRunOwnershipStub('user-uuid-test') as any);
+    const { status, body } = await put('/api/runs/run-uuid-1', { distance: 0.5 }, authHeader);
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/at least 1\.0 km/i);
+  });
+
+  it('returns 400 when the new date is in the future', async () => {
+    vi.mocked(getSupabaseClient).mockReturnValue(buildRunOwnershipStub('user-uuid-test') as any);
+    const future = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const { status, body } = await put('/api/runs/run-uuid-1', { distance: 6.0, date: future }, authHeader);
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/future dates/i);
+  });
+
   it('returns 404 when the run does not exist', async () => {
     vi.mocked(getSupabaseClient).mockReturnValue(buildRunNotFoundStub() as any);
     const { status, body } = await put('/api/runs/nonexistent-run', { distance: 6.0 }, authHeader);

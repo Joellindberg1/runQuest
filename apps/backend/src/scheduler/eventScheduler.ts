@@ -238,56 +238,57 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
 export function startEventScheduler(): void {
   logger.info('📅 Starting event scheduler...');
 
-  // Dagligen 19:00 Stockholm ≈ 17:00 UTC
+  // Dagligen 19:00 Stockholm (bugg #6: tidigare UTC-tid som var 1 h fel på vintern)
   // Gemensam + viktad lottning: Morgonrunda / Kvällsrunda / Storm Chaser — max ett event
-  cron.schedule('0 17 * * *', async () => {
+  cron.schedule('0 19 * * *', async () => {
     logger.info('⏰ [EventScheduler] Daily participation draw...');
     try {
       await scheduleDailyParticipationEvent();
     } catch (e) {
       logger.error('❌ [EventScheduler] Daily participation draw error:', e);
     }
-  });
+  }, { timezone: 'Europe/Stockholm' });
 
-  // Fredag + Lördag 22:00 Stockholm ≈ 20:00 UTC — Hangover Run (20% spawn chance)
-  cron.schedule('0 20 * * 5,6', async () => {
+  // Fredag + Lördag 22:00 Stockholm — Hangover Run (20% spawn chance)
+  cron.schedule('0 22 * * 5,6', async () => {
     logger.info('⏰ [EventScheduler] Weekend Hangover Run draw...');
     try {
       await scheduleHangoverRun();
     } catch (e) {
       logger.error('❌ [EventScheduler] Hangover Run draw error:', e);
     }
-  });
+  }, { timezone: 'Europe/Stockholm' });
 
-  // Torsdag 18:00 Stockholm ≈ 16:00 UTC — 5K Friday (30% spawn chance)
-  cron.schedule('0 16 * * 4', async () => {
+  // Torsdag 18:00 Stockholm — 5K Friday (30% spawn chance)
+  cron.schedule('0 18 * * 4', async () => {
     logger.info('⏰ [EventScheduler] Thursday 5K Friday draw...');
     try {
       await scheduleFridayEvent();
     } catch (e) {
       logger.error('❌ [EventScheduler] 5K Friday draw error:', e);
     }
-  });
+  }, { timezone: 'Europe/Stockholm' });
 
-  // Lördag 20:00 Stockholm ≈ 18:00 UTC — Weekly km + Weekly elevation (deterministisk)
-  cron.schedule('0 18 * * 6', async () => {
+  // Lördag 20:00 Stockholm — Weekly km + Weekly elevation (deterministisk)
+  cron.schedule('0 20 * * 6', async () => {
     logger.info('⏰ [EventScheduler] Saturday — scheduling weekly competitions...');
     try {
       await scheduleWeeklyCompetitions();
     } catch (e) {
       logger.error('❌ [EventScheduler] Weekly competition error:', e);
     }
-  });
+  }, { timezone: 'Europe/Stockholm' });
 
-  // 23:05 UTC varje söndag — alltid efter weekly events ends_at (22:59 UTC vintertid, 21:59 UTC sommartid)
-  cron.schedule('5 23 * * 0', async () => {
+  // Måndag 00:05 Stockholm — alltid strikt efter weekly events ends_at (sön 23:59
+  // Stockholm). settleCompetitionEvents settlar bara events vars ends_at passerat.
+  cron.schedule('5 0 * * 1', async () => {
     logger.info('⏰ [EventScheduler] Sunday settlement...');
     try {
       await settleCompetitionEvents();
     } catch (e) {
       logger.error('❌ [EventScheduler] Competition settlement error:', e);
     }
-  });
+  }, { timezone: 'Europe/Stockholm' });
 
   // Var 5:e minut — aktiverar schemalagda events + settlar utgångna
   cron.schedule('*/5 * * * *', async () => {

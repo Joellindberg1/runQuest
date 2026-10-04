@@ -19,6 +19,10 @@ import userRoutes from './routes/users.js';
 export function createApp(): express.Express {
   const app = express();
 
+  // Bakom Railways proxy — krävs för att req.ip ska vara klientens IP
+  // (annars delar alla användare proxyns IP i rate limitern)
+  app.set('trust proxy', 1);
+
   // Middleware
   app.use(helmet());
 

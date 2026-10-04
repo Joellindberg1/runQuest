@@ -248,6 +248,27 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
   }
 });
 
+/**
+ * Gemensam indatavalidering för POST och PUT (bugg #8: PUT saknade POST:ens
+ * regler). Returnerar felmeddelande eller null + parsad distans.
+ */
+function validateRunInput(date: string | undefined, distance: unknown): { error: string | null; distanceNum: number } {
+  const distanceNum = parseFloat(String(distance));
+  if (isNaN(distanceNum) || distanceNum < 1.0) {
+    return { error: 'Distance must be at least 1.0 km', distanceNum };
+  }
+  if (date !== undefined) {
+    const runDate = new Date(date);
+    const minDate = new Date('2025-06-01');
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (isNaN(runDate.getTime())) return { error: 'Invalid date', distanceNum };
+    if (runDate < minDate) return { error: 'Cannot log runs before June 1, 2025', distanceNum };
+    if (runDate > today) return { error: 'Cannot log runs for future dates', distanceNum };
+  }
+  return { error: null, distanceNum };
+}
+
 // POST /api/runs - Create a new run
 router.post('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
@@ -260,23 +281,9 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Date and distance are required' }); return;
     }
 
-    const distanceNum = parseFloat(distance);
-    if (isNaN(distanceNum) || distanceNum < 1.0) {
-      res.status(400).json({ error: 'Distance must be at least 1.0 km' }); return;
-    }
-
-    // Validate date
-    const runDate = new Date(date);
-    const minDate = new Date('2025-06-01');
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-
-    if (runDate < minDate) {
-      res.status(400).json({ error: 'Cannot log runs before June 1, 2025' }); return;
-    }
-
-    if (runDate > today) {
-      res.status(400).json({ error: 'Cannot log runs for future dates' }); return;
+    const { error: validationError, distanceNum } = validateRunInput(date, distance);
+    if (validationError) {
+      res.status(400).json({ error: validationError }); return;
     }
 
     logger.info(`✅ Creating run for user ${userId}: ${distanceNum}km on ${date}`);
@@ -362,9 +369,9 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Distance is required' }); return;
     }
 
-    const newDistance = parseFloat(distance);
-    if (isNaN(newDistance) || newDistance <= 0) {
-      res.status(400).json({ error: 'Invalid distance' }); return;
+    const { error: validationError, distanceNum: newDistance } = validateRunInput(date, distance);
+    if (validationError) {
+      res.status(400).json({ error: validationError }); return;
     }
 
     logger.info(`🔄 Updating run ${id} for user ${userId}`);

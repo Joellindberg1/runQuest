@@ -8,6 +8,7 @@ import path from 'path';
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
 import { startEventScheduler } from './scheduler/eventScheduler.js';
+import { startStreakScheduler } from './scheduler/streakScheduler.js';
 
 // 📋 Step 1: Load Environment Variables
 logger.info('🔧 Step 1: Loading environment variables...');
@@ -75,6 +76,7 @@ server.on('listening', () => {
     startStravaScheduler();
     startChallengeScheduler();
     startEventScheduler();
+    startStreakScheduler();
   } else {
     logger.info('ℹ️ Schedulers disabled in development mode');
     logger.info('💡 Use POST /api/strava/sync for manual Strava testing');

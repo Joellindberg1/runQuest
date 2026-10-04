@@ -8,7 +8,6 @@ import AdminPage from './pages/AdminPage';
 import LoginPage from './pages/LoginPage';
 import SettingsPage from './pages/SettingsPage';
 import FeaturesPage from './pages/FeaturesPage';
-import StravaCallbackPage from './pages/StravaCallbackPage';
 import LeaderboardPreviewPage from './pages/LeaderboardPreviewPage';
 import ChallengesPreviewPage from './pages/ChallengesPreviewPage';
 import ChallengesPage from './pages/ChallengesPage';
@@ -50,7 +49,6 @@ const AppContent = () => {
     <>
       <OnboardingOrchestrator />
       <Routes>
-      <Route path="/strava-callback" element={<StravaCallbackPage />} />
       <Route path="/" element={<Index />} />
       <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
       <Route path="/settings" element={<SettingsPage />} />

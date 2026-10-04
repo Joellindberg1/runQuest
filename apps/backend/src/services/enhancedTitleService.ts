@@ -101,11 +101,6 @@ export class EnhancedTitleService {
       const userValue = engine.calculate(runs, userStats);
       logger.info(`🔍 Checking title: "${title.name}" — value: ${userValue}, required: ${title.unlock_requirement}`);
 
-      if (userValue < title.unlock_requirement) {
-        logger.info(`❌ Requirement not met (${userValue} < ${title.unlock_requirement})`);
-        return false;
-      }
-
       const { data: existingTitle, error: existingError } = await supabase.client
         .from('user_titles')
         .select('id, value')
@@ -115,6 +110,18 @@ export class EnhancedTitleService {
 
       if (existingError && existingError.code !== 'PGRST116') {
         logger.error('❌ Error checking existing title:', existingError);
+        return false;
+      }
+
+      if (userValue < title.unlock_requirement) {
+        // Bugg #10: kravet inte (längre) uppfyllt. Fanns en tilldelning —
+        // t.ex. efter att rundan som gav titeln raderats — återkallas den.
+        if (existingTitle) {
+          const { error } = await supabase.client.from('user_titles').delete().eq('id', existingTitle.id);
+          if (error) { logger.error('❌ Error revoking user title:', error); return false; }
+          logger.info(`🗑️ Revoked "${title.name}" from user ${userId} (${userValue} < ${title.unlock_requirement})`);
+          return true; // leaderboarden måste uppdateras
+        }
         return false;
       }
 
@@ -170,9 +177,10 @@ export class EnhancedTitleService {
             .order('date', { ascending: true });
 
           if (runsError) throw new Error(`Runs fetch failed: ${runsError.message}`);
-          if (!runs || runs.length === 0) return;
 
-          const runsWithAlias = runs.map((run: any) => ({ ...run, distance_km: run.distance }));
+          // Ingen tidig return vid noll rundor (bugg #3/#10): med tom lista
+          // beräknar motorerna 0/−∞ → revocation-grenen rensar titlarna.
+          const runsWithAlias = (runs ?? []).map((run: any) => ({ ...run, distance_km: run.distance }));
           await this.processUserTitlesAfterRun(user.id, runsWithAlias, user.total_km || 0, user.longest_streak || 0);
         })
       );

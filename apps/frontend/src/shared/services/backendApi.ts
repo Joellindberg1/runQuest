@@ -73,8 +73,7 @@ export interface AdminUser {
   current_streak: number;
   longest_streak: number;
   created_at: string;
-  // OBS: returneras INTE av backend idag — UI som läser fältet visar tomt (känd bugg, rapporterad).
-  total_runs?: number;
+  total_runs: number;
 }
 
 /** Shape of each row from GET /runs/group-history. */

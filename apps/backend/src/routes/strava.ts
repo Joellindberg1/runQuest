@@ -140,6 +140,7 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
           refresh_failed: true
         });
       }
+      return; // utan denna skickades ett andra res.json nedan (ERR_HTTP_HEADERS_SENT)
     }
     
     // Get last global sync time (based on most recent Strava run imported by anyone)
@@ -883,19 +884,24 @@ async function refreshStravaToken(refreshToken: string, userId: string): Promise
       return { success: false, error: 'Failed to refresh token' };
     }
     
-    // Update tokens in database
+    // Update tokens in database. Strava har redan roterat refresh-tokenen i
+    // och med svaret ovan — misslyckas skrivningen är den gamla tokenen död
+    // och kopplingen förlorad. Därför: försök igen en gång och larma HÖGT.
     const supabase = getSupabaseClient();
-    const { error } = await supabase
-      .from('strava_tokens')
-      .update({
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        expires_at: tokenData.expires_at
-      })
-      .eq('user_id', userId);
-    
+    const newTokens = {
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_at: tokenData.expires_at
+    };
+
+    let { error } = await supabase.from('strava_tokens').update(newTokens).eq('user_id', userId);
     if (error) {
-      logger.error('❌ Failed to update refreshed tokens:', error);
+      logger.error('⚠️ Token save failed, retrying once:', error);
+      ({ error } = await supabase.from('strava_tokens').update(newTokens).eq('user_id', userId));
+    }
+
+    if (error) {
+      logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel:`, error);
       return { success: false, error: 'Failed to save new tokens' };
     }
     
