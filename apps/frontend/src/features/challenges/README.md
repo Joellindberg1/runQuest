@@ -39,7 +39,10 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
 - **Boost-panelen på mobil är en avvikelse från mobilprototypen** (som bara har tokens under vyn). Lead har beslutat att den får vara kvar; väntande ägarbeslut om den ska bort/ritas om i designen.
 - **Live-regioner:** meddelandet efter en handling (`role="status"`) och sheetens felrad (`role="alert"`) är permanenta, tomma behållare som texten monteras i — dynamiskt monterade live-regioner annonseras inte pålitligt.
 - **Delad cache:** `['challenges','my']` är samma query som skalets "Right now" (samma form); handlingar invaliderar `['challenges']`,
-  users-with-runs (tokens/W-D-L på Board) och Runner cards head-to-head. Send-sheetens head-to-head-tips använder Runner cards query-nycklar.
+  users-with-runs (tokens/W-D-L på Board) och Runner cards head-to-head. Send-sheetens head-to-head-tips delar Runner cards query FULLT ut (nyckel, sidstorlek och dataform = hela
+  `HeadToHeadResponse`; `record` härleds i `combine`) — en annan form under samma nyckel kraschar Runner card (integrationstestet låser skarven).
+- **Känd begränsning:** en motståndare med en INKOMMANDE väntande utmaning ser ledig ut i sheeten (`group-stats.has_pending_challenge` sätts bara för
+  utmanaren). Backend avvisar `/send` med 400 och sheeten visar meddelandet inline. Åtgärd = backend-kontraktsfråga (nytt fält i group-stats); ingen ändring nu.
 - **Framdrift** hämtas per live-duell (`/challenges/:id/progress`, ingen batch-endpoint finns); ett fel lämnar bara det kortet utan värden ("—").
   Progress-anropet avgör dessutom en duell som passerat `determine_at` (backend), så kortet kan försvinna vid nästa hämtning.
 - **Match history** är offset-sidor (20 per sida, "Show more"); filtret "My matches" gäller de sidor som hunnit laddas. Hämtas först när fliken visas.

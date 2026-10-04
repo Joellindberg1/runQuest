@@ -45,7 +45,7 @@ export const TOUR_DUELS_V2: TourStep[] = [
   {
     element: '[data-tour="duels-tabs"]',
     title: 'Standings, Live, Rules, History',
-    description: 'Standings ranks the pack by wins. Live shows every duel in progress. Rules explains the stakes, and History lists every settled match.',
+    description: 'Standings ranks the pack by win rate. Live shows every duel in progress. Rules explains the stakes, and History lists every settled match.',
   },
 ];
 

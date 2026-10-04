@@ -294,3 +294,40 @@ describe('AvatarMenu', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/settings');
   });
 });
+
+describe('ShellErrorBoundary: ett panelfel ger aldrig vit skärm', () => {
+  const Boom: React.FC = () => {
+    throw new Error('panel exploded');
+  };
+  const BrokenTree: React.FC = () => (
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route path="/board" element={<div>page /board</div>} />
+        <Route path="/duels" element={<Boom />} />
+      </Route>
+    </Routes>
+  );
+
+  it.each([MOBILE_WIDTH, DESKTOP_WIDTH])('en route som kastar ger felkortet och skalet står kvar (%d px)', async (width) => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { container } = renderWithApp(<BrokenTree />, { entry: '/duels', width });
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('Something broke')).toBeInTheDocument();
+    expect(within(alert).getByRole('button', { name: 'Reload' })).toBeInTheDocument();
+    expect(container.querySelector(width === MOBILE_WIDTH ? '.rq-tabbar' : '.rq-sidenav')).not.toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it('en ny sida börjar om utan fel (navigering ur felläget)', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderWithApp(<BrokenTree />, { entry: '/duels', width: MOBILE_WIDTH });
+    await screen.findByText('Something broke');
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link')[0]);
+    expect(await screen.findByText('page /board')).toBeInTheDocument();
+    expect(screen.queryByText('Something broke')).toBeNull();
+    spy.mockRestore();
+  });
+});

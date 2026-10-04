@@ -1,6 +1,7 @@
 import { Suspense, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
+import { ShellErrorBoundary } from './ShellErrorBoundary';
 
 const LOADING_ROWS = 5;
 
@@ -16,8 +17,10 @@ export function ShellOutlet() {
   }, [scrollKey]);
 
   return (
-    <Suspense fallback={<SkeletonRows rows={LOADING_ROWS} label="Loading" />}>
-      <Outlet />
-    </Suspense>
+    <ShellErrorBoundary key={scrollKey}>
+      <Suspense fallback={<SkeletonRows rows={LOADING_ROWS} label="Loading" />}>
+        <Outlet />
+      </Suspense>
+    </ShellErrorBoundary>
   );
 }
