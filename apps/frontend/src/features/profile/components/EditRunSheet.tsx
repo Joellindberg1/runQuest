@@ -14,10 +14,10 @@ interface EditRunSheetProps {
   /** Rundan är sparad/raderad och data omhämtad: skärmen visar bekräftelsen och rutan stängs. */
   onDone: (notice: string) => void;
   /**
-   * Radix återför fokus till knappen som öppnade rutan — efter en sparad/raderad runda är den borta eller har ändrats
-   * (fokus faller då till body). Skärmen flyttar i stället fokus till bekräftelsen.
+   * Rutan är kontrollerad och har ingen Dialog.Trigger, så Radix har ingen knapp att återföra fokus till (det faller till body).
+   * Skärmen bestämmer: efter en sparad/raderad runda (`done`) går fokus till bekräftelsen, annars tillbaka till Edit-knappen.
    */
-  onRestoreFocus: () => void;
+  onRestoreFocus: (done: boolean) => void;
 }
 
 /**
@@ -38,7 +38,7 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
   const remove = useDeleteRun();
 
   const pending = update.isPending || remove.isPending;
-  const errors = attempted ? validateEdit(form, today) : {};
+  const errors = attempted ? validateEdit(form, today, run) : {};
   const dirty = isDirty(form, run);
   const runDate = editFormFor(run).date;
 
@@ -51,7 +51,7 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
     event.preventDefault();
     if (pending) return;
     setServerError(null);
-    const built = buildUpdate(form, today);
+    const built = buildUpdate(form, today, run);
     if (!built.ok) {
       setAttempted(true);
       if (built.errors.date) dateRef.current?.focus();
@@ -87,9 +87,8 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
           className="rq-profile-sheet"
           aria-describedby={undefined}
           onCloseAutoFocus={(event) => {
-            if (!doneRef.current) return;
             event.preventDefault();
-            onRestoreFocus();
+            onRestoreFocus(doneRef.current);
           }}
         >
           <header className="rq-profile-sheet__head">

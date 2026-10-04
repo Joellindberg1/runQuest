@@ -18,7 +18,7 @@ const PICTURE_KEYS = [USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], LOG_QUERY_KEYS
 /**
  * Ladda upp en profilbild (POST /users/profile-picture; uppladdning och users-uppdatering sker i backend med service role).
  * Valet valideras först (bild, högst 5 MB) — ett nej gör inget anrop. Meddelandet (`notice`) visas i en permanent live-region
- * på skärmen; Toaster är inte monterad i appen.
+ * på skärmen (statusregion i stället för toast).
  */
 export function useProfilePictureUpload() {
   const queryClient = useQueryClient();

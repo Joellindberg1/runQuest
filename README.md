@@ -31,7 +31,7 @@ runquest/
 │   │       ├── providers/      # AppProviders (QueryClient, AuthProvider, Toasters)
 │   │       ├── shared/
 │   │       │   ├── components/ # Shared UI components (shadcn primitives + custom)
-│   │       │   ├── hooks/      # Shared React Query hooks (useTitleQueries, useRunMutations, etc.)
+│   │       │   ├── hooks/      # Shared React Query hooks (useTitleQueries, useUsersWithRuns, etc.)
 │   │       │   ├── services/   # backendApi.ts, levelService.ts
 │   │       │   └── utils/      # formatters, errorHandling, logger, etc.
 │   │       └── types/          # Shared TypeScript types (run.ts)

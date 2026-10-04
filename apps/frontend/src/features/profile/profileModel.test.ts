@@ -58,9 +58,22 @@ describe('redigera en runda', () => {
   });
 
   it('buildUpdate: det som skickas (komma → punkt) eller felen — inget anrop vid fel', () => {
-    expect(buildUpdate({ date: '2026-10-03', distance: '8,4' }, TODAY)).toEqual({ ok: true, update: { date: '2026-10-03', distance: 8.4 } });
-    const rejected = buildUpdate({ date: '2026-10-03', distance: '0.2' }, TODAY);
+    expect(buildUpdate({ date: '2026-10-03', distance: '8,4' }, TODAY, original)).toEqual({ ok: true, update: { date: '2026-10-03', distance: 8.4 } });
+    const rejected = buildUpdate({ date: '2026-10-03', distance: '0.2' }, TODAY, original);
     expect(rejected.ok).toBe(false);
+  });
+
+  it('en ren distansändring utelämnar datumet — serverns UTC-"idag"-validering ska inte kunna fälla den', () => {
+    expect(buildUpdate({ date: '2026-10-02', distance: '9' }, TODAY, original)).toEqual({ ok: true, update: { distance: 9 } });
+    // Datum med klockslag i rundan räknas som sin dag.
+    expect(buildUpdate({ date: '2026-10-02', distance: '9' }, TODAY, { date: '2026-10-02T05:00:00Z' })).toEqual({ ok: true, update: { distance: 9 } });
+    // Ett ändrat datum skickas med.
+    expect(buildUpdate({ date: '2026-10-01', distance: '9' }, TODAY, original)).toEqual({ ok: true, update: { date: '2026-10-01', distance: 9 } });
+  });
+
+  it('ett oförändrat datum valideras inte: distansen på en runda från före 2025-06-01 går att rätta', () => {
+    expect(validateEdit({ date: '2025-05-20', distance: '9' }, TODAY, { date: '2025-05-20' })).toEqual({});
+    expect(validateEdit({ date: '2025-05-21', distance: '9' }, TODAY, { date: '2025-05-20' }).date).toMatch(/1 June 2025/);
   });
 
   it('isDirty: något ändrat — datum eller distans — annars finns inget att spara', () => {
@@ -89,11 +102,16 @@ describe('redigera en runda', () => {
 });
 
 describe('profilbild', () => {
+  it('exakt serverns typer (jpeg, png, webp, gif) — inte alla image/*', () => {
+    for (const type of ['image/jpeg', 'image/png', 'image/webp', 'image/gif']) expect(validatePicture({ size: 10, type })).toBeNull();
+    for (const type of ['image/svg+xml', 'image/bmp', 'image/tiff', 'image/heic']) expect(validatePicture({ size: 10, type })).toBe('Only JPEG, PNG, WebP or GIF images are allowed');
+  });
+
   it('bild, högst 5 MB', () => {
     expect(validatePicture({ size: 1000, type: 'image/png' })).toBeNull();
     expect(validatePicture({ size: MAX_PICTURE_BYTES, type: 'image/jpeg' })).toBeNull();
     expect(validatePicture({ size: MAX_PICTURE_BYTES + 1, type: 'image/png' })).toBe('The image must be smaller than 5 MB');
-    expect(validatePicture({ size: 10, type: 'application/pdf' })).toBe('Only image files are allowed');
+    expect(validatePicture({ size: 10, type: 'application/pdf' })).toBe('Only JPEG, PNG, WebP or GIF images are allowed');
     expect(validatePicture(undefined)).toBe('Choose an image to upload');
   });
 });

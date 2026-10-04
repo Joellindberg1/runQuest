@@ -7,6 +7,8 @@ import { formatInt, formatKm } from '../profileFormat';
 /** Veckodagsetiketterna (desktop): mån · · ons · · fre · · sön — varannan, som Web Prototype. */
 const DAY_LABELS = ['M', '', 'W', '', 'F', '', 'S'] as const;
 const LEGEND_LEVELS: readonly HeatLevel[] = [0, 1, 2, 3, 4];
+/** Överflöd i px som räknas som "ryms" (och därför inte scrollas). */
+const FIT_TOLERANCE_PX = 8;
 
 /** Dagens detaljer (dag, km, rundor) — tooltip för mus och aria-label för skärmläsare. Dagar utan runda har ingen text. */
 function cellLabel(cell: HeatCell): string | undefined {
@@ -35,10 +37,22 @@ export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
   const monthsLabel = `${heat.months.length} ${heat.months.length === 1 ? 'month' : 'months'}`;
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Är raden bredare än kortet visas den nyaste delen (innevarande månad), inte den äldsta.
+  // Är raden bredare än kortet visas den nyaste delen (innevarande månad), inte den äldsta. Ett överflöd under toleransen
+  // (några pixlar från avrundning, högerpadding och månadsmellanrum) räknas som att den ryms: raden startar vid början, scrollar
+  // inte alls och göms (annars hamnar första månaden några pixlar utanför kanten).
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
+    if (!el) return undefined;
+    const place = () => {
+      const overflow = el.scrollWidth - el.clientWidth;
+      const fits = overflow <= FIT_TOLERANCE_PX;
+      el.dataset.fits = String(fits);
+      el.scrollLeft = fits ? 0 : overflow;
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [months]);
 
   return (

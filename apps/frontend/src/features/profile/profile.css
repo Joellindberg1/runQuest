@@ -116,7 +116,8 @@
 .rq-profile-heat__days { display: flex; flex-direction: column; gap: var(--rq-profile-heat-gap); padding-top: calc(var(--rq-fs-label) + var(--rq-sp-4)); }
 .rq-profile-heat__day { height: var(--rq-profile-heat-cell); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-5); }
 .rq-profile-heat__scroll { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; padding: var(--rq-sp-4) var(--rq-sp-4) var(--rq-sp-4) 0; margin-top: calc(var(--rq-sp-4) * -1); }
-.rq-profile-heat__months { display: flex; gap: var(--rq-sp-8); width: max-content; }
+.rq-profile-heat__scroll[data-fits="true"] { overflow-x: hidden; }
+.rq-profile-heat__months { display: flex; gap: var(--rq-sp-6); width: max-content; }
 .rq-profile-heat__month-label { font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-profile-heat__month[data-current="true"] .rq-profile-heat__month-label { color: var(--rq-gold-text); }
 .rq-profile-heat__weeks { display: flex; gap: var(--rq-profile-heat-gap); margin-top: var(--rq-sp-4); }

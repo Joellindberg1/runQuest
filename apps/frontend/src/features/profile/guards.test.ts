@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 // Vakttester över Profile-filerna: designspråkets regel 1 (tokens, inga råvärden), 2 (skarpa hörn), 8 (rörelse),
 // 10 (ikoner ur RQIcon, inga emojis) + att CSS-måtten finns i temafilen (index.css OCH docs/design/temafil-forslag.css)
-// + att det döda toast-flödet (sonner utan monterad Toaster) och det gamla edit/delete-flödet är borta.
+// + att det döda toast-flödet (sonner/toast; bekräftelserna står i statusregioner) och det gamla edit/delete-flödet är borta.
 
 const sources = import.meta.glob(
   ['./**/*.{ts,tsx}', '!./**/*.test.{ts,tsx}', '!./**/*.fixture.ts', '../runs/**/*.{ts,tsx}', '!../runs/**/*.test.{ts,tsx}', '../../pages/ProfilePage.tsx'],
@@ -54,7 +54,7 @@ describe('Profile-filerna följer designspråket', () => {
     }
   });
 
-  it('engelskt UI i en-GB: ingen sv-SE, och inga toast-anrop (Toaster är inte monterad — sonner visar ingenting)', () => {
+  it('engelskt UI i en-GB: ingen sv-SE, och inga toast-anrop (bekräftelser och fel står i role=status/alert)', () => {
     for (const [path, text] of codeFiles) {
       const code = stripComments(text);
       expect({ path, svSE: /sv-SE/.test(code), sonner: /from ['"]sonner['"]/.test(code), toast: /\btoast[.(]/.test(code) }).toEqual({ path, svSE: false, sonner: false, toast: false });

@@ -471,3 +471,29 @@ describe('desktop-overlayn (background location)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 });
+
+describe('när gruppens användare inte går att hämta', () => {
+  it('sidan visar felkort med Retry — inte "Page not found" — och Retry hämtar om', async () => {
+    let fail = true;
+    handlers.getUsersWithRuns = () => (fail ? { success: false, error: 'down' } : { success: true, data: PACK });
+    renderRunner();
+    const title = await screen.findByText("Couldn't load this runner", {}, SLOW);
+    expect(screen.queryByRole('heading', { name: 'Page not found' })).toBeNull();
+
+    fail = false;
+    fireEvent.click(within(title.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('heading', { name: 'Karl Persson', level: 1 })).toBeInTheDocument();
+  });
+
+  it('overlayn på desktop visar samma felkort i stället för att släppa bakgrunden', async () => {
+    handlers.getUsersWithRuns = () => ({ success: false, error: 'down' });
+    renderWithApp(
+      <Routes>
+        <Route path="/runner/:id" element={<RunnerRoute presentation="overlay" />} />
+      </Routes>,
+      { entry: '/runner/u-karl', width: DESKTOP },
+    );
+    expect(await screen.findByText("Couldn't load this runner", {}, SLOW)).toBeInTheDocument();
+    expect(location()).toBe('/runner/u-karl');
+  });
+});

@@ -34,7 +34,7 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   (övriga sekundära) och Send sekundär. Saknas båda är vyn utan guldknapp.
 - **Legendary** kan varken avböjas (Decline saknas) eller dras tillbaka, och startar av sig själv fyra dagar efter att den skickats; minor/major
   förfaller efter tre dagar utan svar och tokenet återgår (challengeScheduler).
-- **Toaster är inte monterad i appen** — därför bekräftas handlingar med ett statusmeddelande på sidan (`role="status"`/`"alert"`), inte `toast()`.
+- **Bekräftelser är statusmeddelanden på sidan** (`role="status"`/`"alert"`), inte `toast()`: samma mönster som Log och Profile, och texten finns kvar och läses upp pålitligt. (Toastern är monterad i `AppProviders`; äldre features använder den fortfarande.)
   guards.test förbjuder `sonner` i featuren.
 - **Boost-panelen på mobil är en avvikelse från mobilprototypen** (som bara har tokens under vyn). Lead har beslutat att den får vara kvar; väntande ägarbeslut om den ska bort/ritas om i designen.
 - **Live-regioner:** meddelandet efter en handling (`role="status"`) och sheetens felrad (`role="alert"`) är permanenta, tomma behållare som texten monteras i — dynamiskt monterade live-regioner annonseras inte pålitligt.
