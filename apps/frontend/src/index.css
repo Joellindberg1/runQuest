@@ -352,6 +352,15 @@
   --rq-runner-journey-row-2: 46px;      /* … etikettrad 2 */
   --rq-runner-journey-label-h: 13px;    /* … etikettens höjd (ticken börjar under den) */
   --rq-runner-close-gutter: 44px;       /* overlay: luft till modalens ✕ i toppraden */
+
+  /* ── 1.22 Titles-mått (inkrement 4) ────────────────────────────────────────
+     Mått ur App-/Web-prototypens titles-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/titles/titles.css. */
+  --rq-titles-grid-cols: minmax(0, 1fr);              /* titelkorten i en grupp: mobil 1 kolumn, desktop 3 */
+  --rq-titles-split-cols: minmax(0, 1fr);             /* desktop: grupper | sidokolumn (320 px) */
+  --rq-titles-rule-min-h: 0;                          /* regelraden (desktop 44 px, så korten linjerar) */
+  --rq-titles-pos: 19px;                              /* platsmarkören i "On display" (guldfylld kvadrat) */
 }
 
 
@@ -389,6 +398,9 @@
     --rq-runner-split-cols: minmax(0, 1fr) 340px;
     --rq-runner-bar-h: 10px;
     --rq-runner-knob: 16px;
+    --rq-titles-grid-cols: repeat(3, minmax(0, 1fr));
+    --rq-titles-split-cols: minmax(0, 1fr) 320px;
+    --rq-titles-rule-min-h: 44px;
   }
 }
 

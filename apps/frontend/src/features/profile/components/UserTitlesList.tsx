@@ -1,6 +1,6 @@
 import React from 'react';
 import { useUserTitles, useTitleLeaderboard, useAllTitles } from '@/shared/hooks/useTitleQueries';
-import { formatTitleValue, resolveGenderedTitle } from '@/features/titles/components/title/titleSystemUtils';
+import { formatTitleValue, resolveGenderedTitle } from '@/features/titles/titleFormat';
 
 interface UserTitlesListProps {
   userId: string;

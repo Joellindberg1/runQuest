@@ -82,4 +82,27 @@ describe('useViewParam', () => {
     fireEvent.click(screen.getByText('to-week'));
     expect(screen.getByTestId('state').textContent).toBe('{"background":{"pathname":"/board"}}');
   });
+
+  it('annat parameternamn: ?filter= läses och skrivs, ?view= lämnas orörd', () => {
+    const FILTERS = ['all', 'mine', 'unclaimed'] as const;
+    function FilterHarness() {
+      const [filter, setFilter] = useViewParam(FILTERS, 'all', 'filter');
+      return (
+        <div>
+          <span data-testid="filter">{filter}</span>
+          <button onClick={() => setFilter('mine')}>to-mine</button>
+        </div>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={['/titles?view=x&filter=unclaimed']}>
+        <FilterHarness />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('filter').textContent).toBe('unclaimed');
+    fireEvent.click(screen.getByText('to-mine'));
+    expect(screen.getByTestId('filter').textContent).toBe('mine');
+    expect(location()).toBe('/titles?view=x&filter=mine');
+  });
 });

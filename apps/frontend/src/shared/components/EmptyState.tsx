@@ -5,13 +5,15 @@ interface EmptyStateProps {
   text?: string;
   actionLabel: string;
   actionTo: string;
+  /** Sidor som redan har en h1 (Titles) skickar `h2`, så rubriknivåerna förblir ordnade. */
+  headingLevel?: 'h1' | 'h2';
 }
 
 /** Tomt läge enligt regel 9: streckad kant, Bebas-rubrik, en sekundärknapp. */
-export function EmptyState({ title, text, actionLabel, actionTo }: EmptyStateProps) {
+export function EmptyState({ title, text, actionLabel, actionTo, headingLevel: Heading = 'h1' }: EmptyStateProps) {
   return (
     <section className="rq-empty rq-rise">
-      <h1 className="rq-empty__title">{title}</h1>
+      <Heading className="rq-empty__title">{title}</Heading>
       {text && <p className="rq-empty__text">{text}</p>}
       <Link to={actionTo} className="rq-btn rq-btn--secondary">
         {actionLabel}

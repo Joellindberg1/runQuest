@@ -1,19 +1,7 @@
 import React from 'react';
-import { TitleSystem } from '@/features/titles/components/TitleSystem';
-import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
-import { TOUR_TITLES_V1 } from '@/features/onboarding/featureTourSteps';
-import { WithLeaderboardData } from './WithLeaderboardData';
+import { TitlesScreen } from '@/features/titles/components/TitlesScreen';
 
-// /titles — den gamla TitleSystem-skärmen tills inkrement 4.
-const TitlesPage: React.FC = () => (
-  <WithLeaderboardData>
-    {({ currentUser, refresh }) => (
-      <>
-        <FeatureTour slug="tour_titles_v1" steps={TOUR_TITLES_V1} />
-        <TitleSystem currentUser={currentUser} onRefresh={refresh} />
-      </>
-    )}
-  </WithLeaderboardData>
-);
+/** /titles: kategorigrupper med titlar, filter och (desktop) visningsval + jakt. Allt ligger i features/titles. */
+const TitlesPage: React.FC = () => <TitlesScreen />;
 
 export default TitlesPage;

@@ -71,21 +71,21 @@ export const TOUR_LEADERBOARD_V1: TourStep[] = [
   },
 ];
 
-// ── / (titles tab) — tour_titles_v1 ──────────────────────────────────────
-export const TOUR_TITLES_V1: TourStep[] = [
+// ── /titles — tour_titles_v2 ─────────────────────────────────────────────
+export const TOUR_TITLES_V2: TourStep[] = [
   {
     title: 'Titles',
-    description: 'Titles are competitive achievements — hit the required milestone to unlock one, but others can overtake you and claim it. Display up to 3 active titles on your leaderboard card.',
+    description: 'Titles are records the group competes for: the best number holds the title until someone beats it. They are grouped by category — open a group to see each title, its rule, who holds it and who is chasing.',
   },
   {
-    // No element — TabsContent is too large, popover ends up inside highlighted area
-    title: 'All Titles',
-    description: 'Titles are grouped by category — distance, pace, time of day, altitude and more. Browse them to see what milestones are up for grabs.',
+    element: '[data-tour="titles-filter"]',
+    title: 'Filter',
+    description: 'All shows every title, Mine only the ones you hold, and Unclaimed the ones nobody has unlocked yet — with the runner who is closest so far.',
   },
   {
-    element: '[data-tour="titles-my-titles-tab"]',
-    title: 'Your Titles',
-    description: 'Click here to see which titles you currently hold and choose up to 3 to display on your leaderboard card.',
+    element: '[data-tour="titles-display"]',
+    title: 'On display',
+    description: 'Pick up to three of your titles to show on your leaderboard card: press "Show on leaderboard" on a title you hold, then save.',
   },
 ];
 
