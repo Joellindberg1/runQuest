@@ -66,12 +66,13 @@ export function formatRemaining(ms: number): string {
   return `${Math.floor(ms / MS_DAY)} d`;
 }
 
-interface StockholmClock {
+export interface StockholmClock {
   date: string;
   msIntoDay: number;
 }
 
-function stockholmClock(now: Date): StockholmClock {
+/** Stockholm-datum + ms in i dygnet. Delas med Board ("X h ago", streak-status). */
+export function stockholmClock(now: Date): StockholmClock {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: STOCKHOLM,
     year: 'numeric', month: '2-digit', day: '2-digit',

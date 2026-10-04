@@ -1,4 +1,5 @@
 import type { User } from '@runquest/types';
+import type { RankDeltaResponse, WeekLeaderboardResponse, XpConfigResponse } from '@runquest/shared';
 
 // Ersätter backendApi-singletonen i skal-/routingtesterna. Varje anrop löser med det som
 // `handlers[metod]` ger; omockade metoder svarar `{ success: false }` så att sidorna landar i
@@ -24,6 +25,45 @@ export const ME: User = {
 
 export const OTHER: User = { ...ME, id: 'u-karl', name: 'Karl Persson', total_xp: 5539, total_km: 988, current_streak: 0 };
 
+// Svarsformerna följer packages/shared/src/contracts (ADR 007) — typerna håller fixturerna ärliga.
+const WEEK_DATES = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'];
+const weekDays = (kms: number[]) =>
+  kms.map((km, i) => ({ date: WEEK_DATES[i], km, xp: km * 6, runs: km > 0 ? 1 : 0 }));
+
+export const WEEK: WeekLeaderboardResponse = {
+  week: { start: '2026-09-28', end: '2026-10-04', previous_start: '2026-09-21', is_current: true, today: '2026-10-04' },
+  users: [
+    {
+      user_id: OTHER.id, name: OTHER.name, profile_picture: null, level: 24, km: 31, runs: 4, xp: 186,
+      days: weekDays([0, 12, 6, 0, 8, 5, 0]),
+      rank: 1, previous_rank: 2, rank_delta: 1,
+    },
+    {
+      user_id: ME.id, name: ME.name, profile_picture: null, level: 24, km: 10, runs: 1, xp: 60,
+      days: weekDays([0, 0, 0, 0, 10, 0, 0]),
+      rank: 2, previous_rank: 1, rank_delta: -1,
+    },
+  ],
+  totals: { km: 148.6, runs: 21, xp: 900, active_runners: 5, members: 6, best_week_km: 181, pct_of_best_week: 82 },
+  mover: { user_id: OTHER.id, rank_delta: 1 },
+};
+
+export const RANK_DELTA: RankDeltaResponse = {
+  as_of: '2026-09-28',
+  users: [
+    { user_id: OTHER.id, xp: OTHER.total_xp, rank: 1, previous_xp: 5300, previous_rank: 2, rank_delta: 1 },
+    { user_id: ME.id, xp: ME.total_xp, rank: 2, previous_xp: 5200, previous_rank: 1, rank_delta: -1 },
+  ],
+};
+
+// Trappan är medvetet INTE produktionens (5 d → 1.1× …): vyerna ska läsa den ur config-endpointen.
+export const XP_CONFIG: XpConfigResponse = {
+  settings: { base_xp: 15, xp_per_km: 2, bonus_5km: 5, bonus_10km: 15, bonus_15km: 25, bonus_20km: 50, min_run_distance: 1 },
+  streak_multipliers: [
+    { days: 3, multiplier: 1.3 }, { days: 7, multiplier: 1.5 }, { days: 14, multiplier: 1.8 }, { days: 21, multiplier: 2 },
+  ],
+};
+
 type Handler = (...args: unknown[]) => unknown;
 
 const EMPTY_CHALLENGES = {
@@ -33,6 +73,9 @@ const EMPTY_CHALLENGES = {
 function defaultHandlers(): Record<string, Handler> {
   return {
     getUsersWithRuns: () => ({ success: true, data: [ME, OTHER] }),
+    getWeekLeaderboard: () => ({ success: true, data: WEEK }),
+    getRankDelta: () => ({ success: true, data: RANK_DELTA }),
+    getXpConfig: () => ({ success: true, data: XP_CONFIG }),
     getGroupInfo: () => ({ success: true, data: { id: 'g1', name: 'Wolfpack', is_owner: false, members: [] } }),
     getEvents: () => ({ success: true, data: { events: [] } }),
     getEventsHistory: () => ({ success: true, data: { events: [] } }),
