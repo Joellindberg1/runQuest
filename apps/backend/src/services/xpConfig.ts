@@ -21,6 +21,8 @@ export interface XpConfig {
 export const XP_SETTINGS_COLUMNS =
   'base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance';
 
+// Cachen är process-lokal: en Railway-instans i dag. Med fler instanser kan värdena vara upp till
+// 60 s skeva mellan dem efter en admin-ändring (invalideringen når bara den egna processen) — revisit vid skalning.
 const TTL_MS = 60_000;
 
 let cached: { value: XpConfig; expiresAt: number } | null = null;

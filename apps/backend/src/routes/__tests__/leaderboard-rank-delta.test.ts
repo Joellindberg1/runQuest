@@ -107,6 +107,23 @@ describe('GET /api/leaderboard/rank-delta', () => {
     expect(anna.previous_xp).toBe(400);
   });
 
+  it('competition avräknad måndag 00:05 Stockholm (22:05Z) men ends_at söndag 21:59:59Z räknas som krediterad FRÅN veckostart (settled_at ?? ends_at)', async () => {
+    const t = tables();
+    t.event_entries = [
+      entryRow('e3', 'u-anna', G1, 100, { type: 'competition', ends_at: '2026-09-27T21:59:59Z', settled_at: '2026-09-27T22:05:00Z' }),
+    ];
+    t.runs = [];
+    t.users = [user('u-anna', 'Anna', G1, 400), user('u-bertil', 'Bertil', G1, 350)];
+    useDb(t);
+    const res = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });
+    const anna = res.body.data.users.find((u: any) => u.user_id === 'u-anna');
+    // 22:05Z söndag = 00:05 måndag 2026-09-28 i Stockholm (UTC+2 på sommartid; datumet är måndag oavsett) -> räknas bort
+    expect(anna.previous_xp).toBe(300);
+    expect(anna.previous_rank).toBe(2);
+    expect(anna.rank).toBe(1);
+    expect(anna.rank_delta).toBe(1);
+  });
+
   it('saknad group_id i token ger tom lista och rör inte databasen', async () => {
     const db = useDb(tables());
     const res = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: null }) });
@@ -123,6 +140,9 @@ describe('GET /api/leaderboard/rank-delta', () => {
     expect(by('runs').filters).toContainEqual({ op: 'eq', column: 'users.group_id', value: G1 });
     expect(by('runs').filters).toContainEqual({ op: 'gte', column: 'date', value: '2026-09-28' });
     expect(by('event_entries').filters).toContainEqual({ op: 'eq', column: 'events.group_id', value: G1 });
+    // tidsgränsen (veckostart − 14 dagar) och xp > 0 får inte kunna plockas bort tyst
+    expect(by('event_entries').filters).toContainEqual({ op: 'gte', column: 'events.ends_at', value: '2026-09-14T00:00:00Z' });
+    expect(by('event_entries').filters).toContainEqual({ op: 'gt', column: 'xp_awarded', value: 0 });
   });
 
   it('500 med {error} vid databasfel', async () => {

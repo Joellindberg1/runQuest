@@ -22,6 +22,8 @@ export interface RecordedQuery {
 export interface FakeDbOptions {
   /** Tabeller som ska svara med fel (PostgREST-liknande). */
   errors?: Record<string, { message: string }>;
+  /** Fel för enskilda queries (t.ex. bara historikfrågan) — utvärderas vid körning, när alla filter är satta. */
+  failWhen?: (q: RecordedQuery) => { message: string } | null;
 }
 
 function pick(row: Row, path: string): unknown {
@@ -70,7 +72,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
     };
 
     function execute() {
-      const err = options.errors?.[table];
+      const err = options.errors?.[table] ?? options.failWhen?.(q);
       if (err) return { data: null, error: err, count: null };
 
       if (mutation?.kind === 'insert') {

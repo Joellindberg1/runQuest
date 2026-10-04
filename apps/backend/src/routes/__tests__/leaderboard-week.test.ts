@@ -198,6 +198,17 @@ describe('GET /api/leaderboard/week', () => {
     expect(res.body.data.totals.pct_of_best_week).toBe(100);
   });
 
+  it('fel ENBART på historikfrågan ger 200 med fallback: bästa vecka = veckans egna km (100 %)', async () => {
+    useDb(baseTables(), {
+      // historikfrågan är den enda runs-query som sidas med range()
+      failWhen: (q) => (q.table === 'runs' && q.range !== null ? { message: 'history down' } : null),
+    });
+    const res = await server.request('GET', '/api/leaderboard/week', { token: mintToken({ group_id: G1 }) });
+    expect(res.status).toBe(200);
+    expect(res.body.data.users).toHaveLength(3);
+    expect(res.body.data.totals).toMatchObject({ km: 17, best_week_km: 17, pct_of_best_week: 100 });
+  });
+
   it('500 med {error} vid databasfel, utan att läcka felmeddelandet', async () => {
     useDb(baseTables(), { errors: { runs: { message: 'relation "runs" secret detail' } } });
     const res = await server.request('GET', '/api/leaderboard/week', { token: mintToken({ group_id: G1 }) });

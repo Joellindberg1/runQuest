@@ -118,7 +118,13 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     const computed = buildWeekLeaderboard(members, runsResult.data ?? [], weekStart);
 
     // Aktuell/vald vecka räknas med i "bästa vecka" så att procenten aldrig överstiger 100.
-    const historicalBest = await fetchGroupBestWeekKm(groupId);
+    // Dekorativ siffra: ett fel i historikläsningen får inte ge 500 för hela vyn → fallback till veckans egna km.
+    let historicalBest = 0;
+    try {
+      historicalBest = await fetchGroupBestWeekKm(groupId);
+    } catch (historyError) {
+      logger.warn('⚠️ Could not read runs history for best week, falling back to this week:', historyError);
+    }
     const bestKm = Math.max(historicalBest, computed.totals.km);
 
     const body: WeekLeaderboardApiResponse = {
