@@ -34,7 +34,7 @@ export interface HeatWeek {
 export interface HeatMonth {
   key: string;
   label: string;
-  /** Innevarande månad — etiketten i guld. */
+  /** Blocket där idag ligger — etiketten i guld. */
   current: boolean;
   weeks: HeatWeek[];
 }
@@ -91,7 +91,7 @@ function windowMonths(today: string, months: number): Array<{ year: number; mont
 
 /**
  * Rutnätet för de senaste `months` månaderna. En vecka tillhör den månad där dess måndag ligger (därför 4 eller 5 veckor
- * per månad, som prototypen); dagar efter idag ritas som tomma streckade rutor. Fönstret börjar första måndagen i äldsta månaden.
+ * per månad, som prototypen; en månad utan någon måndag än ritas inte); dagar efter idag ritas som tomma streckade rutor. Fönstret börjar första måndagen i äldsta månaden.
  */
 export function buildHeatmap(runs: Pick<Run, 'date' | 'distance'>[], today: string, months: number): Heatmap {
   const perDay = new Map<string, { km: number; runs: number }>();
@@ -106,7 +106,7 @@ export function buildHeatmap(runs: Pick<Run, 'date' | 'distance'>[], today: stri
   let activeDays = 0;
   let elapsedDays = 0;
 
-  const blocks = windowMonths(today, months).map(({ year, month }, position, all): HeatMonth => {
+  const blocks = windowMonths(today, months).map(({ year, month }): HeatMonth => {
     const key = monthKey(year, month);
     const first = `${key}-01`;
     const weeks: HeatWeek[] = [];
@@ -128,8 +128,8 @@ export function buildHeatmap(runs: Pick<Run, 'date' | 'distance'>[], today: stri
       weekIndex += 1;
       monday = addDays(monday, 7);
     }
-    return { key, label: SHORT_MONTHS[month - 1], current: position === all.length - 1, weeks };
-  });
+    return { key, label: SHORT_MONTHS[month - 1], current: weeks.some((week) => week.cells.some((cell) => cell.today)), weeks };
+  }).filter((block) => block.weeks.length > 0); // en månad vars första måndag ännu inte hänt har inga veckor att rita
 
   return {
     months: blocks,

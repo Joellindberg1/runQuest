@@ -17,20 +17,25 @@ describe('heatLevel — dagens km → intensitet', () => {
 });
 
 describe('buildHeatmap — fönstret', () => {
-  it('12 månader (desktop) och 6 (mobil), äldst först, innevarande månad sist och markerad', () => {
+  it('12 månader (desktop) och 6 (mobil), äldst först; månaden där idag ligger är markerad', () => {
+    // 4 okt: oktobers första måndag (5/10) har inte hänt, så oktober har inga veckor — 1–4 okt ligger i september-blocket.
     const wide = buildHeatmap([], TODAY, HEAT_MONTHS_DESKTOP);
-    expect(wide.months.map((month) => month.key)).toEqual(['2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']);
-    expect(wide.months.map((month) => month.label).slice(-3)).toEqual(['Aug', 'Sep', 'Oct']);
-    expect(wide.months.filter((month) => month.current).map((month) => month.key)).toEqual(['2026-10']);
+    expect(wide.months.map((month) => month.key)).toEqual(['2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09']);
+    expect(wide.months.map((month) => month.label).slice(-3)).toEqual(['Jul', 'Aug', 'Sep']);
+    expect(wide.months.filter((month) => month.current).map((month) => month.key)).toEqual(['2026-09']);
 
     const narrow = buildHeatmap([], TODAY, HEAT_MONTHS_MOBILE);
-    expect(narrow.months.map((month) => month.key)).toEqual(['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']);
+    expect(narrow.months.map((month) => month.key)).toEqual(['2026-05', '2026-06', '2026-07', '2026-08', '2026-09']);
+
+    // 11 okt: nu har oktober en vecka och blir innevarande block.
+    const later = buildHeatmap([], '2026-10-11', 3);
+    expect(later.months.filter((month) => month.current).map((month) => month.key)).toEqual(['2026-10']);
   });
 
   it('en vecka tillhör månaden där dess måndag ligger: 4 eller 5 veckor per månad', () => {
     const heat = buildHeatmap([], TODAY, 3);
-    // Aug 2026 har fem måndagar (3, 10, 17, 24, 31), sep fyra (7, 14, 21, 28), och okt ingen före idag.
-    expect(heat.months.map((month) => [month.key, month.weeks.length])).toEqual([['2026-08', 5], ['2026-09', 4], ['2026-10', 0]]);
+    // Aug 2026 har fem måndagar (3, 10, 17, 24, 31), sep fyra (7, 14, 21, 28), och okt ingen före idag (ritas inte).
+    expect(heat.months.map((month) => [month.key, month.weeks.length])).toEqual([['2026-08', 5], ['2026-09', 4]]);
   });
 
   it('veckor är mån–sön och datumen löper obrutet över månadsgränserna', () => {

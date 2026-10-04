@@ -436,6 +436,35 @@
   --rq-log-cell-pad: 7px 5px;                              /* desktop 14px 11px */
   --rq-log-treadmill-rgb: var(--rq-tier-minor-rgb);        /* löpband = samma blå som minor-nivån */
   --rq-log-treadmill: var(--rq-tier-minor-fg);
+  /* ── 1.26 Profile-mått (inkrement 8) ───────────────────────────────────────
+     Mått ur App-/Web-prototypens profil-skärm som saknade token. Endast mått — ingen färg, ingen typskala.
+     Heatmapens fem steg är --rq-heat-0…4 (avsnitt 1.9). Mobil = standard; desktop skriver över i avsnitt 2.
+     Konsument: features/profile/profile.css. */
+  --rq-profile-split-cols: minmax(0, 1fr);                            /* desktop: hjälte · Frodo · statflikar | titlar + rundhistorik (340 px) */
+  --rq-profile-hero-areas: "ring who" "cells cells" "photo photo";    /* desktop: ringen spänner över namn + celler */
+  --rq-profile-hero-gap: 14px;                                        /* ring ↔ namn (desktop 22) */
+  --rq-profile-ring: 78px;                                            /* nivåringens diameter (desktop 104) */
+  --rq-profile-ring-inset: 7px;                                       /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-profile-stat-cols: repeat(3, minmax(0, 1fr));                  /* statceller: mobil 3, desktop 5 */
+  --rq-profile-bar-h: 9px;                                            /* Frodo-stapeln (desktop 11) */
+  --rq-profile-knob: 15px;                                            /* positionsmarkören (desktop 17) */
+  --rq-profile-journey-h: 74px;                                       /* vägen med waypoint-etiketter (desktop 96) */
+  --rq-profile-journey-bar-top: 46px;                                 /* … stapelns överkant (desktop 62) */
+  --rq-profile-journey-ends-top: 60px;                                /* … start-/slutetikett under stapeln (desktop 80) */
+  --rq-profile-journey-row-1: 14px;                                   /* … etikettrad 1: tickens höjd över stapeln (desktop 18) */
+  --rq-profile-journey-row-2: 34px;                                   /* … etikettrad 2 (desktop 46) */
+  --rq-profile-journey-label-h: 11px;                                 /* … etikettens höjd (desktop 13) */
+  --rq-profile-heat-cell: 8px;                                        /* heatmapens ruta (desktop 11) */
+  --rq-profile-heat-gap: 2px;                                         /* ruta ↔ ruta (båda prototyperna 2 px; --rq-heat-gap är 4 px på desktop) */
+  --rq-profile-heat-stagger: .02s;                                    /* veckokolumnernas fördröjning när rutnätet växer in (en gång) */
+  --rq-profile-sheet-w: min(100%, var(--rq-shell-narrow-max));        /* redigera/radera: bottensheet (mobil) → centrerad dialog (desktop) */
+  --rq-profile-sheet-top: auto;
+  --rq-profile-sheet-bottom: 0;
+  --rq-profile-sheet-shift: 0;
+  --rq-profile-sheet-max-h: 88vh;
+  --rq-profile-sheet-edge-w: 2px;                                     /* guld toppkant på bottensheeten (desktop 1 px runtom) */
+  --rq-profile-sheet-actions-dir: column;                             /* desktop: row */
+  --rq-profile-sheet-fields-cols: minmax(0, 1fr);                     /* datum + distans: mobil staplade, desktop bredvid varandra */
 }
 
 
@@ -519,6 +548,28 @@
     --rq-log-cell-fs: 24px;
     --rq-log-cell-label-fs: 12px;
     --rq-log-cell-pad: 14px 11px;
+    --rq-profile-split-cols: minmax(0, 1fr) 340px;
+    --rq-profile-hero-areas: "ring who" "ring cells" "photo photo";
+    --rq-profile-hero-gap: 22px;
+    --rq-profile-ring: 104px;
+    --rq-profile-ring-inset: 8px;
+    --rq-profile-stat-cols: repeat(5, minmax(0, 1fr));
+    --rq-profile-bar-h: 11px;
+    --rq-profile-knob: 17px;
+    --rq-profile-journey-h: 96px;
+    --rq-profile-journey-bar-top: 62px;
+    --rq-profile-journey-ends-top: 80px;
+    --rq-profile-journey-row-1: 18px;
+    --rq-profile-journey-row-2: 46px;
+    --rq-profile-journey-label-h: 13px;
+    --rq-profile-heat-cell: 11px;
+    --rq-profile-sheet-w: min(480px, 95vw);
+    --rq-profile-sheet-top: 50%;
+    --rq-profile-sheet-bottom: auto;
+    --rq-profile-sheet-shift: -50%;
+    --rq-profile-sheet-edge-w: 1px;
+    --rq-profile-sheet-actions-dir: row;
+    --rq-profile-sheet-fields-cols: repeat(2, minmax(0, 1fr));
   }
 }
 
