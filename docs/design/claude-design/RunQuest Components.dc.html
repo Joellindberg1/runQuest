@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Bebas+Neue&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="./runquest-icons.js"></script>
+<style>
+  html { background:#0a0a0a; }
+  body { margin:0; background:#0a0a0a; color:#edeeed; font-family:'Barlow Condensed',sans-serif; }
+  a { color:#ffd700; text-decoration:none; }
+  a:hover { color:#fff2a8; }
+  @keyframes rqBar { from { width:0; } to { width:var(--w); } }
+  @keyframes rqBlink { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+  @keyframes rqDots { 0%,20% { opacity:.2; } 50% { opacity:1; } 80%,100% { opacity:.2; } }
+  @keyframes rqSpin { to { transform:rotate(360deg); } }
+  @keyframes rqSweep { from { transform:translateX(-100%); } to { transform:translateX(400%); } }
+  @keyframes rqSkel { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+  @keyframes rqMarquee { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+  @keyframes rqPulse { 0%,100% { transform:scale(1); opacity:.55; } 50% { transform:scale(1.35); opacity:0; } }
+  @keyframes rqGlow { 0%,100% { filter:drop-shadow(0 0 3px currentColor); } 50% { filter:drop-shadow(0 0 13px currentColor); } }
+  body[data-rq-noanim] * { animation-play-state:paused !important; }
+  body[data-rq-nospecs] [data-spec] { display:none !important; }
+</style>
+</helmet>
+
+<div style="background:#070e09; min-height:100vh; padding:0 0 90px;">
+
+  <header style="position:sticky; top:0; z-index:50; display:flex; align-items:flex-end; justify-content:space-between; gap:30px; padding:26px 48px 18px; background:rgba(7,14,9,.94); border-bottom:1px solid rgba(255,255,255,.08); backdrop-filter:blur(6px);">
+    <div>
+      <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.34em; text-transform:uppercase; color:rgba(255,255,255,.3);">RunQuest · design language</div>
+      <div style="font-family:'Bebas Neue',sans-serif; font-size:52px; line-height:.95; letter-spacing:.02em; color:#fff;">COMPONENT LIBRARY</div>
+    </div>
+    <nav style="display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; max-width:640px;">
+      <a href="#colors" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Colors</a>
+      <a href="#type" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Type</a>
+      <a href="#buttons" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Buttons</a>
+      <a href="#chips" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Chips</a>
+      <a href="#badges" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Badges</a>
+      <a href="#cards" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Cards</a>
+      <a href="#progress" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Progress</a>
+      <a href="#loaders" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Loaders</a>
+      <a href="#data" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Data</a>
+      <a href="#forms" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Forms</a>
+      <a href="#icons" style="padding:5px 11px; border:1px solid rgba(255,255,255,.12); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55);" style-hover="border-color:#ffd700; color:#ffd700;">Icons</a>
+    </nav>
+  </header>
+
+  <main style="display:flex; flex-direction:column; gap:64px; padding:44px 48px 0; max-width:1440px;">
+
+    <section id="colors" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">01</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">COLOR</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Gold carries every reward. Green means alive, red means dying.</span>
+      </div>
+
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Accents</div>
+        <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px;">
+          <div><div style="height:78px; background:#ffd700;"></div><div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; letter-spacing:.1em; text-transform:uppercase; color:#edeeed; margin-top:7px;">Gold</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.38);">#ffd700 · xp, reward</div></div>
+          <div><div style="height:78px; background:#fff2a8;"></div><div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; letter-spacing:.1em; text-transform:uppercase; color:#edeeed; margin-top:7px;">Gold light</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.38);">#fff2a8 · hover</div></div>
+          <div><div style="height:78px; background:#4ade80;"></div><div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; letter-spacing:.1em; text-transform:uppercase; color:#edeeed; margin-top:7px;">Live green</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.38);">#4ade80 · gain, active</div></div>
+          <div><div style="height:78px; background:#f87171;"></div><div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; letter-spacing:.1em; text-transform:uppercase; color:#edeeed; margin-top:7px;">Alarm red</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.38);">#f87171 · loss, risk</div></div>
+          <div><div style="height:78px; background:#fdba74;"></div><div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; letter-spacing:.1em; text-transform:uppercase; color:#edeeed; margin-top:7px;">Duel orange</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.38);">#fdba74 · challenges</div></div>
+          <div><div style="height:78px; background:#fc5200;"></div><div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; letter-spacing:.1em; text-transform:uppercase; color:#edeeed; margin-top:7px;">Strava</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.38);">#fc5200 · source only</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Podium</div>
+        <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px;">
+          <div><div style="height:56px; background:#ffd700;"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">#ffd700 · 1st</div></div>
+          <div><div style="height:56px; background:#a8a8a8;"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">#a8a8a8 · 2nd</div></div>
+          <div><div style="height:56px; background:#cd7f32;"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">#cd7f32 · 3rd</div></div>
+          <div><div style="height:56px; background:linear-gradient(90deg,#cd7f32,#ffd700);"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">bronze → gold bar</div></div>
+          <div><div style="height:56px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14);"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">rest of pack</div></div>
+          <div><div style="height:56px; background:rgba(255,215,0,.42); box-shadow:inset 0 0 0 2px rgba(74,222,128,.9);"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">today marker</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Surfaces and lines</div>
+        <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px;">
+          <div><div style="height:64px; background:#0a0a0a; border:1px solid rgba(255,255,255,.1);"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">#0a0a0a · page</div></div>
+          <div><div style="height:64px; background:#070e09; border:1px solid rgba(255,255,255,.1);"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">#070e09 · app shell</div></div>
+          <div><div style="height:64px; background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09);"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">panel</div></div>
+          <div><div style="height:64px; background:rgba(24,24,24,.6); border:1px solid rgba(255,255,255,.08);"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">row</div></div>
+          <div><div style="height:64px; background:#141414;"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">#141414 · table head</div></div>
+          <div><div style="height:64px; background:rgba(20,20,20,.98); border:1px solid rgba(255,215,0,.3);"></div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4); margin-top:6px;">popover</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Text on dark</div>
+        <div style="display:flex; flex-wrap:wrap; gap:26px; background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px 20px;">
+          <div><div style="font-size:20px; color:#fff;">Headline #fff</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35);">display only</div></div>
+          <div><div style="font-size:20px; color:#edeeed;">Body #edeeed</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35);">default text</div></div>
+          <div><div style="font-size:20px; color:rgba(255,255,255,.6);">Secondary .60</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35);">paragraphs</div></div>
+          <div><div style="font-size:20px; color:rgba(255,255,255,.4);">Meta .40</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35);">sub-labels</div></div>
+          <div><div style="font-size:20px; color:rgba(255,255,255,.28);">Faint .28</div><div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35);">eyebrow, ghost</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="type" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">02</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">TYPE</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Four faces, each with one job.</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:14px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:20px 22px;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;">
+            <span style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:#ffd700;">Bebas Neue</span>
+            <span data-spec="1" style="font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">Numbers and headlines</span>
+          </div>
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:64px; line-height:.92; color:#fff; letter-spacing:.02em;">THE STANDINGS</div>
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:40px; line-height:1; color:#ffd700;">148.6 KM · 24 · +0.3×</div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35); margin-top:12px;">400 · 21–96 px · tracking .02–.05em · never for body</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:20px 22px;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;">
+            <span style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:#ffd700;">Barlow Condensed</span>
+            <span data-spec="1" style="font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">Everything else</span>
+          </div>
+          <div style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:26px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed;">JOHAN BJÖRELL</div>
+          <div style="font-weight:600; font-size:20px; color:#edeeed;">Semibold 600 · stats and values</div>
+          <p style="font-size:17px; line-height:1.45; margin:6px 0 0; color:rgba(255,255,255,.6);">Regular 400 at 15–17 px carries all running copy. Five runs in seven days from a standing start.</p>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35); margin-top:12px;">400 / 500 / 600 / 700 · names always uppercase + .06em</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:20px 22px;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;">
+            <span style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:#ffd700;">Share Tech Mono</span>
+            <span data-spec="1" style="font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">Clocks, eyebrows, XP</span>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace; font-size:30px; color:#edeeed;">07:12:44</div>
+          <div style="font-family:'Share Tech Mono',monospace; font-size:17px; color:#ffd700; margin-top:4px;">412 XP</div>
+          <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:8px;">Right now</div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35); margin-top:12px;">11 px eyebrows at .28em · 17–30 px for live counters</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:20px 22px;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;">
+            <span style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:#ffd700;">Oswald</span>
+            <span data-spec="1" style="font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">Inside the logo only</span>
+          </div>
+          <div style="color:#edeeed;">{{ logo }}</div>
+          <div style="font-family:'Oswald',sans-serif; font-weight:400; font-size:26px; letter-spacing:.02em; color:rgba(255,255,255,.55); margin-top:10px;">RUNQUEST</div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35); margin-top:12px;">From <code style="color:#ffd700;">runquest-icons.js → logo({ taglineFill })</code>. Runner glyph stroke 3.5, Oswald 28 at .5 tracking, tagline Oswald 12 at .75. Oswald appears nowhere else in the UI.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08);">
+        <div style="display:grid; grid-template-columns:150px 1fr 240px; gap:16px; background:#141414; padding:10px 18px; font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4);">
+          <span>Role</span><span>Sample</span><span>Spec</span>
+        </div>
+        <sc-for list="{{ scale }}" as="t" hint-placeholder-count="7">
+          <div style="display:grid; grid-template-columns:150px 1fr 240px; gap:16px; align-items:baseline; background:rgba(24,24,24,.6); padding:12px 18px;">
+            <span style="font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.45);">{{ t.role }}</span>
+            <span style="{{ t.style }}">{{ t.sample }}</span>
+            <span data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.4);">{{ t.spec }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section id="buttons" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">03</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">BUTTONS</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Square corners. One gold action per view.</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Primary</div>
+          <div style="text-align:center; padding:12px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.06em; cursor:pointer;" style-hover="background:#fff2a8;">LOG A RUN</div>
+          <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:10px;">Gold fill, black label, Bebas 20–22 px.</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Secondary</div>
+          <div style="text-align:center; padding:11px; border:1px solid rgba(255,215,0,.5); color:#ffd700; font-size:16px; letter-spacing:.14em; text-transform:uppercase; cursor:pointer;" style-hover="background:rgba(255,215,0,.1); border-color:#ffd700;">Send challenge</div>
+          <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:10px;">Gold hairline, tinted on hover.</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Ghost</div>
+          <div style="text-align:center; padding:11px; border:1px solid rgba(255,255,255,.16); color:rgba(255,255,255,.6); font-size:16px; letter-spacing:.14em; text-transform:uppercase; cursor:pointer;" style-hover="border-color:rgba(255,255,255,.4); color:#edeeed;">Cancel</div>
+          <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:10px;">Neutral escape route.</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Disabled</div>
+          <div style="text-align:center; padding:12px; background:rgba(255,255,255,.06); color:rgba(255,255,255,.28); font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.06em; cursor:not-allowed;">LOG A RUN</div>
+          <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:10px;">No hover, no border change.</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Sizes and icon buttons</div>
+          <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px;">
+            <span style="padding:14px 26px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:24px; letter-spacing:.06em; cursor:pointer;" style-hover="background:#fff2a8;">LARGE</span>
+            <span style="padding:10px 18px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:19px; letter-spacing:.06em; cursor:pointer;" style-hover="background:#fff2a8;">MEDIUM</span>
+            <span style="padding:6px 12px; background:#ffd700; color:#000; font-size:14px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; cursor:pointer;" style-hover="background:#fff2a8;">Small</span>
+            <span style="width:44px; height:44px; border-radius:50%; background:#ffd700; color:#000; display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:30px; line-height:1; cursor:pointer;" style-hover="background:#fff2a8;">+</span>
+            <span style="width:40px; height:40px; border:1px solid rgba(255,255,255,.16); display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.6); cursor:pointer;" style-hover="border-color:#ffd700; color:#ffd700;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a9 9 0 1 1-3-6.7"></path><path d="M21 4v5h-5"></path></svg>
+            </span>
+          </div>
+          <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:12px;">The round gold + is the only circular button in the system.</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Destructive and link</div>
+          <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px;">
+            <span style="padding:11px 20px; border:1px solid rgba(248,113,113,.5); color:#f87171; font-size:16px; letter-spacing:.14em; text-transform:uppercase; cursor:pointer;" style-hover="background:rgba(248,113,113,.12); border-color:#f87171;">Give up streak</span>
+            <span style="padding:11px 20px; background:#f87171; color:#0a0a0a; font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:.06em; cursor:pointer;" style-hover="background:#fca5a5;">DELETE RUN</span>
+            <span style="font-size:16px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.5); border-bottom:1px solid rgba(255,255,255,.2); cursor:pointer;" style-hover="color:#ffd700; border-color:#ffd700;">See all runs</span>
+          </div>
+          <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:12px;">Filled red only for irreversible actions.</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Tabs · live</div>
+          <div style="display:flex; gap:0; border-bottom:1px solid rgba(255,255,255,.1);">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+              <span onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</span>
+            </sc-for>
+          </div>
+          <div style="font-size:17px; color:rgba(255,255,255,.55); margin-top:14px;">{{ tabBody }}</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Segmented · live</div>
+          <div style="display:inline-flex; border:1px solid rgba(255,255,255,.14);">
+            <sc-for list="{{ segs }}" as="g" hint-placeholder-count="3">
+              <span onClick="{{ g.onClick }}" style="{{ g.style }}">{{ g.label }}</span>
+            </sc-for>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:16px;">
+            <span style="display:flex; align-items:center; gap:8px; padding:8px 15px; background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.45); font-size:15px; letter-spacing:.1em; text-transform:uppercase; color:#4ade80;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 12.5 9.5 18 20 6.5"></path></svg>Outdoor</span>
+            <span style="display:flex; align-items:center; gap:8px; padding:8px 15px; border:1px solid rgba(255,255,255,.14); font-size:15px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.5); cursor:pointer;" style-hover="border-color:rgba(255,255,255,.4); color:#edeeed;">Treadmill</span>
+          </div>
+          <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:12px;">Selected filters take the accent of what they filter.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="chips" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">04</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">CHIPS, BADGES, STATUS</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Tint at 10%, border at 45%, text at full accent.</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Status chips</div>
+          <div style="display:flex; flex-wrap:wrap; gap:9px;">
+            <span style="display:flex; align-items:center; gap:8px; padding:6px 13px; background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.45); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:#4ade80;"><span style="width:6px; height:6px; border-radius:50%; background:#4ade80; animation:rqBlink 1.8s ease-in-out infinite;"></span>Connected</span>
+            <span style="display:flex; align-items:center; gap:8px; padding:6px 13px; background:rgba(255,215,0,.1); border:1px solid rgba(255,215,0,.45); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:#ffd700;">Open now</span>
+            <span style="display:flex; align-items:center; gap:8px; padding:6px 13px; background:rgba(249,115,22,.1); border:1px solid rgba(253,186,116,.45); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:#fdba74;">Duel · 1 d left</span>
+            <span style="display:flex; align-items:center; gap:8px; padding:6px 13px; background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.45); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:#f87171;"><span style="width:6px; height:6px; border-radius:50%; background:#f87171; animation:rqBlink 1.2s ease-in-out infinite;"></span>Streak at risk</span>
+            <span style="padding:6px 13px; border:1px solid rgba(255,255,255,.14); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45);">Closed</span>
+          </div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:12px;">Metadata tags</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:15px; letter-spacing:.1em; text-transform:uppercase;">
+            <span style="padding:5px 12px; border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.5);">Min 5 km</span>
+            <span style="padding:5px 12px; border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.5);">Closes 00:00</span>
+            <span style="padding:5px 12px; background:rgba(74,222,128,.14); border:1px solid rgba(74,222,128,.5); color:#4ade80;">+25 XP</span>
+            <span style="padding:5px 12px; background:rgba(255,215,0,.14); border:1px solid rgba(255,215,0,.5); color:#ffd700;">×1.4 streak</span>
+            <span style="display:flex; align-items:center; gap:7px; padding:5px 12px; border:1px solid rgba(252,82,0,.5); color:#fc5200;"><span style="width:6px; height:6px; background:#fc5200;"></span>Strava</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:14px; margin-top:16px;">
+            <span style="position:relative; display:flex;">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="1.7"><path d="M18 8a6 6 0 1 0-12 0c0 6-3 7-3 7h18s-3-1-3-7"></path><path d="M10.5 21a2 2 0 0 0 3 0"></path></svg>
+              <span style="position:absolute; top:-3px; right:-4px; min-width:15px; height:15px; padding:0 3px; box-sizing:border-box; border-radius:8px; background:#ffd700; color:#000; font-family:'Share Tech Mono',monospace; font-size:10px; line-height:15px; text-align:center;">4</span>
+            </span>
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#ffd700; line-height:1;">1ST</span>
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#a8a8a8; line-height:1;">2ND</span>
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#cd7f32; line-height:1;">3RD</span>
+            <span style="font-size:15px; letter-spacing:.06em; color:#4ade80;">▲ 2</span>
+            <span style="font-size:15px; letter-spacing:.06em; color:#f87171;">▼ 1</span>
+            <span style="font-size:15px; letter-spacing:.06em; color:rgba(255,255,255,.35);">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">Avatars</div>
+        <div style="display:flex; align-items:center; gap:16px;">
+          <span style="width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid #ffd700; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:19px; letter-spacing:.06em; color:#ffd700;">JB</span>
+          <span style="width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid #a8a8a8; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:16px; letter-spacing:.06em; color:#a8a8a8;">JL</span>
+          <span style="width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:14px; letter-spacing:.06em; color:rgba(255,255,255,.6);">AE</span>
+          <span style="position:relative; width:42px; height:42px;">
+            <span style="position:absolute; inset:0; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid #4ade80; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:16px; color:#4ade80;">KP</span>
+            <span style="position:absolute; bottom:-1px; right:-1px; width:11px; height:11px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 2px #212121;"></span>
+          </span>
+          <span data-spec="1" style="font-size:15px; color:rgba(255,255,255,.4);">Ring colour = podium rank. Green dot = ran today.</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="badges" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">05</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">BADGES</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Ten series, three ranks each, six rarities. Anyone can hold the badge — the rarity says who earned it.</span>
+      </div>
+
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Rarity scale</div>
+        <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px;">
+          <sc-for list="{{ rarityLadder }}" as="r" hint-placeholder-count="6">
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px 12px 14px; display:flex; flex-direction:column; align-items:center; gap:9px;">
+              <span style="{{ r.glow }}"><span style="{{ r.frame }}"><span style="{{ r.inner }}">{{ r.svg }}</span></span></span>
+              <span style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; letter-spacing:.14em; text-transform:uppercase; color:{{ r.color }};">{{ r.name }}</span>
+              <span data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; color:rgba(255,255,255,.35);">{{ r.pct }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:10px;">Series badges climb Common → Rare → Legendary. Uncommon, Heroic and Epic are reserved for one-off event badges. Legendary is the only tier that animates.</div>
+      </div>
+
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">The ten series</div>
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px;">
+          <sc-for list="{{ badgeSeries }}" as="b" hint-placeholder-count="10">
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:16px 18px; display:flex; gap:16px;">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                <span style="{{ b.glow }}"><span style="{{ b.frame }}"><span style="{{ b.inner }}">{{ b.svg }}</span></span></span>
+                <span style="display:flex; gap:4px;"><sc-for list="{{ b.pips }}" as="p" hint-placeholder-count="3"><span style="{{ p.style }}"></span></sc-for></span>
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
+                  <span style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:19px; letter-spacing:.06em; text-transform:uppercase; color:#fff;">{{ b.name }}</span>
+                  <span style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.18em; color:{{ b.stateColor }};">{{ b.state }}</span>
+                </div>
+                <div style="font-size:15px; line-height:1.35; color:rgba(255,255,255,.45); margin-top:2px;">{{ b.desc }}</div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
+                  <sc-for list="{{ b.levels }}" as="l" hint-placeholder-count="3"><span style="{{ l.style }}">{{ l.label }}</span></sc-for>
+                </div>
+                <sc-if value="{{ b.hasProg }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:10px;">
+                    <div style="height:5px; background:rgba(255,255,255,.06);"><div style="{{ b.progW }}"></div></div>
+                    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.38); margin-top:5px;">{{ b.progLabel }}</div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:16px; align-items:start;">
+        <div>
+          <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:16px 18px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid #ffd700; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:16px; color:#ffd700;">JB</span>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:20px; letter-spacing:.06em; text-transform:uppercase; color:#fff;">JOHAN BJÖRELL</span>
+                  <span style="display:flex; gap:4px;"><sc-for list="{{ minis }}" as="m" hint-placeholder-count="3"><span style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+                </div>
+                <div style="font-size:15px; color:rgba(255,255,255,.4);">Lvl 27 · 12-day streak</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:14px; padding-top:14px; border-top:1px solid rgba(255,255,255,.07);">
+              <sc-for list="{{ slots }}" as="sl" hint-placeholder-count="3">
+                <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:13px 8px 10px;">
+                  <span style="{{ sl.glow }}"><span style="{{ sl.frame }}"><span style="{{ sl.inner }}">{{ sl.svg }}</span></span></span>
+                  <span style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.38);">{{ sl.cap }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:15px; color:rgba(255,255,255,.4); margin-top:12px;">Every runner picks three badges to wear on their card and in the XP table.</div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Player card · three showcase slots</div>
+        </div>
+
+        <div>
+          <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.35); padding:26px 18px 22px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:9px;">
+            <span style="{{ mvGlow }}"><span style="{{ mvFrame }}"><span style="{{ mvInner }}">{{ mvSvg }}</span></span></span>
+            <div style="font-family:'Bebas Neue',sans-serif; font-size:28px; color:#fff; line-height:1; margin-top:4px;">THE STREAK KEEPER</div>
+            <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:#ffd700;">Rank III · Legendary</div>
+            <p style="font-size:15px; line-height:1.45; margin:0; color:rgba(255,255,255,.5); max-width:240px;">100 days in a row. Held by 1.2% of all runners.</p>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Mastery flash · lead with your rarest</div>
+        </div>
+
+        <div>
+          <div style="background:rgba(20,20,20,.98); border:1px solid rgba(255,215,0,.3); box-shadow:0 24px 60px rgba(0,0,0,.7); padding:24px 18px 20px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:9px;">
+            <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">Congratulations</div>
+            <span style="{{ evoGlow }}"><span style="{{ evoFrame }}"><span style="{{ evoInner }}">{{ evoSvg }}</span></span></span>
+            <div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#fff; line-height:1;">MILESTONER → RANK II</div>
+            <p style="font-size:15px; line-height:1.45; margin:0; color:rgba(255,255,255,.55); max-width:250px;">15 km in one stretch. Your badge traded iron for blue.</p>
+            <div style="display:flex; gap:9px; margin-top:5px;">
+              <span style="padding:8px 18px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:.06em; cursor:pointer;" style-hover="background:#fff2a8;">FLAUNT IT</span>
+              <span style="padding:8px 15px; border:1px solid rgba(255,255,255,.16); font-size:14px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.6); cursor:pointer;" style-hover="border-color:rgba(255,255,255,.4); color:#edeeed;">Later</span>
+            </div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Evolution popup</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="cards" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">06</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">CARDS</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Panel fill, hairline border, 3 px accent edge when the card has a state.</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; align-items:start;">
+        <div style="position:relative; padding-top:26px;">
+          <div style="position:relative; background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.45); overflow:hidden;">
+            <div style="position:absolute; top:-26px; right:12px; font-family:'Bebas Neue',sans-serif; font-size:92px; line-height:.78; color:rgba(255,215,0,.1); pointer-events:none;">1</div>
+            <div style="position:relative; padding:14px 16px 15px;">
+              <div style="display:flex; align-items:flex-start; gap:12px; margin-bottom:13px;">
+                <div style="flex-shrink:0; width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid #ffd700; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:16px; color:#ffd700;">JB</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:baseline; gap:8px;">
+                    <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4);">Lvl 31</span>
+                    <span style="font-size:14px; letter-spacing:.1em; color:#4ade80;">▲ 1</span>
+                  </div>
+                  <div style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:20px; letter-spacing:.06em; text-transform:uppercase; color:#fff; line-height:1.1;">JOHAN BJÖRELL</div>
+                  <div style="font-size:13px; line-height:1.34; font-style:italic; color:rgba(255,215,0,.8); margin-top:3px;">Keeper of the Long Sunday</div>
+                </div>
+              </div>
+              <div style="height:6px; background:rgba(255,255,255,.06); margin-bottom:14px;">
+                <div style="--w:74%; height:100%; background:#ffd700; animation:rqBar 1.6s cubic-bezier(.2,.8,.2,1) both;"></div>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:rgba(255,255,255,.06);">
+                <div style="background:rgba(255,255,255,.02); padding:9px 11px;"><div style="font-family:'Bebas Neue',sans-serif; font-size:23px; color:#ffd700; line-height:1;">1 842</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.36);">total xp</div></div>
+                <div style="background:rgba(255,255,255,.02); padding:9px 11px;"><div style="font-family:'Bebas Neue',sans-serif; font-size:23px; color:#edeeed; line-height:1;">12</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.36);">streak</div></div>
+                <div style="background:rgba(255,255,255,.02); padding:9px 11px;"><div style="font-family:'Bebas Neue',sans-serif; font-size:23px; color:#edeeed; line-height:1;">38.2</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.36);">km · wk</div></div>
+              </div>
+            </div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Runner card · podium</div>
+        </div>
+
+        <div>
+          <div style="background:rgba(33,33,33,.62); border:1px solid rgba(248,113,113,.5); border-left:3px solid #f87171; padding:18px;">
+            <div style="display:flex; align-items:center; gap:9px; font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:#f87171; margin-bottom:8px;">
+              <span style="width:7px; height:7px; border-radius:50%; background:#f87171; animation:rqBlink 1.2s ease-in-out infinite;"></span>Your streak dies in
+            </div>
+            <div style="font-family:'Share Tech Mono',monospace; font-size:26px; color:#edeeed;">{{ clock }}</div>
+            <p style="font-size:17px; line-height:1.45; margin:8px 0 14px; color:rgba(255,255,255,.6);">Any run today keeps 1.4×. Miss it and your next 10 km run drops from 70 to 50 XP.</p>
+            <div style="text-align:center; padding:11px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:.06em; cursor:pointer;" style-hover="background:#fff2a8;">LOG TODAY'S RUN</div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Alert card · red edge</div>
+        </div>
+
+        <div>
+          <div style="background:rgba(33,33,33,.62); border:1px solid rgba(74,222,128,.4); border-left:3px solid #4ade80; padding:18px;">
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:#4ade80; margin-bottom:5px;">Boost active</div>
+            <div style="font-family:'Bebas Neue',sans-serif; font-size:30px; color:#fff; line-height:1;">+0.2× FOR 4 DAYS</div>
+            <p style="font-size:16px; line-height:1.4; margin:6px 0 14px; color:rgba(255,255,255,.5);">Won against Adam · most runs · 5 d</p>
+            <div style="display:flex; flex-direction:column; gap:6px; font-size:16px; color:rgba(255,255,255,.55);">
+              <div style="display:flex; gap:9px;"><span style="color:#4ade80;">✓</span>Applies to every logged run</div>
+              <div style="display:flex; gap:9px;"><span style="color:#4ade80;">✓</span>Stacks with the streak multiplier</div>
+            </div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Success card · green edge</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:16px; align-items:start;">
+        <div>
+          <div style="position:relative; overflow:hidden; background:rgba(33,33,33,.62); border:1px solid rgba(74,222,128,.45); border-left:3px solid #4ade80; padding:18px 20px;">
+            <div style="position:absolute; top:0; bottom:0; width:80px; background:linear-gradient(90deg,transparent,rgba(74,222,128,.07),transparent); animation:rqSweep 5s linear infinite;"></div>
+            <div style="position:relative;">
+              <div style="display:flex; align-items:center; gap:9px; margin-bottom:6px;">
+                <span style="width:7px; height:7px; border-radius:50%; background:#4ade80; animation:rqBlink 1.4s ease-in-out infinite;"></span>
+                <span style="font-size:14px; letter-spacing:.22em; text-transform:uppercase; color:#4ade80;">Open now · participation</span>
+              </div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:42px; color:#fff; letter-spacing:.02em; line-height:1;">5K FRIDAY</div>
+              <p style="font-size:16px; line-height:1.45; margin:5px 0 12px; color:rgba(255,255,255,.55);">Everyone who runs five kilometres before midnight takes the bonus.</p>
+              <div style="display:flex; gap:8px; font-size:15px; letter-spacing:.1em; text-transform:uppercase;">
+                <span style="padding:5px 12px; border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.5);">Min 5 km</span>
+                <span style="padding:5px 12px; background:rgba(74,222,128,.14); border:1px solid rgba(74,222,128,.5); color:#4ade80;">+25 XP</span>
+              </div>
+            </div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Event card · sweep</div>
+        </div>
+
+        <div>
+          <div style="background:rgba(20,20,20,.98); border:1px solid rgba(255,215,0,.3); box-shadow:0 24px 60px rgba(0,0,0,.7);">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.08);">
+              <span style="font-family:'Bebas Neue',sans-serif; font-size:21px; letter-spacing:.05em; color:#ffd700;">THE PACK NEWS</span>
+              <span style="font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4); cursor:pointer;" style-hover="color:#ffd700;">Mark all read</span>
+            </div>
+            <sc-for list="{{ notifs }}" as="n" hint-placeholder-count="4">
+              <div style="display:flex; gap:11px; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer;" style-hover="background:rgba(255,255,255,.03);">
+                <span style="{{ n.dot }}"></span>
+                <div style="min-width:0;">
+                  <div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:17px; letter-spacing:.04em; text-transform:uppercase; color:{{ n.color }}; line-height:1.15;">{{ n.title }}</div>
+                  <div style="font-size:15px; color:rgba(255,255,255,.45); line-height:1.3;">{{ n.body }}</div>
+                  <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:3px;">{{ n.time }}</div>
+                </div>
+              </div>
+            </sc-for>
+            <div style="padding:11px 16px; text-align:center; font-size:14px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.45); cursor:pointer;" style-hover="color:#ffd700;">All news</div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Popover · notifications</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div>
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+              <div style="font-size:14px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:12px;">Pack total this week</div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:44px; color:#ffd700; line-height:1;">148.6 km</div>
+              <div style="font-size:16px; color:rgba(255,255,255,.5); margin-bottom:14px;">21 runs · 6 of 6 runners active</div>
+              <div style="height:7px; background:rgba(255,255,255,.07);">
+                <div style="--w:82%; height:100%; background:linear-gradient(90deg,#cd7f32,#ffd700); animation:rqBar 1.6s ease-out both;"></div>
+              </div>
+              <div style="font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-top:8px;">82% of your best week</div>
+            </div>
+            <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Stat panel</div>
+          </div>
+          <div>
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.35); padding:18px;">
+              <div style="font-size:14px; letter-spacing:.2em; text-transform:uppercase; color:#ffd700; margin-bottom:8px;">Mover of the week</div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:32px; color:#fff; line-height:1;">JOHAN BJÖRELL</div>
+              <p style="font-size:17px; line-height:1.45; margin:6px 0 0; color:rgba(255,255,255,.6); text-wrap:pretty;">Five runs in seven days from a standing start.</p>
+            </div>
+            <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Editorial card</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="progress" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">07</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">PROGRESS</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Every bar animates from zero once, 1.6 s, then holds.</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:16px; align-items:start;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">XP bars</div>
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:5px;"><span>Level 24</span><span>412 / 659 xp</span></div>
+              <div style="height:6px; background:rgba(255,255,255,.06);"><div style="--w:62%; height:100%; background:#ffd700; animation:rqBar 1.6s cubic-bezier(.2,.8,.2,1) both;"></div></div>
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:5px;"><span>Rest of pack</span><span>thin gold at 60%</span></div>
+              <div style="height:6px; background:rgba(255,255,255,.06);"><div style="--w:38%; height:100%; background:rgba(255,215,0,.6); animation:rqBar 1.6s cubic-bezier(.2,.8,.2,1) both; animation-delay:.1s;"></div></div>
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:5px;"><span>Pack total</span><span>gradient</span></div>
+              <div style="height:7px; background:rgba(255,255,255,.07);"><div style="--w:82%; height:100%; background:linear-gradient(90deg,#cd7f32,#ffd700); animation:rqBar 1.6s ease-out both; animation-delay:.2s;"></div></div>
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:5px;"><span>Behind target</span><span>red</span></div>
+              <div style="height:6px; background:rgba(255,255,255,.06);"><div style="--w:21%; height:100%; background:#f87171; animation:rqBar 1.6s cubic-bezier(.2,.8,.2,1) both; animation-delay:.3s;"></div></div>
+            </div>
+            <div>
+              <div style="font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:5px;">Segmented week</div>
+              <div style="display:flex; gap:3px; height:10px;">
+                <span style="flex:1; background:#ffd700;"></span><span style="flex:1; background:#ffd700;"></span><span style="flex:1; background:rgba(255,255,255,.08);"></span><span style="flex:1; background:#ffd700;"></span><span style="flex:1; background:rgba(255,255,255,.08);"></span><span style="flex:1; background:#4ade80;"></span><span style="flex:1; background:rgba(255,255,255,.08);"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">Rings</div>
+          <div style="display:flex; align-items:center; gap:20px;">
+            <div style="width:104px; height:104px; position:relative;">
+              <div style="position:absolute; inset:0; border-radius:50%; background:conic-gradient(#ffd700 0turn .62turn, rgba(255,255,255,.07) .62turn 1turn);"></div>
+              <div style="position:absolute; inset:8px; border-radius:50%; background:#212121; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                <span style="font-family:'Bebas Neue',sans-serif; font-size:38px; color:#ffd700; line-height:.9;">24</span>
+                <span style="font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.42);">level</span>
+              </div>
+            </div>
+            <div style="width:104px; height:104px; position:relative;">
+              <div style="position:absolute; inset:0; border-radius:50%; background:conic-gradient(#4ade80 0turn .3turn, rgba(255,255,255,.07) .3turn 1turn);"></div>
+              <div style="position:absolute; inset:8px; border-radius:50%; background:#212121; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                <span style="font-family:'Share Tech Mono',monospace; font-size:19px; color:#4ade80;">{{ shortClock }}</span>
+                <span style="font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.38);">left</span>
+              </div>
+            </div>
+          </div>
+          <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:14px;">Conic gradient, 8 px inner cut, panel-coloured hole.</div>
+        </div>
+
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">Heat grid</div>
+          <div style="display:grid; grid-template-columns:repeat(14,1fr); gap:4px;">
+            <sc-for list="{{ heat }}" as="h" hint-placeholder-count="42">
+              <span style="{{ h.style }}"></span>
+            </sc-for>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+            <span style="font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.35);">Less</span>
+            <span style="width:11px; height:11px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09);"></span>
+            <span style="width:11px; height:11px; background:rgba(255,215,0,.18);"></span>
+            <span style="width:11px; height:11px; background:rgba(255,215,0,.42);"></span>
+            <span style="width:11px; height:11px; background:rgba(255,215,0,.72);"></span>
+            <span style="width:11px; height:11px; background:#ffd700;"></span>
+            <span style="font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.35);">More</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+            <span style="width:11px; height:11px; box-shadow:0 0 0 2px #212121, 0 0 0 3px #4ade80; background:rgba(255,215,0,.42);"></span>
+            <span style="font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:rgba(74,222,128,.85);">Today · 8.2 km</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="loaders" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">08</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">LOADERS AND EMPTY STATES</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Waiting still reads as running.</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; align-items:start;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:20px 18px; min-height:150px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="display:flex; align-items:center; justify-content:center; flex:1; padding:14px 0;">
+            <span style="width:34px; height:34px; border-radius:50%; border:2px solid rgba(255,255,255,.1); border-top-color:#ffd700; animation:rqSpin .8s linear infinite;"></span>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3);">Spinner · 34 px</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:20px 18px; min-height:150px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="display:flex; align-items:center; justify-content:center; gap:7px; flex:1;">
+            <span style="width:9px; height:9px; background:#ffd700; animation:rqDots 1.2s ease-in-out infinite;"></span>
+            <span style="width:9px; height:9px; background:#ffd700; animation:rqDots 1.2s ease-in-out .15s infinite;"></span>
+            <span style="width:9px; height:9px; background:#ffd700; animation:rqDots 1.2s ease-in-out .3s infinite;"></span>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3);">Dots · inline waits</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:20px 18px; min-height:150px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:9px;">
+            <div style="position:relative; height:6px; background:rgba(255,255,255,.06); overflow:hidden;">
+              <div style="position:absolute; top:0; bottom:0; width:40%; background:linear-gradient(90deg,transparent,#ffd700,transparent); animation:rqSweep 1.4s linear infinite;"></div>
+            </div>
+            <div style="font-family:'Share Tech Mono',monospace; font-size:13px; color:rgba(255,255,255,.4);">Syncing Strava…</div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3);">Indeterminate bar</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:20px 18px; min-height:150px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:9px;">
+            <span style="height:16px; width:70%; background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.12),rgba(255,255,255,.05)); background-size:200% 100%; animation:rqSkel 1.4s linear infinite;"></span>
+            <span style="height:11px; width:45%; background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.12),rgba(255,255,255,.05)); background-size:200% 100%; animation:rqSkel 1.4s linear .1s infinite;"></span>
+            <span style="height:6px; width:100%; background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.12),rgba(255,255,255,.05)); background-size:200% 100%; animation:rqSkel 1.4s linear .2s infinite;"></span>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3);">Skeleton row</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; align-items:start;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">Pulse dot and live ping</div>
+          <div style="display:flex; align-items:center; gap:26px;">
+            <span style="position:relative; display:flex; align-items:center; justify-content:center; width:22px; height:22px;">
+              <span style="position:absolute; inset:0; border-radius:50%; background:#4ade80; animation:rqPulse 1.8s ease-out infinite;"></span>
+              <span style="width:9px; height:9px; border-radius:50%; background:#4ade80;"></span>
+            </span>
+            <span style="font-family:'Share Tech Mono',monospace; font-size:15px; color:#4ade80;">Karl is running now</span>
+          </div>
+          <div style="overflow:hidden; margin-top:18px; border-top:1px solid rgba(255,255,255,.07); border-bottom:1px solid rgba(255,255,255,.07); padding:8px 0;">
+            <div style="display:flex; width:200%; animation:rqMarquee 18s linear infinite; font-family:'Share Tech Mono',monospace; font-size:13px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35);">
+              <span style="flex:1; white-space:nowrap;">JOHAN +44 XP · KARL +51 XP · 5K FRIDAY OPEN · DANIEL ▲2 · JOEL STREAK 4 D · </span>
+              <span style="flex:1; white-space:nowrap;">JOHAN +44 XP · KARL +51 XP · 5K FRIDAY OPEN · DANIEL ▲2 · JOEL STREAK 4 D · </span>
+            </div>
+          </div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px dashed rgba(255,255,255,.16); padding:30px 18px; text-align:center;">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:28px; color:rgba(255,255,255,.5); line-height:1;">NO RUNS YET</div>
+          <p style="font-size:16px; line-height:1.45; margin:6px auto 14px; max-width:260px; color:rgba(255,255,255,.4);">The week is empty. First run sets the pace for everyone.</p>
+          <span style="display:inline-block; padding:9px 18px; border:1px solid rgba(255,215,0,.5); color:#ffd700; font-size:15px; letter-spacing:.14em; text-transform:uppercase; cursor:pointer;" style-hover="background:rgba(255,215,0,.1);">Log the first run</span>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:16px;">Empty state · dashed border</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(248,113,113,.4); border-left:3px solid #f87171; padding:18px;">
+          <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:#f87171; margin-bottom:6px;">Sync failed</div>
+          <p style="font-size:16px; line-height:1.45; margin:0 0 14px; color:rgba(255,255,255,.55);">Strava refused the token. Your runs are safe, nothing was lost.</p>
+          <div style="display:flex; gap:9px;">
+            <span style="padding:8px 15px; border:1px solid rgba(255,255,255,.16); font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.6); cursor:pointer;" style-hover="border-color:#ffd700; color:#ffd700;">Retry</span>
+            <span style="padding:8px 15px; border:1px solid rgba(255,255,255,.16); font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.6); cursor:pointer;" style-hover="border-color:#ffd700; color:#ffd700;">Log manually</span>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:16px;">Error state</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="data" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">09</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">DATA</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Rows separated by 1 px gaps, never by borders.</span>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08);">
+        <div style="display:grid; grid-template-columns:38px 190px 1fr 128px 92px; align-items:center; gap:16px; background:#141414; padding:11px 18px; font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4);">
+          <span>#</span><span>Runner</span><span>Mon — Sun</span><span style="text-align:right;">Week XP</span><span style="text-align:right;">Form</span>
+        </div>
+        <sc-for list="{{ rows }}" as="w" hint-placeholder-count="4">
+          <div style="display:grid; grid-template-columns:38px 190px 1fr 128px 92px; align-items:center; gap:16px; background:rgba(24,24,24,.6); padding:13px 18px;" style-hover="background:rgba(38,38,38,.75);">
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:25px; color:{{ w.rankColor }}; text-align:center;">{{ w.rank }}</span>
+            <div>
+              <div style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:19px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed;">{{ w.name }}</div>
+              <div style="font-size:15px; color:rgba(255,255,255,.4);">{{ w.sub }}</div>
+            </div>
+            <div style="display:flex; gap:4px;">
+              <sc-for list="{{ w.days }}" as="d" hint-placeholder-count="7">
+                <span style="{{ d.style }}"></span>
+              </sc-for>
+            </div>
+            <span style="font-family:'Share Tech Mono',monospace; font-size:17px; color:#ffd700; text-align:right;">{{ w.xp }}</span>
+            <span style="font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:{{ w.formColor }}; text-align:right;">{{ w.form }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">Stat cells</div>
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:rgba(255,255,255,.06);">
+            <div style="background:rgba(255,255,255,.02); padding:11px 13px;"><div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#ffd700; line-height:1;">1.4×</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.36);">multiplier</div></div>
+            <div style="background:rgba(255,255,255,.02); padding:11px 13px;"><div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#edeeed; line-height:1;">12</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.36);">streak day</div></div>
+            <div style="background:rgba(255,255,255,.02); padding:11px 13px;"><div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#4ade80; line-height:1;">+16</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.36);">bonus xp</div></div>
+            <div style="background:rgba(255,255,255,.02); padding:11px 13px;"><div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#f87171; line-height:1;">−2</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.36);">ranks lost</div></div>
+          </div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">Key–value list</div>
+          <div style="display:flex; flex-direction:column; gap:1px;">
+            <sc-for list="{{ kv }}" as="k" hint-placeholder-count="4">
+              <div style="display:flex; justify-content:space-between; align-items:baseline; background:rgba(255,255,255,.02); padding:9px 12px;">
+                <span style="font-size:16px; color:rgba(255,255,255,.5);">{{ k.label }}</span>
+                <span style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:18px; color:{{ k.color }};">{{ k.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="forms" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">10</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">FORMS</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Gold appears only on focus and on the active state.</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; align-items:start;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px; display:flex; flex-direction:column; gap:16px;">
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:6px;">Distance</div>
+            <div style="display:flex; align-items:center; border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.3);" style-focus="border-color:#ffd700;">
+              <input value="{{ km }}" onChange="{{ onKm }}" style="flex:1; min-width:0; background:transparent; border:none; outline:none; padding:11px 13px; font-family:'Share Tech Mono',monospace; font-size:19px; color:#edeeed;">
+              <span style="padding:0 13px; font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">km</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:6px;">Note</div>
+            <div style="border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.3); padding:11px 13px; font-size:17px; color:rgba(255,255,255,.35);">Morning loop by the river</div>
+          </div>
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:#f87171; margin-bottom:6px;">Distance</div>
+            <div style="border:1px solid rgba(248,113,113,.6); background:rgba(248,113,113,.06); padding:11px 13px; font-family:'Share Tech Mono',monospace; font-size:19px; color:#edeeed;">0</div>
+            <div style="font-size:15px; color:#f87171; margin-top:5px;">A run needs at least 1 km.</div>
+          </div>
+        </div>
+
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px; display:flex; flex-direction:column; gap:20px;">
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:10px;">Toggles · live</div>
+            <div style="display:flex; align-items:center; gap:14px;">
+              <span onClick="{{ toggleA }}" style="{{ toggleAStyle }}"><span style="{{ toggleAKnob }}"></span></span>
+              <span style="font-size:17px; color:rgba(255,255,255,.6);">{{ toggleALabel }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:14px; margin-top:12px;">
+              <span style="width:42px; height:21px; border-radius:11px; background:rgba(255,255,255,.12); position:relative; cursor:not-allowed;"><span style="position:absolute; top:3px; left:3px; width:15px; height:15px; border-radius:50%; background:rgba(255,255,255,.3);"></span></span>
+              <span style="font-size:17px; color:rgba(255,255,255,.28);">Disabled</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:10px;">Stepper</div>
+            <div style="display:inline-flex; align-items:center; border:1px solid rgba(255,255,255,.14);">
+              <span onClick="{{ dec }}" style="padding:8px 15px; font-family:'Bebas Neue',sans-serif; font-size:22px; color:rgba(255,255,255,.6); cursor:pointer; border-right:1px solid rgba(255,255,255,.12);" style-hover="color:#ffd700;">−</span>
+              <span style="padding:8px 20px; font-family:'Share Tech Mono',monospace; font-size:18px; color:#edeeed;">{{ km }}</span>
+              <span onClick="{{ inc }}" style="padding:8px 15px; font-family:'Bebas Neue',sans-serif; font-size:22px; color:rgba(255,255,255,.6); cursor:pointer; border-left:1px solid rgba(255,255,255,.12);" style-hover="color:#ffd700;">+</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:10px;">Slider · live</div>
+            <div style="height:6px; background:rgba(255,255,255,.08); position:relative;">
+              <div style="{{ sliderFill }}"></div>
+              <span style="{{ sliderKnob }}"></span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.35); margin-top:7px;"><span>0 km</span><span>{{ km }} km</span><span>30 km</span></div>
+            <input type="range" min="1" max="30" step="0.5" value="{{ km }}" onChange="{{ onKm }}" style="width:100%; margin-top:10px; accent-color:#ffd700;">
+          </div>
+        </div>
+
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px; display:flex; flex-direction:column; gap:18px;">
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:10px;">Select</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.3); padding:11px 13px; font-size:17px; color:#edeeed; cursor:pointer;" style-hover="border-color:rgba(255,255,255,.3);">
+              <span>Göteborgsvarvet 2026</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:10px;">Radio and check</div>
+            <div style="display:flex; flex-direction:column; gap:11px;">
+              <div style="display:flex; align-items:center; gap:11px; font-size:17px; color:#edeeed;"><span style="width:16px; height:16px; border-radius:50%; border:1px solid #ffd700; display:flex; align-items:center; justify-content:center;"><span style="width:8px; height:8px; border-radius:50%; background:#ffd700;"></span></span>Outdoor</div>
+              <div style="display:flex; align-items:center; gap:11px; font-size:17px; color:rgba(255,255,255,.55);"><span style="width:16px; height:16px; border-radius:50%; border:1px solid rgba(255,255,255,.25);"></span>Treadmill</div>
+              <div style="display:flex; align-items:center; gap:11px; font-size:17px; color:#edeeed;"><span style="width:16px; height:16px; border:1px solid #ffd700; background:#ffd700; display:flex; align-items:center; justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3.2"><path d="M4 12.5 9.5 18 20 6.5"></path></svg></span>Count toward the event</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-bottom:10px;">Day picker</div>
+            <div style="display:flex; gap:5px;">
+              <sc-for list="{{ days }}" as="d" hint-placeholder-count="7">
+                <span style="{{ d.style }}">{{ d.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="icons" style="display:flex; flex-direction:column; gap:22px;">
+      <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
+        <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">11</span>
+        <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">ICONS</h2>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Every icon in <code style="font-family:'Share Tech Mono',monospace; font-size:14px; color:#ffd700;">runquest-icons.js</code> — the same source the prototypes render from. 24×24, stroke 1.9, round caps, no fills.</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:1px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08);">
+        <sc-for list="{{ iconSet }}" as="i" hint-placeholder-count="12">
+          <div style="background:rgba(24,24,24,.6); padding:18px; display:flex; flex-direction:column; align-items:center; gap:10px;">
+            {{ i.svg }}
+            <span data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.35);">{{ i.name }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex; align-items:center; gap:24px; background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px;">
+        <div style="display:flex; align-items:flex-end; gap:18px; color:#ffd700;">{{ iconSizes }}</div>
+        <span data-spec="1" style="font-size:15px; color:rgba(255,255,255,.4);">15 px in rows and chips · 17 px in headers · 21 px for the bell · 24 px only in the library.</span>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showSpecs&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Library&quot;},&quot;animate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Library&quot;}}">
+class Component extends DCLogic {
+  state = { secs: 26064, tab: 'week', seg: '30 d', on: true, km: 8.2 };
+
+  RAR = {
+    common:    { name: 'Common',    c: '#a8a8a8', tint: 'rgba(168,168,168,.12)', bord: 'rgba(168,168,168,.5)',  grad: 'linear-gradient(145deg,#c2c2c2,#636363)', pct: '92% of runners' },
+    uncommon:  { name: 'Uncommon',  c: '#4ade80', tint: 'rgba(74,222,128,.1)',   bord: 'rgba(74,222,128,.5)',   grad: 'linear-gradient(145deg,#86efac,#166534)', pct: '61% of runners' },
+    rare:      { name: 'Rare',      c: '#60a5fa', tint: 'rgba(96,165,250,.1)',   bord: 'rgba(96,165,250,.5)',   grad: 'linear-gradient(145deg,#93c5fd,#1e40af)', pct: '34% of runners' },
+    heroic:    { name: 'Heroic',    c: '#f87171', tint: 'rgba(248,113,113,.1)',  bord: 'rgba(248,113,113,.5)',  grad: 'linear-gradient(145deg,#fca5a5,#991b1b)', pct: '12% of runners' },
+    epic:      { name: 'Epic',      c: '#c084fc', tint: 'rgba(192,132,252,.1)',  bord: 'rgba(192,132,252,.5)',  grad: 'linear-gradient(145deg,#d8b4fe,#6b21a8)', pct: '4.8% of runners' },
+    legendary: { name: 'Legendary', c: '#ffd700', tint: 'rgba(255,215,0,.12)',   bord: 'rgba(255,215,0,.55)',   grad: 'linear-gradient(145deg,#fff2a8,#ffd700 45%,#8a6d1c)', pct: '1.2% of runners' }
+  };
+
+  /* Badge emblem: crest clip-path, rarity gradient frame, dark core. rar=null → locked. */
+  emblem(rar, name, size) {
+    const R = this.RAR[rar];
+    const clip = 'polygon(50% 0%, 100% 14%, 100% 60%, 50% 100%, 0% 60%, 0% 14%)';
+    const inset = size < 32 ? 2 : 3;
+    return {
+      glow: 'display:inline-flex;' + (rar === 'legendary' ? ' color:#ffd700; animation:rqGlow 2.2s ease-in-out infinite;' : rar === 'epic' ? ' color:#c084fc; animation:rqGlow 3.6s ease-in-out infinite;' : ''),
+      frame: 'display:flex; width:' + size + 'px; height:' + Math.round(size * 1.12) + 'px; clip-path:' + clip + '; background:' + (R ? R.grad : 'rgba(255,255,255,.13)') + '; position:relative; flex-shrink:0;',
+      inner: 'position:absolute; inset:' + inset + 'px; clip-path:' + clip + '; background:#1c1c1c; display:flex; align-items:center; justify-content:center;',
+      svg: this.icon(name, Math.round(size * 0.44), R ? R.c : 'rgba(255,255,255,.28)')
+    };
+  }
+
+  componentDidMount() {
+    this.t = setInterval(() => this.setState(s => ({ secs: s.secs > 0 ? s.secs - 1 : 86399 })), 1000);
+    this.syncFlags();
+  }
+  componentDidUpdate() { this.syncFlags(); }
+  componentWillUnmount() { clearInterval(this.t); }
+
+  syncFlags() {
+    const b = document.body;
+    if (!b) return;
+    const specs = this.props.showSpecs !== false;
+    const anim = this.props.animate !== false;
+    b.toggleAttribute('data-rq-nospecs', !specs);
+    b.toggleAttribute('data-rq-noanim', !anim);
+  }
+
+  // Icons and the wordmark live in runquest-icons.js — one definition for every DC.
+  rq() { return window.RQIcons(React); }
+  ic(paths, size, color, strokeWidth) { return this.rq().ic(paths, size, color, strokeWidth); }
+  icon(name, size, color) { return this.rq().icon(name, size, color); }
+
+  fmt(s, short) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    const p = n => String(n).padStart(2, '0');
+    return short ? p(h) + ':' + p(m) : p(h) + ':' + p(m) + ':' + p(x);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const gold = '#ffd700', up = '#4ade80', down = '#f87171';
+    const km = Number(s.km) || 0;
+
+    const tabDef = [
+      { id: 'week', label: 'This week', body: 'Six runners, 21 runs, 148.6 km. Johan leads on volume, Karl on XP.' },
+      { id: 'season', label: 'Season', body: 'Since January: 1 842 km logged across the pack.' },
+      { id: 'all', label: 'All time', body: 'Three seasons, two race days, one unbroken 41-day streak.' }
+    ];
+    const cur = tabDef.find(t => t.id === s.tab) || tabDef[0];
+
+    const segLabels = ['7 d', '30 d', 'Season'];
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const active = [0, 1, 3, 5];
+
+    const tone = ['rgba(255,255,255,.05)', 'rgba(255,215,0,.18)', 'rgba(255,215,0,.42)', 'rgba(255,215,0,.72)', '#ffd700'];
+    const levels = [0,1,2,0,3,1,0,2,4,1,0,0,3,2,1,2,0,4,3,0,1,0,2,1,3,0,0,2,4,1,2,0,3,1,0,2,1,4,0,3,2,1];
+
+    // The grid renders every icon the shared source defines, so a new icon
+    // in runquest-icons.js shows up here without touching this file.
+    const roles = {
+      flame: [gold, 'flame · streak'], zap: [gold, 'zap · xp'], trophy: [gold, 'trophy · rank'],
+      crown: [gold, 'crown · leader'], swords: ['#fdba74', 'swords · duel'], sync: [up, 'sync · strava'],
+      shield: ['rgba(255,255,255,.6)', 'shield · title'], sparkles: ['rgba(255,255,255,.6)', 'sparkles · boost']
+    };
+
+    const R = this.RAR, roman = ['I', 'II', 'III'], lvlRar = ['common', 'rare', 'legendary'];
+    const em = (rar, name, sz) => this.emblem(rar, name, sz);
+    // Sample runner state demonstrates every badge state: maxed, mid-series, next-rank progress, locked.
+    const seriesSrc = [
+      { icon: 'flag', name: 'The Milestoner', desc: 'Longest single run — max capacity on record.', lv: ['5 km', '15 km', '42.2 km'], have: 2, prog: ['31.5', '42.2', 'km best run', 75] },
+      { icon: 'globe', name: 'The Earth Trotter', desc: 'Total distance since joining. The long grind.', lv: ['100 km', '1 000 km', '4 015 km'], have: 1, prog: ['612', '1 000', 'km total', 61] },
+      { icon: 'mountain', name: 'The Climber', desc: 'Accumulated metres of elevation gain.', lv: ['500 m', '4 800 m', '8 848 m'], have: 2, prog: ['5 920', '8 848', 'm climbed', 67] },
+      { icon: 'flame', name: 'The Streak Keeper', desc: 'Consecutive days with a run.', lv: ['3 days', '14 days', '100 days'], have: 3, prog: null },
+      { icon: 'sun', name: 'The Early Bird', desc: 'Runs started before the day does.', lv: ['5 before 07:00', '50 before 07:00', '100 before 06:00'], have: 1, prog: ['23', '50', 'early starts', 46] },
+      { icon: 'snow', name: 'The Weathered Soul', desc: 'Running when the forecast says no.', lv: ['Rain or <10°C', 'Below 0°C', 'Arctic · <−10°C'], have: 2, prog: ['−6°C', '−10°C', 'coldest run', 60] },
+      { icon: 'zap', name: 'The Speedster', desc: 'Fastest 5 km on record.', lv: ['Sub 30:00', 'Sub 22:00', 'Sub 18:00'], have: 0, prog: ['31:12', '30:00', '5k best', 88] },
+      { icon: 'moon', name: 'The Night Owl', desc: 'Runs started after dark.', lv: ['5 after 21:00', '50 after 21:00', 'The Midnight Run'], have: 1, prog: ['11', '50', 'night starts', 22] },
+      { icon: 'users', name: 'The Socialite', desc: 'Running is better with witnesses.', lv: ['Ran with a friend', 'Group of 5', 'Pack Leader · 10 in a day'], have: 0, prog: null },
+      { icon: 'target', name: 'The Precisionist', desc: 'For those who stop at exactly .00.', lv: ['3 exact finishes', '25 exact finishes', '10.00 / 21.10 / 42.20'], have: 0, prog: ['1', '3', 'exact finishes', 33] }
+    ];
+    const mv = em('legendary', 'flame', 88), evo = em('rare', 'flag', 62);
+
+    return {
+      logo: this.rq().logo({ taglineFill: gold, width: 190, height: 46 }),
+
+      rarityLadder: Object.keys(R).map(k => Object.assign({ name: R[k].name, color: R[k].c, pct: R[k].pct }, em(k, 'shield', 56))),
+      badgeSeries: seriesSrc.map(b => Object.assign({}, em(b.have === 3 ? 'legendary' : b.have === 2 ? 'rare' : b.have === 1 ? 'common' : null, b.icon, 56), {
+        name: b.name, desc: b.desc,
+        state: b.have === 3 ? 'MAXED' : b.have === 0 ? 'LOCKED' : 'RANK ' + roman[b.have - 1],
+        stateColor: b.have === 3 ? gold : b.have === 0 ? 'rgba(255,255,255,.3)' : R[lvlRar[b.have - 1]].c,
+        pips: lvlRar.map((lk, i) => ({ style: 'width:9px; height:9px; background:' + (i < b.have ? R[lk].c : 'rgba(255,255,255,.1)') + ';' })),
+        levels: b.lv.map((txt, i) => ({
+          label: roman[i] + ' · ' + txt,
+          style: 'padding:4px 10px; font-size:13px; letter-spacing:.1em; text-transform:uppercase; ' + (i < b.have
+            ? 'background:' + R[lvlRar[i]].tint + '; border:1px solid ' + R[lvlRar[i]].bord + '; color:' + R[lvlRar[i]].c + ';'
+            : i === b.have ? 'border:1px solid rgba(255,255,255,.3); color:rgba(255,255,255,.65);' : 'border:1px solid rgba(255,255,255,.12); color:rgba(255,255,255,.3);')
+        })),
+        hasProg: !!(b.prog && b.have < 3),
+        progW: b.prog ? 'height:100%; width:' + b.prog[3] + '%; background:rgba(255,215,0,.6);' : '',
+        progLabel: b.prog ? b.prog[0] + ' / ' + b.prog[1] + ' ' + b.prog[2] : ''
+      })),
+      minis: [em('legendary', 'flame', 24), em('rare', 'zap', 24), em('common', 'sun', 24)],
+      slots: [
+        Object.assign({ cap: 'Streak · III' }, em('legendary', 'flame', 46)),
+        Object.assign({ cap: 'Speedster · II' }, em('rare', 'zap', 46)),
+        Object.assign({ cap: 'Empty' }, em(null, 'plus', 46))
+      ],
+      mvGlow: mv.glow, mvFrame: mv.frame, mvInner: mv.inner, mvSvg: mv.svg,
+      evoGlow: evo.glow, evoFrame: evo.frame, evoInner: evo.inner, evoSvg: evo.svg,
+      iconSet: this.rq().names.map(n => ({
+        name: (roles[n] || [null, n])[1],
+        svg: this.icon(n, 24, (roles[n] || ['rgba(255,255,255,.6)'])[0])
+      })),
+      iconSizes: [15, 17, 21, 24].map(sz => React.createElement('span',
+        { key: sz, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '7px' } },
+        this.icon('flame', sz, '#ffd700'),
+        React.createElement('span', { style: { fontFamily: "'Share Tech Mono',monospace", fontSize: '11px', color: 'rgba(255,255,255,.35)' } }, sz)
+      )),
+      clock: this.fmt(s.secs),
+      shortClock: this.fmt(s.secs, true),
+      km: km,
+      onKm: e => this.setState({ km: e.target.value }),
+      inc: () => this.setState(p => ({ km: Math.min(30, (Number(p.km) || 0) + 0.5) })),
+      dec: () => this.setState(p => ({ km: Math.max(0, (Number(p.km) || 0) - 0.5) })),
+
+      scale: [
+        { role: 'Display', sample: 'THE STANDINGS', spec: "Bebas 34–52 · .03em", style: "font-family:'Bebas Neue',sans-serif; font-size:44px; line-height:1; color:#fff;" },
+        { role: 'Big number', sample: '148.6 km', spec: 'Bebas 44 · gold', style: "font-family:'Bebas Neue',sans-serif; font-size:38px; line-height:1; color:#ffd700;" },
+        { role: 'Runner name', sample: 'JOHAN BJÖRELL', spec: 'Barlow 700 · 19–20 · .06em', style: "font-weight:700; font-size:20px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed;" },
+        { role: 'Stat value', sample: '1.4× · 38.2 km', spec: 'Barlow 600 · 18', style: 'font-weight:600; font-size:18px; color:#edeeed;' },
+        { role: 'Body', sample: 'Any run today keeps the multiplier alive.', spec: 'Barlow 400 · 17 · 1.45', style: 'font-size:17px; line-height:1.45; color:rgba(255,255,255,.6);' },
+        { role: 'Meta', sample: 'Lvl 24 · 8.2 km', spec: 'Barlow 400 · 14–15', style: 'font-size:15px; color:rgba(255,255,255,.4);' },
+        { role: 'Label', sample: 'WEEK XP', spec: 'Barlow 400 · 14 · .18em caps', style: 'font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.4);' },
+        { role: 'Eyebrow', sample: 'RIGHT NOW', spec: 'Mono 11 · .28em caps', style: "font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3);" },
+        { role: 'Counter', sample: this.fmt(s.secs), spec: 'Mono 17–30', style: "font-family:'Share Tech Mono',monospace; font-size:24px; color:#edeeed;" }
+      ],
+
+      tabs: tabDef.map(t => ({
+        label: t.label,
+        onClick: () => this.setState({ tab: t.id }),
+        style: 'padding:9px 16px; font-size:16px; letter-spacing:.14em; text-transform:uppercase; cursor:pointer; margin-bottom:-1px; ' +
+          (t.id === s.tab ? 'color:#ffd700; border-bottom:2px solid #ffd700;' : 'color:rgba(255,255,255,.42); border-bottom:2px solid transparent;')
+      })),
+      tabBody: cur.body,
+
+      segs: segLabels.map(l => ({
+        label: l,
+        onClick: () => this.setState({ seg: l }),
+        style: 'padding:8px 17px; font-size:15px; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; ' +
+          (l === s.seg ? 'background:#ffd700; color:#000;' : 'color:rgba(255,255,255,.5);')
+      })),
+
+      notifs: [
+        { title: 'Karl passed you', body: '51 XP from an 8.4 km evening run', time: '12 min ago', color: down, dot: 'flex-shrink:0; width:7px; height:7px; margin-top:6px; border-radius:50%; background:' + down + ';' },
+        { title: 'Streak day 12', body: 'Multiplier climbed to 1.8×', time: '2 h ago', color: gold, dot: 'flex-shrink:0; width:7px; height:7px; margin-top:6px; border-radius:50%; background:' + gold + ';' },
+        { title: '5K Friday opens', body: 'Run five before midnight for +25 XP', time: 'Today 06:00', color: up, dot: 'flex-shrink:0; width:7px; height:7px; margin-top:6px; border-radius:50%; background:' + up + ';' },
+        { title: 'New title unlocked', body: 'Keeper of the Long Sunday', time: 'Yesterday', color: 'rgba(255,255,255,.7)', dot: 'flex-shrink:0; width:7px; height:7px; margin-top:6px; border-radius:50%; background:rgba(255,255,255,.25);' }
+      ],
+
+      heat: levels.map(l => ({
+        style: 'width:100%; aspect-ratio:1; background:' + tone[l] + (l === 0 ? '; border:1px solid rgba(255,255,255,.07)' : '') + ';'
+      })),
+
+      rows: [
+        { rank: 1, rankColor: gold, name: 'Karl Persson', sub: '41.2 km · 5 runs', xp: '312 XP', form: 'Rising', formColor: up, days: [1,0,1,1,0,1,1] },
+        { rank: 2, rankColor: '#a8a8a8', name: 'Johan Björell', sub: '38.2 km · 4 runs', xp: '284 XP', form: 'Steady', formColor: 'rgba(255,255,255,.6)', days: [1,1,0,1,0,1,0] },
+        { rank: 3, rankColor: '#cd7f32', name: 'Joel Lindberg', sub: '26.0 km · 3 runs', xp: '198 XP', form: 'Flat', formColor: 'rgba(255,255,255,.45)', days: [0,1,0,1,0,0,1] },
+        { rank: 4, rankColor: 'rgba(255,255,255,.25)', name: 'Adam Einstein', sub: '13.0 km · 2 runs', xp: '96 XP', form: 'Falling', formColor: down, days: [0,0,1,0,0,1,0] }
+      ].map(r => ({
+        rank: r.rank, rankColor: r.rankColor, name: r.name, sub: r.sub, xp: r.xp, form: r.form, formColor: r.formColor,
+        days: r.days.map(d => ({ style: 'flex:1; height:22px; background:' + (d ? 'rgba(255,215,0,.55)' : 'rgba(255,255,255,.05)') + (d ? '' : '; border:1px solid rgba(255,255,255,.07)') + ';' }))
+      })),
+
+      kv: [
+        { label: 'Base XP', value: '15', color: 'rgba(255,255,255,.75)' },
+        { label: 'Distance · ' + km.toFixed(1) + ' km × 2', value: '+' + Math.round(km * 2), color: 'rgba(255,255,255,.75)' },
+        { label: 'Distance bonus', value: km >= 10 ? '+16' : '0', color: km >= 10 ? up : 'rgba(255,255,255,.3)' },
+        { label: 'Streak 1.4×', value: '×1.4', color: gold },
+        { label: 'Total', value: Math.round((15 + km * 2 + (km >= 10 ? 16 : 0)) * 1.4) + ' XP', color: gold }
+      ],
+
+      toggleA: () => this.setState({ on: !s.on }),
+      toggleALabel: s.on ? 'Count toward the pack total' : 'Private run',
+      toggleAStyle: 'width:42px; height:21px; border-radius:11px; position:relative; cursor:pointer; background:' + (s.on ? gold : 'rgba(255,255,255,.14)') + ';',
+      toggleAKnob: 'position:absolute; top:3px; ' + (s.on ? 'right:3px' : 'left:3px') + '; width:15px; height:15px; border-radius:50%; background:' + (s.on ? '#000' : 'rgba(255,255,255,.6)') + ';',
+
+      sliderFill: 'position:absolute; left:0; top:0; bottom:0; width:' + Math.min(100, (km / 30) * 100) + '%; background:' + gold + ';',
+      sliderKnob: 'position:absolute; top:50%; left:' + Math.min(100, (km / 30) * 100) + '%; transform:translate(-50%,-50%); width:15px; height:15px; background:' + gold + ';',
+
+      days: dayLabels.map((d, i) => ({
+        label: d,
+        style: 'width:34px; height:34px; display:flex; align-items:center; justify-content:center; font-size:15px; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; ' +
+          (active.indexOf(i) >= 0 ? 'background:rgba(255,215,0,.14); border:1px solid #ffd700; color:#ffd700;' : 'border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.45);')
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>
+

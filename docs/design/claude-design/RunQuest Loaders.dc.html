@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  html { background:#070e09; }
+  body { margin:0; background:#070e09; color:#edeeed; font-family:'Barlow Condensed',sans-serif; }
+  a { color:#ffd700; text-decoration:none; }
+  a:hover { color:#fff2a8; }
+  @keyframes rqOrbit { from { offset-distance:0%; } to { offset-distance:100%; } }
+  @keyframes rqBlink { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+  @keyframes rqDots { 0%,20% { opacity:.2; } 50% { opacity:1; } 80%,100% { opacity:.2; } }
+</style>
+</helmet>
+
+<div style="padding:48px 56px 72px; display:flex; flex-direction:column; gap:44px;">
+  <div>
+    <div style="font-family:'Bebas Neue',sans-serif; font-size:38px; letter-spacing:.04em; color:#ffd700; line-height:1;">RUNQUEST LOADERS</div>
+    <p style="max-width:800px; font-size:18px; line-height:1.5; color:rgba(255,255,255,.6); margin:8px 0 0;">One loader at three scales. The track survives shrinking in a way the running figure did not, because the motion is a dot going round rather than a body that has to stay readable — lanes and dots simply drop away as it gets smaller. 26 px inside a button, 600 px across a whole pane.</p>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:20px;">
+    <div style="flex:1 1 420px; background:#212121; border:1px solid rgba(255,255,255,.09); border-left:3px solid rgba(255,215,0,.5);">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.07);">
+        <span style="font-family:'Bebas Neue',sans-serif; font-size:24px; color:#ffd700; letter-spacing:.04em;">TRACK · ACTION LOADER</span>
+        <span style="font-size:15px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4);">inline · 3 sizes</span>
+      </div>
+      <div style="padding:30px 18px; display:flex; flex-direction:column; gap:28px;">
+        <div style="display:flex; align-items:center; gap:46px; justify-content:center;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:13px;">{{ trackLg }}<span style="font-size:14px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.35);">88 px · 3 lanes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:13px;">{{ trackMd }}<span style="font-size:14px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.35);">48 px · 2 lanes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:13px;">{{ trackSm }}<span style="font-size:14px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.35);">26 px · 1 lane</span></div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <sc-for list="{{ actions }}" as="a" hint-placeholder-count="3">
+            <div style="display:flex; align-items:center; gap:14px; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06); padding:11px 14px;">
+              {{ a.icon }}
+              <div style="flex:1;">
+                <div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:18px; letter-spacing:.08em; text-transform:uppercase; color:#edeeed;">{{ a.label }}</div>
+                <div style="font-size:15px; color:rgba(255,255,255,.42);">{{ a.note }}</div>
+              </div>
+              <span style="font-family:'Share Tech Mono',monospace; font-size:15px; color:rgba(255,215,0,.75); animation:rqDots 1.4s ease-in-out infinite;">···</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1 1 420px; background:#212121; border:1px solid rgba(255,255,255,.09); border-left:3px solid rgba(255,215,0,.5);">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.07);">
+        <span style="font-family:'Bebas Neue',sans-serif; font-size:24px; color:#ffd700; letter-spacing:.04em;">BUTTON · IN PROGRESS</span>
+        <span style="font-size:15px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4);">replaces the label</span>
+      </div>
+      <div style="padding:26px 18px; display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; align-items:center; justify-content:center; gap:13px; padding:14px; background:#ffd700; color:#000;">
+          {{ trackBtn }}
+          <span style="font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.06em;">Logging run</span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:center; gap:13px; padding:13px; border:1px solid rgba(255,215,0,.5); color:#ffd700;">
+          {{ trackGhost }}
+          <span style="font-family:'Bebas Neue',sans-serif; font-size:21px; letter-spacing:.06em;">Sending challenge</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:13px 15px; border:1px solid rgba(255,255,255,.12);">
+          {{ trackGhostDim }}
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:17px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.6);">Saving title display</div>
+            <div style="font-size:15px; color:rgba(255,255,255,.35);">Three titles on the leaderboard</div>
+          </div>
+        </div>
+        <div style="margin-top:6px; padding:11px 14px; border:1px dashed rgba(255,255,255,.14); font-size:15px; line-height:1.45; color:rgba(255,255,255,.4);">At button size the lane ring stays still and only the dot moves — a spinning oval reads as a glitch, a dot going round reads as a lap.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:#212121; border:1px solid rgba(255,255,255,.09); border-left:3px solid rgba(255,215,0,.5);">
+    <div style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.07);">
+      <span style="font-family:'Bebas Neue',sans-serif; font-size:24px; color:#ffd700; letter-spacing:.04em;">TRACK · SCREEN LOADER</span>
+      <span style="font-size:15px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4);">full pane · a second or two</span>
+    </div>
+    <div style="position:relative; height:420px; background:radial-gradient(ellipse at 50% 45%, rgba(255,215,0,.05), transparent 70%); overflow:hidden; display:flex; align-items:center; justify-content:center;">
+      <div style="position:absolute; top:50%; left:50%; width:600px; transform:translate(-50%,-50%) rotate(-16deg);">
+        <svg viewBox="0 0 1400 760" width="100%" fill="none" stroke="rgba(255,215,0,.26)" stroke-width="2">
+          <path id="rqLdLane1" d="M340 230 H1060 A150 150 0 0 1 1060 530 H340 A150 150 0 0 1 340 230 Z"></path>
+          <path id="rqLdLane2" d="M340 204 H1060 A176 176 0 0 1 1060 556 H340 A176 176 0 0 1 340 204 Z" stroke="rgba(255,215,0,.20)"></path>
+          <path id="rqLdLane3" d="M340 178 H1060 A202 202 0 0 1 1060 582 H340 A202 202 0 0 1 340 178 Z" stroke="rgba(255,215,0,.16)"></path>
+          <path id="rqLdLane4" d="M340 152 H1060 A228 228 0 0 1 1060 608 H340 A228 228 0 0 1 340 152 Z" stroke="rgba(255,215,0,.13)"></path>
+          <line x1="700" y1="524" x2="700" y2="614" stroke="rgba(255,215,0,.4)" stroke-width="3"></line>
+          <circle r="13" fill="#ffd700" stroke="none">
+            <animateMotion dur="2.6s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLdLane1"></mpath></animateMotion>
+          </circle>
+          <circle r="11" fill="rgba(200,200,200,.75)" stroke="none">
+            <animateMotion dur="3.4s" begin="-0.9s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLdLane2"></mpath></animateMotion>
+          </circle>
+          <circle r="10" fill="rgba(205,127,50,.8)" stroke="none">
+            <animateMotion dur="4.2s" begin="-2.1s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLdLane3"></mpath></animateMotion>
+          </circle>
+          <circle r="9" fill="rgba(255,255,255,.4)" stroke="none">
+            <animateMotion dur="5s" begin="-3.4s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLdLane4"></mpath></animateMotion>
+          </circle>
+        </svg>
+      </div>
+      <div style="position:relative; text-align:center;">
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:34px; color:#fff; letter-spacing:.04em; line-height:1;">LOADING THE PACK</div>
+        <div style="font-size:16px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-top:6px;">
+          <span style="animation:rqDots 1.4s ease-in-out infinite;">·</span>
+          <span style="animation:rqDots 1.4s ease-in-out .2s infinite;">·</span>
+          <span style="animation:rqDots 1.4s ease-in-out .4s infinite;">·</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; gap:26px; padding:14px 18px; border-top:1px solid rgba(255,255,255,.07); font-size:16px; color:rgba(255,255,255,.45);">
+      <span>Four runners on four lanes, different speeds</span>
+      <span>Tilted so the oval reads as a stadium, not a pill</span>
+      <span>Copy swaps per screen</span>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:20px;">
+    <div style="flex:1 1 420px; background:#212121; border:1px solid rgba(255,255,255,.09);">
+      <div style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.07); font-family:'Bebas Neue',sans-serif; font-size:24px; color:#ffd700; letter-spacing:.04em;">CARD · MID SIZE</div>
+      <div style="height:190px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
+        {{ trackCard }}
+        <div style="text-align:center;">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:#edeeed; letter-spacing:.03em; line-height:1;">Working out the week</div>
+          <div style="font-size:15px; color:rgba(255,255,255,.38); margin-top:3px;">Six runners, 21 runs</div>
+        </div>
+      </div>
+      <div style="padding:12px 18px; border-top:1px solid rgba(255,255,255,.07); font-size:16px; color:rgba(255,255,255,.45);">For one card refreshing inside a screen that has already arrived.</div>
+    </div>
+
+    <div style="flex:1 1 420px; background:#212121; border:1px solid rgba(255,255,255,.09);">
+      <div style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.07); font-family:'Bebas Neue',sans-serif; font-size:24px; color:#ffd700; letter-spacing:.04em;">SKELETON ROWS</div>
+      <div style="padding:18px; display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.06);">
+        <sc-for list="{{ skeletons }}" as="s" hint-placeholder-count="4">
+          <div style="display:grid; grid-template-columns:34px 1fr 90px; align-items:center; gap:14px; background:#181818; padding:13px 14px;">
+            <div style="height:22px; background:rgba(255,255,255,.05); animation:rqBlink 1.5s ease-in-out infinite; animation-delay:{{ s.delay }};"></div>
+            <div>
+              <div style="height:13px; width:{{ s.w1 }}; background:rgba(255,255,255,.06); animation:rqBlink 1.5s ease-in-out infinite; animation-delay:{{ s.delay }};"></div>
+              <div style="height:5px; margin-top:8px; background:rgba(255,255,255,.045); animation:rqBlink 1.5s ease-in-out infinite; animation-delay:{{ s.delay }};"></div>
+            </div>
+            <div style="height:14px; background:rgba(255,215,0,.10); animation:rqBlink 1.5s ease-in-out infinite; animation-delay:{{ s.delay }};"></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:12px 18px; border-top:1px solid rgba(255,255,255,.07); font-size:16px; color:rgba(255,255,255,.45);">For lists that arrive row by row — the leaderboard, run history.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:2460}}">
+class Component extends DCLogic {
+  // The track at any size. Lanes are static SVG; the dots ride the same oval via
+  // CSS offset-path, so nothing needs unique SVG ids and it stays sharp at 26px.
+  // Lane count drops with size — one lane below ~34px, two below ~64px.
+  track(size, color, speed, tilt) {
+    const k = size / 100;
+    const h = size * 0.62;
+    const lanes = size < 34 ? 1 : size < 64 ? 2 : 3;
+    const dots = lanes;
+    const oval = (inset) => {
+      const x1 = 26 + inset * 0.4, x2 = 74 - inset * 0.4;
+      const r = 24 - inset;
+      const top = 31 - r, bot = 31 + r;
+      return 'M' + x1 + ' ' + top + ' H' + x2 + ' A' + r + ' ' + r + ' 0 0 1 ' + x2 + ' ' + bot +
+             ' H' + x1 + ' A' + r + ' ' + r + ' 0 0 1 ' + x1 + ' ' + top + ' Z';
+    };
+    const scaled = (inset) => {
+      const x1 = (26 + inset * 0.4) * k, x2 = (74 - inset * 0.4) * k;
+      const r = (24 - inset) * k;
+      const top = (31 - (24 - inset)) * k, bot = (31 + (24 - inset)) * k;
+      return 'M' + x1 + ' ' + top + ' H' + x2 + ' A' + r + ' ' + r + ' 0 0 1 ' + x2 + ' ' + bot +
+             ' H' + x1 + ' A' + r + ' ' + r + ' 0 0 1 ' + x1 + ' ' + top + ' Z';
+    };
+    const insets = [0, 7, 14];
+    const strokes = [0.32, 0.22, 0.15];
+    const durs = [(speed || 2.4), (speed || 2.4) * 1.35, (speed || 2.4) * 1.75];
+    const dotFills = [color, color, color];
+    const dotOps = [1, 0.6, 0.38];
+    const dotR = Math.max(2, size * 0.055);
+
+    const paths = [];
+    for (let i = 0; i < lanes; i++) {
+      paths.push(React.createElement('path', {
+        key: 'l' + i, d: oval(insets[i]), fill: 'none',
+        stroke: color, strokeOpacity: strokes[i],
+        strokeWidth: size < 34 ? 1.4 : 2, vectorEffect: 'non-scaling-stroke'
+      }));
+    }
+
+    const runners = [];
+    for (let i = 0; i < dots; i++) {
+      runners.push(React.createElement('div', {
+        key: 'd' + i,
+        style: {
+          position: 'absolute', left: 0, top: 0,
+          width: dotR * 2, height: dotR * 2, marginLeft: -dotR, marginTop: -dotR,
+          borderRadius: '50%', background: color, opacity: dotOps[i],
+          offsetPath: 'path("' + scaled(insets[i]) + '")',
+          animation: 'rqOrbit ' + durs[i] + 's linear infinite',
+          animationDelay: (-i * 0.7) + 's'
+        }
+      }));
+    }
+
+    return React.createElement('div', {
+      style: {
+        width: size, height: h, position: 'relative',
+        transform: 'rotate(' + (tilt === undefined ? -16 : tilt) + 'deg)'
+      }
+    },
+      React.createElement('svg', {
+        viewBox: '0 0 100 62', width: size, height: h,
+        style: { display: 'block', position: 'absolute', inset: 0 }
+      }, paths),
+      runners
+    );
+  }
+
+  renderVals() {
+    const gold = '#ffd700';
+    const t = (size, color, speed) => this.track(size, color, speed);
+    return {
+      trackLg: t(88, gold, 2.2),
+      trackMd: t(48, gold, 1.9),
+      trackSm: t(26, gold, 1.5),
+      trackBtn: t(30, '#000', 1.6),
+      trackGhost: t(28, gold, 1.7),
+      trackGhostDim: t(26, 'rgba(255,255,255,.55)', 2.1),
+      trackCard: t(72, gold, 2.3),
+
+      actions: [
+        { label: 'Logging your run', note: 'Calculating XP and streak', icon: t(40, gold, 1.9) },
+        { label: 'Sending challenge', note: 'Major token · most km · 7 days', icon: t(40, '#fdba74', 1.8) },
+        { label: 'Saving titles', note: 'Updating your leaderboard display', icon: t(40, 'rgba(255,255,255,.6)', 2.2) }
+      ],
+
+      skeletons: [
+        { delay: '0s', w1: '62%' },
+        { delay: '.15s', w1: '48%' },
+        { delay: '.3s', w1: '70%' },
+        { delay: '.45s', w1: '40%' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
+
