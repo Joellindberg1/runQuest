@@ -18,7 +18,23 @@ events/user_titles). Det enda som kräver NY LAGRING:
 | Strava-synklogg | Liten logtabell (dagens info bor i minnet) |
 | "Season" | BESLUT: begreppet finns inte i datamodellen (se Ägarbeslut 2) |
 
-## Ägarbeslut före bygget (design ≠ verklighet)
+## Ägarbeslut — AVGJORDA 2026-10-04
+
+1. **Spelregler: oförändrade.** Detta är en redesign — UI:t visar spelets
+   VERKLIGA regler (insatser 0.15/0.25/0.5 med straff, durationer 5–30 d,
+   metrics xp/km/runs, fasta tokens, streak-trappan 5→270 d). Designens
+   regeltexter justeras vid implementation; layout/flöden följer designen.
+2. **Season: senare.** Copy byts till All-time/This year tills
+   seasons-featuren (roadmap) byggs.
+3. **Titlar: dagens namn och regler.** Designens DISPLAY (kategorigrupper,
+   runner-ups, "best so far") implementeras; kategorimappning i frontend.
+4. **Landing: hårdkodad dummy-data.** Ingen publik endpoint. Siffror och
+   preview är statiska (kan rotera klient-side så det KÄNNS levande).
+   "Create your pack" väntar på multi-grupp.
+5. **Händelselogg: JA.** Byggs nu för Pack News (display); designad som
+   grund för framtida realtid/notifikationer enligt roadmap.
+
+## Ursprunglig beslutsanalys (design ≠ verklighet)
 
 1. **Spelregler.** Designen visar andra regler än spelet kör (verifierat i prod):
    - Insatser: design 0.1/0.3/0.5 ↔ prod 0.15/0.25/0.5 (med straff −0.07/−0.12/−0.25)
