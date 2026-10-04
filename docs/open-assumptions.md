@@ -53,6 +53,20 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - Manuella outdoor-rundor skickar explicit `is_treadmill: false` (ADR 007
   addendum 12 — numeriskt inert tills manuella rundor får höjddata).
 
+## Profile (inkrement 8)
+- Profilbildsraden i hjältekortet är ett tillägg — prototypen har ingen yta för
+  uppladdning (gamla flödet var dessutom onåbart). Ägaren kan flytta kontrollen.
+- Heatmapens intensitetssteg = dagens km: 0 / <5 / 5–10 / 10–15 / 15+ (följer
+  distansbonusarna; prototypens data var påhittad). En vecka tillhör månaden
+  där måndagen ligger; månadsetiketten speglar verkligt antal ritade block.
+- "Longest streak" i heatmapen är användarens rekord (inte fönstrets);
+  "Longest gap" räknar bara avslutade uppehåll.
+- Alla stats härleds klient-side ur users-with-runs (hela rundlistan finns
+  redan i payloaden; GET /users/me/stats ej aktuell än).
+- Edit-datumets max är Stockholm-dagen men servern validerar UTC-"idag" —
+  samma gap som backend-fråga 0.
+- En runda kan bara ändras på datum och distans (servern tar inget annat).
+
 ## Skal & delat
 - Toastern är inte monterad i appen — gamla `toast()`-anrop i äldre features
   visar ingenting. Nya features bekräftar via permanenta `role=status`-ytor.
