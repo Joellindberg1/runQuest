@@ -41,6 +41,7 @@ describe('migration 034_create_activity_log.sql', () => {
   });
 
   it('är additiv: inga drop/rename/delete', () => {
-    expect(code).not.toMatch(/\b(drop|rename|truncate|delete)\b/i);
+    // "on delete cascade/set null" på FK:erna är tillåtet — här söks destruktiva satser.
+    expect(code).not.toMatch(/\b(drop\s+(table|column|index|constraint)|rename\s+(to|column)|truncate|delete\s+from)\b/i);
   });
 });
