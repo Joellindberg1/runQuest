@@ -1,0 +1,134 @@
+/* Landing (inkrement 10): publik sida — hjälte med arena-banan, aggregat, previewkort, How it works. ENDAST tokens (regel 1).
+   Måtten (--rq-landing-*) definieras i temafilen, sektion 1.27 (index.css + docs/design/temafil-forslag.css) — inga egna
+   :root-definitioner här. Rörelse: bara det som lever loopar (arenans löpare, kortets guldring och sweep, blink-pricken);
+   staplarna växer en gång. Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+
+/* ── Sida ─────────────────────────────────────────────────────────────────── */
+.rq-landing { position: relative; min-height: 100dvh; overflow: hidden; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+.rq-landing__glow {
+  position: absolute; top: var(--rq-landing-glow-top); left: 50%; width: var(--rq-landing-glow-w); height: var(--rq-landing-glow-h);
+  transform: translateX(-50%); background: var(--rq-hero-glow); pointer-events: none;
+}
+.rq-landing__inner {
+  position: relative; box-sizing: border-box; width: 100%; max-width: var(--rq-landing-max); margin-inline: auto;
+  padding: 0 var(--rq-landing-pad) var(--rq-sp-24);
+}
+.rq-landing-header { display: flex; justify-content: center; padding: var(--rq-sp-14) 0 var(--rq-sp-18); color: var(--rq-text-2); }
+.rq-landing-logo { width: var(--rq-landing-logo-w); height: auto; }
+.rq-landing-main { display: flex; flex-direction: column; gap: var(--rq-sp-24); }
+
+/* ── Hjälte: märke · rubrik · arena-bana · ingress · knappar ───────────────── */
+.rq-landing-hero {
+  display: grid; grid-template-columns: var(--rq-landing-hero-cols); grid-template-areas: var(--rq-landing-hero-areas);
+  column-gap: var(--rq-sp-10); align-items: center; align-content: center;
+}
+.rq-landing-badge { grid-area: badge; justify-self: start; margin: 0 0 var(--rq-sp-16); }
+.rq-landing-title { grid-area: title; margin: 0 0 var(--rq-sp-14); font-weight: 400; letter-spacing: 0; overflow-wrap: anywhere; }
+.rq-landing-accent { color: var(--rq-gold-text); }
+.rq-landing-lead { grid-area: lead; margin: 0 0 var(--rq-sp-20); }
+.rq-landing-cta { grid-area: cta; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+.rq-landing-cta .rq-btn { width: 100%; box-sizing: border-box; text-decoration: none; }
+.rq-landing-note { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); text-align: center; }
+
+/* Arena-banan: en oval i en klippt ruta, vriden så den står nästan lodrätt. Löparna följer ovalen med offset-path. */
+.rq-landing-arena { grid-area: arena; position: relative; width: var(--rq-landing-track-w); height: var(--rq-landing-track-h); overflow: hidden; justify-self: end; }
+.rq-landing-arena__svg {
+  position: absolute; top: 50%; left: 50%; width: var(--rq-landing-track-svg-w); height: auto; overflow: visible;
+  transform: translate(-50%, -50%) rotate(var(--rq-landing-track-rot));
+}
+.rq-landing-lane { fill: none; stroke-width: var(--rq-landing-lane-w); }
+.rq-landing-lane[data-lane="1"] { stroke: rgb(var(--rq-gold-rgb) / .34); }
+.rq-landing-lane[data-lane="2"] { stroke: rgb(var(--rq-gold-rgb) / .22); }
+.rq-landing-lane[data-lane="3"] { stroke: rgb(var(--rq-gold-rgb) / .16); }
+.rq-landing-finish { stroke: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); stroke-width: var(--rq-landing-finish-w); }
+.rq-landing-runner { offset-path: var(--rq-lane-path); offset-rotate: 0deg; }
+.rq-landing-runner[data-lane="1"] { fill: var(--rq-rank-1); animation: rqOrbit var(--rq-landing-lap-1) linear infinite; }
+.rq-landing-runner[data-lane="2"] { fill: var(--rq-rank-2); animation: rqOrbit var(--rq-landing-lap-2) linear infinite; animation-delay: var(--rq-landing-lap-offset-2); }
+.rq-landing-runner[data-lane="3"] { fill: var(--rq-rank-3); animation: rqOrbit var(--rq-landing-lap-3) linear infinite; animation-delay: var(--rq-landing-lap-offset-3); }
+/* "+50 XP" syns en stund när guldlöparen passerar mållinjen (samma varvtid som guldlöparen) */
+.rq-landing-xp { text-anchor: middle; font-family: var(--rq-font-display); font-size: var(--rq-landing-xp-size); fill: var(--rq-rank-1); opacity: 0; animation: rqLandingPop var(--rq-landing-lap-1) linear infinite; }
+@keyframes rqLandingPop {
+  0%, 62% { opacity: 0; }
+  68%, 78% { opacity: 1; }
+  86%, 100% { opacity: 0; }
+  0%, 64% { transform: translateY(0); }
+  86%, 100% { transform: translateY(var(--rq-landing-xp-rise)); }
+}
+
+/* ── Aggregat: tre tal mellan två hårlinjer ───────────────────────────────── */
+.rq-landing-stats { border-block: var(--rq-hair) solid var(--rq-line-3); padding: var(--rq-sp-14) 0; }
+.rq-landing-stats__list { display: flex; justify-content: space-between; gap: var(--rq-sp-16); margin: 0; }
+.rq-landing-stat { display: flex; flex-direction: column-reverse; justify-content: flex-end; }
+.rq-landing-stat__value { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+.rq-landing-stat[data-tone="gold"] .rq-landing-stat__value { color: var(--rq-gold-text); }
+.rq-landing-stat__label { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+
+/* ── Preview + steg ───────────────────────────────────────────────────────── */
+.rq-landing-body { display: grid; grid-template-columns: var(--rq-landing-body-cols); gap: var(--rq-sp-24); align-items: start; }
+
+/* Previewkortet: panel med guld-hårlinje; ringen andas och ett ljusband sveper över (live-kort, regel 8) */
+.rq-landing-preview {
+  position: relative; overflow: hidden; background: var(--rq-panel);
+  border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft));
+  animation: rqRing var(--rq-landing-pulse) ease-in-out infinite;
+}
+.rq-landing-preview__sweep {
+  position: absolute; top: 0; bottom: 0; left: 0; width: var(--rq-landing-sweep-w); pointer-events: none; transform: translateX(-120%); /* utanför kortet när rörelsen är avstängd */
+  background: linear-gradient(90deg, transparent, rgb(var(--rq-gold-rgb) / .10), transparent);
+  animation: rqSweep var(--rq-landing-sweep) linear infinite;
+}
+.rq-landing-preview__head {
+  position: relative; display: flex; justify-content: space-between; align-items: center; gap: var(--rq-sp-10);
+  padding: var(--rq-sp-12) var(--rq-sp-14); border-bottom: var(--rq-hair) solid var(--rq-line-3);
+  font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4);
+}
+.rq-landing-preview__title { margin: 0; font-size: inherit; font-weight: 400; letter-spacing: inherit; }
+.rq-landing-preview__live { display: inline-flex; align-items: center; gap: var(--rq-sp-8); color: var(--rq-up); }
+.rq-landing-preview__rows { position: relative; margin: 0; padding: 0; list-style: none; }
+.rq-landing-row {
+  display: grid; grid-template-columns: var(--rq-landing-row-cols); align-items: center; gap: var(--rq-sp-10);
+  padding: var(--rq-sp-10) var(--rq-sp-14);
+}
+.rq-landing-row__rank { font-family: var(--rq-font-display); font-size: var(--rq-fs-counter); line-height: var(--rq-lh-tight); color: var(--rq-rank-rest); }
+.rq-landing-row[data-tone="1"] .rq-landing-row__rank { color: var(--rq-rank-1); }
+.rq-landing-row[data-tone="2"] .rq-landing-row__rank { color: var(--rq-rank-2); }
+.rq-landing-row[data-tone="3"] .rq-landing-row__rank { color: var(--rq-rank-3); }
+.rq-landing-row__line { display: flex; align-items: baseline; gap: var(--rq-sp-8); }
+.rq-landing-row .rq-track { height: var(--rq-landing-bar-h); margin-top: var(--rq-sp-6); }
+.rq-landing-row .rq-track > .rq-fill { background: var(--rq-text-4); }
+.rq-landing-row[data-tone="1"] .rq-track > .rq-fill { background: var(--rq-rank-1); }
+.rq-landing-row[data-tone="2"] .rq-track > .rq-fill { background: var(--rq-rank-2); }
+.rq-landing-row[data-tone="3"] .rq-track > .rq-fill { background: var(--rq-rank-3); }
+.rq-landing-row__xp { font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-3); text-align: right; }
+
+/* How it works: eyebrow + fyra kort med 2 px guldkant (listor/rader använder den smala kanten) */
+.rq-landing-eyebrow { margin: 0 0 var(--rq-sp-12); font-size: var(--rq-fs-label); font-weight: 400; letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-landing-how { scroll-margin-top: var(--rq-sp-24); }
+.rq-landing-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+.rq-landing-step {
+  background: var(--rq-panel); padding: var(--rq-sp-14) var(--rq-sp-16);
+  border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w-thin) solid var(--rq-card-edge-soft);
+}
+.rq-landing-step__head { display: flex; align-items: baseline; gap: var(--rq-sp-10); }
+.rq-landing-step__num { font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); color: var(--rq-gold-text); }
+.rq-landing-step__title { margin: 0; font-weight: 400; }
+.rq-landing-step__body { margin: var(--rq-sp-6) 0 0; }
+
+/* ── Fot ──────────────────────────────────────────────────────────────────── */
+.rq-landing-footer { margin-top: var(--rq-sp-24); text-align: center; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-landing-footer p { margin: 0; }
+
+/* ── Desktop: text vänster, banan höger; vänsterjusterad logga; knappar bredvid varandra ──────── */
+@media (min-width: 1024px) {
+  .rq-landing-header { justify-content: flex-start; padding-block: var(--rq-sp-24) var(--rq-sp-32); }
+  .rq-landing-main { gap: var(--rq-sp-40); }
+  .rq-landing-hero { column-gap: var(--rq-sp-48); }
+  .rq-landing-title { margin-bottom: var(--rq-sp-20); }
+  .rq-landing-lead { margin-bottom: var(--rq-sp-32); max-width: 36em; }
+  .rq-landing-cta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-14); }
+  .rq-landing-cta .rq-btn { width: auto; }
+  .rq-landing-note { flex-basis: 100%; text-align: left; }
+  .rq-landing-body { gap: var(--rq-sp-32); }
+  .rq-landing-stats { padding-block: var(--rq-sp-24); }
+  .rq-landing-stats__list { justify-content: space-around; }
+}

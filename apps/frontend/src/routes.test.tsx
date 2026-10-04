@@ -116,9 +116,30 @@ describe('auth', () => {
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
   });
 
-  it('utloggad på / ser login i stället för skalet', async () => {
+  it('utloggad på / ser Landing (publik) — varken skalet eller login, och adressen står kvar', async () => {
     const { container } = renderWithApp(<AppRoutes />, { entry: '/', user: null, width: MOBILE });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeInTheDocument();
+    expect(container.querySelector('[data-shell]')).toBeNull();
+    expect(screen.queryByLabelText('Username')).toBeNull();
+    expect(location()).toBe('/');
+  });
+
+  it('Landingens enda guldknapp, Sign in, leder till /login', async () => {
+    renderWithApp(<AppRoutes />, { entry: '/', user: null, width: MOBILE });
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    await waitFor(() => expect(location()).toBe('/login'));
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
+  });
+
+  it('utloggad på /login ser login direkt (inte Landing)', async () => {
+    renderWithApp(<AppRoutes />, { entry: '/login', user: null, width: MOBILE });
+    expect(await screen.findByLabelText('Username')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+  });
+
+  it('Landing renderas även på desktop, utan skal', async () => {
+    const { container } = renderWithApp(<AppRoutes />, { entry: '/', user: null, width: DESKTOP });
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
     expect(container.querySelector('[data-shell]')).toBeNull();
   });
 
