@@ -284,3 +284,64 @@ describe('participation-XP → level_up (checkEventQualification)', () => {
     expect(tables.activity_log).toHaveLength(0);
   });
 });
+
+describe('checkEventQualification — enforceRunDateWindow (PUT /runs, open-assumptions backend-fråga 7)', () => {
+  const eventTables = (): Record<string, Row[]> => ({
+    activity_log: [],
+    events: [
+      { id: 'p1', group_id: 'g1', type: 'participation', metric: null, status: 'active',
+        starts_at: '2026-10-05T06:00:00.000Z', ends_at: '2026-10-05T16:00:00.000Z', event_templates: { min_km: 3, reward_xp: 25 } },
+      { id: 'c1', group_id: 'g1', type: 'competition', metric: 'km', status: 'active',
+        starts_at: '2026-10-03T00:00:00.000Z', ends_at: '2026-10-09T21:55:00.000Z', event_templates: { min_km: null, reward_xp: null } },
+    ],
+    event_entries: [],
+    users: [{ id: 'a', group_id: 'g1', total_xp: 0, event_xp: 0, current_level: 1 }],
+  });
+  const qualify = (runDate: string, enforceRunDateWindow?: boolean) =>
+    checkEventQualification({ userId: 'a', runId: 'r1', runDate, distanceKm: 5, groupId: 'g1', enforceRunDateWindow });
+
+  it('en redigerad runda inom eventets dagar kvalificerar (participation + competition)', async () => {
+    const tables = eventTables();
+    use(tables);
+    await qualify('2026-10-05', true);
+    expect(tables.event_entries.map((e) => e.event_id).sort()).toEqual(['c1', 'p1']);
+    expect(tables.users[0].event_xp).toBe(25);
+  });
+
+  it('en redigerad GAMMAL runda kvalificerar inte ett event som pågår just nu', async () => {
+    const tables = eventTables();
+    use(tables);
+    await qualify('2026-09-20', true);
+    expect(tables.event_entries).toHaveLength(0);
+    expect(tables.users[0].event_xp).toBe(0);
+  });
+
+  it('competition: dagen före eventets första dag nekas, en dag inom perioden registreras', async () => {
+    const tables = eventTables();
+    use(tables);
+    await qualify('2026-10-02', true);
+    expect(tables.event_entries).toHaveLength(0);
+    await qualify('2026-10-04', true);
+    expect(tables.event_entries.map((e) => e.event_id)).toEqual(['c1']); // participation-eventet är bara 10-05
+  });
+
+  it('eventdagar räknas i Stockholm-tid (starts_at 22:30 UTC = 00:30 CEST nästa dag)', async () => {
+    const tables = eventTables();
+    tables.events = [{
+      id: 'late', group_id: 'g1', type: 'participation', metric: null, status: 'active',
+      starts_at: '2026-10-04T22:30:00.000Z', ends_at: '2026-10-05T10:00:00.000Z', event_templates: { min_km: 3, reward_xp: 10 },
+    }];
+    use(tables);
+    await qualify('2026-10-04', true); // UTC-dagen för starts_at, men eventets första SVENSKA dag är 5 okt
+    expect(tables.event_entries).toHaveLength(0);
+    await qualify('2026-10-05', true);
+    expect(tables.event_entries).toHaveLength(1);
+  });
+
+  it('utan flaggan (POST/Strava) är beteendet OFÖRÄNDRAT — ingen datumavgränsning utöver ends_at >= datum', async () => {
+    const tables = eventTables();
+    use(tables);
+    await qualify('2026-09-20');
+    expect(tables.event_entries.map((e) => e.event_id).sort()).toEqual(['c1', 'p1']);
+  });
+});

@@ -583,7 +583,7 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
         wins, draws, losses, challenge_active, displayed_title_ids, gender,
         runs(id, user_id, date, distance, xp_gained, multiplier,
              streak_day, base_xp, km_xp, distance_bonus, streak_bonus, is_treadmill,
-             start_time, created_at)
+             start_time, created_at, source)
       `)
       .order('total_xp', { ascending: false });
 

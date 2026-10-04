@@ -8,6 +8,7 @@ import { calculateCompleteRunXP, boostDeltasForRuns, type AdminSettings, type St
 import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
+import { isIsoCalendarDate, toStockholmDate, todayStockholm } from '../utils/dateUtils.js';
 import type { GroupRunHistoryResponse } from '@runquest/shared';
 
 const router = express.Router();
@@ -233,9 +234,17 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
   }
 });
 
+/** Äldsta tillåtna rundedatum (kalenderdag). */
+const MIN_RUN_DAY = '2025-06-01';
+
 /**
  * Gemensam indatavalidering för POST och PUT (bugg #8: PUT saknade POST:ens
  * regler). Returnerar felmeddelande eller null + parsad distans.
+ *
+ * Datum jämförs som KALENDERDAGAR i Stockholm-tid (open-assumptions backend-fråga 0): "idag" är
+ * todayStockholm(), inte serverns UTC-dag — annars nekades dagens datum som framtid mellan 00:00 och
+ * ~02:00 svensk tid. En ren YYYY-MM-DD-sträng är dagen i sig; en tidpunkt (ISO med klockslag) omräknas
+ * till sin Stockholm-dag.
  */
 function validateRunInput(date: string | undefined, distance: unknown): { error: string | null; distanceNum: number } {
   const distanceNum = parseFloat(String(distance));
@@ -244,12 +253,13 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
   }
   if (date !== undefined) {
     const runDate = new Date(date);
-    const minDate = new Date('2025-06-01');
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
     if (isNaN(runDate.getTime())) return { error: 'Invalid date', distanceNum };
-    if (runDate < minDate) return { error: 'Cannot log runs before June 1, 2025', distanceNum };
-    if (runDate > today) return { error: 'Cannot log runs for future dates', distanceNum };
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(date);
+    // new Date('2026-02-30') rullar över till 2 mars — en ren dag måste vara en riktig kalenderdag.
+    if (dateOnly && !isIsoCalendarDate(date)) return { error: 'Invalid date', distanceNum };
+    const runDay = dateOnly ? date : toStockholmDate(runDate.toISOString());
+    if (runDay < MIN_RUN_DAY) return { error: 'Cannot log runs before June 1, 2025', distanceNum };
+    if (runDay > todayStockholm()) return { error: 'Cannot log runs for future dates', distanceNum };
   }
   return { error: null, distanceNum };
 }
@@ -418,6 +428,24 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Recalculate user totals (scoped to user's group for title processing)
     await calculateUserTotals(userId, req.user!.group_id);
 
+    // En redigering kan nå eventgränsen (t.ex. distansen höjs över min_km, eller datumet flyttas in i ett
+    // eventfönster) — samma fire-and-forget-mönster som POST (open-assumptions backend-fråga 7).
+    // checkEventQualification är idempotent (UNIQUE(event_id, user_id)): redan kvalificerade events ger
+    // 23505 och ingen ny XP. Den kan bara KVALIFICERA — en redigering som sänker distansen under gränsen
+    // avkvalificerar inte (eventService saknar avkvalificering).
+    if (dateChanged || distanceChanged) {
+      checkEventQualification({
+        userId,
+        runId: id,
+        runDate: date || existingRun.date,
+        distanceKm: newDistance,
+        groupId: req.user!.group_id,
+        // Bara events vars dagar rundans (nya) datum faller inom — annars kvalificerar en redigering av
+        // en gammal runda ett event som pågår just nu.
+        enforceRunDateWindow: true,
+      }).catch(e => logger.error('❌ checkEventQualification error (PUT):', e));
+    }
+
     logger.info('\n' + '='.repeat(80));
     logger.info('✅ BACKEND: UPDATE COMPLETE');
     logger.info('='.repeat(80) + '\n');
@@ -492,6 +520,12 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     // Recalculate user totals (scoped to user's group for title processing)
     await calculateUserTotals(userId, req.user!.group_id);
+
+    // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
+    // SKAPA kvalificeringar ur en runda, och en radering skapar aldrig en ny — därför anropas den inte här.
+    // Avkvalificering (ta bort entry + dra tillbaka utdelad participation-XP) stöds inte av eventService och
+    // vore en regeländring (ägarbeslut 1). OBS: event_entries.run_id → runs(id) saknar ON DELETE-regel, så
+    // en runda som kvalificerat ett participation-event kan inte raderas alls (FK-fel → 500 ovan).
 
     logger.info(`✅ Run ${id} deleted and all runs reprocessed successfully`);
 

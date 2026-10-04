@@ -189,6 +189,12 @@ export async function checkEventQualification(params: {
   distanceKm: number;
   isTreadmill?: boolean;
   groupId?: string;   // om ej känt hämtas det från users-tabellen
+  /**
+   * Kräv att rundans datum (Stockholm-dag) ligger inom eventets dagar [starts_at, ends_at]. Default false:
+   * POST/Strava beter sig oförändrat (frågan kräver bara ends_at >= rundans datum). PUT /runs sätter den,
+   * så att en redigering av en GAMMAL runda inte kvalificerar ett event som pågår just nu.
+   */
+  enforceRunDateWindow?: boolean;
 }): Promise<void> {
   const supabase = getSupabaseClient();
 
@@ -228,6 +234,12 @@ export async function checkEventQualification(params: {
 
   for (const event of events) {
     try {
+      if (params.enforceRunDateWindow) {
+        const startDay = toStockholmDate(event.starts_at);
+        const endDay = toStockholmDate(event.ends_at);
+        if (params.runDate < startDay || params.runDate > endDay) continue;
+      }
+
       if (event.type === 'participation') {
         const minKm = Number(event.event_templates?.min_km ?? 0);
         if (params.distanceKm < minKm) {
