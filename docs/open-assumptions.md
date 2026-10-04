@@ -17,6 +17,9 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   "N of M done" släpar upp till ~2 min (staleTime 60 s, refetch 120 s).
 - Ett event räknas som öppet efter klockan, inte efter `status` (cron flyttar
   scheduled→active var 5:e min). Skal och skärm delar regeln via eventPhase.
+- Historik-pagern navigerar med `replace: true` — webbläsarens Back lämnar
+  /events i stället för att stega sidor. Medvetet val (sidorna är inte egna
+  platser i historiken).
 
 ## Duels (inkrement 5)
 - Progress hämtas per live-duell (`/challenges/:id/progress`) — ingen
