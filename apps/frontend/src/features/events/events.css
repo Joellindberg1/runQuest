@@ -36,6 +36,8 @@
   background: linear-gradient(90deg, transparent, rgb(var(--rq-events-accent-rgb) / .07), transparent);
   animation: rqSweep 5s linear infinite;
 }
+/* Regel 8: bara live loopar — ett kort som väntar på avräkning står stilla */
+.rq-events-live[data-state="settling"]::before { display: none; }
 .rq-events-live > * { position: relative; }
 .rq-events-live__body { display: flex; align-items: center; gap: var(--rq-events-live-gap); }
 .rq-events-live__main { min-width: 0; flex: 1; display: flex; flex-direction: column; align-items: flex-start; }

@@ -21,6 +21,26 @@ describe('eventPhase', () => {
   });
 });
 
+describe('eventPhase — exakta gränser', () => {
+  it('now == startsAt är open och now == endsAt är ended; en millisekund före start är upcoming', () => {
+    const window = { startsAt: '2026-10-02T10:00:00Z', endsAt: '2026-10-02T12:00:00Z' };
+    expect(eventPhase(window, new Date('2026-10-02T09:59:59.999Z'))).toBe('upcoming');
+    expect(eventPhase(window, new Date('2026-10-02T10:00:00Z'))).toBe('open');
+    expect(eventPhase(window, new Date('2026-10-02T11:59:59.999Z'))).toBe('open');
+    expect(eventPhase(window, new Date('2026-10-02T12:00:00Z'))).toBe('ended');
+  });
+});
+
+describe('XP för ett klarat event: samma regel i kort, historik och facit', () => {
+  const zero = { ...H_MORNING_DONE, myEntry: mine({ xpAwarded: 0 }) };
+  it('0 (eller null) i xpAwarded faller tillbaka på mallens belöning överallt', () => {
+    expect(buildHistoryRows([zero])[0].xp).toBe('+25 XP');
+    expect(buildRecord([zero])?.earned).toBe(25);
+    const open = buildEventsView([{ ...FIVE_K, myEntry: mine({ xpAwarded: 0 }) }], NOW).open[0];
+    expect(open.chips.at(-1)?.label).toBe('Done · +25 XP');
+  });
+});
+
 describe('buildEventsView — öppet nu', () => {
   const view = buildEventsView([FIVE_K, HANGOVER, WEEKLY_KM], NOW);
 

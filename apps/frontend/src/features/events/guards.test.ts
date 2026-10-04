@@ -94,7 +94,7 @@ describe('Events-filerna följer designspråket', () => {
     expect(families.filter((family) => !family.startsWith('var(--rq-font-'))).toEqual([]);
   });
 
-  it('rörelse: bara live-saker loopar (sweep, prick) — inga hover-animationer och inga andra infinite-animationer', () => {
+  it('rörelse: bara live-saker loopar (sweepen på öppna/up next-kort) — inga hover-animationer, och ett kort som väntar på avräkning har ingen sweep', () => {
     const code = stripComments(css);
     const animations = [...code.matchAll(/animation:\s*([^;}]+)/g)].map((m) => m[1].trim());
     expect(animations).toEqual(['rqSweep 5s linear infinite']);

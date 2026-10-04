@@ -143,6 +143,12 @@ function buildBoard(event: EventItem): BoardRow[] {
     }));
 }
 
+/** XP jag fick för ett klarat participation-event; 0/null (äldre rader) faller tillbaka på mallens belöning — samma regel i facit, kort och historik. */
+const xpOrReward = (event: EventItem): number => {
+  const xp = event.myEntry?.xpAwarded ?? 0;
+  return xp > 0 ? xp : event.template.rewardXp;
+};
+
 function openChips(event: EventItem, done: boolean): EventChip[] {
   const { template } = event;
   const chips: EventChip[] = [];
@@ -156,7 +162,7 @@ function openChips(event: EventItem, done: boolean): EventChip[] {
   weatherTags(template.requiresWeather).forEach((weather) => chips.push({ key: `weather-${weather}`, label: weather, tone: 'tag' }));
   const reward = rewardLabel(event);
   if (done) {
-    const earned = event.myEntry?.xpAwarded ?? template.rewardXp;
+    const earned = xpOrReward(event);
     chips.push({ key: 'reward', label: `Done · +${earned} XP`, tone: 'done' });
   } else if (reward) {
     chips.push({ key: 'reward', label: reward, tone: 'reward' });
@@ -282,7 +288,7 @@ export function buildRecord(history: readonly EventItem[]): RecordView | null {
       total += 1;
       if (event.myEntry?.qualified) {
         taken += 1;
-        earned += xp > 0 ? xp : event.template.rewardXp;
+        earned += xpOrReward(event);
       } else {
         left += event.template.rewardXp;
       }
@@ -311,7 +317,7 @@ function resultOf(event: EventItem): Pick<HistoryRow, 'status' | 'tone' | 'xp'> 
   const entry = event.myEntry;
   if (event.type === 'participation') {
     if (!entry?.qualified) return { status: 'Missed', tone: 'down', xp: '—' };
-    return { status: '✓ Done', tone: 'up', xp: `+${entry.xpAwarded ?? event.template.rewardXp} XP` };
+    return { status: '✓ Done', tone: 'up', xp: `+${xpOrReward(event)} XP` };
   }
   if (!entry) return { status: 'Missed', tone: 'down', xp: '—' };
   const xp = entry.xpAwarded && entry.xpAwarded > 0 ? `+${entry.xpAwarded} XP` : '—';

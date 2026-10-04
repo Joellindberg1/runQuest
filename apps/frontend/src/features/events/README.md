@@ -45,7 +45,10 @@ rekord + historik, ring till höger, fakta-taggar). `pages/EventsPage.tsx` är t
   per event (klarat/missat, min placering, XP) finns kvar. Aktiva participation-event har ingen deltagarlista i `/events` (bara antalet), så
   Web Prototypens namnrad ("Karl ✓ 8.4 km …") ersätts på desktop av en stapel "4 of 6 done".
 - **Ingen guldknapp:** skärmen har ingen primär handling (att logga en runda ligger i skalets +New). Retry är sekundär.
-- **Delad cache:** `['events']` är samma query som skalets "Right now" (samma form `{ events }`); historiken ligger under `['events','history',…]`.
+- **Delad cache, en definition:** skalets "Right now" (`useRightNow`) använder samma hook (`useOpenEvents`) som skärmen — nyckeln `['events']`, formen `{ events }` och hämtintervallet kan inte glida isär. `getEventList()` är den enda events-metoden i `backendApi`. Skalet och skärmen avgör öppet/avslutat med klockan (`eventPhase`), så kalenderpricken, pillerna och skärmen säger samma sak under cron-släppet; `src/pages/EventsShellSeam.test.tsx` låser skarven (delad QueryClient, en handler).
+- **Historik/facit följer avräkningen:** tappar öppet-listan ett event mellan två hämtningar (participation-cron, söndagens avräkning) invalideras `['events','history']` — inga egna intervall. Historiken ligger under `['events','history',…]`.
+- **Facit-loopen** loggar (`console.warn`) när den kapas vid tio sidor (500 event).
+- **En tom historiksida medan gruppen har avslutade event** är aldrig ett tomt läge (det är `?page=` bortom slutet som rättas) — skelett visas.
 - **CSS-ordning:** feature-CSS hamnar före `index.css` i kaskaden — override av delade primitiver (`.rq-card`, `.rq-ring`, `.rq-row`,
   `.rq-track > .rq-fill`) görs med sammansatta selektorer.
 - Tour `tour_events_v2` (ankare `events-open`, `events-history`) startar först när eventen är ritade.

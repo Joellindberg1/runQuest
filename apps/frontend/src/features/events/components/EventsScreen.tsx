@@ -71,7 +71,9 @@ export function EventsScreen() {
 
   if (isDesktop === undefined) return null;
 
-  const historyStatus = historyQuery.data ? 'ready' : historyQuery.isError ? 'error' : 'loading';
+  // En tom sida medan gruppen har avslutade event är aldrig ett tomt läge: det är ?page= bortom slutet som håller på att rättas — visa skelett.
+  const settlingPage = !!historyQuery.data && historyRows.length === 0 && historyQuery.data.meta.total > 0;
+  const historyStatus = historyQuery.data && !settlingPage ? 'ready' : historyQuery.isError ? 'error' : 'loading';
 
   let main;
   if (view) {

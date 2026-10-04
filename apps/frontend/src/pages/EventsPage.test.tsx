@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import EventsPage from './EventsPage';
 import { TOUR_EVENTS_V2 } from '@/features/onboarding/featureTourSteps';
@@ -26,7 +26,7 @@ const MS_HOUR = 3_600_000;
 const MS_MINUTE = 60_000;
 const at = (ms: number) => new Date(Date.now() + ms).toISOString();
 
-const FIVE_K = event({
+const fiveK = () => event({
   id: 'e-5k',
   startsAt: at(-17 * MS_HOUR),
   endsAt: at(6 * MS_HOUR + 30 * MS_MINUTE + 30_000), // → "6h 30m"
@@ -34,7 +34,7 @@ const FIVE_K = event({
   participantCount: 4,
 });
 
-const WEEKLY = event({
+const weekly = () => event({
   id: 'e-weekly',
   type: 'competition',
   metric: 'km',
@@ -50,7 +50,7 @@ const WEEKLY = event({
   ],
 });
 
-const EVENING = event({
+const evening = () => event({
   id: 'e-evening',
   status: 'scheduled',
   startsAt: at(3 * MS_HOUR + 30_000), // → "3h 0m"
@@ -58,7 +58,7 @@ const EVENING = event({
   template: { name: 'Evening Run', icon: 'moon', description: '3 km between 18:00 and 22:00.', minKm: 3, rewardXp: 25, rewardXp1st: 0, rewardXp2nd: 0, rewardXp3rd: 0, requiresWeather: null },
 });
 
-const HANGOVER = event({
+const hangover = () => event({
   id: 'e-hangover',
   status: 'scheduled',
   startsAt: at(60 * MS_HOUR),
@@ -68,7 +68,7 @@ const HANGOVER = event({
 
 // 14 avslutade event: 12 participation (8 klarade, 4 missade) och 2 tävlingar (en tvåa med 60 XP, en jag inte var med i).
 const NAMES = ['Morning Run', 'Storm Chaser', 'Hangover Run', 'Evening Run'];
-const HISTORY: EventItem[] = Array.from({ length: 14 }, (_, i) => {
+const history = (): EventItem[] => Array.from({ length: 14 }, (_, i) => {
   const day = new Date(Date.UTC(2026, 8, 28) - i * 3 * 86_400_000);
   const startsAt = new Date(+day + 5 * MS_HOUR).toISOString();
   const endsAt = new Date(+day + 9 * MS_HOUR).toISOString();
@@ -92,15 +92,15 @@ interface Scenario {
 
 const calls: Array<[number, number]> = [];
 
-function setup({ open = [FIVE_K, WEEKLY, EVENING, HANGOVER], history = HISTORY }: Scenario = {}) {
+function setup({ open = [fiveK(), weekly(), evening(), hangover()], history: past = history() }: Scenario = {}) {
   calls.length = 0;
   handlers.getEventList = () => ({ success: true, data: { events: open } });
   handlers.getEventHistoryPage = (limit: unknown, offset: unknown) => {
     calls.push([limit as number, offset as number]);
-    const slice = history.slice(offset as number, (offset as number) + (limit as number));
+    const slice = past.slice(offset as number, (offset as number) + (limit as number));
     return {
       success: true,
-      data: { events: slice, meta: { total: history.length, limit, offset, has_more: (offset as number) + (limit as number) < history.length } },
+      data: { events: slice, meta: { total: past.length, limit, offset, has_more: (offset as number) + (limit as number) < past.length } },
     };
   };
 }
@@ -142,7 +142,7 @@ describe('Events — rubrik, öppna event och nedräkning (mobil)', () => {
   });
 
   it('har jag klarat eventet visar chipen "Done" med den XP jag fick (kortet har fortfarande en nedräkning)', async () => {
-    setup({ open: [{ ...FIVE_K, myEntry: mine({ xpAwarded: 25 }) }] });
+    setup({ open: [{ ...fiveK(), myEntry: mine({ xpAwarded: 25 }) }] });
     renderEvents();
     const five = within(await screen.findByRole('heading', { name: '5K Friday', level: 2 }).then((heading) => heading.closest('article') as HTMLElement));
     expect(five.getByText('Done · +25 XP')).toBeInTheDocument();
@@ -162,25 +162,25 @@ describe('Events — rubrik, öppna event och nedräkning (mobil)', () => {
   });
 
   it('är jag inte med i tävlingen än får kortet en förklarande rad', async () => {
-    setup({ open: [{ ...WEEKLY, myEntry: null }] });
+    setup({ open: [{ ...weekly(), myEntry: null }] });
     renderEvents();
     expect(await screen.findByText(/You are not on the board yet/)).toBeInTheDocument();
   });
 
   it('en tävling utan deltagare säger det i stället för en tom tabell', async () => {
-    setup({ open: [{ ...WEEKLY, leaderboard: [], participantCount: 0, myEntry: null }] });
+    setup({ open: [{ ...weekly(), leaderboard: [], participantCount: 0, myEntry: null }] });
     renderEvents();
     expect(await screen.findByText(/Nobody has run yet this week/)).toBeInTheDocument();
   });
 
   it('en tävling efter slutdatum men före avräkningen visas som "Settling" medan ett participation-event i samma läge försvinner', async () => {
-    const settling = { ...WEEKLY, endsAt: at(-MS_MINUTE) };
-    const over = { ...FIVE_K, endsAt: at(-MS_MINUTE) };
+    const settling = { ...weekly(), endsAt: at(-MS_MINUTE) };
+    const over = { ...fiveK(), endsAt: at(-MS_MINUTE) };
     setup({ open: [settling, over] });
     renderEvents();
-    const weekly = within(await screen.findByRole('heading', { name: 'Weekly km', level: 2 }).then((heading) => heading.closest('article') as HTMLElement));
-    expect(weekly.getByText('Settling')).toBeInTheDocument();
-    expect(weekly.getByText('Final')).toBeInTheDocument();
+    const weeklyCard = within(await screen.findByRole('heading', { name: 'Weekly km', level: 2 }).then((heading) => heading.closest('article') as HTMLElement));
+    expect(weeklyCard.getByText('Settling')).toBeInTheDocument();
+    expect(weeklyCard.getByText('Final')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '5K Friday', level: 2 })).toBeNull();
     expect(await screen.findByText('Nothing open now · 8 of 12 taken')).toBeInTheDocument();
   });
@@ -205,7 +205,7 @@ describe('Events — up next och This week (mobil)', () => {
   });
 
   it('inga fler schemalagda: ingen This week-sektion', async () => {
-    setup({ open: [FIVE_K, EVENING] });
+    setup({ open: [fiveK(), evening()] });
     renderEvents();
     await screen.findByRole('heading', { name: 'Evening Run', level: 2 });
     expect(screen.queryByRole('region', { name: 'This week' })).toBeNull();
@@ -230,8 +230,8 @@ describe('Events — Your record och historik (mobil)', () => {
 
   it('historiken: sex rader per sida med resultat, XP och "N of 6 finished"', async () => {
     renderEvents();
-    const history = within(await screen.findByRole('region', { name: 'History' }));
-    const rows = await history.findAllByRole('listitem');
+    const panel = within(await screen.findByRole('region', { name: 'History' }));
+    const rows = await panel.findAllByRole('listitem');
     expect(rows).toHaveLength(6);
     expect(rows[0].textContent).toContain('Morning Run 0');
     expect(rows[0].textContent).toContain('28 Sep · 4 of 6 finished');
@@ -286,7 +286,7 @@ describe('Events — Your record och historik (mobil)', () => {
   });
 
   it('en enda sida: ingen pager', async () => {
-    setup({ history: HISTORY.slice(0, 4) });
+    setup({ history: history().slice(0, 4) });
     renderEvents();
     await screen.findByText('Morning Run 0');
     expect(screen.queryByRole('navigation', { name: 'History pages' })).toBeNull();
@@ -332,12 +332,17 @@ describe('Events — fel och laddning', () => {
 
   it('facit-källan felar: facit-panelen och räknaren utelämnas, resten ritas', async () => {
     const working = handlers.getEventHistoryPage;
-    handlers.getEventHistoryPage = (limit: unknown, offset: unknown) =>
-      limit === 50 ? { success: false, error: 'boom' } : working(limit, offset);
+    let failures = 0;
+    handlers.getEventHistoryPage = (limit: unknown, offset: unknown) => {
+      if (limit !== 50) return working(limit, offset);
+      failures += 1;
+      return { success: false, error: 'boom' };
+    };
     renderEvents();
     expect(await screen.findByText('Morning Run 0')).toBeInTheDocument();
-    expect(await screen.findByText('2 open now')).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Facit-queryn har ett omförsök: den är avslutad (felad) först efter andra anropet.
+    await waitFor(() => expect(failures).toBe(2), SLOW);
+    await act(async () => {});
     expect(screen.queryByRole('region', { name: 'Your record' })).toBeNull();
     expect(screen.getByText('2 open now')).toBeInTheDocument();
   });
@@ -419,5 +424,140 @@ describe('Events — designspråk och tur', () => {
     renderEvents();
     await screen.findByRole('alert', {}, SLOW);
     expect(screen.queryByTestId('feature-tour')).toBeNull();
+  });
+});
+
+// ── Klockan: gränser och 30-sekunderstickan ───────────────────────────────────────────────────────────────
+// Bara Date och setInterval är falska (useNow tickar med setInterval); setTimeout är äkta så att findBy/waitFor och react-query fungerar.
+
+describe('Events — klockan', () => {
+  const T0 = '2026-10-02T10:00:00Z';
+  const template = (name: string) => ({ name, icon: 'calendar', description: 'Run before the window closes', minKm: 3, rewardXp: 25, rewardXp1st: 0, rewardXp2nd: 0, rewardXp3rd: 0, requiresWeather: null });
+  const SECOND = 1000;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    vi.setSystemTime(new Date(T0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('exakt gräns: now == startsAt är öppet, now == endsAt är avslutat (ett participation-event försvinner)', async () => {
+    const startsNow = event({ id: 'e-a', startsAt: at(0), endsAt: at(2 * MS_HOUR), template: template('Starts now') });
+    const endsNow = event({ id: 'e-b', startsAt: at(-2 * MS_HOUR), endsAt: at(0), template: template('Ends now') });
+    setup({ open: [startsNow, endsNow] });
+    renderEvents();
+
+    const open = await screen.findByRole('heading', { name: 'Starts now', level: 2 });
+    expect(within(open.closest('article') as HTMLElement).getByText('Open now')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ends now' })).toBeNull();
+  });
+
+  it('30-sekunderstickan flyttar ett event open till ended (försvinner) och ett annat upcoming till open', async () => {
+    const ending = event({ id: 'e-a', startsAt: at(-MS_HOUR), endsAt: at(10 * SECOND), template: template('Ending run') });
+    const starting = event({ id: 'e-b', startsAt: at(10 * SECOND), endsAt: at(2 * MS_HOUR), template: template('Starting run') });
+    setup({ open: [ending, starting] });
+    renderEvents();
+
+    const endingCard = (await screen.findByRole('heading', { name: 'Ending run', level: 2 })).closest('article') as HTMLElement;
+    expect(within(endingCard).getByText('Open now')).toBeInTheDocument();
+    const startingCard = screen.getByRole('heading', { name: 'Starting run', level: 2 }).closest('article') as HTMLElement;
+    expect(within(startingCard).getByText('Up next')).toBeInTheDocument();
+    expect(screen.getByText(/^1 open now/)).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(30 * SECOND);
+    });
+
+    expect(screen.queryByRole('heading', { name: 'Ending run' })).toBeNull();
+    const nowOpen = screen.getByRole('heading', { name: 'Starting run', level: 2 }).closest('article') as HTMLElement;
+    expect(within(nowOpen).getByText('Open now')).toBeInTheDocument();
+    expect(screen.queryByText('Up next')).toBeNull();
+    expect(screen.getByText(/^1 open now/)).toBeInTheDocument();
+  });
+});
+
+// ── Facit-källan: flera sidor, fel på sida 2, tak ─────────────────────────────────────────────────────────
+
+const settledRuns = (count: number): EventItem[] =>
+  Array.from({ length: count }, (_, i) => {
+    const day = new Date(Date.UTC(2025, 0, 1) + i * 86_400_000);
+    return event({
+      id: `m${i}`,
+      status: 'settled',
+      startsAt: new Date(+day + 5 * MS_HOUR).toISOString(),
+      endsAt: new Date(+day + 9 * MS_HOUR).toISOString(),
+      template: { name: `Run ${i}`, icon: 'calendar', description: '', minKm: 3, rewardXp: 25, rewardXp1st: 0, rewardXp2nd: 0, rewardXp3rd: 0, requiresWeather: null },
+      myEntry: i % 2 === 0 ? mine({ xpAwarded: 25 }) : null,
+      participantCount: 3,
+    });
+  });
+
+describe('Events — facit-källan läser sidor tills has_more är falskt', () => {
+  it('flera sidor (120 event, tre anrop om 50): facit räknar över alla', async () => {
+    setup({ history: settledRuns(120) });
+    renderEvents();
+    const record = within(await screen.findByRole('region', { name: 'Your record' }));
+    expect(record.getByText('60 of 120')).toBeInTheDocument();
+    expect(record.getByText('1500 XP earned · 1500 XP left on the table')).toBeInTheDocument();
+    expect(calls.filter(([limit]) => limit === 50)).toEqual([[50, 0], [50, 50], [50, 100]]);
+  });
+
+  it('fel på sida 2: hela facit-queryn kastar, panelen utelämnas och resten av skärmen ritas', async () => {
+    let failures = 0;
+    setup({ history: settledRuns(120) });
+    const base = handlers.getEventHistoryPage;
+    handlers.getEventHistoryPage = (limit: unknown, offset: unknown) => {
+      if (limit === 50 && offset === 50) {
+        failures += 1;
+        return { success: false, error: 'boom' };
+      }
+      return base(limit, offset);
+    };
+    renderEvents();
+
+    expect(await screen.findByText('Run 0')).toBeInTheDocument();
+    await waitFor(() => expect(failures).toBe(2), SLOW); // omförsöket kör om hela loopen
+    await act(async () => {});
+    expect(screen.queryByRole('region', { name: 'Your record' })).toBeNull();
+    expect(screen.getByText('2 open now')).toBeInTheDocument();
+  });
+
+  it('tak: över tio sidor kapas facit vid 500 event och det loggas', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      setup({ history: settledRuns(520) });
+      renderEvents();
+      const record = within(await screen.findByRole('region', { name: 'Your record' }));
+      expect(record.getByText('250 of 500')).toBeInTheDocument();
+      expect(calls.filter(([limit]) => limit === 50)).toHaveLength(10);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('kapades vid 10 sidor'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('exakt 500 event är inget tak: ingen varning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      setup({ history: settledRuns(500) });
+      renderEvents();
+      expect(await screen.findByText('250 of 500')).toBeInTheDocument();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('Events — ?page= bortom slutet', () => {
+  it('medan adressen rättas visas skelett, aldrig "No event has finished yet."', async () => {
+    const working = handlers.getEventHistoryPage;
+    handlers.getEventHistoryPage = (limit: unknown, offset: unknown) =>
+      limit === 6 && offset === 12 ? new Promise(() => {}) : working(limit, offset); // sista sidan laddar aldrig
+    renderEvents('/events?page=99');
+
+    await waitFor(() => expect(location()).toBe('/events?page=3'));
+    expect(screen.getByText('Loading the history')).toBeInTheDocument();
+    expect(screen.queryByText('No event has finished yet.')).toBeNull();
   });
 });
