@@ -26,6 +26,10 @@ export interface FakeDbOptions {
   failWhen?: (q: RecordedQuery) => { message: string } | null;
   /** Ger insatta rader utan `id` ett löpande id ('gen-1', ...) — för routes som läser tillbaka id efter insert. */
   autoIds?: boolean;
+  /** Tabeller vars insatta rader utan `id` får ett numeriskt löpande id (1, 2, ...) — som en bigint identity (activity_log). */
+  numericIds?: string[];
+  /** Svar för supabase.rpc(namn, args). Okänd rpc → { data: null, error: null }. */
+  rpc?: Record<string, (args: any) => { data?: unknown; error?: { message: string } | null }>;
 }
 
 function pick(row: Row, path: string): unknown {
@@ -35,6 +39,8 @@ function pick(row: Row, path: string): unknown {
 export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptions = {}) {
   const queries: RecordedQuery[] = [];
   let nextId = 1;
+  const numericCounters: Record<string, number> = {};
+  const nextNumericId = (table: string) => (numericCounters[table] = (numericCounters[table] ?? 0) + 1);
 
   function from(table: string) {
     const q: RecordedQuery = { table, select: null, filters: [], range: null, limit: null };
@@ -44,7 +50,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
     let head = false;
     let single = false;
     let maybe = false;
-    let mutation: { kind: 'update' | 'insert' | 'delete'; values?: Row | Row[] } | null = null;
+    let mutation: { kind: 'update' | 'insert' | 'delete' | 'upsert'; values?: Row | Row[]; onConflict?: string; ignoreDuplicates?: boolean } | null = null;
 
     const builder: any = {
       select(columns?: string, opts?: { count?: string; head?: boolean }) {
@@ -68,6 +74,10 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       update(values: Row) { mutation = { kind: 'update', values }; return builder; },
       insert(values: Row | Row[]) { mutation = { kind: 'insert', values }; return builder; },
       delete() { mutation = { kind: 'delete' }; return builder; },
+      upsert(values: Row | Row[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+        mutation = { kind: 'upsert', values, onConflict: opts?.onConflict, ignoreDuplicates: opts?.ignoreDuplicates };
+        return builder;
+      },
       range(from: number, to: number) { q.range = [from, to]; return builder; },
       limit(n: number) { q.limit = n; return builder; },
       single() { single = true; return builder; },
@@ -81,9 +91,31 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       const err = options.errors?.[table] ?? options.failWhen?.(q);
       if (err) return { data: null, error: err, count: null };
 
+      if (mutation?.kind === 'upsert') {
+        // INSERT … ON CONFLICT (cols) DO NOTHING / DO UPDATE — konfliktkolumnerna är en kommalista.
+        const raw = Array.isArray(mutation.values) ? mutation.values : [mutation.values as Row];
+        const cols = (mutation.onConflict ?? 'id').split(',').map((c) => c.trim());
+        const sameKey = (a: Row, b: Row) => cols.every((c) => a[c] !== undefined && a[c] === b[c]);
+        const inserted: Row[] = [];
+        for (const r of raw) {
+          const existing = (tables[table] ?? []).find((e) => sameKey(e, r));
+          if (existing) {
+            if (!mutation.ignoreDuplicates) Object.assign(existing, r);
+            continue;
+          }
+          const row = options.numericIds?.includes(table) && r.id === undefined ? { ...r, id: nextNumericId(table) } : r;
+          tables[table] = [...(tables[table] ?? []), row];
+          inserted.push(row);
+        }
+        return { data: single ? inserted[0] ?? null : inserted, error: null, count: null };
+      }
+
       if (mutation?.kind === 'insert') {
         const raw = Array.isArray(mutation.values) ? mutation.values : [mutation.values as Row];
-        const inserted = options.autoIds ? raw.map((r) => (r.id === undefined ? { ...r, id: `gen-${nextId++}` } : r)) : raw;
+        const withGenerated = options.autoIds ? raw.map((r) => (r.id === undefined ? { ...r, id: `gen-${nextId++}` } : r)) : raw;
+        const inserted = options.numericIds?.includes(table)
+          ? withGenerated.map((r) => (r.id === undefined ? { ...r, id: nextNumericId(table) } : r))
+          : withGenerated;
         tables[table] = [...(tables[table] ?? []), ...inserted];
         return { data: single ? inserted[0] ?? null : inserted, error: null, count: null };
       }
@@ -133,5 +165,10 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
     return builder;
   }
 
-  return { client: { from }, queries };
+  function rpc(name: string, args?: any) {
+    const result = options.rpc?.[name]?.(args) ?? { data: null, error: null };
+    return Promise.resolve({ data: result.data ?? null, error: result.error ?? null });
+  }
+
+  return { client: { from, rpc }, queries };
 }
