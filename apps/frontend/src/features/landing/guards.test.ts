@@ -146,6 +146,22 @@ describe('Landing-filerna följer designspråket', () => {
   });
 });
 
+describe('Landing — layout som inte får gå sönder', () => {
+  it('"LEADERBOARD" bryts aldrig mitt i ordet: ingen overflow-wrap/word-break på rubriken, och under 380 px ligger banan under rubriken', () => {
+    // jsdom har ingen layout, så regeln vaktas i CSS:en; bredderna 320–1440 är mätta i Chromium (getClientRects = 1 rektangel).
+    const code = stripComments(css);
+    expect(code).not.toMatch(/overflow-wrap|word-break/);
+    const narrow = code.match(/@media \(max-width: 379px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+    expect(narrow).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
+    expect(narrow).toMatch(/grid-template-areas:\s*"badge" "title" "arena" "lead" "cta"/);
+  });
+
+  it('löparna har spridda vilopositioner (0/35/70 %) så reducerad rörelse visar en ögonblicksbild, inte en klump', () => {
+    const offsets = [...stripComments(css).matchAll(/\.rq-landing-runner\[data-lane="(\d)"\] \{ offset-distance: ([\d.]+)%; \}/g)].map((m) => [m[1], m[2]]);
+    expect(offsets).toEqual([['1', '0'], ['2', '35'], ['3', '70']]);
+  });
+});
+
 describe('Landing-FEATUREN är publik och gör inga anrop (ägarbeslut 4; App-skalet gör sitt eget level_requirements-anrop på alla routes)', () => {
   it('ingen fil hämtar data: inga fetch-anrop, backendApi, react-query, supabase eller datahooks', () => {
     for (const [path, text] of codeFiles) {
