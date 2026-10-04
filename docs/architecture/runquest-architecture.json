@@ -43,7 +43,8 @@
       "items": [
         "All skrivning går via backend med service role-nyckel (förbigår RLS)",
         "Frontend läser level_requirements direkt med publishable key (anon)",
-        "Profilbilder: backend laddar upp till Storage och skriver users.profile_picture"
+        "Profilbilder: backend laddar upp till Storage och skriver users.profile_picture",
+        "Händelselogg (ADR 008, planerad): backend (inkl. schedulers) skriver domänhändelser till activity_log; läses endast via GET /api/news, ingen anon-åtkomst"
       ]
     },
     {

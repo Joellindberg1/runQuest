@@ -25,10 +25,13 @@ ADR-index (beslut 50 — Lead underhåller; en rad per ADR):
   003 · Godkänd · App-factory: createApp() i app.ts äger ALL http-wiring; server.ts har env/schedulers/listen; default-export bevaras för tester (implementerad)
   004 · Godkänd · XP-/level-SSOT: shared enda hem för level-matematik + fallback + multiplikator-defaults; streak_multipliers-TABELLEN är runtime-källa (DB-verifierat: gamla kolumn-selecten felade alltid → defaults; tabell == defaults, ingen XP-påverkan); död kod borttagen (implementerad)
   005 · Godkänd · users-totaler har EN skribent: appens calculateUserTotals; DB-triggrarna tas bort (migration 032); noll-runs nollställer korrekt; titlar återkallas när krav ej längre uppfylls (implementerad; migration 032 körs separat)
-  Ännu ej skrivna (förslag 2, 6, 7 i docs/STATE-proposal.md): datasäkerhet/session, scheduler-idempotens, felhantering/API-kontrakt
+  006 · Godkänd · Navigering: riktiga routes (/board /titles /duels /events /news /log /profile /runner/:id /playbook …) via layout-routes RequireAuth→AppShell; delvyer med ?view=; bottenbar<1024px/sidnav≥1024px, exakt en skalvariant i DOM; Runner card = route (overlay på desktop); gamla ?tab=/ /challenges redirectas; tour-ankare ägs av skalet; strangler-leverans från inkrement 1
+  007 · Godkänd · Härledningsendpoints (inga tabeller): leaderboard/week, leaderboard/rank-delta, config/xp (läsbar för inloggade), challenges group-history + head-to-head, events participantCount/memberCount, offset-paginering (events/history, runs/group-history), POST /runs is_treadmill; nya endpoints {success,data,meta}/snake_case, delade typer i shared/contracts
+  008 · Godkänd · Händelselogg: tabell activity_log (monoton id, type+CHECK, dedupe_key, is_backfill) + GET /api/news (keyset) + POST /api/news/seen; skrivs best-effort via services/activityLog.ts efter underliggande skrivning; titelbyten loggas endast framåt (snapshot-diff), övrigt backfillas; oläst = users.news_last_seen_id; migration 034 kräver ägargodkännande
+  Ännu ej skrivna (förslag 2, 6, 7 i docs/STATE-proposal.md): datasäkerhet/session, scheduler-idempotens (delvis täckt av buggfixpaketet), felhantering/API-kontrakt
 Fulltexter: docs/adr/
 Konventioner (kodens FAKTISKA mönster, inte README:s):
-- Backend: en Express-router per domän i `routes/`, handlers med inline-Supabase-anrop via `getSupabaseClient()`; domänlogik i `services/`, `titleEngines/`, `utils/`. Inget repository-lager, inget valideringsbibliotek, ingen global felhanterare. Varje handler har egen try/catch, logg via `utils/logger` (JSON i prod). Svarsformen är INTE enhetlig: `{success,data}`, `{runs}`, `{events}`, `{seen}`, `{ok:true}`, `{error}` förekommer.
+- Backend: en Express-router per domän i `routes/`, handlers med inline-Supabase-anrop via `getSupabaseClient()`; domänlogik i `services/`, `titleEngines/`, `utils/`. Inget repository-lager, inget valideringsbibliotek, ingen global felhanterare. Varje handler har egen try/catch, logg via `utils/logger` (JSON i prod). Svarsform (ADR 007): NYA endpoints svarar `{success,data,meta?}`/`{error}` med snake_case och `limit/offset`+`meta` (news: keyset); befintliga behåller sin form tills de ritas om — dagens spretighet (`{runs}`, `{events}`, `{ok:true}` …) är känd skuld. Händelser loggas icke-kastande via `services/activityLog.ts` efter underliggande skrivning (ADR 008).
 - Auth: egen JWT (HS256, 7 d, `/auth/refresh` är stub). `authenticateJWT` sätter `req.user`; `requireAdmin` slår upp `users.is_admin` per anrop. Gruppavgränsning sker i handlers via `group_id` ur JWT.
 - Frontend: servertillstånd i TanStack Query; EN HTTP-klient, singletonen `backendApi` (JWT i `localStorage['runquest_token']`, 401 → `onUnauthorized`); auth i `AuthProvider`. Struktur `features/<x>/{components,hooks}`, tunna `pages/`, delat i `shared/`. README:s regler "komponenter anropar aldrig backendApi direkt" och "inga cross-feature-importer" bryts i praktiken — riktning, inte sanning.
 - Tid: dagar för utmaningar/events är Stockholm via `backend/src/utils/dateUtils.ts`, men cron är UTC och `StreakService` använder UTC-datum. Nya tidsberoende funktioner ska använda dateUtils.
@@ -41,6 +44,7 @@ Ordlista (domänterm sv → en; koden är engelsk):
 - utmaning → challenge (1v1; minor/major/legendary) · utmaningstoken → challenge token (`user_challenge_tokens`) · boost → boost (`user_boosts`, `multiplier_days`/`multiplier_runs`)
 - event → event (participation/competition; `event_templates`, `event_pools`) · dragning → draw · avräkning → settlement
 - grupp → group (`groups`, `invite_code`) · väder → weather (`run_weather`) · onboarding "sedda objekt" → `user_seen_items`
+- vecka → week (Stockholm, mån–sön) · händelselogg/nyhetsflöde → activity_log / news (`GET /api/news`)
 
 ## Sköra zoner
 Ordnade efter risk; verifierade i koden om inget annat anges.
@@ -65,10 +69,14 @@ Rök-test per flöde = kortaste kedjan som bevisar att flödet lever.
 5. **Utmaningar (1v1).** Token vid level-up → send → respond → avgörs via cron eller lazy → W/D/L + boosts (endast `multiplier_days` tillämpas). Rök: skicka, acceptera, avböj — token återställs.
 6. **Events.** Cron-dragningar per grupp → kvalificering vid runda → participation-XP direkt / competition avräknas söndag. Rök: admin-trigger daily draw, `GET /api/events`.
 7. **Profilbild.** `POST /api/users/profile-picture` (rå bild, max 5 MB) → Storage → `users.profile_picture`. Rök: ladda upp, syns i leaderboard; icke-bild ger 400.
+8. **Pack News (ADR 008).** Avgjord utmaning → exakt EN `challenge_won`-rad i activity_log (omkörning ger ingen dubblett, dedupe_key) → `GET /api/news` visar den → `POST /api/news/seen` nollar oläst-räknaren. Rök: avgör en utmaning, kontrollera raden + räknaren.
 
 ## Designspråk
-Temafil: apps/frontend/src/index.css (HSL-tokens ljust/mörkt; Tailwind-mappning i tailwind.config.ts; shadcn-primitiver i shared/components/ui/)
-[Tom — Designern fyller i ton och känsla vid första design-jobbet.]
+Temafil: apps/frontend/src/index.css — EN tokenuppsättning (--rq-*, källa: docs/design/temafil-forslag.css); mörkt är standard, ljust brons via <html data-theme="light"> (förberett, ej designat). Referens: docs/design/claude-design/ (Components = tokens, App Prototype = skärmar; designprojektet är sanningen). Regler: docs/design/designsprak-forslag.md.
+Ton: mörk arena (#070e09-bas, panel #212121) där guld (#ffd700) är belöningssignalen — XP, rank 1, primär handling. Skarpa hörn (radius 0), hårlinjer i stället för kanter, ett kort = 3 px vänsterkant i tillståndsfärg. Tagline "RUN - RANK - REIGN". En guldknapp per vy.
+Typ: Bebas Neue (rubriker/siffror/primärknappar) · Barlow Condensed (allt annat; namn VERSALER 700) · Share Tech Mono (klockor, XP, eyebrows) · Oswald endast i logotypen.
+Rörelse: staplar växer från noll en gång (1.6 s) och står still; bara live-saker loopar (pulserande prickar, sweep på live-kort, grid-drift, podium #1-glöd).
+Skuld: 240 inline-styles + 7 typsnitt i nuvarande kod ersätts per inkrement (redesign-plan.md); shadcn-alias + legacy --rq-* i temafilen är temporära.
 
 ## Verifieringsnivå (styrs av Läge)
 Produkt: ny kod kräver tester · hela sviten grön + CI-status före merge ·
