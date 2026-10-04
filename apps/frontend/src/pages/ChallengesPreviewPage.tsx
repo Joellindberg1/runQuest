@@ -260,7 +260,7 @@ const ChallengesPreviewPage: React.FC = () => {
   ) : undefined;
 
   return (
-    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget} themeClass="runquest-hybrid">
+    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget}>
       <ChallengesPage
         currentUserId={ME_ID}
         leaderboard={LEADERBOARD}

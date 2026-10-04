@@ -8,10 +8,9 @@ interface AppLayoutProps {
   groupName: string;
   children: React.ReactNode;
   sidebarWidget?: React.ReactNode;
-  themeClass?: string;
 }
 
-export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children, sidebarWidget, themeClass }) => {
+export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children, sidebarWidget }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -22,7 +21,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children, sideb
   }, []);
 
   return (
-    <div className={`runquest-hybrid flex min-h-screen bg-background${themeClass ? ` ${themeClass}` : ''}`}>
+    <div className="flex min-h-screen bg-background">
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

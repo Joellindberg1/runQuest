@@ -10,8 +10,9 @@ import { UserProfileModalProvider } from './UserProfileModalProvider';
 const queryClient = new QueryClient();
 
 export const AppProviders = ({ children }: { children: React.ReactNode }) => {
+  // Mörkt är standard; ljust brons via data-theme (temafilen), inte .dark-klassen.
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider attribute="data-theme" defaultTheme="dark" enableSystem={false}>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>
