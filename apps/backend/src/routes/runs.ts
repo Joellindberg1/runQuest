@@ -164,8 +164,14 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
     }
     const { limit, offset } = page;
 
-    const supabase = getSupabaseClient();
+    // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
     const groupId = req.user!.group_id;
+    if (!groupId) {
+      const empty: GroupRunHistoryResponse = { runs: [], meta: buildPageMeta(0, limit, offset) };
+      res.json(empty); return;
+    }
+
+    const supabase = getSupabaseClient();
 
     let runsData: any[];
     let total: number;
@@ -173,7 +179,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       // Unik tie-breaker (created_at, id) — annars dubblerar/tappar offset-sidor rader med lika datum.
       ({ rows: runsData, total } = await fetchOffsetPage(
         (head) => {
-          let query = supabase
+          return supabase
             .from('runs')
             .select(`
               *,
@@ -182,11 +188,8 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
             `, { count: 'exact', head })
             .order('date', { ascending: false })
             .order('created_at', { ascending: false })
-            .order('id', { ascending: false });
-          if (groupId) {
-            query = query.eq('users.group_id', groupId);
-          }
-          return query;
+            .order('id', { ascending: false })
+            .eq('users.group_id', groupId);
         },
         limit,
         offset,

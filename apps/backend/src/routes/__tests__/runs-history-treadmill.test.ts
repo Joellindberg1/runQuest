@@ -170,6 +170,21 @@ describe('GET /api/runs/group-history', () => {
     expect(res.body.meta).toEqual({ total: 2, limit: 10, offset: 50, has_more: false });
   });
 
+  it('token utan group_id ger tom lista och meta, utan DB-anrop (ADR A6) — inte alla gruppers rundor', async () => {
+    const db = useDb({ runs: [runRow('mine', G1), runRow('theirs', G2)] });
+    const res = await server.request('GET', '/api/runs/group-history', { token: mintToken({ user_id: 'user-of-group-1', group_id: null }) });
+    expect(res.status).toBe(200);
+    expect(res.body.runs).toEqual([]);
+    expect(res.body.meta).toEqual({ total: 0, limit: 100, offset: 0, has_more: false });
+    expect(db.queries).toHaveLength(0);
+  });
+
+  it('ogiltig limit utan group_id ger 400 (validering före gruppkontroll)', async () => {
+    useDb({ runs: [] });
+    const res = await server.request('GET', '/api/runs/group-history?limit=0', { token: mintToken({ user_id: 'user-of-group-1', group_id: null }) });
+    expect(res.status).toBe(400);
+  });
+
   it('limit upp till max 200 accepteras', async () => {
     useDb({ runs: [runRow('a', G1)] });
     const res = await server.request('GET', '/api/runs/group-history?limit=200', { token: token() });

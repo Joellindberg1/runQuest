@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPageMeta, parseOffsetPage } from '../pagination.js';
+import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../pagination.js';
 
 const OPTS = { defaultLimit: 20, maxLimit: 50 };
 
@@ -47,5 +47,29 @@ describe('buildPageMeta', () => {
     expect(buildPageMeta(20, 10, 10).has_more).toBe(false);
     expect(buildPageMeta(25, 10, 100).has_more).toBe(false);
     expect(buildPageMeta(0, 10, 0)).toEqual({ total: 0, limit: 10, offset: 0, has_more: false });
+  });
+});
+
+describe('fetchOffsetPage', () => {
+  const build = (page: any, head: any = { error: null, count: 7 }) => (isHead: boolean) =>
+    isHead ? Promise.resolve(head) : { range: () => Promise.resolve(page) };
+
+  it('returnerar sidan och exakt total', async () => {
+    const r = await fetchOffsetPage(build({ data: [{ id: 1 }], error: null, count: 7 }), 1, 0);
+    expect(r).toEqual({ rows: [{ id: 1 }], total: 7 });
+  });
+
+  it('416 (PGRST103) bortom slutet ger tom sida och total ur head-count', async () => {
+    const r = await fetchOffsetPage(build({ data: null, error: { code: 'PGRST103' }, status: 416 }), 5, 50);
+    expect(r).toEqual({ rows: [], total: 7 });
+  });
+
+  it('200 + tom lista utan count-header bortom slutet ger total ur head-count', async () => {
+    const r = await fetchOffsetPage(build({ data: [], error: null, count: null }), 5, 50);
+    expect(r).toEqual({ rows: [], total: 7 });
+  });
+
+  it('andra fel kastas vidare', async () => {
+    await expect(fetchOffsetPage(build({ data: null, error: { code: 'XX', message: 'boom' } }), 5, 0)).rejects.toEqual({ code: 'XX', message: 'boom' });
   });
 });

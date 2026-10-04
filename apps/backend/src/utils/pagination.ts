@@ -68,5 +68,12 @@ export async function fetchOffsetPage<T = any>(
     if (head.error) throw head.error;
     return { rows: [], total: head.count ?? 0 };
   }
-  return { rows: page.data ?? [], total: page.count ?? 0 };
+  const rows = page.data ?? [];
+  if (page.count == null && rows.length === 0 && offset > 0) {
+    // Vissa PostgREST-lägen svarar 200 + tom lista utan count-header bortom slutet — total hämtas då separat.
+    const head = await build(true);
+    if (head.error) throw head.error;
+    return { rows, total: head.count ?? 0 };
+  }
+  return { rows, total: page.count ?? 0 };
 }

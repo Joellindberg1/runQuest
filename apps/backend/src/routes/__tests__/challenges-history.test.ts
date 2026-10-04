@@ -274,6 +274,21 @@ describe('GET /api/challenges/head-to-head/:userId', () => {
     expect(mirror.body.data.record).toEqual({ wins: 3, draws: 1, losses: 2, total: 6 });
   });
 
+  it('möte under fel group_id räknas inte, varken i record, history eller active', async () => {
+    useDb({
+      users: users(),
+      challenges: [
+        challenge({ id: 'ok' }),
+        challenge({ id: 'wrong-group-done', group_id: G2 }),
+        challenge({ id: 'wrong-group-open', group_id: G2, status: 'active', outcome: null, winner_id: null }),
+      ],
+    });
+    const res = await server.request('GET', `/api/challenges/head-to-head/${BERTIL}`, { token: tokenAnna() });
+    expect(res.body.data.record).toEqual({ wins: 1, draws: 0, losses: 0, total: 1 });
+    expect(res.body.data.history.map((h: any) => h.id)).toEqual(['ok']);
+    expect(res.body.data.active).toBeNull();
+  });
+
   it('history = senaste limit (default 5) nyast först med stabil tie-breaker, record täcker alla', async () => {
     const rows: Row[] = [];
     for (let i = 1; i <= 7; i++) {
