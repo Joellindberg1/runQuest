@@ -21,10 +21,10 @@ Mobil/direktladdning = sida i skalet (`variant="page"`, Back-knapp); desktop ini
 
 ## Regler värda att komma ihåg
 
-- **Challenge-länken** är `duelsSendPath(id)` i `paths.ts`. `opponent`-parametern konsumeras av send-sheeten i inkrement 5;
-  tills dess landar länken på `/duels`. (ADR 006 beskriver förvalet som `?send=<userId>` — samordnas i inkrement 5.)
+- **Challenge** är en sekundärknapp (guld-hårlinje, ingen fylld guldknapp på kortet); med pågående utmaning visas en statuschip. Länken är `duelsSendPath(id)` i `paths.ts`. `opponent`-parametern konsumeras av send-sheeten i inkrement 5;
+  tills dess landar länken på `/duels`. (ADR 006 beslut 4 uppdaterad till samma form; sheeten validerar `opponent` mot gruppen.)
 - **Streak-trappan** kommer ur `/api/config/xp` (`useXpConfig`), aldrig ur konstanter. Effektiv streak (0 när bruten) delas med Board.
-- **Double-run days** = dagar där två rundors starttider ligger ≥ 4 h isär (samma regel som titeln The Double Trouble).
+- **Double-run days** = dagar där två rundors starttider ligger ≥ 4 h isär (samma 4 h-gräns som titeln The Double Trouble; titeln kräver dessutom 5 km per runda och mäter km).
   Rundor utan `start_time` (manuell loggning) kan inte bevisa avståndet och räknas inte.
 - **Titlar** har en egen query (`useRunnerTitles`) som kastar vid fel — `useUserTitles` sväljer fel och skulle ge "No titles".
   Enheten på värdena kommer från `metric_key` i `/titles/leaderboard`; saknas den visas bara talet.

@@ -6,6 +6,8 @@ import {
 
 // Äldre presentation (egna profilen) — matematiken bor i ../frodoModel och delas med Runner card.
 // Ritas om i inkrement 8.
+// TODO(i8): etikettlayouten nedan (egen loop med rader/gap/MIN_LABEL_PX) dubblerar frodoModel.layoutWaypoints som
+// Runner card använder — byt till den när presentationen ritas om, så finns bara en layoutalgoritm.
 
 // ─── Pixel layout ─────────────────────────────────────────────────────────────
 //   y=0          ─── far labels    (row 1, gap[1] px above bar)

@@ -388,22 +388,24 @@ describe('Challenge-knappen', () => {
     await waitFor(() => expect(location()).toBe('/duels?send=1&opponent=u-karl'));
   });
 
-  it('är kortets enda fyllda guldknapp (regel 3)', async () => {
+  it('Challenge är en sekundärknapp (guld-hårlinje) — inga fyllda guldknappar på kortet', async () => {
     const { container } = renderRunner();
     await screen.findByRole('link', { name: 'Challenge' });
-    expect(container.querySelectorAll('.rq-btn--primary')).toHaveLength(1);
+    expect(container.querySelectorAll('.rq-btn--primary')).toHaveLength(0);
+    expect(screen.getByRole('link', { name: 'Challenge' })).toHaveClass('rq-btn--secondary');
   });
 
   it.each([
     ['pending', 'Challenge pending'],
     ['active', 'Challenge live'],
-  ] as const)('redan en %s utmaning mot löparen: knappen är avstängd (%s)', async (status, label) => {
+  ] as const)('redan en %s utmaning mot löparen: statuschip (%s) i stället för knapp', async (status, label) => {
     handlers.getHeadToHead = () => ({ success: true, data: { ...H2H, active: { id: 'x', status, challenger_id: ME.id } } });
     renderRunner();
 
-    const button = await screen.findByRole('button', { name: label });
-    expect(button).toBeDisabled();
+    const chip = await screen.findByText(label);
+    expect(chip).toHaveClass('rq-chip--status', 'rq-chip--duel');
     expect(screen.queryByRole('link', { name: 'Challenge' })).toBeNull();
+    expect(screen.queryByRole('button', { name: label })).toBeNull();
   });
 });
 

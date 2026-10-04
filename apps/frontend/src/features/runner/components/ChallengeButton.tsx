@@ -9,20 +9,22 @@ interface ChallengeButtonProps {
 }
 
 /**
- * Den primära handlingen på Runner card (guld, en per vy — regel 3). Länkar till `/duels?send=1&opponent=<id>`;
- * send-sheeten som läser parametrarna byggs i inkrement 5, tills dess landar länken på Duels.
+ * Runner cards primärhandling, men en SEKUNDÄR knapp (guld-hårlinje) enligt prototypen — kortet har ingen
+ * fylld guldknapp. Länkar till `/duels?send=1&opponent=<id>`; send-sheeten som läser parametrarna byggs i
+ * inkrement 5, tills dess landar länken på Duels. Med en pågående utmaning visas i stället en statuschip
+ * (en avstängd knapp har för låg kontrast för att bära tillståndsinfo).
  */
 export function ChallengeButton({ opponentId, active }: ChallengeButtonProps) {
   if (active) {
     return (
-      <button type="button" className="rq-btn rq-btn--primary rq-btn--sm" disabled>
+      <span className="rq-chip rq-chip--status rq-chip--duel">
         <RQIcon name="swords" size={15} />
         {active === 'pending' ? 'Challenge pending' : 'Challenge live'}
-      </button>
+      </span>
     );
   }
   return (
-    <Link to={duelsSendPath(opponentId)} className="rq-btn rq-btn--primary rq-btn--sm">
+    <Link to={duelsSendPath(opponentId)} className="rq-btn rq-btn--secondary rq-btn--sm">
       <RQIcon name="swords" size={15} />
       Challenge
     </Link>

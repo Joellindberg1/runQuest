@@ -138,8 +138,8 @@ export function marathonEquivalents(km: number): number {
 }
 
 /**
- * Dagar med ett riktigt dubbelpass: två rundor samma dag vars starttider ligger minst 4 h isär (samma
- * regel som titeln The Double Trouble, så siffran kan jämföras med den). En runda utan starttid
+ * Dagar med ett riktigt dubbelpass: två rundor samma dag vars starttider ligger minst 4 h isär (samma 4 h-gräns
+ * som titeln The Double Trouble; titeln kräver dessutom 5 km per runda och mäter km, så siffrorna är inte samma sak). En runda utan starttid
  * (manuell loggning) kan inte bevisa avståndet och räknas därför inte.
  */
 export function countDoubleRunDays(runs: Pick<Run, 'date' | 'start_time'>[]): number {
