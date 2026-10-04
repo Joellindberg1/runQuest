@@ -1093,36 +1093,9 @@ class BackendApiService {
     return this.authenticatedRequest<EventsHistoryResponse>(`/events/history?limit=${limit}&offset=${offset}`);
   }
 
-  /** GET /events — aktiva + schemalagda events med participantCount/memberCount för alla typer (ADR 007 B7). Samma anrop som getEvents, med delade typer. */
+  /** GET /events — aktiva + schemalagda events med participantCount/memberCount för alla typer (ADR 007 B7). Enda events-metoden: Events-skärmen och skalets "Right now" delar query-nyckeln ['events'] och därmed formen. */
   async getEventList(): Promise<ApiResponse<EventsResponse>> {
     return this.authenticatedRequest<EventsResponse>('/events');
-  }
-
-  async getEvents(): Promise<ApiResponse<{
-    events: Array<{
-      id: string;
-      type: 'participation' | 'competition';
-      metric: string | null;
-      status: 'active' | 'scheduled';
-      startsAt: string;
-      endsAt: string;
-      template: {
-        name: string; icon: string; description: string;
-        minKm: number; rewardXp: number;
-        rewardXp1st: number; rewardXp2nd: number; rewardXp3rd: number;
-        requiresWeather: string[] | null;
-      };
-      myEntry: {
-        qualified: boolean; qualifiedAt: string;
-        rank: number | null; xpAwarded: number; totalValue: number | null;
-      } | null;
-      leaderboard: Array<{
-        userId: string; userName: string; totalValue: number; rank: number; isMe: boolean;
-      }> | null;
-      participantCount: number;
-    }>;
-  }>> {
-    return this.authenticatedRequest('/events');
   }
 
   // ─── Runs ─────────────────────────────────────────────────────────────────

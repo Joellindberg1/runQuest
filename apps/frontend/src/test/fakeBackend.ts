@@ -88,7 +88,6 @@ function defaultHandlers(): Record<string, Handler> {
     getUserTitles: () => ({ success: true, data: [] }),
     getTitleLeaderboard: () => ({ success: true, data: [] }),
     getGroupInfo: () => ({ success: true, data: { id: 'g1', name: 'Wolfpack', is_owner: false, members: [] } }),
-    getEvents: () => ({ success: true, data: { events: [] } }),
     getEventList: () => ({ success: true, data: { events: [] } }),
     getEventHistoryPage: () => ({ success: true, data: { events: [], meta: { total: 0, limit: 6, offset: 0, has_more: false } } }),
     getMyChallenges: () => ({ success: true, data: EMPTY_CHALLENGES }),
