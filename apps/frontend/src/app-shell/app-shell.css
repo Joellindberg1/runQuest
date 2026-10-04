@@ -112,7 +112,7 @@
   padding: var(--rq-sp-8) var(--rq-sp-20); border: 0; background: none; cursor: pointer; text-align: left;
   border-left: var(--rq-edge-w-thin) solid transparent;
   font-family: var(--rq-font-ui); font-weight: 500; font-size: var(--rq-fs-name);
-  letter-spacing: var(--rq-ls-btn-sm); text-transform: uppercase; text-decoration: none;
+  letter-spacing: var(--rq-ls-btn); text-transform: uppercase; text-decoration: none;
   color: var(--rq-text-3);
 }
 .rq-navitem:hover { color: var(--rq-text-2); }
@@ -225,3 +225,4 @@
 .rq-rightnow__icon { display: inline-flex; color: var(--rq-c-solid); }
 .rq-sheet__action--gold { --rq-edge: var(--rq-gold); color: var(--rq-gold); }
 .rq-sheet__action--duel { --rq-edge: var(--rq-duel); color: var(--rq-duel); }
+.rq-pills { scroll-padding-inline: var(--rq-pad-screen); }

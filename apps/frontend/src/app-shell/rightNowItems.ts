@@ -116,7 +116,7 @@ function streakItem(input: RightNowInput): RightNowItem | null {
     id: 'streak',
     kind: 'streak',
     label: 'Streak',
-    note: deadline.ranToday ? `${streak.current}-day streak · safe today` : `${streak.current}-day streak · run today`,
+    note: `${streak.current}-day streak`,
     value: `${formatRemaining(deadline.msLeft)} left`,
     tone: deadline.ranToday ? 'up' : 'down',
     icon: 'flame',
