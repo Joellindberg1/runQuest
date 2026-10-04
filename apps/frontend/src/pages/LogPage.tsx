@@ -1,12 +1,7 @@
 import React from 'react';
-import { RunLogger } from '@/features/runs/components/RunLogger';
-import { WithLeaderboardData } from './WithLeaderboardData';
+import { LogScreen } from '@/features/log/components/LogScreen';
 
-// /log — den gamla RunLogger-fliken tills inkrement 7.
-const LogPage: React.FC = () => (
-  <WithLeaderboardData>
-    {({ users, onRunUpdated }) => <RunLogger onSubmit={onRunUpdated} users={users} />}
-  </WithLeaderboardData>
-);
+/** /log: formulär med Estimated XP-förhandsvisning och Group history. Allt ligger i features/log. */
+const LogPage: React.FC = () => <LogScreen />;
 
 export default LogPage;
