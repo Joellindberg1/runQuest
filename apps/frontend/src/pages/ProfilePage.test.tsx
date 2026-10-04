@@ -274,11 +274,40 @@ describe('Profile — statflikar (?view=)', () => {
     expect(document.querySelectorAll('.rq-profile-heat__day')).toHaveLength(7);
   });
 
-  it('rutnätet som ryms startar vid början och scrollar inte (ingen inscrollad första månad)', async () => {
-    renderProfile('/profile?view=consistency', DESKTOP);
-    const region = await screen.findByRole('region', { name: /Run heatmap/ });
-    expect(region).toHaveAttribute('data-fits', 'true');
-    expect(region.scrollLeft).toBe(0);
+  // jsdom har ingen layout: bredderna sätts för hand så att startscrollen går att pröva (mätt i riktig webbläsare vid 1440 px: 681/681).
+  const withWidths = (scrollWidth: number, clientWidth: number) => {
+    const sw = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollWidth');
+    const cw = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    Object.defineProperty(Element.prototype, 'scrollWidth', { configurable: true, get: () => scrollWidth });
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get: () => clientWidth });
+    return () => {
+      if (sw) Object.defineProperty(Element.prototype, 'scrollWidth', sw); else delete (Element.prototype as unknown as Record<string, unknown>).scrollWidth;
+      if (cw) Object.defineProperty(Element.prototype, 'clientWidth', cw); else delete (Element.prototype as unknown as Record<string, unknown>).clientWidth;
+    };
+  };
+
+  it('ett litet överflöd (några px) räknas som att rutnätet ryms: start vid första månaden, ingen scroll, ingen scrollyta', async () => {
+    const restore = withWidths(686, 681);
+    try {
+      renderProfile('/profile?view=consistency', DESKTOP);
+      const region = await screen.findByRole('region', { name: /Run heatmap/ });
+      expect(region).toHaveAttribute('data-fits', 'true');
+      expect(region.scrollLeft).toBe(0);
+    } finally {
+      restore();
+    }
+  });
+
+  it('ett verkligt överflöd (smalare fönster, mobil) scrollar till nyaste delen', async () => {
+    const restore = withWidths(666, 521);
+    try {
+      renderProfile('/profile?view=consistency', DESKTOP);
+      const region = await screen.findByRole('region', { name: /Run heatmap/ });
+      expect(region).toHaveAttribute('data-fits', 'false');
+      expect(region.scrollLeft).toBe(145);
+    } finally {
+      restore();
+    }
   });
 
   it('en cell med runda bär datum och km som titel; intensiteten följer dagens km', async () => {
