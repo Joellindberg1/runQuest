@@ -1,7 +1,7 @@
 /**
  * ADR 003 wiring-test: varje monterat routerprefix i createApp() svarar på en
  * oautentiserad förfrågan med 401/400/403 — aldrig appens 404 "Route not found".
- * Utökas varje gång en router läggs i app.ts (ADR 007: /api/leaderboard, /api/config; nya paths under challenges/events/runs).
+ * Utökas varje gång en router läggs i app.ts (ADR 007: /api/leaderboard, /api/config; nya paths under challenges/events/runs; ADR 008: /api/news).
  */
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 
@@ -37,6 +37,9 @@ const WIRED: Array<[prefix: string, method: string, path: string]> = [
   ['/api/leaderboard', 'GET', '/api/leaderboard/week'],
   ['/api/leaderboard', 'GET', '/api/leaderboard/rank-delta'],
   ['/api/config', 'GET', '/api/config/xp'],
+  // ADR 008: Pack News
+  ['/api/news', 'GET', '/api/news'],
+  ['/api/news', 'POST', '/api/news/seen'],
   // ADR 007 B5–B8: nya paths under befintliga routrar
   ['/api/challenges', 'GET', '/api/challenges/group-history'],
   ['/api/challenges', 'GET', '/api/challenges/head-to-head/00000000-0000-4000-8000-000000000001'],
