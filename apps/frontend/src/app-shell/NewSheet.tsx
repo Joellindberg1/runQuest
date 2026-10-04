@@ -17,7 +17,7 @@ interface ActionSpec {
 
 const ACTIONS: ActionSpec[] = [
   { key: 'log', label: 'Log a run', note: 'Treadmill, or a run Strava missed', icon: 'plus', tone: 'gold', to: paths.log },
-  // "Send a challenge" öppnar send-sheeten via ?send=1 (ADR 006 beslut 4); sheeten byggs i inkrement 5.
+  // "Send a challenge" öppnar send-sheeten via ?send=1 (ADR 006 beslut 4); sheeten ritas av DuelsScreen.
   { key: 'send', label: 'Send a challenge', note: 'Spend a token on someone', icon: 'swords', tone: 'duel', to: `${paths.duels}?${SEND_PARAM}=1` },
 ];
 

@@ -20,12 +20,12 @@ export const paths = {
   legacyChallenges: '/challenges',
 } as const;
 
-/** Delvy-parametern för "send challenge"-sheeten (ADR 006 beslut 4). Konsumeras av Duels i inkrement 5. */
+/** Delvy-parametern för "send challenge"-sheeten (ADR 006 beslut 4). Konsumeras av DuelsScreen (features/challenges). */
 export const SEND_PARAM = 'send';
 
 /**
  * Förvald motståndare för send-sheeten. Runner cards Challenge-knapp navigerar till
- * `/duels?send=1&opponent=<userId>` (`duelsSendPath`); sheeten (inkrement 5) läser `opponent` och förväljer
+ * `/duels?send=1&opponent=<userId>` (`duelsSendPath`); sheeten (DuelsScreen/SendSheet) läser `opponent` och förväljer
  * löparen. `send=1` ensamt = välj motståndare själv.
  * ADR 006 beslut 4 har samma form (flagga och värde separerade); sheeten validerar `opponent` mot gruppen.
  */
