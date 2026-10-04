@@ -5,7 +5,7 @@ import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import {
   DOUBLE_RUN_MIN_GAP_MS, buildDistanceRows, buildFunRows, buildHeadToHead, buildHero, buildMeeting, buildStatCells,
-  buildStreakRows, buildTitleRows, countDoubleRunDays, favouriteWeekday, marathonEquivalents, nextTier, titleValueText,
+  buildStreakRows, buildTitleRows, countDoubleRunDays, favouriteWeekday, marathonEquivalents, nextTier,
   xpToNextText,
 } from './runnerModel';
 
@@ -267,14 +267,6 @@ describe('titlar', () => {
     entry('t-fast', 'fastest5km', { name: 'Adam', value: 40 }),
     entry('t-nokey', undefined, { name: 'Adam', value: 7 }),
   ];
-
-  it('titleValueText: enhet per mått, mellanslag före km, och bara talet när måttet är okänt', () => {
-    expect(titleValueText('earlyRunCount', 56)).toBe('56 runs');
-    expect(titleValueText('longestStreak', 14)).toBe('14 days');
-    expect(titleValueText('longestRun', 32.8)).toBe('32.8 km');
-    expect(titleValueText('totalElevationGain', 180)).toBe('180m');
-    expect(titleValueText(undefined, 7.4)).toBe('7');
-  });
 
   it('innehavda titlar (position 1) med värde i rätt enhet, i den ordning backend ger dem', () => {
     const rows = buildTitleRows(

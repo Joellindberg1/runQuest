@@ -4,7 +4,7 @@ import { calculateStreakMultiplier } from '@runquest/shared';
 import { stockholmClock } from '@/app-shell/rightNowItems';
 import { formatDecimal, formatInt } from '@/features/leaderboard/boardFormat';
 import { buildStreakRow, formatMultiplier } from '@/features/leaderboard/streakModel';
-import { formatTitleValue, resolveGenderedTitle } from '@/features/titles/components/title/titleSystemUtils';
+import { hasLinearGap, resolveGenderedTitle, titleValueText } from '@/features/titles/titleFormat';
 import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
@@ -215,18 +215,7 @@ export interface TitleRows {
   runnersUp: RunnerUpTitleRow[];
 }
 
-/** Mått där värdet är kodat för sortering (tid, spridning, datum) — en differens vore meningslös. */
-const NON_LINEAR_METRICS = new Set([
-  'fastestMarathon', 'fastestHalfMarathon', 'fastest5km', 'lowestPaceStdDev', 'avgPaceStdDev', 'lastRunOfWeek',
-]);
-
 const RUNNER_UP_POSITIONS = [2, 3];
-
-/** "32.8km" → "32.8 km" som i designen; saknas måttnyckeln visas bara talet (hellre ingen enhet än fel enhet). */
-export function titleValueText(metricKey: string | undefined, value: number): string {
-  if (!metricKey) return String(Math.round(value));
-  return formatTitleValue(metricKey, value).replace(/(\d)km$/, '$1 km');
-}
 
 export function buildTitleRows(userTitles: UserTitle[], board: TitleLeaderboard[], gender: string | null | undefined): TitleRows {
   const entryFor = (title: UserTitle) => board.find((entry) => entry.id === title.title_id);
@@ -243,7 +232,7 @@ export function buildTitleRows(userTitles: UserTitle[], board: TitleLeaderboard[
       const entry = entryFor(title);
       const metric = entry?.metric_key;
       const holderValue = entry?.holder?.value;
-      const linear = !!metric && !NON_LINEAR_METRICS.has(metric) && holderValue !== undefined;
+      const linear = hasLinearGap(metric) && holderValue !== undefined;
       return {
         id: title.title_id,
         name: nameOf(title),
