@@ -454,6 +454,38 @@
   --rq-profile-sheet-edge-w: 2px;                                     /* guld toppkant på bottensheeten (desktop 1 px runtom) */
   --rq-profile-sheet-actions-dir: column;                             /* desktop: row */
   --rq-profile-sheet-fields-cols: minmax(0, 1fr);                     /* datum + distans: mobil staplade, desktop bredvid varandra */
+  /* ── 1.27 Landing-mått (inkrement 10) ──────────────────────────────────────
+     Mått ur App Prototypens landing (mobil). Web Prototype har INGEN landing — desktopvärdena nedan är ett antagande
+     (samma komposition, större yta). Endast mått och tider — ingen färg, ingen typskala. Banans geometri (viewBox
+     1400 × 760) ritas i user units, så px-värdena för banlinjer/siffror skalar med SVG:n. Mobil = standard; desktop
+     skriver över i avsnitt 2. Konsument: features/landing/landing.css. */
+  --rq-landing-max: var(--rq-shell-narrow-max);                       /* innehållets maxbredd: mobil/surfplatta 640 · desktop 1120 */
+  --rq-landing-pad: 20px;                                             /* sidmarginal (desktop 48) */
+  --rq-landing-glow-w: 460px;                                         /* guldgloden bakom hjälten (desktop 900) */
+  --rq-landing-glow-h: 340px;                                         /* (desktop 560) */
+  --rq-landing-glow-top: -120px;                                      /* (desktop -240) */
+  --rq-landing-logo-w: 148px;                                         /* wordmarken (desktop 190) */
+  --rq-landing-hero-cols: minmax(0, 1fr) auto;                        /* rubrik | arenabanan; desktop: text | bana */
+  --rq-landing-hero-areas: "badge badge" "title arena" "lead lead" "cta cta";   /* desktop: banan spänner över alla fyra raderna */
+  --rq-landing-track-w: 118px;                                        /* banans ruta (desktop 300) */
+  --rq-landing-track-h: 158px;                                        /* (desktop 400) */
+  --rq-landing-track-svg-w: 172px;                                    /* den roterade SVG:n inuti rutan (desktop 430) */
+  --rq-landing-track-rot: -72deg;                                     /* ovalen står nästan lodrätt */
+  --rq-landing-lane-w: 9px;                                           /* banlinje, user units (viewBox 1400) */
+  --rq-landing-finish-w: 11px;                                        /* mållinjen */
+  --rq-landing-xp-size: 230px;                                        /* "+50 XP"-poppen, user units */
+  --rq-landing-xp-rise: -170px;                                       /* … stiger så här långt (i textens egen, motroterade ram) */
+  --rq-landing-lap-1: 15s;                                            /* varvtid guld · silver · brons — de tre löparna går i olika takt */
+  --rq-landing-lap-2: 20s;
+  --rq-landing-lap-3: 26s;
+  --rq-landing-lap-offset-2: -6s;                                     /* startförskjutning så de inte går i klump */
+  --rq-landing-lap-offset-3: -12s;
+  --rq-landing-pulse: 3.4s;                                           /* previewkortets guldring andas (rqRing) */
+  --rq-landing-sweep: 4.5s;                                           /* sweep-bandet över previewkortet (rqSweep) */
+  --rq-landing-sweep-w: 60px;                                         /* (desktop 90) */
+  --rq-landing-row-cols: 24px minmax(0, 1fr) 68px;                    /* previewrad: plats · namn + stapel · XP (desktop 36 · 1fr · 96) */
+  --rq-landing-bar-h: 4px;                                            /* previewradens stapel */
+  --rq-landing-body-cols: minmax(0, 1fr);                             /* preview + steg: mobil staplade, desktop bredvid varandra */
 }
 
 
@@ -559,6 +591,20 @@
     --rq-profile-sheet-edge-w: 1px;
     --rq-profile-sheet-actions-dir: row;
     --rq-profile-sheet-fields-cols: repeat(2, minmax(0, 1fr));
+    --rq-landing-max: 1120px;
+    --rq-landing-pad: 48px;
+    --rq-landing-glow-w: 900px;
+    --rq-landing-glow-h: 560px;
+    --rq-landing-glow-top: -240px;
+    --rq-landing-logo-w: 190px;
+    --rq-landing-hero-cols: minmax(0, 1fr) var(--rq-landing-track-w);
+    --rq-landing-hero-areas: "badge arena" "title arena" "lead arena" "cta arena";
+    --rq-landing-track-w: 300px;
+    --rq-landing-track-h: 400px;
+    --rq-landing-track-svg-w: 430px;
+    --rq-landing-sweep-w: 90px;
+    --rq-landing-row-cols: 36px minmax(0, 1fr) 96px;
+    --rq-landing-body-cols: repeat(2, minmax(0, 1fr));
   }
 }
 
