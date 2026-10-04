@@ -1,9 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
+import { HEAD_TO_HEAD_ROOT } from '@/features/runner/hooks/useRunnerQueries';
 
-// Roten för Runner cards head-to-head-queries (RUNNER_QUERY_KEYS.headToHead(id) = [...root, id]).
-const HEAD_TO_HEAD_ROOT = ['runner', 'head-to-head'] as const;
 
 type ApiResult = { success: boolean; error?: string };
 

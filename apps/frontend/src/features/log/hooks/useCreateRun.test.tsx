@@ -4,6 +4,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { EVENTS_QUERY_KEYS } from '@/features/events/hooks/useEventsQueries';
+import { HEAD_TO_HEAD_ROOT } from '@/features/runner/hooks/useRunnerQueries';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { EVENT_FOLLOW_UP_MS, useCreateRun } from './useCreateRun';
 import { LOG_QUERY_KEYS } from './useLogQueries';
@@ -34,7 +35,7 @@ describe('useCreateRun — vad en lyckad runda invaliderar', () => {
 
     const keys = invalidatedKeys(invalidate);
     expect(keys).toEqual(
-      expect.arrayContaining([USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], EVENTS_QUERY_KEYS.open, ['titles'], ['multiple-user-titles'], ['challenges'], ['runner', 'head-to-head'], LOG_QUERY_KEYS.history]),
+      expect.arrayContaining([USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], EVENTS_QUERY_KEYS.open, ['titles'], ['multiple-user-titles'], ['challenges'], HEAD_TO_HEAD_ROOT, LOG_QUERY_KEYS.history]),
     );
     // Öppna-listan invalideras exakt: historiken (['events','history',…]) och facit rörs inte av en vanlig runda.
     const eventCall = invalidate.mock.calls.find(([filters]) => (filters as { queryKey: unknown }).queryKey === EVENTS_QUERY_KEYS.open);

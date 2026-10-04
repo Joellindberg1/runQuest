@@ -3,14 +3,14 @@ import type { Run } from '@runquest/types';
 import { backendApi } from '@/shared/services/backendApi';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { titleQueryKeys } from '@/shared/hooks/useTitleQueries';
+import { HEAD_TO_HEAD_ROOT } from '@/features/runner/hooks/useRunnerQueries';
 import { EVENTS_QUERY_KEYS } from '@/features/events/hooks/useEventsQueries';
 import type { RunSubmission } from '../logModel';
 import { LOG_QUERY_KEYS } from './useLogQueries';
 
 /** Roten för Boards queries (BOARD_QUERY_KEYS.week och .rankDelta ligger under den). */
 const LEADERBOARD_ROOT = ['leaderboard'] as const;
-/** Runner cards head-to-head (RUNNER_QUERY_KEYS.headToHead) och gruppens titelrader per användare — båda ligger utanför ['titles']. */
-const HEAD_TO_HEAD_ROOT = ['runner', 'head-to-head'] as const;
+/** Gruppens titelrader per användare (useMultipleUserTitles) ligger utanför ['titles']-roten. */
 const MULTIPLE_USER_TITLES_ROOT = ['multiple-user-titles'] as const;
 
 /**
