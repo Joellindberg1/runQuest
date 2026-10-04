@@ -6,9 +6,11 @@ User profile display and management.
 
 - **components/** - Profile-related components
   - `UserProfile.tsx` - Own profile view (route `/profile`)
-  - `RunnerCard.tsx` - Another runner's card (route `/runner/:id`; page on mobile, overlay on desktop)
-  - `StatsTab.tsx`, `UserTitlesList.tsx`, `UserRunHistory.tsx`, `FrodoJourney.tsx` - Building blocks
+  - `StatsTab.tsx`, `UserTitlesList.tsx`, `UserRunHistory.tsx`, `FrodoJourney.tsx` - Building blocks (ritas om i inkrement 8)
   - `ProfilePictureUpload.tsx` - Profile picture upload
+- **frodoModel.ts** - Ren waypoint-/viewport-matematik för Frodo's journey; delas med Runner card
+
+Runner card (`/runner/:id`) bor i `features/runner`.
 
 ## Navigation
 

@@ -1,59 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {
+  ALL_WAYPOINTS, JOURNEY_END_KM, getViewport, lastCheckpoint, nextCheckpointInfo, pctInView,
+  type ZoomLevel,
+} from '../frodoModel';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const JOURNEY_END_KM = 3266;
-
-type ZoomLevel = 0 | 1 | 2;
-
-interface Waypoint { name: string; km: number; tier: 1 | 2 }
-
-const ALL_WAYPOINTS: Waypoint[] = ([
-  // ── Major destinations (tier 1) ──────────────────────────────────────────
-  { name: 'The Shire',          km: 0,    tier: 1 },
-  { name: 'Bree',               km: 168,  tier: 1 },
-  { name: 'Rivendell',          km: 457,  tier: 1 },
-  { name: 'Moria',              km: 1181, tier: 1 },
-  { name: 'Rauros',             km: 1892, tier: 1 },
-  { name: 'The Black Gate',     km: 2680, tier: 1 },
-  { name: 'Mount Doom',         km: 3266, tier: 1 },
-
-  // ── The Shire → Bree ─────────────────────────────────────────────────────
-  { name: 'Woody End',          km: 34,   tier: 2 },
-  { name: 'Bucklebury Ferry',   km: 67,   tier: 2 },
-  { name: "Tom Bombadil's",     km: 101,  tier: 2 },
-  { name: 'Barrow-downs',       km: 134,  tier: 2 },
-
-  // ── Bree → Rivendell ─────────────────────────────────────────────────────
-  { name: 'Midgewater Marshes', km: 226,  tier: 2 },
-  { name: 'Weathertop',         km: 284,  tier: 2 },
-  { name: 'The Last Bridge',    km: 342,  tier: 2 },
-  { name: 'Trollshaws',         km: 399,  tier: 2 },
-
-  // ── Rivendell → Moria ────────────────────────────────────────────────────
-  { name: 'Hollin',             km: 602,  tier: 2 },
-  { name: 'Caradhras',          km: 747,  tier: 2 },
-  { name: 'Doors of Durin',     km: 892,  tier: 2 },
-  { name: "Balin's Tomb",       km: 1037, tier: 2 },
-
-  // ── Moria → Rauros ───────────────────────────────────────────────────────
-  { name: 'Dimrill Dale',       km: 1323, tier: 2 },
-  { name: 'Lothlórien',         km: 1465, tier: 2 },
-  { name: 'The Tongue',         km: 1607, tier: 2 },
-  { name: 'Argonath',           km: 1749, tier: 2 },
-
-  // ── Rauros → The Black Gate ──────────────────────────────────────────────
-  { name: 'Emyn Muil',          km: 2050, tier: 2 },
-  { name: 'Dead Marshes',       km: 2208, tier: 2 },
-  { name: 'Dagorlad',           km: 2366, tier: 2 },
-  { name: 'Morannon',           km: 2524, tier: 2 },
-
-  // ── The Black Gate → Mount Doom ──────────────────────────────────────────
-  { name: 'Ithilien',           km: 2797, tier: 2 },
-  { name: 'Cirith Ungol',       km: 2914, tier: 2 },
-  { name: 'Gorgoroth',          km: 3031, tier: 2 },
-  { name: 'Sammath Naur',       km: 3148, tier: 2 },
-] satisfies Waypoint[]).sort((a, b) => a.km - b.km);
+// Äldre presentation (egna profilen) — matematiken bor i ../frodoModel och delas med Runner card.
+// Ritas om i inkrement 8.
+// TODO(i8): etikettlayouten nedan (egen loop med rader/gap/MIN_LABEL_PX) dubblerar frodoModel.layoutWaypoints som
+// Runner card använder — byt till den när presentationen ritas om, så finns bara en layoutalgoritm.
 
 // ─── Pixel layout ─────────────────────────────────────────────────────────────
 //   y=0          ─── far labels    (row 1, gap[1] px above bar)
@@ -69,35 +23,6 @@ const J = {
   labelH:      12,
   totalH:      102,
 } as const;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getViewport(zoom: ZoomLevel, posKm: number): { start: number; end: number } {
-  if (zoom === 0) return { start: 0, end: JOURNEY_END_KM };
-  const half = zoom === 1 ? 600 : 200;
-  const center = Math.max(half, Math.min(JOURNEY_END_KM - half, posKm));
-  return { start: center - half, end: center + half };
-}
-
-function pctInView(km: number, start: number, end: number): number {
-  return ((km - start) / (end - start)) * 100;
-}
-
-function lastCheckpoint(totalKm: number): Waypoint {
-  let result = ALL_WAYPOINTS[0];
-  for (const wp of ALL_WAYPOINTS) {
-    if (totalKm >= wp.km) result = wp;
-    else break;
-  }
-  return result;
-}
-
-function nextCheckpointInfo(totalKm: number): { name: string; km: number; remaining: number } | null {
-  if (totalKm >= JOURNEY_END_KM) return null;
-  const next = ALL_WAYPOINTS.find(wp => wp.km > totalKm);
-  if (!next) return null;
-  return { name: next.name, km: next.km, remaining: Math.ceil(next.km - totalKm) };
-}
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 

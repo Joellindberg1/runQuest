@@ -100,8 +100,9 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
      mittenknappen i bottenbaren (mobil) och av "Log Runs"/"Send challenge" i
      desktop-skalet. "Log a run" navigerar till `/log`; "Send a challenge"
      navigerar till `/duels` och öppnar send-sheeten (som prototypen).
-   - **Send-challenge-sheet:** styrs av sökparametern `?send=` (`1` = välj
-     motståndare själv, `<userId>` = förvald motståndare) och monteras i
+   - **Send-challenge-sheet:** styrs av sökparametrarna `?send=1` (öppnar
+     sheeten; flagga) och `&opponent=<userId>` (valfri förvald motståndare;
+     sheeten validerar att den tillhör gruppen) och monteras i
      skalet så att Runner card-knappen "Challenge" fungerar från vilken
      skärm som helst. Parametern gör att back-knappen stänger sheeten och att
      den överlever omladdning.

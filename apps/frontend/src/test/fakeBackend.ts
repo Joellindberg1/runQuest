@@ -1,5 +1,5 @@
 import type { User } from '@runquest/types';
-import type { RankDeltaResponse, WeekLeaderboardResponse, XpConfigResponse } from '@runquest/shared';
+import type { HeadToHeadResponse, RankDeltaResponse, WeekLeaderboardResponse, XpConfigResponse } from '@runquest/shared';
 
 // Ersätter backendApi-singletonen i skal-/routingtesterna. Varje anrop löser med det som
 // `handlers[metod]` ger; omockade metoder svarar `{ success: false }` så att sidorna landar i
@@ -64,6 +64,14 @@ export const XP_CONFIG: XpConfigResponse = {
   ],
 };
 
+// Inga utmaningar mellan paret ännu (Runner card, inkrement 3).
+export const HEAD_TO_HEAD_EMPTY: HeadToHeadResponse = {
+  opponent: { id: OTHER.id, name: OTHER.name, profile_picture: null },
+  record: { wins: 0, draws: 0, losses: 0, total: 0 },
+  history: [],
+  active: null,
+};
+
 type Handler = (...args: unknown[]) => unknown;
 
 const EMPTY_CHALLENGES = {
@@ -76,6 +84,9 @@ function defaultHandlers(): Record<string, Handler> {
     getWeekLeaderboard: () => ({ success: true, data: WEEK }),
     getRankDelta: () => ({ success: true, data: RANK_DELTA }),
     getXpConfig: () => ({ success: true, data: XP_CONFIG }),
+    getHeadToHead: () => ({ success: true, data: HEAD_TO_HEAD_EMPTY }),
+    getUserTitles: () => ({ success: true, data: [] }),
+    getTitleLeaderboard: () => ({ success: true, data: [] }),
     getGroupInfo: () => ({ success: true, data: { id: 'g1', name: 'Wolfpack', is_owner: false, members: [] } }),
     getEvents: () => ({ success: true, data: { events: [] } }),
     getEventsHistory: () => ({ success: true, data: { events: [] } }),

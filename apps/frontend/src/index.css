@@ -333,6 +333,25 @@
   --rq-board-rest-cols: 26px 1fr 74px;
   --rq-board-week-cols: 24px 1fr 62px;
   --rq-board-streak-cols: 1fr;
+
+  /* ── 1.21 Runner card-mått (inkrement 3) ───────────────────────────────────
+     Mått ur App-/Web-prototypens runner-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop (overlayn) skriver över
+     i avsnitt 2. Konsument: features/runner/runner.css. */
+  --rq-runner-ring: 78px;               /* nivåringens diameter (desktop 96) */
+  --rq-runner-ring-inset: 7px;          /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-runner-hero-gap: 14px;           /* ring ↔ namn (desktop 20) */
+  --rq-runner-stat-cols: repeat(3, minmax(0, 1fr));   /* statceller: mobil 3, desktop 5 */
+  --rq-runner-split-cols: minmax(0, 1fr);             /* desktop: statflikar | titlar (340 px) */
+  --rq-runner-bar-h: 9px;               /* Frodo-stapeln (desktop 10) */
+  --rq-runner-knob: 15px;               /* positionsmarkören (desktop 16) */
+  --rq-runner-journey-h: 92px;          /* desktop: höjd på vägen med waypoint-etiketter */
+  --rq-runner-journey-bar-top: 62px;    /* … stapelns överkant */
+  --rq-runner-journey-ends-top: 78px;   /* … start-/slutetikett under stapeln */
+  --rq-runner-journey-row-1: 18px;      /* … etikettrad 1: tickens höjd över stapeln */
+  --rq-runner-journey-row-2: 46px;      /* … etikettrad 2 */
+  --rq-runner-journey-label-h: 13px;    /* … etikettens höjd (ticken börjar under den) */
+  --rq-runner-close-gutter: 44px;       /* overlay: luft till modalens ✕ i toppraden */
 }
 
 
@@ -363,6 +382,13 @@
     --rq-board-rest-cols: 40px 300px 1fr 78px 84px 88px 112px;
     --rq-board-week-cols: 38px 190px 1fr 128px 92px;
     --rq-board-streak-cols: 190px 96px 1fr 150px;
+    --rq-runner-ring: 96px;
+    --rq-runner-ring-inset: 8px;
+    --rq-runner-hero-gap: 20px;
+    --rq-runner-stat-cols: repeat(5, minmax(0, 1fr));
+    --rq-runner-split-cols: minmax(0, 1fr) 340px;
+    --rq-runner-bar-h: 10px;
+    --rq-runner-knob: 16px;
   }
 }
 

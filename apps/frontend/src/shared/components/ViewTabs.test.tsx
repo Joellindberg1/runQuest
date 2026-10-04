@@ -43,4 +43,32 @@ describe('ViewTabs', () => {
     fireEvent.keyDown(screen.getByRole('tablist'), { key: 'Enter' });
     expect(onChange).not.toHaveBeenCalled();
   });
+  it('standardvarianten är chip-flikar (rq-filter) utan ikon', () => {
+    setup();
+    const tab = screen.getByRole('tab', { name: 'Alpha' });
+    expect(tab).toHaveClass('rq-filter');
+    expect(tab.querySelector('svg')).toBeNull();
+  });
+
+  it('underline-varianten ger understrukna flikar (rq-tab) med valfri dekorativ ikon, samma tablist-beteende', () => {
+    const onChange = vi.fn();
+    render(
+      <ViewTabs
+        label="Stats"
+        variant="underline"
+        tabs={[{ key: 'a', label: 'Alpha', icon: 'list' }, { key: 'b', label: 'Beta' }] as const}
+        value="a"
+        onChange={onChange}
+        idPrefix="u"
+      />,
+    );
+    const alpha = screen.getByRole('tab', { name: 'Alpha' });
+    expect(alpha).toHaveClass('rq-tab');
+    expect(alpha).not.toHaveClass('rq-filter');
+    expect(alpha.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByRole('tab', { name: 'Beta' }).querySelector('svg')).toBeNull();
+
+    fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' });
+    expect(onChange).toHaveBeenCalledWith('b');
+  });
 });

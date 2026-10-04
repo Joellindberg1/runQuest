@@ -137,6 +137,17 @@ describe('Season-vyn (default) — mobil', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('utan titlar (titel-endpointen felar) ritas podiet ändå, utan felkort och utan titelrad', async () => {
+    handlers.getUserTitles = () => ({ success: false, error: 'boom' });
+    renderBoard();
+
+    const karl = await screen.findByTestId('podium-1');
+    expect(within(karl).getByRole('button', { name: 'Karl Persson' })).toBeInTheDocument();
+    expect(within(karl).getByText(/^Level \d+$/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(within(karl).queryByText(/The Double Trouble/)).toBeNull();
+  });
+
   it('klick på namn och på kortet öppnar Runner card (/runner/:id)', async () => {
     renderBoard();
     fireEvent.click(await screen.findByRole('button', { name: 'Karl Persson' }));

@@ -3,7 +3,7 @@ import { Navigate, useLocation, useParams } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useAuth } from '@/providers/authContext';
 import { useLeaderboardData } from '@/features/leaderboard/hooks/useLeaderboardData';
-import { RunnerCard } from '@/features/profile/components/RunnerCard';
+import { RunnerCard } from '@/features/runner/components/RunnerCard';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { useCloseRunner } from '@/shared/hooks/useOpenRunner';
 import { paths } from '@/paths';
@@ -37,7 +37,7 @@ export const RunnerRoute: React.FC<RunnerRouteProps> = ({ presentation }) => {
           <Dialog.Content className="rq-modal" aria-describedby={undefined}>
             <Dialog.Title className="sr-only">{runner?.name ?? 'Runner card'}</Dialog.Title>
             <Dialog.Close className="rq-modal__close" aria-label="Close">✕</Dialog.Close>
-            {runner ? <RunnerCard user={runner} allUsers={users} /> : <SkeletonRows rows={4} label="Loading runner" />}
+            {runner ? <RunnerCard user={runner} allUsers={users} variant="overlay" /> : <SkeletonRows rows={4} label="Loading runner" />}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -47,17 +47,7 @@ export const RunnerRoute: React.FC<RunnerRouteProps> = ({ presentation }) => {
   if (loading) return <SkeletonRows rows={4} label="Loading runner" />;
   if (!runner) return <NotFound />;
 
-  return (
-    <div className="rq-rise">
-      <button type="button" className="rq-back" onClick={close}>
-        <span aria-hidden="true">‹</span>
-        <span>Back</span>
-      </button>
-      <section className="rq-card rq-card--hero p-0 flex flex-col">
-        <RunnerCard user={runner} allUsers={users} />
-      </section>
-    </div>
-  );
+  return <RunnerCard user={runner} allUsers={users} variant="page" onBack={close} />;
 };
 
 export default RunnerRoute;

@@ -1,0 +1,112 @@
+/* Runner card (inkrement 3): hjältekort · Frodo's journey · statflikar · titlar · head-to-head.
+   ENDAST tokens (regel 1). Måtten (--rq-runner-*) definieras i temafilen, sektion 1.21 (index.css +
+   docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
+   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+
+/* ── Ram: sida (mobil/direktladdning) eller overlay (desktop-modalen) ─────── */
+.rq-runner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.rq-runner__bar { display: flex; align-items: center; gap: var(--rq-sp-12); margin-bottom: var(--rq-sp-12); }
+.rq-runner__bar .rq-back { margin-bottom: 0; }
+.rq-runner__spacer { flex: 1; }
+.rq-runner__eyebrow { font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner__body { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-runner__split { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
+.rq-runner__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-runner[data-variant="overlay"] .rq-runner__bar { margin: 0; padding: var(--rq-sp-14) var(--rq-runner-close-gutter) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
+.rq-runner[data-variant="overlay"] .rq-runner__body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
+
+/* ── Delat: kortrubrik, anteckning, laddning ──────────────────────────────── */
+.rq-runner-head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
+.rq-runner-head__title { margin: 0; font-weight: 400; }
+.rq-runner-head__aside { margin-left: auto; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner-sub { margin: 0 0 var(--rq-sp-10); font-weight: 400; }
+.rq-runner-sub:not(:first-child) { margin-top: var(--rq-sp-14); }
+.rq-runner-note { margin: 0; padding: var(--rq-sp-10); border: var(--rq-hair) dashed var(--rq-line-5); text-align: center; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-runner-loading { display: flex; justify-content: center; padding: var(--rq-sp-16) 0; }
+.rq-runner-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-6); }
+
+/* ── Hjältekort ───────────────────────────────────────────────────────────── */
+.rq-runner-hero { padding: var(--rq-pad-card); }
+.rq-runner-hero__id { display: flex; align-items: center; gap: var(--rq-runner-hero-gap); margin-bottom: var(--rq-sp-12); }
+.rq-runner-ring { width: var(--rq-runner-ring); height: var(--rq-runner-ring); flex-shrink: 0; }
+.rq-runner-ring > .rq-ring-hole { inset: var(--rq-runner-ring-inset); }
+.rq-runner-ring__level { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: .9; color: var(--rq-gold-text); }
+.rq-runner-ring__caption { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner-hero__who { min-width: 0; }
+.rq-runner-hero__name { margin: 0; font-weight: 400; text-transform: uppercase; overflow-wrap: anywhere; }
+.rq-runner-hero__meta { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-runner-hero__xp { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
+
+/* ── Statceller (hjältekortet + head-to-head-rekordet): Bebas-värde, versal etikett ── */
+.rq-runner-cells, .rq-runner-record { margin: 0; }
+.rq-runner-cells { grid-template-columns: var(--rq-runner-stat-cols); }
+.rq-runner-record { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: var(--rq-sp-10); }
+.rq-runner-cell { display: flex; flex-direction: column-reverse; justify-content: flex-end; background: var(--rq-cell); padding: var(--rq-sp-8) var(--rq-sp-10); }
+.rq-runner-record .rq-runner-cell { align-items: center; text-align: center; }
+.rq-runner-cell__value { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+.rq-runner-cell__label { margin: 0; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner [data-tone="gold"] { color: var(--rq-gold-text); }
+.rq-runner [data-tone="up"] { color: var(--rq-up); }
+.rq-runner [data-tone="down"] { color: var(--rq-down); }
+.rq-runner [data-tone="muted"] { color: var(--rq-text-3); }
+
+/* ── Frodo's journey ──────────────────────────────────────────────────────── */
+.rq-runner-journey .rq-runner-head { margin-bottom: var(--rq-sp-10); }
+.rq-runner-track { position: relative; height: var(--rq-runner-bar-h); margin-bottom: var(--rq-sp-8); }
+.rq-runner-knob {
+  position: absolute; top: 50%; left: var(--w); width: var(--rq-runner-knob); height: var(--rq-runner-knob);
+  transform: translate(-50%, -50%); border-radius: var(--rq-radius-round); background: var(--rq-gold);
+  border: var(--rq-edge-w-thin) solid var(--rq-panel-solid);
+  animation: rqRunnerKnob var(--rq-dur-bar) var(--rq-ease-bar) both;
+}
+@keyframes rqRunnerKnob { from { left: 0; } to { left: var(--w); } }
+.rq-runner-ends { display: flex; justify-content: space-between; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner-ends [data-end="start"], .rq-runner-road__end[data-overview="true"][data-end="start"] { color: var(--rq-up); }
+.rq-runner-ends [data-end="finish"], .rq-runner-road__end[data-overview="true"][data-end="finish"] { color: var(--rq-down); }
+.rq-runner-journey__sum { display: flex; justify-content: space-between; gap: var(--rq-sp-12); margin: var(--rq-sp-10) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-runner-journey__cp { color: var(--rq-text-2); }
+.rq-runner-journey__sum[data-done="true"] { color: var(--rq-gold-text); }
+
+/* Desktop: vägen med waypoint-etiketter (alla läge i procent via --x, mått ur tokens) */
+.rq-runner-road { position: relative; height: var(--rq-runner-journey-h); }
+.rq-runner-road .rq-runner-track { position: absolute; left: 0; right: 0; top: var(--rq-runner-journey-bar-top); margin: 0; }
+.rq-runner-wp__label, .rq-runner-wp__tick { position: absolute; left: var(--x); }
+.rq-runner-wp__label { transform: translateX(-50%); white-space: nowrap; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-tight); color: var(--rq-text-4); }
+.rq-runner-wp__label[data-tier="1"] { font-weight: 600; color: var(--rq-text-3); }
+.rq-runner-wp__label[data-row="0"] { top: calc(var(--rq-runner-journey-bar-top) - var(--rq-runner-journey-row-1) - var(--rq-runner-journey-label-h)); }
+.rq-runner-wp__label[data-row="1"] { top: calc(var(--rq-runner-journey-bar-top) - var(--rq-runner-journey-row-2) - var(--rq-runner-journey-label-h)); }
+.rq-runner-wp__tick { width: var(--rq-hair); pointer-events: none; background: linear-gradient(to bottom, rgb(var(--rq-gold-rgb) / .22), rgb(var(--rq-gold-rgb) / .45)); }
+.rq-runner-wp__tick[data-tier="1"] { background: linear-gradient(to bottom, rgb(var(--rq-gold-rgb) / .5), rgb(var(--rq-gold-rgb) / .8)); }
+.rq-runner-wp__tick[data-row="0"] { top: calc(var(--rq-runner-journey-bar-top) - var(--rq-runner-journey-row-1)); height: var(--rq-runner-journey-row-1); }
+.rq-runner-wp__tick[data-row="1"] { top: calc(var(--rq-runner-journey-bar-top) - var(--rq-runner-journey-row-2)); height: var(--rq-runner-journey-row-2); }
+.rq-runner-road__end { position: absolute; top: var(--rq-runner-journey-ends-top); font-size: var(--rq-fs-label); font-weight: 700; letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner-road__end[data-end="start"] { left: 0; }
+.rq-runner-road__end[data-end="finish"] { right: 0; }
+
+/* ── Statflikar och rader ─────────────────────────────────────────────────── */
+.rq-runner-statcard { padding: 0; }
+.rq-runner-tabs { display: flex; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+.rq-runner-tabs > .rq-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; background: none; }
+.rq-runner-tabs > .rq-tab[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / .05); }
+.rq-runner-panel { padding: var(--rq-sp-10) var(--rq-pad-card); }
+.rq-runner-rows { margin: 0; }
+.rq-runner-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }
+.rq-runner-row dt { color: var(--rq-text-3); }
+.rq-runner-row dd { margin: 0; font-weight: 600; color: var(--rq-text-2); text-align: right; }
+
+/* ── Titlar ───────────────────────────────────────────────────────────────── */
+.rq-runner-title { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); padding: var(--rq-sp-6) var(--rq-sp-10); }
+.rq-runner-title[data-kind="held"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); }
+.rq-runner-title[data-kind="runner-up"] { background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-runner-title__name { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-title); color: var(--rq-text-2); }
+.rq-runner-title[data-kind="runner-up"] .rq-runner-title__name { color: var(--rq-text-3); }
+.rq-runner-title__value { flex-shrink: 0; font-weight: 600; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
+.rq-runner-title__main { display: flex; flex-direction: column; min-width: 0; }
+.rq-runner-title__holder { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+
+/* ── Head to head: senaste mötena ─────────────────────────────────────────── */
+.rq-runner-meetings { margin: 0; padding: 0; list-style: none; }
+.rq-runner-meeting { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--rq-sp-10); }
+.rq-runner-meeting__what { display: flex; flex-direction: column; min-width: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-runner-meeting__score { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-runner-meeting__date { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }

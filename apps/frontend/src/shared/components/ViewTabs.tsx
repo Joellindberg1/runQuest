@@ -1,9 +1,15 @@
 import { useRef, type KeyboardEvent } from 'react';
+import { RQIcon, type RQIconName } from './icons';
 import { panelId, tabId } from './viewTabIds';
+
+/** Ikonstorleken i flikraden (designen: 13 px i statflikarna). */
+const ICON_SIZE = 13;
 
 export interface ViewTab<T extends string> {
   key: T;
   label: string;
+  /** Valfri ikon före etiketten (bara i `underline`-varianten används den i designen). */
+  icon?: RQIconName;
 }
 
 interface ViewTabsProps<T extends string> {
@@ -14,6 +20,11 @@ interface ViewTabsProps<T extends string> {
   onChange: (next: T) => void;
   /** Prefix för id:n — `${idPrefix}-tab-${key}` / `${idPrefix}-panel`, så panelen kan peka tillbaka med aria-labelledby. */
   idPrefix: string;
+  /**
+   * `filter` (standard): chip-flikar, vald = guld 14 %/50 % (Board). `underline`: understrukna flikar inne i ett kort
+   * (Runner card/Profile: statflikarna Distance/Streak/Fun).
+   */
+  variant?: 'filter' | 'underline';
   className?: string;
 }
 
@@ -21,7 +32,7 @@ interface ViewTabsProps<T extends string> {
  * Delvyernas flikrad över `?view=` (ADR 006 beslut 3). Vald flik = guld 14 %/50 % (regel 4,
  * `.rq-filter`). Piltangenter flyttar markeringen, som en riktig tablist.
  */
-export function ViewTabs<T extends string>({ label, tabs, value, onChange, idPrefix, className }: ViewTabsProps<T>) {
+export function ViewTabs<T extends string>({ label, tabs, value, onChange, idPrefix, variant = 'filter', className }: ViewTabsProps<T>) {
   const listRef = useRef<HTMLDivElement>(null);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -47,9 +58,10 @@ export function ViewTabs<T extends string>({ label, tabs, value, onChange, idPre
             aria-selected={selected}
             aria-controls={panelId(idPrefix)}
             tabIndex={selected ? 0 : -1}
-            className="rq-filter"
+            className={variant === 'underline' ? 'rq-tab' : 'rq-filter'}
             onClick={() => onChange(tab.key)}
           >
+            {tab.icon && <RQIcon name={tab.icon} size={ICON_SIZE} />}
             {tab.label}
           </button>
         );
