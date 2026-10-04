@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RunQuest — runtime-arkitektur</title>
+<!--
+  HÄRLEDD ARTEFAKT — sanningen är docs/architecture/runquest-architecture.json (SSOT, beslut 48).
+  Denna fil renderar en kopia av JSON-källans data (blocket #spec nedan) med ett litet inbyggt
+  renderingsskript. Redigera aldrig diagrammet här: ändra JSON-källan och generera om.
+  Status: enkel fristående rendering, INTE producerad av archify (inget skal fanns tillgängligt).
+  Regenerera med archify: node <archify>/bin/archify.mjs deliver architecture \
+    docs/architecture/runquest-architecture.json docs/architecture/runquest-architecture.html --quality showcase
+-->
+<style>
+  :root {
+    --bg: #f5f4f2; --panel: #ffffff; --text: #2b2a2b; --muted: #6b6866; --line: #8a8683; --mask: #ffffff;
+    --frontend: #0891b2; --backend: #059669; --database: #7c3aed; --cloud: #d97706;
+    --security: #e11d48; --messagebus: #ea580c; --external: #64748b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161517; --panel: #1f1e20; --text: #ecebea; --muted: #a09d9a; --line: #8a8683; --mask: #1f1e20; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .note { color: var(--muted); font-size: 12px; margin: 0 0 16px; }
+  .panel { background: var(--panel); border-radius: 10px; padding: 12px; overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; min-width: 900px; }
+  .node rect { fill: var(--panel); stroke-width: 1.5; }
+  .node .label { font-size: 13px; font-weight: 600; fill: var(--text); }
+  .node .sublabel { font-size: 11px; fill: var(--muted); }
+  .node .tag { font-size: 10px; font-weight: 600; }
+  .edge { fill: none; stroke: var(--line); stroke-width: 1.4; }
+  .edge.emphasis { stroke-width: 2.4; stroke: var(--frontend); }
+  .edge.dashed { stroke-dasharray: 6 4; }
+  .edge.security { stroke: var(--security); }
+  .elabel text { font-size: 11px; fill: var(--text); text-anchor: middle; dominant-baseline: central; }
+  .elabel rect { fill: var(--mask); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+  .card { background: var(--panel); border-radius: 10px; padding: 12px 14px; border-top: 3px solid var(--slate, #64748b); }
+  .card h2 { font-size: 13px; margin: 0 0 6px; }
+  .card ul { margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); }
+  .card li { margin: 3px 0; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+                         margin-right: 6px; background: var(--c); vertical-align: -1px; }
+</style>
+</head>
+<body>
+<h1 id="title"></h1>
+<p class="note">Härledd ur <code>docs/architecture/runquest-architecture.json</code> (SSOT). Redigera inte här — ändra JSON-källan.</p>
+<div class="panel"><svg id="diagram" role="img" aria-labelledby="title"></svg></div>
+<div class="legend" id="legend"></div>
+<div class="cards" id="cards"></div>
+
+<script type="application/json" id="spec">
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "RunQuest — runtime-arkitektur",
+    "output": "runquest-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "browser", "type": "external", "label": "Webbläsare", "sublabel": "6 aktiva användare", "pos": [40, 298], "size": [150, 64] },
+    { "id": "frontend", "type": "frontend", "label": "Frontend (SPA)", "sublabel": "React 18 · Vite 7", "tag": "Railway", "pos": [290, 118], "size": [170, 64] },
+    { "id": "backend", "type": "backend", "label": "Backend-API", "sublabel": "Express 5 · :3001", "tag": "Railway", "pos": [560, 298], "size": [170, 64] },
+    { "id": "storage", "type": "cloud", "label": "Supabase Storage", "sublabel": "bucket: profile-pictures", "pos": [860, 118], "size": [170, 64] },
+    { "id": "strava", "type": "external", "label": "Strava API", "sublabel": "OAuth2 · aktiviteter", "pos": [1150, 298], "size": [150, 64] },
+    { "id": "db", "type": "database", "label": "Supabase Postgres", "sublabel": "24 tabeller · RLS på", "tag": "yrrqaxdngayakcivfrck", "pos": [560, 480], "size": [170, 64] },
+    { "id": "sched", "type": "backend", "label": "Schedulers", "sublabel": "node-cron (i backend)", "tag": "bara NODE_ENV=production", "pos": [860, 480], "size": [170, 64] },
+    { "id": "meteo", "type": "external", "label": "Open-Meteo", "sublabel": "väder + prognos", "pos": [860, 660], "size": [170, 64] }
+  ],
+  "connections": [
+    { "id": "browser-to-frontend", "from": "browser", "to": "frontend", "label": "HTTPS · SPA", "fromSide": "top", "toSide": "left", "via": [[115, 150]] },
+    { "id": "browser-to-backend", "from": "browser", "to": "backend", "label": "REST + JWT", "variant": "emphasis", "fromSide": "right", "toSide": "left" },
+    { "id": "browser-to-db-anon", "from": "browser", "to": "db", "label": "anon: level_requirements", "variant": "dashed", "fromSide": "bottom", "toSide": "left", "via": [[115, 512]] },
+    { "id": "backend-to-strava", "from": "backend", "to": "strava", "label": "OAuth + manuell sync", "fromSide": "right", "toSide": "left" },
+    { "id": "backend-to-storage", "from": "backend", "to": "storage", "label": "profilbilder", "fromSide": "top", "toSide": "left", "via": [[645, 150]] },
+    { "id": "backend-to-db", "from": "backend", "to": "db", "label": "service role", "fromSide": "bottom", "toSide": "top" },
+    { "id": "sched-to-db", "from": "sched", "to": "db", "label": "cron-jobb", "fromSide": "left", "toSide": "right" },
+    { "id": "sched-to-strava", "from": "sched", "to": "strava", "label": "cron-sync 30 min", "fromSide": "right", "toSide": "bottom", "via": [[1225, 512]] },
+    { "id": "sched-to-meteo", "from": "sched", "to": "meteo", "label": "väder", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Körning",
+      "items": [
+        "Två Railway-tjänster: runQuest-frontend (www.runquest.dev) och runQuest-backend (api.runquest.dev)",
+        "Deploy vid push till main; frontend byggs med VITE_API_URL, backend bundlas med esbuild",
+        "Schedulers startas bara i backend när NODE_ENV=production"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Data",
+      "items": [
+        "All skrivning går via backend med service role-nyckel (förbigår RLS)",
+        "Frontend läser level_requirements direkt med publishable key (anon)",
+        "Profilbilder: backend laddar upp till Storage och skriver users.profile_picture"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Schemalagt (cron i UTC)",
+      "items": [
+        "Strava-sync var 30:e minut + väder-backfill",
+        "Utmaningar: avgör varje timme, auto-start/avböj var 6:e timme",
+        "Events: dagliga/veckovisa dragningar, lifecycle var 5:e minut, söndagsavräkning"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Förtroendegränser att bevaka",
+      "items": [
+        "Publishable key är publik: kvarvarande anon-SELECT-policyer är overifierade",
+        "Strava-tokens ligger i klartext i strava_tokens (service role-åtkomst)",
+        "JWT (7 dagar) lagras i localStorage; ingen refresh implementerad"
+      ]
+    }
+  ]
+}
+</script>
+
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var spec = JSON.parse(document.getElementById('spec').textContent);
+  var DOT = { cyan: '#0891b2', emerald: '#059669', violet: '#7c3aed', amber: '#d97706',
+              rose: '#e11d48', orange: '#ea580c', slate: '#64748b' };
+  var TYPE_NAME = { frontend: 'Frontend', backend: 'Backend', database: 'Databas', cloud: 'Molntjänst',
+                    security: 'Säkerhet', messagebus: 'Meddelandebuss', external: 'Extern' };
+  var byId = {};
+  spec.components.forEach(function (c) { byId[c.id] = c; });
+
+  function el(name, attrs, text) {
+    var n = document.createElementNS(NS, name);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function anchor(c, side) {
+    var x = c.pos[0], y = c.pos[1], w = c.size[0], h = c.size[1];
+    return { left: [x, y + h / 2], right: [x + w, y + h / 2], top: [x + w / 2, y], bottom: [x + w / 2, y + h] }[side];
+  }
+  function autoSide(a, b) {
+    var ax = a.pos[0] + a.size[0] / 2, ay = a.pos[1] + a.size[1] / 2;
+    var bx = b.pos[0] + b.size[0] / 2, by = b.pos[1] + b.size[1] / 2;
+    if (Math.abs(bx - ax) >= Math.abs(by - ay)) return bx >= ax ? ['right', 'left'] : ['left', 'right'];
+    return by >= ay ? ['bottom', 'top'] : ['top', 'bottom'];
+  }
+
+  document.getElementById('title').textContent = spec.meta.title;
+  document.title = spec.meta.title;
+
+  var svg = document.getElementById('diagram');
+  var maxX = 0, maxY = 0;
+  spec.components.forEach(function (c) {
+    maxX = Math.max(maxX, c.pos[0] + c.size[0]); maxY = Math.max(maxY, c.pos[1] + c.size[1]);
+  });
+
+  var defs = el('defs');
+  var marker = el('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' });
+  marker.appendChild(el('path', { d: 'M0,0 L10,5 L0,10 z', fill: 'var(--line)' }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  var edgeLayer = el('g'), labelLayer = el('g'), nodeLayer = el('g');
+
+  spec.connections.forEach(function (cn) {
+    var a = byId[cn.from], b = byId[cn.to];
+    var sides = (cn.fromSide && cn.toSide) ? [cn.fromSide, cn.toSide] : autoSide(a, b);
+    var pts = [anchor(a, sides[0])].concat(cn.via || [], [anchor(b, sides[1])]);
+    if (pts.length === 2 && pts[0][0] !== pts[1][0] && pts[0][1] !== pts[1][1]) {
+      var mx = (pts[0][0] + pts[1][0]) / 2;
+      pts = [pts[0], [mx, pts[0][1]], [mx, pts[1][1]], pts[1]];
+    }
+    pts.forEach(function (p) { maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); });
+    var cls = 'edge' + (cn.variant && cn.variant !== 'default' ? ' ' + cn.variant : '');
+    edgeLayer.appendChild(el('polyline', {
+      'class': cls, points: pts.map(function (p) { return p.join(','); }).join(' '), 'marker-end': 'url(#arrow)'
+    }));
+    if (cn.label) {
+      var best = 0, bi = 0;
+      for (var i = 0; i < pts.length - 1; i++) {
+        var len = Math.abs(pts[i + 1][0] - pts[i][0]) + Math.abs(pts[i + 1][1] - pts[i][1]);
+        if (len > best) { best = len; bi = i; }
+      }
+      var lx = (pts[bi][0] + pts[bi + 1][0]) / 2, ly = (pts[bi][1] + pts[bi + 1][1]) / 2;
+      var w = 6.5 * cn.label.length + 13;
+      var g = el('g', { 'class': 'elabel' });
+      g.appendChild(el('rect', { x: lx - w / 2, y: ly - 9, width: w, height: 18, rx: 4 }));
+      g.appendChild(el('text', { x: lx, y: ly }, cn.label));
+      labelLayer.appendChild(g);
+    }
+  });
+
+  spec.components.forEach(function (c) {
+    var g = el('g', { 'class': 'node' });
+    var color = 'var(--' + c.type + ')';
+    g.appendChild(el('rect', { x: c.pos[0], y: c.pos[1], width: c.size[0], height: c.size[1], rx: 8, stroke: color }));
+    var cx = c.pos[0] + c.size[0] / 2;
+    g.appendChild(el('text', { 'class': 'label', x: cx, y: c.pos[1] + 24, 'text-anchor': 'middle' }, c.label));
+    if (c.sublabel) g.appendChild(el('text', { 'class': 'sublabel', x: cx, y: c.pos[1] + 42, 'text-anchor': 'middle' }, c.sublabel));
+    if (c.tag) g.appendChild(el('text', { 'class': 'tag', x: cx, y: c.pos[1] + c.size[1] + 14, 'text-anchor': 'middle', fill: color }, c.tag));
+    nodeLayer.appendChild(g);
+    maxY = Math.max(maxY, c.pos[1] + c.size[1] + (c.tag ? 20 : 0));
+  });
+
+  svg.appendChild(edgeLayer); svg.appendChild(nodeLayer); svg.appendChild(labelLayer);
+  var vbW = maxX + 40, vbH = maxY + 40;
+  svg.setAttribute('viewBox', '0 0 ' + vbW + ' ' + vbH);
+
+  var used = {};
+  spec.components.forEach(function (c) { used[c.type] = true; });
+  var legend = document.getElementById('legend');
+  Object.keys(used).forEach(function (t) {
+    var s = document.createElement('span');
+    s.style.setProperty('--c', 'var(--' + t + ')');
+    s.textContent = TYPE_NAME[t] || t;
+    legend.appendChild(s);
+  });
+
+  var cards = document.getElementById('cards');
+  (spec.cards || []).forEach(function (c) {
+    var d = document.createElement('div'); d.className = 'card';
+    d.style.borderTopColor = DOT[c.dot] || DOT.slate;
+    var h = document.createElement('h2'); h.textContent = c.title; d.appendChild(h);
+    var ul = document.createElement('ul');
+    c.items.forEach(function (t) { var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+    d.appendChild(ul); cards.appendChild(d);
+  });
+})();
+</script>
+</body>
+</html>

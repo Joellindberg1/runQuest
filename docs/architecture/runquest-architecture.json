@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "RunQuest — runtime-arkitektur",
+    "output": "runquest-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "browser", "type": "external", "label": "Webbläsare", "sublabel": "6 aktiva användare", "pos": [40, 298], "size": [150, 64] },
+    { "id": "frontend", "type": "frontend", "label": "Frontend (SPA)", "sublabel": "React 18 · Vite 7", "tag": "Railway", "pos": [290, 118], "size": [170, 64] },
+    { "id": "backend", "type": "backend", "label": "Backend-API", "sublabel": "Express 5 · :3001", "tag": "Railway", "pos": [560, 298], "size": [170, 64] },
+    { "id": "storage", "type": "cloud", "label": "Supabase Storage", "sublabel": "bucket: profile-pictures", "pos": [860, 118], "size": [170, 64] },
+    { "id": "strava", "type": "external", "label": "Strava API", "sublabel": "OAuth2 · aktiviteter", "pos": [1150, 298], "size": [150, 64] },
+    { "id": "db", "type": "database", "label": "Supabase Postgres", "sublabel": "24 tabeller · RLS på", "tag": "yrrqaxdngayakcivfrck", "pos": [560, 480], "size": [170, 64] },
+    { "id": "sched", "type": "backend", "label": "Schedulers", "sublabel": "node-cron (i backend)", "tag": "bara NODE_ENV=production", "pos": [860, 480], "size": [170, 64] },
+    { "id": "meteo", "type": "external", "label": "Open-Meteo", "sublabel": "väder + prognos", "pos": [860, 660], "size": [170, 64] }
+  ],
+  "connections": [
+    { "id": "browser-to-frontend", "from": "browser", "to": "frontend", "label": "HTTPS · SPA", "fromSide": "top", "toSide": "left", "via": [[115, 150]] },
+    { "id": "browser-to-backend", "from": "browser", "to": "backend", "label": "REST + JWT", "variant": "emphasis", "fromSide": "right", "toSide": "left" },
+    { "id": "browser-to-db-anon", "from": "browser", "to": "db", "label": "anon: level_requirements", "variant": "dashed", "fromSide": "bottom", "toSide": "left", "via": [[115, 512]] },
+    { "id": "backend-to-strava", "from": "backend", "to": "strava", "label": "OAuth + manuell sync", "fromSide": "right", "toSide": "left" },
+    { "id": "backend-to-storage", "from": "backend", "to": "storage", "label": "profilbilder", "fromSide": "top", "toSide": "left", "via": [[645, 150]] },
+    { "id": "backend-to-db", "from": "backend", "to": "db", "label": "service role", "fromSide": "bottom", "toSide": "top" },
+    { "id": "sched-to-db", "from": "sched", "to": "db", "label": "cron-jobb", "fromSide": "left", "toSide": "right" },
+    { "id": "sched-to-strava", "from": "sched", "to": "strava", "label": "cron-sync 30 min", "fromSide": "right", "toSide": "bottom", "via": [[1225, 512]] },
+    { "id": "sched-to-meteo", "from": "sched", "to": "meteo", "label": "väder", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Körning",
+      "items": [
+        "Två Railway-tjänster: runQuest-frontend (www.runquest.dev) och runQuest-backend (api.runquest.dev)",
+        "Deploy vid push till main; frontend byggs med VITE_API_URL, backend bundlas med esbuild",
+        "Schedulers startas bara i backend när NODE_ENV=production"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Data",
+      "items": [
+        "All skrivning går via backend med service role-nyckel (förbigår RLS)",
+        "Frontend läser level_requirements direkt med publishable key (anon)",
+        "Profilbilder: backend laddar upp till Storage och skriver users.profile_picture"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Schemalagt (cron i UTC)",
+      "items": [
+        "Strava-sync var 30:e minut + väder-backfill",
+        "Utmaningar: avgör varje timme, auto-start/avböj var 6:e timme",
+        "Events: dagliga/veckovisa dragningar, lifecycle var 5:e minut, söndagsavräkning"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Förtroendegränser att bevaka",
+      "items": [
+        "Publishable key är publik: kvarvarande anon-SELECT-policyer är overifierade",
+        "Strava-tokens ligger i klartext i strava_tokens (service role-åtkomst)",
+        "JWT (7 dagar) lagras i localStorage; ingen refresh implementerad"
+      ]
+    }
+  ]
+}
