@@ -82,14 +82,16 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - **How it works följer spelets verkliga regler (ägarbeslut 1), inte prototypens copy:** streak-steget säger "från dag 5 (×1.1) upp till ×2.0 vid dag
   270, miss a day and it starts over" (prototypen: "up to 2× … resets to 1×"). Siffrorna läses ur shared-standardvärdena
   (`DEFAULT_ADMIN_SETTINGS`, `DEFAULT_STREAK_MULTIPLIERS`); ändrar admin inställningarna i databasen följer texten inte med (Landing gör inga anrop).
-  "Miss a day and it starts over" är prototypens påstående och verifierades inte mot streak-motorn (grace-regler?).
+  "Miss a day and it starts over" är VERIFIERAT mot streak-motorn (critic 2026-10-05): ett glapp som inte är exakt en dag ger streakdag 1, och
+  calculateCurrentStreak ger 0 när senaste dag varken är idag eller igår — ingen grace-regel finns.
 - **"+50 XP"-poppen ligger i banans mitt (text-anchor middle), inte där prototypen har den** (x 770 → 700): med den ursprungliga platsen klipptes
   texten av den klippta banrutan på desktop.
 - **Banans löpare går med CSS offset-path på SVG-cirklar** (samma `rqOrbit` som stadion-laddaren) i stället för prototypens SMIL `<animateMotion>`, så
   `prefers-reduced-motion` stoppar dem. Silver- och bronsprickarna är heltäckande rankfärger (prototypen hade .75/.8 i alfa).
 - **/login är fortfarande den gamla inloggningssidan** (inte omritad; ingen inkrement-rad i planen). Landingens knapp leder dit.
-- **`App.tsx` kör `useAppInit` (nivåtjänst + onboarding-prefetch) på alla routes, även `/` för utloggade.** Landingen anropar inget själv, men
-  nätverksfliken visar dessa två anrop (nivåtjänsten loggar ett konsolfel om den inte når servern; onboarding-prefetchen sväljer sitt). Gating på `user` hör hemma i App-skalet, inte här.
+- **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade.** Landing-FEATUREN anropar inget själv; App-skalet gör ETT Supabase-anrop
+  (level_requirements, konsolfel om servern inte nås). Onboarding-prefetchen gör INGET anrop utan token (returnerar [] direkt). Samma anrop kördes
+  redan när `/` var LoginPage. Gating på `user` hör hemma i en egen skaländring (påverkar även /preview-routes), inte i Landing.
 - Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
 
 ## Skal & delat
