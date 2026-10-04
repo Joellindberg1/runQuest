@@ -165,7 +165,7 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
                   </dl>
                 </section>
 
-                {error && <p role="alert" className="rq-duels-sheet__error">{error}</p>}
+                <p role="alert" className="rq-duels-sheet__error">{error}</p>
 
               </>
             )}

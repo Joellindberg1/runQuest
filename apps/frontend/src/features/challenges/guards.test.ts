@@ -4,10 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 // Vakttester över Duels-filerna: designspråkets regel 1 (tokens, inga råvärden), 2 (skarpa hörn), 10 (ikoner ur RQIcon,
 // inga emojis) + att CSS-måtten finns i temafilen och att inget i featuren förlitar sig på en Toaster som inte är monterad.
-//
-// ActiveChallengeWidget + TierBadge är kvarlevor från gamla designen som LeaderboardPreviewPage fortfarande visar
-// (skuld, ritas inte om här) — de ligger utanför vakten tills förhandsvisningen försvinner.
-const LEGACY = /\/(ActiveChallengeWidget|TierBadge)\.tsx$/;
 
 const sources = import.meta.glob(
   ['./**/*.{ts,tsx}', '!./**/*.test.{ts,tsx}', '!./**/*.fixture.ts', '../../pages/DuelsPage.tsx'],
@@ -18,14 +14,12 @@ const sources = import.meta.glob(
 const readFromDisk = (relative: string) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
 const css = readFromDisk('./duels.css');
 
-const codeFiles = Object.entries(sources).filter(([path]) => !LEGACY.test(path));
+const codeFiles = Object.entries(sources);
 const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('Duels-filerna följer designspråket', () => {
-  it('hittar filerna (och lämnar de två kvarlevorna utanför)', () => {
+  it('hittar filerna', () => {
     expect(codeFiles.length).toBeGreaterThan(15);
-    expect(codeFiles.some(([path]) => LEGACY.test(path))).toBe(false);
-    expect(Object.keys(sources).filter((path) => LEGACY.test(path))).toHaveLength(2);
     expect(css.length).toBeGreaterThan(500);
   });
 
@@ -82,6 +76,14 @@ describe('Duels-filerna följer designspråket', () => {
     expect([...new Set(declared)].sort()).toEqual(
       ['--rq-duels-tier', '--rq-duels-tier-fg', '--rq-duels-tier-rgb', '--rq-duels-tier-stroke', '--rq-edge', '--rq-edge-line'].sort(),
     );
+  });
+
+  it('line-height är aldrig ett enhetslöst råvärde (använd var(--rq-lh-*)) och z-index bara det dokumenterade 66', () => {
+    const code = stripComments(css);
+    const lineHeights = [...code.matchAll(/line-height:s*([^;}]+)/g)].map((m) => m[1].trim());
+    expect(lineHeights.length).toBeGreaterThan(5);
+    expect(lineHeights.filter((value) => !value.startsWith('var(--rq-lh-'))).toEqual([]);
+    expect([...code.matchAll(/z-index:s*([^;}]+)/g)].map((m) => m[1].trim())).toEqual(['66']);
   });
 
   it('typsnitten kommer ur tokens: inga font-family utom var(--rq-font-*)', () => {

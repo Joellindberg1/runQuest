@@ -13,7 +13,7 @@ const ICON_TITLE = 17;
 /** Standings: W/D/L och poäng per gruppmedlem (all time). Hårlinjegrid, silvertintad rubrikrad, min rad i guldtint. */
 export function StandingsTable({ rows, showTitle, onOpenRunner }: StandingsTableProps) {
   return (
-    <section className="rq-card rq-duels-standings" aria-label="Challenge standings">
+    <section className="rq-card rq-duels-standings" aria-label="Standings">
       {showTitle && (
         <header className="rq-duels-standings__title">
           <RQIcon name="trophy" size={ICON_TITLE} />

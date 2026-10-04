@@ -142,11 +142,14 @@ export function DuelsLayout(props: DuelsLayoutProps) {
       </header>
       {!isDesktop && tabs}
 
-      {props.notice && (
-        <p role={props.notice.tone === 'error' ? 'alert' : 'status'} className="rq-duels-notice" data-tone={props.notice.tone}>
-          {props.notice.text}
-        </p>
-      )}
+      {/* Live regions måste finnas innan texten kommer för att annonseras: behållaren är permanent, bara texten monteras. */}
+      <div role="status" className="rq-duels-notice-slot">
+        {props.notice && (
+          <p className="rq-duels-notice" data-tone={props.notice.tone}>
+            {props.notice.text}
+          </p>
+        )}
+      </div>
 
       <div className={isDesktop ? 'rq-duels__split' : 'rq-duels__stack'}>
         <div key={view} role="tabpanel" id={panelId(ID_PREFIX)} aria-labelledby={tabId(ID_PREFIX, view)} className="rq-duels__panel rq-rise">

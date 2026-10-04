@@ -1,7 +1,7 @@
 import React from 'react';
 import { SeasonBoard } from '@/features/leaderboard/components/SeasonBoard';
 import '@/features/leaderboard/board.css';
-import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
+import { ActiveChallengeWidget } from './preview/ActiveChallengeWidget';
 import type { User, Run, Challenge } from '@runquest/types';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────

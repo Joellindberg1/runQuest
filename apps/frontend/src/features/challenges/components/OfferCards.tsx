@@ -40,12 +40,13 @@ export function IncomingOffer({ card, primary, busy, acceptBlocked, onAccept, on
             type="button"
             className={`rq-btn ${primary ? 'rq-btn--primary' : 'rq-btn--secondary'}`}
             disabled={busy || acceptBlocked}
+            aria-label={`Accept challenge from ${card.fromShort}`}
             onClick={onAccept}
           >
             Accept
           </button>
           {card.canDecline && (
-            <button type="button" className="rq-btn rq-btn--ghost" disabled={busy} onClick={onDecline}>
+            <button type="button" className="rq-btn rq-btn--ghost" disabled={busy} aria-label={`Decline challenge from ${card.fromShort}`} onClick={onDecline}>
               Decline
             </button>
           )}

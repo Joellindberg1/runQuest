@@ -121,7 +121,8 @@ export function DuelsScreen() {
       { state },
     );
   };
-  const closeSend = () =>
+  const closeSend = () => {
+    setTierHint(null);
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
@@ -131,6 +132,7 @@ export function DuelsScreen() {
       },
       { replace: true, state },
     );
+  };
 
   const respond = async (run: () => Promise<unknown>, success: string, failure: string) => {
     setNotice(null);

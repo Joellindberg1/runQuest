@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import DuelsPage from './DuelsPage';
 import { TOUR_DUELS_V2 } from '@/features/onboarding/featureTourSteps';
 import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, historyItem, stat, token } from '@/features/challenges/duels.fixture';
@@ -200,6 +200,35 @@ describe('Duels — EN guldknapp per vy (designspråkets regel 3)', () => {
   });
 });
 
+describe('Duels — EN guldknapp på desktop (samma regler som mobil)', () => {
+  const scenarios: Array<[string, Scenario, string[]]> = [
+    ['ledig: Send a challenge är guld', {}, ['Send a challenge']],
+    ['inkommande: Accept är guld, Send a challenge sekundär', { my: { received_challenges: [FROM_NICK] } }, ['Accept']],
+    ['flera inkommande: bara första Accept', { my: { received_challenges: [FROM_NICK, LEGENDARY_FROM_KARL] } }, ['Accept']],
+    ['i ett live-duell: ingen', { my: { group_active: [KARL_DAN, MINE] } }, []],
+    ['skickad väntande: ingen', { my: { sent_challenge: TO_DAN } }, []],
+    ['inga tokens: ingen', { my: { tokens: [] } }, []],
+    ['inga live-dueller (tomt läge): Send a challenge är guld', { my: { group_active: [] } }, ['Send a challenge']],
+  ];
+
+  it.each(scenarios)('desktop — %s', async (_name, scenario, expected) => {
+    setup(scenario);
+    const view = renderDuels('/duels', DESKTOP);
+    await screen.findByText(/tokens unspent/);
+    expect(primaryButtons(view.container)).toEqual(expected);
+    const send = screen.getByRole('button', { name: 'Send a challenge' });
+    expect(send.classList.contains('rq-btn--primary')).toBe(expected[0] === 'Send a challenge');
+    if (expected[0] !== 'Send a challenge') expect(send).toHaveClass('rq-btn--secondary');
+  });
+
+  it.each([MOBILE, DESKTOP])('inga tokens och tomt läge på bredd %i: ingen guldknapp, Send sekundär', async (width) => {
+    setup({ my: { tokens: [], group_active: [] } });
+    const view = renderDuels('/duels', width);
+    await screen.findByRole('heading', { name: 'No duels are live', level: 2 });
+    expect(primaryButtons(view.container)).toEqual([]);
+  });
+});
+
 describe('Duels — inkommande och skickad', () => {
   it('"Waiting on you": avsändare, mått och längd, insats, Accept och Decline', async () => {
     setup({ my: { received_challenges: [FROM_NICK] } });
@@ -208,8 +237,8 @@ describe('Duels — inkommande och skickad', () => {
     expect(within(card).getByRole('heading', { level: 3 }).textContent).toBe('Nicklas · Most km · 7 d');
     expect(within(card).getByText('+0.25× / 10 d')).toBeInTheDocument();
     expect(within(card).getByText('−0.12× / 10 d')).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: 'Accept' })).toBeEnabled();
-    expect(within(card).getByRole('button', { name: 'Decline' })).toBeEnabled();
+    expect(within(card).getByRole('button', { name: /^Accept challenge from/ })).toBeEnabled();
+    expect(within(card).getByRole('button', { name: /^Decline challenge from/ })).toBeEnabled();
     expect(screen.getByText('2 live · 5 tokens')).toBeInTheDocument();
   });
 
@@ -218,8 +247,10 @@ describe('Duels — inkommande och skickad', () => {
     setup({ my: { received_challenges: [FROM_NICK] } });
     handlers.respondToChallenge = (...args: unknown[]) => { calls.push(args); return { success: true }; };
     renderDuels();
-    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('Challenge accepted. It starts tomorrow.');
+    fireEvent.click(await screen.findByRole('button', { name: /^Accept challenge from/ }));
+    expect(await screen.findByText('Challenge accepted. It starts tomorrow.')).toBeInTheDocument();
+    // live-regionen är en permanent behållare som texten monteras i
+    expect(screen.getByRole('status')).toHaveTextContent('Challenge accepted. It starts tomorrow.');
     expect(calls).toEqual([['c-in', 'accept']]);
   });
 
@@ -228,7 +259,7 @@ describe('Duels — inkommande och skickad', () => {
     setup({ my: { received_challenges: [FROM_NICK] } });
     handlers.respondToChallenge = (...args: unknown[]) => { calls.push(args); return { success: true }; };
     renderDuels();
-    fireEvent.click(await screen.findByRole('button', { name: 'Decline' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Decline challenge from/ }));
     expect(await screen.findByText('Challenge declined.')).toBeInTheDocument();
     expect(calls).toEqual([['c-in', 'decline']]);
   });
@@ -237,22 +268,23 @@ describe('Duels — inkommande och skickad', () => {
     setup({ my: { received_challenges: [FROM_NICK] } });
     handlers.respondToChallenge = () => ({ success: false, error: 'Challenge not found or already responded' });
     renderDuels();
-    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Challenge not found or already responded');
+    fireEvent.click(await screen.findByRole('button', { name: /^Accept challenge from/ }));
+    expect(await screen.findByText('Challenge not found or already responded')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Challenge not found or already responded');
   });
 
   it('legendary kan inte avböjas: ingen Decline, och när den startar av sig själv står där', async () => {
     setup({ my: { received_challenges: [LEGENDARY_FROM_KARL] } });
     renderDuels();
     const card = (await screen.findByText('Waiting on you')).closest('li') as HTMLElement;
-    expect(within(card).queryByRole('button', { name: 'Decline' })).toBeNull();
+    expect(within(card).queryByRole('button', { name: /^Decline challenge from/ })).toBeNull();
     expect(within(card).getByText(/Auto-starts in 3 d \d+ h — it cannot be declined\./)).toBeInTheDocument();
   });
 
   it('i ett live-duell väntar Accept (spelet tillåter en utmaning i taget)', async () => {
     setup({ my: { group_active: [KARL_DAN, MINE], received_challenges: [FROM_NICK] } });
     renderDuels();
-    const accept = await screen.findByRole('button', { name: 'Accept' });
+    const accept = await screen.findByRole('button', { name: /^Accept challenge from/ });
     expect(accept).toBeDisabled();
     expect(screen.getByText('Finish your live duel before you accept another.')).toBeInTheDocument();
   });
@@ -486,7 +518,7 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     renderDuels(`/duels?send=1&opponent=${ADAM}`);
     await screen.findByRole('dialog', { name: 'Send a challenge' });
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
-    expect(await within(sheet()).findByRole('alert')).toHaveTextContent('Opponent already has an active or pending challenge');
+    await waitFor(() => expect(within(sheet()).getByRole('alert')).toHaveTextContent('Opponent already has an active or pending challenge'));
     expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeEnabled();
   });
 
@@ -545,6 +577,45 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     const panel = screen.getByRole('region', { name: 'Your tokens' });
     for (const button of within(panel).getAllByRole('button')) expect(button).toBeDisabled();
     expect(within(panel).getByText(/Your challenge to Daniel is waiting for an answer/)).toBeInTheDocument();
+  });
+
+  it('Escape stänger sheeten, fokus ligger i dialogen medan den är öppen, och adressen städas', async () => {
+    renderDuels(`/duels?view=rules&send=1&opponent=${ADAM}`);
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    expect(sheet().contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document.activeElement as Element, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(location()).toBe('/duels?view=rules');
+  });
+
+  it('med sheeten öppen finns två guldknappar i DOM (sidans Send och sheetens Send challenge) — OK eftersom sheeten är modal', async () => {
+    setup({ stats: STATS.map((s) => ({ ...s, challenge_active: false })), my: { group_active: [] } });
+    const view = renderDuels('/duels?send=1');
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    // Modalen gör resten av sidan inert (aria-hidden): bara EN guldknapp är nåbar åt gången.
+    expect(primaryButtons(view.container)).toEqual(['Send']);
+    expect(within(sheet()).getAllByRole('button').filter((button) => button.classList.contains('rq-btn--primary')).map((b) => b.textContent)).toEqual(['Send challenge']);
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull(); // sidans knapp är dold för hjälpmedel
+  });
+
+  it('en förvald nivå från tokens-panelen följer inte med in i ett senare ?send=1 (t.ex. djuplänk från Runner card)', async () => {
+    renderWithApp(
+      <Routes>
+        <Route path="/duels" element={<><DuelsPage /><Link to="/duels?send=1">deep link</Link></>} />
+      </Routes>,
+      { entry: '/duels', width: MOBILE },
+    );
+    await screen.findByText('2 live · 5 tokens');
+    fireEvent.click(screen.getByRole('button', { name: 'Send a major challenge' }));
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    fireEvent.click(screen.getByRole('link', { name: 'deep link' }));
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    expect(within(sheet()).getByRole('button', { name: /Minor.*Most km/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('desktop: samma sheet som en centrerad dialog med Cancel', async () => {

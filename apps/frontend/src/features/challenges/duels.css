@@ -40,6 +40,8 @@
 .rq-duels__eyebrow { margin: 0 0 var(--rq-sp-8); }
 
 .rq-duels-note { margin: 0; padding: var(--rq-sp-10); border: var(--rq-hair) dashed var(--rq-line-5); text-align: center; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+/* Den permanenta live-regionen tar ingen plats (och inget flex-gap) när den är tom */
+.rq-duels-notice-slot:empty { height: 0; margin-top: calc(var(--rq-gap-stack) * -1); }
 .rq-duels-notice {
   margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); font-size: var(--rq-fs-meta); color: var(--rq-text-2);
   background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w) solid var(--rq-up);
@@ -69,7 +71,7 @@
 .rq-duels-offer__id { display: flex; align-items: center; gap: var(--rq-sp-10); min-width: 0; }
 .rq-duels-offer__eyebrow { margin: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-offer[data-kind="incoming"] .rq-duels-offer__eyebrow { color: var(--rq-duel); }
-.rq-duels-offer__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-heading); letter-spacing: var(--rq-ls-display); line-height: 1.05; text-transform: uppercase; color: var(--rq-text-1); }
+.rq-duels-offer__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-heading); letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); }
 .rq-duels-offer__tier { margin: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-duels-tier-fg); }
 .rq-duels-offer .rq-duels-stakes { padding-block: var(--rq-sp-8); border-block: var(--rq-duels-offer-rule-w) solid var(--rq-line-2); column-gap: var(--rq-sp-24); }
 .rq-duels-offer .rq-duels-stakes dd { font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-stat); }
@@ -206,6 +208,7 @@
 
 /* ── Send-sheet: bottensheet (mobil) / dialog (desktop) via --rq-duels-sheet-* ───────────────────────── */
 .rq-duels-sheet {
+  /* z-index 66 = samma lager som skalets .rq-sheet/.rq-modal (app-shell.css); ingen z-token finns */
   position: fixed; z-index: 66; left: 50%; top: var(--rq-duels-sheet-top); bottom: var(--rq-duels-sheet-bottom);
   transform: translate(-50%, var(--rq-duels-sheet-shift)); width: var(--rq-duels-sheet-w); max-height: var(--rq-duels-sheet-max-h);
   box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;
@@ -221,6 +224,7 @@
 .rq-duels-sheet__blocked, .rq-duels-sheet__error { margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); background: var(--rq-row-soft); }
 .rq-duels-sheet__blocked { border-left: var(--rq-edge-w) solid var(--rq-duel-base); color: var(--rq-text-2); }
 .rq-duels-sheet__error { border-left: var(--rq-edge-w) solid var(--rq-down); color: var(--rq-down); }
+.rq-duels-sheet__error:empty { padding: 0; border: 0; height: 0; margin-top: calc(var(--rq-sp-14) * -1); }
 .rq-duels-sheet__actions { display: flex; flex-direction: var(--rq-duels-sheet-actions-dir); gap: var(--rq-sp-10); }
 .rq-duels-sheet__actions .rq-btn--block { flex: 1; }
 .rq-btn.rq-duels-sheet__cancel { display: var(--rq-duels-sheet-cancel-display); }
@@ -255,10 +259,10 @@
 
 .rq-duels-bet { padding: var(--rq-sp-12) var(--rq-sp-14); background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-left: var(--rq-edge-w) solid var(--rq-gold); }
 .rq-duels-bet__label { margin: 0 0 var(--rq-sp-4); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
-.rq-duels-bet__summary { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: 1.1; text-transform: uppercase; color: var(--rq-text-1); }
+.rq-duels-bet__summary { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); }
 .rq-duels-bet__stakes { margin: var(--rq-sp-10) 0 0; padding-top: var(--rq-sp-10); border-top: var(--rq-hair) solid var(--rq-line-2); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--rq-sp-10); }
 .rq-duels-bet__stakes > div { text-align: center; }
 .rq-duels-bet__stakes dt { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-duels-bet__stakes dd { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: 1.05; color: var(--rq-text-2); }
+.rq-duels-bet__stakes dd { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
 .rq-duels-bet__stakes [data-tone="up"] dt, .rq-duels-bet__stakes [data-tone="up"] dd { color: var(--rq-up); }
 .rq-duels-bet__stakes [data-tone="down"] dt, .rq-duels-bet__stakes [data-tone="down"] dd { color: var(--rq-down); }

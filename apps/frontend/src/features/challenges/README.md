@@ -19,7 +19,7 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
 - **hooks/** — `useDuelsQueries` (`useMyChallenges`, `useGroupStats`, `useLiveProgress`, `useGroupHistory`, `useOpponentRecords`),
   `useChallengeActions` (send/accept/decline/withdraw som mutationer som kastar vid fel)
 - `duels.css` — enda stilfilen; mått (`--rq-duels-*`) i temafilen, sektion 1.23. `duels.fixture.ts` — testdata.
-- `ActiveChallengeWidget` + `TierBadge` är kvar från gamla designen (LeaderboardPreviewPage visar dem) och står utanför guards.test — skuld.
+- `ActiveChallengeWidget` + `TierBadge` (gamla designen, visas av LeaderboardPreviewPage) bor numera i `pages/preview/` — featuren är ren.
 
 ## Regler värda att komma ihåg
 
@@ -36,6 +36,8 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   förfaller efter tre dagar utan svar och tokenet återgår (challengeScheduler).
 - **Toaster är inte monterad i appen** — därför bekräftas handlingar med ett statusmeddelande på sidan (`role="status"`/`"alert"`), inte `toast()`.
   guards.test förbjuder `sonner` i featuren.
+- **Boost-panelen på mobil är en avvikelse från mobilprototypen** (som bara har tokens under vyn). Lead har beslutat att den får vara kvar; väntande ägarbeslut om den ska bort/ritas om i designen.
+- **Live-regioner:** meddelandet efter en handling (`role="status"`) och sheetens felrad (`role="alert"`) är permanenta, tomma behållare som texten monteras i — dynamiskt monterade live-regioner annonseras inte pålitligt.
 - **Delad cache:** `['challenges','my']` är samma query som skalets "Right now" (samma form); handlingar invaliderar `['challenges']`,
   users-with-runs (tokens/W-D-L på Board) och Runner cards head-to-head. Send-sheetens head-to-head-tips använder Runner cards query-nycklar.
 - **Framdrift** hämtas per live-duell (`/challenges/:id/progress`, ingen batch-endpoint finns); ett fel lämnar bara det kortet utan värden ("—").
