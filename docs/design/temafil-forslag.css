@@ -238,6 +238,15 @@
   --rq-sidebar-w:  250px;     /* desktop */
   --rq-content-max: 1440px;
   --rq-tabbar-pb:  max(12px, env(safe-area-inset-bottom));
+  /* Skalmått (inkrement 1): värden ur App-/Web-prototypen som inte hade token */
+  --rq-shell-narrow-max: 640px;  /* mobilskalets maxbredd på surfplatta (ADR 006) */
+  --rq-menu-w:           236px;  /* avatarmenyn (mobil 236 · desktop 230) */
+  --rq-overlay-w:        860px;  /* Runner card som overlay på desktop */
+  --rq-avatar-sm:        28px;   /* header-avatar (mobil 28 · desktop 30) */
+  --rq-tabbar-new-lift:  9px;    /* "New"-kvadratens negativa marginal uppåt/nedåt */
+  --rq-tabbar-new-inset: 14px;   /* … och inåt åt sidorna */
+  --rq-tour-w-min:       280px;  /* driver.js-popover */
+  --rq-tour-w-max:       340px;
 
   /* ── 1.13 Form: hörn och kantlinjer ───────────────────────────────────────── */
   --radius:          0rem;     /* shadcn-läsare (tailwind borderRadius lg/md/sm) — SKARPT */

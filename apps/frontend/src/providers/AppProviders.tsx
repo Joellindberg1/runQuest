@@ -5,7 +5,6 @@ import { TooltipProvider } from '@/shared/components/ui/tooltip';
 import { Toaster } from '@/shared/components/ui/toaster';
 import { Toaster as Sonner } from '@/shared/components/ui/sonner';
 import { AuthProvider } from './AuthProvider';
-import { UserProfileModalProvider } from './UserProfileModalProvider';
 
 const queryClient = new QueryClient();
 
@@ -16,9 +15,7 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>
-            <UserProfileModalProvider>
-              {children}
-            </UserProfileModalProvider>
+            {children}
             <Toaster />
             <Sonner />
           </AuthProvider>

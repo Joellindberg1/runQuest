@@ -1,27 +1,15 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { ChallengesPage as ChallengesFeaturePage } from '@/features/challenges/components/ChallengesPage';
 import { useChallengeData } from '@/features/challenges/hooks/useChallengeData';
 import { useChallengeActions } from '@/features/challenges/hooks/useChallengeActions';
-import { backendApi } from '@/shared/services/backendApi';
 import { useAuth } from '@/providers/authContext';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_CHALLENGES_V1 } from '@/features/onboarding/featureTourSteps';
+import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 
-const ChallengesPage: React.FC = () => {
+// /duels (tidigare /challenges). Innehållet är den befintliga challenges-skärmen tills inkrement 5.
+const DuelsPage: React.FC = () => {
   const { user } = useAuth();
-
-  // Fetch group info to get member names + challenge_active status
-  const groupQuery = useQuery({
-    queryKey: ['group', 'my'],
-    queryFn: async () => {
-      const res = await backendApi.getGroupInfo();
-      if (!res.success) throw new Error(res.error);
-      return res.data!;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
 
   const {
     isLoading,
@@ -38,18 +26,10 @@ const ChallengesPage: React.FC = () => {
 
   const { sendToken, acceptChallenge, declineChallenge, withdrawChallenge } = useChallengeActions();
 
-  if (isLoading) {
-    return (
-      <AppLayout groupName={groupQuery.data?.name ?? ''}>
-        <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
-          Loading challenges...
-        </div>
-      </AppLayout>
-    );
-  }
+  if (isLoading) return <SkeletonRows rows={5} label="Loading duels" />;
 
   return (
-    <AppLayout groupName={groupQuery.data?.name ?? ''}>
+    <>
       <FeatureTour slug="tour_challenges_v1" steps={TOUR_CHALLENGES_V1} />
       <ChallengesFeaturePage
         currentUserId={user?.id ?? ''}
@@ -67,8 +47,8 @@ const ChallengesPage: React.FC = () => {
         onDecline={declineChallenge}
         onWithdraw={withdrawChallenge}
       />
-    </AppLayout>
+    </>
   );
 };
 
-export default ChallengesPage;
+export default DuelsPage;

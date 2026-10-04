@@ -1,7 +1,7 @@
 import React from 'react';
 import { TierBadge } from './TierBadge';
 import { Swords, Clock } from 'lucide-react';
-import { useUserProfileModal } from '@/providers/userProfileModalContext';
+import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import type { Challenge } from '@runquest/types';
 import type { ProgressEntry } from './OngoingChallengeCard';
 
@@ -46,7 +46,7 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
   currentUserId,
   onClick,
 }) => {
-  const { openProfile } = useUserProfileModal();
+  const openProfile = useOpenRunner();
   const opponent = challenge.challenger_id === currentUserId
     ? { id: challenge.opponent_id,   name: challenge.opponent_name }
     : { id: challenge.challenger_id, name: challenge.challenger_name };

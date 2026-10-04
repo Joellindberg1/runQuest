@@ -13,8 +13,6 @@ interface OnboardingTourProps {
   steps: TourStep[];
   onDone: () => void;  // called on complete OR skip
   delayMs?: number;
-  beforeStart?: () => void; // called before tour starts (e.g. open mobile sidebar)
-  afterEnd?: () => void;    // called after tour ends or is dismissed
 }
 
 /**
@@ -35,12 +33,11 @@ function isVisible(selector: string): boolean {
   return true;
 }
 
-export function OnboardingTour({ steps, onDone, delayMs = 800, beforeStart, afterEnd }: OnboardingTourProps) {
+export function OnboardingTour({ steps, onDone, delayMs = 800 }: OnboardingTourProps) {
   const doneRef = useRef(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
-      beforeStart?.();
 
       const startTour = () => {
         // Degrade steps whose target element isn't currently visible to floating popovers.
@@ -56,7 +53,7 @@ export function OnboardingTour({ steps, onDone, delayMs = 800, beforeStart, afte
           allowClose: true,
           overlayOpacity: 0.88,
           stagePadding: 8,
-          stageRadius: 8,
+          stageRadius: 0,
           popoverClass: 'rq-tour-popover',
           nextBtnText: 'Next →',
           prevBtnText: '← Back',
@@ -64,7 +61,6 @@ export function OnboardingTour({ steps, onDone, delayMs = 800, beforeStart, afte
           onDestroyStarted: () => {
             if (!doneRef.current) {
               doneRef.current = true;
-              afterEnd?.();
               onDone();
             }
             driverObj.destroy();
@@ -76,13 +72,7 @@ export function OnboardingTour({ steps, onDone, delayMs = 800, beforeStart, afte
         });
         driverObj.drive();
       };
-
-      if (beforeStart) {
-        // Allow 350ms for any triggered animations (e.g. sidebar slide-in: 300ms) to settle
-        setTimeout(startTour, 350);
-      } else {
-        startTour();
-      }
+      startTour();
     }, delayMs);
 
     return () => clearTimeout(t);

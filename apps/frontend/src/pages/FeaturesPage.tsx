@@ -5,8 +5,6 @@ import {
   CheckCircle, Trophy, Zap, Target, Users, Smartphone, Settings,
   ChevronDown, ChevronRight, Moon, Bug, Wrench, Sparkles, ScrollText, Swords, CalendarDays, GraduationCap
 } from 'lucide-react';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { useGroupName } from '@/shared/hooks/useGroupName';
 import {
   getLatestRelease,
   getPreviousReleases,
@@ -88,7 +86,6 @@ const ReleaseCard: React.FC<ReleaseCardProps> = ({ release, isOpen, onToggle }) 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 const FeaturesPage: React.FC = () => {
-  const groupName = useGroupName();
   const latest = getLatestRelease();
   const previous = getPreviousReleases();
 
@@ -130,7 +127,7 @@ const FeaturesPage: React.FC = () => {
   ];
 
   return (
-    <AppLayout groupName={groupName}>
+    <>
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-4 mb-2">
@@ -247,7 +244,7 @@ const FeaturesPage: React.FC = () => {
 
         </div>
       </div>
-    </AppLayout>
+    </>
   );
 };
 

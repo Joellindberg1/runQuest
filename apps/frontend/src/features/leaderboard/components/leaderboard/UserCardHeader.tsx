@@ -52,7 +52,7 @@ export const UserCardHeader: React.FC<UserCardHeaderProps> = ({
           <AvatarImage src={user.profile_picture || ''} />
           <AvatarFallback
             className="text-sm font-bold"
-            style={{ fontFamily: 'Silkscreen, monospace', background: 'hsl(var(--muted))', color: accent ?? 'var(--rq-text-muted)' }}
+            style={{ fontFamily: 'var(--rq-font-mono)', background: 'hsl(var(--muted))', color: accent ?? 'var(--rq-text-muted)' }}
           >
             {initials}
           </AvatarFallback>
