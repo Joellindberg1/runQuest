@@ -7,6 +7,8 @@ import type { AuthUser } from '@/providers/authContext';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
+  // `loading` = sessionen återställs vid appstart (App.tsx gate:ar på den). Själva inloggningsanropet har ingen global loading:
+  // den bytte ut hela routerträdet mot en loader, så LoginPage avmonterades och felet/fälten försvann (LoginPage har egen laddning).
   const [loading, setLoading] = useState(true);
 
   // Check if current user is admin
@@ -38,8 +40,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 🔐 Login: uses backend API with JWT authentication
   const login = async (nameOrEmail: string, password: string) => {
-    setLoading(true);
-
     try {
       log.info('Attempting login with backend API', nameOrEmail);
 
@@ -58,8 +58,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: unknown) {
       log.error('Login error', err);
       return { success: false, error: 'Login failed' };
-    } finally {
-      setLoading(false);
     }
   };
 

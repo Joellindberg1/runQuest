@@ -23,7 +23,7 @@
   column-gap: var(--rq-sp-10); align-items: center; align-content: center;
 }
 .rq-landing-badge { grid-area: badge; justify-self: start; margin: 0 0 var(--rq-sp-16); }
-.rq-landing-title { grid-area: title; margin: 0 0 var(--rq-sp-14); font-weight: 400; letter-spacing: 0; overflow-wrap: anywhere; }
+.rq-landing-title { grid-area: title; margin: 0 0 var(--rq-sp-14); font-weight: 400; letter-spacing: 0; }
 .rq-landing-accent { color: var(--rq-gold-text); }
 .rq-landing-lead { grid-area: lead; margin: 0 0 var(--rq-sp-20); }
 .rq-landing-cta { grid-area: cta; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
@@ -42,6 +42,10 @@
 .rq-landing-lane[data-lane="3"] { stroke: rgb(var(--rq-gold-rgb) / .16); }
 .rq-landing-finish { stroke: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); stroke-width: var(--rq-landing-finish-w); }
 .rq-landing-runner { offset-path: var(--rq-lane-path); offset-rotate: 0deg; }
+/* offset-distance = vilopositionen när rörelsen är avstängd (loopen skriver över den): tre löpare spridda, inte i klump */
+.rq-landing-runner[data-lane="1"] { offset-distance: 0%; }
+.rq-landing-runner[data-lane="2"] { offset-distance: 35%; }
+.rq-landing-runner[data-lane="3"] { offset-distance: 70%; }
 .rq-landing-runner[data-lane="1"] { fill: var(--rq-rank-1); animation: rqOrbit var(--rq-landing-lap-1) linear infinite; }
 .rq-landing-runner[data-lane="2"] { fill: var(--rq-rank-2); animation: rqOrbit var(--rq-landing-lap-2) linear infinite; animation-delay: var(--rq-landing-lap-offset-2); }
 .rq-landing-runner[data-lane="3"] { fill: var(--rq-rank-3); animation: rqOrbit var(--rq-landing-lap-3) linear infinite; animation-delay: var(--rq-landing-lap-offset-3); }
@@ -117,6 +121,13 @@
 /* ── Fot ──────────────────────────────────────────────────────────────────── */
 .rq-landing-footer { margin-top: var(--rq-sp-24); text-align: center; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-landing-footer p { margin: 0; }
+
+/* ── Smala telefoner: rubrikkolumnen (viewport − marginaler − bana) rymmer inte LEADERBOARD i full storlek (≈ 208 px) under ~380 px.
+   Ordet får aldrig brytas, så banan flyttas under rubriken i stället för att dela rad med den. ───────────────────────────── */
+@media (max-width: 379px) {
+  .rq-landing-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "badge" "title" "arena" "lead" "cta"; }
+  .rq-landing-arena { justify-self: center; margin-bottom: var(--rq-sp-16); }
+}
 
 /* ── Desktop: text vänster, banan höger; vänsterjusterad logga; knappar bredvid varandra ──────── */
 @media (min-width: 1024px) {
