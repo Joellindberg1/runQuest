@@ -149,4 +149,6 @@ export const ARENA_LANES: readonly ArenaLane[] = [
 
 /** Mållinjen tvärs över banorna, och "+50 XP"-poppen (i banans mitt) som visas när guldlöparen passerar den. */
 export const ARENA_FINISH = { x: 700, y1: 520, y2: 620 } as const;
-export const ARENA_XP_POP = { x: 700, y: 440, label: '+50 XP', counterRotate: 72 } as const;
+/** Ovalens vridning (grader): EN källa — ArenaTrack sätter den som CSS-variabel på SVG:n och roterar "+50 XP"-texten tillbaka med samma värde. */
+export const ARENA_TILT_DEG = -72;
+export const ARENA_XP_POP = { x: 700, y: 440, label: '+50 XP' } as const;

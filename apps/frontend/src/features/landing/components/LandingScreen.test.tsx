@@ -141,7 +141,7 @@ describe('Landing — innehåll', () => {
   });
 });
 
-describe('Landing — inga anrop', () => {
+describe('Landing-featuren — inga anrop (App-skalets eget level_requirements-anrop ingår inte här)', () => {
   it('gör inget nätverksanrop vid rendering (ingen endpoint, ägarbeslut 4)', () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);

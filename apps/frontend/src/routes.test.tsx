@@ -137,6 +137,13 @@ describe('auth', () => {
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
   });
 
+  it('utloggad på /?tab=titles ser Landing (ingen redirect till login eller /titles)', async () => {
+    const { container } = renderWithApp(<AppRoutes />, { entry: '/?tab=titles', user: null, width: MOBILE });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeInTheDocument();
+    expect(container.querySelector('[data-shell]')).toBeNull();
+    expect(location()).toBe('/?tab=titles');
+  });
+
   it('Landing renderas även på desktop, utan skal', async () => {
     const { container } = renderWithApp(<AppRoutes />, { entry: '/', user: null, width: DESKTOP });
     expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();

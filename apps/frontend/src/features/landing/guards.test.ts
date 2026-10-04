@@ -128,7 +128,9 @@ describe('Landing-filerna följer designspråket', () => {
   });
 
   it('varje --rq-landing-*-mått som landing.css läser finns i temafilen (index.css) OCH i docs/design/temafil-forslag.css — och tvärtom', () => {
-    const used = new Set([...css.matchAll(/var\((--rq-landing-[a-z0-9-]+)\)/g)].map((m) => m[1]));
+    // Banans vridning sätts från modellen (ARENA_TILT_DEG → cssVars) så den har EN källa; den hör inte hemma i temafilen.
+    const setFromCode = new Set(['--rq-landing-track-rot']);
+    const used = new Set([...css.matchAll(/var\((--rq-landing-[a-z0-9-]+)\)/g)].map((m) => m[1]).filter((name) => !setFromCode.has(name)));
     expect(used.size).toBeGreaterThan(20);
 
     const index = readFromDisk('../../index.css');
@@ -144,7 +146,7 @@ describe('Landing-filerna följer designspråket', () => {
   });
 });
 
-describe('Landing är publik och gör inga anrop (ägarbeslut 4)', () => {
+describe('Landing-FEATUREN är publik och gör inga anrop (ägarbeslut 4; App-skalet gör sitt eget level_requirements-anrop på alla routes)', () => {
   it('ingen fil hämtar data: inga fetch-anrop, backendApi, react-query, supabase eller datahooks', () => {
     for (const [path, text] of codeFiles) {
       const code = stripComments(text);

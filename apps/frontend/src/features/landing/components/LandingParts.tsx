@@ -64,7 +64,6 @@ export function PackPreview({ rows }: { rows: PreviewRow[] }) {
       <div className="rq-landing-preview__head">
         <h2 id="landing-preview-title" className="rq-landing-preview__title">{PREVIEW_PACK_NAME}</h2>
         <span className="rq-landing-preview__live">
-          <span className="rq-dot rq-dot--live" aria-hidden="true" />
           Live
         </span>
       </div>

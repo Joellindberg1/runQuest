@@ -470,7 +470,6 @@
   --rq-landing-track-w: 118px;                                        /* banans ruta (desktop 300) */
   --rq-landing-track-h: 158px;                                        /* (desktop 400) */
   --rq-landing-track-svg-w: 172px;                                    /* den roterade SVG:n inuti rutan (desktop 430) */
-  --rq-landing-track-rot: -72deg;                                     /* ovalen står nästan lodrätt */
   --rq-landing-lane-w: 9px;                                           /* banlinje, user units (viewBox 1400) */
   --rq-landing-finish-w: 11px;                                        /* mållinjen */
   --rq-landing-xp-size: 230px;                                        /* "+50 XP"-poppen, user units */
