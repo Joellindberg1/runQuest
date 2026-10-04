@@ -137,7 +137,9 @@ function eventItems(input: RightNowInput): RightNowItem[] {
         ? 'Done'
         : scheduled
           ? `in ${formatRemaining(Math.max(0, startsMs - nowMs))}`
-          : formatRemaining(Math.max(0, endsMs - nowMs));
+          : endsMs <= nowMs
+            ? 'Settling' // tävling efter slutdatum, väntar på söndagens avräkning (som Events-skärmen)
+            : formatRemaining(endsMs - nowMs);
       const note = event.kind === 'participation'
         ? (event.done ? 'Completed' : `+${event.rewardXp} XP`)
         : (event.rank ? `#${event.rank} in the pack` : 'Weekly competition');

@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/providers/authContext';
 import { backendApi } from '@/shared/services/backendApi';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
+import { eventPhase } from '@/features/events/eventsModel';
+import { useOpenEvents } from '@/features/events/hooks/useEventsQueries';
 import { buildRightNow, type RightNowItem, type ShellDuel, type ShellEvent } from './rightNowItems';
 import { useNow } from './useNow';
 import type { Challenge } from '@runquest/types';
@@ -24,17 +26,8 @@ export function useRightNow(): RightNowState {
 
   const users = useUsersWithRuns(enabled);
 
-  const events = useQuery({
-    queryKey: ['events'],
-    queryFn: async () => {
-      const res = await backendApi.getEvents();
-      if (!res.success) throw new Error(res.error);
-      return res.data;
-    },
-    enabled,
-    staleTime: STALE_MS,
-    refetchInterval: 2 * STALE_MS,
-  });
+  // EN query-definition för events: Events-skärmen och skalet delar nyckel, form och hämtintervall genom samma hook.
+  const events = useOpenEvents(enabled);
 
   const challenges = useQuery({
     queryKey: ['challenges', 'my'],
@@ -74,6 +67,10 @@ export function useRightNow(): RightNowState {
   const shellEvents = useMemo<ShellEvent[]>(() => {
     const list = events.data?.events ?? [];
     return list.flatMap((e): ShellEvent[] => {
+      // Klockan avgör (som Events-skärmen): backend flyttar scheduled → active först var 5:e minut.
+      const phase = eventPhase(e, now);
+      // Ett participation-event som passerat sitt slut avräknas inom fem minuter — det visas varken här eller på /events.
+      if (e.type === 'participation' && phase === 'ended') return [];
       // Tävlingar visas bara för den som deltar (som gamla EventWidget).
       if (e.type === 'competition' && !e.myEntry) return [];
       const liveRank = e.leaderboard?.find((l) => l.isMe)?.rank;
@@ -81,7 +78,7 @@ export function useRightNow(): RightNowState {
         id: e.id,
         kind: e.type,
         name: e.template.name,
-        status: e.status,
+        status: phase === 'upcoming' ? 'scheduled' : 'active',
         startsAt: e.startsAt,
         endsAt: e.endsAt,
         rewardXp: e.template.rewardXp,
@@ -89,7 +86,7 @@ export function useRightNow(): RightNowState {
         rank: liveRank ?? e.myEntry?.rank ?? null,
       }];
     });
-  }, [events.data]);
+  }, [events.data, now]);
 
   const duel = useMemo<ShellDuel | null>(() => {
     if (!user) return null;
@@ -131,7 +128,7 @@ export function useRightNow(): RightNowState {
     [now, streak, shellEvents, duel, stravaStatus.data, stravaSync.data],
   );
 
-  const hasOpenEvent = shellEvents.some((e) => e.status === 'active');
+  const hasOpenEvent = shellEvents.some((e) => e.status === 'active' && Date.parse(e.endsAt) > now.getTime());
 
   return { items, hasOpenEvent };
 }

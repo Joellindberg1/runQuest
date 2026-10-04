@@ -2,7 +2,7 @@
 import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
-  ChallengeGroupHistoryResponse, OffsetPageMeta,
+  ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse,
 } from '@runquest/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -1085,56 +1085,17 @@ class BackendApiService {
 
   // ─── Events ───────────────────────────────────────────────────────────────
 
-  async getEventsHistory(): Promise<ApiResponse<{
-    events: Array<{
-      id: string;
-      type: 'participation' | 'competition';
-      metric: string | null;
-      status: 'settled';
-      startsAt: string;
-      endsAt: string;
-      template: {
-        name: string; icon: string; description: string;
-        minKm: number; rewardXp: number;
-        rewardXp1st: number; rewardXp2nd: number; rewardXp3rd: number;
-      };
-      myEntry: {
-        qualified: boolean; qualifiedAt: string;
-        rank: number | null; xpAwarded: number; totalValue: number | null;
-      } | null;
-      leaderboard: Array<{
-        userId: string; userName: string; totalValue: number; rank: number | null; xpAwarded: number; qualified: boolean; isMe: boolean;
-      }>;
-    }>;
-  }>> {
-    return this.authenticatedRequest('/events/history');
+  /**
+   * GET /events/history — avslutade events, nyast först, offset-sidor (ADR 007 B8). `data.meta` bär `total` och
+   * `has_more` (sidstorlek default 30, max 50).
+   */
+  async getEventHistoryPage(limit: number, offset: number): Promise<ApiResponse<EventsHistoryResponse>> {
+    return this.authenticatedRequest<EventsHistoryResponse>(`/events/history?limit=${limit}&offset=${offset}`);
   }
 
-  async getEvents(): Promise<ApiResponse<{
-    events: Array<{
-      id: string;
-      type: 'participation' | 'competition';
-      metric: string | null;
-      status: 'active' | 'scheduled';
-      startsAt: string;
-      endsAt: string;
-      template: {
-        name: string; icon: string; description: string;
-        minKm: number; rewardXp: number;
-        rewardXp1st: number; rewardXp2nd: number; rewardXp3rd: number;
-        requiresWeather: string[] | null;
-      };
-      myEntry: {
-        qualified: boolean; qualifiedAt: string;
-        rank: number | null; xpAwarded: number; totalValue: number | null;
-      } | null;
-      leaderboard: Array<{
-        userId: string; userName: string; totalValue: number; rank: number; isMe: boolean;
-      }> | null;
-      participantCount: number;
-    }>;
-  }>> {
-    return this.authenticatedRequest('/events');
+  /** GET /events — aktiva + schemalagda events med participantCount/memberCount för alla typer (ADR 007 B7). Enda events-metoden: Events-skärmen och skalets "Right now" delar query-nyckeln ['events'] och därmed formen. */
+  async getEventList(): Promise<ApiResponse<EventsResponse>> {
+    return this.authenticatedRequest<EventsResponse>('/events');
   }
 
   // ─── Runs ─────────────────────────────────────────────────────────────────

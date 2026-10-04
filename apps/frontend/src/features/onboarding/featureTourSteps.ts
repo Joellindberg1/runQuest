@@ -2,26 +2,22 @@
 // Each export maps to a slug in useOnboardingQueue.
 import type { TourStep } from './components/OnboardingTour';
 
-// ── /events — tour_events_v1 ──────────────────────────────────────────────
-export const TOUR_EVENTS_V1: TourStep[] = [
+// ── /events — tour_events_v2 ──────────────────────────────────────────────
+// v2: skärmen är omritad (öppet nu / up next / veckan / historik med pager); v1-ankarna finns inte längre.
+export const TOUR_EVENTS_V2: TourStep[] = [
   {
     title: 'Events',
-    description: 'Events are time-limited challenges that drop randomly. You can have participation events and weekly competitions running at the same time.',
+    description: 'Events are time-limited challenges that drop at random, usually announced the evening before. Participation events pay XP the moment you finish them; weekly competitions rank the pack and pay the top three when the week ends on Sunday night.',
   },
   {
-    element: '[data-tour="events-participation"]',
-    title: 'Participation Events',
-    description: 'These have a time window — run the required distance within the window to earn XP. Miss the window and the event is gone.',
-  },
-  {
-    element: '[data-tour="events-competition"]',
-    title: 'Weekly Competitions',
-    description: 'Competitions last the full week. The leaderboard ranks everyone by total km or elevation. Top 3 earn XP — keep running to hold your spot.',
+    element: '[data-tour="events-open"]',
+    title: 'Open now and up next',
+    description: 'A participation event is open inside its window: log a run that meets the minimum distance and the XP is yours straight away, no ranking. A competition ranks everyone on total distance or elevation for the week. Up next counts down to the next event that opens.',
   },
   {
     element: '[data-tour="events-history"]',
-    title: 'Event History',
-    description: 'Past events and your results show up here. Check how you performed and how much XP you earned.',
+    title: 'History',
+    description: 'Every finished event and what you got from it — done or missed, your place in a competition and the XP it paid. Use the arrows at the bottom to page back through them.',
   },
 ];
 

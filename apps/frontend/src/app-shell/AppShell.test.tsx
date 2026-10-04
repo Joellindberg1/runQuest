@@ -147,14 +147,14 @@ describe('Header', () => {
     expect(screen.queryByRole('img', { name: 'Event open now' })).toBeNull();
     first.unmount();
 
-    handlers.getEvents = () => ({
+    handlers.getEventList = () => ({
       success: true,
       data: {
         events: [{
           id: 'e1', type: 'participation', metric: null, status: 'active',
           startsAt: new Date(Date.now() - 3_600_000).toISOString(), endsAt: new Date(Date.now() + 3 * 3_600_000).toISOString(),
           template: { name: 'Evening run', icon: '', description: '', minKm: 3, rewardXp: 25, rewardXp1st: 0, rewardXp2nd: 0, rewardXp3rd: 0, requiresWeather: null },
-          myEntry: null, leaderboard: null, participantCount: 0,
+          myEntry: null, leaderboard: null, participantCount: 0, memberCount: 6,
         }],
       },
     });
@@ -180,14 +180,14 @@ describe('Right now', () => {
   });
 
   it('visar event- och Strava-piller ur befintliga endpoints, med Strava som tour-ankare', async () => {
-    handlers.getEvents = () => ({
+    handlers.getEventList = () => ({
       success: true,
       data: {
         events: [{
           id: 'e1', type: 'participation', metric: null, status: 'active',
           startsAt: new Date(Date.now() - 3_600_000).toISOString(), endsAt: new Date(Date.now() + 3 * 3_600_000 + 60_000).toISOString(),
           template: { name: 'Evening run', icon: '', description: '', minKm: 3, rewardXp: 25, rewardXp1st: 0, rewardXp2nd: 0, rewardXp3rd: 0, requiresWeather: null },
-          myEntry: null, leaderboard: null, participantCount: 0,
+          myEntry: null, leaderboard: null, participantCount: 0, memberCount: 6,
         }],
       },
     });
