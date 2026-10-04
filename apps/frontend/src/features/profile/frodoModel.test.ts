@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_WAYPOINTS, JOURNEY_END_KM, MIN_LABEL_PX, getViewport, journeyPercent, lastCheckpoint, layoutWaypoints,
-  nextCheckpointInfo, pctInView,
-} from './frodoModel';
+  nextCheckpointInfo, pctInView, nextZoom } from './frodoModel';
 
 describe('waypoints', () => {
   it('är sorterade stigande och börjar i The Shire, slutar i Mount Doom', () => {
@@ -105,5 +104,11 @@ describe('layoutWaypoints', () => {
   it('tier 1 behåller alltid sin etikett, även på en smal stapel', () => {
     const narrow = layoutWaypoints(0, getViewport(0, 0), 120);
     expect(narrow.filter((p) => p.tier === 1).every((p) => p.showLabel)).toBe(true);
+  });
+});
+
+describe('nextZoom', () => {
+  it('stegar Overview → Zoomed → Close-up → Overview', () => {
+    expect([0, 1, 2].map((zoom) => nextZoom(zoom as 0 | 1 | 2))).toEqual([1, 2, 0]);
   });
 });

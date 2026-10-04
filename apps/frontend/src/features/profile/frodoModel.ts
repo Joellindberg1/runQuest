@@ -1,5 +1,5 @@
-// Frodo's journey: ren waypoint-/viewport-matematik. Delas av Runner card (ny presentation) och den
-// äldre FrodoJourney-komponenten på egna profilen (ritas om i inkrement 8). Ingen DOM här.
+// Frodo's journey: ren waypoint-/viewport-matematik. Delas av Profile (components/JourneyCard) och Runner card
+// (features/runner/components/JourneyCard) — EN layoutalgoritm. Ingen DOM här.
 
 export const JOURNEY_END_KM = 3266;
 
@@ -63,6 +63,9 @@ const ZOOM_HALF_SPAN_KM: Record<1 | 2, number> = { 1: 600, 2: 200 };
 
 /** Minsta pixelavstånd mellan två etiketter i samma rad innan en tier-2-etikett släcks. */
 export const MIN_LABEL_PX = 56;
+
+/** Zoomknappen stegar Overview → Zoomed → Close-up → Overview. */
+export const nextZoom = (current: ZoomLevel): ZoomLevel => ((current + 1) % 3) as ZoomLevel;
 
 export const ZOOM_LABELS: Record<ZoomLevel, string> = { 0: 'Overview', 1: 'Zoomed', 2: 'Close-up' };
 

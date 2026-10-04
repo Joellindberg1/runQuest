@@ -86,25 +86,37 @@ export const TOUR_TITLES_V2: TourStep[] = [
   },
 ];
 
-// ── / (profile tab) — tour_profile_v1 ────────────────────────────────────
-export const TOUR_PROFILE_V1: TourStep[] = [
+// ── /profile — tour_profile_v2 ───────────────────────────────────────────
+// v2: skärmen är omritad (hjältekort, Frodo-zoom, statflikar med Consistency, titlar, rundhistorik med redigera/radera);
+// v1-ankarna (profile-fun-fact, profile-run-history, profile-titles-tab) finns inte längre.
+export const TOUR_PROFILE_V2: TourStep[] = [
   {
-    title: 'Your Profile',
-    description: 'Your personal stats, run history and titles all in one place.',
+    title: 'Your profile',
+    description: 'Your level, stats, titles and every run you have logged, in one place.',
   },
   {
-    element: '[data-tour="profile-fun-fact"]',
+    element: '[data-tour="profile-hero"]',
+    title: 'Level and totals',
+    description: 'The ring shows how far you are into your current level. Below it: total XP, total km, your challenge record and, on a wide screen, runs and titles held. Tap Change photo to set your profile picture.',
+  },
+  {
+    element: '[data-tour="profile-journey"]',
+    title: 'Frodo’s journey',
+    description: 'Your total distance as a walk to Mount Doom, 3 266 km. Press the zoom button to cycle Overview, Zoomed and Close-up and see the next checkpoint.',
+  },
+  {
+    element: '[data-tour="profile-stats"]',
     title: 'Stats',
-    description: 'Level, XP progress, total distance, longest run — and even how far you\'ve come if you were Frodo carrying the ring to Mordor. Everything updates automatically after each Strava sync.',
+    description: 'Distance, Streak and Fun facts, plus Consistency: a square for every day you ran, darker the longer the run, with your current and longest streak underneath.',
   },
   {
-    element: '[data-tour="profile-run-history"]',
-    title: 'Run History',
-    description: 'Every synced run listed here. Click a run to expand it — use the edit button if a distance or date looks wrong.',
+    element: '[data-tour="profile-titles"]',
+    title: 'My titles',
+    description: 'The titles you hold, with the record that earned each one. Runner-up shows who holds a title you are chasing and how far behind you are.',
   },
   {
-    element: '[data-tour="profile-titles-tab"]',
-    title: 'Titles',
-    description: 'Under the Titles tab you can see the titles where you are the current holder and where you are the runner-up.',
+    element: '[data-tour="profile-history"]',
+    title: 'Run history',
+    description: 'Every run you have logged. Press Edit if a distance or date looks wrong, or to delete the run. Your streak and XP are recalculated from that day on.',
   },
 ];
