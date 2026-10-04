@@ -1,5 +1,5 @@
-// Frodo's journey: ren waypoint-/viewport-matematik. Delas av Runner card (ny presentation) och den
-// äldre FrodoJourney-komponenten på egna profilen (ritas om i inkrement 8). Ingen DOM här.
+// Frodo's journey: ren waypoint-/viewport-matematik. Delas av Profile (components/JourneyCard) och Runner card
+// (features/runner/components/JourneyCard) — EN layoutalgoritm. Ingen DOM här.
 
 export const JOURNEY_END_KM = 3266;
 

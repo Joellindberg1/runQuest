@@ -1,8 +1,9 @@
 # Runs Feature
 
-Det som blev kvar av `features/runs` när Log-skärmen byggdes om (inkrement 7): bara `hooks/useRunUpdates.ts`.
+Det som delas av allt som ändrar rundorna: `runEffects.ts` — `invalidateAfterRunChange(queryClient)` och `EVENT_FOLLOW_UP_MS`.
 
-- **Logga runda och Group history** → `features/log` (se dess README). `RunLogger`, `RunHistoryGroup`, `useCreateRun` och `useGroupRunHistory` är borta.
-- **Redigera/radera en runda** ligger i Profile: `features/profile/components/UserRunHistory` → `shared/components/EditRunDialog` →
-  `shared/hooks/useRunMutations` (`PUT/DELETE /runs/:id`). Efter en ändring anropas `onRunUpdated` (`useRunUpdates`), som hämtar om `users-with-runs`.
-  Profile ritas om i inkrement 8 — flytta `useRunUpdates` dit då, så kan den här mappen tas bort.
+- **Logga en runda och Group history** → `features/log` (`useCreateRun` anropar kedjan efter POST).
+- **Redigera/radera en runda** → `features/profile` (`useUpdateRun`/`useDeleteRun` anropar kedjan efter PUT/DELETE; rutan är `EditRunSheet`).
+- **Kedjan:** users-with-runs (väntas in), `['leaderboard']`, öppna event (exakt, direkt + en gång efter 4 s — servern kvalificerar event i bakgrunden), `['titles']`,
+  `['multiple-user-titles']`, `['challenges']`, Runner cards head-to-head och gruppens historik. EN definition, så POST, PUT och DELETE aldrig glider isär.
+  Testas via `useCreateRun.test.tsx` och `profile/hooks/useRunChanges.test.tsx`.

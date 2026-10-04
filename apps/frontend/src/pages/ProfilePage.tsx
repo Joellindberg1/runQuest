@@ -1,19 +1,7 @@
 import React from 'react';
-import { UserProfile } from '@/features/profile/components/UserProfile';
-import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
-import { TOUR_PROFILE_V1 } from '@/features/onboarding/featureTourSteps';
-import { WithLeaderboardData } from './WithLeaderboardData';
+import { ProfileScreen } from '@/features/profile/components/ProfileScreen';
 
-// /profile — den gamla profilskärmen tills inkrement 8.
-const ProfilePage: React.FC = () => (
-  <WithLeaderboardData>
-    {({ users, currentUser, onRunUpdated }) => (
-      <>
-        <FeatureTour slug="tour_profile_v1" steps={TOUR_PROFILE_V1} />
-        <UserProfile user={currentUser} allUsers={users} onRunUpdated={onRunUpdated} />
-      </>
-    )}
-  </WithLeaderboardData>
-);
+/** /profile: hjältekort, Frodo-zoom, statflikar, titlar och rundhistorik med redigera/radera. Allt ligger i features/profile. */
+const ProfilePage: React.FC = () => <ProfileScreen />;
 
 export default ProfilePage;
