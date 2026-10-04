@@ -40,6 +40,13 @@ describe('formatTitleValue (värden är kodade för sortering)', () => {
   });
 });
 
+describe('lastRunOfWeek', () => {
+  it('datumet formateras på engelska (en-GB), inte svenska', () => {
+    // 2026-10-04 12:00 UTC
+    expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 9, 4, 12) / 1000)).toBe('4 Oct');
+  });
+});
+
 describe('resolveGenderedTitle', () => {
   it('King/Queen följer innehavarens kön; okänt kön lämnar namnet orört', () => {
     expect(resolveGenderedTitle('XP King/Queen', 'female')).toBe('XP Queen');

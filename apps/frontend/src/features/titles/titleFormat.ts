@@ -44,7 +44,7 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     }
     case 'lastRunOfWeek': {
       const d = new Date(value * 1000);
-      return d.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+      return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
     }
     case 'fastest5km': {
       if (value < -100) return '—';

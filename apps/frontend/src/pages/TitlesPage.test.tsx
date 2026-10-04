@@ -119,6 +119,15 @@ describe('Titles — räknarrad och filter (mobil)', () => {
     expect(screen.queryByRole('heading', { name: 'The Hamster', level: 3 })).toBeNull();
   });
 
+  it('aria-controls pekar bara på en lista som finns (stängd grupp har inget aria-controls)', async () => {
+    renderTitles();
+    await screen.findByText('9 in play · you hold 4');
+    const time = within(group('Time of day')).getAllByRole('button')[0];
+    const distance = within(group('Distance')).getByRole('button');
+    expect(document.getElementById(time.getAttribute('aria-controls') as string)).not.toBeNull();
+    expect(distance).not.toHaveAttribute('aria-controls');
+  });
+
   it('en gruppsrubrik öppnar och stänger sin lista', async () => {
     renderTitles();
     await screen.findByText('9 in play · you hold 4');
@@ -298,6 +307,17 @@ describe('Titles — visning på leaderboarden', () => {
     expect(within(display()).getByRole('button', { name: 'Save display' })).toBeDisabled();
   });
 
+  it('Save är en sekundärknapp — aldrig sidans guldknapp (mobil och desktop)', async () => {
+    for (const width of [MOBILE, DESKTOP]) {
+      const view = renderTitles('/titles', width);
+      await screen.findByText(/in play/);
+      const save = within(display()).getByRole('button', { name: 'Save display' });
+      expect(save).toHaveClass('rq-btn--secondary');
+      expect(view.container.querySelectorAll('.rq-btn--primary')).toHaveLength(0);
+      view.unmount();
+    }
+  });
+
   it('ett sparat val med en titel jag förlorat räknas inte', async () => {
     handlers.getUsersWithRuns = () => ({ success: true, data: [{ ...ME, displayed_title_ids: ['t-batman', 't-hamster'] }, OTHER] });
     renderTitles();
@@ -353,8 +373,11 @@ describe('Titles — visning på leaderboarden', () => {
     await within(display()).findAllByRole('listitem');
     openAll(['Consistency']);
 
-    const fourth = within(card('The Goggins')).getByRole('button', { name: 'Show on leaderboard' });
+    const fourth = within(card('The Goggins')).getByRole('button', { name: /Show on leaderboard/ });
     expect(fourth).toBeDisabled();
+    expect(fourth).toHaveAttribute('title', 'Display is full — remove one first');
+    expect(fourth).toHaveAccessibleName(/Display is full — remove one first/);
+    expect(within(card('The Lunch Breaker')).getByRole('button', { name: 'On display · 1' })).not.toHaveAttribute('title');
     expect(within(card('The Lunch Breaker')).getByRole('button', { name: 'On display · 1' })).toBeEnabled();
     // fler än tre innehavda titlar: överflödesraden i förhandsvisningen
     expect(within(display()).getByText(/too many names to mention/)).toBeInTheDocument();

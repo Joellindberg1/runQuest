@@ -2,6 +2,7 @@ import { RQIcon } from '@/shared/components/icons';
 import type { TitleRow } from '../titlesModel';
 
 const ICON_SIZE = 15;
+const DISPLAY_FULL_HINT = 'Display is full — remove one first';
 
 interface TitleCardProps {
   row: TitleRow;
@@ -68,9 +69,11 @@ export function TitleCard({ row, displayPosition, canPick, pickDisabled, onToggl
           className="rq-titles-pick"
           aria-pressed={displayPosition !== null}
           disabled={pickDisabled}
+          title={pickDisabled ? DISPLAY_FULL_HINT : undefined}
           onClick={() => onTogglePick(row.id)}
         >
           {displayPosition !== null ? `On display · ${displayPosition}` : 'Show on leaderboard'}
+          {pickDisabled && <span className="sr-only"> — {DISPLAY_FULL_HINT}</span>}
         </button>
       )}
     </li>

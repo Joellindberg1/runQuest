@@ -21,7 +21,7 @@ export function TitleGroupSection({ group, open, onToggle, showChevron, displayP
   const listId = `titles-group-${group.id}`;
   return (
     <section className="rq-titles-group" aria-label={group.label}>
-      <button type="button" className="rq-titles-group__head" aria-expanded={open} aria-controls={listId} onClick={onToggle}>
+      <button type="button" className="rq-titles-group__head" aria-expanded={open} aria-controls={open ? listId : undefined} onClick={onToggle}>
         <span className="rq-titles-group__id">
           <RQIcon name={group.icon} size={GROUP_ICON_SIZE} />
           <span className="rq-titles-group__label">{group.label}</span>

@@ -62,7 +62,7 @@ export function DisplayPanel({ ready, rows, totalHeld, dirty, saving, status, on
           </div>
 
           {totalHeld > 0 && (
-            <button type="button" className="rq-btn rq-btn--primary rq-btn--compact rq-titles-save" disabled={!dirty || saving} onClick={onSave}>
+            <button type="button" className="rq-btn rq-btn--secondary rq-btn--compact rq-titles-save" disabled={!dirty || saving} onClick={onSave}>
               {saving ? 'Saving…' : 'Save display'}
             </button>
           )}

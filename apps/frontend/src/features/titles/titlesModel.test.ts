@@ -249,6 +249,13 @@ describe('buildChases', () => {
     ]);
   });
 
+  it('"behind": jag är #2 efter innehavaren — avståndet och vem som ligger före', () => {
+    const chases = buildChases([hamster], [], ME);
+    expect(chases).toEqual([
+      { titleId: 't-ham', title: 'The Hamster', gap: '4 runs/wk', kind: 'behind', who: 'Adam Einstein is ahead of you' },
+    ]);
+  });
+
   it('en tid (ej linjärt mått) ger ingen jakt, även om jag är #2', () => {
     expect(buildChases([KIPCHOGE], ELIGIBILITY, ME)).toEqual([]);
   });

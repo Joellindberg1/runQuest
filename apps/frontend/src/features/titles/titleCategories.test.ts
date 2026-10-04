@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { RQ_ICON_NAMES } from '@/shared/components/icons/rq-icon-paths';
 import { MAPPED_METRIC_KEYS, TITLE_CATEGORIES, categoryOf, iconOf } from './titleCategories';
@@ -49,10 +49,12 @@ describe('kategorimappningen metric_key → grupp', () => {
 describe('driftvakt mot backendens motorregister', () => {
   // Backendens motorer: en fil per motor med `metricKey: '…'`. Läses från disk, så en ny motor utan rad i
   // fixturen (och därmed i mappningen) fäller testet i stället för att tyst landa i Other.
-  const enginesDir = resolve(process.cwd(), '../backend/src/titleEngines');
+  // (Literalen new URL('…', import.meta.url) skulle skrivas om av Vite till en asset-URL — därför variabeln.)
+  const enginesRelative = '../../../../backend/src/titleEngines/';
+  const enginesDir = fileURLToPath(new URL(enginesRelative, import.meta.url));
   const engineKeys = readdirSync(enginesDir)
     .filter((file) => file.endsWith('.ts') && !['index.ts', 'types.ts', '_utils.ts'].includes(file))
-    .map((file) => readFileSync(resolve(enginesDir, file), 'utf8').match(/metricKey:\s*'([^']+)'/)?.[1]);
+    .map((file) => readFileSync(`${enginesDir}${file}`, 'utf8').match(/metricKey:\s*'([^']+)'/)?.[1]);
 
   it('hittar motorfilerna', () => {
     expect(engineKeys.length).toBeGreaterThan(15);

@@ -33,7 +33,7 @@ Mobil = App Prototypens titles-skärm, desktop = Web Prototypens (grupper | sido
   "No titles yet" som lögn vid nätverksfel.
 - **Gruppernas öppet/stängt**: första gruppen öppen i All-vyn (designen), alla öppna när ett filter är aktivt.
 - **Visningsvalet** (max 3, `PUT /auth/me/displayed-titles`) finns kvar från gamla "My Titles"-fliken: valknapp på mina titlar,
-  borttag med ✕ i panelen, Save sparar och hämtar om användarna så Board följer med. Förlorade titlar städas ur valet.
+  borttag med ✕ i panelen, Save (sekundärknapp — visningsval är inte sidans primära handling) sparar och hämtar om användarna så Board följer med. Förlorade titlar städas ur valet.
 - **Closest chase** = mina #2/#3, titlar jag håller med någon precis bakom, och olåsta titlar jag närmar mig; närhet = avstånd
   relativt värdet. Mått där en differens inte går att läsa (tider, pace-spridning, datum) hoppas över.
 - Tour `tour_titles_v2` (ankare `titles-filter`, `titles-display`) startar först när titlarna är ritade.

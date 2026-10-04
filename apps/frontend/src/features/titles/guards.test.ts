@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -75,8 +74,8 @@ describe('Titles-filerna följer designspråket', () => {
     const used = new Set([...css.matchAll(/var\((--rq-titles-[a-z0-9-]+)\)/g)].map((m) => m[1]));
     expect(used.size).toBeGreaterThan(3);
 
-    const index = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
-    const facit = readFileSync(resolve(process.cwd(), '../../docs/design/temafil-forslag.css'), 'utf8');
+    const index = readFromDisk('../../index.css');
+    const facit = readFromDisk('../../../../../docs/design/temafil-forslag.css');
     const declared = (text: string) => new Set([...text.matchAll(/^\s*(--rq-titles-[a-z0-9-]+):/gm)].map((m) => m[1]));
 
     for (const name of used) {
@@ -89,8 +88,19 @@ describe('Titles-filerna följer designspråket', () => {
 });
 
 describe('titlar kommer ur databasen (ägarbeslut 3)', () => {
+  // Namnen härleds ur prototypfilerna (name: 'The …'), så nya designnamn fångas automatiskt. "The " tas bort så att
+  // varianter ("Lunch Breaker") också träffas.
+  const prototypes = ['RunQuest App Prototype.dc.html', 'RunQuest Web Prototype.dc.html'].map((file) =>
+    readFromDisk(`../../../../../docs/design/claude-design/${file}`),
+  );
+  const names = [...new Set(prototypes.flatMap((html) => [...html.matchAll(/name: '(The [^']+)'/g)].map((m) => m[1].replace(/^The /, ''))))];
+
+  it('hittar designnamnen i prototyperna', () => {
+    expect(names.length).toBeGreaterThan(10);
+    expect(names).toContain('Hamster');
+  });
+
   it('ingen källfil hårdkodar ett titelnamn (designens påhittade eller dagens)', () => {
-    const names = ['Batman', 'Rooster', 'Lunch Breaker', 'Hamster', 'Commuter', 'Weekend Destroyer', 'Double Trouble', 'Goggins', 'Kipchoge', 'Ultra Man', 'Phoenix'];
     for (const [path, text] of codeFiles) {
       const code = stripComments(text);
       expect({ path, names: names.filter((name) => code.includes(name)) }).toEqual({ path, names: [] });
