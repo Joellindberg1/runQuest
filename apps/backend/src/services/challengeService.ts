@@ -1,6 +1,7 @@
 // 🏆 Challenge Service — business logic
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
+import { recordChallengeSettled } from './activityLog.js';
 
 // Boost-tillämpningen bor i @runquest/shared (boostDeltasForRuns) och anropas
 // från reprocessRunsFromDate. multiplier_runs är statelös — `remaining` på
@@ -286,6 +287,15 @@ export async function settleChallenge(challengeId: string): Promise<void> {
       })
     );
   }
+
+  // Pack News (ADR 008): loggas EFTER claim + W/D/L, icke-kastande. dedupe_key challenge_settled:<id>
+  // ger exakt en rad även om avgörandet körs om.
+  await recordChallengeSettled({
+    ...challenge,
+    outcome,
+    challenger_final_value: c.value,
+    opponent_final_value: o.value,
+  });
 
   if (outcome === 'draw') {
     logger.info(`🤝 Challenge ${challengeId} ended in a draw`);

@@ -67,6 +67,8 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       lte(column: string, value: unknown) { q.filters.push({ op: 'lte', column, value }); return builder; },
       in(column: string, value: unknown) { q.filters.push({ op: 'in', column, value }); return builder; },
       is(column: string, value: unknown) { q.filters.push({ op: 'is', column, value }); return builder; },
+      /** PostgREST-or: "col.eq.val,col2.neq.val,col3.is.null" — en rad matchar om NÅGOT villkor gäller. */
+      or(expr: string) { q.filters.push({ op: 'or', column: '', value: expr }); return builder; },
       order(column: string, opts?: { ascending?: boolean }) {
         orderBy.push({ column, ascending: opts?.ascending ?? true });
         return builder;
@@ -133,6 +135,16 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
             case 'lte': return v <= (f.value as any);
             case 'in': return (f.value as unknown[]).includes(v);
             case 'is': return f.value === null ? v == null : v === f.value;
+            case 'or':
+              return String(f.value).split(',').some((part) => {
+                const [col, op, ...rest] = part.split('.');
+                const val = rest.join('.');
+                const cv = pick(r, col) as any;
+                if (op === 'eq') return String(cv) === val;
+                if (op === 'neq') return String(cv) !== val;
+                if (op === 'is') return val === 'null' ? cv == null : String(cv) === val;
+                return false;
+              });
             default: return true;
           }
         });
@@ -158,6 +170,8 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       if (head) return { data: null, error: null, count: wantCount ? total : null };
       if (q.range) rows = rows.slice(q.range[0], q.range[1] + 1);
       if (q.limit != null) rows = rows.slice(0, q.limit);
+      // Kopior, som PostgREST: en rad som lästs ändras inte av en senare update (annars ser koden "nya" värden som "föregående").
+      rows = rows.map((r) => ({ ...r }));
       if (single) return { data: rows[0] ?? null, error: rows[0] || maybe ? null : { message: 'not found', code: 'PGRST116' } };
       return { data: rows, error: null, count: wantCount ? total : null };
     }

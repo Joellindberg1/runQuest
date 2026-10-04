@@ -1,5 +1,8 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
+import { getXpConfig } from './xpConfig.js';
+import { recordActivity } from './activityLog.js';
+import { buildStreakBrokenDraft, isStreakBroken, streakBrokenThreshold } from '@runquest/shared';
 
 export interface StreakResult {
   currentStreak: number;
@@ -169,12 +172,23 @@ export class StreakService {
   }
 
   /**
-   * Uppdaterar användarens streak-information i databasen
+   * Uppdaterar användarens streak-information i databasen.
+   *
+   * Pack News (ADR 008): nattjobbet är det enda stället som upptäcker en streak som dött av att
+   * användaren slutat springa. Föregående current_streak läses före uppdateringen; är den ≥ T
+   * (lägsta days i streak_multipliers) och den nya 0 loggas streak_broken. calculateUserTotals
+   * loggar INTE streak_broken — en streak som sjunker av en raderad runda är datakorrigering.
    */
   static async updateUserStreak(userId: string): Promise<void> {
     const streakResult = await this.calculateUserStreaks(userId);
     
     const supabase = getSupabaseClient();
+    const { data: before } = await supabase
+      .from('users')
+      .select('current_streak, group_id')
+      .eq('id', userId)
+      .single();
+
     const { error } = await supabase
       .from('users')
       .update({
@@ -186,6 +200,34 @@ export class StreakService {
     if (error) {
       // TODO: replace with a shared backend logger utility when available
       logger.error('Error updating user streak:', error);
+      return;
+    }
+
+    await this.recordStreakBroken(userId, before?.current_streak, streakResult.currentStreak, before?.group_id);
+  }
+
+  /** Icke-kastande: loggen får aldrig fälla nattjobbet. */
+  private static async recordStreakBroken(
+    userId: string, prevStreak: number | null | undefined, newStreak: number, groupId: string | null | undefined,
+  ): Promise<void> {
+    try {
+      if (!groupId || typeof prevStreak !== 'number' || prevStreak <= 0 || newStreak !== 0) return;
+
+      const { streak_multipliers } = await getXpConfig();
+      if (!isStreakBroken(prevStreak, newStreak, streakBrokenThreshold(streak_multipliers))) return;
+
+      const { data: lastRuns } = await getSupabaseClient()
+        .from('runs')
+        .select('date')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(1);
+      const lastRunDate: string | undefined = lastRuns?.[0]?.date;
+      if (!lastRunDate) return; // inga rundor kvar → streaken sjönk av en radering, inte av uppehåll
+
+      await recordActivity(buildStreakBrokenDraft(userId, groupId, prevStreak, lastRunDate));
+    } catch (e) {
+      logger.error('❌ [StreakService] Failed to record streak_broken:', e);
     }
   }
 
