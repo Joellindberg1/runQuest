@@ -7,7 +7,8 @@ import { RequireAuth } from '@/app-shell/RequireAuth';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { legacyChallengesTarget } from '@/app-shell/legacyRedirects';
 import { resolveNextPath } from '@/app-shell/safeNext';
-import { readBackground } from '@/shared/hooks/useOpenRunner';
+import { ShellErrorBoundary } from '@/app-shell/ShellErrorBoundary';
+import { readBackground, useCloseRunner } from '@/shared/hooks/useOpenRunner';
 import Index from '@/pages/Index';
 import LoginPage from '@/pages/LoginPage';
 import BoardPage from '@/pages/BoardPage';
@@ -53,6 +54,7 @@ export const AppRoutes: React.FC = () => {
   const location = useLocation();
   const isDesktop = useIsDesktop();
   const background = isDesktop ? readBackground(location) : undefined;
+  const closeOverlay = useCloseRunner();
 
   return (
     <>
@@ -83,9 +85,11 @@ export const AppRoutes: React.FC = () => {
       </Routes>
 
       {background && (
-        <Routes>
-          <Route path={paths.runnerPattern} element={<RunnerRoute presentation="overlay" />} />
-        </Routes>
+        <ShellErrorBoundary key={location.pathname} onClose={closeOverlay}>
+          <Routes>
+            <Route path={paths.runnerPattern} element={<RunnerRoute presentation="overlay" />} />
+          </Routes>
+        </ShellErrorBoundary>
       )}
     </>
   );
