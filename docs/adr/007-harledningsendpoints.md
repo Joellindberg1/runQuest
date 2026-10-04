@@ -374,3 +374,12 @@ använder `is_treadmill` är oförändrad.
   anropet.
 - Fler än en konsument av `packages/shared/src/contracts` med olika
   versionstakt (t.ex. mobilapp) → versionera API:t.
+
+## Addendum 2026-10-05 (implementationsutfall, Lead-godkänt)
+Avvikelser och tillägg som uppstod vid bygget av inkrement 2 (Board-delmängden: endpoint 1–4). Ingen regeländring.
+
+1. **`totals.best_week_km` och `totals.pct_of_best_week` (additiva fält)** i `GET /api/leaderboard/week`. `best_week_km` = gruppens bästa vecka någonsin i km, där den aktuella/valda veckan räknas med (procenten överstiger därför aldrig 100). `pct_of_best_week` = veckans km i % av `best_week_km`, heltal, `null` om bästa veckan är 0. Fälten finns i `WeekLeaderboardTotals` (shared/contracts). Läsningen är dekorativ: om historikfrågan felar faller handlern tillbaka på veckans egna km (best = veckans km, pct 100) i stället för att ge 500.
+2. **Cachad, sidvis historikläsning.** Bästa veckan kräver hela gruppens runs-historik. Den läses sidvis (1000 rader/sida via `range()`, unik tie-breaker `date, id`; PostgREST kapar annars vid 1000 rader) och cachas **5 min TTL, process-lokalt** per grupp (en Railway-instans i dag; fler instanser ger upp till 5 min skeva värden). Den aktuella veckan maxas alltid mot cachen så att ett nytt rekord syns direkt.
+3. **14-dagarsfönstret i `rank-delta`.** Event-XP-queryn begränsas till `events.ends_at >= veckostart − 14 dagar` (och `xp_awarded > 0`) för att hålla svaret under 1000-radersgränsen när eventhistoriken växer. **Tail-risk:** om en competition-avräkning står stilla (ej settled) mer än 14 dagar efter `ends_at` och sedan avräknas efter veckostart, faller dess event-XP utanför fönstret → liggaren underskattar krediterad XP → `previous_xp` överskattas. `diverged`-varningen (liggare > `total_xp`) fångar INTE detta fall (liggaren blir för liten, inte för stor). Avräkningen körs normalt inom ~1 h, så risken är låg; åtgärd vid behov: bredda fönstret eller sida event_entries.
+4. **XP-konfig-cachen är process-lokal** (60 s TTL, invalideras av admin-PUT:arna i den egna processen). Med fler instanser kan värdena vara upp till 60 s skeva efter en admin-ändring. Revisit vid skalning.
+5. **`level_requirements` ingår inte** i `GET /api/config/xp` (följer B4: nivågränser läses som i ADR 004).
