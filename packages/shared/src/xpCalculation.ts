@@ -12,6 +12,17 @@ export interface AdminSettings {
   min_run_distance: number;
 }
 
+/** Standardvärden — speglar admin_settings i prod; fallback när DB-läsningen saknas (ADR 004/007). */
+export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
+  base_xp: 15,
+  xp_per_km: 2,
+  bonus_5km: 5,
+  bonus_10km: 15,
+  bonus_15km: 25,
+  bonus_20km: 50,
+  min_run_distance: 1.0
+};
+
 export interface StreakMultiplier {
   days: number;
   multiplier: number;
