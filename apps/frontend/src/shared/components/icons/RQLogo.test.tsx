@@ -30,6 +30,25 @@ describe("RQLogo", () => {
     expect(screen.queryByText("RUN - RANK - REIGN")).not.toBeInTheDocument();
   });
 
+  it("keeps the source geometry: wordmark, tagline and runner head", () => {
+    const { container } = render(<RQLogo />);
+    const word = screen.getByText("RUNQUEST");
+    const tagline = screen.getByText("RUN - RANK - REIGN");
+    const head = container.querySelector("circle");
+
+    expect(word).toHaveAttribute("x", "40");
+    expect(word).toHaveAttribute("y", "25");
+    expect(word).toHaveAttribute("font-size", "28");
+    expect(tagline).toHaveAttribute("x", "45");
+    expect(tagline).toHaveAttribute("y", "40.1");
+    expect(tagline).toHaveAttribute("font-size", "12");
+    expect(head).toHaveAttribute("cx", "23");
+    expect(head).toHaveAttribute("cy", "3.25");
+    expect(head).toHaveAttribute("r", "3.5");
+    expect(container.querySelectorAll("line")).toHaveLength(7);
+    expect(container.querySelectorAll("path")).toHaveLength(1);
+  });
+
   it("uses the logo font role, the source viewBox and the default size", () => {
     render(<RQLogo />);
     const svg = screen.getByRole("img", { name: "RunQuest" });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { RQIcon, RQ_ICON_NAMES, RQ_ICON_PATHS, type RQIconName } from "./index";
 
 function renderIcon(name: string, props: Partial<Parameters<typeof RQIcon>[0]> = {}) {
@@ -65,12 +65,19 @@ describe("RQIcon", () => {
     expect(custom).toHaveAttribute("stroke", "var(--rq-gold)");
   });
 
-  it("is decorative by default but can be exposed to assistive tech", () => {
-    expect(renderIcon("flag")).toHaveAttribute("aria-hidden", "true");
+  it("is decorative by default (aria-hidden, no role)", () => {
+    const svg = renderIcon("flag");
 
-    const labelled = renderIcon("flag", { "aria-hidden": false, "aria-label": "Finish" });
-    expect(labelled).toHaveAttribute("aria-label", "Finish");
-    expect(labelled).toHaveAttribute("aria-hidden", "false");
+    expect(svg).toHaveAttribute("aria-hidden", "true");
+    expect(svg).not.toHaveAttribute("role");
+    expect(svg).not.toHaveAttribute("aria-label");
+  });
+
+  it("becomes a labelled image for assistive tech when given a label", () => {
+    render(<RQIcon name="flag" label="Finish" />);
+
+    const img = screen.getByRole("img", { name: "Finish" });
+    expect(img).toHaveAttribute("aria-hidden", "false");
   });
 
   it("does not shrink inside flex rows and merges a custom className", () => {

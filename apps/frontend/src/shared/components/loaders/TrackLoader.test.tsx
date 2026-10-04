@@ -39,12 +39,12 @@ describe("TrackLoader lane ladder", () => {
 });
 
 describe("TrackLoader", () => {
-  it("is announced as a status with a default and a custom label", () => {
+  it("is a status that announces its label as (screen-reader-only) text", () => {
     const { rerender } = render(<TrackLoader />);
-    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading");
 
     rerender(<TrackLoader label="Logging run" />);
-    expect(screen.getByRole("status", { name: "Logging run" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Logging run");
   });
 
   it("sizes the box as width x width*0.62 and applies the tilt (default -16deg)", () => {
@@ -71,6 +71,39 @@ describe("TrackLoader", () => {
 
   it("thins the lane stroke at button size", () => {
     expect(renderTrack(26).lanes[0]).toHaveAttribute("stroke-width", "1.4");
+  });
+});
+
+describe("TrackLoader runners", () => {
+  it("staggers runners by -0.7 s and slows inner lanes (1 / 1.35 / 1.75 x speed)", () => {
+    render(<TrackLoader size={88} speed={2} />);
+    const runners = Array.from(screen.getByRole("status").querySelectorAll(":scope > div")) as HTMLElement[];
+
+    expect(runners.map((r) => r.style.animationDelay)).toEqual(["0s", "-0.7s", "-1.4s"]);
+    expect(runners.map((r) => r.style.animation)).toEqual([
+      expect.stringContaining("rqOrbit 2s linear infinite"),
+      expect.stringContaining("rqOrbit 2.7s linear infinite"),
+      expect.stringContaining("rqOrbit 3.5s linear infinite"),
+    ]);
+  });
+
+  it("sizes the runner dot as size * 0.055 (radius), at least 2 px", () => {
+    render(<TrackLoader size={100} />);
+    const big = screen.getByRole("status").querySelector(":scope > div") as HTMLElement;
+    expect(big.style.width).toBe("11px");
+    expect(big.style.marginLeft).toBe("-5.5px");
+
+    render(<TrackLoader size={26} />);
+    const small = screen.getAllByRole("status")[1].querySelector(":scope > div") as HTMLElement;
+    expect(small.style.width).toBe("4px");
+    expect(small.style.marginLeft).toBe("-2px");
+  });
+
+  it("fades runners 1 / .6 / .38 from the outer lane in", () => {
+    render(<TrackLoader size={88} />);
+    const runners = Array.from(screen.getByRole("status").querySelectorAll(":scope > div")) as HTMLElement[];
+
+    expect(runners.map((r) => r.style.opacity)).toEqual(["1", "0.6", "0.38"]);
   });
 });
 

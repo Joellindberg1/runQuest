@@ -2,42 +2,65 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SkeletonRows } from "./SkeletonRows";
 
+function renderRows(props: Parameters<typeof SkeletonRows>[0] = {}) {
+  render(<SkeletonRows {...props} />);
+  const status = screen.getByRole("status");
+  const grid = status.querySelector(".rq-hairgrid") as HTMLElement;
+  return { status, grid, rows: Array.from(grid.children) as HTMLElement[] };
+}
+
 describe("SkeletonRows", () => {
   it("renders four rows by default inside a hairline grid", () => {
-    render(<SkeletonRows />);
-    const list = screen.getByRole("status", { name: "Loading" });
+    const { grid, rows } = renderRows();
 
-    expect(list).toHaveClass("rq-hairgrid");
-    expect(list.children).toHaveLength(4);
+    expect(grid).toHaveClass("rq-hairgrid");
+    expect(rows).toHaveLength(4);
+    for (const row of rows) expect(row).toHaveClass("rq-skel-row");
   });
 
   it("renders the requested number of rows", () => {
-    render(<SkeletonRows rows={7} label="Loading the pack" />);
+    expect(renderRows({ rows: 7 }).rows).toHaveLength(7);
+  });
 
-    expect(screen.getByRole("status", { name: "Loading the pack" }).children).toHaveLength(7);
+  it("announces its label as screen-reader-only text, not as an aria-label", () => {
+    const { status } = renderRows({ label: "Loading the pack" });
+
+    expect(status).toHaveTextContent("Loading the pack");
+    expect(status.querySelector(".sr-only")).toHaveTextContent("Loading the pack");
+    expect(status).not.toHaveAttribute("aria-label");
+  });
+
+  it("says Loading by default", () => {
+    expect(renderRows().status).toHaveTextContent("Loading");
   });
 
   it("staggers the blink by 0.15 s per row", () => {
-    render(<SkeletonRows rows={3} />);
-    const rows = Array.from(screen.getByRole("status").children);
-    const delays = rows.map((row) => (row.querySelector("div") as HTMLElement).style.animationDelay);
+    const delays = renderRows({ rows: 3 }).rows.map(
+      (row) => (row.querySelector(".rq-skel-block") as HTMLElement).style.animationDelay,
+    );
 
     expect(delays).toEqual(["0s", "0.15s", "0.3s"]);
   });
 
   it("varies the name width and cycles the pattern past four rows", () => {
-    render(<SkeletonRows rows={5} />);
-    const rows = Array.from(screen.getByRole("status").children);
-    const widths = rows.map((row) => (row.children[1].firstElementChild as HTMLElement).style.width);
+    const widths = renderRows({ rows: 5 }).rows.map(
+      (row) => (row.children[1].firstElementChild as HTMLElement).style.width,
+    );
 
     expect(widths).toEqual(["62%", "48%", "70%", "40%", "62%"]);
   });
 
-  it("hides the placeholder rows from assistive tech", () => {
-    render(<SkeletonRows rows={2} />);
+  it("hides the placeholder grid from assistive tech", () => {
+    expect(renderRows({ rows: 2 }).grid).toHaveAttribute("aria-hidden", "true");
+  });
 
-    for (const row of Array.from(screen.getByRole("status").children)) {
-      expect(row).toHaveAttribute("aria-hidden", "true");
-    }
+  it("takes its sizes from the skeleton tokens, never raw px", () => {
+    const { rows } = renderRows({ rows: 1 });
+    const heights = Array.from(rows[0].querySelectorAll(".rq-skel-block")).map((el) => el.className);
+
+    expect(heights.join(" ")).toContain("h-[var(--rq-skel-h-1)]");
+    expect(heights.join(" ")).toContain("h-[var(--rq-skel-h-2)]");
+    expect(heights.join(" ")).toContain("h-[var(--rq-skel-h-3)]");
+    expect(heights.join(" ")).toContain("h-[var(--rq-skel-h-4)]");
   });
 });

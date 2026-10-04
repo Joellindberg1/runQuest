@@ -12,6 +12,8 @@ export interface RQIconProps extends Omit<SVGProps<SVGSVGElement>, "name" | "col
   size?: number;
   /** Valfri CSS-färg, helst en token: `var(--rq-gold)`. Standard: ärver `currentColor`. */
   color?: string;
+  /** Gör ikonen meningsbärande (role=img + aria-label). Utan label är den dekorativ (aria-hidden). */
+  label?: string;
 }
 
 function renderShape(shape: string, index: number) {
@@ -25,9 +27,9 @@ function renderShape(shape: string, index: number) {
 /**
  * Enda källan för nya ikoner (24x24, stroke 1.9, runda ändar, ingen fyllning).
  * Okänt namn faller tillbaka på trophy i stället för att rendera ingenting.
- * Dekorativ som standard (`aria-hidden`); skicka `aria-label` + `aria-hidden={false}` för en meningsbärande ikon.
+ * Dekorativ som standard (`aria-hidden`); skicka `label` för en meningsbärande ikon.
  */
-export function RQIcon({ name, size = 16, color, className, ...rest }: RQIconProps) {
+export function RQIcon({ name, size = 16, color, label, className, ...rest }: RQIconProps) {
   const shapes: readonly string[] = RQ_ICON_PATHS[name] ?? RQ_ICON_PATHS[RQ_ICON_FALLBACK];
 
   return (
@@ -40,7 +42,7 @@ export function RQIcon({ name, size = 16, color, className, ...rest }: RQIconPro
       strokeWidth={ICON_STROKE_WIDTH}
       strokeLinecap="round"
       strokeLinejoin="round"
-      aria-hidden="true"
+      {...(label ? { role: "img", "aria-label": label, "aria-hidden": false } : { "aria-hidden": true })}
       className={cn("shrink-0", className)}
       {...rest}
     >

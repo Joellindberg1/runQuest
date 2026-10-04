@@ -23,7 +23,7 @@ export interface TrackLoaderProps {
   speed?: number;
   /** Grader. Lutningen får ovalen att läsas som en stadion, inte en pill. */
   tilt?: number;
-  /** Skärmläsartext. */
+  /** Text för skärmläsare (role=status annonserar innehåll, inte aria-label). */
   label?: string;
   className?: string;
 }
@@ -51,10 +51,10 @@ export function TrackLoader({
   return (
     <div
       role="status"
-      aria-label={label}
       className={cn("relative shrink-0", className)}
       style={{ width: size, height, transform: `rotate(${tilt}deg)` }}
     >
+      <span className="sr-only">{label}</span>
       <svg
         viewBox={`0 0 ${TRACK_VIEWBOX_WIDTH} 62`}
         width={size}
