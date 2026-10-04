@@ -4,41 +4,59 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
-import { calculateCompleteRunXP, boostDeltasForRuns, type AdminSettings, type StreakMultiplier, type BoostSpec } from '@runquest/shared';
+import { calculateCompleteRunXP, boostDeltasForRuns, DEFAULT_STREAK_MULTIPLIERS, type AdminSettings, type StreakMultiplier, type BoostSpec } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 
 const router = express.Router();
 
-/** Fetch XP settings and streak multipliers in a single DB call. */
+const DEFAULT_XP_SETTINGS: AdminSettings = {
+  base_xp: 15, xp_per_km: 2, bonus_5km: 5, bonus_10km: 15, bonus_15km: 25, bonus_20km: 50, min_run_distance: 1.0
+};
+
+/**
+ * Fetch XP settings and streak multipliers.
+ * Bugfix 2026-10-04: tidigare selectades kolumnen admin_settings.streak_multipliers,
+ * som aldrig har funnits i databasen — hela selecten felade och BÅDE XP-inställningar
+ * och multiplikatorer föll tyst tillbaka på defaults (admin-panelens ändringar hade
+ * ingen effekt). Multiplikatorernas källa är tabellen streak_multipliers, som
+ * admin-panelen skriver till.
+ */
 async function fetchAdminSettings(): Promise<{ xpSettings: AdminSettings; multipliers: StreakMultiplier[] }> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('admin_settings')
-    .select('base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance, streak_multipliers')
-    .single();
+  const [settingsResult, multipliersResult] = await Promise.all([
+    supabase
+      .from('admin_settings')
+      .select('base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance')
+      .single(),
+    supabase
+      .from('streak_multipliers')
+      .select('days, multiplier')
+  ]);
 
-  if (error || !data) {
-    logger.warn('⚠️ Could not fetch admin settings, using defaults');
-    return {
-      xpSettings: { base_xp: 15, xp_per_km: 2, bonus_5km: 5, bonus_10km: 15, bonus_15km: 25, bonus_20km: 50, min_run_distance: 1.0 },
-      multipliers: [
-        { days: 270, multiplier: 2.0 }, { days: 240, multiplier: 1.9 }, { days: 220, multiplier: 1.8 },
-        { days: 180, multiplier: 1.7 }, { days: 120, multiplier: 1.6 }, { days: 90, multiplier: 1.5 },
-        { days: 60, multiplier: 1.4 },  { days: 30, multiplier: 1.3 },  { days: 15, multiplier: 1.2 },
-        { days: 5, multiplier: 1.1 }
-      ]
+  let xpSettings = DEFAULT_XP_SETTINGS;
+  if (!settingsResult?.error && settingsResult?.data) {
+    const d = settingsResult.data;
+    xpSettings = {
+      base_xp: d.base_xp, xp_per_km: d.xp_per_km,
+      bonus_5km: d.bonus_5km, bonus_10km: d.bonus_10km,
+      bonus_15km: d.bonus_15km, bonus_20km: d.bonus_20km,
+      min_run_distance: Number(d.min_run_distance)
     };
+  } else {
+    logger.warn('⚠️ Could not fetch admin settings, using defaults');
   }
 
-  return {
-    xpSettings: {
-      base_xp: data.base_xp, xp_per_km: data.xp_per_km,
-      bonus_5km: data.bonus_5km, bonus_10km: data.bonus_10km,
-      bonus_15km: data.bonus_15km, bonus_20km: data.bonus_20km,
-      min_run_distance: data.min_run_distance
-    },
-    multipliers: data.streak_multipliers ?? []
-  };
+  let multipliers: StreakMultiplier[] = DEFAULT_STREAK_MULTIPLIERS;
+  const multiplierRows = multipliersResult?.data;
+  if (Array.isArray(multiplierRows) && multiplierRows.length > 0) {
+    multipliers = multiplierRows.map((m: { days: number; multiplier: number | string }) => ({
+      days: m.days, multiplier: Number(m.multiplier)
+    }));
+  } else {
+    logger.warn('⚠️ Could not fetch streak multipliers, using defaults');
+  }
+
+  return { xpSettings, multipliers };
 }
 
 /**

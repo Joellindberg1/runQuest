@@ -1,46 +1,23 @@
-// 🚀 RunQuest Backend Server - Clean Build
+// 🚀 RunQuest Backend Server — produktions-entrypoint.
+// All http-wiring bor i app.ts (createApp, ADR 003); här finns bara det som
+// hör till PROCESSEN: env-laddning/validering, listen, schedulers, shutdown.
 import { logger } from './utils/logger.js';
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
 import dotenv from 'dotenv';
-// 🗄️ Import database
-// 🔐 Import auth routes
-import authRoutes from './routes/auth.js';
-// 🔗 Import Strava routes
-import stravaRoutes from './routes/strava.js';
-// 🏆 Import title routes
-import titleRoutes from './routes/titles.js';
-// 🏃 Import run routes
-import runRoutes from './routes/runs.js';
-// 👥 Import group routes
-import groupRoutes from './routes/groups.js';
-// ⚔️ Import challenge routes
-import challengeRoutes from './routes/challenges.js';
-// 📅 Import event routes
-import eventRoutes from './routes/events.js';
-// 🎓 Import onboarding routes
-import onboardingRoutes from './routes/onboarding.js';
-// 👤 Import user routes
-import userRoutes from './routes/users.js';
-// 🕐 Import schedulers
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
 import { startEventScheduler } from './scheduler/eventScheduler.js';
 
 // 📋 Step 1: Load Environment Variables
 logger.info('🔧 Step 1: Loading environment variables...');
-import { fileURLToPath } from 'url';
-import path from 'path';
 
-// Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load .env from backend directory
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-// Environment validation with detailed logging
 const requiredEnvVars = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: process.env.PORT || '3001',
@@ -52,13 +29,9 @@ const requiredEnvVars = {
 logger.info('📊 Environment Status:');
 Object.entries(requiredEnvVars).forEach(([key, value]) => {
   const status = value ? '✅' : '❌';
-  const displayValue = key.includes('SECRET') || key.includes('KEY') ? 
-    (value ? `${value.substring(0, 10)}...` : 'missing') : 
-    (value || 'missing');
-  logger.info(`  ${status} ${key}: ${displayValue}`);
+  logger.info(`  ${status} ${key}: ${key.includes('SECRET') || key.includes('KEY') ? (value ? 'set' : 'missing') : (value || 'missing')}`);
 });
 
-// Check for missing critical env vars
 const missingVars = Object.entries(requiredEnvVars)
   .filter(([key, value]) => !value && key !== 'NODE_ENV')
   .map(([key]) => key);
@@ -70,158 +43,37 @@ if (missingVars.length > 0) {
 
 logger.info('✅ Step 1 Complete: Environment loaded successfully\n');
 
-// 📋 Step 2: Initialize Express App
-logger.info('🔧 Step 2: Initializing Express app...');
-const app = express();
+// 📋 Step 2: Create app (måste importeras EFTER dotenv.config — dynamisk import)
+logger.info('🔧 Step 2: Creating Express app...');
+const { createApp } = await import('./app.js');
+const app = createApp();
 const PORT = parseInt(requiredEnvVars.PORT);
 
-// Middleware
-app.use(helmet());
-
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-  : ['https://www.runquest.dev'];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(null, false);
-  },
-  credentials: true,
-}));
-
-app.use(express.json());
-
-// Request logging middleware
-app.use((req, _res, next) => {
-  logger.info(`📨 ${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
-
-logger.info('✅ Step 2 Complete: Express app initialized\n');
-
-// 📋 Step 3: Define Routes
-logger.info('🔧 Step 3: Setting up routes...');
-
-// Health check endpoint
-app.get('/health', (_req, res) => {
-  logger.info('💚 Health check requested');
-  res.json({ 
-    status: 'OK', 
-    message: 'RunQuest Backend is running',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
-});
-
-// API info endpoint
-app.get('/api', (_req, res) => {
-  logger.info('📋 API info requested');
-  res.json({ 
-    message: 'RunQuest API v1.0.0',
-    endpoints: {
-      health: '/health',
-      api: '/api',
-      auth: {
-        login: '/api/auth/login',
-        refresh: '/api/auth/refresh'
-      },
-      strava: {
-        config: '/api/strava/config',
-        status: '/api/strava/status',
-        callback: '/api/strava/callback'
-      }
-    },
-    version: '1.0.0',
-    environment: requiredEnvVars.NODE_ENV
-  });
-});
-
-// 🔐 Auth routes
-logger.info('🔐 Mounting auth routes...');
-app.use('/api/auth', authRoutes);
-
-// 🔗 Strava routes  
-logger.info('🔗 Mounting Strava routes...');
-app.use('/api/strava', stravaRoutes);
-
-// 🏆 Title routes
-logger.info('🏆 Mounting title routes...');
-app.use('/api/titles', titleRoutes);
-
-// 🏃 Run routes
-logger.info('🏃 Mounting run routes...');
-app.use('/api/runs', runRoutes);
-
-// 👥 Group routes
-logger.info('👥 Mounting group routes...');
-app.use('/api/groups', groupRoutes);
-
-// ⚔️ Challenge routes
-logger.info('⚔️ Mounting challenge routes...');
-app.use('/api/challenges', challengeRoutes);
-
-// 📅 Event routes
-logger.info('📅 Mounting event routes...');
-app.use('/api/events', eventRoutes);
-
-// 🎓 Onboarding routes
-logger.info('🎓 Mounting onboarding routes...');
-app.use('/api/onboarding', onboardingRoutes);
-
-// 👤 User routes
-logger.info('👤 Mounting user routes...');
-app.use('/api/users', userRoutes);
-
-// 404 handler
-app.use((req, res) => {
-  logger.info(`❓ 404 - Route not found: ${req.method} ${req.originalUrl}`);
-  res.status(404).json({ 
-    error: 'Route not found',
-    path: req.originalUrl,
-    method: req.method
-  });
-});
-
-logger.info('✅ Step 3 Complete: Routes configured\n');
-
-// 📋 Step 4: Start Server
-logger.info('🔧 Step 4: Starting server...');
-// Updated to listen on all interfaces
+// 📋 Step 3: Start Server
+logger.info('🔧 Step 3: Starting server...');
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`🚀 Server started successfully!`);
+  logger.info('🚀 Server started successfully!');
   logger.info(`🔗 Running on: http://localhost:${PORT}`);
-  logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
-  logger.info(`🔗 API info: http://localhost:${PORT}/api`);
   logger.info(`🌍 Environment: ${requiredEnvVars.NODE_ENV}`);
-  logger.info(`⏰ Started at: ${new Date().toISOString()}`);
-  logger.info('');
-  logger.info('🎯 Server is ready for requests!');
 });
 
-// Error handling
-server.on('error', (error: any) => {
+server.on('error', (error: NodeJS.ErrnoException) => {
   logger.error('❌ Server error:', error.code);
   if (error.code === 'EADDRINUSE') {
     logger.error(`❌ Port ${PORT} is already in use`);
-    logger.info('💡 Try: Get-Process | Where-Object {$_.ProcessName -eq "node"} | Stop-Process -Force');
   }
   process.exit(1);
 });
 
 server.on('listening', () => {
-  logger.info('✅ Step 4 Complete: Server is actively listening for connections\n');
-  
-  // 🕐 Start schedulers
+  logger.info('✅ Server is actively listening for connections\n');
+
+  // 🕐 Schedulers — endast i produktion
   if (process.env.NODE_ENV === 'production') {
-    logger.info('🕐 Starting Strava sync scheduler for production...');
+    logger.info('🕐 Starting schedulers (production)...');
     startStravaScheduler();
-    logger.info('⚔️ Starting challenge scheduler for production...');
     startChallengeScheduler();
-    logger.info('📅 Starting event scheduler for production...');
     startEventScheduler();
   } else {
     logger.info('ℹ️ Schedulers disabled in development mode');

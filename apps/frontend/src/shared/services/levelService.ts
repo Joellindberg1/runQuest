@@ -1,10 +1,13 @@
+// Level-service (frontend): äger DB-läsning + localStorage-cache av
+// level_requirements. Matematiken bor i @runquest/shared (ADR 004) — samma
+// källa som backend, inklusive fallback-tabellen (den tidigare tredje
+// approximationen över nivå 15 är borta).
 import { supabase } from '@/integrations/supabase/clientWithAuth';
-import { MAX_LEVEL } from '@/constants/appConstants';
-
-interface LevelRequirement {
-  level: number;
-  xp_required: number;
-}
+import {
+  levelFromXP, xpForLevel, xpForNextLevel, levelProgress,
+  FALLBACK_LEVEL_REQUIREMENTS, MAX_LEVEL,
+  type LevelRequirement, type LevelProgress,
+} from '@runquest/shared';
 
 class FrontendLevelService {
   private levelRequirements: LevelRequirement[] = [];
@@ -13,12 +16,7 @@ class FrontendLevelService {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    
-    // Prevent multiple simultaneous initialization calls
-    if (this.initPromise) {
-      return this.initPromise;
-    }
-
+    if (this.initPromise) return this.initPromise;
     this.initPromise = this.doInitialize();
     return this.initPromise;
   }
@@ -30,36 +28,23 @@ class FrontendLevelService {
         .select('level, xp_required')
         .order('level', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching level requirements:', error);
-        this.setFallbackLevels();
+      if (error || !data?.length) {
+        if (error) console.error('Error fetching level requirements:', error);
+        this.loadFromCache();
         return;
       }
 
-      this.levelRequirements = data || [];
+      this.levelRequirements = data;
       this.initialized = true;
-      // Cache in localStorage for offline use
-      localStorage.setItem('levelRequirements', JSON.stringify(this.levelRequirements));
+      try {
+        localStorage.setItem('levelRequirements', JSON.stringify(this.levelRequirements));
+      } catch {
+        // localStorage kan vara otillgängligt (private mode) — cachen är bara en bonus
+      }
     } catch (error) {
       console.error('Error initializing frontend level service:', error);
       this.loadFromCache();
     }
-  }
-
-  private setFallbackLevels(): void {
-    // Fallback to current hardcoded levels if database is unavailable
-    const fallbackXP = [
-      0, 50, 102, 158, 217, 280, 349, 423, 504, 594,
-      693, 806, 934, 1079, 1244, 1436, 1659, 1920, 2228, 2591,
-      3026, 3549, 4181, 4953, 5902, 7089, 8584, 10482, 12912, 16071
-    ];
-    
-    this.levelRequirements = fallbackXP.map((xp, index) => ({
-      level: index + 1,
-      xp_required: xp
-    }));
-    
-    this.initialized = true;
   }
 
   private loadFromCache(): void {
@@ -73,100 +58,43 @@ class FrontendLevelService {
     } catch (error) {
       console.error('Error loading from cache:', error);
     }
-    
-    // If cache fails, use fallback
-    this.setFallbackLevels();
+    this.levelRequirements = FALLBACK_LEVEL_REQUIREMENTS;
+    this.initialized = true;
+  }
+
+  private requirements(): LevelRequirement[] {
+    return this.initialized && this.levelRequirements.length > 0
+      ? this.levelRequirements
+      : FALLBACK_LEVEL_REQUIREMENTS;
   }
 
   async getLevelFromXP(totalXP: number): Promise<number> {
     await this.initialize();
-    
-    for (let i = this.levelRequirements.length - 1; i >= 0; i--) {
-      if (totalXP >= this.levelRequirements[i].xp_required) {
-        return Math.min(this.levelRequirements[i].level, MAX_LEVEL);
-      }
-    }
-    return 1;
+    return levelFromXP(totalXP, this.requirements());
   }
 
   async getXPForLevel(level: number): Promise<number> {
     await this.initialize();
-    
-    const levelReq = this.levelRequirements.find(req => req.level === level);
-    return levelReq?.xp_required || 0;
+    return xpForLevel(level, this.requirements());
   }
 
   async getXPForNextLevel(level: number): Promise<number> {
-    return this.getXPForLevel(Math.min(level + 1, MAX_LEVEL));
-  }
-
-  async getLevelProgress(totalXP: number): Promise<{
-    currentLevel: number;
-    currentLevelXP: number;
-    nextLevelXP: number;
-    progress: number;
-    xpToNext: number;
-  }> {
     await this.initialize();
-    
-    const currentLevel = await this.getLevelFromXP(totalXP);
-    const currentLevelXP = await this.getXPForLevel(currentLevel);
-    const nextLevelXP = await this.getXPForNextLevel(currentLevel);
-    
-    const progress = currentLevel >= 30 ? 100 : 
-      ((totalXP - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100;
-    
-    const xpToNext = currentLevel >= 30 ? 0 : nextLevelXP - totalXP;
-    
-    return {
-      currentLevel,
-      currentLevelXP,
-      nextLevelXP,
-      progress: Math.max(0, Math.min(100, progress)),
-      xpToNext: Math.max(0, xpToNext)
-    };
+    return xpForNextLevel(level, this.requirements());
   }
 
-  // Synchronous versions for backwards compatibility (uses cached data)
-  getLevelFromXPSync(totalXP: number): number {
-    if (!this.initialized) {
-      console.warn('Level service not initialized, using fallback calculation');
-      // Quick fallback calculation
-      if (totalXP < 50) return 1;
-      if (totalXP < 102) return 2;
-      if (totalXP < 158) return 3;
-      if (totalXP < 217) return 4;
-      if (totalXP < 280) return 5;
-      if (totalXP < 349) return 6;
-      if (totalXP < 423) return 7;
-      if (totalXP < 504) return 8;
-      if (totalXP < 594) return 9;
-      if (totalXP < 693) return 10;
-      if (totalXP < 806) return 11;
-      if (totalXP < 934) return 12;
-      if (totalXP < 1079) return 13;
-      if (totalXP < 1244) return 14;
-      if (totalXP < 1436) return 15;
-      // Continue pattern...
-      return Math.min(Math.floor(totalXP / 100) + 1, MAX_LEVEL);
-    }
+  async getLevelProgress(totalXP: number): Promise<LevelProgress> {
+    await this.initialize();
+    return levelProgress(totalXP, this.requirements());
+  }
 
-    for (let i = this.levelRequirements.length - 1; i >= 0; i--) {
-      if (totalXP >= this.levelRequirements[i].xp_required) {
-        return Math.min(this.levelRequirements[i].level, MAX_LEVEL);
-      }
-    }
-    return 1;
+  // Synchronous versions (före init: delade fallback-tabellen, inte en approximation)
+  getLevelFromXPSync(totalXP: number): number {
+    return levelFromXP(totalXP, this.requirements());
   }
 
   getXPForLevelSync(level: number): number {
-    if (!this.initialized) {
-      const fallbackXP = [0, 50, 102, 158, 217, 280, 349, 423, 504, 594, 693, 806, 934, 1079, 1244];
-      return fallbackXP[Math.min(level - 1, fallbackXP.length - 1)] || 0;
-    }
-
-    const levelReq = this.levelRequirements.find(req => req.level === level);
-    return levelReq?.xp_required || 0;
+    return xpForLevel(level, this.requirements());
   }
 }
 

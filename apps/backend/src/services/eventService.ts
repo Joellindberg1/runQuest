@@ -1,7 +1,7 @@
 // 📅 Event Service
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
-import { getLevelFromXP } from '../utils/xpCalculation.js';
+import { getLevelFromXP } from './levelService.js';
 import { toStockholmDate } from '../utils/dateUtils.js';
 
 // ─── maybeCreateEvent ─────────────────────────────────────────────────────────

@@ -1,10 +1,12 @@
+// Level-service: äger DB-läsning + cache av level_requirements.
+// Själva matematiken bor i @runquest/shared (ADR 004) — enda källan.
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
-
-interface LevelRequirement {
-  level: number;
-  xp_required: number;
-}
+import {
+  levelFromXP, xpForLevel, xpForNextLevel, levelProgress,
+  FALLBACK_LEVEL_REQUIREMENTS,
+  type LevelRequirement, type LevelProgress,
+} from '@runquest/shared';
 
 class LevelService {
   private levelRequirements: LevelRequirement[] = [];
@@ -20,86 +22,42 @@ class LevelService {
         .select('level, xp_required')
         .order('level', { ascending: true });
 
-      if (error) {
-        logger.error('Error fetching level requirements:', error);
-        // Fallback to hardcoded values if database fails
-        this.setFallbackLevels();
+      if (error || !data?.length) {
+        if (error) logger.error('Error fetching level requirements:', error);
+        this.levelRequirements = FALLBACK_LEVEL_REQUIREMENTS;
+        this.initialized = true;
+        logger.warn('⚠️ Level service using fallback values');
         return;
       }
 
-      this.levelRequirements = data || [];
+      this.levelRequirements = data;
       this.initialized = true;
       logger.info(`✅ Level service initialized with ${this.levelRequirements.length} levels`);
     } catch (error) {
       logger.error('Error initializing level service:', error);
-      this.setFallbackLevels();
+      this.levelRequirements = FALLBACK_LEVEL_REQUIREMENTS;
+      this.initialized = true;
     }
-  }
-
-  private setFallbackLevels() {
-    // Fallback to current hardcoded levels if database is unavailable
-    const fallbackXP = [
-      0, 50, 102, 158, 217, 280, 349, 423, 504, 594,
-      693, 806, 934, 1079, 1244, 1436, 1659, 1920, 2228, 2591,
-      3026, 3549, 4181, 4953, 5902, 7089, 8584, 10482, 12912, 16071
-    ];
-    
-    this.levelRequirements = fallbackXP.map((xp, index) => ({
-      level: index + 1,
-      xp_required: xp
-    }));
-    
-    this.initialized = true;
-    logger.info('⚠️ Level service using fallback values');
   }
 
   async getLevelFromXP(totalXP: number): Promise<number> {
     await this.initialize();
-    
-    for (let i = this.levelRequirements.length - 1; i >= 0; i--) {
-      if (totalXP >= this.levelRequirements[i].xp_required) {
-        return Math.min(this.levelRequirements[i].level, 30);
-      }
-    }
-    return 1;
+    return levelFromXP(totalXP, this.levelRequirements);
   }
 
   async getXPForLevel(level: number): Promise<number> {
     await this.initialize();
-    
-    const levelReq = this.levelRequirements.find(req => req.level === level);
-    return levelReq?.xp_required || 0;
+    return xpForLevel(level, this.levelRequirements);
   }
 
   async getXPForNextLevel(level: number): Promise<number> {
-    return this.getXPForLevel(Math.min(level + 1, 30));
+    await this.initialize();
+    return xpForNextLevel(level, this.levelRequirements);
   }
 
-  async getLevelProgress(totalXP: number): Promise<{
-    currentLevel: number;
-    currentLevelXP: number;
-    nextLevelXP: number;
-    progress: number;
-    xpToNext: number;
-  }> {
+  async getLevelProgress(totalXP: number): Promise<LevelProgress> {
     await this.initialize();
-    
-    const currentLevel = await this.getLevelFromXP(totalXP);
-    const currentLevelXP = await this.getXPForLevel(currentLevel);
-    const nextLevelXP = await this.getXPForNextLevel(currentLevel);
-    
-    const progress = currentLevel >= 30 ? 100 : 
-      ((totalXP - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100;
-    
-    const xpToNext = currentLevel >= 30 ? 0 : nextLevelXP - totalXP;
-    
-    return {
-      currentLevel,
-      currentLevelXP,
-      nextLevelXP,
-      progress: Math.max(0, Math.min(100, progress)),
-      xpToNext: Math.max(0, xpToNext)
-    };
+    return levelProgress(totalXP, this.levelRequirements);
   }
 
   async getAllLevelRequirements(): Promise<LevelRequirement[]> {
@@ -114,7 +72,7 @@ export const levelService = new LevelService();
 // Export types
 export type { LevelRequirement };
 
-// Convenience functions for backwards compatibility
+// Convenience functions
 export async function getLevelFromXP(totalXP: number): Promise<number> {
   return levelService.getLevelFromXP(totalXP);
 }

@@ -21,23 +21,20 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
-// ── Mock XP calculation ───────────────────────────────────────────────────────
-vi.mock('../../utils/xpCalculation.js', () => ({
-  metersToKm: (m: number) => m / 1000,
-  getLevelFromXP: vi.fn().mockResolvedValue(1),
-  getXPForLevel: vi.fn().mockResolvedValue(0),
-  getLevelProgress: vi.fn().mockResolvedValue({ level: 1, progress: 0 }),
-}));
-
 // ── Mock @runquest/shared ─────────────────────────────────────────────────────
 vi.mock('@runquest/shared', () => ({
   calculateCompleteRunXP: vi.fn().mockReturnValue({
     baseXP: 15, kmXP: 10, distanceBonus: 5, streakBonus: 0,
     multiplier: 1.0, finalXP: 30,
   }),
-  calculateRunXP: vi.fn().mockReturnValue({ baseXP: 15, kmXP: 10, distanceBonus: 5, totalXP: 30 }),
   calculateStreakMultiplier: vi.fn().mockReturnValue(1.0),
   boostDeltasForRuns: vi.fn((dates: string[]) => dates.map(() => 0)),
+  DEFAULT_STREAK_MULTIPLIERS: [],
+  FALLBACK_LEVEL_REQUIREMENTS: [{ level: 1, xp_required: 0 }],
+  levelFromXP: vi.fn().mockReturnValue(1),
+  xpForLevel: vi.fn().mockReturnValue(0),
+  xpForNextLevel: vi.fn().mockReturnValue(50),
+  levelProgress: vi.fn().mockReturnValue({ currentLevel: 1, currentLevelXP: 0, nextLevelXP: 50, progress: 0, xpToNext: 50 }),
 }));
 
 // ── Mock calculateUserTotals ──────────────────────────────────────────────────

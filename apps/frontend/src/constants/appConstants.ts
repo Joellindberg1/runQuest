@@ -4,5 +4,5 @@ export const MIN_RUN_DATE = '2025-06-01';
 /** Minimum distance in km for a run to count */
 export const MIN_RUN_DISTANCE_KM = 1.0;
 
-/** Maximum player level */
-export const MAX_LEVEL = 30;
+/** Maximum player level — SSOT i @runquest/shared (ADR 004) */
+export { MAX_LEVEL } from '@runquest/shared';

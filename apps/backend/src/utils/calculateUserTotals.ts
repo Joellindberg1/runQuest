@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from './logger.js';
-import { getLevelFromXP } from './xpCalculation.js';
+import { getLevelFromXP } from '../services/levelService.js';
 import { reconcileTokensForLevel } from '../services/challengeService.js';
 
 export async function calculateUserTotals(userId: string, groupId?: string) {
