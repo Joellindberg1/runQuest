@@ -10,7 +10,7 @@ const baseInput: RightNowInput = { now: NOW, streak: null, events: [], duel: nul
 const event = (over: Partial<ShellEvent> = {}): ShellEvent => ({
   id: 'e1', kind: 'participation', name: 'Evening run', status: 'active',
   startsAt: '2026-10-04T15:00:00Z', endsAt: new Date(NOW.getTime() + 17 * HOUR).toISOString(),
-  rewardXp: 25, done: false, rank: null, ...over,
+  rewardXp: 25, done: false, rank: null, entered: true, ...over,
 });
 
 describe('formatRemaining', () => {
@@ -104,6 +104,13 @@ describe('buildRightNow', () => {
       events: [event({ id: 'comp', kind: 'competition', name: 'Weekly km', endsAt: new Date(NOW.getTime() - 60_000).toISOString() })],
     });
     expect(items[0]).toMatchObject({ label: 'Weekly km', value: 'Settling' });
+  });
+
+  it('tävling: placering när jag är med, "Weekly competition" utan rank, "Not entered" när jag inte är med än', () => {
+    const note = (over: Partial<ShellEvent>) => buildRightNow({ ...baseInput, events: [event({ kind: 'competition', ...over })] })[0].note;
+    expect(note({ rank: 2 })).toBe('#2 in the pack');
+    expect(note({ rank: null })).toBe('Weekly competition');
+    expect(note({ rank: null, entered: false })).toBe('Not entered');
   });
 
   it('ordning: streak → event → duell → Strava', () => {

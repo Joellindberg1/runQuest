@@ -71,8 +71,6 @@ export function useRightNow(): RightNowState {
       const phase = eventPhase(e, now);
       // Ett participation-event som passerat sitt slut avräknas inom fem minuter — det visas varken här eller på /events.
       if (e.type === 'participation' && phase === 'ended') return [];
-      // Tävlingar visas bara för den som deltar (som gamla EventWidget).
-      if (e.type === 'competition' && !e.myEntry) return [];
       const liveRank = e.leaderboard?.find((l) => l.isMe)?.rank;
       return [{
         id: e.id,
@@ -84,6 +82,7 @@ export function useRightNow(): RightNowState {
         rewardXp: e.template.rewardXp,
         done: !!e.myEntry?.qualified && e.type === 'participation',
         rank: liveRank ?? e.myEntry?.rank ?? null,
+        entered: !!e.myEntry,
       }];
     });
   }, [events.data, now]);

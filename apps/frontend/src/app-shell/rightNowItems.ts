@@ -29,6 +29,8 @@ export interface ShellEvent {
   rewardXp: number;
   done: boolean;
   rank: number | null;
+  /** Jag har en entry i eventet (tävling: jag är med i tabellen). Samma regel som Events-skärmen. */
+  entered: boolean;
 }
 
 export interface ShellDuel {
@@ -142,7 +144,7 @@ function eventItems(input: RightNowInput): RightNowItem[] {
             : formatRemaining(endsMs - nowMs);
       const note = event.kind === 'participation'
         ? (event.done ? 'Completed' : `+${event.rewardXp} XP`)
-        : (event.rank ? `#${event.rank} in the pack` : 'Weekly competition');
+        : (event.rank ? `#${event.rank} in the pack` : event.entered ? 'Weekly competition' : 'Not entered');
       const item: RightNowItem = {
         id: `event-${event.id}`,
         kind: 'event',
