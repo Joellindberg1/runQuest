@@ -1,0 +1,193 @@
+/* Board-skärmen (inkrement 2): Season/All-time · Week · Streaks, mobil och desktop.
+   ENDAST tokens ur index.css utanför token-blocket nedan (regel 1). Blocket definierar komponentmått
+   som prototyperna använder men temafilen saknar token för — ingen färg, ingen typskala.
+   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+
+/* ── Board-mått (mobil först; desktop skriver över i media-blocket) ───────── */
+:root {
+  --rq-board-avatar: 36px;
+  --rq-board-bar-h: 5px;            /* nivåstapel i podiekort */
+  --rq-board-bar-h-thin: 4px;       /* nivåstapel i listrad */
+  --rq-board-ribbon-w: 22px;
+  --rq-board-ribbon-h: 27px;
+  --rq-board-ribbon-font: 15px;     /* siffran i skölden (SVG-enheter) */
+  --rq-board-daybars-h: 34px;
+  --rq-board-streak-bar-h: 6px;
+  --rq-board-plinth-1: 78px;
+  --rq-board-plinth-2: 52px;
+  --rq-board-plinth-3: 38px;
+  --rq-board-side-w: 300px;
+  --rq-board-delta-w: 26px;         /* desktop: fast kolumn för ▲/▼ framför namnet */
+  --rq-board-rest-cols: 26px 1fr 74px;
+  --rq-board-week-cols: 24px 1fr 62px;
+  --rq-board-streak-cols: 1fr;
+}
+@media (min-width: 1024px) {
+  :root {
+    --rq-board-avatar: 42px;
+    --rq-board-bar-h: 6px;
+    --rq-board-bar-h-thin: 6px;
+    --rq-board-daybars-h: 44px;
+    --rq-board-streak-bar-h: 8px;
+    --rq-board-rest-cols: 40px 300px 1fr 78px 84px 88px 112px;
+    --rq-board-week-cols: 38px 190px 1fr 128px 92px;
+    --rq-board-streak-cols: 190px 96px 1fr 150px;
+  }
+}
+
+/* ── Rankfärger: ett attribut (data-rank) sätter alla rankderivat ─────────── */
+.rq-board [data-rank="1"] { --rq-rank-solid: var(--rq-rank-1); --rq-rank-edge: var(--rq-rank-1-edge); --rq-rank-subtle: var(--rq-rank-1-subtle); --rq-ring-c: var(--rq-rank-1); --rq-board-plinth: var(--rq-board-plinth-1); }
+.rq-board [data-rank="2"] { --rq-rank-solid: var(--rq-rank-2); --rq-rank-edge: var(--rq-rank-2-edge); --rq-rank-subtle: var(--rq-rank-2-subtle); --rq-ring-c: var(--rq-rank-2); --rq-board-plinth: var(--rq-board-plinth-2); }
+.rq-board [data-rank="3"] { --rq-rank-solid: var(--rq-rank-3); --rq-rank-edge: var(--rq-rank-3-edge); --rq-rank-subtle: var(--rq-rank-3-subtle); --rq-ring-c: var(--rq-rank-3); --rq-board-plinth: var(--rq-board-plinth-3); }
+
+/* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
+.rq-board { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-board__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-board__title { margin: 0; font-weight: 400; }
+.rq-board__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-board__week { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-board__tabs { display: flex; gap: var(--rq-sp-6); }
+.rq-board__tabs > [role="tab"] { font-family: var(--rq-font-ui); }
+.rq-board__tabs > [role="tab"]:not([aria-selected="true"]) { background: none; }
+.rq-board__panel { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-board__loading { display: flex; justify-content: center; padding: var(--rq-sp-40) 0; }
+.rq-board__split { display: grid; grid-template-columns: minmax(0, 1fr) var(--rq-board-side-w); gap: var(--rq-sp-18); align-items: start; }
+.rq-board__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+
+/* ── Delat: avatar, namn, delta, ribbons ──────────────────────────────────── */
+.rq-board-avatar {
+  width: var(--rq-board-avatar); height: var(--rq-board-avatar); flex-shrink: 0; overflow: hidden;
+  font-size: var(--rq-fs-body);
+}
+.rq-board-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.rq-board-namebtn { padding: 0; border: 0; background: none; cursor: pointer; text-align: left; }
+.rq-board-namebtn:hover { color: var(--rq-gold-text); }
+.rq-board-delta { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-name); color: var(--rq-text-4); }
+.rq-board-delta[data-dir="up"] { color: var(--rq-up); }
+.rq-board-delta[data-dir="down"] { color: var(--rq-down); }
+.rq-board-ranknum { font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-rank-solid, var(--rq-rank-rest)); text-align: center; }
+.rq-ribbons { display: inline-flex; align-items: center; gap: var(--rq-sp-4); }
+.rq-ribbon { width: var(--rq-board-ribbon-w); height: var(--rq-board-ribbon-h); flex-shrink: 0; overflow: visible; }
+.rq-ribbon path { fill: rgb(var(--rq-tier-rgb) / var(--rq-tier-ribbon-tint)); stroke: var(--rq-tier-stroke); stroke-width: var(--rq-edge-w-thin); stroke-linejoin: miter; }
+.rq-ribbon text { fill: var(--rq-tier-fg); font-family: var(--rq-font-display); font-size: var(--rq-board-ribbon-font); }
+.rq-ribbon[data-tier="minor"] { --rq-tier-rgb: var(--rq-tier-minor-rgb); --rq-tier-stroke: var(--rq-tier-minor-stroke); --rq-tier-fg: var(--rq-tier-minor-fg); }
+.rq-ribbon[data-tier="major"] { --rq-tier-rgb: var(--rq-tier-major-rgb); --rq-tier-stroke: var(--rq-tier-major-stroke); --rq-tier-fg: var(--rq-tier-major-fg); }
+.rq-ribbon[data-tier="legendary"] { --rq-tier-rgb: var(--rq-tier-legendary-rgb); --rq-tier-stroke: var(--rq-tier-legendary-stroke); --rq-tier-fg: var(--rq-tier-legendary-fg); }
+.rq-board-hint { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-rank-solid, var(--rq-text-4)); }
+.rq-board-hint[data-empty="true"] { color: var(--rq-text-4); }
+
+/* ── Podiekort ────────────────────────────────────────────────────────────── */
+.rq-board-podium-list { display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+.rq-board-podium-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--rq-sp-16); align-items: end; margin: var(--rq-sp-32) 0 var(--rq-sp-16); }
+.rq-board-podium-row[data-count="3"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.14fr) minmax(0, 1fr); }
+.rq-board-podium { cursor: pointer; }
+.rq-board-podium__body { position: relative; padding: var(--rq-pad-card); }
+.rq-board-podium__head { display: flex; align-items: center; gap: var(--rq-sp-10); margin-bottom: var(--rq-sp-10); }
+.rq-board-podium__id { flex: 1; min-width: 0; }
+.rq-board-podium__nameline { display: flex; align-items: baseline; gap: var(--rq-sp-8); }
+.rq-board-podium .rq-name { color: var(--rq-text-1); }
+.rq-board-lvl { font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-board-titleline { display: flex; align-items: flex-start; gap: var(--rq-sp-6); margin-top: var(--rq-sp-4); font-style: italic; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-gold-text); }
+.rq-board-titleline[data-empty="true"] { color: var(--rq-text-4); }
+.rq-board-xprow { display: flex; justify-content: space-between; margin-bottom: var(--rq-sp-4); }
+.rq-board-track { height: var(--rq-board-bar-h); margin-bottom: var(--rq-sp-10); }
+.rq-board-podium .rq-track > .rq-fill { background: var(--rq-rank-solid); }
+.rq-board-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: var(--rq-gap-hair); }
+.rq-board-stats + .rq-board-stats { margin-bottom: var(--rq-sp-10); }
+.rq-board-stat { background: var(--rq-cell); padding: var(--rq-sp-6) var(--rq-sp-8); }
+.rq-board-stat__value { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+.rq-board-stat__value[data-tone="rank"] { color: var(--rq-rank-solid); }
+.rq-board-stat__value[data-tone="up"] { color: var(--rq-up); }
+.rq-board-stat__value[data-tone="down"] { color: var(--rq-down); }
+.rq-board-pace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rq-sp-8) var(--rq-sp-14); padding-bottom: var(--rq-sp-10); border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+.rq-board-pace__value { font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); }
+.rq-board-pace__value[data-tone="rank"] { color: var(--rq-rank-solid); }
+.rq-board-pace__value[data-tone="up"] { color: var(--rq-up); }
+.rq-board-pace__value[data-tone="down"] { color: var(--rq-down); }
+.rq-board-podium__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-8); padding-top: var(--rq-sp-8); border-top: var(--rq-hair) solid var(--rq-line-2); }
+.rq-board-podium__pace + .rq-board-podium__foot { border-top: 0; }
+.rq-board-podium__foot-end { display: inline-flex; align-items: center; gap: var(--rq-sp-6); }
+.rq-board-lastrun { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-board-plinth { height: var(--rq-board-plinth); border-left: var(--rq-hair) solid var(--rq-line-2); border-right: var(--rq-hair) solid var(--rq-line-2); }
+
+/* ── Hårlinjetabeller (resten-listan, veckan, streaks) ────────────────────── */
+.rq-board-row { display: grid; grid-template-columns: var(--rq-board-rest-cols); align-items: center; gap: var(--rq-sp-10); }
+.rq-board-row[data-clickable="true"] { cursor: pointer; }
+.rq-board-row--rest { border-left: var(--rq-edge-w) solid var(--rq-line-2); }
+.rq-board-row--rest[data-pos="4"] { border-left-color: var(--rq-line-4); }
+.rq-board-row--rest[data-pos="5"] { border-left-color: var(--rq-line-3); }
+.rq-board-row--week { grid-template-columns: var(--rq-board-week-cols); }
+.rq-board-row--streak { grid-template-columns: var(--rq-board-streak-cols); }
+.rq-board-nameline { display: flex; align-items: baseline; gap: var(--rq-sp-6); min-width: 0; }
+.rq-board-nameline--desktop { gap: var(--rq-sp-8); }
+.rq-board-nameline--desktop .rq-board-delta { flex-shrink: 0; width: var(--rq-board-delta-w); text-align: right; }
+.rq-board-sub { display: flex; align-items: center; gap: var(--rq-sp-6); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-board-track--thin { height: var(--rq-board-bar-h-thin); margin: var(--rq-sp-4) 0; }
+.rq-board-titleline--row { margin: 0 0 var(--rq-sp-6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--rq-gold-rgb) / .8); }
+.rq-board-num { font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); text-align: right; }
+.rq-board-num[data-tone="up"] { color: var(--rq-up); }
+.rq-board-num[data-tone="down"] { color: var(--rq-down); }
+.rq-board-num--soft { font-weight: 400; color: var(--rq-text-3); }
+.rq-board-cell-right { text-align: right; }
+.rq-board-cell-center { text-align: center; }
+.rq-board-cell-sub { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-board-xp { font-family: var(--rq-font-mono); font-size: var(--rq-fs-stat-value); color: var(--rq-gold-text); text-align: right; }
+.rq-board-form { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); text-align: right; }
+.rq-board-form[data-dir="up"] { color: var(--rq-up); }
+.rq-board-form[data-dir="down"] { color: var(--rq-down); }
+
+/* ── Dagstaplar (Week) ────────────────────────────────────────────────────── */
+.rq-daybars { display: flex; align-items: stretch; gap: var(--rq-sp-4); height: var(--rq-board-daybars-h); margin-top: var(--rq-sp-4); }
+.rq-board-row--week .rq-daybars { margin-top: 0; }
+.rq-daybar { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-2); }
+.rq-daybar__track { flex: 1; min-height: 0; width: 100%; display: flex; align-items: flex-end; }
+.rq-daybar__fill {
+  width: 100%; height: var(--h); min-height: var(--rq-edge-w); background: var(--rq-fill-2); transform-origin: bottom;
+  animation: rqGrowY var(--rq-dur-grow) var(--rq-ease-bar) both; animation-delay: var(--rq-delay, 0s);
+}
+.rq-daybar__fill[data-level="1"] { background: var(--rq-heat-2); }
+.rq-daybar__fill[data-level="2"] { background: var(--rq-heat-3); }
+.rq-daybar__fill[data-level="3"] { background: var(--rq-heat-4); }
+.rq-daybar__label { font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); color: var(--rq-text-4); }
+
+/* ── Sidokort: mover, pack-total, notis ───────────────────────────────────── */
+.rq-board-mover { --rq-edge: var(--rq-rank-1-edge); }
+.rq-board-mover .rq-label { color: var(--rq-gold-text); margin: 0 0 var(--rq-sp-6); }
+.rq-board-mover__name { margin: 0; }
+.rq-board-mover__text { margin: var(--rq-sp-6) 0 0; }
+.rq-board-pack .rq-label { margin: 0 0 var(--rq-sp-8); }
+.rq-board-pack__summary { margin: var(--rq-sp-4) 0 var(--rq-sp-10); }
+.rq-board-pack .rq-label[data-caption] { margin: var(--rq-sp-6) 0 0; }
+.rq-board-note { padding: var(--rq-sp-12) var(--rq-sp-14); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+
+/* ── Streaks ──────────────────────────────────────────────────────────────── */
+.rq-board [data-accent="gold"] { --rq-acc: var(--rq-rank-1); --rq-acc-edge: var(--rq-rank-1-edge); }
+.rq-board [data-accent="silver"] { --rq-acc: var(--rq-rank-2); --rq-acc-edge: var(--rq-rank-2-edge); }
+.rq-board [data-accent="bronze"] { --rq-acc: var(--rq-rank-3); --rq-acc-edge: var(--rq-rank-3-edge); }
+.rq-board [data-accent="down"] { --rq-acc: var(--rq-down); --rq-acc-edge: var(--rq-down); }
+.rq-board [data-accent="none"] { --rq-acc: var(--rq-text-4); --rq-acc-edge: var(--rq-line-4); }
+.rq-board-streak { border-left: var(--rq-edge-w-thin) solid var(--rq-acc-edge); }
+.rq-board-streak__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-6); }
+.rq-board-streak__nums { display: flex; align-items: baseline; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-6); }
+.rq-board-streak__days { font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-acc); }
+.rq-board-streak__detail { margin-left: auto; font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-board-streak__track { height: var(--rq-board-streak-bar-h); }
+.rq-board-streak .rq-track > .rq-fill { background: var(--rq-acc); }
+.rq-board-streak__scale { display: flex; justify-content: space-between; margin-top: var(--rq-sp-4); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-board-streak__scale > [data-now] { color: var(--rq-acc); }
+.rq-board-status { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-board-status[data-status="safe"] { color: var(--rq-up); }
+.rq-board-status[data-status="at-risk"] { color: var(--rq-down); }
+.rq-board-alert { --rq-edge: var(--rq-line-6); --rq-edge-line: var(--rq-line-3); }
+.rq-board-alert[data-state="at-risk"] { --rq-edge: var(--rq-down); --rq-edge-line: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); }
+.rq-board-alert[data-state="safe"] { --rq-edge: var(--rq-up); --rq-edge-line: rgb(var(--rq-up-rgb) / var(--rq-edge-status)); }
+.rq-board-alert__eyebrow { display: flex; align-items: center; gap: var(--rq-sp-8); margin: 0 0 var(--rq-sp-6); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-3); }
+.rq-board-alert[data-state="at-risk"] .rq-board-alert__eyebrow { color: var(--rq-down); }
+.rq-board-alert[data-state="safe"] .rq-board-alert__eyebrow { color: var(--rq-up); }
+.rq-board-alert__text { margin: var(--rq-sp-6) 0 var(--rq-sp-12); }
+.rq-board-ladder { margin: 0; }
+.rq-board-ladder__title { margin: 0 0 var(--rq-sp-8); }
+.rq-board-ladder__grid { margin: 0; padding: 0; list-style: none; }
+.rq-board-ladder__row { display: flex; justify-content: space-between; align-items: baseline; padding: var(--rq-sp-6) var(--rq-sp-8); background: var(--rq-cell); font-size: var(--rq-fs-body); color: var(--rq-text-3); }
+.rq-board-ladder__mult { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); color: var(--rq-acc); }
+.rq-board-ladder__foot { margin: var(--rq-sp-10) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }

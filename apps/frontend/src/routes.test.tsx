@@ -50,7 +50,7 @@ describe('varje route renderar utan krasch inne i skalet', () => {
     await waitFor(() => expect(location()).toBe('/board'));
   });
 
-  it('/board visar den gamla Leaderboard-skärmen med gruppens löpare', async () => {
+  it('/board visar The Standings med gruppens löpare (Season-vyn är default)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/board', width: MOBILE });
     expect((await screen.findAllByText(OTHER.name)).length).toBeGreaterThan(0);
   });

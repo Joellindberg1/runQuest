@@ -1,5 +1,6 @@
 import React from 'react';
-import { Leaderboard } from '@/features/leaderboard/components/Leaderboard';
+import { SeasonBoard } from '@/features/leaderboard/components/SeasonBoard';
+import '@/features/leaderboard/board.css';
 import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
 import type { User, Run, Challenge } from '@runquest/types';
 
@@ -49,6 +50,9 @@ const MOCK_USERS: User[] = [
 ];
 
 const MOCK_CURRENT_USER = MOCK_USERS[0];
+
+// Förhandsvisningen ritar de RIKTIGA Board-komponenterna (SeasonBoard) med mockdata; rank-pilarna är påhittade.
+const MOCK_RANK_DELTAS: Record<string, number | null> = { u1: 1, u2: -1, u3: 0, u4: 2, u5: null, u6: -2 };
 
 // Mock titles for preview — tests display of 3 titles + overflow label
 const makeTitle = (title_id: string, title_name: string): import('@runquest/types').UserTitle => ({
@@ -115,7 +119,9 @@ const LeaderboardPreviewPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8 space-y-4">
       {widget}
-      <Leaderboard users={MOCK_USERS} currentUser={MOCK_CURRENT_USER} titleOverrides={MOCK_TITLE_OVERRIDES} />
+      <div className="rq-board">
+        <SeasonBoard users={MOCK_USERS} titlesByUser={MOCK_TITLE_OVERRIDES} rankDeltaByUser={MOCK_RANK_DELTAS} now={new Date()} />
+      </div>
     </div>
   );
 };
