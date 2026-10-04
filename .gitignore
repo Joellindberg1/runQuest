@@ -82,9 +82,9 @@ packages/*/dist
 *.tsbuildinfo
 
 
-# docs/Project mgm
+# docs/Project mgm (privata arbetsfiler — den triagerade roadmapen i
+# docs/roadmap.md är publik-säker och versionshanteras)
 Idébank.md
-Roadmap.md
 bug_list.md
 Todo.md
 architecture.md
