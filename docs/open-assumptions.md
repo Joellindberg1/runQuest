@@ -68,9 +68,9 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - En runda kan bara ändras på datum och distans (servern tar inget annat).
 
 ## Skal & delat
-- Toastern är inte monterad i appen — gamla `toast()`-anrop i äldre features
-  visar ingenting. Nya features bekräftar via permanenta `role=status`-ytor.
-  Åtgärd: ta bort de döda anropen eller montera Toaster (eget litet ärende).
+- RÄTTAT 2026-10-04: Toastern ÄR monterad (AppProviders) och gamla `toast()`-
+  anrop visas. Nya features använder ändå permanenta `role=status`-ytor —
+  motivet är konsekvens och pålitlig uppläsning, inte att Toastern saknas.
 - Feature-CSS laddas före index.css (main.tsx-importordningen) — overrides av
   delade klasser kräver sammansatta selektorer (dokumenterat i
   features/challenges/README.md).
@@ -95,3 +95,11 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
    som lista i gamla UI:t. Rätta typerna i packages/shared (kräver
    data-inkrement, shared får inte röras i komponentinkrement).
 5. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
+6. **Raderade Strava-rundor återuppstår:** DELETE /runs/:id saknar gravsten och
+   synken återimporterar inom 7-dagarsfönstret. BESLUT (Lead): users-with-runs
+   får ett source-fält och Profile blockerar Delete för Strava-rundor med
+   förklaring ("radera i Strava i stället"). Tas i i9:s data-spår.
+7. **PUT/DELETE /runs kvalificerar inte event:** bara POST anropar
+   checkEventQualification — en redigering som når eventgränsen (eller radering
+   som borde avkvalificera) missas. Frontendens 4s-uppföljning efter edit/delete
+   är verkningslös tills detta fixas. Tas i i9:s data-spår.
