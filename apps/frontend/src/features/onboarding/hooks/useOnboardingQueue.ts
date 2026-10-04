@@ -24,7 +24,7 @@ function buildQueue(): string[] {
   //    while a page tour is active. Pages check currentItem themselves.
   queue.push('tour_leaderboard_v2');
   queue.push('tour_titles_v2');
-  queue.push('tour_challenges_v1');
+  queue.push('tour_duels_v2');
   queue.push('tour_events_v1');
   queue.push('tour_profile_v1');
 

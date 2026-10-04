@@ -25,26 +25,27 @@ export const TOUR_EVENTS_V1: TourStep[] = [
   },
 ];
 
-// ── /challenges — tour_challenges_v1 ─────────────────────────────────────
-export const TOUR_CHALLENGES_V1: TourStep[] = [
+// ── /duels — tour_duels_v2 ───────────────────────────────────────────────
+// v2: skärmen är omritad (Standings/Live/Rules/History, tokens, send-sheet); v1-ankarna finns inte längre.
+export const TOUR_DUELS_V2: TourStep[] = [
   {
     title: 'Challenges',
-    description: '1v1 challenges against your group members. Win to earn XP boosts that multiply your next run. You can only have one active challenge at a time.',
+    description: '1v1 duels against your pack. Win and you get an XP boost on top of your streak multiplier; lose and you take a penalty. You can only have one challenge going at a time.',
   },
   {
-    element: '[data-tour="challenges-tokens"]',
-    title: 'Challenge Tokens',
-    description: 'You need tokens to send a challenge. Tokens drop as you unlock titles and hit milestones — they\'re earned, not bought.',
+    element: '[data-tour="duels-tokens"]',
+    title: 'Your tokens',
+    description: 'A token is a challenge you can send. You earn them by levelling up, and each one fixes the metric and the length of the duel — you choose who gets it.',
   },
   {
-    element: '[data-tour="challenges-live-tab"]',
-    title: 'Live Challenges',
-    description: 'When you have an active challenge, it shows here alongside all other ongoing group challenges.',
+    element: '[data-tour="duels-send"]',
+    title: 'Send a challenge',
+    description: 'Pick a token and an opponent. The duel starts the day after they accept; minor and major challenges lapse after three days without an answer.',
   },
   {
-    element: '[data-tour="challenges-leaderboard"]',
-    title: 'Challenge Leaderboard',
-    description: 'Overall wins, draws and losses for your group. Challenge the top players to climb faster.',
+    element: '[data-tour="duels-tabs"]',
+    title: 'Standings, Live, Rules, History',
+    description: 'Standings ranks the pack by wins. Live shows every duel in progress. Rules explains the stakes, and History lists every settled match.',
   },
 ];
 

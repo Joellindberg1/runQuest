@@ -10,8 +10,8 @@ interface ChallengeButtonProps {
 
 /**
  * Runner cards primärhandling, men en SEKUNDÄR knapp (guld-hårlinje) enligt prototypen — kortet har ingen
- * fylld guldknapp. Länkar till `/duels?send=1&opponent=<id>`; send-sheeten som läser parametrarna byggs i
- * inkrement 5, tills dess landar länken på Duels. Med en pågående utmaning visas i stället en statuschip
+ * fylld guldknapp. Länkar till `/duels?send=1&opponent=<id>`; send-sheeten (features/challenges/SendSheet) läser
+ * parametrarna och förväljer löparen. Med en pågående utmaning visas i stället en statuschip
  * (en avstängd knapp har för låg kontrast för att bära tillståndsinfo).
  */
 export function ChallengeButton({ opponentId, active }: ChallengeButtonProps) {
