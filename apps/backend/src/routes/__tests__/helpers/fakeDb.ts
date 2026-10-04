@@ -24,6 +24,8 @@ export interface FakeDbOptions {
   errors?: Record<string, { message: string }>;
   /** Fel för enskilda queries (t.ex. bara historikfrågan) — utvärderas vid körning, när alla filter är satta. */
   failWhen?: (q: RecordedQuery) => { message: string } | null;
+  /** Ger insatta rader utan `id` ett löpande id ('gen-1', ...) — för routes som läser tillbaka id efter insert. */
+  autoIds?: boolean;
 }
 
 function pick(row: Row, path: string): unknown {
@@ -32,19 +34,23 @@ function pick(row: Row, path: string): unknown {
 
 export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptions = {}) {
   const queries: RecordedQuery[] = [];
+  let nextId = 1;
 
   function from(table: string) {
     const q: RecordedQuery = { table, select: null, filters: [], range: null, limit: null };
     queries.push(q);
     let orderBy: Array<{ column: string; ascending: boolean }> = [];
     let wantCount = false;
+    let head = false;
     let single = false;
+    let maybe = false;
     let mutation: { kind: 'update' | 'insert' | 'delete'; values?: Row | Row[] } | null = null;
 
     const builder: any = {
       select(columns?: string, opts?: { count?: string; head?: boolean }) {
         q.select = columns ?? '*';
         if (opts?.count) wantCount = true;
+        if (opts?.head) head = true;
         return builder;
       },
       eq(column: string, value: unknown) { q.filters.push({ op: 'eq', column, value }); return builder; },
@@ -65,7 +71,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       range(from: number, to: number) { q.range = [from, to]; return builder; },
       limit(n: number) { q.limit = n; return builder; },
       single() { single = true; return builder; },
-      maybeSingle() { single = true; return builder; },
+      maybeSingle() { single = true; maybe = true; return builder; },
       then(resolve: (v: any) => void, reject?: (e: unknown) => void) {
         try { resolve(execute()); } catch (e) { reject?.(e); }
       },
@@ -76,9 +82,10 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       if (err) return { data: null, error: err, count: null };
 
       if (mutation?.kind === 'insert') {
-        const inserted = Array.isArray(mutation.values) ? mutation.values : [mutation.values as Row];
+        const raw = Array.isArray(mutation.values) ? mutation.values : [mutation.values as Row];
+        const inserted = options.autoIds ? raw.map((r) => (r.id === undefined ? { ...r, id: `gen-${nextId++}` } : r)) : raw;
         tables[table] = [...(tables[table] ?? []), ...inserted];
-        return { data: inserted, error: null, count: null };
+        return { data: single ? inserted[0] ?? null : inserted, error: null, count: null };
       }
 
       let rows = [...(tables[table] ?? [])];
@@ -112,9 +119,14 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
         });
       }
       const total = rows.length;
+      // PostgREST svarar 416 (PGRST103) när offset ligger bortom sista raden
+      if (q.range && q.range[0] > 0 && q.range[0] >= total) {
+        return { data: null, error: { code: 'PGRST103', message: 'Requested range not satisfiable' }, count: null, status: 416 };
+      }
+      if (head) return { data: null, error: null, count: wantCount ? total : null };
       if (q.range) rows = rows.slice(q.range[0], q.range[1] + 1);
       if (q.limit != null) rows = rows.slice(0, q.limit);
-      if (single) return { data: rows[0] ?? null, error: rows[0] ? null : { message: 'not found', code: 'PGRST116' } };
+      if (single) return { data: rows[0] ?? null, error: rows[0] || maybe ? null : { message: 'not found', code: 'PGRST116' } };
       return { data: rows, error: null, count: wantCount ? total : null };
     }
 
