@@ -2,7 +2,7 @@
 import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
-  ChallengeGroupHistoryResponse, OffsetPageMeta,
+  ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse,
 } from '@runquest/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -1084,6 +1084,19 @@ class BackendApiService {
   }
 
   // ─── Events ───────────────────────────────────────────────────────────────
+
+  /**
+   * GET /events/history — avslutade events, nyast först, offset-sidor (ADR 007 B8). `data.meta` bär `total` och
+   * `has_more` (sidstorlek default 30, max 50).
+   */
+  async getEventHistoryPage(limit: number, offset: number): Promise<ApiResponse<EventsHistoryResponse>> {
+    return this.authenticatedRequest<EventsHistoryResponse>(`/events/history?limit=${limit}&offset=${offset}`);
+  }
+
+  /** GET /events — aktiva + schemalagda events med participantCount/memberCount för alla typer (ADR 007 B7). Samma anrop som getEvents, med delade typer. */
+  async getEventList(): Promise<ApiResponse<EventsResponse>> {
+    return this.authenticatedRequest<EventsResponse>('/events');
+  }
 
   async getEventsHistory(): Promise<ApiResponse<{
     events: Array<{
