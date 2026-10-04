@@ -6,11 +6,15 @@ Produkt          ← live på runquest.dev, 6 aktiva användare (DB-verifierat).
                    Kända gap mot Produkt-nivån: Sentry saknas, ingen staging-DB
                    (öppet vägval, se ADR-förslagen i docs/STATE-proposal.md).
 Pågående: redesign på `redesign/integration` (plan: docs/design/redesign-plan.md).
-                   Inkrement 0–4 mergade och integrationskritiker-godkända
-                   (tema/tokens, skal+login, Board, Runner card, Titles) + alla
-                   ADR 007-dataendpoints. Näst: i5 Duels. Öppet ägarbeslut:
-                   kategoriplacering för The Finisher/The Commuter/The Hamster
-                   (ren frontend-mappning, justerbar när som helst).
+                   Inkrement 0–5 mergade och integrationskritiker-godkända
+                   (tema/tokens, skal+login, Board, Runner card, Titles, Duels)
+                   + alla ADR 007-dataendpoints. i5b: cachefix Runner↔Duels +
+                   ShellErrorBoundary (skal + desktop-overlay). Näst: i6 Events.
+                   Öppna ägarbeslut: kategoriplacering The Finisher/The
+                   Commuter/The Hamster; boost-panel på mobil (avvikelse från
+                   mobilprototypen). Backend-kontraktsfråga till senare data-
+                   inkrement: group-stats flaggar inte inkommande pending
+                   (motståndare ser ledig ut; 400 visas graciöst).
 
 ## Stack
 - Monorepo, npm workspaces (`apps/*`, `packages/*`), ESM överallt, TypeScript. Ingen ADR motiverar stackvalen (historiska) — retroaktiva ADR:er föreslagna.
