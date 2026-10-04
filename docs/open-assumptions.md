@@ -13,8 +13,10 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - Nedräkningsringens fyllnad = andel av fönstret som återstår (prototypens 62 %
   är hårdkodad och har ingen semantik).
 - "Up next" = det event som öppnar först, oavsett typ; resten hamnar i This week.
-- Ingen invalidering av `['events']` när en runda loggas — öppet-kortets
-  "N of M done" släpar upp till ~2 min (staleTime 60 s, refetch 120 s).
+- ~~Ingen invalidering av `['events']` när en runda loggas~~ LÖST i inkrement 7:
+  `useCreateRun` invaliderar `['events']` direkt + en gång till efter 4 s
+  (backend kör checkEventQualification fire-and-forget, första omhämtningen kan
+  hinna före).
 - Ett event räknas som öppet efter klockan, inte efter `status` (cron flyttar
   scheduled→active var 5:e min). Skal och skärm delar regeln via eventPhase.
 - Historik-pagern navigerar med `replace: true` — webbläsarens Back lämnar
@@ -39,6 +41,18 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - Tre placeringar väntar på ägarbeslut: The Finisher (Time of day?),
   The Commuter (Consistency?), The Hamster (Volume?).
 
+## Log (inkrement 7)
+- Estimated XP räknar inte med aktiva utmaningsboostar (servern lägger på dem
+  vid sparande; kortet säger det) och visar inte bakdaterings-kaskaden (en
+  runda som fyller ett glapp räknar om senare rundors streak/XP).
+- Streakdag och ranking i förhandsvisningen räknas ur users-with-runs med
+  backendens regel (logModel ekvivalent med reprocessRunsFromDate, testat).
+- Group history: 10 per sida (prototypen 5), staleTime 0 så Profile-edit/delete
+  inte lämnar gamla rader. Guldkant = min egen runda; underlag NULL (äldre
+  manuella) ger ingen chip; "min runda" avgörs via user_id-jämförelse.
+- Manuella outdoor-rundor skickar explicit `is_treadmill: false` (ADR 007
+  addendum 12 — numeriskt inert tills manuella rundor får höjddata).
+
 ## Skal & delat
 - Toastern är inte monterad i appen — gamla `toast()`-anrop i äldre features
   visar ingenting. Nya features bekräftar via permanenta `role=status`-ytor.
@@ -51,6 +65,10 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   använder en-GB och är stabil i test men kan skilja mellan miljöer).
 
 ## Backend-kontraktsfrågor (samlas till nästa data-inkrement)
+0. **Datumvalideringen i `POST /runs` jämför mot serverns UTC-"idag"** —
+   mellan 00:00 och ~02:00 svensk tid nekas dagens datum som framtid (klienten
+   räknar Stockholm, serverfelet visas graciöst). Backend bör validera mot
+   Stockholm-dagen (dateUtils).
 1. `group-stats` flaggar `has_pending_challenge` bara för utmanaren — en medlem
    med inkommande väntande utmaning ser ledig ut i send-sheeten (400 visas
    graciöst). Vill ha: flagga även mottagarsidan.

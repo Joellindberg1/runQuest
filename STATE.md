@@ -6,13 +6,15 @@ Produkt          ← live på runquest.dev, 6 aktiva användare (DB-verifierat).
                    Kända gap mot Produkt-nivån: Sentry saknas, ingen staging-DB
                    (öppet vägval, se ADR-förslagen i docs/STATE-proposal.md).
 Pågående: redesign på `redesign/integration` (plan: docs/design/redesign-plan.md).
-                   Inkrement 0–6 mergade och integrationskritiker-godkända
+                   Inkrement 0–7 mergade (0–6 integrationskritiker-godkända, i7 under integrationskritik)
                    (tema/tokens, skal+login, Board, Runner card, Titles, Duels,
                    Events) + alla ADR 007-dataendpoints. i5b: cachefix
                    Runner↔Duels + ShellErrorBoundary. i6: skal och Events delar
                    EN events-query (getEvents borta) och klock-regeln eventPhase;
                    i6b: skalet visar tävling utan entry ("Not entered").
-                   Näst: i7 Log. Antaganden + backend-kontraktsfrågor:
+                   i7 Log mergad (XP-preview via shared-formeln, group history,
+                   Strava-queries delade i shared/hooks). Näst: i8 Profile.
+                   Antaganden + backend-kontraktsfrågor:
                    docs/open-assumptions.md (NY — Lead underhåller). Öppna
                    ägarbeslut: titelkategorier (Finisher/Commuter/Hamster);
                    boost-panel på mobil-Duels; competition-kortet på Events
