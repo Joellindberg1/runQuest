@@ -4,7 +4,7 @@ import { cssVars } from '@/features/leaderboard/cssVars';
 import { getInitials } from '@/shared/utils/formatters';
 import { useProfilePictureUpload } from '../hooks/useProfilePictureUpload';
 import { formatInt } from '../profileFormat';
-import { xpToNextText, type RunnerHero, type StatCell } from '../profileModel';
+import { ACCEPTED_PICTURE_TYPES, xpToNextText, type RunnerHero, type StatCell } from '../profileModel';
 
 /** Profilbilden: avatar + "Change photo". Uppladdningen (bild, högst 5 MB) bekräftas i en permanent live-region. */
 function PhotoRow({ user }: { user: User }) {
@@ -26,7 +26,7 @@ function PhotoRow({ user }: { user: User }) {
         <span className="rq-profile-photo__text">Profile photo</span>
         <label className="rq-btn rq-btn--ghost rq-btn--compact rq-profile-photo__button" aria-disabled={uploading}>
           {uploading ? 'Uploading…' : 'Change photo'}
-          <input type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={onChange} />
+          <input type="file" accept={ACCEPTED_PICTURE_TYPES.join(',')} className="sr-only" disabled={uploading} onChange={onChange} />
         </label>
       </div>
       {/* Live regions måste finnas innan texten kommer för att annonseras: behållarna är permanenta, bara texten monteras. */}

@@ -44,7 +44,7 @@ const LEVEL_TABLE = [
 ];
 
 // STREAK_MULTIPLIERS imported from @/constants/streakConstants
-// — single source of truth shared with UserProfile stats display.
+// — single source of truth (Profile and Runner card read the ladder from /config/xp).
 
 const TITLES = [
   { name: 'The Ultra Man',             icon: <BarChart3 className="w-4 h-4" />,  description: 'Most total kilometers', unlock: 'Min 100 km total' },

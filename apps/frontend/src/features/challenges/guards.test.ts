@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // Vakttester över Duels-filerna: designspråkets regel 1 (tokens, inga råvärden), 2 (skarpa hörn), 10 (ikoner ur RQIcon,
-// inga emojis) + att CSS-måtten finns i temafilen och att inget i featuren förlitar sig på en Toaster som inte är monterad.
+// inga emojis) + att CSS-måtten finns i temafilen och att featuren bekräftar i statusregioner, inte med toast().
 
 const sources = import.meta.glob(
   ['./**/*.{ts,tsx}', '!./**/*.test.{ts,tsx}', '!./**/*.fixture.ts', '../../pages/DuelsPage.tsx'],
@@ -52,7 +52,7 @@ describe('Duels-filerna följer designspråket', () => {
     }
   });
 
-  it('engelskt UI i en-GB: ingen sv-SE och inga Toaster-beroende toasts (Toaster är inte monterad)', () => {
+  it('engelskt UI i en-GB: ingen sv-SE och inga toast()-anrop (bekräftelser står i statusregioner)', () => {
     for (const [path, text] of codeFiles) {
       expect({ path, svSE: /sv-SE/.test(text), toast: /from ['"]sonner['"]/.test(text) }).toEqual({ path, svSE: false, toast: false });
     }

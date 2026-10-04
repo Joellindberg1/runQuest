@@ -35,10 +35,22 @@ export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
   const monthsLabel = `${heat.months.length} ${heat.months.length === 1 ? 'month' : 'months'}`;
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Är raden bredare än kortet visas den nyaste delen (innevarande månad), inte den äldsta.
+  // Är raden bredare än kortet visas den nyaste delen (innevarande månad), inte den äldsta. Högerpaddingen (luft åt idag-ringen)
+  // räknas inte som överflöd: ryms rutnätet i övrigt startar raden vid början och scrollar inte alls.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
+    if (!el) return undefined;
+    const place = () => {
+      const slack = parseFloat(getComputedStyle(el).paddingRight) || 0;
+      const overflow = el.scrollWidth - el.clientWidth;
+      const fits = overflow <= slack;
+      el.dataset.fits = String(fits);
+      el.scrollLeft = fits ? 0 : overflow;
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [months]);
 
   return (

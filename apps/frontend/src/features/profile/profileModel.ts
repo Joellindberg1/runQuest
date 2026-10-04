@@ -99,10 +99,13 @@ export function editFormFor(run: Pick<Run, 'date' | 'distance'>): EditForm {
   return { date: dayOf(run), distance: String(run.distance) };
 }
 
-/** Backendens regler (PUT /runs/:id använder samma validering som POST): minst 1.0 km, datum från 2025-06-01 till idag. */
-export function validateEdit(form: EditForm, today: string): FieldErrors {
+/**
+ * Backendens regler (PUT /runs/:id använder samma validering som POST): minst 1.0 km, datum från 2025-06-01 till idag.
+ * Ett oförändrat datum valideras inte (och skickas inte): man ska kunna rätta distansen på en äldre runda.
+ */
+export function validateEdit(form: EditForm, today: string, original?: Pick<Run, 'date'>): FieldErrors {
   const errors: FieldErrors = {};
-  const date = validateDate(form.date, today);
+  const date = original && form.date === dayOf(original) ? undefined : validateDate(form.date, today);
   const distance = validateDistance(form.distance);
   if (date) errors.date = date;
   if (distance) errors.distance = distance;
@@ -110,15 +113,16 @@ export function validateEdit(form: EditForm, today: string): FieldErrors {
 }
 
 export interface RunUpdate {
-  date: string;
+  /** Utelämnas när datumet inte ändrats — en ren distansändring ska inte falla på serverns datumvalidering (UTC-"idag"). */
+  date?: string;
   distance: number;
 }
 
-export function buildUpdate(form: EditForm, today: string): { ok: true; update: RunUpdate } | { ok: false; errors: FieldErrors } {
-  const errors = validateEdit(form, today);
+export function buildUpdate(form: EditForm, today: string, original: Pick<Run, 'date'>): { ok: true; update: RunUpdate } | { ok: false; errors: FieldErrors } {
+  const errors = validateEdit(form, today, original);
   const km = parseKm(form.distance);
   if (Object.keys(errors).length > 0 || km === null) return { ok: false, errors };
-  return { ok: true, update: { date: form.date, distance: km } };
+  return { ok: true, update: form.date === dayOf(original) ? { distance: km } : { date: form.date, distance: km } };
 }
 
 /** Sant när något i formuläret skiljer sig från rundan (annars finns inget att spara). */
@@ -157,11 +161,14 @@ export function buildXpParts(run: Run): XpPart[] {
 
 export const MAX_PICTURE_BYTES = 5 * 1024 * 1024;
 
-/** Samma regler som POST /users/profile-picture: bild, högst 5 MB. */
+/** Typerna servern tar emot (apps/backend/src/routes/users.ts, ALLOWED_IMAGE_TYPES). */
+export const ACCEPTED_PICTURE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
+
+/** Samma regler som POST /users/profile-picture: JPEG, PNG, WebP eller GIF, högst 5 MB. */
 export function validatePicture(file: Pick<File, 'size' | 'type'> | undefined): string | null {
   if (!file) return 'Choose an image to upload';
   if (file.size > MAX_PICTURE_BYTES) return 'The image must be smaller than 5 MB';
-  if (!file.type.startsWith('image/')) return 'Only image files are allowed';
+  if (!(ACCEPTED_PICTURE_TYPES as readonly string[]).includes(file.type)) return 'Only JPEG, PNG, WebP or GIF images are allowed';
   return null;
 }
 

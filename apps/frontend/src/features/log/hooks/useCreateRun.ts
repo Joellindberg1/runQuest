@@ -9,7 +9,7 @@ export { EVENT_FOLLOW_UP_MS } from '@/features/runs/runEffects';
 /**
  * Logga en runda. En lyckad runda ändrar allt som räknas ur rundorna — kedjan av invalideringar bor i `features/runs/runEffects`
  * och delas med Profiles redigera/radera, så att POST, PUT och DELETE aldrig glider isär.
- * Meddelanden till användaren sköts av skärmen (Toaster är inte monterad i appen), därför kastar mutationen.
+ * Meddelanden till användaren sköts av skärmen (permanenta statusregioner i stället för toast: samma mönster på alla skärmar, och texten finns kvar och läses upp pålitligt), därför kastar mutationen.
  */
 export function useCreateRun() {
   const queryClient = useQueryClient();

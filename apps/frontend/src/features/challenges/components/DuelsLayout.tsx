@@ -24,7 +24,7 @@ const TABS: readonly ViewTab<DuelsView>[] = [
   { key: 'history', label: 'History', icon: 'clock' },
 ];
 
-/** Besked efter en handling (Toaster är inte monterad i appen, så resultatet står på sidan). */
+/** Besked efter en handling (resultatet står kvar på sidan i en statusregion i stället för en toast som försvinner av sig själv). */
 export interface Notice {
   tone: 'ok' | 'error';
   text: string;

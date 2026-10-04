@@ -34,9 +34,10 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   `GET /users/me/stats` rätt lösning (inget som behövs än).
 - **Redigera/radera använder SAMMA invalideringskedja som POST** (`features/runs/runEffects.invalidateAfterRunChange`, delad med Log): users-with-runs
   (väntas in), leaderboard, öppna event (direkt + en gång efter 4 s), titlar (båda rötterna), utmaningar, head-to-head och gruppens historik. Förr hämtades bara
-  users-with-runs om — leaderboard, Duels och Group history stod kvar med gamla siffror. Rutan stängs först när omhämtningen är klar; då visas bekräftelsen och fokus flyttas dit (Radix återför annars fokus till en Edit-knapp som inte längre finns).
-- **Inga toasts.** Toaster är inte monterad i appen, så de gamla `toast()`-anropen i flödet visade ingenting. Bekräftelser ligger i permanenta `role="status"`-
-  regioner (rundhistoriken, bildraden), fel i `role="alert"` (redigeringsrutan, bildraden). `guards.test.ts` förbjuder sonner/toast i featuren.
+  users-with-runs om — leaderboard, Duels och Group history stod kvar med gamla siffror. Rutan stängs först när omhämtningen är klar; då visas bekräftelsen och fokus flyttas dit (rutan är kontrollerad och har ingen Dialog.Trigger, så Radix har inget att återföra fokus till — det föll till body; `EditRunSheet.onRestoreFocus` styr i stället: bekräftelsen efter sparat/raderat, annars tillbaka till Edit-knappen, även vid Cancel, ✕ och Esc).
+- **Inga toasts i det här flödet.** Bekräftelser ligger i permanenta `role="status"`-regioner (rundhistoriken, bildraden), fel i `role="alert"` (redigeringsrutan,
+  bildraden): samma mönster som Log och Duels, texten finns kvar tills man gör något annat och läses upp pålitligt. (Toastern är monterad i `AppProviders` och
+  äldre features använder den; de gamla anropen i Profile-flödet visades alltså, men ersattes av konsekvensskäl.) `guards.test.ts` förbjuder sonner/toast i featuren.
 - **Redigeringsrutan** speglar backendens regler (PUT /runs/:id validerar som POST): minst 1.0 km, inte före 2025-06-01, inte framtida datum (Stockholm-dagen).
   Felen visas först efter ett inlämningsförsök (fältet är förifyllt), fokus går till första felet och inget anrop görs. Save är avstängd tills något ändrats.
   Rundans surface kan inte ändras (servern tar bara datum och distans). Rutan visar vad rundan gav senast servern räknade, och att streak och XP räknas om från den dagen.
@@ -49,7 +50,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 - **Frodo-zoom** på båda skärmstorlekarna (prototypen har den i båda). Mobil visar procent + "Next X — N km", desktop dessutom "Last checkpoint", "away" och en ring
   där nästa checkpoint ligger. Vid 0 km / framme finns ingen zoomknapp.
 - **Profilbilden:** `POST /users/profile-picture` (via `backendApi`) finns kvar. Prototypen har ingen yta för den, så hjältekortet har en slank rad längst ned
-  (avatar + "Change photo"). Bild, högst 5 MB (klienten nekar utan anrop). Efter en lyckad uppladdning omhämtas users, leaderboard, historiken, utmaningarna och head-to-head.
+  (avatar + "Change photo"). JPEG, PNG, WebP eller GIF (serverns typer), högst 5 MB (klienten nekar utan anrop). Efter en lyckad uppladdning omhämtas users, leaderboard, historiken, utmaningarna och head-to-head.
 - **Titlar** har en egen query (`useRunnerTitles`, kastar vid fel) — `useUserTitles` sväljer fel och skulle ge "No titles" vid nätverksfel. Fel → felkort med Retry.
 - **Tour:** `tour_profile_v2` (ankare `profile-hero`, `profile-journey`, `profile-stats`, `profile-titles`, `profile-history`); v1-ankaren fanns inte längre.
 - **CSS-ordning:** `profile.css` ligger utanför `@layer`, så den slår de delade `.rq-*`-primitiverna utan sammansatta selektorer. z-index 66 finns bara på redigeringsrutan

@@ -45,7 +45,7 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
   i bakgrunden (`checkEventQualification` är fire-and-forget), så den första omhämtningen kan komma före den — "N of M done" ska inte vänta på nästa
   intervall. Bekräftelsen ("Run logged: 8.0 km for 44 XP · streak day 5 at 1.1×") visar serverns siffror.
 - **Meddelanden** ligger i två permanenta live-regioner i formuläret (`role="status"` bekräftelse, `role="alert"` serverfel) — behållarna finns innan
-  texten monteras, annars annonseras de inte pålitligt. Toaster är inte monterad i appen, så inga `toast()`.
+  texten monteras, annars annonseras de inte pålitligt. Inga `toast()`: statusregioner är det gemensamma mönstret för nya skärmar (texten finns kvar och läses upp pålitligt).
 - **Formulärets tillstånd bor i `useLogForm`** (inte i vyn): det man skrivit överlever ett byte till Group history och tillbaka. Att skriva efter en
   bekräftelse tar bort den.
 - **Group history** läser `GET /runs/group-history?limit=10&offset=…` (`useInfiniteQuery`, `meta.has_more` styr "Show more"; nästa sida börjar vid summan

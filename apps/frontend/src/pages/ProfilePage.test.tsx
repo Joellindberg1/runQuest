@@ -274,6 +274,13 @@ describe('Profile — statflikar (?view=)', () => {
     expect(document.querySelectorAll('.rq-profile-heat__day')).toHaveLength(7);
   });
 
+  it('rutnätet som ryms startar vid början och scrollar inte (ingen inscrollad första månad)', async () => {
+    renderProfile('/profile?view=consistency', DESKTOP);
+    const region = await screen.findByRole('region', { name: /Run heatmap/ });
+    expect(region).toHaveAttribute('data-fits', 'true');
+    expect(region.scrollLeft).toBe(0);
+  });
+
   it('en cell med runda bär datum och km som titel; intensiteten följer dagens km', async () => {
     renderProfile('/profile?view=consistency');
     await screen.findByRole('region', { name: /Run heatmap/ });
@@ -380,7 +387,8 @@ describe('Profile — redigera en runda', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(updateRun).toHaveBeenCalledWith('r2', { date: '2026-10-02', distance: 8.4 });
+    // Datumet är oförändrat och skickas därför inte (servern validerar mot UTC-"idag" mellan 00 och 02 svensk tid).
+    expect(updateRun).toHaveBeenCalledWith('r2', { distance: 8.4 });
     expect(usersCalls.mock.calls.length).toBeGreaterThan(callsBefore);
     const status = screen.getAllByRole('status').find((el) => el.textContent?.includes('Run updated'));
     expect(status).toHaveTextContent('Run updated: 8.4 km on 2 Oct for 61 XP.');
@@ -429,6 +437,39 @@ describe('Profile — redigera en runda', () => {
   it('desktop: samma ruta, ändå exakt en guldknapp', async () => {
     await open('2026-10-02', DESKTOP);
     expect(primaryButtons()).toHaveLength(1);
+  });
+});
+
+describe('Profile — fokus när rutan stängs utan att spara', () => {
+  const openSheet = async () => {
+    renderProfile();
+    await screen.findByRole('list', { name: 'Your runs' });
+    const opener = editButton('2026-10-02');
+    opener.focus();
+    fireEvent.click(opener);
+    await screen.findByRole('dialog', { name: 'Edit run' });
+    return opener;
+  };
+
+  it('Cancel: fokus tillbaka på Edit-knappen som öppnade rutan (inte body)', async () => {
+    const opener = await openSheet();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it('Esc: samma sak', async () => {
+    const opener = await openSheet();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it('✕: samma sak', async () => {
+    const opener = await openSheet();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 });
 
@@ -512,7 +553,9 @@ describe('Profile — profilbild', () => {
     renderProfile();
     await screen.findByRole('heading', { name: 'Joel Lindberg' });
     choose(new File(['x'], 'cv.pdf', { type: 'application/pdf' }));
-    expect(await screen.findByText('Only image files are allowed')).toBeInTheDocument();
+    expect(await screen.findByText('Only JPEG, PNG, WebP or GIF images are allowed')).toBeInTheDocument();
+    choose(new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' }));
+    expect(await screen.findByText('Only JPEG, PNG, WebP or GIF images are allowed')).toBeInTheDocument();
     choose(png(5 * 1024 * 1024 + 1));
     expect(await screen.findByText('The image must be smaller than 5 MB')).toBeInTheDocument();
     expect(uploadPicture).not.toHaveBeenCalled();

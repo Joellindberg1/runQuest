@@ -9,6 +9,10 @@ interface UseLeaderboardDataResult {
   users: User[];
   currentUser: User | null;
   loading: boolean;
+  /** Hämtningen av gruppens användare misslyckades (och inget finns i cachen). */
+  failed: boolean;
+  /** Ett omförsök pågår. */
+  retrying: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -36,5 +40,5 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
     await refetch();
   }, [refetch]);
 
-  return { users, currentUser, loading: !!authUser && query.isLoading, refresh };
+  return { users, currentUser, loading: !!authUser && query.isLoading, failed: query.isError && !data, retrying: query.isFetching, refresh };
 }

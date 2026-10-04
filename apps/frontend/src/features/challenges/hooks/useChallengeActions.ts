@@ -16,7 +16,7 @@ async function unwrap<T extends ApiResult>(call: Promise<T>, fallback: string): 
 /**
  * Skicka, svara på och dra tillbaka utmaningar. Alla fyra ändrar något som flera vyer läser: utmaningarna (inkl. skalets
  * "Right now"), gruppens tokens/W-D-L i users-with-runs och Runner cards head-to-head ("Challenge live").
- * Meddelanden till användaren sköts av skärmen (Toaster är inte monterad i appen), därför kastar mutationerna.
+ * Meddelanden till användaren sköts av skärmen (permanenta statusregioner i stället för toast: samma mönster på alla skärmar, och texten finns kvar och läses upp pålitligt), därför kastar mutationerna.
  */
 export function useChallengeActions() {
   const queryClient = useQueryClient();

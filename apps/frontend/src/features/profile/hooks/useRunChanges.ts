@@ -12,7 +12,7 @@ interface UpdateRunArgs {
 /**
  * Ändra datum/distans på en av mina rundor (PUT /runs/:id). Servern räknar om streak och XP från den tidigaste av gamla och
  * nya datumet, så efter ändringen invalideras SAMMA kedja som efter POST (`invalidateAfterRunChange`). Mutationen kastar
- * serverns meddelande — rutan visar det (Toaster är inte monterad i appen). Svaret är rundan efter omräkningen; saknas den
+ * serverns meddelande — rutan visar det (statusregion i stället för toast). Svaret är rundan efter omräkningen; saknas den
  * (servern kunde inte läsa tillbaka) faller bekräftelsen tillbaka på det som skickades.
  */
 export function useUpdateRun() {

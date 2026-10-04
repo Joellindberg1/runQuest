@@ -2,7 +2,7 @@
  * Streak multiplier thresholds — SSOT i @runquest/shared (ADR 004).
  * Databasens tabell `streak_multipliers` är runtime-källan för XP-beräkningen
  * (backend); dessa default-värden speglar den och används här för display
- * (PlaybookPage, UserProfile stats).
+ * (PlaybookPage).
  */
 import { DEFAULT_STREAK_MULTIPLIERS } from '@runquest/shared';
 

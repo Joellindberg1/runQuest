@@ -51,7 +51,7 @@ describe('Log-filerna följer designspråket', () => {
     }
   });
 
-  it('engelskt UI i en-GB: ingen sv-SE och inga Toaster-beroende toasts (Toaster är inte monterad)', () => {
+  it('engelskt UI i en-GB: ingen sv-SE och inga toast()-anrop (bekräftelser står i statusregioner)', () => {
     for (const [path, text] of codeFiles) {
       expect({ path, svSE: /sv-SE/.test(text), toast: /from ['"]sonner['"]/.test(text) }).toEqual({ path, svSE: false, toast: false });
     }

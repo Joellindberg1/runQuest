@@ -13,13 +13,14 @@ interface RunHistoryProps {
 
 /**
  * RUN HISTORY: mina rundor, nyast först. Fyra rader tills "Show all N runs" (båda prototyperna). Varje rad har Edit, som öppnar
- * redigera/radera-rutan; bekräftelsen efter en ändring ligger i en permanent live-region (Toaster är inte monterad i appen).
+ * redigera/radera-rutan; bekräftelsen efter en ändring ligger i en permanent live-region (statusregion i stället för toast).
  */
 export function RunHistory({ runs, today }: RunHistoryProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<Run | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const statusRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   const rows = useMemo(() => buildRunRows(runs), [runs]);
   const visible = expanded ? rows : rows.slice(0, HISTORY_PREVIEW_COUNT);
   const toggleLabel = showAllLabel(rows.length);
@@ -48,7 +49,7 @@ export function RunHistory({ runs, today }: RunHistoryProps) {
                   <p className="rq-profile-run__xp">{row.xp}</p>
                   <p className="rq-profile-run__mult">{row.multiplier}</p>
                 </div>
-                <button type="button" className="rq-btn rq-btn--ghost rq-btn--compact" aria-label={`Edit run ${row.date}`} onClick={() => { setNotice(null); setEditing(row.run); }}>
+                <button type="button" className="rq-btn rq-btn--ghost rq-btn--compact" aria-label={`Edit run ${row.date}`} onClick={(event) => { openerRef.current = event.currentTarget; setNotice(null); setEditing(row.run); }}>
                   Edit
                 </button>
               </li>
@@ -71,7 +72,7 @@ export function RunHistory({ runs, today }: RunHistoryProps) {
           today={today}
           onClose={() => setEditing(null)}
           onDone={(text) => { setEditing(null); setNotice(text); }}
-          onRestoreFocus={() => statusRef.current?.focus()}
+          onRestoreFocus={(done) => (done ? statusRef.current : openerRef.current)?.focus()}
         />
       )}
     </section>
