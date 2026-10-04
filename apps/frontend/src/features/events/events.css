@@ -16,6 +16,8 @@
 
 .rq-events-note { margin: 0; padding: var(--rq-sp-14) var(--rq-sp-12); border: var(--rq-hair) dashed var(--rq-line-5); text-align: center; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
 .rq-events-eyebrow { display: flex; align-items: center; gap: var(--rq-sp-8); margin: 0 0 var(--rq-sp-4); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-events-accent); }
+/* Prickens färg följer kortets accent (grön = öppet, guld = up next) */
+.rq-events-eyebrow .rq-dot { color: var(--rq-events-accent); }
 .rq-events-label { margin: 0 0 var(--rq-sp-8); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-events-chips { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); }
 

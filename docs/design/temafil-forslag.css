@@ -411,7 +411,7 @@
   --rq-events-ring: 88px;                                  /* nedräkningsringen (desktop 132) */
   --rq-events-ring-inset: 6px;                             /* ringens tjocklek = hålets inset (desktop 8) */
   --rq-events-ring-fs: 15px;                               /* tiden i ringen (desktop 22) */
-  --rq-events-ring-order: 0;                               /* mobil: ringen före texten; desktop: efter (1) */
+  --rq-events-ring-order: -1;                              /* mobil: ringen före texten; desktop: efter (0) */
   --rq-events-live-gap: 14px;                              /* ring ↔ text (desktop 28) */
   --rq-events-sweep-w: 70px;                               /* sweep-bandet på levande kort (desktop 80) */
   --rq-events-board-cols: 26px minmax(0, 1fr) 70px 64px;   /* tävlingstabell: plats · namn · värde · pris (desktop 40 · 1fr · 100 · 90) */
@@ -482,7 +482,7 @@
     --rq-events-ring: 132px;
     --rq-events-ring-inset: 8px;
     --rq-events-ring-fs: 22px;
-    --rq-events-ring-order: 1;
+    --rq-events-ring-order: 0;
     --rq-events-live-gap: 28px;
     --rq-events-sweep-w: 80px;
     --rq-events-board-cols: 40px minmax(0, 1fr) 100px 90px;
