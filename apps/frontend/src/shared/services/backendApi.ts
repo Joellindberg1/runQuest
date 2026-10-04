@@ -1098,31 +1098,6 @@ class BackendApiService {
     return this.authenticatedRequest<EventsResponse>('/events');
   }
 
-  async getEventsHistory(): Promise<ApiResponse<{
-    events: Array<{
-      id: string;
-      type: 'participation' | 'competition';
-      metric: string | null;
-      status: 'settled';
-      startsAt: string;
-      endsAt: string;
-      template: {
-        name: string; icon: string; description: string;
-        minKm: number; rewardXp: number;
-        rewardXp1st: number; rewardXp2nd: number; rewardXp3rd: number;
-      };
-      myEntry: {
-        qualified: boolean; qualifiedAt: string;
-        rank: number | null; xpAwarded: number; totalValue: number | null;
-      } | null;
-      leaderboard: Array<{
-        userId: string; userName: string; totalValue: number; rank: number | null; xpAwarded: number; qualified: boolean; isMe: boolean;
-      }>;
-    }>;
-  }>> {
-    return this.authenticatedRequest('/events/history');
-  }
-
   async getEvents(): Promise<ApiResponse<{
     events: Array<{
       id: string;
