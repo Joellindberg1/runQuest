@@ -9,6 +9,9 @@ import { LOG_QUERY_KEYS } from './useLogQueries';
 
 /** Roten för Boards queries (BOARD_QUERY_KEYS.week och .rankDelta ligger under den). */
 const LEADERBOARD_ROOT = ['leaderboard'] as const;
+/** Runner cards head-to-head (RUNNER_QUERY_KEYS.headToHead) och gruppens titelrader per användare — båda ligger utanför ['titles']. */
+const HEAD_TO_HEAD_ROOT = ['runner', 'head-to-head'] as const;
+const MULTIPLE_USER_TITLES_ROOT = ['multiple-user-titles'] as const;
 
 /**
  * POST /runs lägger även eventkvalificeringen i bakgrunden (backend väntar inte på den), så den första omhämtningen av
@@ -18,7 +21,7 @@ export const EVENT_FOLLOW_UP_MS = 4_000;
 
 /**
  * Logga en runda. En lyckad runda ändrar allt som räknas ur rundorna: gruppens användare (streak, XP, nivå, km), Boards
- * leaderboard/vecka/rank-delta, öppna event, titlarna, pågående utmaningars progress och gruppens historik. Alla invalideras;
+ * leaderboard/vecka/rank-delta, öppna event, titlarna (`['titles']` samt `['multiple-user-titles']`), pågående utmaningars progress, Runner cards head-to-head och gruppens historik. Alla invalideras;
  * bara användarna väntas in (förhandsvisningen läser dem, så bekräftelsen och nästa förhandsvisning stämmer överens).
  * Meddelanden till användaren sköts av skärmen (Toaster är inte monterad i appen), därför kastar mutationen.
  */
@@ -36,6 +39,8 @@ export function useCreateRun() {
       void queryClient.invalidateQueries({ queryKey: EVENTS_QUERY_KEYS.open, exact: true });
       void queryClient.invalidateQueries({ queryKey: titleQueryKeys.all });
       void queryClient.invalidateQueries({ queryKey: ['challenges'] });
+      void queryClient.invalidateQueries({ queryKey: HEAD_TO_HEAD_ROOT });
+      void queryClient.invalidateQueries({ queryKey: MULTIPLE_USER_TITLES_ROOT });
       void queryClient.invalidateQueries({ queryKey: LOG_QUERY_KEYS.history });
       setTimeout(() => void queryClient.invalidateQueries({ queryKey: EVENTS_QUERY_KEYS.open, exact: true }), EVENT_FOLLOW_UP_MS);
       await queryClient.invalidateQueries({ queryKey: USERS_WITH_RUNS_QUERY_KEY });

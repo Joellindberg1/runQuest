@@ -28,13 +28,13 @@ afterEach(() => {
 });
 
 describe('useCreateRun — vad en lyckad runda invaliderar', () => {
-  it('användarna, leaderboard, öppna event, titlar, utmaningar och gruppens historik', async () => {
+  it('användarna, leaderboard, öppna event, titlar (båda rötterna), utmaningar, head-to-head och gruppens historik', async () => {
     const { result, invalidate } = setup();
     await result.current.mutateAsync(submission);
 
     const keys = invalidatedKeys(invalidate);
     expect(keys).toEqual(
-      expect.arrayContaining([USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], EVENTS_QUERY_KEYS.open, ['titles'], ['challenges'], LOG_QUERY_KEYS.history]),
+      expect.arrayContaining([USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], EVENTS_QUERY_KEYS.open, ['titles'], ['multiple-user-titles'], ['challenges'], ['runner', 'head-to-head'], LOG_QUERY_KEYS.history]),
     );
     // Öppna-listan invalideras exakt: historiken (['events','history',…]) och facit rörs inte av en vanlig runda.
     const eventCall = invalidate.mock.calls.find(([filters]) => (filters as { queryKey: unknown }).queryKey === EVENTS_QUERY_KEYS.open);

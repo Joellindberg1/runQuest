@@ -1,10 +1,9 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import type { GroupRunHistoryResponse } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
 import { useAuth } from '@/providers/authContext';
 import { HISTORY_PAGE_SIZE } from '../historyModel';
 
-const STALE_MS = 60_000;
 // Ett snabbt omförsök, sedan felkortet — standardens tre försök med backoff håller ovalen snurrande i ~7 s.
 const RETRIES = 1;
 
@@ -29,37 +28,6 @@ export function useGroupHistory(enabled = true) {
     },
     getNextPageParam: (last) => (last.meta.has_more ? last.meta.offset + last.runs.length : undefined),
     enabled: enabled && !!user,
-    retry: RETRIES,
-  });
-}
-
-// Strava-banderollen läser samma queries som skalets "Right now" (useRightNow): samma nycklar och samma form (`res.data`),
-// så en hämtning delas mellan dem. Ändras en definition där ska den ändras här.
-export function useStravaStatus(enabled = true) {
-  return useQuery({
-    queryKey: ['strava', 'status'],
-    queryFn: async () => {
-      const res = await backendApi.getStravaStatus();
-      if (!res.success) throw new Error(res.error);
-      return res.data;
-    },
-    enabled,
-    staleTime: 5 * STALE_MS,
-    retry: RETRIES,
-  });
-}
-
-export function useStravaLastSync(enabled = true) {
-  return useQuery({
-    queryKey: ['strava', 'last-sync'],
-    queryFn: async () => {
-      const res = await backendApi.getStravaLastSync();
-      if (!res.success) throw new Error(res.error);
-      return res.data;
-    },
-    enabled,
-    staleTime: STALE_MS,
-    refetchInterval: 5 * STALE_MS,
     retry: RETRIES,
   });
 }
