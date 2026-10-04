@@ -292,6 +292,17 @@
   --rq-dur-grid:  9s;
   --rq-grid-line: rgb(var(--rq-gold-rgb) / .03);   /* desktop .035 */
   --rq-grid-size: 40px;
+
+  /* ── 1.19 Skeleton-rader (Loaders-förlagan: rank 34 · namn + stapel · värde 90) ─
+     Kolumnbredder och blockhöjder för SkeletonRows. 1 = rank-block, 2 = namnstreck,
+     3 = understapel, 4 = värdeblock. Blinktakt 1.5 s (rqBlink, stagger .15 s i koden). */
+  --rq-skel-col-icon:  34px;
+  --rq-skel-col-value: 90px;
+  --rq-skel-h-1: 22px;
+  --rq-skel-h-2: 13px;
+  --rq-skel-h-3: 5px;
+  --rq-skel-h-4: 14px;
+  --rq-dur-skel: 1.5s;
 }
 
 
@@ -656,6 +667,10 @@
   .rq-dot--alarm { color: var(--rq-down); animation: rqBlink var(--rq-dur-blink-alarm) ease-in-out infinite; }
   .rq-grid-bg { background-image: linear-gradient(var(--rq-grid-line) 1px, transparent 1px); background-size: 100% var(--rq-grid-size); animation: rqGrid var(--rq-dur-grid) linear infinite; }
   .rq-skel { background: linear-gradient(90deg, var(--rq-fill-1), rgb(var(--rq-ink-rgb) / .12), var(--rq-fill-1)); background-size: 200% 100%; animation: rqSkel 1.4s linear infinite; }
+  /* Skeleton-rad: hårlinjegridens cell med rank · namn · värde. Höjder via --rq-skel-h-* i klassnamn. */
+  .rq-skel-row { display: grid; grid-template-columns: var(--rq-skel-col-icon) 1fr var(--rq-skel-col-value); align-items: center; gap: var(--rq-sp-14); background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }
+  .rq-skel-block { background: var(--rq-fill-1); animation: rqBlink var(--rq-dur-skel) ease-in-out infinite; }
+  .rq-skel-block--value { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); }
   .rq-rise { animation: rqRise var(--rq-dur-rise) var(--rq-ease-bar) both; animation-delay: var(--rq-delay, 0s); }
 
   /* ── Inmatning: guld ENDAST vid fokus ── */
