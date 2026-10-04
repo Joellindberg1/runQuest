@@ -1,6 +1,9 @@
 // 🔗 Backend API Service - Production Ready
 import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
-import type { WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse } from '@runquest/shared';
+import type {
+  WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
+  ChallengeGroupHistoryResponse, OffsetPageMeta,
+} from '@runquest/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -343,6 +346,38 @@ class BackendApiService {
       `/challenges/head-to-head/${encodeURIComponent(userId)}${query}`,
       'Failed to fetch head to head',
     );
+  }
+
+  /**
+   * GET /challenges/group-history — gruppens avslutade utmaningar, nyast först (ADR 007 B5). Offset-sidor:
+   * `meta.has_more` säger om det finns fler (sidstorlek default 20, max 50).
+   */
+  async getChallengeGroupHistory(
+    limit: number,
+    offset: number,
+  ): Promise<ApiResponse<ChallengeGroupHistoryResponse> & { meta?: OffsetPageMeta }> {
+    try {
+      const token = this.getToken();
+      if (!token) return { success: false, error: 'Not authenticated' };
+
+      const response = await fetch(`${this.baseUrl}/challenges/group-history?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const body = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+        return { success: false, error: body.error || 'Failed to fetch challenge history' };
+      }
+      return { success: true, data: body.data, meta: body.meta };
+    } catch (error) {
+      console.error('❌ Failed to fetch challenge history:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Network error' };
+    }
   }
 
   // 👤 Admin: Create new user
