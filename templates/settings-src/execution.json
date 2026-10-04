@@ -1,0 +1,5 @@
+{
+  "allow": ["Bash(npm run lint:*)", "Bash(npm run build:*)", "Bash(npm test:*)", "Bash(npx vitest:*)", "Bash(npx playwright:*)", "Bash(npm ci:*)", "Bash(npm install --save-dev:*)"],
+  "ask": ["Bash(npm install:*)", "Bash(supabase db push:*)", "Bash(vercel --prod:*)", "Bash(railway up:*)"],
+  "deny": []
+}

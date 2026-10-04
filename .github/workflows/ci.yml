@@ -38,7 +38,7 @@ jobs:
         run: npm test
 
   frontend:
-    name: Frontend — typecheck
+    name: Frontend — build, typecheck & lint
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -57,5 +57,17 @@ jobs:
         run: npm ci
         working-directory: .
 
-      - name: Typecheck
-        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+
+      # tsc -b kör den riktiga typechecken (tidigare körde CI tsc --noEmit mot
+      # en tsconfig med "files": [] — den kontrollerade ingenting). ~98 kända
+      # typfel finns; steget är icke-blockerande tills skulden är betald (Fas 2),
+      # men felen syns i varje körning. Samma sak för lint (15 fel, 22 varningar).
+      - name: Typecheck (non-blocking — känd skuld)
+        run: npx tsc -b
+        continue-on-error: true
+
+      - name: Lint (non-blocking — känd skuld)
+        run: npx eslint .
+        continue-on-error: true

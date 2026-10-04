@@ -1,0 +1,54 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx playwright:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm install --save-dev:*)",
+      "Read(./**)",
+      "Write(./src/**)",
+      "Write(./docs/**)",
+      "Write(./tests/**)",
+      "Write(./supabase/migrations/**)",
+      "Edit(./src/**)",
+      "Edit(./docs/**)",
+      "Edit(./tests/**)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git push origin feature/*)",
+      "Bash(git merge:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(gh repo create:*)",
+      "Bash(gh issue:*)"
+    ],
+    "ask": [
+      "Bash(npm install:*)",
+      "Bash(supabase db push:*)",
+      "Bash(vercel --prod:*)",
+      "Bash(railway up:*)",
+      "Write(./.github/**)",
+      "Edit(./.github/**)",
+      "Bash(git push origin main:*)",
+      "Bash(git rebase:*)",
+      "Bash(git tag:*)"
+    ],
+    "deny": [
+      "Write(./.claude/settings.json)",
+      "Edit(./.claude/settings.json)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
+    ]
+  },
+  "env": {
+    "ARCHIFY_UPDATE_CHECK_DISABLED": "1"
+  }
+}

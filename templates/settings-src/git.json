@@ -1,0 +1,10 @@
+{
+  "allow": [
+    "Bash(git add:*)", "Bash(git commit:*)", "Bash(git checkout:*)",
+    "Bash(git branch:*)", "Bash(git push origin feature/*)",
+    "Bash(git merge:*)", "Bash(git status:*)", "Bash(git diff:*)",
+    "Bash(git log:*)", "Bash(gh repo create:*)", "Bash(gh issue:*)"
+  ],
+  "ask": ["Bash(git push origin main:*)", "Bash(git rebase:*)", "Bash(git tag:*)"],
+  "deny": ["Bash(git push --force:*)", "Bash(git push -f:*)"]
+}

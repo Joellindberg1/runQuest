@@ -1,0 +1,5 @@
+{
+  "allow": ["Read(./**)", "Write(./src/**)", "Write(./docs/**)", "Write(./tests/**)", "Write(./supabase/migrations/**)", "Edit(./src/**)", "Edit(./docs/**)", "Edit(./tests/**)"],
+  "ask": ["Write(./.github/**)", "Edit(./.github/**)"],
+  "deny": ["Write(./.claude/settings.json)", "Edit(./.claude/settings.json)", "Read(./.env)", "Read(./.env.*)"]
+}
