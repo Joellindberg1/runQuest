@@ -1,0 +1,31 @@
+import { useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
+export const VIEW_PARAM = 'view';
+
+/**
+ * Delvyn som sökparameter `?view=` (ADR 006 beslut 3): delbar och back-vänlig utan en route per flik.
+ * Okänt eller saknat värde faller tillbaka på `fallback`. Byte skriver med `replace` så att flikbyten
+ * inte fyller historiken; övriga parametrar lämnas orörda.
+ */
+export function useViewParam<T extends string>(allowed: readonly T[], fallback: T): [T, (next: T) => void] {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get(VIEW_PARAM);
+  const view = allowed.find((candidate) => candidate === raw) ?? fallback;
+
+  const setView = useCallback(
+    (next: T) => {
+      setParams(
+        (previous) => {
+          const copy = new URLSearchParams(previous);
+          copy.set(VIEW_PARAM, next);
+          return copy;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
+
+  return [view, setView];
+}

@@ -48,7 +48,7 @@ export const TOUR_CHALLENGES_V1: TourStep[] = [
   },
 ];
 
-// ── / (leaderboard tab) — tour_leaderboard_v1 ────────────────────────────
+// ── / (leaderboard tab) — tour_leaderboard_v2 ────────────────────────────
 export const TOUR_LEADERBOARD_V1: TourStep[] = [
   {
     title: 'Leaderboard',
@@ -57,12 +57,12 @@ export const TOUR_LEADERBOARD_V1: TourStep[] = [
   {
     // No element — floating step. The leaderboard is visible in the background.
     title: 'XP Rankings',
-    description: 'Cards are sorted by total XP. Your card always has a blinking gold indicator in the top-left corner. Level and active titles are shown on each card.',
+    description: 'The podium holds the top three, the list below ranks everyone else by total XP. Arrows show who moved since Monday and the bar is progress into the current level. The tabs switch between All-time, Week and Streaks.',
   },
   {
     element: '[data-tour="leaderboard-card"]',
-    title: 'Challenge Flags',
-    description: 'The colored flags in the lower left corner represent the challenges that player has won. The crossed swords icon in the lower right corner indicates that the player is currently in an active challenge.',
+    title: 'Challenge Shields',
+    description: 'The shields on a card are the challenge tokens that runner can still send: blue for minor, orange for major, gold for legendary. The number beside them is how many are left.',
   },
   {
     element: '[data-tour="leaderboard-card"]',

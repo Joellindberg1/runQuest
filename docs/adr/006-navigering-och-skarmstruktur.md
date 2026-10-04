@@ -92,8 +92,9 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
    `useViewParam(allowed, default)` läser/skriver parametern med
    `replace: true`, och okänt värde faller tillbaka till default. Delvyn
    blir därmed delbar och back-vänlig utan en route per flik. `PageTabs` ersätts
-   av en segmenterad kontroll över hooken och tas bort när sista användaren
-   är konverterad.
+   av chip-flikar (`ViewTabs`, `.rq-filter`: vald = guld 14 %/50 %) över hooken —
+   prototypens faktiska flikmönster för Board (App Prototype `boardTabs`,
+   Web Prototype `boardTabs`) — och tas bort när sista användaren är konverterad.
 4. **Overlays (ingen egen route).**
    - **+New-sheet** (Log a run / Send a challenge): skal-tillstånd, öppnas av
      mittenknappen i bottenbaren (mobil) och av "Log Runs"/"Send challenge" i

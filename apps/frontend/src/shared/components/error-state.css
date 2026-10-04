@@ -1,0 +1,8 @@
+/* Felkortet (regel 9): standardkort med röd tillståndskant. ENDAST tokens. */
+.rq-error {
+  --rq-edge: var(--rq-down);
+  --rq-edge-line: rgb(var(--rq-down-rgb) / var(--rq-edge-status));
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-10);
+}
+.rq-error__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); font-weight: 400; line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+.rq-error__text { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }

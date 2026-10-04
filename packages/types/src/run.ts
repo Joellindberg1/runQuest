@@ -35,6 +35,8 @@ export interface Run {
   external_id?: string;
   // Extended Strava data — all nullable (not all devices/users share this)
   start_time?: string | null;
+  /** När raden skapades (users-with-runs, ADR 007 B3): "X h ago" för manuellt loggade rundor utan start_time. */
+  created_at?: string | null;
   moving_time?: number | null;
   total_elevation_gain?: number | null;
   sport_type?: string | null;

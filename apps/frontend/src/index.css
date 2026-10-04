@@ -312,6 +312,27 @@
   --rq-skel-h-3: 5px;
   --rq-skel-h-4: 14px;
   --rq-dur-skel: 1.5s;
+
+  /* ── 1.20 Board-mått (inkrement 2: Season/Week/Streaks) ────────────────────
+     Mått ur App-/Web-prototypens Board-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/leaderboard/board.css. */
+  --rq-board-avatar: 36px;          /* avatar i podiekort (desktop 42) */
+  --rq-board-bar-h: 5px;            /* nivåstapel i podiekort (desktop 6) */
+  --rq-board-bar-h-thin: 4px;       /* nivåstapel i listrad (desktop 6) */
+  --rq-board-ribbon-w: 22px;        /* challenge-sköld */
+  --rq-board-ribbon-h: 27px;
+  --rq-board-ribbon-font: 15px;     /* siffran i skölden (SVG-enheter) */
+  --rq-board-daybars-h: 34px;       /* veckans dagstaplar (desktop 44) */
+  --rq-board-streak-bar-h: 6px;     /* multiplikatorstapel (desktop 8) */
+  --rq-board-plinth-1: 78px;        /* sockel under podiekort (desktop) */
+  --rq-board-plinth-2: 52px;
+  --rq-board-plinth-3: 38px;
+  --rq-board-side-w: 300px;         /* desktop: sidokolumn (Mover/Pack/Alert/Ladder) */
+  --rq-board-delta-w: 26px;         /* desktop: fast kolumn för ▲/▼ framför namnet */
+  --rq-board-rest-cols: 26px 1fr 74px;
+  --rq-board-week-cols: 24px 1fr 62px;
+  --rq-board-streak-cols: 1fr;
 }
 
 
@@ -334,6 +355,14 @@
     --rq-shadow-pop: 0 24px 60px rgba(0, 0, 0, .70);
     --rq-bg-shell-glass: rgba(7, 14, 9, .94);
     --rq-grid-line: rgb(var(--rq-gold-rgb) / .035);
+    --rq-board-avatar: 42px;
+    --rq-board-bar-h: 6px;
+    --rq-board-bar-h-thin: 6px;
+    --rq-board-daybars-h: 44px;
+    --rq-board-streak-bar-h: 8px;
+    --rq-board-rest-cols: 40px 300px 1fr 78px 84px 88px 112px;
+    --rq-board-week-cols: 38px 190px 1fr 128px 92px;
+    --rq-board-streak-cols: 190px 96px 1fr 150px;
   }
 }
 
@@ -659,7 +688,8 @@
   .rq-tab { padding: 9px 16px; font-size: var(--rq-fs-tab); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; cursor: pointer; color: var(--rq-text-4); border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .rq-tab[aria-selected="true"] { color: var(--rq-gold-text); border-bottom-color: var(--rq-gold); }
   .rq-filter { padding: 7px 15px; font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; cursor: pointer; border: var(--rq-hair) solid var(--rq-line-4); color: var(--rq-text-3); }
-  .rq-filter[aria-pressed="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
+  .rq-filter[aria-pressed="true"],
+  .rq-filter[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
   .rq-segmented { display: inline-flex; border: var(--rq-hair) solid var(--rq-line-5); }
   .rq-segmented > [aria-pressed="true"] { background: var(--rq-gold); color: var(--rq-on-gold); }
 
@@ -699,17 +729,12 @@
    7. KVARVARANDE LEGACY UTANFÖR TOKENLAGRET (TEMPORÄRT)
    Behålls för att befintliga komponenter fortfarande läser dem; tas bort när
    respektive komponent ritas om (redesign-plan.md).
-   - goldPulse/legendary…: Leaderboard.tsx, SentReceivedBar.tsx (ersätts av rqGlow)
+   - goldPulse: SentReceivedBar.tsx (ersätts av rqGlow). legendaryFlagGlow togs bort med gamla Leaderboard.tsx (inkrement 2).
 ═════════════════════════════════════════════════════════════════════════════ */
 
 @keyframes goldPulse {
   0%, 100% { box-shadow: 0 0 18px color-mix(in srgb, var(--rq-gold) 9%, transparent), inset 0 0 30px color-mix(in srgb, var(--rq-gold) 2%, transparent); }
   50%       { box-shadow: 0 0 32px color-mix(in srgb, var(--rq-gold) 19%, transparent), inset 0 0 40px color-mix(in srgb, var(--rq-gold) 6%, transparent); }
-}
-
-@keyframes legendaryFlagGlow {
-  0%, 100% { filter: drop-shadow(0 3px 5px color-mix(in srgb, var(--rq-gold) 55%, transparent)); }
-  50%       { filter: drop-shadow(0 3px 12px color-mix(in srgb, var(--rq-gold) 90%, transparent)); }
 }
 
 /* ═════════════════════════════════════════════════════════════════════════════

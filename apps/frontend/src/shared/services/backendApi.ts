@@ -1,5 +1,6 @@
 // 🔗 Backend API Service - Production Ready
 import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
+import type { WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse } from '@runquest/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -291,6 +292,48 @@ class BackendApiService {
         error: error instanceof Error ? error.message : 'Network error'
       };
     }
+  }
+
+  // Nya endpoints (ADR 007) svarar { success, data, meta? } / { error }; typerna ligger i @runquest/shared.
+  private async getEnvelope<T>(path: string, failure: string): Promise<ApiResponse<T>> {
+    try {
+      const token = this.getToken();
+      if (!token) return { success: false, error: 'Not authenticated' };
+
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const body = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+        return { success: false, error: body.error || failure };
+      }
+      return { success: true, data: body.data };
+    } catch (error) {
+      console.error(`❌ ${failure}:`, error);
+      return { success: false, error: error instanceof Error ? error.message : 'Network error' };
+    }
+  }
+
+  /** GET /leaderboard/week — veckans rader, dagstaplar, totaler och mover (ADR 007 B1). */
+  async getWeekLeaderboard(weekStart?: string): Promise<ApiResponse<WeekLeaderboardResponse>> {
+    const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : '';
+    return this.getEnvelope<WeekLeaderboardResponse>(`/leaderboard/week${query}`, 'Failed to fetch week leaderboard');
+  }
+
+  /** GET /leaderboard/rank-delta — rank mot veckostart (ADR 007 B2). */
+  async getRankDelta(): Promise<ApiResponse<RankDeltaResponse>> {
+    return this.getEnvelope<RankDeltaResponse>('/leaderboard/rank-delta', 'Failed to fetch rank changes');
+  }
+
+  /** GET /config/xp — effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */
+  async getXpConfig(): Promise<ApiResponse<XpConfigResponse>> {
+    return this.getEnvelope<XpConfigResponse>('/config/xp', 'Failed to fetch XP config');
   }
 
   // 👤 Admin: Create new user

@@ -35,6 +35,8 @@ export function mapApiUser(u: User): User {
       distance_bonus: r.distance_bonus,
       streak_bonus: r.streak_bonus,
       is_treadmill: r.is_treadmill ?? null,
+      start_time: r.start_time ?? null,
+      created_at: r.created_at ?? null,
     })) ?? [],
   };
 }
