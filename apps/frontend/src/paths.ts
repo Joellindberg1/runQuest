@@ -23,4 +23,20 @@ export const paths = {
 /** Delvy-parametern för "send challenge"-sheeten (ADR 006 beslut 4). Konsumeras av Duels i inkrement 5. */
 export const SEND_PARAM = 'send';
 
+/**
+ * Förvald motståndare för send-sheeten. Runner cards Challenge-knapp navigerar till
+ * `/duels?send=1&opponent=<userId>` (`duelsSendPath`); sheeten (inkrement 5) läser `opponent` och förväljer
+ * löparen. `send=1` ensamt = välj motståndare själv.
+ * OBS: ADR 006 beslut 4 beskriver förvalet som `?send=<userId>`; inkrement 3-uppdraget specificerade
+ * `opponent` som separat parameter. ADR-texten och NewSheet/DuelsPage samordnas i inkrement 5.
+ */
+export const OPPONENT_PARAM = 'opponent';
+
+/** /duels med send-sheeten öppen och (valfritt) en förvald motståndare. */
+export const duelsSendPath = (opponentId?: string): string => {
+  const params = new URLSearchParams({ [SEND_PARAM]: '1' });
+  if (opponentId) params.set(OPPONENT_PARAM, opponentId);
+  return `${paths.duels}?${params.toString()}`;
+};
+
 export const DEFAULT_LANDING_PATH = paths.board;

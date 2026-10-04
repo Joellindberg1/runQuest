@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, useNavigate } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { LocationProbe } from '@/test/LocationProbe';
 import { useViewParam } from './useViewParam';
 
@@ -69,5 +69,17 @@ describe('useViewParam', () => {
 
     fireEvent.click(screen.getByText('back'));
     expect(location()).toBe('/start');
+  });
+
+  it('router-state följer med vid byte (Runner cards background får inte tappas när statfliken växlar)', () => {
+    const StateProbe = () => <span data-testid="state">{JSON.stringify(useLocation().state)}</span>;
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/runner/u1', state: { background: { pathname: '/board' } } }]}>
+        <Harness />
+        <StateProbe />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByText('to-week'));
+    expect(screen.getByTestId('state').textContent).toBe('{"background":{"pathname":"/board"}}');
   });
 });

@@ -1,6 +1,6 @@
 // 🔗 Backend API Service - Production Ready
 import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
-import type { WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse } from '@runquest/shared';
+import type { WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse } from '@runquest/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -334,6 +334,15 @@ class BackendApiService {
   /** GET /config/xp — effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */
   async getXpConfig(): Promise<ApiResponse<XpConfigResponse>> {
     return this.getEnvelope<XpConfigResponse>('/config/xp', 'Failed to fetch XP config');
+  }
+
+  /** GET /challenges/head-to-head/:userId — anroparens uppgörelser mot en annan medlem (ADR 007 B6). */
+  async getHeadToHead(userId: string, limit?: number): Promise<ApiResponse<HeadToHeadResponse>> {
+    const query = limit ? `?limit=${limit}` : '';
+    return this.getEnvelope<HeadToHeadResponse>(
+      `/challenges/head-to-head/${encodeURIComponent(userId)}${query}`,
+      'Failed to fetch head to head',
+    );
   }
 
   // 👤 Admin: Create new user

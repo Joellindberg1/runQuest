@@ -1,15 +1,17 @@
 import { useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 
 export const VIEW_PARAM = 'view';
 
 /**
  * Delvyn som sökparameter `?view=` (ADR 006 beslut 3): delbar och back-vänlig utan en route per flik.
  * Okänt eller saknat värde faller tillbaka på `fallback`. Byte skriver med `replace` så att flikbyten
- * inte fyller historiken; övriga parametrar lämnas orörda.
+ * inte fyller historiken; övriga parametrar lämnas orörda. Router-state följer med (annars tappar Runner card sin
+ * `background` vid ett flikbyte och desktop-overlayn blir en helsida).
  */
 export function useViewParam<T extends string>(allowed: readonly T[], fallback: T): [T, (next: T) => void] {
   const [params, setParams] = useSearchParams();
+  const { state } = useLocation();
   const raw = params.get(VIEW_PARAM);
   const view = allowed.find((candidate) => candidate === raw) ?? fallback;
 
@@ -21,10 +23,10 @@ export function useViewParam<T extends string>(allowed: readonly T[], fallback: 
           copy.set(VIEW_PARAM, next);
           return copy;
         },
-        { replace: true },
+        { replace: true, state },
       );
     },
-    [setParams],
+    [setParams, state],
   );
 
   return [view, setView];
