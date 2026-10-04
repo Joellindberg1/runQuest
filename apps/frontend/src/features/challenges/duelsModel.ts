@@ -134,10 +134,11 @@ export interface IncomingCard {
   id: string;
   fromId: string;
   from: string;
+  fromShort: string;
   tier: ChallengeTier;
   tierLabel: string;
-  /** "Nicklas · Most km · 7 d" */
-  headline: string;
+  /** "Most km · 7 d" */
+  what: string;
   stake: Stake;
   /** Legendary kan inte avböjas (backend: 400). */
   canDecline: boolean;
@@ -164,9 +165,10 @@ export function buildIncoming(received: readonly Challenge[], names: Record<stri
       id: c.id,
       fromId: c.challenger_id,
       from,
+      fromShort: firstName(from),
       tier: c.tier,
       tierLabel: tierLabel(c.tier),
-      headline: `${firstName(from)} · ${metricLabel(c.metric)} · ${durationText(c.duration_days)}`,
+      what: `${metricLabel(c.metric)} · ${durationText(c.duration_days)}`,
       stake: stakeOf(c),
       canDecline: c.tier !== 'legendary',
       note: c.tier === 'legendary' ? autoStartText(c.legendary_sent_at, now) : null,
@@ -178,9 +180,10 @@ export interface SentCard {
   id: string;
   toId: string;
   to: string;
+  toShort: string;
   tier: ChallengeTier;
   tierLabel: string;
-  headline: string;
+  what: string;
   stake: Stake;
   /** Legendary kan inte dras tillbaka (backend: 400). */
   canWithdraw: boolean;
@@ -194,9 +197,10 @@ export function buildSent(sent: Challenge | null, names: Record<string, string>)
     id: sent.id,
     toId: sent.opponent_id,
     to,
+    toShort: firstName(to),
     tier: sent.tier,
     tierLabel: tierLabel(sent.tier),
-    headline: `${firstName(to)} · ${metricLabel(sent.metric)} · ${durationText(sent.duration_days)}`,
+    what: `${metricLabel(sent.metric)} · ${durationText(sent.duration_days)}`,
     stake: stakeOf(sent),
     canWithdraw: sent.tier !== 'legendary',
     note: `Waiting for ${firstName(to)} to respond`,

@@ -361,6 +361,34 @@
   --rq-titles-split-cols: minmax(0, 1fr);             /* desktop: grupper | sidokolumn (320 px) */
   --rq-titles-rule-min-h: 0;                          /* regelraden (desktop 44 px, så korten linjerar) */
   --rq-titles-pos: 19px;                              /* platsmarkören i "On display" (guldfylld kvadrat) */
+
+  /* ── 1.23 Duels-mått (inkrement 5) ─────────────────────────────────────────
+     Mått ur App-/Web-prototypens challenges-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Skölden återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
+  --rq-duels-split-cols: minmax(0, 1fr);                              /* desktop: vy | sidokolumn (320 px) */
+  --rq-duels-live-cols: minmax(0, 1fr);                               /* live-korten: mobil 1 kolumn, desktop 2 */
+  --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 */
+  --rq-duels-standing-cols: 24px minmax(0, 1fr) 34px 34px 34px 52px; /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
+  --rq-duels-match-cols: minmax(0, 1fr) 26px minmax(0, 1fr);          /* vänster · vs · höger (desktop + meta 190 + datum 70) */
+  --rq-duels-match-meta-span: 1 / 3;                                  /* mobil: metan under paret; desktop: egen kolumn */
+  --rq-duels-match-date-span: 3;
+  --rq-duels-match-meta-align: left;                                  /* desktop: right */
+  --rq-duels-match-edge-w: 0px;                                       /* desktop: 3 px hårlinjekant till vänster */
+  --rq-duels-offer-cols: minmax(0, 1fr);                              /* inkommande kort: mobil staplat, desktop id · insats · knappar */
+  --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));           /* Accept | Decline; desktop: ovanpå varandra */
+  --rq-duels-offer-rule-w: 1px;                                       /* hårlinjer ovan/under insatsen (desktop 0) */
+  --rq-duels-token-cols: minmax(0, 1fr);                              /* send-sheet, tokenval: mobil 1 kolumn, desktop 3 */
+  --rq-duels-avatar: 28px;                                            /* motståndarrad (desktop 32) */
+  /* Send-sheet: bottensheet (mobil) → centrerad dialog (desktop) */
+  --rq-duels-sheet-w: min(100%, var(--rq-shell-narrow-max));
+  --rq-duels-sheet-top: auto;
+  --rq-duels-sheet-bottom: 0;
+  --rq-duels-sheet-shift: 0;
+  --rq-duels-sheet-max-h: 88vh;
+  --rq-duels-sheet-edge-w: 2px;                                       /* guld toppkant på bottensheeten (desktop 1 px runtom) */
+  --rq-duels-sheet-actions-dir: column;                               /* desktop: row (Send + Cancel) */
+  --rq-duels-sheet-cancel-display: none;                              /* mobil stänger med ✕; desktop visar Cancel */
 }
 
 
@@ -401,6 +429,27 @@
     --rq-titles-grid-cols: repeat(3, minmax(0, 1fr));
     --rq-titles-split-cols: minmax(0, 1fr) 320px;
     --rq-titles-rule-min-h: 44px;
+    --rq-duels-split-cols: minmax(0, 1fr) 320px;
+    --rq-duels-live-cols: repeat(2, minmax(0, 1fr));
+    --rq-duels-rules-cols: repeat(3, minmax(0, 1fr));
+    --rq-duels-standing-cols: 44px minmax(0, 1fr) 60px 60px 60px 78px;
+    --rq-duels-match-cols: minmax(0, 1fr) 46px minmax(0, 1fr) 190px 70px;
+    --rq-duels-match-meta-span: auto;
+    --rq-duels-match-date-span: auto;
+    --rq-duels-match-meta-align: right;
+    --rq-duels-match-edge-w: 3px;
+    --rq-duels-offer-cols: minmax(0, 1fr) auto auto;
+    --rq-duels-offer-actions-cols: minmax(0, 1fr);
+    --rq-duels-offer-rule-w: 0px;
+    --rq-duels-token-cols: repeat(3, minmax(0, 1fr));
+    --rq-duels-avatar: 32px;
+    --rq-duels-sheet-w: min(660px, 95vw);
+    --rq-duels-sheet-top: 50%;
+    --rq-duels-sheet-bottom: auto;
+    --rq-duels-sheet-shift: -50%;
+    --rq-duels-sheet-edge-w: 1px;
+    --rq-duels-sheet-actions-dir: row;
+    --rq-duels-sheet-cancel-display: inline-flex;
   }
 }
 
@@ -767,13 +816,8 @@
    7. KVARVARANDE LEGACY UTANFÖR TOKENLAGRET (TEMPORÄRT)
    Behålls för att befintliga komponenter fortfarande läser dem; tas bort när
    respektive komponent ritas om (redesign-plan.md).
-   - goldPulse: SentReceivedBar.tsx (ersätts av rqGlow). legendaryFlagGlow togs bort med gamla Leaderboard.tsx (inkrement 2).
+   - Tomt: goldPulse togs bort med SentReceivedBar (inkrement 5), legendaryFlagGlow med gamla Leaderboard.tsx (inkrement 2).
 ═════════════════════════════════════════════════════════════════════════════ */
-
-@keyframes goldPulse {
-  0%, 100% { box-shadow: 0 0 18px color-mix(in srgb, var(--rq-gold) 9%, transparent), inset 0 0 30px color-mix(in srgb, var(--rq-gold) 2%, transparent); }
-  50%       { box-shadow: 0 0 32px color-mix(in srgb, var(--rq-gold) 19%, transparent), inset 0 0 40px color-mix(in srgb, var(--rq-gold) 6%, transparent); }
-}
 
 /* ═════════════════════════════════════════════════════════════════════════════
    8. DRIVER.JS (onboarding-turen) — tokeniserad i inkrement 1

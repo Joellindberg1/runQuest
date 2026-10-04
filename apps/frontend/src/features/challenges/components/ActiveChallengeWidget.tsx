@@ -3,12 +3,11 @@ import { TierBadge } from './TierBadge';
 import { Swords, Clock } from 'lucide-react';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import type { Challenge } from '@runquest/types';
-import type { ProgressEntry } from './OngoingChallengeCard';
 
 interface ActiveChallengeWidgetProps {
   challenge: Challenge;
   // Widgeten läser bara user_id/value — name behövs inte (backendens progress-svar saknar name)
-  progress: Pick<ProgressEntry, 'user_id' | 'value'>[];
+  progress: { user_id: string; value: number }[];
   currentUserId: string;
   onClick?: () => void;
 }

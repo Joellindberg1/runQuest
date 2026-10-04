@@ -73,9 +73,9 @@ describe('buildLiveCards', () => {
 });
 
 describe('inkommande och skickad', () => {
-  it('rubrik "Förnamn · mått · längd", insats och Decline för minor/major', () => {
+  it('förnamn, mått · längd, insats och Decline för minor/major', () => {
     const [card] = buildIncoming([challenge({ id: 'c1', challenger_id: NICK, opponent_id: ME, tier: 'major', duration_days: 7 })], NAMES, NOW);
-    expect(card).toMatchObject({ id: 'c1', fromId: NICK, from: 'Nicklas von Elling', headline: 'Nicklas · Most km · 7 d', canDecline: true, note: null });
+    expect(card).toMatchObject({ id: 'c1', fromId: NICK, from: 'Nicklas von Elling', fromShort: 'Nicklas', what: 'Most km · 7 d', canDecline: true, note: null });
     expect(card.stake.win).toBe('+0.25× / 10 d');
   });
 
@@ -95,7 +95,7 @@ describe('inkommande och skickad', () => {
 
   it('skickad: väntar på svar, kan dras tillbaka utom legendary', () => {
     const minor = buildSent(challenge({ id: 's1', challenger_id: ME, opponent_id: DAN, tier: 'minor', metric: 'total_xp', duration_days: 5 }), NAMES);
-    expect(minor).toMatchObject({ to: 'Daniel Lindblad Lüthje', headline: 'Daniel · Most XP · 5 d', canWithdraw: true, note: 'Waiting for Daniel to respond' });
+    expect(minor).toMatchObject({ to: 'Daniel Lindblad Lüthje', toShort: 'Daniel', what: 'Most XP · 5 d', canWithdraw: true, note: 'Waiting for Daniel to respond' });
     const legendary = buildSent(challenge({ id: 's2', challenger_id: ME, opponent_id: DAN, tier: 'legendary' }), NAMES);
     expect(legendary?.canWithdraw).toBe(false);
     expect(buildSent(null, NAMES)).toBeNull();
