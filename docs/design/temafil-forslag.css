@@ -132,7 +132,7 @@
   --rq-text-1: #ffffff;
   --rq-text-2: #edeeed;
   --rq-text-3: rgb(var(--rq-ink-rgb) / .60);
-  --rq-text-4: rgb(var(--rq-ink-rgb) / .40);
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .50);   /* WCAG AA 4.5:1 (ägarbeslut 2026-10-04); ljust: .65 */
   --rq-text-5: rgb(var(--rq-ink-rgb) / .28);
 
   /* ── 1.8 Hårlinjeskala (ink-alfa). Rader skiljs av gap, inte kanter ─────────
@@ -418,6 +418,7 @@
 
   --rq-text-1: #26231f;
   --rq-text-2: #26231f;
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .65);    /* AA mot ljus bas: .5 ger 3.05:1, .65 ger 4.69:1 */
   /* text-3/4/5 + line-* + fill-* + heat-* följer --rq-ink-rgb automatiskt */
   --rq-panel-border: transparent;               /* inga ytterkanter i ljust, skugga i stället */
   --rq-card-shadow:  0 2px 10px rgba(0, 0, 0, .07);
