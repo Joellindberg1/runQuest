@@ -13,7 +13,7 @@ Pågående: redesign på `redesign/integration` (plan: docs/design/redesign-plan
                    EN events-query (getEvents borta) och klock-regeln eventPhase;
                    i6b: skalet visar tävling utan entry ("Not entered").
                    i7 Log mergad (XP-preview via shared-formeln, group history,
-                   Strava-queries delade i shared/hooks). i8 Profile mergad (heatmap, delad Frodo-väg, edit/delete + full invalideringskedja via runEffects, toast-sanering). ÄGARBESLUT 2026-10-04: migration 034 GODKÄND. Näst: i10 Landing, därefter i9 Pack News (data-spår: migration 034 + activity_log + news-endpoints + source-fält i users-with-runs + checkEventQualification efter PUT/DELETE; sedan frontend).
+                   Strava-queries delade i shared/hooks). i8 Profile mergad (heatmap, delad Frodo-väg, edit/delete + full invalideringskedja via runEffects, toast-sanering). i10 Landing mergad (publik /, hårdskriven dummy-data, ägarbeslut 4). ÄGARBESLUT 2026-10-04: migration 034 GODKÄND. Näst: i9 Pack News (data-spår: migration 034 + activity_log + news-endpoints + source-fält i users-with-runs + checkEventQualification efter PUT/DELETE; sedan frontend).
                    Antaganden + backend-kontraktsfrågor:
                    docs/open-assumptions.md (NY — Lead underhåller). Öppna
                    ägarbeslut: titelkategorier (Finisher/Commuter/Hamster);
