@@ -8,7 +8,7 @@ type ZoomLevel = 0 | 1 | 2;
 
 interface Waypoint { name: string; km: number; tier: 1 | 2 }
 
-const ALL_WAYPOINTS: Waypoint[] = [
+const ALL_WAYPOINTS: Waypoint[] = ([
   // ── Major destinations (tier 1) ──────────────────────────────────────────
   { name: 'The Shire',          km: 0,    tier: 1 },
   { name: 'Bree',               km: 168,  tier: 1 },
@@ -53,7 +53,7 @@ const ALL_WAYPOINTS: Waypoint[] = [
   { name: 'Cirith Ungol',       km: 2914, tier: 2 },
   { name: 'Gorgoroth',          km: 3031, tier: 2 },
   { name: 'Sammath Naur',       km: 3148, tier: 2 },
-].sort((a, b) => a.km - b.km);
+] satisfies Waypoint[]).sort((a, b) => a.km - b.km);
 
 // ─── Pixel layout ─────────────────────────────────────────────────────────────
 //   y=0          ─── far labels    (row 1, gap[1] px above bar)

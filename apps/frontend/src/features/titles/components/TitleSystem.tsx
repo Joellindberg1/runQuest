@@ -8,7 +8,7 @@ import { TitleRequirements } from './title/TitleRequirements';
 import { MyTitlesTab } from './MyTitlesTab';
 import { useTitleSystemData } from '../hooks/useTitleSystemData';
 import type { User } from '@runquest/types';
-import type { Title } from './title/titleSystemUtils';
+import type { TitleLeaderboard } from '@/shared/services/backendApi';
 
 interface TitleSystemProps {
   currentUser: User;
@@ -38,7 +38,7 @@ const CATEGORIES: Category[] = [
   { id: 'comeback',    label: 'Comeback',     icon: <Flame className="w-3.5 h-3.5" />,      keywords: ['ghost', 'phoenix'] },
 ];
 
-function getCategoryId(title: Title): string {
+function getCategoryId(title: TitleLeaderboard): string {
   const n = title.name.toLowerCase();
   for (const cat of CATEGORIES) {
     if (cat.keywords.some(k => n.includes(k))) return cat.id;
@@ -49,7 +49,7 @@ function getCategoryId(title: Title): string {
 interface CategorySectionProps {
   label: string;
   icon: React.ReactNode;
-  titles: Title[];
+  titles: TitleLeaderboard[];
 }
 
 const CategorySection: React.FC<CategorySectionProps & { defaultOpen?: boolean }> = ({ label, icon, titles, defaultOpen = false }) => {
@@ -77,8 +77,7 @@ const CategorySection: React.FC<CategorySectionProps & { defaultOpen?: boolean }
       {open && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {titles.map(title => (
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            <TitleCard key={title.id} title={title as any} />
+            <TitleCard key={title.id} title={title} />
           ))}
         </div>
       )}
@@ -101,8 +100,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ currentUser, onRefresh
 
   const categorized = CATEGORIES.map(cat => ({
     ...cat,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    titles: titles.filter(t => getCategoryId(t as any) === cat.id) as any[],
+    titles: titles.filter(t => getCategoryId(t) === cat.id),
   }));
 
   return (
@@ -119,8 +117,7 @@ export const TitleSystem: React.FC<TitleSystemProps> = ({ currentUser, onRefresh
 
       <TabsContent value="my-titles" className="px-4 pb-4" data-tour="titles-unlocked">
         <MyTitlesTab
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          titles={titles as any}
+          titles={titles}
           currentUser={currentUser}
           onRefresh={onRefresh}
         />

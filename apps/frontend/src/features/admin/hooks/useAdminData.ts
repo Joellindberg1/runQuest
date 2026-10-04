@@ -3,7 +3,7 @@ import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
 import { validatePassword } from '@/shared/utils/validation';
-import type { User } from '@runquest/types';
+import type { AdminUser } from '@/shared/services/backendApi';
 
 export interface AdminSettings {
   xpPerRun: number;
@@ -41,10 +41,10 @@ const DEFAULT_SETTINGS: AdminSettings = {
 
 export function useAdminData() {
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '' });
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [newPasswordForUser, setNewPasswordForUser] = useState('');
   const [newMultiplierDay, setNewMultiplierDay] = useState('');
   const [newMultiplierValue, setNewMultiplierValue] = useState('');
@@ -59,16 +59,17 @@ export function useAdminData() {
     try {
       const result = await backendApi.getAdminSettings();
       if (result.success && result.data) {
+        const data = result.data;
         setSettings(prev => ({
           ...prev,
-          xpPerRun: result.data.base_xp || 15,
-          xpPerKm: result.data.xp_per_km || 2,
-          bonus5km: result.data.bonus_5km || 5,
-          bonus10km: result.data.bonus_10km || 15,
-          bonus15km: result.data.bonus_15km || 25,
-          bonus20km: result.data.bonus_20km || 50,
-          minKmForRun: result.data.min_run_distance || 1.0,
-          minKmForStreak: result.data.min_run_distance || 1.0,
+          xpPerRun: data.base_xp || 15,
+          xpPerKm: data.xp_per_km || 2,
+          bonus5km: data.bonus_5km || 5,
+          bonus10km: data.bonus_10km || 15,
+          bonus15km: data.bonus_15km || 25,
+          bonus20km: data.bonus_20km || 50,
+          minKmForRun: data.min_run_distance || 1.0,
+          minKmForStreak: data.min_run_distance || 1.0,
         }));
 
         const multipliersResult = await backendApi.getStreakMultipliers();
@@ -94,7 +95,7 @@ export function useAdminData() {
     try {
       const result = await backendApi.getAllUsers();
       if (result.success && result.data) {
-        setUsers(result.data as User[]);
+        setUsers(result.data);
       } else {
         log.error('Failed to fetch users', result.error);
         toast.error('Failed to fetch users: ' + (result.error || 'Unknown error'));
@@ -151,7 +152,8 @@ export function useAdminData() {
     try {
       const result = await backendApi.createUser(newUser.name, newUser.email, newUser.password);
       if (result.success && result.data) {
-        setUsers(prev => [...prev, result.data as User]);
+        const created = result.data;
+        setUsers(prev => [...prev, created]);
         setNewUser({ name: '', email: '', password: '' });
         toast.success('User created successfully!');
       } else {

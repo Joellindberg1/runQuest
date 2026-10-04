@@ -5,7 +5,7 @@ import { ChallengesPage as ChallengesFeaturePage } from '@/features/challenges/c
 import { useChallengeData } from '@/features/challenges/hooks/useChallengeData';
 import { useChallengeActions } from '@/features/challenges/hooks/useChallengeActions';
 import { backendApi } from '@/shared/services/backendApi';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/authContext';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_CHALLENGES_V1 } from '@/features/onboarding/featureTourSteps';
 

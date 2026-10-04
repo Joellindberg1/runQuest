@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/authContext';
 import { backendApi } from '@/shared/services/backendApi';
 import { SidebarActivityWidget } from './SidebarActivityWidget';
 import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';

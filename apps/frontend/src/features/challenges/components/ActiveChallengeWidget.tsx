@@ -1,13 +1,14 @@
 import React from 'react';
 import { TierBadge } from './TierBadge';
 import { Swords, Clock } from 'lucide-react';
-import { useUserProfileModal } from '@/providers/UserProfileModalProvider';
+import { useUserProfileModal } from '@/providers/userProfileModalContext';
 import type { Challenge } from '@runquest/types';
 import type { ProgressEntry } from './OngoingChallengeCard';
 
 interface ActiveChallengeWidgetProps {
   challenge: Challenge;
-  progress: ProgressEntry[];
+  // Widgeten läser bara user_id/value — name behövs inte (backendens progress-svar saknar name)
+  progress: Pick<ProgressEntry, 'user_id' | 'value'>[];
   currentUserId: string;
   onClick?: () => void;
 }

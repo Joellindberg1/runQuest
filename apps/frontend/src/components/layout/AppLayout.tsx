@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { GlobalSidebarWidget } from '@/components/GlobalSidebarWidget';
-import { Bot } from 'lucide-react';
 import { sidebarBridge } from '@/features/onboarding/sidebarBridge';
 
 interface AppLayoutProps {
@@ -20,7 +19,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ groupName, children, sideb
       () => setSidebarOpen(true),
       () => setSidebarOpen(false),
     );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className={`runquest-hybrid flex min-h-screen bg-background${themeClass ? ` ${themeClass}` : ''}`}>

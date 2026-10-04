@@ -1,5 +1,5 @@
 // 🔗 Backend API Service - Production Ready
-import type { Run, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
+import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -34,6 +34,65 @@ interface TitleData {
   unlock_requirement: number;
   category?: string;
   icon?: string;
+}
+
+/** Shape of GET /titles/leaderboard (title_leaderboard-vyn per titel). */
+export interface TitleLeaderboard {
+  id: string;
+  name: string;
+  description: string;
+  unlock_requirement: number;
+  metric_key?: string;
+  holder: {
+    user_id: string;
+    user_name: string;
+    user_gender?: string | null;
+    profile_picture?: string;
+    value: number;
+    earned_at: string;
+  } | null;
+  runners_up: Array<{
+    position: number;
+    user_id: string;
+    user_name: string;
+    user_gender?: string | null;
+    profile_picture?: string;
+    value: number;
+    earned_at: string;
+  }>;
+}
+
+/** Shape of GET /auth/users (admin user list). */
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  total_xp: number;
+  current_level: number;
+  total_km: number;
+  current_streak: number;
+  longest_streak: number;
+  created_at: string;
+  // OBS: returneras INTE av backend idag — UI som läser fältet visar tomt (känd bugg, rapporterad).
+  total_runs?: number;
+}
+
+/** Shape of each row from GET /runs/group-history. */
+export interface GroupRunHistoryEntry extends Run {
+  weather_code?: number | null;
+  temperature_c?: number | null;
+  user_name: string;
+  user_level: number;
+  user_total_xp?: number;
+  user_profile_picture?: string;
+}
+
+/** Shape of each row from GET /titles/group-eligibility. */
+export interface GroupEligibilityEntry {
+  userId: string;
+  name: string;
+  gender: string | null;
+  values: Record<string, number>;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -161,7 +220,7 @@ class BackendApiService {
   }
 
   // 👥 Admin: Get all users
-  async getAllUsers(): Promise<ApiResponse> {
+  async getAllUsers(): Promise<ApiResponse<AdminUser[]>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -199,7 +258,7 @@ class BackendApiService {
   }
 
   // 👥 Get all users with their runs (for leaderboard)
-  async getUsersWithRuns(): Promise<ApiResponse> {
+  async getUsersWithRuns(): Promise<ApiResponse<User[]>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -236,7 +295,7 @@ class BackendApiService {
   }
 
   // 👤 Admin: Create new user
-  async createUser(name: string, email: string, password: string): Promise<ApiResponse> {
+  async createUser(name: string, email: string, password: string): Promise<ApiResponse<AdminUser>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -396,7 +455,7 @@ class BackendApiService {
       }
 
       return { success: true, data };
-    } catch (error) {
+    } catch {
       return { success: false, error: 'Network error' };
     }
   }
@@ -529,15 +588,15 @@ class BackendApiService {
   }
 
   // 🏆 Title System Methods
-  async getTitleLeaderboard(): Promise<ApiResponse<UserTitle[]>> {
-    const response = await this.authenticatedRequest<{ data: UserTitle[] }>('/titles/leaderboard');
+  async getTitleLeaderboard(): Promise<ApiResponse<TitleLeaderboard[]>> {
+    const response = await this.authenticatedRequest<{ data: TitleLeaderboard[] }>('/titles/leaderboard');
 
     // Extract the actual data from the nested response structure
     if (response.success && response.data && response.data.data) {
       return { success: true, data: response.data.data };
     }
 
-    return response;
+    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
   }
 
   async getUserTitles(userId: string): Promise<ApiResponse<UserTitle[]>> {
@@ -548,29 +607,15 @@ class BackendApiService {
       return { success: true, data: response.data.data };
     }
 
-    return response;
+    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
   }
 
-  async getTitleGroupEligibility(): Promise<ApiResponse<Array<{
-    userId: string;
-    name: string;
-    longestRun: number;
-    weekendAvg: number;
-    longestStreak: number;
-    totalKm: number;
-  }>>> {
-    const response = await this.authenticatedRequest<{ data: Array<{
-      userId: string;
-      name: string;
-      longestRun: number;
-      weekendAvg: number;
-      longestStreak: number;
-      totalKm: number;
-    }> }>('/titles/group-eligibility');
+  async getTitleGroupEligibility(): Promise<ApiResponse<GroupEligibilityEntry[]>> {
+    const response = await this.authenticatedRequest<{ data: GroupEligibilityEntry[] }>('/titles/group-eligibility');
     if (response.success && response.data && response.data.data) {
       return { success: true, data: response.data.data };
     }
-    return response;
+    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
   }
 
   async getAllTitles(): Promise<ApiResponse<TitleData[]>> {
@@ -581,7 +626,7 @@ class BackendApiService {
       return { success: true, data: response.data.data };
     }
 
-    return response;
+    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
   }
 
   async updateDisplayedTitles(titleIds: string[]): Promise<ApiResponse<void>> {
@@ -791,7 +836,7 @@ class BackendApiService {
     }
   }
 
-  async getGroupRunHistory(): Promise<ApiResponse<Array<Run & { user: { name: string; profile_picture?: string } }>>> {
+  async getGroupRunHistory(): Promise<ApiResponse<GroupRunHistoryEntry[]>> {
     try {
       const response = await fetch(`${API_BASE_URL}/runs/group-history`, {
         method: 'GET',

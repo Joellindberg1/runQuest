@@ -52,20 +52,31 @@ const MOCK_USERS: User[] = [
 const MOCK_CURRENT_USER = MOCK_USERS[0];
 
 // Mock titles for preview — tests display of 3 titles + overflow label
+const makeTitle = (title_id: string, title_name: string): import('@runquest/types').UserTitle => ({
+  title_id,
+  title_name,
+  title_description: '',
+  position: 1,
+  value: 0,
+  earned_at: '2026-01-01T00:00:00.000Z',
+  is_current_holder: true,
+  status: 'holder',
+});
+
 const MOCK_TITLE_OVERRIDES: Record<string, import('@runquest/types').UserTitle[]> = {
-  'u1': [{ title_id: 't0', title_name: 'The Iron Queen',                  value: 0, is_current_holder: true }],
+  'u1': [makeTitle('t0', 'The Iron Queen')],
   'u2': [
-    { title_id: 't1', title_name: 'The Daaaaaviiiiiid GOGGINGS',      value: 0, is_current_holder: true },
-    { title_id: 't2', title_name: 'The Reborn Eliud Kipchoge',         value: 0, is_current_holder: true },
-    { title_id: 't3', title_name: 'The Weekend Destroyer',             value: 0, is_current_holder: true },
-    { title_id: 't4', title_name: 'The Silent Pavement Predator',      value: 0, is_current_holder: true },
+    makeTitle('t1', 'The Daaaaaviiiiiid GOGGINGS'),
+    makeTitle('t2', 'The Reborn Eliud Kipchoge'),
+    makeTitle('t3', 'The Weekend Destroyer'),
+    makeTitle('t4', 'The Silent Pavement Predator'),
   ],
-  'u3': [{ title_id: 't5', title_name: 'Dawn Patrol Champion',            value: 0, is_current_holder: true }],
-  'u4': [{ title_id: 't6', title_name: 'The Pavement Philosopher',        value: 0, is_current_holder: true }],
-  'u5': [{ title_id: 't7', title_name: 'Midnight Mile Muncher',           value: 0, is_current_holder: true }],
-  'u6': [{ title_id: 't8', title_name: 'The Reluctant Runner',            value: 0, is_current_holder: true }],
-  'u7': [{ title_id: 't9', title_name: 'Perpetual Beginner',              value: 0, is_current_holder: true }],
-  'u8': [{ title_id: 't10', title_name: 'Still Lacing Up',                value: 0, is_current_holder: true }],
+  'u3': [makeTitle('t5', 'Dawn Patrol Champion')],
+  'u4': [makeTitle('t6', 'The Pavement Philosopher')],
+  'u5': [makeTitle('t7', 'Midnight Mile Muncher')],
+  'u6': [makeTitle('t8', 'The Reluctant Runner')],
+  'u7': [makeTitle('t9', 'Perpetual Beginner')],
+  'u8': [makeTitle('t10', 'Still Lacing Up')],
 };
 
 // Active challenge widget data

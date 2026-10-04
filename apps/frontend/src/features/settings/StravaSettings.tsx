@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { formatConnectionDate } from '@/shared/utils/formatters';
 import { useStravaData, formatLastSync, formatNextSync } from './hooks/useStravaData';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/authContext';
 
 export const StravaSettings: React.FC = () => {
   const { stravaStatus, setStravaStatus, syncInfo, loading, stravaClientId, refreshStatus } = useStravaData();
@@ -42,7 +42,7 @@ export const StravaSettings: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [refreshStatus]);
 
   const handleConnectStrava = async () => {
     if (!stravaClientId) { toast.error('Strava-konfiguration saknas'); return; }

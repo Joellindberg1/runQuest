@@ -1,31 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
+import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import type { UserTitle } from '@runquest/types';
 
-export interface TitleLeaderboard {
-  id: string;
-  name: string;
-  description: string;
-  unlock_requirement: number;
-  metric_key?: string;
-  holder: {
-    user_id: string;
-    user_name: string;
-    user_gender?: string | null;
-    profile_picture?: string;
-    value: number;
-    earned_at: string;
-  } | null;
-  runners_up: Array<{
-    position: number;
-    user_id: string;
-    user_name: string;
-    user_gender?: string | null;
-    profile_picture?: string;
-    value: number;
-    earned_at: string;
-  }>;
-}
+export type { TitleLeaderboard };
 
 export const titleQueryKeys = {
   all: ['titles'] as const,

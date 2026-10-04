@@ -165,7 +165,6 @@ const ReceivedItem: React.FC<{
 export const SentReceivedBar: React.FC<SentReceivedBarProps> = ({
   sentChallenge,
   receivedChallenges,
-  currentUserId,
   onAccept,
   onDecline,
   onWithdraw,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Leaderboard } from '@/features/leaderboard/components/Leaderboard';
 import { RunLogger } from '@/features/runs/components/RunLogger';
@@ -16,7 +16,6 @@ const Index: React.FC = () => {
   const { users, currentUser, loading, refresh } = useLeaderboardData();
   const { onRunUpdated } = useRunUpdates(refresh);
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const activeTab = searchParams.get('tab') || 'leaderboard';
 
   // Fetch group info for the layout header

@@ -5,7 +5,7 @@ import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
 import { useMultipleUserTitles } from '@/shared/hooks/useTitleQueries';
-import { useUserProfileModal } from '@/providers/UserProfileModalProvider';
+import { useUserProfileModal } from '@/providers/userProfileModalContext';
 import { Swords } from 'lucide-react';
 import type { User, UserTitle } from '@runquest/types';
 
@@ -76,7 +76,16 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, ti
       : heldTitles).slice(0, 3);
     const titles: UserTitle[] =
       position === 1 && orderedTitles.length === 0
-        ? [{ title_id: 'default', title_name: 'Eliud Kipchoge', value: 0, is_current_holder: true }]
+        ? [{
+            title_id: 'default',
+            title_name: 'Eliud Kipchoge',
+            title_description: '',
+            position: 1,
+            value: 0,
+            earned_at: '',
+            is_current_holder: true,
+            status: 'holder',
+          }]
         : orderedTitles;
     const initials = getInitials(user.name);
     const counts = user.challenge_counts ?? {};

@@ -1,5 +1,5 @@
 import { useQuery, useQueries } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { backendApi } from '@/shared/services/backendApi';
 import type { Challenge, ChallengeStats } from '@runquest/types';
 import type { LeaderboardEntry } from '../components/ChallengeLeaderboard';
@@ -50,11 +50,11 @@ export function useChallengeData(currentUserId: string) {
   );
 
   // Attach names to a challenge
-  const withNames = (c: Challenge): Challenge => ({
+  const withNames = useCallback((c: Challenge): Challenge => ({
     ...c,
     challenger_name: nameMap[c.challenger_id] || c.challenger_name || 'Unknown',
     opponent_name: nameMap[c.opponent_id] || c.opponent_name || 'Unknown',
-  });
+  }), [nameMap]);
 
   // Fetch progress for all group active challenges
   const activeIds = challengesQuery.data?.group_active?.map(c => c.id) ?? [];
@@ -88,7 +88,7 @@ export function useChallengeData(currentUserId: string) {
         value: p.value,
       })),
     }));
-  }, [challengesQuery.data, progressQueries, nameMap]);
+  }, [challengesQuery.data, progressQueries, nameMap, withNames]);
 
   // Leaderboard from group stats
   const leaderboard: LeaderboardEntry[] = useMemo(

@@ -1,33 +1,12 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { backendApi } from '@/shared/services/backendApi';
 import { log } from '@/shared/utils/logger';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  is_admin?: boolean;
-  total_xp?: number | null;
-  current_level?: number | null;
-  total_km?: number | null;
-  current_streak?: number | null;
-  longest_streak?: number | null;
-  profile_picture?: string | null;
-}
-
-interface AuthContextType {
-  user: User | null;
-  login: (nameOrEmail: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
-  loading: boolean;
-  isAdmin: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from '@/providers/authContext';
+import type { AuthUser } from '@/providers/authContext';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Check if current user is admin
@@ -97,10 +76,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider');
-  return context;
 };

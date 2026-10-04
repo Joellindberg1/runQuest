@@ -13,8 +13,17 @@ import { sidebarBridge } from '../sidebarBridge';
 function OnboardingItem({ slug }: { slug: string }) {
   const { markSeen } = useOnboarding(slug);
 
-  // Patch note?
   const patchNote = PATCH_NOTES.find(n => n.slug === slug);
+  const isKnownSlug = !!patchNote || slug === 'onboarding_v1' || slug.startsWith('tour_');
+
+  // Truly unknown slug — mark as seen so queue advances (never call mutations during render).
+  // Hooken körs ovillkorligt (rules-of-hooks); villkoret ligger inne i effekten.
+  // markSeen (TanStack mutate) har stabil identitet, så effekten kör högst en gång per slug-instans.
+  React.useEffect(() => {
+    if (!isKnownSlug) markSeen();
+  }, [isKnownSlug, markSeen]);
+
+  // Patch note?
   if (patchNote) {
     return <PatchNotesModal note={patchNote} onClose={() => markSeen()} />;
   }
@@ -32,10 +41,6 @@ function OnboardingItem({ slug }: { slug: string }) {
   }
 
   // Feature tour slug — handled by page-level FeatureTour, not by the orchestrator
-  if (slug.startsWith('tour_')) return null;
-
-  // Truly unknown slug — mark as seen so queue advances (never call mutations during render)
-  React.useEffect(() => { markSeen(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 

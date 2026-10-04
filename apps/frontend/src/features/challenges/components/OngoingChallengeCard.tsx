@@ -2,7 +2,7 @@ import React from 'react';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { Clock } from 'lucide-react';
-import { useUserProfileModal } from '@/providers/UserProfileModalProvider';
+import { useUserProfileModal } from '@/providers/userProfileModalContext';
 import type { Challenge } from '@runquest/types';
 
 export interface ProgressEntry {

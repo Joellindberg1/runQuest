@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/authContext';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
@@ -8,7 +8,12 @@ import { log } from '@/shared/utils/logger';
 export const StravaCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { session, loading } = useAuth();
+  const { loading } = useAuth();
+  // KÄND BUGG (rapporterad, beteendet bevarat): auth-kontexten har aldrig haft något
+  // 'session'-fält, så värdet har alltid varit undefined → callbacken nedan körs aldrig
+  // från den här sidan. Strava-kopplingen sker i praktiken via StravaSettings
+  // message-lyssnare. Rättas separat (kräver beteendeändring).
+  const session = undefined;
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {

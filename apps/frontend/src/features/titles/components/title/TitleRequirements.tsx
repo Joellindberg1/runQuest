@@ -41,7 +41,7 @@ export const TitleRequirements: React.FC = () => {
             <div className="text-center py-8 text-sm text-muted-foreground">Loading eligibility...</div>
           ) : eligibility.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {eligibility.map((e: any) => (
+              {eligibility.map((e) => (
                 <UserTitleStatus key={e.userId} eligibility={e} titles={uniqueTitles} />
               ))}
             </div>

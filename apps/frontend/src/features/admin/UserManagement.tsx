@@ -4,7 +4,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Plus, Save, Key } from 'lucide-react';
-import type { User } from '@runquest/types';
+import type { AdminUser } from '@/shared/services/backendApi';
 
 interface NewUser {
   name: string;
@@ -13,12 +13,12 @@ interface NewUser {
 }
 
 interface UserManagementProps {
-  users: User[];
+  users: AdminUser[];
   loadingUsers: boolean;
   newUser: NewUser;
   setNewUser: (u: NewUser) => void;
-  editingUser: User | null;
-  setEditingUser: (u: User | null) => void;
+  editingUser: AdminUser | null;
+  setEditingUser: (u: AdminUser | null) => void;
   newPasswordForUser: string;
   setNewPasswordForUser: (p: string) => void;
   onAddUser: () => void;

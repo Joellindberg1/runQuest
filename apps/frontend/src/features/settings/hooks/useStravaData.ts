@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
@@ -52,7 +52,8 @@ export const useStravaData = () => {
     }
   };
 
-  const refreshStatus = async () => {
+  // Stabil identitet så att konsumenter kan ha den i effect-deps utan omkörningar
+  const refreshStatus = useCallback(async () => {
     if (!backendApi.isAuthenticated()) return;
     try {
       const [statusResult, syncResult] = await Promise.all([
@@ -75,13 +76,13 @@ export const useStravaData = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchStravaConfig();
     if (backendApi.isAuthenticated()) refreshStatus();
     else setLoading(false);
-  }, []);
+  }, [refreshStatus]);
 
   return { stravaStatus, setStravaStatus, syncInfo, loading, stravaClientId, refreshStatus };
 };

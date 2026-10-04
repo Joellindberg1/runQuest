@@ -11,14 +11,14 @@ import type { GroupMember } from '@/features/challenges/components/SendChallenge
 const ME_ID = 'u1';
 
 const GROUP_MEMBERS: GroupMember[] = [
-  { id: 'u1', name: 'Anna Lindqvist',  challenge_active: true  },
-  { id: 'u2', name: 'Erik Svensson',   challenge_active: true  },
-  { id: 'u3', name: 'Maria Johansson', challenge_active: true  },
-  { id: 'u4', name: 'Johan Karlsson',  challenge_active: true  },
-  { id: 'u5', name: 'Sara Nilsson',    challenge_active: true  },
-  { id: 'u6', name: 'Lars Petersson',  challenge_active: true  },
-  { id: 'u7', name: 'Klara Bergström', challenge_active: false },
-  { id: 'u8', name: 'Mikael Holm',     challenge_active: false },
+  { id: 'u1', name: 'Anna Lindqvist',  challenge_active: true,  has_pending_challenge: false },
+  { id: 'u2', name: 'Erik Svensson',   challenge_active: true,  has_pending_challenge: false },
+  { id: 'u3', name: 'Maria Johansson', challenge_active: true,  has_pending_challenge: false },
+  { id: 'u4', name: 'Johan Karlsson',  challenge_active: true,  has_pending_challenge: false },
+  { id: 'u5', name: 'Sara Nilsson',    challenge_active: true,  has_pending_challenge: false },
+  { id: 'u6', name: 'Lars Petersson',  challenge_active: true,  has_pending_challenge: false },
+  { id: 'u7', name: 'Klara Bergström', challenge_active: false, has_pending_challenge: false },
+  { id: 'u8', name: 'Mikael Holm',     challenge_active: false, has_pending_challenge: false },
 ];
 
 const LEADERBOARD: LeaderboardEntry[] = [

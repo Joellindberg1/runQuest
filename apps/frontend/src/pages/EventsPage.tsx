@@ -11,12 +11,12 @@ import { useGroupName } from '@/shared/hooks/useGroupName';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_EVENTS_V1 } from '@/features/onboarding/featureTourSteps';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/authContext';
 import { backendApi } from '@/shared/services/backendApi';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ApiEvent = Awaited<ReturnType<typeof backendApi.getEvents>>['data'] extends { events: (infer E)[] } ? E : never;
+type ApiEvent = NonNullable<Awaited<ReturnType<typeof backendApi.getEvents>>['data']> extends { events: (infer E)[] } ? E : never;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -267,7 +267,7 @@ const CompetitionCard: React.FC<{ event: ApiEvent }> = ({ event }) => {
 
 const HISTORY_PER_PAGE = 5;
 
-type HistoryEvent = Awaited<ReturnType<typeof backendApi.getEventsHistory>>['data'] extends { events: (infer E)[] } ? E : never;
+type HistoryEvent = NonNullable<Awaited<ReturnType<typeof backendApi.getEventsHistory>>['data']> extends { events: (infer E)[] } ? E : never;
 
 const HistorySection: React.FC<{ items: HistoryEvent[] }> = ({ items }) => {
   const [page, setPage] = useState(0);

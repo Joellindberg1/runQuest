@@ -5,7 +5,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { LogIn } from 'lucide-react';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/authContext';
 import { RunQuestLogo } from '@/shared/components/RunQuestLogo';
 
 const LoginPage: React.FC = () => {

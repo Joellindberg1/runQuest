@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Trophy, Calendar, Target, Moon, Sunrise, Coffee, Rabbit, Flame, Ghost, Zap, Mountain, TrendingUp, Clock, Timer, AlarmClock, Footprints, TreePine } from 'lucide-react';
+import { Trophy, Calendar, Target, Moon, Sunrise, Coffee, Rabbit, Flame, Ghost, Zap, Mountain, TrendingUp, Timer, AlarmClock, Footprints, TreePine } from 'lucide-react';
 import type { Run, User } from '@runquest/types';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 

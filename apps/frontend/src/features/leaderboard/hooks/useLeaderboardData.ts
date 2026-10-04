@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/providers/AuthProvider';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/providers/authContext';
 import { backendApi } from '@/shared/services/backendApi';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
@@ -19,7 +19,7 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const result = await backendApi.getUsersWithRuns();
 
@@ -27,7 +27,7 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
         throw new Error(result.error || 'Failed to fetch users');
       }
 
-      const usersWithRuns: User[] = result.data.map((user: any) => ({
+      const usersWithRuns: User[] = result.data.map((user) => ({
         id: user.id,
         name: user.name,
         total_xp: user.total_xp || 0,
@@ -54,7 +54,7 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
           km_xp: run.km_xp,
           distance_bonus: run.distance_bonus,
           streak_bonus: run.streak_bonus,
-          is_treadmill: (run as any).is_treadmill ?? null,
+          is_treadmill: run.is_treadmill ?? null,
         })) || [],
       }));
 
@@ -70,7 +70,7 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authUser]);
 
   useEffect(() => {
     if (authUser) {
@@ -78,7 +78,7 @@ export function useLeaderboardData(): UseLeaderboardDataResult {
     } else {
       setLoading(false);
     }
-  }, [authUser]);
+  }, [authUser, fetchUsers]);
 
   return { users, currentUser, loading, refresh: fetchUsers };
 }

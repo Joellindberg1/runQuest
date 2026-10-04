@@ -51,7 +51,7 @@ Ordnade efter risk; verifierade i koden om inget annat anges.
 6. **Schedulers** — startas endast när `NODE_ENV==='production'`. In-process node-cron utan lås: överlappande instanser (t.ex. vid deploy) kan ge dubbla dragningar/dubbel XP (`settleCompetitionEvents` ej idempotent). Cron är UTC men kommentarerna säger Stockholm — en timme fel på vintern. `settleChallenge` sätter `completed` före W/D/L+boosts; wins/draws/losses uppdateras read-modify-write.
 7. **Migrationer och schema** — dubbla 005/010, 003/004 saknas, inget körverktyg; kärntabellerna saknar `CREATE TABLE` i repot → schema ej återskapbart, staging kan inte byggas ur repot; `002` hårdkodar admin-namn; frontendens `integrations/supabase/types.ts` är föråldrad.
 8. **Auth och session** — JWT 7 d utan refresh/återkallning, i localStorage; `group_id` i token blir inaktuell efter `groups/join`; ingen rate limiting på login; nyckelprefix loggas vid start; admin-skapa-användare bygger `.or()`-filter av body-strängar (filterinjektion, endast admin); `/titles/refresh/:titleId` kräver bara inloggning; titelleaderboarden är global, inte gruppavgränsad.
-9. **Verifieringsnätet** — frontend: 0 tester, typecheck+lint i CI är icke-blockerande (känd skuld: ~98 typfel inkl. en villkorligt anropad React-hook, 15 lint-fel); backend saknar lint; backendtesterna mockar DB/shared/`calculateUserTotals` → XP-/streak-/titelkedjan saknar beteendetest; titelmotorerna (21) otestade; Railway deployar på push oberoende av CI.
+9. **Verifieringsnätet** — typskulden BETALD 2026-10-04 (0 tsc-fel, 0 lint-problem, blockerande i CI med --max-warnings 0). KVAR: frontend har 0 tester; backend saknar lint; backendtesterna mockar DB/shared/`calculateUserTotals` → XP-/streak-/titelkedjan saknar beteendetest (ADR 001:s in-memory-fake ej byggd än); titelmotorerna (21) otestade; Railway deployar på push oberoende av CI.
 10. **Stora filer** — `backendApi.ts` (1043 rader, ~65 metoder), `routes/strava.ts` (914), `routes/auth.ts` (622, blandar auth/admin/users), `eventService.ts` (585), `PlaybookPage.tsx` (549), `EventsPage.tsx` (499). Inga delade API-svarstyper — kontraktet speglas för hand.
 11. **Titelsystemet (orkestrering)** — titlar återkallas aldrig när värdet sjunker; leaderboard uppdateras tre gånger per skrivning; motor utan matchande `metric_key` hoppas tyst över (varning i logg).
 
@@ -76,5 +76,5 @@ Produkt: ny kod kräver tester · hela sviten grön + CI-status före merge ·
          före deploy (hoppa councils, aldrig verifiering) · error tracking
          aktiv (Sentry — GAP, ej uppsatt) · previewns databas enligt
          staging-ADR (GAP, öppet vägval), aldrig prod.
-         Övergångsregel tills typskulden är betald: frontend-typecheck/lint
-         är icke-blockerande i CI men får inte öka (ny kod håller full nivå).
+         Frontend-typecheck/lint: blockerande, 0 fel/0 varningar (ADR 001,
+         skulden betald 2026-10-04).

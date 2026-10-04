@@ -34,7 +34,6 @@ function formatVal(metric: string, value: number): string {
   return `${value} XP`;
 }
 
-const bebas = { fontFamily: 'Bebas Neue, sans-serif' };
 const barlow = { fontFamily: 'Barlow Condensed, sans-serif' };
 
 const TIER_COLOR: Record<string, string> = {

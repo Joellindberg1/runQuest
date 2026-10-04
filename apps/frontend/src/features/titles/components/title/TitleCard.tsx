@@ -2,14 +2,28 @@
 import React from 'react';
 import { Badge } from '@/shared/components/ui/badge';
 import { Crown } from 'lucide-react';
-import { getTitleIcon, formatTitleValue, resolveGenderedTitle, Title } from './titleSystemUtils';
+import { getTitleIcon, formatTitleValue, resolveGenderedTitle } from './titleSystemUtils';
+import type { TitleLeaderboard } from '@/shared/services/backendApi';
+
+/** Leaderboard-datat plus den äldre platta hållarformen som kortet fortfarande stödjer. */
+type TitleCardData = TitleLeaderboard & {
+  current_holder_id?: string | null;
+  current_value?: number | null;
+  holder_name?: string;
+};
+
+interface HolderInfo {
+  user_id: string;
+  user_name: string;
+  value: number;
+}
 
 interface TitleCardProps {
-  title: Title;
+  title: TitleCardData;
 }
 
 export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
-  const holder = title.holder || (title.current_holder_id ? {
+  const holder: HolderInfo | null = title.holder || (title.current_holder_id ? {
     user_id: title.current_holder_id,
     user_name: title.holder_name || '',
     value: title.current_value || 0
@@ -25,7 +39,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
         <div className="mt-0.5 shrink-0 [&>svg]:w-5 [&>svg]:h-5">{getTitleIcon(title.name)}</div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm leading-tight mb-0.5 truncate">
-            {resolveGenderedTitle(title.name, (title as any).holder?.user_gender)}
+            {resolveGenderedTitle(title.name, title.holder?.user_gender)}
           </h3>
           <p className="text-xs text-muted-foreground mb-2">{title.description}</p>
 
@@ -41,9 +55,9 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
                 <span className="font-semibold ml-1 shrink-0">{holderValueStr}</span>
               </div>
 
-              {(title as any).runners_up && (title as any).runners_up.length > 0 && (
+              {title.runners_up && title.runners_up.length > 0 && (
                 <div className="border-t pt-1 space-y-0.5 mt-0.5">
-                {(title as any).runners_up.slice(0, 3).map((runner: any, index: number) => (
+                {title.runners_up.slice(0, 3).map((runner, index) => (
                   <div key={runner.user_id} className="flex justify-between text-xs">
                     <span className="text-muted-foreground truncate">#{index + 2} {runner.user_name}</span>
                     <span className="font-medium ml-1 shrink-0">{formatTitleValue(title.metric_key, runner.value)}</span>

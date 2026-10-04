@@ -1,15 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { useState } from 'react';
 import { UserProfileModal } from '@/components/UserProfileModal';
-
-interface UserProfileModalContextValue {
-  openProfile: (userId: string) => void;
-}
-
-const UserProfileModalContext = createContext<UserProfileModalContextValue>({
-  openProfile: () => {},
-});
-
-export const useUserProfileModal = () => useContext(UserProfileModalContext);
+import { UserProfileModalContext } from '@/providers/userProfileModalContext';
 
 export const UserProfileModalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [userId, setUserId] = useState<string | null>(null);

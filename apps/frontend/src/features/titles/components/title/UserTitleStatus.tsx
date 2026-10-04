@@ -27,7 +27,7 @@ export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ eligibility, t
   const eligible = titles.filter(t => (values[t.metric_key ?? ''] ?? 0) >= t.unlock_requirement);
   const notEligible = titles.filter(t => (values[t.metric_key ?? ''] ?? 0) < t.unlock_requirement);
 
-  const renderRow = (title: TitleRef, isEligible: boolean) => {
+  const renderRow = (title: TitleRef) => {
     const key = title.metric_key ?? '';
     const value = values[key] ?? 0;
     return (
@@ -48,7 +48,7 @@ export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ eligibility, t
               <span className="text-sm font-bold" style={{ color: 'var(--rq-success)' }}>Eligible</span>
               <span className="text-xs text-muted-foreground">{eligible.length}</span>
             </div>
-            <div className="space-y-1">{eligible.map(t => renderRow(t, true))}</div>
+            <div className="space-y-1">{eligible.map(t => renderRow(t))}</div>
           </div>
         )}
         {notEligible.length > 0 && (
@@ -57,7 +57,7 @@ export const UserTitleStatus: React.FC<UserTitleStatusProps> = ({ eligibility, t
               <span className="text-sm font-bold text-destructive">Not Eligible</span>
               <span className="text-xs text-muted-foreground">{notEligible.length}</span>
             </div>
-            <div className="space-y-1">{notEligible.map(t => renderRow(t, false))}</div>
+            <div className="space-y-1">{notEligible.map(t => renderRow(t))}</div>
           </div>
         )}
       </div>

@@ -13,7 +13,7 @@ import type { User } from '@runquest/types';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
-function mapUser(u: any): User {
+function mapUser(u: User): User {
   return {
     id: u.id,
     name: u.name,
@@ -30,7 +30,7 @@ function mapUser(u: any): User {
     challenge_counts: u.challenge_counts ?? {},
     displayed_title_ids: u.displayed_title_ids ?? [],
     gender: u.gender ?? null,
-    runs: u.runs?.map((r: any) => ({
+    runs: u.runs?.map((r) => ({
       id: r.id,
       user_id: r.user_id,
       date: r.date,
@@ -52,8 +52,8 @@ function useAllUsers(enabled: boolean) {
     queryKey: ['users-with-runs'],
     queryFn: async () => {
       const res = await backendApi.getUsersWithRuns();
-      if (!res.success) throw new Error(res.error || 'Failed to fetch users');
-      return (res.data as any[]).map(mapUser);
+      if (!res.success || !res.data) throw new Error(res.error || 'Failed to fetch users');
+      return res.data.map(mapUser);
     },
     staleTime: 2 * 60 * 1000,
     enabled,
