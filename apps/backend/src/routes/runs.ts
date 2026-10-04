@@ -4,7 +4,7 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
-import { calculateCompleteRunXP, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
+import { calculateCompleteRunXP, boostDeltasForRuns, type AdminSettings, type StreakMultiplier, type BoostSpec } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 
 const router = express.Router();
@@ -54,14 +54,43 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   // Fetch settings once — no per-run DB calls
   const { xpSettings, multipliers } = await fetchAdminSettings();
 
-  // Fetch all user boosts (historical — filter per-run below)
+  // Fetch all user boosts (historical — applied per-run below).
+  // multiplier_runs är statelös: förbrukningen härleds ur löphistoriken
+  // (boostCalculation i @runquest/shared), så omräkning är alltid idempotent.
   const { data: userBoosts } = await supabase
     .from('user_boosts')
-    .select('delta, created_at, expires_at')
+    .select('type, delta, remaining, created_at, expires_at')
     .eq('user_id', userId)
-    .eq('type', 'multiplier_days');
+    .in('type', ['multiplier_days', 'multiplier_runs']);
 
-  const boosts: { delta: number; created_at: string; expires_at: string }[] = userBoosts ?? [];
+  const boostSpecs: BoostSpec[] = await Promise.all(
+    (userBoosts ?? []).map(async (b: { type: string; delta: number; remaining: number | null; created_at: string; expires_at: string | null }) => {
+      const startDate = b.created_at.slice(0, 10);
+      if (b.type === 'multiplier_days') {
+        return {
+          type: 'multiplier_days' as const,
+          delta: Number(b.delta),
+          startDate,
+          endDate: b.expires_at ? b.expires_at.slice(0, 10) : null,
+        };
+      }
+      // multiplier_runs: räkna laddningar som redan förbrukats av rundor FÖRE
+      // omräkningsfönstret (de rundorna räknas inte om och behåller sin XP).
+      const { count } = await supabase
+        .from('runs')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .gte('date', startDate)
+        .lt('date', fromDate);
+      return {
+        type: 'multiplier_runs' as const,
+        delta: Number(b.delta),
+        startDate,
+        charges: b.remaining ?? 0,
+        usedBefore: count ?? 0,
+      };
+    })
+  );
 
   // Get the run immediately before fromDate to seed the streak count correctly
   const { data: prevRuns } = await supabase
@@ -91,8 +120,11 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
 
   logger.info(`📊 Reprocessing ${runs.length} affected runs (of user's total)`);
 
+  // Boost-delta per runda, förberäknat i datumordning (samma ordning som loopen)
+  const boostDeltas = boostDeltasForRuns(runs.map((r: { date: string }) => r.date), boostSpecs);
+
   // Calculate all updates in memory — zero DB calls per run
-  const updates = runs.map((run: { id: string; date: string; distance: number }) => {
+  const updates = runs.map((run: { id: string; date: string; distance: number }, runIndex: number) => {
     const runDate = new Date(run.date);
     const daysDiff = lastRunDate
       ? Math.floor((runDate.getTime() - lastRunDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -105,13 +137,7 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     }
     // daysDiff === 0 (same day): keep streak count as-is
 
-    // Sum deltas of boosts active on this run's date
-    const runDateStr = run.date; // 'YYYY-MM-DD'
-    const boostDelta = boosts
-      .filter(b => b.created_at.slice(0, 10) <= runDateStr && b.expires_at.slice(0, 10) >= runDateStr)
-      .reduce((sum, b) => sum + b.delta, 0);
-
-    const xp = calculateCompleteRunXP(run.distance, currentStreakCount, xpSettings, multipliers, boostDelta);
+    const xp = calculateCompleteRunXP(run.distance, currentStreakCount, xpSettings, multipliers, boostDeltas[runIndex]);
     lastRunDate = runDate;
 
     return {

@@ -37,6 +37,7 @@ vi.mock('@runquest/shared', () => ({
   }),
   calculateRunXP: vi.fn().mockReturnValue({ baseXP: 15, kmXP: 10, distanceBonus: 5, totalXP: 30 }),
   calculateStreakMultiplier: vi.fn().mockReturnValue(1.0),
+  boostDeltasForRuns: vi.fn((dates: string[]) => dates.map(() => 0)),
 }));
 
 // ── Mock calculateUserTotals ──────────────────────────────────────────────────
@@ -127,6 +128,7 @@ function buildRunOwnershipStub(ownerUserId: string) {
     update: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
     lt: vi.fn().mockReturnThis(),
     gte: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),

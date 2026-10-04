@@ -2,50 +2,10 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 
-// ─── Boosts ──────────────────────────────────────────────────────────────────
-
-/** Returns sum of active boost deltas for a user (additive to streak multiplier). */
-export async function getActiveBoostDelta(userId: string): Promise<number> {
-  const supabase = getSupabaseClient();
-  const now = new Date().toISOString();
-
-  const { data: boosts } = await supabase
-    .from('user_boosts')
-    .select('type, delta, remaining, expires_at')
-    .eq('user_id', userId);
-
-  if (!boosts?.length) return 0;
-
-  return boosts.reduce((sum: number, boost: any) => {
-    if (boost.type === 'multiplier_days' && boost.expires_at && boost.expires_at > now) {
-      return sum + Number(boost.delta);
-    }
-    if (boost.type === 'multiplier_runs' && boost.remaining > 0) {
-      return sum + Number(boost.delta);
-    }
-    return sum;
-  }, 0);
-}
-
-/** Decrement remaining count on run-based boosts after a run is logged. */
-export async function decrementRunBoosts(userId: string): Promise<void> {
-  const supabase = getSupabaseClient();
-
-  const { data: boosts } = await supabase
-    .from('user_boosts')
-    .select('id, remaining')
-    .eq('user_id', userId)
-    .eq('type', 'multiplier_runs')
-    .gt('remaining', 0);
-
-  if (!boosts?.length) return;
-
-  await Promise.all(
-    boosts.map((b: any) =>
-      supabase.from('user_boosts').update({ remaining: b.remaining - 1 }).eq('id', b.id)
-    )
-  );
-}
+// Boost-tillämpningen bor i @runquest/shared (boostDeltasForRuns) och anropas
+// från reprocessRunsFromDate. multiplier_runs är statelös — `remaining` på
+// user_boosts är boostens TOTALA antal laddningar och muteras aldrig;
+// förbrukningen härleds ur löphistoriken så att omräkning förblir idempotent.
 
 // ─── Token reconciliation on level change ────────────────────────────────────
 
