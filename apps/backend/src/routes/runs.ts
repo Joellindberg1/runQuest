@@ -7,6 +7,8 @@ import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { calculateCompleteRunXP, boostDeltasForRuns, type AdminSettings, type StreakMultiplier, type BoostSpec } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
+import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
+import type { GroupRunHistoryResponse } from '@runquest/shared';
 
 const router = express.Router();
 
@@ -148,36 +150,56 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   logger.info(`✅ Reprocessed ${runs.length} runs successfully`);
 }
 
-// GET /api/runs/group-history - Get all runs for users in same group
+// GET /api/runs/group-history[?limit=&offset=] - Get runs for users in same group (ADR 007 B9)
+// Utan parametrar: samma default (100) som tidigare; svaret får additivt meta.
+const GROUP_RUNS_PAGE = { defaultLimit: 100, maxLimit: 200 };
+
 router.get('/group-history', authenticateJWT, async (req, res): Promise<void> => {
   try {
     logger.info('📊 Fetching group run history');
 
-    const supabase = getSupabaseClient();
+    const page = parseOffsetPage(req.query, GROUP_RUNS_PAGE);
+    if (!page.ok) {
+      res.status(400).json({ error: page.error }); return;
+    }
+    const { limit, offset } = page;
+
+    // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
     const groupId = req.user!.group_id;
-
-    let query = supabase
-      .from('runs')
-      .select(`
-        *,
-        users!inner(name, current_level, profile_picture, total_xp),
-        run_weather(weather_code, temperature_c)
-      `)
-      .order('date', { ascending: false })
-      .limit(100);
-
-    if (groupId) {
-      query = query.eq('users.group_id', groupId);
+    if (!groupId) {
+      const empty: GroupRunHistoryResponse = { runs: [], meta: buildPageMeta(0, limit, offset) };
+      res.json(empty); return;
     }
 
-    const { data: runsData, error: runsError } = await query;
+    const supabase = getSupabaseClient();
 
-    if (runsError) {
+    let runsData: any[];
+    let total: number;
+    try {
+      // Unik tie-breaker (created_at, id) — annars dubblerar/tappar offset-sidor rader med lika datum.
+      ({ rows: runsData, total } = await fetchOffsetPage(
+        (head) => {
+          return supabase
+            .from('runs')
+            .select(`
+              *,
+              users!inner(name, current_level, profile_picture, total_xp),
+              run_weather(weather_code, temperature_c)
+            `, { count: 'exact', head })
+            .order('date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .eq('users.group_id', groupId);
+        },
+        limit,
+        offset,
+      ));
+    } catch (runsError) {
       logger.error('❌ Error fetching group runs:', runsError);
       res.status(500).json({ error: 'Failed to fetch group run history' }); return;
     }
 
-    logger.info(`✅ Fetched ${runsData?.length || 0} runs for group history`);
+    logger.info(`✅ Fetched ${runsData.length} runs for group history`);
 
     const runs = runsData?.map((run: any) => ({
       id: run.id,
@@ -198,10 +220,13 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       user_name: run.users.name,
       user_level: run.users.current_level,
       user_total_xp: run.users.total_xp,
-      user_profile_picture: run.users.profile_picture || undefined
+      user_profile_picture: run.users.profile_picture || undefined,
+      start_time: run.start_time ?? null,
+      created_at: run.created_at ?? null,
     })) || [];
 
-    res.json({ runs });
+    const body: GroupRunHistoryResponse = { runs, meta: buildPageMeta(total, limit, offset) };
+    res.json(body);
   } catch (error) {
     logger.error('❌ Error in group history endpoint:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -232,10 +257,10 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
 // POST /api/runs - Create a new run
 router.post('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { date, distance, source = 'manual' } = req.body;
+    const { date, distance, source = 'manual', is_treadmill } = req.body;
     const userId = req.user!.user_id;
 
-    logger.info('📝 Create run request:', { userId, date, distance, source });
+    logger.info('📝 Create run request:', { userId, date, distance, source, is_treadmill });
 
     if (!date || !distance) {
       res.status(400).json({ error: 'Date and distance are required' }); return;
@@ -244,6 +269,11 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     const { error: validationError, distanceNum } = validateRunInput(date, distance);
     if (validationError) {
       res.status(400).json({ error: validationError }); return;
+    }
+
+    // Utelämnat → NULL (dagens beteende för manuella rundor); event-/väderlogik skiljer på false och NULL.
+    if (is_treadmill !== undefined && typeof is_treadmill !== 'boolean') {
+      res.status(400).json({ error: 'is_treadmill must be a boolean' }); return;
     }
 
     logger.info(`✅ Creating run for user ${userId}: ${distanceNum}km on ${date}`);
@@ -264,7 +294,8 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
         streak_bonus: 0,
         multiplier: 1.0,
         streak_day: 1,
-        xp_gained: 0
+        xp_gained: 0,
+        ...(is_treadmill !== undefined && { is_treadmill }),
       })
       .select('id')
       .single();
@@ -294,7 +325,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     // Fetch the fully processed run
     const { data: processedRun, error: fetchError } = await supabase
       .from('runs')
-      .select('id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id')
+      .select('id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id, is_treadmill')
       .eq('id', newRun.id)
       .single();
 
