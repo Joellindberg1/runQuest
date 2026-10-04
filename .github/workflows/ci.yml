@@ -86,3 +86,7 @@ jobs:
 
       - name: Lint
         run: npx eslint . --max-warnings 0
+
+      # Blockerande från start: ny frontendkod kräver tester (ADR 001).
+      - name: Test
+        run: npm test

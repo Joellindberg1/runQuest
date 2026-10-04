@@ -114,7 +114,7 @@ const LeaderboardPreviewPage: React.FC = () => {
   );
 
   return (
-    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget} themeClass="runquest-hybrid">
+    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget}>
       <Leaderboard users={MOCK_USERS} currentUser={MOCK_CURRENT_USER} titleOverrides={MOCK_TITLE_OVERRIDES} />
     </AppLayout>
   );
