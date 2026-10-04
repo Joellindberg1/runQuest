@@ -22,7 +22,7 @@ export const LevelProgress: React.FC<LevelProgressProps> = ({
   return (
     <div className="space-y-1 mt-2">
       <div className="flex justify-between items-center">
-        <span className="text-[9px] tracking-widest uppercase opacity-60" style={{ fontFamily: 'Silkscreen, monospace' }}>
+        <span className="text-[9px] tracking-widest uppercase opacity-60" style={{ fontFamily: 'var(--rq-font-mono)' }}>
           Level
         </span>
         <span className="text-[9px] opacity-55" style={{ fontFamily: 'Share Tech Mono, monospace' }}>

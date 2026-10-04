@@ -1,5 +1,4 @@
 import React from 'react';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { Leaderboard } from '@/features/leaderboard/components/Leaderboard';
 import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
 import type { User, Run, Challenge } from '@runquest/types';
@@ -114,9 +113,10 @@ const LeaderboardPreviewPage: React.FC = () => {
   );
 
   return (
-    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget}>
+    <div className="min-h-screen bg-background p-4 md:p-8 space-y-4">
+      {widget}
       <Leaderboard users={MOCK_USERS} currentUser={MOCK_CURRENT_USER} titleOverrides={MOCK_TITLE_OVERRIDES} />
-    </AppLayout>
+    </div>
   );
 };
 

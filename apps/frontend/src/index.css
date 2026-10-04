@@ -9,7 +9,7 @@
    Regler: docs/design/designsprak-forslag.md (de tio reglerna).
 
    Sektion 1–3 tokens · 4 shadcn-/legacy-alias (TEMPORÄRT) · 5 keyframes
-   6 bas + delade .rq-*-primitiver · 7 kvarvarande legacy utanför tokenlagret.
+   6 bas + delade .rq-*-primitiver · 7 kvarvarande legacy utanför tokenlagret · 8 driver.js (tour-popover).
 
    Fonter laddas i index.html: Bebas Neue · Barlow Condensed 400–700 ·
    Share Tech Mono · Oswald 400/500 (ENDAST i logotypen).
@@ -121,7 +121,7 @@
   --rq-text-1: #ffffff;
   --rq-text-2: #edeeed;
   --rq-text-3: rgb(var(--rq-ink-rgb) / .60);
-  --rq-text-4: rgb(var(--rq-ink-rgb) / .40);
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .50);   /* WCAG AA 4.5:1 (ägarbeslut 2026-10-04); ljust: .65 */
   --rq-text-5: rgb(var(--rq-ink-rgb) / .28);
 
   /* ── 1.8 Hårlinjeskala (ink-alfa). Rader skiljs av gap, inte kanter ─────────
@@ -227,6 +227,15 @@
   --rq-sidebar-w:  250px;     /* desktop */
   --rq-content-max: 1440px;
   --rq-tabbar-pb:  max(12px, env(safe-area-inset-bottom));
+  /* Skalmått (inkrement 1): värden ur App-/Web-prototypen som inte hade token */
+  --rq-shell-narrow-max: 640px;  /* mobilskalets maxbredd på surfplatta (ADR 006) */
+  --rq-menu-w:           236px;  /* avatarmenyn (mobil 236 · desktop 230) */
+  --rq-overlay-w:        860px;  /* Runner card som overlay på desktop */
+  --rq-avatar-sm:        28px;   /* header-avatar (mobil 28 · desktop 30) */
+  --rq-tabbar-new-lift:  9px;    /* "New"-kvadratens negativa marginal uppåt/nedåt */
+  --rq-tabbar-new-inset: 14px;   /* … och inåt åt sidorna */
+  --rq-tour-w-min:       280px;  /* driver.js-popover */
+  --rq-tour-w-max:       340px;
 
   /* ── 1.13 Form: hörn och kantlinjer ───────────────────────────────────────── */
   --radius:          0rem;     /* shadcn-läsare (tailwind borderRadius lg/md/sm) — SKARPT */
@@ -407,6 +416,7 @@
 
   --rq-text-1: #26231f;
   --rq-text-2: #26231f;
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .65);    /* AA mot ljus bas: .5 ger 3.05:1, .65 ger 4.69:1 */
   /* text-3/4/5 + line-* + fill-* + heat-* följer --rq-ink-rgb automatiskt */
   --rq-panel-border: transparent;               /* inga ytterkanter i ljust, skugga i stället */
   --rq-card-shadow:  0 2px 10px rgba(0, 0, 0, .07);
@@ -689,25 +699,8 @@
    7. KVARVARANDE LEGACY UTANFÖR TOKENLAGRET (TEMPORÄRT)
    Behålls för att befintliga komponenter fortfarande läser dem; tas bort när
    respektive komponent ritas om (redesign-plan.md).
-   - nav-item-*          : Sidebar.tsx (ersätts av AppShell, inkrement 1)
    - goldPulse/legendary…: Leaderboard.tsx, SentReceivedBar.tsx (ersätts av rqGlow)
-   - driver.js-blocket   : OnboardingTour; ritas om i inkrement 1 (radie 12px → 0,
-                           system-ui → Barlow Condensed)
-═══════════════════════════════════════════════════════════════════════════════ */
-.nav-item-hover:hover {
-  background: linear-gradient(to right, color-mix(in srgb, var(--rq-gold) 5%, transparent), transparent);
-  border-left-color: color-mix(in srgb, var(--rq-gold) 30%, transparent) !important;
-}
-
-.nav-item-active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(to right, var(--rq-gold), color-mix(in srgb, var(--rq-gold) 12%, transparent) 55%, transparent);
-}
+═════════════════════════════════════════════════════════════════════════════ */
 
 @keyframes goldPulse {
   0%, 100% { box-shadow: 0 0 18px color-mix(in srgb, var(--rq-gold) 9%, transparent), inset 0 0 30px color-mix(in srgb, var(--rq-gold) 2%, transparent); }
@@ -719,97 +712,106 @@
   50%       { filter: drop-shadow(0 3px 12px color-mix(in srgb, var(--rq-gold) 90%, transparent)); }
 }
 
-/* ── Driver.js RunQuest theme ───────────────────────────────────────────────
-   Override driver.js default white popover with RunQuest dark/gold style.
-   Applied via popoverClass: 'rq-tour-popover' in OnboardingTour.tsx        */
+/* ═════════════════════════════════════════════════════════════════════════════
+   8. DRIVER.JS (onboarding-turen) — tokeniserad i inkrement 1
+   Flytande lager enligt designen: popover-yta, guld-hårlinje, skuggan --rq-shadow-pop,
+   radie 0, Barlow Condensed. Hör ihop med popoverClass 'rq-tour-popover' i OnboardingTour.tsx.
+═════════════════════════════════════════════════════════════════════════════ */
 
-/* Prevent overlay from bleeding through transparent/gradient card backgrounds */
+/* Hindrar overlayn från att lysa igenom genomskinliga kort bakom det markerade elementet */
 .driver-active-element {
-  background: hsl(var(--card)) !important;
+  background: var(--rq-panel-solid) !important;
 }
 
 .rq-tour-popover {
-  background-color: hsl(var(--sidebar)) !important;
-  border: 2px solid var(--rq-gold) !important;
-  border-radius: 12px !important;
-  padding: 20px !important;
-  min-width: 280px !important;
-  max-width: 340px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+  background-color: var(--rq-popover) !important;
+  border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important;
+  border-radius: var(--rq-radius) !important;
+  padding: var(--rq-sp-20) !important;
+  min-width: var(--rq-tour-w-min) !important;
+  max-width: var(--rq-tour-w-max) !important;
+  box-shadow: var(--rq-shadow-pop) !important;
 }
 
 .rq-tour-popover * {
-  font-family: system-ui, sans-serif !important;
-  color: hsl(var(--foreground)) !important;
+  font-family: var(--rq-font-ui) !important;
+  color: var(--rq-text-2) !important;
 }
 
 .rq-tour-popover .driver-popover-title {
-  font-family: 'Bebas Neue', sans-serif !important;
-  font-size: 1.4rem !important;
-  letter-spacing: 0.05em !important;
-  color: var(--rq-gold) !important;
-  margin-bottom: 6px !important;
-  padding-right: 24px !important;
+  font-family: var(--rq-font-display) !important;
+  font-size: var(--rq-fs-title) !important;
+  letter-spacing: var(--rq-ls-title) !important;
+  line-height: var(--rq-lh-tight) !important;
+  color: var(--rq-gold-text) !important;
+  margin-bottom: var(--rq-sp-6) !important;
+  padding-right: var(--rq-sp-24) !important;
 }
 
 .rq-tour-popover .driver-popover-description {
-  font-size: 0.875rem !important;
-  line-height: 1.55 !important;
-  color: hsl(var(--foreground) / 0.8) !important;
+  font-size: var(--rq-fs-body) !important;
+  line-height: var(--rq-lh-body) !important;
+  color: var(--rq-text-3) !important;
 }
 
 .rq-tour-popover .driver-popover-close-btn {
-  color: hsl(var(--foreground) / 0.4) !important;
-  font-size: 16px !important;
+  color: var(--rq-text-4) !important;
+  font-size: var(--rq-fs-lead) !important;
 }
 
 .rq-tour-popover .driver-popover-close-btn:hover {
-  color: hsl(var(--foreground)) !important;
+  color: var(--rq-text-2) !important;
 }
 
 .rq-tour-popover .driver-popover-footer {
-  margin-top: 16px !important;
-  border-top: 1px solid color-mix(in srgb, var(--rq-gold) 25%, transparent) !important;
-  padding-top: 12px !important;
+  margin-top: var(--rq-sp-16) !important;
+  border-top: var(--rq-hair) solid var(--rq-line-4) !important;
+  padding-top: var(--rq-sp-12) !important;
 }
 
 .rq-tour-popover .driver-popover-progress-text {
-  font-family: 'Barlow Condensed', sans-serif !important;
-  font-size: 0.75rem !important;
-  letter-spacing: 0.1em !important;
+  font-family: var(--rq-font-mono) !important;
+  font-size: var(--rq-fs-eyebrow) !important;
+  letter-spacing: var(--rq-ls-eyebrow) !important;
   text-transform: uppercase !important;
-  color: hsl(var(--foreground) / 0.45) !important;
+  color: var(--rq-text-4) !important;
 }
 
 .rq-tour-popover .driver-popover-navigation-btns button {
-  font-family: 'Barlow Condensed', sans-serif !important;
-  font-size: 0.8rem !important;
+  font-family: var(--rq-font-ui) !important;
+  font-size: var(--rq-fs-btn-sm) !important;
   font-weight: 600 !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: var(--rq-ls-btn-sm) !important;
   text-transform: uppercase !important;
-  border-radius: 6px !important;
-  padding: 5px 12px !important;
+  border-radius: var(--rq-radius) !important;
+  padding: var(--rq-btn-pad-sm) !important;
   background-color: transparent !important;
-  border-color: color-mix(in srgb, var(--rq-gold) 40%, transparent) !important;
-  color: hsl(var(--foreground) / 0.7) !important;
+  border-color: var(--rq-btn-secondary-edge) !important;
+  color: var(--rq-text-3) !important;
   text-shadow: none !important;
 }
 
+.rq-tour-popover .driver-popover-navigation-btns button:hover {
+  border-color: var(--rq-gold) !important;
+  color: var(--rq-text-2) !important;
+}
+
+/* Primärknappen (Next/Done): en guldknapp per vy */
 .rq-tour-popover .driver-popover-navigation-btns button:last-child {
   background-color: var(--rq-gold) !important;
   border-color: var(--rq-gold) !important;
-  color: #000 !important;
+  color: var(--rq-on-gold) !important;
 }
 
-.rq-tour-popover .driver-popover-navigation-btns button:hover {
-  opacity: 0.9 !important;
+.rq-tour-popover .driver-popover-navigation-btns button:last-child:hover {
+  background-color: var(--rq-gold-hover) !important;
 }
 
-/* Arrow matches border color */
+/* Pilen följer popoverns kantfärg */
 .rq-tour-popover .driver-popover-arrow {
-  border-color: var(--rq-gold) !important;
+  border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important;
 }
-.rq-tour-popover .driver-popover-arrow-side-left { border-left-color: var(--rq-gold) !important; }
-.rq-tour-popover .driver-popover-arrow-side-right { border-right-color: var(--rq-gold) !important; }
-.rq-tour-popover .driver-popover-arrow-side-top { border-top-color: var(--rq-gold) !important; }
-.rq-tour-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--rq-gold) !important; }
+.rq-tour-popover .driver-popover-arrow-side-left { border-left-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important; }
+.rq-tour-popover .driver-popover-arrow-side-right { border-right-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important; }
+.rq-tour-popover .driver-popover-arrow-side-top { border-top-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important; }
+.rq-tour-popover .driver-popover-arrow-side-bottom { border-bottom-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important; }

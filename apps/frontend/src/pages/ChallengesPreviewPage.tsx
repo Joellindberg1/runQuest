@@ -1,5 +1,4 @@
 import React from 'react';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { ChallengesPage, type ChallengeWithProgress } from '@/features/challenges/components/ChallengesPage';
 import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
 import type { Challenge, ChallengeToken, UserBoost, ChallengeStats } from '@runquest/types';
@@ -260,7 +259,8 @@ const ChallengesPreviewPage: React.FC = () => {
   ) : undefined;
 
   return (
-    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget}>
+    <div className="min-h-screen bg-background p-4 md:p-8 space-y-4">
+      {widget}
       <ChallengesPage
         currentUserId={ME_ID}
         leaderboard={LEADERBOARD}
@@ -273,7 +273,7 @@ const ChallengesPreviewPage: React.FC = () => {
         stats={STATS}
         groupMembers={GROUP_MEMBERS}
       />
-    </AppLayout>
+    </div>
   );
 };
 

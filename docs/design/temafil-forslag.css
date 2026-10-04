@@ -132,7 +132,7 @@
   --rq-text-1: #ffffff;
   --rq-text-2: #edeeed;
   --rq-text-3: rgb(var(--rq-ink-rgb) / .60);
-  --rq-text-4: rgb(var(--rq-ink-rgb) / .40);
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .50);   /* WCAG AA 4.5:1 (ägarbeslut 2026-10-04); ljust: .65 */
   --rq-text-5: rgb(var(--rq-ink-rgb) / .28);
 
   /* ── 1.8 Hårlinjeskala (ink-alfa). Rader skiljs av gap, inte kanter ─────────
@@ -238,6 +238,15 @@
   --rq-sidebar-w:  250px;     /* desktop */
   --rq-content-max: 1440px;
   --rq-tabbar-pb:  max(12px, env(safe-area-inset-bottom));
+  /* Skalmått (inkrement 1): värden ur App-/Web-prototypen som inte hade token */
+  --rq-shell-narrow-max: 640px;  /* mobilskalets maxbredd på surfplatta (ADR 006) */
+  --rq-menu-w:           236px;  /* avatarmenyn (mobil 236 · desktop 230) */
+  --rq-overlay-w:        860px;  /* Runner card som overlay på desktop */
+  --rq-avatar-sm:        28px;   /* header-avatar (mobil 28 · desktop 30) */
+  --rq-tabbar-new-lift:  9px;    /* "New"-kvadratens negativa marginal uppåt/nedåt */
+  --rq-tabbar-new-inset: 14px;   /* … och inåt åt sidorna */
+  --rq-tour-w-min:       280px;  /* driver.js-popover */
+  --rq-tour-w-max:       340px;
 
   /* ── 1.13 Form: hörn och kantlinjer ───────────────────────────────────────── */
   --radius:          0rem;     /* shadcn-läsare (tailwind borderRadius lg/md/sm) — SKARPT */
@@ -418,6 +427,7 @@
 
   --rq-text-1: #26231f;
   --rq-text-2: #26231f;
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .65);    /* AA mot ljus bas: .5 ger 3.05:1, .65 ger 4.69:1 */
   /* text-3/4/5 + line-* + fill-* + heat-* följer --rq-ink-rgb automatiskt */
   --rq-panel-border: transparent;               /* inga ytterkanter i ljust, skugga i stället */
   --rq-card-shadow:  0 2px 10px rgba(0, 0, 0, .07);

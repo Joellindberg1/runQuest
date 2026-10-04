@@ -2,7 +2,7 @@ import React from 'react';
 import { TierBadge } from './TierBadge';
 import { MetricLabel } from './MetricLabel';
 import { Clock } from 'lucide-react';
-import { useUserProfileModal } from '@/providers/userProfileModalContext';
+import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import type { Challenge } from '@runquest/types';
 
 export interface ProgressEntry {
@@ -66,7 +66,7 @@ export const OngoingChallengeCard: React.FC<OngoingChallengeCardProps> = ({
   currentUserId,
   isOwn = false,
 }) => {
-  const { openProfile } = useUserProfileModal();
+  const openProfile = useOpenRunner();
   const sorted = [...progress].sort((a, b) => b.value - a.value);
   const isGoalBased = sorted.some(p => p.goalValue != null);
   const goalValue = sorted[0]?.goalValue;

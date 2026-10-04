@@ -6,8 +6,6 @@ import {
   ChevronLeft, Loader2,
 } from 'lucide-react';
 import { Badge } from '@/shared/components/ui/badge';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { useGroupName } from '@/shared/hooks/useGroupName';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_EVENTS_V1 } from '@/features/onboarding/featureTourSteps';
 import { useQuery } from '@tanstack/react-query';
@@ -419,7 +417,6 @@ const HistorySection: React.FC<{ items: HistoryEvent[] }> = ({ items }) => {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const EventsPage: React.FC = () => {
-  const groupName = useGroupName();
   const { user } = useAuth();
 
   const { data: eventsData, isLoading } = useQuery({
@@ -451,7 +448,7 @@ const EventsPage: React.FC = () => {
   const historyItems = historyData?.events ?? [];
 
   return (
-    <AppLayout groupName={groupName}>
+    <>
       <FeatureTour slug="tour_events_v1" steps={TOUR_EVENTS_V1} />
       <div className="pt-4 md:pt-6">
         {isLoading ? (
@@ -492,7 +489,7 @@ const EventsPage: React.FC = () => {
           </div>
         )}
       </div>
-    </AppLayout>
+    </>
   );
 };
 

@@ -5,7 +5,7 @@ import { UserStats } from './leaderboard/UserStats';
 import { UserCardHeader } from './leaderboard/UserCardHeader';
 import { LevelProgress } from './leaderboard/LevelProgress';
 import { useMultipleUserTitles } from '@/shared/hooks/useTitleQueries';
-import { useUserProfileModal } from '@/providers/userProfileModalContext';
+import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { Swords } from 'lucide-react';
 import type { User, UserTitle } from '@runquest/types';
 
@@ -22,7 +22,7 @@ interface LeaderboardProps {
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({ users, currentUser, titleOverrides }) => {
-  const { openProfile } = useUserProfileModal();
+  const openProfile = useOpenRunner();
   const { data: fetchedTitles = {} } = useMultipleUserTitles(users.map((u) => u.id));
   const userTitlesData = titleOverrides
     ? { ...fetchedTitles, ...titleOverrides }

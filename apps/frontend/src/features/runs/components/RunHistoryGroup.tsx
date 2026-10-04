@@ -7,7 +7,7 @@ import { ShowMoreButton } from '@/shared/components/ShowMoreButton';
 import { StravaIcon } from '@/shared/components/StravaIcon';
 import { getInitials, formatRunDate } from '@/shared/utils/formatters';
 import { useGroupRunHistory } from '../hooks/useGroupRunHistory';
-import { useUserProfileModal } from '@/providers/userProfileModalContext';
+import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 
 function wmoWeather(code: number): { emoji: string; label: string; isPrecip: boolean } {
   if (code === 0)                       return { emoji: '☀️',  label: 'Clear',            isPrecip: false };
@@ -32,7 +32,7 @@ interface RunHistoryGroupProps {
 export const RunHistoryGroup: React.FC<RunHistoryGroupProps> = () => {
   const { runs, loading } = useGroupRunHistory();
   const [showAll, setShowAll] = useState(false);
-  const { openProfile } = useUserProfileModal();
+  const openProfile = useOpenRunner();
 
   if (loading) {
     return (
