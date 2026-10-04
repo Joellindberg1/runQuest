@@ -8,9 +8,10 @@ import { formatInt, formatKm } from '../profileFormat';
 const DAY_LABELS = ['M', '', 'W', '', 'F', '', 'S'] as const;
 const LEGEND_LEVELS: readonly HeatLevel[] = [0, 1, 2, 3, 4];
 
-function cellTitle(cell: HeatCell): string | undefined {
+/** Dagens detaljer (dag, km, rundor) — tooltip för mus och aria-label för skärmläsare. Dagar utan runda har ingen text. */
+function cellLabel(cell: HeatCell): string | undefined {
   if (cell.runs === 0) return undefined;
-  return `${cell.date} · ${formatKm(cell.km)} km${cell.runs > 1 ? ` · ${cell.runs} runs` : ''}`;
+  return `${cell.date} · ${formatKm(cell.km)} km · ${cell.runs} ${cell.runs === 1 ? 'run' : 'runs'}`;
 }
 
 interface HeatmapProps {
@@ -30,6 +31,8 @@ export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
   const months = isDesktop ? HEAT_MONTHS_DESKTOP : HEAT_MONTHS_MOBILE;
   const heat = buildHeatmap(user.runs ?? [], today, months);
   const stats = buildHeatStats(user, heat, now);
+  // Etiketten speglar antalet block som faktiskt ritas (tidigt i en månad kan ett färre än fönstret).
+  const monthsLabel = `${heat.months.length} ${heat.months.length === 1 ? 'month' : 'months'}`;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Är raden bredare än kortet visas den nyaste delen (innevarande månad), inte den äldsta.
@@ -42,7 +45,7 @@ export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
     <div className="rq-profile-heat">
       <div className="rq-profile-heat__top">
         <span className="rq-profile-heat__total">{formatInt(heat.runs)}</span>
-        <span className="rq-profile-heat__unit">{isDesktop ? 'runs in the last 12 months' : 'runs · 6 months'}</span>
+        <span className="rq-profile-heat__unit">{isDesktop ? `runs in the last ${monthsLabel}` : `runs · ${monthsLabel}`}</span>
       </div>
 
       <div className="rq-profile-heat__body">
@@ -68,7 +71,9 @@ export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
                           className="rq-profile-heat__cell"
                           data-level={cell.level === null ? 'future' : cell.level}
                           data-today={cell.today || undefined}
-                          title={cellTitle(cell)}
+                          title={cellLabel(cell)}
+                          role={cell.runs > 0 ? 'img' : undefined}
+                          aria-label={cellLabel(cell)}
                         />
                       ))}
                     </div>

@@ -157,6 +157,7 @@
 .rq-profile-history__list { margin: 0; padding: 0; list-style: none; }
 .rq-profile-history__empty { margin: 0; padding: var(--rq-sp-16) var(--rq-pad-card); text-align: center; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-profile-history__foot { padding: var(--rq-sp-8) var(--rq-pad-card); }
+.rq-profile-history__notice:focus { outline: none; }
 .rq-profile-history__notice > .rq-profile-notice { margin: var(--rq-sp-8) var(--rq-pad-card); }
 .rq-profile-history .rq-empty { margin: var(--rq-sp-12) var(--rq-pad-card) var(--rq-pad-card); }
 .rq-profile-run { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--rq-sp-10); }

@@ -88,6 +88,51 @@ describe('buildHeatmap — fönstret', () => {
   });
 });
 
+describe('buildHeatmap — kantfall', () => {
+  const dayOf = (heat: ReturnType<typeof buildHeatmap>, date: string) => cellsOf(heat).find((cell) => cell.date === date);
+  const msBetween = (a: string, b: string) => Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`);
+
+  it('årsskifte: 31 dec och 1 jan ligger i samma vecka (mån 28 dec) och räknas var för sig; januari saknar vecka tills första måndagen hänt', () => {
+    const runs = [run({ date: '2026-12-31', distance: 6 }), run({ date: '2027-01-01', distance: 12 })];
+    const early = buildHeatmap(runs, '2027-01-03', 3);
+    expect(early.months.map((month) => [month.key, month.weeks.length])).toEqual([['2026-11', 5], ['2026-12', 4]]);
+    const week = early.months[1].weeks[3];
+    expect(week.cells.map((cell) => cell.date)).toEqual(['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03']);
+    expect(dayOf(early, '2026-12-31')).toMatchObject({ level: 2, runs: 1 });
+    expect(dayOf(early, '2027-01-01')).toMatchObject({ level: 3, runs: 1 });
+    expect(early.runs).toBe(2);
+    expect(early.months[1].current).toBe(true);
+
+    // Måndagen 4 jan öppnar januari-blocket; veckan 28 dec ligger kvar i december.
+    const later = buildHeatmap(runs, '2027-01-05', 3);
+    expect(later.months.map((month) => [month.key, month.weeks.length])).toEqual([['2026-11', 5], ['2026-12', 4], ['2027-01', 1]]);
+    expect(later.runs).toBe(2);
+    expect(later.months[2].current).toBe(true);
+  });
+
+  it('fönstret över årsskiftet: månadsnycklar byter år utan hopp', () => {
+    expect(buildHeatmap([], '2027-02-10', 4).months.map((month) => month.key)).toEqual(['2026-11', '2026-12', '2027-01', '2027-02']);
+  });
+
+  it.each([
+    ['sommartid börjar (29 mars 2026)', '2026-03-31'],
+    ['sommartid slutar (25 okt 2026)', '2026-10-28'],
+  ])('%s: veckan har sju sammanhängande dagar och inga dagar hoppas över eller dubbleras', (_name, today) => {
+    const heat = buildHeatmap([], today, 2);
+    const dates = cellsOf(heat).map((cell) => cell.date);
+    expect(new Set(dates).size).toBe(dates.length);
+    for (let i = 1; i < dates.length; i += 1) expect(msBetween(dates[i - 1], dates[i])).toBe(86_400_000);
+    for (const week of heat.months.flatMap((month) => month.weeks)) expect(new Date(`${week.cells[0].date}T00:00:00Z`).getUTCDay()).toBe(1);
+  });
+
+  it('rundor på själva omställningsdagarna hamnar på sin kalenderdag', () => {
+    const heat = buildHeatmap([run({ date: '2026-03-29', distance: 8 }), run({ date: '2026-10-25T00:30:00Z', distance: 8 })], '2026-10-28', 8);
+    expect(dayOf(heat, '2026-03-29')).toMatchObject({ level: 2, runs: 1 });
+    expect(dayOf(heat, '2026-10-25')).toMatchObject({ level: 2, runs: 1 });
+    expect(heat.runs).toBe(2);
+  });
+});
+
 describe('buildHeatStats', () => {
   const heatOf = (runs: ReturnType<typeof run>[]) => buildHeatmap(runs, TODAY, 6);
 

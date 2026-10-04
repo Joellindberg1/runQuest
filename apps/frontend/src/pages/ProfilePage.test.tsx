@@ -141,16 +141,57 @@ describe('Profile — hjältekort', () => {
 });
 
 describe('Profile — Frodo-zoom', () => {
-  it('zoomknappen cyklar Overview → Zoomed → Close-up → Overview och byter ändetiketter', async () => {
+  // 942.7 km: Overview visar hela vägen (28.9 %), Zoomed ±600 km runt läget (342.7–1542.7, markören mitt i) och Close-up ±200 km.
+  const road = () => {
+    const bar = screen.getByRole('progressbar', { name: 'Progress to Mount Doom' });
+    const wrap = bar.parentElement as HTMLElement;
+    return {
+      start: wrap.querySelector('[data-end="start"]')?.textContent,
+      end: wrap.querySelector('[data-end="finish"]')?.textContent,
+      fill: parseFloat(bar.style.getPropertyValue('--w')),
+      knob: bar.querySelector('.rq-profile-knob') !== null,
+      next: bar.querySelector('.rq-profile-next') !== null,
+    };
+  };
+
+  it('zoomknappen cyklar Overview → Zoomed → Close-up → Overview; ändetiketter, markörens läge och nästa checkpoint följer med', async () => {
     renderProfile('/profile', DESKTOP);
     await screen.findByRole('heading', { name: 'Joel Lindberg' });
-    expect(screen.getByText('The Shire')).toBeInTheDocument();
+
+    expect(road()).toMatchObject({ start: 'The Shire', end: 'Mordor', knob: true, next: true });
+    expect(road().fill).toBeCloseTo(28.86, 1);
+
     fireEvent.click(screen.getByRole('button', { name: /Overview/ }));
     expect(screen.getByRole('button', { name: /Zoomed/ })).toBeInTheDocument();
+    expect(road()).toMatchObject({ start: '343 km', end: '1\u00a0543 km', knob: true, next: true });
+    expect(road().fill).toBeCloseTo(50, 1);
+
     fireEvent.click(screen.getByRole('button', { name: /Zoomed/ }));
     expect(screen.getByRole('button', { name: /Close-up/ })).toBeInTheDocument();
+    expect(road()).toMatchObject({ start: '743 km', end: '1\u00a0143 km', knob: true, next: true });
+    expect(road().fill).toBeCloseTo(50, 1);
+
     fireEvent.click(screen.getByRole('button', { name: /Close-up/ }));
     expect(screen.getByRole('button', { name: /Overview/ })).toBeInTheDocument();
+    expect(road()).toMatchObject({ start: 'The Shire', end: 'Mordor' });
+  });
+
+  it('mobil zoomar likadant men utan ring vid nästa checkpoint', async () => {
+    renderProfile();
+    await screen.findByRole('heading', { name: 'Joel Lindberg' });
+    expect(road()).toMatchObject({ start: 'The Shire', end: 'Mordor', knob: true, next: false });
+    fireEvent.click(screen.getByRole('button', { name: /Overview/ }));
+    expect(road()).toMatchObject({ start: '343 km', end: '1\u00a0543 km', knob: true, next: false });
+    expect(road().fill).toBeCloseTo(50, 1);
+  });
+
+  it('nära start klampas fönstret till 0–1 200 km och markören ligger kvar nära början', async () => {
+    handlers.getUsersWithRuns = () => ({ success: true, data: [mine({ total_km: 20 }), OTHER] });
+    renderProfile('/profile', DESKTOP);
+    await screen.findByRole('heading', { name: 'Joel Lindberg' });
+    fireEvent.click(screen.getByRole('button', { name: /Overview/ }));
+    expect(road()).toMatchObject({ start: '0 km', end: '1\u00a0200 km', knob: true });
+    expect(road().fill).toBeCloseTo((20 / 1200) * 100, 1);
   });
 
   it('mobil har zoomknappen också och visar procent + nästa mål utan "away"', async () => {
@@ -214,7 +255,8 @@ describe('Profile — statflikar (?view=)', () => {
     renderProfile('/profile?view=consistency');
     const heat = await screen.findByRole('region', { name: /^Run heatmap: 5 runs on 5 of \d+ days$/ });
     expect(heat).toBeInTheDocument();
-    expect(screen.getByText('runs · 6 months')).toBeInTheDocument();
+    // 4 oktober: oktobers första måndag har inte hänt, så sex månader ritas som fem block — etiketten säger det.
+    expect(screen.getByText('runs · 5 months')).toBeInTheDocument();
     expect(screen.getByText('Today · 4 Oct')).toBeInTheDocument();
     expect(heat.querySelectorAll('.rq-profile-heat__month')).toHaveLength(5);
     expect(heat.querySelectorAll('[data-today="true"]')).toHaveLength(1);
@@ -225,7 +267,7 @@ describe('Profile — statflikar (?view=)', () => {
 
   it('Consistency (desktop): tolv månader, veckodagsetiketter och förklaringen Less → More', async () => {
     renderProfile('/profile?view=consistency', DESKTOP);
-    await screen.findByText('runs in the last 12 months');
+    await screen.findByText('runs in the last 11 months');
     expect(document.querySelectorAll('.rq-profile-heat__month').length).toBeGreaterThanOrEqual(11);
     expect(screen.getByText('Less')).toBeInTheDocument();
     expect(screen.getByText('More')).toBeInTheDocument();
@@ -235,8 +277,11 @@ describe('Profile — statflikar (?view=)', () => {
   it('en cell med runda bär datum och km som titel; intensiteten följer dagens km', async () => {
     renderProfile('/profile?view=consistency');
     await screen.findByRole('region', { name: /Run heatmap/ });
-    const cell = document.querySelector('[title="2026-10-03 · 10.0 km"]');
+    const cell = screen.getByRole('img', { name: '2026-10-03 · 10.0 km · 1 run' });
     expect(cell).toHaveAttribute('data-level', '3');
+    expect(cell).toHaveAttribute('title', '2026-10-03 · 10.0 km · 1 run');
+    // Dagar utan runda är dekor: inga bildroller att tabba eller läsa upp.
+    expect(screen.getAllByRole('img', { name: /km · \d+ runs?$/ })).toHaveLength(5);
   });
 });
 
@@ -417,6 +462,26 @@ describe('Profile — radera en runda', () => {
     expect(usersCalls.mock.calls.length).toBeGreaterThan(callsBefore);
     expect(screen.getAllByRole('status').find((el) => el.textContent?.includes('Run deleted'))).toHaveTextContent('Run deleted: 7.5 km on 2 Oct.');
     expect(screen.queryByRole('button', { name: 'Edit run 2026-10-02' })).toBeNull();
+  });
+
+  it('fokus hamnar på bekräftelsen efter radering (inte på body när Edit-knappen försvunnit)', async () => {
+    const sheet = await openDelete();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Delete run' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const status = screen.getAllByRole('status').find((el) => el.textContent?.includes('Run deleted')) as HTMLElement;
+    await waitFor(() => expect(status).toHaveFocus());
+  });
+
+  it('fokus hamnar på bekräftelsen efter en sparad ändring också', async () => {
+    renderProfile();
+    await screen.findByRole('list', { name: 'Your runs' });
+    fireEvent.click(editButton('2026-10-02'));
+    await screen.findByRole('dialog', { name: 'Edit run' });
+    fireEvent.change(distanceField(), { target: { value: '9' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const status = screen.getAllByRole('status').find((el) => el.textContent?.includes('Run updated')) as HTMLElement;
+    await waitFor(() => expect(status).toHaveFocus());
   });
 
   it('serverfel: rutan står kvar med felet', async () => {

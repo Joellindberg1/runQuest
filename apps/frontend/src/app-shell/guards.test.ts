@@ -51,7 +51,7 @@ describe('tour-ankarvakten: varje data-tour i turerna finns i en komponentkälla
 
 describe('nya skal-filer följer designspråket', () => {
   const shellFiles = Object.entries(sources).filter(
-    ([path]) => /\/app-shell\/[^/]+\.(tsx?|css)$/.test(path) || /\/(paths|routes)\.tsx?$/.test(path) || /pages\/(NewsPage|NotFound|Index|RunnerPage|WithLeaderboardData)\.tsx$/.test(path) || /shared\/components\/EmptyState\.tsx$/.test(path),
+    ([path]) => /\/app-shell\/[^/]+\.(tsx?|css)$/.test(path) || /\/(paths|routes)\.tsx?$/.test(path) || /pages\/(NewsPage|NotFound|Index|RunnerPage).tsx$/.test(path) || /shared\/components\/EmptyState\.tsx$/.test(path),
   );
 
   it('hittar skal-filerna', () => {

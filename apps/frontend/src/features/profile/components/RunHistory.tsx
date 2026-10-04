@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Run } from '@runquest/types';
 import { paths } from '@/paths';
 import { EmptyState } from '@/shared/components/EmptyState';
@@ -19,6 +19,7 @@ export function RunHistory({ runs, today }: RunHistoryProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<Run | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => buildRunRows(runs), [runs]);
   const visible = expanded ? rows : rows.slice(0, HISTORY_PREVIEW_COUNT);
   const toggleLabel = showAllLabel(rows.length);
@@ -28,7 +29,7 @@ export function RunHistory({ runs, today }: RunHistoryProps) {
       <h2 className="rq-title rq-profile-history__head">RUN HISTORY</h2>
 
       {/* Live regions måste finnas innan texten kommer för att annonseras: behållaren är permanent, bara texten monteras. */}
-      <div role="status" className="rq-profile-notice-slot rq-profile-history__notice">
+      <div ref={statusRef} role="status" tabIndex={-1} className="rq-profile-notice-slot rq-profile-history__notice">
         {notice && <p className="rq-profile-notice">{notice}</p>}
       </div>
 
@@ -70,6 +71,7 @@ export function RunHistory({ runs, today }: RunHistoryProps) {
           today={today}
           onClose={() => setEditing(null)}
           onDone={(text) => { setEditing(null); setNotice(text); }}
+          onRestoreFocus={() => statusRef.current?.focus()}
         />
       )}
     </section>

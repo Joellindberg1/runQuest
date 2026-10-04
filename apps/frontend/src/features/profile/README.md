@@ -13,6 +13,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 - **components/**
   - `ProfileScreen` — all datakoppling (`useUsersWithRuns`, titlar), laddning/fel/"User not found", tour, layout
   - `ProfileHero` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop) och profilbilden
+  - `FrodoRoad` — vägen (waypoints, ticks, stapel, markör, ändetiketter) och `ZoomButton`; EN komponent som även Runner cards desktop-väg använder (`prefix` styr klassnamnen)
   - `JourneyCard` — Frodo: vägen med waypoints/ticks, zoomknapp (Overview → Zoomed → Close-up) på mobil OCH desktop, procent, nästa mål
   - `StatsPanel` — `ViewTabs variant="underline"` över `?view=`; `Heatmap` är Consistency-fliken
   - `TitlesPanel` — "MY TITLES": mobil "5 held · 3 runner-up" + tre titlar + "Show all 8", desktop "Holding · 5" / "Runner-up · 3" med innehavare och avstånd
@@ -33,7 +34,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   `GET /users/me/stats` rätt lösning (inget som behövs än).
 - **Redigera/radera använder SAMMA invalideringskedja som POST** (`features/runs/runEffects.invalidateAfterRunChange`, delad med Log): users-with-runs
   (väntas in), leaderboard, öppna event (direkt + en gång efter 4 s), titlar (båda rötterna), utmaningar, head-to-head och gruppens historik. Förr hämtades bara
-  users-with-runs om — leaderboard, Duels och Group history stod kvar med gamla siffror. Rutan stängs först när omhämtningen är klar; då visas bekräftelsen.
+  users-with-runs om — leaderboard, Duels och Group history stod kvar med gamla siffror. Rutan stängs först när omhämtningen är klar; då visas bekräftelsen och fokus flyttas dit (Radix återför annars fokus till en Edit-knapp som inte längre finns).
 - **Inga toasts.** Toaster är inte monterad i appen, så de gamla `toast()`-anropen i flödet visade ingenting. Bekräftelser ligger i permanenta `role="status"`-
   regioner (rundhistoriken, bildraden), fel i `role="alert"` (redigeringsrutan, bildraden). `guards.test.ts` förbjuder sonner/toast i featuren.
 - **Redigeringsrutan** speglar backendens regler (PUT /runs/:id validerar som POST): minst 1.0 km, inte före 2025-06-01, inte framtida datum (Stockholm-dagen).
@@ -41,7 +42,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   Rundans surface kan inte ändras (servern tar bara datum och distans). Rutan visar vad rundan gav senast servern räknade, och att streak och XP räknas om från den dagen.
   Delete är en röd hårlinje som öppnar ett eget bekräftelsesteg — där finns den fyllda röda knappen (oåterkalleligt). Ingen guldknapp på sidan; EN i rutan (Save).
 - **Heatmapen:** en ruta per dag, veckor mån–sön, en vecka tillhör månaden där dess måndag ligger (4–5 per månad, som prototypen). Intensitet = dagens km:
-  0 · <5 · 5–10 · 10–15 · 15+ (stegen följer distansbonusarna). Desktop 12 månader, mobil 6. Raden är scrollbar (fokus går att panorera) och visar nyaste delen.
+  0 · <5 · 5–10 · 10–15 · 15+ (stegen följer distansbonusarna). Desktop 12 månader, mobil 6. Raden är scrollbar (fokus går att panorera) och visar nyaste delen. Etiketten räknar de block som faktiskt ritas ("runs · 5 months" tidigt i en månad). Rutor med runda har `role="img"` + aria-label (dag · km · rundor); dagar utan runda är dekor.
   Nuvarande streak är den effektiva (samma `streakDeadline` som Board/Right now), "longest streak" är rekordet — samma tal som Streak-fliken. Rutorna växer in en gång
   (`rqGrowY`, stagger per vecka) och står sedan still.
 - **Longest gap between runs** = största antalet dagar mellan två löpardagar (två dagar i rad = 1). Bara avslutade uppehåll; tiden sedan senaste rundan räknas inte.

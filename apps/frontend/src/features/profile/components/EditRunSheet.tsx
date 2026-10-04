@@ -13,6 +13,11 @@ interface EditRunSheetProps {
   onClose: () => void;
   /** Rundan är sparad/raderad och data omhämtad: skärmen visar bekräftelsen och rutan stängs. */
   onDone: (notice: string) => void;
+  /**
+   * Radix återför fokus till knappen som öppnade rutan — efter en sparad/raderad runda är den borta eller har ändrats
+   * (fokus faller då till body). Skärmen flyttar i stället fokus till bekräftelsen.
+   */
+  onRestoreFocus: () => void;
 }
 
 /**
@@ -21,7 +26,8 @@ interface EditRunSheetProps {
  * finns — oåterkalleligt. Serverns fel visas i rutan (permanent live-region), valideringsfel bredvid fältet. Rutan stängs
  * först när servern svarat och omhämtningen är klar; efter det visar skärmen bekräftelsen. Monteras bara medan den är öppen.
  */
-export function EditRunSheet({ run, today, onClose, onDone }: EditRunSheetProps) {
+export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: EditRunSheetProps) {
+  const doneRef = useRef(false);
   const [form, setForm] = useState<EditForm>(() => editFormFor(run));
   const [attempted, setAttempted] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -54,6 +60,7 @@ export function EditRunSheet({ run, today, onClose, onDone }: EditRunSheetProps)
     }
     try {
       const updated = await update.mutateAsync({ run, update: built.update });
+      doneRef.current = true;
       onDone(updateNotice(updated));
     } catch (error) {
       setServerError(error instanceof Error ? error.message : 'Failed to update the run');
@@ -65,6 +72,7 @@ export function EditRunSheet({ run, today, onClose, onDone }: EditRunSheetProps)
     setServerError(null);
     try {
       await remove.mutateAsync(run);
+      doneRef.current = true;
       onDone(deleteNotice(run));
     } catch (error) {
       setServerError(error instanceof Error ? error.message : 'Failed to delete the run');
@@ -75,7 +83,15 @@ export function EditRunSheet({ run, today, onClose, onDone }: EditRunSheetProps)
     <Dialog.Root open onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="rq-scrim" />
-        <Dialog.Content className="rq-profile-sheet" aria-describedby={undefined}>
+        <Dialog.Content
+          className="rq-profile-sheet"
+          aria-describedby={undefined}
+          onCloseAutoFocus={(event) => {
+            if (!doneRef.current) return;
+            event.preventDefault();
+            onRestoreFocus();
+          }}
+        >
           <header className="rq-profile-sheet__head">
             <div className="rq-profile-sheet__id">
               <Dialog.Title className="rq-profile-sheet__title">{confirming ? 'Delete run' : 'Edit run'}</Dialog.Title>
