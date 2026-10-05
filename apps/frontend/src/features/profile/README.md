@@ -42,6 +42,10 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   Felen visas först efter ett inlämningsförsök (fältet är förifyllt), fokus går till första felet och inget anrop görs. Save är avstängd tills något ändrats.
   Rundans surface kan inte ändras (servern tar bara datum och distans). Rutan visar vad rundan gav senast servern räknade, och att streak och XP räknas om från den dagen.
   Delete är en röd hårlinje som öppnar ett eget bekräftelsesteg — där finns den fyllda röda knappen (oåterkalleligt). Ingen guldknapp på sidan; EN i rutan (Save).
+- **Strava-rundor kan inte raderas här** (`isStravaRun`: `source === 'strava'`; null/saknas = manuell). DELETE lämnar ingen gravsten, så synken importerar tillbaka
+  rundan inom sitt 7-dagarsfönster. Delete-knappen i redigeringsrutan är avstängd med "Strava runs come back on next sync — delete it in Strava instead"
+  (`title` + `sr-only`-text i knappen, som Titles valknapp; en synlig rad med samma text för touch). Edit är tillåten. `source` följer med ur users-with-runs
+  (`mapApiUser`). **409 vid radering** (rundan kvalificerade ett event, ADR 008 addendum 5): serverns klartext visas i rutans `role="alert"` och rutan står kvar.
 - **Heatmapen:** en ruta per dag, veckor mån–sön, en vecka tillhör månaden där dess måndag ligger (4–5 per månad, som prototypen). Intensitet = dagens km:
   0 · <5 · 5–10 · 10–15 · 15+ (stegen följer distansbonusarna). Desktop 12 månader, mobil 6. Raden är scrollbar (fokus går att panorera) och visar nyaste delen. Etiketten räknar de block som faktiskt ritas ("runs · 5 months" tidigt i en månad). Rutor med runda har `role="img"` + aria-label (dag · km · rundor); dagar utan runda är dekor.
   Nuvarande streak är den effektiva (samma `streakDeadline` som Board/Right now), "longest streak" är rekordet — samma tal som Streak-fliken. Rutorna växer in en gång

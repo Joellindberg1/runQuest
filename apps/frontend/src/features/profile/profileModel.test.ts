@@ -3,7 +3,7 @@ import type { UserTitle } from '@runquest/types';
 import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import {
   COMPACT_TITLE_COUNT, HISTORY_PREVIEW_COUNT, MAX_PICTURE_BYTES, buildMyTitles, buildRunRow, buildRunRows, buildUpdate, buildXpParts,
-  deleteNotice, editFormFor, isDirty, showAllLabel, sortRuns, updateNotice, validateEdit, validatePicture,
+  STRAVA_DELETE_HINT, deleteNotice, editFormFor, isDirty, isStravaRun, showAllLabel, sortRuns, updateNotice, validateEdit, validatePicture,
 } from './profileModel';
 import { run } from './profile.fixture';
 
@@ -36,6 +36,19 @@ describe('rundhistorik', () => {
     expect(showAllLabel(HISTORY_PREVIEW_COUNT)).toBeNull();
     expect(showAllLabel(133)).toBe('Show all 133 runs');
     expect(showAllLabel(1200)).toBe('Show all 1 200 runs');
+  });
+});
+
+describe('Strava-rundor kan inte raderas', () => {
+  it('source "strava" är en Strava-runda; "manual", null och saknad source (äldre rader) räknas som manuella', () => {
+    expect(isStravaRun(run({ date: '2026-10-02', source: 'strava' }))).toBe(true);
+    expect(isStravaRun(run({ date: '2026-10-02', source: 'manual' }))).toBe(false);
+    expect(isStravaRun(run({ date: '2026-10-02', source: null }))).toBe(false);
+    expect(isStravaRun(run({ date: '2026-10-02' }))).toBe(false);
+  });
+
+  it('förklaringen säger vad som händer och vad man gör i stället', () => {
+    expect(STRAVA_DELETE_HINT).toBe('Strava runs come back on next sync — delete it in Strava instead');
   });
 });
 
