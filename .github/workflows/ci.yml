@@ -72,6 +72,14 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # Versionsvakt (docs/dokumentation.md): package.json (rot + frontend), översta rubriken i CHANGELOG.md
+      # och changelog.json ska hänga ihop. Inga beroenden, så den kör först och felar snabbt.
+      - name: Version guard
+        run: |
+          node scripts/check-versions.mjs
+          node --test scripts/check-versions.test.mjs
+        working-directory: .
+
       - name: Install dependencies
         run: npm ci
         working-directory: .

@@ -4,7 +4,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
 import { setViewportWidth } from '@/test/viewport';
 import { useAuth } from '@/providers/authContext';
-import { PATCH_NOTES } from '@/features/onboarding/patchNotes';
+import { changelog } from '@/features/changelog/changelogData';
+import { announcedNotes } from '@/features/changelog/changelogModel';
 
 // SPA-inloggning utan reload: onboarding-statusen får inte ärvas från den utloggade prefetchen (cachad som "inget sett")
 // eller från föregående användare på samma flik. Riktig AuthProvider, App-gate, useAppInit och OnboardingOrchestrator;
@@ -46,7 +47,7 @@ import App from './App';
 
 const ALL_SLUGS = [
   'onboarding_v1',
-  ...PATCH_NOTES.map((note) => note.slug),
+  ...announcedNotes(changelog.releases).map((note) => note.slug),
   'tour_leaderboard_v2', 'tour_titles_v2', 'tour_duels_v2', 'tour_events_v2', 'tour_profile_v2', 'tour_news_v1',
 ];
 

@@ -1,6 +1,43 @@
 # Changelog
 
-## v2.1.1 — Städrunda + olästmarkör (2026-10-05)
+## v0.5.2 — Versionsmekanik, Feature & Version och "What's new" (2026-10-05)
+
+### Nytt
+- **Feature & Version-sidan** omritad i designspråket (flikarna Features · Working on ·
+  Releases, `?view=`); versionsnumret och datumet överst kommer ur changelog.json i
+  stället för att vara hårdkodade, och mobilvyn är härledd ur Web Prototypens skärm.
+- **"What's new"-popupen** omritad (Radix Dialog, en guldknapp "Got it"); ersätter
+  den gamla lucide/tailwind-modalen.
+- **Versionsvakt i CI:** `scripts/check-versions.mjs` fäller bygget om rotens och
+  frontendens `package.json`, översta rubriken i den här filen (dess tre första delar)
+  och changelog.json inte stämmer överens (ordning, semver, rubriker, `announce`).
+  Användarversioner har tre delar (`0.5.2`), interna fyra (`0.5.0.1`).
+
+### Ändrat
+- `apps/frontend/src/data/changelog.json` är nu ENDA källan för det gruppen ser:
+  `{ features, workingOn, releases }`. Posterna har valfritt `announce: true`;
+  onboarding-kön och popupen läser annonserade poster därifrån (slug
+  `patch_v<version>`). `features/onboarding/patchNotes.ts` och
+  `shared/utils/changelogHelpers.ts` är borttagna. Poster för 0.5.0–0.5.2 ifyllda;
+  bara 0.5.0 (redesignen) annonseras.
+- Onboarding: ett misslyckat "sedd"-anrop (`/onboarding/mark-seen`) stänger popupen/touren
+  ändå och kön går vidare i sessionen (posten visas igen nästa gång); "Got it" kan inte
+  dubbelklickas. Versionsvakten stöder inte förreleaser (`-rc.1`) och ignorerar rubriker i kodstaket.
+- `package.json` (rot + frontend) hade 0.0.x — satta till 0.5.2 så att de följer
+  användarversionen enligt docs/dokumentation.md.
+
+## v0.5.1 — Användarrelease: 0.5.0.1–0.5.0.4 (2026-10-05)
+
+Rullar ihop de interna versionerna 0.5.0.1–0.5.0.4 till en användarversion (changelog.json 0.5.1,
+ingen popup): appen behöver inte cache-rensas efter uppdateringar, olästa nyheter har en guldprick och
+mobilens Board visar alla titlar och XP-progress. Se de fyra interna posterna nedan för detaljerna.
+
+## v0.5.0.4 — runquest.dev skickas vidare till www (2026-10-05)
+
+### Ändrat
+- Apex-domänen `runquest.dev` omdirigeras till `www.runquest.dev` via `Caddyfile` (PR #18).
+
+## v0.5.0.3 — Städrunda + olästmarkör (2026-10-05)
 
 ### Fixat
 - Admin-sidans XP-inställningar gick inte att läsa eller spara (serverfel):
@@ -20,7 +57,7 @@
 - TypeScripts byggcache (`tsconfig.tsbuildinfo`) spåras inte längre i git.
 - Dokumentationen rättad (inloggning gäller 30 dagar, hosting/Caddy, domäner).
 
-## v2.1.0 — Alla titlar på mobilens Board (2026-10-05)
+## v0.5.0.2 — Alla titlar på mobilens Board (2026-10-05)
 
 ### Ändrat
 - Mobilens Board visar nu alla visade titlar (upp till tre) på en egen rad
@@ -29,7 +66,7 @@
 - Korten från plats 4 visar nivå och XP i nivån mot vad nivån kräver, som
   pallkorten.
 
-## v2.0.1 — Ingen gammal cachad app efter deploy (2026-10-05)
+## v0.5.0.1 — Ingen gammal cachad app efter deploy (2026-10-05)
 
 ### Fixat
 - Webbläsare kunde fastna på en gammal cachad startsida efter en deploy och
@@ -45,7 +82,7 @@
 - Frontendens statiska server styrs av `Caddyfile` i repo-roten (Railpack);
   beteendet verifieras i CI med samma Caddy-version mot det byggda `dist/`.
 
-## v2.0.0 — Redesignen (2026-10-05)
+## v0.5.0 — Redesignen (2026-10-05)
 
 Hela appen omritad enligt designprojektet (RunQuest App/Web Prototype):
 mörk arena, guld som belöningssignal, skarpa hörn, Bebas Neue/Barlow

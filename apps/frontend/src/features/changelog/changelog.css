@@ -1,0 +1,73 @@
+/* Feature & Version (inkrement 11): rubrik med version · flikar (Features / Working on / Releases) · korten. ENDAST tokens (regel 1).
+   Måtten (--rq-changelog-*) definieras i temafilen, sektion 1.33 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
+   Ligger utanför @layer, så reglerna här slår de delade .rq-*-primitiverna (som ligger i @layer components).
+   Mobil = Web Prototypens skärm i en kolumn (prototypen saknar mobilvy): releaseraden och ändringsraderna bryter om via grid-areas-tokens,
+   korten staplas. Desktopens enda strukturskillnad (rubrik och flikar på en rad) ligger i @media; resten är tokens som temafilen vänder vid 1024 px. */
+
+/* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
+.rq-changelog { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-changelog__head { display: flex; flex-direction: column; gap: var(--rq-sp-12); }
+.rq-changelog__title { margin: 0; font-weight: 400; }
+.rq-changelog__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-changelog__tabs { display: flex; flex-wrap: wrap; gap: var(--rq-sp-6); }
+.rq-changelog__tabs > [role="tab"] { display: inline-flex; align-items: center; gap: var(--rq-sp-8); font-family: var(--rq-font-ui); }
+.rq-changelog__tabs > [role="tab"]:not([aria-selected="true"]) { background: none; }
+.rq-changelog__panel { min-width: 0; }
+
+@media (min-width: 1024px) {
+  .rq-changelog__head { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: var(--rq-sp-12); }
+}
+
+/* ── Listorna: ren struktur, ingen punkt eller indrag ─────────────────────── */
+.rq-changelog-grid, .rq-changelog-working, .rq-changelog-releases, .rq-changelog-changes, .rq-changelog-soon__details { margin: 0; padding: 0; list-style: none; }
+.rq-changelog-grid { display: grid; grid-template-columns: var(--rq-changelog-grid-cols); gap: var(--rq-sp-12); }
+.rq-changelog-working { display: grid; grid-template-columns: var(--rq-changelog-working-cols); gap: var(--rq-sp-14); align-items: start; }
+.rq-changelog-releases { display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+
+/* ── Features: grön kant = det lever (kortmönstret, tillstånd) ────────────── */
+.rq-changelog-feature { --rq-edge: rgb(var(--rq-up-rgb) / var(--rq-edge-selected)); padding: var(--rq-sp-14) var(--rq-sp-16); min-width: 0; }
+.rq-changelog-feature__head { display: flex; align-items: center; gap: var(--rq-sp-10); margin: 0 0 var(--rq-sp-4); font-size: inherit; font-weight: 400; }
+.rq-changelog-feature__icon { display: inline-flex; color: var(--rq-up); }
+.rq-changelog-feature__body { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+
+/* ── Working on: guld-kant (temafilens --rq-card-edge-soft-ägare) ─────────── */
+.rq-changelog-soon { --rq-edge: var(--rq-gold); --rq-edge-line: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); padding: var(--rq-sp-16) var(--rq-sp-18); min-width: 0; }
+.rq-changelog-soon__head { display: flex; align-items: center; gap: var(--rq-sp-10); margin: 0 0 var(--rq-sp-6); font-size: inherit; font-weight: 400; }
+.rq-changelog-soon__icon { display: inline-flex; color: var(--rq-gold-text); }
+.rq-changelog-soon__title { text-transform: uppercase; }
+.rq-changelog-soon__body { margin: 0 0 var(--rq-sp-14); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-changelog-soon__detail { background: var(--rq-cell); padding: var(--rq-sp-8) var(--rq-sp-12); font-size: var(--rq-fs-body); color: var(--rq-text-3); }
+
+/* ── Releases: kantens styrka följer typen ────────────────────────────────── */
+.rq-changelog-release { --rq-edge: var(--rq-line-5); padding: 0; min-width: 0; }
+.rq-changelog-release[data-release="major"] { --rq-edge: var(--rq-card-edge-hero); }
+.rq-changelog-release[data-release="patch"] { --rq-edge: var(--rq-line-4); }
+
+.rq-changelog-release__head {
+  display: grid; grid-template-columns: var(--rq-changelog-release-cols); grid-template-areas: var(--rq-changelog-release-areas);
+  gap: var(--rq-changelog-release-gap); align-items: center; width: 100%; box-sizing: border-box; cursor: pointer; text-align: left;
+  padding: var(--rq-pad-row-y) var(--rq-pad-row-x); background: none; border: 0; color: inherit; font-family: var(--rq-font-ui);
+}
+.rq-changelog-release__head:hover { background: var(--rq-row-soft); }
+.rq-changelog-tag {
+  grid-area: tag; justify-self: start; padding: var(--rq-sp-2) var(--rq-sp-8); border: var(--rq-hair) solid var(--rq-line-6);
+  font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3);
+}
+.rq-changelog-release[data-release="major"] .rq-changelog-tag { border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
+.rq-changelog-release[data-release="patch"] .rq-changelog-tag { border-color: var(--rq-line-5); color: var(--rq-text-4); }
+.rq-changelog-release__version { grid-area: version; font-family: var(--rq-font-mono); font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); }
+.rq-changelog-release__title { grid-area: title; min-width: 0; font-size: var(--rq-fs-stat-value); color: var(--rq-text-3); }
+.rq-changelog-release__date { grid-area: date; font-size: var(--rq-fs-meta); color: var(--rq-text-4); white-space: nowrap; }
+.rq-changelog-release__toggle { grid-area: toggle; justify-self: end; font-family: var(--rq-font-mono); font-size: var(--rq-fs-stat-value); color: var(--rq-text-4); }
+
+.rq-changelog-release__body { padding: 0 var(--rq-pad-row-x) var(--rq-sp-14); }
+.rq-changelog-change {
+  --rq-kind: var(--rq-text-3);
+  display: grid; grid-template-columns: var(--rq-changelog-change-cols); grid-template-areas: var(--rq-changelog-change-areas);
+  gap: var(--rq-changelog-change-gap); align-items: var(--rq-changelog-change-align); background: var(--rq-cell); padding: var(--rq-sp-8) var(--rq-sp-12);
+}
+.rq-changelog-change[data-kind="feature"] { --rq-kind: var(--rq-up); }
+.rq-changelog-change[data-kind="bugfix"] { --rq-kind: var(--rq-down); }
+.rq-changelog-change__icon { grid-area: icon; display: inline-flex; color: var(--rq-kind); }
+.rq-changelog-change__kind { grid-area: kind; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-kind); }
+.rq-changelog-change__text { grid-area: text; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }

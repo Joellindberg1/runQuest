@@ -168,3 +168,18 @@ raden (liten städfix, nästa backend-runda).
 10. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
     klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
     bara till). Medvetet val i9c; läker vid window focus.
+
+## Feature & Version + What's new (inkrement 11A)
+
+- **changelog.json har ny form** `{ features, workingOn, releases }` (var en ren lista av releaser) så att sidans Features-/Working on-kort kommer ur samma fil som
+  releaserna ("en källa"). Äldre poster är oförändrade. `docs/dokumentation.md` uppdaterad med formen.
+- **Ändringstypen heter `bugfix`** (som prototypen och alla äldre poster), inte `fix` som dokumentation.md först skrev. Dokumentet rättat; versionsvakten kräver `bugfix`.
+- **Versionsvakten kräver CHANGELOG.md-rubrik bara för användarversioner från dess äldsta rubrik (v0.5.0) och uppåt** — v0.1–0.4 finns bara i changelog.json.
+  Vill ägaren ha dem även i CHANGELOG.md måste historiken skrivas in där. Ägarbeslut 2026-10-05: användarversioner har tre delar (0.MINOR.PATCH), interna fyra
+  (0.5.0.1) och finns bara i CHANGELOG.md/git-taggar; package.json håller de tre första delarna av översta rubriken (docs/dokumentation.md).
+- **Datumformatet behålls** ("5 October 2026", som "2 April 2026") — prototypen har "24 aug 2026", men befintliga poster väger tyngre; vakten kräver formen.
+- **Features-listan är kuraterad mot dagens app**: "Dark mode" och "Onboarding" från prototypens exempeldata är borta (ljust tema är förberett men inte designat; touren är
+  inte ett säljargument), och nya funktioner (Duels, Runner card, Pack News, Log runs) tillagda. Working on = Badges + Notifications som i prototypen (båda finns på roadmapen).
+- **Popupen har ingen prototyp** — härledd ur skalets delade modal (`.rq-modal`/`.rq-scrim`), Bebas-rubrik, hårlinjegrid för punkterna, en guldknapp. Fokus startar på "Got it".
+- **Prototypens textsteg snappade till tokens**: kortrubrik 18 px → `--rq-fs-name` (20 på desktop), beskrivningar 16 px → `--rq-fs-body` (17 på desktop), release-datum 15 → `--rq-fs-meta`.
+- **Alla som redan sett de gamla patchnotes (`patch_2026_04_02_*`) får 0.5.0-popupen en gång** — slugen `patch_v0.5.0` är ny. De gamla slugarna ligger kvar i tabellen, ofarliga.

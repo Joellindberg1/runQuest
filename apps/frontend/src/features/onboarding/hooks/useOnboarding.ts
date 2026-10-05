@@ -15,13 +15,14 @@ export function useOnboarding(slug: string) {
     retry: false,
   });
 
+  // Sedd i den här sessionen även om sparningen misslyckas: kön ska gå vidare (ingen fastnad popup/tour). Servern har då inte sparat det,
+  // så posten visas igen nästa gång — hellre en upprepning än en blockerad kö.
+  const remember = () => qc.setQueryData<string[]>(ONBOARDING_QUERY_KEY, prev => (prev?.includes(slug) ? prev : prev ? [...prev, slug] : [slug]));
+
   const { mutate: markSeen, isPending } = useMutation({
     mutationFn: () => markOnboardingSeen(slug),
-    onSuccess: () => {
-      qc.setQueryData<string[]>(ONBOARDING_QUERY_KEY, prev =>
-        prev ? [...prev, slug] : [slug]
-      );
-    },
+    onSuccess: remember,
+    onError: remember,
   });
 
   return {

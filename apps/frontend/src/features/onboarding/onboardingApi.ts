@@ -21,7 +21,7 @@ export async function fetchOnboardingStatus(): Promise<string[]> {
 
 export async function markOnboardingSeen(slug: string): Promise<void> {
   const token = backendApi.getToken();
-  await fetch(
+  const res = await fetch(
     `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}${BASE}/mark-seen`,
     {
       method: 'POST',
@@ -32,4 +32,5 @@ export async function markOnboardingSeen(slug: string): Promise<void> {
       body: JSON.stringify({ slug }),
     }
   );
+  if (!res.ok) throw new Error(`Marking onboarding item as seen failed (${res.status})`);
 }
