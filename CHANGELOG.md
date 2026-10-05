@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.1.0 — Alla titlar på mobilens Board (2026-10-05)
+
+### Ändrat
+- Mobilens Board visar nu alla visade titlar (upp till tre) på en egen rad
+  under namnet, på alla placeringar. Tidigare syntes bara den första titeln på
+  pallen och ingen alls från plats 4.
+- Korten från plats 4 visar nivå och XP i nivån mot vad nivån kräver, som
+  pallkorten.
+
 ## v2.0.1 — Ingen gammal cachad app efter deploy (2026-10-05)
 
 ### Fixat
