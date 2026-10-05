@@ -1,5 +1,5 @@
 import { titleLine, type SeasonRow } from '../seasonModel';
-import { ChallengeRibbons, DeltaMark, RunnerName } from './BoardParts';
+import { ChallengeRibbons, DeltaMark, RunnerName, TitleLine } from './BoardParts';
 import { cssVars } from '../cssVars';
 
 const RANK_STAGGER_SECONDS = 0.1;
@@ -21,7 +21,7 @@ function etaText(row: SeasonRow, short: boolean): string {
   return row.progress.atMax ? 'max level' : '—';
 }
 
-/** Mobil: placering 4+ som hårlinjelista (mRest-mönstret): rank · namn + nivåstapel · tempo + ETA. */
+/** Mobil: placering 4+ som hårlinjelista: rank · namn, titelrad, XP i nivån + nivåstapel · tempo + ETA. */
 export function RestList({ rows, onOpen }: RestProps) {
   if (rows.length === 0) return null;
   return (
@@ -46,11 +46,16 @@ export function RestList({ rows, onOpen }: RestProps) {
               <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
               <DeltaMark delta={row.delta} />
             </div>
+            <TitleLine row={row} />
+            <div className="rq-board-xprow rq-label">
+              <span>Level {row.level}</span>
+              <span>{row.progress.into}</span>
+            </div>
             <div className="rq-track rq-board-track--thin">
               <div className="rq-fill rq-fill--rest" style={rowVars(row)} />
             </div>
             <div className="rq-board-sub">
-              <span>Lvl {row.level} · {row.kmTotal} km</span>
+              <span>{row.kmTotal} km</span>
               <ChallengeRibbons tokens={row.tokens} />
             </div>
           </div>

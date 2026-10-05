@@ -1,8 +1,21 @@
 import type { MouseEvent } from 'react';
+import { RQIcon } from '@/shared/components/icons';
 import { deltaLabel, type DeltaView } from '../boardFormat';
-import type { TierTokens } from '../seasonModel';
+import { titleLine, type SeasonRow, type TierTokens } from '../seasonModel';
+
+const ICON_CROWN = 15;
 
 // Småkomponenter som Season-, Week- och Streaks-vyerna delar.
+
+/** Krona + de visade titlarna ("A, B & C"); radbryts i stället för att kapas. */
+export function TitleLine({ row }: { row: Pick<SeasonRow, 'titleNames' | 'heldTitleCount'> }) {
+  return (
+    <div className="rq-board-titleline" data-empty={row.titleNames.length === 0}>
+      <RQIcon name="crown" size={ICON_CROWN} />
+      <span>{titleLine(row.titleNames, row.heldTitleCount)}</span>
+    </div>
+  );
+}
 
 export function RunnerAvatar({ initials, pictureUrl }: { initials: string; pictureUrl: string | null }) {
   return (

@@ -1,10 +1,8 @@
-import { RQIcon } from '@/shared/components/icons';
-import { titleLine, type SeasonRow } from '../seasonModel';
-import { ChallengeRibbons, DeltaMark, RunnerAvatar, RunnerName } from './BoardParts';
+import { type SeasonRow } from '../seasonModel';
+import { ChallengeRibbons, DeltaMark, RunnerAvatar, RunnerName, TitleLine } from './BoardParts';
 import { cssVars } from '../cssVars';
 
 const RANK_STAGGER_SECONDS = 0.1;
-const ICON_CROWN = 15;
 
 interface StatCellProps {
   value: string;
@@ -65,22 +63,14 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
                   <DeltaMark delta={row.delta} />
                 </div>
                 <RunnerName name={row.name} onOpen={open} />
-                <div className="rq-board-titleline" data-empty={row.titleNames.length === 0}>
-                  <RQIcon name="crown" size={ICON_CROWN} />
-                  <span>{titleLine(row.titleNames, row.heldTitleCount)}</span>
-                </div>
               </>
             ) : (
-              <>
-                <div className="rq-board-podium__nameline">
-                  <RunnerName name={row.name} onOpen={open} />
-                  <DeltaMark delta={row.delta} />
-                </div>
-                <div className="rq-meta">
-                  Lvl {row.level}{row.titleNames[0] ? ` · ${row.titleNames[0]}` : ''}
-                </div>
-              </>
+              <div className="rq-board-podium__nameline">
+                <RunnerName name={row.name} onOpen={open} />
+                <DeltaMark delta={row.delta} />
+              </div>
             )}
+            <TitleLine row={row} />
           </div>
         </div>
 
