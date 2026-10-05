@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.0.1 — Ingen gammal cachad app efter deploy (2026-10-05)
+
+### Fixat
+- Webbläsare kunde fastna på en gammal cachad startsida efter en deploy och
+  visa vit sida tills cachen rensades. Startsidan revalideras nu alltid
+  (`Cache-Control: no-cache`), saknade kodfiler ger 404 i stället för startsidan,
+  och en flik som var öppen under en deploy laddar om sig själv en gång om en
+  sida inte längre går att ladda. Den som redan har en gammal startsida i cachen
+  kan behöva ladda om en sista gång.
+- Vercel Speed Insights borttaget (sajten ligger på Railway; skriptet gav fel
+  på varje sidladdning).
+
+### Tekniskt
+- Frontendens statiska server styrs av `Caddyfile` i repo-roten (Railpack);
+  beteendet verifieras i CI med samma Caddy-version mot det byggda `dist/`.
+
 ## v2.0.0 — Redesignen (2026-10-05)
 
 Hela appen omritad enligt designprojektet (RunQuest App/Web Prototype):
