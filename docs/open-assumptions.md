@@ -111,11 +111,45 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   texten av den klippta banrutan på desktop.
 - **Banans löpare går med CSS offset-path på SVG-cirklar** (samma `rqOrbit` som stadion-laddaren) i stället för prototypens SMIL `<animateMotion>`, så
   `prefers-reduced-motion` stoppar dem. Silver- och bronsprickarna är heltäckande rankfärger (prototypen hade .75/.8 i alfa).
-- **/login är fortfarande den gamla inloggningssidan** (inte omritad; ingen inkrement-rad i planen). Landingens knapp leder dit.
+- ~~/login är fortfarande den gamla inloggningssidan~~ OMRITAD i inkrement 11 (spår B). Landingens knapp leder dit.
 - **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade.** Landing-FEATUREN anropar inget själv; App-skalet gör ETT Supabase-anrop
   (level_requirements, konsolfel om servern inte nås). Onboarding-prefetchen gör INGET anrop utan token (returnerar [] direkt). Samma anrop kördes
   redan när `/` var LoginPage. Gating på `user` hör hemma i en egen skaländring (påverkar även /preview-routes), inte i Landing.
 - Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
+
+## Restsidor: Playbook, Settings, Admin, Login (inkrement 11, spår B)
+- **Playbook har nio kapitel (prototypens), inte de gamla sju flikarna.** Strava-fliken är inlagd i "What counts as a run", Levels-tabellen och Titles
+  finns kvar. Prototypens copy är en skiss och bär några fel mot spelets regler — kapiteltexterna följer verkligheten i stället: streaken multiplicerar
+  base + km men INTE distansbonusen (prototypen: "allt"); utmaningens nivå väljs av spelaren men mått och längd lottas (prototypen: spelaren väljer mått). Frodo-kapitlet läser sträckan och de sju stora målen ur `frodoModel`.
+- **Siffrorna i Playbook kommer ur `GET /config/xp`** (bas-XP, XP/km, distansbonusar, trappan, min distans) via `useXpConfig`, och räkneexemplen är
+  shareds formel över samma konfiguration. Går den inte att läsa visas shareds standardvärden och sidan säger det (Retry). Nivåtabellen är shareds
+  `FALLBACK_LEVEL_REQUIREMENTS` (enda hemmet, identisk med prod) — ingen endpoint exponerar `level_requirements`; ändrar någon tabellen i databasen följer
+  Playbook inte med.
+- **Fortfarande redaktionell text i Playbook (ingen konfiguration att läsa):** eventens fönster, minsta km och XP (Morgonrunda 25 · Kvällsrunda 25 ·
+  5K Friday 25 · Hangover Run 30 · Storm Chaser 40; veckotävlingarna 40/30/20), vädertröskeln för Storm Chaser (≥ 3 h regn, > 12 m/s, kl 19:00) och
+  insatserna per utmaningsnivå (challenges-featurens `DEFAULT_STAKES` — seed-värdena, inte nödvändigtvis de som admin satt i `challenge_rewards`).
+  Ändras något av det i backend/databasen måste texten följa med. Eventnamnen är databasens (Morgonrunda/Kvällsrunda på svenska).
+- **Titellistan i Playbook och Admin är `GET /titles/leaderboard`** (samma rader som Titles, delad cache) — namn, regel och låsgräns ordagrant ur databasen,
+  sorterade som Titles-skärmens kategorier. Admins gamla fyra hårdkodade titlar (och texten "hardcoded") är borta.
+- **Settings: Notifications-kortet ur Web Prototypen är inte byggt** (backend saknar notisinställningar; "ingen ny funktion"). **Disconnect** finns i
+  prototypen men inte i dagens UI (endpointen finns) — inte tillagd; en destruktiv knapp kräver ett ägarbeslut om bekräftelse. **Sync log** blir "Latest sync":
+  backend har ingen historik, bara senaste försöket (`/strava/last-sync`). Mobilprototypen saknar Settings och Admin — mobil är härledd (en kolumn).
+- **Settings: "Sync now" syns fortfarande bara för "Joel Lindberg"** (namnjämförelse, som före omritningen). Efter en synk hämtas alla aktiva queries om
+  (`invalidateQueries()`) i stället för den gamla hårda omladdningen efter 2 s.
+- **Admin: "Min km for streak" och "Min run date" är skrivskyddade.** Save skickade dem aldrig (servern har bara `min_run_distance`; datumet är en
+  konstant i appen) — de såg redigerbara ut men gjorde ingenting. De visas kvar som i prototypen, med en rad som säger det. Vill ägaren att de ska gå att
+  ändra behövs backend-stöd. "Add member" saknar "6 of 30 seats used" (ingen sätesgräns finns).
+- **Admin: ett tomt/ogiltigt fält stoppas före Save** (`findSettingsProblem`) i stället för att skickas som `null`; gränserna (multiplikator 1–9.99, två
+  decimaler) vaktas fortfarande av servern och dess 400-text visas ordagrant. Fältet får `aria-invalid` utanför 1–9.99.
+- **Admin: läsfel är felkort med Retry** (inställningar/trappa, medlemmar, titlar) i stället för toast + tomt/standardvärden. Save är låst tills BÅDA läsningarna
+  lyckats (`settingsLoaded`/`canSave`, oförändrat), nu med synlig förklaring. Alla toasts (Admin, Settings) är ersatta av permanenta status/alert-regioner.
+  "Admin password" är fortfarande inte kopplat till backend (som tidigare) — svaret säger det i stället för att låtsas lyckas.
+- **Inloggningen är ritad utan prototyp** i Landingens språk (glöd, logotyp, hjältekort, Components-filens fält). Felet är ett `role=alert`-kort som monteras vid
+  fel (inte en permanent tom alert-region): `App.login.test` kräver att `findByRole('alert')` hittar felet direkt. Ingen "Forgot password" (ingen funktion).
+- **Formulärfält är 16/18 px** (`--rq-fs-stat-value`), inte Components-filens 19 px och inte `.rq-field`-standardens lead (17/22): prototypens Settings/Admin-fält är
+  17 px på desktop, och 16 px på mobil hindrar iOS från att zooma in vid fokus.
+- **Borttaget som dött:** `constants/streakConstants.ts` (Playbook var sista användaren), `shared/components/PageTabs.tsx` (shadcn-flikar, Playbook var sista
+  användaren) och de gamla `XPSettings/UserManagement/TitleConfig/AdminSecurity`, `StravaSettings/PasswordSettings`.
 
 ## Skal & delat
 - **Logout rensar inte användarspecifika query-cachar** (utom onboarding, som

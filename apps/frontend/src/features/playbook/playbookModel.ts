@@ -185,7 +185,7 @@ function challengesChapter(): Omit<Chapter, 'num'> {
     id: 'challenges', icon: 'swords', label: 'Challenges', title: 'Challenges',
     lead: 'One token, one 1v1 challenge. You pick the tier and who to take on — the metric and the length are drawn at random for that tier.',
     paras: [
-      'Tokens are earned at certain levels and spent to send a challenge. Once the opponent accepts, the duel starts at 00:00 the next day and runs to 23:59 on its last day. The best performer wins a temporary XP boost; the loser takes a penalty.',
+      'Tokens are earned as you level up — minor at most level-ups, major roughly every fifth level, legendary every fifteenth — and spent to send a challenge. Once the opponent accepts, the duel starts at 00:00 the next day and runs to 23:59 on its last day. The best performer wins a temporary XP boost; the loser takes a penalty.',
       'The boost is added to your streak multiplier on every run until it runs out. A draw changes nothing.',
     ],
     table: {
