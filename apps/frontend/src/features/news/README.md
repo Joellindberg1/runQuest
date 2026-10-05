@@ -28,6 +28,13 @@ Badge-komponenterna i prototyperna är medvetet INTE byggda (ägaren designar de
 - **Första hämtningen = nyaste sidan; omhämtning = catch-up** (ADR 008 addendum 4): `?after=<högsta kända id>` ger de nyaste raderna, en lucka större än en sida fylls med
   upprepade `?before=next_before` tills klienten når sitt kända id; sammanslagning dedupar på id. Äldre sidor ("Show more") och scrollpositionen står alltså kvar.
   Mer än fem catch-up-sidor à 100 → flödet ersätts av de nyaste (inget hål i mitten). Sammanslagningen sker i `setQueryData`-uppdateraren så att en Show more som landar samtidigt inte skrivs över.
+- **Borttagna rader läker vid fokus/omladdning, inte vid poll.** Catch-up kan bara LÄGGA TILL rader, så en rad backend tar bort (en utmaning som återkallas eller avböjs
+  retractas) ligger kvar i klienten tills flödet läker: när fönstret får fokus (och flödet är äldre än 15 s) ersätts den nyaste sidan helt (`replaceNewest`; rader äldre än
+  sidan behålls), och en omladdning börjar om. Pollen läker inte. `refetchOnWindowFocus` är avstängt — fokus går via den egna lyssnaren, en hämtning per flöde och händelse.
+- **Cachen är användarbunden:** `AuthProvider` rensar `['news','feed']` (och sett-listan) vid login, logout och 401; en avbruten hämtning skriver inte tillbaka.
+  Egna handlingar invalidérar flödet direkt (`invalidateAfterRunChange` och utmaningsmutationerna), så klockan inte väntar på nästa poll.
+- **Playwright-kandidat:** chip-radens `position: relative` (news.css) hindrar sr-only-spans (position:absolute) från att ge sidled scroll på mobil (scrollWidth 572 vid 390) — jsdom
+  har ingen layout och ser inte detta. Ett guard-test låser regeln i CSS:en; själva scrollWidth bör provas i en renderingsrök.
 - **Oläst** kommer ur `is_unread`/`meta.unread_count` (backend räknar bort egna handlingar, backfill och rader före min inträdestid) — klienten litar på dem. En backfill-rad
   markeras ändå aldrig som oläst. Badgen på klockan är dold vid 0 och "99+" över hundra; knappens namn bär siffran ("Pack news, 4 unread").
 - **"Mark all read" är den enda kvitteringen** (prototypen har knappen i popover och skärm; inget kvitterar vid besök). `POST /news/seen { up_to_id }` med högsta id i flödet för alla typer, oavsett vilket filter
@@ -37,6 +44,6 @@ Badge-komponenterna i prototyperna är medvetet INTE byggda (ägaren designar de
 - **Filtret** mappas i klienten (`NEWS_FILTERS`; Levels = level_up + run_milestone) till serverns `type=`; `?type=` bär chip-nycklar (`titles,levels`). Flera kan vara valda, alla fem = inget.
   Varje filter har egen cache; räknarna är antal i det laddade ofiltrerade fönstret.
 - **Dag-grupper** i Stockholm-tid: Today · Yesterday · Earlier this week · en grupp per äldre dag. Ordningen är `occurred_at` (backfill kan ha högt id men gammal dag).
-- **Tour:** `tour_news_v1` (ny skärm — ingen gammal slug fanns). Ankare `news-feed`, `news-filter`, `news-mark-read`; klockan (`header-news`) presenteras av onboarding_v1.
+- **Tour:** `tour_news_v1` (ny skärm — ingen gammal slug fanns). Ankare `news-feed`, `news-filter`, `news-mark-read`; klockan (`header-news`) har ingen egen tourstep. Turen monteras bara när flödet har rader (tomt flöde = flytande rutor över en tom skärm, och slugen markeras sedd för alltid), och `news-mark-read`-steget bara när något är oläst.
 - **Rörelse:** ingenting animerar. **Färg:** kategorin sätter de delade chip-variablerna (`--rq-c`, `--rq-c-edge`, `--rq-c-solid`); oläst/läst-bakgrund och kantstyrka är tokens ur 1.9.
 - Öppna antaganden: `docs/open-assumptions.md` → "Pack News (inkrement 9)".

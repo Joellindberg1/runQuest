@@ -11,7 +11,7 @@ import { renderWithApp } from '@/test/renderApp';
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turen startar driver.js efter en timer; ankar-vakten nedan kollar DOM:en i stället.
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({
-  FeatureTour: ({ slug }: { slug: string }) => <div data-testid="feature-tour" data-slug={slug} />,
+  FeatureTour: ({ slug, steps }: { slug: string; steps: unknown[] }) => <div data-testid="feature-tour" data-slug={slug} data-steps={steps.length} />,
 }));
 
 const MOBILE = 390;
@@ -315,6 +315,26 @@ describe('Pack News — laddning, tomt och fel', () => {
 });
 
 describe('Pack News — tour', () => {
+  it('tomt flöde (prod före backfill): ingen tour monteras — den skulle bli flytande rutor över en tom skärm och ändå markeras sedd', async () => {
+    setup([]);
+    renderNews();
+    await screen.findByRole('heading', { name: 'No news yet — go make some' });
+    expect(screen.queryByTestId('feature-tour')).toBeNull();
+  });
+
+  it('mark-read-steget finns bara när något är oläst (4 steg med oläst, 3 utan)', async () => {
+    renderNews();
+    await screen.findByText('7 unread');
+    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', '4');
+  });
+
+  it('inget oläst: turen har tre steg', async () => {
+    setup(FEED(), 20);
+    renderNews();
+    await screen.findByText('All caught up');
+    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', '3');
+  });
+
   it('turen är tour_news_v1 och ankarna finns i sidan (mobil och desktop)', async () => {
     for (const width of [MOBILE, DESKTOP]) {
       const view = renderNews('/news', width);

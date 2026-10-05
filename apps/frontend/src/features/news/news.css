@@ -58,7 +58,9 @@
 /* ── Filter: chip-rad (mobil) · kort med lodrät lista (desktop, Web Prototype) ── */
 .rq-news-filter { margin: 0; padding: 0; border: 0; min-width: 0; }
 .rq-news-filter__label { display: none; margin: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-news-filter__list { display: flex; flex-direction: var(--rq-news-filter-dir); gap: var(--rq-news-filter-gap); overflow-x: auto; scroll-snap-type: x proximity; }
+/* position:relative är avsiktligt: sr-only-spans i knapparna är position:absolute, och utan en positionerad förälder klipps de inte av
+   overflow-x här utan förlänger sidans scrollWidth (572 px vid 390 — jsdom ser inte detta; Playwright-kandidat, se README). */
+.rq-news-filter__list { position: relative; display: flex; flex-direction: var(--rq-news-filter-dir); gap: var(--rq-news-filter-gap); overflow-x: auto; scroll-snap-type: x proximity; }
 .rq-news-filter__item {
   display: inline-flex; align-items: center; gap: var(--rq-sp-8); flex: 0 0 auto; scroll-snap-align: start; white-space: nowrap; cursor: pointer;
   background: none; border: var(--rq-hair) solid var(--rq-line-4); padding: var(--rq-sp-6) var(--rq-sp-12);

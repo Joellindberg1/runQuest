@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 import { ONBOARDING_QUERY_KEY } from '@/features/onboarding/hooks/useOnboarding';
 import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { backendApi } from '@/shared/services/backendApi';
@@ -9,6 +10,11 @@ import type { AuthUser } from '@/providers/authContext';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const qc = useQueryClient();
+  // Användarbundna cachar (sett-listan, Pack News med olästa) får aldrig överleva ett byte av användare: rensas vid login, logout och 401.
+  const clearUserCaches = () => {
+    qc.removeQueries({ queryKey: ONBOARDING_QUERY_KEY });
+    qc.removeQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot });
+  };
   const [user, setUser] = useState<AuthUser | null>(null);
   // `loading` = sessionen återställs vid appstart (App.tsx gate:ar på den). Själva inloggningsanropet har ingen global loading:
   // den bytte ut hela routerträdet mot en loader, så LoginPage avmonterades och felet/fälten försvann (LoginPage har egen laddning).
@@ -36,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Redirect to login automatically when JWT expires
     backendApi.onUnauthorized = () => {
       qc.removeQueries({ queryKey: ONBOARDING_QUERY_KEY });
+      qc.removeQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot });
       setUser(null);
     };
 
@@ -55,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (loginResult.success && loginResult.user) {
         log.success('Backend login successful', loginResult.user.name);
         // Sett-listan hör till en användare: ingen gammal (t.ex. utloggad prefetch) får finnas kvar när nästa läses.
-        qc.removeQueries({ queryKey: ONBOARDING_QUERY_KEY });
+        clearUserCaches();
         setUser(loginResult.user);
         return { success: true };
       } else {
@@ -73,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     log.info('Logging out...');
     
     backendApi.logout();
-    qc.removeQueries({ queryKey: ONBOARDING_QUERY_KEY });
+    clearUserCaches();
     await supabase.auth.signOut();
     setUser(null);
   };

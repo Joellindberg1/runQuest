@@ -3,7 +3,7 @@ import { ACTIVITY_TYPES } from '@runquest/shared';
 import {
   CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, countByFilter, dedupeById, describeNews,
   feedFromPage, formatAgo, fullTime, gapCursor, groupByDay, isUnread, markSeenInFeed, mergeNewer, parseFilterParam, serializeFilterParam,
-  toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, type NewsContext,
+  replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, type NewsContext,
 } from './newsModel';
 import { formatInt } from '@/features/log/logFormat';
 import { ADAM, DAN, ME, NICK, NOW, KARL, at, challengeWon, eventOpen, item, levelUp, meta, streakBroken, titleTaken } from './news.fixture';
@@ -106,6 +106,28 @@ describe('flödet: dedupe, kursor och sammanslagning', () => {
       const merged = mergeNewer(feed, [], meta({ unread_count: 4, last_seen_id: 6 }), true);
       expect(merged.items).toEqual(feed.items);
       expect(merged.meta.unread_count).toBe(4);
+    });
+  });
+
+  describe('replaceNewest (fokus: den nyaste sidan ersätter, så retractade rader försvinner)', () => {
+    it('en rad som saknas i den nyaste sidan tas bort; rader äldre än sidan behålls och räknaren är den färska', () => {
+      const feed = { items: [a, b, c, d], meta: meta({ unread_count: 1, has_more: true, next_before: 7 }) };
+      // b (id 9) är retractad: sidan har bara 10 och 8 och har fler äldre rader (has_more) — 7 ligger under sidan och behålls.
+      const next = replaceNewest(feed, { items: [a, c], meta: meta({ unread_count: 3, last_seen_id: 4, has_more: true, next_before: 8 }) });
+      expect(next.items.map((row) => row.id)).toEqual([10, 8, 7]);
+      expect(next.meta).toEqual({ unread_count: 3, last_seen_id: 4, has_more: true, next_before: 7 });
+    });
+
+    it('sidan är hela flödet (inget has_more): allt ersätts, även en tom sida', () => {
+      const feed = { items: [a, b, c], meta: meta({ has_more: false }) };
+      expect(replaceNewest(feed, { items: [a], meta: meta({ has_more: false }) }).items.map((row) => row.id)).toEqual([10]);
+      expect(replaceNewest(feed, { items: [], meta: meta({ has_more: false }) }).items).toEqual([]);
+    });
+
+    it('nya rader och oförändrade rader: ingen dubblering', () => {
+      const feed = { items: [b, c], meta: meta({ has_more: true, next_before: 8 }) };
+      const next = replaceNewest(feed, { items: [a, b, c], meta: meta({ has_more: true, next_before: 8 }) });
+      expect(next.items.map((row) => row.id)).toEqual([10, 9, 8]);
     });
   });
 

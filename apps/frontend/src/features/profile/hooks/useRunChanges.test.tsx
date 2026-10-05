@@ -6,6 +6,7 @@ import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { EVENTS_QUERY_KEYS } from '@/features/events/hooks/useEventsQueries';
 import { LOG_QUERY_KEYS } from '@/features/log/hooks/useLogQueries';
 import { HEAD_TO_HEAD_ROOT } from '@/features/runner/hooks/useRunnerQueries';
+import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 import { EVENT_FOLLOW_UP_MS } from '@/features/runs/runEffects';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { run } from '../profile.fixture';
@@ -26,7 +27,7 @@ function setup<T>(useHook: () => T) {
 const invalidatedKeys = (invalidate: ReturnType<typeof vi.spyOn>): unknown[] => invalidate.mock.calls.map(([filters]) => (filters as { queryKey: unknown }).queryKey);
 
 // Samma kedja som useCreateRun (Log): users-with-runs, leaderboard, öppna event, titlar (båda rötterna), utmaningar, head-to-head, gruppens historik.
-const CHAIN = [USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], EVENTS_QUERY_KEYS.open, ['titles'], ['multiple-user-titles'], ['challenges'], HEAD_TO_HEAD_ROOT, LOG_QUERY_KEYS.history];
+const CHAIN = [USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], EVENTS_QUERY_KEYS.open, ['titles'], ['multiple-user-titles'], ['challenges'], HEAD_TO_HEAD_ROOT, LOG_QUERY_KEYS.history, NEWS_QUERY_KEYS.feedRoot];
 
 afterEach(() => {
   vi.restoreAllMocks();
