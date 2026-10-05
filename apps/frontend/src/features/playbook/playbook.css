@@ -1,0 +1,81 @@
+/* Playbook (inkrement 11): nio kapitel — desktop som flikar med kapitlet bredvid sin tabell, mobil som dragspel. ENDAST tokens
+   (regel 1). Måtten (--rq-playbook-*) definieras i temafilen, sektion 1.32 (index.css + docs/design/temafil-forslag.css) —
+   inga egna :root-definitioner här. Rubriken snappar till --rq-fs-display-xl, ingressen till --rq-fs-lead, styckena till
+   --rq-fs-body. Ingen egen rörelse (kapitlet glider in med den delade .rq-rise). Ligger utanför @layer så att klasserna vinner
+   över delade .rq-*-primitiver. */
+
+/* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
+.rq-playbook { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-playbook__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-playbook__title { margin: 0; font-weight: 400; text-transform: uppercase; }
+.rq-playbook__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-playbook__count { font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); color: var(--rq-text-4); }
+.rq-playbook__notice:empty { margin-top: calc(var(--rq-gap-stack) * -1); }
+.rq-playbook__tabs { display: flex; flex-wrap: wrap; gap: var(--rq-sp-8); }
+.rq-playbook__tabs > [role="tab"] { display: inline-flex; align-items: center; gap: var(--rq-sp-8); padding: var(--rq-sp-6) var(--rq-sp-14); font-family: var(--rq-font-ui); white-space: nowrap; }
+.rq-playbook__tabs > [role="tab"]:not([aria-selected="true"]) { background: none; }
+.rq-playbook__panel { min-width: 0; }
+.rq-playbook-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
+.rq-playbook-note { margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-playbook-note__retry { display: inline; font-size: var(--rq-fs-meta); }
+
+/* ── Kapitlet: text | tabell ──────────────────────────────────────────────── */
+.rq-playbook-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--rq-playbook-split-gap); align-items: start; }
+.rq-playbook-split[data-split="true"] { grid-template-columns: var(--rq-playbook-split-cols); }
+.rq-playbook-chapter { min-width: 0; }
+.rq-playbook-chapter__title { margin: 0 0 var(--rq-sp-6); font-weight: 400; text-transform: uppercase; }
+.rq-playbook-rule { width: var(--rq-playbook-rule-w); height: var(--rq-playbook-rule-h); margin-bottom: var(--rq-sp-24); background: var(--rq-gold); }
+.rq-playbook-lead { margin: 0 0 var(--rq-sp-20); font-size: var(--rq-fs-lead); line-height: var(--rq-lh-lead); color: var(--rq-text-2); }
+.rq-playbook-para { margin: 0 0 var(--rq-sp-16); max-width: var(--rq-playbook-text-max); font-size: var(--rq-fs-body); line-height: var(--rq-lh-lead); color: var(--rq-text-3); }
+
+/* Siffrorna: hjältekortet med etikett och rader i hårlinjegrid, värdet i Bebas guld */
+.rq-playbook-table { min-width: 0; }
+.rq-playbook-table__label { margin: 0 0 var(--rq-sp-12); }
+.rq-playbook-rows { margin: 0; }
+.rq-playbook-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--rq-sp-12); background: var(--rq-cell); padding: var(--rq-sp-10) var(--rq-sp-14); }
+.rq-playbook-row__label { min-width: 0; font-size: var(--rq-fs-body); color: var(--rq-text-3); }
+.rq-playbook-row__note { display: block; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-playbook-row__value { margin: 0; flex-shrink: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); white-space: nowrap; }
+
+/* Titellistan ur databasen */
+.rq-playbook-titles { margin-top: var(--rq-sp-24); }
+.rq-playbook-titles__title { margin: 0 0 var(--rq-sp-10); font-weight: 400; }
+.rq-playbook-titles__list { margin: 0; padding: 0; list-style: none; grid-template-columns: var(--rq-playbook-titles-cols); }
+.rq-playbook-title { display: flex; flex-direction: column; gap: var(--rq-sp-2); min-width: 0; background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }
+.rq-playbook-title__name { display: flex; align-items: center; gap: var(--rq-sp-8); }
+.rq-playbook-title__rule { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-playbook-title__unlock { font-size: var(--rq-fs-meta); color: var(--rq-up); }
+.rq-playbook-empty { margin: 0; padding: var(--rq-sp-14); border: var(--rq-hair) dashed var(--rq-line-5); text-align: center; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+
+/* ── Föregående · position · nästa (desktop) ──────────────────────────────── */
+.rq-playbook-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); padding-top: var(--rq-sp-18); border-top: var(--rq-hair) solid var(--rq-line-2); }
+.rq-playbook-pager__button {
+  display: inline-flex; align-items: center; gap: var(--rq-sp-8); padding: 0; cursor: pointer; background: none; border: 0;
+  font-family: var(--rq-font-ui); font-size: var(--rq-fs-tab); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4);
+}
+.rq-playbook-pager__button:hover { color: var(--rq-gold-text); }
+.rq-playbook-pager__arrow--prev { transform: rotate(90deg); }
+.rq-playbook-pager__arrow--next { transform: rotate(-90deg); }
+.rq-playbook-pager__position { font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); color: var(--rq-text-4); }
+
+/* ── Dragspelet (mobil): nummer · ikon · namn · pil ───────────────────────── */
+.rq-playbook-acc { margin: 0; padding: 0; list-style: none; }
+.rq-playbook-acc__item { background: var(--rq-row-soft); }
+.rq-playbook-acc__heading { margin: 0; font: inherit; }
+.rq-playbook-acc__button {
+  display: flex; align-items: center; gap: var(--rq-sp-12); width: 100%; box-sizing: border-box; padding: var(--rq-sp-14); cursor: pointer; text-align: left;
+  background: none; border: 0; border-left: var(--rq-edge-w) solid transparent; color: var(--rq-text-3);
+  font-family: var(--rq-font-ui); font-weight: 700; font-size: var(--rq-fs-name); letter-spacing: var(--rq-ls-name); text-transform: uppercase;
+}
+.rq-playbook-acc__button[aria-expanded="true"] {
+  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-left-color: var(--rq-gold); color: var(--rq-gold-text);
+}
+.rq-playbook-acc__num { width: var(--rq-playbook-num-w); font-family: var(--rq-font-mono); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: 0; color: var(--rq-text-4); }
+.rq-playbook-acc__button[aria-expanded="true"] .rq-playbook-acc__num { color: var(--rq-gold-text); }
+.rq-playbook-acc__label { flex: 1; min-width: 0; }
+.rq-playbook-acc__chevron { margin-left: auto; transform: rotate(-90deg); color: var(--rq-text-4); }
+.rq-playbook-acc__button[aria-expanded="true"] .rq-playbook-acc__chevron { transform: none; color: var(--rq-gold-text); }
+.rq-playbook-acc__body { background: var(--rq-cell); padding: var(--rq-sp-14) var(--rq-sp-16) var(--rq-sp-18); }
+.rq-playbook-acc__body .rq-playbook-lead { margin-bottom: var(--rq-sp-12); }
+.rq-playbook-acc__body .rq-playbook-para { margin-bottom: var(--rq-sp-10); }
+.rq-playbook-acc__body .rq-playbook-table { margin-top: var(--rq-sp-12); }
