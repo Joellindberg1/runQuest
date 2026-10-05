@@ -9,6 +9,7 @@ import {
 } from '../services/challengeService.js';
 import { tomorrowStockholm, addDaysToDate, at3amStockholm } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
+import { recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
 import {
   CHALLENGE_HISTORY_COLUMNS,
   computeRecord,
@@ -256,6 +257,20 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
       .update({ sent_at: sentAt, challenge_id: challenge.id })
       .eq('id', token_id);
 
+    // Pack News (ADR 008): loggas efter insert + token-markering; icke-kastande, påverkar inte svaret.
+    await recordChallengeReceived(
+      {
+        id: challenge.id,
+        group_id: groupId ?? opponent.group_id,
+        tier: token.tier,
+        metric: token.metric,
+        duration_days: token.duration_days,
+        challenger_id: userId,
+        opponent_id,
+      },
+      sentAt,
+    );
+
     logger.info(`⚔️ Challenge sent: ${userId} → ${opponent_id} (${token.tier} / ${token.metric})`);
 
     res.status(201).json({ success: true, data: { challenge_id: challenge.id } });
@@ -307,7 +322,10 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
           .update({ challenge_active: false })
           .in('id', [challenge.challenger_id, challenge.opponent_id]),
       ]);
-      await supabase.from('challenges').delete().eq('id', id);
+      const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
+      // Raden i flödet tas bara bort om utmaningen faktiskt raderades — annars visar flödet en utmaning som finns.
+      if (deleteError) logger.error(`❌ Failed to delete declined challenge ${id}:`, deleteError);
+      else await retractChallengeReceived(id);
 
       logger.info(`❌ Challenge ${id} declined by ${userId} — token restored to challenger`);
       res.json({ success: true, message: 'Challenge declined' }); return;
@@ -372,7 +390,9 @@ router.put('/:id/withdraw', authenticateJWT, async (req, res): Promise<void> => 
         .update({ challenge_active: false })
         .in('id', [challenge.challenger_id, challenge.opponent_id]),
     ]);
-    await supabase.from('challenges').delete().eq('id', id);
+    const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
+    if (deleteError) logger.error(`❌ Failed to delete withdrawn challenge ${id}:`, deleteError);
+    else await retractChallengeReceived(id);
 
     logger.info(`↩️ Challenge ${id} withdrawn by challenger ${userId} — token restored`);
     res.json({ success: true, message: 'Challenge withdrawn' });

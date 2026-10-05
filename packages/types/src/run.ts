@@ -31,7 +31,12 @@ export interface Run {
   km_xp: number;
   distance_bonus: number;
   streak_bonus: number;
-  source?: string;
+  /**
+   * Ursprung: 'manual' (default) eller 'strava'. Med i users-with-runs sedan i9 (additivt). Profile blockerar
+   * Delete för 'strava'-rundor — DELETE saknar gravsten och synken återimporterar inom 7-dagarsfönstret
+   * (open-assumptions, backend-fråga 6). null/saknas = äldre rad → behandla som 'manual'.
+   */
+  source?: string | null;
   external_id?: string;
   // Extended Strava data — all nullable (not all devices/users share this)
   start_time?: string | null;

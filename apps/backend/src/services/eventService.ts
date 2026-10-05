@@ -3,6 +3,39 @@ import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './levelService.js';
 import { toStockholmDate } from '../utils/dateUtils.js';
+import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
+import { buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
+
+// ─── Pack News-hjälpare (ADR 008) ─────────────────────────────────────────────
+// Loggen skrivs EFTER den underliggande skrivningen och är icke-kastande (activityLog).
+
+type EventTemplateJoin = { name: string; icon: string | null; reward_xp: number | null; reward_xp_1st?: number | null } | null;
+
+/** supabase-js kan typa en inbäddad relation som objekt eller (vid gissad kardinalitet) lista. */
+function asTemplate(raw: unknown): EventTemplateJoin {
+  const t = Array.isArray(raw) ? raw[0] : raw;
+  return (t as EventTemplateJoin) ?? null;
+}
+
+/** Antal användare i gruppen — "4 of 6 finished it". Null om det inte gick att läsa. */
+async function countGroupMembers(groupId: string): Promise<number | null> {
+  const { count, error } = await getSupabaseClient()
+    .from('users')
+    .select('id', { count: 'exact', head: true })
+    .eq('group_id', groupId);
+  return error ? null : (count ?? 0);
+}
+
+function toActivityEvent(
+  e: { id: string; group_id: string; type: string; starts_at: string; ends_at: string },
+  template: EventTemplateJoin,
+): EventActivityRow | null {
+  if (!template || (e.type !== 'participation' && e.type !== 'competition')) return null;
+  return {
+    id: e.id, group_id: e.group_id, type: e.type, starts_at: e.starts_at, ends_at: e.ends_at,
+    template: { name: template.name, icon: template.icon, reward_xp: template.reward_xp, reward_xp_1st: template.reward_xp_1st ?? null },
+  };
+}
 
 // ─── maybeCreateEvent ─────────────────────────────────────────────────────────
 
@@ -22,7 +55,7 @@ export async function maybeCreateEvent(
   // Hämta template
   const { data: template, error: tErr } = await supabase
     .from('event_templates')
-    .select('id, type, metric')
+    .select('id, type, metric, icon, reward_xp, reward_xp_1st')
     .eq('name', templateName)
     .eq('active', true)
     .single();
@@ -60,21 +93,34 @@ export async function maybeCreateEvent(
   }
 
   // Skapa nytt event
-  const { error: insertErr } = await supabase
+  const status = startsAt <= new Date() ? 'active' : 'scheduled';
+  const { data: created, error: insertErr } = await supabase
     .from('events')
     .insert({
       template_id: template.id,
       group_id: groupId,
       type: template.type,
       metric: template.metric ?? null,
-      status: startsAt <= new Date() ? 'active' : 'scheduled',
+      status,
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
-    });
+    })
+    .select('id')
+    .single();
 
   if (insertErr) {
     logger.error(`❌ [EventService] Failed to create "${templateName}" for group ${groupId}:`, insertErr);
     return false;
+  }
+
+  // Pack News: bara ett event som skapas direkt som 'active' loggas här; 'scheduled' loggas av
+  // activateScheduledEvents när det faktiskt aktiveras (occurred_at = starts_at).
+  if (status === 'active' && created?.id) {
+    const row = toActivityEvent(
+      { id: created.id, group_id: groupId, type: template.type, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString() },
+      { name: templateName, icon: (template as any).icon ?? null, reward_xp: (template as any).reward_xp ?? null, reward_xp_1st: (template as any).reward_xp_1st ?? null },
+    );
+    if (row) await recordActivity(buildEventOpenDraft(row));
   }
 
   logger.info(`✅ [EventService] Created "${templateName}" for group ${groupId} (${startsAt.toISOString()} → ${endsAt.toISOString()})`);
@@ -143,6 +189,12 @@ export async function checkEventQualification(params: {
   distanceKm: number;
   isTreadmill?: boolean;
   groupId?: string;   // om ej känt hämtas det från users-tabellen
+  /**
+   * Kräv att rundans datum (Stockholm-dag) ligger inom eventets dagar [starts_at, ends_at]. Default false:
+   * POST/Strava beter sig oförändrat (frågan kräver bara ends_at >= rundans datum). PUT /runs sätter den,
+   * så att en redigering av en GAMMAL runda inte kvalificerar ett event som pågår just nu.
+   */
+  enforceRunDateWindow?: boolean;
 }): Promise<void> {
   const supabase = getSupabaseClient();
 
@@ -182,6 +234,12 @@ export async function checkEventQualification(params: {
 
   for (const event of events) {
     try {
+      if (params.enforceRunDateWindow) {
+        const startDay = toStockholmDate(event.starts_at);
+        const endDay = toStockholmDate(event.ends_at);
+        if (params.runDate < startDay || params.runDate > endDay) continue;
+      }
+
       if (event.type === 'participation') {
         const minKm = Number(event.event_templates?.min_km ?? 0);
         if (params.distanceKm < minKm) {
@@ -206,11 +264,14 @@ export async function checkEventQualification(params: {
           await supabase.rpc('increment_event_xp', { p_user_id: params.userId, p_xp: rewardXp });
 
           // Räkna om level baserat på ny total_xp
+          // current_level/group_id i samma select = föregående nivå för level_up-loggen (ADR 008).
           const { data: userData } = await supabase
-            .from('users').select('total_xp').eq('id', params.userId).single();
+            .from('users').select('total_xp, current_level, group_id').eq('id', params.userId).single();
           if (userData) {
+            const prevLevel = userData.current_level;
             const newLevel = await getLevelFromXP(userData.total_xp);
             await supabase.from('users').update({ current_level: newLevel }).eq('id', params.userId);
+            await recordLevelUps(params.userId, prevLevel, newLevel, userData.group_id ?? null);
           }
 
           logger.info(`✅ [EventQual] User ${params.userId} qualified for participation event ${event.id} (+${rewardXp} XP)`);
@@ -264,10 +325,11 @@ export async function settleCompetitionEvents(): Promise<void> {
     .from('events')
     .select(`
       id,
+      group_id,
       metric,
       starts_at,
       ends_at,
-      event_templates ( reward_xp_1st, reward_xp_2nd, reward_xp_3rd )
+      event_templates ( name, icon, reward_xp, reward_xp_1st, reward_xp_2nd, reward_xp_3rd )
     `)
     .eq('type', 'competition')
     .eq('status', 'active')
@@ -319,8 +381,11 @@ export async function settleCompetitionEvents(): Promise<void> {
       }
 
       const participants = entries ?? [];
+      const activityEvent = toActivityEvent({ ...event, type: 'competition' }, asTemplate(event.event_templates));
       if (!participants.length) {
-        continue; // redan markerat settled i claimen ovan
+        // redan markerat settled i claimen ovan. Ingen event_closed-rad: ett event utan deltagare är inte
+        // en nyhet ("0 of 6 finished it" varje dag vore brus; Lead-beslut).
+        continue;
       }
 
       // Beräkna total_value per användare utifrån faktiska runs under eventet
@@ -364,13 +429,29 @@ export async function settleCompetitionEvents(): Promise<void> {
           await supabase.rpc('increment_event_xp', { p_user_id: userId, p_xp: xp });
           // Räkna om level baserat på ny total_xp
           const { data: userData } = await supabase
-            .from('users').select('total_xp').eq('id', userId).single();
+            .from('users').select('total_xp, current_level, group_id').eq('id', userId).single();
           if (userData) {
+            const prevLevel = userData.current_level;
             const newLevel = await getLevelFromXP(userData.total_xp);
             await supabase.from('users').update({ current_level: newLevel }).eq('id', userId);
+            await recordLevelUps(userId, prevLevel, newLevel, userData.group_id ?? null);
           }
           logger.info(`✅ [Settlement] User ${userId} rank ${rank} for event ${event.id} (+${xp} XP, ${totalValue.toFixed(1)} ${event.metric})`);
         }
+      }
+
+      // Pack News: efter utbetalningen. Topp 3 med faktiskt utdelad XP; event_closed:<id> ger exakt en rad.
+      if (activityEvent) {
+        const members = await countGroupMembers(event.group_id);
+        await recordActivity(buildEventClosedDraft(
+          activityEvent,
+          {
+            participants: scored.length,
+            members: members ?? scored.length,
+            top: scored.slice(0, 3).map((s, i) => ({ user_id: s.userId, rank: i + 1, xp: xpPerRank[i] ?? 0 })),
+          },
+          now,
+        ));
       }
 
       logger.info(`✅ [Settlement] Competition event ${event.id} settled (${scored.length} participants)`);
@@ -403,16 +484,28 @@ export async function activateScheduledEvents(): Promise<void> {
   if (!events?.length) return;
 
   const ids = events.map((e: any) => e.id);
-  const { error: updateErr } = await supabase
+  // Statusvakt + returnering: bara events som FAKTISKT gick scheduled → active loggas (Pack News, ADR 008),
+  // så att två överlappande instanser aldrig loggar samma aktivering två gånger (event_open:<id> skyddar också).
+  const { data: activated, error: updateErr } = await supabase
     .from('events')
     .update({ status: 'active' })
-    .in('id', ids);
+    .in('id', ids)
+    .eq('status', 'scheduled')
+    .select('id, group_id, type, starts_at, ends_at, event_templates ( name, icon, reward_xp, reward_xp_1st )');
 
   if (updateErr) {
     logger.error('❌ [Activation] Failed to activate events:', updateErr);
-  } else {
-    logger.info(`✅ [Activation] Activated ${ids.length} event(s)`);
+    return;
   }
+
+  logger.info(`✅ [Activation] Activated ${(activated ?? []).length} event(s)`);
+
+  const drafts: ActivityDraft[] = [];
+  for (const e of activated ?? []) {
+    const row = toActivityEvent(e, asTemplate(e.event_templates));
+    if (row) drafts.push(buildEventOpenDraft(row));
+  }
+  await recordActivities(drafts);
 }
 
 // ─── settleExpiredParticipationEvents ─────────────────────────────────────────
@@ -439,15 +532,55 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
   if (!events?.length) return;
 
   const ids = events.map((e: any) => e.id);
-  const { error: updateErr } = await supabase
+  // Statusvakt + returnering (ADR 008): bara events som faktiskt stängdes loggas; ingen settled_at sätts
+  // (oförändrat beteende — participation-XP delades redan ut vid kvalificeringen).
+  const { data: closed, error: updateErr } = await supabase
     .from('events')
     .update({ status: 'settled' })
-    .in('id', ids);
+    .in('id', ids)
+    .in('status', ['active', 'scheduled'])
+    .select('id, group_id, type, starts_at, ends_at, event_templates ( name, icon, reward_xp, reward_xp_1st )');
 
   if (updateErr) {
     logger.error('❌ [Settlement] Failed to settle participation events:', updateErr);
-  } else {
-    logger.info(`✅ [Settlement] Settled ${ids.length} expired participation event(s)`);
+    return;
+  }
+
+  logger.info(`✅ [Settlement] Settled ${(closed ?? []).length} expired participation event(s)`);
+
+  try {
+    const closedIds = (closed ?? []).map((e: any) => e.id);
+    if (closedIds.length === 0) return;
+
+    // participants = antal event_entries per event; members = gruppstorlek (en count per grupp)
+    const { data: entries, error: entriesErr } = await supabase
+      .from('event_entries')
+      .select('event_id')
+      .in('event_id', closedIds);
+    if (entriesErr) throw entriesErr;
+    const participantsByEvent = new Map<string, number>();
+    for (const en of entries ?? []) participantsByEvent.set(en.event_id, (participantsByEvent.get(en.event_id) ?? 0) + 1);
+
+    const membersByGroup = new Map<string, number | null>();
+    for (const groupId of new Set<string>((closed ?? []).map((e: any) => e.group_id as string))) {
+      membersByGroup.set(groupId, await countGroupMembers(groupId));
+    }
+
+    const drafts: ActivityDraft[] = [];
+    for (const e of closed ?? []) {
+      const row = toActivityEvent(e, asTemplate(e.event_templates));
+      if (!row) continue;
+      const participants = participantsByEvent.get(e.id) ?? 0;
+      if (participants === 0) continue; // inga deltagare → ingen nyhet (Lead-beslut)
+      drafts.push(buildEventClosedDraft(
+        row,
+        { participants, members: membersByGroup.get(e.group_id) ?? participants },
+        row.ends_at, // participation avslutas av klockan; settled_at sätts inte här
+      ));
+    }
+    await recordActivities(drafts);
+  } catch (e) {
+    logger.error('❌ [Settlement] Failed to record event_closed news:', e);
   }
 }
 

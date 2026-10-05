@@ -2,6 +2,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { logger } from './logger.js';
 import { getLevelFromXP } from '../services/levelService.js';
 import { reconcileTokensForLevel } from '../services/challengeService.js';
+import { recordLevelUps, recordRunMilestones } from '../services/activityLog.js';
 
 export async function calculateUserTotals(userId: string, groupId?: string) {
   try {
@@ -26,13 +27,18 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
     // totalXP = event_xp, distans 0, streak 0, titlar återkallas.
     const userRuns = runs ?? [];
 
-    // Fetch event_xp separately — accumulated from event settlements
+    // Fetch event_xp separately — accumulated from event settlements.
+    // current_level/total_km/group_id läses i SAMMA select och är "föregående värden" för Pack News
+    // (level_up/run_milestone, ADR 008); gruppen kommer ur users.group_id, inte ur groupId-parametern.
     const { data: userData } = await supabase
       .from('users')
-      .select('event_xp')
+      .select('event_xp, current_level, total_km, group_id')
       .eq('id', userId)
       .single();
     const eventXP: number = userData?.event_xp ?? 0;
+    const prevLevel: number | null = typeof userData?.current_level === 'number' ? userData.current_level : null;
+    const prevTotalKm: number | null = userData?.total_km == null ? null : Number(userData.total_km);
+    const userGroupId: string | null = userData?.group_id ?? null;
 
     // Calculate totals
     const runsXP = userRuns.reduce((sum: number, run: any) => sum + (run.xp_gained || 0), 0);
@@ -68,6 +74,12 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
       logger.error('Error updating user totals:', updateError);
     } else {
       logger.info(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
+
+      // Pack News: loggen skrivs EFTER att totalerna sparats och rör aldrig deras beräkning (ADR 005/008).
+      // Båda anropen är icke-kastande och jämför mot FÖREGÅENDE värden — ingen historieflod vid deploy.
+      await recordLevelUps(userId, prevLevel, level, userGroupId);
+      // users.total_km är numeric(8,2): jämförs avrundat så att "föregående" (lagrat) och "nytt" är på samma skala.
+      await recordRunMilestones(userId, prevTotalKm, Math.round(totalDistance * 100) / 100, userGroupId);
     }
 
     // 🏆 Process titles for ALL users to ensure complete leaderboard
