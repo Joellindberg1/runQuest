@@ -1,5 +1,27 @@
 # Changelog
 
+## v2.2.0 — Versionsmekanik, Feature & Version och "What's new" (2026-10-05)
+
+### Nytt
+- **Feature & Version-sidan** omritad i designspråket (flikarna Features · Working on ·
+  Releases, `?view=`); versionsnumret och datumet överst kommer ur changelog.json i
+  stället för att vara hårdkodade, och mobilvyn är härledd ur Web Prototypens skärm.
+- **"What's new"-popupen** omritad (Radix Dialog, en guldknapp "Got it"); ersätter
+  den gamla lucide/tailwind-modalen.
+- **Versionsvakt i CI:** `scripts/check-versions.mjs` fäller bygget om rotens och
+  frontendens `package.json`, översta `## vX.Y.Z` i den här filen och
+  changelog.json inte stämmer överens (ordning, semver, rubriker, `announce`).
+
+### Ändrat
+- `apps/frontend/src/data/changelog.json` är nu ENDA källan för det gruppen ser:
+  `{ features, workingOn, releases }`. Posterna har valfritt `announce: true`;
+  onboarding-kön och popupen läser annonserade poster därifrån (slug
+  `patch_v<version>`). `features/onboarding/patchNotes.ts` och
+  `shared/utils/changelogHelpers.ts` är borttagna. Poster för 2.0.0–2.2.0 ifyllda;
+  bara 2.0.0 annonseras.
+- `package.json` (rot + frontend) hade 0.0.x — satta till 2.2.0 så att de följer
+  taggen enligt docs/dokumentation.md.
+
 ## v2.1.1 — Städrunda + olästmarkör (2026-10-05)
 
 ### Fixat

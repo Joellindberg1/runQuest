@@ -37,12 +37,18 @@ samma sak på två ställen.
 hoppar över rena fix-releaser. Popupen visas för poster med `"announce": true`
 (en gång per användare), och kan sammanfatta flera releaser.
 
+Filen har formen `{ features, workingOn, releases }`: `releases` är release-posterna
+(nyaste först), `features` och `workingOn` är korten under flikarna Features och
+Working on på Feature & Version-sidan. `scripts/check-versions.mjs` kontrollerar
+formen och att versionerna hänger ihop (se feature-README:n
+`apps/frontend/src/features/changelog/README.md`).
+
 ## Releasechecklista (Lead, i samma PR som ändringen)
 
 1. Bumpa versionen i rotens `package.json` och `apps/frontend/package.json`.
 2. Ny överst-post i `CHANGELOG.md` (teknisk sammanfattning).
 3. Märks det för gruppen? → post i `changelog.json` (typ `feature` /
-   `improvement` / `fix`, enkel engelska). Stort? → `"announce": true`.
+   `improvement` / `bugfix`, enkel engelska; posten läggs överst i `releases`). Stort? → `"announce": true`.
 4. Påverkar det arkitekturen eller ett beslut? → `STATE.md` / ADR-addendum.
 5. Ändrades en features syfte eller beroenden? → dess README.
 6. Efter merge och verifierad deploy: tagga `vX.Y.Z` på merge-commiten.
