@@ -144,6 +144,18 @@ describe('Events — mot migrationerna, eventService och schemat', () => {
     expect(service).toContain(`const qualifies = stormyHours >= ${stormHours} || gustyHours >= ${gustHours};`);
   });
 
+  it('kvalificering: bara redigering (PUT) kräver att rundans datum ligger inom eventets dagar — POST och Strava-importen gör det inte', () => {
+    const runs = backend('src/routes/runs.ts');
+    const put = runs.slice(runs.indexOf("router.put('/:id'"), runs.indexOf("router.delete('/:id'"));
+    const post = runs.slice(runs.indexOf("router.post('/'"), runs.indexOf("router.put('/:id'"));
+    expect(put).toContain('enforceRunDateWindow: true');
+    expect(post).not.toContain('enforceRunDateWindow');
+    expect(backend('src/routes/strava.ts')).not.toContain('enforceRunDateWindow');
+    // Utan flaggan räcker det att eventet startat och att rundans datum inte ligger efter slutet.
+    expect(service).toMatch(/\.lte\('starts_at', now\)\s*\.gte\('ends_at', `\$\{params\.runDate\}T00:00:00Z`\)/);
+    expect(service).toMatch(/if \(params\.enforceRunDateWindow\) \{/);
+  });
+
   it('daglig dragning 19:00, veckotävlingen avgörs måndag 00:05, båda veckotävlingarna ger 40/30/20 XP (scheduler, migration 017)', () => {
     expect(scheduler).toContain("cron.schedule('0 19 * * *'");
     expect(scheduler).toContain("cron.schedule('5 0 * * 1'");
@@ -164,6 +176,8 @@ describe('Events — mot migrationerna, eventService och schemat', () => {
     expect(events).not.toMatch(/m\/s/);
     expect(events).toContain('06:00–21:00');
     expect(events).toMatch(/log or sync a run while the event is open/);
+    expect(events).toContain('the run’s date can’t be after the event ends');
+    expect(events).not.toMatch(/fall within the event/);
     expect(events).not.toMatch(/finish a run inside the window/);
     expect(events).toMatch(/settled just after midnight on Monday/);
     expect(events).toContain('40 / 30 / 20 XP');

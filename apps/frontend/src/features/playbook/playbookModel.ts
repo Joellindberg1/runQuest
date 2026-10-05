@@ -212,7 +212,7 @@ function eventsChapter(): Omit<Chapter, 'num'> {
   const { morning, evening, fiveKFriday, halfMarathon, hangover, storm } = EVENT_FACTS;
   return {
     id: 'events', icon: 'calendar', label: 'Events', title: 'Events',
-    lead: 'Events are drawn by chance, so not every day or week has one. In a participation event you log or sync a run while the event is open — and the run’s date has to fall within the event’s days — and you get the XP. No ranking: everyone who qualifies wins.',
+    lead: 'Events are drawn by chance, so not every day or week has one. In a participation event you log or sync a run while the event is open (the run’s date can’t be after the event ends) and you get the XP. No ranking: everyone who qualifies wins.',
     paras: [
       `${morning.name}, ${evening.name} and ${storm.name} share a daily draw at 19:00 — at most one of them starts the next day. ${storm.name} only comes up when tomorrow's daytime forecast (${hourText(storm.dayFrom)}–${hourText(storm.dayTo)}) shows at least ${storm.stormHours} hours of drizzle, rain, snow, showers or thunder, or at least ${storm.gustHours} hours of gusts of ${storm.gustKmh} km/h or more.`,
       `Weekly competitions are the exception: a weekly km or elevation competition runs Monday to Sunday, ranks everyone on the total, and is settled just after midnight on Monday. The top three get ${WEEKLY_XP.join(' / ')} XP.`,
