@@ -77,7 +77,8 @@ host_check() {
   local headers status location
   headers="$(curl -s -o /dev/null -D - -H "Host: $host" "http://127.0.0.1:$PORT$path" | tr -d '\r')"
   status="$(printf '%s\n' "$headers" | head -1 | awk '{print $2}')"
-  location="$(printf '%s\n' "$headers" | grep -i '^location:' | sed 's/^[Ll]ocation: //')"
+  # grep utan träff (ingen omdirigering) får inte avsluta skriptet via pipefail.
+  location="$(printf '%s\n' "$headers" | { grep -i '^location:' || true; } | sed 's/^[Ll]ocation: //')"
   if [[ "$status" != "$want_status" || "$location" != "$want_location" ]]; then
     echo "FAIL $desc: $host$path gav $status ${location:-(ingen location)}, väntade $want_status ${want_location:-(ingen location)}"
     failures=$((failures + 1)); return
