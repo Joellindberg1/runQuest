@@ -86,6 +86,30 @@ export const TOUR_TITLES_V2: TourStep[] = [
   },
 ];
 
+// ── /news — tour_news_v1 ──────────────────────────────────────────────────
+// Ny skärm (inkrement 9): det fanns ingen gammal news-tour att bumpa från. Klockan i headern (header-news) presenteras av onboarding_v1.
+export const TOUR_NEWS_V1: TourStep[] = [
+  {
+    title: 'Pack News',
+    description: 'Everything the group does, in one feed: titles changing hands, duels, level ups, events and broken streaks. Your own moves show up too, but only what other people do counts as unread.',
+  },
+  {
+    element: '[data-tour="news-feed"]',
+    title: 'The feed',
+    description: 'Newest first, grouped by day. The coloured edge tells the kind apart, and a gold tint means you have not seen it yet. Show more at the bottom goes further back.',
+  },
+  {
+    element: '[data-tour="news-filter"]',
+    title: 'Filter',
+    description: 'Pick one or more kinds to narrow the feed down to just titles, challenges, events, levels or streaks. The numbers are how many of each are loaded. Pick none to see everything.',
+  },
+  {
+    element: '[data-tour="news-mark-read"]',
+    title: 'Mark all read',
+    description: 'Clears the unread count on the bell. The bell in the header opens the five latest from anywhere in the app.',
+  },
+];
+
 // ── /profile — tour_profile_v2 ───────────────────────────────────────────
 // v2: skärmen är omritad (hjältekort, Frodo-zoom, statflikar med Consistency, titlar, rundhistorik med redigera/radera);
 // v1-ankarna (profile-fun-fact, profile-run-history, profile-titles-tab) finns inte längre.

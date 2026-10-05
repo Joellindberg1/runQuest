@@ -27,6 +27,7 @@ function buildQueue(): string[] {
   queue.push('tour_duels_v2');
   queue.push('tour_events_v2');
   queue.push('tour_profile_v2');
+  queue.push('tour_news_v1');
 
   return queue;
 }

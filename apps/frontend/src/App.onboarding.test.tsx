@@ -47,7 +47,7 @@ import App from './App';
 const ALL_SLUGS = [
   'onboarding_v1',
   ...PATCH_NOTES.map((note) => note.slug),
-  'tour_leaderboard_v2', 'tour_titles_v2', 'tour_duels_v2', 'tour_events_v2', 'tour_profile_v2',
+  'tour_leaderboard_v2', 'tour_titles_v2', 'tour_duels_v2', 'tour_events_v2', 'tour_profile_v2', 'tour_news_v1',
 ];
 
 // Servern svarar per token: användare A har sett allt, användare B är ny.

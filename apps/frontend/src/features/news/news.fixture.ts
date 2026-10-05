@@ -1,4 +1,4 @@
-import type { ActivityType, NewsItem, NewsMeta, NewsUserRef } from '@runquest/shared';
+import type { ActivityType, NewsItem, NewsMeta, NewsQuery, NewsUserRef } from '@runquest/shared';
 
 // Testdata för Pack News: rader i API-formen (NewsItem ur @runquest/shared), med fasta klockslag.
 // NOW = torsdag 2026-10-08 12:00 i Stockholm (CEST): idag = torsdag, igår = onsdag, "Earlier this week" = mån–tis.
@@ -61,3 +61,55 @@ export const challengeWon = (id: number, over: Partial<Omit<ItemOf<'challenge_wo
     challenge_id: 'c1', tier: 'major', metric: 'km', duration_days: 7, winner_value: 44, loser_value: 38.2,
     winner_boost: { type: 'multiplier_days', delta: 0.2, duration: 4 }, loser_boost: { type: 'multiplier_days', delta: -0.1, duration: 4 }, ...payload,
   }, { actor: NICK, target: ME, ...over });
+
+/**
+ * En liten fake av GET /news + POST /news/seen med serverns semantik (ADR 008): id fallande, keyset `before`/`after` (båda → fel),
+ * `type`-filter, has_more/next_before och oläst = id över vattenmärket, ej backfill, ej egen handling.
+ * `calls` loggar frågorna så att tester kan se vilken sida klienten bad om.
+ */
+export function newsServer(initial: NewsItem[], lastSeen: number | null = null) {
+  const server = {
+    rows: [...initial].sort((a, b) => b.id - a.id),
+    lastSeen,
+    calls: [] as NewsQuery[],
+    seenCalls: [] as Array<number | undefined>,
+    failNext: null as string | null,
+  };
+  const isUnread = (row: NewsItem) => row.id > (server.lastSeen ?? 0) && !row.is_backfill && row.actor?.id !== ME.id;
+  const unreadCount = () => server.rows.filter(isUnread).length;
+
+  const getNews = async (query: NewsQuery = {}) => {
+    server.calls.push(query);
+    if (server.failNext) {
+      const error = server.failNext;
+      server.failNext = null;
+      return { success: false as const, error };
+    }
+    if (query.before !== undefined && query.after !== undefined) return { success: false as const, error: 'before and after cannot be combined' };
+    const types = query.type ? query.type.split(',') : null;
+    const matching = server.rows.filter(
+      (row) => (!types || types.includes(row.type)) && (query.before === undefined || row.id < query.before) && (query.after === undefined || row.id > query.after),
+    );
+    const limit = query.limit ?? 30;
+    const page = matching.slice(0, limit);
+    const hasMore = matching.length > limit;
+    return {
+      success: true as const,
+      data: { items: page.map((row) => ({ ...row, is_unread: isUnread(row) })) },
+      meta: { unread_count: unreadCount(), last_seen_id: server.lastSeen, has_more: hasMore, next_before: hasMore ? page[page.length - 1].id : null },
+    };
+  };
+
+  const markNewsSeen = async (upToId?: number) => {
+    server.seenCalls.push(upToId);
+    if (server.failNext) {
+      const error = server.failNext;
+      server.failNext = null;
+      return { success: false as const, error };
+    }
+    server.lastSeen = Math.max(server.lastSeen ?? 0, upToId ?? server.rows[0]?.id ?? 0);
+    return { success: true as const, data: { last_seen_id: server.lastSeen, unread_count: unreadCount() } };
+  };
+
+  return { server, getNews, markNewsSeen };
+}
