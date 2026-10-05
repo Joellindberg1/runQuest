@@ -4,7 +4,7 @@ import type { Run } from '@runquest/types';
 import { MIN_RUN_DATE } from '@/constants/appConstants';
 import { useDeleteRun, useUpdateRun } from '../hooks/useRunChanges';
 import { formatKm } from '../profileFormat';
-import { buildUpdate, buildXpParts, deleteNotice, editFormFor, isDirty, updateNotice, validateEdit, type EditForm } from '../profileModel';
+import { STRAVA_DELETE_HINT, buildUpdate, buildXpParts, deleteNotice, editFormFor, isDirty, isStravaRun, updateNotice, validateEdit, type EditForm } from '../profileModel';
 
 interface EditRunSheetProps {
   run: Run;
@@ -41,6 +41,7 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
   const errors = attempted ? validateEdit(form, today, run) : {};
   const dirty = isDirty(form, run);
   const runDate = editFormFor(run).date;
+  const fromStrava = isStravaRun(run);
 
   const edit = (patch: Partial<EditForm>) => {
     setForm((previous) => ({ ...previous, ...patch }));
@@ -169,6 +170,8 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
                 </section>
 
                 <p className="rq-profile-sheet__hint">Changing the date or distance recalculates your streak and XP from that day on.</p>
+                {/* Synlig förklaring för den som inte kan hovra (touch); skärmläsare får samma text i knappen. */}
+                {fromStrava && <p className="rq-profile-sheet__hint" aria-hidden="true">{STRAVA_DELETE_HINT}.</p>}
                 <p role="alert" className="rq-profile-sheet__error">{serverError}</p>
               </div>
 
@@ -177,8 +180,15 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
                   {update.isPending ? 'Saving…' : 'Save changes'}
                 </button>
                 <Dialog.Close className="rq-btn rq-btn--ghost" disabled={pending}>Cancel</Dialog.Close>
-                <button type="button" className="rq-btn rq-btn--danger" disabled={pending} onClick={() => { setConfirming(true); setServerError(null); }}>
+                <button
+                  type="button"
+                  className="rq-btn rq-btn--danger"
+                  disabled={pending || fromStrava}
+                  title={fromStrava ? STRAVA_DELETE_HINT : undefined}
+                  onClick={() => { setConfirming(true); setServerError(null); }}
+                >
                   Delete run
+                  {fromStrava && <span className="sr-only"> — {STRAVA_DELETE_HINT}</span>}
                 </button>
               </footer>
             </form>

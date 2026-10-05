@@ -1,0 +1,131 @@
+/* Pack News (inkrement 9): /news-skärmen och klock-popovern. ENDAST tokens (regel 1). Måtten (--rq-news-*) definieras i
+   temafilen, sektion 1.28 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
+   Kategorifärgen sätts med de delade chip-variablerna (--rq-c = RGB-triplett för tint/kant, --rq-c-edge, --rq-c-solid = text).
+   OBS: feature-CSS hamnar FÖRE index.css i kaskaden — en override av en delad .rq-*-primitiv på samma specificitet förlorar,
+   så sammansatta selektorer (.rq-btn.rq-news-…) där det behövs. Desktopens enda strukturskillnad (filtret som kort i en
+   kolumn bredvid flödet) ligger i @media; allt annat är tokens som temafilen vänder vid 1024 px. */
+
+/* ── Kategorier: färg per typ (prototypens `kinds`) ───────────────────────── */
+[data-category="title"]     { --rq-c: var(--rq-gold-rgb);      --rq-c-edge: var(--rq-gold-rgb); --rq-c-solid: var(--rq-gold-text); }
+[data-category="challenge"] { --rq-c: var(--rq-duel-base-rgb); --rq-c-edge: var(--rq-duel-rgb); --rq-c-solid: var(--rq-duel); }  /* tint/kant på base (#f97316), text på duel (#fdba74) */
+[data-category="level"]     { --rq-c: var(--rq-up-rgb);        --rq-c-edge: var(--rq-up-rgb);   --rq-c-solid: var(--rq-up); }
+[data-category="event"]     { --rq-c: var(--rq-ink-rgb);       --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }
+[data-category="streak"]    { --rq-c: var(--rq-down-rgb);      --rq-c-edge: var(--rq-down-rgb); --rq-c-solid: var(--rq-down); }
+/* Popoverns prick och typrad: en förlorad utmaning är röd (Web Prototypens popover), annars kategorins färg */
+[data-tone="loss"]          { --rq-c-solid: var(--rq-down); }
+
+/* ── Skärmen ──────────────────────────────────────────────────────────────── */
+.rq-news { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-news__split { display: grid; grid-template-columns: var(--rq-news-split-cols); gap: var(--rq-sp-16); align-items: start; }
+.rq-news__main { display: flex; flex-direction: column; gap: var(--rq-gap-stack); min-width: 0; }
+.rq-news__side { display: flex; flex-direction: column; gap: var(--rq-sp-12); min-width: 0; }
+
+.rq-news__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-news__title { margin: 0; font-weight: 400; }
+.rq-news__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-news__mark { flex-shrink: 0; }
+
+/* Bekräftelser och fel: permanenta live-regioner (behållaren finns innan texten kommer) */
+.rq-news-notice { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-up); }
+.rq-news-notice > p { margin: 0; }
+.rq-news-error { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-down); }
+/* Tomma behållare tar ingen plats men finns kvar i tillgänglighetsträdet (display:none skulle tysta nästa annonsering) */
+.rq-news-notice:empty, .rq-news-error:empty { margin: 0; padding: 0; }
+
+/* ── Dag-grupper och rader ────────────────────────────────────────────────── */
+.rq-news-day { display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-news-day__label { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-weight: 400; letter-spacing: var(--rq-ls-eyebrow); text-transform: uppercase; color: var(--rq-text-5); }
+.rq-news-days { display: flex; flex-direction: column; gap: var(--rq-sp-14); }
+.rq-news-list { margin: 0; padding: 0; list-style: none; }
+
+.rq-news-row {
+  display: grid; grid-template-columns: var(--rq-news-row-cols); grid-template-areas: var(--rq-news-row-areas);
+  align-items: var(--rq-news-row-align); column-gap: var(--rq-news-row-gap);
+  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x);
+  background: var(--rq-read-bg);
+  border-left: var(--rq-edge-w) solid rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha));
+}
+.rq-news-row:hover { background: var(--rq-row-hover); }
+.rq-news-row[data-unread] { background: var(--rq-unread-bg); }
+.rq-news-row[data-category="event"] { border-left-color: rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha-quiet)); }
+.rq-news-row__icon { grid-area: icon; display: inline-flex; align-self: center; color: var(--rq-c-solid); }
+.rq-news-row__kind { grid-area: kind; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-c-solid); }
+.rq-news-row__time { grid-area: time; justify-self: end; font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); letter-spacing: 0; text-transform: none; color: var(--rq-text-4); }
+.rq-news-row__text { grid-area: text; margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+
+.rq-news-more { display: flex; justify-content: center; padding-top: var(--rq-sp-4); }
+
+/* ── Filter: chip-rad (mobil) · kort med lodrät lista (desktop, Web Prototype) ── */
+.rq-news-filter { margin: 0; padding: 0; border: 0; min-width: 0; }
+.rq-news-filter__label { display: none; margin: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-news-filter__list { display: flex; flex-direction: var(--rq-news-filter-dir); gap: var(--rq-news-filter-gap); overflow-x: auto; scroll-snap-type: x proximity; }
+.rq-news-filter__item {
+  display: inline-flex; align-items: center; gap: var(--rq-sp-8); flex: 0 0 auto; scroll-snap-align: start; white-space: nowrap; cursor: pointer;
+  background: none; border: var(--rq-hair) solid var(--rq-line-4); padding: var(--rq-sp-6) var(--rq-sp-12);
+  font-family: var(--rq-font-ui); font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3);
+}
+.rq-news-filter__item:hover { color: var(--rq-c-solid); }
+.rq-news-filter__icon { display: inline-flex; color: var(--rq-c-solid); }
+.rq-news-filter__name { display: inline-flex; align-items: center; gap: var(--rq-sp-6); }
+.rq-news-filter__count { font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); letter-spacing: 0; color: var(--rq-text-4); }
+/* Ett valt filter tar accentfärgen av det det filtrerar (regel 4): tint 14 % / kant 50 % / text i accent */
+.rq-news-filter__item[aria-pressed="true"] {
+  background: rgb(var(--rq-c) / var(--rq-tint-selected)); border-color: rgb(var(--rq-c-edge) / var(--rq-edge-selected)); color: var(--rq-c-solid);
+}
+
+@media (min-width: 1024px) {
+  .rq-news__main { grid-column: 1; grid-row: 1; }
+  .rq-news__side { grid-column: 2; grid-row: 1; }
+  .rq-news-filter { padding: var(--rq-sp-16) var(--rq-sp-18); background: var(--rq-card-bg); border: var(--rq-hair) solid var(--rq-panel-border); }
+  .rq-news-filter__label { display: block; margin-bottom: var(--rq-sp-12); }
+  .rq-news-filter__list { overflow-x: visible; }
+  .rq-news-filter__item {
+    justify-content: space-between; width: 100%; padding: var(--rq-sp-8) 0; border-width: 0 0 var(--rq-hair) 0; border-color: var(--rq-line-1);
+    font-size: var(--rq-fs-lead); letter-spacing: 0; text-transform: none; color: var(--rq-c-solid);
+  }
+  .rq-news-filter__item:last-child { border-bottom-width: 0; }
+  .rq-news-filter__item[aria-pressed="true"] { background: rgb(var(--rq-c) / var(--rq-tint-selected)); border-color: transparent; padding-inline: var(--rq-sp-8); }
+  .rq-news-filter__name { gap: var(--rq-sp-10); }
+}
+
+/* ── Tomt och fel ─────────────────────────────────────────────────────────── */
+.rq-news-empty { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-12); text-align: center; padding: var(--rq-sp-32) var(--rq-pad-screen); border: var(--rq-hair) dashed var(--rq-line-5); }
+.rq-news-empty__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-display); font-weight: 400; line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+.rq-news-empty__text { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+
+/* ── Klockan: räknare ─────────────────────────────────────────────────────── */
+.rq-news-badge {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  min-width: var(--rq-news-badge); height: var(--rq-news-badge); padding: 0 var(--rq-sp-4);
+  border-radius: var(--rq-radius-pill); background: var(--rq-gold); color: var(--rq-on-gold);
+  font-family: var(--rq-font-ui); font-weight: 700; font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); letter-spacing: 0;
+}
+
+/* ── Popovern (flytande lager: skugga + guld-hårlinje) ────────────────────── */
+.rq-news-pop {
+  width: min(var(--rq-news-pop-w), calc(100vw - var(--rq-sp-12) * 2)); max-height: var(--rq-news-pop-max-h); overflow-y: auto;
+  box-sizing: border-box; padding: 0;
+}
+.rq-news-pop__head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12);
+  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x) var(--rq-news-row-pad-y) var(--rq-news-row-pad-x);
+  border-bottom: var(--rq-hair) solid var(--rq-line-3);
+}
+.rq-news-pop__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-title); letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+.rq-news-pop__actions { display: inline-flex; align-items: center; gap: var(--rq-sp-12); }
+.rq-news-pop__close { border: 0; background: none; cursor: pointer; padding: 0; font-size: var(--rq-fs-lead); line-height: var(--rq-lh-tight); color: var(--rq-text-4); }
+.rq-news-pop__close:hover { color: var(--rq-text-2); }
+.rq-news-pop__list { margin: 0; padding: 0; list-style: none; }
+.rq-news-pop__row {
+  display: grid; grid-template-columns: var(--rq-sp-6) minmax(0, 1fr); column-gap: var(--rq-sp-10);
+  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x); border-bottom: var(--rq-hair) solid var(--rq-line-1);
+}
+.rq-news-pop__row[data-unread] { background: var(--rq-unread-bg); }
+.rq-news-pop__dot { margin-top: var(--rq-sp-6); color: var(--rq-c-solid); }
+.rq-news-pop__meta { display: flex; justify-content: space-between; gap: var(--rq-sp-10); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-c-solid); }
+.rq-news-pop__time { color: var(--rq-text-4); white-space: nowrap; }
+.rq-news-pop__text { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-news-pop__foot { display: block; padding: var(--rq-sp-10) var(--rq-sp-14); text-align: center; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3); }
+.rq-news-pop__foot:hover { color: var(--rq-gold-text); }
+.rq-news-pop__note { margin: 0; padding: var(--rq-sp-16) var(--rq-sp-14); text-align: center; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-news-pop__state { padding: var(--rq-sp-8) var(--rq-sp-14) var(--rq-sp-12); }

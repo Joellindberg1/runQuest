@@ -563,6 +563,77 @@ describe('Profile — radera en runda', () => {
   });
 });
 
+describe('Profile — Strava-rundor och spärrad radering', () => {
+  const openEdit = async (date: string) => {
+    renderProfile();
+    await screen.findByRole('list', { name: 'Your runs' });
+    fireEvent.click(editButton(date));
+    return screen.findByRole('dialog', { name: 'Edit run' });
+  };
+
+  it('en Strava-runda: Delete är avstängd med förklaringen (title + skärmläsartext) och Edit/Save fungerar som vanligt', async () => {
+    setup({ runs: RUNS.map((r) => (r.id === 'r2' ? { ...r, source: 'strava' } : r)) });
+    const sheet = await openEdit('2026-10-02');
+    const del = within(sheet).getByRole('button', { name: /Delete run/ });
+    expect(del).toBeDisabled();
+    expect(del).toHaveAttribute('title', 'Strava runs come back on next sync — delete it in Strava instead');
+    expect(del).toHaveAccessibleName('Delete run — Strava runs come back on next sync — delete it in Strava instead');
+
+    fireEvent.click(del);
+    expect(screen.getByRole('dialog', { name: 'Edit run' })).toBeInTheDocument();
+    expect(deleteRun).not.toHaveBeenCalled();
+
+    fireEvent.change(distanceField(), { target: { value: '9' } });
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateRun).toHaveBeenCalledTimes(1));
+  });
+
+  it('en manuell runda (source manual, null eller saknad): Delete är på och utan förklaring', async () => {
+    setup({ runs: RUNS.map((r) => (r.id === 'r2' ? { ...r, source: 'manual' } : r.id === 'r3' ? { ...r, source: null } : r)) });
+    renderProfile();
+    await screen.findByRole('list', { name: 'Your runs' });
+    for (const date of ['2026-10-02', '2026-10-03', '2026-10-01']) {
+      fireEvent.click(editButton(date));
+      const sheet = await screen.findByRole('dialog', { name: 'Edit run' });
+      const del = within(sheet).getByRole('button', { name: 'Delete run' });
+      expect(del).toBeEnabled();
+      expect(del).not.toHaveAttribute('title');
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    }
+  });
+
+  it('source följer med från users-with-runs till rundan (mapApiUser tappar den inte)', async () => {
+    setup({ runs: RUNS.map((r) => (r.id === 'r3' ? { ...r, source: 'strava' } : r)) });
+    const sheet = await openEdit('2026-10-03');
+    expect(within(sheet).getByRole('button', { name: /Delete run/ })).toBeDisabled();
+  });
+});
+
+describe('Profile — 409 från servern vid radering', () => {
+  const CONFLICT = "This run qualified an event and can't be deleted — edit it instead";
+
+  it('serverns klartext står i rutans alert-region, rutan stängs inte och inget invalideras', async () => {
+    deleteRun.mockImplementation(async () => ({ success: false, error: CONFLICT }));
+    renderProfile();
+    await screen.findByRole('list', { name: 'Your runs' });
+    fireEvent.click(editButton('2026-10-02'));
+    await screen.findByRole('dialog', { name: 'Edit run' });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete run' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Delete run' });
+    const callsBefore = usersCalls.mock.calls.length;
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Delete run' }));
+
+    await waitFor(() => expect(within(sheet).getByRole('alert')).toHaveTextContent(CONFLICT));
+    expect(screen.getByRole('dialog', { name: 'Delete run' })).toBeInTheDocument();
+    expect(usersCalls.mock.calls.length).toBe(callsBefore);
+    // Tillbaka till redigeringssteget: felet är borta, och Save är kvar som utväg ("edit it instead").
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Keep run' }));
+    expect(await screen.findByRole('button', { name: 'Save changes' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+  });
+});
+
 describe('Profile — profilbild', () => {
   const choose = (file: File) => fireEvent.change(screen.getByLabelText('Change photo'), { target: { files: [file] } });
   const png = (size = 100) => new File([new Uint8Array(size)], 'me.png', { type: 'image/png' });

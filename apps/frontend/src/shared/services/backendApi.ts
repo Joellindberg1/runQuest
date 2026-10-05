@@ -3,6 +3,7 @@ import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from 
 import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
+  NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
 } from '@runquest/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -1067,6 +1068,57 @@ class BackendApiService {
   /** GET /events — aktiva + schemalagda events med participantCount/memberCount för alla typer (ADR 007 B7). Enda events-metoden: Events-skärmen och skalets "Right now" delar query-nyckeln ['events'] och därmed formen. */
   async getEventList(): Promise<ApiResponse<EventsResponse>> {
     return this.authenticatedRequest<EventsResponse>('/events');
+  }
+
+  // ─── News (ADR 008) ───────────────────────────────────────────────────────
+
+  /**
+   * GET /news — händelseloggen, nyast först (keyset: `before` XOR `after`, aldrig båda; `type` = kommaseparerade ActivityType).
+   * `meta` bär unread_count (alla typer), last_seen_id och has_more/next_before; `after`-lägets semantik står i ADR 008 addendum 4.
+   */
+  async getNews(query: NewsQuery = {}): Promise<ApiResponse<NewsResponse> & { meta?: NewsMeta }> {
+    const params = new URLSearchParams();
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    if (query.before !== undefined) params.set('before', String(query.before));
+    if (query.after !== undefined) params.set('after', String(query.after));
+    if (query.type) params.set('type', query.type);
+    const qs = params.toString();
+    const result = await this.newsRequest<NewsApiResponse>('GET', `/news${qs ? `?${qs}` : ''}`, undefined, 'Failed to fetch news');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data, meta: result.body.meta };
+  }
+
+  /** POST /news/seen — höjer vattenmärket monotont (utelämnat `upToId` = senaste raden i gruppen). */
+  async markNewsSeen(upToId?: number): Promise<ApiResponse<NewsSeenResponse>> {
+    const result = await this.newsRequest<NewsSeenApiResponse>('POST', '/news/seen', upToId === undefined ? {} : { up_to_id: upToId }, 'Failed to mark the news as read');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data };
+  }
+
+  private async newsRequest<T>(
+    method: 'GET' | 'POST', path: string, body: unknown, failure: string,
+  ): Promise<{ ok: true; body: T } | { ok: false; error: string }> {
+    try {
+      const token = this.getToken();
+      if (!token) return { ok: false, error: 'Not authenticated' };
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      const parsed = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { ok: false, error: 'Session expired. Please log in again.' };
+        }
+        return { ok: false, error: parsed.error || failure };
+      }
+      return { ok: true, body: parsed as T };
+    } catch (error) {
+      console.error(`❌ ${failure}:`, error);
+      return { ok: false, error: error instanceof Error ? error.message : 'Network error' };
+    }
   }
 
   // ─── Runs ─────────────────────────────────────────────────────────────────

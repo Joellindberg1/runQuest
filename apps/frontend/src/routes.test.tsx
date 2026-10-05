@@ -53,13 +53,13 @@ describe('varje route renderar utan krasch inne i skalet', () => {
     await waitFor(() => expect(container.querySelector('[data-shell="desktop"]')).not.toBeNull());
   });
 
-  it('/news är tom-vyn med knapp tillbaka till /board', async () => {
+  it('/news är Pack News-skärmen: tomt läge med knapp till Log a run när gruppen inte gjort något än', async () => {
     renderWithApp(<AppRoutes />, { entry: '/news', width: MOBILE });
 
-    expect(await screen.findByRole('heading', { name: 'Pack News' })).toBeInTheDocument();
-    expect(screen.getByText('Coming soon — every title takeover, duel and level up in one feed.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Back to the board' }));
-    await waitFor(() => expect(location()).toBe('/board'));
+    expect(await screen.findByRole('heading', { name: 'Pack News', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No news yet — go make some' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Log a run' }));
+    await waitFor(() => expect(location()).toBe('/log'));
   });
 
   it('/board visar The Standings med gruppens löpare (Season-vyn är default)', async () => {

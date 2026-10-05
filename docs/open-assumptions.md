@@ -66,6 +66,29 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - Edit-datumets max är Stockholm-dagen men servern validerar UTC-"idag" —
   samma gap som backend-fråga 0.
 - En runda kan bara ändras på datum och distans (servern tar inget annat).
+- Strava-rundor: Delete är avstängd (title + sr-only enligt Titles valknapp) och en synlig rad med samma text
+  (`aria-hidden`) lades till i redigeringsrutan så att touch-användare ser förklaringen — det ligger utanför det
+  Lead bad om. Ägaren kan ta bort raden. `source` null/saknas behandlas som manuell.
+
+## Pack News (inkrement 9)
+- **"Mark all read" är den enda kvitteringen** (prototypen: knappen finns i både popover och skärm, inget i designen kvitterar vid
+  besök/öppning). Att öppna popovern eller besöka /news markerar alltså INTE som läst — olästa rader förblir tintade tills knappen
+  trycks. Vill ägaren ha "besök = läst" är det en rad i NewsScreen (kvittera vid mount/unmount).
+- **Filtret:** `?type=` bär chip-nycklar (`titles,levels`), inte rå `ActivityType` — ADR 006 säger bara "kommaseparerat". Flera chips
+  kan vara valda; alla fem = inget filter. Mobil har en chip-rad (App Prototype saknar filter; Web Prototype har ett statiskt kort
+  med räknare — gjort klickbart). Chip-räknaren är antal i det laddade, ofiltrerade fönstret (ADR 008), inte serverns totaler.
+- **Popover = samma flöde som skärmen** (en query-definition, 30 rader initialt i stället för `limit=5`; popovern visar de fem
+  översta). Poll 2 min + fönsterfokus (ADR 008 nämner 60 s). Oläst-badgen cappas vid "99+".
+- **Dag-grupperna:** Today · Yesterday · Earlier this week (mån–sön, Stockholm) · därefter en grupp per dag ("Fri 2 Oct").
+  Raderna ordnas på `occurred_at`, inte id (en backfillad rad kan ha högt id men gammal dag).
+- **Texterna** använder förnamn (som prototypen) — två medlemmar med samma förnamn skulle bli tvetydiga. "You"/"you" när den som tittar
+  är aktör/mål. `event_closed` för tävlingar namnger vinnaren ur users-with-runs-cachen (payloaden har bara id). "…boost is live"
+  visas bara för dagsboostar som faktiskt pågår; körboostar (`multiplier_runs`) får ingen "live"-claim. Streak-texten
+  "multiplier back to 1.0×" är prototypens. Titelvärden formateras med Titles-skärmens `titleValueText`.
+- Popoverns prick/typrad är röd för en förlorad utmaning (Web Prototypens popover), orange på skärmen (båda prototyperna).
+  Olästa rader har guldtint i popovern också (prototypens data har `unread` men markupen använder den inte).
+- Raderna är inte klickbara (prototypens desktop-hover antyder det men anger inget mål).
+- Katastroffall: fler nya rader än fem catch-up-sidor à 100 → flödet ersätts av de nyaste 500 (inget hål i mitten).
 
 ## Landing (inkrement 10)
 - **Web Prototype har ingen landing.** Desktop (≥ 1024 px) är samma komposition som mobilens med större yta (text | arena-bana i hjälten,

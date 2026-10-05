@@ -89,6 +89,7 @@ function defaultHandlers(): Record<string, Handler> {
     getTitleLeaderboard: () => ({ success: true, data: [] }),
     getGroupInfo: () => ({ success: true, data: { id: 'g1', name: 'Wolfpack', is_owner: false, members: [] } }),
     getEventList: () => ({ success: true, data: { events: [] } }),
+    getNews: () => ({ success: true, data: { items: [] }, meta: { unread_count: 0, last_seen_id: null, has_more: false, next_before: null } }),
     getEventHistoryPage: () => ({ success: true, data: { events: [], meta: { total: 0, limit: 6, offset: 0, has_more: false } } }),
     getMyChallenges: () => ({ success: true, data: EMPTY_CHALLENGES }),
     getStravaStatus: () => ({ success: true, data: { connected: false, expired: false } }),

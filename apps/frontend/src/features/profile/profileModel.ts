@@ -131,6 +131,14 @@ export function isDirty(form: EditForm, run: Pick<Run, 'date' | 'distance'>): bo
   return form.date !== dayOf(run) || km === null || Math.abs(km - run.distance) > 0.001;
 }
 
+/**
+ * Strava-rundor går inte att radera här: DELETE lämnar ingen gravsten, så synken importerar tillbaka rundan inom sitt
+ * 7-dagarsfönster. Edit är tillåten. `source` null/saknas (äldre rader) räknas som manuell.
+ */
+export const isStravaRun = (run: Pick<Run, 'source'>): boolean => run.source === 'strava';
+
+export const STRAVA_DELETE_HINT = 'Strava runs come back on next sync — delete it in Strava instead';
+
 /** Bekräftelsen efter en sparad ändring — siffrorna är serverns (rundan efter omräkningen). */
 export function updateNotice(run: Pick<Run, 'date' | 'distance' | 'xp_gained'>): string {
   return `Run updated: ${formatKm(Number(run.distance))} km on ${formatDay(run.date)} for ${formatInt(run.xp_gained)} XP. Your streak and XP are recalculated from that day on.`;
