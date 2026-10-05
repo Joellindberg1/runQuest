@@ -104,6 +104,8 @@ describe('Pack News-filerna följer designspråket', () => {
 
   it('rörelse: ingenting animerar eller loopar i Pack News (rader och räknare står stilla — bara skelettet, som delas, blinkar)', () => {
     expect(stripComments(css)).not.toMatch(/animation|@keyframes/);
+    // De delade prick-varianterna --live/--alarm blinkar; olästpricken ska vara statisk.
+    for (const [file, code] of codeFiles) expect(code, file).not.toMatch(/rq-dot--/);
   });
 
   it('varje --rq-news-*-mått som news.css läser finns i temafilen (index.css) OCH i docs/design/temafil-forslag.css — och tvärtom', () => {

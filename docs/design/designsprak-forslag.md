@@ -39,7 +39,10 @@ Skuld: 240 inline-styles + 7 typsnitt i nuvarande kod ersätts per inkrement (re
    Bebas, svart text) finns högst en gång per vy: den primära handlingen.
    Sekundär = guld-hårlinje, avbryt = ghost. Grön = lever/vinst, röd =
    förlust/risk, orange = duell, Strava-orange endast som källmarkör. Fylld
-   röd knapp endast för oåterkalleliga handlingar.
+   röd knapp endast för oåterkalleliga handlingar. Undantag för "oläst"
+   (ägarbeslut 2026-10-05): olästa nyheter markeras med en statisk guldprick
+   (`.rq-dot.rq-news-unread`) och klockans räknare är guldfylld — oläst räknas
+   som något nytt att hämta, alltså belöningens familj. Aldrig blinkande.
 
 4. **Statuschip-receptet.** Tint 10 % / kant 45 % / text i full accent
    (`.rq-chip--status`). Valda filter/flikar och värdetaggar ("+25 XP") ligger

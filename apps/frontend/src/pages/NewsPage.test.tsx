@@ -114,6 +114,22 @@ describe('Pack News — flödet', () => {
     expect(backfill).not.toHaveAttribute('data-unread');
   });
 
+  it('olästa rader har en guldprick vid tiden (dekorativ — skärmläsartexten bär betydelsen), lästa har ingen', async () => {
+    renderNews();
+    await screen.findByText('7 unread');
+    const rows = [...document.querySelectorAll('.rq-news-row')];
+    for (const row of rows) {
+      const dot = row.querySelector('.rq-news-row__time .rq-news-unread');
+      if (row.hasAttribute('data-unread')) {
+        expect(dot).not.toBeNull();
+        expect(dot).toHaveAttribute('aria-hidden', 'true');
+      } else {
+        expect(dot).toBeNull();
+      }
+    }
+    expect(document.querySelectorAll('.rq-news-unread')).toHaveLength(7);
+  });
+
   it('en backfill-rad markeras aldrig som oläst, även om servern skulle skicka is_unread', async () => {
     handlers.getNews = async () => ({
       success: true,
@@ -149,6 +165,7 @@ describe('Pack News — Mark all read', () => {
     await screen.findByText('All caught up');
     expect(news.server.seenCalls).toEqual([20]);
     expect(document.querySelectorAll('.rq-news-row[data-unread]')).toHaveLength(0);
+    expect(document.querySelectorAll('.rq-news-unread')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
     const status = screen.getAllByRole('status').find((el) => el.textContent?.includes('marked as read')) as HTMLElement;
     expect(status).toHaveTextContent('7 marked as read');

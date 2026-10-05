@@ -47,6 +47,8 @@
 }
 .rq-news-row:hover { background: var(--rq-row-hover); }
 .rq-news-row[data-unread] { background: var(--rq-unread-bg); }
+/* Olästmarkören: tinten ensam (4 %) syns knappt (ägarbeslut 2026-10-05). Statisk — inget loopar. */
+.rq-dot.rq-news-unread { color: var(--rq-gold); margin-right: var(--rq-sp-6); vertical-align: middle; }
 .rq-news-row[data-category="event"] { border-left-color: rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha-quiet)); }
 .rq-news-row__icon { grid-area: icon; display: inline-flex; align-self: center; color: var(--rq-c-solid); }
 .rq-news-row__kind { grid-area: kind; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-c-solid); }

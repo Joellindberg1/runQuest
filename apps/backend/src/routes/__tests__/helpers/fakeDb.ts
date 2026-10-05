@@ -69,6 +69,11 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       lte(column: string, value: unknown) { q.filters.push({ op: 'lte', column, value }); return builder; },
       in(column: string, value: unknown) { q.filters.push({ op: 'in', column, value }); return builder; },
       is(column: string, value: unknown) { q.filters.push({ op: 'is', column, value }); return builder; },
+      /** PostgREST-not, stöder `in` med listsyntax: .not('days', 'in', '(5,30)'). */
+      not(column: string, operator: string, value: unknown) {
+        q.filters.push({ op: `not.${operator}`, column, value });
+        return builder;
+      },
       /** PostgREST-or: "col.eq.val,col2.neq.val,col3.is.null" — en rad matchar om NÅGOT villkor gäller. */
       or(expr: string) { q.filters.push({ op: 'or', column: '', value: expr }); return builder; },
       order(column: string, opts?: { ascending?: boolean }) {
@@ -138,6 +143,10 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
             case 'lte': return v <= (f.value as any);
             case 'in': return (f.value as unknown[]).includes(v);
             case 'is': return f.value === null ? v == null : v === f.value;
+            case 'not.in': {
+              const list = String(f.value).replace(/^\(|\)$/g, '').split(',').map((s) => s.trim());
+              return !list.includes(String(v));
+            }
             case 'or':
               return String(f.value).split(',').some((part) => {
                 const [col, op, ...rest] = part.split('.');
@@ -150,7 +159,10 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
                 if (op === 'is') return val === 'null' ? cv == null : String(cv) === val;
                 return false;
               });
-            default: return true;
+            default:
+              // En okänd not-operator får aldrig tyst matcha alla rader (en delete skulle då tömma tabellen).
+              if (f.op.startsWith('not.')) throw new Error(`fakeDb: ${f.op} stöds inte`);
+              return true;
           }
         });
       }

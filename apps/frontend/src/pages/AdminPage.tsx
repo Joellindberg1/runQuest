@@ -41,6 +41,7 @@ const AdminPage: React.FC = () => {
             newMultiplierValue={admin.newMultiplierValue}
             setNewMultiplierValue={admin.setNewMultiplierValue}
             onSave={admin.handleSaveSettings}
+            canSave={admin.settingsLoaded}
             onAddMultiplier={admin.handleAddMultiplier}
           />
         </TabsContent>

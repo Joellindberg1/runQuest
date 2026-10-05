@@ -390,24 +390,59 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
   }
 });
 
+function validateMultipliers(input: unknown): string | null {
+  if (!Array.isArray(input) || input.length === 0) return 'multipliers must be a non-empty array';
+  const seen = new Set<number>();
+  for (const step of input) {
+    const days = (step as { days?: unknown })?.days;
+    const multiplier = (step as { multiplier?: unknown })?.multiplier;
+    if (typeof days !== 'number' || !Number.isInteger(days) || days < 1) return 'days must be a whole number of at least 1';
+    // Kolumnen är numeric(3,2): över 9.99 ger överflöd, fler decimaler avrundas tyst.
+    if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier < 1 || multiplier > 9.99) return 'multiplier must be a number between 1 and 9.99';
+    if (Math.round(multiplier * 100) / 100 !== multiplier) return 'multiplier can have at most two decimals';
+    if (seen.has(days)) return `days ${days} appears more than once`;
+    seen.add(days);
+  }
+  return null;
+}
+
+// admin_settings har EN rad med uuid-id och ingen streak_multipliers-kolumn (multiplikatorerna bor i egen tabell, ADR 004).
+// Svaret byggs fält för fält så att admin_password_hash aldrig kan följa med.
+const ADMIN_SETTINGS_COLUMNS = 'id, base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance, updated_at';
+
+function toAdminSettingsResponse(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    base_xp: row.base_xp,
+    xp_per_km: row.xp_per_km,
+    bonus_5km: row.bonus_5km,
+    bonus_10km: row.bonus_10km,
+    bonus_15km: row.bonus_15km,
+    bonus_20km: row.bonus_20km,
+    min_run_distance: row.min_run_distance,
+    updated_at: row.updated_at,
+  };
+}
+
 // GET /api/auth/admin-settings - Get admin settings
 router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
   try {
     logger.info('🔍 Admin: Fetching admin settings...');
-    
+
     const supabase = getSupabaseClient();
     const { data: settings, error } = await supabase
       .from('admin_settings')
-      .select('id, base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance, streak_multipliers, updated_at')
+      .select(ADMIN_SETTINGS_COLUMNS)
+      .limit(1)
       .single();
-    
-    if (error) {
+
+    if (error || !settings) {
       logger.error('❌ Failed to fetch admin settings:', error);
       res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
     }
-    
+
     logger.info('✅ Admin settings fetched successfully');
-    res.json({ success: true, data: settings });
+    res.json({ success: true, data: toAdminSettingsResponse(settings) });
     
   } catch (error) {
     logger.error('❌ Error fetching admin settings:', error);
@@ -435,8 +470,17 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
     }
     
     const supabase = getSupabaseClient();
-    
-    // Update admin settings
+
+    const { data: current, error: findError } = await supabase
+      .from('admin_settings')
+      .select('id')
+      .limit(1)
+      .single();
+    if (findError || !current) {
+      logger.error('❌ Failed to find admin settings row:', findError);
+      res.status(500).json({ error: 'Failed to update admin settings' }); return;
+    }
+
     const { data: updatedSettings, error } = await supabase
       .from('admin_settings')
       .update({
@@ -449,11 +493,11 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
         min_run_distance: min_run_distance ?? 1.0,
         updated_at: new Date().toISOString()
       })
-      .eq('id', 1) // Assuming single settings row with id=1
-      .select('id, base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance, streak_multipliers, updated_at')
+      .eq('id', current.id)
+      .select(ADMIN_SETTINGS_COLUMNS)
       .single();
-    
-    if (error) {
+
+    if (error || !updatedSettings) {
       invalidateXpConfigCache(); // släng cachen oavsett utfall — raden kan ha ändrats
       logger.error('❌ Failed to update admin settings:', error);
       res.status(500).json({ error: 'Failed to update admin settings' }); return;
@@ -461,10 +505,10 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
     
     invalidateXpConfigCache();
     logger.info('✅ Admin settings updated successfully');
-    res.json({ 
-      success: true, 
-      data: updatedSettings,
-      message: 'Admin settings updated successfully' 
+    res.json({
+      success: true,
+      data: toAdminSettingsResponse(updatedSettings),
+      message: 'Admin settings updated successfully'
     });
     
   } catch (error) {
@@ -504,27 +548,38 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     logger.info('💾 Admin: Updating streak multipliers...');
     const { multipliers } = req.body;
     
-    if (!Array.isArray(multipliers)) {
-      res.status(400).json({ error: 'multipliers must be an array' }); return;
+    const invalid = validateMultipliers(multipliers);
+    if (invalid) {
+      res.status(400).json({ error: invalid }); return;
     }
-    
+    const ladder = (multipliers as Array<{ days: number; multiplier: number }>).map(({ days, multiplier }) => ({ days, multiplier }));
+
     const supabase = getSupabaseClient();
-    
-    // Delete existing multipliers and insert new ones
-    await supabase.from('streak_multipliers').delete().neq('id', 0); // Delete all
-    
+
+    // Upsert först (unik nyckel på days), borttagning sist: avbryts flödet finns alltid en trappa kvar —
+    // gammal orörd om upserten felar, gammal+ny om borttagningen felar. Aldrig tom (= ingen streakbonus).
     const { data: insertedMultipliers, error } = await supabase
       .from('streak_multipliers')
-      .insert(multipliers)
+      .upsert(ladder, { onConflict: 'days' })
       .select('id, days, multiplier');
-    
+
     if (error) {
-      invalidateXpConfigCache(); // tabellen är redan raderad även om insert felade
+      invalidateXpConfigCache();
       logger.error('❌ Failed to update streak multipliers:', error);
       res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
     }
-    
+
+    const { error: pruneError } = await supabase
+      .from('streak_multipliers')
+      .delete()
+      .not('days', 'in', `(${ladder.map((step) => step.days).join(',')})`);
+
     invalidateXpConfigCache();
+    if (pruneError) {
+      logger.error('❌ Failed to remove old streak multipliers (new steps were saved):', pruneError);
+      res.status(500).json({ error: 'Saved the new steps but could not remove old ones — try saving again' }); return;
+    }
+
     logger.info('✅ Streak multipliers updated successfully');
     res.json({ 
       success: true, 

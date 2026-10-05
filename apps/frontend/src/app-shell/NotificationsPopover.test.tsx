@@ -103,6 +103,7 @@ describe('popovern', () => {
     ]);
     expect(rows.map((row) => row.querySelector('time')?.textContent)).toEqual(['2h ago', '5h ago', '9h ago', 'Yesterday', 'Yesterday']);
     expect(rows.map((row) => row.hasAttribute('data-unread'))).toEqual([true, true, true, true, false]);
+    expect(rows.map((row) => row.querySelector('time .rq-news-unread') !== null)).toEqual([true, true, true, true, false]);
     // En förlorad utmaning är röd i popovern (som Web Prototypen).
     expect(rows[3]).toHaveAttribute('data-tone', 'loss');
   });
@@ -141,6 +142,7 @@ describe('popovern', () => {
     await waitFor(() => expect(status).toHaveFocus());
     expect(within(popover).queryByRole('button', { name: 'Mark all read' })).toBeNull();
     expect(within(popover).getAllByRole('listitem').some((row) => row.hasAttribute('data-unread'))).toBe(false);
+    expect(popover.querySelectorAll('.rq-news-unread')).toHaveLength(0);
   });
 
   it('Mark all read som misslyckas: räknaren är kvar och felet står i en alert-region', async () => {
