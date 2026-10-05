@@ -1,8 +1,20 @@
 # Changelog
 
-## v0.5.2 — Versionsmekanik, Feature & Version och "What's new" (2026-10-05)
+## v0.5.2 — Restsidorna i ny design, Feature & Version och versionsmekanik (2026-10-05)
 
 ### Nytt
+- **Playbook** omskriven i designspråket (`features/playbook/`) och faktagranskad mot
+  koden: XP-tabellen och exemplen räknas ur de regler som gäller (`GET /config/xp`, standard
+  som reserv), event- och titelfakta låses av `playbookFacts.test.ts` som läser
+  backendens källfiler. Beskriver spelet som det är; regeländringar (issue #19 Storm
+  Chaser, minimidistansen) väntar på ägarbeslut.
+- **Settings, Admin och inloggningen** omritade (`features/settings/`, `features/admin/`,
+  `features/auth/`) med delade formulärdelar i `shared/components/form/` (TextField,
+  FormNotices). Admin stoppar ogiltig streaktrappa före Save och behåller spärren mot
+  att spara innan inställningarna lästs in. Inloggningen har en permanent alert-region
+  och låser fälten med readOnly + aria-disabled medan den skickar.
+- Tokensektioner 1.29–1.32 (`--rq-login-*`, `--rq-settings-*`, `--rq-admin-*`,
+  `--rq-playbook-*`); `src/test/designGuards.ts` samlar de gemensamma designvakterna.
 - **Feature & Version-sidan** omritad i designspråket (flikarna Features · Working on ·
   Releases, `?view=`); versionsnumret och datumet överst kommer ur changelog.json i
   stället för att vara hårdkodade, och mobilvyn är härledd ur Web Prototypens skärm.
