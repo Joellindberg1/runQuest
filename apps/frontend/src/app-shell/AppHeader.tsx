@@ -3,11 +3,11 @@ import { paths } from '@/paths';
 import { RQIcon } from '@/shared/components/icons';
 import { useGroupName } from '@/shared/hooks/useGroupName';
 import { AvatarMenu } from './AvatarMenu';
+import { NotificationsPopover } from './NotificationsPopover';
 import { ThemeSwitch } from './ThemeSwitch';
 import type { ShellUser } from './useShellUser';
 
 const ICON_HEADER = 17;
-const ICON_BELL = 21;
 
 interface AppHeaderProps {
   variant: 'mobile' | 'desktop';
@@ -17,7 +17,7 @@ interface AppHeaderProps {
 }
 
 // Mållopps-raden under gruppnamnet utelämnas: datan finns inte än (ADR 008/mållopp senare).
-// Klockan går till /news utan oläst-räknare — den kommer i inkrement 9.
+// Klockan är NotificationsPopover: oläst-räknare + de fem senaste ur Pack News, "See all" → /news (ADR 006 beslut 4, ADR 008).
 export function AppHeader({ variant, user, hasOpenEvent }: AppHeaderProps) {
   const groupName = useGroupName();
 
@@ -32,9 +32,7 @@ export function AppHeader({ variant, user, hasOpenEvent }: AppHeaderProps) {
             {hasOpenEvent && <span className="rq-dot rq-dot--live rq-header__badge" aria-label="Event open now" role="img" />}
           </Link>
         )}
-        <Link to={paths.news} className="rq-header__action" aria-label="Pack news" data-tour="header-news">
-          <RQIcon name="bell" size={variant === 'desktop' ? ICON_BELL : ICON_HEADER} />
-        </Link>
+        <NotificationsPopover variant={variant} />
         <AvatarMenu user={user} variant={variant} />
       </div>
     </header>

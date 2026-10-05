@@ -133,11 +133,11 @@ describe('Header', () => {
     expect(await screen.findByText('Wolfpack')).toBeInTheDocument();
   });
 
-  it('klockan länkar till /news utan räknare', async () => {
+  it('klockan är en knapp som öppnar popovern, utan räknare när inget är oläst', async () => {
     renderWithApp(<Tree />, { entry: '/board', width: MOBILE_WIDTH });
-    const bell = await screen.findByRole('link', { name: 'Pack news' });
+    const bell = await screen.findByRole('button', { name: 'Pack news' });
 
-    expect(bell).toHaveAttribute('href', '/news');
+    expect(bell).toHaveAttribute('data-tour', 'header-news');
     expect(bell.textContent).toBe('');
   });
 
