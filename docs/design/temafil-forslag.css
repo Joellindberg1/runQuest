@@ -518,6 +518,39 @@
   --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
   --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
   --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
+  /* ── 1.29 Login-mått (inkrement 11) ────────────────────────────────────────
+     Ingen prototyp har en inloggning — ritad i Landingens språk (samma glöd, logotyp och hjältekort). Endast mått:
+     formulärkortets bredd och gloden bakom det. Mobil = standard; desktop skriver över i avsnitt 2.
+     Konsument: features/auth/login.css. */
+  --rq-login-w: 420px;                                                /* formulärkortets maxbredd (desktop samma) */
+  --rq-login-logo-w: 148px;                                           /* wordmarken (desktop 190) */
+  --rq-login-glow-w: 460px;                                           /* guldgloden bakom kortet (desktop 900) */
+  --rq-login-glow-h: 340px;                                           /* (desktop 560) */
+  --rq-login-glow-top: -120px;                                        /* (desktop -240) */
+  /* ── 1.30 Settings-mått (inkrement 11) ─────────────────────────────────────
+     Mått ur Web Prototypens Settings-skärm (isSettings). Mobilprototypen saknar sidan — mobil är härledd: allt i en kolumn.
+     Endast mått. Konsument: features/settings/settings.css. */
+  --rq-settings-split-cols: minmax(0, 1fr);                           /* desktop: kort | sidokolumn (340 px) */
+  --rq-settings-pw-cols: minmax(0, 1fr);                              /* lösenordsfälten: mobil staplade, desktop tre bredvid varandra */
+  /* ── 1.31 Admin-mått (inkrement 11) ────────────────────────────────────────
+     Mått ur Web Prototypens Admin-skärm (isAdmin). Mobilprototypen saknar sidan — mobil är härledd: allt i en kolumn.
+     Endast mått. Konsument: features/admin/admin.css. */
+  --rq-admin-groups-cols: minmax(0, 1fr);                             /* XP-grupperna: mobil staplade, desktop tre kort */
+  --rq-admin-member-cols: minmax(0, 1fr);                             /* medlemsrad: mobil staplad, desktop namn · e-post · meta · åtgärd (220 · 220 · 1fr · auto) */
+  --rq-admin-add-cols: minmax(0, 1fr);                                /* Add member: mobil staplad, desktop tre fält + knapp */
+  --rq-admin-value-w: 78px;                                           /* värdefältet i en XP-rad */
+  --rq-admin-row-gap: 12px;                                           /* desktop 18 */
+  /* ── 1.32 Playbook-mått (inkrement 11) ─────────────────────────────────────
+     Mått ur App-/Web-prototypens Playbook (mPlaybook / isPlaybook): mobil = dragspel med nio kapitel, desktop = kapitelflikar
+     + kapitlet bredvid sin tabell (380 px). Endast mått — rubriken snappar till --rq-fs-display-xl, ingressen till --rq-fs-lead,
+     styckena till --rq-fs-body. Konsument: features/playbook/playbook.css. */
+  --rq-playbook-split-cols: minmax(0, 1fr);                           /* desktop: kapitel | tabell (380 px) */
+  --rq-playbook-split-gap: 16px;                                      /* desktop 44 */
+  --rq-playbook-num-w: 20px;                                          /* kapitelnumret i dragspelsraden */
+  --rq-playbook-rule-w: 70px;                                         /* guldstrecket under kapitelrubriken */
+  --rq-playbook-rule-h: 2px;
+  --rq-playbook-titles-cols: minmax(0, 1fr);                          /* titellistan: mobil 1 kolumn, desktop 3 */
+  --rq-playbook-text-max: 720px;                                      /* styckenas radlängd */
 }
 
 
@@ -647,6 +680,19 @@
     --rq-news-row-pad-y: 12px;
     --rq-news-row-pad-x: 16px;
     --rq-news-badge: 15px;
+    --rq-login-logo-w: 190px;
+    --rq-login-glow-w: 900px;
+    --rq-login-glow-h: 560px;
+    --rq-login-glow-top: -240px;
+    --rq-settings-split-cols: minmax(0, 1fr) 340px;
+    --rq-settings-pw-cols: repeat(3, minmax(0, 1fr));
+    --rq-admin-groups-cols: repeat(3, minmax(0, 1fr));
+    --rq-admin-member-cols: 220px 220px minmax(0, 1fr) auto;
+    --rq-admin-add-cols: repeat(3, minmax(0, 1fr)) auto;
+    --rq-admin-row-gap: 18px;
+    --rq-playbook-split-cols: minmax(0, 1fr) 380px;
+    --rq-playbook-split-gap: 44px;
+    --rq-playbook-titles-cols: repeat(3, minmax(0, 1fr));
   }
 }
 

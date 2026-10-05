@@ -1,16 +1,8 @@
 import React from 'react';
-import { StravaSettings } from '@/features/settings/StravaSettings';
-import { PasswordSettings } from '@/features/settings/PasswordSettings';
+import { SettingsScreen } from '@/features/settings/components/SettingsScreen';
 
-export const SettingsPage: React.FC = () => {
-  return (
-    <>
-      <div className="max-w-2xl mx-auto space-y-6">
-        <StravaSettings />
-        <PasswordSettings />
-      </div>
-    </>
-  );
-};
+/** /settings. Allt ligger i features/settings. */
+const SettingsPage: React.FC = () => <SettingsScreen />;
 
+export { SettingsPage };
 export default SettingsPage;

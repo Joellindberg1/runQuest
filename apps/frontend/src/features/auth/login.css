@@ -1,0 +1,19 @@
+/* Inloggningen (inkrement 11): logotyp · rubrik · hjältekort med två fält och EN guldknapp. ENDAST tokens (regel 1). Måtten
+   (--rq-login-*) definieras i temafilen, sektion 1.29 (index.css + docs/design/temafil-forslag.css) — inga egna :root-
+   definitioner här. Fälten, anteckningar och felkortet kommer från det delade formulärkitet (shared/components/form).
+   Ingen rörelse: inloggningen har inget som lever. Ligger utanför @layer så att klasserna vinner över delade primitiver. */
+
+.rq-login {
+  position: relative; box-sizing: border-box; min-height: 100dvh; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; padding: var(--rq-pad-screen);
+  background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui);
+}
+.rq-login__glow {
+  position: absolute; top: var(--rq-login-glow-top); left: 50%; width: var(--rq-login-glow-w); height: var(--rq-login-glow-h);
+  transform: translateX(-50%); background: var(--rq-hero-glow); pointer-events: none;
+}
+.rq-login__inner { position: relative; width: 100%; max-width: var(--rq-login-w); display: flex; flex-direction: column; gap: var(--rq-sp-24); }
+.rq-login-logo { align-self: center; width: var(--rq-login-logo-w); height: auto; color: var(--rq-text-2); }
+.rq-login__head { text-align: center; }
+.rq-login__title { margin: 0; font-weight: 400; text-transform: uppercase; }
+.rq-login__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }

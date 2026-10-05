@@ -1,0 +1,18 @@
+/* Delat formulärkit (TextField + FormNotices) för Settings, Admin och Login. ENDAST tokens (regel 1) — inga egna
+   :root-definitioner och inga egna mått. Ligger utanför @layer så att klasserna vinner över de delade .rq-*-primitiverna. */
+
+.rq-form { --rq-form-gap: var(--rq-sp-14); display: flex; flex-direction: column; gap: var(--rq-form-gap); }
+
+.rq-form-field { min-width: 0; }
+.rq-form-label { display: block; margin-bottom: var(--rq-sp-6); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-form-note { margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+.rq-form-note[data-tone="error"] { color: var(--rq-down); }
+
+/* Bekräftelse och fel: permanenta live-regioner som inte tar plats (eller flex-gap) när de är tomma */
+.rq-form-notices { display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-form-notices:not(:has(p)) { margin-top: calc(var(--rq-form-gap) * -1); }
+.rq-form-notice {
+  margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2);
+  background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w) solid var(--rq-up);
+}
+.rq-form-notice[data-tone="error"] { border-color: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); border-left-color: var(--rq-down); color: var(--rq-down); }

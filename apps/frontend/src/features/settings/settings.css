@@ -1,0 +1,52 @@
+/* Settings (inkrement 11): Strava-kort · lösenord · senaste synk. ENDAST tokens (regel 1). Måtten (--rq-settings-*) definieras
+   i temafilen, sektion 1.30 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Fält,
+   anteckningar och bekräftelse/fel kommer från det delade formulärkitet (shared/components/form).
+   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+
+/* ── Sida ─────────────────────────────────────────────────────────────────── */
+.rq-settings { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-settings__title { margin: 0; font-weight: 400; text-transform: uppercase; }
+.rq-settings__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-settings__split { display: grid; grid-template-columns: var(--rq-settings-split-cols); gap: var(--rq-gap-stack) var(--rq-sp-16); align-items: start; }
+.rq-settings__main, .rq-settings__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); min-width: 0; }
+.rq-settings-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
+
+/* ── Kort: tillståndet som kantfärg (grön lever · röd utgången · neutral) ──── */
+.rq-settings-card { display: flex; flex-direction: column; gap: var(--rq-sp-14); min-width: 0; --rq-form-gap: var(--rq-sp-14); }
+.rq-settings-card[data-tone="up"] { --rq-edge: var(--rq-up); --rq-edge-line: rgb(var(--rq-up-rgb) / var(--rq-edge-status)); }
+.rq-settings-card[data-tone="down"] { --rq-edge: var(--rq-down); --rq-edge-line: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); }
+.rq-settings-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--rq-sp-16); flex-wrap: wrap; }
+.rq-settings-card__intro { min-width: 0; flex: 1 1 auto; }
+.rq-settings-card__title { margin: 0; font-weight: 400; }
+.rq-settings-card__lead { margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-settings-card__head > .rq-chip { margin: 0; white-space: nowrap; }
+
+/* Tre celler: Connected · Last sync · Next sync */
+.rq-settings-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.rq-settings-meta__cell { padding: var(--rq-sp-10) var(--rq-sp-12); }
+.rq-settings-meta__label { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-settings-meta__value { margin: var(--rq-sp-2) 0 0; font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); }
+.rq-settings-meta__value[data-tone="up"] { color: var(--rq-up); }
+.rq-settings-meta__value[data-tone="muted"] { color: var(--rq-text-3); }
+
+.rq-settings-rules { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-6); }
+.rq-settings-rule { display: flex; align-items: flex-start; gap: var(--rq-sp-10); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-settings-rule__dot { flex-shrink: 0; margin-top: var(--rq-sp-8); color: var(--rq-up); }
+.rq-settings-renewal { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-settings-renewal[data-tone="up"] { color: var(--rq-up); }
+.rq-settings-renewal[data-tone="down"] { color: var(--rq-down); }
+
+.rq-settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-10) var(--rq-sp-16); }
+.rq-settings-actions__hint { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+
+/* Lösenord: tre fält bredvid varandra på desktop, staplade på mobil */
+.rq-settings-pw { display: grid; grid-template-columns: var(--rq-settings-pw-cols); gap: var(--rq-gap-stack) var(--rq-sp-14); }
+
+/* ── Sidokolumnen ─────────────────────────────────────────────────────────── */
+.rq-settings-sync__title { margin: 0 0 var(--rq-sp-10); font-weight: 400; }
+.rq-settings-sync__row { display: flex; justify-content: space-between; gap: var(--rq-sp-12); margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-settings-sync__time { font-family: var(--rq-font-mono); color: var(--rq-text-4); }
+.rq-settings-sync__row [data-tone="up"] { color: var(--rq-up); }
+.rq-settings-sync__row [data-tone="down"] { color: var(--rq-down); }
+.rq-settings-sync__empty { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-settings-note { margin: 0; padding: var(--rq-pad-card); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
