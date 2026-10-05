@@ -1,0 +1,24 @@
+/* "What's new"-popupen (inkrement 11). ENDAST tokens (regel 1); bredden (--rq-whatsnew-w) bor i temafilen, sektion 1.33.
+   Återanvänder skalets delade lager (.rq-scrim, .rq-modal, .rq-modal__close i app-shell.css) — bara bredden och innehållet är egna.
+   Självbärande: ändringsfärgerna är definierade här (och inte lånade från features/changelog, vars css bara laddas med sidan).
+   Ingen animation: modalen är ett flytande lager som står still. */
+
+.rq-modal.rq-whatsnew { width: min(var(--rq-whatsnew-w), 95vw); }
+
+.rq-whatsnew__head { padding: var(--rq-sp-20) var(--rq-sp-48) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
+.rq-whatsnew__eyebrow { margin: 0 0 var(--rq-sp-6); color: var(--rq-text-4); }
+.rq-whatsnew__title { margin: 0; font-weight: 400; text-transform: uppercase; }
+
+.rq-whatsnew__body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-14) var(--rq-sp-20); }
+.rq-whatsnew__list { margin: 0; padding: 0; list-style: none; border: var(--rq-hair) solid var(--rq-line-2); }
+.rq-whatsnew__item {
+  --rq-kind: var(--rq-text-3);
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--rq-sp-10); align-items: start;
+  background: var(--rq-cell); padding: var(--rq-sp-10) var(--rq-sp-12);
+}
+.rq-whatsnew__item[data-kind="feature"] { --rq-kind: var(--rq-up); }
+.rq-whatsnew__item[data-kind="bugfix"] { --rq-kind: var(--rq-down); }
+.rq-whatsnew__icon { display: inline-flex; padding-top: var(--rq-sp-2); color: var(--rq-kind); }
+.rq-whatsnew__text { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+
+.rq-whatsnew__foot { padding: var(--rq-sp-14) var(--rq-sp-20) var(--rq-sp-20); border-top: var(--rq-hair) solid var(--rq-line-3); }

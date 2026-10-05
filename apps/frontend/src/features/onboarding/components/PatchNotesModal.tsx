@@ -1,91 +1,63 @@
-// 📋 PatchNotesModal — blocking modal shown when a new patch note slug is unseen
-import React, { useEffect, useState } from 'react';
-import { CheckCircle, X, Zap } from 'lucide-react';
-import type { PatchNote } from '../patchNotes';
+// "What's new" — modal som visas när en annonserad post i changelog.json inte setts av användaren.
+import { useEffect, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { CHANGE_KIND } from '@/features/changelog/changelogModel';
+import type { PatchNote } from '@/features/changelog/changelogTypes';
+import { RQIcon } from '@/shared/components/icons';
+import '../whatsNew.css';
+
+/** Väntan innan modalen visas — låter layouten sätta sig efter inloggning. */
+const APPEAR_DELAY_MS = 500;
+const ICON_ITEM = 15;
 
 interface PatchNotesModalProps {
   note: PatchNote;
+  /** Anropas när användaren stänger (Got it, ✕, Escape eller klick utanför) — då markeras posten som sedd. */
   onClose: () => void;
 }
 
-export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ note, onClose }) => {
+/**
+ * Popupen "What's new": version + rubrik + punkterna ur posten, och EN guldknapp ("Got it", regel 3). Skalets delade lager
+ * (`.rq-scrim`/`.rq-modal`) ger skuggan och mörkläggningen; Radix Dialog ger fokusfälla, Escape och role=dialog.
+ * Ett fåtal punkter, enkel engelska — texterna kommer ur changelog.json, inte härifrån.
+ */
+export function PatchNotesModal({ note, onClose }: PatchNotesModalProps) {
   const [visible, setVisible] = useState(false);
+  const gotItRef = useRef<HTMLButtonElement>(null);
 
-  // 500ms delay before appearing — lets layout settle
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setVisible(true), APPEAR_DELAY_MS);
+    return () => clearTimeout(timer);
   }, []);
 
   if (!visible) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.85)' }}
-    >
-      <div
-        className="relative w-full max-w-md rounded-xl border-2 p-6 shadow-2xl"
-        style={{
-          background: 'var(--rq-modal)',
-          borderColor: 'var(--rq-gold)',
-        }}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4 gap-3">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Zap className="w-4 h-4" style={{ color: 'var(--rq-gold)' }} />
-              <span
-                className="uppercase tracking-widest text-xs"
-                style={{ color: 'var(--rq-gold)', fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}
-              >
-                {note.version} — What's new
-              </span>
-            </div>
-            <h2
-              className="text-xl leading-tight"
-              style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.04em', color: 'hsl(var(--foreground))' }}
-            >
-              {note.title}
-            </h2>
+    <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="rq-scrim" />
+        {/* Fokus går till "Got it" (primärhandlingen), inte till ✕ — annars ramas hörnkorset in i guld som en andra guldknapp. */}
+        <Dialog.Content className="rq-modal rq-whatsnew" aria-describedby={undefined} onOpenAutoFocus={(event) => { event.preventDefault(); gotItRef.current?.focus(); }}>
+          <Dialog.Close className="rq-modal__close" aria-label="Close">✕</Dialog.Close>
+          <header className="rq-whatsnew__head">
+            <p className="rq-eyebrow rq-whatsnew__eyebrow">What&apos;s new · v{note.version}</p>
+            <Dialog.Title className="rq-heading rq-whatsnew__title">{note.title}</Dialog.Title>
+          </header>
+          <div className="rq-whatsnew__body">
+            <ul className="rq-hairgrid rq-whatsnew__list" aria-label={`What's new in version ${note.version}`}>
+              {note.changes.map((change, index) => (
+                <li key={`${index}-${change.description}`} className="rq-whatsnew__item" data-kind={change.type}>
+                  <span className="rq-whatsnew__icon"><RQIcon name={CHANGE_KIND[change.type].icon} size={ICON_ITEM} /></span>
+                  <p className="rq-whatsnew__text">{change.description}</p>
+                </li>
+              ))}
+            </ul>
           </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 p-1 rounded-md opacity-50 hover:opacity-100 transition-opacity"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="mb-4 h-px" style={{ background: 'linear-gradient(to right, var(--rq-gold), transparent)' }} />
-
-        {/* Items */}
-        <ul className="space-y-2.5 mb-6">
-          {note.items.map((item, i) => (
-            <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/80">
-              <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--rq-gold)' }} />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-
-        {/* CTA */}
-        <button
-          onClick={onClose}
-          className="w-full py-2.5 rounded-lg text-sm font-semibold uppercase tracking-wide transition-opacity hover:opacity-90"
-          style={{
-            background: 'var(--rq-gold)',
-            color: '#000',
-            fontFamily: 'Barlow Condensed, sans-serif',
-            letterSpacing: '0.1em',
-          }}
-        >
-          Got it
-        </button>
-      </div>
-    </div>
+          <footer className="rq-whatsnew__foot">
+            <button ref={gotItRef} type="button" className="rq-btn rq-btn--primary rq-btn--block" onClick={onClose}>Got it</button>
+          </footer>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
-};
+}

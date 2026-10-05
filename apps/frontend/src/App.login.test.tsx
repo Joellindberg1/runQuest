@@ -47,10 +47,13 @@ describe('inloggning (App → AuthProvider → LoginPage)', () => {
     const username = await screen.findByLabelText('Username');
     signIn('anna', 'fel-losen');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid credentials');
+    // Alert-regionen finns permanent (tom) — vänta på texten, inte på elementet.
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'));
     expect(screen.getByLabelText('Username')).toBe(username);
     expect(username).toHaveValue('anna');
     expect(screen.getByLabelText('Password')).toHaveValue('fel-losen');
+    expect(username).toHaveAttribute('aria-invalid', 'true');
+    expect(username).toHaveAccessibleDescription('Invalid credentials');
     expect(window.location.pathname).toBe('/login');
   });
 
@@ -60,7 +63,7 @@ describe('inloggning (App → AuthProvider → LoginPage)', () => {
     await screen.findByLabelText('Username');
 
     signIn('anna', 'fel-1');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid credentials');
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Sign In' })).toBeEnabled());
 
     api.login.mockResolvedValue({ success: false, error: 'Account locked' });
@@ -70,18 +73,40 @@ describe('inloggning (App → AuthProvider → LoginPage)', () => {
     expect(screen.getByLabelText('Username')).toHaveValue('anna');
   });
 
-  it('under pågående inloggning står formuläret kvar (egen laddning, ingen global loader)', async () => {
+  it('under pågående inloggning står formuläret kvar: fälten readOnly (inte disabled), knappen aria-disabled, fokus tappas inte', async () => {
     let finish: (value: { success: boolean; error?: string }) => void = () => {};
     api.login.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
     render(<App />);
     const username = await screen.findByLabelText('Username');
-    signIn('anna', 'hemligt');
+    const password = screen.getByLabelText('Password');
+    fireEvent.change(username, { target: { value: 'anna' } });
+    fireEvent.change(password, { target: { value: 'hemligt' } });
+    password.focus();
+    expect(password).toHaveFocus();
+    fireEvent.submit(password.closest('form') as HTMLFormElement);
 
-    expect(await screen.findByRole('button', { name: 'Signing in…' })).toBeDisabled();
+    // Inte disabled: ett disabled fält/en disabled knapp tappar fokus. Knappen är aria-disabled och fälten readOnly.
+    const busy = await screen.findByRole('button', { name: 'Signing in…' });
+    expect(busy).toHaveAttribute('aria-disabled', 'true');
+    expect(busy).not.toBeDisabled();
     expect(screen.getByLabelText('Username')).toBe(username);
+    expect(username).toHaveAttribute('readonly');
+    expect(username).not.toBeDisabled();
+    expect(password).toHaveAttribute('readonly');
+    expect(password).not.toBeDisabled();
+    expect(password).toHaveFocus();
+    expect(screen.getByRole('form', { name: 'Sign in' })).toHaveAttribute('aria-busy', 'true');
+
+    // Ett nytt submit medan anropet pågår ignoreras.
+    fireEvent.click(busy);
+    expect(api.login).toHaveBeenCalledTimes(1);
 
     finish({ success: false, error: 'Invalid credentials' });
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'));
+    expect(username).not.toHaveAttribute('readonly');
+    expect(password).not.toHaveAttribute('readonly');
+    expect(screen.getByRole('button', { name: 'Sign In' })).not.toHaveAttribute('aria-disabled');
+    expect(password).toHaveFocus();
   });
 
   it('lyckad inloggning leder till /board', async () => {

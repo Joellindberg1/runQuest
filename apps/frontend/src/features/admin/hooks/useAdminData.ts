@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { backendApi } from '@/shared/services/backendApi';
-import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
 import { validatePassword } from '@/shared/utils/validation';
 import type { AdminUser } from '@/shared/services/backendApi';
+import { findSettingsProblem } from '../adminModel';
 
 export interface AdminSettings {
   xpPerRun: number;
@@ -13,7 +13,6 @@ export interface AdminSettings {
   bonus15km: number;
   bonus20km: number;
   minKmForRun: number;
-  minKmForStreak: number;
   minRunDate: string;
   streakBonuses: { [key: number]: number };
   multipliers: { [key: number]: number };
@@ -27,7 +26,6 @@ const DEFAULT_SETTINGS: AdminSettings = {
   bonus15km: 25,
   bonus20km: 50,
   minKmForRun: 1.0,
-  minKmForStreak: 1.0,
   minRunDate: '2025-06-01',
   streakBonuses: {
     10: 50, 30: 50, 60: 50, 90: 50, 120: 50, 150: 50,
@@ -39,11 +37,23 @@ const DEFAULT_SETTINGS: AdminSettings = {
   },
 };
 
+/** Bekräftelser och fel per skärmdel — visas i permanenta live-regioner (status/alert), inte som toasts. */
+export type AdminSection = 'settings' | 'users' | 'security';
+export interface AdminNotice {
+  status?: string;
+  error?: string;
+}
+export type AdminNotices = Partial<Record<AdminSection, AdminNotice>>;
+
 export function useAdminData() {
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
   // Save skickar hela trappan och servern tar bort steg som saknas — sparas DEFAULT_SETTINGS
   // (inläsningen misslyckades) skulle prod-trappan skrivas över. Därför låst tills båda läsningarna lyckats.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  // Läsfel visas som felkort med Retry: fält som visar standardvärden i stället för de riktiga vore en lögn.
+  const [settingsError, setSettingsError] = useState(false);
+  const [usersError, setUsersError] = useState(false);
+  const [notices, setNotices] = useState<AdminNotices>({});
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '' });
@@ -53,26 +63,30 @@ export function useAdminData() {
   const [newMultiplierValue, setNewMultiplierValue] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
 
+  const notify = useCallback((section: AdminSection, notice: AdminNotice | null) => {
+    setNotices((previous) => ({ ...previous, [section]: notice ?? undefined }));
+  }, []);
+
   useEffect(() => {
     fetchUsers();
     fetchAdminSettings();
   }, []);
 
   const fetchAdminSettings = async () => {
+    setSettingsError(false);
     try {
       const result = await backendApi.getAdminSettings();
       if (result.success && result.data) {
         const data = result.data;
         setSettings(prev => ({
           ...prev,
-          xpPerRun: data.base_xp || 15,
-          xpPerKm: data.xp_per_km || 2,
-          bonus5km: data.bonus_5km || 5,
-          bonus10km: data.bonus_10km || 15,
-          bonus15km: data.bonus_15km || 25,
-          bonus20km: data.bonus_20km || 50,
-          minKmForRun: data.min_run_distance || 1.0,
-          minKmForStreak: data.min_run_distance || 1.0,
+          xpPerRun: data.base_xp ?? 15,
+          xpPerKm: data.xp_per_km ?? 2,
+          bonus5km: data.bonus_5km ?? 5,
+          bonus10km: data.bonus_10km ?? 15,
+          bonus15km: data.bonus_15km ?? 25,
+          bonus20km: data.bonus_20km ?? 50,
+          minKmForRun: data.min_run_distance ?? 1.0,
         }));
 
         const multipliersResult = await backendApi.getStreakMultipliers();
@@ -85,39 +99,46 @@ export function useAdminData() {
           setSettingsLoaded(true);
         } else {
           log.error('Failed to fetch streak multipliers', multipliersResult.error);
-          toast.error('Failed to fetch streak multipliers — saving is disabled until the page is reloaded');
+          setSettingsError(true);
         }
       } else {
         log.error('Failed to fetch admin settings', result.error);
-        toast.error('Failed to fetch admin settings: ' + (result.error || 'Unknown error'));
+        setSettingsError(true);
       }
     } catch (error) {
       log.error('Error fetching admin settings', error);
-      toast.error('Failed to fetch admin settings');
+      setSettingsError(true);
     }
   };
 
   const fetchUsers = async () => {
     setLoadingUsers(true);
+    setUsersError(false);
     try {
       const result = await backendApi.getAllUsers();
       if (result.success && result.data) {
         setUsers(result.data);
       } else {
         log.error('Failed to fetch users', result.error);
-        toast.error('Failed to fetch users: ' + (result.error || 'Unknown error'));
+        setUsersError(true);
       }
     } catch (error) {
       log.error('Error fetching users', error);
-      toast.error('Failed to fetch users');
+      setUsersError(true);
     } finally {
       setLoadingUsers(false);
     }
   };
 
   const handleSaveSettings = async () => {
+    notify('settings', null);
     if (!settingsLoaded) {
-      toast.error('Settings have not loaded from the server — reload the page before saving');
+      notify('settings', { error: 'Settings have not loaded from the server — reload the page before saving' });
+      return;
+    }
+    const problem = findSettingsProblem(settings);
+    if (problem) {
+      notify('settings', { error: problem });
       return;
     }
     try {
@@ -143,21 +164,22 @@ export function useAdminData() {
         throw new Error(multipliersResult.error || 'Failed to save streak multipliers');
       }
 
-      toast.success('Settings saved successfully to database!');
+      notify('settings', { status: 'Settings saved. They apply to every run from now on.' });
     } catch (error) {
       log.error('Error saving settings', error);
-      toast.error('Failed to save settings: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      notify('settings', { error: 'Failed to save settings: ' + (error instanceof Error ? error.message : 'Unknown error') });
     }
   };
 
   const handleAddUser = async () => {
+    notify('users', null);
     if (!newUser.name || !newUser.email || !newUser.password) {
-      toast.error('Please fill in all fields');
+      notify('users', { error: 'Please fill in all fields' });
       return;
     }
     const pwError = validatePassword(newUser.password);
     if (pwError) {
-      toast.error(pwError);
+      notify('users', { error: pwError });
       return;
     }
     try {
@@ -166,20 +188,21 @@ export function useAdminData() {
         const created = result.data;
         setUsers(prev => [...prev, created]);
         setNewUser({ name: '', email: '', password: '' });
-        toast.success('User created successfully!');
+        notify('users', { status: 'Member added.' });
       } else {
-        toast.error(result.error || 'Failed to create user');
+        notify('users', { error: result.error || 'Failed to create user' });
       }
     } catch (error) {
       log.error('Error creating user', error);
-      toast.error('Failed to create user');
+      notify('users', { error: 'Failed to create user' });
     }
   };
 
   const handleResetUserPassword = async (userId: string) => {
+    notify('users', null);
     const pwError = validatePassword(newPasswordForUser || '');
     if (!newPasswordForUser || pwError) {
-      toast.error(pwError || 'Password is required');
+      notify('users', { error: pwError || 'Password is required' });
       return;
     }
     try {
@@ -187,34 +210,38 @@ export function useAdminData() {
       if (result.success) {
         setEditingUser(null);
         setNewPasswordForUser('');
-        toast.success('Password reset successfully!');
+        notify('users', { status: 'Password reset.' });
       } else {
-        toast.error(result.error || 'Failed to reset password');
+        notify('users', { error: result.error || 'Failed to reset password' });
       }
     } catch (error) {
       log.error('Error resetting user password', error);
-      toast.error('Failed to reset password');
+      notify('users', { error: 'Failed to reset password' });
     }
   };
 
   const handleAddMultiplier = () => {
+    notify('settings', null);
     const day = parseInt(newMultiplierDay);
     const value = parseFloat(newMultiplierValue);
-    if (day && value) {
-      setSettings(prev => ({
-        ...prev,
-        multipliers: { ...prev.multipliers, [day]: value },
-      }));
-      setNewMultiplierDay('');
-      setNewMultiplierValue('');
-      toast.success(`Added ${day} days → ${value}x multiplier. Remember to save settings!`);
+    if (!day || !value) {
+      notify('settings', { error: 'Enter both the number of days and a multiplier' });
+      return;
     }
+    setSettings(prev => ({
+      ...prev,
+      multipliers: { ...prev.multipliers, [day]: value },
+    }));
+    setNewMultiplierDay('');
+    setNewMultiplierValue('');
+    notify('settings', { status: `Added ${day} days at ${value}×. Nothing is stored until you save all settings.` });
   };
 
   const handleChangeAdminPassword = () => {
+    notify('security', null);
     if (newAdminPassword.trim()) {
       setNewAdminPassword('');
-      toast.info('Admin password change not yet wired to backend');
+      notify('security', { status: 'Changing the admin password is not connected to the backend yet — nothing was changed.' });
     }
   };
 
@@ -222,6 +249,10 @@ export function useAdminData() {
     settings,
     setSettings,
     settingsLoaded,
+    settingsError,
+    reloadSettings: fetchAdminSettings,
+    usersError,
+    notices,
     users,
     loadingUsers,
     fetchUsers,

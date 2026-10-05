@@ -111,11 +111,70 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   texten av den klippta banrutan på desktop.
 - **Banans löpare går med CSS offset-path på SVG-cirklar** (samma `rqOrbit` som stadion-laddaren) i stället för prototypens SMIL `<animateMotion>`, så
   `prefers-reduced-motion` stoppar dem. Silver- och bronsprickarna är heltäckande rankfärger (prototypen hade .75/.8 i alfa).
-- **/login är fortfarande den gamla inloggningssidan** (inte omritad; ingen inkrement-rad i planen). Landingens knapp leder dit.
+- ~~/login är fortfarande den gamla inloggningssidan~~ OMRITAD i inkrement 11 (spår B). Landingens knapp leder dit.
 - **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade.** Landing-FEATUREN anropar inget själv; App-skalet gör ETT Supabase-anrop
   (level_requirements, konsolfel om servern inte nås). Onboarding-prefetchen gör INGET anrop utan token (returnerar [] direkt). Samma anrop kördes
   redan när `/` var LoginPage. Gating på `user` hör hemma i en egen skaländring (påverkar även /preview-routes), inte i Landing.
 - Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
+
+## Restsidor: Playbook, Settings, Admin, Login (inkrement 11, spår B)
+- **Playbook har nio kapitel (prototypens), inte de gamla sju flikarna.** Strava-fliken är inlagd i "What counts as a run"; Levels-tabellen och Titles
+  finns kvar. **Regel: Playbook påstår bara det koden gör** — prototypens copy är en skiss och citeras inte. Kapiteltexterna är verifierade mot backend:
+  minimidistansen gäller bara manuella rundor (1.0 km, `routes/runs.ts`), Strava-rundor räknas oavsett längd; base-XP betalas från konfigurationens
+  `min_run_distance`; streaken räknar dagar med en runda (inget "qualifying run"); streaken multiplicerar base + km men inte distansbonusen; i utmaningar
+  lottas tier, mått, längd och insats när TOKEN tjänas in vid nivåuppgång (`challengeService.ts`) — vid sändning väljer spelaren bara token och motståndare
+  (texten är Rules-vyns egen, `HOW_IT_WORKS`). Frodo-kapitlet läser sträckan och de sju stora målen ur `frodoModel`.
+- **Siffrorna i Playbook kommer ur `GET /config/xp`** (bas-XP, XP/km, distansbonusar, trappan, min distans) via `useXpConfig`, och räkneexemplen är
+  shareds formel över samma konfiguration. Går den inte att läsa visas shareds standardvärden och sidan säger det (Retry). Nivåtabellen är shareds
+  `FALLBACK_LEVEL_REQUIREMENTS` (enda hemmet, identisk med prod) — ingen endpoint exponerar `level_requirements`; ändrar någon tabellen i databasen följer
+  Playbook inte med.
+- **Playbook beskriver spelet SOM DET ÄR i dag** (ägardirektiv 2026-10-06) — även buggar beskrivs som de beter sig; Lead registrerar buggen separat.
+- **Event-siffrorna är redaktionella — ingen endpoint exponerar `event_templates`.** `GET /events` ger bara aktiva/schemalagda events (namn, min km, XP, men inte
+  fönster, spawn-regler eller väderkrav), så fönster, krav och XP bor som en kopia i `features/playbook/playbookFacts.ts`. `playbookFacts.test.ts` läser backendens
+  migrationer, eventService, eventScheduler och stravaSync och faller om siffrorna glider isär — men nya/borttagna event i databasen syns inte där. En
+  `GET /events/templates` (eller att Playbook läser mallarna) vore en backend-uppgift. **Verifierat mot prod (Lead, read-only SQL 2026-10-05):**
+
+  | Event (prodnamn) | Fönster | Min km | XP | Pool |
+  |---|---|---|---|---|
+  | Morning run | 05–09 | 3 | +25 | daily |
+  | Evening run | 18–22 | 3 | +25 | daily |
+  | Storm Chaser | heldag, kräver väder (rain/drizzle/storm) | 5 | +40 | daily |
+  | 5K Friday | heldag | 5 | +25 | thursday |
+  | Half Marathon Chaser | fre–sön | 10 | +25 | thursday |
+  | Hangover Run | heldag | 3 | +30 | weekend |
+  | Weekly km, Weekly elevation | 7 dagar, topp 3: 40/30/20 XP | – | – | weekly_competition |
+
+  Namnen är engelska i prod (migration 025/029 seedar dem; 017/022 skrevs med "Morgonrunda"/"Kvällsrunda"/"Weekly höjdmeter" och testet slår upp siffrorna där med de gamla namnen).
+- **Storm Chaser-tröskeln är 15 km/h, inte 15 m/s.** `eventService.checkStormChaserForecast` hämtar Open-Meteo utan `wind_speed_unit` → byvärdena är km/h, och `>= 15`
+  jämförs rakt av (kodens kommentarer säger m/s). Playbook säger "gusts of 15 km/h or more" (så beter sig spelet); tröskeln var sannolikt menad som m/s — Lead har lagt issue.
+  Fakta-testet kräver att anropet saknar `wind_speed_unit`, så det faller om enheten ändras. Regeln i sin helhet: ≥ 3 stormiga timmar (väderkod duggregn/regn/snö/skurar/åska) ELLER ≥ 4 timmar med byar ≥ 15 km/h, dagtimmar 06–21 imorgon.
+- **Kvalificering:** ett deltagarevent kräver att eventet är öppet när rundan loggas/synkas och att rundans datum inte ligger efter eventets slut (inte rundans starttid); bara REDIGERING (PUT, `enforceRunDateWindow`) kräver datum inom eventets dagar — Playbook säger "log or sync a run while the event is open (the run’s date can’t be after the event ends)".
+- **Strava:** synken räknar från en vecka före senast Strava-importerade rundan; en aktivitet med distans 0 sparas inte ("any distance above zero"). Intervallet är `SYNC_INTERVAL_MINUTES` (30) i stravaSync.ts.
+- **Utmaningstokens:** enligt seeden (006) delas token ut vid nivå 3, 5, 8, 10, 12, 14, 15 och sedan vid varje nivå från 16 (major var 5:e, legendary vid 15/30/45) — inga tokens vid 2, 4, 6, 7, 9, 11, 13. Playbook säger "many level-ups at first and, from level 16, at every level-up".
+- **Insatserna per utmaningsnivå är observerade, som Rules-vyn:** verkliga tokens/aktiva/inkomna/historiska utmaningar ur `GET /challenges/my` först (hämtas när
+  utmaningskapitlet visas), `DEFAULT_STAKES` (seed, migration 006) bara för nivåer utan exempel. Har man inga tokens eller historik visas alltså seed-värdena.
+- **Titellistan i Playbook och Admin är `GET /titles/leaderboard`** (samma rader som Titles, delad cache) — namn, regel och låsgräns ordagrant ur databasen,
+  sorterade som Titles-skärmens kategorier. Admins gamla fyra hårdkodade titlar (och texten "hardcoded") är borta.
+- **Settings: Notifications-kortet ur Web Prototypen är inte byggt** (backend saknar notisinställningar; "ingen ny funktion"). **Disconnect** finns i
+  prototypen men inte i dagens UI (endpointen finns) — inte tillagd; en destruktiv knapp kräver ett ägarbeslut om bekräftelse. **Sync log** blir "Latest sync":
+  backend har ingen historik, bara senaste försöket (`/strava/last-sync`). Mobilprototypen saknar Settings och Admin — mobil är härledd (en kolumn).
+- **Settings: "Sync now" syns fortfarande bara för "Joel Lindberg"** (namnjämförelse, som före omritningen). Efter en synk hämtas alla aktiva queries om
+  (`invalidateQueries()`) i stället för den gamla hårda omladdningen efter 2 s.
+- **Admin: "Min run date" är skrivskyddat; "Min km for streak" är borttaget (2026-10-06).** Save skickade dem aldrig (datumet är en
+  konstant i appen; streaken har ingen distansgräns, `routes/runs.ts`). `min_run_distance` styr bara bas-XP och heter därför "Min km for base XP". Vill ägaren
+  ha ett streak-minimum eller redigerbart datum behövs backend-stöd. "Add member" saknar "6 of 30 seats used" (ingen sätesgräns finns).
+- **Admin: ett tomt/ogiltigt fält OCH en trappa utanför 1–9.99 (högst två decimaler) stoppas före Save** (`findSettingsProblem`) — ingenting skickas, så
+  grundinställningarna sparas aldrig halvt när trappan avvisas. Servern vaktar fortfarande samma gräns och dess 400-text visas ordagrant. Fältet får `aria-invalid` utanför intervallet.
+- **Admin: läsfel är felkort med Retry** (inställningar/trappa, medlemmar, titlar) i stället för toast + tomt/standardvärden. Save är låst tills BÅDA läsningarna
+  lyckats (`settingsLoaded`/`canSave`, oförändrat), nu med synlig förklaring. Alla toasts (Admin, Settings) är ersatta av permanenta status/alert-regioner.
+  "Admin password" är fortfarande inte kopplat till backend (som tidigare) — svaret säger det i stället för att låtsas lyckas.
+- **Inloggningen är ritad utan prototyp** i Landingens språk (glöd, logotyp, hjältekort, Components-filens fält). Felet landar i en permanent `role=alert`-region
+  (`FormNotices`, som övriga formulär) och fälten pekar på det; under pågående inloggning är fälten `readOnly` och knappen `aria-disabled` (inte `disabled`), så
+  fokus aldrig tappas. `App.login.test` väntar på alert-textens innehåll (regionen finns tom från början). Ingen "Forgot password" (ingen funktion).
+- **Formulärfält är 16/18 px** (`--rq-fs-stat-value`), inte Components-filens 19 px och inte `.rq-field`-standardens lead (17/22): prototypens Settings/Admin-fält är
+  17 px på desktop, och 16 px på mobil hindrar iOS från att zooma in vid fokus.
+- **Borttaget som dött:** `constants/streakConstants.ts` (Playbook var sista användaren), `shared/components/PageTabs.tsx` (shadcn-flikar, Playbook var sista
+  användaren) och de gamla `XPSettings/UserManagement/TitleConfig/AdminSecurity`, `StravaSettings/PasswordSettings`.
 
 ## Skal & delat
 - **Logout rensar inte användarspecifika query-cachar** (utom onboarding, som
@@ -125,7 +184,7 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - RÄTTAT 2026-10-04: Toastern ÄR monterad (AppProviders) och gamla `toast()`-
   anrop visas. Nya features använder ändå permanenta `role=status`-ytor —
   motivet är konsekvens och pålitlig uppläsning, inte att Toastern saknas.
-- Feature-CSS laddas före index.css (main.tsx-importordningen) — overrides av
+- Feature-CSS i huvudbunten laddas före index.css (main.tsx-importordningen); de lazy-laddade sidornas CSS (Playbook, Settings, Admin, Features) laddas EFTER. Tailwind 3:s `@layer` blir vanlig CSS i bygget, så ordningen avgör vid lika specificitet — overrides av
   delade klasser kräver sammansatta selektorer (dokumenterat i
   features/challenges/README.md).
 - `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU —
@@ -168,3 +227,18 @@ raden (liten städfix, nästa backend-runda).
 10. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
     klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
     bara till). Medvetet val i9c; läker vid window focus.
+
+## Feature & Version + What's new (inkrement 11A)
+
+- **changelog.json har ny form** `{ features, workingOn, releases }` (var en ren lista av releaser) så att sidans Features-/Working on-kort kommer ur samma fil som
+  releaserna ("en källa"). Äldre poster är oförändrade. `docs/dokumentation.md` uppdaterad med formen.
+- **Ändringstypen heter `bugfix`** (som prototypen och alla äldre poster), inte `fix` som dokumentation.md först skrev. Dokumentet rättat; versionsvakten kräver `bugfix`.
+- **Versionsvakten kräver CHANGELOG.md-rubrik bara för användarversioner från dess äldsta rubrik (v0.5.0) och uppåt** — v0.1–0.4 finns bara i changelog.json.
+  Vill ägaren ha dem även i CHANGELOG.md måste historiken skrivas in där. Ägarbeslut 2026-10-05: användarversioner har tre delar (0.MINOR.PATCH), interna fyra
+  (0.5.0.1) och finns bara i CHANGELOG.md/git-taggar; package.json håller de tre första delarna av översta rubriken (docs/dokumentation.md).
+- **Datumformatet behålls** ("5 October 2026", som "2 April 2026") — prototypen har "24 aug 2026", men befintliga poster väger tyngre; vakten kräver formen.
+- **Features-listan är kuraterad mot dagens app**: "Dark mode" och "Onboarding" från prototypens exempeldata är borta (ljust tema är förberett men inte designat; touren är
+  inte ett säljargument), och nya funktioner (Duels, Runner card, Pack News, Log runs) tillagda. Working on = Badges + Notifications som i prototypen (båda finns på roadmapen).
+- **Popupen har ingen prototyp** — härledd ur skalets delade modal (`.rq-modal`/`.rq-scrim`), Bebas-rubrik, hårlinjegrid för punkterna, en guldknapp. Fokus startar på "Got it".
+- **Prototypens textsteg snappade till tokens**: kortrubrik 18 px → `--rq-fs-name` (20 på desktop), beskrivningar 16 px → `--rq-fs-body` (17 på desktop), release-datum 15 → `--rq-fs-meta`.
+- **Alla som redan sett de gamla patchnotes (`patch_2026_04_02_*`) får 0.5.0-popupen en gång** — slugen `patch_v0.5.0` är ny. De gamla slugarna ligger kvar i tabellen, ofarliga.

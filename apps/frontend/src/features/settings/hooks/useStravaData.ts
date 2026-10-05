@@ -1,88 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
-import { toast } from 'sonner';
-import { log } from '@/shared/utils/logger';
-import { formatTime } from '@/shared/utils/formatters';
+import { useStravaLastSync, useStravaStatus } from '@/shared/hooks/useStravaQueries';
 
-export interface StravaStatus {
-  connected: boolean;
-  expired: boolean;
-  expires_at?: number;
-  auto_refreshed?: boolean;
-  refresh_failed?: boolean;
-  connection_date?: string;
-  last_sync?: string;
+export const STRAVA_CONFIG_QUERY_KEY = ['strava', 'config'] as const;
+
+/** Strava-appens client_id (GET /strava/config, publik) — behövs för att öppna auktoriseringsfönstret. */
+export function useStravaConfig() {
+  return useQuery({
+    queryKey: STRAVA_CONFIG_QUERY_KEY,
+    queryFn: async () => {
+      const res = await backendApi.getStravaConfig();
+      if (!res.success || !res.data) throw new Error(res.error || 'Failed to get Strava config');
+      return res.data.client_id;
+    },
+    staleTime: Infinity,
+    retry: 1,
+  });
 }
 
-export interface SyncInfo {
-  last_sync_attempt: string | null;
-  last_sync_status: string;
-  next_sync_estimated: string | null;
-  users_synced?: number;
-  total_users?: number;
-  new_runs?: number;
+/**
+ * Det Settings visar om Strava: kopplingen och senaste/nästa synk. Samma queries som skalets Right now och Logs Strava-rad
+ * (`shared/hooks/useStravaQueries`) — en hämtning delas, och en koppling som görs här syns överallt direkt.
+ */
+export function useStravaData() {
+  return { status: useStravaStatus(), sync: useStravaLastSync(), config: useStravaConfig() };
 }
-
-export const formatLastSync = (syncInfo: SyncInfo | null): string => {
-  if (!syncInfo?.last_sync_attempt) return 'No server sync yet';
-  return formatTime(syncInfo.last_sync_attempt);
-};
-
-export const formatNextSync = (syncInfo: SyncInfo | null): string => {
-  if (!syncInfo?.next_sync_estimated) return 'Unknown';
-  const next = new Date(syncInfo.next_sync_estimated);
-  if (next.getTime() < Date.now()) return 'Overdue';
-  return formatTime(syncInfo.next_sync_estimated);
-};
-
-export const useStravaData = () => {
-  const [stravaStatus, setStravaStatus] = useState<StravaStatus>({ connected: false, expired: false });
-  const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [stravaClientId, setStravaClientId] = useState<string | null>(null);
-
-  const fetchStravaConfig = async () => {
-    try {
-      const result = await backendApi.getStravaConfig();
-      if (result.success && result.data) {
-        setStravaClientId(result.data.client_id);
-      }
-    } catch (error) {
-      log.error('Failed to fetch Strava config', error);
-    }
-  };
-
-  // Stabil identitet så att konsumenter kan ha den i effect-deps utan omkörningar
-  const refreshStatus = useCallback(async () => {
-    if (!backendApi.isAuthenticated()) return;
-    try {
-      const [statusResult, syncResult] = await Promise.all([
-        backendApi.getStravaStatus(),
-        backendApi.getStravaLastSync(),
-      ]);
-
-      if (statusResult.success && statusResult.data) {
-        setStravaStatus(statusResult.data);
-        if (statusResult.data.auto_refreshed) toast.success('Strava-anslutning automatiskt förnyad!');
-        else if (statusResult.data.refresh_failed) toast.warning('Strava-token kunde inte förnyas automatiskt');
-      } else {
-        toast.error('Failed to fetch Strava status');
-      }
-
-      if (syncResult.success && syncResult.data) setSyncInfo(syncResult.data);
-    } catch (error) {
-      log.error('Error fetching Strava status', error);
-      toast.error('Failed to fetch Strava status');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStravaConfig();
-    if (backendApi.isAuthenticated()) refreshStatus();
-    else setLoading(false);
-  }, [refreshStatus]);
-
-  return { stravaStatus, setStravaStatus, syncInfo, loading, stravaClientId, refreshStatus };
-};

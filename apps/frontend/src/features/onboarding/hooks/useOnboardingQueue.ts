@@ -4,7 +4,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { ONBOARDING_QUERY_KEY, ONBOARDING_STALE_TIME } from './useOnboarding';
 import { fetchOnboardingStatus } from '../onboardingApi';
-import { PATCH_NOTES } from '../patchNotes';
+import { changelog } from '@/features/changelog/changelogData';
+import { announcedNotes } from '@/features/changelog/changelogModel';
 
 // All active onboarding slugs in priority order.
 // Add new slugs here when features/tours are introduced.
@@ -14,8 +15,8 @@ function buildQueue(): string[] {
   // 1. First-login onboarding tour
   queue.push('onboarding_v1');
 
-  // 2. Patch notes — most recent first
-  for (const note of [...PATCH_NOTES].reverse()) {
+  // 2. "What's new" — the changelog.json posts marked announce: true, most recent first
+  for (const note of announcedNotes(changelog.releases)) {
     queue.push(note.slug);
   }
 

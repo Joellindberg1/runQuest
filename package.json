@@ -1,6 +1,6 @@
 {
   "name": "runquest",
-  "version": "0.0.1",
+  "version": "0.5.2",
   "description": "RunQuest - Löparapp med gamification",
   "private": true,
   "type": "module",

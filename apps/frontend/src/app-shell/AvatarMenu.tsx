@@ -4,7 +4,8 @@ import * as Popover from '@radix-ui/react-popover';
 import { useAuth } from '@/providers/authContext';
 import { paths } from '@/paths';
 import { RQIcon, type RQIconName } from '@/shared/components/icons';
-import { getLatestRelease } from '@/shared/utils/changelogHelpers';
+import { changelog } from '@/features/changelog/changelogData';
+import { latestRelease } from '@/features/changelog/changelogModel';
 import type { ShellUser } from './useShellUser';
 
 const ICON_MENU = 15;
@@ -42,7 +43,7 @@ export function AvatarMenu({ user, variant }: AvatarMenuProps) {
     ...(variant === 'mobile'
       ? [
           { key: 'playbook', label: 'Playbook', icon: 'book', to: paths.playbook } as MenuItemSpec,
-          { key: 'features', label: 'Feature & Version', icon: 'sparkles', to: paths.features, hint: getLatestRelease()?.version } as MenuItemSpec,
+          { key: 'features', label: 'Feature & Version', icon: 'sparkles', to: paths.features, hint: latestRelease(changelog.releases)?.version } as MenuItemSpec,
         ]
       : []),
     { key: 'settings', label: 'Settings', icon: 'settings', to: paths.settings },
