@@ -496,6 +496,28 @@
   --rq-landing-row-cols: 24px minmax(0, 1fr) 68px;                    /* previewrad: plats · namn + stapel · XP (desktop 36 · 1fr · 96) */
   --rq-landing-bar-h: 4px;                                            /* previewradens stapel */
   --rq-landing-body-cols: minmax(0, 1fr);                             /* preview + steg: mobil staplade, desktop bredvid varandra */
+  /* ── 1.28 News-mått (inkrement 9) ──────────────────────────────────────────
+     Mått ur App-/Web-prototypens Pack News (klock-popover + skärm) som saknade token. Endast mått — ingen typskala
+     (raderna snappar till textstegen: kind 12/14, text 15/17, tid 13/15) och inga färger (oläst/läst-bakgrund och
+     kantstyrkan ligger i 1.9). Mobil = standard; desktop skriver över i avsnitt 2.
+     Raden är ett rutnät med fyra områden: ikon · typ · tid · text. Mobil lägger tiden på typraden, desktop i en egen
+     kolumn som spänner båda raderna. Filtret är en chip-rad på mobil (prototypen har inget filter där) och ett
+     kort med lodrät lista på desktop.
+     Konsumenter: features/news/news.css + app-shell/NotificationsPopover. */
+  --rq-news-edge-alpha-quiet: .18;                                    /* kanten på event-rader: neutral ink, tystare än de färgade (1.9 har .6) */
+  --rq-news-split-cols: minmax(0, 1fr);                               /* desktop: flöde | filter (300 px) */
+  --rq-news-filter-w: 300px;                                          /* filterkortet, endast desktop */
+  --rq-news-filter-dir: row;                                          /* mobil: chip-rad · desktop: lodrät lista */
+  --rq-news-filter-gap: 6px;                                          /* chip ↔ chip (desktop 0 — raderna skiljs av hårlinje) */
+  --rq-news-row-cols: 26px minmax(0, 1fr) auto;                       /* ikon · typ + text · tid (desktop 34 · 1fr · auto) */
+  --rq-news-row-areas: "icon kind time" "icon text text";             /* desktop: "icon kind time" "icon text time" */
+  --rq-news-row-align: start;                                         /* desktop center */
+  --rq-news-row-gap: 10px;                                            /* desktop 14 */
+  --rq-news-row-pad-y: 10px;                                          /* desktop 12 */
+  --rq-news-row-pad-x: 12px;                                          /* desktop 16 */
+  --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
+  --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
+  --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
 }
 
 
@@ -615,6 +637,16 @@
     --rq-landing-sweep-w: 90px;
     --rq-landing-row-cols: 36px minmax(0, 1fr) 96px;
     --rq-landing-body-cols: repeat(2, minmax(0, 1fr));
+    --rq-news-split-cols: minmax(0, 1fr) var(--rq-news-filter-w);
+    --rq-news-filter-dir: column;
+    --rq-news-filter-gap: 0px;
+    --rq-news-row-cols: 34px minmax(0, 1fr) auto;
+    --rq-news-row-areas: "icon kind time" "icon text time";
+    --rq-news-row-align: center;
+    --rq-news-row-gap: 14px;
+    --rq-news-row-pad-y: 12px;
+    --rq-news-row-pad-x: 16px;
+    --rq-news-badge: 15px;
   }
 }
 
