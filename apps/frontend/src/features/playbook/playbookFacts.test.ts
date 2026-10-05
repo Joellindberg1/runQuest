@@ -6,8 +6,9 @@ import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS } from '@runquest/sh
 import { MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 import { HOW_IT_WORKS, observedStakes } from '@/features/challenges/rulesModel';
 import type { XpRules } from '@/features/log/xpPreviewModel';
-import { EVENT_FACTS, STRAVA_SYNC_MINUTES, WEEKLY_COMPETITIONS, WEEKLY_XP } from './playbookFacts';
+import { EVENT_FACTS, STRAVA_RUN_TYPES_LABEL, STRAVA_SYNC_MINUTES, WEEKLY_COMPETITIONS, WEEKLY_XP } from './playbookFacts';
 import { buildChapters, type ChapterId } from './playbookModel';
+import { STRAVA_IMPORT_RULES } from '@/features/settings/settingsModel';
 
 // Playbook får bara påstå det koden gör. Faktapunkterna som går att låsa mot backendens källfiler (och frontendens egna
 // konstanter) låses här: ändras backend faller testet och texten måste följa med.
@@ -48,8 +49,28 @@ describe('Run — minimidistans (routes/runs.ts, routes/strava.ts)', () => {
     expect(strava).toContain("new Set(['Run', 'TrailRun', 'VirtualRun'])");
     expect(strava).toMatch(/Find the most recent imported run date[\s\S]{0,500}sevenDaysBeforeMostRecent\.setDate\(sevenDaysBeforeMostRecent\.getDate\(\) - 7\)/);
     expect(text('run')).toContain(`every ${STRAVA_SYNC_MINUTES} minutes`);
-    expect(text('run')).toMatch(/Run, Trail Run and Virtual Run/);
+    expect(STRAVA_RUN_TYPES_LABEL).toBe('Run, Trail Run and Virtual Run');
+    expect(text('run')).toContain(STRAVA_RUN_TYPES_LABEL);
     expect(text('run')).toMatch(/a week before your most recent Strava-imported run/);
+  });
+
+  it('Settings säger samma sak om Strava som Playbook: alla tre löptyperna, löpband importeras (trainer-flaggan)', () => {
+    const strava = backend('src/routes/strava.ts');
+    expect(strava).toMatch(/is_treadmill:\s+activity\.trainer === true/);
+    const rules = STRAVA_IMPORT_RULES.join(' ');
+    expect(rules).toContain(`every ${STRAVA_SYNC_MINUTES} minutes`);
+    expect(rules).toContain(STRAVA_RUN_TYPES_LABEL);
+    expect(rules).toMatch(/treadmill runs included/);
+    const screen = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../settings/components/SettingsScreen.tsx'), 'utf8');
+    expect(screen).toContain('{STRAVA_RUN_TYPES_LABEL}');
+    expect(`${rules} ${screen}`).not.toMatch(/type Run\b|logged by hand/);
+  });
+
+  it('samma distans och streak ger samma XP — utom med duell-boost, som calculateCompleteRunXP lägger på multiplikatorn', () => {
+    const shared = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../packages/shared/src/xpCalculation.ts'), 'utf8');
+    expect(shared).toMatch(/boostDelta/);
+    expect(text('xp')).toMatch(/unless one of them has a duel boost active/);
+    expect(text('levels')).not.toMatch(/never the fastest climber/);
   });
 
   it('basen betalas från konfigurationens min_run_distance (calculateRunXP), inte från 1 km', () => {

@@ -25,7 +25,7 @@ describe('tour-ankarvakten: varje data-tour i turerna finns i en komponentkälla
   );
 
   // Komponentkällor = allt utom turfilerna själva. Ankaret ska stå som en strängliteral i en fil
-  // som sätter data-tour/tourAnchor (skalet skriver `data-tour="…"`, PageTabs/Leaderboard skickar namnet vidare).
+  // som sätter data-tour/tourAnchor (skalet skriver `data-tour="…"`, Leaderboard skickar namnet vidare).
   const componentSources = Object.entries(sources).filter(
     ([path, text]) => !TOUR_FILES.test(path) && /\.tsx?$/.test(path) && /data-tour|tourAnchor/.test(text),
   );

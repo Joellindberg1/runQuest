@@ -184,7 +184,7 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - RÄTTAT 2026-10-04: Toastern ÄR monterad (AppProviders) och gamla `toast()`-
   anrop visas. Nya features använder ändå permanenta `role=status`-ytor —
   motivet är konsekvens och pålitlig uppläsning, inte att Toastern saknas.
-- Feature-CSS laddas före index.css (main.tsx-importordningen) — overrides av
+- Feature-CSS i huvudbunten laddas före index.css (main.tsx-importordningen); de lazy-laddade sidornas CSS (Playbook, Settings, Admin, Features) laddas EFTER. Tailwind 3:s `@layer` blir vanlig CSS i bygget, så ordningen avgör vid lika specificitet — overrides av
   delade klasser kräver sammansatta selektorer (dokumenterat i
   features/challenges/README.md).
 - `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU —

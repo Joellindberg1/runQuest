@@ -6,7 +6,7 @@ import {
 import type { AdminSettings } from './hooks/useAdminData';
 
 const SETTINGS: AdminSettings = {
-  xpPerRun: 15, xpPerKm: 2, bonus5km: 5, bonus10km: 15, bonus15km: 25, bonus20km: 50, minKmForRun: 1, minKmForStreak: 1,
+  xpPerRun: 15, xpPerKm: 2, bonus5km: 5, bonus10km: 15, bonus15km: 25, bonus20km: 50, minKmForRun: 1,
   minRunDate: '2025-06-01', streakBonuses: {}, multipliers: { 21: 2, 3: 1.3, 7: 1.5 },
 };
 
@@ -17,9 +17,9 @@ describe('XP_GROUPS', () => {
     expect(editable).toEqual(['xpPerRun', 'xpPerKm', 'minKmForRun', 'bonus5km', 'bonus10km', 'bonus15km', 'bonus20km']);
   });
 
-  it('det Save inte skickar (streak-minimum, datum) är skrivskyddat i stället för att låtsas gå att ändra', () => {
+  it('det Save inte skickar (datumet) är skrivskyddat, och streak-minimum finns inte i stället för att låtsas gå att ändra', () => {
     const fixed = XP_GROUPS.flatMap((group) => group.fields).filter((field) => !field.editable).map((field) => field.key);
-    expect(fixed).toEqual(['minKmForStreak', 'minRunDate']);
+    expect(fixed).toEqual(['minRunDate']);
   });
 });
 

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNow } from '@/app-shell/useNow';
 import { useAuth } from '@/providers/authContext';
+import { STRAVA_RUN_TYPES_LABEL } from '@/features/playbook/playbookFacts';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
 import { useStravaActions } from '../hooks/useStravaActions';
@@ -73,7 +74,7 @@ export function SettingsScreen() {
         <div className="rq-settings__side">
           <SyncCard row={syncRow} failed={sync.isError && !sync.data} loading={sync.isPending} />
           <p className="rq-settings-note">
-            Only activities of type Run are imported, and duplicates are filtered. Treadmill runs need to be logged by hand.
+            Running activities ({STRAVA_RUN_TYPES_LABEL}) are imported, treadmill runs included, and duplicates are filtered.
           </p>
         </div>
       </div>

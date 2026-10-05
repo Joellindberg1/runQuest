@@ -8,7 +8,7 @@ import type { XpRules } from '@/features/log/xpPreviewModel';
 import { ALL_WAYPOINTS, JOURNEY_END_KM } from '@/features/profile/frodoModel';
 import type { RQIconName } from '@/shared/components/icons';
 import { MAX_DISPLAYED } from '@/features/titles/titlesModel';
-import { EVENT_FACTS, STRAVA_SYNC_MINUTES, WEEKLY_XP } from './playbookFacts';
+import { EVENT_FACTS, STRAVA_RUN_TYPES_LABEL, STRAVA_SYNC_MINUTES, WEEKLY_XP } from './playbookFacts';
 
 // Playbook-skärmens kapitel: spelets regler som text, med siffrorna ur GET /config/xp (bas-XP, XP/km, distansbonusar,
 // streak-trappan) i stället för hårdkodade. Nivåtabellen är shareds (enda hemmet, identisk med level_requirements i prod),
@@ -72,7 +72,7 @@ function runChapter(rules: XpRules): Omit<Chapter, 'num'> {
     id: 'run', icon: 'plus', label: 'What counts as a run', title: 'What counts as a run',
     lead: `Manual runs need at least ${manualMin} km; runs synced from Strava count at any distance above zero.`,
     paras: [
-      `Strava runs arrive by themselves every ${STRAVA_SYNC_MINUTES} minutes — running activities only (Run, Trail Run and Virtual Run), with duplicates filtered out. Each sync looks back to a week before your most recent Strava-imported run, so a missed activity is picked up. Treadmill runs are tagged when Strava flags them as a trainer activity.`,
+      `Strava runs arrive by themselves every ${STRAVA_SYNC_MINUTES} minutes — running activities only (${STRAVA_RUN_TYPES_LABEL}), with duplicates filtered out. Each sync looks back to a week before your most recent Strava-imported run, so a missed activity is picked up. Treadmill runs are tagged when Strava flags them as a trainer activity.`,
       `You can also log a run by hand, back to ${formatLongDate(MIN_RUN_DATE)} and never into the future. Manual runs have no GPS, so no weather and no elevation. The XP formula is the same for both.`,
     ],
     table: {
@@ -96,7 +96,7 @@ function xpChapter(rules: XpRules): Omit<Chapter, 'num'> {
     id: 'xp', icon: 'zap', label: 'The XP formula', title: 'The XP formula',
     lead: `Base ${settings.base_xp}, plus ${settings.xp_per_km} XP per kilometre, plus a distance bonus. Your streak multiplies the first two.`,
     paras: [
-      'Nothing here is hidden and nothing is weighted per person. Two runners covering the same distance on the same streak earn exactly the same XP, whether the run came from Strava or was logged by hand.',
+      'Nothing here is hidden and nothing is weighted per person. Two runners covering the same distance on the same streak earn exactly the same XP, whether the run came from Strava or was logged by hand — unless one of them has a duel boost active.',
       `A ${EXAMPLE_SHORT_KM} km run is ${short.baseXP} + ${short.kmXP} + ${short.distanceBonus} = ${short.totalXP} XP before the streak. A ${EXAMPLE_LONG_KM} km run is ${long.baseXP} + ${long.kmXP} + ${long.distanceBonus} = ${long.totalXP} XP. The base is paid from ${formatKm(settings.min_run_distance)} km. The distance bonus is paid once per run, at the highest tier reached, and the streak never touches it.`,
     ],
     table: {
@@ -161,7 +161,7 @@ function levelsChapter(rules: XpRules, requirements: readonly LevelRequirement[]
   });
   return {
     id: 'levels', icon: 'trophy', label: 'Levels', title: 'Levels',
-    lead: 'Levels get progressively more expensive, so the leader is never the fastest climber.',
+    lead: 'Levels get progressively more expensive, so every level takes more XP than the one before.',
     paras: [
       'The bar on the leaderboard shows progress into your current level, not your share of the season. A newer runner on a good streak can level twice while the leader levels once.',
       `The top level is ${requirements.length}. The table counts runs without any streak bonus.`,

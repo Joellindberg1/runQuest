@@ -13,7 +13,6 @@ export interface AdminSettings {
   bonus15km: number;
   bonus20km: number;
   minKmForRun: number;
-  minKmForStreak: number;
   minRunDate: string;
   streakBonuses: { [key: number]: number };
   multipliers: { [key: number]: number };
@@ -27,7 +26,6 @@ const DEFAULT_SETTINGS: AdminSettings = {
   bonus15km: 25,
   bonus20km: 50,
   minKmForRun: 1.0,
-  minKmForStreak: 1.0,
   minRunDate: '2025-06-01',
   streakBonuses: {
     10: 50, 30: 50, 60: 50, 90: 50, 120: 50, 150: 50,
@@ -89,7 +87,6 @@ export function useAdminData() {
           bonus15km: data.bonus_15km ?? 25,
           bonus20km: data.bonus_20km ?? 50,
           minKmForRun: data.min_run_distance ?? 1.0,
-          minKmForStreak: data.min_run_distance ?? 1.0,
         }));
 
         const multipliersResult = await backendApi.getStreakMultipliers();

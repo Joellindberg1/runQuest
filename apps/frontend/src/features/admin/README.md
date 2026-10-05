@@ -16,7 +16,7 @@ Web Prototypens Admin; mobilprototypen saknar sidan, så mobil är härledd. `pa
   stadion-oval, misslyckas det ett felkort med Retry (`reloadSettings`) — fälten visar aldrig standardvärden som om de vore riktiga. Knappen står kvar, låst, med förklaring.
 - **Backendens validering (multiplikator 1–9.99, högst två decimaler) vaktas av servern**; dess 400-text visas ordagrant i alert-regionen. Fältet får `aria-invalid` utanför intervallet
   och `step=0.01`. Ett tomt fält stoppas före anropet (`findSettingsProblem`) i stället för att skickas som `null`.
-- **"Min km for streak" och "Min run date" är skrivskyddade:** Save skickade dem aldrig (se docs/open-assumptions.md, "Restsidor").
+- **"Min run date" är skrivskyddat:** Save skickade det aldrig (se docs/open-assumptions.md, "Restsidor"). Prototypens "Min km for streak" är borttaget — streaken har ingen distansgräns; `min_run_distance` heter "Min km for base XP" eftersom det bara styr bas-XP.
 - **Streak-trappan** visas i stigande dagordning; nytt steg läggs till i listan men sparas först vid Save.
 - **Titlar** läser verkliga titlar ur databasen (delar rader med Playbook via `features/titles/titleRules`); "Refresh title leaderboards" är oförändrad funktion.
 - **Säkerhet:** adminlösenordet är fortfarande inte kopplat till backend (svaret säger det); Strava-backfillen visar summa + rad per användare, fel i alert.

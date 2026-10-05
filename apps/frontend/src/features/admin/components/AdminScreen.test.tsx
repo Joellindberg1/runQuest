@@ -63,12 +63,12 @@ describe('Admin — XP settings', () => {
     expect(ladder.getByLabelText('3 days')).toHaveValue(1.3);
   });
 
-  it('Min km for streak och Min run date är skrivskyddade — Save skickar dem aldrig', async () => {
+  it('Min run date är skrivskyddat — Save skickar det aldrig; streak-minimum finns inte (streaken har ingen distansgräns)', async () => {
     renderAdmin();
     await screen.findByLabelText('XP per run');
-    expect(screen.getByLabelText('Min km for streak')).toHaveAttribute('readonly');
+    expect(screen.queryByLabelText('Min km for streak')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Min run date')).toHaveAttribute('readonly');
-    expect(screen.getByLabelText('Min km for run')).not.toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Min km for base XP')).not.toHaveAttribute('readonly');
   });
 
   it('misslyckas trappan att läsas in: felkort med Retry, Save förblir låst och inget skickas — Retry låser upp', async () => {

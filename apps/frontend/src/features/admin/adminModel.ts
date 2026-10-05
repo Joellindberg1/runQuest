@@ -11,7 +11,7 @@ export type AdminView = (typeof ADMIN_VIEWS)[number];
 export const DEFAULT_ADMIN_VIEW: AdminView = 'xp';
 
 export type NumericSettingKey =
-  | 'xpPerRun' | 'xpPerKm' | 'minKmForRun' | 'minKmForStreak'
+  | 'xpPerRun' | 'xpPerKm' | 'minKmForRun'
   | 'bonus5km' | 'bonus10km' | 'bonus15km' | 'bonus20km';
 
 export interface XpFieldDef {
@@ -32,19 +32,19 @@ export interface XpGroupDef {
 
 /**
  * De två första korten i Web Prototypens Admin. Streak-trappan är det tredje (rader efter data, inte efter definition).
- * "Min km for streak" och "Min run date" finns i prototypen och i gamla Admin, men Save skickar dem aldrig (servern har bara
- * min_run_distance, och datumet är en konstant i appen) — de visas därför som skrivskyddade i stället för att låtsas gå att ändra.
+ * "Min run date" finns i prototypen och i gamla Admin, men Save skickar det aldrig (datumet är en konstant i appen) — det visas därför
+ * skrivskyddat. Prototypens "Min km for streak" finns inte: streaken räknar varje runda oavsett distans (routes/runs.ts), och
+ * min_run_distance styr bara bas-XP (calculateRunXP) — därav etiketten "Min km for base XP".
  */
 export const XP_GROUPS: readonly XpGroupDef[] = [
   {
     id: 'basic',
     title: 'Basic XP',
-    note: 'Applies to every run from the next sync',
+    note: 'Applies to runs logged or synced after you save',
     fields: [
       { key: 'xpPerRun', label: 'XP per run', kind: 'int', editable: true },
       { key: 'xpPerKm', label: 'XP per km', kind: 'int', editable: true },
-      { key: 'minKmForRun', label: 'Min km for run', kind: 'decimal', editable: true },
-      { key: 'minKmForStreak', label: 'Min km for streak', kind: 'decimal', editable: false },
+      { key: 'minKmForRun', label: 'Min km for base XP', kind: 'decimal', editable: true },
       { key: 'minRunDate', label: 'Min run date', kind: 'date', editable: false },
     ],
   },
@@ -99,7 +99,7 @@ export function isValidMultiplier(value: number): boolean {
  */
 export function findSettingsProblem(settings: AdminSettings): string | null {
   const numbers = [
-    settings.xpPerRun, settings.xpPerKm, settings.minKmForRun, settings.minKmForStreak,
+    settings.xpPerRun, settings.xpPerKm, settings.minKmForRun,
     settings.bonus5km, settings.bonus10km, settings.bonus15km, settings.bonus20km,
     ...Object.values(settings.multipliers),
   ];

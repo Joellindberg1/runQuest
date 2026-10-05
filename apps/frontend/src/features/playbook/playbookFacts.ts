@@ -5,6 +5,9 @@
 /** Hur ofta Strava synkas (scheduler/stravaSync.ts: SYNC_INTERVAL_MINUTES). */
 export const STRAVA_SYNC_MINUTES = 30;
 
+/** Vilka Strava-typer som importeras (routes/strava.ts: RUNNING_SPORT_TYPES); löpband följer med och märks via `trainer`. */
+export const STRAVA_RUN_TYPES_LABEL = 'Run, Trail Run and Virtual Run';
+
 /**
  * Deltagarevent. Namnen är produktionens (engelska — verifierat mot prod 2026-10-05; migration 025/029 seedar dem), siffrorna migration
  * 017/022/024/028. Timmar = Stockholm-tid, `to` = sluttimme (end_hour).

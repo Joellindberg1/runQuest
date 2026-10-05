@@ -81,14 +81,14 @@ export function XpSettingsPanel({
               ))}
             </ul>
             {group.id === 'basic' && (
-              <p className="rq-admin-group__aside">Streak minimum and run date are fixed in the app for now — they are shown, not saved.</p>
+              <p className="rq-admin-group__aside">The run date is fixed in the app for now — it is shown, not saved. Streaks count every run, at any distance.</p>
             )}
           </section>
         ))}
 
         <section className="rq-card rq-card--edge rq-admin-group" aria-labelledby="admin-group-streak">
           <h2 id="admin-group-streak" className="rq-title rq-admin-group__title">Streak multipliers</h2>
-          <p className="rq-admin-group__note">Consecutive days with a qualifying run</p>
+          <p className="rq-admin-group__note">Consecutive days with at least one run, any distance</p>
           <ul className="rq-admin-rows">
             {rows.map((row) => {
               const id = `admin-multiplier-${row.days}`;

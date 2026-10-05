@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.5.2 — Restsidorna i ny design, Feature & Version och versionsmekanik (2026-10-05)
+## v0.5.2 — Restsidorna i ny design, Feature & Version och versionsmekanik (2026-10-06)
 
 ### Nytt
 - **Playbook** omskriven i designspråket (`features/playbook/`) och faktagranskad mot
@@ -26,6 +26,12 @@
   Användarversioner har tre delar (`0.5.2`), interna fyra (`0.5.0.1`).
 
 ### Ändrat
+- Settings sa att bara Strava-typen Run importeras (och nya texten att löpband måste loggas
+  för hand); koden importerar Run, Trail Run och Virtual Run, löpband inräknat. Texten
+  läser nu samma konstanter som Playbook (`playbookFacts.ts`) och låses av faktatestet.
+- Admin: det påhittade fältet "Min km for streak" är borttaget (streaken har ingen
+  distansgräns); `min_run_distance` heter "Min km for base XP". Playbook nämner att en
+  duell-boost är undantaget från "samma distans, samma XP".
 - `apps/frontend/src/data/changelog.json` är nu ENDA källan för det gruppen ser:
   `{ features, workingOn, releases }`. Posterna har valfritt `announce: true`;
   onboarding-kön och popupen läser annonserade poster därifrån (slug

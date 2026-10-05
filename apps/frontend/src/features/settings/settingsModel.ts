@@ -1,5 +1,6 @@
 import { formatAgo, formatIn, formatLongDate } from '@/features/log/logFormat';
 import { validatePassword } from '@/shared/utils/validation';
+import { STRAVA_RUN_TYPES_LABEL, STRAVA_SYNC_MINUTES } from '@/features/playbook/playbookFacts';
 
 // Settings-skärmens vymodeller: Strava-kortet ur /strava/status + /strava/last-sync, den senaste synken som en rad, och
 // lösenordsbytets validering (samma regler som tidigare: alla fält, lika lösenord, minst 6 tecken). Ren logik — ingen DOM.
@@ -43,9 +44,9 @@ export interface StravaCardView {
   renewal: { tone: Tone; text: string } | null;
 }
 
-const RULES = [
-  'Your Strava runs are imported automatically every 30 minutes.',
-  'Only running activities (type Run) are imported.',
+export const STRAVA_IMPORT_RULES = [
+  `Your Strava runs are imported automatically every ${STRAVA_SYNC_MINUTES} minutes.`,
+  `Only running activities are imported (${STRAVA_RUN_TYPES_LABEL}), treadmill runs included.`,
   'Duplicate activities are filtered out.',
 ];
 
@@ -91,7 +92,7 @@ export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput
   }
   const lastTone: Tone = sync?.last_sync_attempt ? 'up' : 'muted';
   return {
-    state: 'connected', tone: 'up', chip: 'Connected', renewal, rules: RULES,
+    state: 'connected', tone: 'up', chip: 'Connected', renewal, rules: STRAVA_IMPORT_RULES,
     lead: 'Your Strava connection is active and tokens are renewed as needed.',
     meta: [
       { key: 'connected', label: 'Connected', value: connectedOn(status.connection_date), tone: 'up' },
