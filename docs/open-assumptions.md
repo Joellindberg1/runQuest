@@ -109,11 +109,17 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   nya datumformat använder egna månadsnamn (eventsFormat gör rätt; titleFormat
   använder en-GB och är stabil i test men kan skilja mellan miljöer).
 
-## Backend-kontraktsfrågor (samlas till nästa data-inkrement)
-0. **Datumvalideringen i `POST /runs` jämför mot serverns UTC-"idag"** —
-   mellan 00:00 och ~02:00 svensk tid nekas dagens datum som framtid (klienten
-   räknar Stockholm, serverfelet visas graciöst). Backend bör validera mot
-   Stockholm-dagen (dateUtils).
+## Backend-kontraktsfrågor
+LÖSTA i i9-dataspåret 2026-10-05: fråga 0 (Stockholm-datumvalidering + avvisade
+ogiltiga kalenderdagar), fråga 6 (`source` i users-with-runs; frontend ska
+blockera Delete för `'strava'` och tolka null som manual), fråga 7
+(PUT kvalificerar event med dagsfönster; DELETE medvetet utan anrop —
+en radering kan inte skapa kvalificering och avkvalificering vore en
+regeländring; dessutom svarar DELETE nu 409 för kvalificerande rundor).
+NYTT känt (orört): bakdaterad POST kan kvalificera ett pågående event
+(POST/Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
+Backendens init-logger skriver ut service-nyckelns PREFIX i loggen — ta bort
+raden (liten städfix, nästa backend-runda).
 1. `group-stats` flaggar `has_pending_challenge` bara för utmanaren — en medlem
    med inkommande väntande utmaning ser ledig ut i send-sheeten (400 visas
    graciöst). Vill ha: flagga även mottagarsidan.

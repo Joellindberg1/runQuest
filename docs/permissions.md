@@ -20,6 +20,7 @@ att sänka kraven.
 | Push till `main` | Triggar Railway-deploy av BÅDA tjänsterna = produktionsdeploy. Kräver grön verifiering lokalt (backend-tester + frontend-build) före push |
 | Ändra Railway-variabler för tjänsterna | **ask**; hemliga värden (secret keys) klistras aldrig i chatt/kod — ägaren lägger in dem i Railway-UI:t själv |
 | Radera data i produktion (users/runs/etc.) | **ask**, alltid med exakt omfattning angiven |
+| Backfill-skript mot produktion (`backfill:activity-log` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
 | Force-push | **never_allowed** |
 | Hemligheter i kod eller committade filer | **never_allowed** — env-variabler är enda vägen (lärdom: PAT- och service role-läckorna, åtgärdade 2026-10-03/04) |
 
