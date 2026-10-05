@@ -93,7 +93,7 @@ describe('den riktiga changelog.json', () => {
   });
 
   it('innehåller inga tekniska termer som gruppen inte har nytta av (docs/dokumentation.md: enkel engelska)', () => {
-    const text = JSON.stringify(changelog.releases.filter((entry) => entry.version.startsWith('2.')));
+    const text = JSON.stringify(changelog.releases.filter((entry) => compare(entry.version, '0.5.0') >= 0)); // äldre poster (v0.1–0.4) är skrivna före riktlinjerna
     expect(text).not.toMatch(/\b(migration|endpoint|backend|refactor)\b/i);
     expect(text).not.toMatch(/\b(API|Caddy|CI)\b/); // skiftlägeskänsligt: "capital"/"rapid" är inte tekniska termer
   });

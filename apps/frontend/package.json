@@ -1,7 +1,7 @@
 {
   "name": "@runquest/frontend",
   "private": true,
-  "version": "2.2.0",
+  "version": "0.5.2",
   "type": "module",
   "scripts": {
     "dev": "vite",

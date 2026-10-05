@@ -20,7 +20,7 @@ en gång per användare. Versionsnumret och datumet överst är den senaste post
 
 - **En källa, tre läsare:** sidan, popupen och onboarding-kön (`useOnboardingQueue`, `OnboardingOrchestrator`) läser alla `changelog.json` via `changelogData`.
   Ett guard-test låser att ingen annan fil importerar JSON-filen och att `patchNotes.ts`/`changelogHelpers.ts` inte kommer tillbaka.
-- **`announce` = popup.** Slugen (`patch_v2.0.0`) sparas som "sett" i onboarding-tabellen när användaren trycker Got it/✕/Escape. Ändra aldrig slugen för en redan släppt
+- **`announce` = popup.** Slugen (`patch_v0.5.0`) sparas som "sett" i onboarding-tabellen när användaren trycker Got it/✕/Escape. Ändra aldrig slugen för en redan släppt
   version (alla skulle få popupen igen); en omskriven post som alla ska se igen får en ny version. Kön visar annonserade poster nyaste först, en i taget, efter första-inloggningstouren.
 - **Versionsvakten** (`scripts/check-versions.mjs`, CI-steget "Version guard") fäller bygget om ordningen, semver, datumformatet, typen, `announce` utan ändringar eller
   rubrikerna i CHANGELOG.md inte stämmer. Poster äldre än CHANGELOG.md:s äldsta rubrik (v0.x) finns bara i changelog.json och kräver ingen rubrik.

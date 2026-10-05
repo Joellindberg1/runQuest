@@ -18,7 +18,7 @@ export const CHANGE_KIND: Record<ChangeKind, { label: string; icon: RQIconName }
 /** Nyaste först är kontraktet (versionsvakten kräver det), så den första posten är den senaste. */
 export const latestRelease = (releases: readonly Release[]): Release | undefined => releases[0];
 
-/** "Version 2.2.0 · released 5 October 2026" — versaliseringen sköter CSS. Tom sträng utan poster. */
+/** "Version 0.5.2 · released 5 October 2026" — versaliseringen sköter CSS. Tom sträng utan poster. */
 export const versionLine = (release: Release | undefined): string =>
   release ? `Version ${release.version} · released ${release.date}` : '';
 

@@ -80,8 +80,8 @@
   ],
   "releases": [
     {
-      "version": "2.2.0",
-      "type": "minor",
+      "version": "0.5.2",
+      "type": "patch",
       "date": "5 October 2026",
       "title": "The new look reaches the rest of the app",
       "changes": [
@@ -100,50 +100,30 @@
       ]
     },
     {
-      "version": "2.1.1",
+      "version": "0.5.1",
       "type": "patch",
       "date": "5 October 2026",
-      "title": "A gold dot for unread news",
-      "changes": [
-        {
-          "type": "improvement",
-          "description": "Unread Pack News has a gold dot, on the time, in the feed and in the bell."
-        }
-      ]
-    },
-    {
-      "version": "2.1.0",
-      "type": "minor",
-      "date": "5 October 2026",
-      "title": "All your titles on the Board",
-      "changes": [
-        {
-          "type": "improvement",
-          "description": "On your phone, the Board shows every title a runner has on display (up to three) under their name, on every rank."
-        },
-        {
-          "type": "improvement",
-          "description": "From 4th place down, the cards show level and XP progress to the next level, just like the podium."
-        }
-      ]
-    },
-    {
-      "version": "2.0.1",
-      "type": "patch",
-      "date": "5 October 2026",
-      "title": "No more clearing your cache",
+      "title": "Smoother updates, news dot and all your titles",
       "changes": [
         {
           "type": "bugfix",
-          "description": "Fixed a blank white page that could appear after an update. The app now picks up new versions by itself. If you still see the old page, reload once."
+          "description": "Fixed a blank white page that could appear after an update. The app now picks up new versions by itself, with no cache clearing needed. If you still see the old page, reload once."
+        },
+        {
+          "type": "improvement",
+          "description": "Unread Pack News has a gold dot, on the time, in the feed and in the bell."
+        },
+        {
+          "type": "improvement",
+          "description": "On your phone, the Board shows every title a runner has on display (up to three) under their name, on every rank, and from 4th place down the cards show level and XP progress like the podium."
         }
       ]
     },
     {
-      "version": "2.0.0",
-      "type": "major",
+      "version": "0.5.0",
+      "type": "minor",
       "date": "5 October 2026",
-      "title": "RunQuest 2 — the redesign",
+      "title": "The redesign",
       "announce": true,
       "changes": [
         {

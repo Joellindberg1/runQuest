@@ -1,14 +1,16 @@
 #!/usr/bin/env node
-// Versionsvakt (docs/dokumentation.md, "Versioner"): ett nummer för hela appen, och det som gruppen ser
-// (changelog.json) ska hänga ihop med det utvecklarna ser (CHANGELOG.md, package.json).
+// Versionsvakt (docs/dokumentation.md, "Versioner"): användarversioner har tre delar (0.MINOR.PATCH) och är det gruppen ser
+// (changelog.json, package.json); interna versioner har fyra delar (0.5.0.1) och finns bara i CHANGELOG.md och git-taggar, tills de
+// rullas ihop till nästa användarversion.
 //
 // Regler:
-//  1. rotens package.json version == apps/frontend/package.json version == översta `## vX.Y.Z` i CHANGELOG.md
-//  2. changelog.json: versionerna är giltig semver, strikt fallande, den översta <= package-versionen
-//  3. varje version i changelog.json som ligger inom CHANGELOG.md:s spann (>= dess äldsta rubrik) finns som rubrik där
-//     (v0.x är äldre än CHANGELOG.md och finns bara i changelog.json)
-//  4. poster med `announce` har minst en ändring
-//  + formen: typ följer versionsnumret, datum "5 October 2026", ändringstyper, features/workingOn
+//  1. rotens package.json version == apps/frontend/package.json version == de tre första delarna av översta `## v...` i CHANGELOG.md
+//     (`v0.5.1.2` -> 0.5.1, `v0.5.2` -> 0.5.2)
+//  2. CHANGELOG.md-rubriker: `vX.Y.Z` eller `vX.Y.Z.N` (N >= 1), strikt fallande (en fyrdelad sorteras efter sin tredelade bas)
+//  3. changelog.json: endast tredelade versioner, strikt fallande, den översta <= package-versionen, och varje version som ligger inom
+//     CHANGELOG.md:s spann (>= dess äldsta rubrik) finns som rubrik där (äldre versioner finns bara i changelog.json)
+//  4. poster med `announce` har minst en ändring; typ följer versionsnumret, datum "5 October 2026", ändringstyper, features/workingOn
+//  5. inga förreleaser (-rc.1); rubriker i kodstaket i CHANGELOG.md räknas inte
 //
 // Inga beroenden (körs före `npm ci`). Logiken är en ren funktion (checkVersions) — CLI:t längst ned är ett tunt skal.
 import { readFileSync, realpathSync } from 'node:fs';
@@ -16,9 +18,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-// Hela versionstoken efter 'v' inklusive ett eventuellt förreleasesuffix, så att '## v2.3.0-rc.1' aldrig läses som 2.3.0.
-const HEADING = /^##[ \t]+v(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]*)?)(?![0-9A-Za-z.+-])/gm;
-const PRERELEASE = /^\d+\.\d+\.\d+[-+][0-9A-Za-z.+-]*$/;
+// Hela versionstoken efter 'v' (alla punktade delar + ett eventuellt förreleasesuffix), så att '## v0.6.0-rc.1' aldrig läses som 0.6.0.
+const HEADING = /^##[ \t]+v(\d+(?:\.\d+)+(?:[-+][0-9A-Za-z.+-]*)?)(?![0-9A-Za-z.+-])/gm;
+const PRERELEASE = /^\d+(?:\.\d+)+[-+][0-9A-Za-z.+-]*$/;
+const FOUR_PARTS = /^\d+\.\d+\.\d+\.\d+$/;
+const HEADING_VERSION = /^(\d+\.\d+\.\d+)(?:\.([1-9]\d*))?$/;
 const FENCE = /^ {0,3}(```|~~~)/;
 const MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December';
 const DATE = new RegExp(`^\\d{1,2} (${MONTHS}) \\d{4}$`);
@@ -48,11 +52,32 @@ export const releaseTypeOf = (version) => {
 const isText = (value) => typeof value === 'string' && value.trim() !== '';
 const label = (release, index) => (isText(release?.version) ? `changelog.json ${release.version}` : `changelog.json releases[${index}]`);
 
-/** Förklaring till en version som inte är ren X.Y.Z — förreleaser får ett eget, tydligt besked. */
-const notSemver = (version) =>
-  typeof version === 'string' && PRERELEASE.test(version)
-    ? `version ${JSON.stringify(version)} är en förrelease — förreleaser stöds inte, använd ren X.Y.Z (t.ex. ${version.split(/[-+]/)[0]}).`
-    : `version ${JSON.stringify(version)} är inte giltig semver (X.Y.Z).`;
+/**
+ * En rubrikversion: `X.Y.Z` (användarversion) eller `X.Y.Z.N` med N >= 1 (intern). Returnerar den tredelade basen och N (0 för tredelad),
+ * eller null om formen är fel (femdelad, N = 0, inledande nollor, ...).
+ */
+export const parseHeadingVersion = (token) => {
+  const match = typeof token === 'string' ? HEADING_VERSION.exec(token) : null;
+  return match && parseSemver(match[1]) ? { base: match[1], n: match[2] ? Number(match[2]) : 0 } : null;
+};
+
+/** Negativt om a < b: basen först, sedan intern räknare (v0.5.0.1 > v0.5.0). */
+export const compareHeadings = (a, b) => {
+  const [pa, pb] = [parseHeadingVersion(a), parseHeadingVersion(b)];
+  return compareSemver(pa.base, pb.base) || pa.n - pb.n;
+};
+
+/** Förklaring till en användarversion som inte är ren X.Y.Z — förreleaser och fyrdelade får egna, tydliga besked. */
+const notSemver = (version) => {
+  const shown = `version ${JSON.stringify(version)}`;
+  if (typeof version === 'string' && PRERELEASE.test(version)) {
+    return `${shown} är en förrelease — förreleaser stöds inte, använd ren X.Y.Z (t.ex. ${version.split(/[-+]/)[0]}).`;
+  }
+  if (typeof version === 'string' && FOUR_PARTS.test(version)) {
+    return `${shown} har fyra delar — användarversioner har tre (X.Y.Z). Fyrdelade versioner är interna och hör bara hemma i CHANGELOG.md och git-taggar.`;
+  }
+  return `${shown} är inte giltig semver (X.Y.Z).`;
+};
 
 /** Markdown utan kodstaket (``` / ~~~): rubriker i exempelkod är inte releaser. */
 const withoutCodeFences = (markdown) => {
@@ -71,19 +96,22 @@ const withoutCodeFences = (markdown) => {
 
 function checkChangelogMd(markdown, packageVersion, errors) {
   const found = [...withoutCodeFences(markdown).matchAll(HEADING)].map((match) => match[1]);
-  for (const version of found.filter((candidate) => !parseSemver(candidate))) {
-    errors.push(`CHANGELOG.md: rubriken '## v${version}' är en förrelease — förreleaser stöds inte, använd ren X.Y.Z.`);
+  const headings = [];
+  for (const token of found) {
+    if (parseHeadingVersion(token)) headings.push(token);
+    else if (PRERELEASE.test(token)) errors.push(`CHANGELOG.md: rubriken '## v${token}' är en förrelease — förreleaser stöds inte, använd ren X.Y.Z.`);
+    else errors.push(`CHANGELOG.md: rubriken '## v${token}' har fel form — använd vX.Y.Z (användarversion) eller vX.Y.Z.N med N >= 1 (intern version).`);
   }
-  const headings = found.filter((candidate) => parseSemver(candidate));
   if (headings.length === 0) {
-    errors.push("CHANGELOG.md: hittar ingen rubrik av formen '## vX.Y.Z'.");
+    errors.push("CHANGELOG.md: hittar ingen rubrik av formen '## vX.Y.Z' eller '## vX.Y.Z.N'.");
     return headings;
   }
-  if (headings[0] !== packageVersion) {
-    errors.push(`CHANGELOG.md: översta rubriken är v${headings[0]}, men package.json har ${packageVersion}. Lägg en '## v${packageVersion}'-post överst (eller rätta versionen).`);
+  const topBase = parseHeadingVersion(headings[0]).base;
+  if (topBase !== packageVersion) {
+    errors.push(`CHANGELOG.md: översta rubriken är v${headings[0]}, vars tre första delar (${topBase}) ska vara package.json-versionen ${packageVersion}. Lägg en '## v${packageVersion}'-post överst (eller rätta versionen i package.json).`);
   }
   for (let index = 1; index < headings.length; index += 1) {
-    if (compareSemver(headings[index - 1], headings[index]) <= 0) {
+    if (compareHeadings(headings[index - 1], headings[index]) <= 0) {
       errors.push(`CHANGELOG.md: rubrikerna ska vara strikt fallande, men v${headings[index]} står efter v${headings[index - 1]}.`);
     }
   }
@@ -184,10 +212,11 @@ export function checkVersions({ rootVersion, frontendVersion, changelogMd, chang
   }
 
   if (headings.length > 0) {
-    const oldest = headings.reduce((lowest, version) => (compareSemver(version, lowest) < 0 ? version : lowest));
+    const oldest = headings.reduce((lowest, version) => (compareHeadings(version, lowest) < 0 ? version : lowest));
+    const oldestBase = parseHeadingVersion(oldest).base;
     for (const version of valid) {
-      if (compareSemver(version, oldest) >= 0 && !headings.includes(version)) {
-        errors.push(`changelog.json: version ${version} saknar rubrik '## v${version}' i CHANGELOG.md (versioner från v${oldest} och uppåt ska finnas där).`);
+      if (compareSemver(version, oldestBase) >= 0 && !headings.includes(version)) {
+        errors.push(`changelog.json: version ${version} saknar rubrik '## v${version}' i CHANGELOG.md (användarversioner från v${oldestBase} och uppåt ska finnas där).`);
       }
     }
   }

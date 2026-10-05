@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
 import FeaturesPage from './FeaturesPage';
 import { changelog } from '@/features/changelog/changelogData';
+import { RELEASE_TYPE_LABEL } from '@/features/changelog/changelogModel';
 import { renderWithApp } from '@/test/renderApp';
 
 const MOBILE = 390;
@@ -74,9 +75,9 @@ describe('Feature & Version — Releases', () => {
     expect(rows[0]).toHaveTextContent(`v${latest.version}`);
     expect(rows[0]).toHaveTextContent(latest.title);
     expect(rows[0]).toHaveTextContent(latest.date);
-    expect(rows[0]).toHaveTextContent(/Minor/);
+    expect(rows[0]).toHaveTextContent(RELEASE_TYPE_LABEL[latest.type]);
     // Äldre poster (v0.x) visas kvar — historiken försvinner inte
-    expect(rows[rows.length - 1]).toHaveTextContent('v0.1.0');
+    expect(rows[rows.length - 1]).toHaveTextContent('v' + changelog.releases[changelog.releases.length - 1].version);
   });
 
   it('den senaste börjar öppen och listar sina ändringar med typ och text', () => {
