@@ -507,6 +507,21 @@
   --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
   --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
   --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
+  /* ── 1.29 Changelog-mått (inkrement 11) ────────────────────────────────────
+     Mått ur Web Prototypens Feature & Version (kortgrid, release-rader) + "What's new"-popupen. Endast mått — ingen typskala (raderna
+     snappar till textstegen) och inga färger. Mobil = standard (prototypen saknar mobilvy: samma kort i en kolumn, releaseraden och
+     ändringsraden bryter om); desktop skriver över i avsnitt 2. Releaseraden och ändringsraden är rutnät med namngivna områden.
+     Konsumenter: features/changelog/changelog.css + features/onboarding/whatsNew.css. */
+  --rq-changelog-grid-cols: minmax(0, 1fr);                           /* Features: ett kort per rad (desktop 3 kolumner) */
+  --rq-changelog-working-cols: minmax(0, 1fr);                        /* Working on (desktop 2 kolumner) */
+  --rq-changelog-release-cols: auto minmax(0, 1fr) auto;              /* tagg · version · växla (desktop: tagg · version · titel · datum · växla) */
+  --rq-changelog-release-areas: "tag version toggle" "title title title" "date date date";  /* desktop: allt på en rad */
+  --rq-changelog-release-gap: 4px 10px;                               /* rad · kolumn (desktop 0 13px) */
+  --rq-changelog-change-cols: 20px minmax(0, 1fr);                    /* ikon · typ + text (desktop 20 · 92 · 1fr) */
+  --rq-changelog-change-areas: "icon kind" "icon text";               /* desktop: "icon kind text" */
+  --rq-changelog-change-align: start;                                 /* desktop center */
+  --rq-changelog-change-gap: 2px 10px;                                /* rad · kolumn (desktop 0 12px) */
+  --rq-whatsnew-w: 440px;                                             /* "What's new"-modalen (en kolumn på alla bredder; krymper till 95 % av skärmen) */
 }
 
 
@@ -636,6 +651,15 @@
     --rq-news-row-pad-y: 12px;
     --rq-news-row-pad-x: 16px;
     --rq-news-badge: 15px;
+    --rq-changelog-grid-cols: repeat(3, minmax(0, 1fr));
+    --rq-changelog-working-cols: repeat(2, minmax(0, 1fr));
+    --rq-changelog-release-cols: auto auto minmax(0, 1fr) auto auto;
+    --rq-changelog-release-areas: "tag version title date toggle";
+    --rq-changelog-release-gap: 0 13px;
+    --rq-changelog-change-cols: 20px 92px minmax(0, 1fr);
+    --rq-changelog-change-areas: "icon kind text";
+    --rq-changelog-change-align: center;
+    --rq-changelog-change-gap: 0 12px;
   }
 }
 

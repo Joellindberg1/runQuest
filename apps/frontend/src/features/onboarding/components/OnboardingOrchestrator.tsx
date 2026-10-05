@@ -5,14 +5,15 @@ import { useOnboardingQueue } from '../hooks/useOnboardingQueue';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { PatchNotesModal } from './PatchNotesModal';
 import { OnboardingTour } from './OnboardingTour';
-import { PATCH_NOTES } from '../patchNotes';
+import { changelog } from '@/features/changelog/changelogData';
+import { announcedNotes } from '@/features/changelog/changelogModel';
 import { ONBOARDING_V1_STEPS } from '../onboardingSteps';
 
 // Inner component: knows which slug to show, handles markSeen
 function OnboardingItem({ slug }: { slug: string }) {
   const { markSeen } = useOnboarding(slug);
 
-  const patchNote = PATCH_NOTES.find(n => n.slug === slug);
+  const patchNote = announcedNotes(changelog.releases).find(n => n.slug === slug);
   const isKnownSlug = !!patchNote || slug === 'onboarding_v1' || slug.startsWith('tour_');
 
   // Truly unknown slug — mark as seen so queue advances (never call mutations during render).
