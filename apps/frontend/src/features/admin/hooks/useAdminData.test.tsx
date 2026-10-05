@@ -9,7 +9,6 @@ const api = vi.hoisted(() => ({
   updateStreakMultipliers: vi.fn(),
 }));
 vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 
 import { useAdminData } from './useAdminData';
 
@@ -52,5 +51,35 @@ describe('useAdminData — Save får aldrig skriva över prod-trappan med standa
     expect(result.current.settingsLoaded).toBe(false);
     await act(() => result.current.handleSaveSettings());
     expect(api.updateStreakMultipliers).not.toHaveBeenCalled();
+  });
+});
+describe('useAdminData — inläsning och spärr före Save', () => {
+  it('ett sparat 0 läses in som 0, inte som standardvärdet (?? i stället för ||)', async () => {
+    api.getAdminSettings.mockResolvedValue({ success: true, data: { ...SETTINGS, bonus_5km: 0, bonus_10km: 0, xp_per_km: 0 } });
+    api.getStreakMultipliers.mockResolvedValue({ success: true, data: [{ days: 5, multiplier: 1.1 }] });
+    const { result } = renderHook(() => useAdminData());
+    await waitFor(() => expect(result.current.settingsLoaded).toBe(true));
+    expect(result.current.settings).toMatchObject({ bonus5km: 0, bonus10km: 0, xpPerKm: 0 });
+    // …och bonus_15km som INTE är 0 behålls
+    expect(result.current.settings.bonus15km).toBe(25);
+  });
+
+  it('saknade fält (null/undefined) faller tillbaka på standardvärdet', async () => {
+    api.getAdminSettings.mockResolvedValue({ success: true, data: { ...SETTINGS, bonus_20km: null, base_xp: undefined } });
+    api.getStreakMultipliers.mockResolvedValue({ success: true, data: [{ days: 5, multiplier: 1.1 }] });
+    const { result } = renderHook(() => useAdminData());
+    await waitFor(() => expect(result.current.settingsLoaded).toBe(true));
+    expect(result.current.settings).toMatchObject({ bonus20km: 50, xpPerRun: 15 });
+  });
+
+  it('en ogiltig trappa (utanför 1–9.99) skickar ingenting — varken inställningarna eller trappan', async () => {
+    api.getStreakMultipliers.mockResolvedValue({ success: true, data: [{ days: 5, multiplier: 12.5 }] });
+    const { result } = renderHook(() => useAdminData());
+    await waitFor(() => expect(result.current.settingsLoaded).toBe(true));
+
+    await act(() => result.current.handleSaveSettings());
+    expect(api.updateAdminSettings).not.toHaveBeenCalled();
+    expect(api.updateStreakMultipliers).not.toHaveBeenCalled();
+    expect(result.current.notices.settings?.error).toMatch(/must be between 1 and 9.99/);
   });
 });

@@ -134,7 +134,9 @@ describe('auth', () => {
   it('utloggad på /login ser login direkt (inte Landing)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/login', user: null, width: MOBILE });
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    // Inloggningen har sin egen h1 (Sign in); Landingens rubrik får inte synas.
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeNull();
   });
 
   it('utloggad på /?tab=titles ser Landing (ingen redirect till login eller /titles)', async () => {
