@@ -7,7 +7,6 @@ import { PatchNotesModal } from './PatchNotesModal';
 import { OnboardingTour } from './OnboardingTour';
 import { PATCH_NOTES } from '../patchNotes';
 import { ONBOARDING_V1_STEPS } from '../onboardingSteps';
-import { sidebarBridge } from '../sidebarBridge';
 
 // Inner component: knows which slug to show, handles markSeen
 function OnboardingItem({ slug }: { slug: string }) {
@@ -28,15 +27,10 @@ function OnboardingItem({ slug }: { slug: string }) {
     return <PatchNotesModal note={patchNote} onClose={() => markSeen()} />;
   }
 
-  // First-login tour — open sidebar on mobile so nav elements are visible
+  // First-login tour — ankarna ägs av app-skalet (ADR 006 beslut 8)
   if (slug === 'onboarding_v1') {
     return (
-      <OnboardingTour
-        steps={ONBOARDING_V1_STEPS}
-        onDone={() => markSeen()}
-        beforeStart={() => { if (window.innerWidth < 768) sidebarBridge.open(); }}
-        afterEnd={() => { if (window.innerWidth < 768) sidebarBridge.close(); }}
-      />
+      <OnboardingTour steps={ONBOARDING_V1_STEPS} onDone={() => markSeen()} />
     );
   }
 

@@ -5,16 +5,30 @@ Uppdaterad: 2026-10-04 (kväll) av lead-orchestrator (enda skribent — beslut 2
 Produkt          ← live på runquest.dev, 6 aktiva användare (DB-verifierat).
                    Kända gap mot Produkt-nivån: Sentry saknas, ingen staging-DB
                    (öppet vägval, se ADR-förslagen i docs/STATE-proposal.md).
+Pågående: redesign på `redesign/integration` (plan: docs/design/redesign-plan.md).
+                   Inkrement 0–8 mergade och integrationskritiker-godkända (i8 efter fixrunda i8b)
+                   (tema/tokens, skal+login, Board, Runner card, Titles, Duels,
+                   Events) + alla ADR 007-dataendpoints. i5b: cachefix
+                   Runner↔Duels + ShellErrorBoundary. i6: skal och Events delar
+                   EN events-query (getEvents borta) och klock-regeln eventPhase;
+                   i6b: skalet visar tävling utan entry ("Not entered").
+                   i7 Log mergad (XP-preview via shared-formeln, group history,
+                   Strava-queries delade i shared/hooks). i8 Profile mergad (heatmap, delad Frodo-väg, edit/delete + full invalideringskedja via runEffects, toast-sanering). i10+i10b Landing mergad och integrationskritiker-godkänd (publik /, dummy-data; login-felvisning och onboarding-cachen fixade på vägen). ÄGARBESLUT 2026-10-04: migration 034 GODKÄND. i9-dataspåret MERGAT och critic-data-godkänt (activity_log live i prod med RLS-bevis, news-API, backfill dry-run: 26 rader väntar ägarens --apply, 409-raderingsspärr, source-fält, Stockholm-datum). i9 frontend MERGAT (News-skärm, klock-popover, Strava-raderingsblock, 409-text). ALLA 11 INKREMENT BYGGDA och i9-slutintegrationen GODKÄND efter fixrundor i9c+i9d (mobilscroll, tour-gate, news-invalideringar, retract-läkning, cross-user-rensning, JWT 401, nyckellogg). Kvar: deploy-critic, release-preview, ägarens kör vidare, backfill --apply (väntar ägaren, FÖRE main-merge), main-merge.
+                   Antaganden + backend-kontraktsfrågor:
+                   docs/open-assumptions.md (NY — Lead underhåller). Öppna
+                   ägarbeslut: titelkategorier (Finisher/Commuter/Hamster);
+                   boost-panel på mobil-Duels; competition-kortet på Events
+                   (egen design, saknar prototypförlaga).
 
 ## Stack
 - Monorepo, npm workspaces (`apps/*`, `packages/*`), ESM överallt, TypeScript. Ingen ADR motiverar stackvalen (historiska) — retroaktiva ADR:er föreslagna.
 - Frontend `apps/frontend`: React ^18.3, Vite ^7.2 (SWC), Tailwind ^3.4 + shadcn/Radix, TanStack Query ^5, react-router-dom ^6, react-hook-form + zod, recharts, driver.js (onboarding-tour). Dev-port 8080. SPA.
 - Backend `apps/backend`: Express ^5.1, TypeScript ^5.9 (strict), `@supabase/supabase-js` ^2.58 med secret-nyckel (service role), egen JWT-auth (jsonwebtoken + bcryptjs), node-cron ^3.0, helmet, cors. Dev: `tsx watch src/server.ts` (port 3001). Bygge: esbuild → `dist/server.js`.
 - `packages/shared`: XP-formel, boost-tillämpning, level-matematik, streak-/multiplikator-defaults (rena funktioner, 49 tester). Konsumeras av backend OCH frontend (ADR 004); paketets exports pekar på `src/` (ingen dist-byggordning). `packages/types`: `run.ts`-typer, används av frontend.
-- Databas: Supabase Postgres, projekt `yrrqaxdngayakcivfrck` (24 tabeller, RLS på; migration 030 2026-10-04 tog bort anonyma skrivpolicyer). Storage-bucket `profile-pictures`. Enda DB-miljön är prod — ingen staging/preview.
+- Databas: Supabase Postgres, projekt `yrrqaxdngayakcivfrck` (25 tabeller efter migration 034 2026-10-05, RLS på; migration 030 2026-10-04 tog bort anonyma skrivpolicyer). Storage-bucket `profile-pictures`. Enda DB-miljön är prod — ingen staging/preview.
 - Hosting: Railway, två tjänster — runQuest-frontend (www.runquest.dev), runQuest-backend (api.runquest.dev). Deploy vid push till `main`, OBEROENDE av CI (CI är merge-grinden via branch protection, inte deploy-grinden). `NODE_ENV=production` satt på backend-tjänsten (verifierat i Railway).
 - Externa API:er: Strava (OAuth2), Open-Meteo (väder, ingen nyckel).
-- Test/CI: Vitest ^4 (backend 67, packages/shared 35, frontend 0). CI (fixad 2026-10-04): blockerande = backend tsc+build+test, shared-tester, frontend-build; icke-blockerande (känd skuld) = frontend `tsc -b` (~98 fel) + eslint (15 fel/22 varn). Branch protection på main kräver grön CI (admin-undantag finns). Node 20 i CI.
+- Test/CI: Vitest ^4 (backend 446, packages/shared 156, frontend 1249 på redesign/integration). CI: blockerande = backend tsc+build+test, shared-tester, frontend tsc -b + eslint --max-warnings 0 + test + build (skulden betald 2026-10-04). Branch protection på main kräver grön CI (admin-undantag finns). Node 20 i CI.
 - Miljövariabler: backend `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `CORS_ORIGIN`, `NODE_ENV`, `PORT`; frontend `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`. Nycklarna roterade 2026-10-03/04 (gamla verifierat döda, 401); hemligheter aldrig i kod — se docs/permissions.md.
 - Arkitekturdiagram: `docs/architecture/runquest-architecture.json` (SSOT) + renderad `.html` (ej archify-validerad ännu).
 
@@ -83,7 +97,10 @@ Produkt: ny kod kräver tester · hela sviten grön + CI-status före merge ·
          release-preview + användarens "kör vidare" före live · release =
          tagg + changelog · hotfix: direkt till builder-par, full svit + rök
          före deploy (hoppa councils, aldrig verifiering) · error tracking
-         aktiv (Sentry — GAP, ej uppsatt) · previewns databas enligt
-         staging-ADR (GAP, öppet vägval), aldrig prod.
+         aktiv (Sentry — GAP, ej uppsatt) · previewns databas: ÄGARBESLUT
+         2026-10-05 — ingen staging så länge appen har EN testgrupp;
+         preview/verifiering får ske mot prod med testgruppen som testare.
+         OMPRÖVAS när multi-grupp byggs (då krävs staging enligt
+         ursprungsregeln; baslinjen 000_baseline.sql gör den snabb att resa).
          Frontend-typecheck/lint: blockerande, 0 fel/0 varningar (ADR 001,
          skulden betald 2026-10-04).

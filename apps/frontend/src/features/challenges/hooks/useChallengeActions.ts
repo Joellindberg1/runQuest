@@ -1,57 +1,57 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
+import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
+import { HEAD_TO_HEAD_ROOT } from '@/features/runner/hooks/useRunnerQueries';
+import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 
+
+type ApiResult = { success: boolean; error?: string };
+
+/** Backendens fel (`{ success: false, error }`) blir ett kastat Error, så att mutationen får `isError` och ett meddelande. */
+async function unwrap<T extends ApiResult>(call: Promise<T>, fallback: string): Promise<T> {
+  const res = await call;
+  if (!res.success) throw new Error(res.error || fallback);
+  return res;
+}
+
+/**
+ * Skicka, svara på och dra tillbaka utmaningar. Alla fyra ändrar något som flera vyer läser: utmaningarna (inkl. skalets
+ * "Right now"), gruppens tokens/W-D-L i users-with-runs och Runner cards head-to-head ("Challenge live").
+ * Meddelanden till användaren sköts av skärmen (permanenta statusregioner i stället för toast: samma mönster på alla skärmar, och texten finns kvar och läses upp pålitligt), därför kastar mutationerna.
+ */
 export function useChallengeActions() {
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
 
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['challenges'] });
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['challenges'] }),
+      queryClient.invalidateQueries({ queryKey: USERS_WITH_RUNS_QUERY_KEY }),
+      queryClient.invalidateQueries({ queryKey: HEAD_TO_HEAD_ROOT }),
+      // Utmaning skickad/avböjd/återkallad ger (eller tar bort) en rad i Pack News — klockan uppdateras direkt.
+      queryClient.invalidateQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot }),
+    ]);
   };
 
-  const sendToken = async (tokenId: string, opponentId: string): Promise<boolean> => {
-    const res = await backendApi.sendChallenge(tokenId, opponentId);
-    if (!res.success) {
-      toast.error(res.error ?? 'Failed to send challenge');
-      return false;
-    }
-    toast.success('Challenge sent! Waiting for opponent to respond.');
-    invalidate();
-    return true;
-  };
+  const send = useMutation({
+    mutationFn: ({ tokenId, opponentId }: { tokenId: string; opponentId: string }) =>
+      unwrap(backendApi.sendChallenge(tokenId, opponentId), 'Failed to send challenge'),
+    onSuccess: refresh,
+  });
 
-  const acceptChallenge = async (challengeId: string): Promise<boolean> => {
-    const res = await backendApi.respondToChallenge(challengeId, 'accept');
-    if (!res.success) {
-      toast.error(res.error ?? 'Failed to accept challenge');
-      return false;
-    }
-    toast.success('Challenge accepted! Let\'s go!');
-    invalidate();
-    return true;
-  };
+  const accept = useMutation({
+    mutationFn: (challengeId: string) => unwrap(backendApi.respondToChallenge(challengeId, 'accept'), 'Failed to accept challenge'),
+    onSuccess: refresh,
+  });
 
-  const declineChallenge = async (challengeId: string): Promise<boolean> => {
-    const res = await backendApi.respondToChallenge(challengeId, 'decline');
-    if (!res.success) {
-      toast.error(res.error ?? 'Failed to decline challenge');
-      return false;
-    }
-    toast.success('Challenge declined.');
-    invalidate();
-    return true;
-  };
+  const decline = useMutation({
+    mutationFn: (challengeId: string) => unwrap(backendApi.respondToChallenge(challengeId, 'decline'), 'Failed to decline challenge'),
+    onSuccess: refresh,
+  });
 
-  const withdrawChallenge = async (challengeId: string): Promise<boolean> => {
-    const res = await backendApi.withdrawChallenge(challengeId);
-    if (!res.success) {
-      toast.error(res.error ?? 'Failed to withdraw challenge');
-      return false;
-    }
-    toast.success('Challenge withdrawn — token returned.');
-    invalidate();
-    return true;
-  };
+  const withdraw = useMutation({
+    mutationFn: (challengeId: string) => unwrap(backendApi.withdrawChallenge(challengeId), 'Failed to withdraw challenge'),
+    onSuccess: refresh,
+  });
 
-  return { sendToken, acceptChallenge, declineChallenge, withdrawChallenge };
+  return { send, accept, decline, withdraw };
 }

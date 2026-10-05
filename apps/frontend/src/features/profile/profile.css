@@ -1,0 +1,201 @@
+/* Profile (inkrement 8): hjältekort · Frodo's journey · statflikar (Distance/Streak/Fun facts/Consistency) · titlar · rundhistorik
+   med redigera/radera. ENDAST tokens (regel 1). Måtten (--rq-profile-*) definieras i temafilen, sektion 1.26 (index.css +
+   docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Heatmapens steg är --rq-heat-0…4.
+   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+
+/* ── Sida ─────────────────────────────────────────────────────────────────── */
+.rq-profile { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-profile__split { display: grid; grid-template-columns: var(--rq-profile-split-cols); gap: var(--rq-gap-stack) var(--rq-sp-16); align-items: start; }
+.rq-profile__main, .rq-profile__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); min-width: 0; }
+
+/* ── Delat: kortrubrik, anteckning, laddning, live-regioner ───────────────── */
+.rq-profile-head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
+.rq-profile-head__title { margin: 0; font-weight: 400; }
+.rq-profile-head__note { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-head__aside { margin-left: auto; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-head__aside .rq-btn { letter-spacing: var(--rq-ls-btn-sm); }
+.rq-profile-sub { margin: 0 0 var(--rq-sp-8); font-weight: 400; }
+.rq-profile-sub:not(:first-child) { margin-top: var(--rq-sp-14); }
+.rq-profile-note { margin: 0; padding: var(--rq-sp-10); border: var(--rq-hair) dashed var(--rq-line-5); text-align: center; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-profile-loading { display: flex; justify-content: center; padding: var(--rq-sp-16) 0; }
+.rq-profile-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-6); }
+.rq-profile [data-tone="gold"], .rq-profile-sheet [data-tone="gold"] { color: var(--rq-gold-text); }
+.rq-profile [data-tone="up"], .rq-profile-sheet [data-tone="up"] { color: var(--rq-up); }
+.rq-profile [data-tone="down"], .rq-profile-sheet [data-tone="down"] { color: var(--rq-down); }
+.rq-profile [data-tone="muted"], .rq-profile-sheet [data-tone="muted"] { color: var(--rq-text-3); }
+
+/* Bekräftelse och fel: permanenta live-regioner som inte tar plats (eller flex-gap) när de är tomma */
+.rq-profile-notice-slot:empty { height: 0; }
+.rq-profile-notice {
+  margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); font-size: var(--rq-fs-meta); color: var(--rq-text-2);
+  background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w) solid var(--rq-up);
+}
+.rq-profile-notice[data-tone="error"] { border-color: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); border-left-color: var(--rq-down); color: var(--rq-down); }
+
+/* ── Hjältekort: nivåring · namn · rank · rundor · XP kvar · statceller · profilbild ─ */
+.rq-profile-hero {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: var(--rq-profile-hero-areas);
+  column-gap: var(--rq-profile-hero-gap); row-gap: var(--rq-sp-12); align-items: center; padding: var(--rq-pad-card);
+}
+.rq-profile-ring { grid-area: ring; width: var(--rq-profile-ring); height: var(--rq-profile-ring); flex-shrink: 0; }
+.rq-profile-ring > .rq-ring-hole { inset: var(--rq-profile-ring-inset); }
+.rq-profile-ring__level { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-display); color: var(--rq-gold-text); }
+.rq-profile-ring__caption { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-hero__who { grid-area: who; min-width: 0; align-self: end; }
+.rq-profile-hero__name { margin: 0; font-weight: 400; text-transform: uppercase; overflow-wrap: anywhere; }
+.rq-profile-hero__meta { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-profile-hero__xp { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
+
+/* Statceller: Bebas-värde, versal etikett (hårlinjegrid, regel 6) */
+.rq-profile-cells { grid-area: cells; margin: 0; grid-template-columns: var(--rq-profile-stat-cols); align-self: start; }
+.rq-profile-cell { display: flex; flex-direction: column-reverse; justify-content: flex-end; background: var(--rq-cell); padding: var(--rq-sp-8) var(--rq-sp-10); }
+.rq-profile-cell__value { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+.rq-profile-cell__label { margin: 0; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+
+/* Profilbild: liten avatar + "Change photo" (uppladdningen finns kvar; prototypen har ingen yta för den) */
+.rq-profile-photo { grid-area: photo; padding-top: var(--rq-sp-12); border-top: var(--rq-hair) solid var(--rq-line-3); }
+.rq-profile-photo__row { display: flex; align-items: center; gap: var(--rq-sp-10); }
+.rq-profile-photo__avatar { width: var(--rq-avatar-sm); height: var(--rq-avatar-sm); flex-shrink: 0; overflow: hidden; font-size: var(--rq-fs-label); }
+.rq-profile-photo__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.rq-profile-photo__text { flex: 1; min-width: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-photo__button { position: relative; }
+.rq-profile-photo__button:focus-within { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-offset); }
+.rq-profile-photo__button[aria-disabled="true"] { cursor: not-allowed; color: var(--rq-text-5); }
+.rq-profile-photo .rq-profile-notice { margin-top: var(--rq-sp-8); }
+
+/* ── Frodo's journey ──────────────────────────────────────────────────────── */
+.rq-profile-track { position: relative; height: var(--rq-profile-bar-h); margin-bottom: var(--rq-sp-8); }
+.rq-profile-knob, .rq-profile-next {
+  position: absolute; top: 50%; left: var(--w); width: var(--rq-profile-knob); height: var(--rq-profile-knob);
+  transform: translate(-50%, -50%); border-radius: var(--rq-radius-round);
+}
+.rq-profile-knob { background: var(--rq-gold); border: var(--rq-edge-w-thin) solid var(--rq-panel-solid); animation: rqProfileKnob var(--rq-dur-bar) var(--rq-ease-bar) both; }
+/* Nästa checkpoint: ring utan fyllning (Web Prototype) */
+.rq-profile-next { left: var(--x); box-sizing: border-box; background: var(--rq-panel); border: var(--rq-edge-w-thin) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); }
+@keyframes rqProfileKnob { from { left: 0; } to { left: var(--w); } }
+.rq-profile-road { position: relative; height: var(--rq-profile-journey-h); }
+.rq-profile-road .rq-profile-track { position: absolute; left: 0; right: 0; top: var(--rq-profile-journey-bar-top); margin: 0; }
+.rq-profile-wp__label, .rq-profile-wp__tick { position: absolute; left: var(--x); }
+.rq-profile-wp__label { transform: translateX(-50%); white-space: nowrap; font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); color: var(--rq-text-4); }
+.rq-profile-wp__label[data-tier="1"] { font-weight: 600; color: var(--rq-text-3); }
+.rq-profile-wp__label[data-row="0"] { top: calc(var(--rq-profile-journey-bar-top) - var(--rq-profile-journey-row-1) - var(--rq-profile-journey-label-h)); }
+.rq-profile-wp__label[data-row="1"] { top: calc(var(--rq-profile-journey-bar-top) - var(--rq-profile-journey-row-2) - var(--rq-profile-journey-label-h)); }
+.rq-profile-wp__tick { width: var(--rq-hair); pointer-events: none; background: linear-gradient(to bottom, rgb(var(--rq-gold-rgb) / .22), rgb(var(--rq-gold-rgb) / .45)); }
+.rq-profile-wp__tick[data-tier="1"] { background: linear-gradient(to bottom, rgb(var(--rq-gold-rgb) / .5), rgb(var(--rq-gold-rgb) / .8)); }
+.rq-profile-wp__tick[data-row="0"] { top: calc(var(--rq-profile-journey-bar-top) - var(--rq-profile-journey-row-1)); height: var(--rq-profile-journey-row-1); }
+.rq-profile-wp__tick[data-row="1"] { top: calc(var(--rq-profile-journey-bar-top) - var(--rq-profile-journey-row-2)); height: var(--rq-profile-journey-row-2); }
+.rq-profile-road__end { position: absolute; top: var(--rq-profile-journey-ends-top); font-size: var(--rq-fs-label); font-weight: 700; letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-road__end[data-end="start"] { left: 0; }
+.rq-profile-road__end[data-end="finish"] { right: 0; }
+.rq-profile-road__end[data-overview="true"][data-end="start"] { color: var(--rq-up); }
+.rq-profile-road__end[data-overview="true"][data-end="finish"] { color: var(--rq-down); }
+.rq-profile-journey__sum { display: flex; justify-content: space-between; gap: var(--rq-sp-12); margin: var(--rq-sp-10) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-profile-journey__sum + .rq-profile-journey__sum { margin-top: var(--rq-sp-2); }
+.rq-profile-journey__em { color: var(--rq-text-2); }
+.rq-profile-journey__sum[data-next="true"] .rq-profile-journey__em { color: var(--rq-gold-text); }
+.rq-profile-journey__sum[data-done="true"] { color: var(--rq-gold-text); }
+.rq-profile-journey__pin { display: inline-block; box-sizing: border-box; width: var(--rq-sp-10); height: var(--rq-sp-10); margin-right: var(--rq-sp-6); border-radius: var(--rq-radius-round); background: var(--rq-gold); }
+.rq-profile-journey__pin[data-pin="next"] { background: none; border: var(--rq-edge-w-thin) solid var(--rq-gold); }
+
+/* ── Statflikar och rader ─────────────────────────────────────────────────── */
+.rq-profile-statcard { padding: 0; }
+.rq-profile-tabs { display: flex; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+.rq-profile-tabs > .rq-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; white-space: nowrap; letter-spacing: var(--rq-ls-chip); background: none; }
+.rq-profile-tabs > .rq-tab[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / .05); }
+.rq-profile-panel { padding: var(--rq-sp-10) var(--rq-pad-card); }
+.rq-profile-rows { margin: 0; }
+.rq-profile-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }
+.rq-profile-row dt { color: var(--rq-text-3); }
+.rq-profile-row dd { margin: 0; font-weight: 600; color: var(--rq-text-2); text-align: right; }
+
+/* ── Consistency-heatmapen ────────────────────────────────────────────────── */
+.rq-profile-heat__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); margin-bottom: var(--rq-sp-8); }
+.rq-profile-heat__total { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+.rq-profile-heat__unit { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-heat__body { display: flex; gap: var(--rq-sp-8); }
+.rq-profile-heat__days { display: flex; flex-direction: column; gap: var(--rq-profile-heat-gap); padding-top: calc(var(--rq-fs-label) + var(--rq-sp-4)); }
+.rq-profile-heat__day { height: var(--rq-profile-heat-cell); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-5); }
+.rq-profile-heat__scroll { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; padding: var(--rq-sp-4) var(--rq-sp-4) var(--rq-sp-4) 0; margin-top: calc(var(--rq-sp-4) * -1); }
+.rq-profile-heat__scroll[data-fits="true"] { overflow-x: hidden; }
+.rq-profile-heat__months { display: flex; gap: var(--rq-sp-6); width: max-content; }
+.rq-profile-heat__month-label { font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-heat__month[data-current="true"] .rq-profile-heat__month-label { color: var(--rq-gold-text); }
+.rq-profile-heat__weeks { display: flex; gap: var(--rq-profile-heat-gap); margin-top: var(--rq-sp-4); }
+.rq-profile-heat__week {
+  display: flex; flex-direction: column; gap: var(--rq-profile-heat-gap); transform-origin: bottom;
+  animation: rqGrowY var(--rq-dur-grow) var(--rq-ease-bar) both; animation-delay: calc(var(--i) * var(--rq-profile-heat-stagger));
+}
+.rq-profile-heat__cell, .rq-profile-heat__swatch { box-sizing: border-box; flex: 0 0 auto; width: var(--rq-profile-heat-cell); height: var(--rq-profile-heat-cell); background: var(--rq-heat-0); border: var(--rq-hair) solid var(--rq-line-2); }
+.rq-profile-heat__cell[data-level="1"], .rq-profile-heat__swatch[data-level="1"] { background: var(--rq-heat-1); border-color: transparent; }
+.rq-profile-heat__cell[data-level="2"], .rq-profile-heat__swatch[data-level="2"] { background: var(--rq-heat-2); border-color: transparent; }
+.rq-profile-heat__cell[data-level="3"], .rq-profile-heat__swatch[data-level="3"] { background: var(--rq-heat-3); border-color: transparent; }
+.rq-profile-heat__cell[data-level="4"], .rq-profile-heat__swatch[data-level="4"] { background: var(--rq-heat-4); border-color: transparent; }
+.rq-profile-heat__cell[data-level="future"] { background: transparent; border: var(--rq-hair) dashed var(--rq-line-2); }
+/* Idag: grön ring med luft (fältet bakom heter skalets bakgrund) */
+.rq-profile-heat__cell[data-today="true"] { box-shadow: 0 0 0 var(--rq-sp-2) var(--rq-bg-shell), 0 0 0 calc(var(--rq-sp-2) + var(--rq-hair)) var(--rq-up); }
+.rq-profile-heat__today { display: flex; align-items: center; gap: var(--rq-sp-8); margin-top: var(--rq-sp-8); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-up); }
+.rq-profile-heat__bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); margin-top: var(--rq-sp-12); padding-top: var(--rq-sp-8); border-top: var(--rq-hair) solid var(--rq-line-2); }
+.rq-profile-heat__stats { display: flex; gap: var(--rq-sp-16); margin: 0; }
+.rq-profile-heat__stat { display: flex; flex-direction: column-reverse; }
+.rq-profile-heat__stat-value { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-title); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+.rq-profile-heat__stat-label { margin: 0; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-heat__legend { display: flex; align-items: center; gap: var(--rq-sp-6); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+
+/* ── Titlar ───────────────────────────────────────────────────────────────── */
+.rq-profile-title { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); padding: var(--rq-sp-6) var(--rq-sp-10); }
+.rq-profile-title[data-kind="held"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); }
+.rq-profile-title[data-kind="runner-up"] { background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-profile-title__name { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-title); color: var(--rq-text-2); }
+.rq-profile-title[data-kind="runner-up"] .rq-profile-title__name { color: var(--rq-text-3); }
+.rq-profile-title__value { flex-shrink: 0; font-weight: 600; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
+.rq-profile-title__main { display: flex; flex-direction: column; min-width: 0; }
+.rq-profile-title__holder { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-profile-more { margin-top: var(--rq-sp-8); width: 100%; }
+
+/* ── Rundhistorik ─────────────────────────────────────────────────────────── */
+.rq-profile-history { padding: 0; }
+.rq-profile-history__head { margin: 0; padding: var(--rq-sp-12) var(--rq-pad-card); border-bottom: var(--rq-hair) solid var(--rq-line-3); font-weight: 400; }
+.rq-profile-history__list { margin: 0; padding: 0; list-style: none; }
+.rq-profile-history__empty { margin: 0; padding: var(--rq-sp-16) var(--rq-pad-card); text-align: center; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-profile-history__foot { padding: var(--rq-sp-8) var(--rq-pad-card); }
+.rq-profile-history__notice:focus { outline: none; }
+.rq-profile-history__notice > .rq-profile-notice { margin: var(--rq-sp-8) var(--rq-pad-card); }
+.rq-profile-history .rq-empty { margin: var(--rq-sp-12) var(--rq-pad-card) var(--rq-pad-card); }
+.rq-profile-run { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--rq-sp-10); }
+.rq-profile-run__date { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-2); }
+.rq-profile-run__meta { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-profile-run__earned { text-align: right; }
+.rq-profile-run__xp { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+.rq-profile-run__mult { margin: 0; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+
+/* ── Redigera / radera: bottensheet (mobil) / dialog (desktop) via --rq-profile-sheet-* ─────────────────── */
+.rq-profile-sheet {
+  /* z-index 66 = samma lager som skalets .rq-sheet/.rq-modal (app-shell.css); ingen z-token finns */
+  position: fixed; z-index: 66; left: 50%; top: var(--rq-profile-sheet-top); bottom: var(--rq-profile-sheet-bottom);
+  transform: translate(-50%, var(--rq-profile-sheet-shift)); width: var(--rq-profile-sheet-w); max-height: var(--rq-profile-sheet-max-h);
+  box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--rq-popover); box-shadow: var(--rq-shadow-modal);
+  border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-top-width: var(--rq-profile-sheet-edge-w);
+}
+.rq-profile-sheet__form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.rq-profile-sheet__head { display: flex; align-items: center; gap: var(--rq-sp-10); padding: var(--rq-sp-12) var(--rq-sp-16); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
+.rq-profile-sheet__id { flex: 1; min-width: 0; }
+.rq-profile-sheet__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+.rq-profile-sheet__sub { margin: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-sheet__body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--rq-sp-14); padding: var(--rq-sp-14) var(--rq-sp-16); }
+.rq-profile-sheet__foot { display: flex; flex-direction: var(--rq-profile-sheet-actions-dir); gap: var(--rq-sp-10); padding: var(--rq-sp-10) var(--rq-sp-16) var(--rq-tabbar-pb); border-top: var(--rq-hair) solid var(--rq-line-3); }
+.rq-profile-sheet__foot .rq-btn { flex: 1; }
+.rq-profile-sheet__fields { display: grid; grid-template-columns: var(--rq-profile-sheet-fields-cols); gap: var(--rq-gap-stack) var(--rq-sp-16); }
+.rq-profile-field { min-width: 0; }
+.rq-profile-label { display: block; margin-bottom: var(--rq-sp-6); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-field-note { margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+.rq-profile-field-note[data-tone="error"] { color: var(--rq-down); }
+.rq-profile-sheet__xp { margin: 0; }
+.rq-profile-sheet__xp-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--rq-sp-12); padding: var(--rq-sp-6) var(--rq-sp-12); background: var(--rq-cell); }
+.rq-profile-sheet__xp-row dt { font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-sheet__xp-row dd { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-2); }
+.rq-profile-sheet__xp-row[data-total="true"] dd { color: var(--rq-gold-text); }
+.rq-profile-sheet__hint { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+.rq-profile-sheet__error { margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); background: var(--rq-row-soft); border-left: var(--rq-edge-w) solid var(--rq-down); color: var(--rq-down); }
+.rq-profile-sheet__error:empty { padding: 0; border: 0; height: 0; margin-top: calc(var(--rq-sp-14) * -1); }
+.rq-profile-sheet__confirm { margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); background: var(--rq-row-soft); border-left: var(--rq-edge-w) solid var(--rq-down); color: var(--rq-text-2); }

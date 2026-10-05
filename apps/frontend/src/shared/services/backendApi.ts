@@ -1,5 +1,10 @@
 // 🔗 Backend API Service - Production Ready
 import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
+import type {
+  WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
+  ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
+  NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
+} from '@runquest/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -74,16 +79,6 @@ export interface AdminUser {
   longest_streak: number;
   created_at: string;
   total_runs: number;
-}
-
-/** Shape of each row from GET /runs/group-history. */
-export interface GroupRunHistoryEntry extends Run {
-  weather_code?: number | null;
-  temperature_c?: number | null;
-  user_name: string;
-  user_level: number;
-  user_total_xp?: number;
-  user_profile_picture?: string;
 }
 
 /** Shape of each row from GET /titles/group-eligibility. */
@@ -290,6 +285,89 @@ class BackendApiService {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
       };
+    }
+  }
+
+  // Nya endpoints (ADR 007) svarar { success, data, meta? } / { error }; typerna ligger i @runquest/shared.
+  private async getEnvelope<T>(path: string, failure: string): Promise<ApiResponse<T>> {
+    try {
+      const token = this.getToken();
+      if (!token) return { success: false, error: 'Not authenticated' };
+
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const body = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+        return { success: false, error: body.error || failure };
+      }
+      return { success: true, data: body.data };
+    } catch (error) {
+      console.error(`❌ ${failure}:`, error);
+      return { success: false, error: error instanceof Error ? error.message : 'Network error' };
+    }
+  }
+
+  /** GET /leaderboard/week — veckans rader, dagstaplar, totaler och mover (ADR 007 B1). */
+  async getWeekLeaderboard(weekStart?: string): Promise<ApiResponse<WeekLeaderboardResponse>> {
+    const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : '';
+    return this.getEnvelope<WeekLeaderboardResponse>(`/leaderboard/week${query}`, 'Failed to fetch week leaderboard');
+  }
+
+  /** GET /leaderboard/rank-delta — rank mot veckostart (ADR 007 B2). */
+  async getRankDelta(): Promise<ApiResponse<RankDeltaResponse>> {
+    return this.getEnvelope<RankDeltaResponse>('/leaderboard/rank-delta', 'Failed to fetch rank changes');
+  }
+
+  /** GET /config/xp — effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */
+  async getXpConfig(): Promise<ApiResponse<XpConfigResponse>> {
+    return this.getEnvelope<XpConfigResponse>('/config/xp', 'Failed to fetch XP config');
+  }
+
+  /** GET /challenges/head-to-head/:userId — anroparens uppgörelser mot en annan medlem (ADR 007 B6). */
+  async getHeadToHead(userId: string, limit?: number): Promise<ApiResponse<HeadToHeadResponse>> {
+    const query = limit ? `?limit=${limit}` : '';
+    return this.getEnvelope<HeadToHeadResponse>(
+      `/challenges/head-to-head/${encodeURIComponent(userId)}${query}`,
+      'Failed to fetch head to head',
+    );
+  }
+
+  /**
+   * GET /challenges/group-history — gruppens avslutade utmaningar, nyast först (ADR 007 B5). Offset-sidor:
+   * `meta.has_more` säger om det finns fler (sidstorlek default 20, max 50).
+   */
+  async getChallengeGroupHistory(
+    limit: number,
+    offset: number,
+  ): Promise<ApiResponse<ChallengeGroupHistoryResponse> & { meta?: OffsetPageMeta }> {
+    try {
+      const token = this.getToken();
+      if (!token) return { success: false, error: 'Not authenticated' };
+
+      const response = await fetch(`${this.baseUrl}/challenges/group-history?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const body = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+        return { success: false, error: body.error || 'Failed to fetch challenge history' };
+      }
+      return { success: true, data: body.data, meta: body.meta };
+    } catch (error) {
+      console.error('❌ Failed to fetch challenge history:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Network error' };
     }
   }
 
@@ -835,31 +913,12 @@ class BackendApiService {
     }
   }
 
-  async getGroupRunHistory(): Promise<ApiResponse<GroupRunHistoryEntry[]>> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/runs/group-history`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.getToken()}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          this.handleUnauthorized();
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
-        throw new Error(data.error || 'Failed to fetch group run history');
-      }
-
-      return { success: true, data: data.runs };
-    } catch (error) {
-      console.error('❌ Error fetching group run history:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-    }
+  /**
+   * GET /runs/group-history — gruppens rundor, nyast först (ADR 007 B9). Offset-sidor: `meta.has_more` säger om det finns fler
+   * (sidstorlek default 100, max 200). Svaret behåller nyckeln `runs` + additivt `meta`.
+   */
+  async getGroupRunHistoryPage(limit: number, offset: number): Promise<ApiResponse<GroupRunHistoryResponse>> {
+    return this.authenticatedRequest<GroupRunHistoryResponse>(`/runs/group-history?limit=${limit}&offset=${offset}`);
   }
 
   // ─── Groups ──────────────────────────────────────────────────────────────
@@ -998,61 +1057,74 @@ class BackendApiService {
 
   // ─── Events ───────────────────────────────────────────────────────────────
 
-  async getEventsHistory(): Promise<ApiResponse<{
-    events: Array<{
-      id: string;
-      type: 'participation' | 'competition';
-      metric: string | null;
-      status: 'settled';
-      startsAt: string;
-      endsAt: string;
-      template: {
-        name: string; icon: string; description: string;
-        minKm: number; rewardXp: number;
-        rewardXp1st: number; rewardXp2nd: number; rewardXp3rd: number;
-      };
-      myEntry: {
-        qualified: boolean; qualifiedAt: string;
-        rank: number | null; xpAwarded: number; totalValue: number | null;
-      } | null;
-      leaderboard: Array<{
-        userId: string; userName: string; totalValue: number; rank: number | null; xpAwarded: number; qualified: boolean; isMe: boolean;
-      }>;
-    }>;
-  }>> {
-    return this.authenticatedRequest('/events/history');
+  /**
+   * GET /events/history — avslutade events, nyast först, offset-sidor (ADR 007 B8). `data.meta` bär `total` och
+   * `has_more` (sidstorlek default 30, max 50).
+   */
+  async getEventHistoryPage(limit: number, offset: number): Promise<ApiResponse<EventsHistoryResponse>> {
+    return this.authenticatedRequest<EventsHistoryResponse>(`/events/history?limit=${limit}&offset=${offset}`);
   }
 
-  async getEvents(): Promise<ApiResponse<{
-    events: Array<{
-      id: string;
-      type: 'participation' | 'competition';
-      metric: string | null;
-      status: 'active' | 'scheduled';
-      startsAt: string;
-      endsAt: string;
-      template: {
-        name: string; icon: string; description: string;
-        minKm: number; rewardXp: number;
-        rewardXp1st: number; rewardXp2nd: number; rewardXp3rd: number;
-        requiresWeather: string[] | null;
-      };
-      myEntry: {
-        qualified: boolean; qualifiedAt: string;
-        rank: number | null; xpAwarded: number; totalValue: number | null;
-      } | null;
-      leaderboard: Array<{
-        userId: string; userName: string; totalValue: number; rank: number; isMe: boolean;
-      }> | null;
-      participantCount: number;
-    }>;
-  }>> {
-    return this.authenticatedRequest('/events');
+  /** GET /events — aktiva + schemalagda events med participantCount/memberCount för alla typer (ADR 007 B7). Enda events-metoden: Events-skärmen och skalets "Right now" delar query-nyckeln ['events'] och därmed formen. */
+  async getEventList(): Promise<ApiResponse<EventsResponse>> {
+    return this.authenticatedRequest<EventsResponse>('/events');
+  }
+
+  // ─── News (ADR 008) ───────────────────────────────────────────────────────
+
+  /**
+   * GET /news — händelseloggen, nyast först (keyset: `before` XOR `after`, aldrig båda; `type` = kommaseparerade ActivityType).
+   * `meta` bär unread_count (alla typer), last_seen_id och has_more/next_before; `after`-lägets semantik står i ADR 008 addendum 4.
+   */
+  async getNews(query: NewsQuery = {}): Promise<ApiResponse<NewsResponse> & { meta?: NewsMeta }> {
+    const params = new URLSearchParams();
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    if (query.before !== undefined) params.set('before', String(query.before));
+    if (query.after !== undefined) params.set('after', String(query.after));
+    if (query.type) params.set('type', query.type);
+    const qs = params.toString();
+    const result = await this.newsRequest<NewsApiResponse>('GET', `/news${qs ? `?${qs}` : ''}`, undefined, 'Failed to fetch news');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data, meta: result.body.meta };
+  }
+
+  /** POST /news/seen — höjer vattenmärket monotont (utelämnat `upToId` = senaste raden i gruppen). */
+  async markNewsSeen(upToId?: number): Promise<ApiResponse<NewsSeenResponse>> {
+    const result = await this.newsRequest<NewsSeenApiResponse>('POST', '/news/seen', upToId === undefined ? {} : { up_to_id: upToId }, 'Failed to mark the news as read');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data };
+  }
+
+  private async newsRequest<T>(
+    method: 'GET' | 'POST', path: string, body: unknown, failure: string,
+  ): Promise<{ ok: true; body: T } | { ok: false; error: string }> {
+    try {
+      const token = this.getToken();
+      if (!token) return { ok: false, error: 'Not authenticated' };
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      const parsed = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          return { ok: false, error: 'Session expired. Please log in again.' };
+        }
+        return { ok: false, error: parsed.error || failure };
+      }
+      return { ok: true, body: parsed as T };
+    } catch (error) {
+      console.error(`❌ ${failure}:`, error);
+      return { ok: false, error: error instanceof Error ? error.message : 'Network error' };
+    }
   }
 
   // ─── Runs ─────────────────────────────────────────────────────────────────
 
-  async createRun(date: string, distance: number, source: string = 'manual'): Promise<ApiResponse<Run>> {
+  /** POST /runs. `isTreadmill` utelämnas → kolumnen förblir NULL (okänt); formuläret skickar alltid en bool. */
+  async createRun(date: string, distance: number, source: string = 'manual', isTreadmill?: boolean): Promise<ApiResponse<Run>> {
     try {
       const response = await fetch(`${API_BASE_URL}/runs`, {
         method: 'POST',
@@ -1060,7 +1132,7 @@ class BackendApiService {
           'Authorization': `Bearer ${this.getToken()}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ date, distance, source }),
+        body: JSON.stringify({ date, distance, source, ...(isTreadmill !== undefined && { is_treadmill: isTreadmill }) }),
       });
 
       const data = await response.json();

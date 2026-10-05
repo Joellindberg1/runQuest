@@ -6,8 +6,35 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { scheduleDailyParticipationEventTest } from '../scheduler/eventScheduler.js';
 import { toStockholmDate } from '../utils/dateUtils.js';
+import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
+import type { EventsHistoryResponse, EventsResponse, OffsetPageMeta } from '@runquest/shared';
 
 const router = express.Router();
+
+/** Antal distinkta deltagare per event (ur event_entries) och gruppens medlemsantal. */
+async function fetchEventCounts(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  eventIds: string[],
+  groupId: string,
+): Promise<{ participantCountMap: Map<string, number>; memberCount: number }> {
+  const [entriesResult, membersResult] = await Promise.all([
+    supabase.from('event_entries').select('event_id, user_id').in('event_id', eventIds),
+    supabase.from('users').select('id', { count: 'exact', head: true }).eq('group_id', groupId),
+  ]);
+  if (entriesResult.error) throw entriesResult.error;
+  if (membersResult.error) throw membersResult.error;
+
+  const usersPerEvent = new Map<string, Set<string>>();
+  for (const row of entriesResult.data ?? []) {
+    const set = usersPerEvent.get(row.event_id) ?? new Set<string>();
+    set.add(row.user_id);
+    usersPerEvent.set(row.event_id, set);
+  }
+  return {
+    participantCountMap: new Map([...usersPerEvent].map(([eventId, set]) => [eventId, set.size])),
+    memberCount: membersResult.count ?? 0,
+  };
+}
 
 // ─── GET /api/events ─────────────────────────────────────────────────────────
 // Returnerar aktiva + schemalagda events för användarens grupp,
@@ -74,6 +101,9 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     const entryMap = new Map(
       (myEntries ?? []).map((e: any) => [e.event_id, e])
     );
+
+    // participantCount/memberCount för ALLA eventtyper (ADR 007 B7): en extra entries-query + gruppstorlek
+    const { participantCountMap, memberCount } = await fetchEventCounts(supabase, eventIds, groupId);
 
     // Hämta alla entries för competition-events (för live-leaderboard)
     const competitionEventIds = events.filter((e: any) => e.type === 'competition').map((e: any) => e.id);
@@ -169,11 +199,13 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
           rank: l.rank,
           isMe: l.userId === userId,
         })) ?? null,
-        participantCount: leaderboard?.length ?? 0,
+        participantCount: participantCountMap.get(e.id) ?? 0,
+        memberCount,
       };
     });
 
-    res.json({ events: result });
+    const body: EventsResponse = { events: result };
+    res.json(body);
   } catch (err) {
     logger.error('❌ [EventsRoute] Unexpected error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -181,23 +213,36 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 });
 
 // ─── GET /api/events/history ──────────────────────────────────────────────────
-// Returnerar settled events för användarens grupp (senaste 30), med myEntry och leaderboard.
+// Returnerar settled events för användarens grupp, nyast först, med myEntry och leaderboard.
+// ?limit=&offset= (default 30, max 50) och additivt meta (ADR 007 B8).
+const HISTORY_PAGE = { defaultLimit: 30, maxLimit: 50 };
 
 router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId  = req.user!.user_id;
     const groupId = req.user!.group_id;
 
+    const page = parseOffsetPage(req.query, HISTORY_PAGE);
+    if (!page.ok) {
+      res.status(400).json({ error: page.error });
+      return;
+    }
+    const { limit, offset } = page;
+
     if (!groupId) {
-      res.json({ events: [] });
+      res.json({ events: [], meta: buildPageMeta(0, limit, offset) });
       return;
     }
 
     const supabase = getSupabaseClient();
 
-    const { data: events, error } = await supabase
-      .from('events')
-      .select(`
+    let events: any[];
+    let meta: OffsetPageMeta;
+    try {
+      const paged = await fetchOffsetPage(
+        (head) => supabase
+          .from('events')
+          .select(`
         id,
         type,
         metric,
@@ -205,19 +250,23 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
         starts_at,
         ends_at,
         event_templates ( name, icon, description, min_km, reward_xp, reward_xp_1st, reward_xp_2nd, reward_xp_3rd )
-      `)
-      .eq('group_id', groupId)
-      .eq('status', 'settled')
-      .order('ends_at', { ascending: false })
-      .limit(30);
-
-    if (error) {
+      `, { count: 'exact', head })
+          .eq('group_id', groupId)
+          .eq('status', 'settled')
+          .order('ends_at', { ascending: false })
+          .order('id', { ascending: false }), // unik tie-breaker → stabila sidor
+        limit,
+        offset,
+      );
+      events = paged.rows;
+      meta = buildPageMeta(paged.total, limit, offset);
+    } catch (error) {
       logger.error('❌ [EventsRoute] History fetch error:', error);
       res.status(500).json({ error: 'Failed to fetch history' });
       return;
     }
-    if (!events?.length) {
-      res.json({ events: [] });
+    if (!events.length) {
+      res.json({ events: [], meta });
       return;
     }
 
@@ -304,10 +353,13 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
           ? { qualified: true, qualifiedAt: (myEntry as any).qualified_at, rank: (myEntry as any).rank, xpAwarded: (myEntry as any).xp_awarded, totalValue: (myEntry as any).total_value }
           : null,
         leaderboard,
+        participantCount: new Set(eventEntries.map((row: any) => row.user_id)).size,
+        memberCount: allMemberIds.length,
       };
     });
 
-    res.json({ events: result });
+    const body: EventsHistoryResponse = { events: result, meta };
+    res.json(body);
   } catch (err) {
     logger.error('❌ [EventsRoute] History unexpected error:', err);
     res.status(500).json({ error: 'Internal server error' });

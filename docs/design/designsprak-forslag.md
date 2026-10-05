@@ -26,6 +26,9 @@ Skuld: 240 inline-styles + 7 typsnitt i nuvarande kod ersätts per inkrement (re
    Behöver du en färg med alfa: `rgb(var(--rq-gold-rgb) / .1)`, aldrig en ny hex.
    Textsteg snappas till de fem (`--rq-text-1…5`); hårlinjer till `--rq-line-1…6`.
    Hittar du inget token som passar: stanna och fråga, hitta inte på.
+   Ägarbeslut 2026-10-04: `--rq-text-4` höjd till .50 för WCAG AA (4.5:1).
+   `--rq-text-5` är endast för disabled och ren dekor (spökrank) — aldrig för
+   läsbar text.
 
 2. **Skarpa hörn.** `border-radius: 0` överallt. Cirklar finns bara för
    avatarer, nivåringar, prickar — plus toggle-spår, räknebadge och den runda

@@ -69,8 +69,9 @@ events/user_titles). Det enda som kräver NY LAGRING:
 
 Appvyn (mobil) är facit och byggs först per inkrement; webb-prototypens
 desktop-variant av samma skärm tas i samma inkrement där den finns.
-Varje inkrement: design-referens = skärmen i App Prototype; kontrakt i
-docs/contracts.md; tester enligt ADR 001.
+Varje inkrement: design-referens = skärmen i App Prototype; API-kontrakt =
+de delade typerna i packages/shared/src/contracts/ (ADR 007); öppna antaganden
+loggas i docs/open-assumptions.md; tester enligt ADR 001.
 
 | # | Inkrement | Innehåll | Backend-arbete |
 |---|---|---|---|

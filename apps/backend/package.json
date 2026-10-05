@@ -10,7 +10,8 @@
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --sourcemap --packages=external --alias:@runquest/shared=../../packages/shared/src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts"
+    "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts",
+    "backfill:activity-log": "tsx src/scripts/backfillActivityLog.ts"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",

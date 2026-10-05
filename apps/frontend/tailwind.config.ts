@@ -1,7 +1,8 @@
 import type { Config } from "tailwindcss";
 
 export default {
-	darkMode: ["class"],
+	// Mörkt är standardtemat (:root); ljust slås på med <html data-theme="light">.
+	darkMode: ["selector", ':root:not([data-theme="light"])'],
 	content: [
 		"./pages/**/*.{ts,tsx}",
 		"./components/**/*.{ts,tsx}",
@@ -9,6 +10,9 @@ export default {
 		"./src/**/*.{ts,tsx}",
 	],
 	prefix: "",
+	// De delade .rq-*-primitiverna (index.css, @layer components) ska alltid finnas med,
+	// även när ett klassnamn byggs dynamiskt (t.ex. rq-chip--${tone}) och därför inte kan skannas.
+	safelist: [{ pattern: /^rq-/ }],
 	theme: {
 		container: {
 			center: true,
@@ -17,7 +21,30 @@ export default {
 				'2xl': '1400px'
 			}
 		},
+		// Skarpa hörn (designspråk regel 2): hela radius-skalan är 0 så gamla
+		// rounded-*-klasser inte återinför hörn. Endast `full` lever kvar för
+		// cirklar (avatar, ring, prick, toggle-spår).
+		borderRadius: {
+			none: 'var(--rq-radius)',
+			sm: 'var(--rq-radius)',
+			DEFAULT: 'var(--rq-radius)',
+			md: 'var(--rq-radius)',
+			lg: 'var(--rq-radius)',
+			xl: 'var(--rq-radius)',
+			'2xl': 'var(--rq-radius)',
+			'3xl': 'var(--rq-radius)',
+			full: '9999px'
+		},
 		extend: {
+			// De fyra typsnittsrollerna (temafilen 1.1). `sans` följer ui så
+			// gamla font-sans-ställen också får Barlow Condensed.
+			fontFamily: {
+				display: 'var(--rq-font-display)',
+				ui: 'var(--rq-font-ui)',
+				mono: 'var(--rq-font-mono)',
+				logo: 'var(--rq-font-logo)',
+				sans: 'var(--rq-font-ui)'
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -69,11 +96,6 @@ export default {
 				'podium-bronze':        'hsl(var(--podium-bronze))',
 				'podium-bronze-border': 'hsl(var(--podium-bronze-border))',
 				success: 'hsl(var(--success))'
-			},
-			borderRadius: {
-				lg: 'var(--radius)',
-				md: 'calc(var(--radius) - 2px)',
-				sm: 'calc(var(--radius) - 4px)'
 			},
 			keyframes: {
 				'accordion-down': {

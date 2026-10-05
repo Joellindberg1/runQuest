@@ -1,84 +1,44 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from '@/providers/authContext';
-import { backendApi } from '@/shared/services/backendApi';
+import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { toast } from 'sonner';
 import { log } from '@/shared/utils/logger';
 import type { User } from '@runquest/types';
-
 
 interface UseLeaderboardDataResult {
   users: User[];
   currentUser: User | null;
   loading: boolean;
+  /** Hämtningen av gruppens användare misslyckades (och inget finns i cachen). */
+  failed: boolean;
+  /** Ett omförsök pågår. */
+  retrying: boolean;
   refresh: () => Promise<void>;
 }
 
+// Samma gränssnitt som förut, men datan ligger nu i TanStack-cachen (`users-with-runs`)
+// så att app-skalet och sidan delar en hämtning i stället för varsin.
 export function useLeaderboardData(): UseLeaderboardDataResult {
   const { user: authUser } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchUsers = useCallback(async () => {
-    try {
-      const result = await backendApi.getUsersWithRuns();
-
-      if (!result.success || !result.data) {
-        throw new Error(result.error || 'Failed to fetch users');
-      }
-
-      const usersWithRuns: User[] = result.data.map((user) => ({
-        id: user.id,
-        name: user.name,
-        total_xp: user.total_xp || 0,
-        current_level: user.current_level || 1,
-        total_km: parseFloat(user.total_km?.toString() || '0'),
-        current_streak: user.current_streak || 0,
-        longest_streak: user.longest_streak || 0,
-        profile_picture: user.profile_picture || undefined,
-        wins: user.wins ?? 0,
-        draws: user.draws ?? 0,
-        losses: user.losses ?? 0,
-        challenge_active: user.challenge_active ?? false,
-        challenge_counts: user.challenge_counts ?? {},
-        displayed_title_ids: user.displayed_title_ids ?? [],
-        runs: user.runs?.map((run) => ({
-          id: run.id,
-          user_id: run.user_id,
-          date: run.date,
-          distance: parseFloat(run.distance.toString()),
-          xp_gained: run.xp_gained,
-          multiplier: parseFloat(run.multiplier.toString()),
-          streak_day: run.streak_day,
-          base_xp: run.base_xp,
-          km_xp: run.km_xp,
-          distance_bonus: run.distance_bonus,
-          streak_bonus: run.streak_bonus,
-          is_treadmill: run.is_treadmill ?? null,
-        })) || [],
-      }));
-
-      setUsers(usersWithRuns);
-
-      if (authUser) {
-        const current = usersWithRuns.find((u) => u.id === authUser.id);
-        setCurrentUser(current || null);
-      }
-    } catch (error) {
-      log.error('Failed to fetch users', error);
-      toast.error('Failed to load user data');
-    } finally {
-      setLoading(false);
-    }
-  }, [authUser]);
+  const query = useUsersWithRuns(!!authUser);
+  const { refetch, error, data } = query;
 
   useEffect(() => {
-    if (authUser) {
-      fetchUsers();
-    } else {
-      setLoading(false);
+    if (error) {
+      log.error('Failed to fetch users', error);
+      toast.error('Failed to load user data');
     }
-  }, [authUser, fetchUsers]);
+  }, [error]);
 
-  return { users, currentUser, loading, refresh: fetchUsers };
+  const users = useMemo(() => data ?? [], [data]);
+  const currentUser = useMemo(
+    () => (authUser ? users.find((u) => u.id === authUser.id) ?? null : null),
+    [authUser, users],
+  );
+
+  const refresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
+  return { users, currentUser, loading: !!authUser && query.isLoading, failed: query.isError && !data, retrying: query.isFetching, refresh };
 }

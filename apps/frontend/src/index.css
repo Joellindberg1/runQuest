@@ -2,502 +2,1109 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   RunQuest Design System — all visual tokens live here.
-   To experiment: edit the HSL values and save — the browser hot-reloads.
-   Format: hsl(hue  saturation%  lightness%)  — no "hsl()" wrapper, just numbers.
+/* ═════════════════════════════════════════════════════════════════════════════
+   RunQuest — TEMAFIL. EN tokenuppsättning (--rq-*); mörkt i :root, ljust brons
+   via <html data-theme="light"> (förberett, ej designat).
+   Källa/sanning: docs/design/temafil-forslag.css + docs/design/claude-design/.
+   Regler: docs/design/designsprak-forslag.md (de tio reglerna).
 
-   Core palette:
-     Graphite:    #302E2F  →  330  2% 18%   dark warm-black
-     Dust grey:   #DAD5CF  →   33 13% 83%   warm light grey
-     White smoke: #F2F2F2  →    0  0% 95%   near-white page bg
-     Lobster pink:#E85F5C  →    1 75% 64%   primary CTA colour
-───────────────────────────────────────────────────────────────────────────── */
+   Sektion 1–3 tokens · 4 shadcn-/legacy-alias (TEMPORÄRT) · 5 keyframes
+   6 bas + delade .rq-*-primitiver · 7 kvarvarande legacy utanför tokenlagret · 8 driver.js (tour-popover).
 
-@layer base {
-  /* ════════════════════════════════════════════════════════════
-     LIGHT THEME  (no .dark class on <html>)
-  ════════════════════════════════════════════════════════════ */
+   Fonter laddas i index.html: Bebas Neue · Barlow Condensed 400–700 ·
+   Share Tech Mono · Oswald 400/500 (ENDAST i logotypen).
+═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   1. TOKENS — MÖRKT (standard)
+═══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: dark;
+
+  /* ── 1.1 Typsnittsroller ───────────────────────────────────────────────────
+     display: rubriker, stora siffror, primärknappar — ALDRIG brödtext
+     ui:      allt annat (namn = VERSALER 700 + .06em)
+     mono:    klockor, XP-räknare, eyebrows, kodliknande värden
+     logo:    ENDAST inuti <Logo/> (runquest-icons.js → logo())              */
+  --rq-font-display: 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
+  --rq-font-ui:      'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --rq-font-mono:    'Share Tech Mono', ui-monospace, 'Courier New', monospace;
+  --rq-font-logo:    'Oswald', 'Arial Narrow', sans-serif;
+
+  /* ── 1.2 Ytor ──────────────────────────────────────────────────────────────
+     page = utanför appen · shell = appens skärmbotten (grön-svart)
+     panel = alla kort · row = tabellrader · popover/modal = flytande lager   */
+  --rq-bg-page:        #0a0a0a;
+  --rq-bg-shell:       #070e09;
+  --rq-bg-shell-glass: rgba(7, 14, 9, .90);      /* sticky header + Right-now-rad (.94 på desktop-header) */
+  --rq-bg-nav:         rgba(10, 18, 11, .94);    /* bottenbar (mobil) */
+  --rq-bg-sidebar:     rgba(10, 18, 11, .60);    /* desktop-sidebar */
+  --rq-panel:          rgba(33, 33, 33, .62);    /* kort; halvgenomskinlig så rqGrid skymtar */
+  --rq-panel-solid:    #212121;                  /* ringhål, laddare, plats där grid inte ska synas */
+  --rq-row:            rgba(24, 24, 24, .60);    /* desktop-tabellrad */
+  --rq-row-hover:      rgba(38, 38, 38, .75);
+  --rq-row-soft:       rgba(255, 255, 255, .025);/* mobilrad / lista på panel */
+  --rq-cell:           rgba(255, 255, 255, .02); /* statcell i hårlinjegrid */
+  --rq-table-head:     rgba(168, 168, 168, .10); /* rubrikrad: silvertint (App+Web-leaderboard) */
+  --rq-table-head-solid: #141414;                /* Components "table head" — äldre variant, undvik */
+  --rq-popover:        rgba(20, 20, 20, .98);
+  --rq-modal:          rgba(15, 15, 15, .97);
+  --rq-inset:          rgba(0, 0, 0, .40);       /* inmatningsfältets botten */
+  --rq-scrim:          rgba(0, 0, 0, .72);       /* bakom sheet/modal */
+  --rq-hero-glow:      radial-gradient(ellipse at center, rgba(255, 215, 0, .16), transparent 70%); /* landing */
+
+  /* ── 1.3 Färgroller (triplettar för alfa-recept) ──────────────────────────── */
+  --rq-ink-rgb:    255 255 255;   /* neutral "bläck": alla hårlinjer + textnivåer */
+  --rq-gold-rgb:   255 215 0;     /* belöning/accent (i ljust: brons) */
+  --rq-up-rgb:     74 222 128;    /* lever, vinst, aktiv */
+  --rq-down-rgb:   248 113 113;   /* förlust, risk, destruktivt */
+  --rq-duel-rgb:   253 186 116;   /* duell/utmaning — TEXT-/kantton (#fdba74) */
+  --rq-duel-base-rgb: 249 115 22; /* duell — tint-/vänsterkantton (#f97316) */
+  --rq-silver-rgb: 168 168 168;
+  --rq-bronze-rgb: 205 127 50;
+  --rq-strava-rgb: 252 82 0;      /* ENDAST som källmarkör, aldrig accent */
+
+  /* ── 1.4 Färgroller (solida) ──────────────────────────────────────────────── */
+  --rq-gold:        #ffd700;      /* fyllning, kant, ikon */
+  --rq-gold-hover:  #fff2a8;      /* hover på guldfyllning + länkar */
+  --rq-gold-text:   #ffd700;      /* guld som TEXT (ljust: mörkbrons #8a5420) */
+  --rq-on-gold:     #000000;      /* text/ikon på guldfyllning */
+  --rq-up:          #4ade80;
+  --rq-down:        #f87171;
+  --rq-down-hover:  #fca5a5;      /* hover på fylld röd knapp */
+  --rq-on-down:     #0a0a0a;      /* text på fylld röd knapp */
+  --rq-duel:        #fdba74;
+  --rq-duel-base:   #f97316;
+  --rq-strava:      #fc5200;
+
+  /* ── 1.5 Podium + rank (guld = rank 1, men guld ≠ alltid rank) ───────────── */
+  --rq-rank-1:      #ffd700;
+  --rq-rank-2:      #a8a8a8;
+  --rq-rank-3:      #cd7f32;
+  --rq-rank-rest:   rgb(var(--rq-ink-rgb) / .25);        /* placering 4+ (siffran) */
+  --rq-rank-1-subtle: rgb(255 215 0 / .08);   /* spökrank-siffra / panel-tint .08–.12 */
+  --rq-rank-2-subtle: rgb(168 168 168 / .10);
+  --rq-rank-3-subtle: rgb(205 127 50 / .12);
+  --rq-rank-1-edge: rgb(255 215 0 / .85);     /* podiekortets 3 px vänsterkant (guld .85) */
+  --rq-rank-2-edge: rgb(168 168 168 / .75);   /* silver/brons .75 */
+  --rq-rank-3-edge: rgb(205 127 50 / .75);
+  --rq-rank-1-border: rgb(255 215 0 / .55);   /* fullkant (desktopens kompletta podiekort) */
+  --rq-rank-2-border: rgb(168 168 168 / .55);
+  --rq-rank-3-border: rgb(205 127 50 / .55);
+  --rq-plinth-alpha: .16;                     /* sockel under podiekort (desktop): tint .16–.18 */
+  --rq-bar-pack: linear-gradient(90deg, #cd7f32, #ffd700);  /* "pack total": brons → guld */
+  --rq-today-ring: rgb(var(--rq-up-rgb) / .9);              /* idag-markör: 2 px grön ring */
+  --rq-today-gap:  var(--rq-panel-solid);                   /* luckan mellan cell och ring = ytfärgen */
+
+  /* ── 1.6 Token-nivåer (utmaningar): minor / major / legendary ──────────────
+     base = tint + kant, fg = text/siffra, stroke = sköldens linje.
+     Recept: kortval tint .12 / kant .65 · ribbon tint .16 / stroke .75–.85    */
+  --rq-tier-minor-rgb:     59 130 246;
+  --rq-tier-minor:         #3b82f6;           /* vänsterkant */
+  --rq-tier-minor-fg:      #93c5fd;
+  --rq-tier-minor-stroke:  rgb(59 130 246 / .75);
+  --rq-tier-major-rgb:     249 115 22;
+  --rq-tier-major:         #f97316;
+  --rq-tier-major-fg:      #fdba74;
+  --rq-tier-major-stroke:  rgb(249 115 22 / .80);
+  --rq-tier-legendary-rgb: 255 215 0;
+  --rq-tier-legendary:     #ffd700;
+  --rq-tier-legendary-fg:  #ffd700;
+  --rq-tier-legendary-stroke: rgb(255 215 0 / .85);
+  --rq-tier-tint:          .12;
+  --rq-tier-edge:          .65;
+  --rq-tier-ribbon-tint:   .16;
+
+  /* ── 1.7 Textskala (fem steg — snappa .45–.55 till närmaste) ────────────────
+     1 display (#fff, ENDAST Bebas-rubriker) · 2 brödtext · 3 sekundär ≥.5
+     4 meta/under-etikett <.5 · 5 svag: eyebrow, spöke, disabled             */
+  --rq-text-1: #ffffff;
+  --rq-text-2: #edeeed;
+  --rq-text-3: rgb(var(--rq-ink-rgb) / .60);
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .50);   /* WCAG AA 4.5:1 (ägarbeslut 2026-10-04); ljust: .65 */
+  --rq-text-5: rgb(var(--rq-ink-rgb) / .28);
+
+  /* ── 1.8 Hårlinjeskala (ink-alfa). Rader skiljs av gap, inte kanter ─────────
+     1 .04  radavskiljare inne i lista
+     2 .07  hårlinjegridens "gap"-färg (1 px) + avdelare inne i kort
+     3 .09  panel-/tabellkant (.08–.09)
+     4 .12  sektionslinje, vilande flik/chip (.10–.14)
+     5 .16  kontroller: ghost-knapp, inmatning, stepper (.14–.16)
+     6 .22  stark: avatar-vilokant, outline på landing
+     hover .40  ghost-hover                                                   */
+  --rq-line-1: rgb(var(--rq-ink-rgb) / .04);
+  --rq-line-2: rgb(var(--rq-ink-rgb) / .07);
+  --rq-line-3: rgb(var(--rq-ink-rgb) / .09);
+  --rq-line-4: rgb(var(--rq-ink-rgb) / .12);
+  --rq-line-5: rgb(var(--rq-ink-rgb) / .16);
+  --rq-line-6: rgb(var(--rq-ink-rgb) / .22);
+  --rq-line-hover: rgb(var(--rq-ink-rgb) / .40);
+  --rq-panel-border: var(--rq-line-3);        /* ljust: transparent (skugga i stället) */
+  --rq-fill-1: rgb(var(--rq-ink-rgb) / .06);  /* spår bakom staplar, avatar-fyllning, disabled-knapp */
+  --rq-fill-2: rgb(var(--rq-ink-rgb) / .08);  /* tomma segment/dagar */
+
+  /* ── 1.9 Heatmap-skala (5 steg, accent-alfa) + oläst/läst ─────────────────── */
+  --rq-heat-0: rgb(var(--rq-ink-rgb) / .05);          /* + 1px kant i --rq-line-2 */
+  --rq-heat-1: rgb(var(--rq-gold-rgb) / .18);
+  --rq-heat-2: rgb(var(--rq-gold-rgb) / .42);
+  --rq-heat-3: rgb(var(--rq-gold-rgb) / .72);
+  --rq-heat-4: var(--rq-gold);
+  --rq-heat-gap: 2px;                                 /* mobil 2 px, desktop-komponentbibliotek 4 px */
+  --rq-unread-bg: rgb(var(--rq-gold-rgb) / .04);      /* Pack News: oläst rad */
+  --rq-read-bg:   rgb(var(--rq-ink-rgb) / .02);       /* läst rad */
+  --rq-news-edge-alpha: .6;                           /* nyhetsradens 3 px kant (event: ink .18) */
+
+  /* ── 1.10 Recept: chip / flik / vald (tint + kant + text) ──────────────────
+     STATUS (Components-regeln): tint 10 % / kant 45 % / text full accent.
+     VALD/AKTIV + värdetagg: tint 14 % / kant 50 % (så används det i båda
+     prototyperna). Vald filter tar accenten av det den filtrerar.           */
+  --rq-tint-status:   .10;
+  --rq-edge-status:   .45;
+  --rq-tint-selected: .14;
+  --rq-edge-selected: .50;
+  --rq-tint-hover:    .10;    /* hover på sekundärknapp */
+  --rq-edge-soft:     .30;    /* popover-/hjältekant, guld .3 */
+
+  /* ── 1.11 Typskala — MOBIL (standard). Desktop: se @media längst ned ────────
+     Roll              mobil    desktop   familj / vikt / spärr
+     display-xl        46       56        Bebas · lh .92 · .02em  (landing, playbook-kapitel)
+     number-xl         52       52        Bebas (Estimated XP)
+     display           26       34        Bebas · .03em           (sidrubrik)
+     heading           23       28        Bebas · .03em           (gruppnamn, sektionsrubrik)
+     number            34       44        Bebas guld              (pack total)
+     title             19       22        Bebas guld · .04em      (kortrubrik "FRODO'S JOURNEY")
+     stat              20       24        Bebas                   (statcell-värde)
+     name              16       20        Barlow 700 VERSALER .06em
+     stat-value        16       18        Barlow 600
+     lead              17       22        Barlow 400 · lh 1.5
+     body              15       17        Barlow 400 · lh 1.45
+     meta              13       15        Barlow 400
+     label             12       14        Barlow 400 VERSALER .18em
+     eyebrow           11       11        Mono VERSALER .28em
+     counter           20       26        Mono (klockor 17–30)
+     chip              12       14        Barlow 400/600 VERSALER .10–.14em
+     tab               12       16        Barlow VERSALER .14em
+     tabbar            10       —         Barlow 600 VERSALER .10em (endast mobil)
+     btn-lg/md/sm      22/19/14 samma     Bebas / Bebas / Barlow 600 .12em      */
+  --rq-fs-display-xl: 46px;
+  --rq-fs-number-xl:  52px;
+  --rq-fs-display:    26px;
+  --rq-fs-heading:    23px;
+  --rq-fs-number:     34px;
+  --rq-fs-title:      19px;
+  --rq-fs-stat:       20px;
+  --rq-fs-name:       16px;
+  --rq-fs-stat-value: 16px;
+  --rq-fs-lead:       17px;
+  --rq-fs-body:       15px;
+  --rq-fs-meta:       13px;
+  --rq-fs-label:      12px;
+  --rq-fs-eyebrow:    11px;
+  --rq-fs-counter:    20px;
+  --rq-fs-chip:       12px;
+  --rq-fs-tab:        12px;
+  --rq-fs-tabbar:     10px;
+  --rq-fs-btn-lg:     22px;
+  --rq-fs-btn-md:     19px;
+  --rq-fs-btn-sm:     14px;
+
+  --rq-ls-display: .03em;   --rq-ls-title: .04em;   --rq-ls-name: .06em;
+  --rq-ls-label:   .18em;   --rq-ls-chip:  .12em;   --rq-ls-eyebrow: .28em;
+  --rq-ls-btn:     .06em;   --rq-ls-btn-sm: .12em;  --rq-ls-tab: .14em;
+  --rq-lh-tight: 1;  --rq-lh-display: .95;  --rq-lh-body: 1.45;  --rq-lh-lead: 1.5;
+
+  /* ── 1.12 Spacing (4 px-bas + halvsteg som designen faktiskt använder) ───── */
+  --rq-sp-2: 2px;   --rq-sp-4: 4px;   --rq-sp-6: 6px;   --rq-sp-8: 8px;
+  --rq-sp-10: 10px; --rq-sp-12: 12px; --rq-sp-14: 14px; --rq-sp-16: 16px;
+  --rq-sp-18: 18px; --rq-sp-20: 20px; --rq-sp-24: 24px; --rq-sp-32: 32px;
+  --rq-sp-40: 40px; --rq-sp-48: 48px;
+  --rq-pad-screen: 18px;      /* skärmmarginal: mobil 18 · desktop 32 */
+  --rq-pad-card:   14px;      /* kortpadding: mobil 14 · desktop 18 */
+  --rq-pad-row-y:  9px;       /* tabellrad: mobil 9 · desktop 13 */
+  --rq-pad-row-x:  12px;      /* mobil 12 · desktop 18 */
+  --rq-gap-stack:  12px;      /* mellan kort: mobil 12–13 · desktop 14–16 */
+  --rq-gap-hair:   1px;       /* hårlinjegrid */
+  --rq-sidebar-w:  250px;     /* desktop */
+  --rq-content-max: 1440px;
+  --rq-tabbar-pb:  max(12px, env(safe-area-inset-bottom));
+  /* Skalmått (inkrement 1): värden ur App-/Web-prototypen som inte hade token */
+  --rq-shell-narrow-max: 640px;  /* mobilskalets maxbredd på surfplatta (ADR 006) */
+  --rq-menu-w:           236px;  /* avatarmenyn (mobil 236 · desktop 230) */
+  --rq-overlay-w:        860px;  /* Runner card som overlay på desktop */
+  --rq-avatar-sm:        28px;   /* header-avatar (mobil 28 · desktop 30) */
+  --rq-tabbar-new-lift:  9px;    /* "New"-kvadratens negativa marginal uppåt/nedåt */
+  --rq-tabbar-new-inset: 14px;   /* … och inåt åt sidorna */
+  --rq-tour-w-min:       280px;  /* driver.js-popover */
+  --rq-tour-w-max:       340px;
+
+  /* ── 1.13 Form: hörn och kantlinjer ───────────────────────────────────────── */
+  --radius:          0rem;     /* shadcn-läsare (tailwind borderRadius lg/md/sm) — SKARPT */
+  --rq-radius:       0;
+  --rq-radius-round: 50%;      /* avatar, ring, prick */
+  --rq-radius-pill:  999px;    /* ENDAST toggle-spår + räknebadge */
+  --rq-hair:         1px;
+  --rq-edge-w:       3px;      /* kortets tillståndskant (listor/rader: 2 px) */
+  --rq-edge-w-thin:  2px;
+
+  /* ── 1.14 Kortmönstret — TRE varianter (tokens; klasser i avsnitt 6) ───────
+     standard: panel + hårlinje; med tillstånd → 3 px vänsterkant i tillståndsfärg
+               (+ 1 px bottenlinje i samma färg; topp/höger saknas)
+     hjälte:   panel + guld-vänsterkant .6 + bottenhårlinje .08 (profil/runner card)
+     podium:   panel + rankfärgad vänsterkant + skugga + spökrank-siffra; #1 glöder */
+  --rq-card-bg:          var(--rq-panel);
+  --rq-card-edge-hero:   rgb(var(--rq-gold-rgb) / .60);
+  --rq-card-edge-soft:   rgb(var(--rq-gold-rgb) / .50);   /* "Working on", settings-sektion */
+  --rq-card-shadow:      none;                            /* ljust: mjuk skugga */
+  --rq-card-shadow-podium: 0 10px 24px rgba(0, 0, 0, .40);/* desktop: 0 16px 36px .45 */
+  --rq-ghost-rank-size:  56px;                            /* spökrank: mobil 56 · desktop 96 */
+  --rq-shadow-pop:       0 20px 50px rgba(0, 0, 0, .70);  /* popover/meny; desktop 0 24px 60px */
+  --rq-shadow-modal:     0 30px 80px rgba(0, 0, 0, .70);
+
+  /* ── 1.15 Knappar (se klasser). Primär = Bebas på guld, svart text ─────────
+     sm  pad 6/12   Barlow 600 14 caps  .12em
+     md  pad 10/18  Bebas 19            .06em
+     lg  pad 14/26  Bebas 24            .06em  (helbredd i sheets/kort: pad 11–16, Bebas 17–21)
+     sekundär = guld hårlinje .5 + guldtext, hover tint .10 + kant full
+     ghost = line-5, text .6, hover line-hover + text-2
+     destruktiv = röd hårlinje .5; FYLLD röd endast oåterkalleligt           */
+  --rq-btn-pad-sm: 6px 12px;
+  --rq-btn-pad-md: 10px 18px;
+  --rq-btn-pad-lg: 14px 26px;
+  --rq-btn-pad-block: 13px;                 /* helbreddsknapp i sheet */
+  --rq-btn-secondary-edge: rgb(var(--rq-gold-rgb) / .50);
+  --rq-btn-down-edge:      rgb(var(--rq-down-rgb) / .50);
+  --rq-icon-btn: 40px;                      /* fyrkantig ikonknapp */
+  --rq-fab: 44px;                           /* runda guld-plussen (Components) — enda runda knappen */
+  --rq-toggle-w: 42px; --rq-toggle-h: 21px; --rq-toggle-knob: 15px;
+
+  /* ── 1.16 Fokus (antagande: designen visar bara guldkant på fält) ────────── */
+  --rq-focus-field: var(--rq-gold);                         /* border-color vid fokus i inmatning */
+  --rq-focus-ring:  2px solid var(--rq-gold);               /* :focus-visible för knappar/flikar */
+  --rq-focus-offset: 2px;
+
+  /* ── 1.17 Ikoner (runquest-icons.js: 24×24, stroke 1.9, runda ändar, ingen fyllning) */
+  --rq-icon-stroke: 1.9;
+  --rq-icon-sm: 15px;   /* rader, chips */
+  --rq-icon-md: 17px;   /* headers */
+  --rq-icon-lg: 21px;   /* klockan */
+
+  /* ── 1.18 Rörelse ──────────────────────────────────────────────────────────
+     Staplar: från noll EN gång, 1.6 s, stapel-easing, sedan stilla. Stagger via
+     --rq-delay (.1 s-steg). Bara LIVE-saker loopar.                           */
+  --rq-ease-bar:  cubic-bezier(.2, .8, .2, 1);
+  --rq-dur-bar:   1.6s;
+  --rq-dur-grow:  1.2s;      /* dagstaplar (rqGrowY) */
+  --rq-dur-rise:  .5s;       /* antagande — rqRise används inte i prototyperna än */
+  --rq-dur-blink-live:  1.4s;/* levande prick (1.4–1.8) */
+  --rq-dur-blink-alarm: 1.2s;/* streak-risk */
+  --rq-dur-glow:  3.2s;      /* podium #1 */
+  --rq-dur-grid:  9s;
+  --rq-grid-line: rgb(var(--rq-gold-rgb) / .03);   /* desktop .035 */
+  --rq-grid-size: 40px;
+
+  /* ── 1.19 Skeleton-rader (Loaders-förlagan: rank 34 · namn + stapel · värde 90) ─
+     Kolumnbredder och blockhöjder för SkeletonRows. 1 = rank-block, 2 = namnstreck,
+     3 = understapel, 4 = värdeblock. Blinktakt 1.5 s (rqBlink, stagger .15 s i koden). */
+  --rq-skel-col-icon:  34px;
+  --rq-skel-col-value: 90px;
+  --rq-skel-h-1: 22px;
+  --rq-skel-h-2: 13px;
+  --rq-skel-h-3: 5px;
+  --rq-skel-h-4: 14px;
+  --rq-dur-skel: 1.5s;
+
+  /* ── 1.20 Board-mått (inkrement 2: Season/Week/Streaks) ────────────────────
+     Mått ur App-/Web-prototypens Board-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/leaderboard/board.css. */
+  --rq-board-avatar: 36px;          /* avatar i podiekort (desktop 42) */
+  --rq-board-bar-h: 5px;            /* nivåstapel i podiekort (desktop 6) */
+  --rq-board-bar-h-thin: 4px;       /* nivåstapel i listrad (desktop 6) */
+  --rq-board-ribbon-w: 22px;        /* challenge-sköld */
+  --rq-board-ribbon-h: 27px;
+  --rq-board-ribbon-font: 15px;     /* siffran i skölden (SVG-enheter) */
+  --rq-board-daybars-h: 34px;       /* veckans dagstaplar (desktop 44) */
+  --rq-board-streak-bar-h: 6px;     /* multiplikatorstapel (desktop 8) */
+  --rq-board-plinth-1: 78px;        /* sockel under podiekort (desktop) */
+  --rq-board-plinth-2: 52px;
+  --rq-board-plinth-3: 38px;
+  --rq-board-side-w: 300px;         /* desktop: sidokolumn (Mover/Pack/Alert/Ladder) */
+  --rq-board-delta-w: 26px;         /* desktop: fast kolumn för ▲/▼ framför namnet */
+  --rq-board-rest-cols: 26px 1fr 74px;
+  --rq-board-week-cols: 24px 1fr 62px;
+  --rq-board-streak-cols: 1fr;
+
+  /* ── 1.21 Runner card-mått (inkrement 3) ───────────────────────────────────
+     Mått ur App-/Web-prototypens runner-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop (overlayn) skriver över
+     i avsnitt 2. Konsument: features/runner/runner.css. */
+  --rq-runner-ring: 78px;               /* nivåringens diameter (desktop 96) */
+  --rq-runner-ring-inset: 7px;          /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-runner-hero-gap: 14px;           /* ring ↔ namn (desktop 20) */
+  --rq-runner-stat-cols: repeat(3, minmax(0, 1fr));   /* statceller: mobil 3, desktop 5 */
+  --rq-runner-split-cols: minmax(0, 1fr);             /* desktop: statflikar | titlar (340 px) */
+  --rq-runner-bar-h: 9px;               /* Frodo-stapeln (desktop 10) */
+  --rq-runner-knob: 15px;               /* positionsmarkören (desktop 16) */
+  --rq-runner-journey-h: 92px;          /* desktop: höjd på vägen med waypoint-etiketter */
+  --rq-runner-journey-bar-top: 62px;    /* … stapelns överkant */
+  --rq-runner-journey-ends-top: 78px;   /* … start-/slutetikett under stapeln */
+  --rq-runner-journey-row-1: 18px;      /* … etikettrad 1: tickens höjd över stapeln */
+  --rq-runner-journey-row-2: 46px;      /* … etikettrad 2 */
+  --rq-runner-journey-label-h: 13px;    /* … etikettens höjd (ticken börjar under den) */
+  --rq-runner-close-gutter: 44px;       /* overlay: luft till modalens ✕ i toppraden */
+
+  /* ── 1.22 Titles-mått (inkrement 4) ────────────────────────────────────────
+     Mått ur App-/Web-prototypens titles-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/titles/titles.css. */
+  --rq-titles-grid-cols: minmax(0, 1fr);              /* titelkorten i en grupp: mobil 1 kolumn, desktop 3 */
+  --rq-titles-split-cols: minmax(0, 1fr);             /* desktop: grupper | sidokolumn (320 px) */
+  --rq-titles-rule-min-h: 0;                          /* regelraden (desktop 44 px, så korten linjerar) */
+  --rq-titles-pos: 19px;                              /* platsmarkören i "On display" (guldfylld kvadrat) */
+
+  /* ── 1.23 Duels-mått (inkrement 5) ─────────────────────────────────────────
+     Mått ur App-/Web-prototypens challenges-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Skölden återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
+  --rq-duels-split-cols: minmax(0, 1fr);                              /* desktop: vy | sidokolumn (320 px) */
+  --rq-duels-live-cols: minmax(0, 1fr);                               /* live-korten: mobil 1 kolumn, desktop 2 */
+  --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 */
+  --rq-duels-standing-cols: 24px minmax(0, 1fr) 34px 34px 34px 52px; /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
+  --rq-duels-match-cols: minmax(0, 1fr) 26px minmax(0, 1fr);          /* vänster · vs · höger (desktop + meta 190 + datum 70) */
+  --rq-duels-match-meta-span: 1 / 3;                                  /* mobil: metan under paret; desktop: egen kolumn */
+  --rq-duels-match-date-span: 3;
+  --rq-duels-match-meta-align: left;                                  /* desktop: right */
+  --rq-duels-match-edge-w: 0px;                                       /* desktop: 3 px hårlinjekant till vänster */
+  --rq-duels-offer-cols: minmax(0, 1fr);                              /* inkommande kort: mobil staplat, desktop id · insats · knappar */
+  --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));           /* Accept | Decline; desktop: ovanpå varandra */
+  --rq-duels-offer-rule-w: 1px;                                       /* hårlinjer ovan/under insatsen (desktop 0) */
+  --rq-duels-token-cols: minmax(0, 1fr);                              /* send-sheet, tokenval: mobil 1 kolumn, desktop 3 */
+  --rq-duels-avatar: 28px;                                            /* motståndarrad (desktop 32) */
+  /* Send-sheet: bottensheet (mobil) → centrerad dialog (desktop) */
+  --rq-duels-sheet-w: min(100%, var(--rq-shell-narrow-max));
+  --rq-duels-sheet-top: auto;
+  --rq-duels-sheet-bottom: 0;
+  --rq-duels-sheet-shift: 0;
+  --rq-duels-sheet-max-h: 88vh;
+  --rq-duels-sheet-edge-w: 2px;                                       /* guld toppkant på bottensheeten (desktop 1 px runtom) */
+  --rq-duels-sheet-actions-dir: column;                               /* desktop: row (Send + Cancel) */
+  --rq-duels-sheet-cancel-display: none;                              /* mobil stänger med ✕; desktop visar Cancel */
+
+  /* ── 1.24 Events-mått (inkrement 6) ────────────────────────────────────────
+     Mått ur App-/Web-prototypens events-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala (ringens siffra är undantaget: klockan i ringen har
+     egen storlek, mobil 15 · desktop 22). Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/events/events.css. */
+  --rq-events-split-cols: minmax(0, 1fr);                  /* desktop: öppet/up next/veckan | Your record + historik (340 px) */
+  --rq-events-week-cols: minmax(0, 1fr);                   /* "This week": mobil rader, desktop 3 kort bredvid varandra */
+  --rq-events-ring: 88px;                                  /* nedräkningsringen (desktop 132) */
+  --rq-events-ring-inset: 6px;                             /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-events-ring-fs: 15px;                               /* tiden i ringen (desktop 22) */
+  --rq-events-ring-order: -1;                              /* mobil: ringen före texten; desktop: efter (0) */
+  --rq-events-live-gap: 14px;                              /* ring ↔ text (desktop 28) */
+  --rq-events-sweep-w: 70px;                               /* sweep-bandet på levande kort (desktop 80) */
+  --rq-events-board-cols: 26px minmax(0, 1fr) 70px 64px;   /* tävlingstabell: plats · namn · värde · pris (desktop 40 · 1fr · 100 · 90) */
+  --rq-events-pager-btn: 24px;                             /* sidknappens minsta bredd */
+  /* ── 1.25 Log-mått (inkrement 7) ───────────────────────────────────────────
+     Mått ur App-/Web-prototypens log-skärm som saknade token. Endast mått — ingen typskala, med undantaget att
+     historikcellernas siffra/etikett (Bebas 16/24, etikett 9/12) och Estimated XP-siffran (52/68) har egen storlek i
+     prototypen. Löpbandets blå är samma blå som minor-nivån (tier-minor), under eget namn så att rollen syns.
+     Mobil = standard; desktop skriver över i avsnitt 2. Konsument: features/log/log.css. */
+  --rq-log-split-cols: minmax(0, 1fr);                     /* desktop: formulär | Estimated XP + effekter (400 px) */
+  --rq-log-fields-cols: minmax(0, 1fr);                    /* datum + distans: mobil staplade, desktop bredvid varandra */
+  --rq-log-xp-size: 52px;                                  /* Estimated XP-siffran (desktop 68) */
+  --rq-log-avatar: 38px;                                   /* avatar i historikkortet (desktop 46) */
+  --rq-log-run-cols: minmax(0, 1fr) auto;                  /* historikkort: mobil vem | km+XP, celler under; desktop vem | celler | km+XP (250 · 1fr · 210) */
+  --rq-log-run-areas: "who totals" "cells cells";
+  --rq-log-run-gap: 10px;                                  /* desktop 24 */
+  --rq-log-run-align: start;                               /* desktop center */
+  --rq-log-totals-gap: 4px;                                /* km ↔ XP (desktop 14) */
+  --rq-log-tag-break: none;                                /* desktop: underlaget på egen rad, väder + källa under (block) */
+  --rq-log-cell-fs: 16px;                                  /* historikcellens siffra (desktop 24) */
+  --rq-log-cell-label-fs: 9px;                             /* … och etikett (desktop 12) */
+  --rq-log-cell-pad: 7px 5px;                              /* desktop 14px 11px */
+  --rq-log-treadmill-rgb: var(--rq-tier-minor-rgb);        /* löpband = samma blå som minor-nivån */
+  --rq-log-treadmill: var(--rq-tier-minor-fg);
+  /* ── 1.26 Profile-mått (inkrement 8) ───────────────────────────────────────
+     Mått ur App-/Web-prototypens profil-skärm som saknade token. Endast mått — ingen färg, ingen typskala.
+     Heatmapens fem steg är --rq-heat-0…4 (avsnitt 1.9). Mobil = standard; desktop skriver över i avsnitt 2.
+     Konsument: features/profile/profile.css. */
+  --rq-profile-split-cols: minmax(0, 1fr);                            /* desktop: hjälte · Frodo · statflikar | titlar + rundhistorik (340 px) */
+  --rq-profile-hero-areas: "ring who" "cells cells" "photo photo";    /* desktop: ringen spänner över namn + celler */
+  --rq-profile-hero-gap: 14px;                                        /* ring ↔ namn (desktop 22) */
+  --rq-profile-ring: 78px;                                            /* nivåringens diameter (desktop 104) */
+  --rq-profile-ring-inset: 7px;                                       /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-profile-stat-cols: repeat(3, minmax(0, 1fr));                  /* statceller: mobil 3, desktop 5 */
+  --rq-profile-bar-h: 9px;                                            /* Frodo-stapeln (desktop 11) */
+  --rq-profile-knob: 15px;                                            /* positionsmarkören (desktop 17) */
+  --rq-profile-journey-h: 74px;                                       /* vägen med waypoint-etiketter (desktop 96) */
+  --rq-profile-journey-bar-top: 46px;                                 /* … stapelns överkant (desktop 62) */
+  --rq-profile-journey-ends-top: 60px;                                /* … start-/slutetikett under stapeln (desktop 80) */
+  --rq-profile-journey-row-1: 14px;                                   /* … etikettrad 1: tickens höjd över stapeln (desktop 18) */
+  --rq-profile-journey-row-2: 34px;                                   /* … etikettrad 2 (desktop 46) */
+  --rq-profile-journey-label-h: 11px;                                 /* … etikettens höjd (desktop 13) */
+  --rq-profile-heat-cell: 8px;                                        /* heatmapens ruta (desktop 11) */
+  --rq-profile-heat-gap: 2px;                                         /* ruta ↔ ruta (båda prototyperna 2 px; --rq-heat-gap är 4 px på desktop) */
+  --rq-profile-heat-stagger: .02s;                                    /* veckokolumnernas fördröjning när rutnätet växer in (en gång) */
+  --rq-profile-sheet-w: min(100%, var(--rq-shell-narrow-max));        /* redigera/radera: bottensheet (mobil) → centrerad dialog (desktop) */
+  --rq-profile-sheet-top: auto;
+  --rq-profile-sheet-bottom: 0;
+  --rq-profile-sheet-shift: 0;
+  --rq-profile-sheet-max-h: 88vh;
+  --rq-profile-sheet-edge-w: 2px;                                     /* guld toppkant på bottensheeten (desktop 1 px runtom) */
+  --rq-profile-sheet-actions-dir: column;                             /* desktop: row */
+  --rq-profile-sheet-fields-cols: minmax(0, 1fr);                     /* datum + distans: mobil staplade, desktop bredvid varandra */
+  /* ── 1.27 Landing-mått (inkrement 10) ──────────────────────────────────────
+     Mått ur App Prototypens landing (mobil). Web Prototype har INGEN landing — desktopvärdena nedan är ett antagande
+     (samma komposition, större yta). Endast mått och tider — ingen färg, ingen typskala. Banans geometri (viewBox
+     1400 × 760) ritas i user units, så px-värdena för banlinjer/siffror skalar med SVG:n. Mobil = standard; desktop
+     skriver över i avsnitt 2. Konsument: features/landing/landing.css. */
+  --rq-landing-max: var(--rq-shell-narrow-max);                       /* innehållets maxbredd: mobil/surfplatta 640 · desktop 1120 */
+  --rq-landing-pad: 20px;                                             /* sidmarginal (desktop 48) */
+  --rq-landing-glow-w: 460px;                                         /* guldgloden bakom hjälten (desktop 900) */
+  --rq-landing-glow-h: 340px;                                         /* (desktop 560) */
+  --rq-landing-glow-top: -120px;                                      /* (desktop -240) */
+  --rq-landing-logo-w: 148px;                                         /* wordmarken (desktop 190) */
+  --rq-landing-hero-cols: minmax(0, 1fr) auto;                        /* rubrik | arenabanan; desktop: text | bana */
+  --rq-landing-hero-areas: "badge badge" "title arena" "lead lead" "cta cta";   /* desktop: banan spänner över alla fyra raderna */
+  --rq-landing-track-w: 118px;                                        /* banans ruta (desktop 300) */
+  --rq-landing-track-h: 158px;                                        /* (desktop 400) */
+  --rq-landing-track-svg-w: 172px;                                    /* den roterade SVG:n inuti rutan (desktop 430) */
+  --rq-landing-lane-w: 9px;                                           /* banlinje, user units (viewBox 1400) */
+  --rq-landing-finish-w: 11px;                                        /* mållinjen */
+  --rq-landing-xp-size: 230px;                                        /* "+50 XP"-poppen, user units */
+  --rq-landing-xp-rise: -170px;                                       /* … stiger så här långt (i textens egen, motroterade ram) */
+  --rq-landing-lap-1: 15s;                                            /* varvtid guld · silver · brons — de tre löparna går i olika takt */
+  --rq-landing-lap-2: 20s;
+  --rq-landing-lap-3: 26s;
+  --rq-landing-lap-offset-2: -6s;                                     /* startförskjutning så de inte går i klump */
+  --rq-landing-lap-offset-3: -12s;
+  --rq-landing-pulse: 3.4s;                                           /* previewkortets guldring andas (rqRing) */
+  --rq-landing-sweep: 4.5s;                                           /* sweep-bandet över previewkortet (rqSweep) */
+  --rq-landing-sweep-w: 60px;                                         /* (desktop 90) */
+  --rq-landing-row-cols: 24px minmax(0, 1fr) 68px;                    /* previewrad: plats · namn + stapel · XP (desktop 36 · 1fr · 96) */
+  --rq-landing-bar-h: 4px;                                            /* previewradens stapel */
+  --rq-landing-body-cols: minmax(0, 1fr);                             /* preview + steg: mobil staplade, desktop bredvid varandra */
+  /* ── 1.28 News-mått (inkrement 9) ──────────────────────────────────────────
+     Mått ur App-/Web-prototypens Pack News (klock-popover + skärm) som saknade token. Endast mått — ingen typskala
+     (raderna snappar till textstegen: kind 12/14, text 15/17, tid 13/15) och inga färger (oläst/läst-bakgrund och
+     kantstyrkan ligger i 1.9). Mobil = standard; desktop skriver över i avsnitt 2.
+     Raden är ett rutnät med fyra områden: ikon · typ · tid · text. Mobil lägger tiden på typraden, desktop i en egen
+     kolumn som spänner båda raderna. Filtret är en chip-rad på mobil (prototypen har inget filter där) och ett
+     kort med lodrät lista på desktop.
+     Konsumenter: features/news/news.css + app-shell/NotificationsPopover. */
+  --rq-news-edge-alpha-quiet: .18;                                    /* kanten på event-rader: neutral ink, tystare än de färgade (1.9 har .6) */
+  --rq-news-split-cols: minmax(0, 1fr);                               /* desktop: flöde | filter (300 px) */
+  --rq-news-filter-w: 300px;                                          /* filterkortet, endast desktop */
+  --rq-news-filter-dir: row;                                          /* mobil: chip-rad · desktop: lodrät lista */
+  --rq-news-filter-gap: 6px;                                          /* chip ↔ chip (desktop 0 — raderna skiljs av hårlinje) */
+  --rq-news-row-cols: 26px minmax(0, 1fr) auto;                       /* ikon · typ + text · tid (desktop 34 · 1fr · auto) */
+  --rq-news-row-areas: "icon kind time" "icon text text";             /* desktop: "icon kind time" "icon text time" */
+  --rq-news-row-align: start;                                         /* desktop center */
+  --rq-news-row-gap: 10px;                                            /* desktop 14 */
+  --rq-news-row-pad-y: 10px;                                          /* desktop 12 */
+  --rq-news-row-pad-x: 12px;                                          /* desktop 16 */
+  --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
+  --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
+  --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   2. DESKTOP-SKALAN (≥ 1024 px — antagande, designen anger bara 1440-bredd)
+═══════════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
   :root {
-    --background:   0  0% 80%;           /* Page background     — White smoke        */
-    --foreground: 330  2% 18%;           /* Default text        — Graphite            */
-
-    --card:          33 13% 83%;         /* Card background     — warm dust grey      */
-    --card-foreground: 330  2% 18%;      /* Card text           — Graphite            */
-
-    --popover:         0  0% 100%;       /* Dropdown bg         — white               */
-    --popover-foreground: 330  2% 18%;   /* Dropdown text       — Graphite            */
-
-    --primary:            1 75% 64%;     /* Primary btn bg      — Lobster pink        */
-    --primary-foreground: 0  0% 100%;    /* Primary btn text    — white               */
-
-    --secondary:            33 13% 83%;  /* Secondary surface   — dust grey           */
-    --secondary-foreground: 330  2% 18%; /* Text on secondary   — Graphite            */
-
-    --muted:            33  8% 90%;      /* Muted bg            — very light grey     */
-    --muted-foreground: 330  2% 20%;     /* Subdued text        — mid Graphite        */
-
-    --accent:            30  7% 76%;     /* Accent / sidebar bg — warm beige-grey     */
-    --accent-foreground:  0  0%  30%;     /* Text on accent      — near-black          */
-
-    --destructive:            0 84.2% 60.2%; /* Error/delete red                     */
-    --destructive-foreground: 0  0% 98%;     /* Text on error   — near-white          */
-
-    --border: 33 13% 65%;                /* Default border      — warm mid-grey       */
-    --input:  33 13% 80%;                /* Input field border  — same               */
-    --ring:    1 75% 64%;                /* Focus ring          — Lobster pink        */
-
-    --radius: 1rem;                      /* Base border-radius for all components     */
-
-    --sidebar-background:          30  7% 76%; /* Sidebar bg       — warm beige-grey  */
-    --sidebar-foreground:         330  2% 18%; /* Sidebar text     — Graphite         */
-    --sidebar-primary:              1 75% 64%; /* Active item bg   — Lobster pink     */
-    --sidebar-primary-foreground:   0  0% 100%;/* Active item text — white            */
-    --sidebar-accent:              33  8% 76%; /* Hover item bg    — slightly darker  */
-    --sidebar-accent-foreground:  330  2% 18%; /* Hover item text  — Graphite         */
-    --sidebar-border:              33 13% 74%; /* Sidebar divider                     */
-    --sidebar-ring:                 1 75% 64%; /* Focus ring in sidebar               */
-
-    /* Podium colours — gold/silver/bronze card backgrounds + borders */
-    --podium-gold:          45 100% 50%;   /* #FFBF00 */
-    --podium-gold-border:   45 100% 30%;   /* #997300 */
-    --podium-silver:       240  5% 84%;    /* zinc-300 */
-    --podium-silver-border:240  4% 46%;    /* zinc-500 */
-    --podium-bronze:        37  76% 58%;   /* #E8AC41 */
-    --podium-bronze-border: 37  74% 39%;   /* #B07A1A */
-
-    /* Semantic status colours */
-    --success:             142  71% 45%;   /* green-500 */
-
-    /* RunQuest component tokens — leaderboard surfaces, borders, text */
-    --rq-gold:         #B8860B;   /* Dark goldenrod — reads as gold on light bg */
-    --rq-gold-mid:       rgba(205,127,50,0.14);
-    --rq-rank-1:         #B8860B;
-    --rq-rank-1-subtle:  rgba(184,134,11,0.10);
-    --rq-rank-1-border:  rgba(184,134,11,0.50);
-    --rq-rank-2:         #a8a8a8;
-    --rq-rank-2-subtle:  rgba(168,168,168,0.08);
-    --rq-rank-2-border:  rgba(168,168,168,0.50);
-    --rq-rank-3:         #cd7f32;
-    --rq-rank-3-subtle:  rgba(205,127,50,0.10);
-    --rq-rank-3-border:  rgba(205,127,50,0.50);
-    --rq-surface-1:    rgba(0,0,0,0.04);
-    --rq-surface-2:    rgba(0,0,0,0.06);
-    --rq-border-1:     rgba(0,0,0,0.08);
-    --rq-border-2:     rgba(0,0,0,0.13);
-    --rq-avatar-border:rgba(0,0,0,0.18);
-    --rq-watermark:    rgba(0,0,0,1);
-    --rq-text-dim:     rgba(0,0,0,0.28);
-    --rq-text-muted:   rgba(0,0,0,0.45);
-    --rq-text-soft:    rgba(0,0,0,0.62);
-    --rq-text-strong:  rgba(0,0,0,0.80);
-    --rq-success:      #15803d;
-    --rq-danger:       #dc2626;
-    --rq-gold-fg:      #1a1200;  /* Text on gold/bronze badge */
-  }
-
-  /* ════════════════════════════════════════════════════════════
-     DARK THEME  (<html class="dark">)
-  ════════════════════════════════════════════════════════════ */
-  .dark {
-    --background: 330  2% 8%;           /* Page background     — deep Graphite       */
-    --foreground:  33 13% 83%;           /* Default text        — Dust grey           */
-
-    --card:          330  2% 13%;        /* Card background     — barely off bg       */
-    --card-foreground: 33 13% 83%;       /* Card text           — Dust grey           */
-
-    --popover:         330  2% 27%;      /* Dropdown bg         — lighter dark        */
-    --popover-foreground: 33 13% 83%;    /* Dropdown text       — Dust grey           */
-
-    --primary:            1 75% 64%;     /* Primary btn         — same Lobster pink   */
-    --primary-foreground: 0  0% 100%;    /* Primary btn text    — white               */
-
-    --secondary:            330  2% 26%; /* Secondary surface   — light Graphite      */
-    --secondary-foreground:  33 13% 83%; /* Text on secondary   — Dust grey           */
-
-    --muted:            330  2% 26%;     /* Muted bg            — matches secondary   */
-    --muted-foreground:  33 13% 60%;     /* Subdued text        — dimmer Dust grey    */
-
-    --accent:            131  8% 13%;    /* Accent / card bg    — dark green tint     */
-    --accent-foreground:  33 13% 65%;    /* Text on accent      — Dust grey           */
-
-    --destructive:            0 62.8% 40%; /* Error red         — darker for dark UI  */
-    --destructive-foreground: 33 13% 83%;  /* Error text        — Dust grey           */
-
-    --border: 330  2%  8%;               /* Border              — very dark           */
-    --input:  330  2% 28%;               /* Input border        — slightly lighter    */
-    --ring:     1 75% 64%;               /* Focus ring          — Lobster pink        */
-
-    --sidebar-background:         131 10%  8%; /* Sidebar bg       — near-black green  */
-    --sidebar-foreground:          33 13% 83%; /* Sidebar text     — Dust grey         */
-    --sidebar-primary:              1 75% 64%; /* Active item bg   — Lobster pink      */
-    --sidebar-primary-foreground:   0  0% 100%;/* Active item text — white             */
-    --sidebar-accent:             330  2% 12%; /* Hover item bg    — lighter dark      */
-    --sidebar-accent-foreground:   33 13% 83%; /* Hover item text  — Dust grey         */
-    --sidebar-border:             330  2% 18%; /* Sidebar divider                      */
-    --sidebar-ring:                 1 75% 64%; /* Focus ring in sidebar                */
-
-    /* Podium — only silver differs in dark mode */
-    --podium-silver:         0  0% 63%;   /* #A0A0A0 — slightly darker than zinc-300 */
-    --podium-silver-border: 240  4% 37%;  /* zinc-600 */
-
-    /* RunQuest component tokens — dark values */
-    --rq-gold:         #ffd700;
-    --rq-gold-mid:       rgba(255,215,0,0.14);
-    --rq-rank-1:         #ffd700;
-    --rq-rank-1-subtle:  rgba(255,215,0,0.08);
-    --rq-rank-1-border:  rgba(255,215,0,0.55);
-    --rq-rank-2:         #a8a8a8;
-    --rq-rank-2-subtle:  rgba(168,168,168,0.06);
-    --rq-rank-2-border:  rgba(168,168,168,0.55);
-    --rq-rank-3:         #cd7f32;
-    --rq-rank-3-subtle:  rgba(205,127,50,0.06);
-    --rq-rank-3-border:  rgba(205,127,50,0.55);
-    --rq-surface-1:    rgba(255,255,255,0.025);
-    --rq-surface-2:    rgba(255,255,255,0.04);
-    --rq-border-1:     rgba(255,255,255,0.06);
-    --rq-border-2:     rgba(255,255,255,0.09);
-    --rq-avatar-border:rgba(255,255,255,0.15);
-    --rq-watermark:    rgba(255,255,255,1);
-    --rq-text-dim:     rgba(255,255,255,0.30);
-    --rq-text-muted:   rgba(255,255,255,0.50);
-    --rq-text-soft:    rgba(255,255,255,0.72);
-    --rq-text-strong:  rgba(255,255,255,0.85);
-    --rq-success:      #4ade80;
-    --rq-danger:       #f87171;
+    --rq-fs-display-xl: 56px;  --rq-fs-display: 34px;  --rq-fs-heading: 28px;
+    --rq-fs-number: 44px;      --rq-fs-title: 22px;    --rq-fs-stat: 24px;
+    --rq-fs-name: 20px;        --rq-fs-stat-value: 18px;
+    --rq-fs-lead: 22px;        --rq-fs-body: 17px;     --rq-fs-meta: 15px;
+    --rq-fs-label: 14px;       --rq-fs-counter: 26px;  --rq-fs-chip: 14px;
+    --rq-fs-tab: 16px;
+    --rq-pad-screen: 32px;     --rq-pad-card: 18px;
+    --rq-pad-row-y: 13px;      --rq-pad-row-x: 18px;   --rq-gap-stack: 16px;
+    --rq-heat-gap: 4px;
+    --rq-ghost-rank-size: 96px;
+    --rq-card-shadow-podium: 0 16px 36px rgba(0, 0, 0, .45);
+    --rq-shadow-pop: 0 24px 60px rgba(0, 0, 0, .70);
+    --rq-bg-shell-glass: rgba(7, 14, 9, .94);
+    --rq-grid-line: rgb(var(--rq-gold-rgb) / .035);
+    --rq-board-avatar: 42px;
+    --rq-board-bar-h: 6px;
+    --rq-board-bar-h-thin: 6px;
+    --rq-board-daybars-h: 44px;
+    --rq-board-streak-bar-h: 8px;
+    --rq-board-rest-cols: 40px 300px 1fr 78px 84px 88px 112px;
+    --rq-board-week-cols: 38px 190px 1fr 128px 92px;
+    --rq-board-streak-cols: 190px 96px 1fr 150px;
+    --rq-runner-ring: 96px;
+    --rq-runner-ring-inset: 8px;
+    --rq-runner-hero-gap: 20px;
+    --rq-runner-stat-cols: repeat(5, minmax(0, 1fr));
+    --rq-runner-split-cols: minmax(0, 1fr) 340px;
+    --rq-runner-bar-h: 10px;
+    --rq-runner-knob: 16px;
+    --rq-titles-grid-cols: repeat(3, minmax(0, 1fr));
+    --rq-titles-split-cols: minmax(0, 1fr) 320px;
+    --rq-titles-rule-min-h: 44px;
+    --rq-duels-split-cols: minmax(0, 1fr) 320px;
+    --rq-duels-live-cols: repeat(2, minmax(0, 1fr));
+    --rq-duels-rules-cols: repeat(3, minmax(0, 1fr));
+    --rq-duels-standing-cols: 44px minmax(0, 1fr) 60px 60px 60px 78px;
+    --rq-duels-match-cols: minmax(0, 1fr) 46px minmax(0, 1fr) 190px 70px;
+    --rq-duels-match-meta-span: auto;
+    --rq-duels-match-date-span: auto;
+    --rq-duels-match-meta-align: right;
+    --rq-duels-match-edge-w: 3px;
+    --rq-duels-offer-cols: minmax(0, 1fr) auto auto;
+    --rq-duels-offer-actions-cols: minmax(0, 1fr);
+    --rq-duels-offer-rule-w: 0px;
+    --rq-duels-token-cols: repeat(3, minmax(0, 1fr));
+    --rq-duels-avatar: 32px;
+    --rq-duels-sheet-w: min(660px, 95vw);
+    --rq-duels-sheet-top: 50%;
+    --rq-duels-sheet-bottom: auto;
+    --rq-duels-sheet-shift: -50%;
+    --rq-duels-sheet-edge-w: 1px;
+    --rq-duels-sheet-actions-dir: row;
+    --rq-duels-sheet-cancel-display: inline-flex;
+    --rq-events-split-cols: minmax(0, 1fr) 340px;
+    --rq-events-week-cols: repeat(3, minmax(0, 1fr));
+    --rq-events-ring: 132px;
+    --rq-events-ring-inset: 8px;
+    --rq-events-ring-fs: 22px;
+    --rq-events-ring-order: 0;
+    --rq-events-live-gap: 28px;
+    --rq-events-sweep-w: 80px;
+    --rq-events-board-cols: 40px minmax(0, 1fr) 100px 90px;
+    --rq-log-split-cols: minmax(0, 1fr) 400px;
+    --rq-log-fields-cols: repeat(2, minmax(0, 1fr));
+    --rq-log-xp-size: 68px;
+    --rq-log-avatar: 46px;
+    --rq-log-run-cols: 250px minmax(0, 1fr) 210px;
+    --rq-log-run-areas: "who cells totals";
+    --rq-log-run-gap: 24px;
+    --rq-log-run-align: center;
+    --rq-log-totals-gap: 14px;
+    --rq-log-tag-break: block;
+    --rq-log-cell-fs: 24px;
+    --rq-log-cell-label-fs: 12px;
+    --rq-log-cell-pad: 14px 11px;
+    --rq-profile-split-cols: minmax(0, 1fr) 340px;
+    --rq-profile-hero-areas: "ring who" "ring cells" "photo photo";
+    --rq-profile-hero-gap: 22px;
+    --rq-profile-ring: 104px;
+    --rq-profile-ring-inset: 8px;
+    --rq-profile-stat-cols: repeat(5, minmax(0, 1fr));
+    --rq-profile-bar-h: 11px;
+    --rq-profile-knob: 17px;
+    --rq-profile-journey-h: 96px;
+    --rq-profile-journey-bar-top: 62px;
+    --rq-profile-journey-ends-top: 80px;
+    --rq-profile-journey-row-1: 18px;
+    --rq-profile-journey-row-2: 46px;
+    --rq-profile-journey-label-h: 13px;
+    --rq-profile-heat-cell: 11px;
+    --rq-profile-sheet-w: min(480px, 95vw);
+    --rq-profile-sheet-top: 50%;
+    --rq-profile-sheet-bottom: auto;
+    --rq-profile-sheet-shift: -50%;
+    --rq-profile-sheet-edge-w: 1px;
+    --rq-profile-sheet-actions-dir: row;
+    --rq-profile-sheet-fields-cols: repeat(2, minmax(0, 1fr));
+    --rq-landing-max: 1120px;
+    --rq-landing-pad: 48px;
+    --rq-landing-glow-w: 900px;
+    --rq-landing-glow-h: 560px;
+    --rq-landing-glow-top: -240px;
+    --rq-landing-logo-w: 190px;
+    --rq-landing-hero-cols: minmax(0, 1fr) var(--rq-landing-track-w);
+    --rq-landing-hero-areas: "badge arena" "title arena" "lead arena" "cta arena";
+    --rq-landing-track-w: 300px;
+    --rq-landing-track-h: 400px;
+    --rq-landing-track-svg-w: 430px;
+    --rq-landing-sweep-w: 90px;
+    --rq-landing-row-cols: 36px minmax(0, 1fr) 96px;
+    --rq-landing-body-cols: repeat(2, minmax(0, 1fr));
+    --rq-news-split-cols: minmax(0, 1fr) var(--rq-news-filter-w);
+    --rq-news-filter-dir: column;
+    --rq-news-filter-gap: 0px;
+    --rq-news-row-cols: 34px minmax(0, 1fr) auto;
+    --rq-news-row-areas: "icon kind time" "icon text time";
+    --rq-news-row-align: center;
+    --rq-news-row-gap: 14px;
+    --rq-news-row-pad-y: 12px;
+    --rq-news-row-pad-x: 16px;
+    --rq-news-badge: 15px;
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;        /* All elements default to the --border colour */
-  }
-  body {
-    @apply bg-background text-foreground; /* Page uses the CSS variable tokens above */
-  }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   3. TOKENS — LJUST BRONS (sekundärt, förberett — INGEN referensbild finns)
+   <html data-theme="light">. Källa: App/Web-prototypernas JS-konstanter
+   (lGold/lSilver/lRank3, #8a5420, #cd7f32) + dagens html:not(.dark)
+   .runquest-hybrid. Ritas inte ut i någon prototyp-vy, så temat räknas som
+   FÖRBEREDT, inte designat (hård regel: vy utan referens ≠ designad).
+   Tripletterna binds om → alla tint/kant-recept följer med automatiskt.
+═══════════════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --rq-bg-page:        #f7f0e9;                 /* hsl(33 45% 94%) */
+  --rq-bg-shell:       #f7f0e9;
+  --rq-bg-shell-glass: rgba(247, 240, 233, .90);
+  --rq-bg-nav:         rgba(247, 240, 233, .94);
+  --rq-bg-sidebar:     #d9d2c9;                 /* hsl(33 18% 82%), varm tan */
+  --rq-panel:          #ffffff;                 /* kort: vitt, ingen ytterkant, mjuk skugga */
+  --rq-panel-solid:    #ffffff;
+  --rq-row:            rgb(38 35 31 / .03);
+  --rq-row-hover:      rgb(38 35 31 / .05);
+  --rq-row-soft:       rgb(38 35 31 / .03);
+  --rq-cell:           rgb(38 35 31 / .03);
+  --rq-table-head:     rgb(38 35 31 / .06);
+  --rq-table-head-solid: rgb(38 35 31 / .06);
+  --rq-popover:        #ffffff;
+  --rq-modal:          #ffffff;
+  --rq-inset:          rgb(38 35 31 / .04);
+  --rq-scrim:          rgba(38, 35, 31, .45);   /* antagande */
+  --rq-hero-glow:      radial-gradient(ellipse at center, rgba(205, 127, 50, .18), transparent 70%);
+
+  --rq-ink-rgb:    38 35 31;                    /* #26231f — varm nästan-svart */
+  --rq-gold-rgb:   205 127 50;                  /* brons tar guldets roll */
+  --rq-up-rgb:     21 128 61;
+  --rq-down-rgb:   220 38 38;
+  --rq-duel-rgb:   180 83 9;                    /* #b45309 */
+  --rq-duel-base-rgb: 194 65 12;                /* #c2410c */
+  --rq-silver-rgb: 107 114 128;
+  --rq-bronze-rgb: 139 69 19;
+  /* strava-rgb oförändrad */
+
+  --rq-gold:        #cd7f32;
+  --rq-gold-hover:  #b8702a;                    /* antagande: mörkare brons */
+  --rq-gold-text:   #8a5420;
+  --rq-on-gold:     #ffffff;
+  --rq-up:          #15803d;
+  --rq-down:        #dc2626;
+  --rq-down-hover:  #b91c1c;
+  --rq-on-down:     #ffffff;
+  --rq-duel:        #b45309;
+  --rq-duel-base:   #c2410c;
+
+  --rq-rank-1:      #b8860b;                    /* rank behåller metall: 1 ≠ 3 */
+  --rq-rank-2:      #6b7280;
+  --rq-rank-3:      #8b4513;
+  --rq-rank-1-subtle: rgb(184 134 11 / .16);
+  --rq-rank-2-subtle: rgb(107 114 128 / .14);
+  --rq-rank-3-subtle: rgb(139 69 19 / .14);
+  --rq-rank-1-edge: rgb(184 134 11 / .90);
+  --rq-rank-2-edge: rgb(107 114 128 / .85);
+  --rq-rank-3-edge: rgb(139 69 19 / .80);
+  --rq-rank-1-border: rgb(184 134 11 / .75);
+  --rq-rank-2-border: rgb(107 114 128 / .60);
+  --rq-rank-3-border: rgb(139 69 19 / .65);
+  --rq-bar-pack: linear-gradient(90deg, #8b4513, #cd7f32);
+  --rq-today-gap: #ffffff;
+
+  --rq-tier-minor-fg:     #1d4ed8;
+  --rq-tier-minor-stroke: rgb(29 78 216 / .80);
+  --rq-tier-major-fg:     #c2410c;
+  --rq-tier-major-stroke: rgb(194 65 12 / .85);
+  --rq-tier-legendary-rgb: 205 127 50;
+  --rq-tier-legendary:    #cd7f32;
+  --rq-tier-legendary-fg: #8a5420;
+  --rq-tier-legendary-stroke: rgb(138 84 32 / .85);
+  --rq-tier-ribbon-tint:  .14;
+
+  --rq-text-1: #26231f;
+  --rq-text-2: #26231f;
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .65);    /* AA mot ljus bas: .5 ger 3.05:1, .65 ger 4.69:1 */
+  /* text-3/4/5 + line-* + fill-* + heat-* följer --rq-ink-rgb automatiskt */
+  --rq-panel-border: transparent;               /* inga ytterkanter i ljust, skugga i stället */
+  --rq-card-shadow:  0 2px 10px rgba(0, 0, 0, .07);
+  --rq-card-shadow-podium: 0 2px 10px rgba(0, 0, 0, .07);
+  --rq-shadow-pop:   0 12px 32px rgba(38, 35, 31, .18);
+  --rq-shadow-modal: 0 20px 60px rgba(38, 35, 31, .22);
+  --rq-grid-line:    rgb(205 127 50 / .05);
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   DARK OPS THEME — experimental (branch: ui/dark-ops-experiment)
-   Apply the .dark-ops class to a wrapper div to activate.
-─────────────────────────────────────────────────────────────────────────────── */
-.dark-ops {
-  --background:         0  0%  4%;    /* Near-black               #0a0a0a */
-  --foreground:         0  0% 85%;    /* Soft white text          #d9d9d9 */
-  --card:               0  0%  7%;    /* Dark card bg             #111111 */
-  --card-foreground:    0  0% 85%;    /* Card text                        */
-  --border:             0  0% 15%;    /* Subtle dark border               */
-  --muted:              0  0% 10%;    /* Muted surface                    */
-  --muted-foreground:   0  0% 42%;    /* Dim label text                   */
-  --primary:          120 100% 50%;   /* Neon green               #00ff00 */
-  --primary-foreground: 0  0%  0%;    /* Black text on neon green         */
-  --accent:             0  0% 10%;    /* Accent surface                   */
-  --accent-foreground:  0  0% 85%;    /* Accent text                      */
-  --success:          120 100% 50%;   /* Neon green                       */
-  --radius: 0rem;                     /* Sharp corners — no rounding      */
-  font-family: 'Share Tech Mono', monospace;
-}
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   SCANDINAVIAN ULTRA THEME — experimental (branch: ui/dark-ops-experiment)
-   Apply the .scandinavian-ultra class to a wrapper div to activate.
-─────────────────────────────────────────────────────────────────────────────── */
-.scandinavian-ultra {
-  --background:         33  30% 95%;   /* Warm cream               #f5f0eb */
-  --foreground:        330   5% 14%;   /* Near-black               #222020 */
-  --card:                0   0% 100%;  /* White cards                      */
-  --card-foreground:   330   5% 14%;   /* Card text                        */
-  --border:             33  15% 87%;   /* Barely-there warm border         */
-  --muted:              33  20% 92%;   /* Muted surface                    */
-  --muted-foreground:  330   3% 50%;   /* Subdued label text               */
-  --primary:           145  41% 28%;   /* Forest green             #2d6a4f */
-  --primary-foreground:  0   0% 98%;   /* White on green                   */
-  --accent:             33  20% 90%;   /* Warm accent surface              */
-  --accent-foreground: 330   5% 14%;   /* Accent text                      */
-  --success:           145  41% 28%;   /* Forest green                     */
-  --radius: 0.25rem;                   /* Subtle rounding                  */
-  font-family: 'Playfair Display', Georgia, serif;
-}
-
-.scandinavian-ultra .mono {
-  font-family: 'Share Tech Mono', monospace;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   RETRO ARCADE THEME — experimental (branch: ui/dark-ops-experiment)
-─────────────────────────────────────────────────────────────────────────────── */
-.retro-arcade {
-  --background:     240  28%  7%;   /* Deep dark navy       #0d0d1a */
-  --foreground:       0   0% 90%;   /* Near white                   */
-  --card:           240  22% 12%;   /* Slightly lighter dark #181826 */
-  --card-foreground:  0   0% 90%;
-  --border:         240  28% 22%;   /* Dark blue border             */
-  --muted:          240  22% 15%;
-  --muted-foreground: 0   0% 52%;   /* Dim text                     */
-  --primary:         25 100% 58%;   /* Arcade orange        #ff6b2b */
+/* ═════════════════════════════════════════════════════════════════════════════
+   4. shadcn/Tailwind-KOMPATIBILITET + LEGACY-ALIAS (TEMPORÄRT)
+   tailwind.config.ts läser hsl(var(--background)) m.fl. HSL-triplettar utan
+   hsl()-omslag. Värdena nedan är härledda ur tokens ovan (solida approximationer
+   — shadcn-primitiver tål inte alfa). Tas bort när primitiverna ritats om.
+   Rekommenderat i tailwind.config.ts: darkMode: ['selector',
+   ':root:not([data-theme="light"])'] så dark:-varianter följer standardtemat.
+═══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --background: 137 33% 4%;            /* #070e09 */
+  --foreground: 120 3% 93%;            /* #edeeed */
+  --card: 0 0% 13%;                    /* #212121 */
+  --card-foreground: 120 3% 93%;
+  --popover: 0 0% 8%;                  /* #141414 */
+  --popover-foreground: 120 3% 93%;
+  --primary: 51 100% 50%;              /* #ffd700 */
   --primary-foreground: 0 0% 0%;
-  --accent:         240  22% 16%;
-  --accent-foreground: 0  0% 90%;
-  --success:         90  80% 50%;   /* Pixel green                  */
-  --radius: 0rem;
-  font-family: 'Silkscreen', monospace;
+  --secondary: 0 0% 9%;
+  --secondary-foreground: 120 3% 93%;
+  --muted: 0 0% 8%;
+  --muted-foreground: 0 0% 42%;
+  --accent: 0 0% 14%;
+  --accent-foreground: 120 3% 93%;
+  --destructive: 0 91% 71%;            /* #f87171 */
+  --destructive-foreground: 0 0% 4%;
+  --border: 0 0% 18%;
+  --input: 0 0% 20%;
+  --ring: 51 100% 50%;
+  --success: 142 69% 58%;              /* #4ade80 */
+  --sidebar-background: 128 29% 5%;
+  --sidebar-foreground: 0 0% 57%;
+  --sidebar-primary: 51 100% 50%;
+  --sidebar-primary-foreground: 0 0% 0%;
+  --sidebar-accent: 0 0% 8%;
+  --sidebar-accent-foreground: 120 3% 93%;
+  --sidebar-border: 0 0% 12%;
+  --sidebar-ring: 51 100% 50%;
+  --podium-gold: 51 100% 50%;          --podium-gold-border: 51 100% 50%;
+  --podium-silver: 0 0% 66%;           --podium-silver-border: 0 0% 66%;
+  --podium-bronze: 30 61% 50%;         --podium-bronze-border: 30 61% 50%;
+
+  /* Legacy --rq-* som nuvarande komponenter läser (alias → nya tokens) */
+  --rq-gold-mid:      rgb(var(--rq-gold-rgb) / .14);
+  --rq-gold-fg:       var(--rq-on-gold);
+  --rq-surface-1:     var(--rq-row-soft);
+  --rq-surface-2:     rgb(var(--rq-ink-rgb) / .04);
+  --rq-border-1:      var(--rq-line-2);
+  --rq-border-2:      var(--rq-line-3);
+  --rq-avatar-border: var(--rq-line-6);
+  --rq-watermark:     rgb(var(--rq-ink-rgb) / 1);
+  --rq-text-dim:      var(--rq-text-5);
+  --rq-text-muted:    var(--rq-text-4);
+  --rq-text-soft:     var(--rq-text-3);
+  --rq-text-strong:   var(--rq-text-2);
+  --rq-success:       var(--rq-up);
+  --rq-danger:        var(--rq-down);
+}
+[data-theme="light"] {
+  --background: 33 45% 94%;            --foreground: 330 2% 15%;
+  --card: 0 0% 100%;                   --card-foreground: 330 2% 15%;
+  --popover: 0 0% 100%;                --popover-foreground: 330 2% 15%;
+  --primary: 30 61% 50%;               --primary-foreground: 0 0% 100%;
+  --secondary: 33 12% 88%;             --secondary-foreground: 330 2% 15%;
+  --muted: 33 12% 92%;                 --muted-foreground: 330 2% 42%;
+  --accent: 33 12% 88%;                --accent-foreground: 330 2% 15%;
+  --destructive: 0 72% 51%;            --destructive-foreground: 0 0% 100%;
+  --border: 33 15% 84%;                --input: 33 15% 84%;
+  --ring: 30 61% 50%;                  --success: 142 72% 29%;
+  --sidebar-background: 33 18% 82%;    --sidebar-foreground: 330 2% 15%;
+  --sidebar-primary: 30 61% 50%;       --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 33 15% 74%;        --sidebar-accent-foreground: 330 2% 15%;
+  --sidebar-border: 33 12% 68%;        --sidebar-ring: 30 61% 50%;
+  --podium-gold: 43 89% 38%;           --podium-gold-border: 43 89% 38%;
+  --podium-silver: 220 9% 46%;         --podium-silver-border: 220 9% 46%;
+  --podium-bronze: 25 76% 31%;         --podium-bronze-border: 25 76% 31%;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   NIKE PREMIUM THEME — experimental (branch: ui/dark-ops-experiment)
-─────────────────────────────────────────────────────────────────────────────── */
-.nike-premium {
-  --background:       0   0%  4%;   /* Pure black           #0a0a0a */
-  --foreground:       0   0% 96%;   /* Crisp white          #f5f5f5 */
-  --card:             0   0%  7%;   /* Near-black card      #111111 */
-  --card-foreground:  0   0% 96%;
-  --border:           0   0% 14%;   /* Subtle dark line             */
-  --muted:            0   0% 10%;
-  --muted-foreground: 0   0% 45%;   /* Dim label text               */
-  --primary:         51 100% 50%;   /* Electric yellow      #ffd700 */
-  --primary-foreground: 0 0%  0%;
-  --accent:           0   0% 10%;
-  --accent-foreground:0   0% 96%;
-  --success:         51 100% 50%;
-  --radius: 0rem;
-  font-family: 'Barlow Condensed', sans-serif;
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   5. ANIMATIONS-KEYFRAMES
+   Namnkonflikter i exporten löst så här (Components ≠ App/Web):
+     rqGlow      = KORT-glöd (box-shadow) — App/Web, podium #1
+     rqGlowIcon  = drop-shadow på emblem — Components "rqGlow" (badge-spåret, pågår)
+     rqPulse     = PING på levande prick (scale+fade) — Components
+     rqRing      = guldring som andas på hjältekort — App/Web "rqPulse" (landing-preview)
+   Policy: allt loopar INTE. Staplar en gång; bara live-saker loopar.
+═══════════════════════════════════════════════════════════════════════════════ */
+@keyframes rqBar     { from { width: 0; } to { width: var(--w); } }                 /* en gång, both */
+@keyframes rqGrowY   { from { transform: scaleY(0); } to { transform: scaleY(1); } }/* dagstaplar, origin bottom */
+@keyframes rqRise    { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes rqBlink   { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }              /* levande/alarm-prick */
+@keyframes rqPulse   { 0%, 100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.35); opacity: 0; } }
+@keyframes rqGlow {                                                                  /* podium #1 */
+  0%, 100% { box-shadow: 0 0 16px rgb(var(--rq-gold-rgb) / .08), inset 0 0 24px rgb(var(--rq-gold-rgb) / .02); }
+  50%      { box-shadow: 0 0 30px rgb(var(--rq-gold-rgb) / .20), inset 0 0 34px rgb(var(--rq-gold-rgb) / .05); }
+}
+@keyframes rqRing {                                                                  /* landing-hjältekort */
+  0%, 100% { box-shadow: 0 0 0 1px rgb(var(--rq-gold-rgb) / .45), 0 0 26px rgb(var(--rq-gold-rgb) / .10); }
+  50%      { box-shadow: 0 0 0 1px rgb(var(--rq-gold-rgb) / .80), 0 0 46px rgb(var(--rq-gold-rgb) / .24); }
+}
+@keyframes rqGlowIcon { 0%, 100% { filter: drop-shadow(0 0 3px currentColor); } 50% { filter: drop-shadow(0 0 13px currentColor); } }
+@keyframes rqGrid    { from { background-position: 0 0; } to { background-position: 0 -160px; } } /* 4 × 40 px = sömlöst */
+@keyframes rqSweep   { from { transform: translateX(-120%); } to { transform: translateX(320%); } } /* live-kort */
+@keyframes rqMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes rqSkel    { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes rqDots    { 0%, 20% { opacity: .2; } 50% { opacity: 1; } 80%, 100% { opacity: .2; } }
+@keyframes rqSpin    { to { transform: rotate(360deg); } }                           /* reserv ≤ 20 px; riktiga laddaren = stadion-ovalen */
+@keyframes rqOrbit   { from { offset-distance: 0%; } to { offset-distance: 100%; } } /* stadion-ovalen (Loaders) */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   RUNQUEST HYBRID THEME — stil 5, kombinerar det bästa från 1-4
-─────────────────────────────────────────────────────────────────────────────── */
-.runquest-hybrid {
-  --background:     145  28%  5%;   /* Very dark forest     #070e09 */
-  --foreground:       0   0% 93%;
-  --card:             0   0% 13%;   /* Neutral dark grey — pops vs green bg */
-  --card-foreground:  0   0% 93%;
-  --border:           0   0% 22%;   /* Clearly visible neutral border       */
-  --muted:            0   0% 10%;
-  --muted-foreground: 0   0% 46%;
-  --primary:         51 100% 50%;   /* Electric yellow      #ffd700 */
-  --primary-foreground: 0 0%  0%;
-  --accent:           0   0% 14%;
-  --accent-foreground:0   0% 93%;
-  --success:         51 100% 50%;
-  --radius: 0rem;
-  font-family: 'Barlow Condensed', sans-serif;
 
-  /* RunQuest component tokens — same as dark */
-  --rq-gold:         #ffd700;
-  --rq-gold-mid:       rgba(255,215,0,0.14);
-  --rq-rank-1:         #ffd700;
-  --rq-rank-1-subtle:  rgba(255,215,0,0.08);
-  --rq-rank-1-border:  rgba(255,215,0,0.55);
-  --rq-rank-2:         #a8a8a8;
-  --rq-rank-2-subtle:  rgba(168,168,168,0.06);
-  --rq-rank-2-border:  rgba(168,168,168,0.55);
-  --rq-rank-3:         #cd7f32;
-  --rq-rank-3-subtle:  rgba(205,127,50,0.06);
-  --rq-rank-3-border:  rgba(205,127,50,0.55);
-  --rq-surface-1:    rgba(255,255,255,0.025);
-  --rq-surface-2:    rgba(255,255,255,0.04);
-  --rq-border-1:     rgba(255,255,255,0.06);
-  --rq-border-2:     rgba(255,255,255,0.09);
-  --rq-avatar-border:rgba(255,255,255,0.15);
-  --rq-watermark:    rgba(255,255,255,1);
-  --rq-text-muted:   rgba(255,255,255,0.50);
-  --rq-text-soft:    rgba(255,255,255,0.72);
-  --rq-text-strong:  rgba(255,255,255,0.85);
+/* ═════════════════════════════════════════════════════════════════════════════
+   6. BAS + REFERENSPRIMITIVER (valfria; använder ENDAST tokens)
+   Syfte: kortmönstret, knappar, chips och flikar som EN delad definition
+   (inkrement 0), så ingen bygger sin egen variant.
+═══════════════════════════════════════════════════════════════════════════════ */
+@layer base {
+  * { border-color: hsl(var(--border)); }
+  html { background: var(--rq-bg-page); }
+  body {
+    margin: 0; background: var(--rq-bg-shell); color: var(--rq-text-2);
+    font-family: var(--rq-font-ui); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body);
+  }
+  a { color: var(--rq-gold-text); text-decoration: none; }
+  a:hover { color: var(--rq-gold-hover); }
+  :focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-offset); }
 }
 
-/* Light mode override for runquest-hybrid — Bronze theme */
-html:not(.dark) .runquest-hybrid {
-  /* Page: warm cream */
-  --background:         33  45% 94%;
-  --foreground:        330   2% 15%;
+@layer components {
 
-  /* Cards: white with warm border */
-  --card:                0   0% 100%;
-  --card-foreground:   330   2% 15%;
-  --border:             33  15% 84%;
-  --muted:              33  12% 92%;
-  --muted-foreground:  330   2% 42%;
-  --accent:             33  12% 88%;
-  --accent-foreground: 330   2% 15%;
+  /* ── Typrollerna ── */
+  .rq-display    { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+  .rq-display-xl { font-family: var(--rq-font-display); font-size: var(--rq-fs-display-xl); letter-spacing: .02em; line-height: .92; color: var(--rq-text-1); }
+  .rq-heading    { font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+  .rq-number     { font-family: var(--rq-font-display); font-size: var(--rq-fs-number); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+  .rq-title      { font-family: var(--rq-font-display); font-size: var(--rq-fs-title); letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+  .rq-stat       { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+  .rq-name       { font-family: var(--rq-font-ui); font-weight: 700; font-size: var(--rq-fs-name); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-2); line-height: 1.1; }
+  .rq-stat-value { font-family: var(--rq-font-ui); font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); }
+  .rq-lead       { font-size: var(--rq-fs-lead); line-height: var(--rq-lh-lead); color: var(--rq-text-3); }
+  .rq-body       { font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+  .rq-meta       { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+  .rq-label      { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+  .rq-eyebrow    { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-eyebrow); text-transform: uppercase; color: var(--rq-text-5); }
+  .rq-counter    { font-family: var(--rq-font-mono); font-size: var(--rq-fs-counter); color: var(--rq-text-2); }
 
-  /* Sidebar: warm tan, dark text */
-  --sidebar-background:  33  18% 82%;
-  --sidebar-foreground: 330   2% 15%;
-  --sidebar-accent:      33  15% 74%;
-  --sidebar-accent-foreground: 330 2% 15%;
-  --sidebar-border:      33  12% 68%;
+  /* ── Kort 1/3: STANDARD. Med tillstånd: sätt --rq-edge (+ valfritt --rq-edge-line) ── */
+  .rq-card {
+    background: var(--rq-card-bg); border: var(--rq-hair) solid var(--rq-panel-border);
+    box-shadow: var(--rq-card-shadow); padding: var(--rq-pad-card); border-radius: var(--rq-radius);
+  }
+  .rq-card--edge {
+    border-top: 0; border-right: 0;
+    border-bottom-color: var(--rq-edge-line, var(--rq-panel-border));
+    border-left: var(--rq-edge-w) solid var(--rq-edge, var(--rq-line-4));
+  }
+  /* Kort 2/3: HJÄLTE (profil, runner card, "Send a run"-formulär) */
+  .rq-card--hero {
+    border-top: 0; border-right: 0;
+    border-left: var(--rq-edge-w) solid var(--rq-card-edge-hero);
+    border-bottom: var(--rq-hair) solid var(--rq-line-3);
+  }
+  /* Kort 3/3: PODIUM — placering via data-rank="1|2|3" */
+  .rq-card--podium {
+    position: relative; padding: 0; overflow: visible;
+    border-top: 0; border-right: 0;
+    border-left: var(--rq-edge-w) solid var(--rq-rank-edge, var(--rq-rank-2-edge));
+    border-bottom: var(--rq-hair) solid var(--rq-line-3);
+    box-shadow: var(--rq-card-shadow-podium);
+  }
+  .rq-card--podium[data-rank="1"] { --rq-rank-edge: var(--rq-rank-1-edge); --rq-rank-subtle: var(--rq-rank-1-subtle); animation: rqGlow var(--rq-dur-glow) ease-in-out infinite; }
+  .rq-card--podium[data-rank="2"] { --rq-rank-edge: var(--rq-rank-2-edge); --rq-rank-subtle: var(--rq-rank-2-subtle); }
+  .rq-card--podium[data-rank="3"] { --rq-rank-edge: var(--rq-rank-3-edge); --rq-rank-subtle: var(--rq-rank-3-subtle); }
+  .rq-ghost-rank {
+    position: absolute; top: 6px; right: 9px; pointer-events: none; user-select: none;
+    font-family: var(--rq-font-display); font-size: var(--rq-ghost-rank-size); line-height: .78;
+    color: var(--rq-rank-subtle, var(--rq-rank-2-subtle));
+  }
+  .rq-plinth { border-top: 2px solid var(--rq-rank-edge); background: linear-gradient(180deg, var(--rq-rank-subtle), var(--rq-cell)); } /* desktop; höjd 78/52/38 */
 
-  /* Bronze as primary accent — replaces gold */
-  --primary:            30 61% 50%;    /* Bronze — hsl(30,61%,50%) ≈ #cd8032 */
-  --primary-foreground:  0  0% 100%;   /* White text on bronze */
-  --rq-gold:         #cd7f32;
-  --rq-gold-mid:     rgba(205,127,50,0.14);
+  /* ── Hårlinjegrid: rader/celler skiljs av 1 px GAP, aldrig kantlinjer ── */
+  .rq-hairgrid { display: grid; gap: var(--rq-gap-hair); background: var(--rq-line-2); }
+  .rq-hairgrid--framed { border: var(--rq-hair) solid var(--rq-line-3); }
+  .rq-hairgrid > .rq-cell { background: var(--rq-cell); padding: 6px 8px; }
+  .rq-table-head { background: var(--rq-table-head); color: var(--rq-text-4); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }
+  .rq-row { background: var(--rq-row-soft); padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }
+  .rq-row:hover { background: var(--rq-row-hover); }
 
-  /* Rank colors for podium */
-  --rq-rank-1:         #B8860B;
-  --rq-rank-1-subtle:  rgba(184,134,11,0.30);
-  --rq-rank-1-border:  rgba(184,134,11,0.75);
-  --rq-rank-2:         #888888;
-  --rq-rank-2-subtle:  rgba(136,136,136,0.30);
-  --rq-rank-2-border:  rgba(136,136,136,0.60);
-  --rq-rank-3:         #8B4513;
-  --rq-rank-3-subtle:  rgba(139,69,19,0.30);
-  --rq-rank-3-border:  rgba(139,69,19,0.65);
+  /* ── Knappar ── */
+  .rq-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-8); cursor: pointer;
+    font-family: var(--rq-font-display); font-size: var(--rq-fs-btn-md); letter-spacing: var(--rq-ls-btn);
+    padding: var(--rq-btn-pad-md); border: var(--rq-hair) solid transparent; border-radius: var(--rq-radius); background: none; }
+  .rq-btn--lg { font-size: var(--rq-fs-btn-lg); padding: var(--rq-btn-pad-lg); }
+  .rq-btn--block { width: 100%; padding: var(--rq-btn-pad-block); }
+  .rq-btn--sm, .rq-btn--compact { font-family: var(--rq-font-ui); font-weight: 600; font-size: var(--rq-fs-btn-sm); letter-spacing: var(--rq-ls-btn-sm); text-transform: uppercase; padding: var(--rq-btn-pad-sm); }
+  .rq-btn--primary { background: var(--rq-gold); color: var(--rq-on-gold); }
+  .rq-btn--primary:hover { background: var(--rq-gold-hover); }
+  .rq-btn--secondary { border-color: var(--rq-btn-secondary-edge); color: var(--rq-gold-text); }
+  .rq-btn--secondary:hover { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-hover)); border-color: var(--rq-gold); }
+  .rq-btn--ghost { border-color: var(--rq-line-5); color: var(--rq-text-3); }
+  .rq-btn--ghost:hover { border-color: var(--rq-line-hover); color: var(--rq-text-2); }
+  .rq-btn--danger { border-color: var(--rq-btn-down-edge); color: var(--rq-down); }
+  .rq-btn--danger:hover { background: rgb(var(--rq-down-rgb) / .12); border-color: var(--rq-down); }
+  .rq-btn--danger-fill { background: var(--rq-down); color: var(--rq-on-down); }   /* ENDAST oåterkalleligt */
+  .rq-btn--danger-fill:hover { background: var(--rq-down-hover); }
+  .rq-btn:disabled, .rq-btn[aria-disabled="true"] { background: var(--rq-fill-1); border-color: transparent; color: var(--rq-text-5); cursor: not-allowed; }
+  .rq-btn--link { border: 0; border-bottom: var(--rq-hair) solid var(--rq-line-6); padding: 0; font-family: var(--rq-font-ui); font-size: var(--rq-fs-tab); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3); }
+  .rq-btn--link:hover { color: var(--rq-gold-text); border-color: var(--rq-gold); }
+  .rq-btn--icon { width: var(--rq-icon-btn); height: var(--rq-icon-btn); padding: 0; border-color: var(--rq-line-5); color: var(--rq-text-3); }
+  .rq-btn--icon:hover { border-color: var(--rq-gold); color: var(--rq-gold-text); }
+  .rq-btn--fab { width: var(--rq-fab); height: var(--rq-fab); padding: 0; border-radius: var(--rq-radius-round); background: var(--rq-gold); color: var(--rq-on-gold); font-size: 30px; }
 
-  /* rq-* tokens: dark transparencies over white cards */
-  --rq-surface-1:    rgba(0,0,0,0.03);
-  --rq-surface-2:    rgba(0,0,0,0.05);
-  --rq-border-1:     rgba(0,0,0,0.07);
-  --rq-border-2:     rgba(0,0,0,0.11);
-  --rq-avatar-border:rgba(0,0,0,0.15);
-  --rq-watermark:    rgba(0,0,0,0.07);
-  --rq-text-dim:     rgba(0,0,0,0.28);
-  --rq-text-muted:   rgba(0,0,0,0.40);
-  --rq-text-soft:    rgba(0,0,0,0.58);
-  --rq-text-strong:  rgba(0,0,0,0.80);
-  --rq-success:      #15803d;
-  --rq-danger:       #dc2626;
+  /* ── Chips: sätt accent via modifierare (--rq-c = RGB-triplett, --rq-c-solid = textfärg).
+        Status = tint .10 / kant .45 / text full. Metadata idle = line-5 + text-3. ── */
+  .rq-chip { display: inline-flex; align-items: center; gap: var(--rq-sp-8); padding: 6px 13px; font-size: var(--rq-fs-chip);
+    letter-spacing: var(--rq-ls-label); text-transform: uppercase; border: var(--rq-hair) solid var(--rq-line-5); color: var(--rq-text-4); border-radius: var(--rq-radius); }
+  .rq-chip--status { background: rgb(var(--rq-c) / var(--rq-tint-status)); border-color: rgb(var(--rq-c-edge, var(--rq-c)) / var(--rq-edge-status)); color: var(--rq-c-solid); }
+  .rq-chip--value  { padding: 5px 12px; letter-spacing: var(--rq-ls-chip); background: rgb(var(--rq-c) / var(--rq-tint-selected)); border-color: rgb(var(--rq-c-edge, var(--rq-c)) / var(--rq-edge-selected)); color: var(--rq-c-solid); }
+  .rq-chip--tag    { padding: 5px 12px; letter-spacing: var(--rq-ls-chip); color: var(--rq-text-3); }
+  .rq-chip--gold   { --rq-c: var(--rq-gold-rgb); --rq-c-solid: var(--rq-gold-text); }
+  .rq-chip--up     { --rq-c: var(--rq-up-rgb);   --rq-c-solid: var(--rq-up); }
+  .rq-chip--down   { --rq-c: var(--rq-down-rgb); --rq-c-solid: var(--rq-down); }
+  .rq-chip--duel   { --rq-c: var(--rq-duel-base-rgb); --rq-c-edge: var(--rq-duel-rgb); --rq-c-solid: var(--rq-duel); }  /* tint på base (#f97316), kant+text på duel (#fdba74) */
+  .rq-chip--strava { padding: 5px 12px; border-color: rgb(var(--rq-strava-rgb) / .5); color: var(--rq-strava); }
+
+  /* ── Flikar ── */
+  .rq-tab { padding: 9px 16px; font-size: var(--rq-fs-tab); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; cursor: pointer; color: var(--rq-text-4); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .rq-tab[aria-selected="true"] { color: var(--rq-gold-text); border-bottom-color: var(--rq-gold); }
+  .rq-filter { padding: 7px 15px; font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; cursor: pointer; border: var(--rq-hair) solid var(--rq-line-4); color: var(--rq-text-3); }
+  .rq-filter[aria-pressed="true"],
+  .rq-filter[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
+  .rq-segmented { display: inline-flex; border: var(--rq-hair) solid var(--rq-line-5); }
+  .rq-segmented > [aria-pressed="true"] { background: var(--rq-gold); color: var(--rq-on-gold); }
+
+  /* ── Staplar, ringar, avatar, bakgrund ── */
+  .rq-track { height: 6px; background: var(--rq-fill-1); }
+  .rq-track > .rq-fill { height: 100%; width: var(--w); background: var(--rq-gold); animation: rqBar var(--rq-dur-bar) var(--rq-ease-bar) both; animation-delay: var(--rq-delay, 0s); }
+  .rq-track > .rq-fill--rest { background: rgb(var(--rq-gold-rgb) / .6); }
+  .rq-track > .rq-fill--pack { background: var(--rq-bar-pack); animation-timing-function: ease-out; }
+  .rq-track > .rq-fill--down { background: var(--rq-down); }
+  .rq-ring { position: relative; border-radius: var(--rq-radius-round); background: conic-gradient(var(--rq-ring-c, var(--rq-gold)) 0turn var(--rq-ring-p, .5turn), var(--rq-fill-1) var(--rq-ring-p, .5turn) 1turn); }
+  .rq-ring > .rq-ring-hole { position: absolute; inset: 8px; border-radius: var(--rq-radius-round); background: var(--rq-panel-solid); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .rq-avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: var(--rq-radius-round); background: var(--rq-fill-1); border: var(--rq-hair) solid var(--rq-ring-c, var(--rq-line-6)); color: var(--rq-ring-c, var(--rq-text-3)); font-family: var(--rq-font-display); }
+  .rq-dot { display: inline-block; width: 6px; height: 6px; border-radius: var(--rq-radius-round); background: currentColor; }
+  .rq-dot--live  { color: var(--rq-up);   animation: rqBlink var(--rq-dur-blink-live) ease-in-out infinite; }
+  .rq-dot--alarm { color: var(--rq-down); animation: rqBlink var(--rq-dur-blink-alarm) ease-in-out infinite; }
+  .rq-grid-bg { background-image: linear-gradient(var(--rq-grid-line) 1px, transparent 1px); background-size: 100% var(--rq-grid-size); animation: rqGrid var(--rq-dur-grid) linear infinite; }
+  .rq-skel { background: linear-gradient(90deg, var(--rq-fill-1), rgb(var(--rq-ink-rgb) / .12), var(--rq-fill-1)); background-size: 200% 100%; animation: rqSkel 1.4s linear infinite; }
+  /* Skeleton-rad: hårlinjegridens cell med rank · namn · värde. Höjder via --rq-skel-h-* i klassnamn. */
+  .rq-skel-row { display: grid; grid-template-columns: var(--rq-skel-col-icon) 1fr var(--rq-skel-col-value); align-items: center; gap: var(--rq-sp-14); background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }
+  .rq-skel-block { background: var(--rq-fill-1); animation: rqBlink var(--rq-dur-skel) ease-in-out infinite; }
+  .rq-skel-block--value { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); }
+  .rq-rise { animation: rqRise var(--rq-dur-rise) var(--rq-ease-bar) both; animation-delay: var(--rq-delay, 0s); }
+
+  /* ── Inmatning: guld ENDAST vid fokus ── */
+  .rq-field { width: 100%; box-sizing: border-box; background: var(--rq-inset); border: var(--rq-hair) solid var(--rq-line-5); color: var(--rq-text-2); font-family: var(--rq-font-ui); font-size: var(--rq-fs-lead); padding: 11px 13px; outline: none; border-radius: var(--rq-radius); }
+  .rq-field--mono { font-family: var(--rq-font-mono); }
+  .rq-field:focus { border-color: var(--rq-focus-field); }
+  .rq-field[aria-invalid="true"] { border-color: rgb(var(--rq-down-rgb) / .6); background: rgb(var(--rq-down-rgb) / .06); }
+  .rq-toggle { position: relative; width: var(--rq-toggle-w); height: var(--rq-toggle-h); border-radius: var(--rq-radius-pill); background: var(--rq-line-4); cursor: pointer; }
+  .rq-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: var(--rq-toggle-knob); height: var(--rq-toggle-knob); border-radius: var(--rq-radius-round); background: var(--rq-text-3); }
+  .rq-toggle[aria-checked="true"] { background: var(--rq-gold); }
+  .rq-toggle[aria-checked="true"]::after { left: auto; right: 3px; background: var(--rq-on-gold); }
 }
 
-html:not(.dark) .runquest-hybrid .nav-item-hover:hover {
-  background: linear-gradient(to right, rgba(205,127,50,0.08), transparent);
-  border-left-color: rgba(205,127,50,0.4) !important;
-}
 
-html:not(.dark) .runquest-hybrid .nav-item-active::after {
-  background: linear-gradient(to right, #cd7f32, rgba(205,127,50,0.15) 55%, transparent);
-}
+/* ═════════════════════════════════════════════════════════════════════════════
+   7. KVARVARANDE LEGACY UTANFÖR TOKENLAGRET (TEMPORÄRT)
+   Behålls för att befintliga komponenter fortfarande läser dem; tas bort när
+   respektive komponent ritas om (redesign-plan.md).
+   - Tomt: goldPulse togs bort med SentReceivedBar (inkrement 5), legendaryFlagGlow med gamla Leaderboard.tsx (inkrement 2).
+═════════════════════════════════════════════════════════════════════════════ */
 
-.nav-item-hover:hover {
-  background: linear-gradient(to right, color-mix(in srgb, var(--rq-gold) 5%, transparent), transparent);
-  border-left-color: color-mix(in srgb, var(--rq-gold) 30%, transparent) !important;
-}
+/* ═════════════════════════════════════════════════════════════════════════════
+   8. DRIVER.JS (onboarding-turen) — tokeniserad i inkrement 1
+   Flytande lager enligt designen: popover-yta, guld-hårlinje, skuggan --rq-shadow-pop,
+   radie 0, Barlow Condensed. Hör ihop med popoverClass 'rq-tour-popover' i OnboardingTour.tsx.
+═════════════════════════════════════════════════════════════════════════════ */
 
-.nav-item-active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(to right, var(--rq-gold), color-mix(in srgb, var(--rq-gold) 12%, transparent) 55%, transparent);
-}
-
-@keyframes goldPulse {
-  0%, 100% { box-shadow: 0 0 18px color-mix(in srgb, var(--rq-gold) 9%, transparent), inset 0 0 30px color-mix(in srgb, var(--rq-gold) 2%, transparent); }
-  50%       { box-shadow: 0 0 32px color-mix(in srgb, var(--rq-gold) 19%, transparent), inset 0 0 40px color-mix(in srgb, var(--rq-gold) 6%, transparent); }
-}
-
-@keyframes legendaryFlagGlow {
-  0%, 100% { filter: drop-shadow(0 3px 5px color-mix(in srgb, var(--rq-gold) 55%, transparent)); }
-  50%       { filter: drop-shadow(0 3px 12px color-mix(in srgb, var(--rq-gold) 90%, transparent)); }
-}
-
-/*
-  .podium-light — applied to gold/silver/bronze cards in Leaderboard.tsx.
-  Forces dark Graphite text in both themes so it stays readable on the
-  light-coloured podium backgrounds (amber-100, zinc-100, orange-100).
-*/
-.podium-light {
-  --foreground:        330  2% 18%; /* Force dark text on light podium bg  */
-  --card-foreground:   330  2% 18%; /* Same for card-specific text         */
-  --muted-foreground:  330  2% 28%; /* Subdued text — still dark but softer */
-  --accent:             30 20% 88%; /* Lighter warm tint for accent inside podium cards */
-  --accent-foreground: 330  2% 18%; /* Accent text on podium cards         */
-  color: hsl(330, 2%, 18%);         /* Direct override for `color` property */
-}
-
-/* ── Driver.js RunQuest theme ───────────────────────────────────────────────
-   Override driver.js default white popover with RunQuest dark/gold style.
-   Applied via popoverClass: 'rq-tour-popover' in OnboardingTour.tsx        */
-
-/* Prevent overlay from bleeding through transparent/gradient card backgrounds */
+/* Hindrar overlayn från att lysa igenom genomskinliga kort bakom det markerade elementet */
 .driver-active-element {
-  background: hsl(var(--card)) !important;
+  background: var(--rq-panel-solid) !important;
 }
 
 .rq-tour-popover {
-  background-color: hsl(var(--sidebar)) !important;
-  border: 2px solid var(--rq-gold) !important;
-  border-radius: 12px !important;
-  padding: 20px !important;
-  min-width: 280px !important;
-  max-width: 340px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+  background-color: var(--rq-popover) !important;
+  border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important;
+  border-radius: var(--rq-radius) !important;
+  padding: var(--rq-sp-20) !important;
+  min-width: var(--rq-tour-w-min) !important;
+  max-width: var(--rq-tour-w-max) !important;
+  box-shadow: var(--rq-shadow-pop) !important;
 }
 
 .rq-tour-popover * {
-  font-family: system-ui, sans-serif !important;
-  color: hsl(var(--foreground)) !important;
+  font-family: var(--rq-font-ui) !important;
+  color: var(--rq-text-2) !important;
 }
 
 .rq-tour-popover .driver-popover-title {
-  font-family: 'Bebas Neue', sans-serif !important;
-  font-size: 1.4rem !important;
-  letter-spacing: 0.05em !important;
-  color: var(--rq-gold) !important;
-  margin-bottom: 6px !important;
-  padding-right: 24px !important;
+  font-family: var(--rq-font-display) !important;
+  font-size: var(--rq-fs-title) !important;
+  letter-spacing: var(--rq-ls-title) !important;
+  line-height: var(--rq-lh-tight) !important;
+  color: var(--rq-gold-text) !important;
+  margin-bottom: var(--rq-sp-6) !important;
+  padding-right: var(--rq-sp-24) !important;
 }
 
 .rq-tour-popover .driver-popover-description {
-  font-size: 0.875rem !important;
-  line-height: 1.55 !important;
-  color: hsl(var(--foreground) / 0.8) !important;
+  font-size: var(--rq-fs-body) !important;
+  line-height: var(--rq-lh-body) !important;
+  color: var(--rq-text-3) !important;
 }
 
 .rq-tour-popover .driver-popover-close-btn {
-  color: hsl(var(--foreground) / 0.4) !important;
-  font-size: 16px !important;
+  color: var(--rq-text-4) !important;
+  font-size: var(--rq-fs-lead) !important;
 }
 
 .rq-tour-popover .driver-popover-close-btn:hover {
-  color: hsl(var(--foreground)) !important;
+  color: var(--rq-text-2) !important;
 }
 
 .rq-tour-popover .driver-popover-footer {
-  margin-top: 16px !important;
-  border-top: 1px solid color-mix(in srgb, var(--rq-gold) 25%, transparent) !important;
-  padding-top: 12px !important;
+  margin-top: var(--rq-sp-16) !important;
+  border-top: var(--rq-hair) solid var(--rq-line-4) !important;
+  padding-top: var(--rq-sp-12) !important;
 }
 
 .rq-tour-popover .driver-popover-progress-text {
-  font-family: 'Barlow Condensed', sans-serif !important;
-  font-size: 0.75rem !important;
-  letter-spacing: 0.1em !important;
+  font-family: var(--rq-font-mono) !important;
+  font-size: var(--rq-fs-eyebrow) !important;
+  letter-spacing: var(--rq-ls-eyebrow) !important;
   text-transform: uppercase !important;
-  color: hsl(var(--foreground) / 0.45) !important;
+  color: var(--rq-text-4) !important;
 }
 
 .rq-tour-popover .driver-popover-navigation-btns button {
-  font-family: 'Barlow Condensed', sans-serif !important;
-  font-size: 0.8rem !important;
+  font-family: var(--rq-font-ui) !important;
+  font-size: var(--rq-fs-btn-sm) !important;
   font-weight: 600 !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: var(--rq-ls-btn-sm) !important;
   text-transform: uppercase !important;
-  border-radius: 6px !important;
-  padding: 5px 12px !important;
+  border-radius: var(--rq-radius) !important;
+  padding: var(--rq-btn-pad-sm) !important;
   background-color: transparent !important;
-  border-color: color-mix(in srgb, var(--rq-gold) 40%, transparent) !important;
-  color: hsl(var(--foreground) / 0.7) !important;
+  border-color: var(--rq-btn-secondary-edge) !important;
+  color: var(--rq-text-3) !important;
   text-shadow: none !important;
 }
 
+.rq-tour-popover .driver-popover-navigation-btns button:hover {
+  border-color: var(--rq-gold) !important;
+  color: var(--rq-text-2) !important;
+}
+
+/* Primärknappen (Next/Done): en guldknapp per vy */
 .rq-tour-popover .driver-popover-navigation-btns button:last-child {
   background-color: var(--rq-gold) !important;
   border-color: var(--rq-gold) !important;
-  color: #000 !important;
+  color: var(--rq-on-gold) !important;
 }
 
-.rq-tour-popover .driver-popover-navigation-btns button:hover {
-  opacity: 0.9 !important;
+.rq-tour-popover .driver-popover-navigation-btns button:last-child:hover {
+  background-color: var(--rq-gold-hover) !important;
 }
 
-/* Arrow matches border color */
+/* Pilen följer popoverns kantfärg */
 .rq-tour-popover .driver-popover-arrow {
-  border-color: var(--rq-gold) !important;
+  border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important;
 }
-.rq-tour-popover .driver-popover-arrow-side-left { border-left-color: var(--rq-gold) !important; }
-.rq-tour-popover .driver-popover-arrow-side-right { border-right-color: var(--rq-gold) !important; }
-.rq-tour-popover .driver-popover-arrow-side-top { border-top-color: var(--rq-gold) !important; }
-.rq-tour-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--rq-gold) !important; }
+.rq-tour-popover .driver-popover-arrow-side-left { border-left-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important; }
+.rq-tour-popover .driver-popover-arrow-side-right { border-right-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important; }
+.rq-tour-popover .driver-popover-arrow-side-top { border-top-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important; }
+.rq-tour-popover .driver-popover-arrow-side-bottom { border-bottom-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) !important; }

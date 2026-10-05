@@ -132,7 +132,7 @@
   --rq-text-1: #ffffff;
   --rq-text-2: #edeeed;
   --rq-text-3: rgb(var(--rq-ink-rgb) / .60);
-  --rq-text-4: rgb(var(--rq-ink-rgb) / .40);
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .50);   /* WCAG AA 4.5:1 (ägarbeslut 2026-10-04); ljust: .65 */
   --rq-text-5: rgb(var(--rq-ink-rgb) / .28);
 
   /* ── 1.8 Hårlinjeskala (ink-alfa). Rader skiljs av gap, inte kanter ─────────
@@ -238,6 +238,15 @@
   --rq-sidebar-w:  250px;     /* desktop */
   --rq-content-max: 1440px;
   --rq-tabbar-pb:  max(12px, env(safe-area-inset-bottom));
+  /* Skalmått (inkrement 1): värden ur App-/Web-prototypen som inte hade token */
+  --rq-shell-narrow-max: 640px;  /* mobilskalets maxbredd på surfplatta (ADR 006) */
+  --rq-menu-w:           236px;  /* avatarmenyn (mobil 236 · desktop 230) */
+  --rq-overlay-w:        860px;  /* Runner card som overlay på desktop */
+  --rq-avatar-sm:        28px;   /* header-avatar (mobil 28 · desktop 30) */
+  --rq-tabbar-new-lift:  9px;    /* "New"-kvadratens negativa marginal uppåt/nedåt */
+  --rq-tabbar-new-inset: 14px;   /* … och inåt åt sidorna */
+  --rq-tour-w-min:       280px;  /* driver.js-popover */
+  --rq-tour-w-max:       340px;
 
   /* ── 1.13 Form: hörn och kantlinjer ───────────────────────────────────────── */
   --radius:          0rem;     /* shadcn-läsare (tailwind borderRadius lg/md/sm) — SKARPT */
@@ -303,6 +312,212 @@
   --rq-dur-grid:  9s;
   --rq-grid-line: rgb(var(--rq-gold-rgb) / .03);   /* desktop .035 */
   --rq-grid-size: 40px;
+
+  /* ── 1.19 Skeleton-rader (Loaders-förlagan: rank 34 · namn + stapel · värde 90) ─
+     Kolumnbredder och blockhöjder för SkeletonRows. 1 = rank-block, 2 = namnstreck,
+     3 = understapel, 4 = värdeblock. Blinktakt 1.5 s (rqBlink, stagger .15 s i koden). */
+  --rq-skel-col-icon:  34px;
+  --rq-skel-col-value: 90px;
+  --rq-skel-h-1: 22px;
+  --rq-skel-h-2: 13px;
+  --rq-skel-h-3: 5px;
+  --rq-skel-h-4: 14px;
+  --rq-dur-skel: 1.5s;
+
+  /* ── 1.20 Board-mått (inkrement 2: Season/Week/Streaks) ────────────────────
+     Mått ur App-/Web-prototypens Board-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/leaderboard/board.css. */
+  --rq-board-avatar: 36px;          /* avatar i podiekort (desktop 42) */
+  --rq-board-bar-h: 5px;            /* nivåstapel i podiekort (desktop 6) */
+  --rq-board-bar-h-thin: 4px;       /* nivåstapel i listrad (desktop 6) */
+  --rq-board-ribbon-w: 22px;        /* challenge-sköld */
+  --rq-board-ribbon-h: 27px;
+  --rq-board-ribbon-font: 15px;     /* siffran i skölden (SVG-enheter) */
+  --rq-board-daybars-h: 34px;       /* veckans dagstaplar (desktop 44) */
+  --rq-board-streak-bar-h: 6px;     /* multiplikatorstapel (desktop 8) */
+  --rq-board-plinth-1: 78px;        /* sockel under podiekort (desktop) */
+  --rq-board-plinth-2: 52px;
+  --rq-board-plinth-3: 38px;
+  --rq-board-side-w: 300px;         /* desktop: sidokolumn (Mover/Pack/Alert/Ladder) */
+  --rq-board-delta-w: 26px;         /* desktop: fast kolumn för ▲/▼ framför namnet */
+  --rq-board-rest-cols: 26px 1fr 74px;
+  --rq-board-week-cols: 24px 1fr 62px;
+  --rq-board-streak-cols: 1fr;
+
+  /* ── 1.21 Runner card-mått (inkrement 3) ───────────────────────────────────
+     Mått ur App-/Web-prototypens runner-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop (overlayn) skriver över
+     i avsnitt 2. Konsument: features/runner/runner.css. */
+  --rq-runner-ring: 78px;               /* nivåringens diameter (desktop 96) */
+  --rq-runner-ring-inset: 7px;          /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-runner-hero-gap: 14px;           /* ring ↔ namn (desktop 20) */
+  --rq-runner-stat-cols: repeat(3, minmax(0, 1fr));   /* statceller: mobil 3, desktop 5 */
+  --rq-runner-split-cols: minmax(0, 1fr);             /* desktop: statflikar | titlar (340 px) */
+  --rq-runner-bar-h: 9px;               /* Frodo-stapeln (desktop 10) */
+  --rq-runner-knob: 15px;               /* positionsmarkören (desktop 16) */
+  --rq-runner-journey-h: 92px;          /* desktop: höjd på vägen med waypoint-etiketter */
+  --rq-runner-journey-bar-top: 62px;    /* … stapelns överkant */
+  --rq-runner-journey-ends-top: 78px;   /* … start-/slutetikett under stapeln */
+  --rq-runner-journey-row-1: 18px;      /* … etikettrad 1: tickens höjd över stapeln */
+  --rq-runner-journey-row-2: 46px;      /* … etikettrad 2 */
+  --rq-runner-journey-label-h: 13px;    /* … etikettens höjd (ticken börjar under den) */
+  --rq-runner-close-gutter: 44px;       /* overlay: luft till modalens ✕ i toppraden */
+
+  /* ── 1.22 Titles-mått (inkrement 4) ────────────────────────────────────────
+     Mått ur App-/Web-prototypens titles-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/titles/titles.css. */
+  --rq-titles-grid-cols: minmax(0, 1fr);              /* titelkorten i en grupp: mobil 1 kolumn, desktop 3 */
+  --rq-titles-split-cols: minmax(0, 1fr);             /* desktop: grupper | sidokolumn (320 px) */
+  --rq-titles-rule-min-h: 0;                          /* regelraden (desktop 44 px, så korten linjerar) */
+  --rq-titles-pos: 19px;                              /* platsmarkören i "On display" (guldfylld kvadrat) */
+
+  /* ── 1.23 Duels-mått (inkrement 5) ─────────────────────────────────────────
+     Mått ur App-/Web-prototypens challenges-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
+     avsnitt 2. Skölden återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
+  --rq-duels-split-cols: minmax(0, 1fr);                              /* desktop: vy | sidokolumn (320 px) */
+  --rq-duels-live-cols: minmax(0, 1fr);                               /* live-korten: mobil 1 kolumn, desktop 2 */
+  --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 */
+  --rq-duels-standing-cols: 24px minmax(0, 1fr) 34px 34px 34px 52px; /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
+  --rq-duels-match-cols: minmax(0, 1fr) 26px minmax(0, 1fr);          /* vänster · vs · höger (desktop + meta 190 + datum 70) */
+  --rq-duels-match-meta-span: 1 / 3;                                  /* mobil: metan under paret; desktop: egen kolumn */
+  --rq-duels-match-date-span: 3;
+  --rq-duels-match-meta-align: left;                                  /* desktop: right */
+  --rq-duels-match-edge-w: 0px;                                       /* desktop: 3 px hårlinjekant till vänster */
+  --rq-duels-offer-cols: minmax(0, 1fr);                              /* inkommande kort: mobil staplat, desktop id · insats · knappar */
+  --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));           /* Accept | Decline; desktop: ovanpå varandra */
+  --rq-duels-offer-rule-w: 1px;                                       /* hårlinjer ovan/under insatsen (desktop 0) */
+  --rq-duels-token-cols: minmax(0, 1fr);                              /* send-sheet, tokenval: mobil 1 kolumn, desktop 3 */
+  --rq-duels-avatar: 28px;                                            /* motståndarrad (desktop 32) */
+  /* Send-sheet: bottensheet (mobil) → centrerad dialog (desktop) */
+  --rq-duels-sheet-w: min(100%, var(--rq-shell-narrow-max));
+  --rq-duels-sheet-top: auto;
+  --rq-duels-sheet-bottom: 0;
+  --rq-duels-sheet-shift: 0;
+  --rq-duels-sheet-max-h: 88vh;
+  --rq-duels-sheet-edge-w: 2px;                                       /* guld toppkant på bottensheeten (desktop 1 px runtom) */
+  --rq-duels-sheet-actions-dir: column;                               /* desktop: row (Send + Cancel) */
+  --rq-duels-sheet-cancel-display: none;                              /* mobil stänger med ✕; desktop visar Cancel */
+
+  /* ── 1.24 Events-mått (inkrement 6) ────────────────────────────────────────
+     Mått ur App-/Web-prototypens events-skärm som saknade token. Endast mått —
+     ingen färg, ingen typskala (ringens siffra är undantaget: klockan i ringen har
+     egen storlek, mobil 15 · desktop 22). Mobil = standard; desktop skriver över i
+     avsnitt 2. Konsument: features/events/events.css. */
+  --rq-events-split-cols: minmax(0, 1fr);                  /* desktop: öppet/up next/veckan | Your record + historik (340 px) */
+  --rq-events-week-cols: minmax(0, 1fr);                   /* "This week": mobil rader, desktop 3 kort bredvid varandra */
+  --rq-events-ring: 88px;                                  /* nedräkningsringen (desktop 132) */
+  --rq-events-ring-inset: 6px;                             /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-events-ring-fs: 15px;                               /* tiden i ringen (desktop 22) */
+  --rq-events-ring-order: -1;                              /* mobil: ringen före texten; desktop: efter (0) */
+  --rq-events-live-gap: 14px;                              /* ring ↔ text (desktop 28) */
+  --rq-events-sweep-w: 70px;                               /* sweep-bandet på levande kort (desktop 80) */
+  --rq-events-board-cols: 26px minmax(0, 1fr) 70px 64px;   /* tävlingstabell: plats · namn · värde · pris (desktop 40 · 1fr · 100 · 90) */
+  --rq-events-pager-btn: 24px;                             /* sidknappens minsta bredd */
+  /* ── 1.25 Log-mått (inkrement 7) ───────────────────────────────────────────
+     Mått ur App-/Web-prototypens log-skärm som saknade token. Endast mått — ingen typskala, med undantaget att
+     historikcellernas siffra/etikett (Bebas 16/24, etikett 9/12) och Estimated XP-siffran (52/68) har egen storlek i
+     prototypen. Löpbandets blå är samma blå som minor-nivån (tier-minor), under eget namn så att rollen syns.
+     Mobil = standard; desktop skriver över i avsnitt 2. Konsument: features/log/log.css. */
+  --rq-log-split-cols: minmax(0, 1fr);                     /* desktop: formulär | Estimated XP + effekter (400 px) */
+  --rq-log-fields-cols: minmax(0, 1fr);                    /* datum + distans: mobil staplade, desktop bredvid varandra */
+  --rq-log-xp-size: 52px;                                  /* Estimated XP-siffran (desktop 68) */
+  --rq-log-avatar: 38px;                                   /* avatar i historikkortet (desktop 46) */
+  --rq-log-run-cols: minmax(0, 1fr) auto;                  /* historikkort: mobil vem | km+XP, celler under; desktop vem | celler | km+XP (250 · 1fr · 210) */
+  --rq-log-run-areas: "who totals" "cells cells";
+  --rq-log-run-gap: 10px;                                  /* desktop 24 */
+  --rq-log-run-align: start;                               /* desktop center */
+  --rq-log-totals-gap: 4px;                                /* km ↔ XP (desktop 14) */
+  --rq-log-tag-break: none;                                /* desktop: underlaget på egen rad, väder + källa under (block) */
+  --rq-log-cell-fs: 16px;                                  /* historikcellens siffra (desktop 24) */
+  --rq-log-cell-label-fs: 9px;                             /* … och etikett (desktop 12) */
+  --rq-log-cell-pad: 7px 5px;                              /* desktop 14px 11px */
+  --rq-log-treadmill-rgb: var(--rq-tier-minor-rgb);        /* löpband = samma blå som minor-nivån */
+  --rq-log-treadmill: var(--rq-tier-minor-fg);
+  /* ── 1.26 Profile-mått (inkrement 8) ───────────────────────────────────────
+     Mått ur App-/Web-prototypens profil-skärm som saknade token. Endast mått — ingen färg, ingen typskala.
+     Heatmapens fem steg är --rq-heat-0…4 (avsnitt 1.9). Mobil = standard; desktop skriver över i avsnitt 2.
+     Konsument: features/profile/profile.css. */
+  --rq-profile-split-cols: minmax(0, 1fr);                            /* desktop: hjälte · Frodo · statflikar | titlar + rundhistorik (340 px) */
+  --rq-profile-hero-areas: "ring who" "cells cells" "photo photo";    /* desktop: ringen spänner över namn + celler */
+  --rq-profile-hero-gap: 14px;                                        /* ring ↔ namn (desktop 22) */
+  --rq-profile-ring: 78px;                                            /* nivåringens diameter (desktop 104) */
+  --rq-profile-ring-inset: 7px;                                       /* ringens tjocklek = hålets inset (desktop 8) */
+  --rq-profile-stat-cols: repeat(3, minmax(0, 1fr));                  /* statceller: mobil 3, desktop 5 */
+  --rq-profile-bar-h: 9px;                                            /* Frodo-stapeln (desktop 11) */
+  --rq-profile-knob: 15px;                                            /* positionsmarkören (desktop 17) */
+  --rq-profile-journey-h: 74px;                                       /* vägen med waypoint-etiketter (desktop 96) */
+  --rq-profile-journey-bar-top: 46px;                                 /* … stapelns överkant (desktop 62) */
+  --rq-profile-journey-ends-top: 60px;                                /* … start-/slutetikett under stapeln (desktop 80) */
+  --rq-profile-journey-row-1: 14px;                                   /* … etikettrad 1: tickens höjd över stapeln (desktop 18) */
+  --rq-profile-journey-row-2: 34px;                                   /* … etikettrad 2 (desktop 46) */
+  --rq-profile-journey-label-h: 11px;                                 /* … etikettens höjd (desktop 13) */
+  --rq-profile-heat-cell: 8px;                                        /* heatmapens ruta (desktop 11) */
+  --rq-profile-heat-gap: 2px;                                         /* ruta ↔ ruta (båda prototyperna 2 px; --rq-heat-gap är 4 px på desktop) */
+  --rq-profile-heat-stagger: .02s;                                    /* veckokolumnernas fördröjning när rutnätet växer in (en gång) */
+  --rq-profile-sheet-w: min(100%, var(--rq-shell-narrow-max));        /* redigera/radera: bottensheet (mobil) → centrerad dialog (desktop) */
+  --rq-profile-sheet-top: auto;
+  --rq-profile-sheet-bottom: 0;
+  --rq-profile-sheet-shift: 0;
+  --rq-profile-sheet-max-h: 88vh;
+  --rq-profile-sheet-edge-w: 2px;                                     /* guld toppkant på bottensheeten (desktop 1 px runtom) */
+  --rq-profile-sheet-actions-dir: column;                             /* desktop: row */
+  --rq-profile-sheet-fields-cols: minmax(0, 1fr);                     /* datum + distans: mobil staplade, desktop bredvid varandra */
+  /* ── 1.27 Landing-mått (inkrement 10) ──────────────────────────────────────
+     Mått ur App Prototypens landing (mobil). Web Prototype har INGEN landing — desktopvärdena nedan är ett antagande
+     (samma komposition, större yta). Endast mått och tider — ingen färg, ingen typskala. Banans geometri (viewBox
+     1400 × 760) ritas i user units, så px-värdena för banlinjer/siffror skalar med SVG:n. Mobil = standard; desktop
+     skriver över i avsnitt 2. Konsument: features/landing/landing.css. */
+  --rq-landing-max: var(--rq-shell-narrow-max);                       /* innehållets maxbredd: mobil/surfplatta 640 · desktop 1120 */
+  --rq-landing-pad: 20px;                                             /* sidmarginal (desktop 48) */
+  --rq-landing-glow-w: 460px;                                         /* guldgloden bakom hjälten (desktop 900) */
+  --rq-landing-glow-h: 340px;                                         /* (desktop 560) */
+  --rq-landing-glow-top: -120px;                                      /* (desktop -240) */
+  --rq-landing-logo-w: 148px;                                         /* wordmarken (desktop 190) */
+  --rq-landing-hero-cols: minmax(0, 1fr) auto;                        /* rubrik | arenabanan; desktop: text | bana */
+  --rq-landing-hero-areas: "badge badge" "title arena" "lead lead" "cta cta";   /* desktop: banan spänner över alla fyra raderna */
+  --rq-landing-track-w: 118px;                                        /* banans ruta (desktop 300) */
+  --rq-landing-track-h: 158px;                                        /* (desktop 400) */
+  --rq-landing-track-svg-w: 172px;                                    /* den roterade SVG:n inuti rutan (desktop 430) */
+  --rq-landing-lane-w: 9px;                                           /* banlinje, user units (viewBox 1400) */
+  --rq-landing-finish-w: 11px;                                        /* mållinjen */
+  --rq-landing-xp-size: 230px;                                        /* "+50 XP"-poppen, user units */
+  --rq-landing-xp-rise: -170px;                                       /* … stiger så här långt (i textens egen, motroterade ram) */
+  --rq-landing-lap-1: 15s;                                            /* varvtid guld · silver · brons — de tre löparna går i olika takt */
+  --rq-landing-lap-2: 20s;
+  --rq-landing-lap-3: 26s;
+  --rq-landing-lap-offset-2: -6s;                                     /* startförskjutning så de inte går i klump */
+  --rq-landing-lap-offset-3: -12s;
+  --rq-landing-pulse: 3.4s;                                           /* previewkortets guldring andas (rqRing) */
+  --rq-landing-sweep: 4.5s;                                           /* sweep-bandet över previewkortet (rqSweep) */
+  --rq-landing-sweep-w: 60px;                                         /* (desktop 90) */
+  --rq-landing-row-cols: 24px minmax(0, 1fr) 68px;                    /* previewrad: plats · namn + stapel · XP (desktop 36 · 1fr · 96) */
+  --rq-landing-bar-h: 4px;                                            /* previewradens stapel */
+  --rq-landing-body-cols: minmax(0, 1fr);                             /* preview + steg: mobil staplade, desktop bredvid varandra */
+  /* ── 1.28 News-mått (inkrement 9) ──────────────────────────────────────────
+     Mått ur App-/Web-prototypens Pack News (klock-popover + skärm) som saknade token. Endast mått — ingen typskala
+     (raderna snappar till textstegen: kind 12/14, text 15/17, tid 13/15) och inga färger (oläst/läst-bakgrund och
+     kantstyrkan ligger i 1.9). Mobil = standard; desktop skriver över i avsnitt 2.
+     Raden är ett rutnät med fyra områden: ikon · typ · tid · text. Mobil lägger tiden på typraden, desktop i en egen
+     kolumn som spänner båda raderna. Filtret är en chip-rad på mobil (prototypen har inget filter där) och ett
+     kort med lodrät lista på desktop.
+     Konsumenter: features/news/news.css + app-shell/NotificationsPopover. */
+  --rq-news-edge-alpha-quiet: .18;                                    /* kanten på event-rader: neutral ink, tystare än de färgade (1.9 har .6) */
+  --rq-news-split-cols: minmax(0, 1fr);                               /* desktop: flöde | filter (300 px) */
+  --rq-news-filter-w: 300px;                                          /* filterkortet, endast desktop */
+  --rq-news-filter-dir: row;                                          /* mobil: chip-rad · desktop: lodrät lista */
+  --rq-news-filter-gap: 6px;                                          /* chip ↔ chip (desktop 0 — raderna skiljs av hårlinje) */
+  --rq-news-row-cols: 26px minmax(0, 1fr) auto;                       /* ikon · typ + text · tid (desktop 34 · 1fr · auto) */
+  --rq-news-row-areas: "icon kind time" "icon text text";             /* desktop: "icon kind time" "icon text time" */
+  --rq-news-row-align: start;                                         /* desktop center */
+  --rq-news-row-gap: 10px;                                            /* desktop 14 */
+  --rq-news-row-pad-y: 10px;                                          /* desktop 12 */
+  --rq-news-row-pad-x: 12px;                                          /* desktop 16 */
+  --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
+  --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
+  --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
 }
 
 
@@ -325,6 +540,113 @@
     --rq-shadow-pop: 0 24px 60px rgba(0, 0, 0, .70);
     --rq-bg-shell-glass: rgba(7, 14, 9, .94);
     --rq-grid-line: rgb(var(--rq-gold-rgb) / .035);
+    --rq-board-avatar: 42px;
+    --rq-board-bar-h: 6px;
+    --rq-board-bar-h-thin: 6px;
+    --rq-board-daybars-h: 44px;
+    --rq-board-streak-bar-h: 8px;
+    --rq-board-rest-cols: 40px 300px 1fr 78px 84px 88px 112px;
+    --rq-board-week-cols: 38px 190px 1fr 128px 92px;
+    --rq-board-streak-cols: 190px 96px 1fr 150px;
+    --rq-runner-ring: 96px;
+    --rq-runner-ring-inset: 8px;
+    --rq-runner-hero-gap: 20px;
+    --rq-runner-stat-cols: repeat(5, minmax(0, 1fr));
+    --rq-runner-split-cols: minmax(0, 1fr) 340px;
+    --rq-runner-bar-h: 10px;
+    --rq-runner-knob: 16px;
+    --rq-titles-grid-cols: repeat(3, minmax(0, 1fr));
+    --rq-titles-split-cols: minmax(0, 1fr) 320px;
+    --rq-titles-rule-min-h: 44px;
+    --rq-duels-split-cols: minmax(0, 1fr) 320px;
+    --rq-duels-live-cols: repeat(2, minmax(0, 1fr));
+    --rq-duels-rules-cols: repeat(3, minmax(0, 1fr));
+    --rq-duels-standing-cols: 44px minmax(0, 1fr) 60px 60px 60px 78px;
+    --rq-duels-match-cols: minmax(0, 1fr) 46px minmax(0, 1fr) 190px 70px;
+    --rq-duels-match-meta-span: auto;
+    --rq-duels-match-date-span: auto;
+    --rq-duels-match-meta-align: right;
+    --rq-duels-match-edge-w: 3px;
+    --rq-duels-offer-cols: minmax(0, 1fr) auto auto;
+    --rq-duels-offer-actions-cols: minmax(0, 1fr);
+    --rq-duels-offer-rule-w: 0px;
+    --rq-duels-token-cols: repeat(3, minmax(0, 1fr));
+    --rq-duels-avatar: 32px;
+    --rq-duels-sheet-w: min(660px, 95vw);
+    --rq-duels-sheet-top: 50%;
+    --rq-duels-sheet-bottom: auto;
+    --rq-duels-sheet-shift: -50%;
+    --rq-duels-sheet-edge-w: 1px;
+    --rq-duels-sheet-actions-dir: row;
+    --rq-duels-sheet-cancel-display: inline-flex;
+    --rq-events-split-cols: minmax(0, 1fr) 340px;
+    --rq-events-week-cols: repeat(3, minmax(0, 1fr));
+    --rq-events-ring: 132px;
+    --rq-events-ring-inset: 8px;
+    --rq-events-ring-fs: 22px;
+    --rq-events-ring-order: 0;
+    --rq-events-live-gap: 28px;
+    --rq-events-sweep-w: 80px;
+    --rq-events-board-cols: 40px minmax(0, 1fr) 100px 90px;
+    --rq-log-split-cols: minmax(0, 1fr) 400px;
+    --rq-log-fields-cols: repeat(2, minmax(0, 1fr));
+    --rq-log-xp-size: 68px;
+    --rq-log-avatar: 46px;
+    --rq-log-run-cols: 250px minmax(0, 1fr) 210px;
+    --rq-log-run-areas: "who cells totals";
+    --rq-log-run-gap: 24px;
+    --rq-log-run-align: center;
+    --rq-log-totals-gap: 14px;
+    --rq-log-tag-break: block;
+    --rq-log-cell-fs: 24px;
+    --rq-log-cell-label-fs: 12px;
+    --rq-log-cell-pad: 14px 11px;
+    --rq-profile-split-cols: minmax(0, 1fr) 340px;
+    --rq-profile-hero-areas: "ring who" "ring cells" "photo photo";
+    --rq-profile-hero-gap: 22px;
+    --rq-profile-ring: 104px;
+    --rq-profile-ring-inset: 8px;
+    --rq-profile-stat-cols: repeat(5, minmax(0, 1fr));
+    --rq-profile-bar-h: 11px;
+    --rq-profile-knob: 17px;
+    --rq-profile-journey-h: 96px;
+    --rq-profile-journey-bar-top: 62px;
+    --rq-profile-journey-ends-top: 80px;
+    --rq-profile-journey-row-1: 18px;
+    --rq-profile-journey-row-2: 46px;
+    --rq-profile-journey-label-h: 13px;
+    --rq-profile-heat-cell: 11px;
+    --rq-profile-sheet-w: min(480px, 95vw);
+    --rq-profile-sheet-top: 50%;
+    --rq-profile-sheet-bottom: auto;
+    --rq-profile-sheet-shift: -50%;
+    --rq-profile-sheet-edge-w: 1px;
+    --rq-profile-sheet-actions-dir: row;
+    --rq-profile-sheet-fields-cols: repeat(2, minmax(0, 1fr));
+    --rq-landing-max: 1120px;
+    --rq-landing-pad: 48px;
+    --rq-landing-glow-w: 900px;
+    --rq-landing-glow-h: 560px;
+    --rq-landing-glow-top: -240px;
+    --rq-landing-logo-w: 190px;
+    --rq-landing-hero-cols: minmax(0, 1fr) var(--rq-landing-track-w);
+    --rq-landing-hero-areas: "badge arena" "title arena" "lead arena" "cta arena";
+    --rq-landing-track-w: 300px;
+    --rq-landing-track-h: 400px;
+    --rq-landing-track-svg-w: 430px;
+    --rq-landing-sweep-w: 90px;
+    --rq-landing-row-cols: 36px minmax(0, 1fr) 96px;
+    --rq-landing-body-cols: repeat(2, minmax(0, 1fr));
+    --rq-news-split-cols: minmax(0, 1fr) var(--rq-news-filter-w);
+    --rq-news-filter-dir: column;
+    --rq-news-filter-gap: 0px;
+    --rq-news-row-cols: 34px minmax(0, 1fr) auto;
+    --rq-news-row-areas: "icon kind time" "icon text time";
+    --rq-news-row-align: center;
+    --rq-news-row-gap: 14px;
+    --rq-news-row-pad-y: 12px;
+    --rq-news-row-pad-x: 16px;
+    --rq-news-badge: 15px;
   }
 }
 
@@ -407,6 +729,7 @@
 
   --rq-text-1: #26231f;
   --rq-text-2: #26231f;
+  --rq-text-4: rgb(var(--rq-ink-rgb) / .65);    /* AA mot ljus bas: .5 ger 3.05:1, .65 ger 4.69:1 */
   /* text-3/4/5 + line-* + fill-* + heat-* följer --rq-ink-rgb automatiskt */
   --rq-panel-border: transparent;               /* inga ytterkanter i ljust, skugga i stället */
   --rq-card-shadow:  0 2px 10px rgba(0, 0, 0, .07);
@@ -667,6 +990,10 @@
   .rq-dot--alarm { color: var(--rq-down); animation: rqBlink var(--rq-dur-blink-alarm) ease-in-out infinite; }
   .rq-grid-bg { background-image: linear-gradient(var(--rq-grid-line) 1px, transparent 1px); background-size: 100% var(--rq-grid-size); animation: rqGrid var(--rq-dur-grid) linear infinite; }
   .rq-skel { background: linear-gradient(90deg, var(--rq-fill-1), rgb(var(--rq-ink-rgb) / .12), var(--rq-fill-1)); background-size: 200% 100%; animation: rqSkel 1.4s linear infinite; }
+  /* Skeleton-rad: hårlinjegridens cell med rank · namn · värde. Höjder via --rq-skel-h-* i klassnamn. */
+  .rq-skel-row { display: grid; grid-template-columns: var(--rq-skel-col-icon) 1fr var(--rq-skel-col-value); align-items: center; gap: var(--rq-sp-14); background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }
+  .rq-skel-block { background: var(--rq-fill-1); animation: rqBlink var(--rq-dur-skel) ease-in-out infinite; }
+  .rq-skel-block--value { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); }
   .rq-rise { animation: rqRise var(--rq-dur-rise) var(--rq-ease-bar) both; animation-delay: var(--rq-delay, 0s); }
 
   /* ── Inmatning: guld ENDAST vid fokus ── */

@@ -1,20 +1,17 @@
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Settings, Users, Trophy, Target } from 'lucide-react';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { XPSettings } from '@/features/admin/XPSettings';
 import { UserManagement } from '@/features/admin/UserManagement';
 import { TitleConfig } from '@/features/admin/TitleConfig';
 import { AdminSecurity } from '@/features/admin/AdminSecurity';
 import { useAdminData } from '@/features/admin/hooks/useAdminData';
-import { useGroupName } from '@/shared/hooks/useGroupName';
 
 const AdminPage: React.FC = () => {
   const admin = useAdminData();
-  const groupName = useGroupName();
 
   return (
-    <AppLayout groupName={groupName}>
+    <>
       <Tabs defaultValue="settings" className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-6">
           <TabsTrigger value="settings">
@@ -76,7 +73,7 @@ const AdminPage: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
-    </AppLayout>
+    </>
   );
 };
 

@@ -2,53 +2,50 @@
 // Each export maps to a slug in useOnboardingQueue.
 import type { TourStep } from './components/OnboardingTour';
 
-// ── /events — tour_events_v1 ──────────────────────────────────────────────
-export const TOUR_EVENTS_V1: TourStep[] = [
+// ── /events — tour_events_v2 ──────────────────────────────────────────────
+// v2: skärmen är omritad (öppet nu / up next / veckan / historik med pager); v1-ankarna finns inte längre.
+export const TOUR_EVENTS_V2: TourStep[] = [
   {
     title: 'Events',
-    description: 'Events are time-limited challenges that drop randomly. You can have participation events and weekly competitions running at the same time.',
+    description: 'Events are time-limited challenges that drop at random, usually announced the evening before. Participation events pay XP the moment you finish them; weekly competitions rank the pack and pay the top three when the week ends on Sunday night.',
   },
   {
-    element: '[data-tour="events-participation"]',
-    title: 'Participation Events',
-    description: 'These have a time window — run the required distance within the window to earn XP. Miss the window and the event is gone.',
-  },
-  {
-    element: '[data-tour="events-competition"]',
-    title: 'Weekly Competitions',
-    description: 'Competitions last the full week. The leaderboard ranks everyone by total km or elevation. Top 3 earn XP — keep running to hold your spot.',
+    element: '[data-tour="events-open"]',
+    title: 'Open now and up next',
+    description: 'A participation event is open inside its window: log a run that meets the minimum distance and the XP is yours straight away, no ranking. A competition ranks everyone on total distance or elevation for the week. Up next counts down to the next event that opens.',
   },
   {
     element: '[data-tour="events-history"]',
-    title: 'Event History',
-    description: 'Past events and your results show up here. Check how you performed and how much XP you earned.',
+    title: 'History',
+    description: 'Every finished event and what you got from it — done or missed, your place in a competition and the XP it paid. Use the arrows at the bottom to page back through them.',
   },
 ];
 
-// ── /challenges — tour_challenges_v1 ─────────────────────────────────────
-export const TOUR_CHALLENGES_V1: TourStep[] = [
+// ── /duels — tour_duels_v2 ───────────────────────────────────────────────
+// v2: skärmen är omritad (Standings/Live/Rules/History, tokens, send-sheet); v1-ankarna finns inte längre.
+export const TOUR_DUELS_V2: TourStep[] = [
   {
     title: 'Challenges',
-    description: '1v1 challenges against your group members. Win to earn XP boosts that multiply your next run. You can only have one active challenge at a time.',
+    description: '1v1 duels against your pack. Win and you get an XP boost on top of your streak multiplier; lose and you take a penalty. You can only have one challenge going at a time.',
   },
   {
-    element: '[data-tour="challenges-tokens"]',
-    title: 'Challenge Tokens',
-    description: 'You need tokens to send a challenge. Tokens drop as you unlock titles and hit milestones — they\'re earned, not bought.',
+    element: '[data-tour="duels-tokens"]',
+    title: 'Your tokens',
+    description: 'A token is a challenge you can send. You earn them by levelling up, and each one fixes the metric and the length of the duel — you choose who gets it.',
   },
   {
-    element: '[data-tour="challenges-live-tab"]',
-    title: 'Live Challenges',
-    description: 'When you have an active challenge, it shows here alongside all other ongoing group challenges.',
+    element: '[data-tour="duels-send"]',
+    title: 'Send a challenge',
+    description: 'Pick a token and an opponent. The duel starts the day after they accept; minor and major challenges lapse after three days without an answer.',
   },
   {
-    element: '[data-tour="challenges-leaderboard"]',
-    title: 'Challenge Leaderboard',
-    description: 'Overall wins, draws and losses for your group. Challenge the top players to climb faster.',
+    element: '[data-tour="duels-tabs"]',
+    title: 'Standings, Live, Rules, History',
+    description: 'Standings ranks the pack by win rate. Live shows every duel in progress. Rules explains the stakes, and History lists every settled match.',
   },
 ];
 
-// ── / (leaderboard tab) — tour_leaderboard_v1 ────────────────────────────
+// ── / (leaderboard tab) — tour_leaderboard_v2 ────────────────────────────
 export const TOUR_LEADERBOARD_V1: TourStep[] = [
   {
     title: 'Leaderboard',
@@ -57,12 +54,12 @@ export const TOUR_LEADERBOARD_V1: TourStep[] = [
   {
     // No element — floating step. The leaderboard is visible in the background.
     title: 'XP Rankings',
-    description: 'Cards are sorted by total XP. Your card always has a blinking gold indicator in the top-left corner. Level and active titles are shown on each card.',
+    description: 'The podium holds the top three, the list below ranks everyone else by total XP. Arrows show who moved since Monday and the bar is progress into the current level. The tabs switch between All-time, Week and Streaks.',
   },
   {
     element: '[data-tour="leaderboard-card"]',
-    title: 'Challenge Flags',
-    description: 'The colored flags in the lower left corner represent the challenges that player has won. The crossed swords icon in the lower right corner indicates that the player is currently in an active challenge.',
+    title: 'Challenge Shields',
+    description: 'The shields on a card are the challenge tokens that runner can still send: blue for minor, orange for major, gold for legendary. The number beside them is how many are left.',
   },
   {
     element: '[data-tour="leaderboard-card"]',
@@ -71,43 +68,80 @@ export const TOUR_LEADERBOARD_V1: TourStep[] = [
   },
 ];
 
-// ── / (titles tab) — tour_titles_v1 ──────────────────────────────────────
-export const TOUR_TITLES_V1: TourStep[] = [
+// ── /titles — tour_titles_v2 ─────────────────────────────────────────────
+export const TOUR_TITLES_V2: TourStep[] = [
   {
     title: 'Titles',
-    description: 'Titles are competitive achievements — hit the required milestone to unlock one, but others can overtake you and claim it. Display up to 3 active titles on your leaderboard card.',
+    description: 'Titles are records the group competes for: the best number holds the title until someone beats it. They are grouped by category — open a group to see each title, its rule, who holds it and who is chasing.',
   },
   {
-    // No element — TabsContent is too large, popover ends up inside highlighted area
-    title: 'All Titles',
-    description: 'Titles are grouped by category — distance, pace, time of day, altitude and more. Browse them to see what milestones are up for grabs.',
+    element: '[data-tour="titles-filter"]',
+    title: 'Filter',
+    description: 'All shows every title, Mine only the ones you hold, and Unclaimed the ones nobody has unlocked yet — with the runner who is closest so far.',
   },
   {
-    element: '[data-tour="titles-my-titles-tab"]',
-    title: 'Your Titles',
-    description: 'Click here to see which titles you currently hold and choose up to 3 to display on your leaderboard card.',
+    element: '[data-tour="titles-display"]',
+    title: 'On display',
+    description: 'Pick up to three of your titles to show on your leaderboard card: press "Show on leaderboard" on a title you hold, then save.',
   },
 ];
 
-// ── / (profile tab) — tour_profile_v1 ────────────────────────────────────
-export const TOUR_PROFILE_V1: TourStep[] = [
+// ── /news — tour_news_v1 ──────────────────────────────────────────────────
+// Ny skärm (inkrement 9): det fanns ingen gammal news-tour att bumpa från. Klockan i headern (header-news) har ingen egen tourstep — onboarding_v1
+// nämner den inte. Turen monteras bara när flödet har rader, och news-mark-read-steget bara när något är oläst (NewsScreen).
+export const TOUR_NEWS_V1: TourStep[] = [
   {
-    title: 'Your Profile',
-    description: 'Your personal stats, run history and titles all in one place.',
+    title: 'Pack News',
+    description: 'Everything the group does, in one feed: titles changing hands, duels, level ups, events and broken streaks. Your own moves show up too, but only what other people do counts as unread.',
   },
   {
-    element: '[data-tour="profile-fun-fact"]',
+    element: '[data-tour="news-feed"]',
+    title: 'The feed',
+    description: 'Newest first, grouped by day. The coloured edge tells the kind apart, and a gold tint means you have not seen it yet. Show more at the bottom goes further back.',
+  },
+  {
+    element: '[data-tour="news-filter"]',
+    title: 'Filter',
+    description: 'Pick one or more kinds to narrow the feed down to just titles, challenges, events, levels or streaks. The numbers are how many of each are loaded. Pick none to see everything.',
+  },
+  {
+    element: '[data-tour="news-mark-read"]',
+    title: 'Mark all read',
+    description: 'Clears the unread count on the bell. The bell in the header opens the five latest from anywhere in the app.',
+  },
+];
+
+// ── /profile — tour_profile_v2 ───────────────────────────────────────────
+// v2: skärmen är omritad (hjältekort, Frodo-zoom, statflikar med Consistency, titlar, rundhistorik med redigera/radera);
+// v1-ankarna (profile-fun-fact, profile-run-history, profile-titles-tab) finns inte längre.
+export const TOUR_PROFILE_V2: TourStep[] = [
+  {
+    title: 'Your profile',
+    description: 'Your level, stats, titles and every run you have logged, in one place.',
+  },
+  {
+    element: '[data-tour="profile-hero"]',
+    title: 'Level and totals',
+    description: 'The ring shows how far you are into your current level. Below it: total XP, total km, your challenge record and, on a wide screen, runs and titles held. Tap Change photo to set your profile picture.',
+  },
+  {
+    element: '[data-tour="profile-journey"]',
+    title: 'Frodo’s journey',
+    description: 'Your total distance as a walk to Mount Doom, 3 266 km. Press the zoom button to cycle Overview, Zoomed and Close-up and see the next checkpoint.',
+  },
+  {
+    element: '[data-tour="profile-stats"]',
     title: 'Stats',
-    description: 'Level, XP progress, total distance, longest run — and even how far you\'ve come if you were Frodo carrying the ring to Mordor. Everything updates automatically after each Strava sync.',
+    description: 'Distance, Streak and Fun facts, plus Consistency: a square for every day you ran, darker the longer the run, with your current and longest streak underneath.',
   },
   {
-    element: '[data-tour="profile-run-history"]',
-    title: 'Run History',
-    description: 'Every synced run listed here. Click a run to expand it — use the edit button if a distance or date looks wrong.',
+    element: '[data-tour="profile-titles"]',
+    title: 'My titles',
+    description: 'The titles you hold, with the record that earned each one. Runner-up shows who holds a title you are chasing and how far behind you are.',
   },
   {
-    element: '[data-tour="profile-titles-tab"]',
-    title: 'Titles',
-    description: 'Under the Titles tab you can see the titles where you are the current holder and where you are the runner-up.',
+    element: '[data-tour="profile-history"]',
+    title: 'Run history',
+    description: 'Every run you have logged. Press Edit if a distance or date looks wrong, or to delete the run. Your streak and XP are recalculated from that day on.',
   },
 ];

@@ -33,6 +33,7 @@ vi.mock('@runquest/shared', () => ({
   calculateStreakMultiplier: vi.fn().mockReturnValue(1.0),
   boostDeltasForRuns: vi.fn((dates: string[]) => dates.map(() => 0)),
   DEFAULT_STREAK_MULTIPLIERS: [],
+  DEFAULT_ADMIN_SETTINGS: { base_xp: 15, xp_per_km: 2, bonus_5km: 5, bonus_10km: 15, bonus_15km: 25, bonus_20km: 50, min_run_distance: 1.0 },
   FALLBACK_LEVEL_REQUIREMENTS: [{ level: 1, xp_required: 0 }],
   levelFromXP: vi.fn().mockReturnValue(1),
   xpForLevel: vi.fn().mockReturnValue(0),
@@ -176,13 +177,13 @@ describe('POST /api/runs', () => {
     expect(status).toBe(401);
   });
 
-  it('returns 403 when the token is invalid', async () => {
+  it('returns 401 when the token is invalid (authentication, not authorization)', async () => {
     const { status } = await post(
       '/api/runs',
       { date: '2025-08-01', distance: 5.0 },
       { Authorization: 'Bearer not-a-valid-token' }
     );
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 
   // ── Validation ───────────────────────────────────────────────────────────

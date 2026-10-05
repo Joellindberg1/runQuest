@@ -7,8 +7,6 @@ import {
   ChevronRight, Star, Clock, Mountain, Moon, Sun, Coffee,
   Calendar, TrendingUp, Repeat, Timer, BarChart3, CloudLightning,
 } from 'lucide-react';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { useGroupName } from '@/shared/hooks/useGroupName';
 import { cn } from '@/lib/utils';
 import { STREAK_MULTIPLIERS } from '@/constants/streakConstants';
 
@@ -46,7 +44,7 @@ const LEVEL_TABLE = [
 ];
 
 // STREAK_MULTIPLIERS imported from @/constants/streakConstants
-// — single source of truth shared with UserProfile stats display.
+// — single source of truth (Profile and Runner card read the ladder from /config/xp).
 
 const TITLES = [
   { name: 'The Ultra Man',             icon: <BarChart3 className="w-4 h-4" />,  description: 'Most total kilometers', unlock: 'Min 100 km total' },
@@ -355,7 +353,7 @@ const ChallengesTab: React.FC = () => (
             example: 'A 5 km run gives 32 XP instead of 30.',
           },
           {
-            tier: 'Major', color: 'var(--rq-foreground)', duration: '7–14 days',
+            tier: 'Major', color: 'var(--rq-text-2)', duration: '7–14 days',
             metrics: 'Km, sessions, XP',
             winner: '+0.25x for 10 days', loser: '−0.12x for 10 days',
             example: 'A 5 km run gives 36 XP instead of 30.',
@@ -524,11 +522,10 @@ const StravaTab: React.FC = () => (
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const PlaybookPage: React.FC = () => {
-  const groupName = useGroupName();
   const [activeTab, setActiveTab] = useState('xp');
 
   return (
-    <AppLayout groupName={groupName}>
+    <>
       <div className="max-w-4xl mx-auto">
         <div className="bg-sidebar border-2 border-foreground/15 rounded-lg">
           <PageTabs value={activeTab} onValueChange={setActiveTab} tabs={TABS} tabsGridClass="grid-cols-4 md:grid-cols-7">
@@ -542,7 +539,7 @@ const PlaybookPage: React.FC = () => {
           </PageTabs>
         </div>
       </div>
-    </AppLayout>
+    </>
   );
 };
 

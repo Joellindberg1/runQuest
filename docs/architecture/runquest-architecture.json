@@ -44,7 +44,7 @@
         "All skrivning går via backend med service role-nyckel (förbigår RLS)",
         "Frontend läser level_requirements direkt med publishable key (anon)",
         "Profilbilder: backend laddar upp till Storage och skriver users.profile_picture",
-        "Händelselogg (ADR 008, planerad): backend (inkl. schedulers) skriver domänhändelser till activity_log; läses endast via GET /api/news, ingen anon-åtkomst"
+        "Händelselogg (ADR 008, byggd i9; tabellen finns först när migration 034 körts): backend (inkl. schedulers) skriver domänhändelser best-effort till activity_log via services/activityLog.ts (dedupe_key, efter underliggande skrivning); läses endast via GET /api/news, oläst-märket sätts via POST /api/news/seen; ingen anon-åtkomst"
       ]
     },
     {

@@ -442,7 +442,14 @@ reparation, inte rutin. Migrationen måste ligga före kod som skriver
   news". (7) Behörigheter: det nya backfill-skriptet kräver ask
   (permissions).
 
-## Revisit-triggers
+## Addendum — implementationsutfall (i9-dataspåret, 2026-10-05)
+1. **Filnamn:** migrationen heter `034_create_activity_log.sql` (inte `034_activity_log.sql`); applicerad mot prod 2026-10-05 med RLS-bevis (anon → 42501) och rena advisors (endast förväntat info-lint).
+2. **Titelnycklarna (beslut 3) har Stockholm-dagen:** `title_unlocked:<title>:<user>:<value>:<day>` och `title_taken:<title>:<ny>:<gammal>:<value>:<day>` — skyddar mot samtidig dubbeldetektion utan att tysta legitima upprepningar (radera→logga om→samma value). `title_revoked` hade dagen från början.
+3. **`event_closed` loggas INTE när deltagarna är 0** (Lead-beslut; gäller live och backfill). `event_open` visar ändå att eventet fanns; raden är härledbar ur `events`.
+4. **`after`-lägets semantik (beslut 9):** sorteringen är alltid id DESC; `after` ger nyaste N inom `(after, …]` och `has_more`/`next_before` beskriver äldre rader inom intervallet — glappet fylls med upprepade `?before=next_before`, och klienten stannar själv vid sitt kända id och dedupliceras på id. Vid realtidsbygget (revisit): tillåt `before`+`after` ihop eller `order=asc` i stället för att utöka detta.
+5. **`DELETE /runs/:id` svarar 409** när rundan har en `event_entries`-rad ("This run qualified an event and can't be deleted — edit it instead") — bevarar dagens de facto-regel (FK:n `event_entries.run_id` är NO ACTION) utan XP-farmrisk; ingen null-out, ingen avkvalificering (regeländring).
+6. **PUT /runs kvalificerar event** med `enforceRunDateWindow` (rundans Stockholm-dag inom eventets dagar); POST/Strava behåller sitt gamla fönster (bakdaterad POST kan kvalificera pågående event — känt, orört, se open-assumptions).
+7. **Backfillens `occurred_at`** för `level_up`/`run_milestone` är dagsprecision (midnatt Stockholm) eftersom XP-liggaren är dagsgranulär; `event_open` backfillas inte för redan settlade event (brusregel).
 - Notifikationer/realtid byggs (roadmap) → ny ADR: outbox/retry i stället för
   best-effort, `after`-kursor eller push-kanal, notisinställningar (egen
   tabell), per-händelse-kvittens (`user_seen_items`-mönstret eller

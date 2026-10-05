@@ -2,6 +2,7 @@ import { supabase } from '../config/database';
 import { logger } from '../utils/logger.js';
 import { titleLeaderboardService } from './titleLeaderboardService';
 import { titleEngineRegistry } from '../titleEngines/index';
+import { emitTitleNews, snapshotTitleHolders } from './titleNews.js';
 import type { RunData, UserStats } from '../titleEngines/types';
 
 /**
@@ -150,10 +151,17 @@ export class EnhancedTitleService {
   }
 
   /**
-   * Process titles for all users (optionally scoped to a group)
+   * Process titles for all users (optionally scoped to a group).
+   *
+   * Pack News (ADR 008 beslut 6): innehavarna (position 1) ögonblicksfotograferas före och efter
+   * och skillnaden loggas (title_unlocked/_taken/_revoked, endast framåt). `emitNews: false` för
+   * regel-/data-underhåll (admin /titles/reprocess-all) så att flödet inte spammas.
    */
-  async processAllUsersTitles(groupId?: string): Promise<void> {
+  async processAllUsersTitles(groupId?: string, options: { emitNews?: boolean } = {}): Promise<void> {
+    const emitNews = options.emitNews ?? true;
     try {
+      const holdersBefore = emitNews ? await snapshotTitleHolders() : null;
+
       logger.info(groupId
         ? `🏆 Processing titles for users in group ${groupId}...`
         : '🏆 Processing titles for ALL users...'
@@ -190,6 +198,11 @@ export class EnhancedTitleService {
       if (failedCount > 0) logger.error(`❌ Title processing failed for ${failedCount} users`);
 
       logger.info(`✅ Processed titles for ${processedCount}/${users.length} users in ${Date.now() - startTime}ms`);
+
+      if (holdersBefore) {
+        const holdersAfter = await snapshotTitleHolders();
+        if (holdersAfter) await emitTitleNews(holdersBefore, holdersAfter);
+      }
 
     } catch (error) {
       logger.error('❌ Error processing all users titles:', error);

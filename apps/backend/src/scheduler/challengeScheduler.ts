@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
 import { getSupabaseClient } from '../config/database.js';
 import { settleChallenge } from '../services/challengeService.js';
+import { retractChallengeReceived } from '../services/activityLog.js';
 import { todayStockholm, addDaysToDate, at3amStockholm } from '../utils/dateUtils.js';
 
 // ─── Settle ended challenges ─────────────────────────────────────────────────
@@ -59,7 +60,7 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
 // ─── Auto-decline minor/major (after 3 days no response) ────────────────────
 
-async function autoDeclinePendingChallenges(): Promise<void> {
+export async function autoDeclinePendingChallenges(): Promise<void> {
   const supabase = getSupabaseClient();
   const cutoff = new Date(Date.now() - 3 * 86400000).toISOString();
 
@@ -87,7 +88,9 @@ async function autoDeclinePendingChallenges(): Promise<void> {
           .update({ challenge_active: false })
           .in('id', [c.challenger_id, c.opponent_id]),
       ]);
-      await supabase.from('challenges').delete().eq('id', c.id);
+      const { error: deleteError } = await supabase.from('challenges').delete().eq('id', c.id);
+      if (deleteError) logger.error(`❌ Failed to delete auto-declined challenge ${c.id}:`, deleteError);
+      else await retractChallengeReceived(c.id);
     })
   );
 }

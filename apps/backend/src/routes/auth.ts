@@ -7,6 +7,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { loginRateLimiter } from '../middleware/rateLimit.js';
+import { invalidateXpConfigCache } from '../services/xpConfig.js';
 
 const router = express.Router();
 
@@ -453,10 +454,12 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
       .single();
     
     if (error) {
+      invalidateXpConfigCache(); // släng cachen oavsett utfall — raden kan ha ändrats
       logger.error('❌ Failed to update admin settings:', error);
       res.status(500).json({ error: 'Failed to update admin settings' }); return;
     }
     
+    invalidateXpConfigCache();
     logger.info('✅ Admin settings updated successfully');
     res.json({ 
       success: true, 
@@ -516,10 +519,12 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
       .select('id, days, multiplier');
     
     if (error) {
+      invalidateXpConfigCache(); // tabellen är redan raderad även om insert felade
       logger.error('❌ Failed to update streak multipliers:', error);
       res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
     }
     
+    invalidateXpConfigCache();
     logger.info('✅ Streak multipliers updated successfully');
     res.json({ 
       success: true, 
@@ -577,7 +582,8 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
         current_streak, longest_streak, profile_picture,
         wins, draws, losses, challenge_active, displayed_title_ids, gender,
         runs(id, user_id, date, distance, xp_gained, multiplier,
-             streak_day, base_xp, km_xp, distance_bonus, streak_bonus, is_treadmill)
+             streak_day, base_xp, km_xp, distance_bonus, streak_bonus, is_treadmill,
+             start_time, created_at, source)
       `)
       .order('total_xp', { ascending: false });
 

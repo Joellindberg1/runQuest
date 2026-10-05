@@ -1,23 +1,14 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import { AppProviders } from '@/providers/AppProviders';
 import { useAuth } from '@/providers/authContext';
 import { useAppInit } from '@/shared/hooks/useAppInit';
-import Index from './pages/Index';
-import AdminPage from './pages/AdminPage';
-import LoginPage from './pages/LoginPage';
-import SettingsPage from './pages/SettingsPage';
-import FeaturesPage from './pages/FeaturesPage';
-import LeaderboardPreviewPage from './pages/LeaderboardPreviewPage';
-import ChallengesPreviewPage from './pages/ChallengesPreviewPage';
-import ChallengesPage from './pages/ChallengesPage';
-import PlaybookPage from './pages/PlaybookPage';
-import EventsPage from './pages/EventsPage';
-import NotFound from './pages/NotFound';
+import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
+import { AppRoutes } from './routes';
 import { OnboardingOrchestrator } from './features/onboarding/components/OnboardingOrchestrator';
 
 const AppContent = () => {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading } = useAuth();
   const path = window.location.pathname;
 
   useAppInit();
@@ -29,37 +20,16 @@ const AppContent = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-xl text-foreground">Loading...</div>
+      <div className="rq-shell__pending">
+        <TrackLoader size={64} label="Loading" />
       </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="/preview" element={<LeaderboardPreviewPage />} />
-        <Route path="/preview/challenges" element={<ChallengesPreviewPage />} />
-        <Route path="*" element={<LoginPage />} />
-      </Routes>
     );
   }
 
   return (
     <>
-      <OnboardingOrchestrator />
-      <Routes>
-      <Route path="/" element={<Index />} />
-      <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
-      <Route path="/settings" element={<SettingsPage />} />
-      <Route path="/features" element={<FeaturesPage />} />
-      <Route path="/challenges" element={<ChallengesPage />} />
-      <Route path="/playbook" element={<PlaybookPage />} />
-      <Route path="/events" element={<EventsPage />} />
-      <Route path="/preview" element={<LeaderboardPreviewPage />} />
-      <Route path="/preview/challenges" element={<ChallengesPreviewPage />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+      {user && <OnboardingOrchestrator />}
+      <AppRoutes />
     </>
   );
 };

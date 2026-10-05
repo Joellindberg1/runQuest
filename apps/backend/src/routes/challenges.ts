@@ -8,6 +8,15 @@ import {
   settleChallenge,
 } from '../services/challengeService.js';
 import { tomorrowStockholm, addDaysToDate, at3amStockholm } from '../utils/dateUtils.js';
+import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
+import { recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
+import {
+  CHALLENGE_HISTORY_COLUMNS,
+  computeRecord,
+  toChallengeHistoryItem,
+  type UserSummary,
+} from '../services/challengeHistory.js';
+import type { ChallengeGroupHistoryApiResponse, HeadToHeadApiResponse } from '@runquest/shared';
 
 const router = express.Router();
 
@@ -248,6 +257,20 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
       .update({ sent_at: sentAt, challenge_id: challenge.id })
       .eq('id', token_id);
 
+    // Pack News (ADR 008): loggas efter insert + token-markering; icke-kastande, påverkar inte svaret.
+    await recordChallengeReceived(
+      {
+        id: challenge.id,
+        group_id: groupId ?? opponent.group_id,
+        tier: token.tier,
+        metric: token.metric,
+        duration_days: token.duration_days,
+        challenger_id: userId,
+        opponent_id,
+      },
+      sentAt,
+    );
+
     logger.info(`⚔️ Challenge sent: ${userId} → ${opponent_id} (${token.tier} / ${token.metric})`);
 
     res.status(201).json({ success: true, data: { challenge_id: challenge.id } });
@@ -299,7 +322,10 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
           .update({ challenge_active: false })
           .in('id', [challenge.challenger_id, challenge.opponent_id]),
       ]);
-      await supabase.from('challenges').delete().eq('id', id);
+      const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
+      // Raden i flödet tas bara bort om utmaningen faktiskt raderades — annars visar flödet en utmaning som finns.
+      if (deleteError) logger.error(`❌ Failed to delete declined challenge ${id}:`, deleteError);
+      else await retractChallengeReceived(id);
 
       logger.info(`❌ Challenge ${id} declined by ${userId} — token restored to challenger`);
       res.json({ success: true, message: 'Challenge declined' }); return;
@@ -364,12 +390,146 @@ router.put('/:id/withdraw', authenticateJWT, async (req, res): Promise<void> => 
         .update({ challenge_active: false })
         .in('id', [challenge.challenger_id, challenge.opponent_id]),
     ]);
-    await supabase.from('challenges').delete().eq('id', id);
+    const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
+    if (deleteError) logger.error(`❌ Failed to delete withdrawn challenge ${id}:`, deleteError);
+    else await retractChallengeReceived(id);
 
     logger.info(`↩️ Challenge ${id} withdrawn by challenger ${userId} — token restored`);
     res.json({ success: true, message: 'Challenge withdrawn' });
   } catch (err) {
     logger.error('❌ Error withdrawing challenge:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/challenges/group-history[?limit=&offset=] ──────────────────────
+// Gruppens avslutade utmaningar, nyast först (ADR 007 B5). determine_at är avslutstiden; id är unik tie-breaker.
+const GROUP_HISTORY_PAGE = { defaultLimit: 20, maxLimit: 50 };
+
+async function fetchUserSummaries(ids: string[]): Promise<Map<string, UserSummary>> {
+  const map = new Map<string, UserSummary>();
+  if (ids.length === 0) return map;
+  const { data, error } = await getSupabaseClient()
+    .from('users')
+    .select('id, name, profile_picture')
+    .in('id', ids);
+  if (error) throw error;
+  for (const u of data ?? []) map.set(u.id, { name: u.name, profile_picture: u.profile_picture ?? null });
+  return map;
+}
+
+router.get('/group-history', authenticateJWT, async (req, res): Promise<void> => {
+  try {
+    const page = parseOffsetPage(req.query, GROUP_HISTORY_PAGE);
+    if (!page.ok) { res.status(400).json({ error: page.error }); return; }
+    const { limit, offset } = page;
+
+    const groupId = req.user!.group_id;
+    if (!groupId) {
+      const empty: ChallengeGroupHistoryApiResponse = { success: true, data: { items: [] }, meta: buildPageMeta(0, limit, offset) };
+      res.json(empty); return;
+    }
+
+    const supabase = getSupabaseClient();
+    const { rows, total } = await fetchOffsetPage(
+      (head) => supabase
+        .from('challenges')
+        .select(CHALLENGE_HISTORY_COLUMNS, { count: 'exact', head })
+        .eq('group_id', groupId)
+        .eq('status', 'completed')
+        .order('determine_at', { ascending: false })
+        .order('id', { ascending: false }),
+      limit,
+      offset,
+    );
+
+    const userIds = [...new Set(rows.flatMap((c: any) => [c.challenger_id, c.opponent_id]))];
+    const users = await fetchUserSummaries(userIds);
+
+    const body: ChallengeGroupHistoryApiResponse = {
+      success: true,
+      data: { items: rows.map((c: any) => toChallengeHistoryItem(c, users)) },
+      meta: buildPageMeta(total, limit, offset),
+    };
+    res.json(body);
+  } catch (err) {
+    logger.error('❌ Error fetching challenge group history:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/challenges/head-to-head/:userId[?limit=] ───────────────────────
+// Anroparens uppgörelser mot en annan gruppmedlem (ADR 007 B6).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HEAD_TO_HEAD_MAX_LIMIT = 20;
+
+router.get('/head-to-head/:userId', authenticateJWT, async (req, res): Promise<void> => {
+  try {
+    const me = req.user!.user_id;
+    const otherId = req.params.userId;
+
+    if (!UUID_RE.test(otherId)) { res.status(400).json({ error: 'userId must be a valid uuid' }); return; }
+    if (otherId === me) { res.status(400).json({ error: 'Cannot compare with yourself' }); return; }
+
+    const page = parseOffsetPage({ limit: req.query.limit }, { defaultLimit: 5, maxLimit: HEAD_TO_HEAD_MAX_LIMIT });
+    if (!page.ok) { res.status(400).json({ error: page.error }); return; }
+
+    // Samma svar för "finns inte" och "annan grupp" — läcker inte existens.
+    const notFound = () => res.status(404).json({ error: 'User not found' });
+    const groupId = req.user!.group_id;
+    if (!groupId) { notFound(); return; }
+
+    const supabase = getSupabaseClient();
+    const { data: members, error: membersError } = await supabase
+      .from('users')
+      .select('id, name, profile_picture')
+      .eq('group_id', groupId)
+      .in('id', [me, otherId]);
+    if (membersError) throw membersError;
+
+    const summaries = new Map<string, UserSummary>((members ?? []).map((u: any) => [u.id, { name: u.name, profile_picture: u.profile_picture ?? null }]));
+    if (!summaries.has(otherId) || !summaries.has(me)) { notFound(); return; }
+
+    // challenger ≠ opponent, så "båda i paret" på båda kolumnerna ger exakt de två orienteringarna.
+    // Ett par har få uppgörelser; hela listan hämtas så att record täcker alla (ingen 1000-radersrisk i praktiken).
+    const [completedResult, openResult] = await Promise.all([
+      supabase
+        .from('challenges')
+        .select(CHALLENGE_HISTORY_COLUMNS)
+        .eq('group_id', groupId)
+        .eq('status', 'completed')
+        .in('challenger_id', [me, otherId])
+        .in('opponent_id', [me, otherId])
+        .order('determine_at', { ascending: false })
+        .order('id', { ascending: false }),
+      supabase
+        .from('challenges')
+        .select('id, status, challenger_id')
+        .eq('group_id', groupId)
+        .in('status', ['pending', 'active'])
+        .in('challenger_id', [me, otherId])
+        .in('opponent_id', [me, otherId])
+        .limit(1),
+    ]);
+    if (completedResult.error) throw completedResult.error;
+    if (openResult.error) throw openResult.error;
+
+    const completed: any[] = completedResult.data ?? [];
+    const open = openResult.data?.[0] ?? null;
+    const other = summaries.get(otherId)!;
+
+    const body: HeadToHeadApiResponse = {
+      success: true,
+      data: {
+        opponent: { id: otherId, name: other.name, profile_picture: other.profile_picture },
+        record: computeRecord(completed, me),
+        history: completed.slice(0, page.limit).map((c) => toChallengeHistoryItem(c, summaries)),
+        active: open ? { id: open.id, status: open.status, challenger_id: open.challenger_id } : null,
+      },
+    };
+    res.json(body);
+  } catch (err) {
+    logger.error('❌ Error fetching head-to-head:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

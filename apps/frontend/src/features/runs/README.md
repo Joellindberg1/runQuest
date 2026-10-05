@@ -1,57 +1,9 @@
 # Runs Feature
 
-Run logging, editing, and history display.
+Det som delas av allt som ändrar rundorna: `runEffects.ts` — `invalidateAfterRunChange(queryClient)` och `EVENT_FOLLOW_UP_MS`.
 
-## Structure
-
-- **components/** - Run-related components
-  - `RunLogger.tsx` - Manual run entry form
-  - `EditRunDialog.tsx` - Edit existing runs
-  - `RunHistoryGroup.tsx` - Group run history feed
-- **index.ts** - Public API exports
-
-## Components
-
-### RunLogger
-Manual run entry with date and distance.
-
-**Features:**
-- Date picker (max: today)
-- Distance input with validation
-- Smart XP calculation preview
-- Strava import option
-
-### EditRunDialog
-Edit or delete existing runs.
-
-**Features:**
-- Update distance
-- Update date
-- Delete run
-- Automatic XP recalculation
-
-### RunHistoryGroup
-Chronological feed of all users' runs.
-
-**Features:**
-- User avatars and names
-- Run details (distance, XP, streak)
-- Strava/Manual indicators
-- Date grouping
-
-## Usage
-
-```tsx
-import { RunLogger, EditRunDialog, RunHistoryGroup } from '@/features/runs';
-
-<RunLogger onRunSubmit={handleSubmit} />
-<EditRunDialog run={selectedRun} onClose={handleClose} />
-<RunHistoryGroup />
-```
-
-## API Integration
-
-- Create run: `backendApi.createRun()`
-- Update run: `backendApi.updateRun()`
-- Delete run: `backendApi.deleteRun()`
-- Get history: `backendApi.getGroupRunHistory()`
+- **Logga en runda och Group history** → `features/log` (`useCreateRun` anropar kedjan efter POST).
+- **Redigera/radera en runda** → `features/profile` (`useUpdateRun`/`useDeleteRun` anropar kedjan efter PUT/DELETE; rutan är `EditRunSheet`).
+- **Kedjan:** users-with-runs (väntas in), `['leaderboard']`, öppna event (exakt, direkt + en gång efter 4 s — servern kvalificerar event i bakgrunden), `['titles']`,
+  `['multiple-user-titles']`, `['challenges']`, Runner cards head-to-head och gruppens historik. EN definition, så POST, PUT och DELETE aldrig glider isär.
+  Testas via `useCreateRun.test.tsx` och `profile/hooks/useRunChanges.test.tsx`.

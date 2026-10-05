@@ -27,7 +27,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ note, onClose 
       <div
         className="relative w-full max-w-md rounded-xl border-2 p-6 shadow-2xl"
         style={{
-          background: 'hsl(var(--sidebar))',
+          background: 'var(--rq-modal)',
           borderColor: 'var(--rq-gold)',
         }}
       >

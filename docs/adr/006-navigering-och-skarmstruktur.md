@@ -92,15 +92,17 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
    `useViewParam(allowed, default)` läser/skriver parametern med
    `replace: true`, och okänt värde faller tillbaka till default. Delvyn
    blir därmed delbar och back-vänlig utan en route per flik. `PageTabs` ersätts
-   av en segmenterad kontroll över hooken och tas bort när sista användaren
-   är konverterad.
+   av chip-flikar (`ViewTabs`, `.rq-filter`: vald = guld 14 %/50 %) över hooken —
+   prototypens faktiska flikmönster för Board (App Prototype `boardTabs`,
+   Web Prototype `boardTabs`) — och tas bort när sista användaren är konverterad.
 4. **Overlays (ingen egen route).**
    - **+New-sheet** (Log a run / Send a challenge): skal-tillstånd, öppnas av
      mittenknappen i bottenbaren (mobil) och av "Log Runs"/"Send challenge" i
      desktop-skalet. "Log a run" navigerar till `/log`; "Send a challenge"
      navigerar till `/duels` och öppnar send-sheeten (som prototypen).
-   - **Send-challenge-sheet:** styrs av sökparametern `?send=` (`1` = välj
-     motståndare själv, `<userId>` = förvald motståndare) och monteras i
+   - **Send-challenge-sheet:** styrs av sökparametrarna `?send=1` (öppnar
+     sheeten; flagga) och `&opponent=<userId>` (valfri förvald motståndare;
+     sheeten validerar att den tillhör gruppen) och monteras i
      skalet så att Runner card-knappen "Challenge" fungerar från vilken
      skärm som helst. Parametern gör att back-knappen stänger sheeten och att
      den överlever omladdning.

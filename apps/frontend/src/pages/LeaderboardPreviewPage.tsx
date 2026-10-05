@@ -1,55 +1,19 @@
 import React from 'react';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { Leaderboard } from '@/features/leaderboard/components/Leaderboard';
-import { ActiveChallengeWidget } from '@/features/challenges/components/ActiveChallengeWidget';
-import type { User, Run, Challenge } from '@runquest/types';
+import { SeasonBoard } from '@/features/leaderboard/components/SeasonBoard';
+import '@/features/leaderboard/board.css';
+import { ActiveChallengeWidget } from './preview/ActiveChallengeWidget';
+import { PREVIEW_RANK_DELTAS, PREVIEW_USERS } from '@/features/leaderboard/previewUsers';
+import type { Challenge } from '@runquest/types';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
-const makeRun = (userId: string, daysAgo: number, distance: number, xp: number): Run => {
-  const date = new Date();
-  date.setDate(date.getDate() - daysAgo);
-  return {
-    id: `run-${userId}-${daysAgo}`,
-    user_id: userId,
-    date: date.toISOString().split('T')[0],
-    distance,
-    xp_gained: xp,
-    multiplier: 1.0,
-    streak_day: 1,
-    base_xp: Math.round(xp * 0.5),
-    km_xp: Math.round(xp * 0.3),
-    distance_bonus: Math.round(xp * 0.1),
-    streak_bonus: Math.round(xp * 0.1),
-  };
-};
-
-const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Anna Lindqvist',  total_xp: 8420, current_level: 12, total_km: 312.5, current_streak: 7,  longest_streak: 21, challenge_active: true,  wins: 8, draws: 1, losses: 2,
-    challenge_counts: { minor: 7, major: 3, legendary: 1 },
-    runs: [makeRun('u1', 0, 8.2, 310), makeRun('u1', 1, 10.1, 380), makeRun('u1', 3, 12.5, 450)] },
-  { id: 'u2', name: 'Erik Svensson',   total_xp: 7150, current_level: 10, total_km: 265.0, current_streak: 4,  longest_streak: 14, challenge_active: true,  wins: 5, draws: 2, losses: 4,
-    challenge_counts: { minor: 6, major: 5 },
-    runs: [makeRun('u2', 1, 5.0, 200), makeRun('u2', 3, 15.0, 560)] },
-  { id: 'u3', name: 'Maria Johansson', total_xp: 6380, current_level: 9,  total_km: 218.7, current_streak: 2,  longest_streak: 10,                           wins: 3, draws: 0, losses: 3,
-    challenge_counts: { minor: 4, major: 2 },
-    runs: [makeRun('u3', 2, 9.0, 345), makeRun('u3', 4, 11.3, 420)] },
-  { id: 'u4', name: 'Johan Karlsson',  total_xp: 5200, current_level: 8,  total_km: 178.3, current_streak: 0,  longest_streak: 8,                            wins: 2, draws: 1, losses: 2,
-    challenge_counts: { minor: 5 },
-    runs: [makeRun('u4', 5, 7.0, 270), makeRun('u4', 9, 6.0, 235)] },
-  { id: 'u5', name: 'Sara Nilsson',    total_xp: 4100, current_level: 6,  total_km: 134.0, current_streak: 3,  longest_streak: 6,  challenge_active: true,  wins: 1, draws: 0, losses: 1,
-    challenge_counts: { minor: 2 },
-    runs: [makeRun('u5', 1, 4.5, 180), makeRun('u5', 4, 8.0, 305)] },
-  { id: 'u6', name: 'Lars Petersson',  total_xp: 3750, current_level: 5,  total_km: 112.5, current_streak: 1,  longest_streak: 5,                            wins: 0, draws: 1, losses: 2,
-    challenge_counts: { minor: 3 },
-    runs: [makeRun('u6', 0, 6.0, 235)] },
-  { id: 'u7', name: 'Klara Bergström', total_xp: 2900, current_level: 4,  total_km: 89.0,  current_streak: 0,  longest_streak: 4,
-    runs: [makeRun('u7', 3, 5.5, 215)] },
-  { id: 'u8', name: 'Mikael Holm',     total_xp: 1850, current_level: 3,  total_km: 54.2,  current_streak: 2,  longest_streak: 3,
-    runs: [makeRun('u8', 1, 3.5, 140)] },
-];
+// Löparna och rank-pilarna delas med Landing (features/leaderboard/previewUsers).
+const MOCK_USERS = PREVIEW_USERS;
+const MOCK_RANK_DELTAS = PREVIEW_RANK_DELTAS;
 
 const MOCK_CURRENT_USER = MOCK_USERS[0];
+
+// Förhandsvisningen ritar de RIKTIGA Board-komponenterna (SeasonBoard) med mockdata.
 
 // Mock titles for preview — tests display of 3 titles + overflow label
 const makeTitle = (title_id: string, title_name: string): import('@runquest/types').UserTitle => ({
@@ -114,9 +78,12 @@ const LeaderboardPreviewPage: React.FC = () => {
   );
 
   return (
-    <AppLayout groupName="Wolfpack — Göteborgsvarvet 2026" sidebarWidget={widget} themeClass="runquest-hybrid">
-      <Leaderboard users={MOCK_USERS} currentUser={MOCK_CURRENT_USER} titleOverrides={MOCK_TITLE_OVERRIDES} />
-    </AppLayout>
+    <div className="min-h-screen bg-background p-4 md:p-8 space-y-4">
+      {widget}
+      <div className="rq-board">
+        <SeasonBoard users={MOCK_USERS} titlesByUser={MOCK_TITLE_OVERRIDES} rankDeltaByUser={MOCK_RANK_DELTAS} now={new Date()} />
+      </div>
+    </div>
   );
 };
 

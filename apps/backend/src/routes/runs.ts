@@ -4,59 +4,22 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
-import { calculateCompleteRunXP, boostDeltasForRuns, DEFAULT_STREAK_MULTIPLIERS, type AdminSettings, type StreakMultiplier, type BoostSpec } from '@runquest/shared';
+import { calculateCompleteRunXP, boostDeltasForRuns, type AdminSettings, type StreakMultiplier, type BoostSpec } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
+import { getXpConfig } from '../services/xpConfig.js';
+import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
+import { isIsoCalendarDate, toStockholmDate, todayStockholm } from '../utils/dateUtils.js';
+import type { GroupRunHistoryResponse } from '@runquest/shared';
 
 const router = express.Router();
 
-const DEFAULT_XP_SETTINGS: AdminSettings = {
-  base_xp: 15, xp_per_km: 2, bonus_5km: 5, bonus_10km: 15, bonus_15km: 25, bonus_20km: 50, min_run_distance: 1.0
-};
-
 /**
- * Fetch XP settings and streak multipliers.
- * Bugfix 2026-10-04: tidigare selectades kolumnen admin_settings.streak_multipliers,
- * som aldrig har funnits i databasen — hela selecten felade och BÅDE XP-inställningar
- * och multiplikatorer föll tyst tillbaka på defaults (admin-panelens ändringar hade
- * ingen effekt). Multiplikatorernas källa är tabellen streak_multipliers, som
- * admin-panelen skriver till.
+ * XP-inställningar och multiplikatorer kommer från services/xpConfig (EN källa, ADR 007 B4) —
+ * samma värden som GET /api/config/xp visar i UI:t. Cachen invalideras av admin-PUT:arna.
  */
 async function fetchAdminSettings(): Promise<{ xpSettings: AdminSettings; multipliers: StreakMultiplier[] }> {
-  const supabase = getSupabaseClient();
-  const [settingsResult, multipliersResult] = await Promise.all([
-    supabase
-      .from('admin_settings')
-      .select('base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance')
-      .single(),
-    supabase
-      .from('streak_multipliers')
-      .select('days, multiplier')
-  ]);
-
-  let xpSettings = DEFAULT_XP_SETTINGS;
-  if (!settingsResult?.error && settingsResult?.data) {
-    const d = settingsResult.data;
-    xpSettings = {
-      base_xp: d.base_xp, xp_per_km: d.xp_per_km,
-      bonus_5km: d.bonus_5km, bonus_10km: d.bonus_10km,
-      bonus_15km: d.bonus_15km, bonus_20km: d.bonus_20km,
-      min_run_distance: Number(d.min_run_distance)
-    };
-  } else {
-    logger.warn('⚠️ Could not fetch admin settings, using defaults');
-  }
-
-  let multipliers: StreakMultiplier[] = DEFAULT_STREAK_MULTIPLIERS;
-  const multiplierRows = multipliersResult?.data;
-  if (Array.isArray(multiplierRows) && multiplierRows.length > 0) {
-    multipliers = multiplierRows.map((m: { days: number; multiplier: number | string }) => ({
-      days: m.days, multiplier: Number(m.multiplier)
-    }));
-  } else {
-    logger.warn('⚠️ Could not fetch streak multipliers, using defaults');
-  }
-
-  return { xpSettings, multipliers };
+  const config = await getXpConfig();
+  return { xpSettings: config.settings, multipliers: config.streak_multipliers };
 }
 
 /**
@@ -188,36 +151,56 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   logger.info(`✅ Reprocessed ${runs.length} runs successfully`);
 }
 
-// GET /api/runs/group-history - Get all runs for users in same group
+// GET /api/runs/group-history[?limit=&offset=] - Get runs for users in same group (ADR 007 B9)
+// Utan parametrar: samma default (100) som tidigare; svaret får additivt meta.
+const GROUP_RUNS_PAGE = { defaultLimit: 100, maxLimit: 200 };
+
 router.get('/group-history', authenticateJWT, async (req, res): Promise<void> => {
   try {
     logger.info('📊 Fetching group run history');
 
-    const supabase = getSupabaseClient();
+    const page = parseOffsetPage(req.query, GROUP_RUNS_PAGE);
+    if (!page.ok) {
+      res.status(400).json({ error: page.error }); return;
+    }
+    const { limit, offset } = page;
+
+    // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
     const groupId = req.user!.group_id;
-
-    let query = supabase
-      .from('runs')
-      .select(`
-        *,
-        users!inner(name, current_level, profile_picture, total_xp),
-        run_weather(weather_code, temperature_c)
-      `)
-      .order('date', { ascending: false })
-      .limit(100);
-
-    if (groupId) {
-      query = query.eq('users.group_id', groupId);
+    if (!groupId) {
+      const empty: GroupRunHistoryResponse = { runs: [], meta: buildPageMeta(0, limit, offset) };
+      res.json(empty); return;
     }
 
-    const { data: runsData, error: runsError } = await query;
+    const supabase = getSupabaseClient();
 
-    if (runsError) {
+    let runsData: any[];
+    let total: number;
+    try {
+      // Unik tie-breaker (created_at, id) — annars dubblerar/tappar offset-sidor rader med lika datum.
+      ({ rows: runsData, total } = await fetchOffsetPage(
+        (head) => {
+          return supabase
+            .from('runs')
+            .select(`
+              *,
+              users!inner(name, current_level, profile_picture, total_xp),
+              run_weather(weather_code, temperature_c)
+            `, { count: 'exact', head })
+            .order('date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .eq('users.group_id', groupId);
+        },
+        limit,
+        offset,
+      ));
+    } catch (runsError) {
       logger.error('❌ Error fetching group runs:', runsError);
       res.status(500).json({ error: 'Failed to fetch group run history' }); return;
     }
 
-    logger.info(`✅ Fetched ${runsData?.length || 0} runs for group history`);
+    logger.info(`✅ Fetched ${runsData.length} runs for group history`);
 
     const runs = runsData?.map((run: any) => ({
       id: run.id,
@@ -238,19 +221,37 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       user_name: run.users.name,
       user_level: run.users.current_level,
       user_total_xp: run.users.total_xp,
-      user_profile_picture: run.users.profile_picture || undefined
+      user_profile_picture: run.users.profile_picture || undefined,
+      start_time: run.start_time ?? null,
+      created_at: run.created_at ?? null,
     })) || [];
 
-    res.json({ runs });
+    const body: GroupRunHistoryResponse = { runs, meta: buildPageMeta(total, limit, offset) };
+    res.json(body);
   } catch (error) {
     logger.error('❌ Error in group history endpoint:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+/** Rundans kalenderdag (Stockholm): en ren YYYY-MM-DD är dagen i sig, en ISO-tidpunkt omräknas. */
+function toRunDay(date: string): string {
+  return isDateOnly(date) ? date : toStockholmDate(new Date(date).toISOString());
+}
+
+/** Äldsta tillåtna rundedatum (kalenderdag). */
+const MIN_RUN_DAY = '2025-06-01';
+
 /**
  * Gemensam indatavalidering för POST och PUT (bugg #8: PUT saknade POST:ens
  * regler). Returnerar felmeddelande eller null + parsad distans.
+ *
+ * Datum jämförs som KALENDERDAGAR i Stockholm-tid (open-assumptions backend-fråga 0): "idag" är
+ * todayStockholm(), inte serverns UTC-dag — annars nekades dagens datum som framtid mellan 00:00 och
+ * ~02:00 svensk tid. En ren YYYY-MM-DD-sträng är dagen i sig; en tidpunkt (ISO med klockslag) omräknas
+ * till sin Stockholm-dag.
  */
 function validateRunInput(date: string | undefined, distance: unknown): { error: string | null; distanceNum: number } {
   const distanceNum = parseFloat(String(distance));
@@ -259,12 +260,12 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
   }
   if (date !== undefined) {
     const runDate = new Date(date);
-    const minDate = new Date('2025-06-01');
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
     if (isNaN(runDate.getTime())) return { error: 'Invalid date', distanceNum };
-    if (runDate < minDate) return { error: 'Cannot log runs before June 1, 2025', distanceNum };
-    if (runDate > today) return { error: 'Cannot log runs for future dates', distanceNum };
+    // new Date('2026-02-30') rullar över till 2 mars — en ren dag måste vara en riktig kalenderdag.
+    if (isDateOnly(date) && !isIsoCalendarDate(date)) return { error: 'Invalid date', distanceNum };
+    const runDay = toRunDay(date);
+    if (runDay < MIN_RUN_DAY) return { error: 'Cannot log runs before June 1, 2025', distanceNum };
+    if (runDay > todayStockholm()) return { error: 'Cannot log runs for future dates', distanceNum };
   }
   return { error: null, distanceNum };
 }
@@ -272,10 +273,10 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
 // POST /api/runs - Create a new run
 router.post('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { date, distance, source = 'manual' } = req.body;
+    const { date, distance, source = 'manual', is_treadmill } = req.body;
     const userId = req.user!.user_id;
 
-    logger.info('📝 Create run request:', { userId, date, distance, source });
+    logger.info('📝 Create run request:', { userId, date, distance, source, is_treadmill });
 
     if (!date || !distance) {
       res.status(400).json({ error: 'Date and distance are required' }); return;
@@ -284,6 +285,11 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     const { error: validationError, distanceNum } = validateRunInput(date, distance);
     if (validationError) {
       res.status(400).json({ error: validationError }); return;
+    }
+
+    // Utelämnat → NULL (dagens beteende för manuella rundor); event-/väderlogik skiljer på false och NULL.
+    if (is_treadmill !== undefined && typeof is_treadmill !== 'boolean') {
+      res.status(400).json({ error: 'is_treadmill must be a boolean' }); return;
     }
 
     logger.info(`✅ Creating run for user ${userId}: ${distanceNum}km on ${date}`);
@@ -304,7 +310,8 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
         streak_bonus: 0,
         multiplier: 1.0,
         streak_day: 1,
-        xp_gained: 0
+        xp_gained: 0,
+        ...(is_treadmill !== undefined && { is_treadmill }),
       })
       .select('id')
       .single();
@@ -326,7 +333,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     checkEventQualification({
       userId,
       runId: newRun.id,
-      runDate: date,
+      runDate: toRunDay(date), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
       distanceKm: distanceNum,
       groupId: req.user!.group_id,
     }).catch(e => logger.error('❌ checkEventQualification error:', e));
@@ -334,7 +341,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     // Fetch the fully processed run
     const { data: processedRun, error: fetchError } = await supabase
       .from('runs')
-      .select('id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id')
+      .select('id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id, is_treadmill')
       .eq('id', newRun.id)
       .single();
 
@@ -427,6 +434,24 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Recalculate user totals (scoped to user's group for title processing)
     await calculateUserTotals(userId, req.user!.group_id);
 
+    // En redigering kan nå eventgränsen (t.ex. distansen höjs över min_km, eller datumet flyttas in i ett
+    // eventfönster) — samma fire-and-forget-mönster som POST (open-assumptions backend-fråga 7).
+    // checkEventQualification är idempotent (UNIQUE(event_id, user_id)): redan kvalificerade events ger
+    // 23505 och ingen ny XP. Den kan bara KVALIFICERA — en redigering som sänker distansen under gränsen
+    // avkvalificerar inte (eventService saknar avkvalificering).
+    if (dateChanged || distanceChanged) {
+      checkEventQualification({
+        userId,
+        runId: id,
+        runDate: toRunDay(date || existingRun.date),
+        distanceKm: newDistance,
+        groupId: req.user!.group_id,
+        // Bara events vars dagar rundans (nya) datum faller inom — annars kvalificerar en redigering av
+        // en gammal runda ett event som pågår just nu.
+        enforceRunDateWindow: true,
+      }).catch(e => logger.error('❌ checkEventQualification error (PUT):', e));
+    }
+
     logger.info('\n' + '='.repeat(80));
     logger.info('✅ BACKEND: UPDATE COMPLETE');
     logger.info('='.repeat(80) + '\n');
@@ -483,6 +508,22 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     const deletedDate = existingRun.date;
 
+    // event_entries.run_id → runs(id) är NO ACTION: en runda som kvalificerat ett event kan inte raderas
+    // (FK-fel). Förkontroll → 409 med klartext i stället för 500. Ingen null-out: den bevarar dagens
+    // de facto-regel (kvalificerande runda står kvar) och öppnar inte för XP-farmning (radera efter utdelad XP).
+    const { data: qualifiedEntries, error: entriesError } = await supabase
+      .from('event_entries')
+      .select('id')
+      .eq('run_id', id)
+      .limit(1);
+    if (entriesError) {
+      logger.error('❌ Error checking event entries for run:', entriesError);
+      res.status(500).json({ error: 'Failed to delete run' }); return;
+    }
+    if (qualifiedEntries && qualifiedEntries.length > 0) {
+      res.status(409).json({ error: "This run qualified an event and can't be deleted — edit it instead" }); return;
+    }
+
     // Delete the run
     const { error: deleteError } = await supabase
       .from('runs')
@@ -501,6 +542,11 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     // Recalculate user totals (scoped to user's group for title processing)
     await calculateUserTotals(userId, req.user!.group_id);
+
+    // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
+    // SKAPA kvalificeringar ur en runda, och en radering skapar aldrig en ny — därför anropas den inte här.
+    // Avkvalificering (ta bort entry + dra tillbaka utdelad participation-XP) stöds inte av eventService och
+    // vore en regeländring (ägarbeslut 1). En kvalificerande runda kan inte raderas alls (409 ovan).
 
     logger.info(`✅ Run ${id} deleted and all runs reprocessed successfully`);
 
