@@ -128,11 +128,29 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   shareds formel över samma konfiguration. Går den inte att läsa visas shareds standardvärden och sidan säger det (Retry). Nivåtabellen är shareds
   `FALLBACK_LEVEL_REQUIREMENTS` (enda hemmet, identisk med prod) — ingen endpoint exponerar `level_requirements`; ändrar någon tabellen i databasen följer
   Playbook inte med.
+- **Playbook beskriver spelet SOM DET ÄR i dag** (ägardirektiv 2026-10-06) — även buggar beskrivs som de beter sig; Lead registrerar buggen separat.
 - **Event-siffrorna är redaktionella — ingen endpoint exponerar `event_templates`.** `GET /events` ger bara aktiva/schemalagda events (namn, min km, XP, men inte
-  fönster, spawn-regler eller väderkrav), så fönster, krav och XP bor som en kopia i `features/playbook/playbookFacts.ts` (Morgonrunda 05–09, Kvällsrunda 18–22,
-  5K Friday, Half Marathon Chaser 10 km fre–sön, Hangover Run, Storm Chaser: ≥ 3 stormtimmar dagtid 06–21 ELLER ≥ 4 timmar med byar ≥ 15 m/s; veckotävlingen 40/30/20
-  och avgörs måndag 00:05 Stockholm). `playbookFacts.test.ts` läser backendens migrationer, eventService och eventScheduler och faller om siffrorna glider isär —
-  men nya/borttagna event i databasen syns inte där. En `GET /events/templates` (eller att Playbook läser mallarna) vore en backend-uppgift.
+  fönster, spawn-regler eller väderkrav), så fönster, krav och XP bor som en kopia i `features/playbook/playbookFacts.ts`. `playbookFacts.test.ts` läser backendens
+  migrationer, eventService, eventScheduler och stravaSync och faller om siffrorna glider isär — men nya/borttagna event i databasen syns inte där. En
+  `GET /events/templates` (eller att Playbook läser mallarna) vore en backend-uppgift. **Verifierat mot prod (Lead, read-only SQL 2026-10-05):**
+
+  | Event (prodnamn) | Fönster | Min km | XP | Pool |
+  |---|---|---|---|---|
+  | Morning run | 05–09 | 3 | +25 | daily |
+  | Evening run | 18–22 | 3 | +25 | daily |
+  | Storm Chaser | heldag, kräver väder (rain/drizzle/storm) | 5 | +40 | daily |
+  | 5K Friday | heldag | 5 | +25 | thursday |
+  | Half Marathon Chaser | fre–sön | 10 | +25 | thursday |
+  | Hangover Run | heldag | 3 | +30 | weekend |
+  | Weekly km, Weekly elevation | 7 dagar, topp 3: 40/30/20 XP | – | – | weekly_competition |
+
+  Namnen är engelska i prod (migration 025/029 seedar dem; 017/022 skrevs med "Morgonrunda"/"Kvällsrunda"/"Weekly höjdmeter" och testet slår upp siffrorna där med de gamla namnen).
+- **Storm Chaser-tröskeln är 15 km/h, inte 15 m/s.** `eventService.checkStormChaserForecast` hämtar Open-Meteo utan `wind_speed_unit` → byvärdena är km/h, och `>= 15`
+  jämförs rakt av (kodens kommentarer säger m/s). Playbook säger "gusts of 15 km/h or more" (så beter sig spelet); tröskeln var sannolikt menad som m/s — Lead har lagt issue.
+  Fakta-testet kräver att anropet saknar `wind_speed_unit`, så det faller om enheten ändras. Regeln i sin helhet: ≥ 3 stormiga timmar (väderkod duggregn/regn/snö/skurar/åska) ELLER ≥ 4 timmar med byar ≥ 15 km/h, dagtimmar 06–21 imorgon.
+- **Kvalificering:** ett deltagarevent kräver att eventet är öppet när rundan loggas/synkas och att rundans datum ligger inom eventets dagar (inte rundans starttid) — Playbook säger "log or sync a run while the event is open".
+- **Strava:** synken räknar från en vecka före senast Strava-importerade rundan; en aktivitet med distans 0 sparas inte ("any distance above zero"). Intervallet är `SYNC_INTERVAL_MINUTES` (30) i stravaSync.ts.
+- **Utmaningstokens:** enligt seeden (006) delas token ut vid nivå 3, 5, 8, 10, 12, 14, 15 och sedan vid varje nivå från 16 (major var 5:e, legendary vid 15/30/45) — inga tokens vid 2, 4, 6, 7, 9, 11, 13. Playbook säger "many level-ups at first and, from level 16, at every level-up".
 - **Insatserna per utmaningsnivå är observerade, som Rules-vyn:** verkliga tokens/aktiva/inkomna/historiska utmaningar ur `GET /challenges/my` först (hämtas när
   utmaningskapitlet visas), `DEFAULT_STAKES` (seed, migration 006) bara för nivåer utan exempel. Har man inga tokens eller historik visas alltså seed-värdena.
 - **Titellistan i Playbook och Admin är `GET /titles/leaderboard`** (samma rader som Titles, delad cache) — namn, regel och låsgräns ordagrant ur databasen,

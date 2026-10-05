@@ -9,7 +9,6 @@ const api = vi.hoisted(() => ({
   updateStreakMultipliers: vi.fn(),
 }));
 vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 
 import { useAdminData } from './useAdminData';
 

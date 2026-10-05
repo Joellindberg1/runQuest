@@ -8,7 +8,7 @@ import type { XpRules } from '@/features/log/xpPreviewModel';
 import { ALL_WAYPOINTS, JOURNEY_END_KM } from '@/features/profile/frodoModel';
 import type { RQIconName } from '@/shared/components/icons';
 import { MAX_DISPLAYED } from '@/features/titles/titlesModel';
-import { EVENT_FACTS, WEEKLY_XP } from './playbookFacts';
+import { EVENT_FACTS, STRAVA_SYNC_MINUTES, WEEKLY_XP } from './playbookFacts';
 
 // Playbook-skärmens kapitel: spelets regler som text, med siffrorna ur GET /config/xp (bas-XP, XP/km, distansbonusar,
 // streak-trappan) i stället för hårdkodade. Nivåtabellen är shareds (enda hemmet, identisk med level_requirements i prod),
@@ -70,9 +70,9 @@ function runChapter(rules: XpRules): Omit<Chapter, 'num'> {
   const manualMin = formatKm(MIN_RUN_DISTANCE_KM);
   return {
     id: 'run', icon: 'plus', label: 'What counts as a run', title: 'What counts as a run',
-    lead: `Manual runs need at least ${manualMin} km; runs synced from Strava count at any distance.`,
+    lead: `Manual runs need at least ${manualMin} km; runs synced from Strava count at any distance above zero.`,
     paras: [
-      'Strava runs arrive by themselves every 30 minutes — running activities only (Run, Trail Run and Virtual Run), with duplicates filtered out. Each sync looks back to a week before your latest run, so a missed activity is picked up. Treadmill runs are tagged when Strava flags them as a trainer activity.',
+      `Strava runs arrive by themselves every ${STRAVA_SYNC_MINUTES} minutes — running activities only (Run, Trail Run and Virtual Run), with duplicates filtered out. Each sync looks back to a week before your most recent Strava-imported run, so a missed activity is picked up. Treadmill runs are tagged when Strava flags them as a trainer activity.`,
       `You can also log a run by hand, back to ${formatLongDate(MIN_RUN_DATE)} and never into the future. Manual runs have no GPS, so no weather and no elevation. The XP formula is the same for both.`,
     ],
     table: {
@@ -80,7 +80,7 @@ function runChapter(rules: XpRules): Omit<Chapter, 'num'> {
       rows: [
         { label: 'Manual run, minimum', value: `${manualMin} km` },
         { label: 'Base XP from', value: `${formatKm(rules.settings.min_run_distance)} km` },
-        { label: 'Strava import', value: 'Every 30 min' },
+        { label: 'Strava import', value: `Every ${STRAVA_SYNC_MINUTES} min` },
         { label: 'Logging by hand', value: `Since ${formatLongDate(MIN_RUN_DATE)}` },
       ],
     },
@@ -192,7 +192,7 @@ function challengesChapter(stakes: Record<ChallengeTier, Stake>): Omit<Chapter, 
     // Rules-vyns egna texter (features/challenges/rulesModel): EN formulering av reglerna, så Playbook och Duels inte kan säga olika saker.
     lead: howItWorks('One token, one duel'),
     paras: [
-      'A token is earned at a level-up. Its tier, metric, length and stakes are drawn when you earn it — minor at most level-ups, major roughly every fifth level, legendary every fifteenth. Sending a challenge means choosing one of your tokens and an opponent.',
+      'A token is earned at a level-up. Its tier, metric, length and stakes are drawn when you earn it. Tokens come at many level-ups at first and, from level 16, at every level-up — most are minor, major roughly every fifth level, legendary every fifteenth. Sending a challenge means choosing one of your tokens and an opponent.',
       `${howItWorks('Metrics')} ${howItWorks('The boost')}`,
     ],
     table: {
@@ -212,9 +212,9 @@ function eventsChapter(): Omit<Chapter, 'num'> {
   const { morning, evening, fiveKFriday, halfMarathon, hangover, storm } = EVENT_FACTS;
   return {
     id: 'events', icon: 'calendar', label: 'Events', title: 'Events',
-    lead: 'Events are drawn by chance, so not every day or week has one. In a participation event you finish a run inside the window and get the XP — no ranking, everyone who qualifies wins.',
+    lead: 'Events are drawn by chance, so not every day or week has one. In a participation event you log or sync a run while the event is open — and the run’s date has to fall within the event’s days — and you get the XP. No ranking: everyone who qualifies wins.',
     paras: [
-      `Morgonrunda, Kvällsrunda and Storm Chaser share a daily draw at 19:00 — at most one of them starts the next day. Storm Chaser only comes up when tomorrow's daytime forecast (${hourText(storm.dayFrom)}–${hourText(storm.dayTo)}) shows at least ${storm.stormHours} hours of rain, snow or thunder, or at least ${storm.gustHours} hours of gusts of ${storm.gustMs} m/s or more.`,
+      `${morning.name}, ${evening.name} and ${storm.name} share a daily draw at 19:00 — at most one of them starts the next day. ${storm.name} only comes up when tomorrow's daytime forecast (${hourText(storm.dayFrom)}–${hourText(storm.dayTo)}) shows at least ${storm.stormHours} hours of drizzle, rain, snow, showers or thunder, or at least ${storm.gustHours} hours of gusts of ${storm.gustKmh} km/h or more.`,
       `Weekly competitions are the exception: a weekly km or elevation competition runs Monday to Sunday, ranks everyone on the total, and is settled just after midnight on Monday. The top three get ${WEEKLY_XP.join(' / ')} XP.`,
       'Event XP is tracked separately from run XP. It counts toward your total and your level, but it is not part of the per-run breakdown.',
     ],
