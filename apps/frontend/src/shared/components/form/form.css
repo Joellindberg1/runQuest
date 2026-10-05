@@ -1,5 +1,5 @@
 /* Delat formulärkit (TextField + FormNotices) för Settings, Admin och Login. ENDAST tokens (regel 1) — inga egna
-   :root-definitioner och inga egna mått. Ligger utanför @layer så att klasserna vinner över de delade .rq-*-primitiverna. */
+   :root-definitioner och inga egna mått. Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 .rq-form { --rq-form-gap: var(--rq-sp-14); display: flex; flex-direction: column; gap: var(--rq-form-gap); }
 

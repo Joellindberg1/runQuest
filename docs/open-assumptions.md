@@ -160,9 +160,9 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   backend har ingen historik, bara senaste försöket (`/strava/last-sync`). Mobilprototypen saknar Settings och Admin — mobil är härledd (en kolumn).
 - **Settings: "Sync now" syns fortfarande bara för "Joel Lindberg"** (namnjämförelse, som före omritningen). Efter en synk hämtas alla aktiva queries om
   (`invalidateQueries()`) i stället för den gamla hårda omladdningen efter 2 s.
-- **Admin: "Min km for streak" och "Min run date" är skrivskyddade.** Save skickade dem aldrig (servern har bara `min_run_distance`; datumet är en
-  konstant i appen) — de såg redigerbara ut men gjorde ingenting. De visas kvar som i prototypen, med en rad som säger det. Vill ägaren att de ska gå att
-  ändra behövs backend-stöd. "Add member" saknar "6 of 30 seats used" (ingen sätesgräns finns).
+- **Admin: "Min run date" är skrivskyddat; "Min km for streak" är borttaget (2026-10-06).** Save skickade dem aldrig (datumet är en
+  konstant i appen; streaken har ingen distansgräns, `routes/runs.ts`). `min_run_distance` styr bara bas-XP och heter därför "Min km for base XP". Vill ägaren
+  ha ett streak-minimum eller redigerbart datum behövs backend-stöd. "Add member" saknar "6 of 30 seats used" (ingen sätesgräns finns).
 - **Admin: ett tomt/ogiltigt fält OCH en trappa utanför 1–9.99 (högst två decimaler) stoppas före Save** (`findSettingsProblem`) — ingenting skickas, så
   grundinställningarna sparas aldrig halvt när trappan avvisas. Servern vaktar fortfarande samma gräns och dess 400-text visas ordagrant. Fältet får `aria-invalid` utanför intervallet.
 - **Admin: läsfel är felkort med Retry** (inställningar/trappa, medlemmar, titlar) i stället för toast + tomt/standardvärden. Save är låst tills BÅDA läsningarna
