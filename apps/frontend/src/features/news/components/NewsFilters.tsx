@@ -6,6 +6,8 @@ const ICON_FILTER = 15;
 interface NewsFiltersProps {
   selected: readonly NewsFilterKey[];
   counts: Record<NewsFilterKey, number>;
+  /** Rader i det laddade fönstret — räknarnas nämnare ("7 in the latest 30"). */
+  loaded: number;
   onToggle: (key: NewsFilterKey) => void;
 }
 
@@ -14,7 +16,7 @@ interface NewsFiltersProps {
  * en chip-rad på mobil och ett kort med lodrät lista på desktop (Web Prototypen) — bara CSS skiljer. Räknaren är antal rader i det
  * laddade fönstret (ADR 008). Valt = `aria-pressed`, med kategorins färg.
  */
-export function NewsFilters({ selected, counts, onToggle }: NewsFiltersProps) {
+export function NewsFilters({ selected, counts, loaded, onToggle }: NewsFiltersProps) {
   return (
     <section className="rq-news-filter" aria-labelledby="news-filter-label" data-tour="news-filter">
       <h2 id="news-filter-label" className="rq-news-filter__label">Filter</h2>
@@ -25,6 +27,7 @@ export function NewsFilters({ selected, counts, onToggle }: NewsFiltersProps) {
             type="button"
             className="rq-news-filter__item"
             data-category={filter.category}
+            title={`${counts[filter.key]} in the latest ${loaded}`}
             aria-pressed={selected.includes(filter.key)}
             onClick={() => onToggle(filter.key)}
           >

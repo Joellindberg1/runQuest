@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_NEWS_V1 } from '@/features/onboarding/featureTourSteps';
@@ -36,6 +36,7 @@ export function NewsScreen() {
   const seen = useMarkNewsSeen();
   const [notice, setNotice] = useState<string | null>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
+  const markRef = useRef<HTMLButtonElement>(null);
 
   const unread = all.feed?.meta.unread_count ?? 0;
   const counts = useMemo(() => countByFilter(all.feed?.items ?? []), [all.feed]);
@@ -56,12 +57,15 @@ export function NewsScreen() {
   const markAllRead = () => {
     setNotice(null);
     seen.reset();
-    seen.markAllRead((count) => {
-      setNotice(`${count} marked as read`);
-      // Knappen försvinner när inget är oläst — fokus går till bekräftelsen i stället för att falla till body.
-      noticeRef.current?.focus();
-    });
+    // Knappen försvinner när inget är oläst (optimistiskt, direkt) — fokus går till statusregionen i samma ögonblick i stället för att falla
+    // till body, och tillbaka till knappen om kvitteringen misslyckas (effekten nedan).
+    noticeRef.current?.focus();
+    seen.markAllRead((count) => setNotice(`${count} marked as read`));
   };
+
+  useEffect(() => {
+    if (seen.error) markRef.current?.focus();
+  }, [seen.error]);
 
   const hasItems = (active.feed?.items.length ?? 0) > 0;
   const showFilter = selected.length > 0 || (all.feed?.items.length ?? 0) > 0;
@@ -114,7 +118,7 @@ export function NewsScreen() {
             <p role="alert" className="rq-news-error">{seen.error ? `Couldn't mark the news as read — ${seen.error}` : ''}</p>
           </div>
           {unread > 0 && (
-            <button type="button" className="rq-btn rq-btn--link rq-news__mark" data-tour="news-mark-read" disabled={seen.isPending} onClick={markAllRead}>
+            <button ref={markRef} type="button" className="rq-btn rq-btn--link rq-news__mark" data-tour="news-mark-read" disabled={seen.isPending} onClick={markAllRead}>
               Mark all read
             </button>
           )}
@@ -123,7 +127,7 @@ export function NewsScreen() {
         <div className="rq-news__split">
           {showFilter && (
             <aside className="rq-news__side">
-              <NewsFilters selected={selected} counts={counts} onToggle={(key) => setFilter(toggleFilter(selected, key))} />
+              <NewsFilters selected={selected} counts={counts} loaded={all.feed?.items.length ?? 0} onToggle={(key) => setFilter(toggleFilter(selected, key))} />
             </aside>
           )}
           <div className="rq-news__main">{feed}</div>

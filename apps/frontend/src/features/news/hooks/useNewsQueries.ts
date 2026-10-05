@@ -31,17 +31,22 @@ async function fetchPage(query: NewsQuery): Promise<NewsPage> {
  * större än en sida fylls med upprepade `?before=next_before` tills klienten når sitt kända id (ADR 008 addendum 4). Ett omhämtat
  * flöde börjar alltså aldrig om — äldre sidor ("Show more") och scrollposition står kvar. Sammanslagningen sker i
  * `setQueryData`-uppdateraren så att en "Show more" som landar under tiden inte skrivs över.
+ * En avbruten hämtning (react-querys `signal`, t.ex. av cancelQueries när "Mark all read" trycks) skriver ALDRIG tillbaka: en
+ * poll-kedja i flykt skulle annars lägga tillbaka en inaktuell unread_count över den optimistiska nollan.
  */
-async function loadFeed(queryClient: QueryClient, key: QueryKey, typeParam: string | undefined): Promise<NewsFeed> {
+async function loadFeed(queryClient: QueryClient, key: QueryKey, typeParam: string | undefined, signal: AbortSignal): Promise<NewsFeed> {
   const current = queryClient.getQueryData<NewsFeed>(key);
   const known = current ? topIdOf(current.items) : null;
   if (!current || known === null) return feedFromPage(await fetchPage({ limit: NEWS_PAGE_SIZE, type: typeParam }));
+  const unchanged = () => queryClient.getQueryData<NewsFeed>(key) ?? current;
 
   let last = await fetchPage({ after: known, limit: NEWS_CATCH_UP_LIMIT, type: typeParam });
+  if (signal.aborted) return unchanged();
   const fetched = [...last.items];
   let cursor = gapCursor(last, known);
   for (let pages = 1; cursor !== null && pages < NEWS_MAX_GAP_PAGES; pages += 1) {
     last = await fetchPage({ before: cursor, limit: NEWS_CATCH_UP_LIMIT, type: typeParam });
+    if (signal.aborted) return unchanged();
     fetched.push(...last.items);
     cursor = gapCursor(last, known);
   }
@@ -61,7 +66,7 @@ export function useNewsFeed(types: readonly ActivityType[] | null = null, enable
 
   const query = useQuery({
     queryKey: key,
-    queryFn: () => loadFeed(queryClient, key, typeParam),
+    queryFn: ({ signal }) => loadFeed(queryClient, key, typeParam, signal),
     enabled,
     staleTime: STALE_MS,
     refetchInterval: POLL_MS,

@@ -165,6 +165,24 @@ describe('Pack News — Mark all read', () => {
     expect(news.server.seenCalls).toEqual([20]);
   });
 
+  it('fokus går till statusregionen direkt vid klicket (inte först vid svaret), och tillbaka till knappen om kvitteringen misslyckas', async () => {
+    renderNews();
+    await screen.findByText('7 unread');
+    let fail: (value: unknown) => void = () => {};
+    handlers.markNewsSeen = () => new Promise((resolve) => { fail = resolve; });
+    const button = screen.getByRole('button', { name: 'Mark all read' });
+    button.focus();
+    fireEvent.click(button);
+
+    const status = screen.getAllByRole('status').find((el) => el.tabIndex === -1) as HTMLElement;
+    expect(status).toHaveFocus();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull());
+    expect(status).toHaveFocus();
+
+    fail({ success: false, error: 'Failed to update news state' });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Mark all read' })).toHaveFocus());
+  });
+
   it('knappen finns inte när inget är oläst', async () => {
     setup(FEED(), 20);
     renderNews();
@@ -224,6 +242,9 @@ describe('Pack News — filter (?type=)', () => {
     await waitFor(() => expect(rowTexts()).toEqual(['Daniel lost a 27-day streak — multiplier back to 1.0×']));
     const counts = Object.fromEntries(['Titles', 'Challenges', 'Events', 'Levels', 'Streaks'].map((label) => [label, filterButton(label).querySelector('.rq-news-filter__count')?.firstChild?.textContent]));
     expect(counts).toEqual({ Titles: '2', Challenges: '1', Events: '2', Levels: '3', Streaks: '1' });
+    // Räknarens förklaring för den som hovrar: antal av det laddade fönstret.
+    expect(filterButton('Titles')).toHaveAttribute('title', '2 in the latest 9');
+    expect(filterButton('Levels')).toHaveAttribute('title', '3 in the latest 9');
   });
 
   it('inget träffar: tomt läge med en knapp som visar allt', async () => {

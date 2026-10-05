@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { paths } from '@/paths';
 import { ErrorState } from '@/shared/components/ErrorState';
@@ -27,6 +27,7 @@ export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPane
   const seen = useMarkNewsSeen();
   const [notice, setNotice] = useState<string | null>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
+  const markRef = useRef<HTMLButtonElement>(null);
 
   const rows = useMemo(() => buildPopoverRows(news.feed?.items ?? [], ctx), [news.feed, ctx]);
   const unread = news.feed?.meta.unread_count ?? 0;
@@ -34,11 +35,14 @@ export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPane
   const markAllRead = () => {
     setNotice(null);
     seen.reset();
-    seen.markAllRead((count) => {
-      setNotice(`${count} marked as read`);
-      noticeRef.current?.focus();
-    });
+    // Knappen försvinner optimistiskt direkt — fokus går till statusregionen i samma ögonblick, och tillbaka till knappen vid fel.
+    noticeRef.current?.focus();
+    seen.markAllRead((count) => setNotice(`${count} marked as read`));
   };
+
+  useEffect(() => {
+    if (seen.error) markRef.current?.focus();
+  }, [seen.error]);
 
   let body;
   if (news.feed && rows.length > 0) {
@@ -79,7 +83,7 @@ export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPane
         <h2 className="rq-news-pop__title">The Pack News</h2>
         <div className="rq-news-pop__actions">
           {unread > 0 && (
-            <button type="button" className="rq-btn rq-btn--link" disabled={seen.isPending} onClick={markAllRead}>Mark all read</button>
+            <button ref={markRef} type="button" className="rq-btn rq-btn--link" disabled={seen.isPending} onClick={markAllRead}>Mark all read</button>
           )}
           {showClose && <button type="button" className="rq-news-pop__close" aria-label="Close" onClick={onClose}>✕</button>}
         </div>

@@ -136,6 +136,65 @@ describe('useNewsFeed — första hämtning, Show more och catch-up (ADR 008 add
     expect(feed?.meta).toMatchObject({ has_more: true, next_before: 511 });
   });
 
+  it('ett fel mitt i before-kedjan: refetch misslyckas utan krasch och den gamla listan står kvar orörd', async () => {
+    const news = newsServer(rows(10));
+    serve(news);
+    const { result } = renderHook(() => useNewsFeed(null), { wrapper });
+    await waitFor(() => expect(result.current.feed).toBeDefined());
+    const before = result.current.feed;
+
+    news.server.rows.unshift(...rows(250, 11).reverse());
+    // Första catch-up-sidan (after) går bra, andra (before) fallerar.
+    api.getNews.mockImplementation(async (query: { before?: number }) => (query.before !== undefined ? { success: false, error: 'mid-chain failure' } : news.getNews(query)));
+    await refetch(result);
+
+    expect(result.current.feed).toBe(before);
+    expect(ids(result.current.feed)).toEqual(ids(before));
+    expect(result.current.isError).toBe(true);
+    expect(cached()).toBe(before);
+  });
+
+  it('en Show more som landar under en pågående catch-up skrivs inte över av sammanslagningen', async () => {
+    const news = newsServer(rows(45));
+    serve(news);
+    const { result } = renderHook(() => useNewsFeed(null), { wrapper });
+    await waitFor(() => expect(result.current.feed).toBeDefined());
+    expect(result.current.feed?.items).toHaveLength(30);
+
+    news.server.rows.unshift(levelUp(47, 47), levelUp(46, 46));
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    api.getNews.mockImplementation(async (query: { after?: number }) => {
+      const response = await news.getNews(query as never);
+      if (query.after !== undefined) await gate;
+      return response;
+    });
+
+    let pending: Promise<unknown> = Promise.resolve();
+    act(() => { pending = result.current.refetch(); });
+    act(() => result.current.loadMore());
+    await waitFor(() => expect(cached()?.items).toHaveLength(45));
+
+    await act(async () => { release(); await pending; });
+    expect(ids(cached())).toEqual(Array.from({ length: 47 }, (_, index) => 47 - index));
+    expect(cached()?.meta).toMatchObject({ has_more: false, next_before: null });
+  });
+
+  it.each([[100, 1], [101, 2]])('en lucka på exakt %d rader kräver %d catch-up-hämtning(ar) och ger inga dubbletter', async (gap, calls) => {
+    const news = newsServer(rows(10));
+    serve(news);
+    const { result } = renderHook(() => useNewsFeed(null), { wrapper });
+    await waitFor(() => expect(result.current.feed).toBeDefined());
+
+    news.server.rows.unshift(...rows(gap, 11).reverse());
+    await refetch(result);
+
+    expect(news.server.calls.slice(1)).toHaveLength(calls);
+    expect(result.current.feed?.items).toHaveLength(10 + gap);
+    expect(new Set(ids(result.current.feed)).size).toBe(10 + gap);
+    expect(ids(result.current.feed)?.[0]).toBe(10 + gap);
+  });
+
   it('ett filter har egen cache och skickar type= i ACTIVITY_TYPES-ordning', async () => {
     const news = newsServer([titleTaken(3), levelUp(2, 5), titleTaken(1)]);
     serve(news);
@@ -212,6 +271,32 @@ describe('useMarkNewsSeen — Mark all read', () => {
     await waitFor(() => expect(feed.result.current.feed?.meta.unread_count).toBe(1));
     expect(ids(feed.result.current.feed)?.[0]).toBe(6);
     expect(feed.result.current.feed?.items[0].is_unread).toBe(true);
+  });
+
+  it('en poll i flykt när Mark all read trycks skriver aldrig tillbaka den gamla räknaren (avbruten hämtning skriver inte)', async () => {
+    const { news, feed, seen } = await setup();
+    const observed: number[] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    // Svaret är räknat INNAN kvitteringen (4 olästa) men levereras efter den.
+    api.getNews.mockImplementationOnce(async (query: never) => {
+      const stale = await news.getNews(query);
+      await gate;
+      return stale;
+    });
+
+    let poll: Promise<unknown> = Promise.resolve();
+    act(() => { poll = feed.result.current.refetch(); });
+    act(() => seen.result.current.markAllRead());
+    await waitFor(() => expect(seen.result.current.isPending).toBe(false));
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => observed.push(cached()?.meta.unread_count ?? -1));
+    await act(async () => { release(); await poll.catch(() => {}); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    unsubscribe();
+
+    expect(observed).not.toContain(4);
+    expect(cached()?.meta.unread_count).toBe(0);
+    expect(cached()?.items.some((row) => row.is_unread)).toBe(false);
   });
 
   it('fel: räknaren och raderna återställs och felet står kvar i error', async () => {

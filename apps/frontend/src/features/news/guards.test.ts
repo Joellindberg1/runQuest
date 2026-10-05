@@ -86,6 +86,16 @@ describe('Pack News-filerna följer designspråket', () => {
     expect(code).not.toMatch(/transition\s*:/);
   });
 
+  it('läsbar text är aldrig --rq-text-5 (dekornivå, WCAG): tidsklasserna använder --rq-text-4', () => {
+    const code = stripComments(css);
+    for (const selector of ['.rq-news-row__time', '.rq-news-pop__time']) {
+      const rule = code.match(new RegExp(`${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+      expect({ selector, color: rule.match(/color:\s*([^;]+)/)?.[1].trim() }).toEqual({ selector, color: 'var(--rq-text-4)' });
+    }
+    // Hela filen: text-5 får bara finnas på dagrubriken (.rq-eyebrow-nivån, tema-bred ägarfråga).
+    expect([...code.matchAll(/([^{}]+)\{[^}]*--rq-text-5[^}]*\}/g)].map((m) => m[1].trim())).toEqual(['.rq-news-day__label']);
+  });
+
   it('rörelse: ingenting animerar eller loopar i Pack News (rader och räknare står stilla — bara skelettet, som delas, blinkar)', () => {
     expect(stripComments(css)).not.toMatch(/animation|@keyframes/);
   });
