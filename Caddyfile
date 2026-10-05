@@ -26,6 +26,11 @@
 		format json
 	}
 
+	# Appen har EN adress: www.runquest.dev. API:ets CORS tillåter bara den, och inloggningen
+	# (localStorage) är per adress — därför skickas apex-domänen vidare i stället för att servera appen.
+	@apex host runquest.dev
+	redir @apex https://www.runquest.dev{uri} 308
+
 	# Egen handle: ett toppnivå-respond sorteras efter handle och skulle skuggas av SPA-blocket.
 	handle /health {
 		respond 200

@@ -71,6 +71,24 @@ else
 fi
 check "nosniff och ingen Server-header"           "/"                              200 "^x-content-type-options: nosniff" "^server:"
 
+# Apex-domänen skickas till www med sökväg och query kvar; www och Railways egen adress serveras som vanligt.
+host_check() {
+  local desc="$1" host="$2" path="$3" want_status="$4" want_location="${5:-}"
+  local headers status location
+  headers="$(curl -s -o /dev/null -D - -H "Host: $host" "http://127.0.0.1:$PORT$path" | tr -d '\r')"
+  status="$(printf '%s\n' "$headers" | head -1 | awk '{print $2}')"
+  location="$(printf '%s\n' "$headers" | grep -i '^location:' | sed 's/^[Ll]ocation: //')"
+  if [[ "$status" != "$want_status" || "$location" != "$want_location" ]]; then
+    echo "FAIL $desc: $host$path gav $status ${location:-(ingen location)}, väntade $want_status ${want_location:-(ingen location)}"
+    failures=$((failures + 1)); return
+  fi
+  echo "ok   $desc"
+}
+host_check "runquest.dev skickas till www"            "runquest.dev"                     "/titles?view=all" 308 "https://www.runquest.dev/titles?view=all"
+host_check "runquest.dev-roten skickas till www"      "runquest.dev"                     "/"                308 "https://www.runquest.dev/"
+host_check "www serveras utan omdirigering"           "www.runquest.dev"                 "/board"           200
+host_check "Railways egen adress serveras"            "spectacular-rebirth-production-186c.up.railway.app" "/" 200
+
 if (( failures > 0 )); then
   echo "--- caddy-logg ---"; tail -20 "$WORK/caddy.log"
   exit 1
