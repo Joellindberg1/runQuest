@@ -540,6 +540,7 @@
   --rq-admin-add-cols: minmax(0, 1fr);                                /* Add member: mobil staplad, desktop tre fält + knapp */
   --rq-admin-value-w: 78px;                                           /* värdefältet i en XP-rad */
   --rq-admin-row-gap: 12px;                                           /* desktop 18 */
+  --rq-admin-titles-cols: minmax(0, 1fr);                             /* titellistan i Titles-fliken: mobil 1 kolumn, desktop 2 */
   /* ── 1.32 Playbook-mått (inkrement 11) ─────────────────────────────────────
      Mått ur App-/Web-prototypens Playbook (mPlaybook / isPlaybook): mobil = dragspel med nio kapitel, desktop = kapitelflikar
      + kapitlet bredvid sin tabell (380 px). Endast mått — rubriken snappar till --rq-fs-display-xl, ingressen till --rq-fs-lead,
@@ -690,6 +691,7 @@
     --rq-admin-member-cols: 220px 220px minmax(0, 1fr) auto;
     --rq-admin-add-cols: repeat(3, minmax(0, 1fr)) auto;
     --rq-admin-row-gap: 18px;
+    --rq-admin-titles-cols: repeat(2, minmax(0, 1fr));
     --rq-playbook-split-cols: minmax(0, 1fr) 380px;
     --rq-playbook-split-gap: 44px;
     --rq-playbook-titles-cols: repeat(3, minmax(0, 1fr));

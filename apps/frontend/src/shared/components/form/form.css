@@ -4,6 +4,8 @@
 .rq-form { --rq-form-gap: var(--rq-sp-14); display: flex; flex-direction: column; gap: var(--rq-form-gap); }
 
 .rq-form-field { min-width: 0; }
+/* Fältet i formulär: prototypernas 17 px på desktop (stat-value 16/18) — aldrig under 16 px på mobil, så iOS inte zoomar in */
+.rq-form-field .rq-field { font-size: var(--rq-fs-stat-value); }
 .rq-form-label { display: block; margin-bottom: var(--rq-sp-6); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-form-note { margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
 .rq-form-note[data-tone="error"] { color: var(--rq-down); }

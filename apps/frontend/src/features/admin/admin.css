@@ -27,7 +27,7 @@
 .rq-admin-row__input[type="date"] { width: auto; }
 .rq-admin-row__input[readonly] { background: none; border-color: var(--rq-line-3); color: var(--rq-text-4); }
 .rq-admin-add-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--rq-sp-8); margin-top: var(--rq-sp-14); }
-.rq-admin-add-step > .rq-btn { align-self: stretch; }
+.rq-admin-add-step > .rq-btn { align-self: stretch; height: auto; }
 .rq-admin-save { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-10) var(--rq-sp-16); }
 .rq-admin-save__hint { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-admin-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
@@ -58,10 +58,10 @@
 /* Add member: tre fält och EN guldknapp (staplade på mobil) */
 .rq-admin-add { --rq-form-gap: var(--rq-sp-12); margin-top: var(--rq-sp-4); }
 .rq-admin-add__fields { display: grid; grid-template-columns: var(--rq-admin-add-cols); gap: var(--rq-sp-10); }
-.rq-admin-add__fields > .rq-btn { align-self: stretch; }
+.rq-admin-add__fields > .rq-btn { align-self: start; }
 
-/* Titlar: namn · regel · låsgräns, tre rader per titel */
-.rq-admin-titles { margin: 0; padding: 0; list-style: none; }
+/* Titlar: namn · regel · låsgräns, tre rader per titel (två kolumner på desktop) */
+.rq-admin-titles { margin: 0; padding: 0; list-style: none; grid-template-columns: var(--rq-admin-titles-cols); }
 .rq-admin-title { display: flex; flex-direction: column; gap: var(--rq-sp-2); background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }
 .rq-admin-title__name { display: flex; align-items: center; gap: var(--rq-sp-8); }
 .rq-admin-title__rule { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
