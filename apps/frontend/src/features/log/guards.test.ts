@@ -89,7 +89,7 @@ describe('Log-filerna följer designspråket', () => {
     expect([...code.matchAll(/z-index:\s*([^;}]+)/g)].map((m) => m[1].trim())).toEqual([]);
   });
 
-  it('typsnitten kommer ur tokens: inga font-family utom var(--rq-font-*) (och inherit på namnknappen)', () => {
+  it('typsnitten kommer ur tokens: inga font-family utom var(--rq-font-*)', () => {
     const families = [...stripComments(css).matchAll(/font-family:\s*([^;}]+)/g)].map((m) => m[1].trim());
     expect(families.length).toBeGreaterThan(5);
     expect(families.filter((family) => !family.startsWith('var(--rq-font-'))).toEqual([]);

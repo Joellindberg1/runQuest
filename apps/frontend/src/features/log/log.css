@@ -1,7 +1,8 @@
 /* Log runs-skärmen (inkrement 7): rubrik · flikar (Log a run / Group history) · Strava-rad · formulär · Estimated XP ·
    "What this run does" · group history. ENDAST tokens (regel 1). Måtten (--rq-log-*) definieras i temafilen, sektion 1.25
    (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
-   Ligger utanför @layer, så reglerna här slår de delade .rq-*-primitiverna (som ligger i @layer components). */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen
+   (Tailwind 3 plattar ut @layer i bygget, och Log ligger i huvudbunten, så den här filen laddas FÖRE index.css). */
 
 /* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
 .rq-log { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
@@ -82,7 +83,7 @@
 .rq-log-effects__eyebrow { margin: 0 0 var(--rq-sp-8); }
 .rq-log-effects__label { font-size: var(--rq-fs-body); color: var(--rq-text-3); }
 .rq-log-effects__value { text-align: right; font-weight: 600; font-size: var(--rq-fs-body); color: var(--rq-text-2); }
-.rq-log-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) var(--rq-pad-card); }
+.rq-card.rq-log-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) var(--rq-pad-card); }
 
 /* Tonerna delas av uppställningen, effekterna och historikcellerna */
 .rq-log-xp__value[data-tone="muted"], .rq-log-effects__value[data-tone="muted"], .rq-log-cell__value[data-tone="muted"] { color: var(--rq-text-4); }
@@ -103,7 +104,8 @@
 .rq-log-run__avatar { width: var(--rq-log-avatar); height: var(--rq-log-avatar); flex-shrink: 0; overflow: hidden; padding: 0; cursor: pointer; font-size: var(--rq-fs-label); }
 .rq-log-run__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .rq-log-run__id { min-width: 0; }
-.rq-log-run__name { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; font-weight: 700; font-size: var(--rq-fs-name); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-2); }
+/* Namnknappen: typografin kommer ur .rq-name — här bara knappåterställningen */
+.rq-log-run__name { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; }
 .rq-log-run__name:hover { color: var(--rq-text-1); }
 .rq-log-run__date { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); color: var(--rq-text-4); }
 .rq-log-run__tags { margin: var(--rq-sp-6) 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); }

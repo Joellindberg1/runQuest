@@ -1,7 +1,8 @@
 /* Profile (inkrement 8): hjältekort · Frodo's journey · statflikar (Distance/Streak/Fun facts/Consistency) · titlar · rundhistorik
    med redigera/radera. ENDAST tokens (regel 1). Måtten (--rq-profile-*) definieras i temafilen, sektion 1.26 (index.css +
    docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Heatmapens steg är --rq-heat-0…4.
-   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen
+   (Tailwind 3 plattar ut @layer i bygget, och Profile ligger i huvudbunten, så den här filen laddas FÖRE index.css). */
 
 /* ── Sida ─────────────────────────────────────────────────────────────────── */
 .rq-profile { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
@@ -38,7 +39,7 @@
   column-gap: var(--rq-profile-hero-gap); row-gap: var(--rq-sp-12); align-items: center; padding: var(--rq-pad-card);
 }
 .rq-profile-ring { grid-area: ring; width: var(--rq-profile-ring); height: var(--rq-profile-ring); flex-shrink: 0; }
-.rq-profile-ring > .rq-ring-hole { inset: var(--rq-profile-ring-inset); }
+.rq-ring.rq-profile-ring > .rq-ring-hole { inset: var(--rq-profile-ring-inset); }
 .rq-profile-ring__level { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-display); color: var(--rq-gold-text); }
 .rq-profile-ring__caption { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-profile-hero__who { grid-area: who; min-width: 0; align-self: end; }
@@ -64,7 +65,7 @@
 .rq-profile-photo .rq-profile-notice { margin-top: var(--rq-sp-8); }
 
 /* ── Frodo's journey ──────────────────────────────────────────────────────── */
-.rq-profile-track { position: relative; height: var(--rq-profile-bar-h); margin-bottom: var(--rq-sp-8); }
+.rq-track.rq-profile-track { position: relative; height: var(--rq-profile-bar-h); margin-bottom: var(--rq-sp-8); }
 .rq-profile-knob, .rq-profile-next {
   position: absolute; top: 50%; left: var(--w); width: var(--rq-profile-knob); height: var(--rq-profile-knob);
   transform: translate(-50%, -50%); border-radius: var(--rq-radius-round);
@@ -98,7 +99,7 @@
 .rq-profile-journey__pin[data-pin="next"] { background: none; border: var(--rq-edge-w-thin) solid var(--rq-gold); }
 
 /* ── Statflikar och rader ─────────────────────────────────────────────────── */
-.rq-profile-statcard { padding: 0; }
+.rq-card.rq-profile-statcard { padding: 0; }
 .rq-profile-tabs { display: flex; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
 .rq-profile-tabs > .rq-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; white-space: nowrap; letter-spacing: var(--rq-ls-chip); background: none; }
 .rq-profile-tabs > .rq-tab[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / .05); }
@@ -153,7 +154,7 @@
 .rq-profile-more { margin-top: var(--rq-sp-8); width: 100%; }
 
 /* ── Rundhistorik ─────────────────────────────────────────────────────────── */
-.rq-profile-history { padding: 0; }
+.rq-card.rq-profile-history { padding: 0; }
 .rq-profile-history__head { margin: 0; padding: var(--rq-sp-12) var(--rq-pad-card); border-bottom: var(--rq-hair) solid var(--rq-line-3); font-weight: 400; }
 .rq-profile-history__list { margin: 0; padding: 0; list-style: none; }
 .rq-profile-history__empty { margin: 0; padding: var(--rq-sp-16) var(--rq-pad-card); text-align: center; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }

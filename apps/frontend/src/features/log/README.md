@@ -57,4 +57,7 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
 - **Ingen guldknapp utöver submit** (Group history har ingen alls). "Show more" är ghost, Retry sekundär.
 - **Ingen tour:** det fanns ingen `tour_log_*` att bumpa — skärmen har inga `data-tour`-ankare.
 - **Löpbandets blå** = minor-nivåns blå (`--rq-tier-minor-*`) under rollnamnet `--rq-log-treadmill*` (prototypens Treadmill-chip).
-- **CSS-ordning:** `log.css` ligger utanför `@layer`, så den slår de delade `.rq-*`-primitiverna (`@layer components`) utan sammansatta selektorer.
+- **CSS-ordning:** Tailwind 3 plattar ut `@layer` till vanlig CSS i bygget, så det finns inga riktiga kaskadlager — vid lika specificitet avgör laddningsordningen.
+  Log ligger i huvudbunten, och där laddas `log.css` FÖRE `index.css` (importordningen i `main.tsx`), så en enkel klass förlorar mot de delade `.rq-*`-primitiverna.
+  Overrides görs därför med sammansatta selektorer (`.rq-card.rq-log-pending`, `.rq-card.rq-log-xp`) — specificiteten avgör, inte laddningsordningen. Namnknappen tar
+  sin typografi ur `.rq-name` och återställer bara knappen.
