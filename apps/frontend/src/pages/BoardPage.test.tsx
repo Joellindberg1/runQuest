@@ -97,7 +97,7 @@ describe('Season-vyn (default) — mobil', () => {
     renderBoard();
 
     const card = await screen.findByTestId('podium-1');
-    expect(await within(card).findByText(/Lvl \d+ · The Double Trouble/)).toBeInTheDocument();
+    expect(await within(card).findByText('The Double Trouble')).toBeInTheDocument();
     expect(within(card).getByText(/^Level \d+$/)).toBeInTheDocument();
     expect(within(card).getByText(/\d+ \/ \d+ XP/)).toBeInTheDocument();
     for (const label of ['km total', 'longest', 'runs', 'avg / run', 'xp pace', 'next lvl']) {
@@ -108,6 +108,39 @@ describe('Season-vyn (default) — mobil', () => {
     expect(within(card).getByText('4 left')).toBeInTheDocument();
     // start_time 05:00Z mot klockan 10:00Z.
     expect(within(card).getByText('Last run 5 h ago · 8.4 km')).toBeInTheDocument();
+  });
+
+  it('mobilkorten visar alla visade titlar, inte bara den första — på podiet och från plats 4', async () => {
+    const held = (id: string, name: string): UserTitle => ({
+      title_id: id, title_name: name, title_description: '', position: 1, value: 1, earned_at: '', is_current_holder: true, status: 'holder',
+    });
+    handlers.getUserTitles = (id: unknown) => ({
+      success: true,
+      data: id === 'u-karl'
+        ? [held('t1', 'The Double Trouble'), held('t2', 'The Rooster'), held('t3', 'The Hamster')]
+        : id === 'u-nick'
+          ? [held('t4', 'The Batman'), held('t5', 'The Ghost')]
+          : [],
+    });
+    renderBoard();
+
+    const podium = await screen.findByTestId('podium-1');
+    expect(await within(podium).findByText('The Double Trouble, The Rooster & The Hamster')).toBeInTheDocument();
+
+    const rest = screen.getByRole('table', { name: 'Rest of the pack' });
+    const nick = within(rest).getAllByRole('row')[1];
+    expect(await within(nick).findByText('The Batman & The Ghost')).toBeInTheDocument();
+    expect(within(within(rest).getAllByRole('row')[2]).getByText('No titles held yet')).toBeInTheDocument();
+  });
+
+  it('korten från plats 4 visar nivå och XP i nivån mot vad nivån kräver', async () => {
+    renderBoard();
+    await screen.findByTestId('podium-1');
+    const rest = screen.getByRole('table', { name: 'Rest of the pack' });
+    for (const row of within(rest).getAllByRole('row').slice(1)) {
+      expect(within(row).getByText(/^Level \d+$/)).toBeInTheDocument();
+      expect(within(row).getByText(/^\d[\d\s]* \/ \d[\d\s]* XP$|^Max level$/)).toBeInTheDocument();
+    }
   });
 
   it('nivåframsteget ritas som stapel med --w = andel av nivån', async () => {
