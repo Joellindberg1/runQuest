@@ -79,6 +79,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Repo-rotens Caddyfile serverar frontend på Railway; fel här ger vit sida i prod.
+      - name: Static serving (Caddy)
+        run: bash scripts/verify-static-serving.sh
+        working-directory: .
+
       # Blockerande sedan 2026-10-04: typskulden betalades i Fas 2 (ADR 001),
       # 0 fel/0 varningar är baslinjen och får inte regressa.
       - name: Typecheck

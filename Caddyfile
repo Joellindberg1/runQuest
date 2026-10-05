@@ -1,0 +1,61 @@
+# Frontend-tjänstens statiska server (Railpack plockar upp en Caddyfile i projektroten
+# och renderar den som Go-template; {{.DIST_DIR}} = /app/<RAILPACK_SPA_OUTPUT_DIR>).
+# Backend-tjänsten berörs inte: den har ett eget startkommando och körs aldrig via Caddy.
+# Utgår från Railpacks standardmall (core/providers/node/Caddyfile.template) med två tillägg:
+#   1. index.html och SPA-routes får Cache-Control: no-cache, så en deploy aldrig fastnar
+#      bakom en gammal cachad startsida som pekar på borttagna kodfiler.
+#   2. Saknade filer under /assets ger 404 i stället för index.html (HTML som JS = vit sida).
+# Beteendet verifieras i CI mot det byggda dist/ (scripts/verify-static-serving.sh).
+
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+	}
+
+	servers {
+		trusted_proxies static private_ranges 100.0.0.0/8
+	}
+}
+
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	respond /health 200
+
+	header {
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	root * {{.DIST_DIR}}
+
+	encode {
+		gzip
+		zstd
+	}
+
+	# Vite-hashade filer byter namn vid varje bygge och får cachas för alltid.
+	# Cache-headern sätts bara på filer som finns: en cachad 404 skulle överleva nästa deploy.
+	handle /assets/* {
+		@exists file
+		header @exists Cache-Control "public, max-age=31536000, immutable"
+		@missing not file
+		respond @missing "Not found" 404
+		file_server
+	}
+
+	handle {
+		header Cache-Control "no-cache"
+		try_files {path} {path}.html {path}/index.html /index.html
+		file_server {
+			hide .git
+			hide .env*
+		}
+	}
+}
