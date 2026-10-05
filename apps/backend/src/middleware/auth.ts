@@ -55,7 +55,9 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
     next();
   } catch (error) {
     logger.error('❌ JWT verification failed:', error);
-    res.status(403).json({ error: 'Invalid token' });
+    // Ogiltig/utgången token är AUTENTISERING (401), inte auktorisering — klienten loggar ut vid 401.
+    // IDOR-/ägarskaps-403:orna i routes är en annan sak och oförändrade.
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
 

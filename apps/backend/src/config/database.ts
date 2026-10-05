@@ -15,7 +15,7 @@ function initializeSupabase() {
 
   logger.info('🔧 Initializing Supabase connection...');
   logger.info(`📍 URL: ${supabaseUrl}`);
-  logger.info(`🔑 Service Key: ${supabaseServiceRoleKey ? `${supabaseServiceRoleKey.substring(0, 15)}...` : 'missing'}`);
+  logger.info(`🔑 Service Key: ${supabaseServiceRoleKey ? 'set' : 'missing'}`); // aldrig något av nyckelns innehåll
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     logger.error('❌ Missing Supabase configuration!');

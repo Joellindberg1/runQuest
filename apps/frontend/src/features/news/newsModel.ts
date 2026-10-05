@@ -162,6 +162,19 @@ export function mergeNewer(feed: NewsFeed, fetched: readonly NewsItem[], meta: N
   };
 }
 
+/**
+ * Fönstret kom i fokus: den nyaste sidan ersätter motsvarande del av flödet HELT (catch-up kan bara lägga till — en retractad rad, t.ex. en
+ * utmaning som drogs tillbaka, ligger annars kvar). Rader äldre än sidan behålls. Är sidan hela flödet (inget has_more) ersätts allt.
+ */
+export function replaceNewest(feed: NewsFeed, page: NewsPage): NewsFeed {
+  if (page.items.length === 0 || !page.meta.has_more) return feedFromPage(page);
+  const oldestInPage = Math.min(...page.items.map((row) => row.id));
+  return {
+    items: dedupeById([...page.items, ...feed.items.filter((row) => row.id < oldestInPage)]),
+    meta: { ...feed.meta, unread_count: page.meta.unread_count, last_seen_id: page.meta.last_seen_id },
+  };
+}
+
 /** En äldre sida ("Show more") efter flödet. Kanten flyttas till sidans; oläst-siffran är sidans (den är färskast). */
 export function appendOlder(feed: NewsFeed, page: NewsPage): NewsFeed {
   return {

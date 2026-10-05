@@ -162,13 +162,13 @@ describe('PUT /api/runs/:id', () => {
     expect(status).toBe(401);
   });
 
-  it('returns 403 when the token is invalid', async () => {
+  it('returns 401 when the token is invalid (authentication, not authorization)', async () => {
     const { status } = await put(
       '/api/runs/run-uuid-1',
       { distance: 6.0 },
       { Authorization: 'Bearer not-a-valid-token' }
     );
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 
   it('returns 400 when distance is missing', async () => {
@@ -229,12 +229,12 @@ describe('DELETE /api/runs/:id', () => {
     expect(status).toBe(401);
   });
 
-  it('returns 403 when the token is invalid', async () => {
+  it('returns 401 when the token is invalid (authentication, not authorization)', async () => {
     const { status } = await del(
       '/api/runs/run-uuid-1',
       { Authorization: 'Bearer not-a-valid-token' }
     );
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 
   it('returns 404 when the run does not exist', async () => {

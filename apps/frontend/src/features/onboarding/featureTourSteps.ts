@@ -87,7 +87,8 @@ export const TOUR_TITLES_V2: TourStep[] = [
 ];
 
 // ── /news — tour_news_v1 ──────────────────────────────────────────────────
-// Ny skärm (inkrement 9): det fanns ingen gammal news-tour att bumpa från. Klockan i headern (header-news) presenteras av onboarding_v1.
+// Ny skärm (inkrement 9): det fanns ingen gammal news-tour att bumpa från. Klockan i headern (header-news) har ingen egen tourstep — onboarding_v1
+// nämner den inte. Turen monteras bara när flödet har rader, och news-mark-read-steget bara när något är oläst (NewsScreen).
 export const TOUR_NEWS_V1: TourStep[] = [
   {
     title: 'Pack News',

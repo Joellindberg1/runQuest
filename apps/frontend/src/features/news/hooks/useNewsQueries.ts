@@ -1,9 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import type { ActivityType, NewsQuery } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
 import {
-  NEWS_CATCH_UP_LIMIT, NEWS_MAX_GAP_PAGES, NEWS_PAGE_SIZE, appendOlder, feedFromPage, gapCursor, markSeenInFeed, mergeNewer, topIdOf, typeParamOf,
+  NEWS_CATCH_UP_LIMIT, NEWS_MAX_GAP_PAGES, NEWS_PAGE_SIZE, appendOlder, feedFromPage, gapCursor, markSeenInFeed, mergeNewer, replaceNewest, topIdOf, typeParamOf,
   type NewsFeed, type NewsPage,
 } from '../newsModel';
 
@@ -12,6 +12,10 @@ const STALE_MS = 60_000;
 const POLL_MS = 2 * STALE_MS;
 // Ett snabbt omförsök, sedan felkortet — standardens tre försök med backoff håller skelettet kvar i ~7 s.
 const RETRIES = 1;
+/** Fokus-uppdateringen hoppas över om flödet hämtades så här nyligen (flikbyten i rad ska inte ge en hämtning var). */
+const FOCUS_MIN_AGE_MS = 15_000;
+/** Pågående fokus-uppdateringar per flöde — flera observers (klocka, popover, skärm) delar en hämtning per fokus-händelse. */
+const refreshing = new Set<string>();
 
 export const NEWS_QUERY_KEYS = {
   /** Alla flöden (alla filter) — det som kvittering optimistiskt uppdaterar och invalideras. */
@@ -71,7 +75,33 @@ export function useNewsFeed(types: readonly ActivityType[] | null = null, enable
     staleTime: STALE_MS,
     refetchInterval: POLL_MS,
     retry: RETRIES,
+    // Fokus hanteras nedan (nyaste sidan ersätts, inte bara catch-up).
+    refetchOnWindowFocus: false,
   });
+
+  // Catch-up kan bara LÄGGA TILL rader. En rad som backend tar bort (utmaning återkallad/avböjd → retract) ligger därför kvar tills
+  // flödet läker: när fönstret får fokus ersätts den nyaste sidan helt, och en omladdning börjar om. Pollen läker inte (dokumenterat).
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      const feedKey = NEWS_QUERY_KEYS.feed(typeParam);
+      const id = feedKey.join('/');
+      const state = queryClient.getQueryState<NewsFeed>(feedKey);
+      if (!state?.data || refreshing.has(id) || Date.now() - state.dataUpdatedAt < FOCUS_MIN_AGE_MS) return;
+      refreshing.add(id);
+      fetchPage({ limit: NEWS_PAGE_SIZE, type: typeParam })
+        .then((page) => queryClient.setQueryData<NewsFeed>(feedKey, (latest) => (latest ? replaceNewest(latest, page) : latest)))
+        .catch(() => undefined)
+        .finally(() => refreshing.delete(id));
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [enabled, queryClient, typeParam]);
 
   const more = useMutation({
     mutationFn: async () => {

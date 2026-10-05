@@ -183,11 +183,11 @@ describe('GET /api/titles/leaderboard', () => {
     expect(status).toBe(401);
   });
 
-  it('returns 403 when the token is invalid', async () => {
+  it('returns 401 when the token is invalid (authentication, not authorization)', async () => {
     const { status } = await get('/api/titles/leaderboard', {
       Authorization: 'Bearer not-a-valid-token',
     });
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 
   // ── Success path ─────────────────────────────────────────────────────────

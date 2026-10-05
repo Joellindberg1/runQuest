@@ -195,6 +195,69 @@ describe('useNewsFeed — första hämtning, Show more och catch-up (ADR 008 add
     expect(ids(result.current.feed)?.[0]).toBe(10 + gap);
   });
 
+  describe('fokus ersätter den nyaste sidan (retractade rader läker vid fokus, inte vid poll)', () => {
+    const OLD = 60_000;
+    const agePast = (typeParam?: string) => {
+      const data = cached(typeParam);
+      queryClient.setQueryData(NEWS_QUERY_KEYS.feed(typeParam), data, { updatedAt: Date.now() - OLD });
+    };
+    const focus = async () => {
+      await act(async () => { window.dispatchEvent(new Event('focus')); });
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    };
+
+    it('en rad som backend tagit bort (retract) försvinner vid fokus men ligger kvar efter en vanlig poll', async () => {
+      const news = newsServer(rows(10));
+      serve(news);
+      const { result } = renderHook(() => useNewsFeed(null), { wrapper });
+      await waitFor(() => expect(result.current.feed).toBeDefined());
+
+      news.server.rows = news.server.rows.filter((row) => row.id !== 7);
+      await refetch(result); // poll = catch-up: tar aldrig bort
+      expect(ids(result.current.feed)).toContain(7);
+
+      agePast();
+      await focus();
+      expect(ids(result.current.feed)).not.toContain(7);
+      expect(result.current.feed?.items).toHaveLength(9);
+    });
+
+    it('rader äldre än första sidan behålls, och räknaren följer sidan', async () => {
+      const news = newsServer(rows(45));
+      serve(news);
+      const { result } = renderHook(() => useNewsFeed(null), { wrapper });
+      await waitFor(() => expect(result.current.feed).toBeDefined());
+      act(() => result.current.loadMore());
+      await waitFor(() => expect(result.current.feed?.items).toHaveLength(45));
+
+      news.server.rows = news.server.rows.filter((row) => row.id !== 40);
+      news.server.lastSeen = 30;
+      agePast();
+      await focus();
+      expect(result.current.feed?.items).toHaveLength(44);
+      expect(ids(result.current.feed)).not.toContain(40);
+      expect(ids(result.current.feed)).toContain(1);
+      expect(result.current.feed?.meta.unread_count).toBe(14);
+    });
+
+    it('nyligen hämtat flöde: ingen ny hämtning vid fokus; flera observers delar EN hämtning', async () => {
+      const news = newsServer(rows(10));
+      serve(news);
+      const a = renderHook(() => useNewsFeed(null), { wrapper });
+      const b = renderHook(() => useNewsFeed(null), { wrapper });
+      await waitFor(() => expect(a.result.current.feed).toBeDefined());
+      await waitFor(() => expect(b.result.current.feed).toBeDefined());
+      const callsBefore = news.server.calls.length;
+
+      await focus();
+      expect(news.server.calls).toHaveLength(callsBefore);
+
+      agePast();
+      await focus();
+      expect(news.server.calls).toHaveLength(callsBefore + 1);
+    });
+  });
+
   it('ett filter har egen cache och skickar type= i ACTIVITY_TYPES-ordning', async () => {
     const news = newsServer([titleTaken(3), levelUp(2, 5), titleTaken(1)]);
     serve(news);

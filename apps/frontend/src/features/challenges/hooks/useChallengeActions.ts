@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { HEAD_TO_HEAD_ROOT } from '@/features/runner/hooks/useRunnerQueries';
+import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 
 
 type ApiResult = { success: boolean; error?: string };
@@ -26,6 +27,8 @@ export function useChallengeActions() {
       queryClient.invalidateQueries({ queryKey: ['challenges'] }),
       queryClient.invalidateQueries({ queryKey: USERS_WITH_RUNS_QUERY_KEY }),
       queryClient.invalidateQueries({ queryKey: HEAD_TO_HEAD_ROOT }),
+      // Utmaning skickad/avböjd/återkallad ger (eller tar bort) en rad i Pack News — klockan uppdateras direkt.
+      queryClient.invalidateQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot }),
     ]);
   };
 

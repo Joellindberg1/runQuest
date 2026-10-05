@@ -63,8 +63,8 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   "Longest gap" räknar bara avslutade uppehåll.
 - Alla stats härleds klient-side ur users-with-runs (hela rundlistan finns
   redan i payloaden; GET /users/me/stats ej aktuell än).
-- Edit-datumets max är Stockholm-dagen men servern validerar UTC-"idag" —
-  samma gap som backend-fråga 0.
+- ~~Edit-datumets max vs serverns UTC-"idag"~~ LÖST i i9-dataspåret: servern
+  validerar nu Stockholm-dagen (todayStockholm).
 - En runda kan bara ändras på datum och distans (servern tar inget annat).
 - Strava-rundor: Delete är avstängd (title + sr-only enligt Titles valknapp) och en synlig rad med samma text
   (`aria-hidden`) lades till i redigeringsrutan så att touch-användare ser förklaringen — det ligger utanför det
@@ -155,11 +155,16 @@ raden (liten städfix, nästa backend-runda).
    som lista i gamla UI:t. Rätta typerna i packages/shared (kräver
    data-inkrement, shared får inte röras i komponentinkrement).
 5. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
-6. **Raderade Strava-rundor återuppstår:** DELETE /runs/:id saknar gravsten och
-   synken återimporterar inom 7-dagarsfönstret. BESLUT (Lead): users-with-runs
-   får ett source-fält och Profile blockerar Delete för Strava-rundor med
-   förklaring ("radera i Strava i stället"). Tas i i9:s data-spår.
-7. **PUT/DELETE /runs kvalificerar inte event:** bara POST anropar
-   checkEventQualification — en redigering som når eventgränsen (eller radering
-   som borde avkvalificera) missas. Frontendens 4s-uppföljning efter edit/delete
-   är verkningslös tills detta fixas. Tas i i9:s data-spår.
+6. ~~Raderade Strava-rundor återuppstår~~ LÖST i i9: source-fält +
+   Delete-block i Profile (synlig hint, null = manuell).
+7. ~~PUT kvalificerar inte event~~ LÖST i i9 (PUT med dagsfönster; DELETE
+   medvetet utan anrop, svarar 409 för kvalificerande rundor).
+8. **Utgången/ogiltig JWT ger 403, inte 401** — frontend loggar bara ut vid
+   401, så en användare borta >7 dagar fastnar på felkort överallt. BESLUT
+   (Lead): backend ändrar jwt.verify-felet till 401 (autentisering, inte
+   auktorisering); IDOR-403:orna är oförändrade. Tas i backend-mikrorundan.
+9. **Init-loggen skriver service-nyckelns prefix** (config/database.ts:18) —
+   raden tas bort i backend-mikrorundan, före release.
+10. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
+    klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
+    bara till). Medvetet val i9c; läker vid window focus.

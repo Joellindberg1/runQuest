@@ -96,6 +96,12 @@ describe('Pack News-filerna följer designspråket', () => {
     expect([...code.matchAll(/([^{}]+)\{[^}]*--rq-text-5[^}]*\}/g)].map((m) => m[1].trim())).toEqual(['.rq-news-day__label']);
   });
 
+  it('chip-radens scrollcontainer är positionerad: sr-only-spans (position:absolute) annars läcker ut och ger sidled scroll på mobil', () => {
+    const rule = stripComments(css).match(/\.rq-news-filter__list\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(rule).toMatch(/position:\s*relative/);
+    expect(rule).toMatch(/overflow-x:\s*auto/);
+  });
+
   it('rörelse: ingenting animerar eller loopar i Pack News (rader och räknare står stilla — bara skelettet, som delas, blinkar)', () => {
     expect(stripComments(css)).not.toMatch(/animation|@keyframes/);
   });

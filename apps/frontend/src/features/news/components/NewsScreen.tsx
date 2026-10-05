@@ -14,6 +14,7 @@ import { NewsDayList } from './NewsDayList';
 import { NewsFilters } from './NewsFilters';
 
 const LOADING_ROWS = 5;
+const MARK_READ_ANCHOR = '[data-tour="news-mark-read"]';
 
 /**
  * /news: dag-grupperade rader per typ, filter (`?type=`), "Show more" och "Mark all read". All datahämtning bor här (flödet delas med
@@ -68,6 +69,14 @@ export function NewsScreen() {
   }, [seen.error]);
 
   const hasItems = (active.feed?.items.length ?? 0) > 0;
+  // Mark all read-steget finns bara när något är oläst (knappen visas då); turen kräver ett icke-tomt flöde.
+  const tourReady = (all.feed?.items.length ?? 0) > 0;
+  const tourSteps = useMemo(
+    () => (tourReady ? TOUR_NEWS_V1.filter((step) => step.element !== MARK_READ_ANCHOR || unread > 0) : null),
+    // Stegen läses när turen startar; senare ändringar av räknaren ska inte bygga om dem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tourReady],
+  );
   const showFilter = selected.length > 0 || (all.feed?.items.length ?? 0) > 0;
 
   let feed;
@@ -107,7 +116,8 @@ export function NewsScreen() {
 
   return (
     <>
-      {all.feed && <FeatureTour slug="tour_news_v1" steps={TOUR_NEWS_V1} />}
+      {/* Bara när det finns något att visa: över ett tomt flöde blir stegen flytande rutor, och turen skulle ändå markeras sedd för alltid. */}
+      {tourSteps && <FeatureTour slug="tour_news_v1" steps={tourSteps} />}
       <div className="rq-news">
         <header className="rq-news__head">
           <div>

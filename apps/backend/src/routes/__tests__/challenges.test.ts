@@ -236,13 +236,13 @@ describe('POST /api/challenges/send', () => {
     expect(status).toBe(401);
   });
 
-  it('returns 403 when the token is invalid', async () => {
+  it('returns 401 when the token is invalid (authentication, not authorization)', async () => {
     const { status } = await post(
       '/api/challenges/send',
       { token_id: TOKEN_ID, opponent_id: OPPONENT_ID },
       { Authorization: 'Bearer bad-token' }
     );
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 
   // ── Validation ───────────────────────────────────────────────────────────
