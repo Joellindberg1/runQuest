@@ -1,0 +1,75 @@
+/* Admin (inkrement 11): XP-inställningar · medlemmar · titlar · säkerhet. ENDAST tokens (regel 1). Måtten (--rq-admin-*) definieras
+   i temafilen, sektion 1.31 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Fält,
+   anteckningar och bekräftelse/fel kommer från det delade formulärkitet (shared/components/form).
+   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+
+/* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
+.rq-admin { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-admin__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-admin__title { margin: 0; font-weight: 400; text-transform: uppercase; }
+.rq-admin__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-admin__tabs { display: flex; flex-wrap: wrap; gap: var(--rq-sp-6); }
+.rq-admin__tabs > [role="tab"] { display: inline-flex; align-items: center; gap: var(--rq-sp-6); padding: var(--rq-sp-6) var(--rq-sp-12); font-family: var(--rq-font-ui); }
+.rq-admin__tabs > [role="tab"]:not([aria-selected="true"]) { background: none; }
+.rq-admin__panel { min-width: 0; }
+
+/* ── XP-inställningar: tre kort med rader (etikett · fält) ─────────────────── */
+.rq-admin-xp { --rq-form-gap: var(--rq-gap-stack); display: flex; flex-direction: column; gap: var(--rq-form-gap); }
+.rq-admin-groups { display: grid; grid-template-columns: var(--rq-admin-groups-cols); gap: var(--rq-gap-stack); align-items: start; }
+.rq-admin-group { --rq-edge: var(--rq-card-edge-soft); min-width: 0; }
+.rq-admin-group__title { margin: 0 0 var(--rq-sp-4); font-weight: 400; }
+.rq-admin-group__note { margin: 0 0 var(--rq-sp-14); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-admin-group__aside { margin: var(--rq-sp-12) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+.rq-admin-rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+.rq-admin-row { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-admin-row__label { font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-3); }
+.rq-admin-row__input { flex: none; width: var(--rq-admin-value-w); padding: var(--rq-sp-8) var(--rq-sp-12); font-size: var(--rq-fs-stat-value); text-align: right; }
+.rq-admin-row__input[type="date"] { width: auto; }
+.rq-admin-row__input[readonly] { background: none; border-color: var(--rq-line-3); color: var(--rq-text-4); }
+.rq-admin-add-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--rq-sp-8); margin-top: var(--rq-sp-14); }
+.rq-admin-add-step > .rq-btn { align-self: stretch; }
+.rq-admin-save { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-10) var(--rq-sp-16); }
+.rq-admin-save__hint { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-admin-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
+
+/* ── Kort för medlemmar, titlar och säkerhet ──────────────────────────────── */
+.rq-admin-card { --rq-form-gap: var(--rq-sp-14); display: flex; flex-direction: column; gap: var(--rq-form-gap); min-width: 0; }
+.rq-admin-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); flex-wrap: wrap; }
+.rq-admin-card__title { margin: 0; font-weight: 400; }
+.rq-admin-card__aside { display: flex; align-items: center; gap: var(--rq-sp-12); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-admin-card__note { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-admin-empty { margin: 0; padding: var(--rq-sp-14); border: var(--rq-hair) dashed var(--rq-line-5); text-align: center; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-admin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-10); }
+
+/* Medlemmar: hårlinjegrid, en rad per person (staplad på mobil) */
+.rq-admin-members { margin: 0; padding: 0; list-style: none; }
+.rq-admin-member {
+  display: grid; grid-template-columns: var(--rq-admin-member-cols); gap: var(--rq-sp-4) var(--rq-admin-row-gap); align-items: center;
+  background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x);
+}
+.rq-admin-member:hover { background: var(--rq-row-hover); }
+.rq-admin-member__email { font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-4); overflow-wrap: anywhere; }
+.rq-admin-member__meta { font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-admin-member__action { justify-self: start; }
+.rq-admin-member__edit { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--rq-sp-8); }
+.rq-admin-member__edit .rq-form-field { flex: 1 1 auto; }
+.rq-admin-member__edit .rq-btn { align-self: stretch; }
+
+/* Add member: tre fält och EN guldknapp (staplade på mobil) */
+.rq-admin-add { --rq-form-gap: var(--rq-sp-12); margin-top: var(--rq-sp-4); }
+.rq-admin-add__fields { display: grid; grid-template-columns: var(--rq-admin-add-cols); gap: var(--rq-sp-10); }
+.rq-admin-add__fields > .rq-btn { align-self: stretch; }
+
+/* Titlar: namn · regel · låsgräns, tre rader per titel */
+.rq-admin-titles { margin: 0; padding: 0; list-style: none; }
+.rq-admin-title { display: flex; flex-direction: column; gap: var(--rq-sp-2); background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }
+.rq-admin-title__name { display: flex; align-items: center; gap: var(--rq-sp-8); }
+.rq-admin-title__rule { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-admin-title__unlock { font-size: var(--rq-fs-meta); color: var(--rq-up); }
+
+/* Säkerhet */
+.rq-admin-security { display: flex; flex-direction: column; gap: var(--rq-gap-stack); max-width: var(--rq-shell-narrow-max); }
+.rq-admin-backfill__total { margin: 0 0 var(--rq-sp-8); font-weight: 600; font-size: var(--rq-fs-body); color: var(--rq-text-2); }
+.rq-admin-backfill__rows { margin: 0; padding: 0; list-style: none; }
+.rq-admin-backfill__row { display: flex; justify-content: space-between; gap: var(--rq-sp-12); background: var(--rq-row-soft); padding: var(--rq-sp-8) var(--rq-sp-12); font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-admin-backfill__row[data-tone="down"] { color: var(--rq-down); }
