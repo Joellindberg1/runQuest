@@ -151,6 +151,19 @@ describe('event_closed — participation', () => {
     expect(tables.activity_log[0].payload).not.toHaveProperty('top');
   });
 
+  it('participation-event utan deltagare avslutas men loggas inte; ett med deltagare loggas', async () => {
+    const tables: Record<string, Row[]> = {
+      activity_log: [],
+      events: [participationEvent('empty'), participationEvent('full')],
+      event_entries: [{ id: 'n1', event_id: 'full', user_id: 'a' }],
+      users: [{ id: 'a', group_id: 'g1' }, { id: 'b', group_id: 'g1' }],
+    };
+    use(tables);
+    await settleExpiredParticipationEvents();
+    expect(tables.events.map((e) => e.status)).toEqual(['settled', 'settled']);
+    expect(tables.activity_log.map((r) => r.dedupe_key)).toEqual(['event_closed:full']);
+  });
+
   it('events som redan är settled eller inte har gått ut loggas inte', async () => {
     const tables: Record<string, Row[]> = {
       activity_log: [],
@@ -219,13 +232,13 @@ describe('competition-avräkning', () => {
     expect(tables.users.find((u) => u.id === 'a')!.current_level).toBe(3);
   });
 
-  it('inga deltagare → event_closed med participants 0 (eventet är ändå avslutat)', async () => {
+  it('inga deltagare → ingen event_closed-rad (eventet avslutas ändå; Lead-beslut)', async () => {
     const tables = competitionTables();
     tables.event_entries = [];
     use(tables);
     await settleCompetitionEvents();
-    expect(tables.activity_log).toHaveLength(1);
-    expect(tables.activity_log[0]).toMatchObject({ type: 'event_closed', payload: { participants: 0, members: 3, top: [] } });
+    expect(tables.events[0].status).toBe('settled');
+    expect(tables.activity_log).toHaveLength(0);
   });
 
   it('en trasig logg fäller inte avräkningen (XP delas ut ändå)', async () => {

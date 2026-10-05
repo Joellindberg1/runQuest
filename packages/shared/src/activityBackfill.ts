@@ -63,7 +63,8 @@ export interface BackfillEventEntry {
 }
 
 /**
- * active → event_open (starts_at); settled → event_closed (settled_at ?? ends_at). Scheduled ger inget.
+ * active → event_open (starts_at); settled → event_closed (settled_at ?? ends_at) men bara med minst en deltagare.
+ * Scheduled ger inget.
  * `participants` = antal event_entries; `members` = NUVARANDE gruppstorlek (approximation → is_backfill).
  */
 export function backfillEvents(
@@ -84,6 +85,7 @@ export function backfillEvents(
       out.push(buildEventOpenDraft(e, true));
     } else if (e.status === 'settled') {
       const list = entriesByEvent.get(e.id) ?? [];
+      if (list.length === 0) continue; // event utan deltagare är ingen nyhet (samma regel som live)
       const top = list
         .filter((x) => x.rank !== null && x.rank <= 3)
         .map((x) => ({ user_id: x.user_id, rank: x.rank as number, xp: x.xp_awarded ?? 0 }));
@@ -187,8 +189,11 @@ export function backfillRunMilestones(
     const done = new Set<number>();
     for (const { r } of sorted) {
       km += Number(r.distance ?? 0) || 0;
+      // Live jämförs det AVRUNDADE totalet (users.total_km är numeric(8,2)) — samma här, annars kan en
+      // milstolpe som live räknas som passerad saknas i backfillen (99.996 → 100.00).
+      const rounded = Math.round(km * 100) / 100;
       for (const threshold of RUN_MILESTONES) {
-        if (km >= threshold && !done.has(threshold)) {
+        if (rounded >= threshold && !done.has(threshold)) {
           done.add(threshold);
           out.push({
             type: 'run_milestone', group_id: group, actor_user_id: userId, target_user_id: null,

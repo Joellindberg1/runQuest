@@ -88,8 +88,9 @@ export async function autoDeclinePendingChallenges(): Promise<void> {
           .update({ challenge_active: false })
           .in('id', [c.challenger_id, c.opponent_id]),
       ]);
-      await supabase.from('challenges').delete().eq('id', c.id);
-      await retractChallengeReceived(c.id);
+      const { error: deleteError } = await supabase.from('challenges').delete().eq('id', c.id);
+      if (deleteError) logger.error(`❌ Failed to delete auto-declined challenge ${c.id}:`, deleteError);
+      else await retractChallengeReceived(c.id);
     })
   );
 }

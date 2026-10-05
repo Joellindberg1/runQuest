@@ -234,6 +234,13 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
   }
 });
 
+const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+/** Rundans kalenderdag (Stockholm): en ren YYYY-MM-DD är dagen i sig, en ISO-tidpunkt omräknas. */
+function toRunDay(date: string): string {
+  return isDateOnly(date) ? date : toStockholmDate(new Date(date).toISOString());
+}
+
 /** Äldsta tillåtna rundedatum (kalenderdag). */
 const MIN_RUN_DAY = '2025-06-01';
 
@@ -254,10 +261,9 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
   if (date !== undefined) {
     const runDate = new Date(date);
     if (isNaN(runDate.getTime())) return { error: 'Invalid date', distanceNum };
-    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(date);
     // new Date('2026-02-30') rullar över till 2 mars — en ren dag måste vara en riktig kalenderdag.
-    if (dateOnly && !isIsoCalendarDate(date)) return { error: 'Invalid date', distanceNum };
-    const runDay = dateOnly ? date : toStockholmDate(runDate.toISOString());
+    if (isDateOnly(date) && !isIsoCalendarDate(date)) return { error: 'Invalid date', distanceNum };
+    const runDay = toRunDay(date);
     if (runDay < MIN_RUN_DAY) return { error: 'Cannot log runs before June 1, 2025', distanceNum };
     if (runDay > todayStockholm()) return { error: 'Cannot log runs for future dates', distanceNum };
   }
@@ -327,7 +333,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     checkEventQualification({
       userId,
       runId: newRun.id,
-      runDate: date,
+      runDate: toRunDay(date), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
       distanceKm: distanceNum,
       groupId: req.user!.group_id,
     }).catch(e => logger.error('❌ checkEventQualification error:', e));
@@ -437,7 +443,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       checkEventQualification({
         userId,
         runId: id,
-        runDate: date || existingRun.date,
+        runDate: toRunDay(date || existingRun.date),
         distanceKm: newDistance,
         groupId: req.user!.group_id,
         // Bara events vars dagar rundans (nya) datum faller inom — annars kvalificerar en redigering av
@@ -502,6 +508,22 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     const deletedDate = existingRun.date;
 
+    // event_entries.run_id → runs(id) är NO ACTION: en runda som kvalificerat ett event kan inte raderas
+    // (FK-fel). Förkontroll → 409 med klartext i stället för 500. Ingen null-out: den bevarar dagens
+    // de facto-regel (kvalificerande runda står kvar) och öppnar inte för XP-farmning (radera efter utdelad XP).
+    const { data: qualifiedEntries, error: entriesError } = await supabase
+      .from('event_entries')
+      .select('id')
+      .eq('run_id', id)
+      .limit(1);
+    if (entriesError) {
+      logger.error('❌ Error checking event entries for run:', entriesError);
+      res.status(500).json({ error: 'Failed to delete run' }); return;
+    }
+    if (qualifiedEntries && qualifiedEntries.length > 0) {
+      res.status(409).json({ error: "This run qualified an event and can't be deleted — edit it instead" }); return;
+    }
+
     // Delete the run
     const { error: deleteError } = await supabase
       .from('runs')
@@ -524,8 +546,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
     // SKAPA kvalificeringar ur en runda, och en radering skapar aldrig en ny — därför anropas den inte här.
     // Avkvalificering (ta bort entry + dra tillbaka utdelad participation-XP) stöds inte av eventService och
-    // vore en regeländring (ägarbeslut 1). OBS: event_entries.run_id → runs(id) saknar ON DELETE-regel, så
-    // en runda som kvalificerat ett participation-event kan inte raderas alls (FK-fel → 500 ovan).
+    // vore en regeländring (ägarbeslut 1). En kvalificerande runda kan inte raderas alls (409 ovan).
 
     logger.info(`✅ Run ${id} deleted and all runs reprocessed successfully`);
 

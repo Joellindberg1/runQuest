@@ -383,11 +383,8 @@ export async function settleCompetitionEvents(): Promise<void> {
       const participants = entries ?? [];
       const activityEvent = toActivityEvent({ ...event, type: 'competition' }, asTemplate(event.event_templates));
       if (!participants.length) {
-        // redan markerat settled i claimen ovan
-        if (activityEvent) {
-          const members = await countGroupMembers(event.group_id);
-          await recordActivity(buildEventClosedDraft(activityEvent, { participants: 0, members: members ?? 0, top: [] }, now));
-        }
+        // redan markerat settled i claimen ovan. Ingen event_closed-rad: ett event utan deltagare är inte
+        // en nyhet ("0 of 6 finished it" varje dag vore brus; Lead-beslut).
         continue;
       }
 
@@ -574,6 +571,7 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
       const row = toActivityEvent(e, asTemplate(e.event_templates));
       if (!row) continue;
       const participants = participantsByEvent.get(e.id) ?? 0;
+      if (participants === 0) continue; // inga deltagare → ingen nyhet (Lead-beslut)
       drafts.push(buildEventClosedDraft(
         row,
         { participants, members: membersByGroup.get(e.group_id) ?? participants },

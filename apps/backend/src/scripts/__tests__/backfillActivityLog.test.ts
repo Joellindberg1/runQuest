@@ -11,7 +11,7 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
-import { formatReport, parseArgs, runBackfill } from '../backfillActivityLog.js';
+import { formatReport, parseArgs, runBackfill, supabaseHost } from '../backfillActivityLog.js';
 import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { stockholmMidnightIso } from '@runquest/shared';
 
@@ -241,5 +241,28 @@ describe('formatReport', () => {
     expect(text).toMatch(/challenge_won\s+2/);
     expect(text).toContain('e.g. streak_broken:b:2026-09-07');
     expect(text).toContain('title_* events are never backfilled');
+  });
+  it('rapporten (dry-run och apply) visar målets värd ur SUPABASE_URL — aldrig nyckel eller sökväg', async () => {
+    const prev = process.env.SUPABASE_URL;
+    process.env.SUPABASE_URL = 'https://abcdefgh.supabase.co/rest/v1?apikey=SECRET';
+    try {
+      const dry = formatReport(await runBackfill(use(seed()), options()));
+      const applied = formatReport(await runBackfill(use(seed()), options({ apply: true })));
+      for (const text of [dry, applied]) {
+        expect(text).toContain('target database: abcdefgh.supabase.co');
+        expect(text).not.toContain('SECRET');
+      }
+    } finally {
+      if (prev === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = prev;
+    }
+  });
+});
+
+describe('supabaseHost', () => {
+  it('värd ur URL, "unknown" när den saknas eller är ogiltig', () => {
+    expect(supabaseHost('https://x.supabase.co')).toBe('x.supabase.co');
+    expect(supabaseHost('')).toBe('unknown');
+    expect(supabaseHost('localhost:54321')).toBe('unknown');
+    expect(supabaseHost('not a url')).toBe('unknown');
   });
 });

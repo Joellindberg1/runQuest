@@ -120,6 +120,25 @@ describe('återkallad/avböjd utmaning → challenge_received återkallas', () =
     expect(tables.activity_log.map((r) => r.dedupe_key)).toEqual(['challenge_received:c2']);
   });
 
+  it('misslyckad radering av utmaningen (decline) → raden i flödet står kvar', async () => {
+    const tables = pendingTables();
+    const db = createFakeDb(tables, { failWhen: (q) => (q.table === 'challenges' && q.mutation === 'delete' ? { message: 'delete failed' } : null) });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    const res = await server.request('PUT', '/api/challenges/c1/respond', {
+      token: mintToken({ user_id: 'b', group_id: 'g1' }), body: { action: 'decline' },
+    });
+    expect(res.status).toBe(200);
+    expect(tables.activity_log.map((r) => r.dedupe_key)).toEqual(['challenge_received:c1', 'challenge_received:c2']);
+  });
+
+  it('misslyckad radering av utmaningen (withdraw) → raden i flödet står kvar', async () => {
+    const tables = pendingTables();
+    const db = createFakeDb(tables, { failWhen: (q) => (q.table === 'challenges' && q.mutation === 'delete' ? { message: 'delete failed' } : null) });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    await server.request('PUT', '/api/challenges/c1/withdraw', { token: mintToken({ user_id: 'a', group_id: 'g1' }) });
+    expect(tables.activity_log).toHaveLength(2);
+  });
+
   it('accept lämnar raden kvar (utmaningen finns ju)', async () => {
     const tables = pendingTables();
     tables.challenges[0].duration_days = 3;

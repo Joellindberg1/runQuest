@@ -17,6 +17,8 @@ export interface RecordedQuery {
   filters: Array<{ op: string; column: string; value: unknown }>;
   range: [number, number] | null;
   limit: number | null;
+  /** Typ av skrivning om queryn är en mutation (för failWhen). */
+  mutation?: 'update' | 'insert' | 'delete' | 'upsert';
 }
 
 export interface FakeDbOptions {
@@ -73,11 +75,12 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
         orderBy.push({ column, ascending: opts?.ascending ?? true });
         return builder;
       },
-      update(values: Row) { mutation = { kind: 'update', values }; return builder; },
-      insert(values: Row | Row[]) { mutation = { kind: 'insert', values }; return builder; },
-      delete() { mutation = { kind: 'delete' }; return builder; },
+      update(values: Row) { mutation = { kind: 'update', values }; q.mutation = 'update'; return builder; },
+      insert(values: Row | Row[]) { mutation = { kind: 'insert', values }; q.mutation = 'insert'; return builder; },
+      delete() { mutation = { kind: 'delete' }; q.mutation = 'delete'; return builder; },
       upsert(values: Row | Row[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }) {
         mutation = { kind: 'upsert', values, onConflict: opts?.onConflict, ignoreDuplicates: opts?.ignoreDuplicates };
+        q.mutation = 'upsert';
         return builder;
       },
       range(from: number, to: number) { q.range = [from, to]; return builder; },
@@ -142,6 +145,8 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
                 const cv = pick(r, col) as any;
                 if (op === 'eq') return String(cv) === val;
                 if (op === 'neq') return String(cv) !== val;
+                if (op === 'lt') return cv != null && Number(cv) < Number(val);
+                if (op === 'gt') return cv != null && Number(cv) > Number(val);
                 if (op === 'is') return val === 'null' ? cv == null : String(cv) === val;
                 return false;
               });

@@ -322,8 +322,10 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
           .update({ challenge_active: false })
           .in('id', [challenge.challenger_id, challenge.opponent_id]),
       ]);
-      await supabase.from('challenges').delete().eq('id', id);
-      await retractChallengeReceived(id); // flödet ska inte visa en utmaning som inte längre finns
+      const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
+      // Raden i flödet tas bara bort om utmaningen faktiskt raderades — annars visar flödet en utmaning som finns.
+      if (deleteError) logger.error(`❌ Failed to delete declined challenge ${id}:`, deleteError);
+      else await retractChallengeReceived(id);
 
       logger.info(`❌ Challenge ${id} declined by ${userId} — token restored to challenger`);
       res.json({ success: true, message: 'Challenge declined' }); return;
@@ -388,8 +390,9 @@ router.put('/:id/withdraw', authenticateJWT, async (req, res): Promise<void> => 
         .update({ challenge_active: false })
         .in('id', [challenge.challenger_id, challenge.opponent_id]),
     ]);
-    await supabase.from('challenges').delete().eq('id', id);
-    await retractChallengeReceived(id);
+    const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
+    if (deleteError) logger.error(`❌ Failed to delete withdrawn challenge ${id}:`, deleteError);
+    else await retractChallengeReceived(id);
 
     logger.info(`↩️ Challenge ${id} withdrawn by challenger ${userId} — token restored`);
     res.json({ success: true, message: 'Challenge withdrawn' });

@@ -78,6 +78,8 @@ export interface TypeReport {
 
 export interface BackfillReport {
   options: BackfillOptions;
+  /** Värd (hostname) för databasen som körs mot — så att ägaren ser målet i rapporten. */
+  target: string;
   perType: Record<ActivityType, TypeReport>;
   totalNew: number;
   inserted: number;
@@ -223,6 +225,15 @@ async function existingKeys(supabase: Client, keys: string[]): Promise<Set<strin
   return found;
 }
 
+/** Hostname ur SUPABASE_URL (aldrig nycklar/sökväg). 'unknown' om variabeln saknas eller är ogiltig. */
+export function supabaseHost(url: string | undefined = process.env.SUPABASE_URL): string {
+  try {
+    return (url && new URL(url).host) || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 export async function runBackfill(supabase: Client, options: BackfillOptions): Promise<BackfillReport> {
   const drafts = await collectDrafts(supabase, options);
   const existing = await existingKeys(supabase, drafts.map((d) => d.dedupe_key));
@@ -254,7 +265,7 @@ export async function runBackfill(supabase: Client, options: BackfillOptions): P
     }
   }
 
-  return { options, perType, totalNew: fresh.length, inserted };
+  return { options, target: supabaseHost(), perType, totalNew: fresh.length, inserted };
 }
 
 // ─── CLI ─────────────────────────────────────────────────────────────────────
@@ -282,6 +293,7 @@ export function formatReport(report: BackfillReport): string {
   const { options } = report;
   const lines = [
     `activity_log backfill — ${options.apply ? 'APPLY' : 'DRY-RUN (nothing is written)'}`,
+    `target database: ${report.target}`,
     `since ${options.since}${options.groupId ? `, group ${options.groupId}` : ', all groups'}`,
     '',
     'type                 total  existing  new',
@@ -301,6 +313,8 @@ export function formatReport(report: BackfillReport): string {
 async function main(): Promise<void> {
   await import('dotenv/config'); // först här: att importera modulen (tester) ska inte läsa .env
   const options = parseArgs(process.argv.slice(2));
+  // Målet skrivs ut FÖRE körningen också, så ägaren ser vilken databas som berörs innan något skrivs.
+  console.log(`Target database: ${supabaseHost()} (${options.apply ? 'APPLY' : 'dry-run'})`);
   const report = await runBackfill(getSupabaseClient(), options);
   console.log(formatReport(report));
 }

@@ -77,7 +77,7 @@ describe('emitTitleNews', () => {
     expect(tables.activity_log).toHaveLength(1);
     expect(tables.activity_log[0]).toMatchObject({
       type: 'title_unlocked', group_id: 'g1', actor_user_id: 'a', target_user_id: null, is_backfill: false,
-      occurred_at: NOW.toISOString(), dedupe_key: 'title_unlocked:t1:a:12',
+      occurred_at: NOW.toISOString(), dedupe_key: 'title_unlocked:t1:a:12:2026-10-05',
       payload: { title_id: 't1', title_name: 'The Marathoner', metric_key: 'total_km', value: 12 },
     });
   });
@@ -88,7 +88,7 @@ describe('emitTitleNews', () => {
     use(tables);
     await emitTitleNews([{ title_id: 't1', user_id: 'a', value: 12 }], [{ title_id: 't1', user_id: 'b', value: 15 }]);
     expect(tables.activity_log[0]).toMatchObject({
-      type: 'title_taken', actor_user_id: 'b', target_user_id: 'a', dedupe_key: 'title_taken:t1:b:a:15',
+      type: 'title_taken', actor_user_id: 'b', target_user_id: 'a', dedupe_key: 'title_taken:t1:b:a:15:2026-10-05',
       payload: { value: 15, previous_value: 12, reason: 'overtaken', title_name: 'The Marathoner' },
     });
   });
@@ -128,6 +128,19 @@ describe('emitTitleNews', () => {
     await emitTitleNews(before, after);
     await emitTitleNews(before, after);
     expect(tables.activity_log).toHaveLength(1);
+  });
+
+  it('legitim upprepning en ANNAN dag (titeln tappas och vinns tillbaka med samma värde) loggas igen', async () => {
+    const tables = baseTables();
+    use(tables);
+    const before: Array<{ title_id: string; user_id: string; value: number }> = [];
+    const after = [{ title_id: 't1', user_id: 'a', value: 12 }];
+    await emitTitleNews(before, after);                       // 2026-10-05
+    vi.setSystemTime(new Date('2026-10-07T12:00:00.000Z'));
+    await emitTitleNews(before, after);                       // samma value, två dagar senare
+    expect(tables.activity_log.map((r) => r.dedupe_key)).toEqual([
+      'title_unlocked:t1:a:12:2026-10-05', 'title_unlocked:t1:a:12:2026-10-07',
+    ]);
   });
 
   it('innehavare utan grupp hoppas över (ingen gruppavgränsad plats i loggen)', async () => {

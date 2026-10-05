@@ -177,11 +177,15 @@ export const activityKeys = {
   streakBroken: (userId: string, lastRunDate: string) => `streak_broken:${userId}:${lastRunDate}`,
   eventOpen: (eventId: string) => `event_open:${eventId}`,
   eventClosed: (eventId: string) => `event_closed:${eventId}`,
-  titleUnlocked: (titleId: string, userId: string, value: number | string) =>
-    `title_unlocked:${titleId}:${userId}:${keyNumber(value)}`,
-  titleTaken: (titleId: string, newHolderId: string, oldHolderId: string, value: number | string) =>
-    `title_taken:${titleId}:${newHolderId}:${oldHolderId}:${keyNumber(value)}`,
-  /** `day` = Stockholm-kalenderdag (YYYY-MM-DD). */
+  /**
+   * `day` = Stockholm-kalenderdag (YYYY-MM-DD). Dagen i title_*-nycklarna gör att en legitim upprepning (titeln
+   * tappas, vinns tillbaka med samma värde) en annan dag inte tystas; samma byte som upptäcks två gånger
+   * samma dag ger fortfarande en rad. Titlar backfillas inte, så ingen nyckelmigrering behövs.
+   */
+  titleUnlocked: (titleId: string, userId: string, value: number | string, day: string) =>
+    `title_unlocked:${titleId}:${userId}:${keyNumber(value)}:${day}`,
+  titleTaken: (titleId: string, newHolderId: string, oldHolderId: string, value: number | string, day: string) =>
+    `title_taken:${titleId}:${newHolderId}:${oldHolderId}:${keyNumber(value)}:${day}`,
   titleRevoked: (titleId: string, userId: string, day: string) => `title_revoked:${titleId}:${userId}:${day}`,
 } as const;
 
@@ -350,7 +354,7 @@ export function buildTitleDrafts(
       drafts.push({
         ...base, type: 'title_unlocked', group_id: group, actor_user_id: c.user_id, target_user_id: null,
         payload: { title_id: c.title_id, title_name: meta.name, metric_key: meta.metric_key, value: c.value },
-        dedupe_key: activityKeys.titleUnlocked(c.title_id, c.user_id, c.value),
+        dedupe_key: activityKeys.titleUnlocked(c.title_id, c.user_id, c.value, day),
       });
     } else if (c.kind === 'taken') {
       const group = groupByUser.get(c.new_holder_id);
@@ -361,7 +365,7 @@ export function buildTitleDrafts(
           title_id: c.title_id, title_name: meta.name, metric_key: meta.metric_key,
           value: c.value, previous_value: c.previous_value, reason: c.reason,
         },
-        dedupe_key: activityKeys.titleTaken(c.title_id, c.new_holder_id, c.old_holder_id, c.value),
+        dedupe_key: activityKeys.titleTaken(c.title_id, c.new_holder_id, c.old_holder_id, c.value, day),
       });
     } else {
       const group = groupByUser.get(c.user_id);

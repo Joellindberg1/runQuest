@@ -39,7 +39,12 @@ async function readReader(userId: string): Promise<Reader | null> {
     .select('news_last_seen_id, created_at')
     .eq('id', userId)
     .single();
-  if (error || !data) return null;
+  // PGRST116 = ingen rad (användaren finns inte) → null → 404. Alla andra fel är databasfel → kastas → 500.
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  if (!data) return null;
   return {
     news_last_seen_id: data.news_last_seen_id == null ? null : Number(data.news_last_seen_id),
     created_at: data.created_at ?? null,
@@ -236,10 +241,13 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
 
     let current = reader.news_last_seen_id;
     if (target !== null && (current === null || target > current)) {
-      const update = supabase.from('users').update({ news_last_seen_id: target }).eq('id', userId);
-      const { error: updateError } = await (current === null
-        ? update.is('news_last_seen_id', null)
-        : update.lt('news_last_seen_id', target));
+      // Villkoret ligger i WHERE och är en enda sats (null ELLER lägre): en samtidig request som hunnit höja
+      // märket mellan vår läsning och skrivning förlorar aldrig, och märket kan aldrig sänkas.
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ news_last_seen_id: target })
+        .eq('id', userId)
+        .or(`news_last_seen_id.is.null,news_last_seen_id.lt.${target}`);
       if (updateError) throw updateError;
       // En samtidig request kan ha hunnit före — läs det faktiska värdet.
       const fresh = await readReader(userId);

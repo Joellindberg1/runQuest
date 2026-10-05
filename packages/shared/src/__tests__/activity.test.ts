@@ -51,14 +51,14 @@ describe('activityKeys (stabila nycklar — live och backfill delar dem)', () =>
     expect(activityKeys.streakBroken('u1', '2026-10-01')).toBe('streak_broken:u1:2026-10-01');
     expect(activityKeys.eventOpen('e1')).toBe('event_open:e1');
     expect(activityKeys.eventClosed('e1')).toBe('event_closed:e1');
-    expect(activityKeys.titleUnlocked('t1', 'u1', 42)).toBe('title_unlocked:t1:u1:42');
-    expect(activityKeys.titleTaken('t1', 'new', 'old', 42.5)).toBe('title_taken:t1:new:old:42.5');
+    expect(activityKeys.titleUnlocked('t1', 'u1', 42, '2026-10-05')).toBe('title_unlocked:t1:u1:42:2026-10-05');
+    expect(activityKeys.titleTaken('t1', 'new', 'old', 42.5, '2026-10-05')).toBe('title_taken:t1:new:old:42.5:2026-10-05');
     expect(activityKeys.titleRevoked('t1', 'u1', '2026-10-05')).toBe('title_revoked:t1:u1:2026-10-05');
   });
 
   it('numeriska värden normaliseras (12.5 och "12.5000" ger samma nyckel)', () => {
-    expect(activityKeys.titleUnlocked('t', 'u', '12.5000')).toBe(activityKeys.titleUnlocked('t', 'u', 12.5));
-    expect(activityKeys.titleTaken('t', 'a', 'b', '7.0000')).toBe(activityKeys.titleTaken('t', 'a', 'b', 7));
+    expect(activityKeys.titleUnlocked('t', 'u', '12.5000', 'd')).toBe(activityKeys.titleUnlocked('t', 'u', 12.5, 'd'));
+    expect(activityKeys.titleTaken('t', 'a', 'b', '7.0000', 'd')).toBe(activityKeys.titleTaken('t', 'a', 'b', 7, 'd'));
   });
 
   it('challenge_won och challenge_draw delar nyckel (en utmaning avgörs en gång)', () => {
@@ -216,7 +216,7 @@ describe('buildTitleDrafts', () => {
     expect(d).toMatchObject({
       type: 'title_unlocked', group_id: 'g1', actor_user_id: 'a', target_user_id: null, is_backfill: false,
       payload: { title_id: 't1', title_name: 'The Marathoner', metric_key: 'fastest_marathon', value: 7 },
-      dedupe_key: 'title_unlocked:t1:a:7', occurred_at: at,
+      dedupe_key: 'title_unlocked:t1:a:7:2026-10-05', occurred_at: at,
     });
   });
 
@@ -227,7 +227,7 @@ describe('buildTitleDrafts', () => {
     );
     expect(d).toMatchObject({
       type: 'title_taken', actor_user_id: 'b', target_user_id: 'a',
-      payload: { value: 9, previous_value: 7, reason: 'revoked' }, dedupe_key: 'title_taken:t1:b:a:9',
+      payload: { value: 9, previous_value: 7, reason: 'revoked' }, dedupe_key: 'title_taken:t1:b:a:9:2026-10-05',
     });
   });
 

@@ -149,4 +149,17 @@ describe('autoDeclinePendingChallenges → retract', () => {
     expect(tables.challenges.map((c) => c.id)).toEqual(['fresh']);
     expect(tables.activity_log.map((r) => r.dedupe_key)).toEqual(['challenge_received:fresh', 'level_up:a:2']);
   });
+
+  it('misslyckad radering → raden återkallas inte', async () => {
+    const old = new Date(Date.now() - 4 * 86400000).toISOString();
+    const tables: Record<string, Row[]> = {
+      activity_log: [{ id: 1, dedupe_key: 'challenge_received:old1', type: 'challenge_received' }],
+      challenges: [{ id: 'old1', status: 'pending', tier: 'minor', challenger_id: 'a', opponent_id: 'b', created_at: old }],
+      user_challenge_tokens: [], users: [],
+    };
+    const db = createFakeDb(tables, { failWhen: (q) => (q.table === 'challenges' && q.mutation === 'delete' ? { message: 'delete failed' } : null) });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    await autoDeclinePendingChallenges();
+    expect(tables.activity_log).toHaveLength(1);
+  });
 });

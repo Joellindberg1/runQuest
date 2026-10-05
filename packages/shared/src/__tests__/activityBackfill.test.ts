@@ -87,8 +87,13 @@ describe('backfillEvents', () => {
     });
   });
 
+  it('settled event utan deltagare ger ingen event_closed (samma regel som live)', () => {
+    expect(backfillEvents([ev({ status: 'settled' })], [], { g1: 6 })).toEqual([]);
+    expect(backfillEvents([ev({ status: 'settled' })], [{ event_id: 'annat', user_id: 'a', rank: 1, xp_awarded: 5 }], { g1: 6 })).toEqual([]);
+  });
+
   it('settled_at saknas (participation) → ends_at', () => {
-    const [d] = backfillEvents([ev({ status: 'settled', type: 'participation', settled_at: null })], [], { g1: 6 });
+    const [d] = backfillEvents([ev({ status: 'settled', type: 'participation', settled_at: null })], [{ event_id: 'e1', user_id: 'a', rank: null, xp_awarded: 25 }], { g1: 6 });
     expect(d.occurred_at).toBe('2026-09-20T21:55:00.000Z');
     expect(d.payload).not.toHaveProperty('top');
   });
@@ -160,6 +165,17 @@ describe('backfillRunMilestones', () => {
       [{ kind: 'total_km', threshold: 250 }, stockholmMidnightIso('2026-09-20')],
     ]);
     expect(drafts[0]).toMatchObject({ dedupe_key: 'run_milestone:a:total_km:100', is_backfill: true });
+  });
+
+  it('totalen avrundas till 2 decimaler som live (users.total_km): 99.996 km räknas som 100', () => {
+    const drafts = backfillRunMilestones([{ id: 'r', user_id: 'a', date: '2026-09-01', distance: 99.996 }], groups);
+    expect(drafts.map((d) => d.dedupe_key)).toEqual(['run_milestone:a:total_km:100']);
+    const split = backfillRunMilestones(
+      [{ id: 'r1', user_id: 'a', date: '2026-09-01', distance: 33.334 }, { id: 'r2', user_id: 'a', date: '2026-09-02', distance: 33.333 }, { id: 'r3', user_id: 'a', date: '2026-09-03', distance: 33.333 }],
+      groups,
+    );
+    expect(split).toHaveLength(1); // 33.334 + 33.333 + 33.333 = 100.000 → passerad på tredje rundan
+    expect(backfillRunMilestones([{ id: 'r', user_id: 'a', date: '2026-09-01', distance: 99.994 }], groups)).toEqual([]); // 99.99 < 100
   });
 
   it('exakt 100 km räknas som passerad', () => {

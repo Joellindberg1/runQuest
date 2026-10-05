@@ -298,6 +298,13 @@ describe('GET /api/news', () => {
     expect(res.status).toBe(404);
   });
 
+  it('databasfel vid läsning av användaren → 500 (inte 404): bara PGRST116 betyder "saknas"', async () => {
+    use(tables([row(1)]), { errors: { users: { message: 'connection reset' } } });
+    const res = await get('/api/news');
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to fetch news' });
+  });
+
   it('databasfel → 500 { error } utan att läcka felmeddelandet', async () => {
     use(tables([row(1)]), { errors: { activity_log: { message: 'relation "activity_log" secret detail' } } });
     const res = await get('/api/news');
@@ -413,6 +420,25 @@ describe('POST /api/news/seen', () => {
     const res = await post({ up_to_id: bad });
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: expect.any(String) });
+  });
+
+  it('databasfel vid läsning av användaren → 500 (inte 404)', async () => {
+    use(feed(), { errors: { users: { message: 'connection reset' } } });
+    const res = await post({});
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to update news state' });
+  });
+
+  it('höjningen är en enda villkorad UPDATE (null ELLER lägre) — ingen förlorad uppdatering vid race', async () => {
+    const t = feed();
+    const db = use(t);
+    await post({ up_to_id: 4 });
+    const write = db.queries.find((q) => q.table === 'users' && q.mutation === 'update')!;
+    expect(write.filters).toContainEqual({ op: 'or', column: '', value: 'news_last_seen_id.is.null,news_last_seen_id.lt.4' });
+    // och märket som redan står högre rörs inte av en lägre samtidig begäran
+    t.users.find((u) => u.id === 'u1')!.news_last_seen_id = 5;
+    const res = await post({ up_to_id: 3 });
+    expect(res.body.data.last_seen_id).toBe(5);
   });
 
   it('användare saknas → 404', async () => {

@@ -208,6 +208,29 @@ describe('PUT /api/runs/:id → checkEventQualification', () => {
   });
 });
 
+describe('runDate till checkEventQualification normaliseras till Stockholm-dagen (POST och PUT)', () => {
+  beforeEach(() => at('2026-10-04T22:30:00.000Z')); // 00:30 CEST 5 okt
+
+  it('POST med ISO-tidpunkt skickar YYYY-MM-DD (inte tidpunkten)', async () => {
+    use();
+    const res = await post({ date: '2026-10-05T00:10:00+02:00', distance: 5 });
+    expect(res.status).toBe(200);
+    expect(checkEventQualification).toHaveBeenCalledWith(expect.objectContaining({ runDate: '2026-10-05' }));
+  });
+
+  it('POST med ren dag skickas oförändrad', async () => {
+    use();
+    await post({ date: '2026-10-04', distance: 5 });
+    expect(checkEventQualification).toHaveBeenCalledWith(expect.objectContaining({ runDate: '2026-10-04' }));
+  });
+
+  it('PUT med ISO-tidpunkt skickar YYYY-MM-DD', async () => {
+    use();
+    await put('run-1', { distance: 4, date: '2026-10-05T00:10:00+02:00' });
+    expect(checkEventQualification).toHaveBeenCalledWith(expect.objectContaining({ runDate: '2026-10-05' }));
+  });
+});
+
 describe('DELETE /api/runs/:id', () => {
   beforeEach(() => at('2026-10-05T10:00:00.000Z'));
 
@@ -218,5 +241,37 @@ describe('DELETE /api/runs/:id', () => {
     expect(t.runs).toHaveLength(0);
     expect(calculateUserTotals).toHaveBeenCalledTimes(1);
     expect(checkEventQualification).not.toHaveBeenCalled();
+  });
+
+  it('en runda som kvalificerat ett event (event_entries.run_id) → 409 med klartext, ingen radering, ingen omräkning', async () => {
+    const t = use({ event_entries: [{ id: 'en1', event_id: 'e1', user_id: 'user-1', run_id: 'run-1' }] });
+    const res = await del('run-1');
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: "This run qualified an event and can't be deleted — edit it instead" });
+    expect(t.runs).toHaveLength(1);
+    expect(t.event_entries).toHaveLength(1); // ingen null-out/radering av entry
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+  });
+
+  it('en entry som pekar på en ANNAN runda blockerar inte raderingen', async () => {
+    const t = use({ event_entries: [{ id: 'en1', event_id: 'e1', user_id: 'user-1', run_id: 'other-run' }] });
+    const res = await del('run-1');
+    expect(res.status).toBe(200);
+    expect(t.runs).toHaveLength(0);
+  });
+
+  it('fel vid förkontrollen → 500 och ingen radering', async () => {
+    const t = use();
+    const db = createFakeDb(t, { errors: { event_entries: { message: 'boom' } } });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    const res = await del('run-1');
+    expect(res.status).toBe(500);
+    expect(t.runs).toHaveLength(1);
+  });
+
+  it('403/404 påverkas inte av förkontrollen', async () => {
+    use({ runs: [run({ id: 'foreign', user_id: 'someone-else' })] });
+    expect((await del('foreign')).status).toBe(403);
+    expect((await del('missing')).status).toBe(404);
   });
 });
