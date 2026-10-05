@@ -35,10 +35,12 @@ describe('claimStaleChunkReload', () => {
     expect(claimStaleChunkReload(1_000_000 + RELOAD_GUARD_MS, storage)).toBe(true);
   });
 
-  it('laddar om även när sessionStorage saknas eller kastar', () => {
-    expect(claimStaleChunkReload(1_000_000, null)).toBe(true);
+  it('laddar inte om när spärren inte går att lagra (saknad, kastande eller tyst lagring) — ingen loop', () => {
+    expect(claimStaleChunkReload(1_000_000, null)).toBe(false);
     const throwing = { getItem: () => { throw new Error('blocked'); }, setItem: () => {} };
-    expect(claimStaleChunkReload(1_000_000, throwing)).toBe(true);
+    expect(claimStaleChunkReload(1_000_000, throwing)).toBe(false);
+    const silent = { getItem: () => null, setItem: () => {} };
+    expect(claimStaleChunkReload(1_000_000, silent)).toBe(false);
   });
 });
 

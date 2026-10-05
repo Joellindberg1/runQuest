@@ -26,7 +26,10 @@
 		format json
 	}
 
-	respond /health 200
+	# Egen handle: ett toppnivå-respond sorteras efter handle och skulle skuggas av SPA-blocket.
+	handle /health {
+		respond 200
+	}
 
 	header {
 		X-Content-Type-Options "nosniff"
@@ -43,9 +46,16 @@
 	# Vite-hashade filer byter namn vid varje bygge och får cachas för alltid.
 	# Cache-headern sätts bara på filer som finns: en cachad 404 skulle överleva nästa deploy.
 	handle /assets/* {
-		@exists file
+		@exists {
+			file
+			not path */
+		}
 		header @exists Cache-Control "public, max-age=31536000, immutable"
-		@missing not file
+		@missing not {
+			file
+			not path */
+		}
+		header @missing Cache-Control "no-store"
 		respond @missing "Not found" 404
 		file_server
 	}

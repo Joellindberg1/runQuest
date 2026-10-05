@@ -24,10 +24,14 @@ PORT="$PORT" "$WORK/caddy" run --config "$WORK/Caddyfile" --adapter caddyfile > 
 CADDY_PID=$!
 trap 'kill "$CADDY_PID" 2>/dev/null || true' EXIT
 
+up=0
 for _ in $(seq 1 50); do
-  curl -fs "http://127.0.0.1:$PORT/health" > /dev/null && break
+  if curl -fs "http://127.0.0.1:$PORT/health" > /dev/null; then up=1; break; fi
   sleep 0.2
 done
+if (( up == 0 )); then
+  echo "FAIL Caddy svarade aldrig på /health"; tail -40 "$WORK/caddy.log"; exit 1
+fi
 
 failures=0
 check() {
@@ -55,10 +59,16 @@ check "SPA-route ger index.html, revalideras"     "/titles"                     
 check "SPA-route är no-cache"                     "/runner/some-id"                200 "^cache-control: no-cache"
 check "hashad fil cachas för alltid"              "/$asset"                        200 "^cache-control: public, max-age=31536000, immutable"
 check "hashad fil har JS-typ"                     "/$asset"                        200 "^content-type: (text|application)/javascript"
-check "saknad hashad fil ger 404"                 "/assets/index-DOESNOTEXIST.js"  404 "" "immutable|content-type: text/html"
+check "saknad hashad fil ger 404, aldrig cachad"  "/assets/index-DOESNOTEXIST.js"  404 "^cache-control: no-store" "immutable|content-type: text/html"
+check "assets-katalogen ger 404, aldrig cachad"   "/assets/"                       404 "^cache-control: no-store" "immutable"
 check "Strava-popupen serveras"                   "/strava-popup.html"             200 "^content-type: text/html"
 check "robots.txt serveras"                       "/robots.txt"                    200 ""
-check "health"                                    "/health"                        200 ""
+check "health svarar utan index.html"             "/health"                        200 "" "content-type: text/html"
+if [[ -n "$(curl -s "http://127.0.0.1:$PORT/health")" ]]; then
+  echo "FAIL health: kroppen ska vara tom (skuggad av SPA-blocket?)"; failures=$((failures + 1))
+else
+  echo "ok   health har tom kropp"
+fi
 check "nosniff och ingen Server-header"           "/"                              200 "^x-content-type-options: nosniff" "^server:"
 
 if (( failures > 0 )); then

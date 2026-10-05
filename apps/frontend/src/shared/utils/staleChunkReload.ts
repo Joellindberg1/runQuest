@@ -8,15 +8,18 @@ export const RELOAD_GUARD_MS = 30_000;
 
 type GuardStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
+// Utan fungerande lagring går spärren inte att hålla över en omladdning, så då laddas
+// inget om alls (annars oändlig loop vid ett bestående fel) och ErrorBoundary tar felet.
 export function claimStaleChunkReload(now: number, storage: GuardStorage | null): boolean {
+  if (!storage) return false;
   try {
-    const last = Number(storage?.getItem(STORAGE_KEY) ?? 0);
+    const last = Number(storage.getItem(STORAGE_KEY) ?? 0);
     if (now - last < RELOAD_GUARD_MS) return false;
-    storage?.setItem(STORAGE_KEY, String(now));
+    storage.setItem(STORAGE_KEY, String(now));
+    return storage.getItem(STORAGE_KEY) === String(now);
   } catch {
-    // sessionStorage kan vara blockerad; en enda omladdning är ändå bättre än en vit sida
+    return false;
   }
-  return true;
 }
 
 interface ReloadTarget {
