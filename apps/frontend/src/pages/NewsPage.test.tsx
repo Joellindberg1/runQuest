@@ -114,6 +114,22 @@ describe('Pack News — flödet', () => {
     expect(backfill).not.toHaveAttribute('data-unread');
   });
 
+  it('olästa rader har en guldprick vid tiden (dekorativ — skärmläsartexten bär betydelsen), lästa har ingen', async () => {
+    renderNews();
+    await screen.findByText('7 unread');
+    const rows = [...document.querySelectorAll('.rq-news-row')];
+    for (const row of rows) {
+      const dot = row.querySelector('.rq-news-row__time .rq-news-unread');
+      if (row.hasAttribute('data-unread')) {
+        expect(dot).not.toBeNull();
+        expect(dot).toHaveAttribute('aria-hidden', 'true');
+      } else {
+        expect(dot).toBeNull();
+      }
+    }
+    expect(document.querySelectorAll('.rq-news-unread')).toHaveLength(7);
+  });
+
   it('en backfill-rad markeras aldrig som oläst, även om servern skulle skicka is_unread', async () => {
     handlers.getNews = async () => ({
       success: true,

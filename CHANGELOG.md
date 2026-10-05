@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.1.1 — Städrunda + olästmarkör (2026-10-05)
+
+### Fixat
+- Admin-sidans XP-inställningar gick inte att läsa eller spara (serverfel):
+  backend frågade efter en kolumn som inte finns och letade efter raden med
+  fel id-typ (issue #13).
+- Streak-trappan kan inte längre bli tom om en sparning avbryts: nya steg
+  sparas först, gamla tas bort sist. Ogiltiga trappor (tomma, dubbla dagar,
+  multiplikator under 1) avvisas innan något ändras.
+
+### Ändrat
+- Olästa nyheter har en guldprick vid tiden, i flödet och i klock-popovern.
+
+### Tekniskt
+- Strava-kopplingen loggar inte längre en del av engångskoden.
+- TypeScripts byggcache (`tsconfig.tsbuildinfo`) spåras inte längre i git.
+- Dokumentationen rättad (inloggning gäller 30 dagar, hosting/Caddy, domäner).
+
 ## v2.1.0 — Alla titlar på mobilens Board (2026-10-05)
 
 ### Ändrat

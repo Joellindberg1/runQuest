@@ -5,8 +5,8 @@ import type { NewsRowModel } from '../newsModel';
 const ICON_ROW = 17;
 
 /**
- * En rad i flödet: ikon · typ · tid · text, 3 px kant i kategorins färg. Oläst = guldtint bakom raden (+ en skärmläsartext —
- * färgen ensam bär inget). Tiden är ett `<time>` med exakt klockslag i `title`.
+ * En rad i flödet: ikon · typ · tid · text, 3 px kant i kategorins färg. Oläst = guldtint bakom raden + guldprick vid tiden
+ * (+ en skärmläsartext — färgen ensam bär inget). Tiden är ett `<time>` med exakt klockslag i `title`.
  */
 export function NewsRow({ row }: { row: NewsRowModel }) {
   return (
@@ -16,7 +16,10 @@ export function NewsRow({ row }: { row: NewsRowModel }) {
         {row.kind}
         {row.unread && <span className="sr-only"> (unread)</span>}
       </span>
-      <time className="rq-news-row__time" dateTime={row.iso} title={row.timeTitle}>{row.time}</time>
+      <time className="rq-news-row__time" dateTime={row.iso} title={row.timeTitle}>
+        {row.unread && <span className="rq-dot rq-news-unread" aria-hidden="true" />}
+        {row.time}
+      </time>
       <p className="rq-news-row__text">{row.text}</p>
     </li>
   );

@@ -181,7 +181,6 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     }
     
     logger.info(`🔗 Processing Strava callback for user: ${req.user!.name}`);
-    logger.info(`🔑 Auth code: ${code.substring(0, 10)}...`);
     
     // Exchange code for access token
     const clientId = process.env.STRAVA_CLIENT_ID;

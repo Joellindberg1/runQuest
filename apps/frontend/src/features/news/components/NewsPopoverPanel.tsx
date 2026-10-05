@@ -57,7 +57,10 @@ export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPane
                   {row.kind}
                   {row.unread && <span className="sr-only"> (unread)</span>}
                 </span>
-                <time className="rq-news-pop__time" dateTime={row.iso} title={row.timeTitle}>{row.timeLong}</time>
+                <time className="rq-news-pop__time" dateTime={row.iso} title={row.timeTitle}>
+                  {row.unread && <span className="rq-dot rq-news-unread" aria-hidden="true" />}
+                  {row.timeLong}
+                </time>
               </div>
               <p className="rq-news-pop__text">{row.text}</p>
             </div>
