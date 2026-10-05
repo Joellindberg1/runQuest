@@ -177,13 +177,13 @@ describe('POST /api/runs', () => {
     expect(status).toBe(401);
   });
 
-  it('returns 403 when the token is invalid', async () => {
+  it('returns 401 when the token is invalid (authentication, not authorization)', async () => {
     const { status } = await post(
       '/api/runs',
       { date: '2025-08-01', distance: 5.0 },
       { Authorization: 'Bearer not-a-valid-token' }
     );
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 
   // ── Validation ───────────────────────────────────────────────────────────
