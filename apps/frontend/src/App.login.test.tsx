@@ -47,10 +47,13 @@ describe('inloggning (App → AuthProvider → LoginPage)', () => {
     const username = await screen.findByLabelText('Username');
     signIn('anna', 'fel-losen');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid credentials');
+    // Alert-regionen finns permanent (tom) — vänta på texten, inte på elementet.
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'));
     expect(screen.getByLabelText('Username')).toBe(username);
     expect(username).toHaveValue('anna');
     expect(screen.getByLabelText('Password')).toHaveValue('fel-losen');
+    expect(username).toHaveAttribute('aria-invalid', 'true');
+    expect(username).toHaveAccessibleDescription('Invalid credentials');
     expect(window.location.pathname).toBe('/login');
   });
 
@@ -60,7 +63,7 @@ describe('inloggning (App → AuthProvider → LoginPage)', () => {
     await screen.findByLabelText('Username');
 
     signIn('anna', 'fel-1');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid credentials');
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Sign In' })).toBeEnabled());
 
     api.login.mockResolvedValue({ success: false, error: 'Account locked' });
@@ -77,11 +80,11 @@ describe('inloggning (App → AuthProvider → LoginPage)', () => {
     const username = await screen.findByLabelText('Username');
     signIn('anna', 'hemligt');
 
-    expect(await screen.findByRole('button', { name: 'Signing in…' })).toBeDisabled();
-    expect(screen.getByLabelText('Username')).toBe(username);
+// Inte disabled: fokus ska aldrig tappas under pågående inloggning — knappen är aria-disabled och fälten readOnly.    const busy = await screen.findByRole('button', { name: 'Signing in…' });    expect(busy).toHaveAttribute('aria-disabled', 'true');    expect(busy).not.toBeDisabled();    expect(screen.getByLabelText('Username')).toBe(username);    expect(username).toHaveAttribute('readonly');    expect(username).not.toBeDisabled();
 
     finish({ success: false, error: 'Invalid credentials' });
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'));
+    expect(username).not.toHaveAttribute('readonly');
   });
 
   it('lyckad inloggning leder till /board', async () => {

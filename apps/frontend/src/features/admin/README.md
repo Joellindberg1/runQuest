@@ -18,6 +18,6 @@ Web Prototypens Admin; mobilprototypen saknar sidan, så mobil är härledd. `pa
   och `step=0.01`. Ett tomt fält stoppas före anropet (`findSettingsProblem`) i stället för att skickas som `null`.
 - **"Min km for streak" och "Min run date" är skrivskyddade:** Save skickade dem aldrig (se docs/open-assumptions.md, "Restsidor").
 - **Streak-trappan** visas i stigande dagordning; nytt steg läggs till i listan men sparas först vid Save.
-- **Titlar** läser verkliga titlar ur databasen (delar rader med Playbook via `features/playbook/titleRules`); "Refresh title leaderboards" är oförändrad funktion.
+- **Titlar** läser verkliga titlar ur databasen (delar rader med Playbook via `features/titles/titleRules`); "Refresh title leaderboards" är oförändrad funktion.
 - **Säkerhet:** adminlösenordet är fortfarande inte kopplat till backend (svaret säger det); Strava-backfillen visar summa + rad per användare, fel i alert.
 - **En guldknapp per vy:** Save all settings · Add member · (Titles: ingen) · Change password.

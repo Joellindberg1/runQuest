@@ -1,7 +1,7 @@
 import type { RQIconName } from '@/shared/components/icons';
 import type { TitleLeaderboard } from '@/shared/services/backendApi';
-import { TITLE_CATEGORIES, categoryOf, iconOf } from '@/features/titles/titleCategories';
-import { unlockText } from '@/features/titles/titleFormat';
+import { TITLE_CATEGORIES, categoryOf, iconOf } from './titleCategories';
+import { unlockText } from './titleFormat';
 
 // Titlarnas regler som text — namn, regel och låsgräns ur databasen (GET /titles/leaderboard, samma rader som Titles-skärmen),
 // utan innehavare och värden. Delas av Playbook (kapitlet Titles) och Admin (Titles). Ren logik.

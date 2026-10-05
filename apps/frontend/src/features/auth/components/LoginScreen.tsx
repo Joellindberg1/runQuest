@@ -1,5 +1,6 @@
 import { useAuth } from '@/providers/authContext';
 import { RQLogo } from '@/shared/components/icons';
+import { FormNotices } from '@/shared/components/form/FormNotices';
 import { TextField } from '@/shared/components/form/TextField';
 import { useLoginForm } from '../hooks/useLoginForm';
 import '../login.css';
@@ -8,7 +9,8 @@ const ERROR_ID = 'login-error';
 
 /**
  * /login. Ingen prototyp finns — ritad i Landingens språk (glöd, logotyp, hjältekort) med Components-filens fält.
- * EN guldknapp. Felet är ett role=alert-kort som monteras vid fel; fälten pekar på det (aria-describedby) och står kvar.
+ * EN guldknapp. Felet landar i en permanent role=alert-region (som övriga formulär); fälten pekar på det (aria-describedby) och står kvar.
+ * Under pågående inloggning är fälten readOnly och knappen aria-disabled (inte disabled) — fokus tappas aldrig.
  */
 export function LoginScreen() {
   const { login } = useAuth();
@@ -25,7 +27,7 @@ export function LoginScreen() {
           <p className="rq-login__sub">Continue your journey</p>
         </header>
 
-        <form className="rq-card rq-card--hero rq-form" onSubmit={(event) => void form.submit(event)} aria-label="Sign in">
+        <form className="rq-card rq-card--hero rq-form" onSubmit={(event) => void form.submit(event)} aria-label="Sign in" aria-busy={form.loading}>
           <TextField
             id="username"
             label="Username"
@@ -34,7 +36,7 @@ export function LoginScreen() {
             placeholder="Enter your username"
             autoComplete="username"
             required
-            disabled={form.loading}
+            readOnly={form.loading}
             invalid={!!form.error}
             aria-describedby={describedBy}
           />
@@ -47,16 +49,12 @@ export function LoginScreen() {
             placeholder="Enter your password"
             autoComplete="current-password"
             required
-            disabled={form.loading}
+            readOnly={form.loading}
             invalid={!!form.error}
             aria-describedby={describedBy}
           />
-          {form.error && (
-            <p id={ERROR_ID} role="alert" className="rq-form-notice" data-tone="error">
-              {form.error}
-            </p>
-          )}
-          <button type="submit" className="rq-btn rq-btn--primary rq-btn--lg rq-btn--block" disabled={form.loading}>
+          <FormNotices name="Sign in" error={form.error} errorId={ERROR_ID} />
+          <button type="submit" className="rq-btn rq-btn--primary rq-btn--lg rq-btn--block" aria-disabled={form.loading || undefined}>
             {form.loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>

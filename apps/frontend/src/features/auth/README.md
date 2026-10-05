@@ -11,8 +11,8 @@ Authentication and authorization for the application. Inloggningssidan (`/login`
 ## Inloggningssidan
 
 - Ingen prototyp finns; komposition = Landing (logotyp, rubrik "Sign in", "Continue your journey") + Components-filens fält (`shared/components/form/TextField`).
-- **EN guldknapp** (Sign In). Felet är ett `role=alert`-kort som monteras vid fel (inte en permanent tom region — `App.login.test` kräver att alert hittas direkt med texten);
-  båda fälten får `aria-invalid` och `aria-describedby` mot felet, och står kvar med sitt innehåll.
+- **EN guldknapp** (Sign In). Felet landar i en permanent `role=alert`-region (`FormNotices`); båda fälten får `aria-invalid` och `aria-describedby` mot felet och står kvar med sitt innehåll.
+  Under inloggning är fälten `readOnly` och knappen `aria-disabled` (inte `disabled`) — fokus tappas aldrig, och ett nytt submit ignoreras.
 - Etiketterna "Username"/"Password" och knapptexterna "Sign In"/"Signing in…" är kontrakt mot `App.login.test.tsx`.
 
 ## useAuth Hook

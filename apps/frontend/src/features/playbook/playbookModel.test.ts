@@ -33,9 +33,10 @@ describe('buildChapters', () => {
 });
 
 describe('XP & running — siffrorna kommer ur konfigurationen', () => {
-  it('minsta distans i kapitel 1 och i tabellen', () => {
-    expect(chapter('run').lead).toContain('from 1.5 km');
-    expect(rowsOf('run')[0]).toEqual(['Minimum distance', '1.5 km']);
+  it('kapitel 1: manuell miniminivå 1.0 km (appens konstant), Strava utan gräns, och basen från konfigurationens min_run_distance', () => {
+    expect(chapter('run').lead).toBe('Manual runs need at least 1.0 km; runs synced from Strava count at any distance.');
+    expect(rowsOf('run').slice(0, 2)).toEqual([['Manual run, minimum', '1.0 km'], ['Base XP from', '1.5 km']]);
+    expect(chapter('xp').paras.join(' ')).toContain('The base is paid from 1.5 km.');
   });
 
   it('formeln: ingress och tabell följer base, XP/km och distansbonusarna', () => {
@@ -114,9 +115,9 @@ describe('Challenges, Events, Frodo', () => {
     ]);
   });
 
-  it('events: fem deltagarevent med fönster och XP', () => {
+  it('events: sex deltagarevent (inkl. Half Marathon Chaser) med fönster och XP', () => {
     const rows = chapter('events').table?.rows ?? [];
-    expect(rows).toHaveLength(5);
+    expect(rows.map((row) => row.label)).toEqual(['Morgonrunda', 'Kvällsrunda', '5K Friday', 'Half Marathon Chaser', 'Hangover Run', 'Storm Chaser']);
     expect(rows.every((row) => row.note && /^\+\d+$/.test(row.value))).toBe(true);
   });
 

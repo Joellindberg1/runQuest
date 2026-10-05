@@ -14,6 +14,7 @@ export function useLoginForm(login: Login) {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (loading) return;
     setError('');
     setLoading(true);
     const result = await login(username, password);

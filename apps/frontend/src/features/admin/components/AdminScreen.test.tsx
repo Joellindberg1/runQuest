@@ -98,11 +98,24 @@ describe('Admin — XP settings', () => {
     expect(await screen.findByRole('status', { name: 'Settings status' })).toHaveTextContent('Settings saved');
   });
 
-  it('backendens 400 (multiplikator utanför 1–9.99) visas ordagrant i alert-regionen', async () => {
-    handlers.updateStreakMultipliers = () => ({ success: false, error: 'Multiplier must be between 1 and 9.99' });
+  it('en trappa utanför 1–9.99 stoppas före FÖRSTA anropet — grundinställningarna sparas aldrig halvt', async () => {
+    const update = vi.fn().mockResolvedValue({ success: true });
+    const updateLadder = vi.fn().mockResolvedValue({ success: true });
+    handlers.updateAdminSettings = update;
+    handlers.updateStreakMultipliers = updateLadder;
     renderAdmin();
     fireEvent.change(await screen.findByLabelText('3 days'), { target: { value: '12.5' } });
     expect(screen.getByLabelText('3 days')).toHaveAttribute('aria-invalid', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Save all settings' }));
+    expect(await screen.findByRole('alert', { name: 'Settings error' })).toHaveTextContent('The multiplier for 3 days must be between 1 and 9.99');
+    expect(update).not.toHaveBeenCalled();
+    expect(updateLadder).not.toHaveBeenCalled();
+  });
+
+  it('serverns 400-text visas ordagrant i alert-regionen', async () => {
+    handlers.updateStreakMultipliers = () => ({ success: false, error: 'Multiplier must be between 1 and 9.99' });
+    renderAdmin();
+    fireEvent.change(await screen.findByLabelText('3 days'), { target: { value: '1.4' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save all settings' }));
     expect(await screen.findByRole('alert', { name: 'Settings error' })).toHaveTextContent('Multiplier must be between 1 and 9.99');
   });

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { buildTitleRuleRows } from '@/features/playbook/titleRules';
+import { buildTitleRuleRows } from '@/features/titles/titleRules';
 import { useTitleBoard } from '@/features/titles/hooks/useTitlesQueries';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { FormNotices } from '@/shared/components/form/FormNotices';

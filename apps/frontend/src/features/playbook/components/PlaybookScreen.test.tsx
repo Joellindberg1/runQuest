@@ -46,7 +46,7 @@ describe('Playbook — desktop', () => {
     expect(within(tabs).getAllByRole('tab')).toHaveLength(9);
     expect(within(tabs).getByRole('tab', { name: 'What counts as a run' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { level: 2, name: 'What counts as a run' })).toBeInTheDocument();
-    expect(screen.getByText(/A run counts from 1\.5 km/)).toBeInTheDocument();
+    expect(screen.getByText(/Manual runs need at least 1.0 km/)).toBeInTheDocument();
   });
 
   it('XP-formeln läser bas, XP/km och distansbonusarna ur /config/xp — inte ur kod', async () => {
@@ -83,6 +83,21 @@ describe('Playbook — desktop', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'What counts as a run' }));
     fireEvent.click(await screen.findByRole('button', { name: /Previous chapter: Fair play/ }));
     expect(await screen.findByRole('heading', { level: 2, name: 'Fair play' })).toBeInTheDocument();
+  });
+
+  it('utmaningskapitlet visar insatserna som Rules-vyn: observerade ur mina tokens, seed där inget exempel finns', async () => {
+    handlers.getMyChallenges = () => ({
+      success: true,
+      data: {
+        tokens: [{ id: 't1', user_id: 'u-me', tier: 'minor', metric: 'km', duration_days: 7, winner_delta: 0.3, winner_duration: 3, winner_type: 'multiplier_days', loser_delta: -0.1, loser_duration: 3, loser_type: 'multiplier_days' }],
+        sent_challenge: null, received_challenges: [], boosts: [], history: [], group_active: [],
+      },
+    });
+    renderPlaybook('/playbook?view=challenges');
+    const table = await screen.findByRole('region', { name: 'The stakes' });
+    await waitFor(() => expect(within(table).getByText('+0.3× / 3 d')).toBeInTheDocument());
+    expect(within(table).getByText('+0.25× / 10 d')).toBeInTheDocument();
+    expect(screen.getByText(/A token fixes the metric and the length/)).toBeInTheDocument();
   });
 
   it('titelkapitlet listar titlarna ur databasen med regel och låsgräns', async () => {
@@ -148,15 +163,15 @@ describe('Playbook — mobil', () => {
     expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(9);
     expect(screen.getAllByRole('button', { expanded: false })).toHaveLength(8);
     expect(screen.getByText('9 ch')).toBeInTheDocument();
-    expect(screen.getByText(/A run counts from 1\.5 km/)).toBeInTheDocument();
+    expect(screen.getByText(/Manual runs need at least 1.0 km/)).toBeInTheDocument();
   });
 
   it('ett kapitel i taget: att öppna ett annat stänger det första, att trycka på det öppna fäller ihop allt', async () => {
     renderPlaybook('/playbook', MOBILE);
-    await screen.findByText(/A run counts from 1\.5 km/);
+    await screen.findByText(/Manual runs need at least 1.0 km/);
     fireEvent.click(screen.getByRole('button', { name: /The XP formula/ }));
     expect(await screen.findByText(/Base 20, plus 3 XP per kilometre/)).toBeInTheDocument();
-    expect(screen.queryByText(/A run counts from 1\.5 km/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Manual runs need at least 1.0 km/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /The XP formula/ })).toHaveAttribute('aria-expanded', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: /The XP formula/ }));

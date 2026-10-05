@@ -53,4 +53,15 @@ describe('useLoginForm', () => {
     await act(async () => { finish({ success: true }); await pending; });
     expect(result.current.loading).toBe(false);
   });
+
+  it('ett nytt submit medan ett anrop pågår ignoreras (dubbelklick, Enter + klick)', async () => {
+    let finish: (value: { success: boolean }) => void = () => {};
+    const login = vi.fn().mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const { result } = renderHook(() => useLoginForm(login));
+    let first: Promise<void> = Promise.resolve();
+    act(() => { first = result.current.submit(submitEvent); });
+    await act(async () => { await result.current.submit(submitEvent); });
+    expect(login).toHaveBeenCalledTimes(1);
+    await act(async () => { finish({ success: true }); await first; });
+  });
 });

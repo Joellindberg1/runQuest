@@ -82,14 +82,14 @@ export function useAdminData() {
         const data = result.data;
         setSettings(prev => ({
           ...prev,
-          xpPerRun: data.base_xp || 15,
-          xpPerKm: data.xp_per_km || 2,
-          bonus5km: data.bonus_5km || 5,
-          bonus10km: data.bonus_10km || 15,
-          bonus15km: data.bonus_15km || 25,
-          bonus20km: data.bonus_20km || 50,
-          minKmForRun: data.min_run_distance || 1.0,
-          minKmForStreak: data.min_run_distance || 1.0,
+          xpPerRun: data.base_xp ?? 15,
+          xpPerKm: data.xp_per_km ?? 2,
+          bonus5km: data.bonus_5km ?? 5,
+          bonus10km: data.bonus_10km ?? 15,
+          bonus15km: data.bonus_15km ?? 25,
+          bonus20km: data.bonus_20km ?? 50,
+          minKmForRun: data.min_run_distance ?? 1.0,
+          minKmForStreak: data.min_run_distance ?? 1.0,
         }));
 
         const multipliersResult = await backendApi.getStreakMultipliers();

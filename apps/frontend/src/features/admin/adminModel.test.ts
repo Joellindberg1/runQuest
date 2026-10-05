@@ -65,8 +65,12 @@ describe('findSettingsProblem', () => {
     expect(findSettingsProblem({ ...SETTINGS, multipliers: { 3: Number.NaN } })).toMatch(/needs a number/);
   });
 
-  it('gränserna (t.ex. multiplikator över 9.99) lämnas åt servern — 400-svaret visas ordagrant', () => {
-    expect(findSettingsProblem({ ...SETTINGS, multipliers: { 3: 12.5 } })).toBeNull();
+  it('trappans intervall 1–9.99 med högst två decimaler vaktas före Save (annars sparas grundinställningarna halvt)', () => {
+    expect(findSettingsProblem({ ...SETTINGS, multipliers: { 3: 12.5 } })).toBe('The multiplier for 3 days must be between 1 and 9.99, with at most two decimals');
+    expect(findSettingsProblem({ ...SETTINGS, multipliers: { 3: 0.99 } })).toMatch(/must be between 1 and 9.99/);
+    expect(findSettingsProblem({ ...SETTINGS, multipliers: { 3: 1.234 } })).toMatch(/at most two decimals/);
+    expect(findSettingsProblem({ ...SETTINGS, multipliers: { 3: 10 } })).toMatch(/9.99/);
+    for (const ok of [1, 1.05, 1.3, 2, 9.99]) expect({ ok, problem: findSettingsProblem({ ...SETTINGS, multipliers: { 3: ok } }) }).toEqual({ ok, problem: null });
   });
 });
 

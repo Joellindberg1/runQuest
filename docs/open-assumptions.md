@@ -118,17 +118,23 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
 
 ## Restsidor: Playbook, Settings, Admin, Login (inkrement 11, spår B)
-- **Playbook har nio kapitel (prototypens), inte de gamla sju flikarna.** Strava-fliken är inlagd i "What counts as a run", Levels-tabellen och Titles
-  finns kvar. Prototypens copy är en skiss och bär några fel mot spelets regler — kapiteltexterna följer verkligheten i stället: streaken multiplicerar
-  base + km men INTE distansbonusen (prototypen: "allt"); utmaningens nivå väljs av spelaren men mått och längd lottas (prototypen: spelaren väljer mått). Frodo-kapitlet läser sträckan och de sju stora målen ur `frodoModel`.
+- **Playbook har nio kapitel (prototypens), inte de gamla sju flikarna.** Strava-fliken är inlagd i "What counts as a run"; Levels-tabellen och Titles
+  finns kvar. **Regel: Playbook påstår bara det koden gör** — prototypens copy är en skiss och citeras inte. Kapiteltexterna är verifierade mot backend:
+  minimidistansen gäller bara manuella rundor (1.0 km, `routes/runs.ts`), Strava-rundor räknas oavsett längd; base-XP betalas från konfigurationens
+  `min_run_distance`; streaken räknar dagar med en runda (inget "qualifying run"); streaken multiplicerar base + km men inte distansbonusen; i utmaningar
+  lottas tier, mått, längd och insats när TOKEN tjänas in vid nivåuppgång (`challengeService.ts`) — vid sändning väljer spelaren bara token och motståndare
+  (texten är Rules-vyns egen, `HOW_IT_WORKS`). Frodo-kapitlet läser sträckan och de sju stora målen ur `frodoModel`.
 - **Siffrorna i Playbook kommer ur `GET /config/xp`** (bas-XP, XP/km, distansbonusar, trappan, min distans) via `useXpConfig`, och räkneexemplen är
   shareds formel över samma konfiguration. Går den inte att läsa visas shareds standardvärden och sidan säger det (Retry). Nivåtabellen är shareds
   `FALLBACK_LEVEL_REQUIREMENTS` (enda hemmet, identisk med prod) — ingen endpoint exponerar `level_requirements`; ändrar någon tabellen i databasen följer
   Playbook inte med.
-- **Fortfarande redaktionell text i Playbook (ingen konfiguration att läsa):** eventens fönster, minsta km och XP (Morgonrunda 25 · Kvällsrunda 25 ·
-  5K Friday 25 · Hangover Run 30 · Storm Chaser 40; veckotävlingarna 40/30/20), vädertröskeln för Storm Chaser (≥ 3 h regn, > 12 m/s, kl 19:00) och
-  insatserna per utmaningsnivå (challenges-featurens `DEFAULT_STAKES` — seed-värdena, inte nödvändigtvis de som admin satt i `challenge_rewards`).
-  Ändras något av det i backend/databasen måste texten följa med. Eventnamnen är databasens (Morgonrunda/Kvällsrunda på svenska).
+- **Event-siffrorna är redaktionella — ingen endpoint exponerar `event_templates`.** `GET /events` ger bara aktiva/schemalagda events (namn, min km, XP, men inte
+  fönster, spawn-regler eller väderkrav), så fönster, krav och XP bor som en kopia i `features/playbook/playbookFacts.ts` (Morgonrunda 05–09, Kvällsrunda 18–22,
+  5K Friday, Half Marathon Chaser 10 km fre–sön, Hangover Run, Storm Chaser: ≥ 3 stormtimmar dagtid 06–21 ELLER ≥ 4 timmar med byar ≥ 15 m/s; veckotävlingen 40/30/20
+  och avgörs måndag 00:05 Stockholm). `playbookFacts.test.ts` läser backendens migrationer, eventService och eventScheduler och faller om siffrorna glider isär —
+  men nya/borttagna event i databasen syns inte där. En `GET /events/templates` (eller att Playbook läser mallarna) vore en backend-uppgift.
+- **Insatserna per utmaningsnivå är observerade, som Rules-vyn:** verkliga tokens/aktiva/inkomna/historiska utmaningar ur `GET /challenges/my` först (hämtas när
+  utmaningskapitlet visas), `DEFAULT_STAKES` (seed, migration 006) bara för nivåer utan exempel. Har man inga tokens eller historik visas alltså seed-värdena.
 - **Titellistan i Playbook och Admin är `GET /titles/leaderboard`** (samma rader som Titles, delad cache) — namn, regel och låsgräns ordagrant ur databasen,
   sorterade som Titles-skärmens kategorier. Admins gamla fyra hårdkodade titlar (och texten "hardcoded") är borta.
 - **Settings: Notifications-kortet ur Web Prototypen är inte byggt** (backend saknar notisinställningar; "ingen ny funktion"). **Disconnect** finns i
@@ -139,13 +145,14 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - **Admin: "Min km for streak" och "Min run date" är skrivskyddade.** Save skickade dem aldrig (servern har bara `min_run_distance`; datumet är en
   konstant i appen) — de såg redigerbara ut men gjorde ingenting. De visas kvar som i prototypen, med en rad som säger det. Vill ägaren att de ska gå att
   ändra behövs backend-stöd. "Add member" saknar "6 of 30 seats used" (ingen sätesgräns finns).
-- **Admin: ett tomt/ogiltigt fält stoppas före Save** (`findSettingsProblem`) i stället för att skickas som `null`; gränserna (multiplikator 1–9.99, två
-  decimaler) vaktas fortfarande av servern och dess 400-text visas ordagrant. Fältet får `aria-invalid` utanför 1–9.99.
+- **Admin: ett tomt/ogiltigt fält OCH en trappa utanför 1–9.99 (högst två decimaler) stoppas före Save** (`findSettingsProblem`) — ingenting skickas, så
+  grundinställningarna sparas aldrig halvt när trappan avvisas. Servern vaktar fortfarande samma gräns och dess 400-text visas ordagrant. Fältet får `aria-invalid` utanför intervallet.
 - **Admin: läsfel är felkort med Retry** (inställningar/trappa, medlemmar, titlar) i stället för toast + tomt/standardvärden. Save är låst tills BÅDA läsningarna
   lyckats (`settingsLoaded`/`canSave`, oförändrat), nu med synlig förklaring. Alla toasts (Admin, Settings) är ersatta av permanenta status/alert-regioner.
   "Admin password" är fortfarande inte kopplat till backend (som tidigare) — svaret säger det i stället för att låtsas lyckas.
-- **Inloggningen är ritad utan prototyp** i Landingens språk (glöd, logotyp, hjältekort, Components-filens fält). Felet är ett `role=alert`-kort som monteras vid
-  fel (inte en permanent tom alert-region): `App.login.test` kräver att `findByRole('alert')` hittar felet direkt. Ingen "Forgot password" (ingen funktion).
+- **Inloggningen är ritad utan prototyp** i Landingens språk (glöd, logotyp, hjältekort, Components-filens fält). Felet landar i en permanent `role=alert`-region
+  (`FormNotices`, som övriga formulär) och fälten pekar på det; under pågående inloggning är fälten `readOnly` och knappen `aria-disabled` (inte `disabled`), så
+  fokus aldrig tappas. `App.login.test` väntar på alert-textens innehåll (regionen finns tom från början). Ingen "Forgot password" (ingen funktion).
 - **Formulärfält är 16/18 px** (`--rq-fs-stat-value`), inte Components-filens 19 px och inte `.rq-field`-standardens lead (17/22): prototypens Settings/Admin-fält är
   17 px på desktop, och 16 px på mobil hindrar iOS från att zooma in vid fokus.
 - **Borttaget som dött:** `constants/streakConstants.ts` (Playbook var sista användaren), `shared/components/PageTabs.tsx` (shadcn-flikar, Playbook var sista

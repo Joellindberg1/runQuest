@@ -87,9 +87,15 @@ export function multiplierRows(multipliers: AdminSettings['multipliers']): Multi
     .map(({ days, multiplier }) => ({ days, multiplier, label: `${days} ${days === 1 ? 'day' : 'days'}` }));
 }
 
+/** En multiplikator som servern tar emot: 1–9.99 med högst två decimaler (numeric(3,2)). */
+export function isValidMultiplier(value: number): boolean {
+  return Number.isFinite(value) && value >= MULTIPLIER_MIN && value <= MULTIPLIER_MAX && Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
+}
+
 /**
- * Sista kontrollen före Save: ett tomt eller ogiltigt fält ska inte bli en `null` i anropet. Svarar med en mening eller null.
- * Gränserna (t.ex. multiplikator 1–9.99) vaktas av servern; hit kommer bara det som inte ens är ett tal.
+ * Sista kontrollen före Save: inget ska skickas om något är ogiltigt. Spärren måste ligga FÖRE det första anropet — Save skriver
+ * grundinställningarna först och trappan sen, så en trappa som servern avvisar i efterhand lämnar sparningen halv. Därför
+ * kontrolleras både tomma fält och trappans intervall (1–9.99, högst två decimaler) här. Svarar med en mening eller null.
  */
 export function findSettingsProblem(settings: AdminSettings): string | null {
   const numbers = [
@@ -97,7 +103,9 @@ export function findSettingsProblem(settings: AdminSettings): string | null {
     settings.bonus5km, settings.bonus10km, settings.bonus15km, settings.bonus20km,
     ...Object.values(settings.multipliers),
   ];
-  return numbers.every(Number.isFinite) ? null : 'Every field needs a number before you can save';
+  if (!numbers.every(Number.isFinite)) return 'Every field needs a number before you can save';
+  const bad = multiplierRows(settings.multipliers).find((row) => !isValidMultiplier(row.multiplier));
+  return bad ? `The multiplier for ${bad.label} must be between ${MULTIPLIER_MIN} and ${MULTIPLIER_MAX}, with at most two decimals` : null;
 }
 
 /** "Level 24 · 5 539 XP · 159 runs · 8 streak" */

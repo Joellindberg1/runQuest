@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
+import { useMyChallenges } from '@/features/challenges/hooks/useDuelsQueries';
+import { observedStakes, type StakeSample } from '@/features/challenges/rulesModel';
 import type { XpRules } from '@/features/log/xpPreviewModel';
 import { RQIcon } from '@/shared/components/icons';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
@@ -33,7 +35,15 @@ export function PlaybookScreen() {
 
   const usingDefaults = !configQuery.data && configQuery.isError;
   const rules: XpRules | undefined = configQuery.data ?? (usingDefaults ? FALLBACK_RULES : undefined);
-  const chapters = useMemo(() => (rules ? buildChapters(rules) : null), [rules]);
+  // Insatserna per utmaningsnivå läses som Duels Rules-vy gör: verkliga tokens/utmaningar först, seed-värdena där inget exempel finns.
+  const challengesOpen = view === 'challenges' && !(collapsed && isDesktop === false);
+  const myChallenges = useMyChallenges(challengesOpen);
+  const stakes = useMemo(() => {
+    const my = myChallenges.data;
+    const samples: StakeSample[] = my ? [...my.tokens, ...my.group_active, ...my.received_challenges, ...my.history] : [];
+    return observedStakes(samples);
+  }, [myChallenges.data]);
+  const chapters = useMemo(() => (rules ? buildChapters(rules, undefined, stakes) : null), [rules, stakes]);
 
   if (isDesktop === undefined) return null;
 

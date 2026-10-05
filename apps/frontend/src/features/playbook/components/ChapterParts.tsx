@@ -4,7 +4,7 @@ import { ErrorState } from '@/shared/components/ErrorState';
 import { RQIcon } from '@/shared/components/icons';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import type { Chapter } from '../playbookModel';
-import { buildTitleRuleRows } from '../titleRules';
+import { buildTitleRuleRows } from '@/features/titles/titleRules';
 
 const ICON_SIZE = 15;
 const SKELETON_ROWS = 4;
