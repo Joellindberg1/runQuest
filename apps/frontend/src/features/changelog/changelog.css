@@ -1,5 +1,5 @@
 /* Feature & Version (inkrement 11): rubrik med version · flikar (Features / Working on / Releases) · korten. ENDAST tokens (regel 1).
-   Måtten (--rq-changelog-*) definieras i temafilen, sektion 1.29 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
+   Måtten (--rq-changelog-*) definieras i temafilen, sektion 1.33 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
    Ligger utanför @layer, så reglerna här slår de delade .rq-*-primitiverna (som ligger i @layer components).
    Mobil = Web Prototypens skärm i en kolumn (prototypen saknar mobilvy): releaseraden och ändringsraderna bryter om via grid-areas-tokens,
    korten staplas. Desktopens enda strukturskillnad (rubrik och flikar på en rad) ligger i @media; resten är tokens som temafilen vänder vid 1024 px. */

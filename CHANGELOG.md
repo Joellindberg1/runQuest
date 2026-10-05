@@ -19,6 +19,9 @@
   `patch_v<version>`). `features/onboarding/patchNotes.ts` och
   `shared/utils/changelogHelpers.ts` är borttagna. Poster för 2.0.0–2.2.0 ifyllda;
   bara 2.0.0 annonseras.
+- Onboarding: ett misslyckat "sedd"-anrop (`/onboarding/mark-seen`) stänger popupen/touren
+  ändå och kön går vidare i sessionen (posten visas igen nästa gång); "Got it" kan inte
+  dubbelklickas. Versionsvakten stöder inte förreleaser (`-rc.1`) och ignorerar rubriker i kodstaket.
 - `package.json` (rot + frontend) hade 0.0.x — satta till 2.2.0 så att de följer
   taggen enligt docs/dokumentation.md.
 

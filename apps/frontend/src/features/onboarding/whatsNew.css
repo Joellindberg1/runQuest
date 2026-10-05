@@ -1,4 +1,4 @@
-/* "What's new"-popupen (inkrement 11). ENDAST tokens (regel 1); bredden (--rq-whatsnew-w) bor i temafilen, sektion 1.29.
+/* "What's new"-popupen (inkrement 11). ENDAST tokens (regel 1); bredden (--rq-whatsnew-w) bor i temafilen, sektion 1.33.
    Återanvänder skalets delade lager (.rq-scrim, .rq-modal, .rq-modal__close i app-shell.css) — bara bredden och innehållet är egna.
    Självbärande: ändringsfärgerna är definierade här (och inte lånade från features/changelog, vars css bara laddas med sidan).
    Ingen animation: modalen är ett flytande lager som står still. */

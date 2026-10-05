@@ -12,6 +12,8 @@ import { ONBOARDING_V1_STEPS } from '../onboardingSteps';
 // Inner component: knows which slug to show, handles markSeen
 function OnboardingItem({ slug }: { slug: string }) {
   const { markSeen } = useOnboarding(slug);
+  // Popupen stängs direkt vid första stängningen (ingen dubbelklick på Got it medan sparningen pågår), även om sparningen misslyckas.
+  const [closed, setClosed] = React.useState(false);
 
   const patchNote = announcedNotes(changelog.releases).find(n => n.slug === slug);
   const isKnownSlug = !!patchNote || slug === 'onboarding_v1' || slug.startsWith('tour_');
@@ -25,7 +27,8 @@ function OnboardingItem({ slug }: { slug: string }) {
 
   // Patch note?
   if (patchNote) {
-    return <PatchNotesModal note={patchNote} onClose={() => markSeen()} />;
+    if (closed) return null;
+    return <PatchNotesModal note={patchNote} onClose={() => { setClosed(true); markSeen(); }} />;
   }
 
   // First-login tour — ankarna ägs av app-skalet (ADR 006 beslut 8)

@@ -507,7 +507,7 @@
   --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
   --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
   --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
-  /* ── 1.29 Changelog-mått (inkrement 11) ────────────────────────────────────
+  /* ── 1.33 Changelog-mått (inkrement 11) ────────────────────────────────────
      Mått ur Web Prototypens Feature & Version (kortgrid, release-rader) + "What's new"-popupen. Endast mått — ingen typskala (raderna
      snappar till textstegen) och inga färger. Mobil = standard (prototypen saknar mobilvy: samma kort i en kolumn, releaseraden och
      ändringsraden bryter om); desktop skriver över i avsnitt 2. Releaseraden och ändringsraden är rutnät med namngivna områden.

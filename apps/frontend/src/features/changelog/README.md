@@ -13,7 +13,7 @@ en gång per användare. Versionsnumret och datumet överst är den senaste post
 - **changelogTypes.ts** — TS-schemat. **changelogData.ts** — det enda stället som läser JSON-filen.
 - **changelogModel.ts** — ren logik: flikarna, versionsraden, öppen/stängd release, `announcedNotes` (posterna med `announce`, slug `patch_v<version>`).
 - **components/** — `ChangelogScreen` (flikar + vilken release som är öppen), `FeatureCards`, `WorkingOnCards`, `ReleaseList`.
-- `changelog.css` — sidans stilfil; mått (`--rq-changelog-*`, `--rq-whatsnew-w`) i temafilen, sektion 1.29 (index.css + docs/design/temafil-forslag.css).
+- `changelog.css` — sidans stilfil; mått (`--rq-changelog-*`, `--rq-whatsnew-w`) i temafilen, sektion 1.33 (index.css + docs/design/temafil-forslag.css).
   Popupens css ligger i `features/onboarding/whatsNew.css`.
 
 ## Regler värda att komma ihåg

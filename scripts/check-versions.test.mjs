@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { checkVersions, compareSemver, parseSemver, releaseTypeOf } from './check-versions.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { checkVersions, compareSemver, isEntryPoint, parseSemver, releaseTypeOf } from './check-versions.mjs';
 
 const release = (version, extra = {}) => ({
   version,
@@ -71,6 +71,28 @@ describe('checkVersions', () => {
     assert.equal(only(errorsFor((input) => { input.changelogMd = '# Changelog\n'; }), /hittar ingen rubrik/).length, 1);
     const wrongOrder = errorsFor((input) => { input.changelogMd = '## v2.2.0\n## v2.0.0\n## v2.1.0\n'; });
     assert.equal(only(wrongOrder, /strikt fallande.*v2\.1\.0 står efter v2\.0\.0/).length, 1);
+  });
+
+  it('förreleaser stöds inte: tydligt besked i package.json, changelog.json och CHANGELOG.md, och rubriken läses inte som 2.3.0', () => {
+    const pkg = errorsFor((input) => { input.rootVersion = '2.3.0-rc.1'; });
+    assert.equal(only(pkg, /package\.json: version "2\.3\.0-rc\.1" är en förrelease — förreleaser stöds inte/).length, 1);
+    assert.equal(only(pkg, /inte giltig semver/).length, 0);
+
+    const json = errorsFor((input) => { input.changelog.releases[0].version = '2.2.0-beta.2'; });
+    assert.equal(only(json, /releases\[0\]: version "2\.2\.0-beta\.2" är en förrelease/).length, 1);
+
+    const md = errorsFor((input) => { input.changelogMd = '## v2.3.0-rc.1 — Kandidat\n\n## v2.2.0 — Nytt\n\n## v2.1.0 — Äldre\n'; });
+    assert.equal(only(md, /rubriken '## v2\.3\.0-rc\.1' är en förrelease/).length, 1);
+    // 2.2.0 är fortfarande översta riktiga rubriken — rc-rubriken räknas inte som 2.3.0
+    assert.equal(only(md, /översta rubriken/).length, 0);
+  });
+
+  it('rubriker inuti kodstaket i CHANGELOG.md är inte releaser', () => {
+    const markdown = '# Changelog\n\n```md\n## v9.9.9 — exempel\n```\n\n## v2.2.0 — Nytt\n\n~~~\n## v0.0.1\n~~~\n\n## v2.1.0 — Äldre\n';
+    assert.deepEqual(errorsFor((input) => { input.changelogMd = markdown; }), []);
+    // och ett olåst staket stjäl inte resten av filen tyst: rubriken före staketet räknas
+    const top = errorsFor((input) => { input.changelogMd = '```\n## v2.2.0\n```\n## v2.1.0\n'; });
+    assert.equal(only(top, /översta rubriken är v2\.1\.0/).length, 1);
   });
 
   it('fäller ogiltig semver i package.json och i changelog.json', () => {
@@ -141,6 +163,23 @@ describe('checkVersions', () => {
   it('en changelog.json utan { releases } ger ett tydligt fel i stället för ett kast', () => {
     const errors = errorsFor((input) => { input.changelog = []; });
     assert.equal(only(errors, /toppnivån ska vara \{ features, workingOn, releases \}/).length, 1);
+  });
+});
+
+describe('isEntryPoint', () => {
+  const self = fileURLToPath(import.meta.url);
+  const script = join(dirname(self), 'check-versions.mjs');
+
+  it('känner igen skriptet som entry oavsett hur sökvägen skrivs (relativ, andra snedstreck, annat skiftläge på Windows)', () => {
+    const url = pathToFileURL(script).href;
+    assert.equal(isEntryPoint(script, url), true);
+    assert.equal(isEntryPoint(join(dirname(script), '..', 'scripts', 'check-versions.mjs'), url), true);
+    if (process.platform === 'win32') assert.equal(isEntryPoint(script.toUpperCase(), url), true);
+  });
+
+  it('är falskt när något annat körs (testet importerar skriptet) eller inget argument finns', () => {
+    assert.equal(isEntryPoint(self, pathToFileURL(script).href), false);
+    assert.equal(isEntryPoint(undefined, pathToFileURL(script).href), false);
   });
 });
 

@@ -27,7 +27,7 @@
     },
     {
       "title": "Profile",
-      "body": "Your stats, a heatmap of your running and Frodo’s Journey with three zoom levels",
+      "body": "Your stats, a heatmap of your running and Frodo's Journey with three zoom levels",
       "icon": "user"
     },
     {
@@ -87,7 +87,7 @@
       "changes": [
         {
           "type": "improvement",
-          "description": "Playbook, Settings, Admin and the sign-in page now have the new RunQuest look."
+          "description": "Playbook, Settings and the sign-in page now have the new RunQuest look."
         },
         {
           "type": "feature",
@@ -95,7 +95,7 @@
         },
         {
           "type": "improvement",
-          "description": "Feature & Version and this What’s new window have a fresh layout."
+          "description": "Feature & Version and this What's new window have a fresh layout."
         }
       ]
     },
@@ -168,7 +168,7 @@
         },
         {
           "type": "feature",
-          "description": "Profile has a heatmap of your running and Frodo’s Journey with three zoom levels."
+          "description": "Profile has a heatmap of your running and Frodo's Journey with three zoom levels."
         },
         {
           "type": "feature",

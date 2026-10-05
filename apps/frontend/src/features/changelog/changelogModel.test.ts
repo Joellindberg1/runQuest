@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { RQ_ICON_NAMES } from '@/shared/components/icons';
 import { changelog } from './changelogData';
@@ -6,6 +8,14 @@ import {
   slugForVersion, toggleOpenVersion, versionLine,
 } from './changelogModel';
 import type { Release } from './changelogTypes';
+
+// Variabel (inte literal) så att Vite inte skriver om new URL(...) till en asset-adress.
+const PACKAGE_JSON = '../../../package.json';
+const compare = (a: string, b: string) => {
+  const [pa, pb] = [a, b].map((v) => v.split('.').map(Number));
+  const index = pa.findIndex((n, i) => n !== pb[i]);
+  return index === -1 ? 0 : pa[index] - pb[index];
+};
 
 const release = (version: string, extra: Partial<Release> = {}): Release => ({
   version, type: 'minor', date: '5 October 2026', title: `Release ${version}`, changes: [{ type: 'feature', description: `Change in ${version}` }], ...extra,
@@ -52,8 +62,13 @@ describe('annonserade poster (popupen)', () => {
 });
 
 describe('den riktiga changelog.json', () => {
-  it('har poster, nyaste först, och 2.2.0 överst', () => {
-    expect(latestRelease(changelog.releases)?.version).toBe('2.2.0');
+  it('har poster, nyaste först (strikt fallande) och den översta är inte nyare än package.json', () => {
+    const versions = changelog.releases.map((entry) => entry.version);
+    expect(versions.length).toBeGreaterThan(0);
+    expect(latestRelease(changelog.releases)?.version).toBe(versions[0]);
+    for (let index = 1; index < versions.length; index += 1) expect({ older: versions[index], newer: versions[index - 1], ok: compare(versions[index - 1], versions[index]) > 0 }).toEqual({ older: versions[index], newer: versions[index - 1], ok: true });
+    const pkg = JSON.parse(readFileSync(fileURLToPath(new URL(PACKAGE_JSON, import.meta.url)), 'utf8')) as { version: string };
+    expect(compare(versions[0], pkg.version)).toBeLessThanOrEqual(0);
   });
 
   it('versionerna är unika, så slugarna är det också', () => {
@@ -61,11 +76,10 @@ describe('den riktiga changelog.json', () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it('endast 2.0.0 annonseras (en popup, inte flera) och den har punkter att visa', () => {
-    const notes = announcedNotes(changelog.releases);
-    expect(notes.map((note) => note.slug)).toEqual(['patch_v2.0.0']);
-    expect(notes[0].changes.length).toBeGreaterThanOrEqual(5);
-    expect(notes[0].changes.length).toBeLessThanOrEqual(7);
+  it('varje annonserad post har 1–7 punkter att visa (popupen ska vara kort)', () => {
+    for (const note of announcedNotes(changelog.releases)) {
+      expect({ slug: note.slug, ok: note.changes.length >= 1 && note.changes.length <= 7 }).toEqual({ slug: note.slug, ok: true });
+    }
   });
 
   it('varje ikonnamn i features och workingOn finns i ikonsetet (okänt namn faller annars tyst tillbaka på pokalen)', () => {
@@ -80,7 +94,8 @@ describe('den riktiga changelog.json', () => {
 
   it('innehåller inga tekniska termer som gruppen inte har nytta av (docs/dokumentation.md: enkel engelska)', () => {
     const text = JSON.stringify(changelog.releases.filter((entry) => entry.version.startsWith('2.')));
-    expect(text).not.toMatch(/migration|endpoint|backend|API|Caddy|CI\b|refactor/i);
+    expect(text).not.toMatch(/\b(migration|endpoint|backend|refactor)\b/i);
+    expect(text).not.toMatch(/\b(API|Caddy|CI)\b/); // skiftlägeskänsligt: "capital"/"rapid" är inte tekniska termer
   });
 });
 

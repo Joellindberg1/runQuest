@@ -11,12 +11,15 @@
 //  + formen: typ följer versionsnumret, datum "5 October 2026", ändringstyper, features/workingOn
 //
 // Inga beroenden (körs före `npm ci`). Logiken är en ren funktion (checkVersions) — CLI:t längst ned är ett tunt skal.
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readFileSync, realpathSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-const HEADING = /^##[ \t]+v(\d+\.\d+\.\d+)(?![\w.])/gm;
+// Hela versionstoken efter 'v' inklusive ett eventuellt förreleasesuffix, så att '## v2.3.0-rc.1' aldrig läses som 2.3.0.
+const HEADING = /^##[ \t]+v(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]*)?)(?![0-9A-Za-z.+-])/gm;
+const PRERELEASE = /^\d+\.\d+\.\d+[-+][0-9A-Za-z.+-]*$/;
+const FENCE = /^ {0,3}(```|~~~)/;
 const MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December';
 const DATE = new RegExp(`^\\d{1,2} (${MONTHS}) \\d{4}$`);
 const CHANGE_TYPES = ['feature', 'improvement', 'bugfix'];
@@ -45,8 +48,33 @@ export const releaseTypeOf = (version) => {
 const isText = (value) => typeof value === 'string' && value.trim() !== '';
 const label = (release, index) => (isText(release?.version) ? `changelog.json ${release.version}` : `changelog.json releases[${index}]`);
 
+/** Förklaring till en version som inte är ren X.Y.Z — förreleaser får ett eget, tydligt besked. */
+const notSemver = (version) =>
+  typeof version === 'string' && PRERELEASE.test(version)
+    ? `version ${JSON.stringify(version)} är en förrelease — förreleaser stöds inte, använd ren X.Y.Z (t.ex. ${version.split(/[-+]/)[0]}).`
+    : `version ${JSON.stringify(version)} är inte giltig semver (X.Y.Z).`;
+
+/** Markdown utan kodstaket (``` / ~~~): rubriker i exempelkod är inte releaser. */
+const withoutCodeFences = (markdown) => {
+  let fence = null;
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => {
+      const marker = FENCE.exec(line)?.[1];
+      if (fence === null && marker) fence = marker;
+      else if (fence !== null && marker === fence) fence = null;
+      else if (fence === null) return line;
+      return '';
+    })
+    .join('\n');
+};
+
 function checkChangelogMd(markdown, packageVersion, errors) {
-  const headings = [...markdown.matchAll(HEADING)].map((match) => match[1]);
+  const found = [...withoutCodeFences(markdown).matchAll(HEADING)].map((match) => match[1]);
+  for (const version of found.filter((candidate) => !parseSemver(candidate))) {
+    errors.push(`CHANGELOG.md: rubriken '## v${version}' är en förrelease — förreleaser stöds inte, använd ren X.Y.Z.`);
+  }
+  const headings = found.filter((candidate) => parseSemver(candidate));
   if (headings.length === 0) {
     errors.push("CHANGELOG.md: hittar ingen rubrik av formen '## vX.Y.Z'.");
     return headings;
@@ -120,7 +148,7 @@ export function checkVersions({ rootVersion, frontendVersion, changelogMd, chang
 
   // 1. package.json (båda) och CHANGELOG.md
   for (const [file, version] of [['package.json', rootVersion], ['apps/frontend/package.json', frontendVersion]]) {
-    if (!parseSemver(version)) errors.push(`${file}: version ${JSON.stringify(version)} är inte giltig semver (X.Y.Z).`);
+    if (!parseSemver(version)) errors.push(`${file}: ${notSemver(version)}`);
   }
   if (parseSemver(rootVersion) && parseSemver(frontendVersion) && rootVersion !== frontendVersion) {
     errors.push(`Versionerna skiljer sig: package.json har ${rootVersion}, apps/frontend/package.json har ${frontendVersion}. De ska vara samma.`);
@@ -140,7 +168,7 @@ export function checkVersions({ rootVersion, frontendVersion, changelogMd, chang
 
   const versions = releases.map((release) => release?.version);
   versions.forEach((version, index) => {
-    if (!parseSemver(version)) errors.push(`changelog.json releases[${index}]: version ${JSON.stringify(version)} är inte giltig semver (X.Y.Z).`);
+    if (!parseSemver(version)) errors.push(`changelog.json releases[${index}]: ${notSemver(version)}`);
   });
   const valid = versions.filter((version) => parseSemver(version));
   const seen = new Set();
@@ -185,4 +213,19 @@ function runCli() {
   console.log(`Versionerna stämmer: v${input.rootVersion}, ${input.changelog.releases.length} poster i changelog.json (popup: ${announced.join(', ') || 'ingen'}).`);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) runCli();
+/**
+ * Är den här filen den som kördes (`node scripts/check-versions.mjs`) och inte en import från testet? Jämförs som verkliga sökvägar
+ * (realpath löser symlänkar, junctions och Windows-skiftläge) — en miss här skulle få skriptet att avsluta med 0 utan att ha kontrollerat något.
+ */
+export function isEntryPoint(argv1 = process.argv[1], moduleUrl = import.meta.url) {
+  if (!argv1) return false;
+  const real = (path) => realpathSync.native(path);
+  try {
+    return real(resolve(argv1)) === real(fileURLToPath(moduleUrl));
+  } catch {
+    // Går något inte att läsa, anta att vi är entry: hellre en kontroll för mycket än en tyst grön.
+    return true;
+  }
+}
+
+if (isEntryPoint()) runCli();
