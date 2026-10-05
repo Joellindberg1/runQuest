@@ -149,6 +149,8 @@ describe('PUT /api/auth/streak-multipliers', () => {
     ['dag som inte är heltal', [{ days: 2.5, multiplier: 1.1 }]],
     ['multiplikator under 1', [{ days: 5, multiplier: 0.9 }]],
     ['multiplikator som inte är tal', [{ days: 5, multiplier: 'mycket' }]],
+    ['multiplikator över 9.99 (numeric(3,2))', [{ days: 5, multiplier: 10 }]],
+    ['multiplikator med tre decimaler', [{ days: 5, multiplier: 1.125 }]],
   ])('avvisar %s med 400 utan att röra tabellen', async (_label, body) => {
     const data = tables();
     const db = useDb(data);

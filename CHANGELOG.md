@@ -8,7 +8,9 @@
   fel id-typ (issue #13).
 - Streak-trappan kan inte längre bli tom om en sparning avbryts: nya steg
   sparas först, gamla tas bort sist. Ogiltiga trappor (tomma, dubbla dagar,
-  multiplikator under 1) avvisas innan något ändras.
+  multiplikator utanför 1–9.99 eller med fler än två decimaler) avvisas innan
+  något ändras. Admin-sidans Save är låst tills inställningarna och trappan
+  faktiskt lästs in — annars kunde standardvärden skriva över den riktiga trappan.
 
 ### Ändrat
 - Olästa nyheter har en guldprick vid tiden, i flödet och i klock-popovern.

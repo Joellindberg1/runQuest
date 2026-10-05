@@ -397,7 +397,9 @@ function validateMultipliers(input: unknown): string | null {
     const days = (step as { days?: unknown })?.days;
     const multiplier = (step as { multiplier?: unknown })?.multiplier;
     if (typeof days !== 'number' || !Number.isInteger(days) || days < 1) return 'days must be a whole number of at least 1';
-    if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier < 1) return 'multiplier must be a number of at least 1';
+    // Kolumnen är numeric(3,2): över 9.99 ger överflöd, fler decimaler avrundas tyst.
+    if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier < 1 || multiplier > 9.99) return 'multiplier must be a number between 1 and 9.99';
+    if (Math.round(multiplier * 100) / 100 !== multiplier) return 'multiplier can have at most two decimals';
     if (seen.has(days)) return `days ${days} appears more than once`;
     seen.add(days);
   }

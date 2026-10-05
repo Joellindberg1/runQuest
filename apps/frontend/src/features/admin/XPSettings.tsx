@@ -14,6 +14,8 @@ interface XPSettingsProps {
   newMultiplierValue: string;
   setNewMultiplierValue: (v: string) => void;
   onSave: () => void;
+  /** Falskt tills inställningarna och trappan lästs in — annars skulle Save skriva över prod med standardvärden. */
+  canSave: boolean;
   onAddMultiplier: () => void;
 }
 
@@ -25,6 +27,7 @@ export const XPSettings: React.FC<XPSettingsProps> = ({
   newMultiplierValue,
   setNewMultiplierValue,
   onSave,
+  canSave,
   onAddMultiplier,
 }) => {
   return (
@@ -166,7 +169,7 @@ export const XPSettings: React.FC<XPSettingsProps> = ({
       </div>
 
       <div className="mt-6 text-center">
-        <Button onClick={onSave} size="lg">
+        <Button onClick={onSave} size="lg" disabled={!canSave}>
           <Save className="w-4 h-4 mr-2" />
           Save All Settings
         </Button>

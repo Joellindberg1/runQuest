@@ -142,6 +142,7 @@ describe('popovern', () => {
     await waitFor(() => expect(status).toHaveFocus());
     expect(within(popover).queryByRole('button', { name: 'Mark all read' })).toBeNull();
     expect(within(popover).getAllByRole('listitem').some((row) => row.hasAttribute('data-unread'))).toBe(false);
+    expect(popover.querySelectorAll('.rq-news-unread')).toHaveLength(0);
   });
 
   it('Mark all read som misslyckas: räknaren är kvar och felet står i en alert-region', async () => {

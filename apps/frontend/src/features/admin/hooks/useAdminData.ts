@@ -41,6 +41,9 @@ const DEFAULT_SETTINGS: AdminSettings = {
 
 export function useAdminData() {
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
+  // Save skickar hela trappan och servern tar bort steg som saknas — sparas DEFAULT_SETTINGS
+  // (inläsningen misslyckades) skulle prod-trappan skrivas över. Därför låst tills båda läsningarna lyckats.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '' });
@@ -79,6 +82,10 @@ export function useAdminData() {
             multipliersObject[mult.days] = mult.multiplier;
           });
           setSettings(prev => ({ ...prev, multipliers: multipliersObject }));
+          setSettingsLoaded(true);
+        } else {
+          log.error('Failed to fetch streak multipliers', multipliersResult.error);
+          toast.error('Failed to fetch streak multipliers — saving is disabled until the page is reloaded');
         }
       } else {
         log.error('Failed to fetch admin settings', result.error);
@@ -109,6 +116,10 @@ export function useAdminData() {
   };
 
   const handleSaveSettings = async () => {
+    if (!settingsLoaded) {
+      toast.error('Settings have not loaded from the server — reload the page before saving');
+      return;
+    }
     try {
       const basicSettingsResult = await backendApi.updateAdminSettings({
         base_xp: settings.xpPerRun,
@@ -210,6 +221,7 @@ export function useAdminData() {
   return {
     settings,
     setSettings,
+    settingsLoaded,
     users,
     loadingUsers,
     fetchUsers,

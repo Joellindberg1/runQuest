@@ -159,7 +159,10 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
                 if (op === 'is') return val === 'null' ? cv == null : String(cv) === val;
                 return false;
               });
-            default: return true;
+            default:
+              // En okänd not-operator får aldrig tyst matcha alla rader (en delete skulle då tömma tabellen).
+              if (f.op.startsWith('not.')) throw new Error(`fakeDb: ${f.op} stöds inte`);
+              return true;
           }
         });
       }

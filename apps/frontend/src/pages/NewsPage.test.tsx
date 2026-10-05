@@ -165,6 +165,7 @@ describe('Pack News — Mark all read', () => {
     await screen.findByText('All caught up');
     expect(news.server.seenCalls).toEqual([20]);
     expect(document.querySelectorAll('.rq-news-row[data-unread]')).toHaveLength(0);
+    expect(document.querySelectorAll('.rq-news-unread')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
     const status = screen.getAllByRole('status').find((el) => el.textContent?.includes('marked as read')) as HTMLElement;
     expect(status).toHaveTextContent('7 marked as read');
