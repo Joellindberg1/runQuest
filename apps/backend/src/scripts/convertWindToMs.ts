@@ -99,7 +99,8 @@ export async function runConversion(
       const { error } = await supabase
         .from('run_weather')
         .update({ wind_speed_ms: row.wind_speed_ms, wind_gusts_ms: row.wind_gusts_ms, fetched_at: now().toISOString() })
-        .eq('run_id', row.run_id);
+        .eq('run_id', row.run_id)
+        .lt('fetched_at', new Date(options.before).toISOString()); // skriven i m/s sedan läsningen → lämnas
       if (error) throw new Error(`Update failed for run ${row.run_id}: ${error.message} (backup: ${options.backup})`);
     }
   }

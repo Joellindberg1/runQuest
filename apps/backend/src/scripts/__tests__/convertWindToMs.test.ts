@@ -93,6 +93,16 @@ describe('runConversion', () => {
     expect(t.run_weather.find((r) => r.run_id === 'a')).toMatchObject({ wind_gusts_ms: 10 });
   });
 
+  it('en rad som skrivits om i m/s mellan läsning och uppdatering lämnas orörd', async () => {
+    const t = weather();
+    const writeBackup = vi.fn(() => {
+      Object.assign(t.run_weather[0], { wind_speed_ms: 5.5, wind_gusts_ms: 11, fetched_at: '2026-10-06T11:00:00.000Z' });
+    });
+    await runConversion(createFakeDb(t).client as any, opts({ apply: true, backup: 'b.json' }), writeBackup, () => new Date(LATER));
+    expect(t.run_weather[0]).toMatchObject({ wind_speed_ms: 5.5, wind_gusts_ms: 11, fetched_at: '2026-10-06T11:00:00.000Z' });
+    expect(t.run_weather[1]).toMatchObject({ wind_gusts_ms: 15 });
+  });
+
   it('läser i sidor om 1000 och klarar en exakt sidmultipel', async () => {
     const rows: Row[] = Array.from({ length: 1000 }, (_, i) => ({
       run_id: `r${String(i).padStart(4, '0')}`, wind_speed_ms: '3.6', wind_gusts_ms: '7.2', fetched_at: '2026-09-01T08:00:00.000Z',
