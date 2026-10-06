@@ -28,7 +28,8 @@ Skuld: 240 inline-styles + 7 typsnitt i nuvarande kod ersätts per inkrement (re
    Hittar du inget token som passar: stanna och fråga, hitta inte på.
    Ägarbeslut 2026-10-04: `--rq-text-4` höjd till .50 för WCAG AA (4.5:1).
    `--rq-text-5` är endast för disabled och ren dekor (spökrank) — aldrig för
-   läsbar text.
+   läsbar text. Ägarexperiment 2026-10-06 (v0.5.3): eyebrows läser
+   `--rq-text-eyebrow` (= `--rq-text-4`, .50); backas genom att peka den på `--rq-text-5`.
 
 2. **Skarpa hörn.** `border-radius: 0` överallt. Cirklar finns bara för
    avatarer, nivåringar, prickar — plus toggle-spår, räknebadge och den runda

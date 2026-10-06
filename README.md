@@ -2,7 +2,7 @@
 
 A running app where you and your friends compete, track progress and import runs from Strava — with an XP system, leaderboards and streak tracking.
 
-**Live:** [runquest.dev](https://www.runquest.dev) · **Version:** 0.5.2
+**Live:** [runquest.dev](https://www.runquest.dev) · **Version:** 0.5.3
 
 ---
 

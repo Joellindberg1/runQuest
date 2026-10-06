@@ -2,10 +2,10 @@
 Uppdaterad: 2026-10-06 av lead-orchestrator (enda skribent — beslut 21)
 
 ## Läge
-Produkt          ← live på runquest.dev, 6 aktiva användare. Användarversion v0.5.1 i prod (redesignen = v0.5.0, taggad först felaktigt v2.0.0 — omtaggad 2026-10-05, se docs/dokumentation.md). v0.5.2 (inkrement 11: Playbook, Settings, Admin, inloggningen, Feature & Version, versionsvakt) på väg ut 2026-10-06 via `redesign/i11-restsidor`.
+Produkt          ← live på runquest.dev, 6 aktiva användare. v0.5.2 i prod 2026-10-06 (PR #20, tagg v0.5.2) — redesignens alla 11 inkrement ute. v0.5.3 (Storm Chaser i m/s, issue #19; eyebrows .50-experiment) via `fix/v0.5.3-storm-eyebrows`. Redesignen = v0.5.0 (taggad först felaktigt v2.0.0, omtaggad 2026-10-05).
                    Kända gap mot Produkt-nivån: Sentry saknas, ingen staging-DB
                    (öppet vägval, se ADR-förslagen i docs/STATE-proposal.md).
-Pågående: release av v0.5.2. Redesignens 11 inkrement är därmed klara (plan: docs/design/redesign-plan.md).
+Pågående: v0.5.3. Öppet: run_weather-vinden lagras i km/h under m/s-namn (prod-data → ägarbeslut); XP-paket + admin-inställbar minimidistans (Todo.md prio 3).
                    Inkrement 0–8 mergade och integrationskritiker-godkända (i8 efter fixrunda i8b)
                    (tema/tokens, skal+login, Board, Runner card, Titles, Duels,
                    Events) + alla ADR 007-dataendpoints. i5b: cachefix
@@ -28,7 +28,7 @@ Pågående: release av v0.5.2. Redesignens 11 inkrement är därmed klara (plan:
 - Databas: Supabase Postgres, projekt `yrrqaxdngayakcivfrck` (25 tabeller efter migration 034 2026-10-05, RLS på; migration 030 2026-10-04 tog bort anonyma skrivpolicyer). Storage-bucket `profile-pictures`. Enda DB-miljön är prod — ingen staging/preview.
 - Hosting: Railway, två tjänster — runQuest-frontend (runquest.dev + www.runquest.dev, båda custom domains med Let's Encrypt-cert; DNS hos Vercel, apex via ALIAS), runQuest-backend (api.runquest.dev). Frontend serveras av Caddy via Railpack med repo-rotens `Caddyfile` (no-cache på index.html, immutable på /assets, 404 för saknade assets — verifieras i CI av scripts/verify-static-serving.sh); backend påverkas inte av Caddyfilen (eget startkommando). Deploy vid push till `main`, OBEROENDE av CI (CI är merge-grinden via branch protection, inte deploy-grinden). `NODE_ENV=production` satt på backend-tjänsten (verifierat i Railway).
 - Externa API:er: Strava (OAuth2), Open-Meteo (väder, ingen nyckel).
-- Test/CI: Vitest ^4 (backend 467, packages/shared 156, frontend 1546 på redesign/i11-restsidor). CI: blockerande = backend tsc+build+test, shared-tester, frontend versionsvakt (scripts/check-versions.mjs) + build + Caddy-kontroll + tsc -b + eslint --max-warnings 0 + test (skulden betald 2026-10-04). Branch protection på main kräver grön CI (admin-undantag finns). Node 20 i CI.
+- Test/CI: Vitest ^4 (backend 473, packages/shared 156, frontend 1546). CI: blockerande = backend tsc+build+test, shared-tester, frontend versionsvakt (scripts/check-versions.mjs) + build + Caddy-kontroll + tsc -b + eslint --max-warnings 0 + test (skulden betald 2026-10-04). Branch protection på main kräver grön CI (admin-undantag finns). Node 20 i CI.
 - Miljövariabler: backend `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `CORS_ORIGIN`, `NODE_ENV`, `PORT`; frontend `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`. Nycklarna roterade 2026-10-03/04 (gamla verifierat döda, 401); hemligheter aldrig i kod — se docs/permissions.md.
 - Arkitekturdiagram: `docs/architecture/runquest-architecture.json` (SSOT) + renderad `.html` (ej archify-validerad ännu).
 

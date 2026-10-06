@@ -80,6 +80,22 @@
   ],
   "releases": [
     {
+      "version": "0.5.3",
+      "type": "patch",
+      "date": "6 October 2026",
+      "title": "Storm Chaser needs a real storm",
+      "changes": [
+        {
+          "type": "bugfix",
+          "description": "Storm Chaser now only comes up for properly rough weather: at least three hours of rain, snow or thunder, or four hours of gusts of 15 m/s (about 54 km/h). Before, a light breeze was enough."
+        },
+        {
+          "type": "improvement",
+          "description": "The small capital labels above headings are easier to read."
+        }
+      ]
+    },
+    {
       "version": "0.5.2",
       "type": "patch",
       "date": "6 October 2026",

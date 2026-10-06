@@ -34,7 +34,7 @@
 
 /* ── Dag-grupper och rader ────────────────────────────────────────────────── */
 .rq-news-day { display: flex; flex-direction: column; gap: var(--rq-sp-8); }
-.rq-news-day__label { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-weight: 400; letter-spacing: var(--rq-ls-eyebrow); text-transform: uppercase; color: var(--rq-text-5); }
+.rq-news-day__label { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-weight: 400; letter-spacing: var(--rq-ls-eyebrow); text-transform: uppercase; color: var(--rq-text-eyebrow); }
 .rq-news-days { display: flex; flex-direction: column; gap: var(--rq-sp-14); }
 .rq-news-list { margin: 0; padding: 0; list-style: none; }
 
