@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.5.3 — Storm Chaser kräver riktig blåst, tydligare eyebrows (2026-10-06)
+
+### Ändrat
+- **Storm Chaser (issue #19):** prognosanropet i `eventService.checkStormChaserForecast`
+  skickar `wind_speed_unit=ms`. Tidigare kom byarna i km/h och jämfördes mot 15, så
+  tröskeln var 15 km/h (≈ 4 m/s, en vanlig bris). Nu krävs minst 4 dagtimmar med byar
+  ≥ 15 m/s (≈ 54 km/h), som koden alltid menat. Regelvägen (≥ 3 timmar nederbörd) är
+  oförändrad. Nytt backendtest `stormChaserForecast.test.ts`; Playbook-texten och
+  `playbookFacts` följer med (ägarbeslut 2026-10-06).
+- **Eyebrows** (`.rq-eyebrow` och News dagrubrik) läser nya `--rq-text-eyebrow`
+  (= `--rq-text-4`, .50) i stället för `--rq-text-5` (.28). Ägarexperiment — backas
+  genom att peka token på `--rq-text-5`.
+
+- **Rundornas väderdata i m/s** (ägarbeslut 2026-10-06): `WeatherService` hämtade
+  vinden utan enhet, så `run_weather.wind_speed_ms`/`wind_gusts_ms` innehöll km/h.
+  Forecast- och archive-anropen skickar nu `wind_speed_unit=ms`, och varje skrivning
+  sätter `fetched_at`. De 318 befintliga raderna räknas om en gång efter deploy med
+  `npm run convert:wind-ms -- --before=<deploytid> --apply --backup=<fil>`
+  (`scripts/convertWindToMs.ts`: torrkörning som standard, säkerhetskopia före skrivning,
+  omräknade rader flyttas över gränsen så att ingen rad delas två gånger).
+
 ## v0.5.2 — Restsidorna i ny design, Feature & Version och versionsmekanik (2026-10-06)
 
 ### Nytt

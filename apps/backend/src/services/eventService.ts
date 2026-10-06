@@ -607,7 +607,7 @@ function isStormyCode(code: number): boolean {
 /**
  * Kollar imorgondagens timprognos för Stockholm via Open-Meteo (gratis, ingen API-nyckel).
  * Returnerar true om minst 3 timmar av dagen förväntas ha dåligt väder (regn/åska)
- * ELLER om det finns timgustar >= 12 m/s under 3+ timmar.
+ * ELLER om minst 4 dagtimmar har byar >= 15 m/s (ca 54 km/h).
  */
 export async function checkStormChaserForecast(): Promise<boolean> {
   try {
@@ -615,6 +615,7 @@ export async function checkStormChaserForecast(): Promise<boolean> {
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${STOCKHOLM_LAT}&longitude=${STOCKHOLM_LNG}` +
       `&hourly=weather_code,wind_gusts_10m` +
+      `&wind_speed_unit=ms` +
       `&forecast_days=2` +
       `&timezone=Europe%2FStockholm`;
 

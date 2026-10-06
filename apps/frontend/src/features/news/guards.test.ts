@@ -92,8 +92,9 @@ describe('Pack News-filerna följer designspråket', () => {
       const rule = code.match(new RegExp(`${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
       expect({ selector, color: rule.match(/color:\s*([^;]+)/)?.[1].trim() }).toEqual({ selector, color: 'var(--rq-text-4)' });
     }
-    // Hela filen: text-5 får bara finnas på dagrubriken (.rq-eyebrow-nivån, tema-bred ägarfråga).
-    expect([...code.matchAll(/([^{}]+)\{[^}]*--rq-text-5[^}]*\}/g)].map((m) => m[1].trim())).toEqual(['.rq-news-day__label']);
+    // Hela filen: ingen text-5. Dagrubriken är en eyebrow och följer --rq-text-eyebrow (ägarexperiment 2026-10-06).
+    expect([...code.matchAll(/([^{}]+)\{[^}]*--rq-text-5[^}]*\}/g)].map((m) => m[1].trim())).toEqual([]);
+    expect(code.match(/\.rq-news-day__label\s*\{([^}]*)\}/)?.[1]).toMatch(/color:\s*var\(--rq-text-eyebrow\)/);
   });
 
   it('chip-radens scrollcontainer är positionerad: sr-only-spans (position:absolute) annars läcker ut och ger sidled scroll på mobil', () => {

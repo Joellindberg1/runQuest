@@ -19,10 +19,10 @@ export const EVENT_FACTS = {
   halfMarathon: { name: 'Half Marathon Chaser', minKm: 10, xp: 25 },
   hangover: { name: 'Hangover Run', minKm: 3, xp: 30 },
   /**
-   * Väderregeln i eventService.checkStormChaserForecast: imorgondagens dagtimmar (06–21). Byvärdena kommer från Open-Meteo UTAN
-   * `wind_speed_unit`, alltså i km/h — tröskeln är 15 km/h (koden och dess kommentarer säger m/s, men det är inte vad som körs).
+   * Väderregeln i eventService.checkStormChaserForecast: imorgondagens dagtimmar (06–21). Byarna hämtas med
+   * `wind_speed_unit=ms`, så tröskeln är i m/s (issue #19; före v0.5.3 jämfördes km/h).
    */
-  storm: { name: 'Storm Chaser', minKm: 5, xp: 40, stormHours: 3, gustHours: 4, gustKmh: 15, dayFrom: 6, dayTo: 21 },
+  storm: { name: 'Storm Chaser', minKm: 5, xp: 40, stormHours: 3, gustHours: 4, gustMs: 15, dayFrom: 6, dayTo: 21 },
 } as const;
 
 /** Veckotävlingarna (Weekly km och Weekly elevation, 7 dagar) — pris för plats 1–3 (migration 017). */

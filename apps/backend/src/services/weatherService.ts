@@ -141,6 +141,7 @@ export class WeatherService {
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${lat}&longitude=${lng}` +
       `&hourly=${OPEN_METEO_HOURLY_FIELDS}` +
+      `&wind_speed_unit=ms` +
       `&past_hours=${pastHours}` +
       `&forecast_hours=1` +
       `&timezone=Europe%2FStockholm`
@@ -154,6 +155,7 @@ export class WeatherService {
       `?latitude=${lat}&longitude=${lng}` +
       `&start_date=${date}&end_date=${date}` +
       `&hourly=${OPEN_METEO_HOURLY_FIELDS}` +
+      `&wind_speed_unit=ms` +
       `&timezone=Europe%2FStockholm`
     );
   }
@@ -192,7 +194,8 @@ export class WeatherService {
     const supabase = getSupabaseClient();
     const { error } = await supabase
       .from('run_weather')
-      .upsert({ run_id: runId, ...weather }, { onConflict: 'run_id' });
+      // fetched_at = senaste skrivningen: rader före v0.5.3 har vind i km/h, och omräkningen (scripts/convertWindToMs.ts) skiljer dem åt på den.
+      .upsert({ run_id: runId, ...weather, fetched_at: new Date().toISOString() }, { onConflict: 'run_id' });
 
     if (error) {
       throw new Error(`Failed to save weather: ${error.message}`);

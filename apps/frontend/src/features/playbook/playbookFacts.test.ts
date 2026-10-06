@@ -154,14 +154,15 @@ describe('Events — mot migrationerna, eventService och schemat', () => {
     expect(m024).toMatch(/Friday, Saturday or Sunday/);
   });
 
-  it('Storm Chaser: ≥ 3 stormtimmar dagtid (06–21) ELLER ≥ 4 timmar med byar ≥ 15 — i km/h, för Open-Meteo-anropet saknar wind_speed_unit (eventService)', () => {
-    const { stormHours, gustHours, gustKmh, dayFrom, dayTo } = EVENT_FACTS.storm;
-    // Enheten avgör texten: utan wind_speed_unit levererar Open-Meteo km/h. Läggs parametern till blir tröskeln en annan — då ska det här testet falla.
+  it('Storm Chaser: ≥ 3 stormtimmar dagtid (06–21) ELLER ≥ 4 timmar med byar ≥ 15 m/s — anropet ber Open-Meteo om m/s (eventService)', () => {
+    const { stormHours, gustHours, gustMs, dayFrom, dayTo } = EVENT_FACTS.storm;
+    // Enheten avgör texten: utan wind_speed_unit=ms levererar Open-Meteo km/h, och då stämmer inte "m/s" i Playbook.
     const fetchUrl = /const url =([\s\S]*?);\s*\n\s*const res = await fetch\(url/.exec(service)?.[1] ?? '';
     expect(fetchUrl).toContain('wind_gusts_10m');
-    expect(fetchUrl).not.toMatch(/wind_speed_unit/);
+    expect(fetchUrl).toContain('&wind_speed_unit=ms');
     expect(service).toContain(`if (hour < ${dayFrom} || hour > ${dayTo}) continue;`);
-    expect(service).toContain(`(gusts[i] ?? 0) >= ${gustKmh}`);
+    expect(service).toContain(`(gusts[i] ?? 0) >= ${gustMs}`);
+    expect(text('events')).toContain(`gusts of ${gustMs} m/s (about 54 km/h)`);
     expect(service).toContain(`const qualifies = stormyHours >= ${stormHours} || gustyHours >= ${gustHours};`);
   });
 
@@ -193,8 +194,7 @@ describe('Events — mot migrationerna, eventService och schemat', () => {
     expect(events).toContain('05:00–09:00');
     expect(events).toContain('18:00–22:00');
     expect(events).toContain('Half Marathon Chaser');
-    expect(events).toMatch(/at least 3 hours of drizzle, rain, snow, showers or thunder, or at least 4 hours of gusts of 15 km\/h or more/);
-    expect(events).not.toMatch(/m\/s/);
+    expect(events).toMatch(/at least 3 hours of drizzle, rain, snow, showers or thunder, or at least 4 hours of gusts of 15 m\/s \(about 54 km\/h\) or more/);
     expect(events).toContain('06:00–21:00');
     expect(events).toMatch(/log or sync a run while the event is open/);
     expect(events).toContain('the run’s date can’t be after the event ends');

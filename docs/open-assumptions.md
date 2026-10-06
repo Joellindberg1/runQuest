@@ -145,9 +145,9 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   | Weekly km, Weekly elevation | 7 dagar, topp 3: 40/30/20 XP | – | – | weekly_competition |
 
   Namnen är engelska i prod (migration 025/029 seedar dem; 017/022 skrevs med "Morgonrunda"/"Kvällsrunda"/"Weekly höjdmeter" och testet slår upp siffrorna där med de gamla namnen).
-- **Storm Chaser-tröskeln är 15 km/h, inte 15 m/s.** `eventService.checkStormChaserForecast` hämtar Open-Meteo utan `wind_speed_unit` → byvärdena är km/h, och `>= 15`
-  jämförs rakt av (kodens kommentarer säger m/s). Playbook säger "gusts of 15 km/h or more" (så beter sig spelet); tröskeln var sannolikt menad som m/s — Lead har lagt issue.
-  Fakta-testet kräver att anropet saknar `wind_speed_unit`, så det faller om enheten ändras. Regeln i sin helhet: ≥ 3 stormiga timmar (väderkod duggregn/regn/snö/skurar/åska) ELLER ≥ 4 timmar med byar ≥ 15 km/h, dagtimmar 06–21 imorgon.
+- **Storm Chaser-tröskeln är 15 m/s (löst i v0.5.3, issue #19).** Före v0.5.3 hämtade `eventService.checkStormChaserForecast` Open-Meteo utan `wind_speed_unit`, så `>= 15`
+  jämfördes i km/h (≈ 4 m/s). Nu skickas `&wind_speed_unit=ms` (ägarbeslut 15 m/s 2026-10-06); Playbook säger "gusts of 15 m/s (about 54 km/h)", och `stormChaserForecast.test.ts` + fakta-testet kräver parametern.
+  Regeln i sin helhet: ≥ 3 stormiga timmar (väderkod duggregn/regn/snö/skurar/åska) ELLER ≥ 4 timmar med byar ≥ 15 m/s, dagtimmar 06–21 imorgon. `run_weather` hämtas också i m/s från v0.5.3; äldre rader räknas om av `scripts/convertWindToMs.ts` (gräns = deploytiden, via `fetched_at`).
 - **Kvalificering:** ett deltagarevent kräver att eventet är öppet när rundan loggas/synkas och att rundans datum inte ligger efter eventets slut (inte rundans starttid); bara REDIGERING (PUT, `enforceRunDateWindow`) kräver datum inom eventets dagar — Playbook säger "log or sync a run while the event is open (the run’s date can’t be after the event ends)".
 - **Strava:** synken räknar från en vecka före senast Strava-importerade rundan; en aktivitet med distans 0 sparas inte ("any distance above zero"). Intervallet är `SYNC_INTERVAL_MINUTES` (30) i stravaSync.ts.
 - **Utmaningstokens:** enligt seeden (006) delas token ut vid nivå 3, 5, 8, 10, 12, 14, 15 och sedan vid varje nivå från 16 (major var 5:e, legendary vid 15/30/45) — inga tokens vid 2, 4, 6, 7, 9, 11, 13. Playbook säger "many level-ups at first and, from level 16, at every level-up".
