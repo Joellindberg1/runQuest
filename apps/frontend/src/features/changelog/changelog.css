@@ -1,6 +1,6 @@
 /* Feature & Version (inkrement 11): rubrik med version · flikar (Features / Working on / Releases) · korten. ENDAST tokens (regel 1).
    Måtten (--rq-changelog-*) definieras i temafilen, sektion 1.33 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
-   Ligger utanför @layer, så reglerna här slår de delade .rq-*-primitiverna (som ligger i @layer components).
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen.
    Mobil = Web Prototypens skärm i en kolumn (prototypen saknar mobilvy): releaseraden och ändringsraderna bryter om via grid-areas-tokens,
    korten staplas. Desktopens enda strukturskillnad (rubrik och flikar på en rad) ligger i @media; resten är tokens som temafilen vänder vid 1024 px. */
 
@@ -25,13 +25,13 @@
 .rq-changelog-releases { display: flex; flex-direction: column; gap: var(--rq-sp-10); }
 
 /* ── Features: grön kant = det lever (kortmönstret, tillstånd) ────────────── */
-.rq-changelog-feature { --rq-edge: rgb(var(--rq-up-rgb) / var(--rq-edge-selected)); padding: var(--rq-sp-14) var(--rq-sp-16); min-width: 0; }
+.rq-card.rq-changelog-feature { --rq-edge: rgb(var(--rq-up-rgb) / var(--rq-edge-selected)); padding: var(--rq-sp-14) var(--rq-sp-16); min-width: 0; }
 .rq-changelog-feature__head { display: flex; align-items: center; gap: var(--rq-sp-10); margin: 0 0 var(--rq-sp-4); font-size: inherit; font-weight: 400; }
 .rq-changelog-feature__icon { display: inline-flex; color: var(--rq-up); }
 .rq-changelog-feature__body { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 
 /* ── Working on: guld-kant (temafilens --rq-card-edge-soft-ägare) ─────────── */
-.rq-changelog-soon { --rq-edge: var(--rq-gold); --rq-edge-line: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); padding: var(--rq-sp-16) var(--rq-sp-18); min-width: 0; }
+.rq-card.rq-changelog-soon { --rq-edge: var(--rq-gold); --rq-edge-line: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); padding: var(--rq-sp-16) var(--rq-sp-18); min-width: 0; }
 .rq-changelog-soon__head { display: flex; align-items: center; gap: var(--rq-sp-10); margin: 0 0 var(--rq-sp-6); font-size: inherit; font-weight: 400; }
 .rq-changelog-soon__icon { display: inline-flex; color: var(--rq-gold-text); }
 .rq-changelog-soon__title { text-transform: uppercase; }
@@ -39,7 +39,7 @@
 .rq-changelog-soon__detail { background: var(--rq-cell); padding: var(--rq-sp-8) var(--rq-sp-12); font-size: var(--rq-fs-body); color: var(--rq-text-3); }
 
 /* ── Releases: kantens styrka följer typen ────────────────────────────────── */
-.rq-changelog-release { --rq-edge: var(--rq-line-5); padding: 0; min-width: 0; }
+.rq-card.rq-changelog-release { --rq-edge: var(--rq-line-5); padding: 0; min-width: 0; }
 .rq-changelog-release[data-release="major"] { --rq-edge: var(--rq-card-edge-hero); }
 .rq-changelog-release[data-release="patch"] { --rq-edge: var(--rq-line-4); }
 

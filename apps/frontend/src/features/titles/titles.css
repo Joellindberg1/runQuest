@@ -1,7 +1,7 @@
 /* Titles-skärmen (inkrement 4): räknarrad · filter · kategorigrupper · titelkort · On display · Closest chase.
    ENDAST tokens (regel 1). Måtten (--rq-titles-*) definieras i temafilen, sektion 1.22 (index.css +
    docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
-   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 /* ── Sida, rubrik, filter ─────────────────────────────────────────────────── */
 .rq-titles { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }

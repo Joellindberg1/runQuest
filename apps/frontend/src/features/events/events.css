@@ -60,7 +60,8 @@
 /* Tävlingens tabell: hårlinjegrid, jag markerad med guldtint (som Duels standings) */
 .rq-events-board { margin: 0; padding: 0; list-style: none; }
 .rq-events-board__row.rq-row { display: grid; grid-template-columns: var(--rq-events-board-cols); align-items: center; gap: var(--rq-sp-8); }
-.rq-events-board__row[data-mine="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); }
+/* Min rad: guldton, utom vid hover — då gäller .rq-row:hover */
+.rq-row.rq-events-board__row[data-mine="true"]:not(:hover) { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); }
 .rq-events-board__rank { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-rank-rest); }
 .rq-events-board__row[data-rank="1"] .rq-events-board__rank { color: var(--rq-rank-1); }
 .rq-events-board__row[data-rank="2"] .rq-events-board__rank { color: var(--rq-rank-2); }

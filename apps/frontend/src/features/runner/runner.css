@@ -1,7 +1,7 @@
 /* Runner card (inkrement 3): hjältekort · Frodo's journey · statflikar · titlar · head-to-head.
    ENDAST tokens (regel 1). Måtten (--rq-runner-*) definieras i temafilen, sektion 1.21 (index.css +
    docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
-   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 /* ── Ram: sida (mobil/direktladdning) eller overlay (desktop-modalen) ─────── */
 .rq-runner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -29,7 +29,7 @@
 .rq-runner-hero { padding: var(--rq-pad-card); }
 .rq-runner-hero__id { display: flex; align-items: center; gap: var(--rq-runner-hero-gap); margin-bottom: var(--rq-sp-12); }
 .rq-runner-ring { width: var(--rq-runner-ring); height: var(--rq-runner-ring); flex-shrink: 0; }
-.rq-runner-ring > .rq-ring-hole { inset: var(--rq-runner-ring-inset); }
+.rq-ring.rq-runner-ring > .rq-ring-hole { inset: var(--rq-runner-ring-inset); }
 .rq-runner-ring__level { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: .9; color: var(--rq-gold-text); }
 .rq-runner-ring__caption { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-runner-hero__who { min-width: 0; }
@@ -52,7 +52,7 @@
 
 /* ── Frodo's journey ──────────────────────────────────────────────────────── */
 .rq-runner-journey .rq-runner-head { margin-bottom: var(--rq-sp-10); }
-.rq-runner-track { position: relative; height: var(--rq-runner-bar-h); margin-bottom: var(--rq-sp-8); }
+.rq-track.rq-runner-track { position: relative; height: var(--rq-runner-bar-h); margin-bottom: var(--rq-sp-8); }
 .rq-runner-knob {
   position: absolute; top: 50%; left: var(--w); width: var(--rq-runner-knob); height: var(--rq-runner-knob);
   transform: translate(-50%, -50%); border-radius: var(--rq-radius-round); background: var(--rq-gold);
@@ -84,7 +84,7 @@
 .rq-runner-road__end[data-end="finish"] { right: 0; }
 
 /* ── Statflikar och rader ─────────────────────────────────────────────────── */
-.rq-runner-statcard { padding: 0; }
+.rq-card.rq-runner-statcard { padding: 0; }
 .rq-runner-tabs { display: flex; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
 .rq-runner-tabs > .rq-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; background: none; }
 .rq-runner-tabs > .rq-tab[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / .05); }

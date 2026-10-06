@@ -6,7 +6,7 @@
 .rq-modal.rq-whatsnew { width: min(var(--rq-whatsnew-w), 95vw); }
 
 .rq-whatsnew__head { padding: var(--rq-sp-20) var(--rq-sp-48) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
-.rq-whatsnew__eyebrow { margin: 0 0 var(--rq-sp-6); color: var(--rq-text-4); }
+.rq-eyebrow.rq-whatsnew__eyebrow { margin: 0 0 var(--rq-sp-6); color: var(--rq-text-4); }
 .rq-whatsnew__title { margin: 0; font-weight: 400; text-transform: uppercase; }
 
 .rq-whatsnew__body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-14) var(--rq-sp-20); }
