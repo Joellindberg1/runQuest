@@ -108,7 +108,8 @@ describe('Feature & Version — Releases', () => {
     renderWithApp(<FeaturesPage />, { entry: '/features?view=releases' });
     const bugfixRelease = changelog.releases.find((release) => release.changes.some((change) => change.type === 'bugfix'));
     expect(bugfixRelease).toBeDefined();
-    fireEvent.click(releaseButton(bugfixRelease!));
+    // Den senaste releasen är öppen från start; ett klick på den skulle stänga den.
+    if (releaseButton(bugfixRelease!).getAttribute('aria-expanded') !== 'true') fireEvent.click(releaseButton(bugfixRelease!));
     const list = screen.getByRole('list', { name: `Changes in version ${bugfixRelease!.version}` });
     expect(within(list).getByText('Bugfix')).toBeInTheDocument();
   });
