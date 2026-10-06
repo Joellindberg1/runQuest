@@ -5,7 +5,7 @@ Uppdaterad: 2026-10-06 av lead-orchestrator (enda skribent — beslut 21)
 Produkt          ← live på runquest.dev, 6 aktiva användare. v0.5.2 i prod 2026-10-06 (PR #20, tagg v0.5.2) — redesignens alla 11 inkrement ute. v0.5.3 (Storm Chaser i m/s, issue #19; eyebrows .50-experiment) via `fix/v0.5.3-storm-eyebrows`. Redesignen = v0.5.0 (taggad först felaktigt v2.0.0, omtaggad 2026-10-05).
                    Kända gap mot Produkt-nivån: Sentry saknas, ingen staging-DB
                    (öppet vägval, se ADR-förslagen i docs/STATE-proposal.md).
-Pågående: v0.5.3. Öppet: run_weather-vinden lagras i km/h under m/s-namn (prod-data → ägarbeslut); XP-paket + admin-inställbar minimidistans (Todo.md prio 3).
+Pågående: v0.5.3. Efter deploy: convert:wind-ms --apply (318 rader, ägar-ja 2026-10-06). XP-paket + admin-inställbar minimidistans (Todo.md prio 3).
                    Inkrement 0–8 mergade och integrationskritiker-godkända (i8 efter fixrunda i8b)
                    (tema/tokens, skal+login, Board, Runner card, Titles, Duels,
                    Events) + alla ADR 007-dataendpoints. i5b: cachefix

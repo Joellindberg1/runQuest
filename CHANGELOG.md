@@ -13,10 +13,13 @@
   (= `--rq-text-4`, .50) i stället för `--rq-text-5` (.28). Ägarexperiment — backas
   genom att peka token på `--rq-text-5`.
 
-### Kvar
-- `weatherService` sparar vind i `run_weather.wind_speed_ms`/`wind_gusts_ms` i km/h
-  (inget i appen läser dem). Rättning kräver omräkning av befintliga rader i prod →
-  ägarbeslut.
+- **Rundornas väderdata i m/s** (ägarbeslut 2026-10-06): `WeatherService` hämtade
+  vinden utan enhet, så `run_weather.wind_speed_ms`/`wind_gusts_ms` innehöll km/h.
+  Forecast- och archive-anropen skickar nu `wind_speed_unit=ms`, och varje skrivning
+  sätter `fetched_at`. De 318 befintliga raderna räknas om en gång efter deploy med
+  `npm run convert:wind-ms -- --before=<deploytid> --apply --backup=<fil>`
+  (`scripts/convertWindToMs.ts`: torrkörning som standard, säkerhetskopia före skrivning,
+  omräknade rader flyttas över gränsen så att ingen rad delas två gånger).
 
 ## v0.5.2 — Restsidorna i ny design, Feature & Version och versionsmekanik (2026-10-06)
 
