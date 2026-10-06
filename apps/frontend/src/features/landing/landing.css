@@ -1,7 +1,7 @@
 /* Landing (inkrement 10): publik sida — hjälte med arena-banan, aggregat, previewkort, How it works. ENDAST tokens (regel 1).
    Måtten (--rq-landing-*) definieras i temafilen, sektion 1.27 (index.css + docs/design/temafil-forslag.css) — inga egna
    :root-definitioner här. Rörelse: bara det som lever loopar (arenans löpare, kortets guldring och sweep, blink-pricken);
-   staplarna växer en gång. Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+   staplarna växer en gång. Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 /* ── Sida ─────────────────────────────────────────────────────────────────── */
 .rq-landing { position: relative; min-height: 100dvh; overflow: hidden; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
@@ -23,7 +23,7 @@
   column-gap: var(--rq-sp-10); align-items: center; align-content: center;
 }
 .rq-landing-badge { grid-area: badge; justify-self: start; margin: 0 0 var(--rq-sp-16); }
-.rq-landing-title { grid-area: title; margin: 0 0 var(--rq-sp-14); font-weight: 400; letter-spacing: 0; }
+.rq-display-xl.rq-landing-title { grid-area: title; margin: 0 0 var(--rq-sp-14); font-weight: 400; letter-spacing: 0; }
 .rq-landing-accent { color: var(--rq-gold-text); }
 .rq-landing-lead { grid-area: lead; margin: 0 0 var(--rq-sp-20); }
 .rq-landing-cta { grid-area: cta; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
@@ -134,7 +134,7 @@
   .rq-landing-header { justify-content: flex-start; padding-block: var(--rq-sp-24) var(--rq-sp-32); }
   .rq-landing-main { gap: var(--rq-sp-40); }
   .rq-landing-hero { column-gap: var(--rq-sp-48); }
-  .rq-landing-title { margin-bottom: var(--rq-sp-20); }
+  .rq-display-xl.rq-landing-title { margin-bottom: var(--rq-sp-20); }
   .rq-landing-lead { margin-bottom: var(--rq-sp-32); max-width: 36em; }
   .rq-landing-cta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-14); }
   .rq-landing-cta .rq-btn { width: auto; }

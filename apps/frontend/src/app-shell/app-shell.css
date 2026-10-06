@@ -1,5 +1,5 @@
 /* App-skalets layout (ADR 006). ENDAST tokens ur index.css — inga råvärden (regel 1).
-   Ligger utanför @layer så att skalets klasser vinner över delade .rq-*-primitiver. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 /* ── Ram ─────────────────────────────────────────────────────────────────── */
 .rq-shell {
@@ -41,7 +41,7 @@
 }
 .rq-header__action:hover { color: var(--rq-gold-text); }
 .rq-header__badge { position: absolute; top: calc(var(--rq-sp-4) * -1); right: calc(var(--rq-sp-4) * -1); }
-.rq-header__avatar {
+.rq-avatar.rq-header__avatar {
   width: var(--rq-avatar-sm); height: var(--rq-avatar-sm); overflow: hidden; padding: 0;
   font-family: var(--rq-font-display); font-size: var(--rq-fs-label); cursor: pointer;
   color: var(--rq-text-3); border-color: var(--rq-line-6);
@@ -59,7 +59,7 @@
   padding: 0 var(--rq-pad-screen) var(--rq-sp-8);
   -webkit-overflow-scrolling: touch;
 }
-.rq-pill {
+.rq-chip.rq-pill {
   flex: 0 0 auto; scroll-snap-align: start; white-space: nowrap;
   gap: var(--rq-sp-6); padding: var(--rq-sp-4) var(--rq-sp-10);
   font-weight: 600; letter-spacing: var(--rq-ls-chip);
@@ -219,7 +219,7 @@
 /* Delar som kräver extra regler efter att komponenterna skrivits */
 .rq-pills { margin: 0; list-style: none; }
 .rq-pills > li { flex: 0 0 auto; scroll-snap-align: start; }
-.rq-pill { display: inline-flex; scroll-snap-align: none; }
+.rq-chip.rq-pill { display: inline-flex; scroll-snap-align: none; }
 .rq-rightnow__list > li { display: block; }
 .rq-rightnow__label, .rq-rightnow__note { display: block; }
 .rq-rightnow__icon { display: inline-flex; color: var(--rq-c-solid); }

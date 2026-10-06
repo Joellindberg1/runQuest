@@ -1,7 +1,7 @@
 /* Board-skärmen (inkrement 2): Season/All-time · Week · Streaks, mobil och desktop.
    ENDAST tokens (regel 1). Måtten (--rq-board-*) definieras i temafilen, sektion 1.20 (index.css +
    docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
-   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 /* ── Rankfärger: ett attribut (data-rank) sätter alla rankderivat ─────────── */
 .rq-board [data-rank="1"] { --rq-rank-solid: var(--rq-rank-1); --rq-rank-edge: var(--rq-rank-1-edge); --rq-rank-subtle: var(--rq-rank-1-subtle); --rq-ring-c: var(--rq-rank-1); --rq-board-plinth: var(--rq-board-plinth-1); }
@@ -58,7 +58,7 @@
 .rq-board-titleline { display: flex; align-items: flex-start; gap: var(--rq-sp-6); margin-top: var(--rq-sp-4); font-style: italic; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-gold-text); }
 .rq-board-titleline[data-empty="true"] { color: var(--rq-text-4); }
 .rq-board-xprow { display: flex; justify-content: space-between; margin-bottom: var(--rq-sp-4); }
-.rq-board-track { height: var(--rq-board-bar-h); margin-bottom: var(--rq-sp-10); }
+.rq-track.rq-board-track { height: var(--rq-board-bar-h); margin-bottom: var(--rq-sp-10); }
 .rq-board-podium .rq-track > .rq-fill { background: var(--rq-rank-solid); }
 .rq-board-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: var(--rq-gap-hair); }
 .rq-board-stats + .rq-board-stats { margin-bottom: var(--rq-sp-10); }
@@ -90,7 +90,7 @@
 .rq-board-nameline--desktop { gap: var(--rq-sp-8); }
 .rq-board-nameline--desktop .rq-board-delta { flex-shrink: 0; width: var(--rq-board-delta-w); text-align: right; }
 .rq-board-sub { display: flex; align-items: center; gap: var(--rq-sp-6); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
-.rq-board-track--thin { height: var(--rq-board-bar-h-thin); margin: var(--rq-sp-4) 0; }
+.rq-track.rq-board-track--thin { height: var(--rq-board-bar-h-thin); margin: var(--rq-sp-4) 0; }
 .rq-board-titleline--row { margin: 0 0 var(--rq-sp-6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--rq-gold-rgb) / .8); }
 .rq-board-num { font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); text-align: right; }
 .rq-board-num[data-tone="up"] { color: var(--rq-up); }
@@ -139,7 +139,7 @@
 .rq-board-streak__nums { display: flex; align-items: baseline; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-6); }
 .rq-board-streak__days { font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-acc); }
 .rq-board-streak__detail { margin-left: auto; font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
-.rq-board-streak__track { height: var(--rq-board-streak-bar-h); }
+.rq-track.rq-board-streak__track { height: var(--rq-board-streak-bar-h); }
 .rq-board-streak .rq-track > .rq-fill { background: var(--rq-acc); }
 .rq-board-streak__scale { display: flex; justify-content: space-between; margin-top: var(--rq-sp-4); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-board-streak__scale > [data-now] { color: var(--rq-acc); }

@@ -1,7 +1,7 @@
 /* Admin (inkrement 11): XP-inställningar · medlemmar · titlar · säkerhet. ENDAST tokens (regel 1). Måtten (--rq-admin-*) definieras
    i temafilen, sektion 1.31 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Fält,
    anteckningar och bekräftelse/fel kommer från det delade formulärkitet (shared/components/form).
-   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 /* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
 .rq-admin { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
@@ -23,14 +23,14 @@
 .rq-admin-rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
 .rq-admin-row { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); }
 .rq-admin-row__label { font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-3); }
-.rq-admin-row__input { flex: none; width: var(--rq-admin-value-w); padding: var(--rq-sp-8) var(--rq-sp-12); font-size: var(--rq-fs-stat-value); text-align: right; }
+.rq-field.rq-admin-row__input { flex: none; width: var(--rq-admin-value-w); padding: var(--rq-sp-8) var(--rq-sp-12); font-size: var(--rq-fs-stat-value); text-align: right; }
 .rq-admin-row__input[type="date"] { width: auto; }
-.rq-admin-row__input[readonly] { background: none; border-color: var(--rq-line-3); color: var(--rq-text-4); }
+.rq-field.rq-admin-row__input[readonly] { background: none; border-color: var(--rq-line-3); color: var(--rq-text-4); }
 .rq-admin-add-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--rq-sp-8); margin-top: var(--rq-sp-14); }
 .rq-admin-add-step > .rq-btn { align-self: stretch; height: auto; }
 .rq-admin-save { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-10) var(--rq-sp-16); }
 .rq-admin-save__hint { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
-.rq-admin-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
+.rq-card.rq-admin-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
 
 /* ── Kort för medlemmar, titlar och säkerhet ──────────────────────────────── */
 .rq-admin-card { --rq-form-gap: var(--rq-sp-14); display: flex; flex-direction: column; gap: var(--rq-form-gap); min-width: 0; }

@@ -1,8 +1,8 @@
 /* Playbook (inkrement 11): nio kapitel — desktop som flikar med kapitlet bredvid sin tabell, mobil som dragspel. ENDAST tokens
    (regel 1). Måtten (--rq-playbook-*) definieras i temafilen, sektion 1.32 (index.css + docs/design/temafil-forslag.css) —
    inga egna :root-definitioner här. Rubriken snappar till --rq-fs-display-xl, ingressen till --rq-fs-lead, styckena till
-   --rq-fs-body. Ingen egen rörelse (kapitlet glider in med den delade .rq-rise). Ligger utanför @layer så att klasserna vinner
-   över delade .rq-*-primitiver. */
+   --rq-fs-body. Ingen egen rörelse (kapitlet glider in med den delade .rq-rise).
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 /* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
 .rq-playbook { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
@@ -15,9 +15,9 @@
 .rq-playbook__tabs > [role="tab"] { display: inline-flex; align-items: center; gap: var(--rq-sp-8); padding: var(--rq-sp-6) var(--rq-sp-14); font-family: var(--rq-font-ui); white-space: nowrap; }
 .rq-playbook__tabs > [role="tab"]:not([aria-selected="true"]) { background: none; }
 .rq-playbook__panel { min-width: 0; }
-.rq-playbook-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
+.rq-card.rq-playbook-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
 .rq-playbook-note { margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
-.rq-playbook-note__retry { display: inline; font-size: var(--rq-fs-meta); }
+.rq-btn.rq-playbook-note__retry { display: inline; font-size: var(--rq-fs-meta); }
 
 /* ── Kapitlet: text | tabell ──────────────────────────────────────────────── */
 .rq-playbook-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--rq-playbook-split-gap); align-items: start; }

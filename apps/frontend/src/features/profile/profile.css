@@ -61,7 +61,7 @@
 .rq-profile-photo__text { flex: 1; min-width: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-profile-photo__button { position: relative; }
 .rq-profile-photo__button:focus-within { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-offset); }
-.rq-profile-photo__button[aria-disabled="true"] { cursor: not-allowed; color: var(--rq-text-5); }
+.rq-btn.rq-profile-photo__button[aria-disabled="true"] { cursor: not-allowed; color: var(--rq-text-5); }
 .rq-profile-photo .rq-profile-notice { margin-top: var(--rq-sp-8); }
 
 /* ── Frodo's journey ──────────────────────────────────────────────────────── */

@@ -2,7 +2,7 @@
    tokens/boost/rekord · send-sheet. ENDAST tokens (regel 1). Måtten (--rq-duels-*) definieras i temafilen, sektion 1.23
    (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Skölden återanvänder Boards
    --rq-board-ribbon-*-mått (samma sköld, samma storlek).
-   Ligger utanför @layer. OBS: feature-CSS hamnar FÖRE index.css i kaskaden (main.tsx importerar index.css efter App), så en
+   OBS: feature-CSS hamnar FÖRE index.css i kaskaden (main.tsx importerar index.css efter App), så en
    override av en delad .rq-*-primitiv på samma specificitet förlorar — använd en sammansatt selektor (.rq-card.rq-duels-…). */
 
 /* ── Nivåns färger: sätts av data-tier och läses av kantlinje, sköld, token och kort ──────────────────── */
@@ -111,7 +111,8 @@
 .rq-duels-standing { display: grid; grid-template-columns: var(--rq-duels-standing-cols); align-items: center; gap: var(--rq-sp-8); }
 .rq-duels-standing [data-align="center"] { text-align: center; }
 .rq-duels-standing [data-align="end"] { text-align: right; }
-.rq-duels-standing[data-mine="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); }
+/* Min rad: guldton, utom vid hover — då gäller .rq-row:hover (raden är klickbar) */
+.rq-row.rq-duels-standing[data-mine="true"]:not(:hover) { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); }
 .rq-duels-standing__rank { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-rank-rest); }
 .rq-duels-standing[data-rank="1"] .rq-duels-standing__rank { color: var(--rq-rank-1); }
 .rq-duels-standing[data-rank="2"] .rq-duels-standing__rank { color: var(--rq-rank-2); }
@@ -164,7 +165,7 @@
 .rq-duels-rule__body { margin: 0; flex: 1; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 .rq-duels-how { display: flex; flex-direction: column; gap: var(--rq-sp-10); }
 .rq-duels-how__list { margin: 0; padding: 0; list-style: none; }
-.rq-hairgrid > .rq-duels-how__item { padding: var(--rq-sp-10) var(--rq-pad-row-x); }
+.rq-hairgrid > .rq-cell.rq-duels-how__item { padding: var(--rq-sp-10) var(--rq-pad-row-x); }
 .rq-duels-how__name { margin: 0; font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-2); }
 .rq-duels-how__body { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 
@@ -199,7 +200,7 @@
 
 .rq-duels-record__title { margin: 0 0 var(--rq-sp-10); font-weight: 400; }
 .rq-duels-record__cells { margin: 0; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr); }
-.rq-hairgrid > .rq-duels-record__cell { display: flex; flex-direction: column-reverse; padding: var(--rq-sp-10) var(--rq-sp-8); }
+.rq-hairgrid > .rq-cell.rq-duels-record__cell { display: flex; flex-direction: column-reverse; padding: var(--rq-sp-10) var(--rq-sp-8); }
 .rq-duels-record__label { white-space: nowrap; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-record__value { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-3); }
 .rq-duels-record__value[data-tone="up"] { color: var(--rq-up); }

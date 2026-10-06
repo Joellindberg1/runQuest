@@ -1,7 +1,7 @@
 /* Settings (inkrement 11): Strava-kort · lösenord · senaste synk. ENDAST tokens (regel 1). Måtten (--rq-settings-*) definieras
    i temafilen, sektion 1.30 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Fält,
    anteckningar och bekräftelse/fel kommer från det delade formulärkitet (shared/components/form).
-   Ligger utanför @layer så att klasserna vinner över delade .rq-*-primitiver. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
 /* ── Sida ─────────────────────────────────────────────────────────────────── */
 .rq-settings { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
@@ -9,7 +9,7 @@
 .rq-settings__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-settings__split { display: grid; grid-template-columns: var(--rq-settings-split-cols); gap: var(--rq-gap-stack) var(--rq-sp-16); align-items: start; }
 .rq-settings__main, .rq-settings__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); min-width: 0; }
-.rq-settings-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
+.rq-card.rq-settings-pending { display: flex; justify-content: center; padding: var(--rq-sp-24) 0; }
 
 /* ── Kort: tillståndet som kantfärg (grön lever · röd utgången · neutral) ──── */
 .rq-settings-card { display: flex; flex-direction: column; gap: var(--rq-sp-14); min-width: 0; --rq-form-gap: var(--rq-sp-14); }
