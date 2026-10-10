@@ -5,8 +5,11 @@ import {
   MAX_TIER,
   TIER_NAMES,
   computeBadgeTiers,
+  computeSeriesTiers,
   evaluateSeries,
   requirementText,
+  uniformTiers,
+  type BadgeMetricRegistry,
   type BadgeRun,
   type BadgeSeriesDef,
   type BadgeSeriesKey,
@@ -60,22 +63,34 @@ describe('badge-registret (kontraktstest)', () => {
     ]);
   });
 
-  it('varje serie har exakt 6 ändliga trösklar, strikt stigande i svårighetsriktningen', () => {
+  it('varje serie har exakt 6 tier-regler med ändlig tröskel och registrerat mått per tier', () => {
     for (const s of BADGE_SERIES) {
-      expect(s.rule.thresholds).toHaveLength(MAX_TIER);
-      for (const t of s.rule.thresholds) expect(Number.isFinite(t)).toBe(true);
+      expect(s.tiers).toHaveLength(MAX_TIER);
+      for (const rule of s.tiers) {
+        expect(Number.isFinite(rule.threshold)).toBe(true);
+        expect(Object.keys(BADGE_METRICS)).toContain(rule.metric);
+      }
+    }
+  });
+
+  it('serier där alla tiers delar mått och riktning har strikt stigande (below: fallande) trösklar', () => {
+    for (const s of BADGE_SERIES) {
+      const shared = s.tiers.every(
+        (r) => r.metric === s.tiers[0].metric && r.direction === s.tiers[0].direction
+      );
+      if (!shared) continue;
       for (let i = 1; i < MAX_TIER; i++) {
-        const prev = s.rule.thresholds[i - 1];
-        const next = s.rule.thresholds[i];
-        if (s.rule.direction === 'below') expect(next).toBeLessThan(prev);
+        const prev = s.tiers[i - 1].threshold;
+        const next = s.tiers[i].threshold;
+        if (s.tiers[0].direction === 'below') expect(next).toBeLessThan(prev);
         else expect(next).toBeGreaterThan(prev);
       }
     }
   });
 
-  it('varje regel pekar på ett registrerat mått', () => {
+  it('de fyra serierna i RUN-115 delar mått över alla tiers (monotonikravet gäller dem)', () => {
     for (const s of BADGE_SERIES) {
-      expect(Object.keys(BADGE_METRICS)).toContain(s.rule.metric);
+      expect(new Set(s.tiers.map((r) => r.metric)).size).toBe(1);
     }
   });
 
@@ -289,23 +304,100 @@ describe('evaluateSeries — registret är utbyggbart med nya poster (RUN-116)',
       key: 'fake_speed',
       name: 'Fake Speed',
       icon: 'bolt',
-      rule: { metric: 'fake_fastest', direction: 'below', thresholds: [35, 30, 25, 22, 20, 18] },
+      tiers: uniformTiers('fake_fastest', [35, 30, 25, 22, 20, 18], 'below'),
       requirement: (t) => `Run faster than ${t}`,
     };
-    const metric = {
-      scale: 1,
-      measure: (runs: readonly BadgeRun[]) => {
-        const times = runs.filter((r) => r.moving_time != null);
-        if (times.length === 0) return null;
-        const best = times.reduce((a, b) => (b.moving_time! < a.moving_time! ? b : a));
-        return { value: best.moving_time!, source_run_id: best.id };
+    const metrics = {
+      fake_fastest: {
+        scale: 1,
+        measure: (runs: readonly BadgeRun[]) => {
+          const times = runs.filter((r) => r.moving_time != null);
+          if (times.length === 0) return null;
+          const best = times.reduce((a, b) => (b.moving_time! < a.moving_time! ? b : a));
+          return { value: best.moving_time!, source_run_id: best.id };
+        },
       },
     };
     const at = (minutes: number) => [run({ id: 'x', moving_time: minutes })];
-    expect(evaluateSeries(fastest, metric, [], NO_STREAK)).toEqual({ tier: 0 });
-    expect(evaluateSeries(fastest, metric, at(35), NO_STREAK)).toEqual({ tier: 0 }); // "under" = strikt
-    expect(evaluateSeries(fastest, metric, at(34), NO_STREAK)).toEqual({ tier: 1, source_run_id: 'x' });
-    expect(evaluateSeries(fastest, metric, at(17), NO_STREAK)).toEqual({ tier: 6, source_run_id: 'x' });
+    expect(evaluateSeries(fastest, metrics, [], NO_STREAK)).toEqual({ tier: 0 });
+    expect(evaluateSeries(fastest, metrics, at(35), NO_STREAK)).toEqual({ tier: 0 }); // "under" = strikt
+    expect(evaluateSeries(fastest, metrics, at(34), NO_STREAK)).toEqual({ tier: 1, source_run_id: 'x' });
+    expect(evaluateSeries(fastest, metrics, at(17), NO_STREAK)).toEqual({ tier: 6, source_run_id: 'x' });
+  });
+
+  describe('serie med olika mått per tier och icke-monotona trösklar (Early Bird-formen)', () => {
+    // Registreras som riktiga serier: ett måttregister + en serie-post, körda genom computeSeriesTiers.
+    const hour = (r: BadgeRun) => (r.start_time ? new Date(r.start_time).getUTCHours() : null);
+    const metrics: BadgeMetricRegistry = {
+      early_count: {
+        scale: 1,
+        measure: (runs) => ({ value: runs.filter((r) => (hour(r) ?? 99) < 7).length }),
+      },
+      very_early_count: {
+        scale: 1,
+        measure: (runs) => ({ value: runs.filter((r) => (hour(r) ?? 99) < 6).length }),
+      },
+      longest_run: {
+        scale: 100,
+        measure: (runs) => {
+          if (runs.length === 0) return null;
+          const best = runs.reduce((a, b) => (b.distance_km > a.distance_km ? b : a));
+          return { value: Math.round(best.distance_km * 100), source_run_id: best.id };
+        },
+      },
+    };
+    const fakeEarly: BadgeSeriesDef = {
+      key: 'fake_early',
+      name: 'Fake Early',
+      icon: 'sun',
+      // Trösklarna 5,15,50,100,25,10 är icke-monotona och tier 4/5/6 byter mått; tier 5 är ett enrundsmått.
+      tiers: [
+        { metric: 'early_count', threshold: 5 },
+        { metric: 'early_count', threshold: 15 },
+        { metric: 'early_count', threshold: 50 },
+        { metric: 'early_count', threshold: 100 },
+        { metric: 'longest_run', threshold: 21.1 },
+        { metric: 'very_early_count', threshold: 10 },
+      ],
+      requirement: (t, tier) => `tier ${tier} needs ${t}`,
+    };
+    const evaluate = (runs: BadgeRun[]) =>
+      computeSeriesTiers([fakeEarly], metrics, runs, NO_STREAK).fake_early;
+    const early = (n: number, startTime: string, over: Partial<BadgeRun> = {}) =>
+      Array.from({ length: n }, () => run({ start_time: startTime, ...over }));
+
+    it('inga rundor => tier 0', () => {
+      expect(evaluate([])).toEqual({ tier: 0 });
+    });
+
+    it('tier = högsta tier vars EGNA regel är uppfylld, inte nästlat: 10 rundor före 06:00 => tier 6 trots att tier 2–5 inte nåtts', () => {
+      expect(evaluate(early(10, '2026-10-01T05:00:00Z'))).toEqual({ tier: 6 });
+    });
+
+    it('10 rundor 06:00–06:59 uppfyller bara tier 1 (tier 6 mäter före 06:00)', () => {
+      expect(evaluate(early(10, '2026-10-01T06:30:00Z'))).toEqual({ tier: 1 });
+    });
+
+    it('15 rundor 06:30 => tier 2 (tröskelföljden 5 < 15 gäller bara inom samma mått)', () => {
+      expect(evaluate(early(15, '2026-10-01T06:30:00Z'))).toEqual({ tier: 2 });
+    });
+
+    it('source_run_id kommer från den högsta uppfyllda tierns mått när det är ett enrundsmått', () => {
+      const half = run({ id: 'half', distance_km: 21.1, start_time: '2026-10-01T12:00:00Z' });
+      expect(evaluate([half])).toEqual({ tier: 5, source_run_id: 'half' });
+    });
+
+    it('source_run_id utelämnas när den högsta tierns mått saknar run (tier 6 slår tier 5:s run)', () => {
+      const half = run({ id: 'half', distance_km: 21.1, start_time: '2026-10-01T05:00:00Z' });
+      const result = evaluate([half, ...early(9, '2026-10-02T05:00:00Z')]);
+      expect(result).toEqual({ tier: 6 });
+      expect('source_run_id' in result).toBe(false);
+    });
+
+    it('ett mått som saknas i registret kastar ett tydligt fel', () => {
+      const broken: BadgeSeriesDef = { ...fakeEarly, key: 'broken', tiers: uniformTiers('nope', [1, 2, 3, 4, 5, 6]) };
+      expect(() => computeSeriesTiers([broken], metrics, [], NO_STREAK)).toThrow(/unknown metric "nope"/);
+    });
   });
 });
 

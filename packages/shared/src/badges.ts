@@ -3,7 +3,8 @@
 // (kravtexter) delar den. Trösklarna är startvärden som justeras efter dry-run (RUN-125).
 //
 // Att lägga till en serie = en post i BADGE_SERIES (och en post i BADGE_METRICS om måttet är nytt).
-// Motorn (evaluateSeries/computeBadgeTiers) ändras inte.
+// Reglerna är PER TIER: olika tiers i samma serie kan ha olika mått och icke-monotona trösklar
+// (Early Bird, Night Owl, Precisionist i RUN-116). Motorn (evaluateSeries) ändras inte.
 
 /** Antal nivåer per serie. */
 export const MAX_TIER = 6;
@@ -109,29 +110,63 @@ export type BadgeMetricKey = keyof typeof BADGE_METRICS;
 
 // ─── Serier ─────────────────────────────────────────────────────────────────────────────────────
 
-export type BadgeThresholds = readonly [number, number, number, number, number, number];
+export type BadgeDirection = 'atLeast' | 'below';
 
-export interface BadgeRule {
-  /** Nyckel i BADGE_METRICS. */
-  metric: string;
+/** Regeln för EN tier. Olika tiers i samma serie får ha olika mått och icke-monotona trösklar. */
+export interface BadgeTierRule<M extends string = string> {
+  /** Nyckel i måttregistret (BADGE_METRICS för de riktiga serierna). */
+  metric: M;
+  /** Tröskel i naturlig enhet (km, m, dagar, st …); multipliceras med måttets scale. */
+  threshold: number;
   /** 'atLeast' (standard): mätvärde ≥ tröskel. 'below': mätvärde < tröskel (t.ex. bästa tid). */
-  direction?: 'atLeast' | 'below';
-  /** Tröskel för tier 1–6 i naturlig enhet; stigande för 'atLeast', fallande för 'below'. */
-  thresholds: BadgeThresholds;
+  direction?: BadgeDirection;
 }
 
-export interface BadgeSeriesDef<K extends string = string> {
+/** Exakt en regel per tier, tier 1 först. */
+export type BadgeTierRules<M extends string = string> = readonly [
+  BadgeTierRule<M>,
+  BadgeTierRule<M>,
+  BadgeTierRule<M>,
+  BadgeTierRule<M>,
+  BadgeTierRule<M>,
+  BadgeTierRule<M>,
+];
+
+export type BadgeThresholds = readonly [number, number, number, number, number, number];
+
+/** Alla sex tiers delar mått och riktning; bara trösklarna skiljer (de flesta serier). */
+export function uniformTiers<M extends string>(
+  metric: M,
+  thresholds: BadgeThresholds,
+  direction?: BadgeDirection
+): BadgeTierRules<M> {
+  const rule = (threshold: number): BadgeTierRule<M> =>
+    direction ? { metric, threshold, direction } : { metric, threshold };
+  return [
+    rule(thresholds[0]),
+    rule(thresholds[1]),
+    rule(thresholds[2]),
+    rule(thresholds[3]),
+    rule(thresholds[4]),
+    rule(thresholds[5]),
+  ];
+}
+
+export interface BadgeSeriesDef<K extends string = string, M extends string = string> {
   /** Lagras i user_badges.series — ändra aldrig i efterhand. */
   key: K;
   name: string;
   /** Nyckel till RQIcon (frontend); shared känner inte till ikonerna. */
   icon: string;
-  rule: BadgeRule;
-  /** Engelsk kravtext för en tröskel. */
-  requirement: (threshold: number) => string;
+  tiers: BadgeTierRules<M>;
+  /** Engelsk kravtext för en tier; får skilja sig åt mellan tiers med olika mått. */
+  requirement: (threshold: number, tier: number) => string;
 }
 
-function defineBadgeSeries<K extends string>(def: BadgeSeriesDef<K>): BadgeSeriesDef<K> {
+/** Registrerar en serie; `metric` typas mot BADGE_METRICS så att stavfel fångas av tsc. */
+function defineBadgeSeries<K extends string>(
+  def: BadgeSeriesDef<K, BadgeMetricKey>
+): BadgeSeriesDef<K, BadgeMetricKey> {
   return def;
 }
 
@@ -142,28 +177,28 @@ export const BADGE_SERIES = [
     key: 'milestoner',
     name: 'Milestoner',
     icon: 'flag',
-    rule: { metric: 'longest_run_km', thresholds: [5, 10, 21.1, 30, 42.2, 50] },
+    tiers: uniformTiers('longest_run_km', [5, 10, 21.1, 30, 42.2, 50]),
     requirement: (km) => `Run ${formatNumber(km)} km in a single run`,
   }),
   defineBadgeSeries({
     key: 'earth_trotter',
     name: 'Earth Trotter',
     icon: 'globe',
-    rule: { metric: 'total_distance_km', thresholds: [100, 500, 1000, 2000, 4015, 10000] },
+    tiers: uniformTiers('total_distance_km', [100, 500, 1000, 2000, 4015, 10000]),
     requirement: (km) => `Run ${formatNumber(km)} km in total`,
   }),
   defineBadgeSeries({
     key: 'climber',
     name: 'The Climber',
     icon: 'mountain',
-    rule: { metric: 'total_elevation_m', thresholds: [500, 1345, 4800, 5895, 8848, 17696] },
+    tiers: uniformTiers('total_elevation_m', [500, 1345, 4800, 5895, 8848, 17696]),
     requirement: (m) => `Climb ${formatNumber(m)} m in total`,
   }),
   defineBadgeSeries({
     key: 'streak_keeper',
     name: 'Streak Keeper',
     icon: 'flame',
-    rule: { metric: 'longest_streak_days', thresholds: [3, 7, 14, 30, 60, 100] },
+    tiers: uniformTiers('longest_streak_days', [3, 7, 14, 30, 60, 100]),
     requirement: (days) => `Reach a ${formatNumber(days)}-day streak`,
   }),
 ];
@@ -175,45 +210,63 @@ export type BadgeSeriesKey = (typeof BADGE_SERIES)[number]['key'];
 export interface BadgeTierResult {
   /** 0 = ej upplåst, annars 1..MAX_TIER. */
   tier: number;
-  /** Rundan som gav tiern; bara för enrundsserier och bara när tier > 0. */
+  /** Rundan som gav tiern; bara när den högsta uppfyllda tierns mått är ett enrundsmått. */
   source_run_id?: string;
 }
 
 export type BadgeTiers = Record<BadgeSeriesKey, BadgeTierResult>;
 
-/** Tier = högsta tier vars regel är uppfylld (reglerna behöver inte vara nästlade). */
+export type BadgeMetricRegistry = Readonly<Record<string, BadgeMetricDef>>;
+
+/**
+ * Tier = högsta tier vars EGEN regel är uppfylld (reglerna är inte nästlade, ADR 009 beslut 2).
+ * `metrics` är registret som reglernas `metric` slås upp i.
+ */
 export function evaluateSeries(
   series: BadgeSeriesDef,
-  metric: BadgeMetricDef,
+  metrics: BadgeMetricRegistry,
   runs: readonly BadgeRun[],
   stats: BadgeStats
 ): BadgeTierResult {
-  const measurement = metric.measure(runs, stats);
-  if (!measurement || !Number.isFinite(measurement.value)) return { tier: 0 };
-
-  const below = series.rule.direction === 'below';
+  const measured = new Map<string, BadgeMeasurement | null>();
   let tier = 0;
-  series.rule.thresholds.forEach((threshold, index) => {
-    const scaled = Math.round(threshold * metric.scale);
-    const reached = below ? measurement.value < scaled : measurement.value >= scaled;
-    if (reached) tier = index + 1;
+  let sourceRunId: string | undefined;
+
+  series.tiers.forEach((rule, index) => {
+    const metric = metrics[rule.metric];
+    if (!metric) {
+      throw new Error(`Badge series "${series.key}" tier ${index + 1} refers to unknown metric "${rule.metric}"`);
+    }
+    if (!measured.has(rule.metric)) measured.set(rule.metric, metric.measure(runs, stats));
+    const measurement = measured.get(rule.metric);
+    if (!measurement || !Number.isFinite(measurement.value)) return;
+
+    const scaled = Math.round(rule.threshold * metric.scale);
+    const reached = rule.direction === 'below' ? measurement.value < scaled : measurement.value >= scaled;
+    if (reached) {
+      tier = index + 1;
+      sourceRunId = measurement.source_run_id;
+    }
   });
 
   if (tier === 0) return { tier: 0 };
-  return measurement.source_run_id === undefined
-    ? { tier }
-    : { tier, source_run_id: measurement.source_run_id };
+  return sourceRunId === undefined ? { tier } : { tier, source_run_id: sourceRunId };
+}
+
+/** Motorn mot ett valfritt serie- och måttregister (computeBadgeTiers använder de riktiga). */
+export function computeSeriesTiers(
+  seriesList: readonly BadgeSeriesDef[],
+  metrics: BadgeMetricRegistry,
+  runs: readonly BadgeRun[],
+  stats: BadgeStats
+): Record<string, BadgeTierResult> {
+  const result: Record<string, BadgeTierResult> = {};
+  for (const series of seriesList) result[series.key] = evaluateSeries(series, metrics, runs, stats);
+  return result;
 }
 
 export function computeBadgeTiers(runs: readonly BadgeRun[], stats: BadgeStats): BadgeTiers {
-  const metrics: Record<string, BadgeMetricDef> = BADGE_METRICS;
-  const result: Record<string, BadgeTierResult> = {};
-  for (const series of BADGE_SERIES) {
-    const metric = metrics[series.rule.metric];
-    if (!metric) throw new Error(`Badge series "${series.key}" refers to unknown metric "${series.rule.metric}"`);
-    result[series.key] = evaluateSeries(series, metric, runs, stats);
-  }
-  return result as BadgeTiers;
+  return computeSeriesTiers(BADGE_SERIES, BADGE_METRICS, runs, stats) as BadgeTiers;
 }
 
 /** Engelsk kravtext för att nå `tier` (1..MAX_TIER) i serien. */
@@ -221,5 +274,5 @@ export function requirementText(series: BadgeSeriesDef, tier: number): string {
   if (!Number.isInteger(tier) || tier < 1 || tier > MAX_TIER) {
     throw new RangeError(`tier must be an integer 1..${MAX_TIER}, got ${tier}`);
   }
-  return series.requirement(series.rule.thresholds[tier - 1]);
+  return series.requirement(series.tiers[tier - 1].threshold, tier);
 }
