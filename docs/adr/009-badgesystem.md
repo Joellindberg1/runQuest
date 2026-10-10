@@ -218,3 +218,10 @@ Socialite kräver att gemensamma rundor upptäcks, vilket är en annan sorts fun
 ```
   009 · Föreslagen · Badgesystem: sex tiers (Common…Legendary), serier definierade i kod (packages/shared/badges.ts, 8 serier i v0.6.0, tier = högsta uppfyllda regel, tid på dygnet = väggklocka ur start_time, aldrig tidszonskonvertering); tabell user_badges (en rad per användare×serie, migration 035, RLS utan policyer) + users.displayed_badge_series (max 3); härledda och ÅTERKALLBARA — evaluateBadges anropas från calculateUserTotals (icke-kastande, ADR 008-mönstret); kosmetiska (ingen XP), popup via seen_tier, news via activity_log-typen badge_earned; /api/badges gruppavgränsat (404 utanför grupp); ingen global percentil (gruppräkning); Socialite + Weathered Soul skjutna; migration 035 kräver ägargodkännande
 ```
+
+## Addendum 2026-10-11 (Lead): migrationen delad i två
+
+Beslut 1:s migration delades vid förfiningen så att News-delen kan strykas separat (ADR beslut 8):
+- **035_create_user_badges** — `user_badges` + `users.displayed_badge_series` (+ CHECK max 3 i ett idempotent do-block i stället för ett nakent `add constraint`). Applicerad i prod 2026-10-11 efter ägarens ja (RUN-113/RUN-114).
+- **036** — utökningen av `activity_log_type_check` med `badge_earned` + `ACTIVITY_TYPES` i shared + generaliserat `activityLogMigration.test.ts` (RUN-122). Hänvisningarna till "migration 035" för `badge_earned` ovan (beslut 1 sista blocket, konsekvenser och testplanen) avser alltså 036.
+Inget beslut i sak ändras.
