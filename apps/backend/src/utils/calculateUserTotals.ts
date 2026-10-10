@@ -3,6 +3,7 @@ import { logger } from './logger.js';
 import { getLevelFromXP } from '../services/levelService.js';
 import { reconcileTokensForLevel } from '../services/challengeService.js';
 import { recordLevelUps, recordRunMilestones } from '../services/activityLog.js';
+import { evaluateBadges } from '../services/badgeService.js';
 
 export async function calculateUserTotals(userId: string) {
   try {
@@ -80,6 +81,14 @@ export async function calculateUserTotals(userId: string) {
       await recordLevelUps(userId, prevLevel, level, userGroupId);
       // users.total_km är numeric(8,2): jämförs avrundat så att "föregående" (lagrat) och "nytt" är på samma skala.
       await recordRunMilestones(userId, prevTotalKm, Math.round(totalDistance * 100) / 100, userGroupId);
+    }
+
+    // 🏅 Badges utvärderas ur samma rundor, även vid noll rundor (raderade rundor nedgraderar/raderar). Körs före titlarna
+    // och rör aldrig totalerna: evaluateBadges kastar inte, men try/catch här håller kedjan intakt även om det ändras (STATE zon 1).
+    try {
+      await evaluateBadges(userId, { longestStreak });
+    } catch (badgeError) {
+      logger.error('❌ Error evaluating badges:', badgeError);
     }
 
     // 🏆 Titlar räknas om för användarens EGEN grupp (rankingen är relativ inom gruppen), aldrig för andra grupper.
