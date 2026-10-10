@@ -163,12 +163,14 @@ describe('buildTitlesView', () => {
   });
 
   it('en titel per rad — ingen titel dubbleras eller försvinner över grupperna', () => {
-    // Alla 21 motornycklar i en tänkt databas: varje titel hamnar i exakt en grupp.
+    // Alla motornycklar i en tänkt databas: varje titel hamnar i exakt en grupp.
     const all = TITLE_ENGINE_METRIC_KEYS.map((key) => title(`id-${key}`, key, key));
     const view = buildTitlesView(all, [], ME, 'all');
     const ids = view.groups.flatMap((group) => group.rows.map((row) => row.id));
     expect(ids.sort()).toEqual(all.map((entry) => entry.id).sort());
-    expect(view.groups.find((group) => group.id === 'other')).toBeUndefined();
+    // winterKm ligger i Other tills RUN-101 flyttar den till Weather; inget annat får hamna där.
+    const other = view.groups.find((group) => group.id === 'other');
+    expect(other?.rows.map((row) => row.id)).toEqual(['id-winterKm']);
   });
 });
 

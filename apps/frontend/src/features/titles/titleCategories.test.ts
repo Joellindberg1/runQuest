@@ -6,15 +6,30 @@ import { MAPPED_METRIC_KEYS, TITLE_CATEGORIES, categoryOf, iconOf } from './titl
 import { TITLE_ENGINE_METRIC_KEYS } from './titleMetricKeys.fixture';
 
 describe('kategorimappningen metric_key → grupp', () => {
-  it('fixturen har de 21 motorerna', () => {
-    expect(TITLE_ENGINE_METRIC_KEYS).toHaveLength(21);
-    expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(21);
+  it('fixturen har de 22 motorerna', () => {
+    expect(TITLE_ENGINE_METRIC_KEYS).toHaveLength(22);
+    expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(22);
   });
 
-  it.each(TITLE_ENGINE_METRIC_KEYS)('%s är mappad till en riktig kategori (inte Other)', (key) => {
-    const category = categoryOf(key);
-    expect(category).not.toBe('other');
-    expect(TITLE_CATEGORIES.map((def) => def.id)).toContain(category);
+  // winterKm ligger tillfälligt i Other (RUN-100); RUN-101 flyttar den till Weather och tömmer den här listan.
+  const TEMPORARILY_IN_OTHER: readonly string[] = ['winterKm'];
+
+  it.each(TITLE_ENGINE_METRIC_KEYS.filter((key) => !TEMPORARILY_IN_OTHER.includes(key)))(
+    '%s är mappad till en riktig kategori (inte Other)',
+    (key) => {
+      const category = categoryOf(key);
+      expect(category).not.toBe('other');
+      expect(TITLE_CATEGORIES.map((def) => def.id)).toContain(category);
+    },
+  );
+
+  it('tillfälligt i Other: bara de uttryckligen listade, och de har en egen rad i mappningen', () => {
+    for (const key of TEMPORARILY_IN_OTHER) {
+      expect(categoryOf(key)).toBe('other');
+      expect(MAPPED_METRIC_KEYS).toContain(key);
+    }
+    const inOther = TITLE_ENGINE_METRIC_KEYS.filter((key) => categoryOf(key) === 'other');
+    expect([...inOther].sort()).toEqual([...TEMPORARILY_IN_OTHER].sort());
   });
 
   it('en okänd nyckel faller i Other — en ny titel försvinner inte ur vyn', () => {
