@@ -145,6 +145,8 @@ export function marathonEquivalents(km: number): number {
 export function countDoubleRunDays(runs: Pick<Run, 'date' | 'start_time'>[]): number {
   const startsByDay = new Map<string, number[]>();
   for (const run of runs) {
+    // Bara differensen mellan starttider samma dag används, och båda är väggklocka i samma (falska) UTC-bas, så
+    // ingen omräkning behövs. Enda avvikelsen är de två sommartidsdygnen per år (±1 h) — medvetet accepterat.
     const start = run.start_time ? new Date(run.start_time).getTime() : NaN;
     if (Number.isNaN(start)) continue;
     const day = dayOf(run);
