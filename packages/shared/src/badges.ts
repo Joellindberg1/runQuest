@@ -20,9 +20,9 @@ export interface BadgeRun {
   /** Kalenderdag YYYY-MM-DD. */
   date: string;
   distance_km: number;
-  /** Väggklocka som ISO-sträng; null för manuella rundor. Används inte av serierna i RUN-115. */
+  /** Väggklocka som ISO-sträng; null för manuella rundor. Läses av Early Bird och Night Owl (wallClockMinutes). */
   start_time: string | null;
-  /** Sekunder; null när okänt. Används inte av serierna i RUN-115. */
+  /** Sekunder; null när okänt. Läses av Speedster. */
   moving_time: number | null;
   /** Meter; null när okänt (bara Strava-rundor har höjd). */
   total_elevation_gain: number | null;
@@ -58,6 +58,51 @@ export interface BadgeMetricDef {
 function toHundredths(value: number | null): number {
   if (value == null || !Number.isFinite(value) || value <= 0) return 0;
   return Math.round(value * 100);
+}
+
+/**
+ * Minuter sedan midnatt i löparens lokala väggklocka, ur `start_time`.
+ * `start_time` är Strava `start_date_local` lagrad med falskt 'Z' (ADR 009 beslut 2): siffrorna ÄR
+ * väggklockan. Klockslaget läses direkt ur strängen — ingen Date, alltså ingen konvertering till
+ * någon tidszon (processens, DST, en angiven offset eller löparens). Null, rent datum utan klockslag
+ * eller ogiltigt klockslag (manuella rundor) => null = ingen räkning.
+ */
+export function wallClockMinutes(startTime: string | null): number | null {
+  if (!startTime) return null;
+  const match = /T(\d{2}):(\d{2})/.exec(startTime);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+/**
+ * Halvöppet fönster [start, slut) i minuter på dygnet. start > slut betyder att fönstret korsar
+ * midnatt (t.ex. 23:30–00:30), då är rundan med om den ligger efter start ELLER före slut.
+ */
+function inWindow(minute: number, start: number, end: number): boolean {
+  return start <= end ? minute >= start && minute < end : minute >= start || minute < end;
+}
+
+const hhmm = (h: number, m = 0): number => h * 60 + m;
+
+/** Antal rundor vars väggklocka ligger i [start, slut); rundor utan start_time räknas inte. */
+function countStartsInWindow(runs: readonly BadgeRun[], start: number, end: number): BadgeMeasurement {
+  let count = 0;
+  for (const run of runs) {
+    const minute = wallClockMinutes(run.start_time);
+    if (minute !== null && inWindow(minute, start, end)) count += 1;
+  }
+  return { value: count };
+}
+
+/** Hundradelar per hel km; "exakt hel km" avgörs med heltalsaritmetik, inte flyttal. */
+const HUNDREDTHS_PER_KM = 100;
+
+/** Antal rundor på exakt `hundredths` hundradelar (21,10 km = 2110). */
+function exactDistanceRuns(runs: readonly BadgeRun[], hundredths: number): BadgeRun[] {
+  return runs.filter((run) => toHundredths(run.distance_km) === hundredths);
 }
 
 export const BADGE_METRICS = {
@@ -103,6 +148,78 @@ export const BADGE_METRICS = {
       const days = Number.isFinite(stats.longest_streak) ? Math.floor(stats.longest_streak) : 0;
       return { value: Math.max(0, days) };
     },
+  },
+  /** Early Bird tier 1–4: rundor med start [04:00, 07:00). */
+  early_bird_runs: {
+    scale: 1,
+    measure: (runs) => countStartsInWindow(runs, hhmm(4), hhmm(7)),
+  },
+  /** Early Bird tier 5–6: rundor med start [04:00, 06:00). */
+  early_bird_deep_runs: {
+    scale: 1,
+    measure: (runs) => countStartsInWindow(runs, hhmm(4), hhmm(6)),
+  },
+  /** Night Owl tier 1–4: rundor med start [21:00, 04:00), över midnatt. */
+  night_owl_runs: {
+    scale: 1,
+    measure: (runs) => countStartsInWindow(runs, hhmm(21), hhmm(4)),
+  },
+  /** Night Owl tier 5: rundor med start [22:30, 04:00), över midnatt. */
+  night_owl_late_runs: {
+    scale: 1,
+    measure: (runs) => countStartsInWindow(runs, hhmm(22, 30), hhmm(4)),
+  },
+  /** Night Owl tier 6: rundor med start [23:30, 00:30), över midnatt. */
+  midnight_runs: {
+    scale: 1,
+    measure: (runs) => countStartsInWindow(runs, hhmm(23, 30), hhmm(0, 30)),
+  },
+  /**
+   * Speedster: bästa moving_time (råa sekunder) bland rundor 4,90 <= km < 10,00. Samma kvalificering
+   * som titeln fastest5km; en hel runda räknas, ingen splittid. moving_time <= 0/null/NaN ignoreras.
+   * Skalan 60 gör att tröskeln i minuter jämförs mot sekunder.
+   */
+  best_5k_time: {
+    scale: 60,
+    measure(runs) {
+      let best: BadgeRun | null = null;
+      for (const run of runs) {
+        const hundredths = toHundredths(run.distance_km);
+        if (hundredths < 490 || hundredths >= 1000) continue;
+        const seconds = run.moving_time;
+        if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) continue;
+        // Strikt snabbare: vid lika tid vinner den först angivna rundan.
+        if (best === null || seconds < (best.moving_time as number)) best = run;
+      }
+      return best ? { value: best.moving_time as number, source_run_id: best.id } : null;
+    },
+  },
+  /** Precisionist tier 1–4: rundor på exakt hel km, minst 1 km (distance % 100 === 0 i hundradelar). */
+  exact_km_runs: {
+    scale: 1,
+    measure(runs) {
+      let count = 0;
+      for (const run of runs) {
+        const hundredths = toHundredths(run.distance_km);
+        if (hundredths >= HUNDREDTHS_PER_KM && hundredths % HUNDREDTHS_PER_KM === 0) count += 1;
+      }
+      return { value: count };
+    },
+  },
+  /** Precisionist tier 5: rundor på exakt 21,10 km; tröskeln är 1, så första träffen ensam ger tiern. */
+  exact_half_marathon_runs: {
+    scale: 1,
+    measure(runs) {
+      const hits = exactDistanceRuns(runs, 2110);
+      return hits.length > 0 ? { value: hits.length, source_run_id: hits[0].id } : { value: 0 };
+    },
+  },
+  /** Precisionist tier 6: hur många av 10,00 / 21,10 / 42,20 km som träffats exakt (distinkta, max 3). */
+  exact_classic_distances: {
+    scale: 1,
+    measure: (runs) => ({
+      value: [1000, 2110, 4220].filter((hundredths) => exactDistanceRuns(runs, hundredths).length > 0).length,
+    }),
   },
 } satisfies Record<string, BadgeMetricDef>;
 
@@ -200,6 +317,65 @@ export const BADGE_SERIES = [
     icon: 'flame',
     tiers: uniformTiers('longest_streak_days', [3, 7, 14, 30, 60, 100]),
     requirement: (days) => `Reach a ${formatNumber(days)}-day streak`,
+  }),
+  defineBadgeSeries({
+    key: 'early_bird',
+    name: 'Early Bird',
+    icon: 'sun',
+    // Tier 5–6 byter till det smalare fönstret 04:00–06:00 med tröskel 50/100 (icke-monotont mot tier 4).
+    tiers: [
+      { metric: 'early_bird_runs', threshold: 5 },
+      { metric: 'early_bird_runs', threshold: 15 },
+      { metric: 'early_bird_runs', threshold: 50 },
+      { metric: 'early_bird_runs', threshold: 100 },
+      { metric: 'early_bird_deep_runs', threshold: 50 },
+      { metric: 'early_bird_deep_runs', threshold: 100 },
+    ],
+    // Slutminuten visas inklusive så att texten matchar det halvöppna fönstret [start, slut).
+    requirement: (count, tier) =>
+      `Start ${formatNumber(count)} runs between 04:00 and ${tier <= 4 ? '06:59' : '05:59'}`,
+  }),
+  defineBadgeSeries({
+    key: 'night_owl',
+    name: 'Night Owl',
+    icon: 'moon',
+    tiers: [
+      { metric: 'night_owl_runs', threshold: 5 },
+      { metric: 'night_owl_runs', threshold: 15 },
+      { metric: 'night_owl_runs', threshold: 50 },
+      { metric: 'night_owl_runs', threshold: 100 },
+      { metric: 'night_owl_late_runs', threshold: 25 },
+      { metric: 'midnight_runs', threshold: 10 },
+    ],
+    requirement: (count, tier) => {
+      const window = tier <= 4 ? '21:00 and 03:59' : tier === 5 ? '22:30 and 03:59' : '23:30 and 00:29';
+      return `Start ${formatNumber(count)} runs between ${window}`;
+    },
+  }),
+  defineBadgeSeries({
+    key: 'speedster',
+    name: 'Speedster',
+    icon: 'zap',
+    tiers: uniformTiers('best_5k_time', [35, 30, 25, 22, 20, 18], 'below'),
+    requirement: (minutes) => `A 5 km run in under ${minutes}:00`,
+  }),
+  defineBadgeSeries({
+    key: 'precisionist',
+    name: 'Precisionist',
+    icon: 'target',
+    tiers: [
+      { metric: 'exact_km_runs', threshold: 3 },
+      { metric: 'exact_km_runs', threshold: 10 },
+      { metric: 'exact_km_runs', threshold: 25 },
+      { metric: 'exact_km_runs', threshold: 50 },
+      { metric: 'exact_half_marathon_runs', threshold: 1 },
+      { metric: 'exact_classic_distances', threshold: 3 },
+    ],
+    requirement: (count, tier) => {
+      if (tier === 5) return 'Run exactly 21.10 km in a single run';
+      if (tier === 6) return 'Run exactly 10.00 km, 21.10 km and 42.20 km (one run each)';
+      return `Finish ${formatNumber(count)} runs on an exact whole km`;
+    },
   }),
 ];
 
