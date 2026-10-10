@@ -7,3 +7,4 @@ export * from './xpLedger.js';
 export * from './activity.js';
 export * from './activityBackfill.js';
 export * from './contracts/index.js';
+export * from './badges.js';
