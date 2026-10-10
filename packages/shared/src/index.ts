@@ -9,3 +9,4 @@ export * from './activityBackfill.js';
 export * from './wallClock.js';
 export * from './contracts/index.js';
 export * from './badges.js';
+export * from './badgeDiff.js';
