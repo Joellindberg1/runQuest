@@ -75,6 +75,18 @@ describe('calculateUserTotals → titelomräkning', () => {
     expect(leaderboardRefresh).toHaveBeenCalledTimes(1); // leaderboarden uppdateras även för grupplösa
   });
 
+  it('grupplösa grenen avrundar total km till numeric(8,2) som users.total_km (1.004 + 1.004 → 2.01)', async () => {
+    const t = tables(null);
+    t.runs = [
+      { id: 'r1', user_id: 'u1', date: '2020-01-01', distance: 1.004, xp_gained: 1 },
+      { id: 'r2', user_id: 'u1', date: '2020-01-02', distance: 1.004, xp_gained: 1 },
+    ];
+    use(t);
+    await calculateUserTotals('u1');
+    const totalKm = (processUserTitlesAfterRun.mock.calls[0] as [string, any[], number, number])[2];
+    expect(totalKm).toBe(2.01);
+  });
+
   it('ett fel i titelbearbetningen fäller inte totalerna', async () => {
     const t = tables('g1');
     use(t);

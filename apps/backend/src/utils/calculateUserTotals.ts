@@ -96,7 +96,7 @@ export async function calculateUserTotals(userId: string) {
       } else {
         logger.info(`🏆 User ${userId} has no group — processing own titles only...`);
         const runsWithAlias = userRuns.map((run: any) => ({ ...run, distance_km: run.distance }));
-        await titleService.processUserTitlesAfterRun(userId, runsWithAlias, totalDistance, longestStreak);
+        await titleService.processUserTitlesAfterRun(userId, runsWithAlias, Math.round(totalDistance * 100) / 100, longestStreak); // numeric(8,2) som users.total_km i gruppvägen
         logger.info('✅ Own titles processed successfully');
       }
       
