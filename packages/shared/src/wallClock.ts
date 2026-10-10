@@ -41,7 +41,7 @@ function wallClockMsAt(instantMs: number, timeZone: string): number {
   return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
 }
 
-/** Tidszonens UTC-offset (ms, väst om UTC är negativt) vid ett ögonblick; sekundavrundat eftersom formatet saknar ms. */
+/** Tidszonens UTC-offset (ms, positiv öster om UTC) vid ett ögonblick; sekundavrundat eftersom formatet saknar ms. */
 function offsetMsAt(instantMs: number, timeZone: string): number {
   const floored = Math.floor(instantMs / 1000) * 1000;
   return wallClockMsAt(floored, timeZone) - floored;

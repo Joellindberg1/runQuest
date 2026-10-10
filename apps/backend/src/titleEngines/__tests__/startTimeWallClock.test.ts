@@ -5,8 +5,7 @@
  * Ligger i __tests__ så att frontendens driftvakt (som skannar titleEngines/*.ts) inte räknar den som en motor.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import type { RunData, UserStats } from '../types.js';
-import { earlyRunCountEngine } from '../earlyRunCount.js';
+import type { RunData, UserStats } from '../types.js';import { earlyRunCountEngine } from '../earlyRunCount.js';
 import { nightRunCountEngine } from '../nightRunCount.js';
 import { lunchRunCountEngine } from '../lunchRunCount.js';
 import { bestDoubleDayKmEngine } from '../bestDoubleDayKm.js';
@@ -78,7 +77,10 @@ describe.each(zones)('titelmotorernas klockslag — TZ=%s', (tz) => {
     const runs = [
       at('2026-03-29T00:30:00Z', { distance_km: 6 }),
       at('2026-03-29T04:30:00Z', { distance_km: 6 }),
+      at('2026-03-29T20:00:00Z', { distance_km: 2 }),
     ];
+    // 12 = giltig dubbeldag med bara ≥ 5 km-rundorna. Hade gapet mätts i verkliga ögonblick (3 h) hade motorn
+    // fallit tillbaka på bästa försöket (14), så värdet skiljer rätt beteende från fel.
     expect(bestDoubleDayKmEngine.calculate(runs, stats)).toBe(12);
   });
 });
