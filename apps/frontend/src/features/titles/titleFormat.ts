@@ -44,7 +44,9 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     }
     case 'lastRunOfWeek': {
       const d = new Date(value * 1000);
-      return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+      // Värdet är väggklockan kodad som UTC-sekunder (se wallClock.ts): läs dagen i UTC, annars glider
+      // sena kvällsrundor till nästa dag i zoner öster om UTC.
+      return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     }
     case 'fastest5km': {
       if (value < -100) return '—';
