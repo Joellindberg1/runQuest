@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
+import { wallClockToInstantMs } from '@runquest/shared';
 
 interface RunForWeather {
   id: string;
@@ -114,8 +115,12 @@ export class WeatherService {
   }
 
   private static async fetchWeather(run: RunForWeather): Promise<WeatherData | null> {
+    // start_time är lokal väggklocka med falskt Z. `startTime` behåller väggklockan (UTC-fälten = lokal tid) och
+    // används för timmatchning och datum, eftersom Open-Meteo svarar i Stockholmstid (timezone=Europe/Stockholm).
+    // Åldern däremot måste räknas från det verkliga ögonblicket — annars blir den 1–2 h för låg och past_hours-marginalen äts upp.
     const startTime = new Date(run.start_time!);
-    const hoursSinceRun = (Date.now() - startTime.getTime()) / (1000 * 60 * 60);
+    const startInstantMs = wallClockToInstantMs(run.start_time!);
+    const hoursSinceRun = (Date.now() - startInstantMs) / (1000 * 60 * 60);
 
     const url =
       hoursSinceRun <= FORECAST_CUTOFF_HOURS
