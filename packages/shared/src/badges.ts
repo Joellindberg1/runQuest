@@ -63,16 +63,18 @@ function toHundredths(value: number | null): number {
 /**
  * Minuter sedan midnatt i löparens lokala väggklocka, ur `start_time`.
  * `start_time` är Strava `start_date_local` lagrad med falskt 'Z' (ADR 009 beslut 2): siffrorna ÄR
- * väggklockan, så de läses med UTC-getters och konverteras aldrig till någon tidszon (varken
- * processens, DST eller löparens). Null eller ogiltigt värde (manuella rundor) => null = ingen räkning.
+ * väggklockan. Klockslaget läses direkt ur strängen — ingen Date, alltså ingen konvertering till
+ * någon tidszon (processens, DST, en angiven offset eller löparens). Null, rent datum utan klockslag
+ * eller ogiltigt klockslag (manuella rundor) => null = ingen räkning.
  */
 export function wallClockMinutes(startTime: string | null): number | null {
   if (!startTime) return null;
-  // Utan zonangivelse skulle Date tolka strängen i processens lokala tid; tvinga väggklocke-läsningen.
-  const hasZone = /T.*(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(startTime);
-  const parsed = new Date(hasZone ? startTime : `${startTime}Z`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.getUTCHours() * 60 + parsed.getUTCMinutes();
+  const match = /T(\d{2}):(\d{2})/.exec(startTime);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
 }
 
 /**
@@ -329,8 +331,9 @@ export const BADGE_SERIES = [
       { metric: 'early_bird_deep_runs', threshold: 50 },
       { metric: 'early_bird_deep_runs', threshold: 100 },
     ],
+    // Slutminuten visas inklusive så att texten matchar det halvöppna fönstret [start, slut).
     requirement: (count, tier) =>
-      `Start ${formatNumber(count)} runs between 04:00 and ${tier <= 4 ? '07:00' : '06:00'}`,
+      `Start ${formatNumber(count)} runs between 04:00 and ${tier <= 4 ? '06:59' : '05:59'}`,
   }),
   defineBadgeSeries({
     key: 'night_owl',
@@ -345,7 +348,7 @@ export const BADGE_SERIES = [
       { metric: 'midnight_runs', threshold: 10 },
     ],
     requirement: (count, tier) => {
-      const window = tier <= 4 ? '21:00 and 04:00' : tier === 5 ? '22:30 and 04:00' : '23:30 and 00:30';
+      const window = tier <= 4 ? '21:00 and 03:59' : tier === 5 ? '22:30 and 03:59' : '23:30 and 00:29';
       return `Start ${formatNumber(count)} runs between ${window}`;
     },
   }),
@@ -371,7 +374,7 @@ export const BADGE_SERIES = [
     requirement: (count, tier) => {
       if (tier === 5) return 'Run exactly 21.10 km in a single run';
       if (tier === 6) return 'Run exactly 10.00 km, 21.10 km and 42.20 km (one run each)';
-      return `Run ${formatNumber(count)} runs of exactly a whole number of km`;
+      return `Finish ${formatNumber(count)} runs on an exact whole km`;
     },
   }),
 ];

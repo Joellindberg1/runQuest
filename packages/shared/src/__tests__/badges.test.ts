@@ -329,6 +329,17 @@ describe('wallClockMinutes (väggklocka, ingen tidszonskonvertering)', () => {
     expect(wallClockMinutes('2026-07-01T05:30:00')).toBe(330);
   });
 
+  it('en icke-UTC-offset konverteras aldrig: klockslaget läses som skrivet', () => {
+    expect(wallClockMinutes('2026-07-01T05:30:00+09:00')).toBe(330);
+    expect(wallClockMinutes('2026-07-01T05:30:00-07:00')).toBe(330);
+  });
+
+  it('rent datum utan klockslag och omöjliga klockslag ger null', () => {
+    expect(wallClockMinutes('2026-07-01')).toBeNull();
+    expect(wallClockMinutes('2026-07-01T25:00:00Z')).toBeNull();
+    expect(wallClockMinutes('2026-07-01T10:61:00Z')).toBeNull();
+  });
+
   it('00:00 => 0 och 23:59 => 1439', () => {
     expect(wallClockMinutes('2026-10-01T00:00:00Z')).toBe(0);
     expect(wallClockMinutes('2026-10-01T23:59:00Z')).toBe(1439);
@@ -806,20 +817,20 @@ describe('requirementText (engelska kravtexter)', () => {
   it('texterna för de fyra serierna i RUN-116 är engelska och specifika per tier', () => {
     const texts = (key: string) => Array.from({ length: MAX_TIER }, (_, i) => requirementText(find(key), i + 1));
     expect(texts('early_bird')).toEqual([
-      'Start 5 runs between 04:00 and 07:00',
-      'Start 15 runs between 04:00 and 07:00',
-      'Start 50 runs between 04:00 and 07:00',
-      'Start 100 runs between 04:00 and 07:00',
-      'Start 50 runs between 04:00 and 06:00',
-      'Start 100 runs between 04:00 and 06:00',
+      'Start 5 runs between 04:00 and 06:59',
+      'Start 15 runs between 04:00 and 06:59',
+      'Start 50 runs between 04:00 and 06:59',
+      'Start 100 runs between 04:00 and 06:59',
+      'Start 50 runs between 04:00 and 05:59',
+      'Start 100 runs between 04:00 and 05:59',
     ]);
     expect(texts('night_owl')).toEqual([
-      'Start 5 runs between 21:00 and 04:00',
-      'Start 15 runs between 21:00 and 04:00',
-      'Start 50 runs between 21:00 and 04:00',
-      'Start 100 runs between 21:00 and 04:00',
-      'Start 25 runs between 22:30 and 04:00',
-      'Start 10 runs between 23:30 and 00:30',
+      'Start 5 runs between 21:00 and 03:59',
+      'Start 15 runs between 21:00 and 03:59',
+      'Start 50 runs between 21:00 and 03:59',
+      'Start 100 runs between 21:00 and 03:59',
+      'Start 25 runs between 22:30 and 03:59',
+      'Start 10 runs between 23:30 and 00:29',
     ]);
     expect(texts('speedster')).toEqual([
       'A 5 km run in under 35:00',
@@ -830,10 +841,10 @@ describe('requirementText (engelska kravtexter)', () => {
       'A 5 km run in under 18:00',
     ]);
     expect(texts('precisionist')).toEqual([
-      'Run 3 runs of exactly a whole number of km',
-      'Run 10 runs of exactly a whole number of km',
-      'Run 25 runs of exactly a whole number of km',
-      'Run 50 runs of exactly a whole number of km',
+      'Finish 3 runs on an exact whole km',
+      'Finish 10 runs on an exact whole km',
+      'Finish 25 runs on an exact whole km',
+      'Finish 50 runs on an exact whole km',
       'Run exactly 21.10 km in a single run',
       'Run exactly 10.00 km, 21.10 km and 42.20 km (one run each)',
     ]);
