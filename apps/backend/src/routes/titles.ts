@@ -185,7 +185,7 @@ router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) =
   try {
     logger.info('🔄 API: Full title reprocess requested...');
     // Admin-underhåll ska inte spamma Pack News (ADR 008 beslut 6).
-    await enhancedTitleService.processAllUsersTitles(undefined, { emitNews: false });
+    await enhancedTitleService.processAllUsersTitles(undefined, { emitNews: false, allGroups: true });
     res.status(200).json({ success: true, message: 'All user titles reprocessed and leaderboards refreshed' });
   } catch (error) {
     logger.error('❌ API Error in /titles/reprocess-all:', error);

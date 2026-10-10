@@ -48,7 +48,7 @@ describe('calculateUserTotals → activity_log', () => {
   it('level-up över flera nivåer och milstolpe loggas, gruppen ur users.group_id', async () => {
     const t = tables();
     use(t);
-    await calculateUserTotals('u1'); // OBS: inget groupId-argument (som Strava-importen)
+    await calculateUserTotals('u1'); // Strava-vägen: gruppen kommer ur users.group_id
 
     expect(t.users[0]).toMatchObject({ total_xp: 105, total_km: 105, current_level: 3 });
     expect(t.activity_log.map((r) => [r.type, r.payload, r.group_id, r.actor_user_id])).toEqual([
@@ -112,7 +112,7 @@ describe('calculateUserTotals → activity_log', () => {
   it('en trasig logg fäller inte beräkningen: totaler sparas och titlar bearbetas ändå', async () => {
     const t = tables();
     use(t, { errors: { activity_log: { message: 'relation "activity_log" does not exist' } } });
-    await expect(calculateUserTotals('u1', 'g1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
     expect(t.users[0]).toMatchObject({ total_xp: 105, current_level: 3 });
     expect(processAllUsersTitles).toHaveBeenCalledWith('g1');
   });

@@ -327,7 +327,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     await reprocessRunsFromDate(userId, date);
 
     // Recalculate user totals (scoped to user's group for title processing)
-    await calculateUserTotals(userId, req.user!.group_id);
+    await calculateUserTotals(userId);
 
     // Check if this run qualifies for any active events (fire-and-forget, non-blocking)
     checkEventQualification({
@@ -432,7 +432,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     // Recalculate user totals (scoped to user's group for title processing)
-    await calculateUserTotals(userId, req.user!.group_id);
+    await calculateUserTotals(userId);
 
     // En redigering kan nå eventgränsen (t.ex. distansen höjs över min_km, eller datumet flyttas in i ett
     // eventfönster) — samma fire-and-forget-mönster som POST (open-assumptions backend-fråga 7).
@@ -541,7 +541,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     await reprocessRunsFromDate(userId, deletedDate);
 
     // Recalculate user totals (scoped to user's group for title processing)
-    await calculateUserTotals(userId, req.user!.group_id);
+    await calculateUserTotals(userId);
 
     // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
     // SKAPA kvalificeringar ur en runda, och en radering skapar aldrig en ny — därför anropas den inte här.
