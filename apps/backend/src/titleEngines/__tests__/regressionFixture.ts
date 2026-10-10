@@ -49,6 +49,11 @@ export const FIXTURE_ROWS: FixtureRow[] = [
   row('2026-06-08', 7, { start: '2026-06-08T13:30:00Z', elev: 55, std: 31, time: 2550 }), // mån (serien fortsätter över helgen)
   row('2026-07-12', 14.2, { start: '2026-07-12T09:30:00Z', elev: 180, std: 16, time: 4800 }), // sön, uppehåll 34 d
   row('2026-07-30', 2.2, { start: '2026-07-30T21:00:00Z', elev: 3, std: 11, time: 800 }), // tors
+  // Kvalificerande dubbeldag för bestDoubleDayKm: båda ≥ 5 km, båda med start_time, 12 h emellan (≥ 4 h) → 17,5.
+  row('2026-08-15', 9, { start: '2026-08-15T06:00:00Z', elev: 40, std: 21, time: 3000 }), // lör
+  row('2026-08-15', 8.5, { start: '2026-08-15T18:00:00Z', elev: 35, std: 22, time: 2900 }), // lör, dubbeldag
+  // Senaste söndagen på året och utan start_time: lastRunOfWeek-fallbacken date + 'T23:00:00Z' avgör värdet.
+  row('2026-08-16', 4, { start: null, elev: 10, std: 13, time: 1400 }), // sön
 ];
 
 export const FIXTURE_STATS = { totalKm: 306.25, longestStreak: 7 } as const;

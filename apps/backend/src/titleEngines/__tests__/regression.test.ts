@@ -23,12 +23,16 @@ import { EnhancedTitleService } from '../../services/enhancedTitleService.js';
 import type { RunData, UserStats } from '../types.js';
 import { FIXTURE_ROWS, FIXTURE_STATS, type FixtureRow } from './regressionFixture.js';
 
-// Räknat före ändringen (TZ=UTC, systemtid 2026-07-15 → förra månaden = juni, 6 × 7 km = 42).
+// Räknat på ORÖRD kod, inte på den nya: `git archive 57c0f21 apps/backend/src/titleEngines` (före RUN-98) extraherat
+// utanför repot, fixturen kopierad dit och körd genom den gamla mappningen (legacyMap nedan) och de gamla motorerna
+// med TZ=UTC och systemtid 2026-07-15 (→ förra månaden = juni, 6 × 7 km = 42).
+// Fixturen når bestDoubleDayKm:s kvalificerade gren (2026-08-15: 9 + 8,5 km, 12 h emellan → 17,5, inte "bästa försök")
+// och lastRunOfWeek:s fallback (söndag 2026-08-16 utan start_time → 2026-08-16T23:00:00Z = 1786921200).
 const EXPECTED: Record<string, number> = {
   longestRun: 42.5,
   totalKm: 306.25,
   longestStreak: 7,
-  weekendAvg: 25.580000000000002,
+  weekendAvg: 24.900000000000002,
   nightRunCount: 2,
   earlyRunCount: 3,
   lunchRunCount: 4,
@@ -37,15 +41,15 @@ const EXPECTED: Record<string, number> = {
   longestRunAfterBreak30: 15.5,
   lowestPaceStdDev: 694.4444444444445,
   maxWeekdayStreak: 8,
-  bestDoubleDayKm: 12,
+  bestDoubleDayKm: 17.5,
   fastestMarathon: 480,
   fastestHalfMarathon: 245,
-  lastRunOfWeek: 1783848600,
+  lastRunOfWeek: 1786921200,
   maxKmRolling30: 42,
-  totalElevationGain: 2738.5,
+  totalElevationGain: 2823.5,
   bestSingleRunElevation: 520,
   fastest5km: 35,
-  avgPaceStdDev: 389.5381190873678,
+  avgPaceStdDev: 395.1211132107885,
 };
 
 // Den handskrivna mappningen som fanns i enhancedTitleService före RUN-98 (identisk på båda ställena).
