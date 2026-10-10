@@ -13,12 +13,11 @@ export function getMondayKey(dateStr: string): string {
   return monday.toISOString().split('T')[0];
 }
 
-/** UTC hour (0-23) from an ISO timestamp string. */
-export function utcHour(ts: string): number {
-  return new Date(ts).getUTCHours();
-}
-
-/** UTC minutes-since-midnight from an ISO timestamp string. */
+/**
+ * Minutes since midnight as read from the UTC fields of an ISO timestamp.
+ * For runs.start_time this IS the runner's local wall-clock time: Strava's start_date_local is stored with a
+ * false 'Z' (see packages/shared/src/wallClock.ts). Do not convert time zones here — time of day = local time.
+ */
 export function utcMinutes(ts: string): number {
   const d = new Date(ts);
   return d.getUTCHours() * 60 + d.getUTCMinutes();
@@ -27,18 +26,4 @@ export function utcMinutes(ts: string): number {
 /** ISO day-of-week for a date string: 0=Sun, 1=Mon … 6=Sat */
 export function dayOfWeek(dateStr: string): number {
   return new Date(dateStr).getUTCDay();
-}
-
-/** Minutes since midnight in Stockholm local time (handles CET/CEST automatically). */
-export function stockholmMinutes(ts: string): number {
-  const d = new Date(ts);
-  const parts = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Stockholm',
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false,
-  }).formatToParts(d);
-  const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
-  const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
-  return h * 60 + m;
 }
