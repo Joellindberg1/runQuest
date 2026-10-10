@@ -151,13 +151,22 @@ export class EnhancedTitleService {
   }
 
   /**
-   * Process titles for all users (optionally scoped to a group).
+   * Process titles for the users of ONE group, or — only with an explicit `allGroups: true` — for every user.
+   *
+   * Fail-closed (RUN-104): varken groupId eller allGroups:true → kastar innan någon användare läses. Förr
+   * räknade ett utelämnat groupId tyst om alla gruppers användare (Strava-importen). groupId vinner över allGroups.
    *
    * Pack News (ADR 008 beslut 6): innehavarna (position 1) ögonblicksfotograferas före och efter
    * och skillnaden loggas (title_unlocked/_taken/_revoked, endast framåt). `emitNews: false` för
    * regel-/data-underhåll (admin /titles/reprocess-all) så att flödet inte spammas.
    */
-  async processAllUsersTitles(groupId?: string, options: { emitNews?: boolean } = {}): Promise<void> {
+  async processAllUsersTitles(
+    groupId?: string,
+    options: { emitNews?: boolean; allGroups?: boolean } = {}
+  ): Promise<void> {
+    if (!groupId && options.allGroups !== true) {
+      throw new Error('processAllUsersTitles kräver groupId eller { allGroups: true }');
+    }
     const emitNews = options.emitNews ?? true;
     try {
       const holdersBefore = emitNews ? await snapshotTitleHolders() : null;
