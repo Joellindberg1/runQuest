@@ -35,7 +35,7 @@ const runner = (id: string, name: string, xp: number, extra: Partial<User> = {})
 
 const KARL = runner('u-karl', 'Karl Persson', 5539, {
   total_km: 988, current_streak: 8, longest_streak: 31, challenge_counts: { minor: 3, major: 1 },
-  runs: [run('2026-10-04', { distance: 8.4, start_time: '2026-10-04T05:00:00Z' }), run('2026-09-20', { distance: 32.8 })],
+  runs: [run('2026-10-04', { distance: 8.4, start_time: '2026-10-04T07:00:00Z' }), run('2026-09-20', { distance: 32.8 })],
 });
 const JOEL = runner('u-me', 'Joel Lindberg', 5243, {
   current_streak: 4, longest_streak: 44, challenge_counts: { minor: 2 }, runs: [run('2026-10-03', { distance: 10 })],
@@ -106,7 +106,7 @@ describe('Season-vyn (default) — mobil', () => {
     expect(within(card).getByText('988')).toBeInTheDocument();
     expect(within(card).getByLabelText('Challenges to send: 3 minor, 1 major')).toBeInTheDocument();
     expect(within(card).getByText('4 left')).toBeInTheDocument();
-    // start_time 05:00Z mot klockan 10:00Z.
+    // start_time 07:00 väggklocka mot klockan 12:00 Stockholm.
     expect(within(card).getByText('Last run 5 h ago · 8.4 km')).toBeInTheDocument();
   });
 

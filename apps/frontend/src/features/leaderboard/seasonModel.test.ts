@@ -70,8 +70,8 @@ describe('buildSeasonRows', () => {
 
   it('senaste rundan: nyast start_time vinner samma dag; "X h ago · km"', () => {
     const runs = [
-      run({ date: '2026-10-04', distance: 3, start_time: '2026-10-04T04:00:00Z' }),
-      run({ date: '2026-10-04', distance: 8.4, start_time: '2026-10-04T05:00:00Z' }),
+      run({ date: '2026-10-04', distance: 3, start_time: '2026-10-04T06:00:00Z' }),
+      run({ date: '2026-10-04', distance: 8.4, start_time: '2026-10-04T07:00:00Z' }),
       run({ date: '2026-10-01', distance: 20 }),
     ];
     const [row] = buildSeasonRows([user({ id: 'a', name: 'Adam', total_xp: 4000, runs })], input);

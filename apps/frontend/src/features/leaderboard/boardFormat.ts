@@ -1,4 +1,5 @@
 import type { Run } from '@runquest/types';
+import { wallClockToInstantMs } from '@runquest/shared';
 import { stockholmClock } from '@/app-shell/rightNowItems';
 
 // Rena formatterare för Board. `now` skickas alltid in så att tiderna går att testa med fasta klockslag.
@@ -37,12 +38,17 @@ export function isoWeekNumber(isoDate: string): number {
 }
 
 /**
- * Exakt tidpunkt för en runda, om den går att lita på: Strava-rundans `start_time`, eller
+ * Exakt tidpunkt (epoch-ms) för en runda, om den går att lita på: Strava-rundans `start_time`, eller
  * `created_at` när raden skapades samma Stockholm-dag som rundan (manuell loggning). En runda som
  * loggats i efterhand får inte ge "5 h ago" — då faller vi tillbaka på kalenderdagen.
+ *
+ * `start_time` är löparens lokala väggklocka med falskt 'Z' (Stravas start_date_local), inte ett UTC-ögonblick;
+ * ögonblicket fås via wallClockToInstantMs som antar Europe/Stockholm. En runda gjord utomlands får därför en
+ * ålder som är fel med tidszonsskillnaden — avsiktlig förenkling, appens löpare bor i Sverige.
+ * `created_at` är ett riktigt ögonblick (timestamptz) och används som det är.
  */
 export function preciseRunTime(run: Pick<Run, 'date' | 'start_time' | 'created_at'>): number | null {
-  const startMs = run.start_time ? new Date(run.start_time).getTime() : NaN;
+  const startMs = run.start_time ? wallClockToInstantMs(run.start_time) : NaN;
   if (!Number.isNaN(startMs)) return startMs;
 
   const createdMs = run.created_at ? new Date(run.created_at).getTime() : NaN;

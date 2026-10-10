@@ -23,14 +23,37 @@ describe('daysBetween', () => {
 });
 
 describe('formatRunAge — "X h ago" med start_time, created_at, annars datum', () => {
-  it('start_time ger timmar/minuter', () => {
-    expect(formatRunAge({ date: '2026-10-04', start_time: '2026-10-04T05:00:00Z' }, NOW)).toBe('5 h ago');
-    expect(formatRunAge({ date: '2026-10-04', start_time: '2026-10-04T09:28:00Z' }, NOW)).toBe('32 m ago');
-    expect(formatRunAge({ date: '2026-10-04', start_time: '2026-10-04T09:59:40Z' }, NOW)).toBe('just now');
+  it('start_time (lokal väggklocka med falskt Z) ger timmar/minuter från Stockholm-ögonblicket', () => {
+    // NOW = 12:00 Stockholm. 05:00 väggklocka = 7 h sedan; 11:28 = 32 m; 11:59:40 = just now.
+    expect(formatRunAge({ date: '2026-10-04', start_time: '2026-10-04T05:00:00Z' }, NOW)).toBe('7 h ago');
+    expect(formatRunAge({ date: '2026-10-04', start_time: '2026-10-04T11:28:00Z' }, NOW)).toBe('32 m ago');
+    expect(formatRunAge({ date: '2026-10-04', start_time: '2026-10-04T11:59:40Z' }, NOW)).toBe('just now');
+  });
+
+  it('sommar: 06:00 väggklocka räknas som 04:00Z, inte 06:00Z', () => {
+    const run = { date: '2026-07-04', start_time: '2026-07-04T06:00:00Z' };
+    expect(formatRunAge(run, new Date('2026-07-04T05:00:00Z'))).toBe('1 h ago'); // 07:00 svensk tid
+    expect(formatRunAge(run, new Date('2026-07-04T08:30:00Z'))).toBe('4 h ago'); // 10:30 svensk tid
+  });
+
+  it('vinter: 06:00 väggklocka räknas som 05:00Z', () => {
+    const run = { date: '2026-01-10', start_time: '2026-01-10T06:00:00Z' };
+    expect(formatRunAge(run, new Date('2026-01-10T06:30:00Z'))).toBe('1 h ago'); // 07:30 svensk tid
+    expect(formatRunAge(run, new Date('2026-01-10T05:30:00Z'))).toBe('30 m ago'); // 06:30 svensk tid
+  });
+
+  it('väggklocka efter nu (rundor utomlands, klockskevhet) ger "just now", aldrig negativ ålder', () => {
+    // 15:00 väggklocka mot NOW = 12:00 Stockholm.
+    expect(formatRunAge({ date: '2026-10-04', start_time: '2026-10-04T15:00:00Z' }, NOW)).toBe('just now');
   });
 
   it('äldre än ett dygn → dagar efter kalenderdag, även med start_time', () => {
     expect(formatRunAge({ date: '2026-09-30', start_time: '2026-09-30T06:00:00Z' }, NOW)).toBe('4 d ago');
+  });
+
+  it('dygnsgränsen räknas i Stockholm-tid: exakt 24 h → dagar, 23 h 59 m → timmar', () => {
+    expect(formatRunAge({ date: '2026-10-03', start_time: '2026-10-03T12:00:00Z' }, NOW)).toBe('1 d ago');
+    expect(formatRunAge({ date: '2026-10-03', start_time: '2026-10-03T12:01:00Z' }, NOW)).toBe('23 h ago');
   });
 
   it('created_at används när raden skapades samma Stockholm-dag som rundan (manuell loggning)', () => {
@@ -96,13 +119,25 @@ describe('latestRunOf', () => {
     expect(latestRunOf(undefined)).toBeNull();
   });
 
-  it('samma dag: senaste exakta tidpunkt vinner, numeriskt (blandade tidsformat sorterar rätt)', () => {
+  it('samma dag: senaste exakta tidpunkt vinner, numeriskt', () => {
     const early = { date: '2026-10-04', start_time: '2026-10-04T05:00:00Z' };
-    // +02:00-format: strängjämförelse skulle ranka den "senare" (T07 > T05) men tidpunkten är 05:00Z = lika, 06:30+02 = 04:30Z = tidigare
-    const offset = { date: '2026-10-04', start_time: '2026-10-04T06:30:00+02:00' };
     const later = { date: '2026-10-04', start_time: '2026-10-04T09:00:00Z' };
-    expect(latestRunOf([early, offset])).toBe(early);
-    expect(latestRunOf([offset, early, later])).toBe(later);
+    expect(latestRunOf([early, later])).toBe(later);
+    expect(latestRunOf([later, early])).toBe(later);
+  });
+
+  it('en start_time med riktig offset är inte väggklocka och räknas som utan tidpunkt', () => {
+    const offset = { date: '2026-10-04', start_time: '2026-10-04T06:30:00+02:00' };
+    const timed = { date: '2026-10-04', start_time: '2026-10-04T05:00:00Z' };
+    expect(preciseRunTime(offset)).toBeNull();
+    expect(latestRunOf([offset, timed])).toBe(timed);
+  });
+
+  it('blandar inte tidsbaser: Strava-väggklocka 09:00 (= 07:00Z) är tidigare än manuell created_at 08:00Z (= 10:00 lokal)', () => {
+    const strava = { date: '2026-07-04', start_time: '2026-07-04T09:00:00Z', created_at: '2026-07-04T20:00:00Z' };
+    const manual = { date: '2026-07-04', start_time: null, created_at: '2026-07-04T08:00:00Z' };
+    expect(latestRunOf([strava, manual])).toBe(manual);
+    expect(latestRunOf([manual, strava])).toBe(manual);
   });
 
   it('en tidsatt runda slår en utan tidpunkt samma dag; lika → den första', () => {
