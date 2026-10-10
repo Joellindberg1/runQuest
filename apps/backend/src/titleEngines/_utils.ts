@@ -1,3 +1,5 @@
+import type { RunData } from './types';
+
 /** Days between two ISO date strings (e.g. "2025-01-01"). */
 export function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000);
@@ -26,4 +28,32 @@ export function utcMinutes(ts: string): number {
 /** ISO day-of-week for a date string: 0=Sun, 1=Mon … 6=Sat */
 export function dayOfWeek(dateStr: string): number {
   return new Date(dateStr).getUTCDay();
+}
+
+/** numeric från PostgREST kan komma som sträng. Tomt/ogiltigt → null (aldrig NaN, aldrig tyst 0). */
+function toNullableNumber(v: unknown): number | null {
+  if (v === null || v === undefined || (typeof v === 'string' && v.trim() === '')) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * En rad ur runs-selecten (med `distance_km` som alias för `distance`, ev. inbäddad `run_weather`) → RunData.
+ * Enda mappningen rad → motorindata. run_weather är ett objekt (en-till-en-embed) eller en array med ett element.
+ * Fälten som fanns före RUN-98 mappas exakt som förr (distans via parseFloat, övriga igenom med null som default).
+ */
+export function toRunData(row: Record<string, unknown>): RunData {
+  const embed = row.run_weather;
+  const weather = (Array.isArray(embed) ? embed[0] : embed) as Record<string, unknown> | null | undefined;
+  return {
+    date: row.date as string,
+    distance_km: parseFloat(row.distance_km as string) || 0,
+    start_time: (row.start_time as string | null | undefined) ?? null,
+    total_elevation_gain: (row.total_elevation_gain as number | null | undefined) ?? null,
+    pace_std_dev: (row.pace_std_dev as number | null | undefined) ?? null,
+    moving_time: (row.moving_time as number | null | undefined) ?? null,
+    temperature_c: toNullableNumber(weather?.temperature_c),
+    wind_speed_ms: toNullableNumber(weather?.wind_speed_ms),
+    wind_gusts_ms: toNullableNumber(weather?.wind_gusts_ms),
+  };
 }
