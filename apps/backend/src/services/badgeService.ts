@@ -6,12 +6,16 @@
 // och sväljs — en misslyckad badgeutvärdering får aldrig fälla XP-/streak-/titelkedjan (STATE zon 1).
 //
 // Säkerhetsregel: utvärderingen körs bara på KOMPLETT indata. Faller läsningen av rundor, rader eller
-// streak (även en enskild sida) avbryts allt utan skrivning — en delvis läsning skulle annars se ut som
-// att rundor försvunnit och nedgradera eller radera badges.
+// streak (även en enskild sida, eller når sid-loopen sin gräns) avbryts allt utan skrivning — en delvis
+// läsning skulle annars se ut som att rundor försvunnit och nedgradera eller radera badges.
 //
 // Idempotens: oförändrade serier ger ingen post i diffen, så omkörning skriver ingenting. Inserts är
 // INSERT … ON CONFLICT DO NOTHING så att två samtidiga utvärderingar aldrig skriver över varandras
 // seen_tier (popup-vattenmärket).
+//
+// Självläkning: users.displayed_badge_series stäms av mot serierna som FINNS i user_badges efter varje
+// utvärdering (inte bara mot den här körningens raderingar), så en serie som blev kvar i showcasen efter
+// ett tidigare fel städas vid nästa körning.
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -27,6 +31,9 @@ export const USER_BADGES_TABLE = 'user_badges';
 /** Rader per runs-sida; PostgREST kapar annars tyst vid max-rows (1000). */
 const RUNS_PAGE_SIZE = 1000;
 
+/** Säkerhetsgräns för sid-loopen (100 000 rundor): en loop som aldrig tar slut får inte hänga en skrivväg. */
+export const MAX_RUNS_PAGES = 100;
+
 const RUN_COLUMNS = 'id, date, distance, start_time, moving_time, total_elevation_gain, is_treadmill';
 
 export interface EvaluateBadgesOptions {
@@ -36,6 +43,17 @@ export interface EvaluateBadgesOptions {
   markSeen?: boolean;
   /** Injiceras i test; standard är systemklockan. */
   now?: Date;
+}
+
+export interface EvaluateBadgesResult {
+  /**
+   * Det som FAKTISKT skrevs till user_badges (en post per lyckad skrivning). news (RUN-123) bygger på
+   * detta: en lyckad uppgradering ska ge news även om en annan skrivning föll. `showcaseRemovals` är
+   * serierna vars rader raderades. Rensningen av displayed_badge_series ingår inte (ingen news).
+   */
+  written: BadgeDiff;
+  /** false om någon skrivning eller showcase-läsning/-rensning föll; det som ändå skrevs står i `written`. */
+  complete: boolean;
 }
 
 /** Läsfel som ska avbryta utvärderingen (fångas av evaluateBadges, aldrig utåt). */
@@ -67,7 +85,8 @@ function toBadgeRun(row: any): BadgeRun {
 async function readRuns(userId: string): Promise<BadgeRun[]> {
   const supabase = getSupabaseClient();
   const runs: BadgeRun[] = [];
-  for (let offset = 0; ; offset += RUNS_PAGE_SIZE) {
+  for (let pageIndex = 0; pageIndex < MAX_RUNS_PAGES; pageIndex++) {
+    const offset = pageIndex * RUNS_PAGE_SIZE;
     const { data, error } = await supabase
       .from('runs')
       .select(RUN_COLUMNS)
@@ -77,14 +96,14 @@ async function readRuns(userId: string): Promise<BadgeRun[]> {
       .range(offset, offset + RUNS_PAGE_SIZE - 1);
     if (error) {
       // Offset bortom sista raden (416) är slutet när sista sidan råkade vara exakt full.
-      if (offset > 0 && isOutOfRange(error)) break;
+      if (offset > 0 && isOutOfRange(error)) return runs;
       throw new BadgeReadError('runs', error);
     }
     const page = data ?? [];
     runs.push(...page.map(toBadgeRun));
-    if (page.length < RUNS_PAGE_SIZE) break;
+    if (page.length < RUNS_PAGE_SIZE) return runs;
   }
-  return runs;
+  throw new BadgeReadError('runs', `page limit ${MAX_RUNS_PAGES} reached`);
 }
 
 async function readLongestStreak(userId: string): Promise<number> {
@@ -109,11 +128,16 @@ async function readExistingBadges(userId: string): Promise<ExistingBadgeRow[]> {
   }));
 }
 
-/** Skriver diffen. Varje skrivning är oberoende: en som faller stoppar inte de andra. Ger false om någon föll. */
-async function writeDiff(userId: string, diff: BadgeDiff): Promise<boolean> {
+/**
+ * Skriver diffen. Varje skrivning är oberoende: en som faller stoppar inte de andra. Ger det som
+ * faktiskt skrevs (en lyckad upgrade/downgrade per post, inserts och deletes som grupp) och om allt lyckades.
+ */
+async function writeDiff(userId: string, diff: BadgeDiff): Promise<EvaluateBadgesResult> {
   const supabase = getSupabaseClient();
-  let ok = true;
-  const run = async (label: string, write: () => PromiseLike<{ error: unknown }>): Promise<boolean> => {
+  const written: BadgeDiff = { inserts: [], upgrades: [], downgrades: [], deletes: [], showcaseRemovals: [] };
+  let complete = true;
+
+  const attempt = async (label: string, write: () => PromiseLike<{ error: unknown }>): Promise<boolean> => {
     try {
       const { error } = await write();
       if (!error) return true;
@@ -121,12 +145,12 @@ async function writeDiff(userId: string, diff: BadgeDiff): Promise<boolean> {
     } catch (e) {
       logger.error(`❌ [Badges] Unexpected error when trying to ${label}:`, e);
     }
-    ok = false;
+    complete = false;
     return false;
   };
 
   if (diff.inserts.length > 0) {
-    await run('insert badges', () =>
+    const ok = await attempt('insert badges', () =>
       supabase
         .from(USER_BADGES_TABLE)
         .upsert(
@@ -134,10 +158,11 @@ async function writeDiff(userId: string, diff: BadgeDiff): Promise<boolean> {
           { onConflict: 'user_id,series', ignoreDuplicates: true },
         ),
     );
+    if (ok) written.inserts.push(...diff.inserts);
   }
 
   for (const u of diff.upgrades) {
-    await run(`upgrade badge ${u.series}`, () =>
+    const ok = await attempt(`upgrade badge ${u.series}`, () =>
       supabase
         .from(USER_BADGES_TABLE)
         .update({
@@ -150,52 +175,94 @@ async function writeDiff(userId: string, diff: BadgeDiff): Promise<boolean> {
         .eq('user_id', userId)
         .eq('series', u.series),
     );
+    if (ok) written.upgrades.push(u);
   }
 
   // Nedgradering: tier och seen_tier i SAMMA update (CHECK seen_tier <= tier); earned_at lämnas orört.
   for (const d of diff.downgrades) {
-    await run(`downgrade badge ${d.series}`, () =>
+    const ok = await attempt(`downgrade badge ${d.series}`, () =>
       supabase
         .from(USER_BADGES_TABLE)
         .update({ tier: d.tier, seen_tier: d.seen_tier, source_run_id: d.source_run_id, updated_at: d.updated_at })
         .eq('user_id', userId)
         .eq('series', d.series),
     );
+    if (ok) written.downgrades.push(d);
   }
 
   if (diff.deletes.length > 0) {
-    const deleted = await run('delete badges', () =>
+    const ok = await attempt('delete badges', () =>
       supabase
         .from(USER_BADGES_TABLE)
         .delete()
         .eq('user_id', userId)
         .in('series', diff.deletes.map((d) => d.series)),
     );
-    // Showcasen rensas bara om raderna verkligen är borta.
-    if (deleted) await run('clean displayed_badge_series', () => removeFromShowcase(userId, diff.showcaseRemovals));
+    if (ok) {
+      written.deletes.push(...diff.deletes);
+      written.showcaseRemovals.push(...diff.showcaseRemovals);
+    }
   }
 
-  return ok;
+  return { written, complete };
 }
 
-/** Läser users.displayed_badge_series, filtrerar bort serierna och skriver med EN update — bara om något ändras. */
-async function removeFromShowcase(userId: string, removals: readonly string[]): Promise<{ error: unknown }> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from('users').select('displayed_badge_series').eq('id', userId).single();
-  if (error || !data) return { error: error ?? 'user not found' };
-  const current: string[] = Array.isArray(data.displayed_badge_series) ? data.displayed_badge_series : [];
-  const next = current.filter((series) => !removals.includes(series));
-  if (next.length === current.length) return { error: null };
-  return supabase.from('users').update({ displayed_badge_series: next }).eq('id', userId);
+/**
+ * Serierna som finns i user_badges efter skrivningen: tidigare rader + lyckade inserts − lyckade deletes.
+ * Upgrade/downgrade ändrar aldrig att en rad finns (tier >= 1).
+ */
+function seriesAfterWrite(existing: readonly ExistingBadgeRow[], written: BadgeDiff): Set<string> {
+  const present = new Set(existing.map((row) => row.series));
+  for (const insert of written.inserts) present.add(insert.series);
+  for (const del of written.deletes) present.delete(del.series);
+  return present;
+}
+
+/**
+ * Läser users.displayed_badge_series och skriver tillbaka den filtrerad mot serierna som finns, med EN
+ * update — bara om något ändras. Läsningen sker EFTER badge-skrivningarna för att minimera tiden mellan
+ * läsning och skrivning mot en samtidig ändring av showcasen. Ger false om läsningen eller skrivningen föll.
+ */
+async function reconcileShowcase(userId: string, present: ReadonlySet<string>): Promise<boolean> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('users').select('displayed_badge_series').eq('id', userId).single();
+    if (error || !data) {
+      logger.error('❌ [Badges] Failed to read displayed_badge_series:', { error: error ?? 'user not found', userId });
+      return false;
+    }
+    const current: string[] = Array.isArray(data.displayed_badge_series) ? data.displayed_badge_series : [];
+    const next = current.filter((series) => present.has(series));
+    if (next.length === current.length) return true;
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ displayed_badge_series: next })
+      .eq('id', userId);
+    if (updateError) {
+      logger.error('❌ [Badges] Failed to clean displayed_badge_series:', { error: updateError, userId });
+      return false;
+    }
+    return true;
+  } catch (e) {
+    logger.error('❌ [Badges] Unexpected error when cleaning displayed_badge_series:', e);
+    return false;
+  }
 }
 
 /**
  * Räknar om användarens badges ur alla rundor och synkar user_badges + users.displayed_badge_series.
- * KASTAR ALDRIG. Returnerar den skrivna diffen (för news i RUN-123: upgrades/inserts/deletes med
- * previous_tier), eller null om utvärderingen avbröts eller någon skrivning föll — anroparen ska då
- * inte skriva news för något som inte sparats.
+ * KASTAR ALDRIG.
+ *
+ * Returnerar `null` bara när utvärderingen avbröts FÖRE skrivning (läsfel, sid-gräns eller oväntat fel):
+ * inget har ändrats. Annars `{ written, complete }` där `written` är det som faktiskt skrevs — även när
+ * `complete` är false (någon skrivning föll). Anroparen (RUN-123) skriver news för `written`, aldrig för
+ * hela diffen, så lyckade uppgraderingar inte tappar sin news när en annan skrivning faller. Misslyckade
+ * poster räknas om vid nästa körning eftersom raderna då fortfarande skiljer sig från beräkningen.
  */
-export async function evaluateBadges(userId: string, opts: EvaluateBadgesOptions = {}): Promise<BadgeDiff | null> {
+export async function evaluateBadges(
+  userId: string,
+  opts: EvaluateBadgesOptions = {}
+): Promise<EvaluateBadgesResult | null> {
   try {
     const [runs, existing, longestStreak] = await Promise.all([
       readRuns(userId),
@@ -206,8 +273,9 @@ export async function evaluateBadges(userId: string, opts: EvaluateBadgesOptions
     const computed = computeBadgeTiers(runs, { longest_streak: longestStreak });
     const diff = diffBadgeTiers(existing, computed, { now: opts.now, markSeen: opts.markSeen });
 
-    const written = await writeDiff(userId, diff);
-    return written ? diff : null;
+    const result = await writeDiff(userId, diff);
+    const showcaseOk = await reconcileShowcase(userId, seriesAfterWrite(existing, result.written));
+    return { written: result.written, complete: result.complete && showcaseOk };
   } catch (e) {
     logger.error('❌ [Badges] evaluateBadges failed:', e);
     return null;

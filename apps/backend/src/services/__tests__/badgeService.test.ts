@@ -14,7 +14,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
-import { evaluateBadges } from '../badgeService.js';
+import { evaluateBadges, MAX_RUNS_PAGES } from '../badgeService.js';
 import { createFakeDb, type Row, type FakeDbOptions } from '../../routes/__tests__/helpers/fakeDb.js';
 
 const USER = 'u1';
@@ -123,7 +123,7 @@ describe('evaluateBadges — läsning (T2)', () => {
     await evaluateBadges(USER, { longestStreak: 7, now: NOW });
 
     expect((await badgesOf(db)).find((b) => b.series === 'streak_keeper')).toMatchObject({ tier: 2 });
-    expect(db.queries.some((q) => q.table === 'users')).toBe(false);
+    expect(db.queries.some((q) => q.table === 'users' && q.select?.includes('longest_streak'))).toBe(false);
   });
 
   it('utan opts.longestStreak läses users.longest_streak', async () => {
@@ -292,18 +292,26 @@ describe('evaluateBadges — showcase-rensning (T5)', () => {
     earned_at: '2026-01-01T00:00:00.000Z', source_run_id: null, updated_at: '2026-01-01T00:00:00.000Z',
   });
 
+  // Fem rundor på 2,5 km kl 05:00: Early Bird tier 1 och inget annat (ingen hel km, ingen runda >= 5 km, summa < 100 km).
+  const earlyBirdRuns = (): Row[] =>
+    [1, 2, 3, 4, 5].map((d) => run({ id: `e${d}`, date: `2026-10-0${d}`, distance: 2.5, start_time: `2026-10-0${d}T05:00:00Z` }));
+
+  const showcaseOf = async (db: ReturnType<typeof setup>): Promise<string[]> => {
+    const { data } = await db.client.from('users').select('*').eq('id', USER).single();
+    return data.displayed_badge_series;
+  };
+
   it('radering av rundan: raden raderas och serien försvinner ur displayed_badge_series (EN users-update)', async () => {
     const db = setup({
-      runs: [],
+      runs: earlyBirdRuns(),
       users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['milestoner', 'climber', 'early_bird'] }],
-      user_badges: [stored('milestoner'), stored('climber')],
+      user_badges: [stored('milestoner'), stored('climber'), stored('early_bird')],
     });
 
     await evaluateBadges(USER, { longestStreak: 0, now: NOW });
 
-    expect(await badgesOf(db)).toEqual([]);
-    const { data } = await db.client.from('users').select('*').eq('id', USER).single();
-    expect(data.displayed_badge_series).toEqual(['early_bird']);
+    expect((await badgesOf(db)).map((b) => b.series)).toEqual(['early_bird']);
+    expect(await showcaseOf(db)).toEqual(['early_bird']);
     expect(writes(db, 'users')).toHaveLength(1);
     expect(writes(db, 'users')[0].mutation).toBe('update');
     expect(writes(db, 'users')[0].filters).toContainEqual({ op: 'eq', column: 'id', value: USER });
@@ -311,18 +319,18 @@ describe('evaluateBadges — showcase-rensning (T5)', () => {
 
   it('ingen users-update när visade badges inte innehåller den raderade serien', async () => {
     const db = setup({
-      runs: [],
+      runs: earlyBirdRuns(),
       users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['early_bird'] }],
-      user_badges: [stored('milestoner')],
+      user_badges: [stored('milestoner'), stored('early_bird')],
     });
 
     await evaluateBadges(USER, { now: NOW });
 
-    expect(await badgesOf(db)).toEqual([]);
+    expect((await badgesOf(db)).map((b) => b.series)).toEqual(['early_bird']);
     expect(writes(db, 'users')).toHaveLength(0);
   });
 
-  it('ingen users-update (och ingen users-läsning av showcasen) när inget raderas', async () => {
+  it('ingen users-update när inget ska rensas (och bara showcasen läses från users när longestStreak ges)', async () => {
     const db = setup({
       runs: [run({ distance: 5 })],
       users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['milestoner'] }],
@@ -332,7 +340,67 @@ describe('evaluateBadges — showcase-rensning (T5)', () => {
     await evaluateBadges(USER, { longestStreak: 0, now: NOW });
 
     expect(writes(db, 'users')).toHaveLength(0);
-    expect(db.queries.some((q) => q.table === 'users')).toBe(false);
+    expect(db.queries.filter((q) => q.table === 'users').map((q) => q.select)).toEqual(['displayed_badge_series']);
+  });
+
+  it('självläkning: en serie i showcasen som inte finns i user_badges städas även utan radering den här körningen', async () => {
+    const db = setup({
+      runs: [run({ distance: 5 })],
+      users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['climber', 'milestoner'] }],
+      user_badges: [stored('milestoner')],
+    });
+
+    const result = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(await showcaseOf(db)).toEqual(['milestoner']);
+    expect(writes(db, 'users')).toHaveLength(1);
+    expect(result).toMatchObject({ complete: true });
+    expect(result?.written.deletes).toEqual([]);
+  });
+
+  it('delete OK men showcase-updaten faller: nästa körning rensar', async () => {
+    let failShowcaseUpdate = true;
+    const db = setup(
+      {
+        runs: [],
+        users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['milestoner', 'early_bird'] }],
+        user_badges: [stored('milestoner')],
+      },
+      { failWhen: (q) => (failShowcaseUpdate && q.table === 'users' && q.mutation === 'update' ? { message: 'boom' } : null) },
+    );
+
+    const first = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(await badgesOf(db)).toEqual([]); // raden är borta ...
+    expect(await showcaseOf(db)).toEqual(['milestoner', 'early_bird']); // ... men showcasen sitter kvar
+    expect(first?.complete).toBe(false);
+    expect(first?.written.deletes.map((d) => d.series)).toEqual(['milestoner']); // raderingen lyckades och rapporteras
+
+    failShowcaseUpdate = false;
+    const second = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(await showcaseOf(db)).toEqual([]); // early_bird ägs inte heller
+    expect(second).toMatchObject({ complete: true });
+    expect(second?.written.deletes).toEqual([]); // inget att radera: ingen dubbel news
+  });
+
+  it('showcase-läsfel: sväljs och loggas, raderingen rapporteras ändå och complete är false', async () => {
+    const db = setup(
+      {
+        runs: [],
+        users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['milestoner'] }],
+        user_badges: [stored('milestoner')],
+      },
+      { failWhen: (q) => (q.table === 'users' && !q.mutation ? { message: 'read failed' } : null) },
+    );
+
+    const result = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(await badgesOf(db)).toEqual([]);
+    expect(result?.complete).toBe(false);
+    expect(result?.written.deletes.map((d) => d.series)).toEqual(['milestoner']);
+    expect(errorSpy).toHaveBeenCalled();
+    expect(writes(db, 'users')).toHaveLength(0);
   });
 
   it('en nedgradering (inte radering) lämnar showcasen orörd', async () => {
@@ -491,23 +559,139 @@ describe('evaluateBadges — felhantering (T6)', () => {
 });
 
 describe('evaluateBadges — returvärde', () => {
-  it('ger den skrivna diffen (för news i RUN-123) när allt lyckades', async () => {
+  const stored = (series: string, tier: number): Row => ({
+    user_id: USER, series, tier, seen_tier: tier,
+    earned_at: '2026-01-01T00:00:00.000Z', source_run_id: null, updated_at: '2026-01-01T00:00:00.000Z',
+  });
+
+  it('ger det som skrevs och complete: true när allt lyckades', async () => {
     setup({ runs: [run({ id: 'r1', distance: 5 })] });
 
     const result = await evaluateBadges(USER, { now: NOW });
 
-    expect(result?.inserts.map((i) => i.series)).toEqual(['milestoner']);
-    expect(result?.upgrades).toEqual([]);
+    expect(result?.complete).toBe(true);
+    expect(result?.written.inserts.map((i) => i.series)).toEqual(['milestoner']);
+    expect(result?.written.upgrades).toEqual([]);
   });
 
-  it('ger null när utvärderingen avbröts eller en skrivning föll', async () => {
+  it('ger null (inget skrivet) när utvärderingen avbröts före skrivning', async () => {
     setup({ runs: [] }, { errors: { runs: { message: 'down' } } });
     expect(await evaluateBadges(USER, { now: NOW })).toBeNull();
+  });
 
-    setup(
-      { runs: [run({ distance: 5 })] },
-      { failWhen: (q) => (q.mutation === 'upsert' ? { message: 'x' } : null) },
+  it('partiell skrivning: insert faller men uppgraderingen lyckades — written har uppgraderingen, complete false', async () => {
+    const db = setup(
+      {
+        runs: [run({ id: 'big', distance: 120 })], // milestoner tier 6 (upgrade), earth_trotter tier 1 (insert)
+        user_badges: [stored('milestoner', 1)],
+      },
+      { failWhen: (q) => (q.mutation === 'upsert' ? { message: 'insert failed' } : null) },
     );
-    expect(await evaluateBadges(USER, { now: NOW })).toBeNull();
+
+    const result = await evaluateBadges(USER, { now: NOW });
+
+    expect(result?.complete).toBe(false);
+    expect(result?.written.upgrades.map((u) => [u.series, u.previous_tier, u.tier])).toEqual([['milestoner', 1, 6]]);
+    expect(result?.written.inserts).toEqual([]);
+    expect((await badgesOf(db)).map((b) => [b.series, b.tier])).toEqual([['milestoner', 6]]);
+  });
+
+  it('partiell skrivning: uppgraderingen faller men insertarna lyckades — written har bara insertarna', async () => {
+    setup(
+      {
+        runs: [run({ id: 'big', distance: 120 })],
+        user_badges: [stored('milestoner', 1)],
+      },
+      { failWhen: (q) => (q.mutation === 'update' && q.table === 'user_badges' ? { message: 'update failed' } : null) },
+    );
+
+    const result = await evaluateBadges(USER, { now: NOW });
+
+    expect(result?.complete).toBe(false);
+    expect(result?.written.upgrades).toEqual([]);
+    expect(result?.written.inserts.map((i) => i.series)).toEqual(['earth_trotter']);
+  });
+
+  it('written innehåller bara poster som skrevs: omkörning efter ett fel ger den missade posten, inte de redan skrivna', async () => {
+    let failUpdates = true;
+    setup(
+      { runs: [run({ id: 'big', distance: 120 })], user_badges: [stored('milestoner', 1)] },
+      { failWhen: (q) => (failUpdates && q.mutation === 'update' && q.table === 'user_badges' ? { message: 'x' } : null) },
+    );
+
+    await evaluateBadges(USER, { now: NOW });
+    failUpdates = false;
+    const second = await evaluateBadges(USER, { now: NOW });
+
+    expect(second?.complete).toBe(true);
+    expect(second?.written.upgrades.map((u) => u.series)).toEqual(['milestoner']);
+    expect(second?.written.inserts).toEqual([]); // earth_trotter skrevs redan första gången
+  });
+});
+
+describe('evaluateBadges — användarisolering vid skrivning', () => {
+  const row = (userId: string, series: string, tier: number): Row => ({
+    user_id: userId, series, tier, seen_tier: tier,
+    earned_at: '2026-01-01T00:00:00.000Z', source_run_id: null, updated_at: '2026-01-01T00:00:00.000Z',
+  });
+
+  it('upgrade, downgrade och delete för användaren rör aldrig en annan användares rad i SAMMA serie', async () => {
+    // USER: milestoner 1 -> 6 (upgrade), earth_trotter 3 -> 1 (downgrade), climber 1 -> 0 (delete).
+    const userRows = [row(USER, 'milestoner', 1), row(USER, 'earth_trotter', 3), row(USER, 'climber', 1)];
+    const otherRows = [row(OTHER, 'milestoner', 2), row(OTHER, 'earth_trotter', 4), row(OTHER, 'climber', 3)];
+    const otherSnapshot = otherRows.map((r) => ({ ...r }));
+    const db = setup({
+      runs: [run({ id: 'big', distance: 120 })],
+      users: [
+        { id: USER, longest_streak: 0, displayed_badge_series: ['climber'] },
+        { id: OTHER, longest_streak: 0, displayed_badge_series: ['climber'] },
+      ],
+      user_badges: [...userRows, ...otherRows],
+    });
+
+    const result = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(result?.written.upgrades).toHaveLength(1);
+    expect(result?.written.downgrades).toHaveLength(1);
+    expect(result?.written.deletes).toHaveLength(1);
+    expect(await badgesOf(db, OTHER)).toEqual(otherSnapshot.sort((a, b) => a.series.localeCompare(b.series)));
+    const { data: otherUser } = await db.client.from('users').select('*').eq('id', OTHER).single();
+    expect(otherUser.displayed_badge_series).toEqual(['climber']);
+    // Och användarens egna rader gick åt rätt håll.
+    expect((await badgesOf(db)).map((b) => [b.series, b.tier])).toEqual([['earth_trotter', 1], ['milestoner', 6]]);
+  });
+});
+
+describe('evaluateBadges — säkerhetsgräns i sid-loopen', () => {
+  it('når loopen MAX_RUNS_PAGES: avbryter utan skrivning och loggar fel', async () => {
+    const fullPage = Array.from({ length: 1000 }, (_, i) => run({ id: `p${i}`, distance: 1 }));
+    const ranges: Array<[number, number]> = [];
+    const mutations: string[] = [];
+    const builder = (table: string): any => {
+      const b: any = {
+        select: () => b,
+        eq: () => b,
+        in: () => b,
+        order: () => b,
+        range: (from: number, to: number) => {
+          ranges.push([from, to]);
+          return Promise.resolve({ data: fullPage, error: null });
+        },
+        upsert: () => { mutations.push(`${table}.upsert`); return Promise.resolve({ error: null }); },
+        update: () => { mutations.push(`${table}.update`); return b; },
+        delete: () => { mutations.push(`${table}.delete`); return b; },
+        single: () => Promise.resolve({ data: { longest_streak: 0, displayed_badge_series: [] }, error: null }),
+        then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+      };
+      return b;
+    };
+    vi.mocked(getSupabaseClient).mockReturnValue({ from: builder } as any);
+
+    const result = await evaluateBadges(USER, { now: NOW });
+
+    expect(result).toBeNull();
+    expect(ranges).toHaveLength(MAX_RUNS_PAGES);
+    expect(mutations).toEqual([]);
+    expect(errorSpy).toHaveBeenCalled();
   });
 });
