@@ -5,6 +5,10 @@ export interface RunData {
   total_elevation_gain?: number | null;
   pace_std_dev?: number | null;
   moving_time?: number | null;
+  /** Väder vid rundan (run_weather). null = ingen väderrad (inomhus, utan koordinater eller ännu inte hämtad). */
+  temperature_c?: number | null;
+  wind_speed_ms?: number | null;
+  wind_gusts_ms?: number | null;
 }
 
 export interface UserStats {
@@ -12,7 +16,16 @@ export interface UserStats {
   longestStreak: number;
 }
 
+/**
+ * Sådant motorerna inte ska läsa ur globala tillstånd. `now` injiceras så att tidsberoende motorer
+ * (t.ex. Winter Warrior) går att testa; en omräkningskörning delar ett och samma `now` för alla användare.
+ */
+export interface TitleContext {
+  now: Date;
+}
+
 export interface TitleEngine {
   metricKey: string;
-  calculate(runs: RunData[], userStats: UserStats): number;
+  /** `ctx` är valfri: motorer som inte behöver den ignorerar den (de 21 första gör det). */
+  calculate(runs: RunData[], userStats: UserStats, ctx?: TitleContext): number;
 }
