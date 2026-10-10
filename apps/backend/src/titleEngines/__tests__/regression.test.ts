@@ -64,10 +64,15 @@ const legacyMap = (r: any): RunData => ({
 
 const stats: UserStats = { ...FIXTURE_STATS };
 
+// Motorer som tillkommit efter RUN-98 har egna tester (t.ex. winterKm.test.ts) och ingår inte i de 21 fasta värdena.
+const ADDED_AFTER_RUN98 = ['winterKm'];
+const withoutNewer = (values: Record<string, number>): Record<string, number> =>
+  Object.fromEntries(Object.entries(values).filter(([key]) => !ADDED_AFTER_RUN98.includes(key)));
+
 function valuesFrom(runData: RunData[], ctx?: { now: Date }): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [key, engine] of titleEngineRegistry) out[key] = engine.calculate(runData, stats, ctx);
-  return out;
+  return withoutNewer(out);
 }
 
 const originalTz = process.env.TZ;
@@ -83,9 +88,9 @@ afterAll(() => {
 });
 
 describe('titelmotorernas regression (RUN-98)', () => {
-  it('registret har exakt de 21 förväntade motorerna', () => {
-    expect([...titleEngineRegistry.keys()].sort()).toEqual(Object.keys(EXPECTED).sort());
-    expect(titleEngineRegistry.size).toBe(21);
+  it('registret har de 21 förväntade motorerna (plus de som tillkommit efter RUN-98)', () => {
+    expect([...titleEngineRegistry.keys()].sort()).toEqual([...Object.keys(EXPECTED), ...ADDED_AFTER_RUN98].sort());
+    expect(titleEngineRegistry.size).toBe(22);
   });
 
   it('de 21 befintliga motorerna ger oförändrade värden på en fast fixtur (gamla mappningen)', () => {
@@ -117,6 +122,6 @@ describe('titelmotorernas regression (RUN-98)', () => {
 
   it('EnhancedTitleService.calculateUserValues (slutpunkten group-eligibility) ger samma värden', () => {
     const values = new EnhancedTitleService().calculateUserValues(FIXTURE_ROWS, stats.totalKm, stats.longestStreak);
-    expect(values).toEqual(EXPECTED);
+    expect(withoutNewer(values)).toEqual(EXPECTED);
   });
 });

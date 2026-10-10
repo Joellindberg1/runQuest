@@ -1,4 +1,5 @@
 import type { RunData } from './types';
+import { toStockholmDate } from '../utils/dateUtils';
 
 /** Days between two ISO date strings (e.g. "2025-01-01"). */
 export function daysBetween(a: string, b: string): number {
@@ -56,4 +57,16 @@ export function toRunData(row: Record<string, unknown>): RunData {
     wind_speed_ms: toNullableNumber(weather?.wind_speed_ms),
     wind_gusts_ms: toNullableNumber(weather?.wind_gusts_ms),
   };
+}
+
+/**
+ * Vinterfönstret [start, end) som kalenderdagar ("YYYY-MM-DD", end exklusiv = 1 mars) för Winter Warrior.
+ * Stockholm-datumet ur `now` avgör: december räknar den vinter som börjar i år, jan–nov den som började
+ * föregående december — så mars–nov blir senast avslutade vinter. Fönstret byter alltså först vid nästa
+ * omräkning efter 1 dec (ingen cron). `runs.date` är en kalenderdag, så jämförelsen görs som sträng.
+ */
+export function winterWindow(now: Date): { start: string; end: string } {
+  const [year, month] = toStockholmDate(now.toISOString()).split('-').map(Number);
+  const winterStartYear = month === 12 ? year : year - 1;
+  return { start: `${winterStartYear}-12-01`, end: `${winterStartYear + 1}-03-01` };
 }
