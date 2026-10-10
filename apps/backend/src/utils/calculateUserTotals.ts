@@ -4,7 +4,7 @@ import { getLevelFromXP } from '../services/levelService.js';
 import { reconcileTokensForLevel } from '../services/challengeService.js';
 import { recordLevelUps, recordRunMilestones } from '../services/activityLog.js';
 
-export async function calculateUserTotals(userId: string, groupId?: string) {
+export async function calculateUserTotals(userId: string) {
   try {
     const startTime = Date.now();
     const supabase = getSupabaseClient();
@@ -29,7 +29,7 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
 
     // Fetch event_xp separately — accumulated from event settlements.
     // current_level/total_km/group_id läses i SAMMA select och är "föregående värden" för Pack News
-    // (level_up/run_milestone, ADR 008); gruppen kommer ur users.group_id, inte ur groupId-parametern.
+    // (level_up/run_milestone, ADR 008); gruppen (Pack News och titelomräkningen) kommer ur users.group_id, inte ur anroparens JWT.
     const { data: userData } = await supabase
       .from('users')
       .select('event_xp, current_level, total_km, group_id')
@@ -82,18 +82,23 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
       await recordRunMilestones(userId, prevTotalKm, Math.round(totalDistance * 100) / 100, userGroupId);
     }
 
-    // 🏆 Process titles for ALL users to ensure complete leaderboard
-    // This is necessary because title rankings depend on ALL users' achievements
+    // 🏆 Titlar räknas om för användarens EGEN grupp (rankingen är relativ inom gruppen), aldrig för andra grupper.
+    // Gruppen är den färska users.group_id — JWT-gruppen blir inaktuell efter groups/join (STATE zon 8).
+    // Användare utan grupp har inga gruppmedlemmar att rangordna mot: bara de egna titlarna räknas om.
     try {
-      logger.info('🏆 Processing titles for all users...');
       const { EnhancedTitleService } = await import('../services/enhancedTitleService.js');
       const titleService = new EnhancedTitleService();
-      
-      // Process titles for all users in the same group
-      // This ensures leaderboard always shows correct rankings within the group
-      await titleService.processAllUsersTitles(groupId);
-      
-      logger.info('✅ All users titles processed successfully');
+
+      if (userGroupId) {
+        logger.info(`🏆 Processing titles for group ${userGroupId}...`);
+        await titleService.processAllUsersTitles(userGroupId);
+        logger.info('✅ Group titles processed successfully');
+      } else {
+        logger.info(`🏆 User ${userId} has no group — processing own titles only...`);
+        const runsWithAlias = userRuns.map((run: any) => ({ ...run, distance_km: run.distance }));
+        await titleService.processUserTitlesAfterRun(userId, runsWithAlias, totalDistance, longestStreak);
+        logger.info('✅ Own titles processed successfully');
+      }
       
       // Now refresh the title leaderboard with complete user_titles data
       logger.info('🏆 Refreshing title leaderboard...');
