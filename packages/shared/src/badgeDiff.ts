@@ -64,7 +64,10 @@ export interface BadgeDiff {
   upgrades: BadgeUpgrade[];
   downgrades: BadgeDowngrade[];
   deletes: BadgeDelete[];
-  /** Serier som ska rensas ur users.displayed_badge_series (= serierna i `deletes`). */
+  /**
+   * Serier att filtrera BORT ur users.displayed_badge_series (= serierna i `deletes`). Inte en färdig
+   * array att skriva: anroparen läser användarens nuvarande array och filtrerar bort dessa.
+   */
   showcaseRemovals: string[];
 }
 
@@ -78,9 +81,14 @@ export interface DiffBadgeTiersOptions {
   markSeen?: boolean;
 }
 
-/** Tier utanför 0..MAX_TIER (NaN, negativt, för stort) klampas så att CHECK-villkoren aldrig bryts. */
-function normalizeTier(tier: number): number {
-  if (!Number.isFinite(tier) || tier < 1) return 0;
+/**
+ * Tier utanför 0..MAX_TIER klampas så att CHECK-villkoren aldrig bryts: under 1 (även -Infinity) = 0,
+ * över MAX_TIER (även +Infinity) = MAX_TIER. NaN är ett beräkningsfel, inte "ingen tier": null =
+ * rör serien inte alls, så ett fel kan aldrig radera en badge.
+ */
+function normalizeTier(tier: number): number | null {
+  if (Number.isNaN(tier)) return null;
+  if (tier < 1) return 0;
   return Math.min(Math.floor(tier), MAX_TIER);
 }
 
@@ -103,6 +111,7 @@ export function diffBadgeTiers(
 
   for (const [series, result] of Object.entries(computed)) {
     const tier = normalizeTier(result.tier);
+    if (tier === null) continue;
     const sourceRunId = result.source_run_id ?? null;
     const current = bySeries.get(series);
 

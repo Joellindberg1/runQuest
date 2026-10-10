@@ -343,19 +343,73 @@ describe('diffBadgeTiers — kombinationer och robusthet (T1)', () => {
     expect(diff.inserts.map((i) => i.series)).not.toContain('night_owl');
   });
 
-  it('ogiltiga tiervärden hanteras defensivt: NaN/negativt = 0, över MAX_TIER klampas till 6', () => {
+  it('ogiltiga tiervärden: NaN rör serien aldrig, negativt/-Infinity = 0, över MAX_TIER och +Infinity klampas till 6', () => {
     const diff = diffBadgeTiers(
-      [row({ series: 'climber', tier: 2, seen_tier: 2 })],
-      tiers({ climber: Number.NaN, milestoner: 9, earth_trotter: -1 }),
+      [
+        row({ series: 'climber', tier: 2, seen_tier: 2 }),
+        row({ series: 'night_owl', tier: 3, seen_tier: 3 }),
+        row({ series: 'speedster', tier: 1, seen_tier: 1 }),
+      ],
+      tiers({
+        climber: Number.NaN,
+        milestoner: 9,
+        earth_trotter: -1,
+        night_owl: Number.NEGATIVE_INFINITY,
+        speedster: Number.POSITIVE_INFINITY,
+        early_bird: Number.NaN,
+      }),
       opts
     );
-    expect(diff.deletes).toEqual([{ series: 'climber', previous_tier: 2 }]);
+    // NaN: ingen delete, ingen insert, ingen showcase-rensning.
+    expect(diff.deletes).toEqual([{ series: 'night_owl', previous_tier: 3 }]);
+    expect(diff.showcaseRemovals).toEqual(['night_owl']);
     expect(diff.inserts.map((i) => [i.series, i.tier])).toEqual([['milestoner', 6]]);
+    expect(diff.upgrades.map((u) => [u.series, u.tier])).toEqual([['speedster', 6]]);
+    expect(diff.downgrades).toEqual([]);
+  });
+
+  it('NaN ger tom diff även mot befintlig rad', () => {
+    expect(isEmpty(diffBadgeTiers([row({ tier: 4, seen_tier: 2 })], tiers({ milestoner: Number.NaN }), opts))).toBe(true);
   });
 
   it('exporteras från paketets index', () => {
     expect(typeof shared.diffBadgeTiers).toBe('function');
   });
+});
+
+describe('diffBadgeTiers — CHECK-invarianter för alla poster', () => {
+  const computedTiers = [Number.NaN, 0, 0.5, 1.9, 9, Number.POSITIVE_INFINITY];
+  // undefined = ingen befintlig rad (insert-vägen); annars alla giltiga (tier, seen_tier).
+  const existingCases: Array<ExistingBadgeRow | undefined> = [undefined];
+  for (let tier = 1; tier <= 6; tier++) {
+    for (let seen = 0; seen <= tier; seen++) existingCases.push(row({ tier, seen_tier: seen }));
+  }
+
+  for (const markSeen of [false, true]) {
+    for (const computedTier of computedTiers) {
+      it(`tier ${computedTier}, markSeen ${markSeen}: heltals-tier 1..6 och 0 <= seen_tier <= tier`, () => {
+        let posts = 0;
+        for (const existing of existingCases) {
+          const diff = diffBadgeTiers(existing ? [existing] : [], tiers({ milestoner: computedTier }), {
+            now: NOW,
+            markSeen,
+          });
+          for (const post of [...diff.inserts, ...diff.upgrades, ...diff.downgrades]) {
+            posts += 1;
+            expect(Number.isInteger(post.tier)).toBe(true);
+            expect(post.tier).toBeGreaterThanOrEqual(1);
+            expect(post.tier).toBeLessThanOrEqual(6);
+            expect(Number.isInteger(post.seen_tier)).toBe(true);
+            expect(post.seen_tier).toBeGreaterThanOrEqual(0);
+            expect(post.seen_tier).toBeLessThanOrEqual(post.tier);
+          }
+          if (Number.isNaN(computedTier)) expect(isEmpty(diff)).toBe(true);
+        }
+        // Tier >= 1 måste faktiskt ge poster, annars testar loopen ingenting.
+        if (computedTier >= 1) expect(posts).toBeGreaterThan(0);
+      });
+    }
+  }
 });
 
 describe('diffBadgeTiers — idempotens (T7)', () => {
