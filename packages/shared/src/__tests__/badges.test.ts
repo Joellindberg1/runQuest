@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import {
   BADGE_METRICS,
   BADGE_SERIES,
@@ -14,6 +14,7 @@ import {
   type BadgeSeriesDef,
   type BadgeSeriesKey,
   type BadgeStats,
+  wallClockMinutes,
 } from '../badges.js';
 
 let seq = 0;
@@ -54,12 +55,26 @@ describe('badge-registret (kontraktstest)', () => {
     }
   });
 
-  it('registret innehåller exakt de fyra serierna i RUN-115', () => {
+  it('registret innehåller exakt de åtta serierna i v0.6.0 (RUN-115 + RUN-116)', () => {
     expect(BADGE_SERIES.map((s) => s.key)).toEqual([
       'milestoner',
       'earth_trotter',
       'climber',
       'streak_keeper',
+      'early_bird',
+      'night_owl',
+      'speedster',
+      'precisionist',
+    ]);
+  });
+
+  it('ikonnycklarna för RUN-116-serierna är sun, moon, zap, target', () => {
+    const icon = (key: string) => BADGE_SERIES.find((s) => s.key === key)!.icon;
+    expect([icon('early_bird'), icon('night_owl'), icon('speedster'), icon('precisionist')]).toEqual([
+      'sun',
+      'moon',
+      'zap',
+      'target',
     ]);
   });
 
@@ -89,9 +104,23 @@ describe('badge-registret (kontraktstest)', () => {
   });
 
   it('de fyra serierna i RUN-115 delar mått över alla tiers (monotonikravet gäller dem)', () => {
-    for (const s of BADGE_SERIES) {
+    const run115 = ['milestoner', 'earth_trotter', 'climber', 'streak_keeper'];
+    for (const s of BADGE_SERIES.filter((x) => run115.includes(x.key))) {
       expect(new Set(s.tiers.map((r) => r.metric)).size).toBe(1);
     }
+  });
+
+  it('Early Bird, Night Owl och Precisionist byter mått mellan tiers (regeln är per tier)', () => {
+    for (const key of ['early_bird', 'night_owl', 'precisionist']) {
+      const s = BADGE_SERIES.find((x) => x.key === key)!;
+      expect(new Set(s.tiers.map((r) => r.metric)).size).toBeGreaterThan(1);
+    }
+  });
+
+  it('Speedster är en "below"-serie med fallande minuttrösklar 35/30/25/22/20/18', () => {
+    const s = BADGE_SERIES.find((x) => x.key === 'speedster')!;
+    expect(s.tiers.map((r) => r.threshold)).toEqual([35, 30, 25, 22, 20, 18]);
+    expect(s.tiers.every((r) => r.direction === 'below')).toBe(true);
   });
 
   it('computeBadgeTiers returnerar en post per serie i registret', () => {
@@ -274,6 +303,368 @@ describe('streak_keeper (längsta svit)', () => {
   });
 });
 
+// ─── RUN-116 ─────────────────────────────────────────────────────────────────────────────────────
+
+/** Runda vars väggklocka är `hhmm` (start_time lagras med falskt 'Z', ADR 009 beslut 2). */
+const at = (hhmm: string, over: Partial<BadgeRun> = {}) =>
+  run({ start_time: `2026-10-01T${hhmm}:00Z`, ...over });
+const many = (n: number, make: () => BadgeRun) => Array.from({ length: n }, make);
+
+describe('wallClockMinutes (väggklocka, ingen tidszonskonvertering)', () => {
+  it('05:30 räknas som 05:30 både sommar och vinter (ingen DST-konvertering)', () => {
+    expect(wallClockMinutes('2026-07-01T05:30:00Z')).toBe(5 * 60 + 30);
+    expect(wallClockMinutes('2026-01-15T05:30:00Z')).toBe(5 * 60 + 30);
+  });
+
+  it('utomlands: 06:10 Tokyo-tid lagrad som …T06:10:00Z räknas som 06:10', () => {
+    expect(wallClockMinutes('2026-07-01T06:10:00Z')).toBe(6 * 60 + 10);
+  });
+
+  it('Supabase-formatet med +00:00 och millisekunder läses likadant', () => {
+    expect(wallClockMinutes('2026-07-01T05:30:00+00:00')).toBe(330);
+    expect(wallClockMinutes('2026-07-01T05:30:00.000Z')).toBe(330);
+  });
+
+  it('en sträng utan zonangivelse läses som väggklocka, inte som processens lokala tid', () => {
+    expect(wallClockMinutes('2026-07-01T05:30:00')).toBe(330);
+  });
+
+  it('00:00 => 0 och 23:59 => 1439', () => {
+    expect(wallClockMinutes('2026-10-01T00:00:00Z')).toBe(0);
+    expect(wallClockMinutes('2026-10-01T23:59:00Z')).toBe(1439);
+  });
+
+  it('null, tom och ogiltig sträng ger null (ingen räkning)', () => {
+    expect(wallClockMinutes(null)).toBeNull();
+    expect(wallClockMinutes('')).toBeNull();
+    expect(wallClockMinutes('inte ett datum')).toBeNull();
+  });
+
+  describe('samma resultat oavsett process.env.TZ', () => {
+    const original = process.env.TZ;
+    afterEach(() => {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    });
+
+    const offsets: Record<string, number> = {
+      'Asia/Tokyo': -540,
+      'America/Los_Angeles': 420,
+      'Europe/Stockholm': -120,
+      UTC: 0,
+    };
+
+    it.each(Object.keys(offsets))('TZ=%s', (tz) => {
+      process.env.TZ = tz;
+      // Förutsättning: zonbytet har slagit igenom (annars bevisar testet ingenting).
+      expect(new Date('2026-07-01T05:30:00Z').getTimezoneOffset()).toBe(offsets[tz]);
+
+      expect(wallClockMinutes('2026-07-01T05:30:00Z')).toBe(330);
+      expect(wallClockMinutes('2026-01-15T05:30:00Z')).toBe(330);
+      expect(wallClockMinutes('2026-07-01T05:30:00')).toBe(330);
+      expect(tier('early_bird', many(5, () => at('05:30')))).toBe(1);
+    });
+  });
+});
+
+describe('early_bird (rundor med start i fönster, väggklocka)', () => {
+  it.each([
+    ['03:59', 0],
+    ['04:00', 1],
+    ['06:59', 1],
+    ['07:00', 0],
+    ['12:00', 0],
+    ['00:00', 0],
+  ])('5 rundor kl %s ger tier %s (fönstret är [04:00, 07:00))', (time, expected) => {
+    expect(tier('early_bird', many(5, () => at(time)))).toBe(expected);
+  });
+
+  it.each([
+    [4, 0],
+    [5, 1],
+    [14, 1],
+    [15, 2],
+    [49, 2],
+    [50, 5], // 50 rundor kl 05:00 är också 50 före 06:00 => tier 5 (högsta uppfyllda)
+    [99, 5],
+    [100, 6],
+  ])('%s rundor kl 05:00 ger tier %s', (n, expected) => {
+    expect(tier('early_bird', many(n, () => at('05:00')))).toBe(expected);
+  });
+
+  it.each([
+    [14, 1],
+    [15, 2],
+    [49, 2],
+    [50, 3],
+    [99, 3],
+    [100, 4],
+  ])('%s rundor kl 06:30 ger tier %s (tier 1–4 räknar [04:00, 07:00))', (n, expected) => {
+    expect(tier('early_bird', many(n, () => at('06:30')))).toBe(expected);
+  });
+
+  it('06:00 räknas inte mot tier 5/6: 100 rundor kl 06:00 ger tier 4, 100 kl 05:59 ger tier 6', () => {
+    expect(tier('early_bird', many(100, () => at('06:00')))).toBe(4);
+    expect(tier('early_bird', many(100, () => at('05:59')))).toBe(6);
+  });
+
+  it('50 rundor kl 06:00 ger bara tier 3, 50 kl 05:59 ger tier 5', () => {
+    expect(tier('early_bird', many(50, () => at('06:00')))).toBe(3);
+    expect(tier('early_bird', many(50, () => at('05:59')))).toBe(5);
+  });
+
+  it('04:00-gränsen gäller även tier 5: 50 rundor kl 03:59 ger tier 0, kl 04:00 ger tier 5', () => {
+    expect(tier('early_bird', many(50, () => at('03:59')))).toBe(0);
+    expect(tier('early_bird', many(50, () => at('04:00')))).toBe(5);
+  });
+
+  it('fönstren räknas var för sig: 30 kl 05:00 + 20 kl 06:30 är 50 i [04:00,07:00) men bara 30 före 06:00 => tier 3', () => {
+    const runs = [...many(30, () => at('05:00')), ...many(20, () => at('06:30'))];
+    expect(tier('early_bird', runs)).toBe(3);
+  });
+
+  it('manuell runda utan start_time räknas inte', () => {
+    expect(tier('early_bird', many(5, () => run({ start_time: null })))).toBe(0);
+    expect(tier('early_bird', [...many(4, () => at('05:00')), run({ start_time: null })])).toBe(0);
+    expect(tier('early_bird', [...many(4, () => at('05:00')), at('05:00')])).toBe(1);
+  });
+
+  it('en runda med ogiltig start_time räknas inte och kastar inte', () => {
+    expect(tier('early_bird', [...many(4, () => at('05:00')), run({ start_time: 'skräp' })])).toBe(0);
+  });
+
+  it('early_bird har inget source_run_id (räknemått)', () => {
+    expect(computeBadgeTiers(many(5, () => at('05:00')), NO_STREAK).early_bird).toEqual({ tier: 1 });
+  });
+});
+
+describe('night_owl (fönster över midnatt, väggklocka)', () => {
+  it.each([
+    ['20:59', 0],
+    ['21:00', 1],
+    ['23:59', 1],
+    ['00:00', 1],
+    ['03:59', 1],
+    ['04:00', 0],
+    ['12:00', 0],
+  ])('5 rundor kl %s ger tier %s (fönstret är [21:00, 04:00))', (time, expected) => {
+    expect(tier('night_owl', many(5, () => at(time)))).toBe(expected);
+  });
+
+  it.each([
+    [4, 0],
+    [5, 1],
+    [14, 1],
+    [15, 2],
+    [49, 2],
+    [50, 3],
+    [99, 3],
+    [100, 4],
+  ])('%s rundor kl 21:30 ger tier %s', (n, expected) => {
+    expect(tier('night_owl', many(n, () => at('21:30')))).toBe(expected);
+  });
+
+  it('tier 5: 25 rundor [22:30, 04:00) — 22:29 räknas inte, 22:30 och 03:59 räknas, 04:00 inte', () => {
+    expect(tier('night_owl', many(25, () => at('22:29')))).toBe(2); // 25 >= 15 men inte tier 5
+    expect(tier('night_owl', many(25, () => at('22:30')))).toBe(5);
+    expect(tier('night_owl', many(25, () => at('03:59')))).toBe(5);
+    expect(tier('night_owl', many(25, () => at('04:00')))).toBe(0);
+    expect(tier('night_owl', many(24, () => at('22:30')))).toBe(2);
+  });
+
+  it.each([
+    ['23:29', 1],
+    ['23:30', 6],
+    ['23:59', 6],
+    ['00:00', 6],
+    ['00:29', 6],
+    ['00:30', 1],
+    ['03:59', 1],
+  ])('tier 6: 10 rundor kl %s ger tier %s (fönstret är [23:30, 00:30))', (time, expected) => {
+    expect(tier('night_owl', many(10, () => at(time)))).toBe(expected);
+  });
+
+  it('tier 6 räknar rundor på båda sidor om midnatt tillsammans: 5 kl 23:45 + 5 kl 00:15', () => {
+    const runs = [...many(5, () => at('23:45')), ...many(5, () => at('00:15'))];
+    expect(tier('night_owl', runs)).toBe(6);
+  });
+
+  it('9 midnattsrundor räcker inte till tier 6', () => {
+    expect(tier('night_owl', many(9, () => at('23:45')))).toBe(1);
+  });
+
+  it('manuell runda utan start_time räknas inte', () => {
+    expect(tier('night_owl', many(5, () => run({ start_time: null })))).toBe(0);
+  });
+
+  it('en natt-runda utomlands räknas i sin lokala tid: 23:40 lagrad som …T23:40:00Z', () => {
+    expect(tier('night_owl', many(10, () => at('23:40')))).toBe(6);
+  });
+});
+
+describe('speedster (bästa tid på runda 4,9 <= km < 10,0, råa sekunder, strikt under)', () => {
+  const timed = (km: number, seconds: number | null, over: Partial<BadgeRun> = {}) =>
+    run({ distance_km: km, moving_time: seconds, ...over });
+
+  it.each([
+    [4.89, 0],
+    [4.9, 1],
+    [5, 1],
+    [9.99, 1],
+    [10, 0],
+    [10.01, 0],
+  ])('en runda på %s km på 30:00 ger tier %s (kvalificeringsspannet är [4,90, 10,00))', (km, expected) => {
+    // 1800 s är inte under 30 min men under 35 min => tier 1 om rundan kvalificerar.
+    expect(tier('speedster', [timed(km, 1800)])).toBe(expected);
+  });
+
+  it.each([
+    [35 * 60 - 1, 1],
+    [35 * 60, 0],
+    [30 * 60 - 1, 2],
+    [30 * 60, 1],
+    [25 * 60 - 1, 3],
+    [25 * 60, 2],
+    [22 * 60 - 1, 4],
+    [22 * 60, 3],
+    [20 * 60 - 1, 5],
+    [20 * 60, 4],
+    [18 * 60 - 1, 6],
+    [18 * 60, 5],
+    [10 * 60, 6],
+  ])('en 5 km-runda på %s s ger tier %s', (seconds, expected) => {
+    expect(tier('speedster', [timed(5, seconds)])).toBe(expected);
+  });
+
+  it('34:59 => tier 1 och 35:00 => tier 0', () => {
+    expect(tier('speedster', [timed(5, 2099)])).toBe(1);
+    expect(tier('speedster', [timed(5, 2100)])).toBe(0);
+  });
+
+  it('moving_time 0, null, negativ och NaN ignoreras (blir inte "snabbast")', () => {
+    expect(tier('speedster', [timed(5, 0)])).toBe(0);
+    expect(tier('speedster', [timed(5, null)])).toBe(0);
+    expect(tier('speedster', [timed(5, -30)])).toBe(0);
+    expect(tier('speedster', [timed(5, Number.NaN)])).toBe(0);
+    // ...och stör inte en riktig tid:
+    expect(tier('speedster', [timed(5, 0), timed(5, null), timed(5, 1700)])).toBe(2);
+  });
+
+  it('rundor utanför 4,9–<10,0 km räknas inte även om de är snabbare', () => {
+    expect(tier('speedster', [timed(3, 600), timed(12, 1500), timed(5, 1700)])).toBe(2);
+    expect(tier('speedster', [timed(3, 600), timed(12, 1500)])).toBe(0);
+  });
+
+  it('bästa tiden vinner och source_run_id är den snabbaste rundan', () => {
+    const result = computeBadgeTiers(
+      [timed(5, 1700, { id: 'slow' }), timed(6, 1490, { id: 'fast' }), timed(7, 1600, { id: 'mid' })],
+      NO_STREAK
+    );
+    expect(result.speedster).toEqual({ tier: 3, source_run_id: 'fast' });
+  });
+
+  it('vid lika tid vinner den först angivna rundan (deterministiskt)', () => {
+    const result = computeBadgeTiers([timed(5, 1500, { id: 'a' }), timed(5, 1500, { id: 'b' })], NO_STREAK);
+    expect(result.speedster.source_run_id).toBe('a');
+  });
+
+  it('tier 0 har inget source_run_id; inga rundor ger tier 0', () => {
+    expect(computeBadgeTiers([timed(5, 2400)], NO_STREAK).speedster).toEqual({ tier: 0 });
+    expect(computeBadgeTiers([], NO_STREAK).speedster).toEqual({ tier: 0 });
+  });
+
+  it('råa sekunder, ingen avrundning till minuter: 2099,9 s är under 35:00, 2100 s är det inte', () => {
+    expect(tier('speedster', [timed(5, 2099.9)])).toBe(1);
+    expect(tier('speedster', [timed(5, 2100)])).toBe(0);
+  });
+});
+
+describe('precisionist (exakt helt km, heltals-hundradelar)', () => {
+  const dist = (km: number, over: Partial<BadgeRun> = {}) => run({ distance_km: km, ...over });
+  const exact = (n: number) => many(n, () => dist(5));
+
+  it('10,00 räknas som exakt hel km, 10,01 inte, 0,00 inte', () => {
+    expect(tier('precisionist', many(3, () => dist(10)))).toBe(1);
+    expect(tier('precisionist', many(3, () => dist(10.01)))).toBe(0);
+    expect(tier('precisionist', many(3, () => dist(0)))).toBe(0);
+    expect(tier('precisionist', [dist(10), dist(10), dist(10.01)])).toBe(0);
+  });
+
+  it('under 1 km räknas inte (0,50 är inte en hel km), 1,00 räknas', () => {
+    expect(tier('precisionist', many(3, () => dist(0.5)))).toBe(0);
+    expect(tier('precisionist', many(3, () => dist(1)))).toBe(1);
+  });
+
+  it('flyttalsrester ger inget falskt utfall: 8,2, 2,3 och 0,7+0,1 är inte hela km, 7,0 och 3,00 är', () => {
+    expect(tier('precisionist', [dist(8.2), dist(2.3), dist(0.7 + 0.1)])).toBe(0);
+    expect(tier('precisionist', [dist(7), dist(3.0), dist(1)])).toBe(1);
+  });
+
+  it('tiers 1–4: 3/10/25/50 rundor', () => {
+    const cases: Array<[number, number]> = [
+      [2, 0],
+      [3, 1],
+      [9, 1],
+      [10, 2],
+      [24, 2],
+      [25, 3],
+      [49, 3],
+      [50, 4],
+      [200, 4],
+    ];
+    for (const [n, expected] of cases) expect(tier('precisionist', exact(n))).toBe(expected);
+  });
+
+  it('tier 5: en runda på exakt 21,10 km (21,09 och 21,11 räcker inte)', () => {
+    expect(tier('precisionist', [dist(21.1)])).toBe(5);
+    expect(tier('precisionist', [dist(21.09)])).toBe(0);
+    expect(tier('precisionist', [dist(21.11)])).toBe(0);
+  });
+
+  it('tier 5 är inte nästlad: ensam 21,10 ger tier 5; 50 hela km utan 21,10 ger tier 4', () => {
+    expect(tier('precisionist', exact(50))).toBe(4);
+    expect(tier('precisionist', [...exact(50), dist(21.1)])).toBe(5);
+  });
+
+  it('tier 5 source_run_id är rundan på 21,10', () => {
+    const result = computeBadgeTiers([dist(5), dist(21.1, { id: 'half' }), dist(8)], NO_STREAK);
+    expect(result.precisionist).toEqual({ tier: 5, source_run_id: 'half' });
+  });
+
+  it('tier 6: exakt 10,00, 21,10 och 42,20 (en runda vardera) ger tier 6 utan source_run_id', () => {
+    const result = computeBadgeTiers([dist(10), dist(21.1), dist(42.2)], NO_STREAK);
+    expect(result.precisionist).toEqual({ tier: 6 });
+    expect('source_run_id' in result.precisionist).toBe(false);
+  });
+
+  it('två av tre ger tier 5 när 21,10 ingår', () => {
+    expect(tier('precisionist', [dist(10), dist(21.1)])).toBe(5);
+    expect(tier('precisionist', [dist(21.1), dist(42.2)])).toBe(5);
+  });
+
+  it('10,00 + 42,20 utan 21,10 ger varken tier 5 eller 6 (42,20 är inte en hel km => en hel-km-runda => tier 0)', () => {
+    expect(tier('precisionist', [dist(10), dist(42.2)])).toBe(0);
+  });
+
+  it('samma distans flera gånger räknas som en distinkt: 3 × 10,00 + 3 × 21,10 ger tier 5, inte 6', () => {
+    const runs = [...many(3, () => dist(10)), ...many(3, () => dist(21.1))];
+    expect(tier('precisionist', runs)).toBe(5);
+  });
+
+  it('42,19 och 42,21 räknas inte som 42,20', () => {
+    expect(tier('precisionist', [dist(10), dist(21.1), dist(42.19)])).toBe(5);
+    expect(tier('precisionist', [dist(10), dist(21.1), dist(42.21)])).toBe(5);
+  });
+
+  it('löpband räknas som för XP', () => {
+    expect(tier('precisionist', many(3, () => dist(5, { is_treadmill: true })))).toBe(1);
+  });
+
+  it('ogiltiga distanser (NaN, negativ) räknas inte', () => {
+    expect(tier('precisionist', [dist(Number.NaN), dist(-10), dist(-1)])).toBe(0);
+  });
+});
+
 describe('tomma indata', () => {
   it('tomma rundor ger tier 0 i alla serier utan NaN', () => {
     const result = computeBadgeTiers([], NO_STREAK);
@@ -410,6 +801,46 @@ describe('requirementText (engelska kravtexter)', () => {
         expect(requirementText(s, t).length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it('texterna för de fyra serierna i RUN-116 är engelska och specifika per tier', () => {
+    const texts = (key: string) => Array.from({ length: MAX_TIER }, (_, i) => requirementText(find(key), i + 1));
+    expect(texts('early_bird')).toEqual([
+      'Start 5 runs between 04:00 and 07:00',
+      'Start 15 runs between 04:00 and 07:00',
+      'Start 50 runs between 04:00 and 07:00',
+      'Start 100 runs between 04:00 and 07:00',
+      'Start 50 runs between 04:00 and 06:00',
+      'Start 100 runs between 04:00 and 06:00',
+    ]);
+    expect(texts('night_owl')).toEqual([
+      'Start 5 runs between 21:00 and 04:00',
+      'Start 15 runs between 21:00 and 04:00',
+      'Start 50 runs between 21:00 and 04:00',
+      'Start 100 runs between 21:00 and 04:00',
+      'Start 25 runs between 22:30 and 04:00',
+      'Start 10 runs between 23:30 and 00:30',
+    ]);
+    expect(texts('speedster')).toEqual([
+      'A 5 km run in under 35:00',
+      'A 5 km run in under 30:00',
+      'A 5 km run in under 25:00',
+      'A 5 km run in under 22:00',
+      'A 5 km run in under 20:00',
+      'A 5 km run in under 18:00',
+    ]);
+    expect(texts('precisionist')).toEqual([
+      'Run 3 runs of exactly a whole number of km',
+      'Run 10 runs of exactly a whole number of km',
+      'Run 25 runs of exactly a whole number of km',
+      'Run 50 runs of exactly a whole number of km',
+      'Run exactly 21.10 km in a single run',
+      'Run exactly 10.00 km, 21.10 km and 42.20 km (one run each)',
+    ]);
+  });
+
+  it('Speedster-texten lovar inte en splittid (en hel runda i kvalificeringsspannet räknas)', () => {
+    for (let t = 1; t <= MAX_TIER; t++) expect(requirementText(find('speedster'), t)).not.toMatch(/split|first/i);
   });
 
   it('texterna innehåller tröskeln för just den tiern', () => {
