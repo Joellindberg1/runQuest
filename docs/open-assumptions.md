@@ -245,3 +245,11 @@ raden (liten städfix, nästa backend-runda).
 - **Popupen har ingen prototyp** — härledd ur skalets delade modal (`.rq-modal`/`.rq-scrim`), Bebas-rubrik, hårlinjegrid för punkterna, en guldknapp. Fokus startar på "Got it".
 - **Prototypens textsteg snappade till tokens**: kortrubrik 18 px → `--rq-fs-name` (20 på desktop), beskrivningar 16 px → `--rq-fs-body` (17 på desktop), release-datum 15 → `--rq-fs-meta`.
 - **Alla som redan sett de gamla patchnotes (`patch_2026_04_02_*`) får 0.5.0-popupen en gång** — slugen `patch_v0.5.0` är ny. De gamla slugarna ligger kvar i tabellen, ofarliga.
+
+## Badge-samlingen i profilen (RUN-128, v0.6.0)
+
+- **Samlingskortet är lodrätt på alla bredder, även desktop.** F2:s desktopkort (emblem till vänster, namn + chip + pips till höger) förutsätter ca 200 px breda kort. Skalets huvudkolumn är smalare än i designens 1440-bild (sidonav 250 + sidokolumn 340), så fyra kolumner ger ca 145 px (1280) / 180 px (1440), där LEGENDARY-chippet inte ryms bredvid emblemet och namnen bröts mitt i orden. Det lodräta mobilkortet i 4 kolumner läses rent. Byt till raden om rutnätet får fler pixlar (färre kolumner eller bredare kolumn).
+- **ON DISPLAY-remsan ritas inte när inga badges är valda** (ingen tom remsa, ingen platshållare). "Edit"/"Edit display" byggs i RUN-129, som avgör remsans tomläge med sin ingång.
+- **News-radens ikonkolumn är 30 px på mobil men övriga rader har 26 px** (spec §5: `--rq-badge-news-icon-w`, "när den bär ett sm-emblem"), så texten på badge-rader börjar 4 px längre in än på övriga rader. Tokenen heter `--rq-news-row-icon-badge-w` (news-vakten läser `--rq-news-*`; badges-vakten läser bara `badges.css`). Desktop 34 px = som övriga rader. Vill ägaren ha utlinjering bör `--rq-news-row-cols` (26 px) höjas till 30 px för alla rader.
+- **Flavor-storleken är `--rq-fs-body`** (15 px mobil, 17 desktop): första `--rq-fs-*`-steget ≥ 14 px som inte är en knappstorlek (`--rq-fs-btn-sm` = 14 px finns men är en knappkonstant).
+- **Skelettet är en loop (`infinite`)** — F8 anger `rqSkel` 1.6 s och det är en laddare som pulserar tills datan kommer. Vakttestet "inget infinite i badges.css" gäller nu bara emblemreglerna (undantag för `.rq-badge-skel`).

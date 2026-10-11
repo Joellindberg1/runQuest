@@ -1,5 +1,7 @@
 import type { ChangeEvent } from 'react';
+import type { BadgeShowcaseEntry } from '@runquest/shared';
 import type { User } from '@runquest/types';
+import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { getInitials } from '@/shared/utils/formatters';
 import { useProfilePictureUpload } from '../hooks/useProfilePictureUpload';
@@ -46,10 +48,15 @@ interface ProfileHeroProps {
   cells: StatCell[];
   /** Web Prototype har fem celler, App Prototype tre. */
   isDesktop: boolean;
+  /** De visade badges (max tre, användarens ordning) — minis efter namnet. Tom/utelämnad (laddar, fel, inget valt): ingenting ritas, ingen platshållare. */
+  showcase?: readonly BadgeShowcaseEntry[];
 }
 
-/** Hjältekortet (`.rq-card--hero`): nivåring, namn · rank · rundor · XP kvar, statceller i hårlinjegrid och profilbilden. */
-export function ProfileHero({ user, hero, cells, isDesktop }: ProfileHeroProps) {
+/**
+ * Hjältekortet (`.rq-card--hero`): nivåring, namn (+ badge-minis) · rank · rundor · XP kvar, statceller i hårlinjegrid och profilbilden.
+ * Minisen är ett eget element efter h1:an, så rubriken förblir bara namnet; BadgeMinis bär själv role="img" och etiketten.
+ */
+export function ProfileHero({ user, hero, cells, isDesktop, showcase = [] }: ProfileHeroProps) {
   const visible = cells.filter((cell) => isDesktop || !cell.wideOnly);
   const percent = Math.round(hero.ringTurn * 100);
   const ringLabel = hero.nextLevel === null
@@ -66,7 +73,10 @@ export function ProfileHero({ user, hero, cells, isDesktop }: ProfileHeroProps) 
         </div>
       </div>
       <div className="rq-profile-hero__who">
-        <h1 className="rq-display rq-profile-hero__name">{hero.name}</h1>
+        <div className="rq-badge-nameline">
+          <h1 className="rq-display rq-profile-hero__name">{hero.name}</h1>
+          <BadgeMinis showcase={showcase} />
+        </div>
         <p className="rq-profile-hero__meta">{standing}</p>
         <p className="rq-profile-hero__xp">{xpToNextText(hero)}</p>
       </div>

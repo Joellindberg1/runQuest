@@ -6,6 +6,9 @@ import { useAuth } from '@/providers/authContext';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
+import { buildCollection, buildRunnerBadges } from '@/features/badges/badgeModel';
+import { BadgeCollection } from '@/features/badges/components/BadgeCollection';
+import { useGroupBadges, useUserBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
 import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
@@ -37,6 +40,17 @@ export function ProfileScreen() {
   const titlesQuery = useRunnerTitles(user?.id ?? '');
   const boardQuery = useTitleLeaderboard();
 
+  // Badges är ett tillägg: egna queries, och ett badgefel stannar i badgekortet (resten av profilen berörs inte). Gruppens holders ger held-by;
+  // felar den utelämnas raden (data är då undefined) utan platshållare.
+  const userBadges = useUserBadges(user?.id);
+  const groupBadges = useGroupBadges(!!user);
+  const badges = useMemo(() => {
+    const viewer = { viewerId: user?.id ?? null, ownerId: user?.id ?? '' };
+    return { rows: buildCollection(userBadges.data, groupBadges.data, viewer), showcase: buildRunnerBadges(userBadges.data, groupBadges.data, viewer).showcase };
+  }, [userBadges.data, groupBadges.data, user?.id]);
+  // Felkort med Retry bara när det inte finns något att visa: en misslyckad bakgrundsomhämtning låter den gamla samlingen stå kvar.
+  const badgeError = userBadges.isError && !userBadges.data ? { retrying: userBadges.isFetching, onRetry: () => void userBadges.refetch() } : undefined;
+
   const hero = useMemo(() => (me ? buildHero(me, usersQuery.data ?? []) : null), [me, usersQuery.data]);
   const heldTitles = titlesQuery.data ? titlesQuery.data.filter((title) => title.is_current_holder).length : null;
   const cells = useMemo(() => (me ? buildStatCells(me, heldTitles) : []), [me, heldTitles]);
@@ -62,7 +76,8 @@ export function ProfileScreen() {
       <FeatureTour slug="tour_profile_v2" steps={TOUR_PROFILE_V2} />
       <div className="rq-profile__split">
         <div className="rq-profile__main">
-          <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} />
+          <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} showcase={badges.showcase} />
+          <BadgeCollection rows={badges.rows} loading={userBadges.isLoading} error={badgeError} isDesktop={isDesktop} />
           <JourneyCard totalKm={me.total_km} isDesktop={isDesktop} />
           <StatsPanel user={me} now={now} isDesktop={isDesktop} />
         </div>

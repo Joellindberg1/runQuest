@@ -406,6 +406,18 @@ describe('texterna ur typ + payload + vem som tittar', () => {
       expect(buildNewsRow(badgeEarned(1), ctx())).toMatchObject({ category: 'level', tone: 'level', icon: 'zap', kind: 'Badge earned' });
       expect(buildNewsRow(badgeEarned(1, {}, { tier: 2, previous_tier: 1 }), ctx()).kind).toBe('Badge evolved');
     });
+
+    it('emblem (F7): serien och den NYA nivån för en känd serie; null för okänd serie, tier utanför 1..6 och alla andra typer', () => {
+      expect(buildNewsRow(badgeEarned(1), ctx()).emblem).toEqual({ series: 'streak_keeper', tier: 1 });
+      expect(buildNewsRow(badgeEarned(1, {}, { series: 'milestoner', tier: 3, previous_tier: 2 }), ctx()).emblem).toEqual({ series: 'milestoner', tier: 3 });
+      for (const payload of [{ series: 'retired_series', tier: 2 }, { series: 'milestoner', tier: 9 }, { series: 'milestoner', tier: 0 }, { series: 'milestoner', tier: 2.5 }]) {
+        expect(buildNewsRow(badgeEarned(1, {}, payload), ctx()).emblem).toBeNull();
+      }
+      const noTier = badgeEarned(1, {}, { series: 'milestoner' });
+      delete (noTier.payload as { tier?: number }).tier;
+      expect(buildNewsRow(noTier, ctx()).emblem).toBeNull();
+      expect(buildNewsRow(levelUp(1, 25), ctx()).emblem).toBeNull();
+    });
   });
 
   describe('events', () => {

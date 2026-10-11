@@ -2,8 +2,8 @@
 
 Hjältekort · Frodo's journey (zoom) · statflikar (`?view=distance|streak|fun|consistency`, `useViewParam`) · MY TITLES · RUN HISTORY med redigera/radera
 och profilbild. Mobil = App Prototypens profil (allt i en kolumn), desktop = Web Prototypens (hjälte · Frodo · statflikar | titlar + rundhistorik på 340 px).
-`pages/ProfilePage.tsx` är tunn. Bottenbarens "You" och sidnavens Profile pekar hit (ADR 006). Badge-sektionerna i prototyperna är medvetet INTE byggda
-(ägaren designar dem).
+`pages/ProfilePage.tsx` är tunn. Bottenbarens "You" och sidnavens Profile pekar hit (ADR 006). Badge-samlingen (BADGES-kortet direkt under hjältekortet, minis i hjältekortets namnrad)
+byggdes i RUN-128 (spec F2/F8, komponenterna bor i `features/badges/components`); väljaren ("Edit"/"Edit display") kommer i RUN-129.
 
 Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: hjälte-, cell-, distans-, streak- och titellogiken är EN definition i
 `runner/runnerModel`; Profile skiljer sig i Fun facts, Consistency-fliken, rundhistoriken och att den egna profilen kan ändras.
@@ -12,7 +12,9 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 
 - **components/**
   - `ProfileScreen` — all datakoppling (`useUsersWithRuns`, titlar), laddning/fel/"User not found", tour, layout
-  - `ProfileHero` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop) och profilbilden
+  - `ProfileHero` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn (+ badge-minis, `BadgeMinis`)/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop) och profilbilden
+  - BADGES-kortet (`BadgeCollection`, `features/badges`) — monteras av `ProfileScreen` direkt efter hjältekortet i huvudkolumnen (mobil och desktop). `ProfileScreen` äger badge-queryerna (`useUserBadges(me.id)`, `useGroupBadges()`);
+    ett badgefel/laddning stannar i kortet (felkort med Retry, skelett) och rör aldrig resten av sidan. Ingen tur-ankare för kortet (turen `tour_profile_v2` är oförändrad)
   - `FrodoRoad` — vägen (waypoints, ticks, stapel, markör, ändetiketter) och `ZoomButton`; EN komponent som även Runner cards desktop-väg använder (`prefix` styr klassnamnen)
   - `JourneyCard` — Frodo: vägen med waypoints/ticks, zoomknapp (Overview → Zoomed → Close-up) på mobil OCH desktop, procent, nästa mål
   - `StatsPanel` — `ViewTabs variant="underline"` över `?view=`; `Heatmap` är Consistency-fliken
