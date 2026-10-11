@@ -3,7 +3,7 @@
 ## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
 
 Rullar ihop epicsen RUN-1 (Badges), RUN-91 (Stormborn, Iceborn, Winter Warrior) och RUN-92 (städning och nivåtabellen via backend), plus
-Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login som popup (RUN-145). Prod-stegen kräver ägar-ja var för sig: 035 och badge-backfillen är redan gjorda, 036/037 körs efter deployen (038/039 applicerades redan som säkerhetshotfix; 040 skrivs separat efter releasen) (se "Prod-steg" nedan).
+Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login som popup (RUN-145). Prod-stegen kräver ägar-ja var för sig: 035 och badge-backfillen är redan gjorda, 036, avtäckningen av badges (RUN-156) och 037 körs efter deployen (038/039 applicerades redan som säkerhetshotfix; 040 skrivs separat efter releasen) (se "Prod-steg" nedan).
 
 ### Nytt
 - **Badges (ADR 009, RUN-1).** Åtta serier × sex nivåer (Common till Legendary) som gruppen samlar över säsonger: Milestoner, Earth Trotter, Climber,
@@ -60,6 +60,7 @@ Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login s
 2. `backfill:badges`: dry-run, sedan `--apply` med dry-run-rapporten som underlag, FÖRE deployen av backend — KÖRD 2026-10-11 (ägar-ja): 36 rader med seen_tier = tier, inga news-rader, omkörning skriver inget. Efter deployen bara vid tröskeländring: `--apply --silent`.
 3. Deploy av release/v0.6.0 (backend med motorerna `stormRunCount`, `coldRunCount`, `winterKm` måste ligga före titelraderna).
 4. Migration 036 (`badge_earned` i `activity_log_type_check`) direkt efter deployen — avsiktligt efter, eftersom v0.5.3-frontendens News kraschar på okända händelsetyper; badge-news för nivåhöjningar i fönstret skrivs aldrig. Öppna flikar från v0.5.3 laddas om. Rollback av frontend till v0.5.3 efter att badge_earned-rader finns kräver att de raderas (ägar-ja).
+4b. Avtäckning (RUN-156, ägarbeslut): `reveal:badges` dry-run, sedan `--apply` (ägar-ja) DIREKT efter 036 — varje befintlig badge får en "Badge earned"-rad i Pack News och `seen_tier = 0`, så alla ser sina badges som nyförtjänade (popup + News). Idempotent; avbryter utan skrivning om 036 saknas.
 5. Migration 037 (titelraderna) efter deployen och DIREKT därefter tyst omräkning (annars kan en vanlig skrivning hinna ge title_unlocked för de nya titlarna): `POST /api/titles/reprocess-all` (`emitNews: false`).
 6. Migration 040 (stäng anon-läsning av `level_requirements`, RUN-112) först när v0.6.0 är live. Filen ingår inte i release/v0.6.0 och skrivs separat.
 7. Redan applicerat 2026-10-11 som säkerhetshotfix (ägar-ja): 038 stänger alla RLS-policyer för Supabase-Auth-sessioner (users-tabellen med email och password_hash var läsbar för en Supabase-session), 039 stänger anon-läsning av `title_leaderboard_view` (namn, kön, titelvärden) och signup-triggern `on_auth_user_created`.
