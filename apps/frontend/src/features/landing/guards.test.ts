@@ -162,7 +162,7 @@ describe('Landing — layout som inte får gå sönder', () => {
   });
 });
 
-describe('Landing-FEATUREN är publik och gör inga anrop (ägarbeslut 4; App-skalet gör sitt eget level_requirements-anrop på alla routes)', () => {
+describe('Landing-FEATUREN är publik och gör inga anrop (ägarbeslut 4; App-skalet hämtar nivåtabellen via GET /api/config/levels först när någon är inloggad — utloggad ingen)', () => {
   it('ingen fil hämtar data: inga fetch-anrop, backendApi, react-query, supabase eller datahooks', () => {
     for (const [path, text] of codeFiles) {
       const code = stripComments(text);
