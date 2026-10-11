@@ -31,6 +31,7 @@ Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login s
   - **Runner card (RUN-152).** Kompakt `BadgePanel` (bara emblem, popover för detaljer) bredvid Head to head i det nedre rutnätet (desktop), efter TITLES på mobil.
 - **Login som popup (RUN-145).** Inloggningen är en dialog (`LoginDialog`) över Landing på `/login` i stället för en egen sida (`LoginPage`/`LoginScreen` borta); `?next=` bevaras.
   Log out (AvatarMenu) går till startsidan `/` utan dialog. ADR 006, addendum 2026-10-11.
+- **Cachen rensas vid inloggning, utloggning och 401 (RUN-143).** `AuthProvider` anropar `queryClient.clear()` vid login, logout och `onUnauthorized`, så att förra användarens data (badges, grupp, users-with-runs, sett-listan, news) aldrig visas för nästa. Ingen loop: `clear()` startar ingen omhämtning.
 - **Tre nya titlar i kategorin Weather (RUN-91).** Stormborn (flest rundor med vindbyar på minst 12 m/s, `stormRunCount`), Iceborn (flest rundor vid 5 °C eller kallare,
   `coldRunCount`) och Winter Warrior (flest km under vintern 1 december–28/29 februari; utanför vintern räknas senast avslutade vinter, `winterKm`/`winterWindow`).
   Titelramverket fick väder i `RunData` och `ctx.now`; väder hämtas nu även för användare utan grupp, och titlarna räknas om efter väder-backfill. Migration 037 lägger

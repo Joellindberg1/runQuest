@@ -925,7 +925,7 @@ Alla fem röster: godkänt med villkor. Villkoren gäller manifest för RUN-127/
 
 ---
 
-## 10. Status per vy (beslut 54)
+## 10. Status per vy (beslut 54) — historik (v1), ersatt av v2, se V2.12
 
 | ID | Vy | Referensbild | Mobil | Desktop | Status |
 |---|---|---|---|---|---|

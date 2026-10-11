@@ -12,7 +12,7 @@
     },
     {
       "title": "Badges",
-      "body": "Eight series with six tiers each, collected across seasons. Pick up to three on the Badges page to show on the Board and next to your name",
+      "body": "Eight series with six tiers each, collected across seasons. Pick up to three on the Badges page to show on the Board and your Runner card",
       "icon": "shield"
     },
     {
@@ -83,11 +83,11 @@
       "changes": [
         {
           "type": "feature",
-          "description": "Badges are here: eight series, six tiers from Common to Legendary, collected across seasons. They have their own page: open Badges in the side menu, or tap All badges → on your Profile. Each card shows what it takes to reach the next tier."
+          "description": "Badges are here: eight series, six tiers from Common to Legendary, collected across seasons. They have their own page: on a wide screen open Badges in the side menu; on your phone tap All badges → on your Profile. Each card shows what it takes to reach the next tier."
         },
         {
           "type": "feature",
-          "description": "Pick up to three badges to show on the Board and next to your name: tap Show on a badge, then SAVE DISPLAY. A popup tells you when you reach a new tier, and Pack News tells the group."
+          "description": "Pick up to three badges to show on the Board and your Runner card: tap Show on a badge, then SAVE DISPLAY. A popup tells you when you reach a new tier, and Pack News tells the group."
         },
         {
           "type": "feature",

@@ -138,7 +138,7 @@ describe('changelog: v0.6.0', () => {
       [/SAVE DISPLAY/, 'features/badges/components/BadgeDisplayStrip.tsx', 'SAVE DISPLAY'],
       [/tap Show on a badge/, 'features/badges/components/BadgeSeriesCard.tsx', "'Show'"],
       [/All badges →/, 'features/badges/components/BadgeSummary.tsx', 'All badges'],
-      [/Badges in the side menu/, 'app-shell/SideNav.tsx', "label: 'Badges'"],
+      [/on a wide screen open Badges in the side menu; on your phone tap All badges → on your Profile/, 'app-shell/SideNav.tsx', "label: 'Badges'"],
       [/Log out takes you back to the start page/, 'app-shell/AvatarMenu.tsx', 'paths.landing'],
       [/Signing in now opens as a popup over the start page/, 'pages/Index.tsx', '<LoginDialog'],
       [/pennants instead of shields, on the Board and in Duels/, 'features/leaderboard/components/BoardParts.tsx', 'PENNANT_PATH'],
