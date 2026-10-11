@@ -44,18 +44,19 @@
 .rq-board-hint { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-rank-solid, var(--rq-text-4)); }
 .rq-board-hint[data-empty="true"] { color: var(--rq-text-4); }
 
-/* ── Badge-minis i Season-raderna (RUN-131, spec F5) ──────────────────────────
-   Gruppen är ett element som aldrig krymper; namnet ellipsiserar i stället. Alla regler hakar i data-minis / .rq-badge-minis, så en rad
-   utan visade badges får exakt samma layout som förut. Mellanrummet delta → första mini (>= 8 px, Council 11) är nameline-glappet (--rq-sp-8). */
+/* ── Badge-minis i Season-raderna (RUN-131, spec F5; placeringar RUN-147, spec F12) ──────────────────────────
+   Gruppen är ett element som aldrig krymper. Podiets regler hakar i data-minis / .rq-badge-minis, så ett kort utan visade badges får exakt
+   samma layout som förut. Mellanrummet delta → första mini (>= 8 px, Council 11) är nameline-glappet (--rq-sp-8); auto-marginalen kan bara öka det.
+   Podiet: minis högerställda på namnraden, med --rq-board-minis-inset luft så de går fria från spöksiffran. Rest-raderna: minis på sub-raden,
+   vimplarna i en annan cell (högerkolumnen / Last run) — aldrig i samma behållare (Council 8, F12.4). */
 .rq-board .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; align-self: center; gap: var(--rq-sp-4); }
+.rq-board-podium .rq-badge-minis { margin-left: auto; margin-right: var(--rq-board-minis-inset); }
 .rq-board [data-minis="true"] { min-width: 0; }
 .rq-board [data-minis="true"] .rq-board-namebtn { min-width: 0; }
-/* Ellipsis bara i desktoptabellen; podiekorten radbryter namnet fullt (Council 12: namnet dominerar). */
-.rq-board-namerow .rq-board-namebtn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rq-board-podium__nameline.rq-board-podium__nameline--room { min-height: var(--rq-badge-h-sm); }
 .rq-board [data-minis="true"] .rq-board-delta { flex-shrink: 0; }
-.rq-board-namerow { display: flex; align-items: center; gap: var(--rq-sp-8); min-width: 0; min-height: var(--rq-badge-h-sm); }
 .rq-board-cell-ribbons { display: flex; justify-content: flex-end; margin-top: var(--rq-sp-4); }
+.rq-board-cell-stack { display: flex; flex-direction: column; align-items: flex-end; gap: var(--rq-sp-4); }
 
 /* ── Podiekort ────────────────────────────────────────────────────────────── */
 .rq-board-podium-list { display: flex; flex-direction: column; gap: var(--rq-sp-10); }
@@ -105,6 +106,8 @@
 .rq-board-sub { display: flex; align-items: center; gap: var(--rq-sp-6); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 /* Mobilens rest-rader: sub-raden rymmer en mini (Council 10) — ALLA rader, med och utan minis, så de inte hoppar när badge-queryn landar. */
 .rq-board-sub.rq-board-sub--list { min-height: var(--rq-badge-h-sm); }
+/* Desktoptabellens sub-rad bär minis efter "Lvl N · X km" (glapp --rq-sp-8) och rymmer en mini på ALLA rader av samma skäl. */
+.rq-board-sub.rq-board-sub--table { gap: var(--rq-sp-8); min-height: var(--rq-badge-h-sm); }
 .rq-track.rq-board-track--thin { height: var(--rq-board-bar-h-thin); margin: var(--rq-sp-4) 0; }
 .rq-board-titleline--row { margin: 0 0 var(--rq-sp-6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--rq-gold-rgb) / .8); }
 .rq-board-num { font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); text-align: right; }

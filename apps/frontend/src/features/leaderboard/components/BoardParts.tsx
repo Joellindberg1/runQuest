@@ -57,7 +57,11 @@ export function RunnerName({ name, onOpen }: RunnerNameProps) {
 
 const TIER_ORDER = ['minor', 'major', 'legendary'] as const;
 
-/** Osända challenge-tokens som sköldar (minor/major/legendary), bara de nivåer som finns. */
+/** Vimpelns silhuett (vertikal, svalstjärt) i viewBox 0 0 26 32 — ur designens `pennant()`; SVG-data, inte stil. */
+export const PENNANT_PATH = 'M1.5 1.5 H24.5 V30.5 L13 23.5 L1.5 30.5 Z';
+export const PENNANT_TEXT_Y = 16.5;
+
+/** Osända challenge-tokens som vimplar (minor/major/legendary), bara de nivåer som finns. */
 export function ChallengeRibbons({ tokens }: { tokens: TierTokens }) {
   const present = TIER_ORDER.filter((tier) => tokens[tier] > 0);
   if (present.length === 0) return null;
@@ -66,8 +70,8 @@ export function ChallengeRibbons({ tokens }: { tokens: TierTokens }) {
     <span className="rq-ribbons" role="img" aria-label={`Challenges to send: ${summary}`}>
       {present.map((tier) => (
         <svg key={tier} className="rq-ribbon" data-tier={tier} viewBox="0 0 26 32" aria-hidden="true">
-          <path d="M1.5 1.5 H24.5 V21 L13 30.5 L1.5 21 Z" />
-          <text x="13" y="17" textAnchor="middle">{tokens[tier]}</text>
+          <path d={PENNANT_PATH} />
+          <text x="13" y={PENNANT_TEXT_Y} textAnchor="middle">{tokens[tier]}</text>
         </svg>
       ))}
     </span>
