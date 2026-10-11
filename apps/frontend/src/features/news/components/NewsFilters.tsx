@@ -12,7 +12,7 @@ interface NewsFiltersProps {
 }
 
 /**
- * Filtret över `?type=`: Titles · Challenges · Events · Levels · Streaks, flera kan vara valda (inget valt = allt). Samma knappar är
+ * Filtret över `?type=`: Titles · Challenges · Events · Levels · Badges · Streaks, flera kan vara valda (inget valt = allt). Samma knappar är
  * en chip-rad på mobil och ett kort med lodrät lista på desktop (Web Prototypen) — bara CSS skiljer. Räknaren är antal rader i det
  * laddade fönstret (ADR 008). Valt = `aria-pressed`, med kategorins färg.
  */
@@ -32,7 +32,7 @@ export function NewsFilters({ selected, counts, loaded, onToggle }: NewsFiltersP
             onClick={() => onToggle(filter.key)}
           >
             <span className="rq-news-filter__name">
-              <span className="rq-news-filter__icon"><RQIcon name={CATEGORY_ICON[filter.category]} size={ICON_FILTER} /></span>
+              <span className="rq-news-filter__icon"><RQIcon name={filter.icon ?? CATEGORY_ICON[filter.category]} size={ICON_FILTER} /></span>
               <span>{filter.label}</span>
             </span>
             <span className="rq-news-filter__count">

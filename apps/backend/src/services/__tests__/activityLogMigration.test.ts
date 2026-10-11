@@ -31,6 +31,7 @@ const latestFile = typeCheckMigrations[typeCheckMigrations.length - 1];
 
 const sql034 = readMigration('034_create_activity_log.sql');
 const sql036 = readMigration('036_activity_log_badge_earned.sql');
+const sql041 = readMigration('041_activity_log_release_published.sql');
 // 034 definierar tabellen; resten av filen testas mot dess kod.
 const code = sql034;
 
@@ -47,7 +48,41 @@ describe('activity_log_type_check — senaste migrationen som definierar CHECK:e
     const values = checkValues(sql034)!;
     expect(values).toHaveLength(11);
     expect(values).not.toContain('badge_earned');
-    expect([...ACTIVITY_TYPES].filter((type) => !values.includes(type))).toEqual(['badge_earned']);
+    expect([...ACTIVITY_TYPES].filter((type) => !values.includes(type))).toEqual(['badge_earned', 'release_published']);
+  });
+
+  it('036 behåller sin lista: 034 + badge_earned, utan release_published (historik skrivs inte om)', () => {
+    const values = checkValues(sql036)!;
+    expect(values).toContain('badge_earned');
+    expect(values).not.toContain('release_published');
+    expect([...ACTIVITY_TYPES].filter((type) => !values.includes(type))).toEqual(['release_published']);
+  });
+});
+
+describe('migration 041_activity_log_release_published.sql', () => {
+  it('är bara ett constraint-byte: drop + add av activity_log_type_check på activity_log, inget annat', () => {
+    const statements = sql041
+      .split(';')
+      .map((statement) => statement.replace(/\s+/g, ' ').trim())
+      .filter((statement) => statement !== '');
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toMatch(/^alter table public\.activity_log drop constraint if exists activity_log_type_check$/i);
+    expect(statements[1]).toMatch(/^alter table public\.activity_log add constraint activity_log_type_check check \(type in \(/i);
+    expect(sql041).not.toMatch(/\b(create|insert|update|delete|truncate|rename|grant|revoke|policy)\b/i);
+    expect(sql041).not.toMatch(/\bdrop\s+(table|column|index)\b/i);
+  });
+
+  it('ingen egen transaktionsram och idempotent (drop … if exists före add)', () => {
+    expect(sql041).not.toMatch(/\b(begin|commit|rollback|start\s+transaction)\b/i);
+    expect(sql041.search(/drop constraint if exists activity_log_type_check/i)).toBeGreaterThan(-1);
+    expect(sql041.search(/drop constraint if exists/i)).toBeLessThan(sql041.search(/add constraint/i));
+  });
+
+  it('listan är 036:s lista + release_published (additivt, inget försvinner)', () => {
+    const values041 = checkValues(sql041)!;
+    expect(values041).toContain('release_published');
+    for (const type of checkValues(sql036)!) expect(values041).toContain(type);
+    expect(values041).toHaveLength(checkValues(sql036)!.length + 1);
   });
 });
 

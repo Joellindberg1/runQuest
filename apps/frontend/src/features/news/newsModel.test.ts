@@ -7,53 +7,81 @@ import {
   replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
 } from './newsModel';
 import { formatInt } from '@/features/log/logFormat';
-import { ADAM, DAN, ME, NICK, NOW, KARL, at, badgeEarned, challengeWon, eventOpen, item, levelUp, meta, streakBroken, titleTaken } from './news.fixture';
+import { ADAM, DAN, ME, NICK, NOW, KARL, at, badgeEarned, challengeWon, eventOpen, item, levelUp, meta, releasePublished, streakBroken, titleTaken } from './news.fixture';
 
 const ctx = (over: Partial<NewsContext> = {}): NewsContext => ({ viewerId: ME.id, now: NOW, ...over });
 
 describe('kategorier och filter', () => {
-  it('varje händelsetyp har en kategori och hör till exakt ett filter (en ny typ i shared kräver ett beslut här)', () => {
+  // release_published (RUN-161) är medvetet utan filterchip: systemraden syns när inget filter är valt.
+  const WITHOUT_FILTER: readonly ActivityType[] = ['release_published'];
+
+  it('varje händelsetyp har en kategori och hör till exakt ett filter, utom de utan chip (en ny typ i shared kräver ett beslut här)', () => {
     for (const type of ACTIVITY_TYPES) {
       expect(CATEGORY_OF[type], type).toBeTruthy();
-      expect(NEWS_FILTERS.filter((filter) => filter.types.includes(type)).map((filter) => filter.key), type).toHaveLength(1);
+      expect(NEWS_FILTERS.filter((filter) => filter.types.includes(type)).map((filter) => filter.key), type).toHaveLength(WITHOUT_FILTER.includes(type) ? 0 : 1);
     }
-    expect(NEWS_FILTERS.flatMap((filter) => filter.types).sort()).toEqual([...ACTIVITY_TYPES].sort());
+    expect(NEWS_FILTERS.flatMap((filter) => filter.types).sort()).toEqual(ACTIVITY_TYPES.filter((type) => !WITHOUT_FILTER.includes(type)).sort());
   });
 
-  it('Levels = level_up + run_milestone (ADR 008) + badge_earned (ADR 009 beslut 5, F7)', () => {
-    expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone', 'badge_earned']);
+  it('release_published: kategori "release" utan eget filter, och inget chip räknar eller släpper igenom den', () => {
+    expect(CATEGORY_OF.release_published).toBe('release');
+    expect(NEWS_FILTERS.some((filter) => filter.category === 'release')).toBe(false);
+    expect(countByFilter([releasePublished(1)])).toEqual({ titles: 0, challenges: 0, events: 0, levels: 0, badges: 0, streaks: 0 });
+    // Inget filter valt = ingen typfiltrering alls, så raden kommer med; varje valt chip utesluter den.
+    expect(typesForFilters([])).toBeNull();
+    for (const filter of NEWS_FILTERS) expect(typesForFilters([filter.key])).not.toContain('release_published');
+  });
+
+  it('Levels = level_up + run_milestone (ADR 008); badge_earned har eget chip sedan v0.6.1 men raderna behåller kategorin level (ADR 009 beslut 5, F7)', () => {
+    expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone']);
     expect(CATEGORY_OF.run_milestone).toBe('level');
     expect(CATEGORY_OF.badge_earned).toBe('level');
   });
 
-  it('adressparametern: okända nycklar och dubbletter faller bort, ordningen är chipens, alla fem = inget filter', () => {
+  it('adressparametern: okända nycklar och dubbletter faller bort, ordningen är chipens, alla sex = inget filter', () => {
     expect(parseFilterParam(null)).toEqual([]);
     expect(parseFilterParam('')).toEqual([]);
     expect(parseFilterParam('levels,titles,titles,nonsense')).toEqual(['titles', 'levels']);
-    expect(parseFilterParam('titles,challenges,events,levels,streaks')).toEqual([]);
+    expect(parseFilterParam('titles,challenges,events,levels,badges,streaks')).toEqual([]);
     expect(serializeFilterParam(['levels', 'titles'])).toBe('titles,levels');
     expect(serializeFilterParam([])).toBeNull();
   });
 
-  it('toggleFilter lägger till och tar bort; det femte valda blir "allt"', () => {
+  it('toggleFilter lägger till och tar bort; det sjätte valda blir "allt"', () => {
     expect(toggleFilter([], 'events')).toEqual(['events']);
     expect(toggleFilter(['events'], 'titles')).toEqual(['titles', 'events']);
     expect(toggleFilter(['titles', 'events'], 'titles')).toEqual(['events']);
-    expect(toggleFilter(['titles', 'challenges', 'events', 'levels'], 'streaks')).toEqual([]);
+    expect(toggleFilter(['titles', 'challenges', 'events', 'levels', 'badges'], 'streaks')).toEqual([]);
   });
 
   it('chipsens typer blir serverns type= i stabil ordning; inget filter = ingen parameter', () => {
     expect(typesForFilters([])).toBeNull();
     expect(typeParamOf(null)).toBeUndefined();
-    expect(typesForFilters(['levels', 'titles'])).toEqual(['title_unlocked', 'title_taken', 'title_revoked', 'level_up', 'run_milestone', 'badge_earned']);
+    expect(typesForFilters(['levels', 'titles'])).toEqual(['title_unlocked', 'title_taken', 'title_revoked', 'level_up', 'run_milestone']);
     expect(typeParamOf(typesForFilters(['streaks']))).toBe('streak_broken');
   });
 
   it('chip-räknarna är antal per kategori i det laddade fönstret', () => {
     const counts = countByFilter([titleTaken(5), titleTaken(4), levelUp(3, 25), streakBroken(2), eventOpen(1)]);
-    expect(counts).toEqual({ titles: 2, challenges: 0, events: 1, levels: 1, streaks: 1 });
-    // badge_earned räknas under Levels.
-    expect(countByFilter([badgeEarned(2), levelUp(1, 25)]).levels).toBe(2);
+    expect(counts).toEqual({ titles: 2, challenges: 0, events: 1, levels: 1, badges: 0, streaks: 1 });
+    // badge_earned räknas under Badges, inte Levels.
+    expect(countByFilter([badgeEarned(2), levelUp(1, 25)])).toMatchObject({ levels: 1, badges: 1 });
+  });
+
+  it("Badges-chipet släpper bara igenom badge_earned, ligger direkt efter Levels, har Levels-färg men egen ikon (shield)", () => {
+    const filter = NEWS_FILTERS.find((candidate) => candidate.key === "badges");
+    expect(filter).toMatchObject({ label: "Badges", category: "level", icon: "shield", types: ["badge_earned"] });
+    expect(NEWS_FILTERS.map((candidate) => candidate.key)).toEqual(["titles", "challenges", "events", "levels", "badges", "streaks"]);
+    expect(NEWS_FILTERS.filter((candidate) => candidate.key !== "badges").every((candidate) => !candidate.types.includes("badge_earned"))).toBe(true);
+  });
+
+  it("?type=badges: går runt adress → chip → serverns type=, och okända nycklar faller bort", () => {
+    expect(parseFilterParam("badges")).toEqual(["badges"]);
+    expect(serializeFilterParam(parseFilterParam("badges,nonsense"))).toBe("badges");
+    expect(serializeFilterParam(["streaks", "badges", "levels"])).toBe("levels,badges,streaks");
+    expect(toggleFilter(["levels"], "badges")).toEqual(["levels", "badges"]);
+    expect(typesForFilters(["badges"])).toEqual(["badge_earned"]);
+    expect(typeParamOf(typesForFilters(["levels", "badges"]))).toBe("level_up,run_milestone,badge_earned");
   });
 });
 
@@ -420,6 +448,50 @@ describe('texterna ur typ + payload + vem som tittar', () => {
     });
   });
 
+  describe('release_published (RUN-161)', () => {
+    it('"New version" med texten "RunQuest vX is out — titel"; systemrad utan aktör', () => {
+      expect(describeNews(releasePublished(1), ctx())).toEqual({ kind: 'New version', text: 'RunQuest v0.6.1 is out — News about releases' });
+      expect(describeNews(releasePublished(1, {}, { version: '0.7.0', title: 'Season stats' }), ctx()).text).toBe('RunQuest v0.7.0 is out — Season stats');
+    });
+
+    it('texten är densamma för alla som tittar (ingen "you")', () => {
+      expect(describeNews(releasePublished(1), ctx({ viewerId: null })).text).toBe(describeNews(releasePublished(1), ctx()).text);
+    });
+
+    it('raden: kategori release, ikon sparkles, ingen emblem; oläst följer vattenmärket som för alla rader', () => {
+      expect(buildNewsRow(releasePublished(1), ctx())).toMatchObject({ category: 'release', tone: 'release', icon: 'sparkles', emblem: null, kind: 'New version' });
+      expect(buildNewsRow(releasePublished(1, { is_unread: true }), ctx()).unread).toBe(true);
+      expect(buildNewsRow(releasePublished(1, { is_unread: true, is_backfill: true }), ctx()).unread).toBe(false);
+    });
+
+    it('tåligt mot en payload utan fält: ingen krasch, aldrig "undefined"', () => {
+      const noTitle = releasePublished(1);
+      delete (noTitle.payload as { title?: string }).title;
+      expect(describeNews(noTitle, ctx())).toEqual({ kind: 'New version', text: 'RunQuest v0.6.1 is out' });
+
+      const noVersion = releasePublished(1);
+      delete (noVersion.payload as { version?: string }).version;
+      expect(describeNews(noVersion, ctx()).text).toBe('A new RunQuest version is out — News about releases');
+
+      const empty = { ...releasePublished(1), payload: {} } as unknown as WireNewsItem;
+      expect(describeNews(empty, ctx())?.text).toBe('A new RunQuest version is out');
+      expect(buildNewsRow(empty, ctx())).not.toBeNull();
+
+      const nullPayload = { ...releasePublished(1), payload: null } as unknown as WireNewsItem;
+      expect(() => buildNewsRow(nullPayload, ctx())).not.toThrow();
+
+      for (const row of [noTitle, noVersion, empty]) expect(describeNews(row, ctx())?.text).not.toMatch(/undefined|NaN|null/);
+    });
+
+    it('flödet och popovern tar med raden i tidsordning; en okänd framtida typ filtreras fortfarande bort', () => {
+      const unknownFuture = { ...releasePublished(3), type: 'something_new', payload: {} } as unknown as UnknownNewsItem;
+      const items: WireNewsItem[] = [releasePublished(2), levelUp(1, 4), unknownFuture];
+      const rows = buildNewsGroups(items, ctx()).flatMap((group) => group.rows.map((row) => row.id));
+      expect(rows.sort()).toEqual([1, 2]);
+      expect(buildPopoverRows(items, ctx()).map((row) => row.kind).sort()).toEqual(['Level up', 'New version']);
+    });
+  });
+
   describe('events', () => {
     it('öppet till midnatt, och med klockslag/veckodag/datum längre fram', () => {
       expect(describeNews(eventOpen(1), ctx())).toEqual({ kind: 'Event open', text: '5K Friday is open until midnight · +25 XP' });
@@ -546,7 +618,7 @@ describe('okända händelsetyper och trasiga rader (RUN-138)', () => {
   });
 
   it('chip-räknarna räknar inte okända rader', () => {
-    expect(countByFilter([levelUp(1, 2), unknownItem(2), unknownItem(3)])).toEqual({ titles: 0, challenges: 0, events: 0, levels: 1, streaks: 0 });
+    expect(countByFilter([levelUp(1, 2), unknownItem(2), unknownItem(3)])).toEqual({ titles: 0, challenges: 0, events: 0, levels: 1, badges: 0, streaks: 0 });
   });
 
   it('flödet behåller okända rader (så att "Mark all read" når det verkliga högsta id:t) men ingen oläst-markör byggs för dem', () => {
@@ -581,6 +653,7 @@ describe('okända händelsetyper och trasiga rader (RUN-138)', () => {
       event_open: eventOpen(10),
       event_closed: item('event_closed', 11, { event_id: 'e', event_type: 'participation', template_name: '5K Friday', participants: 3, members: 5 }),
       badge_earned: badgeEarned(12),
+      release_published: releasePublished(13),
     };
     for (const type of ACTIVITY_TYPES) {
       expect(isKnownNewsItem(samples[type]), type).toBe(true);

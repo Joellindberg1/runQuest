@@ -16,11 +16,12 @@ import { resolveGenderedTitle, titleValueText } from '@/features/titles/titleFor
 
 // ─── Kategorier och filter ──────────────────────────────────────────────────
 
-export type NewsCategory = 'title' | 'challenge' | 'level' | 'event' | 'streak';
+export type NewsCategory = 'title' | 'challenge' | 'level' | 'event' | 'streak' | 'release';
 
 /**
  * Kategorin styr ikon, färg och kant. run_milestone hör till Levels (ADR 008: Levels = level_up + run_milestone), liksom
- * badge_earned (ADR 009 beslut 5, F7: kanten förblir Levels-grön).
+ * badge_earned (ADR 009 beslut 5, F7: kanten förblir Levels-grön). release_published (RUN-161) är en systemhändelse med en
+ * egen kategori utan filterchip: raden syns när inget filter är valt.
  */
 export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   title_unlocked: 'title',
@@ -35,6 +36,7 @@ export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   event_open: 'event',
   event_closed: 'event',
   badge_earned: 'level',
+  release_published: 'release',
 };
 
 /** Ikonerna ur runquest-icons (prototypens `kinds`). */
@@ -44,14 +46,17 @@ export const CATEGORY_ICON: Record<NewsCategory, RQIconName> = {
   level: 'zap',
   event: 'calendar',
   streak: 'flame',
+  release: 'sparkles',
 };
 
-export type NewsFilterKey = 'titles' | 'challenges' | 'events' | 'levels' | 'streaks';
+export type NewsFilterKey = 'titles' | 'challenges' | 'events' | 'levels' | 'badges' | 'streaks';
 
 export interface NewsFilter {
   key: NewsFilterKey;
   label: string;
   category: NewsCategory;
+  /** Chipets egen ikon när den ska skilja sig från kategorins (Badges delar Levels-färg men ritar `shield`). */
+  icon?: RQIconName;
   /** Typerna som chipet släpper igenom — mappas i klienten till `?type=` (ADR 008 beslut 9). */
   types: readonly ActivityType[];
 }
@@ -60,7 +65,8 @@ export const NEWS_FILTERS: readonly NewsFilter[] = [
   { key: 'titles', label: 'Titles', category: 'title', types: ['title_unlocked', 'title_taken', 'title_revoked'] },
   { key: 'challenges', label: 'Challenges', category: 'challenge', types: ['challenge_received', 'challenge_won', 'challenge_draw'] },
   { key: 'events', label: 'Events', category: 'event', types: ['event_open', 'event_closed'] },
-  { key: 'levels', label: 'Levels', category: 'level', types: ['level_up', 'run_milestone', 'badge_earned'] },
+  { key: 'levels', label: 'Levels', category: 'level', types: ['level_up', 'run_milestone'] },
+  { key: 'badges', label: 'Badges', category: 'level', icon: 'shield', types: ['badge_earned'] },
   { key: 'streaks', label: 'Streaks', category: 'streak', types: ['streak_broken'] },
 ];
 
@@ -71,7 +77,7 @@ export const FILTER_PARAM = 'type';
 export function parseFilterParam(raw: string | null | undefined): NewsFilterKey[] {
   const wanted = new Set((raw ?? '').split(',').map((part) => part.trim()));
   const keys = NEWS_FILTERS.filter((filter) => wanted.has(filter.key)).map((filter) => filter.key);
-  // Alla fem valda = inget filter alls.
+  // Alla chip valda = inget filter alls.
   return keys.length === NEWS_FILTERS.length ? [] : keys;
 }
 
@@ -106,7 +112,7 @@ export const isKnownNewsItem = (item: WireNewsItem): item is NewsItem => isActiv
 
 /** Antal rader per chip i det laddade fönstret (ADR 008: chip-räknare = antal i det laddade fönstret). Okända typer räknas inte. */
 export function countByFilter(items: readonly Pick<WireNewsItem, 'type'>[]): Record<NewsFilterKey, number> {
-  const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, events: 0, levels: 0, streaks: 0 };
+  const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, events: 0, levels: 0, badges: 0, streaks: 0 };
   for (const item of items) {
     if (!isActivityType(item.type)) continue;
     const type = item.type;
@@ -472,6 +478,14 @@ export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | n
       const winnerName = first ? (first.user_id === ctx.viewerId ? 'You' : (ctx.nameOf?.(first.user_id) ? firstName(ctx.nameOf(first.user_id) as string) : null)) : null;
       const took = `${payload.participants} of ${payload.members} took part`;
       return { kind: 'Event closed', text: `${payload.template_name} closed — ${winnerName ? `${winnerName} won · ` : ''}${took}` };
+    }
+    case 'release_published': {
+      // Tåligt mot en payload utan fält (som badge_earned): saknad rubrik utelämnas, saknad version ger en neutral formulering.
+      const { version, title } = item.payload ?? {};
+      const hasVersion = typeof version === 'string' && version !== '';
+      const hasTitle = typeof title === 'string' && title !== '';
+      const lead = hasVersion ? `RunQuest v${version} is out` : 'A new RunQuest version is out';
+      return { kind: 'New version', text: hasTitle ? `${lead} — ${title}` : lead };
     }
     default: {
       const unhandled: never = item;

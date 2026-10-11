@@ -75,6 +75,23 @@
   ],
   "releases": [
     {
+      "version": "0.6.1",
+      "type": "patch",
+      "date": "11 October 2026",
+      "title": "Badges filter and release news",
+      "announce": true,
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Pack News has a Badges filter of its own, right after Levels. Badges no longer show up under Levels."
+        },
+        {
+          "type": "feature",
+          "description": "New versions of RunQuest now show up in Pack News too, so you can see what changed even if you closed the What's new popup."
+        }
+      ]
+    },
+    {
       "version": "0.6.0",
       "type": "minor",
       "date": "11 October 2026",

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import { BADGE_SERIES, TIER_NAMES, type NewsItem } from '@runquest/shared';
-import { KARL, ME, NOW_ISO, at, badgeEarned, levelUp, newsServer } from '../news.fixture';
+import { KARL, ME, NOW_ISO, at, badgeEarned, levelUp, newsServer, releasePublished } from '../news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { NewsPopoverPanel } from './NewsPopoverPanel';
@@ -54,5 +54,20 @@ describe('NewsPopoverPanel — badge_earned (F7)', () => {
       expect(row.querySelector('.rq-badge')).toBeNull();
       expect(row).not.toHaveAttribute('data-emblem');
     }
+  });
+});
+
+describe('NewsPopoverPanel — release_published (RUN-161)', () => {
+  it('visar raden med "New version" och releasetexten, kategorin release och pricken (inget emblem)', async () => {
+    setup([releasePublished(2, { occurred_at: at(1) }, { version: '0.6.1', title: 'News about releases' }), levelUp(1, 25, { occurred_at: at(3) })]);
+    renderWithApp(<NewsPopoverPanel onClose={() => {}} />);
+    await screen.findByRole('list', { name: 'Latest news' });
+    const [release, level] = rows();
+    expect(release).toHaveAttribute('data-category', 'release');
+    expect(release).not.toHaveAttribute('data-emblem');
+    expect(release.querySelector('.rq-news-pop__dot')).not.toBeNull();
+    expect(within(release).getByText('New version')).toBeInTheDocument();
+    expect(within(release).getByText('RunQuest v0.6.1 is out — News about releases')).toBeInTheDocument();
+    expect(level).toHaveAttribute('data-category', 'level');
   });
 });

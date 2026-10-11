@@ -11,6 +11,7 @@ import {
   buildEventClosedDraft,
   buildEventOpenDraft,
   buildLevelUpDrafts,
+  buildReleasePublishedDraft,
   buildRunMilestoneDrafts,
   buildStreakBrokenDraft,
   buildTitleDrafts,
@@ -28,10 +29,10 @@ import {
 } from '../activity.js';
 
 describe('ACTIVITY_TYPES', () => {
-  it('är exakt ADR 008:s elva typer + badge_earned (ADR 009 beslut 5), unika', () => {
+  it('är exakt ADR 008:s elva typer + badge_earned (ADR 009 beslut 5) + release_published (RUN-161), unika', () => {
     expect([...ACTIVITY_TYPES].sort()).toEqual([
       'badge_earned', 'challenge_draw', 'challenge_received', 'challenge_won', 'event_closed', 'event_open', 'level_up',
-      'run_milestone', 'streak_broken', 'title_revoked', 'title_taken', 'title_unlocked',
+      'release_published', 'run_milestone', 'streak_broken', 'title_revoked', 'title_taken', 'title_unlocked',
     ]);
     expect(new Set(ACTIVITY_TYPES).size).toBe(ACTIVITY_TYPES.length);
   });
@@ -39,6 +40,7 @@ describe('ACTIVITY_TYPES', () => {
   it('isActivityType avvisar okända värden och icke-strängar', () => {
     expect(isActivityType('level_up')).toBe(true);
     expect(isActivityType('badge_earned')).toBe(true);
+    expect(isActivityType('release_published')).toBe(true);
     expect(isActivityType('challenge_lost')).toBe(false);
     expect(isActivityType(5)).toBe(false);
     expect(isActivityType(undefined)).toBe(false);
@@ -396,6 +398,29 @@ describe('buildBadgeEarnedDraft', () => {
     for (const forbidden of ['email', 'password', 'token', 'external_id', 'strava', 'run_id']) {
       expect(json).not.toContain(forbidden);
     }
+  });
+});
+
+describe('buildReleasePublishedDraft (RUN-161)', () => {
+  const at = '2026-10-12T08:00:00.000Z';
+
+  it('systemhändelse: ingen aktör, ingen target, aldrig backfill, payload {version, title}, nyckel per grupp och version', () => {
+    expect(buildReleasePublishedDraft('g1', '0.6.1', 'Release news', at)).toEqual({
+      type: 'release_published', group_id: 'g1', actor_user_id: null, target_user_id: null,
+      payload: { version: '0.6.1', title: 'Release news' }, payload_version: ACTIVITY_PAYLOAD_VERSION,
+      dedupe_key: 'release_published:g1:0.6.1', occurred_at: at, is_backfill: false,
+    });
+  });
+
+  it('nyckeln skiljer grupper och versioner men är stabil för samma par', () => {
+    expect(activityKeys.releasePublished('g1', '0.6.1')).toBe('release_published:g1:0.6.1');
+    expect(activityKeys.releasePublished('g2', '0.6.1')).not.toBe(activityKeys.releasePublished('g1', '0.6.1'));
+    expect(activityKeys.releasePublished('g1', '0.6.2')).not.toBe(activityKeys.releasePublished('g1', '0.6.1'));
+    expect(buildReleasePublishedDraft('g1', '0.6.1', 'A', at).dedupe_key).toBe(buildReleasePublishedDraft('g1', '0.6.1', 'B', at).dedupe_key);
+  });
+
+  it('payloaden är bara version och title', () => {
+    expect(Object.keys(buildReleasePublishedDraft('g1', '0.6.1', 'T', at).payload).sort()).toEqual(['title', 'version']);
   });
 });
 
