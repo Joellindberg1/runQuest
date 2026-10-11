@@ -189,6 +189,112 @@ describe('useSaveShowcase — optimistisk med återställning', () => {
   });
 });
 
+describe('överlappande skrivningar: inga invalideringar eller skrivningar mitt i kedjan', () => {
+  const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+
+  it('två "Got it" i rad: när A svarar men servern bara committat A får omhämtningen inte lägga tillbaka B i kön', async () => {
+    const base: BadgeUserResponse = {
+      items: [
+        { series: 'milestoner', tier: 3, earned_at: '2026-10-01T00:00:00Z', seen_tier: 1 },
+        { series: 'climber', tier: 2, earned_at: '2026-10-02T00:00:00Z', seen_tier: 0 },
+      ],
+      showcase: [],
+    };
+    const committed = new Set<string>();
+    // Servern speglar bara det som är committat.
+    api.getUserBadges.mockImplementation(async () => ({
+      ...base, items: base.items.map((entry) => (committed.has(entry.series) ? { ...entry, seen_tier: entry.tier } : entry)),
+    }));
+    const posts: Array<ReturnType<typeof deferred<{ updated: string[] }>>> = [];
+    api.markSeen.mockImplementation(() => { const post = deferred<{ updated: string[] }>(); posts.push(post); return post.promise; });
+
+    const observer = renderHook(() => useUserBadges(ME), { wrapper });
+    await waitFor(() => expect(observer.result.current.data).toBeDefined());
+    const { result } = renderHook(() => useMarkBadgesSeen(ME), { wrapper });
+
+    act(() => result.current.markSeen(['milestoner']));
+    act(() => result.current.markSeen(['climber']));
+    await waitFor(() => expect(posts).toHaveLength(2));
+
+    committed.add('milestoner');
+    await act(async () => { posts[0].resolve({ updated: ['milestoner'] }); });
+    await settle();
+
+    expect(cachedMine()?.items.map((entry) => entry.seen_tier)).toEqual([3, 2]);
+    expect(api.getUserBadges).toHaveBeenCalledTimes(1);
+
+    // Den sista som avslutas invaliderar, och då har servern B också.
+    committed.add('climber');
+    await act(async () => { posts[1].resolve({ updated: ['climber'] }); });
+    await waitFor(() => expect(api.getUserBadges).toHaveBeenCalledTimes(2));
+    expect(cachedMine()?.items.map((entry) => entry.seen_tier)).toEqual([3, 2]);
+  });
+
+  it('två save i rad: A:s svar eller invalidering skriver inte över B:s optimistiska val', async () => {
+    const base: BadgeUserResponse = {
+      items: [
+        { series: 'milestoner', tier: 3, earned_at: '2026-10-01T00:00:00Z', seen_tier: 3 },
+        { series: 'climber', tier: 2, earned_at: '2026-10-02T00:00:00Z', seen_tier: 2 },
+      ],
+      showcase: [],
+    };
+    let committed: string[] = [];
+    api.getUserBadges.mockImplementation(async () => ({ ...base, showcase: committed }));
+    const puts: Array<ReturnType<typeof deferred<{ showcase: string[] }>>> = [];
+    api.saveShowcase.mockImplementation(() => { const put = deferred<{ showcase: string[] }>(); puts.push(put); return put.promise; });
+
+    const observer = renderHook(() => useUserBadges(ME), { wrapper });
+    await waitFor(() => expect(observer.result.current.data).toBeDefined());
+    const { result } = renderHook(() => useSaveShowcase(ME), { wrapper });
+
+    act(() => { void result.current.save(['milestoner']); });
+    act(() => { void result.current.save(['milestoner', 'climber']); });
+    await waitFor(() => expect(puts).toHaveLength(2));
+
+    committed = ['milestoner'];
+    await act(async () => { puts[0].resolve({ showcase: ['milestoner'] }); });
+    await settle();
+
+    expect(cachedMine()?.showcase).toEqual(['milestoner', 'climber']);
+    expect(api.getUserBadges).toHaveBeenCalledTimes(1);
+    expect(api.getGroupBadges).not.toHaveBeenCalled();
+
+    committed = ['milestoner', 'climber'];
+    await act(async () => { puts[1].resolve({ showcase: ['milestoner', 'climber'] }); });
+    await waitFor(() => expect(api.getUserBadges).toHaveBeenCalledTimes(2));
+    expect(cachedMine()?.showcase).toEqual(['milestoner', 'climber']);
+  });
+
+  it('A misslyckas medan B är på väg: A återställer inte B:s optimistiska läge; sista avslutet läker mot servern', async () => {
+    const base: BadgeUserResponse = {
+      items: [
+        { series: 'milestoner', tier: 3, earned_at: '2026-10-01T00:00:00Z', seen_tier: 1 },
+        { series: 'climber', tier: 2, earned_at: '2026-10-02T00:00:00Z', seen_tier: 0 },
+      ],
+      showcase: [],
+    };
+    api.getUserBadges.mockResolvedValue(base);
+    const posts: Array<ReturnType<typeof deferred<{ updated: string[] }>>> = [];
+    api.markSeen.mockImplementation(() => { const post = deferred<{ updated: string[] }>(); posts.push(post); return post.promise; });
+
+    const observer = renderHook(() => useUserBadges(ME), { wrapper });
+    await waitFor(() => expect(observer.result.current.data).toBeDefined());
+    const { result } = renderHook(() => useMarkBadgesSeen(ME), { wrapper });
+
+    act(() => result.current.markSeen(['milestoner']));
+    act(() => result.current.markSeen(['climber']));
+    await waitFor(() => expect(posts).toHaveLength(2));
+
+    await act(async () => { posts[0].reject(new Error('Network error')); });
+    await settle();
+    expect(cachedMine()?.items.find((entry) => entry.series === 'climber')?.seen_tier).toBe(2);
+    expect(api.getUserBadges).toHaveBeenCalledTimes(1);
+
+    await act(async () => { posts[1].resolve({ updated: ['climber'] }); });
+    await waitFor(() => expect(api.getUserBadges).toHaveBeenCalledTimes(2));
+  });
+});
+
 describe('useMarkBadgesSeen', () => {
   function seeded() {
     queryClient.setQueryData(BADGE_QUERY_KEYS.user(ME), mine());

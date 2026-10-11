@@ -42,6 +42,8 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
 - **Optimistiskt, med återställning:** `useSaveShowcase(userId)` skriver valet i min samling direkt, återställer vid fel (400: max 3 / ej ägd), låter serverns
   sparade val vinna och invaliderar min samling + gruppen (Board-raderna). `useMarkBadgesSeen(userId)` höjer `seen_tier` direkt (kön töms), återställer vid fel och
   invaliderar bara min samling. Båda avbryter pågående omhämtningar av min samling först.
+- **Överlappande skrivningar:** varje mutation har en `mutationKey` (`BADGE_QUERY_KEYS.mutation.*`), och `onSuccess`/`onError`/`onSettled` skriver, återställer och invaliderar
+  bara när `queryClient.isMutating({ mutationKey }) === 1` (den sista). Annars kan A:s avslut låta en omhämtning läsa servern före B:s POST och lägga tillbaka B i popupkön.
 - **Hook-signaturerna tar användar-id** (`useSaveShowcase(userId)`, `useMarkBadgesSeen(userId)`) i stället för att läsa inloggningen själva: hookarna är rena mot
   providers och testas utan auth-kontext. Vyerna har id:t från `useAuth()`.
 - **Inte här:** tokens, emblem, komponenter, Runner card-ordningen (visade först, sedan högst nivå, sedan serieordning — RUN-130 bygger den ur `BadgeRow.displayPosition`

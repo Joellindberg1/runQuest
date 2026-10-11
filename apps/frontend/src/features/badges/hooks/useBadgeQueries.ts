@@ -15,6 +15,11 @@ export const BADGE_QUERY_KEYS = {
   userRoot: ['badges', 'user'] as const,
   /** En användares samling. Egen och andras ligger under var sin nyckel, så de blandas aldrig. */
   user: (userId: string) => ['badges', 'user', userId] as const,
+  /** Mutationsnycklar: skrivningarna räknas mot varandra (en omhämtning får inte läsa servern mitt i en kedja av skrivningar). */
+  mutation: {
+    showcase: (userId: string) => ['badges', 'showcase', userId] as const,
+    seen: (userId: string) => ['badges', 'seen', userId] as const,
+  },
   /** Gruppens val + holders: en delad hämtning för Board-raderna och "Held by X of N". */
   group: ['badges', 'group'] as const,
 };
@@ -57,7 +62,13 @@ export function useSaveShowcase(userId: string | undefined) {
   const queryClient = useQueryClient();
   const mine = userId ? BADGE_QUERY_KEYS.user(userId) : null;
 
+  const mutationKey = BADGE_QUERY_KEYS.mutation.showcase(userId ?? '');
+  // Den som avslutas medan en annan skrivning är på väg rör ingenting: serverns svar/omhämtning ligger då före den senare skrivningen
+  // och skulle skriva över dess optimistiska val. Den sista som avslutas skriver serverns sanning och invaliderar.
+  const isLast = () => queryClient.isMutating({ mutationKey }) === 1;
+
   const mutation = useMutation({
+    mutationKey,
     mutationFn: async (series: readonly string[]) => {
       if (!userId) throw new Error('Not signed in');
       return badgesApi.saveShowcase(series);
@@ -70,12 +81,13 @@ export function useSaveShowcase(userId: string | undefined) {
       return { previous };
     },
     onError: (_error, _series, context) => {
-      if (mine && context?.previous) queryClient.setQueryData(mine, context.previous);
+      if (mine && context?.previous && isLast()) queryClient.setQueryData(mine, context.previous);
     },
     onSuccess: (saved) => {
-      if (mine) queryClient.setQueryData<BadgeUserResponse>(mine, (data) => (data ? applyShowcase(data, saved.showcase) : data));
+      if (mine && isLast()) queryClient.setQueryData<BadgeUserResponse>(mine, (data) => (data ? applyShowcase(data, saved.showcase) : data));
     },
     onSettled: () => {
+      if (!isLast()) return;
       if (mine) void queryClient.invalidateQueries({ queryKey: mine });
       void queryClient.invalidateQueries({ queryKey: BADGE_QUERY_KEYS.group });
     },
@@ -98,7 +110,13 @@ export function useMarkBadgesSeen(userId: string | undefined) {
   const queryClient = useQueryClient();
   const mine = userId ? BADGE_QUERY_KEYS.user(userId) : null;
 
+  const mutationKey = BADGE_QUERY_KEYS.mutation.seen(userId ?? '');
+  // "Got it" på A och sedan B innan A svarat: A:s avslut får varken återställa eller invalidera, för omhämtningen kan läsa servern
+  // före B:s POST och lägga tillbaka B i popupkön. Den sista som avslutas invaliderar.
+  const isLast = () => queryClient.isMutating({ mutationKey }) === 1;
+
   const mutation = useMutation({
+    mutationKey,
     mutationFn: async (series?: readonly string[]) => {
       if (!userId) throw new Error('Not signed in');
       return badgesApi.markSeen(series);
@@ -111,10 +129,10 @@ export function useMarkBadgesSeen(userId: string | undefined) {
       return { previous };
     },
     onError: (_error, _series, context) => {
-      if (mine && context?.previous) queryClient.setQueryData(mine, context.previous);
+      if (mine && context?.previous && isLast()) queryClient.setQueryData(mine, context.previous);
     },
     onSettled: () => {
-      if (mine) void queryClient.invalidateQueries({ queryKey: mine });
+      if (mine && isLast()) void queryClient.invalidateQueries({ queryKey: mine });
     },
   });
 
