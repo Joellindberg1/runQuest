@@ -104,3 +104,83 @@
 .rq-badge-pips { display: inline-flex; align-items: center; gap: var(--rq-badge-pip-gap); }
 .rq-badge-pips .rq-badge-pips__pip { width: var(--rq-badge-pip); height: var(--rq-badge-pip); background: var(--rq-line-4); }
 .rq-badge-pips .rq-badge-pips__pip--on { background: var(--rq-emblem-c); }
+
+/* ── BADGES-panelen på Runner card (RUN-130, spec F4): skrivskyddad lista över intjänade serier ───────────────────
+   Klasserna är komponentens (components/BadgePanel); stilen flyttades hit från features/runner/runner.css i RUN-128 (oförändrad).
+   Held-by: 11 px (--rq-fs-eyebrow) i --rq-text-4 (.50, ≥ 4.5:1) — får radbrytas, aldrig ellipsiseras. */
+.rq-badge-panel__head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
+.rq-badge-panel__title { margin: 0; font-weight: 400; }
+.rq-badge-panel__aside { margin-left: auto; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-badge-panel__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-badge-panel__row { display: flex; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-8) var(--rq-sp-10); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-badge-panel__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--rq-sp-2); }
+.rq-badge-panel__nameline { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--rq-sp-8); }
+.rq-badge-panel .rq-badge-panel__name { color: var(--rq-text-1); overflow-wrap: anywhere; }
+.rq-badge-panel__display { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-badge-panel__held { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); color: var(--rq-text-4); }
+.rq-badge-panel__row .rq-badge-chip { flex-shrink: 0; }
+.rq-badge-panel__empty { margin: 0; padding: var(--rq-sp-10); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-badge-panel__loading { display: flex; justify-content: center; padding: var(--rq-sp-16) 0; }
+
+/* ── Samlingen i profilen (RUN-128, spec F2/F8) ──────────────────────────────────────────────────────────────
+   components/BadgeCollection (kortet, remsan, tillstånden) och BadgeSeriesCard (ett kort per serie). Rutnätet är mobil 2 / desktop 4 kolumner via
+   --rq-badge-grid-cols. Text: kravraden --rq-text-2, Next/Unlock --rq-text-3, held-by 11 px mono --rq-text-4 (≥ 4.5:1) — ingen opacity-dimning av text (Council 9).
+   Guld är rollguld (rubrik, ON DISPLAY, "TOP TIER REACHED"), aldrig en nivåfärg och aldrig en fylld yta. */
+.rq-badge-collection__head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
+.rq-badge-collection__title { margin: 0; font-weight: 400; }
+.rq-badge-collection__aside { margin-left: auto; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+
+/* ON DISPLAY-remsan: rollguldets tint och kant (inte Legendary). Minisen krymper aldrig. */
+.rq-badge-display {
+  display: flex; align-items: center; gap: var(--rq-sp-10); margin-bottom: var(--rq-sp-12); padding: var(--rq-sp-8) var(--rq-sp-12);
+  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-status));
+}
+.rq-badge-display__label { flex-shrink: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3); }
+.rq-badge-display__names { min-width: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-2); overflow-wrap: anywhere; }
+.rq-badge-display .rq-badge-minis, .rq-badge-nameline .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-4); }
+
+/* Namnraden i hjältekortet: namn + minis. Raden rymmer en mini även utan, så kortet inte hoppar när badge-queryn landar (som Runner card och Board).
+   Ryms inte båda på en rad hamnar minisen under namnet — namnet bryts inte mitt i (Council 12: namnet dominerar). */
+.rq-badge-nameline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-4) var(--rq-sp-8); min-height: var(--rq-badge-h-sm); }
+
+.rq-badge-grid { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: var(--rq-badge-grid-cols); gap: var(--rq-sp-10); }
+.rq-badge-card { display: flex; flex-direction: column; gap: var(--rq-sp-8); min-width: 0; padding: var(--rq-sp-12); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-badge-card[data-state="locked"] { border-style: dashed; border-color: var(--rq-line-5); }
+/* Lodrätt kort (emblem överst) på alla bredder. Designens desktopkort (emblem till vänster, namn + chip till höger) förutsätter ca 200 px breda kort; i skalet
+   (sidonav 250 + sidokolumn 340) blir fyra kolumner ca 145 px (1280) respektive 180 px (1440), där chippen (LEGENDARY) inte ryms bredvid emblemet. */
+.rq-badge-card__id { display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-8); }
+.rq-badge-card__who { display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-6); min-width: 0; }
+.rq-badge-card .rq-badge-card__name { margin: 0; color: var(--rq-text-1); overflow-wrap: break-word; }
+.rq-badge-card__body { display: flex; flex-direction: column; gap: var(--rq-sp-6); }
+.rq-badge-card__body > p { margin: 0; }
+.rq-badge-card__req { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+/* Flavor: egen rad, citerad kursiv, full textfärg, Barlow Condensed, första typsteget ≥ 14 px (Council 2). */
+.rq-badge-card__flavor { font-family: var(--rq-font-ui); font-style: italic; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-1); }
+.rq-badge-card__next { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-badge-card__max { font-weight: 600; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-badge-card__held { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+
+/* Tomläge (F8): streckad ruta — rubrik, en rad, åtta låsta minis. */
+.rq-badge-empty { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-20) var(--rq-sp-12); border: var(--rq-hair) dashed var(--rq-line-5); text-align: center; }
+.rq-badge-empty__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-display); font-weight: 400; line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+.rq-badge-empty__text { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-badge-empty__minis { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--rq-sp-8); }
+
+/* Skelett (F8): tre kort med ett sköldblock (md-storlek) och tre streck. Pulsen (rqSkel) ligger i no-preference-blocket nedan — reduced-motion visar de stilla blocken. */
+.rq-badge-skel-list { display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+.rq-badge-skel { display: flex; align-items: center; gap: var(--rq-sp-14); padding: var(--rq-sp-12); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-badge-skel__shape { flex-shrink: 0; width: var(--rq-badge-w-md); height: var(--rq-badge-h-md); clip-path: var(--rq-badge-clip); background-color: var(--rq-fill-1); }
+.rq-badge-skel__lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-badge-skel__bar { height: var(--rq-skel-h-2); background-color: var(--rq-fill-1); }
+.rq-badge-skel__bar:nth-child(1) { width: 55%; }
+.rq-badge-skel__bar:nth-child(2) { width: 100%; }
+.rq-badge-skel__bar:nth-child(3) { width: 70%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .rq-badge-skel :is(.rq-badge-skel__shape, .rq-badge-skel__bar) {
+    background-image: linear-gradient(90deg, var(--rq-fill-1), var(--rq-line-4), var(--rq-fill-1)); background-size: 200% 100%;
+    animation: rqSkel var(--rq-dur-badge-skel) linear infinite;
+  }
+  .rq-badge-skel:nth-child(2) :is(.rq-badge-skel__shape, .rq-badge-skel__bar) { animation-delay: var(--rq-badge-skel-stagger); }
+  .rq-badge-skel:nth-child(3) :is(.rq-badge-skel__shape, .rq-badge-skel__bar) { animation-delay: calc(var(--rq-badge-skel-stagger) * 2); }
+}

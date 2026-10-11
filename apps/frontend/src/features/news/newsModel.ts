@@ -1,6 +1,7 @@
 import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, isActivityType, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/types';
 import { stockholmClock } from '@/app-shell/rightNowItems';
+import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
 import { logger } from '@/shared/utils/logger';
 import { deltaText, durationLongText, firstName, metricLabel } from '@/features/challenges/duelsFormat';
@@ -490,6 +491,11 @@ export interface NewsRowModel {
   /** Popoverns prick/typrad: kategorins färg, men en förlorad utmaning är röd (som Web Prototypens popover). */
   tone: NewsTone;
   icon: RQIconName;
+  /**
+   * badge_earned (F7): serien och nya nivån, så raden ritar ett sm-emblem i ikonkolumnen i stället för `icon`. null för allt annat — och för en okänd serie
+   * eller en tier utanför 1..6 (en annan serverversion), som behåller reservikonen `icon` i stället för ett emblem som ljuger.
+   */
+  emblem: { series: string; tier: number } | null;
   kind: string;
   text: string;
   /** Kompakt: "2h". */
@@ -530,6 +536,13 @@ function warnFiltered(item: Pick<WireNewsItem, 'id' | 'type'>, reason: string): 
   logger.warn(`News row filtered (${reason}): id=${item.id} type=${item.type}`);
 }
 
+/** Emblemet i badge_earned-raden: bara en känd serie med en giltig nya nivå; allt annat ritar raden med kategorins ikon. */
+function emblemOf(item: NewsItem): NewsRowModel['emblem'] {
+  if (item.type !== 'badge_earned') return null;
+  const { series, tier } = item.payload;
+  return BADGE_SERIES.some((def) => def.key === series) && isEarnedTier(tier) ? { series, tier } : null;
+}
+
 function renderRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
   const category = CATEGORY_OF[item.type];
   const { kind, text } = describeNews(item, ctx);
@@ -538,6 +551,7 @@ function renderRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
     category,
     tone: kind === 'Challenge lost' ? 'loss' : category,
     icon: CATEGORY_ICON[category],
+    emblem: emblemOf(item),
     kind,
     text,
     time: formatAgo(item.occurred_at, ctx.now),

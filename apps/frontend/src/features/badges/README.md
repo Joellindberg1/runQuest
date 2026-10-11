@@ -61,7 +61,8 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
   `index.css` OCH `docs/design/temafil-forslag.css`, ordagrant lika — ett vakttest jämför värdena och mot `claude-design/runquest-badges.js`).
 - **Chip:** `<span className="rq-chip rq-chip--status rq-badge-chip" data-tier={tierKey(tier)}>{nivånamn}</span>` (status-receptet, nivåfärg). Låst chip = bara `.rq-chip` (text `--rq-text-4`, .50).
   Designens .45 verifierades mot kortbakgrunden (ca #181818): 4.49:1, alltså under 4.5:1; .50 ger 5.3:1 och är det närmaste tokensteget som klarar kravet (Council 9).
-- **Layouttokens** (samlingsrutnät, popupbredd, News-radens ikonkolumn, spec §5) finns INTE än: vakttestet kräver att varje token läses, så RUN-128/129/132 lägger in sina när de bygger dem.
+- **Layouttokens** (spec §5): vakttestet kräver att varje token läses, så varje story lägger in sina när den bygger dem. Inlagda: `--rq-badge-grid-cols` (samlingsrutnätet, RUN-128) och skelettets takt `--rq-dur-badge-skel`/`--rq-badge-skel-stagger`.
+  News-radens ikonkolumn heter `--rq-news-row-icon-badge-w` (30 px mobil, 34 desktop; avsnitt 1.28, läses av `news.css` — inte `--rq-badge-*`, eftersom badges-vakten bara läser `badges.css`). Popupbredden kommer med RUN-129.
 
 ### Runner card: BadgePanel (RUN-130)
 
@@ -70,7 +71,25 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
 - **Data:** `rows` kommer ur `buildRunnerBadges(userBadges, group, viewer)`: bara intjänade serier, visade först (i löparens ordning), sedan högst nivå, sedan serieordning. Samma funktion ger
   `showcase` till minis i Runner cardens hjältekort. Held-by göms när X = N (andras kort) och utelämnas när group-queryn felar.
 - **Lägen:** laddar → TrackLoader; `error` (`{ onRetry, retrying }`) → `ErrorState` med Retry; tom `rows` → streckad ruta "No badges yet." (bara ett lyckat, tomt svar).
-- **Stil:** `.rq-badge-panel*` ligger i `features/runner/runner.css` tills Profile återanvänder panelen (RUN-128) — då flyttas blocket hit. Placering och datakoppling: `features/runner/README.md`.
+- **Stil:** `.rq-badge-panel*` bor i `badges.css` (flyttad hit från `features/runner/runner.css` i RUN-128, oförändrad; Runner card ser likadan ut). Placering och datakoppling: `features/runner/README.md`.
+
+### Profilen: samlingen (RUN-128, spec F2/F8)
+
+- **components/BadgeCollection.tsx** — `BadgeCollection({ rows, loading?, error?, isDesktop })`: BADGES-kortet. Rubrik (Bebas guld, `shield` i `--rq-icon-md`) + "N of 8 series", ON DISPLAY-remsan (`BadgeMinis` i användarens ordning; desktop dessutom
+  namnen, `aria-hidden` eftersom minisens etikett redan säger nivå + serie) och rutnätet (`<ul aria-label="Badge series">`, ett `BadgeSeriesCard` per rad i `buildCollection`-ordning). Remsan ritas inte utan valda badges (ingen tom remsa).
+  **Ingen Edit-knapp** i RUN-128: "Edit"/"Edit display" byggs i RUN-129 (väljaren). Datahämtningen bor i `ProfileScreen` (`useUserBadges(me.id)` + `useGroupBadges()`), så ett badgefel aldrig kan fälla resten av sidan.
+- **components/BadgeSeriesCard.tsx** — ett kort. Intjänat: md-emblem (dekorativt), serienamn (versaler), `BadgeChip`, pips ("Tier N of 6"), `requirement` UTAN nivåprefix (`--rq-text-2`), `flavor` på egen rad (citerad kursiv, `--rq-text-1`,
+  Barlow Condensed, `--rq-fs-body` = första typsteget ≥ 14 px), "Next: …" (`--rq-text-3`) eller på maxad serie guld "TOP TIER REACHED", held-by (11 px mono, `--rq-text-4`). Låst: streckad kant, Locked-chip, dekorativa tomma pips, måttetiketten,
+  "Unlock: Common — …"; aldrig flavor, Next eller held-by (Council 1) — och kravtexten står en gång. Alla texter kommer färdiga ur modellen; kortet skriver aldrig en platshållare.
+- **components/BadgeChip.tsx** — nivå-chippet: intjänat = `.rq-chip .rq-chip--status .rq-badge-chip` + `data-tier`; **låst = bara `.rq-chip`** ("Locked", text `--rq-text-4`). Chip-logiken bor på ETT ställe och har test.
+  (`BadgePanel` har fortfarande sin egen chip-rad för intjänade serier; den kan byta till `BadgeChip` utan beteendeändring.)
+- **Kortet är lodrätt på alla bredder.** Designens desktopkort (emblem till vänster, namn + chip till höger) förutsätter ca 200 px breda kort; i skalet (sidonav 250 + sidokolumn 340) blir fyra kolumner ca 145 px vid 1280 och
+  ca 180 px vid 1440, där chippet (LEGENDARY) inte ryms bredvid emblemet. Mobil 2 kolumner, desktop 4 (`--rq-badge-grid-cols`, 1.34 i båda temafilerna). Se `docs/open-assumptions.md`.
+- **Tillstånd (F8):** laddar → tre skelettkort (`.rq-badge-skel`, sköldblock `--rq-badge-w/h-md` + tre streck; `rqSkel` i `--rq-dur-badge-skel` 1.6 s, stagger `--rq-badge-skel-stagger` .2 s via `:nth-child`, inuti `prefers-reduced-motion: no-preference` —
+  reduced-motion visar stilla block; skelettet är den enda loopen i `badges.css`, så vakttestets "inget infinite" gäller emblemreglerna); inga badges än (lyckat, tomt svar) → "No badges yet" + "Log a run to start collecting." + åtta låsta minis
+  (en `role="img"`-grupp "Locked badges: …"); fel → `ErrorState` ("Couldn't load your badges" / "Your runs are safe." / Retry) i stället för kortet, bara när det inte finns äldre data att visa. Gruppens fel utelämnar bara held-by.
+- **Hjältekortet:** `ProfileHero` får `showcase` (ur `buildRunnerBadges(...).showcase`) och ritar `BadgeMinis` efter `<h1>` i `.rq-badge-nameline` (min-height `--rq-badge-h-sm`, så kortet inte hoppar när queryn landar). Inga minis utan valda badges, ingen platshållare.
+- **Vakter:** `seriesIcons.test.ts` (varje `BADGE_SERIES[].icon` finns i `RQ_ICON_NAMES`), `badgeCollectionCss.test.ts` (skelettets rörelse i no-preference-blocket, rutnätstokens, panel-CSS flyttad).
 
 ### Rörelse (ägarbeslut E1+E2, Rörelse-undantaget i STATE.md)
 

@@ -38,5 +38,5 @@ Mobil/direktladdning = sida i skalet (`variant="page"`, Back-knapp); desktop ini
   - **Held-by** ("Held by X of N in your pack") göms när X = N och utelämnas utan platshållare när group-queryn felar eller laddar.
   - **Fel/laddning:** laddar → laddaren i panelen; fel → felkort med Retry (`ErrorState`) och inga minis — "No badges yet." gäller bara ett lyckat, tomt svar. 404 kan inte nås via UI:t (kortet öppnas bara för gruppmedlemmar). Challenge och head-to-head berörs aldrig.
   - **Minis** ligger efter `<h1>`, inte i den (rubriken förblir bara namnet). Namnraden har `min-height: var(--rq-badge-h-sm)` så kortet inte hoppar när badge-queryn landar; ryms inte namn + minis på en rad hamnar minisen under namnet.
-  - **Stilen** för `.rq-badge-panel*` bor i `runner.css` (kommentar överst i blocket) tills Profile återanvänder panelen i RUN-128 — då flyttas blocket till `badges.css`.
+  - **Stilen** för `.rq-badge-panel*` bor i `features/badges/badges.css` (flyttad dit i RUN-128, oförändrad); `runner.css` har bara en pekare.
 - Head-to-head visas aldrig på egen profil (routingen redirectar). `active` (pending/live) stänger av Challenge-knappen.

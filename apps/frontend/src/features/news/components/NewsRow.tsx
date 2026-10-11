@@ -1,3 +1,4 @@
+import { BadgeEmblem } from '@/features/badges/components/BadgeEmblem';
 import { RQIcon } from '@/shared/components/icons';
 import type { NewsRowModel } from '../newsModel';
 
@@ -10,8 +11,11 @@ const ICON_ROW = 17;
  */
 export function NewsRow({ row }: { row: NewsRowModel }) {
   return (
-    <li className="rq-news-row" data-category={row.category} data-unread={row.unread || undefined}>
-      <span className="rq-news-row__icon"><RQIcon name={row.icon} size={ICON_ROW} /></span>
+    <li className="rq-news-row" data-category={row.category} data-unread={row.unread || undefined} data-emblem={row.emblem ? '' : undefined}>
+      {/* badge_earned (F7): sm-emblem i stället för ikonen, aria-hidden (typraden och texten bär betydelsen, Council 23). Okänd serie: reservikonen. */}
+      <span className="rq-news-row__icon">
+        {row.emblem ? <BadgeEmblem series={row.emblem.series} tier={row.emblem.tier} size="sm" decorative /> : <RQIcon name={row.icon} size={ICON_ROW} />}
+      </span>
       <span className="rq-news-row__kind">
         {row.kind}
         {row.unread && <span className="sr-only"> (unread)</span>}

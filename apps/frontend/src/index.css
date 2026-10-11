@@ -505,6 +505,7 @@
   --rq-news-row-gap: 10px;                                            /* desktop 14 */
   --rq-news-row-pad-y: 10px;                                          /* desktop 12 */
   --rq-news-row-pad-x: 12px;                                          /* desktop 16 */
+  --rq-news-row-icon-badge-w: 30px;                                   /* ikonkolumnen när raden bär ett sm-emblem (badge_earned, RUN-128; desktop 34 = som övriga rader) */
   --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
   --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
   --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
@@ -620,6 +621,11 @@
   --rq-badge-flash:          1.6;      /* ramens ljusflimmer-ljushet vid tändning (Common/Uncommon) */
   --rq-dur-badge-ignite:     .9s;      /* rqBadgeIgnite: engångs, ease-out, alla nivåer i popupen */
   --rq-badge-ignite-handoff: 1.3s;     /* Legendary i popupen: andningen startar här */
+
+  /* Samlingen i profilen (RUN-128, spec §5): rutnätet (mobil 2 kolumner, desktop 4 i avsnitt 2) och skelettets takt (F8: rqSkel 1.6 s, stagger .2 s). */
+  --rq-badge-grid-cols:      repeat(2, minmax(0, 1fr));
+  --rq-dur-badge-skel:       1.6s;
+  --rq-badge-skel-stagger:   .2s;
 }
 
 
@@ -748,7 +754,9 @@
     --rq-news-row-gap: 14px;
     --rq-news-row-pad-y: 12px;
     --rq-news-row-pad-x: 16px;
+    --rq-news-row-icon-badge-w: 34px;
     --rq-news-badge: 15px;
+    --rq-badge-grid-cols: repeat(4, minmax(0, 1fr));
     --rq-login-logo-w: 190px;
     --rq-login-glow-w: 900px;
     --rq-login-glow-h: 560px;

@@ -3,13 +3,16 @@
 Pack News (ADR 008): vad gruppen gjort — titelbyten, utmaningsutfall, level ups, milstolpar, brutna streaks, events — som ett dag-grupperat flöde.
 Klockan i headern (`app-shell/NotificationsPopover`) öppnar en popover med de fem senaste och en oläst-räknare ur SAMMA flöde; "See all pack news" går
 till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = Web Prototypens (flöde | 300 px filterkort). `pages/NewsPage.tsx` är tunn.
-Badge-komponenterna i prototyperna är medvetet INTE byggda (ägaren designar dem).
+`badge_earned` (ADR 009, spec F7) ligger under Levels och ritar ett `sm`-emblem i ikonkolumnen (RUN-128); se nedan.
 
 ## Struktur
 
 - **components/**
   - `NewsScreen` — all datakoppling (flöde, filter i `?type=`, "Mark all read", Show more), laddning/fel/tomt, tour
-  - `NewsDayList` + `NewsRow` — dag-grupper (hårlinjegrid) och rader: ikon · typ · tid · text, 3 px kant i kategorins färg
+  - `NewsDayList` + `NewsRow` — dag-grupper (hårlinjegrid) och rader: ikon · typ · tid · text, 3 px kant i kategorins färg. **badge_earned (F7, RUN-128):** raden har `row.emblem` (`{ series, tier }` ur `emblemOf` i newsModel —
+    bara en känd serie med nivå 1..6) och ritar då `BadgeEmblem size="sm" decorative` (`aria-hidden`, Council 23: typraden "Badge earned"/"Badge evolved" och texten bär betydelsen) i stället för kategorins ikon; kanten förblir
+    Levels-grön och raden får `data-emblem` (ikonkolumnen `--rq-news-row-icon-badge-w`, 30 px mobil / 34 desktop). Okänd serie eller tier utanför 1..6 → `emblem: null` → den vanliga `zap`-ikonen. Levels-filterchippet behåller `zap`.
+    Klock-popoverns rader har prick i stället för ikon och är oförändrade (F7:s popover-emblem är inte byggt).
   - `NewsFilters` — Titles · Challenges · Events · Levels · Streaks (`aria-pressed`, räknare); chip-rad på mobil, kort på desktop (bara CSS skiljer)
   - `NewsPopoverPanel` — innehållet i klock-popovern (Radix-skalet och bell-knappen bor i `app-shell/NotificationsPopover`)
 - **newsModel.ts** — ren logik: kategorier/ikoner/filterkarta, adressparametern, kursor/dedupe/sammanslagning, oläst, tider, dag-gruppering, texterna
