@@ -102,7 +102,7 @@ export const TOUR_NEWS_V1: TourStep[] = [
   {
     element: '[data-tour="news-filter"]',
     title: 'Filter',
-    description: 'Pick one or more kinds to narrow the feed down to just titles, challenges, events, levels or streaks. The numbers are how many of each are loaded. Pick none to see everything.',
+    description: 'Pick one or more kinds to narrow the feed down to just titles, challenges, events, levels, badges or streaks. The numbers are how many of each are loaded. Pick none to see everything.',
   },
   {
     element: '[data-tour="news-mark-read"]',

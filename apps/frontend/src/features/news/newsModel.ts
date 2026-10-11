@@ -46,12 +46,14 @@ export const CATEGORY_ICON: Record<NewsCategory, RQIconName> = {
   streak: 'flame',
 };
 
-export type NewsFilterKey = 'titles' | 'challenges' | 'events' | 'levels' | 'streaks';
+export type NewsFilterKey = 'titles' | 'challenges' | 'events' | 'levels' | 'badges' | 'streaks';
 
 export interface NewsFilter {
   key: NewsFilterKey;
   label: string;
   category: NewsCategory;
+  /** Chipets egen ikon när den ska skilja sig från kategorins (Badges delar Levels-färg men ritar `shield`). */
+  icon?: RQIconName;
   /** Typerna som chipet släpper igenom — mappas i klienten till `?type=` (ADR 008 beslut 9). */
   types: readonly ActivityType[];
 }
@@ -60,7 +62,8 @@ export const NEWS_FILTERS: readonly NewsFilter[] = [
   { key: 'titles', label: 'Titles', category: 'title', types: ['title_unlocked', 'title_taken', 'title_revoked'] },
   { key: 'challenges', label: 'Challenges', category: 'challenge', types: ['challenge_received', 'challenge_won', 'challenge_draw'] },
   { key: 'events', label: 'Events', category: 'event', types: ['event_open', 'event_closed'] },
-  { key: 'levels', label: 'Levels', category: 'level', types: ['level_up', 'run_milestone', 'badge_earned'] },
+  { key: 'levels', label: 'Levels', category: 'level', types: ['level_up', 'run_milestone'] },
+  { key: 'badges', label: 'Badges', category: 'level', icon: 'shield', types: ['badge_earned'] },
   { key: 'streaks', label: 'Streaks', category: 'streak', types: ['streak_broken'] },
 ];
 
@@ -71,7 +74,7 @@ export const FILTER_PARAM = 'type';
 export function parseFilterParam(raw: string | null | undefined): NewsFilterKey[] {
   const wanted = new Set((raw ?? '').split(',').map((part) => part.trim()));
   const keys = NEWS_FILTERS.filter((filter) => wanted.has(filter.key)).map((filter) => filter.key);
-  // Alla fem valda = inget filter alls.
+  // Alla chip valda = inget filter alls.
   return keys.length === NEWS_FILTERS.length ? [] : keys;
 }
 
@@ -106,7 +109,7 @@ export const isKnownNewsItem = (item: WireNewsItem): item is NewsItem => isActiv
 
 /** Antal rader per chip i det laddade fönstret (ADR 008: chip-räknare = antal i det laddade fönstret). Okända typer räknas inte. */
 export function countByFilter(items: readonly Pick<WireNewsItem, 'type'>[]): Record<NewsFilterKey, number> {
-  const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, events: 0, levels: 0, streaks: 0 };
+  const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, events: 0, levels: 0, badges: 0, streaks: 0 };
   for (const item of items) {
     if (!isActivityType(item.type)) continue;
     const type = item.type;

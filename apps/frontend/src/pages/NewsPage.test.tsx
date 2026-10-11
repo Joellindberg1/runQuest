@@ -3,8 +3,9 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { NewsItem } from '@runquest/shared';
 import NewsPage from './NewsPage';
+import { RQ_ICON_PATHS } from '@/shared/components/icons';
 import { TOUR_NEWS_V1 } from '@/features/onboarding/featureTourSteps';
-import { ADAM, DAN, ME, NICK, NOW_ISO, at, challengeWon, eventOpen, item, levelUp, newsServer, streakBroken, titleTaken } from '@/features/news/news.fixture';
+import { ADAM, DAN, ME, NICK, NOW_ISO, at, badgeEarned, challengeWon, eventOpen, item, levelUp, newsServer, streakBroken, titleTaken } from '@/features/news/news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 
@@ -234,18 +235,37 @@ describe('Pack News — filter (?type=)', () => {
     expect(filterButton('Titles')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('flera chips samtidigt; Levels = level_up + run_milestone + badge_earned; att avmarkera tar bort parametern', async () => {
+  it('flera chips samtidigt; Levels = level_up + run_milestone; att avmarkera tar bort parametern', async () => {
     renderNews();
     await screen.findByText('7 unread');
     fireEvent.click(filterButton('Levels'));
     fireEvent.click(filterButton('Streaks'));
     await waitFor(() => expect(location()).toBe('/news?type=levels%2Cstreaks'));
-    await waitFor(() => expect(news.server.calls.some((call) => call.type === 'level_up,run_milestone,streak_broken,badge_earned')).toBe(true));
+    await waitFor(() => expect(news.server.calls.some((call) => call.type === 'level_up,run_milestone,streak_broken')).toBe(true));
     await waitFor(() => expect(rowTexts()).toEqual(['Karl reached level 25', 'Daniel lost a 27-day streak — multiplier back to 1.0×', 'You reached level 9', 'Nicklas reached level 5']));
 
     fireEvent.click(filterButton('Levels'));
     fireEvent.click(filterButton('Streaks'));
     await waitFor(() => expect(location()).toBe('/news'));
+  });
+
+  it("Badges är ett eget chip efter Levels: ?type=badges visar bara badge-rader, med shield-ikonen, och Levels tar inte med dem", async () => {
+    setup([badgeEarned(30, { occurred_at: at(1) }), ...FEED()]);
+    renderNews("/news?type=badges");
+    await waitFor(() => expect(rowTexts()).toEqual(["Karl earned Streak Keeper — Common."]));
+    expect(news.server.calls.some((call) => call.type === "badge_earned")).toBe(true);
+    expect(filterButton("Badges")).toHaveAttribute("aria-pressed", "true");
+    expect(filterButton("Levels")).toHaveAttribute("aria-pressed", "false");
+    expect(filterButton("Badges").querySelector("svg path")?.getAttribute("d")).toBe(RQ_ICON_PATHS.shield[0]);
+    const labels = [...screen.getByRole("group", { name: "Filter" }).querySelectorAll(".rq-news-filter__name")].map((el) => el.textContent);
+    expect(labels).toEqual(["Titles", "Challenges", "Events", "Levels", "Badges", "Streaks"]);
+    expect(filterButton("Badges").querySelector(".rq-news-filter__count")?.firstChild?.textContent).toBe("1");
+
+    fireEvent.click(filterButton("Levels"));
+    await waitFor(() => expect(location()).toBe("/news?type=levels%2Cbadges"));
+    fireEvent.click(filterButton("Badges"));
+    await waitFor(() => expect(location()).toBe("/news?type=levels"));
+    await waitFor(() => expect(rowTexts()).not.toContain("Karl earned Streak Keeper — Common."));
   });
 
   it('adressen styr filtret vid direktladdning; okända nycklar ignoreras', async () => {
@@ -257,8 +277,8 @@ describe('Pack News — filter (?type=)', () => {
   it('chip-räknarna är antal per kategori i det laddade (ofiltrerade) fönstret — och står kvar när ett filter visas', async () => {
     renderNews('/news?type=streaks');
     await waitFor(() => expect(rowTexts()).toEqual(['Daniel lost a 27-day streak — multiplier back to 1.0×']));
-    const counts = Object.fromEntries(['Titles', 'Challenges', 'Events', 'Levels', 'Streaks'].map((label) => [label, filterButton(label).querySelector('.rq-news-filter__count')?.firstChild?.textContent]));
-    expect(counts).toEqual({ Titles: '2', Challenges: '1', Events: '2', Levels: '3', Streaks: '1' });
+    const counts = Object.fromEntries(['Titles', 'Challenges', 'Events', 'Levels', 'Badges', 'Streaks'].map((label) => [label, filterButton(label).querySelector('.rq-news-filter__count')?.firstChild?.textContent]));
+    expect(counts).toEqual({ Titles: '2', Challenges: '1', Events: '2', Levels: '3', Badges: '0', Streaks: '1' });
     // Räknarens förklaring för den som hovrar: antal av det laddade fönstret.
     expect(filterButton('Titles')).toHaveAttribute('title', '2 in the latest 9');
     expect(filterButton('Levels')).toHaveAttribute('title', '3 in the latest 9');
@@ -360,6 +380,11 @@ describe('Pack News — tour', () => {
     renderNews();
     await screen.findByText('All caught up');
     expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', '3');
+  });
+
+  it("filtersteget nämner alla sex slag, inklusive badges", () => {
+    const step = TOUR_NEWS_V1.find((candidate) => candidate.element === '[data-tour="news-filter"]');
+    expect(step?.description).toContain("titles, challenges, events, levels, badges or streaks");
   });
 
   it('turen är tour_news_v1 och ankarna finns i sidan (mobil och desktop)', async () => {
