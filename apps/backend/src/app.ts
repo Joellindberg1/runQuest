@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { logger } from './utils/logger.js';
 
 import authRoutes from './routes/auth.js';
+import badgeRoutes from './routes/badges.js';
 import challengeRoutes from './routes/challenges.js';
 import configRoutes from './routes/config.js';
 import eventRoutes from './routes/events.js';
@@ -78,6 +79,7 @@ export function createApp(): express.Express {
 
   // Routes
   app.use('/api/auth', authRoutes);
+  app.use('/api/badges', badgeRoutes);
   app.use('/api/challenges', challengeRoutes);
   app.use('/api/config', configRoutes);
   app.use('/api/events', eventRoutes);
