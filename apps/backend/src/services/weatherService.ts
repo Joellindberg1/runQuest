@@ -128,7 +128,7 @@ export class WeatherService {
     const startInstantMs = wallClockToInstantMs(run.start_time!);
     // NaN (start_time utan Z/+00:00 eller ogiltigt) gör att jämförelsen nedan faller till archive-grenen; logga det i stället för att tiga.
     if (Number.isNaN(startInstantMs)) {
-      logger.warn(`[WeatherService] Could not parse start_time for run ${run.id} — falling back to the archive endpoint`);
+      logger.warn(`[WeatherService] Could not parse start_time for run ${run.id} as local wall-clock time — weather lookup may use the archive endpoint or fail`);
     }
     const hoursSinceRun = (Date.now() - startInstantMs) / (1000 * 60 * 60);
 
