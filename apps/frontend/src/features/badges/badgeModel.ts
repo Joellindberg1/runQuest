@@ -1,6 +1,7 @@
 import { BADGE_SERIES, MAX_SHOWCASE, MAX_TIER, TIER_NAMES, badgeMetricLabel, requirementText, tierFlavor } from '@runquest/shared';
 import type { BadgeSeriesDef, BadgeUserItem, BadgeUserResponse } from '@runquest/shared';
 import type { GroupBadges } from './api';
+import { isEarnedTier, pipsText } from './components/badgeTier';
 
 // Ren logik för badge-vyerna (ADR 009, spec §4 och §6, Design Council-villkoren 1, 2, 14 och 21). Ingen I/O och inga egna texter om
 // serierna: namn, ikon, kravtext, flavor och måttetikett kommer ur @runquest/shared — här sätts bara ihop vad varje vy visar.
@@ -61,11 +62,10 @@ export interface BadgePopupEntry {
 const SERIES_BY_KEY = new Map<string, BadgeSeriesDef>(BADGE_SERIES.map((series) => [series.key, series]));
 const SERIES_ORDER = new Map<string, number>(BADGE_SERIES.map((series, index) => [series.key, index]));
 
-const isValidTier = (tier: unknown): tier is number => Number.isInteger(tier) && (tier as number) >= 1 && (tier as number) <= MAX_TIER;
 
 /** Ägda, kända serier med giltig tier ur ett svar. Svaret kan komma från en nyare/äldre server än klienten — okänt ignoreras. */
 function validItems(items: readonly BadgeUserItem[]): BadgeUserItem[] {
-  return items.filter((entry) => SERIES_BY_KEY.has(entry.series) && isValidTier(entry.tier));
+  return items.filter((entry) => SERIES_BY_KEY.has(entry.series) && isEarnedTier(entry.tier));
 }
 
 /** Serienycklar jag äger (i svarets ordning). */
@@ -93,7 +93,7 @@ function buildRow(def: BadgeSeriesDef, owned: BadgeUserItem | undefined, shown: 
     const requirement = requirementText(def, 1);
     return {
       series: def.key, name: def.name, icon: def.icon, tier: null, tierName: null, earned: false, maxed: false, metricLabel,
-      requirement, unlock: `Unlock: ${TIER_NAMES[0]} — ${requirement}`, pipsLabel: 'Locked', displayPosition,
+      requirement, unlock: `Unlock: ${TIER_NAMES[0]} — ${requirement}`, pipsLabel: pipsText(null), displayPosition,
     };
   }
   const { tier } = owned;
@@ -104,7 +104,7 @@ function buildRow(def: BadgeSeriesDef, owned: BadgeUserItem | undefined, shown: 
     requirement: requirementText(def, tier),
     ...(tier < MAX_TIER && { next: `Next: ${TIER_NAMES[tier]} — ${requirementText(def, tier + 1)}` }),
     ...(heldBy && { heldBy }),
-    pipsLabel: `Tier ${tier} of ${MAX_TIER}`,
+    pipsLabel: pipsText(tier),
     displayPosition,
   };
 }

@@ -16,6 +16,7 @@ export const paths = {
   admin: '/admin',
   previewBoard: '/preview',
   previewDuels: '/preview/challenges',
+  previewBadges: '/preview/badges',
   /** Gamla adressen som redirectas till `duels` (ADR 006 beslut 7). */
   legacyChallenges: '/challenges',
 } as const;

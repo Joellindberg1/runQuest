@@ -22,6 +22,7 @@ import RunnerRoute from '@/pages/RunnerPage';
 import NotFound from '@/pages/NotFound';
 import LeaderboardPreviewPage from '@/pages/LeaderboardPreviewPage';
 import ChallengesPreviewPage from '@/pages/ChallengesPreviewPage';
+import BadgesPreviewPage from '@/pages/BadgesPreviewPage';
 
 // Sällan besökta sidor laddas först när de behövs (ADR 006 beslut 11); Suspense-gränsen ligger i ShellOutlet.
 const AdminPage = lazy(() => import('@/pages/AdminPage'));
@@ -64,6 +65,7 @@ export const AppRoutes: React.FC = () => {
         <Route path={paths.legacyChallenges} element={<LegacyChallengesRedirect />} />
         <Route path={paths.previewBoard} element={<LeaderboardPreviewPage />} />
         <Route path={paths.previewDuels} element={<ChallengesPreviewPage />} />
+        <Route path={paths.previewBadges} element={<BadgesPreviewPage />} />
 
         <Route element={<RequireAuth />}>
           <Route element={<AppShell />}>
