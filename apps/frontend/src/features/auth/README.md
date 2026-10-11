@@ -19,11 +19,17 @@ Authentication and authorization for the application. Inloggningssidan (`/login`
 Provides access to authentication state and methods.
 
 ```tsx
-const { user, session, login, logout, loading, isAdmin } = useAuth();
+const { user, login, logout, loading, isAdmin } = useAuth();
 ```
 
 ## Authentication Flow
 
-1. Backend JWT authentication (primary)
-2. Supabase auth (fallback)
-3. Session persistence via localStorage
+Auth går uteslutande mot backenden (egen JWT) — frontend har ingen Supabase-klient och ingen Supabase Auth.
+
+1. **Login:** `AuthProvider.login` → `backendApi.login` → `POST /auth/login`. Backend svarar med JWT + användare, som sparas i `localStorage`
+   under `runquest_token` och `runquest_user`.
+2. **Återställning vid appstart:** `AuthProvider` läser `runquest_token`/`runquest_user` (`backendApi.isAuthenticated()`, `getCurrentUser()`);
+   `loading` är sant tills det är gjort (App.tsx gate:ar på det).
+3. **Anrop:** `backendApi.authenticatedRequest` skickar `Authorization: Bearer <token>`. Svarar backenden 401 rensas båda nycklarna och
+   `backendApi.onUnauthorized` nollställer användaren i `AuthProvider`.
+4. **Logout:** `backendApi.logout()` tar bort de två nycklarna; `AuthProvider` rensar de användarbundna cachar (onboarding, news) och nollställer användaren.

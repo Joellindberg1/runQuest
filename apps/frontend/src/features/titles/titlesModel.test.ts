@@ -168,9 +168,40 @@ describe('buildTitlesView', () => {
     const view = buildTitlesView(all, [], ME, 'all');
     const ids = view.groups.flatMap((group) => group.rows.map((row) => row.id));
     expect(ids.sort()).toEqual(all.map((entry) => entry.id).sort());
-    // winterKm, stormRunCount och coldRunCount ligger i Other tills RUN-101 flyttar dem till Weather; inget annat får hamna där.
-    const other = view.groups.find((group) => group.id === 'other');
-    expect(other?.rows.map((row) => row.id)).toEqual(['id-winterKm', 'id-stormRunCount', 'id-coldRunCount']);
+    // Alla motorer har en riktig kategori: ingen av dem får hamna i Other.
+    expect(view.groups.find((group) => group.id === 'other')).toBeUndefined();
+  });
+});
+
+describe('Weather-gruppen', () => {
+  const storm = title('t-storm', 'Storm title', 'stormRunCount', { unlock_requirement: 5 });
+  const cold = title('t-cold', 'Cold title', 'coldRunCount', { unlock_requirement: 10 });
+  const winter = title('t-winter', 'Winter title', 'winterKm', { unlock_requirement: 50, holder: person(ME, 'Joel Lindberg', 304.6) });
+
+  it('tre kort i en grupp före Other, med antal, kortikoner och värden i rätt enhet', () => {
+    const view = buildTitlesView([FUTURE, winter, storm, cold], [], ME, 'all');
+    expect(view.groups.map((group) => [group.id, group.label, group.count])).toEqual([
+      ['weather', 'Weather', '3 titles'],
+      ['other', 'Other', '1 title'],
+    ]);
+    const rows = view.groups[0].rows;
+    expect(rows.map((row) => [row.id, row.icon])).toEqual([['t-winter', 'snow'], ['t-storm', 'zap'], ['t-cold', 'snow']]);
+    expect(rows[0].holder).toEqual({ name: 'Joel Lindberg', value: '304.6 km', mine: true });
+  });
+
+  it('tomt läge före omräkning: "Nobody yet", inget bästa försök, kravet i måttets enhet', () => {
+    const zeros = [eligibility(ME, 'Joel Lindberg', { stormRunCount: 0, coldRunCount: 0 })];
+    const view = buildTitlesView([storm, cold], zeros, ME, 'unclaimed');
+    expect(view.groups.map((group) => group.id)).toEqual(['weather']);
+    expect(view.groups[0].rows.map((row) => [row.state, row.holder, row.bestSoFar, row.unlock])).toEqual([
+      ['unclaimed', null, null, '5 runs'],
+      ['unclaimed', null, null, '10 runs'],
+    ]);
+  });
+
+  it('Mine visar bara Weather-titlarna jag håller', () => {
+    const view = buildTitlesView([storm, cold, winter], [], ME, 'mine');
+    expect(view.groups.map((group) => [group.id, group.rows.map((row) => row.id)])).toEqual([['weather', ['t-winter']]]);
   });
 });
 

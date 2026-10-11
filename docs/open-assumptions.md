@@ -112,9 +112,11 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - **Banans löpare går med CSS offset-path på SVG-cirklar** (samma `rqOrbit` som stadion-laddaren) i stället för prototypens SMIL `<animateMotion>`, så
   `prefers-reduced-motion` stoppar dem. Silver- och bronsprickarna är heltäckande rankfärger (prototypen hade .75/.8 i alfa).
 - ~~/login är fortfarande den gamla inloggningssidan~~ OMRITAD i inkrement 11 (spår B). Landingens knapp leder dit.
-- **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade.** Landing-FEATUREN anropar inget själv; App-skalet gör ETT Supabase-anrop
-  (level_requirements, konsolfel om servern inte nås). Onboarding-prefetchen gör INGET anrop utan token (returnerar [] direkt). Samma anrop kördes
-  redan när `/` var LoginPage. Gating på `user` hör hemma i en egen skaländring (påverkar även /preview-routes), inte i Landing.
+- **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade — men utloggad gör den inget nätverksanrop.** Landing-FEATUREN anropar inget själv.
+  `useAppInit` kör `useLevelRequirements`, som hämtar nivåtabellen via `GET /api/config/levels` (kräver token) först när en användare är inloggad
+  (`enabled: !!user`, även efter SPA-inloggning); utloggad och vid fel gäller `FALLBACK_LEVEL_REQUIREMENTS`. Onboarding-prefetchen gör INGET anrop utan
+  token (returnerar [] direkt). [RÄTTAT efter RUN-110/111: tidigare stod här att appskalet gjorde ETT Supabase-anrop för `level_requirements` även för
+  utloggade — frontend har ingen Supabase-klient längre, och gating på `user` är gjord.]
 - Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
 
 ## Restsidor: Playbook, Settings, Admin, Login (inkrement 11, spår B)
@@ -126,8 +128,9 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   (texten är Rules-vyns egen, `HOW_IT_WORKS`). Frodo-kapitlet läser sträckan och de sju stora målen ur `frodoModel`.
 - **Siffrorna i Playbook kommer ur `GET /config/xp`** (bas-XP, XP/km, distansbonusar, trappan, min distans) via `useXpConfig`, och räkneexemplen är
   shareds formel över samma konfiguration. Går den inte att läsa visas shareds standardvärden och sidan säger det (Retry). Nivåtabellen är shareds
-  `FALLBACK_LEVEL_REQUIREMENTS` (enda hemmet, identisk med prod) — ingen endpoint exponerar `level_requirements`; ändrar någon tabellen i databasen följer
-  Playbook inte med.
+  `FALLBACK_LEVEL_REQUIREMENTS` (identisk med prod): `PlaybookScreen` anropar `buildChapters(rules, undefined, stakes)` och får fallback-tabellen direkt.
+  `GET /api/config/levels` finns sedan RUN-110 (bara inloggad) och app-skalet hämtar den (`useLevelRequirements`), men Playbook läser den inte — ändrar
+  någon tabellen i databasen följer Playbook inte med.
 - **Playbook beskriver spelet SOM DET ÄR i dag** (ägardirektiv 2026-10-06) — även buggar beskrivs som de beter sig; Lead registrerar buggen separat.
 - **Event-siffrorna är redaktionella — ingen endpoint exponerar `event_templates`.** `GET /events` ger bara aktiva/schemalagda events (namn, min km, XP, men inte
   fönster, spawn-regler eller väderkrav), så fönster, krav och XP bor som en kopia i `features/playbook/playbookFacts.ts`. `playbookFacts.test.ts` läser backendens
