@@ -61,20 +61,24 @@ export class WeatherService {
     }
   }
 
-  static async fetchAndSaveWeatherForRun(run: RunForWeather): Promise<void> {
+  /** Returnerar true bara om en väderrad faktiskt sparades (aldrig vid hämtnings- eller skrivfel). */
+  static async fetchAndSaveWeatherForRun(run: RunForWeather): Promise<boolean> {
     try {
       const weather = await this.fetchWeather(run);
-      if (!weather) return;
+      if (!weather) return false;
 
       await this.saveWeather(run.id, weather);
       logger.info(`[WeatherService] Saved weather for run ${run.id}`);
+      return true;
     } catch (err) {
       logger.warn(`[WeatherService] Failed to fetch weather for run ${run.id}:`, err);
+      return false;
     }
   }
 
   // Anropas från cron-jobbet för att backfilla och retria misslyckade hämtningar.
-  static async backfillMissingWeather(): Promise<void> {
+  // Returnerar antalet sparade rader — anroparen räknar om väderberoende titlar bara när det är > 0.
+  static async backfillMissingWeather(): Promise<number> {
     const supabase = getSupabaseClient();
 
     const { data: runs, error } = await supabase
@@ -86,7 +90,7 @@ export class WeatherService {
 
     if (error || !runs || runs.length === 0) {
       if (error) logger.warn('[WeatherService] backfill query failed:', error);
-      return;
+      return 0;
     }
 
     // Filtrera bort runs som redan har väderdata
@@ -97,14 +101,16 @@ export class WeatherService {
     const existingIds = new Set((existing ?? []).map((r: { run_id: string }) => r.run_id));
     const missing = runs.filter((r: RunForWeather) => !existingIds.has(r.id));
 
-    if (missing.length === 0) return;
+    if (missing.length === 0) return 0;
 
     logger.info(`[WeatherService] Backfilling weather for ${missing.length} run(s)`);
 
+    let saved = 0;
     for (const run of missing) {
-      await this.fetchAndSaveWeatherForRun(run);
+      if (await this.fetchAndSaveWeatherForRun(run)) saved++;
       await delay(200);
     }
+    return saved;
   }
 
   private static isEligible(run: RunForWeather): boolean {
