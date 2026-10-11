@@ -672,7 +672,7 @@ describe('visade badges i Season-raderna (RUN-131)', () => {
     expect(karl).toHaveAttribute('data-tour', 'leaderboard-card');
   });
 
-  it('desktop, podiet: minis efter namnet på samma rad (namnet ellipsiserar, minis krymper inte)', async () => {
+  it('desktop, podiet: minis efter namnet på samma rad (minis krymper inte)', async () => {
     serveStandardBadges();
     renderBoard('/board', DESKTOP);
 

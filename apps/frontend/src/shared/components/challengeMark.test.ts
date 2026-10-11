@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { PENNANT_PATH, PENNANT_TEXT_X, PENNANT_TEXT_Y, PENNANT_VIEW_BOX } from './challengeMark';
 
 // Vakt (RUN-147, spec F12.4): utmaningstecknet är en vimpel med svalstjärt överallt. Den gamla sköldens path får inte finnas kvar i
-// någon kod eller CSS under apps/frontend/src. Testfiler är undantagna — de får nämna sköldens path som NEGATIV kontroll.
+// någon ts/tsx-fil under apps/frontend/src (CSS skannas inte här: vitest kör css:false och ?raw-importer av .css blir tomma; vimpelns geometri är SVG-data i ts/tsx, inte CSS). Testfiler är undantagna — de får nämna sköldens path som NEGATIV kontroll.
 const sources = import.meta.glob(
-  ['../../**/*.{ts,tsx,css}', '!../../**/*.test.{ts,tsx}'],
+  ['../../**/*.{ts,tsx}', '!../../**/*.test.{ts,tsx}'],
   { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>;
 
@@ -19,7 +19,7 @@ describe('utmaningstecknets delade geometri', () => {
     expect(PENNANT_VIEW_BOX).toBe('0 0 26 32');
   });
 
-  it('ingen icke-testkod under apps/frontend/src innehåller sköldens path', () => {
+  it('ingen ts/tsx-fil (ej test) under apps/frontend/src innehåller sköldens path', () => {
     const files = Object.entries(sources);
     expect(files.length).toBeGreaterThan(200); // en tom glob vore ett tyst godkännande
     expect(files.filter(([path]) => path.endsWith('/challengeMark.ts'))).toHaveLength(1);

@@ -58,8 +58,8 @@ export const TOUR_LEADERBOARD_V1: TourStep[] = [
   },
   {
     element: '[data-tour="leaderboard-card"]',
-    title: 'Challenge Shields',
-    description: 'The shields on a card are the challenge tokens that runner can still send: blue for minor, orange for major, gold for legendary. The number beside them is how many are left.',
+    title: 'Challenge Pennants',
+    description: 'The pennants on a card are the challenge tokens that runner can still send: blue for minor, orange for major, gold for legendary. The number beside them is how many are left.',
   },
   {
     element: '[data-tour="leaderboard-card"]',
