@@ -152,7 +152,8 @@ describe('BadgeUpgradeHost: kön ur min samling (T1)', () => {
         </AuthContext.Provider></QueryClientProvider>,
       );
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
-      expect({ path, dialog: dialog() }).toEqual({ path, dialog: null });
+      // /login är Landing med inloggningsdialogen öppen (RUN-145): en dialog finns där, men aldrig badge-popupen.
+      expect({ path, badgePopup: document.querySelector('.rq-badge-popup') }).toEqual({ path, badgePopup: null });
       unmount();
     }
     expect(api.getUserBadges).not.toHaveBeenCalled();

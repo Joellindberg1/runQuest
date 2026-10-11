@@ -4,7 +4,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
 import { setViewportWidth } from '@/test/viewport';
 
-// Inloggningen genom hela App-trädet (riktig AuthProvider + App-gate): ett felaktigt lösenord får inte avmontera LoginPage.
+// Inloggningen genom hela App-trädet (riktig AuthProvider + App-gate + BrowserRouter): dialogen över Landing (RUN-145). Ett felaktigt lösenord får
+// inte avmontera dialogen, Sign in-knappen öppnar den, Back/✕ stänger den och en lyckad inloggning går till next eller /board.
 // Bara backendApi, skalet och sidorna bakom login är ersatta.
 const api = vi.hoisted(() => ({
   isAuthenticated: vi.fn(() => false),
@@ -19,6 +20,7 @@ vi.mock('@/shared/hooks/useAppInit', () => ({ useAppInit: () => {} }));
 vi.mock('@/features/onboarding/components/OnboardingOrchestrator', () => ({ OnboardingOrchestrator: () => null }));
 vi.mock('@/app-shell/AppShell', () => ({ AppShell: () => <div data-testid="shell"><Outlet /></div> }));
 vi.mock('@/pages/BoardPage', () => ({ default: () => <h1>Board page</h1> }));
+vi.mock('@/pages/TitlesPage', () => ({ default: () => <h1>Titles page</h1> }));
 
 import App from './App';
 
@@ -40,8 +42,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('inloggning (App → AuthProvider → LoginPage)', () => {
-  it('felaktigt lösenord: felet syns (role=alert) och fälten står kvar — LoginPage avmonteras inte', async () => {
+describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () => {
+  it('felaktigt lösenord: felet syns (role=alert) och fälten står kvar — dialogen avmonteras inte', async () => {
     api.login.mockResolvedValue({ success: false, error: 'Invalid credentials' });
     render(<App />);
     const username = await screen.findByLabelText('Username');
@@ -117,6 +119,92 @@ describe('inloggning (App → AuthProvider → LoginPage)', () => {
 
     expect(await screen.findByRole('heading', { name: 'Board page' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/board');
+  });
+
+  it('Sign in på Landing öppnar dialogen (adressen /login) och en lyckad inloggning går till /board', async () => {
+    window.history.pushState({}, '', '/');
+    api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
+    render(<App />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
+    signIn('anna', 'ratt-losen');
+
+    expect(await screen.findByRole('heading', { name: 'Board page' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/board');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('/login?next=/titles: lyckad inloggning leder till /titles (djuplänk till dialogen)', async () => {
+    window.history.pushState({}, '', '/login?next=%2Ftitles');
+    api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
+    render(<App />);
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    signIn('anna', 'ratt-losen');
+
+    expect(await screen.findByRole('heading', { name: 'Titles page' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/titles');
+  });
+
+  it('skyddad sida direktladdad utloggad: Landing med dialogen och next bevarad → inloggning leder tillbaka dit', async () => {
+    window.history.pushState({}, '', '/titles');
+    api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
+    render(<App />);
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    expect(window.location.pathname + window.location.search).toBe('/login?next=%2Ftitles');
+    signIn('anna', 'ratt-losen');
+
+    expect(await screen.findByRole('heading', { name: 'Titles page' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/titles');
+  });
+
+  it('en next som pekar utanför appen följs aldrig efter inloggning (ingen öppen redirect): /board', async () => {
+    window.history.pushState({}, '', '/login?next=https%3A%2F%2Fevil.example%2Fsteal');
+    api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
+    render(<App />);
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    signIn('anna', 'ratt-losen');
+
+    expect(await screen.findByRole('heading', { name: 'Board page' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/board');
+  });
+
+  it('Back stänger dialogen: / → Sign in (/login) → Back ger Landing utan dialog', async () => {
+    window.history.pushState({}, '', '/');
+    render(<App />);
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    await screen.findByRole('dialog', { name: 'Sign in' });
+
+    window.history.back();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(window.location.pathname).toBe('/');
+    expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeInTheDocument();
+  });
+
+  it('✕ stänger dialogen från Landing med ett steg bakåt (inget extra historiksteg), och Sign in öppnar den igen', async () => {
+    window.history.pushState({}, '', '/');
+    render(<App />);
+    const lengthBefore = window.history.length;
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(window.location.pathname).toBe('/');
+    // Back-steget är redan taget: nästa Back lämnar appen i stället för att öppna dialogen igen.
+    expect(window.history.length).toBe(lengthBefore + 1);
+
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
+    expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('✕ på en direktladdad /login ersätter adressen med / (Landing utan dialog)', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(window.location.pathname).toBe('/');
+    expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeInTheDocument();
   });
 
   it('appstart med sparad session visar en loader först och går sedan förbi login (gate:n på initiering finns kvar)', async () => {

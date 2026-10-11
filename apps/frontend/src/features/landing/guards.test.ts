@@ -189,10 +189,16 @@ describe('Landing-FEATUREN är publik och gör inga anrop (ägarbeslut 4; App-sk
 });
 
 describe('Routing (ADR 006)', () => {
-  it('Index visar Landing för utloggade — LoginPage nås via /login, inte via /', () => {
+  it('Index visar Landing för utloggade; /login är samma sida med inloggningsdialogen ovanpå (RUN-145) — ingen egen inloggningssida', () => {
     const [source] = Object.values(indexPage);
     expect(source).toMatch(/LandingPage/);
-    expect(source).not.toMatch(/LoginPage/);
+    expect(source).toMatch(/LoginDialog/);
+    expect(source).not.toMatch(/LoginPage|LoginScreen/);
+  });
+
+  it('gränsen mot auth: Landing-featuren importerar inget ur features/auth eller providers/auth (dialogen monteras av pages/Index, som får göra inloggningsanropet via AuthProvider); Sign in är en vanlig länk till paths.login', () => {
+    for (const [path, text] of codeFiles) expect({ path, auth: /features\/auth|providers\/auth/.test(stripComments(text)) }).toEqual({ path, auth: false });
+    expect(sources['./components/LandingParts.tsx']).toMatch(/<Link to=\{paths\.login\} state=\{FROM_LANDING_STATE\}/);
   });
 
   it('sidan är tunn: LandingPage monterar bara LandingScreen', () => {

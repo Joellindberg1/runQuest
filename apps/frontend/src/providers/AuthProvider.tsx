@@ -13,7 +13,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearUserCaches = () => qc.clear();
   const [user, setUser] = useState<AuthUser | null>(null);
   // `loading` = sessionen återställs vid appstart (App.tsx gate:ar på den). Själva inloggningsanropet har ingen global loading:
-  // den bytte ut hela routerträdet mot en loader, så LoginPage avmonterades och felet/fälten försvann (LoginPage har egen laddning).
+  // den bytte ut hela routerträdet mot en loader, så inloggningsdialogen avmonterades och felet/fälten försvann (LoginDialog har egen laddning).
   const [loading, setLoading] = useState(true);
 
   // Check if current user is admin
@@ -35,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setLoading(false);
 
-    // Redirect to login automatically when JWT expires
+    // JWT har gått ut: användaren nollställs, RequireAuth skickar till /login?next=<sidan> (Landing med inloggningsdialogen öppen)
     backendApi.onUnauthorized = () => {
       qc.clear();
       setUser(null);

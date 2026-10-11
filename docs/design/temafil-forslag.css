@@ -521,14 +521,10 @@
   --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
   --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
   /* ── 1.29 Login-mått (inkrement 11) ────────────────────────────────────────
-     Ingen prototyp har en inloggning — ritad i Landingens språk (samma glöd, logotyp och hjältekort). Endast mått:
-     formulärkortets bredd och gloden bakom det. Mobil = standard; desktop skriver över i avsnitt 2.
+     Inloggningen är en popup (.rq-modal) ovanpå Landing (RUN-145) — Landingens glöd och logotyp ligger bakom scrimmen. Endast mått:
+     dialogens bredd (krymper till 95 % av skärmen). Samma mått på alla bredder.
      Konsument: features/auth/login.css. */
-  --rq-login-w: 420px;                                                /* formulärkortets maxbredd (desktop samma) */
-  --rq-login-logo-w: 148px;                                           /* wordmarken (desktop 190) */
-  --rq-login-glow-w: 460px;                                           /* guldgloden bakom kortet (desktop 900) */
-  --rq-login-glow-h: 340px;                                           /* (desktop 560) */
-  --rq-login-glow-top: -120px;                                        /* (desktop -240) */
+  --rq-login-w: 420px;                                                /* dialogens bredd */
   /* ── 1.30 Settings-mått (inkrement 11) ─────────────────────────────────────
      Mått ur Web Prototypens Settings-skärm (isSettings). Mobilprototypen saknar sidan — mobil är härledd: allt i en kolumn.
      Endast mått. Konsument: features/settings/settings.css. */
@@ -780,10 +776,6 @@
     --rq-badge-pick-clear: 72px;
     --rq-badge-popup-w: 400px;
     --rq-badge-popup-target: 24px;
-    --rq-login-logo-w: 190px;
-    --rq-login-glow-w: 900px;
-    --rq-login-glow-h: 560px;
-    --rq-login-glow-top: -240px;
     --rq-settings-split-cols: minmax(0, 1fr) 340px;
     --rq-settings-pw-cols: repeat(3, minmax(0, 1fr));
     --rq-admin-groups-cols: repeat(3, minmax(0, 1fr));

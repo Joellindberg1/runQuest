@@ -110,10 +110,12 @@ describe('okända adresser', () => {
 });
 
 describe('auth', () => {
-  it('utloggad på en skyddad route → /login?next=<path>', async () => {
+  it('utloggad på en skyddad route → /login?next=<path>: Landing med inloggningsdialogen öppen (RUN-145)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/duels?view=live', user: null, width: MOBILE });
     await waitFor(() => expect(location()).toBe('/login?next=%2Fduels%3Fview%3Dlive'));
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard', hidden: true })).toBeInTheDocument();
   });
 
   it('utloggad på / ser Landing (publik) — varken skalet eller login, och adressen står kvar', async () => {
@@ -124,19 +126,40 @@ describe('auth', () => {
     expect(location()).toBe('/');
   });
 
-  it('Landingens enda guldknapp, Sign in, leder till /login', async () => {
+  it('Landingens enda guldknapp, Sign in, öppnar inloggningsdialogen: adressen blir /login och Landing består bakom (samma DOM-nod, ingen ommontering)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/', user: null, width: MOBILE });
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    const headline = await screen.findByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
     await waitFor(() => expect(location()).toBe('/login'));
+    expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
+    // Samma element: Landings animationer (uppräkning, banan) startar inte om när dialogen öppnas.
+    expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard', hidden: true })).toBe(headline);
   });
 
-  it('utloggad på /login ser login direkt (inte Landing)', async () => {
+  it('utloggad på /login ser Landing med dialogen öppen (ingen egen inloggningssida längre)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/login', user: null, width: MOBILE });
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
-    // Inloggningen har sin egen h1 (Sign in); Landingens rubrik får inte synas.
-    expect(screen.getByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+    // Landings rubrik står kvar bakom scrimmen (göms för hjälpmedel av dialogens lager, därför hidden: true).
+    expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard', hidden: true })).toBeInTheDocument();
+    expect(location()).toBe('/login');
+  });
+
+  it('utloggad på /login?next=/titles: dialogen öppen och next står kvar i adressen (inloggning → next testas i App.login.test)', async () => {
+    renderWithApp(<AppRoutes />, { entry: '/login?next=%2Ftitles', user: null, width: DESKTOP });
+    expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+    expect(location()).toBe('/login?next=%2Ftitles');
+  });
+
+  it('Esc på en direktladdad /login stänger dialogen: adressen ersätts med / (next släpps), Landing kvar utan dialog', async () => {
+    renderWithApp(<AppRoutes />, { entry: '/login?next=%2Ftitles', user: null, width: MOBILE });
+    fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(location()).toBe('/');
+    expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeInTheDocument();
   });
 
   it('utloggad på /?tab=titles ser Landing (ingen redirect till login eller /titles)', async () => {
@@ -156,6 +179,14 @@ describe('auth', () => {
     renderWithApp(<AppRoutes />, { entry: '/login?next=%2Ftitles', width: MOBILE });
     await waitFor(() => expect(location()).toBe('/titles'));
   });
+
+  it.each(['https://evil.example/steal', '//evil.example', '/\\evil.example', 'javascript:alert(1)', '/login'])(
+    'inloggad på /login?next=%s: aldrig en öppen redirect, bara /board',
+    async (next) => {
+      renderWithApp(<AppRoutes />, { entry: `/login?next=${encodeURIComponent(next)}`, width: MOBILE });
+      await waitFor(() => expect(location()).toBe('/board'));
+    },
+  );
 });
 
 describe('Runner card som route (ADR 006 beslut 6)', () => {

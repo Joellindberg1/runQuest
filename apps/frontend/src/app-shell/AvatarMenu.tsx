@@ -39,6 +39,15 @@ export function AvatarMenu({ user, variant }: AvatarMenuProps) {
   const navigate = useNavigate();
   const { isAdmin, logout } = useAuth();
 
+  // Utloggning → Landing, utan dialog och utan `next` (ADR 006 beslut 1, addendum). Navigeringen och logout() ligger i samma händelse och batchas
+  // till EN rendering (React 18): adressen är redan `/` när användaren blivit null, så RequireAuth hinner aldrig skicka till /login?next=. Ordningen
+  // är avsiktlig — kastas användaren först, och en rendering hinner emellan, ersätter RequireAuth adressen med /login?next=<sidan du loggade ut från>.
+  // (Ett 401 mitt i sessionen är medvetet något annat: där vill vi ha dialogen med `next`, så man kommer tillbaka dit man var.)
+  const logOutToLanding = () => {
+    navigate(paths.landing, { replace: true });
+    logout();
+  };
+
   const items: MenuItemSpec[] = [
     ...(variant === 'mobile'
       ? [
@@ -48,7 +57,7 @@ export function AvatarMenu({ user, variant }: AvatarMenuProps) {
       : []),
     { key: 'settings', label: 'Settings', icon: 'settings', to: paths.settings },
     ...(isAdmin ? [{ key: 'admin', label: 'Admin', icon: 'shield', to: paths.admin, hint: variant === 'mobile' ? 'admin' : undefined } as MenuItemSpec] : []),
-    { key: 'logout', label: 'Log out', icon: 'logout', danger: true, onSelect: logout },
+    { key: 'logout', label: 'Log out', icon: 'logout', danger: true, onSelect: logOutToLanding },
   ];
 
   const select = (item: MenuItemSpec) => {
