@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (loginResult.success && loginResult.user) {
         log.success('Backend login successful', loginResult.user.name);
-        // Sett-listan hör till en användare: ingen gammal (t.ex. utloggad prefetch) får finnas kvar när nästa läses.
+        // Cachen hör till en användare: inget gammalt (t.ex. utloggad prefetch eller förra användarens badges/grupp/sett-lista) får finnas kvar när nästa läses.
         clearUserCaches();
         setUser(loginResult.user);
         return { success: true };

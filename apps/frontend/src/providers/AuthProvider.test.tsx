@@ -81,14 +81,31 @@ describe('AuthProvider rensar hela query-cachen', () => {
     expect(fetchGroup).toHaveBeenCalledTimes(1);
   });
 
-  it('401 → rensa → omhämtning som själv får 401 ger ingen loop', async () => {
+  it('401 → rensa → ingen omhämtning: en aktiv query som får 401 hämtas inte om (resetQueries/invalidateQueries skulle loopa)', async () => {
     const client = new QueryClient();
+    const ctx: { current: AuthContextType | null } = { current: null };
+    // Svarar 401 varje gång: backendApi anropar onUnauthorized när svaret är 401.
     const queryFn = vi.fn(async () => { api.onUnauthorized?.(); throw new Error('401'); });
     const Group = () => { useQuery({ queryKey: BADGE_QUERY_KEYS.group, queryFn, retry: false }); return null; };
-    render(<QueryClientProvider client={client}><AuthProvider><Group /></AuthProvider></QueryClientProvider>);
-    await waitFor(() => expect(queryFn).toHaveBeenCalledTimes(1));
+    // Som riktiga appen: de skyddade sidorna (observatörerna) finns bara medan user finns.
+    const Gate = () => {
+      ctx.current = useContext(AuthContext) as AuthContextType;
+      return ctx.current.user ? <Group /> : null;
+    };
+    render(<QueryClientProvider client={client}><AuthProvider><Gate /></AuthProvider></QueryClientProvider>);
+    await waitFor(() => expect(ctx.current).not.toBeNull());
+    api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Karl', email: 'k@x.se' } });
+    await act(async () => { await ctx.current?.login('Karl', 'pw'); });
+
+    await waitFor(() => expect(ctx.current?.user).toBeNull()); // 401:an loggade ut användaren
     await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(queryFn).toHaveBeenCalledTimes(1);
+    // clear() startar ingen omhämtning själv; observatören som hinner rendera om innan sidan avmonteras kan högst göra ett enda försök till.
+    // resetQueries() gav 469 anrop (stack overflow), invalidateQueries() lämnar en query kvar i cachen.
+    const calls = queryFn.mock.calls.length;
+    expect(calls).toBeLessThanOrEqual(2);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(queryFn).toHaveBeenCalledTimes(calls);
+    expect(client.getQueryCache().findAll()).toHaveLength(0);
   });
 
   it('misslyckad inloggning rör inte cachen', async () => {

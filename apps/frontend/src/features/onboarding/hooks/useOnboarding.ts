@@ -17,7 +17,9 @@ export function useOnboarding(slug: string) {
 
   // Sedd i den här sessionen även om sparningen misslyckas: kön ska gå vidare (ingen fastnad popup/tour). Servern har då inte sparat det,
   // så posten visas igen nästa gång — hellre en upprepning än en blockerad kö.
-  const remember = () => qc.setQueryData<string[]>(ONBOARDING_QUERY_KEY, prev => (prev?.includes(slug) ? prev : prev ? [...prev, slug] : [slug]));
+  // Saknas listan (cachen rensades vid logout/401 medan sparningen pågick) skrivs ingenting: ett [slug] skulle annars ge nästa användare en
+  // sett-lista med bara den posten, cachad som "laddad" i 10 min.
+  const remember = () => qc.setQueryData<string[]>(ONBOARDING_QUERY_KEY, prev => (prev && !prev.includes(slug) ? [...prev, slug] : prev));
 
   const { mutate: markSeen, isPending } = useMutation({
     mutationFn: () => markOnboardingSeen(slug),
