@@ -2,6 +2,7 @@ import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, isActivityType, type Activity
 import type { ChallengeMetric } from '@runquest/types';
 import { stockholmClock } from '@/app-shell/rightNowItems';
 import type { RQIconName } from '@/shared/components/icons';
+import { logger } from '@/shared/utils/logger';
 import { deltaText, durationLongText, firstName, metricLabel } from '@/features/challenges/duelsFormat';
 import { formatClock, stockholmDate, weekdayOf } from '@/features/events/eventsFormat';
 import { formatInt } from '@/features/log/logFormat';
@@ -118,7 +119,7 @@ export function countByFilter(items: readonly Pick<WireNewsItem, 'type'>[]): Rec
 
 export interface NewsFeed {
   /** id fallande, deduplicerade. */
-  items: NewsItem[];
+  items: WireNewsItem[];
   /**
    * unread_count och last_seen_id följer det senaste svaret; has_more/next_before beskriver flödets ÄLDRE kant
    * (det som "Show more" fortsätter från).
@@ -127,7 +128,7 @@ export interface NewsFeed {
 }
 
 export interface NewsPage {
-  items: NewsItem[];
+  items: WireNewsItem[];
   meta: NewsMeta;
 }
 
@@ -137,9 +138,9 @@ export const NEWS_CATCH_UP_LIMIT = 100;
 export const NEWS_MAX_GAP_PAGES = 5;
 
 /** Första förekomsten av varje id vinner; ordningen id fallande. */
-export function dedupeById(items: readonly NewsItem[]): NewsItem[] {
+export function dedupeById<T extends { id: number }>(items: readonly T[]): T[] {
   const seen = new Set<number>();
-  const unique: NewsItem[] = [];
+  const unique: T[] = [];
   for (const item of items) {
     if (seen.has(item.id)) continue;
     seen.add(item.id);
@@ -170,7 +171,7 @@ export function gapCursor(page: NewsPage, knownTopId: number): number | null {
  * Annars (fler nya rader än catch-upen orkar hämta) ersätts fönstret med det vi fick, och `meta` (sista sidans) bär den äldre
  * kanten: hellre ett kortare flöde än ett med hål i mitten.
  */
-export function mergeNewer(feed: NewsFeed, fetched: readonly NewsItem[], meta: NewsMeta, complete: boolean): NewsFeed {
+export function mergeNewer(feed: NewsFeed, fetched: readonly WireNewsItem[], meta: NewsMeta, complete: boolean): NewsFeed {
   if (!complete) return { items: dedupeById(fetched), meta };
   return {
     items: dedupeById([...fetched, ...feed.items]),
@@ -508,12 +509,25 @@ export interface NewsRowModel {
 export function buildNewsRow(item: NewsItem, ctx: NewsContext): NewsRowModel;
 export function buildNewsRow(item: WireNewsItem, ctx: NewsContext): NewsRowModel | null;
 export function buildNewsRow(item: WireNewsItem, ctx: NewsContext): NewsRowModel | null {
-  if (!isKnownNewsItem(item)) return null;
+  if (!isKnownNewsItem(item)) {
+    warnFiltered(item, 'unknown type');
+    return null;
+  }
   try {
     return renderRow(item, ctx);
   } catch {
+    warnFiltered(item, 'could not be rendered');
     return null;
   }
+}
+
+/** Raderna byggs om vid varje rendering — en varning per rad och orsak räcker. Bara id och typ loggas, aldrig payloaden. */
+const warnedRows = new Set<string>();
+function warnFiltered(item: Pick<WireNewsItem, 'id' | 'type'>, reason: string): void {
+  const key = `${item.id}:${item.type}:${reason}`;
+  if (warnedRows.has(key)) return;
+  warnedRows.add(key);
+  logger.warn(`News row filtered (${reason}): id=${item.id} type=${item.type}`);
 }
 
 function renderRow(item: NewsItem, ctx: NewsContext): NewsRowModel {

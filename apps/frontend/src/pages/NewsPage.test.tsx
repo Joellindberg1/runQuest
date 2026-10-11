@@ -320,6 +320,16 @@ describe('Pack News — laddning, tomt och fel', () => {
     await waitFor(() => expect(location()).toBe('/log'));
   });
 
+  it('ett flöde med bara okända händelsetyper: tomtillståndet visas, inget filter och ingen tour (RUN-138)', async () => {
+    const unknown = (id: number) => ({ ...levelUp(id, 1), type: 'quest_completed', payload: { quest: 'x' } }) as unknown as NewsItem;
+    setup([unknown(31), unknown(30)], null);
+    renderNews();
+    expect(await screen.findByRole('heading', { name: 'No news yet — go make some' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.rq-news-row')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /^Titles/ })).toBeNull();
+    expect(screen.queryByTestId('feature-tour')).toBeNull();
+  });
+
   it('fel: felkort med Retry — Retry hämtar om', async () => {
     news = newsServer(FEED(), 12);
     handlers.getNews = async () => ({ success: false, error: 'down' });

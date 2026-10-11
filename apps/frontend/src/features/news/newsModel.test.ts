@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { logger } from '@/shared/utils/logger';
 import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, type ActivityType, type NewsItem } from '@runquest/shared';
 import {
   CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, countByFilter, dedupeById, describeNews,
@@ -492,6 +493,26 @@ describe('okända händelsetyper och trasiga rader (RUN-138)', () => {
     expect(describeNews(unknownItem(1), ctx())).toBeNull();
     expect(buildNewsRow(unknownItem(1), ctx())).toBeNull();
     expect(() => buildNewsGroups([unknownItem(2)], ctx())).not.toThrow();
+  });
+
+  it('loggar en varning med id och typ (aldrig payload) när en okänd typ eller en trasig rad filtreras', () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    try {
+      buildNewsRow(unknownItem(701, { payload: { secret: 'hemligt' } }), ctx());
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('id=701 type=quest_completed'));
+      buildNewsRow(brokenPayload(702), ctx());
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('id=702 type=title_taken'));
+      expect(warn.mock.calls.flat().join(' ')).not.toContain('hemligt');
+      // Samma rad vid nästa rendering loggar inte igen.
+      warn.mockClear();
+      buildNewsRow(unknownItem(701), ctx());
+      expect(warn).not.toHaveBeenCalled();
+      // Kända, fungerande rader loggar inget.
+      buildNewsRow(levelUp(703, 2), ctx());
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('skärmens lista: den okända raden är borta, de kända raderna och dag-grupperna är orörda', () => {
