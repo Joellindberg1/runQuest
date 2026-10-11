@@ -644,6 +644,8 @@
   --rq-badge-page-gap:       var(--rq-sp-8);
   --rq-badge-card-areas:     "emblem who" "emblem body";
   --rq-badge-detail-w:       280px;
+  /* Lagret för emblem-popovern när den öppnas inifrån en modal (Runner card som overlay): ett steg över skalets .rq-scrim (65) och .rq-modal/.rq-sheet (66), annars ritas popovern bakom modalen. */
+  --rq-z-popover-over-modal: 67;
 }
 
 

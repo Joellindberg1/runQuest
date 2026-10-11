@@ -52,14 +52,14 @@ const auth: AuthContextType = {
 
 const loggedOut: AuthContextType = { ...auth, user: null };
 
-function renderCard(width = MOBILE, authValue: AuthContextType = auth) {
+function renderCard(width = MOBILE, authValue: AuthContextType = auth, variant: 'page' | 'overlay' = 'page') {
   setViewportWidth(width);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const view = render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={authValue}>
         <MemoryRouter>
-          <RunnerCard user={KARL} allUsers={PACK} variant="page" />
+          <RunnerCard user={KARL} allUsers={PACK} variant={variant} />
         </MemoryRouter>
       </AuthContext.Provider>
     </QueryClientProvider>,
@@ -197,6 +197,21 @@ describe('ordningen: .rq-runner__lower (T2)', () => {
     expect(container.querySelector('.rq-runner__split')?.nextElementSibling).toBe(lower);
     expect(container.querySelector('.rq-runner__side')?.contains(badgesPanel())).toBe(false);
     expect(container.querySelector('.rq-runner__side')?.contains(screen.getByRole('region', { name: 'Titles' }))).toBe(true);
+  });
+
+  it('overlay-varianten (desktop-modalen): samma ordning som sidan och panelen renderas en gång', async () => {
+    const { container } = renderCard(DESKTOP, auth, 'overlay');
+    await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Earned badges' });
+    await screen.findByRole('region', { name: 'Head to head' });
+
+    expect(container.querySelector('.rq-runner')).toHaveAttribute('data-variant', 'overlay');
+    expect(regionOrder(container)).toEqual(['Runner', "Frodo's journey", 'Runner stats', 'Titles', 'Badges', 'Head to head']);
+    expect(screen.getAllByRole('region', { name: 'Badges' })).toHaveLength(1);
+    expect(container.querySelectorAll('.rq-badge-panel')).toHaveLength(1);
+    const lower = container.querySelector('.rq-runner__lower') as HTMLElement;
+    expect([...lower.children]).toEqual([badgesPanel(), screen.getByRole('region', { name: 'Head to head' })]);
+    expect(container.querySelector('.rq-runner__split')?.nextElementSibling).toBe(lower);
+    expect(screen.getByText('Runner profile')).toBeInTheDocument();
   });
 
   it('utan inloggad (ingen head to head) står panelen ensam i .rq-runner__lower', async () => {

@@ -347,7 +347,8 @@
 .rq-badge-detail__trigger { display: inline-flex; flex-shrink: 0; padding: 0; background: none; border: var(--rq-hair) solid transparent; cursor: pointer; }
 .rq-badge-detail__trigger:hover { border-color: var(--rq-line-hover); }
 
-/* Popovern: .rq-popover (yta, kant, skugga, lager) kommer från skalet; här bredd och innehåll. Ingen animation. Containern tar fokus vid öppning utan egen ring. */
+/* Popovern: .rq-popover (yta, kant, skugga, lager) kommer från skalet; här bredd och innehåll. Lagret över modalen kommer från skalets .rq-popover--over-modal (komponenten sätter klassen; badges-CSS har aldrig z-index).
+   Ingen animation. Containern tar fokus vid öppning utan egen ring. */
 .rq-popover.rq-badge-detail {
   box-sizing: border-box; width: var(--rq-badge-detail-w); max-width: var(--radix-popover-content-available-width);
   display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-8); padding: var(--rq-sp-12) var(--rq-sp-14);

@@ -9,6 +9,8 @@ const readFromDisk = (relative: string) => readFileSync(fileURLToPath(new URL(re
 const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '');
 const badgesCss = stripComments(readFromDisk('./badges.css'));
 const runnerCss = stripComments(readFromDisk('../runner/runner.css'));
+const shellCss = stripComments(readFromDisk('../../app-shell/app-shell.css'));
+const detailTsx = readFromDisk('./components/BadgeEmblemDetail.tsx');
 const indexCss = readFromDisk('../../index.css');
 const facitCss = readFromDisk('../../../../../docs/design/temafil-forslag.css');
 
@@ -146,10 +148,30 @@ describe('badges-sidans byggstenar (RUN-149, spec F9.9, F13.4)', () => {
     expect(rule('.rq-popover.rq-badge-detail')?.body).toMatch(/width:\s*var\(--rq-badge-detail-w\)/);
   });
 
+  it('popovern ligger över Runner card-modalen (RUN-152): --rq-z-popover-over-modal (samma i båda temafilerna) är större än .rq-scrim och .rq-modal, skalets .rq-popover--over-modal läser den och emblem-popovern bär klassen', () => {
+    const shellZ = (selector: string) => {
+      const body = new RegExp(`${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(shellCss)?.[1] ?? '';
+      return Number(/z-index:\s*(\d+)/.exec(body)?.[1]);
+    };
+    const [indexZ, facitZ] = [indexCss, facitCss].map((css) => declaration(mobileOf(css), '--rq-z-popover-over-modal'));
+    expect(indexZ).toBeDefined();
+    expect(indexZ).toBe(facitZ);
+    expect(shellCss).toMatch(/\.rq-popover\.rq-popover--over-modal\s*\{[^}]*z-index:\s*var\(--rq-z-popover-over-modal\)/);
+    expect(detailTsx).toMatch(/className="rq-popover rq-popover--over-modal rq-badge-detail"/);
+    expect(badgesCss).not.toMatch(/z-index/);
+    expect(shellZ('.rq-modal')).toBeGreaterThan(0);
+    expect(Number(indexZ)).toBeGreaterThan(shellZ('.rq-modal'));
+    expect(Number(indexZ)).toBeGreaterThan(shellZ('.rq-scrim'));
+    // Andra popovers (klockan, avatarmenyn) behåller skalets eget lager: bara emblem-popovern lyfts.
+    expect(shellZ('.rq-popover')).toBeLessThan(shellZ('.rq-scrim'));
+    expect(runnerCss + badgesCss.replace(/\.rq-popover\.rq-badge-detail\s*\{[^}]*\}/, '')).not.toMatch(/\.rq-popover\s*\{/);
+  });
+
   it('de nya tokens finns inte som egna kopior: temafilerna deklarerar dem exakt en gång per läge', () => {
     for (const css of [indexCss, facitCss]) {
       for (const token of ['--rq-badge-page-card-min', '--rq-badge-page-gap', '--rq-badge-card-areas']) expect(css.match(new RegExp(`^\\s*${token}:`, 'gm')), token).toHaveLength(2);
       expect(css.match(/^\s*--rq-badge-detail-w:/gm)).toHaveLength(1);
+      expect(css.match(/^\s*--rq-z-popover-over-modal:/gm)).toHaveLength(1);
     }
   });
 
@@ -217,5 +239,32 @@ describe('BADGES-panelen på Runner card (T5)', () => {
       expect(badgesCss, selector).toContain(`.rq-badge-panel${selector}`);
     }
     expect(badgesCss).not.toMatch(/\.rq-badge-panel__(row|text|nameline|display|held|list|name)\b/);
+  });
+});
+
+describe('Runner cards nedre rutnät (RUN-152, spec F11.1)', () => {
+  const rules = [...runnerCss.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }));
+  const body = (selector: string) => rules.find((candidate) => candidate.selector === selector)?.body ?? '';
+
+  it('.rq-runner__lower är ett rutnät med samma kolumner som raden ovanför (--rq-runner-split-cols), så mobil staplar och desktop ger BADGES | Head to head', () => {
+    const lower = body('.rq-runner__lower');
+    expect(lower).toMatch(/display:\s*grid/);
+    expect(lower).toMatch(/grid-template-columns:\s*var\(--rq-runner-split-cols\)/);
+    expect(lower).toMatch(/align-items:\s*start/);
+    expect(body('.rq-runner__split')).toMatch(/grid-template-columns:\s*var\(--rq-runner-split-cols\)/);
+  });
+
+  it('Head to head sträcks till radens höjd (align-self: stretch)', () => {
+    expect(body('.rq-runner__lower > .rq-runner-h2h')).toMatch(/align-self:\s*stretch/);
+  });
+
+  it('kolumntoken: en kolumn på mobil och en 340 px-kolumn på desktop, ordagrant lika i båda temafilerna — rutnätet kan inte bli en kolumn på desktop utan att vakten faller', () => {
+    const mobile = (css: string) => css.slice(0, css.indexOf('@media (min-width: 1024px)'));
+    const desktop = (css: string) => css.slice(css.indexOf('@media (min-width: 1024px)'));
+    const value = (css: string) => /--rq-runner-split-cols:\s*([^;]+);/.exec(css)?.[1].trim();
+    for (const css of [indexCss, facitCss]) {
+      expect(value(mobile(css))).toBe('minmax(0, 1fr)');
+      expect(value(desktop(css))).toBe('minmax(0, 1fr) 340px');
+    }
   });
 });
