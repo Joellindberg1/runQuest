@@ -1,26 +1,85 @@
 /**
- * Statiskt test (ADR 008 beslut 1): migration 034:s CHECK-lista för activity_log.type måste vara
- * identisk med ACTIVITY_TYPES i shared (EN källa i kod). Läser SQL-filen från disk — ingen databas.
+ * Statiska tester (ADR 008 beslut 1, ADR 009 beslut 5): CHECK-listan för activity_log.type i den SENASTE migrationen som
+ * definierar activity_log_type_check måste vara identisk med ACTIVITY_TYPES i shared (EN källa i kod). 034 skapar tabellen
+ * och CHECK:en; 036 byter CHECK:en (drop + add) för att lägga till badge_earned. Läser SQL-filerna från disk — ingen databas.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ACTIVITY_TYPES } from '@runquest/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(resolve(__dirname, '../../../migrations/034_create_activity_log.sql'), 'utf8');
+const migrationsDir = resolve(__dirname, '../../../migrations');
+
 // Kommentarer bort så att exempel i headern inte räknas.
-const code = sql.replace(/--.*$/gm, '');
+const stripComments = (sql: string): string => sql.replace(/--.*$/gm, '');
+const readMigration = (file: string): string => stripComments(readFileSync(resolve(migrationsDir, file), 'utf8'));
+
+const TYPE_CHECK = /activity_log_type_check\s+check\s*\(\s*type\s+in\s*\(([^)]*)\)/i;
+const checkValues = (code: string): string[] | null => {
+  const match = code.match(TYPE_CHECK);
+  return match ? [...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1]) : null;
+};
+
+/** Migrationerna är globala och kronologiska (NNN_namn.sql); den senaste som definierar CHECK:en gäller. */
+const typeCheckMigrations = readdirSync(migrationsDir)
+  .filter((file) => /^\d+_.+\.sql$/.test(file))
+  .sort()
+  .filter((file) => TYPE_CHECK.test(readMigration(file)));
+const latestFile = typeCheckMigrations[typeCheckMigrations.length - 1];
+
+const sql034 = readMigration('034_create_activity_log.sql');
+const sql036 = readMigration('036_activity_log_badge_earned.sql');
+// 034 definierar tabellen; resten av filen testas mot dess kod.
+const code = sql034;
+
+describe('activity_log_type_check — senaste migrationen som definierar CHECK:en', () => {
+  it('CHECK-listan i senaste migrationen som definierar activity_log_type_check == ACTIVITY_TYPES (samma värden, samma antal)', () => {
+    expect(latestFile, 'ingen migration definierar activity_log_type_check').toBeDefined();
+    const values = checkValues(readMigration(latestFile));
+    expect(values, `type-CHECK hittades inte i ${latestFile}`).not.toBeNull();
+    expect([...values!].sort()).toEqual([...ACTIVITY_TYPES].sort());
+    expect(new Set(values).size).toBe(values!.length);
+  });
+
+  it('034 behåller sin ursprungliga lista: ADR 008:s elva typer, utan badge_earned (historik skrivs inte om)', () => {
+    const values = checkValues(sql034)!;
+    expect(values).toHaveLength(11);
+    expect(values).not.toContain('badge_earned');
+    expect([...ACTIVITY_TYPES].filter((type) => !values.includes(type))).toEqual(['badge_earned']);
+  });
+});
+
+describe('migration 036_activity_log_badge_earned.sql', () => {
+  it('är bara ett constraint-byte: drop + add av activity_log_type_check på activity_log, inget annat', () => {
+    // Alla satser utom transaktionsramen.
+    const statements = sql036
+      .split(';')
+      .map((statement) => statement.replace(/\s+/g, ' ').trim())
+      .filter((statement) => statement !== '' && !/^(begin|commit)$/i.test(statement));
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toMatch(/^alter table public\.activity_log drop constraint if exists activity_log_type_check$/i);
+    expect(statements[1]).toMatch(/^alter table public\.activity_log add constraint activity_log_type_check check \(type in \(/i);
+    expect(sql036).not.toMatch(/\b(create|insert|update|delete|truncate|rename|grant|revoke|policy)\b/i);
+    expect(sql036).not.toMatch(/\bdrop\s+(table|column|index)\b/i);
+  });
+
+  it('i en transaktion (begin … commit), idempotent (drop … if exists före add) och ingen data rörs', () => {
+    expect(sql036.trim()).toMatch(/^begin;/i);
+    expect(sql036.trim()).toMatch(/commit;$/i);
+    expect(sql036.search(/drop constraint if exists activity_log_type_check/i)).toBeGreaterThan(-1);
+    expect(sql036.search(/drop constraint if exists/i)).toBeLessThan(sql036.search(/add constraint/i));
+  });
+
+  it('listan innehåller badge_earned och alla typer i 034 (additivt utökad, inget försvinner)', () => {
+    const values036 = checkValues(sql036)!;
+    expect(values036).toContain('badge_earned');
+    for (const type of checkValues(sql034)!) expect(values036).toContain(type);
+  });
+});
 
 describe('migration 034_create_activity_log.sql', () => {
-  it('CHECK-listan för type == ACTIVITY_TYPES (samma värden, samma antal)', () => {
-    const match = code.match(/activity_log_type_check\s+check\s*\(\s*type\s+in\s*\(([^)]*)\)/i);
-    expect(match, 'type-CHECK hittades inte').not.toBeNull();
-    const values = [...match![1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
-    expect([...values].sort()).toEqual([...ACTIVITY_TYPES].sort());
-    expect(new Set(values).size).toBe(values.length);
-  });
 
   it('dedupe_key är not null + unik, id är monoton identitet', () => {
     expect(code).toMatch(/dedupe_key\s+text\s+not null/i);
