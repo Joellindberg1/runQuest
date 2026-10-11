@@ -52,7 +52,7 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
 
 - **components/BadgeEmblem.tsx** — `BadgeEmblem({ series, tier, size, ignite?, decorative? })`: glow-wrapper (`.rq-badge`) → ram (`__frame`, nivåns gradient) → Heroic-ring
   (`__ring`, bara Heroic) → mörk kärna (`__core`) → serieikonen (RQIcon, ur `BADGE_SERIES[].icon`). `tier` 1..6 = nivån, `null` (och allt ogiltigt: 0, 7, bråkdelar) = låst
-  (`data-tier="locked"`: dämpad ram .12, ikon .28, ingen glöd). `size` `sm`/`md`/`lg` = 28/56/96 px via klass; ikonen 15/24/42 px sätts i CSS ur tokens.
+  (`data-tier="locked"`: dämpad ram .12, ikon .28, ingen glöd). `size` `sm`/`cp`/`md`/`lg` = 28/44/56/96 px via klass (`cp` = compact, 44 × 49, v2, för profilens sammanfattning och Runner card; glöden är `-sm`-glöden eftersom bredden är under 56); ikonen 15/20/24/42 px sätts i CSS ur tokens.
   Etikett: `role="img"` + `aria-label` och `title` = "{Tier} {Serie}" ("Rare Milestoner"), låst "Locked {Serie}". `decorative` = `aria-hidden` utan etikett (Board-grupper och
   News-rader: den omgivande texten/gruppetiketten bär betydelsen). Okänd serie ritas med RQIcon:s reservikon.
 - **components/BadgePips.tsx** — sex pips (position, inte framsteg), `role="img"` + "Tier N of 6" / "Locked" (`pipsText` i badgeTier, samma format som `BadgeRow.pipsLabel`), `decorative` när raden redan säger nivån.
@@ -60,6 +60,7 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
 - **badges.css** — enda stilfilen för emblem/pips/chip. Nivå → de lokala `--rq-emblem-*`-variablerna (färg, rgb, gradient), storlek → mått, allt ur `--rq-badge-*` (temafilen sektion 1.34 i
   `index.css` OCH `docs/design/temafil-forslag.css`, ordagrant lika — ett vakttest jämför värdena och mot `claude-design/runquest-badges.js`).
 - **Chip:** `<span className="rq-chip rq-chip--status rq-badge-chip" data-tier={tierKey(tier)}>{nivånamn}</span>` (status-receptet, nivåfärg). Låst chip = bara `.rq-chip` (text `--rq-text-4`, .50).
+  v2 (RUN-146, dämpade nivåfärger): chip-texten mot chippets egen bakgrund (tint .10 av nivåfärgen över kortet, panel + `--rq-row-soft` ≈ #1c1f1d) mäter Common 5.24, Uncommon 5.67, Rare 4.60, Heroic 4.53, Epic 4.82, Legendary 7.76 — alla över 4.5:1, Heroic och Rare med liten marginal.
   Designens .45 verifierades mot kortbakgrunden (ca #181818): 4.49:1, alltså under 4.5:1; .50 ger 5.3:1 och är det närmaste tokensteget som klarar kravet (Council 9).
 - **Layouttokens** (spec §5): vakttestet kräver att varje token läses, så varje story lägger in sina när den bygger dem. Inlagda: `--rq-badge-grid-cols` (samlingsrutnätet, RUN-128) och skelettets takt `--rq-dur-badge-skel`/`--rq-badge-skel-stagger`.
   News-radens ikonkolumn heter `--rq-news-row-icon-badge-w` (30 px mobil, 34 desktop; avsnitt 1.28, läses av `news.css` — inte `--rq-badge-*`, eftersom badges-vakten bara läser `badges.css`). Popupbredden kommer med RUN-129.
@@ -117,12 +118,12 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
 
 ### Rörelse (ägarbeslut E1+E2, Rörelse-undantaget i STATE.md)
 
-- **Glöd:** ingen på Common/Uncommon eller låst; statisk från Rare (sm 4 px / md+lg 7 px, @ .45); Legendary 5/10 px @ .60.
+- **Glöd:** ingen på Common/Uncommon eller låst; statisk från Rare (sm och cp 3 px / md+lg 5 px, @ .30); Legendary 4/7 px @ .35 (v2, RUN-146: svagare glöd och dämpade nivåfärgerna ur `runquest-badges.js`; v1 var 4/7 px @ .45 och 5/10 px @ .60).
 - **Tändning** (`ignite`, bara popupen): `rqBadgeIgnite` 0.9 s ease-out. Rare+ går från ingen glöd till nivåns glöd (på wrappern); Common/Uncommon får ett ljusflimmer i ramen
   (`brightness(var(--rq-badge-flash))` → 1, ingen glöd). EN keyframe för alla nivåer: startvärdet kommer ur `--rq-emblem-ignite-from`, slutvärdet är elementets eget statiska filter.
   Låsta serier tänds aldrig.
-- **Andning** (Legendary `md`/`lg`, aldrig `sm`): egen keyframe `rqBadgeGlow` i `--rq-dur-glow` (3.2 s), `--rq-badge-breathe-count` (3) cykler, börjar och slutar i den statiska glöden så att den
-  står kvar utan hopp. `rqGlowIcon` återanvänds inte: den går 3 till 13 px i `currentColor` och startar/slutar därför inte i Legendarys statiska 10 px @ .60. Topp = `--rq-badge-breathe-max`
+- **Andning** (Legendary `md`/`lg`, aldrig `sm` eller `cp`; topp `--rq-badge-breathe-max` 13 px oförändrad mot den svagare statiska glöden, bedömd i RUN-146): egen keyframe `rqBadgeGlow` i `--rq-dur-glow` (3.2 s), `--rq-badge-breathe-count` (3) cykler, börjar och slutar i den statiska glöden så att den
+  står kvar utan hopp. `rqGlowIcon` återanvänds inte: den går 3 till 13 px i `currentColor` och startar/slutar därför inte i Legendarys statiska 7 px @ .35. Topp = `--rq-badge-breathe-max`
   (13 px, full färg). I popupen (`ignite`): tändning, därefter andning från `--rq-badge-ignite-handoff` (1.3 s). Animationerna startar när elementet monteras och startar inte om vid omrendering;
   växlar `ignite` från true till false byter animationen namn och andningen startar om — popupen ska därför låta `ignite` vara satt så länge den visas.
 - **`prefers-reduced-motion`:** alla animationer ligger i `no-preference`-blocket och `reduce` har `animation: none !important`: slutläget (statisk glöd, Common/Uncommon utan glöd) visas direkt.

@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Bebas+Neue&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="./runquest-icons.js"></script>
+<script src="./runquest-badges.js"></script>
 <style>
   html { background:#0a0a0a; }
   body { margin:0; background:#0a0a0a; color:#edeeed; font-family:'Barlow Condensed',sans-serif; }
@@ -218,6 +219,7 @@
                             <div style="display:flex; align-items:baseline; gap:7px;">
                               <span style="font-weight:700; font-size:16px; letter-spacing:.05em; text-transform:uppercase; color:#fff; line-height:1.1;">{{ p.name }}</span>
                               <span style="font-size:12px; color:{{ p.deltaColor }};">{{ p.delta }}</span>
+                              <span style="margin-left:auto; margin-right:28px; display:inline-flex;">{{ p.badgeMinis }}</span>
                             </div>
                             <div style="font-size:12px; color:rgba(255,255,255,.42);">Lvl {{ p.level }} · {{ p.title }}</div>
                           </div>
@@ -273,12 +275,13 @@
                         </div>
                         <div style="display:flex; align-items:center; gap:6px;">
                           <span style="font-size:12px; color:rgba(255,255,255,.38);">Lvl {{ r.level }} · {{ r.km }} km</span>
-                          <sc-for list="{{ r.ribbons }}" as="rb" hint-placeholder-count="2">{{ rb.node }}</sc-for>
+                          <span style="margin-left:8px; display:inline-flex;">{{ r.badgeMinis }}</span>
                         </div>
                       </div>
-                      <div style="text-align:right;">
-                        <div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; color:{{ r.paceColor }};">{{ r.xpPace }}</div>
+                      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                        <div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; line-height:1.1; color:{{ r.paceColor }};">{{ r.xpPace }}</div>
                         <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.3);">{{ r.etaLevel }}</div>
+                        <span style="display:flex; gap:4px;"><sc-for list="{{ r.ribbons }}" as="rb" hint-placeholder-count="2">{{ rb.node }}</sc-for></span>
                       </div>
                     </div>
                   </sc-for>
@@ -426,7 +429,7 @@
                       </div>
                     </div>
                     <div style="min-width:0;">
-                      <div style="font-family:'Bebas Neue',sans-serif; font-size:27px; color:#fff; line-height:1;">KARL PERSSON</div>
+                      <div style="display:flex; align-items:center; gap:8px;"><span style="font-family:'Bebas Neue',sans-serif; font-size:27px; color:#fff; line-height:1;">KARL PERSSON</span>{{ runnerMinis }}</div>
                       <div style="font-size:13px; color:rgba(255,255,255,.45);">#1 in the group · 159 runs</div>
                       <div style="font-size:13px; color:#ffd700;">363 XP to level 25</div>
                     </div>
@@ -485,6 +488,16 @@
                         <span style="font-weight:600; font-size:13px; color:#ffd700;">{{ t.value }}</span>
                       </div>
                     </sc-for>
+                  </div>
+                </div>
+
+                <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.08); padding:13px 14px;">
+                  <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:10px;">
+                    <span style="font-family:'Bebas Neue',sans-serif; font-size:19px; color:#ffd700; letter-spacing:.04em;">BADGES</span>
+                    <span style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">6 of 8 series</span>
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <sc-for list="{{ runnerBadges }}" as="b" hint-placeholder-count="6">{{ b.nodeSmall }}</sc-for>
                   </div>
                 </div>
 
@@ -1266,6 +1279,47 @@
         </div>
         </sc-if>
 
+        <sc-if value="{{ mBadges }}" hint-placeholder-val="{{ false }}">
+        <div style="box-sizing:border-box; height:100%; display:flex; flex-direction:column; background:#070e09; font-family:'Barlow Condensed',sans-serif; padding-top:54px; overflow:hidden;">
+          <div style="position:relative; flex-shrink:0; display:flex; align-items:center; gap:12px; padding:10px 16px 12px; border-bottom:1px solid rgba(255,255,255,.07); background:rgba(7,14,9,.9); z-index:3;">
+            <span style="font-size:19px; color:rgba(255,255,255,.5);">‹</span>
+            <div style="flex:1;">
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:21px; color:#fff; line-height:1;">BADGES</div>
+              <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">5 of 8 series unlocked</div>
+            </div>
+          </div>
+          <div style="position:relative; flex:1; overflow:auto;">
+            <div style="padding:10px 16px 18px; display:flex; flex-direction:column; gap:9px;">
+              <div style="display:flex; align-items:center; gap:9px; background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.26); padding:9px 11px;">
+                <span style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.5);">On display</span>
+                {{ badgeDisplayMinis }}
+                <span onClick="{{ saveDisplay }}" style="{{ saveBtnStyle }}">{{ saveBtnLabel }}</span>
+              </div>
+              <sc-for list="{{ badgePage }}" as="b" hint-placeholder-count="8">
+                <div style="{{ b.cardStyle }}">
+                  <div style="display:flex; gap:12px; align-items:flex-start;">
+                    {{ b.node }}
+                    <div style="flex:1; min-width:0;">
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span style="font-weight:700; font-size:15px; letter-spacing:.05em; text-transform:uppercase; color:#edeeed;">{{ b.name }}</span>
+                        <span style="{{ b.chipStyle }}">{{ b.tier }}</span>
+                      </div>
+                      <span style="display:flex; gap:3px; margin-top:6px;"><sc-for list="{{ b.pips }}" as="pp" hint-placeholder-count="6"><span style="{{ pp.style }}"></span></sc-for></span>
+                      <div style="font-size:13px; line-height:1.4; color:rgba(255,255,255,.55); margin-top:7px;">{{ b.line1 }}</div>
+                      <div style="font-size:12px; line-height:1.35; color:rgba(255,255,255,.4); margin-top:3px;">{{ b.line2 }}</div>
+                      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px;">
+                        <span style="font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:.05em; color:rgba(255,255,255,.35);">{{ b.held }}</span>
+                        <span onClick="{{ b.onToggle }}" aria-pressed="{{ b.pressed }}" style="{{ b.toggleStyle }}">{{ b.toggleLabel }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
         <sc-if value="{{ mProfile }}" hint-placeholder-val="{{ false }}">
         <div style="box-sizing:border-box; height:100%; display:flex; flex-direction:column; background:#070e09; font-family:'Barlow Condensed',sans-serif; padding-top:54px; overflow:hidden;">
           <div style="position:relative; flex-shrink:0; padding:6px 18px 10px; background:rgba(7,14,9,.9); z-index:2;">
@@ -1424,14 +1478,13 @@
                 </div>
 
                 <div>
-                  <div style="font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-bottom:9px;">Badges</div>
-                  <div style="display:flex; gap:9px; overflow:auto; padding-bottom:4px;">
-                    <sc-for list="{{ badges }}" as="b" hint-placeholder-count="6">
-                      <div style="flex:0 0 auto; width:66px; height:72px; border:1px solid {{ b.border }}; background:{{ b.bg }}; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;">
-                        <span style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:{{ b.color }};">{{ b.tag }}</span>
-                        <span style="font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.42); text-align:center; line-height:1.2;">{{ b.label }}</span>
-                      </div>
-                    </sc-for>
+                  <div style="font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-bottom:9px;">Badges · 5 of 8 series</div>
+                  <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <sc-for list="{{ profBadges }}" as="b" hint-placeholder-count="5">{{ b.nodeSmall }}</sc-for>
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:9px; padding-top:9px; border-top:1px solid rgba(255,255,255,.06);">
+                    <sc-for list="{{ profLocked }}" as="b" hint-placeholder-count="3">{{ b.nodeSmall }}</sc-for>
+                    <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.3);">Locked · 3 left</span>
                   </div>
                 </div>
 
@@ -1542,30 +1595,72 @@ class Component extends DCLogic {
   ic(paths, size, color, strokeWidth) { return this.rq().ic(paths, size, color, strokeWidth); }
   icon(name, size, color) { return this.rq().icon(name, size, color); }
 
-  // Shield ribbon drawn as SVG so the stroke follows the diagonal point too.
-  ribbon(count, tier, light) {
-    const T = light ? {
-      minor: { fg: '#1d4ed8', bg: 'rgba(59,130,246,.14)', stroke: 'rgba(29,78,216,.8)' },
-      major: { fg: '#c2410c', bg: 'rgba(249,115,22,.14)', stroke: 'rgba(194,65,12,.85)' },
-      legendary: { fg: '#8a5420', bg: 'rgba(205,127,50,.16)', stroke: 'rgba(138,84,32,.85)' }
-    }[tier] : {
-      minor: { fg: '#93c5fd', bg: 'rgba(59,130,246,.16)', stroke: 'rgba(59,130,246,.75)' },
-      major: { fg: '#fdba74', bg: 'rgba(249,115,22,.16)', stroke: 'rgba(249,115,22,.8)' },
-      legendary: { fg: '#ffd700', bg: 'rgba(255,215,0,.16)', stroke: 'rgba(255,215,0,.85)' }
-    }[tier];
-    return React.createElement('svg', {
-      viewBox: '0 0 26 32', width: 22, height: 27, style: { flexShrink: 0, overflow: 'visible' }
-    },
-      React.createElement('path', {
-        d: 'M1.5 1.5 H24.5 V21 L13 30.5 L1.5 21 Z',
-        fill: T.bg, stroke: T.stroke, strokeWidth: 2, strokeLinejoin: 'miter'
-      }),
-      React.createElement('text', {
-        x: 13, y: 17, textAnchor: 'middle', fill: T.fg,
-        style: { fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }
-      }, String(count))
-    );
+  // Badge minis (shared runquest-badges.js) — each runner's up-to-3 showcase picks, shown on Board rows and hero lines
+  badgeMinis(who) {
+    const picks = {
+      karl: [['speedster', 5], ['milestoner', 3], ['night', 2]],
+      joel: [['streak', 6], ['early', 4], ['milestoner', 3]],
+      johan: [['streak', 4], ['earth', 3], ['climber', 1]],
+      nicklas: [['climber', 3], ['milestoner', 2]],
+      adam: [],
+      daniel: [['earth', 1], ['night', 2], ['climber', 3]]
+    }[who] || [];
+    return picks.length ? window.RQBadges(React).minis(picks) : null;
   }
+  BADGE_HAVE = { milestoner: 3, earth: 2, climber: 1, streak: 6, early: 4, night: 0, speedster: 0, precisionist: 0 };
+  BADGE_DEFAULT = ['streak', 'early', 'milestoner'];
+  badgeDisplay() { return this.state.badgeDisplay || this.BADGE_DEFAULT; }
+  badgePage() {
+    const B = window.RQBadges(React), ORD = B.ORDER, T = B.TIERS;
+    const have = this.BADGE_HAVE, disp = this.badgeDisplay();
+    const held = { milestoner: 'Held by 5 of 6', earth: 'Held by 6 of 6', climber: 'Held by 4 of 6', streak: 'Only you hold this', early: 'Held by 2 of 6', night: 'Held by 3 of 6', speedster: 'Held by 1 of 6', precisionist: '' };
+    const glob = { milestoner: '18%', earth: '46%', climber: '88%', streak: '0.5%', early: '4%', night: '31%', speedster: '9%', precisionist: '12%' };
+    return B.SERIES.map(s => {
+      const tier = have[s.key], tKey = tier > 0 ? ORD[tier - 1] : null;
+      const di = disp.indexOf(s.key), locked = tier === 0, full = disp.length >= 3 && di < 0;
+      return {
+        name: s.name,
+        node: B.emblemNode(tKey, s.icon, 'medium'),
+        chipStyle: B.chip(tKey), tier: tKey ? T[tKey].name : 'Locked',
+        pips: B.pips(tKey),
+        line1: tier > 0 ? T[tKey].name + ' — ' + s.tiers[tier - 1].req : s.metric,
+        line2: tier === 0 ? 'Unlock: Common — ' + s.tiers[0].req : tier < 6 ? 'Next: ' + T[ORD[tier]].name + ' — ' + s.tiers[tier].req : 'Top tier reached',
+        held: (held[s.key] ? held[s.key] + ' in pack · ' : '') + glob[s.key] + ' globally',
+        cardStyle: 'background:rgba(33,33,33,.62); padding:12px 13px; ' + (di >= 0 ? 'border:1px solid rgba(255,215,0,.35);' : tier === 0 ? 'border:1px dashed rgba(255,255,255,.14);' : 'border:1px solid rgba(255,255,255,.09);'),
+        pressed: di >= 0 ? 'true' : 'false',
+        toggleLabel: di >= 0 ? 'On display — ' + (di + 1) : locked ? 'Locked' : full ? '3 of 3' : 'Show',
+        toggleStyle: 'padding:5px 11px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; white-space:nowrap; ' +
+          (di >= 0 ? 'background:rgba(255,215,0,.1); border:1px solid rgba(255,215,0,.45); color:#ffd700; cursor:pointer;'
+            : locked ? 'border:1px solid rgba(255,255,255,.08); color:rgba(255,255,255,.22);'
+            : full ? 'border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.3);'
+            : 'border:1px solid rgba(255,255,255,.18); color:rgba(255,255,255,.55); cursor:pointer;'),
+        onToggle: (locked || full && di < 0) ? () => {} : () => this.setState(st => {
+          const d = (st.badgeDisplay || this.BADGE_DEFAULT).slice();
+          const i = d.indexOf(s.key);
+          if (i >= 0) d.splice(i, 1); else if (d.length < 3) d.push(s.key);
+          return { badgeDisplay: d, badgeSaved: false };
+        })
+      };
+    });
+  }
+  profLocked() {
+    const B = window.RQBadges(React), byKey = {}; B.SERIES.forEach(s => byKey[s.key] = s);
+    return [['night', '31%'], ['speedster', '9%'], ['precisionist', '12%']].map(p => {
+      const s = byKey[p[0]];
+      return { nodeSmall: B.emblemNode(null, s.icon, 'small', s.name + ' — Locked\nUnlock: Common — ' + s.tiers[0].req + '\nGlobal — ' + p[1] + ' has it') };
+    });
+  }
+  profBadges() {
+    const B = window.RQBadges(React), byKey = {}; B.SERIES.forEach(s => byKey[s.key] = s);
+    return [['streak', 6, 'Only you hold this', '0.5%'], ['early', 4, 'Held by 2 of 6', '4%'], ['milestoner', 3, 'Held by 5 of 6', '18%'], ['earth', 2, 'Held by 6 of 6', '46%'], ['climber', 1, 'Held by 4 of 6', '88%']].map(p => {
+      const t = B.ORDER[p[1] - 1];
+      const tip = byKey[p[0]].name + ' — ' + B.TIERS[t].name + '\nGroup — ' + p[2] + ' in your pack\nGlobal — ' + p[3] + ' has it';
+      return { node: B.emblemNode(t, byKey[p[0]].icon, 'medium'), nodeSmall: B.emblemNode(t, byKey[p[0]].icon, 'small', tip), name: byKey[p[0]].name, tier: B.TIERS[t].name, chipStyle: B.chip(t), held: p[2] + ' in your pack' };
+    });
+  }
+
+  // Challenge token: shared vertical pennant from runquest-badges.js (old ribbon colours/size/count kept).
+  ribbon(count, tier, light) { return window.RQBadges(React).pennant(count, tier, light); }
 
   navStyle(active, disabled) {
     const base = 'display:flex; align-items:center; gap:11px; padding:9px 20px; font-family:Barlow Condensed,sans-serif; letter-spacing:.08em; text-transform:uppercase; border-left:2px solid ';
@@ -1615,7 +1710,7 @@ class Component extends DCLogic {
     // Five destinations: Challenges earns a tab (it is a first-class GAME item on
     // desktop); Events and Pack News are reached from the screen header.
     const cur = this.state.mScreen || 'landing';
-    const backMap = { board:'ranks', runner:'ranks', events:'ranks', titles:'titles', duels:'challenges', profile:'you', playbook:'you', news:'you', log:'you' };
+    const backMap = { board:'ranks', runner:'ranks', events:'ranks', titles:'titles', duels:'challenges', profile:'you', badges:'you', playbook:'you', news:'you', log:'you' };
     active = backMap[cur] || active;
     const dest = { ranks:'board', titles:'titles', challenges:'duels', you:'profile' };
     const items = [
@@ -1665,6 +1760,7 @@ class Component extends DCLogic {
     ]);
     const navYou = mk([
       { label: 'Profile', page: 'profile', ico: 'user' },
+      { label: 'Badges', page: 'badges', ico: 'shield' },
       { label: 'Log Runs', page: 'log', ico: 'plus' }
     ]);
     const navRq = mk([
@@ -2682,14 +2778,14 @@ class Component extends DCLogic {
         const rb = (c, t) => ({ node: this.ribbon(c, t) });
         return {
           mPodium: [
-            { rank: '1', name: 'Karl Persson', initials: 'KP', level: 24, title: 'The Double Trouble', color: gold, ghost: 'rgba(255,215,0,.12)',
+            { rank: '1', name: 'Karl Persson', badgeMinis: this.badgeMinis('karl'), initials: 'KP', level: 24, title: 'The Double Trouble', color: gold, ghost: 'rgba(255,215,0,.12)',
               delta: '▲ 1', deltaColor: up, pct: '62%', delay: '.1s', xpInto: '586 / 949 XP', lastRun: '5 h ago · 8.4 km',
               cardStyle: cardM + 'rgba(255,215,0,.85); animation:rqGlow 3.2s ease-in-out infinite;',
               onOpen: () => this.setState({ profileOpen: 'Karl Persson' }),
               stats: [{ value: '988', label: 'km total', color: gold }, { value: '32.8', label: 'longest', color: '#edeeed' }, { value: '159', label: 'runs', color: '#edeeed' }],
               stats2: [{ value: '6.2', label: 'avg / run', color: '#edeeed' }, { value: '39/d', label: 'xp pace', color: up }, { value: '10 d', label: 'next lvl', color: gold }],
               hint: '4 left', hintColor: gold, ribbons: [rb(3, 'minor'), rb(1, 'major')] },
-            { rank: '2', name: 'Joel Lindberg', initials: 'JL', level: 24, title: 'The Weekend Destroyer', color: silver, ghost: 'rgba(168,168,168,.10)',
+            { rank: '2', name: 'Joel Lindberg', badgeMinis: this.badgeMinis('joel'), initials: 'JL', level: 24, title: 'The Weekend Destroyer', color: silver, ghost: 'rgba(168,168,168,.10)',
               delta: '▼ 1', deltaColor: down, pct: '31%', delay: '.2s', xpInto: '290 / 949 XP', lastRun: '4 d ago · 10.0 km',
               cardStyle: cardM + 'rgba(168,168,168,.75);',
               onOpen: () => this.setState({ profileOpen: 'Joel Lindberg' }),
@@ -2705,11 +2801,11 @@ class Component extends DCLogic {
               hint: 'none', hintColor: dim, ribbons: [] }
           ],
           mRest: [
-            { rank: 4, name: 'Nicklas von E.', level: 23, km: '701', pct: '39%', delay: '.4s', delta: '▲ 2', deltaColor: up, edge: 'rgba(255,255,255,.12)',
+            { rank: 4, name: 'Nicklas von E.', badgeMinis: this.badgeMinis('nicklas'), level: 23, km: '701', pct: '39%', delay: '.4s', delta: '▲ 2', deltaColor: up, edge: 'rgba(255,255,255,.12)',
               ribbons: [rb(5, 'minor'), rb(1, 'major')], xpPace: '31 / d', paceColor: up, etaLevel: '15 d to lvl' },
-            { rank: 5, name: 'Daniel L. Lüthje', level: 19, km: '415', pct: '82%', delay: '.5s', delta: '—', deltaColor: dim, edge: 'rgba(255,255,255,.09)',
+            { rank: 5, name: 'Daniel L. Lüthje', badgeMinis: this.badgeMinis('daniel'), level: 19, km: '415', pct: '82%', delay: '.5s', delta: '—', deltaColor: dim, edge: 'rgba(255,255,255,.09)',
               ribbons: [rb(8, 'minor'), rb(1, 'legendary')], xpPace: '8 / d', paceColor: down, etaLevel: '9 d to lvl' },
-            { rank: 6, name: 'Johan Björell', level: 14, km: '215', pct: '28%', delay: '.6s', delta: '▼ 1', deltaColor: down, edge: 'rgba(255,255,255,.07)',
+            { rank: 6, name: 'Johan Björell', badgeMinis: this.badgeMinis('johan'), level: 14, km: '215', pct: '28%', delay: '.6s', delta: '▼ 1', deltaColor: down, edge: 'rgba(255,255,255,.07)',
               ribbons: [rb(1, 'minor')], xpPace: '30 / d', paceColor: up, etaLevel: '6 d to lvl' }
           ]
         };
@@ -3122,6 +3218,21 @@ class Component extends DCLogic {
         { value: '44 d', label: 'best streak', color: '#edeeed' },
         { value: '22', label: 'marathons worth', color: '#edeeed' }
       ],
+      profBadges: this.profBadges(),
+      profLocked: this.profLocked(),
+      runnerMinis: this.badgeMinis('karl'),
+      runnerBadges: (() => {
+        const B = window.RQBadges(React), byKey = {}; B.SERIES.forEach(x => byKey[x.key] = x);
+        return [['speedster', 5], ['milestoner', 3], ['night', 2], ['streak', 4], ['earth', 2], ['climber', 1]].map(p => {
+          const t = B.ORDER[p[1] - 1], sr = byKey[p[0]];
+          return { nodeSmall: B.emblemNode(t, sr.icon, 'small', sr.name + ' — ' + B.TIERS[t].name + '\n' + B.TIERS[t].name + ' — ' + sr.tiers[p[1] - 1].req) };
+        });
+      })(),
+      badgePage: this.badgePage(),
+      badgeDisplayMinis: window.RQBadges(React).minis(this.badgeDisplay().map(k => [k, this.BADGE_HAVE[k]])),
+      saveDisplay: () => this.setState({ badgeSaved: true }),
+      saveBtnLabel: this.state.badgeSaved === false ? 'SAVE DISPLAY' : 'SAVED',
+      saveBtnStyle: "margin-left:auto; padding:5px 13px; font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:.06em; white-space:nowrap; " + (this.state.badgeSaved === false ? 'border:1px solid rgba(255,215,0,.55); color:#ffd700; cursor:pointer;' : 'border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.35);'),
       badges: [
         { tag: '42', label: 'Marathon', color: gold, border: 'rgba(255,215,0,.5)', bg: 'rgba(255,215,0,.07)' },
         { tag: '21', label: 'Half', color: gold, border: 'rgba(255,215,0,.4)', bg: 'rgba(255,215,0,.05)' },
@@ -3240,7 +3351,6 @@ class Component extends DCLogic {
                         : 'border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.45); cursor:pointer;');
         return {
           history: ALL.slice(page * per, page * per + per).map(h => ({
-
             name: h.name, date: h.date, xp: h.xp,
             status: h.done ? '✓ Done' : 'Missed',
             color: h.done ? up : down
@@ -3263,7 +3373,7 @@ class Component extends DCLogic {
   renderVals() {
     const v = this.baseVals();
     const cur = this.state.mScreen || 'landing';
-    const list = [['landing','Landing'],['board','Leaderboard'],['runner','Runner card'],['titles','Titles'],['duels','Challenges'],['events','Events'],['news','Pack news'],['log','Log runs'],['profile','Profile'],['playbook','Playbook']];
+    const list = [['landing','Landing'],['board','Leaderboard'],['runner','Runner card'],['titles','Titles'],['duels','Challenges'],['events','Events'],['news','Pack news'],['log','Log runs'],['profile','Profile'],['badges','Badges'],['playbook','Playbook']];
     list.forEach(([k]) => { v['m' + k.charAt(0).toUpperCase() + k.slice(1)] = cur === k; });
     v.mScreens = list.map(([k, label], i) => ({
       label: (i + 1 < 10 ? '0' : '') + (i + 1) + '  ' + label,
@@ -3287,4 +3397,3 @@ class Component extends DCLogic {
 </script>
 </body>
 </html>
-

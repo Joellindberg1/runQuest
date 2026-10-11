@@ -574,30 +574,33 @@
      alternativen (amber, orange) är inte tokens. Nivåfärgerna är emblemmaterial med egna literaler — aldrig alias till --rq-up/--rq-down/
      --rq-gold/--rq-tier-minor, och aldrig status- eller varningsfärg (Design Council 6). Konsument: features/badges/badges.css.
      Layouttokens för samlingsrutnät, popup och News-rad (spec §5) läggs in av de storys som bygger dem. En token per rad (vakttestet läser så). */
-  --rq-badge-common-rgb:     168 168 168;
-  --rq-badge-common:         #a8a8a8;
-  --rq-badge-common-grad:    linear-gradient(145deg, #c2c2c2, #636363);
-  --rq-badge-uncommon-rgb:   74 222 128;
-  --rq-badge-uncommon:       #4ade80;
-  --rq-badge-uncommon-grad:  linear-gradient(145deg, #86efac, #166534);
-  --rq-badge-rare-rgb:       96 165 250;
-  --rq-badge-rare:           #60a5fa;
-  --rq-badge-rare-grad:      linear-gradient(145deg, #93c5fd, #1e40af);
-  --rq-badge-heroic-rgb:     248 113 113;
-  --rq-badge-heroic:         #f87171;
-  --rq-badge-heroic-grad:    linear-gradient(145deg, #fca5a5, #991b1b);
-  --rq-badge-epic-rgb:       192 132 252;
-  --rq-badge-epic:           #c084fc;
-  --rq-badge-epic-grad:      linear-gradient(145deg, #d8b4fe, #6b21a8);
-  --rq-badge-legendary-rgb:  255 215 0;
-  --rq-badge-legendary:      #ffd700;
-  --rq-badge-legendary-grad: linear-gradient(145deg, #fff2a8, #ffd700 45%, #8a6d1c);
+  --rq-badge-common-rgb:     157 157 157;
+  --rq-badge-common:         #9d9d9d;
+  --rq-badge-common-grad:    linear-gradient(145deg, #b1b1b1, #5e5e5e);
+  --rq-badge-uncommon-rgb:   73 184 120;
+  --rq-badge-uncommon:       #49b878;
+  --rq-badge-uncommon-grad:  linear-gradient(145deg, #71c795, #1d5c38);
+  --rq-badge-rare-rgb:       95 147 217;
+  --rq-badge-rare:           #5f93d9;
+  --rq-badge-rare-grad:      linear-gradient(145deg, #86abdf, #27477f);
+  --rq-badge-heroic-rgb:     217 112 112;
+  --rq-badge-heroic:         #d97070;
+  --rq-badge-heroic-grad:    linear-gradient(145deg, #dd9494, #7e2a2a);
+  --rq-badge-epic-rgb:       173 131 217;
+  --rq-badge-epic:           #ad83d9;
+  --rq-badge-epic-grad:      linear-gradient(145deg, #c3a5e0, #55307a);
+  --rq-badge-legendary-rgb:  227 194 62;
+  --rq-badge-legendary:      #e3c23e;
+  --rq-badge-legendary-grad: linear-gradient(145deg, #edd98f, #e3c23e 45%, #7c661f);
 
   /* Form och mått: kronsköld, höjd = bredd × 1.12 (avrundad 31 / 63 / 108). Ikonerna 15/24/42 gäller bara inuti emblemet (Council 7). */
   --rq-badge-clip:           polygon(50% 0%, 100% 14%, 100% 60%, 50% 100%, 0% 60%, 0% 14%);
   --rq-badge-w-sm:           28px;
   --rq-badge-h-sm:           31px;
   --rq-badge-icon-sm:        15px;
+  --rq-badge-w-cp:           44px;
+  --rq-badge-h-cp:           49px;     /* round(44 × 1.12) */
+  --rq-badge-icon-cp:        20px;     /* ikonstegen 15/20/24/42 gäller bara inuti emblemet (Council 7) */
   --rq-badge-w-md:           56px;
   --rq-badge-h-md:           63px;
   --rq-badge-icon-md:        24px;
@@ -605,12 +608,15 @@
   --rq-badge-h-lg:           108px;
   --rq-badge-icon-lg:        42px;
   --rq-badge-core-sm:        2px;      /* kärnans inset (ramtjocklek) */
+  --rq-badge-core-cp:        2.5px;
   --rq-badge-core-md:        3px;
   --rq-badge-core-lg:        5px;
   --rq-badge-ring-sm:        2px;      /* Heroic: ringens inset */
+  --rq-badge-ring-cp:        3.5px;
   --rq-badge-ring-md:        4px;
   --rq-badge-ring-lg:        7px;
   --rq-badge-ring-core-sm:   3.5px;    /* Heroic: kärnans inset (3 → 3.5 vid 28 px, förhandsgodkänt, Council 5: ringen syntes inte) */
+  --rq-badge-ring-core-cp:   4.5px;    /* cp: designens 3.5/4.5 utan egen förstärkning (den gäller bara sm) */
   --rq-badge-ring-core-md:   5.5px;
   --rq-badge-ring-core-lg:   9px;
   --rq-badge-core:           #1c1c1c;                        /* kärnans fyllning */
@@ -621,12 +627,12 @@
   --rq-badge-pip-gap:        3px;
 
   /* Glöd (drop-shadow: 0 0 <blur> rgb(<nivå>-rgb / <alfa>)). Common/Uncommon har ingen. */
-  --rq-badge-glow-sm:        4px;      /* Rare, Heroic, Epic: sm */
-  --rq-badge-glow-ml:        7px;      /* md + lg */
-  --rq-badge-glow-alpha:     .45;
-  --rq-badge-glow-leg-sm:    5px;      /* Legendary (statisk): sm */
-  --rq-badge-glow-leg-ml:    10px;     /* md + lg */
-  --rq-badge-glow-leg-alpha: .60;
+  --rq-badge-glow-sm:        3px;      /* Rare, Heroic, Epic: sm och cp (bredd < 56) */
+  --rq-badge-glow-ml:        5px;      /* md + lg */
+  --rq-badge-glow-alpha:     .30;
+  --rq-badge-glow-leg-sm:    4px;      /* Legendary (statisk): sm och cp */
+  --rq-badge-glow-leg-ml:    7px;      /* md + lg */
+  --rq-badge-glow-leg-alpha: .35;
   --rq-badge-breathe-max:    13px;     /* andningens topp (md/lg); keyframen börjar och slutar i den statiska glöden */
   --rq-badge-breathe-count:  3;        /* antal andningscykler, sedan statisk glöd (ägarbeslut E2) */
   --rq-badge-flash:          1.6;      /* ramens ljusflimmer-ljushet vid tändning (Common/Uncommon) */

@@ -4,14 +4,14 @@ import { cn } from '@/lib/utils';
 import { isEarnedTier, tierKey, tierName } from './badgeTier';
 import '../badges.css';
 
-export type BadgeSize = 'sm' | 'md' | 'lg';
+export type BadgeSize = 'sm' | 'cp' | 'md' | 'lg';
 
 export interface BadgeEmblemProps {
   /** Serienyckeln (`BadgeUserItem.series`). Namn och ikon läses ur BADGE_SERIES. */
   series: string;
   /** 1..6 = nivån, null (eller allt ogiltigt) = låst. */
   tier: number | null;
-  /** sm 28 px (rader, Board, News), md 56 px (samlingskort), lg 96 px (popupen). */
+  /** sm 28 px (rader, Board, News), cp 44 px (kompakta sammanfattningar: profil, Runner card), md 56 px (samlingskort), lg 96 px (popupen). */
   size: BadgeSize;
   /** Engångständning (0.9 s) — bara uppgraderingspopupen sätter den. Låsta serier tänds aldrig. */
   ignite?: boolean;

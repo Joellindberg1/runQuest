@@ -42,6 +42,16 @@ describe('/preview/badges', () => {
     expect(check.getAllByRole('img', { name: new RegExp(`^${TIER_NAMES[3]} `) }).length).toBeGreaterThanOrEqual(2);
   });
 
+  it('storleksraderna visar alla fyra storlekarna (sm, cp, md, lg) med sex nivåer var — cp är den nya 44 px-storleken', () => {
+    render(<BadgesPreviewPage />);
+    const sizes = within(screen.getByRole('region', { name: /^sizes/i }));
+    for (const size of ['sm', 'cp', 'md', 'lg']) {
+      const row = sizes.getAllByRole('img').filter((emblem) => emblem.classList.contains(`rq-badge--${size}`));
+      expect(row, size).toHaveLength(MAX_TIER);
+    }
+    expect(sizes.getByText(/44 PX/)).toBeInTheDocument();
+  });
+
   it('Replay monterar om tändningsraden (animationer startar när elementet monteras)', () => {
     render(<BadgesPreviewPage />);
     const motion = () => screen.getByRole('region', { name: /^motion/i });

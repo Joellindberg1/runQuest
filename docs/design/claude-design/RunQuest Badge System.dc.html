@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-
-
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
@@ -304,7 +302,7 @@
                   </div>
                   <div style="display:flex; align-items:center; gap:6px;">
                     <span style="font-size:12px; color:rgba(255,255,255,.42);">Lvl {{ p.level }} · {{ p.title }}</span>
-                    <span style="width:13px; height:15px; clip-path:polygon(50% 0,100% 20%,100% 72%,50% 100%,0 72%,0 20%); background:rgba(255,215,0,.3); flex-shrink:0;"></span>
+                    {{ p.pennant }}
                   </div>
                 </div>
               </div>
@@ -326,7 +324,7 @@
             </div>
           </sc-for>
         </div>
-        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28);">Mobile 402 · podium: minis on the name line · rest rows: minis on the sub line (name ellipsizes, row height constant) · flat shield = challenge token, crest = badge · no badges → nothing (rank 5)</div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28);">Mobile 402 · podium: minis on the name line · rest rows: minis on the sub line (name ellipsizes, row height constant) · vertical pennant = challenge token, crest = badge · no badges → nothing (rank 5)</div>
       </div>
 
       <div style="width:900px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:20px 24px; box-sizing:border-box;">
@@ -349,6 +347,24 @@
           </sc-for>
         </div>
         <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:10px;">Desktop table · longest name + 3 minis on row 6 · whole row still opens the runner card (minis are decorative)</div>
+      </div>
+
+      <div style="width:330px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35);">Challenge token · new form — naval pennant, vertical</div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.08); padding:13px 14px; display:flex; align-items:center; gap:18px;">
+          <sc-for list="{{ pennants }}" as="pn" hint-placeholder-count="4">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:7px;">
+              {{ pn.node }}
+              <span style="font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.35); text-align:center;">{{ pn.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.08); padding:11px 14px; display:flex; align-items:center; gap:14px;">
+          {{ sideBySide.node }}
+          <span style="{{ sideBySide.crest.glow }}"><span style="{{ sideBySide.crest.frame }}"><span style="{{ sideBySide.crest.ring }}"></span><span style="{{ sideBySide.crest.inner }}">{{ sideBySide.crest.svg }}</span></span></span>
+          <span style="font-size:13px; line-height:1.5; color:rgba(255,255,255,.5);">Side by side: swallowtail bottom vs crest point — no confusion at 1:1.</span>
+        </div>
+        <div style="font-size:13px; line-height:1.55; color:rgba(255,255,255,.45);">Old ribbon colours, size (22×27) and count kept — only the silhouette changes. Shared as pennant() in runquest-badges.js; next step is swapping the three prototypes' ribbon() to it.</div>
       </div>
     </div>
   </section>
@@ -554,6 +570,7 @@ class Component extends DCLogic {
       daniel: [miniOf('earth', 1), miniOf('night', 2), miniOf('climber', 3)]
     };
 
+    const penGroup = (nodes) => React.createElement('span', { style: { display: 'flex', gap: 4, flexShrink: 0, alignItems: 'center' } }, nodes.map((n, i) => React.createElement('span', { key: i, style: { display: 'inline-flex' } }, n)));
     const popBase = 'display:flex; flex-direction:column; background:rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.06); padding:30px 28px 22px; align-items:center;';
     const mkPop = (o) => {
       const big = em(o.tier, o.icon, 'large', { ignite: true });
@@ -619,11 +636,11 @@ class Component extends DCLogic {
       }),
 
       podium: [
-        { rank: '1', name: 'KARL PERSSON', initials: 'KP', level: 24, title: 'The Double Trouble', color: gold, ghost: 'rgba(255,215,0,.12)', delta: '▲ 1', deltaColor: up, minis: MINIS.karl,
+        { rank: '1', name: 'KARL PERSSON', initials: 'KP', level: 24, title: 'The Double Trouble', color: gold, ghost: 'rgba(255,215,0,.12)', delta: '▲ 1', deltaColor: up, minis: MINIS.karl, pennant: penGroup([B.pennant(3, 'minor'), B.pennant(1, 'major')]),
           cardStyle: 'position:relative; background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.55); border-left:3px solid ' + gold + ';' },
-        { rank: '2', name: 'JOEL LINDBERG', initials: 'JL', level: 24, title: 'The Weekend Destroyer', color: '#a8a8a8', ghost: 'rgba(168,168,168,.12)', delta: '▼ 1', deltaColor: down, minis: MINIS.joel,
+        { rank: '2', name: 'JOEL LINDBERG', initials: 'JL', level: 24, title: 'The Weekend Destroyer', color: '#a8a8a8', ghost: 'rgba(168,168,168,.12)', delta: '▼ 1', deltaColor: down, minis: MINIS.joel, pennant: penGroup([B.pennant(2, 'minor')]),
           cardStyle: 'position:relative; background:rgba(33,33,33,.62); border:1px solid rgba(168,168,168,.4); border-left:3px solid #a8a8a8;' },
-        { rank: '3', name: 'JOHAN BJÖRELL', initials: 'JB', level: 22, title: 'The Comeback', color: '#cd7f32', ghost: 'rgba(205,127,50,.14)', delta: '▲ 2', deltaColor: up, minis: MINIS.johan,
+        { rank: '3', name: 'JOHAN BJÖRELL', initials: 'JB', level: 22, title: 'The Comeback', color: '#cd7f32', ghost: 'rgba(205,127,50,.14)', delta: '▲ 2', deltaColor: up, minis: MINIS.johan, pennant: penGroup([B.pennant(1, 'minor'), B.pennant(1, 'legendary')]),
           cardStyle: 'position:relative; background:rgba(33,33,33,.62); border:1px solid rgba(205,127,50,.4); border-left:3px solid #cd7f32;' }
       ],
       rest: [
@@ -658,6 +675,17 @@ class Component extends DCLogic {
         newsRow('Badge evolved', 'Yesterday', 'You evolved Milestoner from Uncommon to Rare.', em('rare', 'flag', 'mini'), false)
       ],
 
+      pennants: [
+        { label: 'Minor · 3', node: B.pennant(3, 'minor') },
+        { label: 'Major · 1', node: B.pennant(1, 'major') },
+        { label: 'Legendary · 1', node: B.pennant(1, 'legendary') },
+        { label: 'Light theme', node: React.createElement('span', { style: { background: '#f3efe7', padding: '5px 7px', display: 'inline-flex' } }, B.pennant(2, 'minor', true)) }
+      ],
+      sideBySide: {
+        node: B.pennant(3, 'minor'),
+        crest: em('heroic', 'sun', 'mini')
+      },
+
       skels: [{ delay: '0s' }, { delay: '.2s' }, { delay: '.4s' }],
       lockedMinis: B.SERIES.map(s => em(null, s.icon, 'mini')),
       omitEmblem: em('common', 'target', 'medium')
@@ -667,3 +695,4 @@ class Component extends DCLogic {
 </script>
 </body>
 </html>
+

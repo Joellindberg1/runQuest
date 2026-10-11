@@ -16,10 +16,16 @@
 /* Låst: dämpad ram (.12) och dämpad ikon (.28), ingen glöd. */
 .rq-badge[data-tier="locked"] { --rq-emblem-c: var(--rq-badge-locked-icon); --rq-emblem-grad: var(--rq-badge-locked-frame); }
 
-/* ── Storlekar (28 / 56 / 96 px, höjd × 1.12; ikon 15 / 24 / 42 gäller bara här inne) ── */
+/* ── Storlekar (28 / 44 / 56 / 96 px, höjd × 1.12; ikon 15 / 20 / 24 / 42 gäller bara här inne) ── */
 .rq-badge--sm {
   --rq-emblem-w: var(--rq-badge-w-sm); --rq-emblem-h: var(--rq-badge-h-sm); --rq-emblem-icon: var(--rq-badge-icon-sm);
   --rq-emblem-core: var(--rq-badge-core-sm); --rq-emblem-ring: var(--rq-badge-ring-sm); --rq-emblem-ring-core: var(--rq-badge-ring-core-sm);
+  --rq-emblem-glow: var(--rq-badge-glow-sm); --rq-emblem-glow-leg: var(--rq-badge-glow-leg-sm);
+}
+/* cp (44 px, kompakt: profilens sammanfattning och Runner card): glöden är -sm-glöden eftersom bredden är under 56 (runquest-badges.js: S.w >= 56). Statisk — aldrig andning. */
+.rq-badge--cp {
+  --rq-emblem-w: var(--rq-badge-w-cp); --rq-emblem-h: var(--rq-badge-h-cp); --rq-emblem-icon: var(--rq-badge-icon-cp);
+  --rq-emblem-core: var(--rq-badge-core-cp); --rq-emblem-ring: var(--rq-badge-ring-cp); --rq-emblem-ring-core: var(--rq-badge-ring-core-cp);
   --rq-emblem-glow: var(--rq-badge-glow-sm); --rq-emblem-glow-leg: var(--rq-badge-glow-leg-sm);
 }
 .rq-badge--md {
@@ -62,7 +68,7 @@
    prefers-reduced-motion visas slutläget direkt (statisk glöd, Common/Uncommon utan glöd). Keyframen börjar/slutar i emblemets egna
    statiska värde, så glöden står kvar utan hopp när animationen är slut. */
 @keyframes rqBadgeIgnite { from { filter: var(--rq-emblem-ignite-from); } }
-/* Egen keyframe i stället för rqGlowIcon: den börjar/slutar i 3 px och toppar i 13 px med currentColor, inte i Legendarys statiska glöd. */
+/* Egen keyframe i stället för rqGlowIcon: den börjar/slutar i Legendarys statiska glöd (7 px @ .35) och toppar i --rq-badge-breathe-max, inte i 3 px med currentColor. */
 @keyframes rqBadgeGlow {
   0%, 100% { filter: drop-shadow(0 0 var(--rq-emblem-glow-leg) rgb(var(--rq-emblem-c-rgb) / var(--rq-badge-glow-leg-alpha))); }
   50%      { filter: drop-shadow(0 0 var(--rq-badge-breathe-max) rgb(var(--rq-emblem-c-rgb))); }
@@ -79,7 +85,7 @@
     --rq-emblem-ignite-from: brightness(var(--rq-badge-flash));
     animation: rqBadgeIgnite var(--rq-dur-badge-ignite) ease-out both;
   }
-  /* Legendary-andning: bara md/lg, aldrig sm. Tre cykler i --rq-dur-glow, därefter står den statiska glöden kvar. */
+  /* Legendary-andning: bara md/lg, aldrig sm eller cp. Tre cykler i --rq-dur-glow, därefter står den statiska glöden kvar. */
   .rq-badge--md[data-tier="legendary"],
   .rq-badge--lg[data-tier="legendary"] {
     animation: rqBadgeGlow var(--rq-dur-glow) ease-in-out var(--rq-badge-breathe-count);
