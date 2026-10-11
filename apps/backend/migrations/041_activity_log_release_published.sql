@@ -1,6 +1,6 @@
 -- 041: release_published i händelseloggen (RUN-161, v0.6.1). En release syns som en rad i Pack News, inte bara som
 -- What's new-popupen. (040 är reserverat för RUN-112.)
--- Datum: 2026-10-11. EJ APPLICERAD — appliceras av Lead med ägar-ja, via Supabase MCP apply_migration
+-- Datum: 2026-10-11. APPLICERAD i prod 2026-10-12 efter v0.6.1-deployen (ägar-ja), via Supabase MCP apply_migration
 -- (name: 041_activity_log_release_published).
 -- KÖRORDNING: EFTER att v0.6.1 (backend + frontend) är deployad, INNAN `npm run announce:release -- --apply` körs. Skriptet
 -- kontrollerar själv att CHECK:en tillåter typen och avbryter utan skrivning annars. Ordningen spelar ingen roll för
