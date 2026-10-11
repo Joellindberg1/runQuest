@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
-import { ONBOARDING_QUERY_KEY } from '@/features/onboarding/hooks/useOnboarding';
 import { backendApi } from '@/shared/services/backendApi';
 import { log } from '@/shared/utils/logger';
 import { AuthContext } from '@/providers/authContext';
@@ -9,11 +7,10 @@ import type { AuthUser } from '@/providers/authContext';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const qc = useQueryClient();
-  // Användarbundna cachar (sett-listan, Pack News med olästa) får aldrig överleva ett byte av användare: rensas vid login, logout och 401.
-  const clearUserCaches = () => {
-    qc.removeQueries({ queryKey: ONBOARDING_QUERY_KEY });
-    qc.removeQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot });
-  };
+  // Hela cachen rensas vid login, logout och 401: nästan allt är användarbundet (badges, grupp, users-with-runs, sett-listan, news)
+  // och en nyckellista glömmer nästa feature. Inga undantag: den användaroberoende nivåtabellen hämtas bara om. Ingen loop:
+  // clear() startar ingen omhämtning, det gör först en observatör som renderas om, och utan token är sidorna redan avmonterade.
+  const clearUserCaches = () => qc.clear();
   const [user, setUser] = useState<AuthUser | null>(null);
   // `loading` = sessionen återställs vid appstart (App.tsx gate:ar på den). Själva inloggningsanropet har ingen global loading:
   // den bytte ut hela routerträdet mot en loader, så LoginPage avmonterades och felet/fälten försvann (LoginPage har egen laddning).
@@ -40,8 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Redirect to login automatically when JWT expires
     backendApi.onUnauthorized = () => {
-      qc.removeQueries({ queryKey: ONBOARDING_QUERY_KEY });
-      qc.removeQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot });
+      qc.clear();
       setUser(null);
     };
 
