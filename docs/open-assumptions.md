@@ -75,7 +75,7 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   besök/öppning). Att öppna popovern eller besöka /news markerar alltså INTE som läst — olästa rader förblir tintade tills knappen
   trycks. Vill ägaren ha "besök = läst" är det en rad i NewsScreen (kvittera vid mount/unmount).
 - **Filtret:** `?type=` bär chip-nycklar (`titles,levels`), inte rå `ActivityType` — ADR 006 säger bara "kommaseparerat". Flera chips
-  kan vara valda; alla fem = inget filter. Mobil har en chip-rad (App Prototype saknar filter; Web Prototype har ett statiskt kort
+  kan vara valda; alla sex (Badges eget chip sedan v0.6.1) = inget filter. Mobil har en chip-rad (App Prototype saknar filter; Web Prototype har ett statiskt kort
   med räknare — gjort klickbart). Chip-räknaren är antal i det laddade, ofiltrerade fönstret (ADR 008), inte serverns totaler.
 - **Popover = samma flöde som skärmen** (en query-definition, 30 rader initialt i stället för `limit=5`; popovern visar de fem
   översta). Poll 2 min + fönsterfokus (ADR 008 nämner 60 s). Oläst-badgen cappas vid "99+".
