@@ -36,3 +36,10 @@
 .rq-badge-sheet .rq-badge-sheet__anatomy { display: flex; align-items: center; gap: var(--rq-sp-24); }
 .rq-badge-sheet .rq-badge-sheet__anatomy-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-6); font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
 .rq-badge-sheet .rq-badge-sheet__anatomy-list strong { color: var(--rq-text-2); }
+
+/* RUN-149: byggstenarna. Rutnätet (.rq-badge-page-grid) och korten kommer ur features/badges/badges.css; här bara arkets egna rader. */
+.rq-badge-sheet .rq-badge-sheet__controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-12); }
+.rq-badge-sheet .rq-badge-sheet__note { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-badge-sheet .rq-badge-sheet__summary { display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-badge-sheet .rq-badge-sheet__emblem-row { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); }
+.rq-badge-sheet .rq-badge-sheet__emblem-row--locked { padding-top: var(--rq-sp-8); border-top: var(--rq-hair) solid var(--rq-line-2); }

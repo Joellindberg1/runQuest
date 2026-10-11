@@ -158,6 +158,24 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
   nivåraden återanvänder `--rq-emblem-c` genom att `.rq-badge-popup__tierline` ligger i nivå→färg-listorna överst.
 - Skärmdumpar mot F6: `docs/design/badges/reference/f6-built-*.png` (t200 = ca 0.3 s efter öppning, mitt i tändningen).
 
+### Badge-design v2: byggstenarna (RUN-149, spec "v2" F9, F10, F11)
+
+Bara byggstenarna — sidan (`BadgesScreen`, RUN-150), profilens sammanfattning (RUN-151) och Runner card-panelen (RUN-152) bygger på dem. `ShowcasePicker` och `BadgeCollection` ligger kvar tills RUN-150/151 tar bort dem.
+
+- **`buildBadgeSummary(rows)`** (badgeModel.ts) — ren funktion över `buildCollection`-raderna: `{ earned, locked, earnedCount, lockedCount, total }`. `earned` på nivå (högst först, lika nivå i BADGE_SERIES-ordning, ingen visad-först),
+  `locked` i serieordning. Serieordningen läses ur BADGE_SERIES, inte ur radernas ordning in. Raderna är samma objekt (inga kopior).
+- **`useShowcaseDraft(rows, userId)`** (hooks/useShowcaseDraft.ts) — utkastet för visade badges, logiken ur `ShowcasePicker` utan UI. Returnerar `{ draft, saved, dirty, full, status, saving, announcement, positionOf, toggle, save }`.
+  Tillstånd i en ren reducer (`picked: string[] | null`, null = följ det sparade): flera växlingar i samma tick komponeras i ordning (inga förlorade klick, inga dubbletter, max `MAX_SHOWCASE`), och en växling i samma tick som `save()` ignoreras.
+  `draft` städas mot det jag äger vid varje rendering; en omhämtning mitt i ett utkast rör inget utkast men räknar om `dirty`. `save()` avvisas aldrig: lyckat → `picked = null` + `status 'saved'`, fel → `status 'error'` och utkastet kvar (RETRY = `save()` igen).
+  `saving` = en spara pågår (ref-spärr mot dubbelklick). Statusen går tillbaka till `idle` vid nästa ändring. Hooken anropar `useSaveShowcase` — aldrig `badgesApi` direkt (vakttestet).
+- **`BadgeSeriesCard`** — `layout="landscape"` + `toggle: ShowcaseToggle` (`{ position, full, saving, limitId, onToggle }`) ger badges-sidans liggande kort; utan `layout` är det det stående kortet som förut (BadgeCollection). Skäl: en prop i stället för en ny komponent,
+  eftersom innehållsreglerna (krav utan prefix, flavor på egen rad, Next/TOP TIER, held-by bara intjänade) delas ordagrant och bara tre rutnätsområden skiljer. Växlaren är `<button aria-pressed>`: Show / `On display — N` / fullt (aria-disabled + `aria-describedby={limitId}` mot den SYNLIGA meningen
+  som sidan äger) / sparar (alla aria-disabled, den valda behåller guldet) / låst (aria-hidden-ruta, ingen knapp). Kortet dimmas aldrig (ingen opacity i badges.css). `data-display="true"` när `position` är satt.
+- **`BadgeEmblemDetail({ row })`** — 44 px (`cp`) dekorativt emblem i en `<button>` med namnet "{Tier} {Serie}" ("Locked {Serie}") som öppnar en Radix-popover (`.rq-popover.rq-badge-detail`, `aria-label` = serienamnet): "On display" (intjänad och i sparade valet — `row.displayPosition`), namn + chip, pips, krav, flavor, held-by; låst: Locked-chip, måttetikett, "Unlock: …". Ingen Next, ingen global siffra.
+  `.rq-popover` kommer från `app-shell.css`, så komponenten ritas inom skalet (`/preview/badges` importerar den själv).
+- **Tokens (1.34, båda temafilerna):** `--rq-badge-page-card-min` (300/240 px), `--rq-badge-page-gap` (`--rq-sp-8`/`--rq-sp-12`), `--rq-badge-card-areas` (mobil `"emblem who" "emblem body"`, desktop `"emblem who" "body body"`), `--rq-badge-detail-w` (280 px). CSS: `.rq-badge-page-grid` (rutnätet), `.rq-badge-card--landscape`, `.rq-badge-toggle`, `.rq-badge-detail*` — sist i badges.css.
+- **Vakter:** `noGlobalStats.test.ts` (inga "globally", "has it", `%` eller "in pack" i featurens kod), `badgeCollectionCss.test.ts` (token- och rutnätsregler för de nya blocken). `/preview/badges` visar varje växlarläge, ett levande utkast och emblemknapparna med påhittad data.
+
 ### Förhandsvisning
 
 `/preview/badges` (`pages/BadgesPreviewPage.tsx`, stil i `pages/preview/badgeSheet.css`): F1-arket med de riktiga komponenterna — sex nivåkort, matrisen 8 × 6, låsta, storlekar, 1:1 på panel,

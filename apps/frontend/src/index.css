@@ -638,6 +638,12 @@
   /* Uppgraderingspopupen (RUN-132, spec F6): bredden (mobil 340, desktop 400 i avsnitt 2) och knappmålet (mobil 44, desktop 24 — Council 19). */
   --rq-badge-popup-w:        340px;
   --rq-badge-popup-target:   44px;
+
+  /* Badges-sidan och emblem-popovern (RUN-149, spec F9.9, F10.4, F13.4): rutnätets minsta kortbredd och glapp, kortets rutnätsområden och popoverns bredd (desktopvärdena i avsnitt 2; bredden är densamma). */
+  --rq-badge-page-card-min:  300px;
+  --rq-badge-page-gap:       var(--rq-sp-8);
+  --rq-badge-card-areas:     "emblem who" "emblem body";
+  --rq-badge-detail-w:       280px;
 }
 
 
@@ -774,6 +780,9 @@
     --rq-badge-pick-clear: 72px;
     --rq-badge-popup-w: 400px;
     --rq-badge-popup-target: 24px;
+    --rq-badge-page-card-min: 240px;
+    --rq-badge-page-gap: var(--rq-sp-12);
+    --rq-badge-card-areas: "emblem who" "body body";
     --rq-settings-split-cols: minmax(0, 1fr) 340px;
     --rq-settings-pw-cols: repeat(3, minmax(0, 1fr));
     --rq-admin-groups-cols: repeat(3, minmax(0, 1fr));

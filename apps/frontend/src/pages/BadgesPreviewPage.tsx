@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
-import { BADGE_SERIES, MAX_TIER, TIER_NAMES } from '@runquest/shared';
+import { BADGE_SERIES, MAX_SHOWCASE, MAX_TIER, TIER_NAMES } from '@runquest/shared';
+import type { BadgeUserItem } from '@runquest/shared';
+import { buildBadgeSummary, buildCollection, toggleShowcase, type BadgeRow } from '@/features/badges/badgeModel';
+import type { GroupBadges } from '@/features/badges/api';
 import { BadgeEmblem, type BadgeSize } from '@/features/badges/components/BadgeEmblem';
+import { BadgeEmblemDetail } from '@/features/badges/components/BadgeEmblemDetail';
 import { BadgePips } from '@/features/badges/components/BadgePips';
+import { BadgeSeriesCard, type ShowcaseToggle } from '@/features/badges/components/BadgeSeriesCard';
 import { tierKey } from '@/features/badges/components/badgeTier';
+// Emblem-popovern använder skalets delade .rq-popover-lager (yta, kant, skugga); arket ligger utanför AppShell och laddar därför skalets stil själv.
+import '@/app-shell/app-shell.css';
 import './preview/badgeSheet.css';
 
 // /preview/badges — emblem-arket (F1, docs/design/badges/reference/f1.png) med de riktiga komponenterna, utan inloggning och utan backend.
 // Serier och nivånamn läses ur @runquest/shared; bara bildtexterna under emblemen är arkets egna.
+// RUN-149: byggstenarna för badges-sidan (liggande kort med växlare, emblemknapp med detaljpopover) med påhittad data — ingen backend, ingen inloggning.
 
 const TIERS = Array.from({ length: MAX_TIER }, (_, index) => index + 1);
 const SIZES: ReadonlyArray<{ size: BadgeSize; label: string }> = [
@@ -30,6 +38,97 @@ const SHOWCASE = [
   { series: BADGE_SERIES[4], tier: 4 },
   { series: BADGE_SERIES[0], tier: 3 },
 ];
+
+// ── RUN-149: byggstenarna med påhittad data ─────────────────────────────────────────────────────────────────────────────
+// Fem intjänade serier (index i BADGE_SERIES → nivå), tre låsta, en flock på sex. Held-by följer nivån: nivå 1 hålls av alla, nivå 6 bara av mig.
+const PACK_SIZE = 6;
+const SAMPLE_TIERS = [3, 2, 1, MAX_TIER, 4];
+const SAMPLE_ITEMS: BadgeUserItem[] = SAMPLE_TIERS.map((tier, index) => ({ series: BADGE_SERIES[index].key, tier, earned_at: '2026-10-01T12:00:00Z', seen_tier: tier }));
+const SAMPLE_GROUP: GroupBadges = {
+  members: [],
+  member_count: PACK_SIZE,
+  holders: Object.fromEntries(
+    BADGE_SERIES.map((series) => [series.key, Object.fromEntries(Array.from({ length: MAX_TIER }, (_, index) => [String(index + 1), Math.max(1, PACK_SIZE - index)]))]),
+  ),
+};
+const SAMPLE_ROWS: BadgeRow[] = buildCollection({ items: SAMPLE_ITEMS, showcase: [BADGE_SERIES[3].key, BADGE_SERIES[0].key] }, SAMPLE_GROUP, { viewerId: 'me', ownerId: 'me' });
+const SAMPLE_OWNED = SAMPLE_ROWS.filter((row) => row.earned).map((row) => row.series);
+const LIMIT_TEXT = `${MAX_SHOWCASE} of ${MAX_SHOWCASE} on display — remove one first.`;
+const noop = () => undefined;
+
+const switcher = (limitId: string, overrides: Partial<ShowcaseToggle> = {}): ShowcaseToggle => ({ position: null, full: false, saving: false, limitId, onToggle: noop, ...overrides });
+
+/** Varje växlarläge som ett eget kort (spec F9.6): Show · On display — 2 · fullt · sparar (icke vald) · sparar (vald) · låst. */
+const CardModes: React.FC = () => {
+  const limitId = 'bs-limit-modes';
+  const row = (index: number) => SAMPLE_ROWS[index];
+  return (
+    <>
+      <p id={limitId} className="rq-badge-sheet__note">{LIMIT_TEXT}</p>
+      <ul className="rq-badge-page-grid" aria-label="Badge series, every toggle mode">
+        <BadgeSeriesCard row={row(2)} layout="landscape" toggle={switcher(limitId)} />
+        <BadgeSeriesCard row={row(0)} layout="landscape" toggle={switcher(limitId, { position: 2 })} />
+        <BadgeSeriesCard row={row(1)} layout="landscape" toggle={switcher(limitId, { full: true })} />
+        <BadgeSeriesCard row={row(4)} layout="landscape" toggle={switcher(limitId, { saving: true })} />
+        <BadgeSeriesCard row={row(3)} layout="landscape" toggle={switcher(limitId, { saving: true, position: 1 })} />
+        <BadgeSeriesCard row={row(5)} layout="landscape" toggle={switcher(limitId)} />
+      </ul>
+    </>
+  );
+};
+
+/** Ett levande utkast över alla åtta serier: tryck på växlarna, nå 3 av 3, simulera sparande. Lokalt tillstånd — ingen cache och inget nätverk. */
+const LiveCards: React.FC = () => {
+  const limitId = 'bs-limit-live';
+  const [picked, setPicked] = useState<string[]>(() => SAMPLE_ROWS.filter((row) => row.displayPosition !== null).map((row) => row.series));
+  const [saving, setSaving] = useState(false);
+  const full = picked.length >= MAX_SHOWCASE;
+  return (
+    <>
+      <div className="rq-badge-sheet__controls">
+        <button type="button" className="rq-btn rq-btn--secondary rq-btn--compact" aria-pressed={saving} onClick={() => setSaving((on) => !on)}>
+          Simulate saving
+        </button>
+        <div aria-live="polite">{full && <p id={limitId} className="rq-badge-sheet__note">{LIMIT_TEXT}</p>}</div>
+      </div>
+      <ul className="rq-badge-page-grid" aria-label="Badge series">
+        {SAMPLE_ROWS.map((row) => (
+          <BadgeSeriesCard
+            key={row.series}
+            row={row}
+            layout="landscape"
+            toggle={switcher(limitId, {
+              position: picked.includes(row.series) ? picked.indexOf(row.series) + 1 : null,
+              full,
+              saving,
+              onToggle: () => setPicked((current) => toggleShowcase(current, SAMPLE_OWNED, row.series)),
+            })}
+          />
+        ))}
+      </ul>
+    </>
+  );
+};
+
+/** De 44 px stora emblemknapparna som profilens sammanfattning och Runner card kommer att ha: intjänade på nivå, låsta under en hårlinje. */
+const EmblemDetails: React.FC = () => {
+  const { earned, locked, lockedCount } = buildBadgeSummary(SAMPLE_ROWS);
+  return (
+    <div className="rq-card rq-badge-sheet__summary">
+      <ul className="rq-badge-sheet__emblem-row" aria-label="Earned badges">
+        {earned.map((row) => (
+          <li key={row.series}><BadgeEmblemDetail row={row} /></li>
+        ))}
+      </ul>
+      <ul className="rq-badge-sheet__emblem-row rq-badge-sheet__emblem-row--locked" aria-label="Locked badges">
+        {locked.map((row) => (
+          <li key={row.series}><BadgeEmblemDetail row={row} /></li>
+        ))}
+        <li className="rq-eyebrow">{lockedCount} locked</li>
+      </ul>
+    </div>
+  );
+};
 
 const Section: React.FC<{ id: string; title: string; children: React.ReactNode }> = ({ id, title, children }) => (
   <section className="rq-badge-sheet__section" aria-labelledby={id}>
@@ -193,6 +292,18 @@ const BadgesPreviewPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </Section>
+
+      <Section id="bs-card-modes" title="Landscape card · every toggle mode (Show, On display, full, saving, locked)">
+        <CardModes />
+      </Section>
+
+      <Section id="bs-card-live" title="Landscape cards · live draft (tap Show, reach 3 of 3, simulate saving)">
+        <LiveCards />
+      </Section>
+
+      <Section id="bs-detail" title="Emblem detail · 44 px buttons open a popover (tap, Enter or Space; Esc closes)">
+        <EmblemDetails />
       </Section>
 
       <Section id="bs-anatomy" title="Anatomy">

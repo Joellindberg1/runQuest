@@ -299,3 +299,72 @@
 .rq-badge-popup__actions { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-10); }
 .rq-btn.rq-badge-popup__btn { min-height: var(--rq-badge-popup-target); }
 .rq-btn--primary.rq-badge-popup__btn { padding-inline: var(--rq-sp-32); }
+
+/* ── Badges-sidans byggstenar (RUN-149, spec F9, F10.4, F13.4) ─────────────────────────────────────────────────────
+   Eget block: rutnätet, det liggande kortet, växlaren och emblem-popovern. Sidan (RUN-150), profilens sammanfattning (RUN-151) och Runner card-panelen (RUN-152) bygger på dem.
+   Det liggande kortet är en MODIFIERARE på det stående (.rq-badge-card--landscape): BadgeCollection använder det stående tills RUN-151 tar bort det, och sammansatta
+   selektorer gör att specificiteten avgör, inte laddningsordningen. Kortet och texten dimmas aldrig (ingen opacity, Council 17): bara växlaren får ett avstängt utseende. */
+
+/* Rutnätet: så många kolumner som ryms med kortets minsta bredd — 1 på telefon, 4 på 1440, 3 på 1280, 2 på 1024 (antagande, Q4). */
+.rq-badge-page-grid {
+  margin: 0; padding: 0; list-style: none; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--rq-badge-page-card-min)), 1fr)); gap: var(--rq-badge-page-gap);
+}
+
+/* Områdena (emblem · who · body) kommer ur token: mobil "emblem who" / "emblem body", desktop "emblem who" / "body body". */
+.rq-badge-card.rq-badge-card--landscape {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: var(--rq-badge-card-areas);
+  column-gap: var(--rq-sp-12); row-gap: var(--rq-sp-8); align-items: start; align-content: start; padding: var(--rq-pad-card);
+}
+.rq-badge-card.rq-badge-card--landscape[data-display="true"] { border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); }
+.rq-badge-card--landscape .rq-badge-card__emblem { grid-area: emblem; display: flex; }
+/* Mobil: namn och chip på samma rad (radbryts), pips under. */
+.rq-badge-card--landscape .rq-badge-card__who { grid-area: who; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: var(--rq-sp-8); row-gap: var(--rq-sp-6); }
+.rq-badge-card--landscape .rq-badge-card__who .rq-badge-pips { flex-basis: 100%; }
+.rq-badge-card--landscape .rq-badge-card__body { grid-area: body; }
+/* Held-by till vänster och växlaren till höger i fotraden; fotraden får radbrytas, så en lång held-by aldrig trycker ut växlaren ur kortet. */
+.rq-badge-card__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rq-sp-8); margin-top: var(--rq-sp-2); }
+.rq-badge-card__foot > p { margin: 0; min-width: 0; }
+.rq-badge-card__foot > .rq-badge-toggle { margin-left: auto; }
+
+@media (min-width: 1024px) {
+  /* Desktop: namn, chip och pips staplas bredvid emblemet; kroppen spänner under emblemet över hela kortets bredd. */
+  .rq-badge-card--landscape .rq-badge-card__who { flex-direction: column; align-items: flex-start; }
+  .rq-badge-card--landscape .rq-badge-card__who .rq-badge-pips { flex-basis: auto; }
+}
+
+/* Växlaren (F9.6): Show · On display — N · fullt/sparar (avstängd, kvar i tabbordningen) · Låst (ingen knapp). Tryckytan ur --rq-badge-pick-hit (mobil 44, desktop 24).
+   Hover före pressed före avstängd: lika specificitet, så den senare vinner. Den valda växlaren behåller guldutseendet även medan sparandet pågår. */
+.rq-badge-card .rq-badge-toggle {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit); padding: 0 var(--rq-sp-10);
+  background: none; border: var(--rq-hair) solid var(--rq-line-5); cursor: pointer; white-space: nowrap;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3);
+}
+.rq-badge-card .rq-badge-toggle:hover { border-color: var(--rq-line-hover); color: var(--rq-text-2); }
+.rq-badge-card .rq-badge-toggle[aria-pressed="true"] {
+  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-status)); color: var(--rq-gold-text);
+}
+.rq-badge-card .rq-badge-toggle[aria-disabled="true"]:not([aria-pressed="true"]) { background: var(--rq-fill-1); border-color: transparent; color: var(--rq-text-5); cursor: not-allowed; }
+.rq-badge-card .rq-badge-toggle--locked { border-style: dashed; border-color: var(--rq-line-5); background: none; color: var(--rq-text-5); cursor: default; }
+/* Den låsta rutan är ingen knapp: hover får inte byta färg (lika specificitet som :hover ovan, senare i filen vinner). */
+.rq-badge-card .rq-badge-toggle--locked:hover { border-color: var(--rq-line-5); color: var(--rq-text-5); }
+
+/* Emblemknappen (F10.4): det dekorativa 44 px-emblemet är tryckytan. Hover ger en tunn ram runt knappen — inget glödbyte, ingen permanent ring (fokusringen är den globala). */
+.rq-badge-detail__trigger { display: inline-flex; flex-shrink: 0; padding: 0; background: none; border: var(--rq-hair) solid transparent; cursor: pointer; }
+.rq-badge-detail__trigger:hover { border-color: var(--rq-line-hover); }
+
+/* Popovern: .rq-popover (yta, kant, skugga, lager) kommer från skalet; här bredd och innehåll. Ingen animation. Containern tar fokus vid öppning utan egen ring. */
+.rq-popover.rq-badge-detail {
+  box-sizing: border-box; width: var(--rq-badge-detail-w); max-width: var(--radix-popover-content-available-width);
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-8); padding: var(--rq-sp-12) var(--rq-sp-14);
+}
+.rq-popover.rq-badge-detail:focus-visible { outline: none; }
+.rq-badge-detail p { margin: 0; }
+.rq-badge-detail__display { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-badge-detail__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); }
+.rq-badge-detail .rq-badge-detail__name { margin: 0; color: var(--rq-text-1); overflow-wrap: anywhere; }
+.rq-badge-detail__req { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-badge-detail__unlock { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+/* Flavor: egen rad, citerad kursiv, full textfärg, Barlow Condensed, ≥ 14 px (Council 2). */
+.rq-badge-detail__flavor { font-family: var(--rq-font-ui); font-style: italic; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-1); }
+.rq-badge-detail__held { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
