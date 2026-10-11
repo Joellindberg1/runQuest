@@ -1,3 +1,5 @@
+import type { BadgeShowcaseEntry } from '@runquest/shared';
+import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { formatInt } from '@/features/leaderboard/boardFormat';
@@ -7,10 +9,15 @@ import { xpToNextText } from '../runnerModel';
 interface HeroCardProps {
   hero: RunnerHero;
   cells: StatCell[];
+  /** De visade badges (max tre) — minis efter namnet. Tom/utelämnad: ingenting ritas. */
+  showcase?: readonly BadgeShowcaseEntry[];
 }
 
-/** Hjältekortet (`.rq-card--hero`): nivåring, namn · rank · rundor · XP kvar, och statcellerna i hårlinjegrid. */
-export function HeroCard({ hero, cells }: HeroCardProps) {
+/**
+ * Hjältekortet (`.rq-card--hero`): nivåring, namn (+ badge-minis) · rank · rundor · XP kvar, och statcellerna i hårlinjegrid.
+ * Minisen är ett eget element efter h1:an, så rubriken förblir bara namnet; BadgeMinis bär själv role="img" och etiketten.
+ */
+export function HeroCard({ hero, cells, showcase = [] }: HeroCardProps) {
   // Web Prototype har fem celler, App Prototype tre: samma brytpunkt som skalet (ADR 006).
   const wide = useIsDesktop() === true;
   const visible = cells.filter((cell) => wide || !cell.wideOnly);
@@ -30,7 +37,10 @@ export function HeroCard({ hero, cells }: HeroCardProps) {
           </div>
         </div>
         <div className="rq-runner-hero__who">
-          <h1 className="rq-display rq-runner-hero__name">{hero.name}</h1>
+          <div className="rq-runner-hero__nameline">
+            <h1 className="rq-display rq-runner-hero__name">{hero.name}</h1>
+            <BadgeMinis showcase={showcase} />
+          </div>
           <p className="rq-runner-hero__meta">{standing}</p>
           <p className="rq-runner-hero__xp">{xpToNextText(hero)}</p>
         </div>

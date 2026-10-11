@@ -3,7 +3,7 @@ import { BADGE_SERIES, MAX_SHOWCASE, MAX_TIER, TIER_NAMES, requirementText, tier
 import type { BadgeUserItem, BadgeUserResponse } from '@runquest/shared';
 import type { GroupBadges } from './api';
 import {
-  applySeen, applyShowcase, buildCollection, buildPopupQueue, cleanShowcase, dismissSeries, ownedSeriesOf, sameShowcase, skipAllSeries, toggleShowcase,
+  applySeen, applyShowcase, buildCollection, buildPopupQueue, buildRunnerBadges, cleanShowcase, dismissSeries, ownedSeriesOf, sameShowcase, skipAllSeries, toggleShowcase,
   type BadgeRow,
 } from './badgeModel';
 
@@ -297,5 +297,60 @@ describe('optimistiska uppdateringar av cachen: applySeen / applyShowcase', () =
     expect(next.showcase).toEqual([second.key, first.key]);
     expect(next.items).toBe(data.items);
     expect(data.showcase).toEqual([first.key]);
+  });
+});
+
+describe('buildRunnerBadges — Runner card (spec F4)', () => {
+  const [s1, s2, s3, s4, s5] = keys;
+
+  it('bara intjänade serier: låsta listas inte', () => {
+    const { rows } = buildRunnerBadges(user([item(s2, 2), item(s4, 1)]), undefined, others);
+    expect(rows.map((row) => row.series).sort()).toEqual([s2, s4].sort());
+    expect(rows.every((row) => row.earned)).toBe(true);
+  });
+
+  it('ordning: visade först (i användarens ordning), sedan högst tier, sedan BADGE_SERIES-ordning', () => {
+    // s5, s3 och s1 är visade (i den ordningen); s2 och s4 står på samma tier och skiljs av serieordningen.
+    const items = [item(s1, 1), item(s2, 4), item(s3, 6), item(s4, 4), item(s5, 2)];
+    const { rows } = buildRunnerBadges(user(items, [s5, s3, s1]), undefined, others);
+    expect(rows.map((row) => row.series)).toEqual([s5, s3, s1, s2, s4]);
+  });
+
+  it('utan visade badges: högst tier först, lika tier i serieordning', () => {
+    const { rows } = buildRunnerBadges(user([item(s1, 2), item(s2, 5), item(s3, 5), item(s4, 3)]), undefined, others);
+    expect(rows.map((row) => row.series)).toEqual([s2, s3, s4, s1]);
+  });
+
+  it('showcase = de visade i användarens ordning med sin tier (minis i hjältekortet); inget visat ger tom lista', () => {
+    const items = [item(s1, 1), item(s2, 4), item(s3, 6)];
+    expect(buildRunnerBadges(user(items, [s3, s1]), undefined, others).showcase).toEqual([{ series: s3, tier: 6 }, { series: s1, tier: 1 }]);
+    expect(buildRunnerBadges(user(items), undefined, others).showcase).toEqual([]);
+  });
+
+  it('en visad serie som löparen inte äger, och mer än tre, städas bort', () => {
+    const items = [item(s1, 1), item(s2, 2), item(s3, 3), item(s4, 4)];
+    const { showcase } = buildRunnerBadges(user(items, [s5, s4, s3, s2, s1]), undefined, others);
+    expect(showcase).toEqual([{ series: s4, tier: 4 }, { series: s3, tier: 3 }, { series: s2, tier: 2 }]);
+  });
+
+  it('held-by göms när X = N på andras kort, finns annars, och utelämnas utan group', () => {
+    const grid = group({ [s1]: [6, 6, 5, 1, 1, 1], [s2]: [6, 3, 2, 1, 1, 1] }, 6);
+    const items = [item(s1, 2), item(s2, 2)];
+    const withGroup = buildRunnerBadges(user(items), grid, others).rows;
+    expect(rowOf(withGroup, s1).heldBy).toBeUndefined();
+    expect(rowOf(withGroup, s2).heldBy).toBe('Held by 3 of 6 in your pack');
+    const without = buildRunnerBadges(user(items), undefined, others).rows;
+    expect(without.every((row) => row.heldBy === undefined)).toBe(true);
+  });
+
+  it('utan svar (laddar/fel) eller utan serier: tomma rader och tom showcase', () => {
+    expect(buildRunnerBadges(undefined, undefined, others)).toEqual({ rows: [], showcase: [] });
+    expect(buildRunnerBadges(user([]), undefined, others)).toEqual({ rows: [], showcase: [] });
+  });
+
+  it('okända serier och ogiltiga tier från en annan serverversion ignoreras', () => {
+    const { rows, showcase } = buildRunnerBadges(user([item('nonexistent', 3), item(s1, 9), item(s2, 2)], ['nonexistent', s1, s2]), undefined, others);
+    expect(rows.map((row) => row.series)).toEqual([s2]);
+    expect(showcase).toEqual([{ series: s2, tier: 2 }]);
   });
 });

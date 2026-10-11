@@ -33,7 +33,12 @@
 .rq-runner-ring__level { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: .9; color: var(--rq-gold-text); }
 .rq-runner-ring__caption { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-runner-hero__who { min-width: 0; }
-.rq-runner-hero__name { margin: 0; font-weight: 400; text-transform: uppercase; overflow-wrap: anywhere; }
+.rq-runner-hero__name { margin: 0; min-width: 0; font-weight: 400; text-transform: uppercase; overflow-wrap: anywhere; }
+/* Namn + badge-minis (RUN-130, spec F4). Raden rymmer en mini även utan (som Board, Council 10), så kortet inte hoppar när badge-queryn landar.
+   Minisen krymper aldrig. Ryms inte namn + minis på en rad (smal mobil) hamnar minisen under namnet — namnet bryts inte mitt i (Council 12:
+   namnet dominerar); ett namn som är bredare än raden radbryts först då. */
+.rq-runner-hero__nameline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-4) var(--rq-sp-8); min-height: var(--rq-badge-h-sm); }
+.rq-runner .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-4); }
 .rq-runner-hero__meta { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-runner-hero__xp { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
 
@@ -103,6 +108,23 @@
 .rq-runner-title__value { flex-shrink: 0; font-weight: 600; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
 .rq-runner-title__main { display: flex; flex-direction: column; min-width: 0; }
 .rq-runner-title__holder { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+
+/* ── BADGES-panelen (RUN-130, spec F4): skrivskyddad lista över intjänade serier ─────────────────────────────────
+   Klasserna är komponentens (features/badges/components/BadgePanel) men stilen bor här tills Profile återanvänder panelen (RUN-128).
+   Held-by: 11 px (--rq-fs-eyebrow) i --rq-text-4 (.50, ≥ 4.5:1) — får radbrytas, aldrig ellipsiseras. */
+.rq-badge-panel__head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
+.rq-badge-panel__title { margin: 0; font-weight: 400; }
+.rq-badge-panel__aside { margin-left: auto; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-badge-panel__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-badge-panel__row { display: flex; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-8) var(--rq-sp-10); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-badge-panel__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--rq-sp-2); }
+.rq-badge-panel__nameline { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--rq-sp-8); }
+.rq-badge-panel .rq-badge-panel__name { color: var(--rq-text-1); overflow-wrap: anywhere; }
+.rq-badge-panel__display { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-badge-panel__held { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); color: var(--rq-text-4); }
+.rq-badge-panel__row .rq-badge-chip { flex-shrink: 0; }
+.rq-badge-panel__empty { margin: 0; padding: var(--rq-sp-10); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-badge-panel__loading { display: flex; justify-content: center; padding: var(--rq-sp-16) 0; }
 
 /* ── Head to head: senaste mötena ─────────────────────────────────────────── */
 .rq-runner-meetings { margin: 0; padding: 0; list-style: none; }
