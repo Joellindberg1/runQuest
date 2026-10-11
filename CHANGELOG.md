@@ -1,5 +1,51 @@
 # Changelog
 
+## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
+
+Rullar ihop epicsen RUN-1 (Badges), RUN-91 (Stormborn, Iceborn, Winter Warrior) och RUN-92 (städning och nivåtabellen via backend), plus
+Strava-låset (RUN-139). Migrationerna 035–038 och en badge-backfill är prod-steg som kräver ägar-ja (se "Prod-steg" nedan).
+
+### Nytt
+- **Badges (ADR 009, RUN-1).** Åtta serier × sex nivåer (Common till Legendary) som gruppen samlar över säsonger: Milestoner, Earth Trotter, Climber,
+  Streak Keeper, Early Bird, Night Owl, Speedster och Precisionist. Reglerna, trösklarna (v2, en mätning per serie, strikt stigande) och texterna bor i
+  `packages/shared/src/badges.ts`. Badges är härledda och återkallbara: `evaluateBadges` körs i `calculateUserTotals`, diffar mot `user_badges` (en rad per
+  användare och serie, migration 035) och skriver bara skillnaden; raderas eller ändras en runda så sjunker nivån. Precisionist räknar bara Strava-rundor
+  (servern sätter `source`, RUN-136). Lästa via `GET /api/badges/user/:userId` och `/group` (gruppavgränsade), skrivna via `PUT /api/badges/showcase` (max 3 visade,
+  `users.displayed_badge_series`) och `POST /api/badges/seen` (popup-vattenmärket `seen_tier`).
+  - Profile: samlingen (kort per serie, "Held by X of N in your pack"), väljaren för visade badges och minis i hjältekortet.
+  - Board: de visade badgesen som minis på podiet och i Season-raderna. Runner card: andras badges i en skrivskyddad panel.
+  - Uppgraderingspopupen visas i skalet när `tier > seen_tier` (en gång per nivå, väntar på onboarding och turer). Pack News: `badge_earned` (migration 036) under
+    filtret Levels, med emblem i raden och i klock-popovern; raden dras tillbaka om nivån tappas.
+  - `npm run backfill:badges` (dry-run som standard, `--apply`, `--silent`) räknar ut historiska badges utan news och utan popup-flod.
+- **Tre nya titlar i kategorin Weather (RUN-91).** Stormborn (flest rundor med vindbyar på minst 12 m/s, `stormRunCount`), Iceborn (flest rundor vid 5 °C eller kallare,
+  `coldRunCount`) och Winter Warrior (flest km under vintern 1 december–28/29 februari; utanför vintern räknas senast avslutade vinter, `winterKm`/`winterWindow`).
+  Titelramverket fick väder i `RunData` och `ctx.now`; väder hämtas nu även för användare utan grupp, och titlarna räknas om efter väder-backfill. Migration 037 lägger
+  till de tre raderna (prod har 20 titlar före). Playbook förklarar säsongstitlarna.
+- **Nivåtabellen via backend (RUN-110, RUN-111).** `GET /api/config/levels` ersätter frontendens direktläsning av `level_requirements`, så att anon-läsningen kan stängas.
+
+### Ändrat
+- **Strava-rundor är skrivskyddade (RUN-139).** `PUT` och `DELETE /api/runs/:id` svarar 409 `Strava runs are read-only` för `source = 'strava'` (Strava är sanningskällan för
+  distans och datum). Profilens rundrad har en View-knapp i stället för Edit, och arket heter "Run details" och har ingen Save. Delete-spärren satt tidigare bara i UI:t.
+- **`start_time` tolkas som lokal väggklocka (RUN-106, RUN-107).** Strava-importen lagrar `start_date_local` med ett falskt Z. Nya `wallClockToInstantMs` i shared ger
+  det verkliga ögonblicket (Europe/Stockholm, sommartid hanterad); väderfönstrets ålder räknas därifrån, Board-raden "x h ago" var 1–2 h fel och är rättad, och
+  frontendens datumläsning av titelvärdet `lastRunOfWeek` (`titleFormat.ts`, motorn är oförändrad) glider inte längre till nästa dag i zoner öster om UTC. Klockslagsmotorerna (Early Bird, Night Owl, lunch) och badgeserierna läser väggklockan
+  oförändrad och konverterar aldrig; kontraktstester vaktar att ingen "fixar" dem. Rundor utomlands får fortfarande en "x h ago" som är fel med tidszonsskillnaden.
+- **Titelomräkning är gruppavgränsad och fail-closed (RUN-104):** `processAllUsersTitles` räknar bara om användarens egen grupp.
+- **News tål okända händelsetyper (RUN-138):** en rad med en typ klienten inte känner kraschar inte längre News; den filtreras bort men kvitteras av "Mark all read".
+
+### Tekniskt
+- Städning (RUN-105): `supabase-js` borttagen ur frontend (inloggningen är backend-JWT), `triggerManualSync` och död kod borta, `createRun` skickar inte `source`.
+- Dokumentation (RUN-108): ADR 009 (Godkänd), STATE.md, permissions, README:er för badges, news och claude-design.
+- Versionsbump till 0.6.0 (rot och frontend), `changelog.json` med "What's new"-popup.
+
+### Prod-steg (kräver ägar-ja var för sig, ordning enligt STATE.md)
+1. Migration 035 (`user_badges`, `displayed_badge_series`) — redan applicerad 2026-10-11.
+2. `backfill:badges`: dry-run, sedan `--apply` med dry-run-rapporten som underlag, FÖRE deployen av backend (efter deployen: `--apply --silent`).
+3. Deploy av release/v0.6.0 (backend med motorerna `stormRunCount`, `coldRunCount`, `winterKm` måste ligga före titelraderna).
+4. Migration 036 (`badge_earned` i `activity_log_type_check`) direkt efter deployen.
+5. Migration 037 (titelraderna) efter deployen, sedan tyst omräkning: `POST /api/titles/reprocess-all` (`emitNews: false`).
+6. Migration 038 (stäng anon-läsning av `level_requirements`, RUN-112) först när v0.6.0 är live. Filen ingår inte i release/v0.6.0 och skrivs separat.
+
 ## v0.5.3.2 — Alla CSS-overrides som avgjordes av laddningsordningen (2026-10-07)
 
 ### Fixat

@@ -587,7 +587,7 @@ describe('Profile — Strava-rundor och spärrad radering', () => {
     expect(within(sheet).queryByLabelText('Distance (km)')).toBeNull();
     expect(within(sheet).queryByLabelText('Date')).toBeNull();
     expect(within(sheet).queryByRole('button', { name: 'Save changes' })).toBeNull();
-    expect(within(sheet).getByText('Synced from Strava — edit it in Strava.')).toBeInTheDocument();
+    expect(within(sheet).getByText("Synced from Strava. Distance and date come from Strava and can't be changed here.")).toBeInTheDocument();
     expect(updateRun).not.toHaveBeenCalled();
   });
 

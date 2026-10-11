@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { RQ_ICON_NAMES } from '@/shared/components/icons';
@@ -96,6 +97,42 @@ describe('den riktiga changelog.json', () => {
     const text = JSON.stringify(changelog.releases.filter((entry) => compare(entry.version, '0.5.0') >= 0)); // äldre poster (v0.1–0.4) är skrivna före riktlinjerna
     expect(text).not.toMatch(/\b(migration|endpoint|backend|refactor)\b/i);
     expect(text).not.toMatch(/\b(API|Caddy|CI)\b/); // skiftlägeskänsligt: "capital"/"rapid" är inte tekniska termer
+  });
+});
+
+describe('changelog: v0.6.0', () => {
+  const v060 = changelog.releases.find((entry) => entry.version === '0.6.0');
+
+  it('changelog: v0.6.0 listar badges som levererat', () => {
+    expect(v060).toBeDefined();
+    expect(v060?.type).toBe('minor');
+    expect(v060?.announce).toBe(true);
+    expect(v060?.changes.some((change) => change.type === 'feature' && /badges/i.test(change.description))).toBe(true);
+    // Levererat = ett kort under Features, inte längre under Working on (Notifications ligger kvar där).
+    expect(changelog.features.map((feature) => feature.title)).toContain('Badges');
+    expect(changelog.workingOn.map((item) => item.title)).not.toContain('Badges');
+    expect(changelog.workingOn.map((item) => item.title)).toContain('Notifications');
+  });
+
+  it('titeltrösklarna i texten är de motorerna använder (läses ur motorfilerna: 12 m/s, 5 °C, december–februari)', () => {
+    // Motorfilerna läses som text (som playbookFacts) — frontend importerar ingen backendkod.
+    const engine = (file: string) => readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../backend/src/titleEngines', file), 'utf8');
+    const storm = Number(/STORM_GUST_MS\s*=\s*(\d+)/.exec(engine('stormRunCount.ts'))?.[1]);
+    const ice = Number(/ICE_TEMP_C\s*=\s*(\d+)/.exec(engine('coldRunCount.ts'))?.[1]);
+    expect({ storm: Number.isFinite(storm), ice: Number.isFinite(ice) }).toEqual({ storm: true, ice: true });
+    // winterWindow: från 1 december till 1 mars (exklusiv) = december–februari.
+    const utils = engine('_utils.ts');
+    expect(utils).toContain('-12-01');
+    expect(utils).toContain('-03-01');
+
+    const text = v060?.changes.map((change) => change.description).join(' ') ?? '';
+    expect(text).toMatch(new RegExp(`Stormborn[^.]*${storm} m/s`));
+    expect(text).toMatch(new RegExp(`Iceborn[^.]*${ice} °C`));
+    expect(text).toMatch(/Winter Warrior[^.]*December to February/);
+  });
+
+  it('innehåller inga interna ticketnummer (RUN-123) i texterna gruppen ser', () => {
+    expect(JSON.stringify(changelog)).not.toMatch(/\bRUN-\d+/);
   });
 });
 
