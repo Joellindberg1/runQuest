@@ -7,12 +7,12 @@
    Lager (uppifrån och ner i DOM): .rq-badge (glow-wrapper, drop-shadow) > __frame (ram, nivåns gradient) > __ring (bara Heroic) > __core (mörk kärna) > __icon. */
 
 /* ── Nivå → färgvariabler (emblem, pips och chip delar dem) ─────────────────── */
-:is(.rq-badge, .rq-badge-pips, .rq-badge-chip)[data-tier="common"]    { --rq-emblem-c: var(--rq-badge-common);    --rq-emblem-c-rgb: var(--rq-badge-common-rgb);    --rq-emblem-grad: var(--rq-badge-common-grad); }
-:is(.rq-badge, .rq-badge-pips, .rq-badge-chip)[data-tier="uncommon"]  { --rq-emblem-c: var(--rq-badge-uncommon);  --rq-emblem-c-rgb: var(--rq-badge-uncommon-rgb);  --rq-emblem-grad: var(--rq-badge-uncommon-grad); }
-:is(.rq-badge, .rq-badge-pips, .rq-badge-chip)[data-tier="rare"]      { --rq-emblem-c: var(--rq-badge-rare);      --rq-emblem-c-rgb: var(--rq-badge-rare-rgb);      --rq-emblem-grad: var(--rq-badge-rare-grad); }
-:is(.rq-badge, .rq-badge-pips, .rq-badge-chip)[data-tier="heroic"]    { --rq-emblem-c: var(--rq-badge-heroic);    --rq-emblem-c-rgb: var(--rq-badge-heroic-rgb);    --rq-emblem-grad: var(--rq-badge-heroic-grad); }
-:is(.rq-badge, .rq-badge-pips, .rq-badge-chip)[data-tier="epic"]      { --rq-emblem-c: var(--rq-badge-epic);      --rq-emblem-c-rgb: var(--rq-badge-epic-rgb);      --rq-emblem-grad: var(--rq-badge-epic-grad); }
-:is(.rq-badge, .rq-badge-pips, .rq-badge-chip)[data-tier="legendary"] { --rq-emblem-c: var(--rq-badge-legendary); --rq-emblem-c-rgb: var(--rq-badge-legendary-rgb); --rq-emblem-grad: var(--rq-badge-legendary-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="common"]    { --rq-emblem-c: var(--rq-badge-common);    --rq-emblem-c-rgb: var(--rq-badge-common-rgb);    --rq-emblem-grad: var(--rq-badge-common-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="uncommon"]  { --rq-emblem-c: var(--rq-badge-uncommon);  --rq-emblem-c-rgb: var(--rq-badge-uncommon-rgb);  --rq-emblem-grad: var(--rq-badge-uncommon-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="rare"]      { --rq-emblem-c: var(--rq-badge-rare);      --rq-emblem-c-rgb: var(--rq-badge-rare-rgb);      --rq-emblem-grad: var(--rq-badge-rare-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="heroic"]    { --rq-emblem-c: var(--rq-badge-heroic);    --rq-emblem-c-rgb: var(--rq-badge-heroic-rgb);    --rq-emblem-grad: var(--rq-badge-heroic-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="epic"]      { --rq-emblem-c: var(--rq-badge-epic);      --rq-emblem-c-rgb: var(--rq-badge-epic-rgb);      --rq-emblem-grad: var(--rq-badge-epic-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="legendary"] { --rq-emblem-c: var(--rq-badge-legendary); --rq-emblem-c-rgb: var(--rq-badge-legendary-rgb); --rq-emblem-grad: var(--rq-badge-legendary-grad); }
 /* Låst: dämpad ram (.12) och dämpad ikon (.28), ingen glöd. */
 .rq-badge[data-tier="locked"] { --rq-emblem-c: var(--rq-badge-locked-icon); --rq-emblem-grad: var(--rq-badge-locked-frame); }
 
@@ -261,3 +261,32 @@
   .rq-badge-skel:nth-child(2) :is(.rq-badge-skel__shape, .rq-badge-skel__bar) { animation-delay: var(--rq-badge-skel-stagger); }
   .rq-badge-skel:nth-child(3) :is(.rq-badge-skel__shape, .rq-badge-skel__bar) { animation-delay: calc(var(--rq-badge-skel-stagger) * 2); }
 }
+
+/* ── Uppgraderingspopupen (RUN-132, spec F6, Council 4, 19–21) ──────────────────────────────────────────────────────
+   Återanvänder skalets delade lager (.rq-scrim, .rq-modal, .rq-modal__close i app-shell.css); bredd, bakgrund och skugga är F6:s (--rq-popover,
+   --rq-shadow-pop), därför sammansatta selektorer mot .rq-modal. Ingen permanent ring på "Got it": bara den globala :focus-visible-ringen. */
+.rq-modal.rq-badge-popup {
+  width: min(var(--rq-badge-popup-w), 95vw); align-items: center; overflow-y: auto; text-align: center; box-sizing: border-box;
+  padding: var(--rq-sp-32) var(--rq-sp-24) var(--rq-sp-24); background: var(--rq-popover); box-shadow: var(--rq-shadow-pop);
+}
+.rq-modal__close.rq-badge-popup__close {
+  top: var(--rq-sp-6); right: var(--rq-sp-6); display: inline-flex; align-items: center; justify-content: center;
+  min-width: var(--rq-badge-popup-target); min-height: var(--rq-badge-popup-target);
+}
+.rq-eyebrow.rq-badge-popup__eyebrow { margin: 0 0 var(--rq-sp-16); color: var(--rq-gold-text); }
+.rq-badge-popup__emblems { display: flex; align-items: center; justify-content: center; gap: var(--rq-sp-16); margin-bottom: var(--rq-sp-14); }
+.rq-badge-popup__arrow { font-size: var(--rq-fs-lead); line-height: var(--rq-lh-tight); color: var(--rq-text-4); }
+.rq-heading.rq-badge-popup__title { margin: 0 0 var(--rq-sp-8); font-weight: 400; text-transform: uppercase; }
+/* Nivårad (bara evolved): "UNCOMMON → RARE" i den nya nivåns färg (--rq-emblem-c via data-tier, se överst). */
+.rq-badge-popup__tierline {
+  margin: 0 0 var(--rq-sp-10); font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-eyebrow);
+  text-transform: uppercase; color: var(--rq-emblem-c);
+}
+.rq-badge-popup .rq-chip { margin-bottom: var(--rq-sp-14); }
+.rq-badge-popup__req { margin: 0 0 var(--rq-sp-8); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+/* Flavor: egen rad, citerad kursiv, full textfärg, Barlow Condensed, ≥ 14 px (Council 2). */
+.rq-badge-popup__flavor { margin: 0 0 var(--rq-sp-12); font-family: var(--rq-font-ui); font-style: italic; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-1); }
+.rq-badge-popup__held { margin: 0 0 var(--rq-sp-20); font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-body); letter-spacing: var(--rq-ls-label); color: var(--rq-text-4); }
+.rq-badge-popup__actions { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-10); }
+.rq-btn.rq-badge-popup__btn { min-height: var(--rq-badge-popup-target); }
+.rq-btn--primary.rq-badge-popup__btn { padding-inline: var(--rq-sp-32); }
