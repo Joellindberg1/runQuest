@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
 import { log } from '@/shared/utils/logger';
 import { AuthContext } from '@/providers/authContext';
-import type { AuthUser } from '@/providers/authContext';
+import type { AuthUser, LoginOptions } from '@/providers/authContext';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const qc = useQueryClient();
@@ -47,13 +47,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [qc]);
 
   // 🔐 Login: uses backend API with JWT authentication
-  const login = async (nameOrEmail: string, password: string) => {
+  const login = async (nameOrEmail: string, password: string, options?: LoginOptions) => {
     try {
       log.info('Attempting login with backend API', nameOrEmail);
 
       // Use backend API for login
       const loginResult = await backendApi.login(nameOrEmail, password);
-      
+
+      // Avbrutet medan anropet pågick (dialogen lämnades): kasta svaret. backendApi.login har redan sparat token, så den rensas; ingen användare
+      // sätts och ingen cache rensas, så Landing står kvar och ingenting skickar användaren till /board mot hens vilja.
+      if (options?.signal?.aborted) {
+        if (loginResult.success) backendApi.logout();
+        log.info('Login abandoned by the user — response discarded');
+        return { success: false, error: 'Login cancelled' };
+      }
+
       if (loginResult.success && loginResult.user) {
         log.success('Backend login successful', loginResult.user.name);
         // Cachen hör till en användare: inget gammalt (t.ex. utloggad prefetch eller förra användarens badges/grupp/sett-lista) får finnas kvar när nästa läses.

@@ -16,7 +16,7 @@ const ERROR_ID = 'login-error';
  * Skalets delade lager (`.rq-scrim`/`.rq-modal`) ger mörkläggningen. EN guldknapp: Sign In. Landings egen guldknapp ligger kvar bakom scrimmen (mörkad, och
  * ointeragerbar och dold för hjälpmedel medan dialogen är öppen), så vyn har en aktiv primärhandling.
  * Felet landar i en permanent role=alert-region; fälten pekar på det (aria-describedby) och står kvar. Under pågående inloggning är fälten
- * readOnly och knappen aria-disabled (inte disabled) — fokus tappas aldrig — och dialogen går inte att stänga: ett fel efter stängning skulle försvinna osett.
+ * readOnly och knappen aria-disabled (inte disabled) — fokus tappas aldrig. Dialogen går att lämna även då (✕, Esc, scrim, Back): försöket avbryts och svaret kastas (useLoginForm → AuthProvider.login), så en inloggning man lämnat aldrig skickar vidare till /board.
  */
 export function LoginDialog() {
   const { login } = useAuth();
@@ -26,10 +26,9 @@ export function LoginDialog() {
   // Elementet som hade fokus när dialogen öppnades (ingen Trigger: den öppnas av adressen). Läses vid första renderingen, före Radix flyttar fokus.
   const [returnFocusTo] = useState(() => document.activeElement);
   const describedBy = form.error ? ERROR_ID : undefined;
-  const keepWhileBusy = (event: Event) => { if (form.loading) event.preventDefault(); };
 
   return (
-    <Dialog.Root open onOpenChange={(open) => { if (!open && !form.loading) close(); }}>
+    <Dialog.Root open onOpenChange={(open) => { if (!open) close(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="rq-scrim" />
         <Dialog.Content
@@ -40,8 +39,6 @@ export function LoginDialog() {
             event.preventDefault();
             if (returnFocusTo instanceof HTMLElement && returnFocusTo !== document.body && returnFocusTo.isConnected) returnFocusTo.focus();
           }}
-          onEscapeKeyDown={keepWhileBusy}
-          onPointerDownOutside={keepWhileBusy}
         >
           <Dialog.Close className="rq-modal__close" aria-label="Close">✕</Dialog.Close>
           <header className="rq-login-dialog__head">

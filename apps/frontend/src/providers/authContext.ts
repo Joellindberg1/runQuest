@@ -15,9 +15,14 @@ export interface AuthUser {
   profile_picture?: string | null;
 }
 
+export interface LoginOptions {
+  /** Avbruten (inloggningsdialogen lämnades medan anropet pågick): ett lyckat svar kastas — ingen session startas, ingen navigering. */
+  signal?: AbortSignal;
+}
+
 export interface AuthContextType {
   user: AuthUser | null;
-  login: (nameOrEmail: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (nameOrEmail: string, password: string, options?: LoginOptions) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   loading: boolean;
   isAdmin: boolean;

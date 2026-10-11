@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
 import { setViewportWidth } from '@/test/viewport';
 
@@ -23,6 +23,9 @@ vi.mock('@/pages/BoardPage', () => ({ default: () => <h1>Board page</h1> }));
 vi.mock('@/pages/TitlesPage', () => ({ default: () => <h1>Titles page</h1> }));
 
 import App from './App';
+
+/** React Routers historikindex (`idx` i history.state): 0 = första posten. Skiljer navigate(-1) från replace. */
+const historyIndex = () => (window.history.state as { idx?: number } | null)?.idx;
 
 const signIn = (name: string, password: string) => {
   fireEvent.change(screen.getByLabelText('Username'), { target: { value: name } });
@@ -160,6 +163,23 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     expect(window.location.pathname).toBe('/titles');
   });
 
+  it.each([
+    ['tab', '%2F%09%2Fevil.com'],
+    ['flera tabbar', '%2F%09%09%09%2Fevil.com'],
+    ['radbrytning', '%2F%0A%2Fevil.com'],
+    ['CR', '%2F%0D%2Fevil.com'],
+  ])('next med kontrolltecken (%s) kraschar inte (webbläsaren strippar dem till //evil.com → SecurityError i replaceState): /board', async (_name, next) => {
+    window.history.pushState({}, '', `/login?next=${next}`);
+    api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
+    render(<App />);
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    signIn('anna', 'ratt-losen');
+
+    expect(await screen.findByRole('heading', { name: 'Board page' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/board');
+    expect(window.location.hostname).not.toBe('evil.com');
+  });
+
   it('en next som pekar utanför appen följs aldrig efter inloggning (ingen öppen redirect): /board', async () => {
     window.history.pushState({}, '', '/login?next=https%3A%2F%2Fevil.example%2Fsteal');
     api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
@@ -183,20 +203,78 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeInTheDocument();
   });
 
-  it('✕ stänger dialogen från Landing med ett steg bakåt (inget extra historiksteg), och Sign in öppnar den igen', async () => {
+  it('✕ stänger dialogen från Landing med ett steg bakåt (navigate(-1), inte en ny push eller replace), och Sign in öppnar den igen', async () => {
     window.history.pushState({}, '', '/');
     render(<App />);
     const lengthBefore = window.history.length;
+    expect(historyIndex()).toBe(0);
     fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    expect(historyIndex()).toBe(1);
     fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(window.location.pathname).toBe('/');
-    // Back-steget är redan taget: nästa Back lämnar appen i stället för att öppna dialogen igen.
+    // Diskriminerande: ett steg bakåt ger index 0; en replace('/') hade lämnat index 1 (och en push 2). Historiken växte bara med Sign in-klicket.
+    expect(historyIndex()).toBe(0);
     expect(window.history.length).toBe(lengthBefore + 1);
 
     fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
     expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  // Dialogen går att lämna under pågående inloggning. Ett svar som kommer efter det får aldrig skicka användaren till /board mot sin vilja.
+  it.each([
+    ['Back', async () => { window.history.back(); }],
+    ['✕', async () => { fireEvent.click(screen.getByRole('button', { name: 'Close' })); }],
+    ['Esc', async () => { fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' }); }],
+  ])('lämnar man dialogen med %s medan inloggningen pågår och den sedan lyckas: Landing står kvar, ingen session startas, ingen navigering till /board', async (_name, leave) => {
+    window.history.pushState({}, '', '/');
+    let finish: (value: { success: boolean; token?: string; user?: { id: string; name: string; email: string } }) => void = () => {};
+    api.login.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    render(<App />);
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    signIn('anna', 'ratt-losen');
+    await screen.findByRole('button', { name: 'Signing in…' });
+
+    await leave();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(window.location.pathname).toBe('/');
+
+    api.logout.mockClear();
+    await act(async () => { finish({ success: true, token: 't', user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } }); });
+    // Landing står kvar; svaret kastades (token rensas, ingen användare sätts).
+    expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Board page' })).toBeNull();
+    expect(window.location.pathname).toBe('/');
+    expect(api.logout).toHaveBeenCalledTimes(1);
+
+    // Och en ny inloggning efteråt fungerar som vanligt.
+    api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    signIn('anna', 'ratt-losen');
+    expect(await screen.findByRole('heading', { name: 'Board page' })).toBeInTheDocument();
+  });
+
+  it('ett fel som kommer efter att dialogen lämnats kastas: ingen krasch, och nästa dialog är orörd (inget gammalt fel)', async () => {
+    window.history.pushState({}, '', '/');
+    let finish: (value: { success: boolean; error?: string }) => void = () => {};
+    api.login.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    render(<App />);
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    signIn('anna', 'fel');
+    await screen.findByRole('button', { name: 'Signing in…' });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    await act(async () => { finish({ success: false, error: 'Invalid credentials' }); });
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
+    await screen.findByRole('dialog', { name: 'Sign in' });
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+    expect(screen.getByLabelText('Username')).toHaveValue('');
   });
 
   it('✕ på en direktladdad /login ersätter adressen med / (Landing utan dialog)', async () => {

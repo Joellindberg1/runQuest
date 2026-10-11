@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthContext, type AuthContextType } from '@/providers/authContext';
 import { LocationProbe } from '@/test/LocationProbe';
@@ -111,23 +111,43 @@ describe('LoginDialog: stängning', () => {
     await waitFor(() => expect(opener).toHaveFocus());
   });
 
-  it('under pågående inloggning går dialogen inte att stänga (Escape, ✕, scrim): ett fel efter stängning skulle försvinna osett', async () => {
-    let finish: (value: { success: boolean; error?: string }) => void = () => {};
-    renderDialog(vi.fn().mockReturnValue(new Promise((resolve) => { finish = resolve; })));
+  // En död ✕ utan signal (och ett login-anrop utan timeout) vore en fälla: dialogen går alltid att lämna. Försöket avbryts då, och svaret kastas (AuthProvider.login).
+  it.each([
+    ['Escape', () => fireEvent.keyDown(dialog(), { key: 'Escape' })],
+    ['✕', () => fireEvent.click(screen.getByRole('button', { name: 'Close' }))],
+    ['klick på scrimmen', () => fireEvent.pointerDown(document.querySelector('.rq-scrim') as HTMLElement)],
+  ])('under pågående inloggning går dialogen att lämna med %s, och försöket avbryts när dialogen avmonteras', async (_name, leave) => {
+    let signal: AbortSignal | undefined;
+    const login = vi.fn((_name: string, _password: string, options?: { signal?: AbortSignal }) => {
+      signal = options?.signal;
+      return new Promise<{ success: boolean }>(() => {});
+    });
+    const { unmount } = renderDialog(login);
     await waitFor(() => expect(screen.getByLabelText('Username')).toHaveFocus());
     signIn('anna', 'hemligt');
     await screen.findByRole('button', { name: 'Signing in…' });
+    expect(signal?.aborted).toBe(false);
 
-    fireEvent.keyDown(dialog(), { key: 'Escape' });
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-    fireEvent.pointerDown(document.querySelector('.rq-scrim') as HTMLElement);
-    expect(location()).toBe('/login?next=%2Ftitles');
-    expect(dialog()).toBeInTheDocument();
-
-    finish({ success: false, error: 'Invalid credentials' });
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'));
-    fireEvent.keyDown(dialog(), { key: 'Escape' });
+    leave();
     await waitFor(() => expect(location()).toBe('/'));
+
+    // Sidan (Index) avmonterar dialogen när adressen lämnat /login; då avbryts försöket.
+    unmount();
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it('ett svar som kommer efter att dialogen lämnats ger inget fel och inget tillstånd i en avmonterad komponent', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let finish: (value: { success: boolean; error?: string }) => void = () => {};
+    const { unmount } = renderDialog(vi.fn().mockReturnValue(new Promise((resolve) => { finish = resolve; })));
+    await waitFor(() => expect(screen.getByLabelText('Username')).toHaveFocus());
+    signIn('anna', 'hemligt');
+    await screen.findByRole('button', { name: 'Signing in…' });
+    unmount();
+
+    await act(async () => { finish({ success: false, error: 'Invalid credentials' }); });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 
@@ -136,7 +156,7 @@ describe('LoginDialog: formuläret (som den gamla inloggningssidan)', () => {
     const login = vi.fn().mockResolvedValue({ success: true });
     renderDialog(login);
     signIn('anna', 'hemligt');
-    await waitFor(() => expect(login).toHaveBeenCalledWith('anna', 'hemligt'));
+    await waitFor(() => expect(login).toHaveBeenCalledWith('anna', 'hemligt', { signal: expect.any(AbortSignal) }));
   });
 
   it('felet visas i dialogen (role=alert), fälten står kvar och pekar på felet', async () => {
