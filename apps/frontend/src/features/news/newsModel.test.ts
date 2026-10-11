@@ -20,40 +20,56 @@ describe('kategorier och filter', () => {
     expect(NEWS_FILTERS.flatMap((filter) => filter.types).sort()).toEqual([...ACTIVITY_TYPES].sort());
   });
 
-  it('Levels = level_up + run_milestone (ADR 008) + badge_earned (ADR 009 beslut 5, F7)', () => {
-    expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone', 'badge_earned']);
+  it('Levels = level_up + run_milestone (ADR 008); badge_earned har eget chip sedan v0.6.1 men raderna behåller kategorin level (ADR 009 beslut 5, F7)', () => {
+    expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone']);
     expect(CATEGORY_OF.run_milestone).toBe('level');
     expect(CATEGORY_OF.badge_earned).toBe('level');
   });
 
-  it('adressparametern: okända nycklar och dubbletter faller bort, ordningen är chipens, alla fem = inget filter', () => {
+  it('adressparametern: okända nycklar och dubbletter faller bort, ordningen är chipens, alla sex = inget filter', () => {
     expect(parseFilterParam(null)).toEqual([]);
     expect(parseFilterParam('')).toEqual([]);
     expect(parseFilterParam('levels,titles,titles,nonsense')).toEqual(['titles', 'levels']);
-    expect(parseFilterParam('titles,challenges,events,levels,streaks')).toEqual([]);
+    expect(parseFilterParam('titles,challenges,events,levels,badges,streaks')).toEqual([]);
     expect(serializeFilterParam(['levels', 'titles'])).toBe('titles,levels');
     expect(serializeFilterParam([])).toBeNull();
   });
 
-  it('toggleFilter lägger till och tar bort; det femte valda blir "allt"', () => {
+  it('toggleFilter lägger till och tar bort; det sjätte valda blir "allt"', () => {
     expect(toggleFilter([], 'events')).toEqual(['events']);
     expect(toggleFilter(['events'], 'titles')).toEqual(['titles', 'events']);
     expect(toggleFilter(['titles', 'events'], 'titles')).toEqual(['events']);
-    expect(toggleFilter(['titles', 'challenges', 'events', 'levels'], 'streaks')).toEqual([]);
+    expect(toggleFilter(['titles', 'challenges', 'events', 'levels', 'badges'], 'streaks')).toEqual([]);
   });
 
   it('chipsens typer blir serverns type= i stabil ordning; inget filter = ingen parameter', () => {
     expect(typesForFilters([])).toBeNull();
     expect(typeParamOf(null)).toBeUndefined();
-    expect(typesForFilters(['levels', 'titles'])).toEqual(['title_unlocked', 'title_taken', 'title_revoked', 'level_up', 'run_milestone', 'badge_earned']);
+    expect(typesForFilters(['levels', 'titles'])).toEqual(['title_unlocked', 'title_taken', 'title_revoked', 'level_up', 'run_milestone']);
     expect(typeParamOf(typesForFilters(['streaks']))).toBe('streak_broken');
   });
 
   it('chip-räknarna är antal per kategori i det laddade fönstret', () => {
     const counts = countByFilter([titleTaken(5), titleTaken(4), levelUp(3, 25), streakBroken(2), eventOpen(1)]);
-    expect(counts).toEqual({ titles: 2, challenges: 0, events: 1, levels: 1, streaks: 1 });
-    // badge_earned räknas under Levels.
-    expect(countByFilter([badgeEarned(2), levelUp(1, 25)]).levels).toBe(2);
+    expect(counts).toEqual({ titles: 2, challenges: 0, events: 1, levels: 1, badges: 0, streaks: 1 });
+    // badge_earned räknas under Badges, inte Levels.
+    expect(countByFilter([badgeEarned(2), levelUp(1, 25)])).toMatchObject({ levels: 1, badges: 1 });
+  });
+
+  it("Badges-chipet släpper bara igenom badge_earned, ligger direkt efter Levels, har Levels-färg men egen ikon (shield)", () => {
+    const filter = NEWS_FILTERS.find((candidate) => candidate.key === "badges");
+    expect(filter).toMatchObject({ label: "Badges", category: "level", icon: "shield", types: ["badge_earned"] });
+    expect(NEWS_FILTERS.map((candidate) => candidate.key)).toEqual(["titles", "challenges", "events", "levels", "badges", "streaks"]);
+    expect(NEWS_FILTERS.filter((candidate) => candidate.key !== "badges").every((candidate) => !candidate.types.includes("badge_earned"))).toBe(true);
+  });
+
+  it("?type=badges: går runt adress → chip → serverns type=, och okända nycklar faller bort", () => {
+    expect(parseFilterParam("badges")).toEqual(["badges"]);
+    expect(serializeFilterParam(parseFilterParam("badges,nonsense"))).toBe("badges");
+    expect(serializeFilterParam(["streaks", "badges", "levels"])).toBe("levels,badges,streaks");
+    expect(toggleFilter(["levels"], "badges")).toEqual(["levels", "badges"]);
+    expect(typesForFilters(["badges"])).toEqual(["badge_earned"]);
+    expect(typeParamOf(typesForFilters(["levels", "badges"]))).toBe("level_up,run_milestone,badge_earned");
   });
 });
 
@@ -546,7 +562,7 @@ describe('okända händelsetyper och trasiga rader (RUN-138)', () => {
   });
 
   it('chip-räknarna räknar inte okända rader', () => {
-    expect(countByFilter([levelUp(1, 2), unknownItem(2), unknownItem(3)])).toEqual({ titles: 0, challenges: 0, events: 0, levels: 1, streaks: 0 });
+    expect(countByFilter([levelUp(1, 2), unknownItem(2), unknownItem(3)])).toEqual({ titles: 0, challenges: 0, events: 0, levels: 1, badges: 0, streaks: 0 });
   });
 
   it('flödet behåller okända rader (så att "Mark all read" når det verkliga högsta id:t) men ingen oläst-markör byggs för dem', () => {
