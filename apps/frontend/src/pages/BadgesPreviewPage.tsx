@@ -120,6 +120,20 @@ const BadgesPreviewPage: React.FC = () => {
         ))}
       </Section>
 
+      <Section id="bs-chips" title="Tier chips on a collection card (contrast check, chip tint .06)">
+        <div className="rq-card">
+          <div className="rq-badge-card">
+            <div className="rq-badge-sheet__size-emblems">
+              {TIERS.map((tier) => (
+                <span key={tier} className="rq-chip rq-chip--status rq-badge-chip" data-tier={tierKey(tier)}>
+                  {TIER_NAMES[tier - 1]}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Section>
+
       <Section id="bs-panel" title="1:1 mini on a panel">
         <div className="rq-card rq-badge-sheet__panel">
           <span className="rq-name">Nova Ridley</span>

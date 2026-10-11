@@ -625,6 +625,7 @@
   --rq-badge-locked-icon:    var(--rq-text-5);               /* låst: ikon .28 */
   --rq-badge-pip:            6px;                            /* tom pip = --rq-line-4 (.12) */
   --rq-badge-pip-gap:        3px;
+  --rq-badge-chip-tint:      .06;                            /* nivåchippets bakgrundstint (status-chip är .10): med .10 hamnar Heroic under 4.5:1 mot kortet (RUN-146) */
 
   /* Glöd (drop-shadow: 0 0 <blur> rgb(<nivå>-rgb / <alfa>)). Common/Uncommon har ingen. */
   --rq-badge-glow-sm:        3px;      /* Rare, Heroic, Epic: sm och cp (bredd < 56) */

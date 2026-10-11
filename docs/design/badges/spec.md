@@ -392,6 +392,10 @@ Gamla värden (utgår): `#a8a8a8 / #4ade80 / #60a5fa / #f87171 / #c084fc / #ffd7
 
 Andningens topp `--rq-badge-breathe-max` **13px oförändrad** (designens `rqGlow` toppar i 13 px). Keyframen börjar och slutar i den nya, svagare statiska glöden (7 px @ .35), så rörelsen blir relativt större än förut; byggaren bekräftar i skärmdump att det inte blir för kraftigt (Q6). Council 12-fallbacken (Legendary-minis utan glöd på Board) blir troligen överflödig men ligger kvar som kritikerns val.
 
+**Bekräftat i bygget (RUN-146):** andningens topp (13 px) mot den svagare statiska glöden granskades i skärmdump vid cykelns topp (`docs/design/badges/reference/v2-breathe-peak.png`): tydligt, inte för kraftigt; 13 px behålls (Q6 besvarad).
+
+**F13.3b Nivåchippets tint (tillägg, RUN-146):** `--rq-badge-chip-tint: .06` (sektion 1.34, båda temafilerna) är bakgrundstinten för nivåchippet (`.rq-chip.rq-badge-chip[data-tier]`) i stället för status-chippets `--rq-tint-status` (.10). Skäl: kortbakgrunden (`--rq-panel` över `--rq-bg-shell` + `--rq-row-soft` ≈ (28.9, 31.5, 29.7)) ger med .10 för Heroic 4.48:1 och för Rare 4.55:1 med de dämpade färgerna, alltså under 4.5:1 (Q7); med .06 är lägsta värdet Heroic 4.74:1. Nivåfärgerna är oförändrade (ägarens färger gäller); övriga status-chip rörs inte. `guards.test.ts` räknar kontrasten ur tokens för alla sex nivåer.
+
 **F13.4 Nya och borttagna tokens** (sektion 1.34 om inget annat anges; båda temafilerna identiska)
 
 | Token | Mobil | Desktop (`@media (min-width: 1024px)`) | Läses av |

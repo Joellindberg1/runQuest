@@ -52,6 +52,14 @@ describe('/preview/badges', () => {
     expect(sizes.getByText(/44 PX/)).toBeInTheDocument();
   });
 
+  it('kontrollytan visar ett nivåchip per nivå på en kortyta (.rq-card + .rq-badge-card) för kontrastmätning', () => {
+    render(<BadgesPreviewPage />);
+    const region = screen.getByRole('region', { name: /^tier chips on a collection card/i });
+    const surface = region.querySelector('.rq-card .rq-badge-card');
+    expect(surface).not.toBeNull();
+    for (const name of TIER_NAMES) expect(within(surface as HTMLElement).getByText(name)).toHaveAttribute('data-tier', name.toLowerCase());
+  });
+
   it('Replay monterar om tändningsraden (animationer startar när elementet monteras)', () => {
     render(<BadgesPreviewPage />);
     const motion = () => screen.getByRole('region', { name: /^motion/i });

@@ -317,6 +317,37 @@ describe('--rq-badge-*-tokens: samma värden i index.css och temafil-forslag.css
     expect(ruleBlocks.filter((block) => /animation/.test(block.body) && block.selector.includes('rq-badge--cp'))).toEqual([]);
   });
 
+  it('nivåchippets bakgrund är --rq-badge-chip-tint (.06), inte status-chippets .10, och slår .rq-chip--status med en sammansatt selektor', () => {
+    expect(index.get('--rq-badge-chip-tint')).toBe('.06');
+    const rule = ruleBlocks.find((block) => block.selector === '.rq-chip.rq-badge-chip[data-tier]');
+    expect(rule?.body).toMatch(/background:\s*rgb\(var\(--rq-c\) \/ var\(--rq-badge-chip-tint\)\)/);
+    expect(rule?.body).not.toContain('--rq-tint-status');
+  });
+
+  it('kontrastvakt: chip-texten i varje nivåfärg når 4.5:1 mot chippets egen bakgrund (nivåfärgen i --rq-badge-chip-tint över kortet = panel över skalet + row-soft)', () => {
+    const channel = (value: number) => { const c = value / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const luminance = ([r, g, b]: number[]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    const contrast = (a: number[], b: number[]) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    const over = (fg: number[], alpha: number, bg: number[]) => fg.map((value, i) => value * alpha + bg[i] * (1 - alpha));
+    const rgba = (name: string) => {
+      const match = new RegExp(`${name}:\\s*rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*([.\\d]+)\\)`).exec(indexCss);
+      expect(match, name).not.toBeNull();
+      return { rgb: [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])], alpha: Number(match?.[4]) };
+    };
+    const hexRgb = (hex: string) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+    const panel = rgba('--rq-panel');
+    const rowSoft = rgba('--rq-row-soft');
+    const shell = hexRgb(/--rq-bg-shell:\s*(#[0-9a-fA-F]{6});/.exec(indexCss)?.[1] ?? '#000000');
+    const card = over(rowSoft.rgb, rowSoft.alpha, over(panel.rgb, panel.alpha, shell));
+    const tint = Number(index.get('--rq-badge-chip-tint'));
+    for (const name of TIER_NAMES) {
+      const key = name.toLowerCase();
+      const text = hexRgb(index.get(`--rq-badge-${key}`) ?? '#000000');
+      const chipBackground = over(text, tint, card);
+      expect({ key, ratio: contrast(text, chipBackground) >= 4.5 }).toEqual({ key, ratio: true });
+    }
+  });
+
   it('nivåfärgerna är egna literaler: inget --rq-badge-*-värde är ett alias mot status-, guld- eller utmaningsfärger', () => {
     for (const [name, value] of index) {
       if (/-(common|uncommon|rare|heroic|epic|legendary)(-rgb|-grad)?$/.test(name)) {
