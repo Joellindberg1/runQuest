@@ -212,9 +212,10 @@ describe('badges-sidans byggstenar (RUN-149, spec F9.9, F13.4)', () => {
 describe('BADGES-panelen på Runner card (T5)', () => {
   it('.rq-badge-panel* bor i badges.css och finns inte kvar i runner.css', () => {
     expect(runnerCss).not.toMatch(/rq-badge-panel/);
-    for (const selector of ['__head', '__title', '__aside', '__list', '__row', '__text', '__nameline', '__display', '__held', '__empty', '__loading']) {
+    // RUN-152: panelen är ett kompakt emblemrutnät; raden (__row/__text/__nameline/__display/__held) och namn-overriden är borta.
+    for (const selector of ['__head', '__title', '__aside', '__grid', '__item', '__empty', '__loading']) {
       expect(badgesCss, selector).toContain(`.rq-badge-panel${selector}`);
     }
-    expect(badgesCss).toMatch(/\.rq-badge-panel \.rq-badge-panel__name\s*\{/);
+    expect(badgesCss).not.toMatch(/\.rq-badge-panel__(row|text|nameline|display|held|list|name)\b/);
   });
 });

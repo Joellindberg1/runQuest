@@ -65,14 +65,17 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
 - **Layouttokens** (spec §5): vakttestet kräver att varje token läses, så varje story lägger in sina när den bygger dem. Inlagda: `--rq-badge-grid-cols` (samlingsrutnätet, RUN-128) och skelettets takt `--rq-dur-badge-skel`/`--rq-badge-skel-stagger`.
   News-radens ikonkolumn heter `--rq-news-row-icon-badge-w` (30 px mobil, 34 desktop; avsnitt 1.28, läses av `news.css` — inte `--rq-badge-*`, eftersom badges-vakten bara läser `badges.css`). Popupbredden kommer med RUN-129.
 
-### Runner card: BadgePanel (RUN-130)
+### Runner card: BadgePanel (RUN-130, omarbetad i RUN-152, spec F11)
 
-- **components/BadgePanel.tsx** — `BadgePanel({ rows, loading?, error? })` (spec F4): den skrivskyddade BADGES-panelen. En rad per intjänad serie: md-emblem (`decorative`, raden läses en gång),
-  serienamn, "On display" (bara visade), held-by när modellen har ett värde, nivå-chip (`.rq-chip--status` + `data-tier`). Inga knappar.
+- **components/BadgePanel.tsx** — `BadgePanel({ rows, loading?, error? })`: den kompakta, skrivskyddade BADGES-panelen. Rubrik (`.rq-title` "BADGES", ingen ikon) + räknare "{N} of {BADGE_SERIES.length} series" och intjänade serier som
+  `<ul aria-label="Earned badges">` med ett `BadgeEmblemDetail` (44 px, `cp`) per `<li>` i ett `flex-wrap` (`gap --rq-sp-8`). Panelen bär bara rubrik, räknare och emblemknappar: nivå, krav, "On display" och held-by
+  ligger i emblemets popover (L4 — ingen information hänger på en tooltip). Låsta serier visas inte i panelen; ingen chip, held-by eller "On display" i raden (V2.9 #9). Raderna byggs med `buildRunnerBadges`, så
+  held-by får rätt viewer (göms vid X = N på andras kort, utelämnas när group-queryn felar).
 - **Data:** `rows` kommer ur `buildRunnerBadges(userBadges, group, viewer)`: bara intjänade serier, visade först (i löparens ordning), sedan högst nivå, sedan serieordning. Samma funktion ger
-  `showcase` till minis i Runner cardens hjältekort. Held-by göms när X = N (andras kort) och utelämnas när group-queryn felar.
-- **Lägen:** laddar → TrackLoader; `error` (`{ onRetry, retrying }`) → `ErrorState` med Retry; tom `rows` → streckad ruta "No badges yet." (bara ett lyckat, tomt svar).
-- **Stil:** `.rq-badge-panel*` bor i `badges.css` (flyttad hit från `features/runner/runner.css` i RUN-128, oförändrad; Runner card ser likadan ut). Placering och datakoppling: `features/runner/README.md`.
+  `showcase` till minis i Runner cardens hjältekort (oförändrade).
+- **Lägen:** laddar → TrackLoader; `error` (`{ onRetry, retrying }`) → `ErrorState` med Retry; tom `rows` → streckad ruta "No badges yet." (bara ett lyckat, tomt svar). Räknaren visas bara med emblem.
+- **Stil:** `.rq-badge-panel*` (`__head`, `__title`, `__aside`, `__grid`, `__item`, `__empty`, `__loading`) bor i `badges.css`. Raden (`__row`/`__text`/`__nameline`/`__display`/`__held`) är borttagen i RUN-152.
+  Placering och datakoppling: `features/runner/README.md`.
 
 ### Profilen: samlingen (RUN-128, spec F2/F8)
 
