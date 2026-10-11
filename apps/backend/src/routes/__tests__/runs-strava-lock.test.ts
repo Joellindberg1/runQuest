@@ -1,6 +1,8 @@
 /**
  * RUN-139: distans och datum på Strava-rundor går inte att redigera — Strava är sanningskällan (ägarbeslut 2026-10-11).
  *
+ * Gäller även DELETE /api/runs/:id (spärren satt tidigare bara i UI:t).
+ *
  * PUT /api/runs/:id redigerar bara distance och date, så en Strava-runda har inget redigerbart fält kvar: 409 med
  * { error: 'Strava runs are read-only' } (ADR 007: fel = HTTP-status + { error }), utan skrivning och utan omräkning.
  * Ägarskapskontrollen (404/403) körs först och är oförändrad. Manuella rundor beter sig som förut.
@@ -42,6 +44,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 
 import { getSupabaseClient } from '../../config/database.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
+import { checkEventQualification } from '../../services/eventService.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
@@ -58,7 +61,7 @@ const run = (over: Row = {}): Row => ({
 const stravaRun = (over: Row = {}): Row => run({ source: 'strava', external_id: '42', ...over });
 
 function use(runs: Row[]) {
-  const tables: Record<string, Row[]> = { runs, user_boosts: [] };
+  const tables: Record<string, Row[]> = { runs, user_boosts: [], event_entries: [] };
   const db = createFakeDb(tables, { autoIds: true });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return { tables, db };
@@ -73,6 +76,7 @@ describe('PUT /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     const { tables, db } = use([stravaRun()]);
     const res = await put('run-1', { distance: 9, date: '2026-10-01' });
     expect(res.status).toBe(409);
+    expect(checkEventQualification).not.toHaveBeenCalled();
     expect(res.body).toEqual({ error: 'Strava runs are read-only' });
     expect(writes(db)).toEqual([]);
     expect(tables.runs[0].distance).toBe(4);
@@ -83,9 +87,20 @@ describe('PUT /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     const { tables, db } = use([stravaRun()]);
     const res = await put('run-1', { distance: 4, date: '2026-10-02' });
     expect(res.status).toBe(409);
+    expect(checkEventQualification).not.toHaveBeenCalled();
     expect(res.body).toEqual({ error: 'Strava runs are read-only' });
     expect(writes(db)).toEqual([]);
     expect(tables.runs[0].date).toBe('2026-10-01');
+  });
+
+  it('Strava-runda: PUT med oförändrad distans/datum → 409 ändå', async () => {
+    const { tables, db } = use([stravaRun()]);
+    const res = await put('run-1', { distance: 4, date: '2026-10-01' });
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(checkEventQualification).not.toHaveBeenCalled();
+    expect(writes(db)).toEqual([]);
+    expect(tables.runs[0]).toMatchObject({ distance: 4, date: '2026-10-01' });
   });
 
   it('Strava-runda: ingen omräkning (rundor skrivs inte om, användartotaler räknas inte)', async () => {
@@ -128,5 +143,62 @@ describe('PUT /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     const res = await put('run-1', { distance: 7, date: '2026-10-01' });
     expect(res.status).toBe(200);
     expect(tables.runs[0].distance).toBe(7);
+  });
+});
+
+const del = (id: string) => server.request('DELETE', `/api/runs/${id}`, { token });
+
+describe('DELETE /api/runs/:id — Strava-rundor är skrivskyddade', () => {
+  it('Strava-runda: radering → 409, inget skrivs (delete ej anropad), ingen omräkning', async () => {
+    const { tables, db } = use([stravaRun(), run({ id: 'run-2', date: '2026-10-02', streak_day: 2 })]);
+    const res = await del('run-1');
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(writes(db)).toEqual([]);
+    expect(tables.runs.map((r) => r.id)).toEqual(['run-1', 'run-2']);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+    expect(checkEventQualification).not.toHaveBeenCalled();
+  });
+
+  it('Strava-runda som också kvalificerat ett event: Strava-409:an går före event-409:an (ingen event_entries-query)', async () => {
+    const { tables, db } = use([stravaRun()]);
+    tables.event_entries.push({ id: 'e1', run_id: 'run-1' });
+    const res = await del('run-1');
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(db.queries.some((q) => q.table === 'event_entries')).toBe(false);
+    expect(writes(db)).toEqual([]);
+  });
+
+  it('annans Strava-runda → 403 som förut', async () => {
+    const { tables, db } = use([stravaRun({ user_id: 'user-2' })]);
+    const res = await del('run-1');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Not authorized to delete this run');
+    expect(writes(db)).toEqual([]);
+    expect(tables.runs).toHaveLength(1);
+  });
+
+  it('saknad runda → 404 som förut', async () => {
+    use([]);
+    expect((await del('run-1')).status).toBe(404);
+  });
+
+  it('manuell runda: radering som förut', async () => {
+    const { tables } = use([run()]);
+    const res = await del('run-1');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(tables.runs).toHaveLength(0);
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+  });
+
+  it('manuell runda som kvalificerat ett event: event-409 som förut', async () => {
+    const { tables } = use([run()]);
+    tables.event_entries.push({ id: 'e1', run_id: 'run-1' });
+    const res = await del('run-1');
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/qualified an event/);
+    expect(tables.runs).toHaveLength(1);
   });
 });

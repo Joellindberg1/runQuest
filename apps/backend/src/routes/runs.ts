@@ -504,7 +504,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Verify run belongs to user and fetch date for targeted reprocess
     const { data: existingRun, error: fetchError } = await supabase
       .from('runs')
-      .select('user_id, date')
+      .select('user_id, date, source')
       .eq('id', id)
       .single();
 
@@ -514,6 +514,14 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     if (existingRun.user_id !== userId) {
       res.status(403).json({ error: 'Not authorized to delete this run' }); return;
+    }
+
+    // Strava-rundor är skrivskyddade (RUN-139): spärren som förut bara satt i UI:t sitter nu även i API:t — annars raderas
+    // rundan vid ett direkt anrop och synken importerar tillbaka den (ingen gravsten). Kontrollen ligger efter ägarskapet
+    // (404/403 oförändrade), före all skrivning/omräkning och FÖRE event-409:an nedan: den är permanent och billig (ingen
+    // query), och event-meddelandet ("edit it instead") vore fel för en Strava-runda, som inte går att redigera.
+    if (existingRun.source === 'strava') {
+      res.status(409).json({ error: 'Strava runs are read-only' }); return;
     }
 
     const deletedDate = existingRun.date;
