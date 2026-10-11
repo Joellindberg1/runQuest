@@ -1,6 +1,6 @@
 -- 037: Titelraderna Stormborn, Iceborn och Winter Warrior (RUN-103, v0.6.0).
--- Datum: 2026-10-11. Ägargodkännande för APPLICERING krävs (permissions.md: migration mot prod = ask);
--- filen är skriven men inte körd. Applicering via Supabase MCP apply_migration
+-- Datum: 2026-10-11. APPLICERAD i prod 2026-10-11 efter v0.6.0-deployen (ägar-ja), följd av tyst omräkning.
+-- Applicering via Supabase MCP apply_migration
 -- (name: 037_add_weather_and_winter_titles).
 -- Ordning vid release (ADR 002 beslut 3, expand först):
 --   1. Deploya backend-koden som innehåller motorerna stormRunCount, coldRunCount och winterKm

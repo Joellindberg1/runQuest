@@ -1,5 +1,5 @@
 -- 036: badge_earned i händelseloggen (ADR 009 beslut 5; migrationen delad i två enligt ADR 009 addendum 2026-10-11).
--- Datum: 2026-10-11. Ägargodkännande för APPLICERING krävs (permissions.md: migration mot prod = ask);
+-- Datum: 2026-10-11. APPLICERAD i prod 2026-10-11 direkt efter v0.6.0-deployen (ägar-ja);
 -- (RUN-122). Applicering via Supabase MCP apply_migration (name: 036_activity_log_badge_earned).
 -- KÖRORDNING (Lead-beslut 2026-10-11, avviker medvetet från ADR 002 beslut 3): DIREKT EFTER att v0.6.0-backend och
 -- -frontend är live. Skäl: v0.5.3-frontendens News saknar default-gren och kraschar på okända typer — så länge 036 inte
