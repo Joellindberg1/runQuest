@@ -11,6 +11,7 @@ import './preview/badgeSheet.css';
 const TIERS = Array.from({ length: MAX_TIER }, (_, index) => index + 1);
 const SIZES: ReadonlyArray<{ size: BadgeSize; label: string }> = [
   { size: 'sm', label: 'MINI · 28 PX · ICON 15' },
+  { size: 'cp', label: 'SMALL (CP) · 44 PX · ICON 20' },
   { size: 'md', label: 'MEDIUM · 56 PX · ICON 24' },
   { size: 'lg', label: 'LARGE · 96 PX · ICON 42' },
 ];
@@ -21,7 +22,7 @@ const ANATOMY = [
   ['Crest frame', 'clip-path crest, tier gradient'],
   ['Hairline ring', 'Heroic only, its non-colour mark'],
   ['Core', 'dark fill, same crest clip'],
-  ['Series icon', 'RQIcon, 15 / 24 / 42 px, same on every tier'],
+  ['Series icon', 'RQIcon, 15 / 20 / 24 / 42 px, same on every tier'],
 ] as const;
 
 const SHOWCASE = [
@@ -106,7 +107,7 @@ const BadgesPreviewPage: React.FC = () => {
         </ul>
       </Section>
 
-      <Section id="bs-sizes" title="Sizes · height = width × 1.12 · Legendary never breathes at mini">
+      <Section id="bs-sizes" title="Sizes · height = width × 1.12 · Legendary never breathes at mini or cp">
         {SIZES.map(({ size, label }) => (
           <div key={size} className="rq-badge-sheet__size-row">
             <span className="rq-eyebrow rq-badge-sheet__size-label">{label}</span>
@@ -117,6 +118,20 @@ const BadgesPreviewPage: React.FC = () => {
             </div>
           </div>
         ))}
+      </Section>
+
+      <Section id="bs-chips" title="Tier chips on a collection card (contrast check, chip tint .06)">
+        <div className="rq-card">
+          <div className="rq-badge-card">
+            <div className="rq-badge-sheet__size-emblems">
+              {TIERS.map((tier) => (
+                <span key={tier} className="rq-chip rq-chip--status rq-badge-chip" data-tier={tierKey(tier)}>
+                  {TIER_NAMES[tier - 1]}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
       </Section>
 
       <Section id="bs-panel" title="1:1 mini on a panel">
@@ -170,7 +185,7 @@ const BadgesPreviewPage: React.FC = () => {
             </div>
           </div>
           <div className="rq-badge-sheet__size-row">
-            <span className="rq-eyebrow rq-badge-sheet__size-label">LEGENDARY · BREATHES (M/L), STATIC (S)</span>
+            <span className="rq-eyebrow rq-badge-sheet__size-label">LEGENDARY · BREATHES (M/L), STATIC (S/CP)</span>
             <div className="rq-badge-sheet__size-emblems">
               {SIZES.map(({ size }) => (
                 <BadgeEmblem key={size} series={seriesA.key} tier={MAX_TIER} size={size} />

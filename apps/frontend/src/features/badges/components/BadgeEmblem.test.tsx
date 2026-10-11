@@ -99,11 +99,29 @@ describe('BadgeEmblem: serieikonen kommer ur BADGE_SERIES', () => {
 });
 
 describe('BadgeEmblem: storlekar', () => {
-  it.each(['sm', 'md', 'lg'] as const)('storleken %s sätts med klass (måtten ligger i --rq-badge-*-tokens)', (size) => {
+  it.each(['sm', 'cp', 'md', 'lg'] as const)('storleken %s sätts med klass (måtten ligger i --rq-badge-*-tokens)', (size) => {
     render(<BadgeEmblem series={FIRST_SERIES.key} tier={2} size={size} />);
     const root = screen.getByRole('img');
     expect(root).toHaveClass(`rq-badge--${size}`);
-    expect(root.className.match(/rq-badge--(sm|md|lg)/g)).toHaveLength(1);
+    expect(root.className.match(/rq-badge--(sm|cp|md|lg)/g)).toHaveLength(1);
+  });
+
+  it('cp (44 px, kompakt): samma fem lager och Heroic-ring som övriga storlekar, utan inline-mått — måtten ligger i .rq-badge--cp (guards.test.ts)', () => {
+    const { container, rerender } = render(<BadgeEmblem series={FIRST_SERIES.key} tier={4} size="cp" />);
+    expect(screen.getByRole('img')).toHaveClass('rq-badge', 'rq-badge--cp');
+    expect(container.querySelectorAll('.rq-badge__ring')).toHaveLength(1);
+    expect(container.querySelector('.rq-badge__frame .rq-badge__core svg')).not.toBeNull();
+    rerender(<BadgeEmblem series={FIRST_SERIES.key} tier={null} size="cp" />);
+    expect(screen.getByRole('img')).toHaveAttribute('data-tier', 'locked');
+    expect(container.querySelectorAll('[style]')).toHaveLength(0);
+  });
+
+  it('cp har ingen andningsklass och tänder som övriga storlekar bara med ignite (andningen avgörs av storleksklassen i CSS: bara md/lg)', () => {
+    const { rerender } = render(<BadgeEmblem series={FIRST_SERIES.key} tier={6} size="cp" />);
+    expect(screen.getByRole('img').className).not.toMatch(/rq-badge--(md|lg)/);
+    expect(screen.getByRole('img')).not.toHaveClass('rq-badge--ignite');
+    rerender(<BadgeEmblem series={FIRST_SERIES.key} tier={6} size="cp" ignite />);
+    expect(screen.getByRole('img')).toHaveClass('rq-badge--ignite');
   });
 
   it('ingen inline-style: varken mått, färg eller glöd skrivs på elementen', () => {

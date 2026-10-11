@@ -186,7 +186,7 @@ describe('badges.css: rörelsen (ägarbeslut E1+E2, Rörelse-undantaget i STATE.
     expect(indexCss).not.toMatch(/--rq-dur-badge-breathe/);
   });
 
-  it('andningen gäller bara Legendary md/lg — aldrig sm', () => {
+  it('andningen gäller bara Legendary md/lg — aldrig sm eller cp', () => {
     const breathing = ruleBlocks.filter((block) => /rqBadgeGlow/.test(block.body));
     expect(breathing.length).toBeGreaterThan(0);
     for (const block of breathing) {
@@ -194,6 +194,7 @@ describe('badges.css: rörelsen (ägarbeslut E1+E2, Rörelse-undantaget i STATE.
         expect(selector).toContain('[data-tier="legendary"]');
         expect(selector).toMatch(/\.rq-badge--(md|lg)/);
         expect(selector).not.toContain('rq-badge--sm');
+        expect(selector).not.toContain('rq-badge--cp');
       }
     }
   });
@@ -235,13 +236,13 @@ describe('badges.css: glöden (spec §3)', () => {
     for (const tier of ['common', 'uncommon', 'locked']) expect(selectors).not.toContain(`[data-tier="${tier}"]`);
   });
 
-  it('Rare/Heroic/Epic använder --rq-badge-glow-alpha (.45) och Legendary --rq-badge-glow-leg-alpha (.60)', () => {
+  it('Rare/Heroic/Epic använder --rq-badge-glow-alpha (.30) och Legendary --rq-badge-glow-leg-alpha (.35)', () => {
     const standard = glowRules.find((block) => block.selector.includes('"rare"'));
     const legendary = glowRules.find((block) => block.selector === '.rq-badge[data-tier="legendary"]');
     expect(standard?.body).toContain('var(--rq-badge-glow-alpha)');
     expect(legendary?.body).toContain('var(--rq-badge-glow-leg-alpha)');
-    expect(indexCss).toMatch(/--rq-badge-glow-alpha:\s*\.45;/);
-    expect(indexCss).toMatch(/--rq-badge-glow-leg-alpha:\s*\.60;/);
+    expect(indexCss).toMatch(/--rq-badge-glow-alpha:\s*\.30;/);
+    expect(indexCss).toMatch(/--rq-badge-glow-leg-alpha:\s*\.35;/);
   });
 });
 
@@ -274,11 +275,11 @@ describe('--rq-badge-*-tokens: samma värden i index.css och temafil-forslag.css
     expect(indexCss).not.toMatch(/#fbbf24|#ff9a1f/i);
   });
 
-  it('kronskölden och måtten (28/56/96, höjd × 1.12, ikon 15/24/42, kärna och Heroic-ring) följer SIZES — med de två förhandsgodkända förstärkningarna vid 28 px', () => {
+  it('kronskölden och måtten (28/44/56/96, höjd × 1.12, ikon 15/20/24/42, kärna och Heroic-ring) följer SIZES — med de två förhandsgodkända förstärkningarna vid 28 px (cp har ingen egen förstärkning)', () => {
     expect(norm(index.get('--rq-badge-clip'))).toBe(norm(/const CREST = '([^']+)'/.exec(source)?.[1]));
-    const sizes = [...sizesBlock.matchAll(/(mini|medium|large): \{ w: (\d+), i: (\d+), core: ([\d.]+), ring1: ([\d.]+), ring2: ([\d.]+) \}/g)];
-    expect(sizes).toHaveLength(3);
-    const suffix = { mini: 'sm', medium: 'md', large: 'lg' } as const;
+    const sizes = [...sizesBlock.matchAll(/(mini|small|medium|large): \{ w: (\d+), i: (\d+), core: ([\d.]+), ring1: ([\d.]+), ring2: ([\d.]+) \}/g)];
+    expect(sizes).toHaveLength(4);
+    const suffix = { mini: 'sm', small: 'cp', medium: 'md', large: 'lg' } as const;
     for (const [, key, w, icon, core, ring1, ring2] of sizes) {
       const s = suffix[key as keyof typeof suffix];
       // Spec §3 "Heroic-ring vid sm" (Council 5): ringen syntes inte vid 28 px i verifieringen (1x och 2x) → ring2 3 → 3.5 px, ring-alfa .55 → .85.
@@ -290,6 +291,61 @@ describe('--rq-badge-*-tokens: samma värden i index.css och temafil-forslag.css
     }
     expect(index.get('--rq-badge-ring')).toMatch(/\/ \.85\)$/);
     expect(index.get('--rq-badge-core')?.toLowerCase()).toBe('#1c1c1c');
+  });
+
+  it('glöden följer runquest-badges.js: bredder (S.w >= 56 ? ml : sm) och alfa (hex 59 = .35, 4d = .30) är -sm/-ml/-alpha-tokens', () => {
+    const legendary = /tier === 'legendary'\)\s*\{\s*glow \+= ' filter:drop-shadow\(0 0 ' \+ \(S\.w >= 56 \? (\d+) : (\d+)\) \+ 'px ' \+ T\.c \+ '([0-9a-f]{2})\)/.exec(source);
+    const standard = /tier === 'heroic' \|\| tier === 'epic'\)\s*\{\s*glow \+= ' filter:drop-shadow\(0 0 ' \+ \(S\.w >= 56 \? (\d+) : (\d+)\) \+ 'px ' \+ T\.c \+ '([0-9a-f]{2})\)/.exec(source);
+    expect(legendary).not.toBeNull();
+    expect(standard).not.toBeNull();
+    const alpha = (hex: string) => (parseInt(hex, 16) / 255).toFixed(2).replace(/^0/, '');
+    const [, legMl, legSm, legAlpha] = legendary ?? [];
+    const [, stdMl, stdSm, stdAlpha] = standard ?? [];
+    expect({
+      glowSm: index.get('--rq-badge-glow-sm'), glowMl: index.get('--rq-badge-glow-ml'), glowAlpha: index.get('--rq-badge-glow-alpha'),
+      legSm: index.get('--rq-badge-glow-leg-sm'), legMl: index.get('--rq-badge-glow-leg-ml'), legAlpha: index.get('--rq-badge-glow-leg-alpha'),
+    }).toEqual({ glowSm: `${stdSm}px`, glowMl: `${stdMl}px`, glowAlpha: alpha(stdAlpha), legSm: `${legSm}px`, legMl: `${legMl}px`, legAlpha: alpha(legAlpha) });
+  });
+
+  it('cp (44 px) mappar mått och Heroic-ring på -cp-tokens och glöden på -sm-glöden (bredd < 56) — och har ingen egen andning', () => {
+    const cp = ruleBlocks.find((block) => block.selector === '.rq-badge--cp');
+    expect(cp?.body).toBeDefined();
+    for (const [local, token] of [
+      ['--rq-emblem-w', '--rq-badge-w-cp'], ['--rq-emblem-h', '--rq-badge-h-cp'], ['--rq-emblem-icon', '--rq-badge-icon-cp'], ['--rq-emblem-core', '--rq-badge-core-cp'],
+      ['--rq-emblem-ring', '--rq-badge-ring-cp'], ['--rq-emblem-ring-core', '--rq-badge-ring-core-cp'], ['--rq-emblem-glow', '--rq-badge-glow-sm'], ['--rq-emblem-glow-leg', '--rq-badge-glow-leg-sm'],
+    ] as const) expect(cp?.body, local).toContain(`${local}: var(${token})`);
+    expect(ruleBlocks.filter((block) => /animation/.test(block.body) && block.selector.includes('rq-badge--cp'))).toEqual([]);
+  });
+
+  it('nivåchippets bakgrund är --rq-badge-chip-tint (.06), inte status-chippets .10, och slår .rq-chip--status med en sammansatt selektor', () => {
+    expect(index.get('--rq-badge-chip-tint')).toBe('.06');
+    const rule = ruleBlocks.find((block) => block.selector === '.rq-chip.rq-badge-chip[data-tier]');
+    expect(rule?.body).toMatch(/background:\s*rgb\(var\(--rq-c\) \/ var\(--rq-badge-chip-tint\)\)/);
+    expect(rule?.body).not.toContain('--rq-tint-status');
+  });
+
+  it('kontrastvakt: chip-texten i varje nivåfärg når 4.5:1 mot chippets egen bakgrund (nivåfärgen i --rq-badge-chip-tint över kortet = panel över skalet + row-soft)', () => {
+    const channel = (value: number) => { const c = value / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const luminance = ([r, g, b]: number[]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    const contrast = (a: number[], b: number[]) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    const over = (fg: number[], alpha: number, bg: number[]) => fg.map((value, i) => value * alpha + bg[i] * (1 - alpha));
+    const rgba = (name: string) => {
+      const match = new RegExp(`${name}:\\s*rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*([.\\d]+)\\)`).exec(indexCss);
+      expect(match, name).not.toBeNull();
+      return { rgb: [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])], alpha: Number(match?.[4]) };
+    };
+    const hexRgb = (hex: string) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+    const panel = rgba('--rq-panel');
+    const rowSoft = rgba('--rq-row-soft');
+    const shell = hexRgb(/--rq-bg-shell:\s*(#[0-9a-fA-F]{6});/.exec(indexCss)?.[1] ?? '#000000');
+    const card = over(rowSoft.rgb, rowSoft.alpha, over(panel.rgb, panel.alpha, shell));
+    const tint = Number(index.get('--rq-badge-chip-tint'));
+    for (const name of TIER_NAMES) {
+      const key = name.toLowerCase();
+      const text = hexRgb(index.get(`--rq-badge-${key}`) ?? '#000000');
+      const chipBackground = over(text, tint, card);
+      expect({ key, ratio: contrast(text, chipBackground) >= 4.5 }).toEqual({ key, ratio: true });
+    }
   });
 
   it('nivåfärgerna är egna literaler: inget --rq-badge-*-värde är ett alias mot status-, guld- eller utmaningsfärger', () => {
