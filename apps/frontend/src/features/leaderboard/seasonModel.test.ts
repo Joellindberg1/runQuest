@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Run, User, UserTitle } from '@runquest/types';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
-import { buildSeasonRows, displayedTitleNames, rankDeltaMap, titleLine } from './seasonModel';
+import { badgeShowcaseMap, buildSeasonRows, displayedTitleNames, rankDeltaMap, titleLine } from './seasonModel';
 
 const NOW = new Date('2026-10-04T10:00:00Z');
 
@@ -140,5 +140,34 @@ describe('rankDeltaMap', () => {
   it('user_id → rank_delta, tom lista vid saknad data', () => {
     expect(rankDeltaMap([{ user_id: 'a', rank_delta: 2 }, { user_id: 'b', rank_delta: null }])).toEqual({ a: 2, b: null });
     expect(rankDeltaMap(undefined)).toEqual({});
+  });
+});
+
+describe('badges i raderna (RUN-131)', () => {
+  const adam = user({ id: 'a', name: 'Adam', total_xp: 4000 });
+  const bea = user({ id: 'b', name: 'Bea', total_xp: 3000 });
+
+  it('showcase i användarens ordning, max 3, tom utan badges', () => {
+    const members = [
+      { user_id: 'a', showcase: [{ series: 'milestoner', tier: 3 }, { series: 'climber', tier: 5 }, { series: 'night_owl', tier: 1 }, { series: 'speedster', tier: 2 }] },
+      { user_id: 'b', showcase: [] },
+    ];
+    const rows = buildSeasonRows([adam, bea], { ...input, badgesByUser: badgeShowcaseMap(members) });
+
+    expect(rows[0].showcase).toEqual([{ series: 'milestoner', tier: 3 }, { series: 'climber', tier: 5 }, { series: 'night_owl', tier: 1 }]);
+    expect(rows[1].showcase).toEqual([]);
+  });
+
+  it('utan badgesByUser (queryn laddar eller felar) och för användare som saknas i svaret är showcase tom', () => {
+    expect(buildSeasonRows([adam], input)[0].showcase).toEqual([]);
+    expect(buildSeasonRows([adam], { ...input, badgesByUser: badgeShowcaseMap([]) })[0].showcase).toEqual([]);
+    expect(buildSeasonRows([adam], { ...input, badgesByUser: badgeShowcaseMap(undefined) })[0].showcase).toEqual([]);
+  });
+
+  it('poster från en annan serverversion (okänd serie, tier utanför 1..6) släpps innan max 3 räknas', () => {
+    const map = badgeShowcaseMap([
+      { user_id: 'a', showcase: [{ series: 'finns_inte', tier: 2 }, { series: 'climber', tier: 9 }, { series: 'climber', tier: 0 }, { series: 'milestoner', tier: 4 }] },
+    ]);
+    expect(map.a).toEqual([{ series: 'milestoner', tier: 4 }]);
   });
 });

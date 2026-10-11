@@ -1,4 +1,6 @@
 import type { User, UserTitle } from '@runquest/types';
+import { BADGE_SERIES, MAX_SHOWCASE, type BadgeGroupMember, type BadgeShowcaseEntry } from '@runquest/shared';
+import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import { MAX_LEVEL } from '@/constants/appConstants';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import { deltaView, formatDecimal, formatInt, formatRunAge, latestRunOf, type DeltaView } from './boardFormat';
@@ -35,6 +37,8 @@ export interface SeasonRow {
   lastRun: { age: string; km: string } | null;
   tokens: TierTokens;
   tokensLeft: number;
+  /** Visade badges i användarens egen ordning (max MAX_SHOWCASE). Tom utan badges eller medan/om gruppens badges inte finns. */
+  showcase: BadgeShowcaseEntry[];
 }
 
 export interface SeasonInput {
@@ -42,6 +46,8 @@ export interface SeasonInput {
   titlesByUser: Record<string, UserTitle[]>;
   /** user_id → rank_delta ur /api/leaderboard/rank-delta (positivt = klättrat). */
   rankDeltaByUser: Record<string, number | null>;
+  /** user_id → visade badges ur /api/badges/group (badgeShowcaseMap). Utelämnad = inga minis (laddar/fel). */
+  badgesByUser?: Record<string, BadgeShowcaseEntry[]>;
 }
 
 const MAX_DISPLAYED_TITLES = 3;
@@ -99,6 +105,7 @@ export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] 
       lastRun: latest ? { age: formatRunAge(latest, input.now), km: formatDecimal(latest.distance) } : null,
       tokens,
       tokensLeft: tokens.minor + tokens.major + tokens.legendary,
+      showcase: input.badgesByUser?.[user.id] ?? [],
     };
   });
 
@@ -109,6 +116,21 @@ export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] 
     ...row,
     pace: { perDay, text: `${perDay} / d`, tone: perDay > 0 && perDay >= averagePace ? 'up' : 'down' } as const,
   }));
+}
+
+const KNOWN_SERIES = new Set<string>(BADGE_SERIES.map((series) => series.key));
+
+/**
+ * user_id → visade badges ur gruppens svar, i användarens ordning. Poster från en annan serverversion (okänd serie, tier utanför 1..6)
+ * släpps hellre än att ritas fel, och högst MAX_SHOWCASE behålls.
+ */
+export function badgeShowcaseMap(members: readonly BadgeGroupMember[] | undefined): Record<string, BadgeShowcaseEntry[]> {
+  return Object.fromEntries(
+    (members ?? []).map((member) => [
+      member.user_id,
+      member.showcase.filter((entry) => KNOWN_SERIES.has(entry.series) && isEarnedTier(entry.tier)).slice(0, MAX_SHOWCASE),
+    ]),
+  );
 }
 
 export function rankDeltaMap(users: Array<{ user_id: string; rank_delta: number | null }> | undefined): Record<string, number | null> {
