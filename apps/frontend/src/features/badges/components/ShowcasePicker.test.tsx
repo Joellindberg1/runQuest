@@ -179,11 +179,11 @@ describe('ShowcasePicker — platspanelen (Council 18 steg 3)', () => {
 describe('ShowcasePicker — spara (Council 18 steg 2)', () => {
   it('SAVE DISPLAY är avstängd när inget ändrats och slås på av en ändring — ändras tillbaka är den avstängd igen', () => {
     renderPicker([streakKeeper.key]);
-    expect(saveButton()).toBeDisabled();
+    expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(toggleOf(climber.name));
-    expect(saveButton()).toBeEnabled();
+    expect(saveButton()).not.toHaveAttribute('aria-disabled');
     fireEvent.click(toggleOf(climber.name));
-    expect(saveButton()).toBeDisabled();
+    expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('en omordning räknas som ändring: borttagen och tillagd igen hamnar sist', () => {
@@ -191,7 +191,7 @@ describe('ShowcasePicker — spara (Council 18 steg 2)', () => {
     fireEvent.click(toggleOf(streakKeeper.name));
     fireEvent.click(toggleOf(streakKeeper.name));
     expect(slotNames()).toEqual([milestoner.name, streakKeeper.name, null]);
-    expect(saveButton()).toBeEnabled();
+    expect(saveButton()).not.toHaveAttribute('aria-disabled');
   });
 
   it('sparar valet i vald ordning (PUT) och visar den gröna bekräftelsen i en role="status"', async () => {
@@ -213,7 +213,7 @@ describe('ShowcasePicker — spara (Council 18 steg 2)', () => {
     fireEvent.click(toggleOf(climber.name));
     fireEvent.click(saveButton());
     await waitFor(() => expect(saveButton()).toHaveTextContent('SAVING…'));
-    expect(saveButton()).toBeDisabled();
+    expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(toggleOf(earlyBird.name));
     fireEvent.click(screen.getByRole('button', { name: `Remove ${streakKeeper.name} from display` }));
     expect(slotNames()).toEqual([streakKeeper.name, climber.name, null]);
@@ -240,13 +240,50 @@ describe('ShowcasePicker — spara (Council 18 steg 2)', () => {
     expect(alert).toHaveAttribute('data-status', 'error');
     expect(screen.queryByText(/^Saved/)).toBeNull();
     expect(slotNames()).toEqual([streakKeeper.name, climber.name, null]);
-    expect(saveButton()).toBeEnabled();
+    expect(saveButton()).not.toHaveAttribute('aria-disabled');
 
     fireEvent.click(within(alert).getByRole('button', { name: 'RETRY' }));
     expect(await screen.findByText('Saved — your Board card is updated.')).toBeInTheDocument();
     expect(api.saveShowcase).toHaveBeenCalledTimes(2);
     expect(api.saveShowcase).toHaveBeenLastCalledWith([streakKeeper.key, climber.key]);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('ett klick på den avstängda knappen sparar inget (aria-disabled spärras i hanteraren)', () => {
+    renderPicker([streakKeeper.key]);
+    fireEvent.click(saveButton());
+    expect(api.saveShowcase).not.toHaveBeenCalled();
+  });
+
+  it('fokus stannar på SAVE DISPLAY genom hela sparandet (SAVING…, sparat) — det faller aldrig till body', async () => {
+    let finish: (value: { showcase: string[] }) => void = () => {};
+    api.saveShowcase.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    renderPicker([streakKeeper.key]);
+    fireEvent.click(toggleOf(climber.name));
+    saveButton().focus();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(saveButton()).toHaveTextContent('SAVING…'));
+    expect(saveButton()).toHaveFocus();
+    finish({ showcase: [streakKeeper.key, climber.key] });
+    await screen.findByText('Saved — your Board card is updated.');
+    expect(saveButton()).toHaveFocus();
+  });
+
+  it('fokus efter RETRY: felraden försvinner men fokus hamnar på SAVE DISPLAY, inte på body', async () => {
+    api.saveShowcase.mockRejectedValueOnce(new Error('boom'));
+    renderPicker([streakKeeper.key]);
+    fireEvent.click(toggleOf(climber.name));
+    saveButton().focus();
+    fireEvent.click(saveButton());
+    const alert = await screen.findByRole('alert');
+    const retry = within(alert).getByRole('button', { name: 'RETRY' });
+    retry.focus();
+    expect(retry).toHaveFocus();
+    fireEvent.click(retry);
+    await screen.findByText('Saved — your Board card is updated.');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(document.body).not.toHaveFocus();
+    expect(saveButton()).toHaveFocus();
   });
 
   it('EN guldknapp i väljaren: SAVE DISPLAY — ingen fylld primärknapp och ingen annan secondary', () => {

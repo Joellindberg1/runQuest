@@ -146,7 +146,7 @@
    --rq-badge-pick-hit (mobil 44, desktop 24). Platsmarkören är --rq-titles-pos (19 px, som ON DISPLAY på Titles). Spara/fel är semantisk grön/röd kant —
    aldrig nivåfärg (Council 6). Växlaren dimmas vid 3/3, inte raden eller texten (Council 17). "Preview on leaderboard" ritas inte (uppföljning). */
 .rq-badge-textlink {
-  display: inline-flex; align-items: center; flex-shrink: 0; min-height: var(--rq-badge-pick-hit); padding: 0 var(--rq-sp-4); border: 0; background: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit); padding: 0 var(--rq-sp-4); border: 0; background: none; cursor: pointer;
   font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3);
 }
 .rq-badge-textlink:hover { color: var(--rq-gold-text); }

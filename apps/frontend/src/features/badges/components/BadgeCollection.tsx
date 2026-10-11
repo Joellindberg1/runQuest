@@ -6,7 +6,7 @@ import type { BadgeRow } from '../badgeModel';
 import { BadgeEmblem } from './BadgeEmblem';
 import { BadgeMinis } from './BadgeMinis';
 import { BadgeSeriesCard } from './BadgeSeriesCard';
-import { SHOWCASE_PICKER_ID } from './ShowcasePicker';
+import { SHOWCASE_PICKER_ID } from './showcasePickerId';
 import '../badges.css';
 
 /** Panelrubrikens shield: --rq-icon-md (17 px, Council 7). */

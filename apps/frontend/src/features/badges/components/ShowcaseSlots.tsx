@@ -4,6 +4,7 @@ import type { BadgeRow } from '../badgeModel';
 import { BadgeEmblem } from './BadgeEmblem';
 import '../badges.css';
 
+/** 15 px = --rq-icon-sm (rader, chips), som HEAD_ICON_SIZE i BadgeCollection mot --rq-icon-md. */
 const REMOVE_ICON_SIZE = 15;
 const SLOT_NUMBERS = Array.from({ length: MAX_SHOWCASE }, (_, index) => index + 1);
 

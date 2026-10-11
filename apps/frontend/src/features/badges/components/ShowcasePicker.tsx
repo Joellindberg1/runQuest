@@ -5,10 +5,9 @@ import { useSaveShowcase } from '../hooks/useBadgeQueries';
 import { BadgeChip } from './BadgeChip';
 import { BadgeEmblem } from './BadgeEmblem';
 import { ShowcaseSlots } from './ShowcaseSlots';
+import { SHOWCASE_PICKER_ID } from './showcasePickerId';
 import '../badges.css';
 
-/** Edit-knappen i ON DISPLAY-remsan pekar hit med aria-controls. */
-export const SHOWCASE_PICKER_ID = 'badge-showcase-picker';
 const TITLE_ID = 'badge-showcase-picker-title';
 const LIMIT_ID = 'badge-showcase-picker-limit';
 
@@ -31,6 +30,7 @@ interface ShowcasePickerProps {
  */
 export function ShowcasePicker({ rows, userId, onClose }: ShowcasePickerProps) {
   const panelRef = useRef<HTMLElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
   const owned = useMemo(() => rows.filter((row) => row.earned).map((row) => row.series), [rows]);
   const saved = useMemo(
     () => rows.filter((row) => row.displayPosition !== null).sort((a, b) => (a.displayPosition as number) - (b.displayPosition as number)).map((row) => row.series),
@@ -84,7 +84,13 @@ export function ShowcasePicker({ rows, userId, onClose }: ShowcasePickerProps) {
     }
   };
 
-  const onKeyDown = (event: KeyboardEvent) => {
+  // RETRY försvinner med felraden när sparandet startar: fokus går då till SAVE DISPLAY i stället för att falla till body.
+  const retry = () => {
+    saveRef.current?.focus();
+    void onSave();
+  };
+
+  const onKeyDown =(event: KeyboardEvent) => {
     if (event.key === 'Escape') onClose();
   };
 
@@ -104,7 +110,14 @@ export function ShowcasePicker({ rows, userId, onClose }: ShowcasePickerProps) {
         <span className="sr-only">{announcement}</span>
       </div>
 
-      <button type="button" className="rq-btn rq-btn--secondary rq-btn--compact rq-badge-pick__save" disabled={!dirty || isPending} onClick={() => void onSave()}>
+      {/* aria-disabled i stället för disabled: en avstängd knapp släpper fokus (till body) mitt under spara/retry. Klicket spärras i onSave. */}
+      <button
+        type="button"
+        ref={saveRef}
+        className="rq-btn rq-btn--secondary rq-btn--compact rq-badge-pick__save"
+        aria-disabled={!dirty || isPending ? true : undefined}
+        onClick={() => void onSave()}
+      >
         {isPending ? 'SAVING…' : 'SAVE DISPLAY'}
       </button>
       <div role="status">
@@ -113,7 +126,7 @@ export function ShowcasePicker({ rows, userId, onClose }: ShowcasePickerProps) {
       {status === 'error' && (
         <div role="alert" className="rq-badge-pick__note" data-status="error">
           <span>Could not save. Your pick is still here — try again.</span>
-          <button type="button" className="rq-badge-pick__retry" onClick={() => void onSave()}>RETRY</button>
+          <button type="button" className="rq-badge-pick__retry" onClick={retry}>RETRY</button>
         </div>
       )}
 

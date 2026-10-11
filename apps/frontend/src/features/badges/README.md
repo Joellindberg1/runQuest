@@ -106,7 +106,9 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
   samlingen, inte utkastet). Bekräftelsen försvinner när valet ändras. Remsan, hjältekortet och Board-minisen följer med via hookens optimistiska skrivning + invalidering.
 - **EN guldknapp:** SAVE DISPLAY (`.rq-btn--secondary`, som på Titles). Edit/Close/RETRY är textlänkar, inte guldknappar.
 - **Fokus:** panelen (`tabIndex -1`, `aria-labelledby` = rubriken) tar fokus när den öppnas (`preventScroll`, därefter `scrollIntoView({ block: 'nearest' })` med `scroll-margin-top: --rq-badge-pick-clear` så den inte hamnar bakom
-  skalets klibbiga topprad). Close, Esc och Edit stänger; skärmen återför fokus till Edit-knappen (`editButtonRef`). Ett stängt utkast kastas.
+  skalets klibbiga topprad). Close, Esc och Edit stänger; skärmen återför fokus till Edit-knappen (`editButtonRef`). **Utkastet kastas** vid Close, Esc, Edit-växling och byte av brytpunkt (panelen avmonteras/byggs om); bara ett lyckat SAVE DISPLAY behåller valet.
+  **Fokus vid spara:** SAVE DISPLAY är `aria-disabled` (inte `disabled`) när inget ändrats och medan sparandet pågår, så fokus aldrig faller till body; klicket spärras i hanteraren. RETRY flyttar fokus till SAVE DISPLAY innan felraden
+  försvinner.
 - **Remsan (`BadgeCollection`):** med `onEdit` ritas remsan alltid när något är intjänat; inget valt → en kort uppmaning ("Pick up to 3 badges to show on the Board.") + Edit, aldrig platshållare för minis. Inget intjänat → inget
   Edit (det finns inget att välja; det tomma läget gäller). Edit är `aria-expanded` + `aria-controls` mot panelen.
 - **Tokens (1.34, båda temafilerna):** `--rq-badge-pick-hit` (tryckyta för växlare, ✕, Edit, Close och RETRY: mobil 44 px, desktop 24) och `--rq-badge-pick-clear` (88 px mobil, 72 desktop). CSS-block: `.rq-badge-pick*`, `.rq-badge-slot*`,
