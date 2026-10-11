@@ -12,10 +12,10 @@ Patch efter v0.6.0 på ägarens önskan: badges får eget filter i Pack News, oc
 ### Prod-steg (kräver ägar-ja var för sig)
 1. Deploy via PR + grön CI.
 2. Migration 041 efter deployen. v0.6.0-flikar kraschar inte på den nya typen (okända typer filtreras bort i News); de kan räkna raden som oläst utan att visa den tills de laddas om.
-3. `announce:release`: dry-run, kontrollera att versionen i utskriften är 0.6.1, sedan `--apply --version=0.6.1` (uttrycklig version, så att en saknad changelog-post aldrig annonserar fel version).
+3. `announce:release`: dry-run med `--version=0.6.1` (visar exakt det som skrivs), sedan `--apply --version=0.6.1` (uttrycklig version, så att en saknad changelog-post aldrig annonserar fel version).
 
 ### Rollback
-- Kod: redeploya v0.6.0 i Railway och revert-PR på main. v0.6.0-frontenden tål `release_published`-rader (filtreras bort), så ingen data behöver raderas. 041 kan ligga kvar (additiv).
+- Kod: redeploya v0.6.0 i Railway och revert-PR på main. v0.6.0-frontenden tål `release_published`-rader (filtreras bort), så ingen data behöver raderas: raderna är ofarliga och kan ligga kvar (skriptet har ingen retract-väg). 041 kan ligga kvar (additiv).
 
 ## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
 
