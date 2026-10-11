@@ -3,7 +3,7 @@
 ## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
 
 Rullar ihop epicsen RUN-1 (Badges), RUN-91 (Stormborn, Iceborn, Winter Warrior) och RUN-92 (städning och nivåtabellen via backend), plus
-Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login som popup (RUN-145). Migrationerna 035–037 och en badge-backfill är prod-steg som kräver ägar-ja (038/039 applicerades redan som säkerhetshotfix; 040 skrivs separat efter releasen) (se "Prod-steg" nedan).
+Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login som popup (RUN-145). Prod-stegen kräver ägar-ja var för sig: 035 och badge-backfillen är redan gjorda, 036/037 körs efter deployen (038/039 applicerades redan som säkerhetshotfix; 040 skrivs separat efter releasen) (se "Prod-steg" nedan).
 
 ### Nytt
 - **Badges (ADR 009, RUN-1).** Åtta serier × sex nivåer (Common till Legendary) som gruppen samlar över säsonger: Milestoner, Earth Trotter, Climber,
@@ -70,6 +70,7 @@ Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login s
 3. **Data före frontend-rollback:** finns `badge_earned`-rader (efter 036) måste de raderas innan v0.5.3-frontenden tas tillbaka, annars kraschar News: `delete from activity_log where type = 'badge_earned'` (ägar-ja).
 4. **Migrationer:** 036 och 037 kan ligga kvar vid kodrollback. 037 kan tas bort med den kommenterade SQL:en i filhuvudet om titlarna måste bort. 035/038/039 rullas inte tillbaka (additiva respektive stängningar).
 5. **Efter 040:** v0.5.3-frontenden läser `level_requirements` direkt — en frontend-rollback efter 040 kräver att policyn öppnas igen (anges i 040:s huvud när filen skrivs).
+6. **Hostingvariabler:** ta INTE bort `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` i Railways frontend-tjänst förrän v0.6.0 varit stabil och rollback inte längre är aktuell — en ombyggd v0.5.3-bundle kastar vid start utan dem (vit sida).
 
 ## v0.5.3.2 — Alla CSS-overrides som avgjordes av laddningsordningen (2026-10-07)
 
