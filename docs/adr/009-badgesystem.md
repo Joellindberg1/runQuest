@@ -83,7 +83,7 @@ Hämtade ur `badges-playground.html` (fältet `req`) utom där "Justerad" anges.
 |---|---|---|---|---|---|---|---|
 | Milestoner (`milestoner`) — längsta enskilda runda | km, ≥ | 5 | 10 | 21,1 | 30 | 42,2 | 50 |
 | Earth Trotter (`earth_trotter`) — total distans | km, ≥ | 100 | 500 | 1 000 | 2 000 | 4 015 | **10 000** (justerad, prototypens 40 000 ouppnåeligt) |
-| The Climber (`climber`) — total höjdmeter (bara Strava-rundor har höjd) | m, ≥ | 500 | 1 345 | 4 800 | 5 895 | **8 848** (Everest) | **17 696** (Everest ×2; justerad) |
+| Climber (`climber`) — total höjdmeter (bara Strava-rundor har höjd) | m, ≥ | 500 | 1 345 | 4 800 | 5 895 | **8 848** (Everest) | **17 696** (Everest ×2; justerad) |
 | Streak Keeper (`streak_keeper`) — längsta svit (samma källa som `users.longest_streak`) | dagar, ≥ | 3 | 7 | 14 | 30 | 60 | 100 |
 | Early Bird (`early_bird`) — rundor med start (väggklocka) | st, ≥ | 5 st 04:00–06:59 | 15 | 50 | 100 | 50 st 04:00–05:59 | 100 st 04:00–05:59 |
 | Night Owl (`night_owl`) — rundor med start (väggklocka) | st, ≥ | 5 st 21:00–03:59 | 15 | 50 | 100 | 25 st 22:30–03:59 | **10 st 23:30–00:30** (justerad; prototypens enstaka midnattsrunda var lättare än tier 5) |
