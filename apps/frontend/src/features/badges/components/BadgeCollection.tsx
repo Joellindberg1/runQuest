@@ -1,10 +1,12 @@
-import { BADGE_SERIES } from '@runquest/shared';
+import type { Ref } from 'react';
+import { BADGE_SERIES, MAX_SHOWCASE } from '@runquest/shared';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { RQIcon } from '@/shared/components/icons';
 import type { BadgeRow } from '../badgeModel';
 import { BadgeEmblem } from './BadgeEmblem';
 import { BadgeMinis } from './BadgeMinis';
 import { BadgeSeriesCard } from './BadgeSeriesCard';
+import { SHOWCASE_PICKER_ID } from './showcasePickerId';
 import '../badges.css';
 
 /** Panelrubrikens shield: --rq-icon-md (17 px, Council 7). */
@@ -21,6 +23,12 @@ interface BadgeCollectionProps {
   error?: { onRetry: () => void; retrying: boolean };
   /** Desktop visar namnen på de valda badges i ON DISPLAY-remsan (mobil bara minisen). */
   isDesktop: boolean;
+  /** Öppnar väljaren (RUN-129). Utan den ritas ingen Edit-knapp, och en remsa utan valda badges ritas inte alls. */
+  onEdit?: () => void;
+  /** Väljaren är öppen: Edit-knappen är då `aria-expanded`. */
+  editing?: boolean;
+  /** Skärmen återför fokus hit när väljaren stängs. */
+  editButtonRef?: Ref<HTMLButtonElement>;
 }
 
 function SkeletonCards() {
@@ -56,12 +64,12 @@ function EmptyCollection() {
 
 /**
  * BADGES-kortet i profilen (spec §4 F2, F8): rubrik + "N of 8 series", ON DISPLAY-remsan med de valda badges (minis i användarens ordning, desktop dessutom
- * namnen) och rutnätet med ett kort per serie. "Edit"/"Edit display" byggs i RUN-129 — här finns ingen redigeringsknapp, och en tom remsa ritas inte.
+ * namnen) och rutnätet med ett kort per serie. "Edit"/"Edit display" (RUN-129) öppnar väljaren; utan `onEdit` finns ingen knapp och en tom remsa ritas inte.
  *
  * Tillstånd (F8): laddar → skelett; fel → rött kantkort med Retry (i stället för kortet); inga badges än → "No badges yet" + åtta låsta minis.
  * Datahämtningen bor i ProfileScreen — kortet är presentation, så ett badgefel aldrig kan fälla resten av profilen.
  */
-export function BadgeCollection({ rows, loading = false, error, isDesktop }: BadgeCollectionProps) {
+export function BadgeCollection({ rows, loading = false, error, isDesktop, onEdit, editing = false, editButtonRef }: BadgeCollectionProps) {
   if (!loading && error) {
     return <ErrorState title="Couldn't load your badges" message="Your runs are safe." retrying={error.retrying} onRetry={error.onRetry} />;
   }
@@ -78,12 +86,19 @@ export function BadgeCollection({ rows, loading = false, error, isDesktop }: Bad
   else {
     body = (
       <>
-        {displayed.length > 0 && (
+        {(displayed.length > 0 || onEdit) && (
           <div className="rq-badge-display">
             <span className="rq-badge-display__label">On display</span>
             <BadgeMinis showcase={showcase} />
+            {/* Tomläget (inget valt): en kort uppmaning i stället för platshållare för minis — Edit är då ingången till väljaren. */}
+            {displayed.length === 0 && <span className="rq-badge-display__empty">Pick up to {MAX_SHOWCASE} badges to show on the Board.</span>}
             {/* Minisen bär redan nivå + serie i sin etikett; namnen här är bara den synliga förklaringen på desktop. */}
-            {isDesktop && <span className="rq-badge-display__names" aria-hidden="true">{displayed.map((row) => row.name).join(' · ')}</span>}
+            {isDesktop && displayed.length > 0 && <span className="rq-badge-display__names" aria-hidden="true">{displayed.map((row) => row.name).join(' · ')}</span>}
+            {onEdit && (
+              <button type="button" ref={editButtonRef} className="rq-badge-textlink rq-badge-display__edit" aria-expanded={editing} aria-controls={editing ? SHOWCASE_PICKER_ID : undefined} onClick={onEdit}>
+                {isDesktop ? 'Edit display' : 'Edit'}
+              </button>
+            )}
           </div>
         )}
         <ul className="rq-badge-grid" aria-label="Badge series">

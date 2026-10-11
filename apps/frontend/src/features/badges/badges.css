@@ -138,6 +138,83 @@
 .rq-badge-display__label { flex-shrink: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3); }
 .rq-badge-display__names { min-width: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-2); overflow-wrap: anywhere; }
 .rq-badge-display .rq-badge-minis, .rq-badge-nameline .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-4); }
+.rq-badge-display__empty { min-width: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-badge-display .rq-badge-display__edit { margin-left: auto; }
+
+/* ── Väljaren för visade badges (RUN-129, spec F3, Council 16-18) ─────────────────────────────────────────────
+   components/ShowcasePicker + ShowcaseSlots. EN panel, samma på mobil och desktop (desktop: den 340 px breda sidokolumnen i profilen). Tryckytor ur
+   --rq-badge-pick-hit (mobil 44, desktop 24). Platsmarkören är --rq-titles-pos (19 px, som ON DISPLAY på Titles). Spara/fel är semantisk grön/röd kant —
+   aldrig nivåfärg (Council 6). Växlaren dimmas vid 3/3, inte raden eller texten (Council 17). "Preview on leaderboard" ritas inte (uppföljning). */
+.rq-badge-textlink {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit); padding: 0 var(--rq-sp-4); border: 0; background: none; cursor: pointer;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3);
+}
+.rq-badge-textlink:hover { color: var(--rq-gold-text); }
+
+.rq-badge-pick { display: flex; flex-direction: column; gap: var(--rq-sp-12); scroll-margin-top: var(--rq-badge-pick-clear); }
+.rq-badge-pick:focus-visible { outline: none; }
+.rq-badge-pick__head { display: flex; align-items: center; gap: var(--rq-sp-8); }
+.rq-badge-pick__title { margin: 0; font-weight: 400; }
+.rq-badge-pick__count { margin-left: auto; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); color: var(--rq-text-4); }
+.rq-badge-pick__limit { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-badge-pick .rq-badge-pick__save { align-self: flex-end; min-height: var(--rq-badge-pick-hit); }
+
+/* Platserna: alltid tre. Fyllda = rollguldets tint och kant (som ON DISPLAY på Titles), tomma = streckade. */
+.rq-badge-slots { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-badge-slot {
+  display: flex; align-items: center; gap: var(--rq-sp-10); padding: var(--rq-sp-8) var(--rq-sp-10);
+  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft));
+}
+.rq-badge-slot[data-empty] { background: none; border: var(--rq-hair) dashed var(--rq-line-5); }
+.rq-badge-slot__pos {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: var(--rq-titles-pos); height: var(--rq-titles-pos);
+  background: var(--rq-gold); color: var(--rq-on-gold); font-family: var(--rq-font-display); font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight);
+}
+.rq-badge-slot[data-empty] .rq-badge-slot__pos { background: none; border: var(--rq-hair) solid var(--rq-line-5); color: var(--rq-text-4); }
+.rq-badge-slot__empty { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-badge-slot__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rq-badge-slot__name { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); overflow-wrap: anywhere; }
+.rq-badge-slot__tier { font-size: var(--rq-fs-label); color: var(--rq-text-3); }
+.rq-badge-slot .rq-badge-slot__remove {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit);
+  padding: 0; border: 0; background: none; color: var(--rq-text-3); cursor: pointer;
+}
+.rq-badge-slot__remove svg { transform: rotate(45deg); }
+.rq-badge-slot__remove:hover { color: var(--rq-down); }
+.rq-badge-slot__remove:disabled { color: var(--rq-text-5); cursor: not-allowed; }
+
+/* Sparlägen: en platt rad med 3 px tillståndskant (grön = sparat, röd = fel). */
+.rq-badge-pick__note {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rq-sp-8) var(--rq-sp-12); margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12);
+  background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w) solid var(--rq-up);
+  font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2);
+}
+.rq-badge-pick .rq-badge-pick__note[data-status="error"] { border-left-color: var(--rq-down); }
+.rq-badge-pick__retry {
+  min-height: var(--rq-badge-pick-hit); padding: 0 var(--rq-sp-4); border: 0; background: none; cursor: pointer;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); color: var(--rq-down);
+}
+.rq-badge-pick__retry:hover { color: var(--rq-text-1); }
+
+/* Raderna: en per serie, i serieordning. Låsta = streckade (som låsta kort). */
+.rq-badge-pick__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-badge-pick__row { display: flex; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-8) var(--rq-sp-10); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-badge-pick .rq-badge-pick__row[data-state="locked"] { border-style: dashed; border-color: var(--rq-line-5); }
+.rq-badge-pick__who { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-4); }
+.rq-badge-pick__name { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); overflow-wrap: anywhere; }
+.rq-badge-pick__locked-note { font-size: var(--rq-fs-label); color: var(--rq-text-4); }
+.rq-badge-pick .rq-badge-pick__toggle {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit); padding: 0 var(--rq-sp-10);
+  background: none; border: var(--rq-hair) solid var(--rq-line-5); cursor: pointer; white-space: nowrap;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3);
+}
+.rq-badge-pick .rq-badge-pick__toggle:hover { border-color: var(--rq-line-hover); color: var(--rq-text-2); }
+.rq-badge-pick .rq-badge-pick__toggle[aria-pressed="true"] {
+  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-status)); color: var(--rq-gold-text);
+}
+/* 3/3: de övriga växlarna dimmas (aria-disabled, kvar i tabbordningen så skälet kan läsas) — inte raden och inte texten. */
+.rq-badge-pick .rq-badge-pick__toggle[aria-disabled="true"] { background: var(--rq-fill-1); border-color: transparent; color: var(--rq-text-5); cursor: not-allowed; }
+.rq-badge-pick .rq-badge-pick__toggle--locked { border-style: dashed; border-color: var(--rq-line-5); background: none; color: var(--rq-text-5); cursor: default; }
 
 /* Namnraden i hjältekortet: namn + minis. Raden rymmer en mini även utan, så kortet inte hoppar när badge-queryn landar (som Runner card och Board).
    Ryms inte båda på en rad hamnar minisen under namnet — namnet bryts inte mitt i (Council 12: namnet dominerar). */
