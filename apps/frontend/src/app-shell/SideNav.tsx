@@ -36,6 +36,7 @@ const SECTIONS: SectionSpec[] = [
     title: 'You',
     items: [
       { label: 'Profile', icon: 'user', destination: 'profile', to: paths.profile, tourAnchor: 'nav-you' },
+      { label: 'Badges', icon: 'shield', destination: 'badges', to: paths.badges },
       { label: 'Log Runs', icon: 'plus', destination: 'log', to: paths.log, tourAnchor: 'nav-new' },
     ],
   },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeSideNavItemFor, activeTabFor } from './activeNav';
+import { activeSideNavItemFor, activeTabFor, destinationFor } from './activeNav';
 
 // ADR 006 beslut 2: samma mappning som prototypens backMap.
 describe('activeTabFor (bottenbarens aktiva flik)', () => {
@@ -10,6 +10,7 @@ describe('activeTabFor (bottenbarens aktiva flik)', () => {
     ['/titles', 'titles'],
     ['/duels', 'duels'],
     ['/profile', 'you'],
+    ['/badges', 'you'],
     ['/log', 'you'],
     ['/news', 'you'],
     ['/playbook', 'you'],
@@ -40,5 +41,11 @@ describe('activeSideNavItemFor (sidnavens aktiva rad)', () => {
   it('övriga destinationer lyser på sin egen rad', () => {
     expect(activeSideNavItemFor('/duels')).toBe('duels');
     expect(activeSideNavItemFor('/log')).toBe('log');
+  });
+
+  it('/badges har en egen rad (ingen specialregel), skild från Profile', () => {
+    expect(destinationFor('/badges')).toBe('badges');
+    expect(activeSideNavItemFor('/badges')).toBe('badges');
+    expect(activeSideNavItemFor('/profile')).toBe('profile');
   });
 });

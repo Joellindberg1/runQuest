@@ -11,6 +11,7 @@ export const paths = {
   news: '/news',
   log: '/log',
   profile: '/profile',
+  badges: '/badges',
   runnerPattern: '/runner/:id',
   runner: (id: string) => `/runner/${encodeURIComponent(id)}`,
   playbook: '/playbook',
