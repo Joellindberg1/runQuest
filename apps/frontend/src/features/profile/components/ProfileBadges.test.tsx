@@ -72,9 +72,8 @@ describe('Profile — BADGES-kortet', () => {
     // En låst serie visar kravet för tier 1.
     const locked = BADGE_SERIES[5];
     expect(within(card).getByText(`Unlock: ${TIER_NAMES[0]} — ${requirementText(locked, 1)}`)).toBeInTheDocument();
-    // Den enda knappen i kortet är Edit (RUN-129); väljaren är stängd tills den trycks.
-    expect(within(card).getAllByRole('button').map((button) => button.textContent)).toEqual(['Edit']);
-    expect(screen.queryByRole('region', { name: 'ON DISPLAY' })).toBeNull();
+    // Inga knappar i kortet: valet görs på /badges (RUN-150).
+    expect(within(card).queryByRole('button')).toBeNull();
   });
 
   it('kortet ligger direkt under hjältekortet (mobil och desktop), före Frodo-kortet', async () => {
@@ -178,103 +177,30 @@ describe('Profile — badge-lägen (F8)', () => {
   });
 });
 
-// Väljaren (RUN-129, spec F3, Council 16-18): ingången är Edit/Edit display i ON DISPLAY-remsan; panelen är densamma på mobil och desktop men ritas på ETT ställe:
-// mobil direkt ovanför BADGES-kortet (där Edit sitter), desktop överst i sidokolumnen (340 px, ovanför TITLES).
-describe('Profile — väljaren för visade badges', () => {
-  const picker = () => screen.getByRole('region', { name: 'ON DISPLAY' });
-  const pickerOrNull = () => screen.queryByRole('region', { name: 'ON DISPLAY' });
-  const toggleOf = (name: string) => within(picker()).getByRole('button', { name: new RegExp(`^${name}:`) });
-  const openPicker = async (label: string) => {
-    renderWithApp(<ProfileScreen />, { width: label === 'Edit' ? MOBILE : DESKTOP });
+// Väljaren är borta från profilen (RUN-150, spec V2.7): valet görs på /badges. Profilen får ingen Edit-knapp, ingen panel och ingen uppmaning — inga döda knappar.
+describe('Profile — ingen väljaringång (RUN-150)', () => {
+  const noPicker = async (width: number) => {
+    renderWithApp(<ProfileScreen />, { width });
     await heroName();
-    fireEvent.click(await screen.findByRole('button', { name: label }));
+    await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Badge series' });
   };
 
-  it('mobil: Edit öppnar väljaren direkt ovanför BADGES-kortet, fokus hamnar i väljaren och Close återför fokus till Edit', async () => {
-    await openPicker('Edit');
-    const edit = screen.getByRole('button', { name: 'Edit' });
-    expect(edit).toHaveAttribute('aria-expanded', 'true');
-    expect(picker()).toHaveFocus();
-    expect(edit.getAttribute('aria-controls')).toBe(picker().id);
-    expect((document.querySelector('.rq-profile-hero') as HTMLElement).nextElementSibling).toBe(picker());
-    expect(picker().nextElementSibling).toBe(badgesCard());
-    expect(document.querySelector('.rq-profile__side')?.contains(picker())).toBe(false);
-
-    fireEvent.click(within(picker()).getByRole('button', { name: 'Close' }));
-    expect(pickerOrNull()).toBeNull();
-    expect(edit).toHaveFocus();
-    expect(edit).toHaveAttribute('aria-expanded', 'false');
+  it.each([['mobil', MOBILE], ['desktop', DESKTOP]])('%s: ingen Edit/Edit display-knapp och ingen ON DISPLAY-panel', async (_label, width) => {
+    await noPicker(width);
+    expect(screen.queryByRole('button', { name: /^edit/i })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'ON DISPLAY' })).toBeNull();
+    expect(within(badgesCard()).queryByRole('button')).toBeNull();
   });
 
-  it('desktop: "Edit display" öppnar SAMMA väljare överst i sidokolumnen (före TITLES), Esc stänger och fokus går tillbaka', async () => {
-    await openPicker('Edit display');
-    const side = document.querySelector('.rq-profile__side') as HTMLElement;
-    expect(side.firstElementChild).toBe(picker());
-    expect(document.querySelector('.rq-profile__main')?.contains(picker())).toBe(false);
-    expect(picker()).toHaveFocus();
-    expect(within(picker()).getAllByRole('listitem').length).toBeGreaterThan(BADGE_SERIES.length);
-
-    fireEvent.keyDown(toggleOf(milestoner.name), { key: 'Escape' });
-    expect(pickerOrNull()).toBeNull();
-    expect(screen.getByRole('button', { name: 'Edit display' })).toHaveFocus();
-  });
-
-  it('Edit på en öppen väljare stänger den (växlare)', async () => {
-    await openPicker('Edit');
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-    expect(pickerOrNull()).toBeNull();
-  });
-
-  it('väljaren startar på det sparade valet i min ordning', async () => {
-    await openPicker('Edit');
-    const slots = within(within(picker()).getByRole('list', { name: 'Badges on display' })).getAllByRole('listitem');
-    expect(slots.map((slot) => slot.querySelector('.rq-badge-slot__name')?.textContent)).toEqual([streakKeeper.name, milestoner.name, climber.name]);
-  });
-
-  it('inget valt: remsan visar uppmaningen + Edit (ingen platshållare), och väljaren öppnas med tre tomma platser', async () => {
+  it('inget valt: remsan ritas inte och ingen uppmaning pekar på en väljare som inte finns', async () => {
     badgesApi.getUserBadges.mockResolvedValue({ ...MY_BADGES, showcase: [] });
-    await openPicker('Edit');
-    expect(within(badgesCard()).getByText('Pick up to 3 badges to show on the Board.')).toBeInTheDocument();
-    expect(within(picker()).getAllByText('Empty slot')).toHaveLength(3);
+    await noPicker(MOBILE);
+    expect(within(badgesCard()).queryByText('On display')).toBeNull();
+    expect(screen.queryByText(/pick up to/i)).toBeNull();
   });
 
-  it('spara: PUT med vald ordning, och remsan, hjältekortet och Board-cachen följer med (gruppen invalideras)', async () => {
-    let server: BadgeUserResponse = MY_BADGES;
-    badgesApi.getUserBadges.mockImplementation(async () => server);
-    badgesApi.saveShowcase.mockImplementation(async (series: string[]) => {
-      server = { ...server, showcase: series };
-      return { showcase: series };
-    });
-    await openPicker('Edit');
-    const groupCalls = badgesApi.getGroupBadges.mock.calls.length;
-    fireEvent.click(within(picker()).getByRole('button', { name: `Remove ${streakKeeper.name} from display` }));
-    fireEvent.click(toggleOf(earthTrotter.name));
-    fireEvent.click(within(picker()).getByRole('button', { name: 'SAVE DISPLAY' }));
-
-    expect(await within(picker()).findByText('Saved — your Board card is updated.')).toBeInTheDocument();
-    expect(badgesApi.saveShowcase).toHaveBeenCalledWith([milestoner.key, climber.key, earthTrotter.key]);
-    const expected = `Badges: ${TIER_NAMES[2]} ${milestoner.name}, ${TIER_NAMES[0]} ${climber.name}, ${TIER_NAMES[1]} ${earthTrotter.name}`;
-    // Hjältekortet och ON DISPLAY-remsan visar det nya valet.
-    expect(within(document.querySelector('.rq-profile-hero') as HTMLElement).getByRole('img', { name: expected })).toBeInTheDocument();
-    expect(within(badgesCard()).getByRole('img', { name: expected })).toBeInTheDocument();
-    await waitFor(() => expect(badgesApi.getGroupBadges.mock.calls.length).toBeGreaterThan(groupCalls));
-  });
-
-  it('fel vid spara: röd alert, utkastet står kvar och remsan visar fortfarande det sparade valet', async () => {
-    badgesApi.saveShowcase.mockRejectedValue(new Error('boom'));
-    await openPicker('Edit');
-    fireEvent.click(within(picker()).getByRole('button', { name: `Remove ${streakKeeper.name} from display` }));
-    fireEvent.click(within(picker()).getByRole('button', { name: 'SAVE DISPLAY' }));
-    expect(await within(picker()).findByRole('alert')).toHaveTextContent('Could not save. Your pick is still here — try again.');
-    const slots = within(within(picker()).getByRole('list', { name: 'Badges on display' })).getAllByRole('listitem');
-    expect(slots.map((slot) => slot.querySelector('.rq-badge-slot__name')?.textContent)).toEqual([milestoner.name, climber.name, undefined]);
-    await waitFor(() => {
-      expect(within(badgesCard()).getByRole('img', { name: `Badges: ${TIER_NAMES[MAX_TIER - 1]} ${streakKeeper.name}, ${TIER_NAMES[2]} ${milestoner.name}, ${TIER_NAMES[0]} ${climber.name}` })).toBeInTheDocument();
-    });
-  });
-
-  it('profilturens ankare finns kvar med väljaren öppen', async () => {
-    await openPicker('Edit display');
+  it('profilturens ankare finns kvar', async () => {
+    await noPicker(DESKTOP);
     for (const step of TOUR_PROFILE_V2) if (step.element) expect(document.querySelector(step.element), step.element).not.toBeNull();
   });
 });
