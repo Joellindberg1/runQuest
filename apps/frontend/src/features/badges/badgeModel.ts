@@ -140,6 +140,26 @@ export function buildRunnerBadges(userBadges: BadgeUserResponse | undefined, gro
   return { showcase, rows };
 }
 
+/** Profilens kompakta sammanfattning (spec F10.3): intjänade på nivå, låsta separat, och räknarna rubriken och "Locked · n left" visar. */
+export interface BadgeSummary {
+  /** Högst nivå först, lika nivå i BADGE_SERIES-ordning. Ingen visad-först-sortering: sammanfattningen sorterar på nivå. */
+  earned: BadgeRow[];
+  /** Serieordning. Tom när allt är intjänat — vyn utelämnar då raden och hårlinjen. */
+  locked: BadgeRow[];
+  earnedCount: number;
+  lockedCount: number;
+  /** Antal serier i raderna (aldrig en konstant: en ny serie i shared syns utan kodändring). */
+  total: number;
+}
+
+/** Ren funktion över `buildCollection`-raderna. Serieordningen läses ur BADGE_SERIES, inte ur radernas ordning in. */
+export function buildBadgeSummary(rows: readonly BadgeRow[]): BadgeSummary {
+  const bySeries = (a: BadgeRow, b: BadgeRow) => (SERIES_ORDER.get(a.series) ?? Number.POSITIVE_INFINITY) - (SERIES_ORDER.get(b.series) ?? Number.POSITIVE_INFINITY);
+  const earned = rows.filter((row) => row.earned).sort((a, b) => (b.tier as number) - (a.tier as number) || bySeries(a, b));
+  const locked = rows.filter((row) => !row.earned).sort(bySeries);
+  return { earned, locked, earnedCount: earned.length, lockedCount: locked.length, total: rows.length };
+}
+
 // ─── Showcase (max tre, bara ägda; samma mönster som titelvalet) ─────────────────────────────────
 
 /** Valet städat: bara ägda serier, utan dubbletter, i vald ordning, högst MAX_SHOWCASE. */

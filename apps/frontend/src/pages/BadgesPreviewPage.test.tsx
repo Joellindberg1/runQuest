@@ -71,6 +71,46 @@ describe('/preview/badges', () => {
     expect(after).not.toBe(before);
   });
 
+  it('byggstenarna (RUN-149): varje växlarläge finns som kort — Show, On display — N, fullt, sparar (vald och icke vald) och låst', () => {
+    render(<BadgesPreviewPage />);
+    const modes = within(screen.getByRole('region', { name: /^landscape card · every toggle mode/i }));
+    const buttons = modes.getAllByRole('button');
+    const pressed = (value: string) => buttons.filter((button) => button.getAttribute('aria-pressed') === value);
+    expect(buttons.some((button) => button.textContent?.endsWith('Show') && !button.hasAttribute('aria-disabled'))).toBe(true);
+    expect(buttons.some((button) => /On display — 2$/.test(button.textContent ?? ''))).toBe(true);
+    expect(pressed('false').some((button) => button.getAttribute('aria-disabled') === 'true' && button.hasAttribute('aria-describedby'))).toBe(true);
+    expect(pressed('true').some((button) => button.getAttribute('aria-disabled') === 'true')).toBe(true);
+    expect(pressed('false').filter((button) => button.getAttribute('aria-disabled') === 'true').length).toBeGreaterThanOrEqual(2);
+    expect(modes.getAllByText('Locked', { selector: '.rq-badge-toggle' }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('det levande utkastet: ett klick väljer, tre valda gör övriga avstängda med den synliga meningen, Simulate saving stänger av alla', () => {
+    render(<BadgesPreviewPage />);
+    const live = within(screen.getByRole('region', { name: /^landscape cards · live draft/i }));
+    const switches = () => live.getAllByRole('button').filter((button) => button.hasAttribute('data-series'));
+    const show = () => switches().filter((button) => button.getAttribute('aria-pressed') === 'false');
+    expect(live.queryByText(/of 3 on display — remove one first/)).toBeNull();
+    fireEvent.click(show()[0]);
+    expect(live.getByText('3 of 3 on display — remove one first.')).toBeInTheDocument();
+    expect(show().every((button) => button.getAttribute('aria-disabled') === 'true' && button.getAttribute('aria-describedby'))).toBe(true);
+
+    fireEvent.click(live.getByRole('button', { name: /simulate saving/i }));
+    expect(switches().every((button) => button.getAttribute('aria-disabled') === 'true')).toBe(true);
+  });
+
+  it('emblemknapparna: intjänade sorterade på nivå (buildBadgeSummary) och låsta separat, varje öppnar en popover', async () => {
+    render(<BadgesPreviewPage />);
+    const region = within(screen.getByRole('region', { name: /^emblem detail/i }));
+    const earned = within(region.getByRole('list', { name: 'Earned badges' })).getAllByRole('button');
+    const locked = within(region.getByRole('list', { name: 'Locked badges' })).getAllByRole('button');
+    const tiers = earned.map((button) => TIER_NAMES.findIndex((name) => (button.getAttribute('aria-label') ?? '').startsWith(`${name} `)));
+    expect(tiers).toEqual([...tiers].sort((a, b) => b - a));
+    expect(earned.length + locked.length).toBe(BADGE_SERIES.length);
+    expect(locked.every((button) => button.getAttribute('aria-label')?.startsWith('Locked '))).toBe(true);
+    fireEvent.click(earned[0]);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
   it('badge-minis på panelen är dekorativa med en gemensam etikett', () => {
     render(<BadgesPreviewPage />);
     const group = screen.getByRole('img', { name: /^Badges: / });

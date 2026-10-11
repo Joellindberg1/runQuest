@@ -105,6 +105,95 @@ describe('väljaren (RUN-129, Council 17)', () => {
   });
 });
 
+describe('badges-sidans byggstenar (RUN-149, spec F9.9, F13.4)', () => {
+  const rules = [...badgesCss.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }));
+  const rule = (selector: string) => rules.find((candidate) => candidate.selector === selector);
+  /** Deklarationerna före (mobil) respektive efter (desktop) den första ≥ 1024 px-blocket i en temafil. */
+  const mobileOf = (css: string) => css.slice(0, css.indexOf('@media (min-width: 1024px)'));
+  const desktopOf = (css: string) => css.slice(css.indexOf('@media (min-width: 1024px)'));
+  const declaration = (css: string, token: string) => new RegExp(`^\\s*${token}:\\s*([^;]+);`, 'm').exec(css)?.[1].trim();
+
+  it('rutnätstokens: kortets minsta bredd 300 px mobil / 240 px desktop och glappet --rq-sp-8 / --rq-sp-12, ordagrant lika i båda temafilerna', () => {
+    for (const css of [indexCss, facitCss]) {
+      expect(declaration(mobileOf(css), '--rq-badge-page-card-min')).toBe('300px');
+      expect(declaration(desktopOf(css), '--rq-badge-page-card-min')).toBe('240px');
+      expect(declaration(mobileOf(css), '--rq-badge-page-gap')).toBe('var(--rq-sp-8)');
+      expect(declaration(desktopOf(css), '--rq-badge-page-gap')).toBe('var(--rq-sp-12)');
+    }
+  });
+
+  it('rutnätet är auto-fill med --rq-badge-page-card-min och glappet ur --rq-badge-page-gap (telefon 1 kolumn, 1440 fyra)', () => {
+    const grid = rule('.rq-badge-page-grid')?.body ?? '';
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(auto-fill, minmax\(min\(100%, var\(--rq-badge-page-card-min\)\), 1fr\)\)/);
+    expect(grid).toMatch(/gap:\s*var\(--rq-badge-page-gap\)/);
+  });
+
+  it('kortets områden: mobil "emblem who" / "emblem body", desktop "emblem who" / "body body", ordagrant lika i båda temafilerna och läst av kortet', () => {
+    for (const css of [indexCss, facitCss]) {
+      expect(declaration(mobileOf(css), '--rq-badge-card-areas')).toBe('"emblem who" "emblem body"');
+      expect(declaration(desktopOf(css), '--rq-badge-card-areas')).toBe('"emblem who" "body body"');
+    }
+    const card = rule('.rq-badge-card.rq-badge-card--landscape')?.body ?? '';
+    expect(card).toMatch(/grid-template-areas:\s*var\(--rq-badge-card-areas\)/);
+    expect(card).toMatch(/grid-template-columns:\s*auto minmax\(0, 1fr\)/);
+    expect(card).toMatch(/column-gap:\s*var\(--rq-sp-12\)/);
+    expect(card).toMatch(/padding:\s*var\(--rq-pad-card\)/);
+    for (const area of ['emblem', 'who', 'body']) expect(badgesCss, area).toMatch(new RegExp(`\\.rq-badge-card--landscape \\.rq-badge-card__${area}\\s*\\{[^}]*grid-area:\\s*${area}`));
+  });
+
+  it('popoverns bredd är --rq-badge-detail-w (280 px, samma i båda temafilerna) och läses av .rq-badge-detail', () => {
+    for (const css of [indexCss, facitCss]) expect(declaration(mobileOf(css), '--rq-badge-detail-w')).toBe('280px');
+    expect(rule('.rq-popover.rq-badge-detail')?.body).toMatch(/width:\s*var\(--rq-badge-detail-w\)/);
+  });
+
+  it('de nya tokens finns inte som egna kopior: temafilerna deklarerar dem exakt en gång per läge', () => {
+    for (const css of [indexCss, facitCss]) {
+      for (const token of ['--rq-badge-page-card-min', '--rq-badge-page-gap', '--rq-badge-card-areas']) expect(css.match(new RegExp(`^\\s*${token}:`, 'gm')), token).toHaveLength(2);
+      expect(css.match(/^\s*--rq-badge-detail-w:/gm)).toHaveLength(1);
+    }
+  });
+
+  it('växlaren: tryckytan är --rq-badge-pick-hit (mobil 44, desktop 24) i bredd och höjd; den dimmas bara som knapp (aria-disabled), aldrig kortet', () => {
+    const toggle = rule('.rq-badge-card .rq-badge-toggle')?.body ?? '';
+    expect(toggle).toMatch(/min-height:\s*var\(--rq-badge-pick-hit\)/);
+    expect(toggle).toMatch(/min-width:\s*var\(--rq-badge-pick-hit\)/);
+    const dimmed = rule('.rq-badge-card .rq-badge-toggle[aria-disabled="true"]:not([aria-pressed="true"])')?.body ?? '';
+    expect(dimmed).toMatch(/background:\s*var\(--rq-fill-1\)/);
+    expect(dimmed).toMatch(/border-color:\s*transparent/);
+    expect(dimmed).toMatch(/color:\s*var\(--rq-text-5\)/);
+    expect(dimmed).toMatch(/cursor:\s*not-allowed/);
+    // Kortet och texten dimmas aldrig: ingen opacity någonstans i badges.css, och inga regler på kortets egna selektorer sätter filter.
+    expect(badgesCss).not.toMatch(/opacity/);
+    expect(rules.filter(({ selector }) => /^\.rq-badge-card(\.|\[| *$)/.test(selector)).some(({ body }) => /filter|pointer-events/.test(body))).toBe(false);
+  });
+
+  it('växlaren vald = rollguld (tint/kant/text-tokens), inte en nivåfärg; vald behåller utseendet när den är aria-disabled (sparar)', () => {
+    const pressed = rule('.rq-badge-card .rq-badge-toggle[aria-pressed="true"]')?.body ?? '';
+    expect(pressed).toContain('rgb(var(--rq-gold-rgb) / var(--rq-tint-status))');
+    expect(pressed).toContain('rgb(var(--rq-gold-rgb) / var(--rq-edge-status))');
+    expect(pressed).toContain('var(--rq-gold-text)');
+    expect(pressed).not.toMatch(/--rq-badge-(common|uncommon|rare|heroic|epic|legendary)/);
+    expect(rule('.rq-badge-card .rq-badge-toggle[aria-disabled="true"]:not([aria-pressed="true"])')).toBeDefined();
+  });
+
+  it('valt kort: guldkant ur rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) via [data-display]; låst kort har streckad kant', () => {
+    expect(rule('.rq-badge-card.rq-badge-card--landscape[data-display="true"]')?.body).toContain('rgb(var(--rq-gold-rgb) / var(--rq-edge-soft))');
+    expect(rule('.rq-badge-card[data-state="locked"]')?.body).toMatch(/border-style:\s*dashed/);
+  });
+
+  it('desktop byter namn/chip/pips till en kolumn bredvid emblemet i ett min-width: 1024px-block (kortets områden styrs av token, inte av JS)', () => {
+    const desktop = mediaBodies(badgesCss, 'min-width: 1024px').join('\n');
+    expect(desktop).toMatch(/\.rq-badge-card--landscape \.rq-badge-card__who\s*\{[^}]*flex-direction:\s*column/);
+  });
+
+  it('emblemknappen har en tunn hover-ram (--rq-line-hover) utan egen ring, och popovern har ingen animation eller transition', () => {
+    expect(rule('.rq-badge-detail__trigger:hover')?.body).toContain('border-color: var(--rq-line-hover)');
+    expect(rule('.rq-badge-detail__trigger')?.body).not.toMatch(/outline|box-shadow/);
+    const detailCss = rules.filter(({ selector }) => /rq-badge-detail|rq-badge-toggle|rq-badge-page-grid|rq-badge-card--landscape|rq-badge-card__foot/.test(selector)).map(({ body }) => body).join('\n');
+    expect(detailCss).not.toMatch(/animation|transition/);
+  });
+});
+
 describe('BADGES-panelen på Runner card (T5)', () => {
   it('.rq-badge-panel* bor i badges.css och finns inte kvar i runner.css', () => {
     expect(runnerCss).not.toMatch(/rq-badge-panel/);

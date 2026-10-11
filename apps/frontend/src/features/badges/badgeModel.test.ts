@@ -3,7 +3,7 @@ import { BADGE_SERIES, MAX_SHOWCASE, MAX_TIER, TIER_NAMES, requirementText, tier
 import type { BadgeUserItem, BadgeUserResponse } from '@runquest/shared';
 import type { GroupBadges } from './api';
 import {
-  applySeen, applyShowcase, buildCollection, buildPopupQueue, buildRunnerBadges, cleanShowcase, dismissSeries, ownedSeriesOf, sameShowcase, skipAllSeries, toggleShowcase,
+  applySeen, applyShowcase, buildBadgeSummary, buildCollection, buildPopupQueue, buildRunnerBadges, cleanShowcase, dismissSeries, ownedSeriesOf, sameShowcase, skipAllSeries, toggleShowcase,
   type BadgeRow,
 } from './badgeModel';
 
@@ -352,5 +352,71 @@ describe('buildRunnerBadges — Runner card (spec F4)', () => {
     const { rows, showcase } = buildRunnerBadges(user([item('nonexistent', 3), item(s1, 9), item(s2, 2)], ['nonexistent', s1, s2]), undefined, others);
     expect(rows.map((row) => row.series)).toEqual([s2]);
     expect(showcase).toEqual([{ series: s2, tier: 2 }]);
+  });
+});
+
+describe('buildBadgeSummary — profilens kompakta sammanfattning (spec F10.3)', () => {
+  const collection = (items: BadgeUserItem[], showcase: string[] = []) => buildCollection(user(items, showcase), undefined, own);
+
+  it('intjänade sorteras på nivå, högst först; lika nivå i serieordning', () => {
+    const rows = collection([item(first.key, 3), item(second.key, 5), item(third.key, 3), item(fourth.key, MAX_TIER)]);
+    const { earned } = buildBadgeSummary(rows);
+    expect(earned.map((row) => row.series)).toEqual([fourth.key, second.key, first.key, third.key]);
+    expect(earned.map((row) => row.tier)).toEqual([MAX_TIER, 5, 3, 3]);
+  });
+
+  it('serieordningen kommer ur BADGE_SERIES, inte ur radernas ordning in', () => {
+    const rows = collection([item(first.key, 2), item(second.key, 2), item(third.key, 2)]);
+    const reversed = [...rows].reverse();
+    expect(buildBadgeSummary(reversed).earned.map((row) => row.series)).toEqual([first.key, second.key, third.key]);
+  });
+
+  it('visade badges sorteras inte först: det är nivån som gäller (designen sorterar på nivå)', () => {
+    const rows = collection([item(first.key, 1), item(second.key, 4)], [first.key]);
+    expect(buildBadgeSummary(rows).earned.map((row) => row.series)).toEqual([second.key, first.key]);
+  });
+
+  it('låsta ligger separat i serieordning och blandas aldrig med intjänade', () => {
+    const { earned, locked } = buildBadgeSummary(collection([item(second.key, 2)]));
+    expect(earned.map((row) => row.series)).toEqual([second.key]);
+    expect(locked.map((row) => row.series)).toEqual(keys.filter((key) => key !== second.key));
+    expect(locked.every((row) => !row.earned && row.tier === null)).toBe(true);
+  });
+
+  it('låsta i serieordning även när raderna kommer i omvänd ordning', () => {
+    const reversed = [...collection([])].reverse();
+    expect(buildBadgeSummary(reversed).locked.map((row) => row.series)).toEqual(keys);
+  });
+
+  it('räknarna: intjänade, låsta och totalt antal serier (ur raderna, inte en konstant)', () => {
+    const summary = buildBadgeSummary(collection([item(first.key, 1), item(third.key, 6)]));
+    expect(summary).toMatchObject({ earnedCount: 2, lockedCount: BADGE_SERIES.length - 2, total: BADGE_SERIES.length });
+    expect(summary.earnedCount + summary.lockedCount).toBe(summary.total);
+  });
+
+  it('inget intjänat: tom earned och alla låsta; inget svar alls ger samma; inga rader ger nollor', () => {
+    expect(buildBadgeSummary(collection([]))).toMatchObject({ earned: [], earnedCount: 0, lockedCount: BADGE_SERIES.length });
+    expect(buildBadgeSummary(buildCollection(undefined, undefined, own)).earned).toEqual([]);
+    expect(buildBadgeSummary([])).toEqual({ earned: [], locked: [], earnedCount: 0, lockedCount: 0, total: 0 });
+  });
+
+  it('allt intjänat: inga låsta (vyn utelämnar raden och hårlinjen)', () => {
+    const summary = buildBadgeSummary(collection(BADGE_SERIES.map((series) => item(series.key, 1))));
+    expect(summary.locked).toEqual([]);
+    expect(summary.lockedCount).toBe(0);
+    expect(summary.earned).toHaveLength(BADGE_SERIES.length);
+  });
+
+  it('raderna är samma objekt som ingick (inga kopior) och indata muteras inte', () => {
+    const rows = collection([item(first.key, 1), item(second.key, 4)]);
+    const before = rows.map((row) => row.series);
+    const { earned } = buildBadgeSummary(rows);
+    expect(rows.map((row) => row.series)).toEqual(before);
+    expect(earned[0]).toBe(rows.find((row) => row.series === second.key));
+  });
+
+  it('en rad per serie hamnar i exakt en av listorna', () => {
+    const summary = buildBadgeSummary(collection([item(first.key, 3), item(fourth.key, 1)]));
+    expect([...summary.earned, ...summary.locked].map((row) => row.series).sort()).toEqual([...keys].sort());
   });
 });
