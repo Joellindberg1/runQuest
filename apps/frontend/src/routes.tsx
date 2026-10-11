@@ -16,6 +16,7 @@ import EventsPage from '@/pages/EventsPage';
 import NewsPage from '@/pages/NewsPage';
 import LogPage from '@/pages/LogPage';
 import ProfilePage from '@/pages/ProfilePage';
+import BadgesPage from '@/pages/BadgesPage';
 import RunnerRoute from '@/pages/RunnerPage';
 import NotFound from '@/pages/NotFound';
 import LeaderboardPreviewPage from '@/pages/LeaderboardPreviewPage';
@@ -69,6 +70,7 @@ export const AppRoutes: React.FC = () => {
             <Route path={paths.news} element={<NewsPage />} />
             <Route path={paths.log} element={<LogPage />} />
             <Route path={paths.profile} element={<ProfilePage />} />
+            <Route path={paths.badges} element={<BadgesPage />} />
             <Route path={paths.runnerPattern} element={<RunnerRoute presentation="page" />} />
             <Route path={paths.playbook} element={<PlaybookPage />} />
             <Route path={paths.features} element={<FeaturesPage />} />

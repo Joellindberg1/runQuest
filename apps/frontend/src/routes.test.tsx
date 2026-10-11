@@ -31,7 +31,7 @@ beforeEach(() => {
 
 describe('varje route renderar utan krasch inne i skalet', () => {
   it.each([
-    '/board', '/titles', '/duels', '/events', '/news', '/log', '/profile',
+    '/board', '/titles', '/duels', '/events', '/news', '/log', '/profile', '/badges',
     '/runner/u-karl', '/playbook', '/settings', '/features',
   ])('%s', async (path) => {
     const { container } = renderWithApp(<AppRoutes />, { entry: path, width: MOBILE });
@@ -60,6 +60,19 @@ describe('varje route renderar utan krasch inne i skalet', () => {
     expect(await screen.findByRole('heading', { name: 'No news yet — go make some' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Log a run' }));
     await waitFor(() => expect(location()).toBe('/log'));
+  });
+
+  it('/badges renderar BadgesPage inne i skalet: rubriken, bottenbarens You-flik och (desktop) sidonavsraden är aktiva', async () => {
+    const mobile = renderWithApp(<AppRoutes />, { entry: '/badges', width: MOBILE });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Badges' })).toBeInTheDocument();
+    expect(mobile.container.querySelector('[data-shell="mobile"]')).not.toBeNull();
+    expect(mobile.container.querySelector('.rq-tabbar [aria-current="page"]')).toHaveTextContent('You');
+    mobile.unmount();
+
+    const desktop = renderWithApp(<AppRoutes />, { entry: '/badges', width: DESKTOP });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Badges' })).toBeInTheDocument();
+    expect(desktop.container.querySelector('[data-shell="desktop"]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Badges' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('/board visar The Standings med gruppens löpare (Season-vyn är default)', async () => {
@@ -116,6 +129,14 @@ describe('auth', () => {
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard', hidden: true })).toBeInTheDocument();
+  });
+
+  it('utloggad på /badges → /login?next=%2Fbadges: Landing med inloggningsdialogen öppen, inget skal (RUN-145)', async () => {
+    const { container } = renderWithApp(<AppRoutes />, { entry: '/badges', user: null, width: MOBILE });
+    await waitFor(() => expect(location()).toBe('/login?next=%2Fbadges'));
+    expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+    expect(container.querySelector('[data-shell]')).toBeNull();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Badges' })).toBeNull();
   });
 
   it('utloggad på / ser Landing (publik) — varken skalet eller login, och adressen står kvar', async () => {
