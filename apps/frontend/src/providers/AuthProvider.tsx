@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 import { ONBOARDING_QUERY_KEY } from '@/features/onboarding/hooks/useOnboarding';
-import { supabase } from '@/integrations/supabase/clientWithAuth';
 import { backendApi } from '@/shared/services/backendApi';
 import { log } from '@/shared/utils/logger';
 import { AuthContext } from '@/providers/authContext';
@@ -81,7 +80,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     backendApi.logout();
     clearUserCaches();
-    await supabase.auth.signOut();
     setUser(null);
   };
 

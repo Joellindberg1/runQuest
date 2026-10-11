@@ -15,7 +15,5 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     css: false,
-    // Dummy-env så att supabase-klienten kan konstrueras i tester (inga nätverksanrop görs).
-    env: { VITE_SUPABASE_URL: 'http://localhost:54321', VITE_SUPABASE_PUBLISHABLE_KEY: 'test-key' },
   },
 });

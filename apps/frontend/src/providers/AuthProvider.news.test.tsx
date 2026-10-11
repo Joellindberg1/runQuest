@@ -16,7 +16,6 @@ const api = vi.hoisted(() => ({
   onUnauthorized: undefined as undefined | (() => void),
 }));
 vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
-vi.mock('@/integrations/supabase/clientWithAuth', () => ({ supabase: { auth: { signOut: async () => undefined } } }));
 
 const FEED = { items: [{ ...levelUp(1, 5), is_unread: true }], meta: meta({ unread_count: 1 }) };
 const keys = [NEWS_QUERY_KEYS.feed(undefined), NEWS_QUERY_KEYS.feed('level_up')];
