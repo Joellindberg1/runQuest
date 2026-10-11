@@ -11,25 +11,28 @@ describe('kategorimappningen metric_key → grupp', () => {
     expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(24);
   });
 
-  // winterKm, stormRunCount och coldRunCount ligger tillfälligt i Other (RUN-100, RUN-99); RUN-101 flyttar dem till Weather och tömmer den här listan.
-  const TEMPORARILY_IN_OTHER: readonly string[] = ['winterKm', 'stormRunCount', 'coldRunCount'];
+  it.each(TITLE_ENGINE_METRIC_KEYS)('%s är mappad till en riktig kategori (inte Other)', (key) => {
+    const category = categoryOf(key);
+    expect(category).not.toBe('other');
+    expect(TITLE_CATEGORIES.map((def) => def.id)).toContain(category);
+  });
 
-  it.each(TITLE_ENGINE_METRIC_KEYS.filter((key) => !TEMPORARILY_IN_OTHER.includes(key)))(
-    '%s är mappad till en riktig kategori (inte Other)',
-    (key) => {
-      const category = categoryOf(key);
-      expect(category).not.toBe('other');
-      expect(TITLE_CATEGORIES.map((def) => def.id)).toContain(category);
-    },
-  );
+  it('inget mått i fixturen faller i Other', () => {
+    expect(TITLE_ENGINE_METRIC_KEYS.filter((key) => categoryOf(key) === 'other')).toEqual([]);
+  });
 
-  it('tillfälligt i Other: bara de uttryckligen listade, och de har en egen rad i mappningen', () => {
-    for (const key of TEMPORARILY_IN_OTHER) {
-      expect(categoryOf(key)).toBe('other');
-      expect(MAPPED_METRIC_KEYS).toContain(key);
-    }
-    const inOther = TITLE_ENGINE_METRIC_KEYS.filter((key) => categoryOf(key) === 'other');
-    expect([...inOther].sort()).toEqual([...TEMPORARILY_IN_OTHER].sort());
+  it('väder- och vintermåtten ligger i Weather med egna kortikoner', () => {
+    expect(['stormRunCount', 'coldRunCount', 'winterKm'].map((key) => [categoryOf(key), iconOf(key)])).toEqual([
+      ['weather', 'zap'],
+      ['weather', 'snow'],
+      ['weather', 'snow'],
+    ]);
+  });
+
+  it('Weather är en egen grupp med sol-ikon, efter Comeback och före Other', () => {
+    const ids = TITLE_CATEGORIES.map((def) => def.id);
+    expect(ids.slice(-3)).toEqual(['comeback', 'weather', 'other']);
+    expect(TITLE_CATEGORIES.find((def) => def.id === 'weather')).toEqual({ id: 'weather', label: 'Weather', icon: 'sun' });
   });
 
   it('en okänd nyckel faller i Other — en ny titel försvinner inte ur vyn', () => {
