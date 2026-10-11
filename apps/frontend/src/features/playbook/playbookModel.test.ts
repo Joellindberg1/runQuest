@@ -130,6 +130,28 @@ describe('Challenges, Events, Frodo', () => {
   });
 });
 
+describe('Titles — säsongstitlar (RUN-102)', () => {
+  const body = (): string => [chapter('titles').lead, ...chapter('titles').paras].join(' ');
+
+  it('Titles-kapitlet nämner att säsongstitlar byter säsong vid nästa omräkning efter 1 december, inte på kalenderdagen', () => {
+    expect(body()).toMatch(/winter — December to February/);
+    expect(body()).toMatch(/starts when the titles are next recalculated on or after 1 December/);
+    expect(body()).toMatch(/not on the calendar/);
+    expect(body()).toMatch(/last winter’s numbers stay on the board/);
+  });
+
+  it('säger vilka händelser som räknar om, och att vintern innan december är den som just slutade', () => {
+    expect(body()).toMatch(/logged, edited, deleted or synced from Strava/);
+    expect(body()).toMatch(/weather data for a run arriving late/);
+    expect(body()).toMatch(/the one that just ended/);
+  });
+
+  it('inga titelnamn hårdkodade i kapitlet (titellistan är DB-driven), och inget påstående om att bytet följer rundans eget datum', () => {
+    expect(body()).not.toMatch(/Winter Warrior/);
+    expect(body()).not.toMatch(/with the next logged run/);
+  });
+});
+
 describe('neighbours', () => {
   const chapters = buildChapters(RULES);
 

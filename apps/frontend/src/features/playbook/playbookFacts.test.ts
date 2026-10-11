@@ -78,6 +78,43 @@ describe('Run — minimidistans (routes/runs.ts, routes/strava.ts)', () => {
   });
 });
 
+describe('Titles — säsongstitlar och när titlarna räknas om (RUN-102)', () => {
+  it('vinterfönstret är 1 december–28/29 februari på Stockholm-datum: december räknar årets vinter, jan–nov den som började föregående december', () => {
+    const utils = backend('src/titleEngines/_utils.ts');
+    expect(utils).toContain('toStockholmDate(now.toISOString())');
+    expect(utils).toContain('const winterStartYear = month === 12 ? year : year - 1;');
+    expect(utils).toContain('start: `${winterStartYear}-12-01`, end: `${winterStartYear + 1}-03-01`');
+    expect(backend('src/titleEngines/winterKm.ts')).toContain('r.date >= start && r.date < end');
+    const titles = text('titles');
+    expect(titles).toMatch(/winter — December to February, by the date of each run/);
+    expect(titles).toMatch(/the one that just ended for the rest of the year, so nothing resets on 1 March/);
+  });
+
+  it('inget schema byter säsong: ingen scheduler räknar om titlar på datum, bara efter synk-/väderbackfill', () => {
+    for (const file of ['eventScheduler', 'streakScheduler', 'challengeScheduler']) {
+      expect(backend(`src/scheduler/${file}.ts`)).not.toMatch(/calculateUserTotals|processAllUsersTitles|EnhancedTitleService|enhancedTitleService/);
+    }
+    const sync = backend('src/scheduler/stravaSync.ts');
+    expect(sync).toMatch(/const savedWeather = await WeatherService\.backfillMissingWeather\(\);\s*if \(savedWeather > 0\) await recalculateTitlesAfterWeather\(savedWeather\);/);
+    expect(sync).toContain('processAllUsersTitles(undefined, { allGroups: true })');
+  });
+
+  it('omräkningen sker när en runda loggas, redigeras, raderas eller synkas från Strava (väder hämtas före omräkningen) — och använder omräkningens "nu", inte rundans datum', () => {
+    const runs = backend('src/routes/runs.ts');
+    expect(runs.match(/await calculateUserTotals\(userId\);/g)).toHaveLength(3); // POST, PUT, DELETE
+    const strava = backend('src/routes/strava.ts');
+    expect(strava).toMatch(/await WeatherService\.fetchAndSaveWeatherForRuns\(newRunData\);\s*await calculateUserTotals\(userId\);/);
+    const service = backend('src/services/enhancedTitleService.ts');
+    expect(service).toContain('const ctx: TitleContext = { now: new Date() };');
+    expect(backend('src/utils/calculateUserTotals.ts')).toContain('await titleService.processAllUsersTitles(userGroupId);');
+    const titles = text('titles');
+    expect(titles).toMatch(/starts when the titles are next recalculated on or after 1 December/);
+    expect(titles).toMatch(/not on the calendar/);
+    expect(titles).toMatch(/logged, edited, deleted or synced from Strava/);
+    expect(titles).toMatch(/weather data for a run arriving late/);
+  });
+});
+
 describe('Challenges — token lottas vid nivåuppgång, inte vid sändning', () => {
   it('backend lottar tier-mått, längd och insats när token delas ut', () => {
     const service = backend('src/services/challengeService.ts');
