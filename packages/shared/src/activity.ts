@@ -3,7 +3,7 @@
 // Loggen OBSERVERAR spelet: ingenting här ändrar XP-/titel-/utmaningsregler.
 //
 // Typlistan har EN källa — ACTIVITY_TYPES. CHECK-listan i den senaste migrationen som definierar
-// activity_log_type_check (034, utökad av 036) måste vara identisk
+// activity_log_type_check (034, utökad av 036 och 041) måste vara identisk
 // (statiskt test i backend: activityLogMigration.test.ts).
 
 export const ACTIVITY_TYPES = [
@@ -19,6 +19,7 @@ export const ACTIVITY_TYPES = [
   'event_open',
   'event_closed',
   'badge_earned',
+  'release_published',
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -135,6 +136,15 @@ export interface BadgeEarnedPayload {
   previous_tier: number | null;
 }
 
+/**
+ * En release annonseras i Pack News (RUN-161). Systemhändelse som event_open: ingen aktör, ingen target. `version` = X.Y.Z
+ * ur changelog.json, `title` = releasens rubrik. Skrivs ALDRIG av appen/servern — bara av skriptet announce:release.
+ */
+export interface ReleasePublishedPayload {
+  version: string;
+  title: string;
+}
+
 export interface ActivityPayloadMap {
   title_unlocked: TitleUnlockedPayload;
   title_taken: TitleTakenPayload;
@@ -148,6 +158,7 @@ export interface ActivityPayloadMap {
   event_open: EventOpenPayload;
   event_closed: EventClosedPayload;
   badge_earned: BadgeEarnedPayload;
+  release_published: ReleasePublishedPayload;
 }
 
 export type ActivityPayload<T extends ActivityType = ActivityType> = ActivityPayloadMap[T];
@@ -189,6 +200,8 @@ export const activityKeys = {
   eventClosed: (eventId: string) => `event_closed:${eventId}`,
   /** Första gången tiern nås (som level_up) — en nedgradering och ny uppnåelse ger inte en andra rad för samma tier. */
   badgeEarned: (userId: string, series: string, tier: number) => `badge_earned:${userId}:${series}:${tier}`,
+  /** En rad per grupp och version — omkörning av announce:release ger ingen andra rad. */
+  releasePublished: (groupId: string, version: string) => `release_published:${groupId}:${version}`,
   /**
    * `day` = Stockholm-kalenderdag (YYYY-MM-DD). Dagen i title_*-nycklarna gör att en legitim upprepning (titeln
    * tappas, vinns tillbaka med samma värde) en annan dag inte tystas; samma byte som upptäcks två gånger
@@ -441,6 +454,18 @@ export function buildBadgeEarnedDraft(
     type: 'badge_earned', group_id: groupId, actor_user_id: userId, target_user_id: null,
     payload: { series, tier, previous_tier: previousTier }, payload_version: ACTIVITY_PAYLOAD_VERSION,
     dedupe_key: activityKeys.badgeEarned(userId, series, tier), occurred_at: occurredAt, is_backfill: isBackfill,
+  };
+}
+
+/**
+ * En release annonseras i en grupp (RUN-161). Systemhändelse: ingen aktör, ingen target, aldrig backfill. Gruppen anges av
+ * anroparen (skriptet går igenom alla grupper). Payloaden är bara fakta: version och rubrik.
+ */
+export function buildReleasePublishedDraft(groupId: string, version: string, title: string, occurredAt: string): ActivityDraft {
+  return {
+    type: 'release_published', group_id: groupId, actor_user_id: null, target_user_id: null,
+    payload: { version, title }, payload_version: ACTIVITY_PAYLOAD_VERSION,
+    dedupe_key: activityKeys.releasePublished(groupId, version), occurred_at: occurredAt, is_backfill: false,
   };
 }
 
