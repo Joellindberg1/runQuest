@@ -118,7 +118,6 @@ const METRIC_UNITS: Record<string, string> = {
   total_distance_km: 'km',
   total_elevation_m: 'm',
   longest_streak_days: 'days',
-  exact_classic_distances: 'distances',
 };
 
 const formatNumber = (n: number): string => n.toLocaleString('en-US', { maximumFractionDigits: 2 });

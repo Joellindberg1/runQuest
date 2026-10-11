@@ -47,7 +47,7 @@ async function badgesOf(db: ReturnType<typeof setup>, userId = USER): Promise<Ro
 
 const run = (over: Row = {}): Row => ({
   id: 'r1', user_id: USER, date: '2026-10-01', distance: 3, xp_gained: 10,
-  start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false,
+  start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false, source: 'manual',
   ...over,
 });
 
@@ -93,7 +93,7 @@ describe('evaluateBadges — läsning (T2)', () => {
 
     const q = db.queries.find((x) => x.table === 'runs')!;
     expect(q.filters).toContainEqual({ op: 'eq', column: 'user_id', value: USER });
-    expect(q.select).toMatch(/\bid\b.*\bdate\b.*\bdistance\b.*\bstart_time\b.*\bmoving_time\b.*\btotal_elevation_gain\b.*\bis_treadmill\b/);
+    expect(q.select).toMatch(/\bid\b.*\bdate\b.*\bdistance\b.*\bstart_time\b.*\bmoving_time\b.*\btotal_elevation_gain\b.*\bis_treadmill\b.*\bsource\b/);
     const rows = await badgesOf(db);
     expect(rows.find((b) => b.series === 'milestoner')).toMatchObject({ tier: 1 }); // 5 km, inte den andres 50 km
   });
@@ -105,6 +105,25 @@ describe('evaluateBadges — läsning (T2)', () => {
     await evaluateBadges(USER, { now: NOW });
 
     expect((await badgesOf(db)).find((b) => b.series === 'early_bird')).toMatchObject({ tier: 1 });
+  });
+
+  it('T3: runs.source läses: fem Strava-rundor på hel km ger Precisionist tier 1, fem manuella ger ingen rad', async () => {
+    const stravaRuns = [1, 2, 3, 4, 5].map((d) => run({ id: `s${d}`, date: `2026-10-0${d}`, distance: 4, source: 'strava' }));
+    const strava = setup({ runs: stravaRuns });
+    await evaluateBadges(USER, { now: NOW });
+    expect((await badgesOf(strava)).find((b) => b.series === 'precisionist')).toMatchObject({ tier: 1 });
+
+    const manualRuns = [1, 2, 3, 4, 5].map((d) => run({ id: `m${d}`, date: `2026-10-0${d}`, distance: 4, source: 'manual' }));
+    const manual = setup({ runs: manualRuns });
+    await evaluateBadges(USER, { now: NOW });
+    expect((await badgesOf(manual)).find((b) => b.series === 'precisionist')).toBeUndefined();
+  });
+
+  it('T3: en rad utan source (null) behandlas som manuell och räknas inte i Precisionist', async () => {
+    const runs = [1, 2, 3, 4, 5].map((d) => run({ id: `n${d}`, date: `2026-10-0${d}`, distance: 4, source: null }));
+    const db = setup({ runs });
+    await evaluateBadges(USER, { now: NOW });
+    expect((await badgesOf(db)).find((b) => b.series === 'precisionist')).toBeUndefined();
   });
 
   it('numeric-kolumner som strängar tolkas som tal (distance "5.00", höjd "500.0")', async () => {
@@ -122,7 +141,7 @@ describe('evaluateBadges — läsning (T2)', () => {
 
     await evaluateBadges(USER, { longestStreak: 7, now: NOW });
 
-    expect((await badgesOf(db)).find((b) => b.series === 'streak_keeper')).toMatchObject({ tier: 2 });
+    expect((await badgesOf(db)).find((b) => b.series === 'streak_keeper')).toMatchObject({ tier: 1 });
     expect(db.queries.some((q) => q.table === 'users' && q.select?.includes('longest_streak'))).toBe(false);
   });
 
@@ -134,7 +153,7 @@ describe('evaluateBadges — läsning (T2)', () => {
 
     await evaluateBadges(USER, { now: NOW });
 
-    expect((await badgesOf(db)).find((b) => b.series === 'streak_keeper')).toMatchObject({ tier: 3 });
+    expect((await badgesOf(db)).find((b) => b.series === 'streak_keeper')).toMatchObject({ tier: 2 });
   });
 });
 

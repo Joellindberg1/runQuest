@@ -41,7 +41,7 @@ afterEach(() => errorSpy.mockRestore());
 
 const run = (over: Row = {}): Row => ({
   id: 'r1', user_id: 'anna', date: '2026-09-01', distance: 3, xp_gained: 10,
-  start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false,
+  start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false, source: 'manual',
   ...over,
 });
 
@@ -52,8 +52,8 @@ const badge = (over: Row = {}): Row => ({
 });
 
 /**
- * Anna (grupp A): 12 km + 5 km på 25:00, svit 7 → milestoner 2 (Uncommon), speedster 2 (Uncommon), streak_keeper 2.
- * Bosse (grupp B): 6 km, svit 3 → milestoner 1 (Common), streak_keeper 1.
+ * Anna (grupp A): 12 km + 5 km på 25:00, svit 7 → milestoner 2 (Uncommon), speedster 2 (Uncommon), streak_keeper 1.
+ * Bosse (grupp B): 6 km, svit 3 → milestoner 1 (Common), ingen streak_keeper (kräver 7 dagar).
  */
 function world(extra: Record<string, Row[]> = {}): Record<string, Row[]> {
   return {
@@ -110,8 +110,8 @@ describe('parseArgs', () => {
 describe('describeNextTier', () => {
   const series = (key: string) => BADGE_SERIES.find((s) => s.key === key)!;
   const runs: BadgeRun[] = [
-    { id: 'a', date: '2026-09-01', distance_km: 12, start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false },
-    { id: 'b', date: '2026-09-02', distance_km: 5, start_time: null, moving_time: 1500, total_elevation_gain: null, is_treadmill: false },
+    { id: 'a', date: '2026-09-01', distance_km: 12, start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false, source: 'manual' },
+    { id: 'b', date: '2026-09-02', distance_km: 5, start_time: null, moving_time: 1500, total_elevation_gain: null, is_treadmill: false, source: 'manual' },
   ];
 
   it('mått och tröskel i naturlig enhet mot nästa tiers egen regel', () => {
@@ -134,14 +134,24 @@ describe('describeNextTier', () => {
     expect(describeNextTier(series('streak_keeper'), 6, runs, { longest_streak: 200 })).toBeNull();
   });
 
-  it('Early Bird tier 5 mäts på det smalare fönstret (nästa tiers egna regel)', () => {
+  it('Early Bird: samma fönster i alla nivåer, så 100 starter 06:30 är 100 / 200 mot tier 5', () => {
     const early = Array.from({ length: 100 }, (_, i): BadgeRun => ({
       id: `e${i}`, date: '2026-01-01', distance_km: 3, start_time: '2026-01-01T06:30:00Z',
-      moving_time: null, total_elevation_gain: null, is_treadmill: false,
+      moving_time: null, total_elevation_gain: null, is_treadmill: false, source: 'manual',
     }));
-    // 100 starter 06:30 => tier 4 (04–07-fönstret); tier 5 kräver 50 starter 04–06 => 0 / 50
     const next = describeNextTier(series('early_bird'), 4, early, { longest_streak: 0 });
-    expect(next).toMatchObject({ tier: 5, tierName: 'Epic', measured: '0 runs', threshold: '50 runs', percent: 0 });
+    expect(next).toMatchObject({ tier: 5, tierName: 'Epic', measured: '100 runs', threshold: '200 runs', percent: 50 });
+  });
+
+  it('Precisionist räknar bara Strava: 3 av 5 Strava-rundor på hel km ger 3 / 5, manuella ger 0 / 5', () => {
+    const exact = (source: 'manual' | 'strava', i: number): BadgeRun => ({
+      id: `x${source}${i}`, date: '2026-01-01', distance_km: 5, start_time: null,
+      moving_time: null, total_elevation_gain: null, is_treadmill: false, source,
+    });
+    const strava = [0, 1, 2].map((i) => exact('strava', i));
+    const manual = [0, 1, 2, 3, 4, 5].map((i) => exact('manual', i));
+    const next = describeNextTier(series('precisionist'), 0, [...strava, ...manual], { longest_streak: 0 });
+    expect(next).toMatchObject({ tier: 1, measured: '3 runs', threshold: '5 runs', percent: 60 });
   });
 });
 
@@ -215,9 +225,9 @@ describe('dry-run (T1)', () => {
     const text = formatReport(report);
 
     const anna = report.users.find((u) => u.name === 'Anna')!;
-    expect(anna.tiers).toMatchObject({ milestoner: 2, speedster: 2, streak_keeper: 2, earth_trotter: 0 });
+    expect(anna.tiers).toMatchObject({ milestoner: 2, speedster: 2, streak_keeper: 1, earth_trotter: 0 });
     expect(text).toMatch(/DRY-RUN \(nothing is written\)/);
-    expect(text).toMatch(/Anna\s+Uncommon \(2\)\s+-\s+-\s+Uncommon \(2\)/); // Milestoner, Earth Trotter, Climber, Streak Keeper
+    expect(text).toMatch(/Anna\s+Uncommon \(2\)\s+-\s+-\s+Common \(1\)/); // Milestoner, Earth Trotter, Climber, Streak Keeper
     expect(text).toMatch(/Bosse\s+Common \(1\)/);
     for (const s of BADGE_SERIES) expect(text).toContain(s.name);
   });
@@ -286,11 +296,10 @@ describe('--apply (T2)', () => {
     expect(anna.map((b) => [b.series, b.tier, b.seen_tier])).toEqual([
       ['milestoner', 2, 2],
       ['speedster', 2, 2],
-      ['streak_keeper', 2, 2],
+      ['streak_keeper', 1, 1],
     ]);
     expect(badgesOf(tables, 'bosse').map((b) => [b.series, b.tier, b.seen_tier])).toEqual([
       ['milestoner', 1, 1],
-      ['streak_keeper', 1, 1],
     ]);
     expect(tables.activity_log).toEqual([]);
     expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
@@ -501,8 +510,8 @@ describe('--series, --group och stora användare (T4)', () => {
     const report = await runBackfillBadges(opts(), NOW);
     const expected = computeBadgeTiers(
       [
-        { id: 'r1', date: '2026-09-01', distance_km: 12, start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false },
-        { id: 'r2', date: '2026-09-02', distance_km: 5, start_time: null, moving_time: 1500, total_elevation_gain: null, is_treadmill: false },
+        { id: 'r1', date: '2026-09-01', distance_km: 12, start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false, source: 'manual' },
+        { id: 'r2', date: '2026-09-02', distance_km: 5, start_time: null, moving_time: 1500, total_elevation_gain: null, is_treadmill: false, source: 'manual' },
       ],
       { longest_streak: 7 },
     );

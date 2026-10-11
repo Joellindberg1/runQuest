@@ -333,6 +333,7 @@ describe('diffBadgeTiers — kombinationer och robusthet (T1)', () => {
           moving_time: null,
           total_elevation_gain: null,
           is_treadmill: false,
+          source: 'manual',
         },
       ],
       { longest_streak: 0 }

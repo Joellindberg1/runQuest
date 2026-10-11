@@ -28,7 +28,7 @@ describe('flöde 9: calculateUserTotals → user_badges (riktig evaluateBadges)'
       activity_log: [],
       user_badges: [],
       users: [{ id: 'u1', group_id: 'g1', event_xp: 0, current_level: 1, total_km: 0, total_xp: 0, current_streak: 0, longest_streak: 0, displayed_badge_series: [] }],
-      runs: [{ id: 'r1', user_id: 'u1', date: '2020-01-01', distance: 5, xp_gained: 10, start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false }],
+      runs: [{ id: 'r1', user_id: 'u1', date: '2020-01-01', distance: 5, xp_gained: 10, start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false, source: 'manual' }],
     };
     const db = createFakeDb(t, { numericIds: ['activity_log'] });
     vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
