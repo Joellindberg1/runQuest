@@ -170,8 +170,10 @@ describe('badges.css: rörelsen (ägarbeslut E1+E2, Rörelse-undantaget i STATE.
   });
 
   it('ingen loop: inget infinite, och andningens antal kommer ur --rq-badge-breathe-count (3)', () => {
-    // Emblemets rörelse loopar aldrig. Undantaget är samlingens skelett (F8, .rq-badge-skel): en laddare som pulserar tills datan kommer, inte emblemrörelse.
-    expect(ruleBlocks.filter((block) => !block.selector.includes('.rq-badge-skel')).map((block) => block.body).join('\n')).not.toMatch(/infinite/);
+    // Emblemets rörelse loopar aldrig. Undantaget är samlingens skelett (F8): en laddare som pulserar tills datan kommer, inte emblemrörelse.
+    // Undantaget gäller bara regler där VARJE selektor börjar med .rq-badge-skel (inte en substring någon annanstans i selektorn).
+    const isSkeletonRule = (block: CssBlock) => block.selector.split(',').every((part) => part.trim().startsWith('.rq-badge-skel'));
+    expect(ruleBlocks.filter((block) => !isSkeletonRule(block)).map((block) => block.body).join('\n')).not.toMatch(/infinite/);
     const breathing = ruleBlocks.filter((block) => /rqBadgeGlow/.test(block.body));
     expect(breathing.length).toBeGreaterThan(0);
     for (const block of breathing) expect(block.body).toContain('var(--rq-badge-breathe-count)');

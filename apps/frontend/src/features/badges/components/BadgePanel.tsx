@@ -4,7 +4,7 @@ import { RQIcon } from '@/shared/components/icons';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
 import type { BadgeRow } from '../badgeModel';
 import { BadgeEmblem } from './BadgeEmblem';
-import { tierKey } from './badgeTier';
+import { BadgeChip } from './BadgeChip';
 
 const LOADER_SIZE = 40;
 /** Panelrubrikens shield: --rq-icon-md (17 px, Council 7). */
@@ -51,7 +51,7 @@ export function BadgePanel({ rows, loading = false, error }: BadgePanelProps) {
               </div>
               {row.heldBy && <span className="rq-badge-panel__held">{row.heldBy}</span>}
             </div>
-            <span className="rq-chip rq-chip--status rq-badge-chip" data-tier={tierKey(row.tier)}>{row.tierName}</span>
+            <BadgeChip tier={row.tier} />
           </li>
         ))}
       </ul>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BadgeEmblem } from '@/features/badges/components/BadgeEmblem';
 import { paths } from '@/paths';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
@@ -49,8 +50,11 @@ export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPane
     body = (
       <ul className="rq-news-pop__list" aria-label="Latest news">
         {rows.map((row) => (
-          <li key={row.id} className="rq-news-pop__row" data-category={row.category} data-tone={row.tone} data-unread={row.unread || undefined}>
-            <span className="rq-dot rq-news-pop__dot" aria-hidden="true" />
+          <li key={row.id} className="rq-news-pop__row" data-category={row.category} data-tone={row.tone} data-unread={row.unread || undefined} data-emblem={row.emblem ? '' : undefined}>
+            {/* badge_earned (F7): sm-emblemet i stället för pricken, aria-hidden (typraden och texten bär betydelsen, Council 23). */}
+            {row.emblem
+              ? <span className="rq-news-pop__emblem"><BadgeEmblem series={row.emblem.series} tier={row.emblem.tier} size="sm" decorative /></span>
+              : <span className="rq-dot rq-news-pop__dot" aria-hidden="true" />}
             <div>
               <div className="rq-news-pop__meta">
                 <span>

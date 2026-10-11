@@ -128,6 +128,9 @@
 }
 .rq-news-pop__row[data-unread] { background: var(--rq-unread-bg); }
 .rq-news-pop__dot { margin-top: var(--rq-sp-6); color: var(--rq-c-solid); }
+/* badge_earned: ett sm-emblem i stället för pricken; samma kolumnbredd som flödesraden (--rq-news-row-icon-badge-w). Övriga rader är oförändrade. */
+.rq-news-pop__row[data-emblem] { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr); }
+.rq-news-pop__emblem { display: inline-flex; align-self: start; }
 .rq-news-pop__meta { display: flex; justify-content: space-between; gap: var(--rq-sp-10); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-c-solid); }
 .rq-news-pop__time { color: var(--rq-text-4); white-space: nowrap; }
 .rq-news-pop__text { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }

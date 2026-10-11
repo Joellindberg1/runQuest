@@ -82,7 +82,7 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
   Barlow Condensed, `--rq-fs-body` = första typsteget ≥ 14 px), "Next: …" (`--rq-text-3`) eller på maxad serie guld "TOP TIER REACHED", held-by (11 px mono, `--rq-text-4`). Låst: streckad kant, Locked-chip, dekorativa tomma pips, måttetiketten,
   "Unlock: Common — …"; aldrig flavor, Next eller held-by (Council 1) — och kravtexten står en gång. Alla texter kommer färdiga ur modellen; kortet skriver aldrig en platshållare.
 - **components/BadgeChip.tsx** — nivå-chippet: intjänat = `.rq-chip .rq-chip--status .rq-badge-chip` + `data-tier`; **låst = bara `.rq-chip`** ("Locked", text `--rq-text-4`). Chip-logiken bor på ETT ställe och har test.
-  (`BadgePanel` har fortfarande sin egen chip-rad för intjänade serier; den kan byta till `BadgeChip` utan beteendeändring.)
+  `BadgePanel` (Runner card) använder samma `BadgeChip` — det finns en enda källa för chippet.
 - **Kortet är lodrätt på alla bredder.** Designens desktopkort (emblem till vänster, namn + chip till höger) förutsätter ca 200 px breda kort; i skalet (sidonav 250 + sidokolumn 340) blir fyra kolumner ca 145 px vid 1280 och
   ca 180 px vid 1440, där chippet (LEGENDARY) inte ryms bredvid emblemet. Mobil 2 kolumner, desktop 4 (`--rq-badge-grid-cols`, 1.34 i båda temafilerna). Se `docs/open-assumptions.md`.
 - **Tillstånd (F8):** laddar → tre skelettkort (`.rq-badge-skel`, sköldblock `--rq-badge-w/h-md` + tre streck; `rqSkel` i `--rq-dur-badge-skel` 1.6 s, stagger `--rq-badge-skel-stagger` .2 s via `:nth-child`, inuti `prefers-reduced-motion: no-preference` —
