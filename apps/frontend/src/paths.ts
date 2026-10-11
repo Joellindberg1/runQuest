@@ -1,5 +1,8 @@
 // Alla route-paths på ett ställe (ADR 006 beslut 2). Inga path-strängar i komponenter.
 export const paths = {
+  /** Landing för utloggade (ADR 006 beslut 1). */
+  landing: '/',
+  /** Landing med inloggningsdialogen öppen (ADR 006 beslut 1, addendum 2026-10-11): adressen speglar att dialogen är öppen. */
   login: '/login',
   board: '/board',
   titles: '/titles',
@@ -8,6 +11,7 @@ export const paths = {
   news: '/news',
   log: '/log',
   profile: '/profile',
+  badges: '/badges',
   runnerPattern: '/runner/:id',
   runner: (id: string) => `/runner/${encodeURIComponent(id)}`,
   playbook: '/playbook',
@@ -16,6 +20,7 @@ export const paths = {
   admin: '/admin',
   previewBoard: '/preview',
   previewDuels: '/preview/challenges',
+  previewBadges: '/preview/badges',
   /** Gamla adressen som redirectas till `duels` (ADR 006 beslut 7). */
   legacyChallenges: '/challenges',
 } as const;
@@ -37,5 +42,14 @@ export const duelsSendPath = (opponentId?: string): string => {
   if (opponentId) params.set(OPPONENT_PARAM, opponentId);
   return `${paths.duels}?${params.toString()}`;
 };
+
+/**
+ * Router-state som Landingens Sign in-länk skickar med till `/login`: dialogen öppnades ovanpå Landing, som ligger ett
+ * steg bakåt i historiken. Då är stängning = Back (adressen och historiken stämmer); utan flaggan (direktladdad
+ * `/login`, redirect från RequireAuth) ersätts adressen med `/`.
+ */
+export const FROM_LANDING_STATE = { fromLanding: true } as const;
+
+export const isFromLanding = (state: unknown): boolean => (state as { fromLanding?: unknown } | null)?.fromLanding === true;
 
 export const DEFAULT_LANDING_PATH = paths.board;

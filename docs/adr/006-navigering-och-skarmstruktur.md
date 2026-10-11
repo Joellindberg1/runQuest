@@ -61,7 +61,7 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
    `<Outlet/>`) → sidor. Skalet monteras EN gång och överlever routebyten;
    gruppnamn, "Right now"-data och olästa news hämtas i skalet, inte i sidorna.
    Utloggat träd: `/` = Landing (inkrement 10; tills dess `LoginPage`),
-   `/login` = `LoginPage`, `/preview*` oförändrat tills respektive
+   `/login` = `LoginPage` (ersatt 2026-10-11: Landing + inloggningsdialog, se addendum), `/preview*` oförändrat tills respektive
    preview-sida raderas (flaggad som skuld: de är gamla designskisser).
 2. **Routetabell** (paths definieras en gång i `src/paths.ts`, t.ex.
    `paths.runner(id)`; inga path-strängar utspridda):
@@ -113,7 +113,7 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
    - **Avatarmeny:** mobil: Playbook · Feature & Version · Settings · Admin
      (endast admin) · Log out. Desktop: Settings · Admin (endast admin) ·
      Log out (Playbook/Feature & Version ligger i sidnavigeringen). Log out
-     anropar `logout()` och går till `/login`. Notifikationsinställningarna i
+     anropar `logout()` och går till `/login` (ändrat 2026-10-11: går till `/`, se addendum). Notifikationsinställningarna i
      Web Prototype ("Settings → Notifications") byggs INTE nu (ägarbeslut 5:
      news är display-only; inställningar hör till den framtida notis-/
      realtids-ADR:n).
@@ -306,3 +306,16 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
   gruppnamnet finns redan i designen) och kan kräva `/g/:groupId`-prefix.
 - Landing-inkrementet (10) blir publik/SEO-relevant → server-/statisk
   rendering av `/` omprövas.
+
+## Addendum 2026-10-11 (RUN-145, ägarbeslut): login som popup, utloggning till Landing
+Ändrar beslut 1 (utloggat träd) och avatarmenyns "Log out" (beslut 4). Resten av ADR:n gäller oförändrad.
+
+1. **Login är en dialog över Landing, inte en egen sida.** `LoginPage` är borta. `/login` renderar samma `Index`-element som `/` (Landing) med `LoginDialog` (`features/auth`, Radix Dialog + skalets `.rq-modal`/`.rq-scrim`) monterad ovanpå. Båda routerna renderar samma komponent på samma plats i trädet, så Landing ommonteras inte när dialogen öppnas eller stängs.
+2. **Adressen speglar läget: `/login` (inte `?login=1`).** Skälen: (a) `/login?next=<path>` finns redan som kontrakt (RequireAuth, befintliga länkar, rök-testet i Konsekvenser) och behöver inte byta form; (b) ett sökparameter-läge hade krävt att `next` och flaggan samexisterar i samma query på `/`, där gamla `?tab=`-adresser redan tolkas; (c) en egen path gör Back-semantiken entydig. Sign in-knappen är en vanlig `<Link>` med router-state (`FROM_LANDING_STATE`): knappen pushar `/login`, så Back stänger dialogen; ✕/Esc/scrim gör samma sak (ett steg bakåt när dialogen öppnades från Landing, annars `replace` till `/`, och `next` släpps).
+3. **Djuplänkar och skyddade sidor.** `/login` och `/login?next=/titles` ger Landing med dialogen öppen; efter inloggning går man till `next` (`resolveNextPath`, bara interna adresser, aldrig en öppen redirect — oförändrat). `RequireAuth` skickar fortfarande utloggade på en skyddad route till `/login?next=<path>`, som nu alltså betyder Landing + dialog + bevarad `next`.
+4. **"Log out" → `/`, utan dialog och utan `next`.** AvatarMenu navigerar (`replace`) till `/` i samma händelse som `logout()`; de batchas till en rendering, så `RequireAuth` hinner aldrig skicka till `/login?next=`. Ordningen mellan de två anropen spelar ingen roll; kravet är att `logout()` nollställer användaren synkront i samma händelse (inget `setTimeout`, ingen `await` före `setUser`). Annars hinner en rendering emellan med användaren kvar på `/` (Index → `/board`) eller adressen kvar på den skyddade sidan (RequireAuth → `/login?next=`). `App.logout.test.tsx` faller om `logout()` skjuts upp eller görs asynkront före `setUser` (verifierat med mutationer).
+5. **401 mitt i sessionen → `/login?next=<sidan>` (Landing med dialogen öppen).** Valt framför "Landing utan dialog": användaren fick sin session avbruten mot sin vilja och ska komma tillbaka dit hen var. Det är samma väg som RequireAuth redan tog (`onUnauthorized` nollställer användaren; RUN-143:s `queryClient.clear()` är oförändrad). Ingen loop: `clear()` startar ingen omhämtning, och den utloggade vyn gör inga anrop.
+6. **Gränsen mot "Landing gör inga anrop" (ägarbeslut 4).** Landing-FEATUREN (`features/landing`) är oförändrat publik: inga anrop, ingen `useAuth`, ingen import ur `features/auth` (vaktat i `guards.test.ts`). Den enda kopplingen är att Sign in-länken navigerar. Dialogen, som anropar `AuthProvider.login`, monteras av sidan (`pages/Index`), inte av featuren. Utloggad gör `/` och `/login` därmed fortfarande inga backend-anrop förrän man skickar in formuläret.
+8. **`next` mot kontrolltecken.** `resolveNextPath` avvisar alla kontrolltecken (U+0000–U+001F, U+007F) och kräver att adressen tolkas till samma origin som sidan (`new URL(next, origin).origin`); fallback `/board`. Webbläsarens URL-tolkning tar bort tab/LF/CR, så `/<tab>/evil.com` blev `//evil.com` och gav SecurityError i `replaceState` (vit skärm). Testat i `legacyRedirects.test.ts` och genom riktig `<App/>` (`App.login.test.tsx`).
+9. **Dialogen går alltid att lämna.** ✕, Esc, scrim och Back fungerar även under pågående inloggning (`backendApi.login` har ingen timeout, så en spärr hade gett en död ✕ utan signal). Försöket avbryts då (`AbortSignal` från `useLoginForm` till `AuthProvider.login`): ett svar som kommer efter att dialogen lämnats kastas — token rensas, ingen användare sätts, ingen cache rensas, inget fel visas — så Landing står kvar och ingen navigering till `/board` sker mot användarens vilja.
+10. **Designspråk.** EN guldknapp per vy: i dialogen är "Sign In" den enda aktiva (Landings knapp ligger bakom scrimmen, mörkad och dold för hjälpmedel). Måttet `--rq-login-w` återanvänds; `--rq-login-logo-w` och `--rq-login-glow-*` är borttagna ur temafilen (logotypen och gloden finns på Landing bakom dialogen).

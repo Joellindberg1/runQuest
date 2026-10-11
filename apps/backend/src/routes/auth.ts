@@ -372,7 +372,7 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
     logger.info(`🔄 Recalculating totals for user ${userId}...`);
     
     const { calculateUserTotals } = await import('../utils/calculateUserTotals.js');
-    await calculateUserTotals(userId, req.user!.group_id);
+    await calculateUserTotals(userId);
     
     res.json({
       success: true,

@@ -101,6 +101,34 @@ describe('Board-filerna följer designspråket', () => {
   });
 });
 
+describe('podiets minis och vimpeln (RUN-147, spec F12/F13)', () => {
+  const [, css] = cssFiles.find(([path]) => path.endsWith('board.css'))!;
+
+  it('podiets minis är högerställda via --rq-board-minis-inset (28 px mobil, 46 px desktop), identiskt i båda temafilerna', () => {
+    expect(css).toMatch(/\.rq-board-podium \.rq-badge-minis\s*\{[^}]*margin-left:\s*auto;[^}]*margin-right:\s*var\(--rq-board-minis-inset\)/);
+    for (const file of ['src/index.css', '../../docs/design/temafil-forslag.css']) {
+      const text = readFileSync(resolve(process.cwd(), file), 'utf8');
+      const declarations = [...text.matchAll(/^\s*--rq-board-minis-inset:\s*([^;]+);/gm)].map((m) => m[1]);
+      expect({ file, declarations }).toEqual({ file, declarations: ['28px', '46px'] });
+      // desktopvärdet ligger i min-width: 1024px-blocket, efter mobilvärdet
+      const desktopBlock = text.slice(text.indexOf('@media (min-width: 1024px)'));
+      expect(desktopBlock).toMatch(/--rq-board-minis-inset:\s*46px/);
+    }
+  });
+
+  it('sköldens path finns inte kvar i Board-koden; vimpelns path importeras ur shared/components/challengeMark', () => {
+    const drawn = codeFiles.filter(([, text]) => /<path\b/.test(stripComments(text))).map(([path]) => path);
+    expect(drawn).toEqual(['./components/BoardParts.tsx']);
+    for (const [path, text] of codeFiles) expect({ path, shield: text.includes('V21 L13') }).toEqual({ path, shield: false });
+    expect(sources['./components/BoardParts.tsx']).toContain("from '@/shared/components/challengeMark'");
+  });
+
+  it('den gamla namnraden för tabellen (.rq-board-namerow) är borta', () => {
+    expect(css).not.toContain('rq-board-namerow');
+    expect(sources['./components/SeasonRest.tsx']).not.toContain('rq-board-namerow');
+  });
+});
+
 describe('multiplikatortrappan kommer ur config-endpointen', () => {
   it('ingen Board-fil importerar constants/streakConstants eller läser DEFAULT_STREAK_MULTIPLIERS', () => {
     for (const [path, text] of codeFiles) {

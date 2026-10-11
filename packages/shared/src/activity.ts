@@ -2,7 +2,8 @@
 // Delas av backend (skrivpunkter, GET /api/news, backfill-skriptet) och frontend (rendering).
 // Loggen OBSERVERAR spelet: ingenting här ändrar XP-/titel-/utmaningsregler.
 //
-// Typlistan har EN källa — ACTIVITY_TYPES. Migration 034:s CHECK-lista måste vara identisk
+// Typlistan har EN källa — ACTIVITY_TYPES. CHECK-listan i den senaste migrationen som definierar
+// activity_log_type_check (034, utökad av 036) måste vara identisk
 // (statiskt test i backend: activityLogMigration.test.ts).
 
 export const ACTIVITY_TYPES = [
@@ -17,6 +18,7 @@ export const ACTIVITY_TYPES = [
   'streak_broken',
   'event_open',
   'event_closed',
+  'badge_earned',
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -126,6 +128,13 @@ export interface EventClosedPayload {
   top?: Array<{ user_id: string; rank: number; xp: number }>;
 }
 
+/** ADR 009 beslut 5. `series` = nyckel ur BADGE_SERIES; `previous_tier` null = första tiern i serien ("earned"), annars "evolved". */
+export interface BadgeEarnedPayload {
+  series: string;
+  tier: number;
+  previous_tier: number | null;
+}
+
 export interface ActivityPayloadMap {
   title_unlocked: TitleUnlockedPayload;
   title_taken: TitleTakenPayload;
@@ -138,6 +147,7 @@ export interface ActivityPayloadMap {
   streak_broken: StreakBrokenPayload;
   event_open: EventOpenPayload;
   event_closed: EventClosedPayload;
+  badge_earned: BadgeEarnedPayload;
 }
 
 export type ActivityPayload<T extends ActivityType = ActivityType> = ActivityPayloadMap[T];
@@ -177,6 +187,8 @@ export const activityKeys = {
   streakBroken: (userId: string, lastRunDate: string) => `streak_broken:${userId}:${lastRunDate}`,
   eventOpen: (eventId: string) => `event_open:${eventId}`,
   eventClosed: (eventId: string) => `event_closed:${eventId}`,
+  /** Första gången tiern nås (som level_up) — en nedgradering och ny uppnåelse ger inte en andra rad för samma tier. */
+  badgeEarned: (userId: string, series: string, tier: number) => `badge_earned:${userId}:${series}:${tier}`,
   /**
    * `day` = Stockholm-kalenderdag (YYYY-MM-DD). Dagen i title_*-nycklarna gör att en legitim upprepning (titeln
    * tappas, vinns tillbaka med samma värde) en annan dag inte tystas; samma byte som upptäcks två gånger
@@ -412,6 +424,23 @@ export function buildStreakBrokenDraft(
     payload: { length, last_run_date: lastRunDate }, payload_version: ACTIVITY_PAYLOAD_VERSION,
     dedupe_key: activityKeys.streakBroken(userId, lastRunDate),
     occurred_at: streakBrokenOccurredAt(lastRunDate), is_backfill: isBackfill,
+  };
+}
+
+// ─── Byggare: badges ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * En badge-tier uppnåddes (ADR 009 beslut 5). `previousTier` null = första tiern i serien. Aktör = användaren, ingen
+ * target; gruppen ur users.group_id (anroparen). Payloaden är bara fakta: serie, tier, föregående tier.
+ */
+export function buildBadgeEarnedDraft(
+  userId: string, groupId: string, series: string, tier: number, previousTier: number | null,
+  occurredAt: string, isBackfill = false,
+): ActivityDraft {
+  return {
+    type: 'badge_earned', group_id: groupId, actor_user_id: userId, target_user_id: null,
+    payload: { series, tier, previous_tier: previousTier }, payload_version: ACTIVITY_PAYLOAD_VERSION,
+    dedupe_key: activityKeys.badgeEarned(userId, series, tier), occurred_at: occurredAt, is_backfill: isBackfill,
   };
 }
 

@@ -6,3 +6,4 @@ export * from './challenges.js';
 export * from './events.js';
 export * from './runs.js';
 export * from './news.js';
+export * from './badges.js';

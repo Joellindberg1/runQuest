@@ -3,13 +3,17 @@
 Pack News (ADR 008): vad gruppen gjort — titelbyten, utmaningsutfall, level ups, milstolpar, brutna streaks, events — som ett dag-grupperat flöde.
 Klockan i headern (`app-shell/NotificationsPopover`) öppnar en popover med de fem senaste och en oläst-räknare ur SAMMA flöde; "See all pack news" går
 till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = Web Prototypens (flöde | 300 px filterkort). `pages/NewsPage.tsx` är tunn.
-Badge-komponenterna i prototyperna är medvetet INTE byggda (ägaren designar dem).
+`badge_earned` (ADR 009, spec F7) ligger under Levels och ritar ett `sm`-emblem i ikonkolumnen (RUN-128); se nedan.
 
 ## Struktur
 
 - **components/**
   - `NewsScreen` — all datakoppling (flöde, filter i `?type=`, "Mark all read", Show more), laddning/fel/tomt, tour
-  - `NewsDayList` + `NewsRow` — dag-grupper (hårlinjegrid) och rader: ikon · typ · tid · text, 3 px kant i kategorins färg
+  - `NewsDayList` + `NewsRow` — dag-grupper (hårlinjegrid) och rader: ikon · typ · tid · text, 3 px kant i kategorins färg. **badge_earned (F7, RUN-128):** raden har `row.emblem` (`{ series, tier }` ur `emblemOf` i newsModel —
+    bara en känd serie med nivå 1..6) och ritar då `BadgeEmblem size="sm" decorative` (`aria-hidden`, Council 23: typraden "Badge earned"/"Badge evolved" och texten bär betydelsen) i stället för kategorins ikon; kanten förblir
+    Levels-grön och raden får `data-emblem` (ikonkolumnen `--rq-news-row-icon-badge-w`, 30 px mobil / 34 desktop). Okänd serie eller tier utanför 1..6 → `emblem: null` → den vanliga `zap`-ikonen. Levels-filterchippet behåller `zap`.
+    **Klock-popovern** (`NewsPopoverPanel`): en badge_earned-rad med `row.emblem` ritar samma emblem (`.rq-news-pop__emblem`, `aria-hidden`) i stället för pricken, med kolumnbredden `--rq-news-row-icon-badge-w`
+    (`data-emblem` på raden); alla andra rader (och en okänd serie) behåller pricken oförändrad.
   - `NewsFilters` — Titles · Challenges · Events · Levels · Streaks (`aria-pressed`, räknare); chip-rad på mobil, kort på desktop (bara CSS skiljer)
   - `NewsPopoverPanel` — innehållet i klock-popovern (Radix-skalet och bell-knappen bor i `app-shell/NotificationsPopover`)
 - **newsModel.ts** — ren logik: kategorier/ikoner/filterkarta, adressparametern, kursor/dedupe/sammanslagning, oläst, tider, dag-gruppering, texterna
@@ -22,6 +26,10 @@ Badge-komponenterna i prototyperna är medvetet INTE byggda (ägaren designar de
 
 - **Typerna kommer ur `@runquest/shared`** (`NewsItem`/`NewsMeta`/`NewsResponse`/`NewsSeenResponse`, `ACTIVITY_TYPES`) — aldrig speglade. Ett test kräver att varje händelsetyp
   hör till exakt ett filter och en kategori, så en ny typ i shared tvingar fram ett beslut här.
+- **Okända händelsetyper kraschar aldrig News** (RUN-138): backend kan vara nyare än fliken, så typen är en `string` (`WireNewsItem`/`UnknownNewsItem`). `buildNewsRow` ger `null` för en okänd typ
+  eller en känd typ vars payload/tid inte går att rendera, och `buildNewsGroups`/`buildPopoverRows` filtrerar bort raden (popovern före gränsen på fem). Raden ligger KVAR i `NewsFeed` så att
+  "Mark all read" kvitterar upp till det verkliga högsta id:t. Serverns `unread_count` räknar alla typer, så siffran kan innehålla dolda rader tills de kvitterats.
+  `describeNews`s switch har `never`-kontroll i default: en ny typ i `ACTIVITY_TYPES` utan case ger tsc-fel.
 - **Raden är ett faktum, texten renderas här** ur typ + payload + vem som tittar ("took … from you"). Förnamn som prototypen; en raderad användare är "a former member".
 - **EN query-definition.** `useNewsFeed(types)` används av skalet (klockan + popovern, alla typer) och av skärmen (valt filter + alla typer för räknarna).
   Nyckel `['news','feed', <type-param|all>]`, poll 2 min + fönsterfokus. Skalet hämtar 30 rader (popovern visar fem) — en enda hämtning delas.
@@ -41,7 +49,7 @@ Badge-komponenterna i prototyperna är medvetet INTE byggda (ägaren designar de
   som visas. Optimistiskt: räknaren och raderna är lästa direkt i alla flöden; serverns svar (kan vara > 0 om nya rader hann komma) skriver över, ett fel återställer, och flödena invalideras (catch-up).
 - **Live regions:** bekräftelsen ("N marked as read") står i en permanent `role="status"` som får fokus (knappen försvinner när inget är oläst), fel i `role="alert"` — inga toasts.
   Tomma behållare är kvar i tillgänglighetsträdet (ingen display:none).
-- **Filtret** mappas i klienten (`NEWS_FILTERS`; Levels = level_up + run_milestone) till serverns `type=`; `?type=` bär chip-nycklar (`titles,levels`). Flera kan vara valda, alla fem = inget.
+- **Filtret** mappas i klienten (`NEWS_FILTERS`; Levels = level_up + run_milestone + badge_earned) till serverns `type=`; `?type=` bär chip-nycklar (`titles,levels`). Flera kan vara valda, alla fem = inget.
   Varje filter har egen cache; räknarna är antal i det laddade ofiltrerade fönstret.
 - **Dag-grupper** i Stockholm-tid: Today · Yesterday · Earlier this week · en grupp per äldre dag. Ordningen är `occurred_at` (backfill kan ha högt id men gammal dag).
 - **Tour:** `tour_news_v1` (ny skärm — ingen gammal slug fanns). Ankare `news-feed`, `news-filter`, `news-mark-read`; klockan (`header-news`) har ingen egen tourstep. Turen monteras bara när flödet har rader (tomt flöde = flytande rutor över en tom skärm, och slugen markeras sedd för alltid), och `news-mark-read`-steget bara när något är oläst.

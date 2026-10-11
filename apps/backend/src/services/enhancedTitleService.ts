@@ -3,7 +3,8 @@ import { logger } from '../utils/logger.js';
 import { titleLeaderboardService } from './titleLeaderboardService';
 import { titleEngineRegistry } from '../titleEngines/index';
 import { emitTitleNews, snapshotTitleHolders } from './titleNews.js';
-import type { RunData, UserStats } from '../titleEngines/types';
+import { toRunData } from '../titleEngines/_utils';
+import type { RunData, TitleContext, UserStats } from '../titleEngines/types';
 
 /**
  * Enhanced title processing service that integrates with the new optimized system
@@ -13,7 +14,13 @@ export class EnhancedTitleService {
   /**
    * Process titles for a user after run updates.
    */
-  async processUserTitlesAfterRun(userId: string, runs: any[], totalKm: number, longestStreak: number): Promise<void> {
+  async processUserTitlesAfterRun(
+    userId: string,
+    runs: any[],
+    totalKm: number,
+    longestStreak: number,
+    ctx: TitleContext = { now: new Date() }
+  ): Promise<void> {
     try {
       logger.info('🏆 Processing titles for user:', userId);
       logger.info('📈 Stats:', { totalKm, longestStreak, runsCount: runs.length });
@@ -27,20 +34,13 @@ export class EnhancedTitleService {
         return;
       }
 
-      const runData: RunData[] = runs.map((r: any) => ({
-        date: r.date,
-        distance_km: parseFloat(r.distance_km) || 0,
-        start_time: r.start_time ?? null,
-        total_elevation_gain: r.total_elevation_gain ?? null,
-        pace_std_dev: r.pace_std_dev ?? null,
-        moving_time: r.moving_time ?? null,
-      }));
+      const runData: RunData[] = runs.map(toRunData);
       const userStats: UserStats = { totalKm, longestStreak };
 
       const earnedAt = new Date().toISOString();
 
       const titleCheckResults = await Promise.allSettled(
-        titles.map((title: any) => this.checkAndUpdateTitle(title, userId, runData, userStats, earnedAt))
+        titles.map((title: any) => this.checkAndUpdateTitle(title, userId, runData, userStats, earnedAt, ctx))
       );
 
       const titlesToUpdate: string[] = titles
@@ -64,20 +64,13 @@ export class EnhancedTitleService {
   /**
    * Calculate user achievement values from runs (public for use in API endpoints)
    */
-  calculateUserValues(runs: any[], totalKm: number, longestStreak: number) {
-    const runData: RunData[] = runs.map((r: any) => ({
-      date: r.date,
-      distance_km: parseFloat(r.distance_km) || 0,
-      start_time: r.start_time ?? null,
-      total_elevation_gain: r.total_elevation_gain ?? null,
-      pace_std_dev: r.pace_std_dev ?? null,
-      moving_time: r.moving_time ?? null,
-    }));
+  calculateUserValues(runs: any[], totalKm: number, longestStreak: number, ctx: TitleContext = { now: new Date() }) {
+    const runData: RunData[] = runs.map(toRunData);
     const userStats: UserStats = { totalKm, longestStreak };
 
     const result: Record<string, number> = {};
     for (const [key, engine] of titleEngineRegistry) {
-      result[key] = engine.calculate(runData, userStats);
+      result[key] = engine.calculate(runData, userStats, ctx);
     }
     return result;
   }
@@ -90,7 +83,8 @@ export class EnhancedTitleService {
     userId: string,
     runs: RunData[],
     userStats: UserStats,
-    earnedAt: string
+    earnedAt: string,
+    ctx: TitleContext
   ): Promise<boolean> {
     try {
       const engine = titleEngineRegistry.get(title.metric_key);
@@ -99,7 +93,7 @@ export class EnhancedTitleService {
         return false;
       }
 
-      const userValue = engine.calculate(runs, userStats);
+      const userValue = engine.calculate(runs, userStats, ctx);
       logger.info(`🔍 Checking title: "${title.name}" — value: ${userValue}, required: ${title.unlock_requirement}`);
 
       const { data: existingTitle, error: existingError } = await supabase.client
@@ -151,13 +145,22 @@ export class EnhancedTitleService {
   }
 
   /**
-   * Process titles for all users (optionally scoped to a group).
+   * Process titles for the users of ONE group, or — only with an explicit `allGroups: true` — for every user.
+   *
+   * Fail-closed (RUN-104): varken groupId eller allGroups:true → kastar innan någon användare läses. Förr
+   * räknade ett utelämnat groupId tyst om alla gruppers användare (Strava-importen). groupId vinner över allGroups.
    *
    * Pack News (ADR 008 beslut 6): innehavarna (position 1) ögonblicksfotograferas före och efter
    * och skillnaden loggas (title_unlocked/_taken/_revoked, endast framåt). `emitNews: false` för
    * regel-/data-underhåll (admin /titles/reprocess-all) så att flödet inte spammas.
    */
-  async processAllUsersTitles(groupId?: string, options: { emitNews?: boolean } = {}): Promise<void> {
+  async processAllUsersTitles(
+    groupId?: string,
+    options: { emitNews?: boolean; allGroups?: boolean } = {}
+  ): Promise<void> {
+    if (!groupId && options.allGroups !== true) {
+      throw new Error('processAllUsersTitles kräver groupId eller { allGroups: true }');
+    }
     const emitNews = options.emitNews ?? true;
     try {
       const holdersBefore = emitNews ? await snapshotTitleHolders() : null;
@@ -175,12 +178,13 @@ export class EnhancedTitleService {
 
       logger.info(`📊 Found ${users.length} users to process`);
       const startTime = Date.now();
+      const ctx: TitleContext = { now: new Date() }; // ett "nu" för hela körningen, delat av alla användare
 
       const userResults = await Promise.allSettled(
         users.map(async (user: any) => {
           const { data: runs, error: runsError } = await supabase.client
             .from('runs')
-            .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time')
+            .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
             .eq('user_id', user.id)
             .order('date', { ascending: true });
 
@@ -189,7 +193,7 @@ export class EnhancedTitleService {
           // Ingen tidig return vid noll rundor (bugg #3/#10): med tom lista
           // beräknar motorerna 0/−∞ → revocation-grenen rensar titlarna.
           const runsWithAlias = (runs ?? []).map((run: any) => ({ ...run, distance_km: run.distance }));
-          await this.processUserTitlesAfterRun(user.id, runsWithAlias, user.total_km || 0, user.longest_streak || 0);
+          await this.processUserTitlesAfterRun(user.id, runsWithAlias, user.total_km || 0, user.longest_streak || 0, ctx);
         })
       );
 

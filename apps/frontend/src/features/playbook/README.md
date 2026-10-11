@@ -22,7 +22,10 @@ Spelets regler som nio kapitel. Desktop = kapitelflikar (`?view=<kapitel>`, `use
 - **Nivåtabellen** är shareds `FALLBACK_LEVEL_REQUIREMENTS` (enda hemmet, ADR 004), milstolparna i `LEVEL_MILESTONES`; "≈ N runs" räknas med konfigurationens XP per runda.
 - **Titlarna** hämtas först när titelkapitlet visas (`useTitleBoard`, samma cache som Titles): skelett, felkort med Retry (resten av kapitlet står kvar), tomt läge.
 - **Playbook påstår bara det koden gör.** Eventens fönster, krav och XP är en kopia av backend i `playbookFacts.ts` (ingen endpoint exponerar `event_templates`), och
-  `playbookFacts.test.ts` läser backendens migrationer/eventService/eventScheduler/routes och faller om de glider isär. Utmaningstexten är Rules-vyns egen (`HOW_IT_WORKS`),
+  `playbookFacts.test.ts` läser backendens migrationer/eventService/eventScheduler/routes och faller om de glider isär. Säsongstitlarna (Titles-kapitlet)
+  vaktas på samma sätt mot `titleEngines/_utils.ts` (`winterWindow`) och `winterKm.ts`, hela `scheduler/`-mappen (inget schemalagt jobb räknar om titlar på datum — enda
+  undantaget är väder-backfill-grenen i `stravaSync.ts`), `services/enhancedTitleService.ts`, `utils/calculateUserTotals.ts` samt `routes/runs.ts` och `routes/strava.ts`
+  (där omräkningen utlöses). Utmaningstexten är Rules-vyns egen (`HOW_IT_WORKS`),
   insatserna är observerade ur `GET /challenges/my` (seed bara där inget exempel finns), minimidistansen är manuell-bara (Strava räknas oavsett längd).
   Se docs/open-assumptions.md ("Restsidor").
 - **Ingen guldknapp** — sidan är läsning. Kapitelrubriken har ett guldstreck (prototypens accent).

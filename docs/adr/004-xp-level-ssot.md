@@ -231,3 +231,6 @@ gäller om verifieringen (Beslut 4) visar samma data överallt; skiljer sig data
 - Frontend slutar läsa `level_requirements` direkt (anon-policyn tas bort) ->
   level-data via backend, diagrammets anon-koppling ändras.
 - Streak-beräkningen konsolideras (egen ADR) -> flytta även den till shared.
+
+## Notering 2026-10-11 (ägarbeslut)
+Undantaget (anon läser `level_requirements` direkt) upphävs — `GET /api/config/levels` (RUN-110), frontend byter (RUN-111), anon-policyn stängs (RUN-112). Revisit-triggern "Frontend slutar läsa `level_requirements` direkt" är därmed utlöst.

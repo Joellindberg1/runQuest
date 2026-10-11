@@ -3,7 +3,7 @@ import { paths } from '@/paths';
 export type BottomTab = 'ranks' | 'titles' | 'duels' | 'you';
 export type NavDestination =
   | 'board' | 'titles' | 'duels' | 'events'
-  | 'profile' | 'log' | 'playbook' | 'features'
+  | 'profile' | 'badges' | 'log' | 'playbook' | 'features'
   | 'settings' | 'admin' | 'news' | 'runner';
 
 const FIRST_SEGMENT_TO_DESTINATION: Record<string, NavDestination> = {
@@ -12,6 +12,7 @@ const FIRST_SEGMENT_TO_DESTINATION: Record<string, NavDestination> = {
   duels: 'duels',
   events: 'events',
   profile: 'profile',
+  badges: 'badges',
   log: 'log',
   playbook: 'playbook',
   features: 'features',
@@ -29,6 +30,7 @@ const DESTINATION_TO_TAB: Record<NavDestination, BottomTab> = {
   titles: 'titles',
   duels: 'duels',
   profile: 'you',
+  badges: 'you',
   log: 'you',
   news: 'you',
   playbook: 'you',

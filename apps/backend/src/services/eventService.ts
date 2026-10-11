@@ -310,12 +310,10 @@ export async function checkEventQualification(params: {
 // ─── settleCompetitionEvents ──────────────────────────────────────────────────
 
 /**
- * Körs söndag 23:55. Hittar alla aktiva competition-events vars ends_at har passerat,
- * rankar deltagarna efter total_value (km eller höjdmeter), delar ut XP från poolen
- * och markerar eventet som settled.
- *
- * Pool: reward_xp från template. Distribution: 50% / 30% / 20% för plats 1–3.
- * Restpott om < 3 deltagare fördelas till vinnaren.
+ * Körs måndag 00:05 Stockholm (cron '5 0 * * 1' i eventScheduler.ts; veckotävlingar slutar söndag 23:59).
+ * Rankar deltagarna efter total_value och delar ut XP per plats ur mallen (reward_xp_1st/2nd/3rd,
+ * seed 40/30/20 XP — absoluta belopp, ingen pool). Färre än 3 deltagare: saknade placeringar delas
+ * inte ut. Eventet claimas före utbetalning (idempotens, bugg #6).
  */
 export async function settleCompetitionEvents(): Promise<void> {
   const supabase = getSupabaseClient();

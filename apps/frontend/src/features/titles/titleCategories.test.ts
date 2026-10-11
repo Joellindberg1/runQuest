@@ -6,15 +6,33 @@ import { MAPPED_METRIC_KEYS, TITLE_CATEGORIES, categoryOf, iconOf } from './titl
 import { TITLE_ENGINE_METRIC_KEYS } from './titleMetricKeys.fixture';
 
 describe('kategorimappningen metric_key → grupp', () => {
-  it('fixturen har de 21 motorerna', () => {
-    expect(TITLE_ENGINE_METRIC_KEYS).toHaveLength(21);
-    expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(21);
+  it('fixturen har de 24 motorerna', () => {
+    expect(TITLE_ENGINE_METRIC_KEYS).toHaveLength(24);
+    expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(24);
   });
 
   it.each(TITLE_ENGINE_METRIC_KEYS)('%s är mappad till en riktig kategori (inte Other)', (key) => {
     const category = categoryOf(key);
     expect(category).not.toBe('other');
     expect(TITLE_CATEGORIES.map((def) => def.id)).toContain(category);
+  });
+
+  it('inget mått i fixturen faller i Other', () => {
+    expect(TITLE_ENGINE_METRIC_KEYS.filter((key) => categoryOf(key) === 'other')).toEqual([]);
+  });
+
+  it('väder- och vintermåtten ligger i Weather med egna kortikoner', () => {
+    expect(['stormRunCount', 'coldRunCount', 'winterKm'].map((key) => [categoryOf(key), iconOf(key)])).toEqual([
+      ['weather', 'zap'],
+      ['weather', 'snow'],
+      ['weather', 'snow'],
+    ]);
+  });
+
+  it('Weather är en egen grupp med sol-ikon, efter Comeback och före Other', () => {
+    const ids = TITLE_CATEGORIES.map((def) => def.id);
+    expect(ids.slice(-3)).toEqual(['comeback', 'weather', 'other']);
+    expect(TITLE_CATEGORIES.find((def) => def.id === 'weather')).toEqual({ id: 'weather', label: 'Weather', icon: 'sun' });
   });
 
   it('en okänd nyckel faller i Other — en ny titel försvinner inte ur vyn', () => {

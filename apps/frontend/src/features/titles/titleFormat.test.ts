@@ -15,6 +15,18 @@ describe('titleValueText', () => {
     expect(formatTitleValue('someFutureMetric', 12)).toBe('12');
   });
 
+  it('väder- och vintermått: antal rundor och km i samma form som övriga mått', () => {
+    expect(formatTitleValue('stormRunCount', 3)).toBe('3 runs');
+    expect(formatTitleValue('coldRunCount', 22)).toBe('22 runs');
+    expect(formatTitleValue('winterKm', 304.6)).toBe('304.6km');
+    expect(titleValueText('stormRunCount', 3)).toBe('3 runs');
+    expect(titleValueText('winterKm', 304.6)).toBe('304.6 km');
+    expect(unlockText('coldRunCount', 10)).toBe('10 runs');
+    expect(unlockText('winterKm', 50)).toBe('50.0 km');
+    expect(hasLinearGap('winterKm')).toBe(true);
+    expect(hasLinearGap('stormRunCount')).toBe(true);
+  });
+
   it('alla sju km-mått får sträckenhet', () => {
     for (const key of ['longestRun', 'totalKm', 'weekendAvg', 'maxKmRolling30', 'bestDoubleDayKm', 'longestRunAfterBreak14', 'longestRunAfterBreak30']) {
       expect(titleValueText(key, 10)).toBe('10.0 km');
@@ -44,6 +56,12 @@ describe('lastRunOfWeek', () => {
   it('datumet formateras på engelska (en-GB), inte svenska', () => {
     // 2026-10-04 12:00 UTC
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 9, 4, 12) / 1000)).toBe('4 Oct');
+  });
+
+  // Värdet är väggklockan kodad som UTC-sekunder (se wallClock.ts), så dagen läses i UTC — inte i webbläsarens zon.
+  it('dagen läses i UTC: 23:30 väggklocka förblir samma dag oavsett processens tidszon', () => {
+    expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 9, 4, 23, 30) / 1000)).toBe('4 Oct');
+    expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 6, 5, 23, 0) / 1000)).toBe('5 Jul');
   });
 });
 

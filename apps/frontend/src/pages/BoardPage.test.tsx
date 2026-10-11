@@ -3,11 +3,15 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { Run, User, UserTitle } from '@runquest/types';
 import BoardPage from './BoardPage';
+import { PENNANT_PATH, PENNANT_TEXT_Y } from '@/shared/components/challengeMark';
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
 import { ME, RANK_DELTA, WEEK, XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
+// Gruppens badges (minis i Season-raderna): varje test väljer själv vad GET /badges/group svarar. Standard = felar, dvs Board som förut.
+const badgesApi = vi.hoisted(() => ({ getGroupBadges: vi.fn() }));
+vi.mock('@/features/badges/api', () => ({ badgesApi }));
 // Turen startar driver.js efter en timer; ankar-vakten nedan kollar DOM:en i stället.
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({
   FeatureTour: ({ slug }: { slug: string }) => <div data-testid="feature-tour" data-slug={slug} />,
@@ -35,7 +39,7 @@ const runner = (id: string, name: string, xp: number, extra: Partial<User> = {})
 
 const KARL = runner('u-karl', 'Karl Persson', 5539, {
   total_km: 988, current_streak: 8, longest_streak: 31, challenge_counts: { minor: 3, major: 1 },
-  runs: [run('2026-10-04', { distance: 8.4, start_time: '2026-10-04T05:00:00Z' }), run('2026-09-20', { distance: 32.8 })],
+  runs: [run('2026-10-04', { distance: 8.4, start_time: '2026-10-04T07:00:00Z' }), run('2026-09-20', { distance: 32.8 })],
 });
 const JOEL = runner('u-me', 'Joel Lindberg', 5243, {
   current_streak: 4, longest_streak: 44, challenge_counts: { minor: 2 }, runs: [run('2026-10-03', { distance: 10 })],
@@ -68,6 +72,8 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   handlers.getUsersWithRuns = () => ({ success: true, data: PACK });
   handlers.getRankDelta = () => rankDelta({ 'u-karl': 1, 'u-me': -1, 'u-adam': 0, 'u-nick': 2, 'u-dan': null });
+  badgesApi.getGroupBadges.mockReset();
+  badgesApi.getGroupBadges.mockRejectedValue(new Error('badges unavailable'));
 });
 afterEach(() => vi.useRealTimers());
 
@@ -106,7 +112,7 @@ describe('Season-vyn (default) — mobil', () => {
     expect(within(card).getByText('988')).toBeInTheDocument();
     expect(within(card).getByLabelText('Challenges to send: 3 minor, 1 major')).toBeInTheDocument();
     expect(within(card).getByText('4 left')).toBeInTheDocument();
-    // start_time 05:00Z mot klockan 10:00Z.
+    // start_time 07:00 väggklocka mot klockan 12:00 Stockholm.
     expect(within(card).getByText('Last run 5 h ago · 8.4 km')).toBeInTheDocument();
   });
 
@@ -519,6 +525,323 @@ describe('laddning, fel och tomt — Season', () => {
     expect(await screen.findByTestId('podium-1')).toBeInTheDocument();
     expect(calls).toBe(2);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('visade badges i Season-raderna (RUN-131)', () => {
+  const KARL_BADGES = [{ series: 'milestoner', tier: 3 }, { series: 'climber', tier: 5 }];
+  const NICK_BADGES = [{ series: 'night_owl', tier: 1 }, { series: 'speedster', tier: 2 }, { series: 'climber', tier: 4 }];
+
+  const serveBadges = (members: Array<{ user_id: string; showcase: Array<{ series: string; tier: number }> }>) =>
+    badgesApi.getGroupBadges.mockResolvedValue({ members, holders: {}, member_count: members.length });
+  const serveStandardBadges = () => serveBadges([
+    { user_id: 'u-karl', showcase: KARL_BADGES },
+    { user_id: 'u-me', showcase: [] },
+    { user_id: 'u-nick', showcase: NICK_BADGES },
+  ]);
+
+  const restRows = () => within(screen.getByRole('table', { name: 'Rest of the pack' })).getAllByRole('row').slice(1);
+  const KARL_LABEL = 'Badges: Rare Milestoner, Epic Climber';
+  const NICK_LABEL = 'Badges: Common Night Owl, Uncommon Speedster, Heroic Climber';
+
+  it('mobil, podiet: minis på namnraden i ordningen namn, delta, minis — gruppen är ETT img med samlad etikett', async () => {
+    serveStandardBadges();
+    renderBoard();
+
+    const karl = await screen.findByTestId('podium-1');
+    const group = await within(karl).findByRole('img', { name: KARL_LABEL });
+    const nameline = group.parentElement as HTMLElement;
+    expect(nameline).toHaveClass('rq-board-podium__nameline');
+    expect([...nameline.children].map((child) => child.getAttribute('aria-label') ?? child.textContent)).toEqual(['Karl Persson', 'Up 1 place', KARL_LABEL]);
+    // varje mini är dekorativ: inga egna img-element inuti gruppen
+    expect(group.querySelectorAll('.rq-badge[aria-hidden="true"]')).toHaveLength(2);
+    expect(within(group).queryAllByRole('img')).toHaveLength(0);
+  });
+
+  it('mobil, podiet: vimpeln står inte på samma rad som minis (foten, inte namnraden)', async () => {
+    serveStandardBadges();
+    renderBoard();
+
+    const karl = await screen.findByTestId('podium-1');
+    const group = await within(karl).findByRole('img', { name: KARL_LABEL });
+    const ribbons = within(karl).getByLabelText('Challenges to send: 3 minor, 1 major');
+    expect(group.parentElement?.contains(ribbons)).toBe(false);
+    expect(ribbons.closest('.rq-board-podium__foot')).not.toBeNull();
+    expect(group.closest('.rq-board-podium__foot')).toBeNull();
+  });
+
+  it('mobil, rest-rad: minis på sub-raden efter km; vimpeln i högerkolumnen under ETA så de aldrig delar behållare', async () => {
+    serveStandardBadges();
+    renderBoard();
+    await screen.findByTestId('podium-1');
+
+    const nick = restRows()[0];
+    const group = await within(nick).findByRole('img', { name: NICK_LABEL });
+    const sub = group.parentElement as HTMLElement;
+    expect(sub).toHaveClass('rq-board-sub');
+    expect(sub.firstElementChild?.textContent).toMatch(/km$/);
+
+    const ribbons = within(nick).getByLabelText('Challenges to send: 5 minor, 1 major');
+    expect(sub.contains(ribbons)).toBe(false);
+    const rightCell = ribbons.closest('.rq-board-cell-right') as HTMLElement;
+    expect(rightCell).not.toBeNull();
+    expect(rightCell.contains(group)).toBe(false);
+    // ordning i högerkolumnen: tempo, ETA, vimplar
+    expect([...rightCell.children].map((child) => child.className)).toEqual(['rq-board-num', 'rq-board-cell-sub', 'rq-board-cell-ribbons']);
+  });
+
+  it('mobil, rest-rader: vimplarna står i högerkolumnen oavsett om raden har minis', async () => {
+    // Nicklas har minis, Daniel har inga och inga utmaningar; ger Daniel tokens ska de också hamna i högerkolumnen.
+    handlers.getUsersWithRuns = () => ({
+      success: true,
+      data: [JOEL, KARL, ADAM, NICKLAS, { ...DANIEL, challenge_counts: { legendary: 2 } }],
+    });
+    serveBadges([{ user_id: 'u-nick', showcase: NICK_BADGES }]);
+    renderBoard();
+    await screen.findByTestId('podium-1');
+    await within(restRows()[0]).findByRole('img', { name: NICK_LABEL });
+
+    const [withMinis, withoutMinis] = restRows();
+    expect(withMinis.querySelector('.rq-badge-minis')).not.toBeNull();
+    expect(withoutMinis.querySelector('.rq-badge-minis')).toBeNull();
+    for (const [row, label] of [[withMinis, 'Challenges to send: 5 minor, 1 major'], [withoutMinis, 'Challenges to send: 2 legendary']] as const) {
+      const ribbons = within(row).getByLabelText(label);
+      expect(ribbons.parentElement).toHaveClass('rq-board-cell-ribbons');
+      expect(ribbons.closest('.rq-board-cell-right')).not.toBeNull();
+      expect(ribbons.closest('.rq-board-sub')).toBeNull();
+    }
+  });
+
+  it('mobil: ALLA rest-raders sub-rad bär den gemensamma min-height-klassen, med och utan minis (ingen hopp när queryn landar)', async () => {
+    serveStandardBadges();
+    renderBoard();
+    await screen.findByTestId('podium-1');
+    await within(restRows()[0]).findByRole('img', { name: NICK_LABEL });
+
+    const subs = restRows().map((row) => row.querySelector('.rq-board-sub'));
+    expect(subs).toHaveLength(2);
+    for (const sub of subs) expect(sub).toHaveClass('rq-board-sub--list');
+  });
+
+  it('en rest-rad utan visade badges: inga minis, vimpeln i högerkolumnen, sub-raden bara km', async () => {
+    serveBadges([{ user_id: 'u-karl', showcase: KARL_BADGES }, { user_id: 'u-nick', showcase: [] }]);
+    renderBoard();
+    await within(await screen.findByTestId('podium-1')).findByRole('img', { name: KARL_LABEL });
+
+    const nick = restRows()[0];
+    expect(nick.querySelector('.rq-badge-minis')).toBeNull();
+    expect(nick.querySelector('[data-minis]')).toBeNull();
+    const ribbons = within(nick).getByLabelText('Challenges to send: 5 minor, 1 major');
+    expect(ribbons.closest('.rq-board-cell-ribbons')).not.toBeNull();
+    expect(nick.querySelector('.rq-board-sub')?.children).toHaveLength(1);
+  });
+
+  it('badge-queryn felar → Board som förut: inga minis, inget felkort, ingen spinner', async () => {
+    renderBoard();
+
+    await screen.findByTestId('podium-1');
+    await waitFor(() => expect(badgesApi.getGroupBadges).toHaveBeenCalled());
+    expect(document.querySelector('.rq-badge-minis')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(restRows().map((row) => within(row).getByRole('button').textContent)).toEqual(['Nicklas von Elling', 'Daniel Lindblad Lüthje']);
+    // vimpeln står i högerkolumnen även utan badge-data
+    expect(within(restRows()[0]).getByLabelText('Challenges to send: 5 minor, 1 major').closest('.rq-board-cell-ribbons')).not.toBeNull();
+  });
+
+  it('badge-queryn laddar → Board ritas direkt utan minis och spinner; minis tillkommer när svaret landar', async () => {
+    let land: (value: unknown) => void = () => {};
+    badgesApi.getGroupBadges.mockReturnValue(new Promise((resolve) => { land = resolve; }));
+    renderBoard();
+
+    await screen.findByTestId('podium-1');
+    expect(document.querySelector('.rq-badge-minis')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+
+    land({ members: [{ user_id: 'u-karl', showcase: KARL_BADGES }], holders: {}, member_count: 5 });
+    expect(await within(screen.getByTestId('podium-1')).findByRole('img', { name: KARL_LABEL })).toBeInTheDocument();
+  });
+
+  it('tour-ankaret sitter kvar på det främsta podiekortet när minis finns', async () => {
+    serveStandardBadges();
+    const { container } = renderBoard();
+    const karl = await screen.findByTestId('podium-1');
+    await within(karl).findByRole('img', { name: KARL_LABEL });
+
+    expect(container.querySelectorAll('[data-tour="leaderboard-card"]')).toHaveLength(1);
+    expect(karl).toHaveAttribute('data-tour', 'leaderboard-card');
+  });
+
+  it('desktop, podiet: minis efter namnet på samma rad (minis krymper inte)', async () => {
+    serveStandardBadges();
+    renderBoard('/board', DESKTOP);
+
+    const karl = await screen.findByTestId('podium-1');
+    const group = await within(karl).findByRole('img', { name: KARL_LABEL });
+    expect([...(group.parentElement as HTMLElement).children].map((child) => child.getAttribute('aria-label') ?? child.textContent)).toEqual(['Karl Persson', KARL_LABEL]);
+    expect(group.parentElement).toHaveAttribute('data-minis', 'true');
+  });
+
+  it('desktop, tabellen: namnet ensamt på namnraden, minis på sub-raden efter "Lvl N · X km", vimplarna i Last run-cellen', async () => {
+    serveStandardBadges();
+    renderBoard('/board', DESKTOP);
+    await screen.findByTestId('podium-1');
+
+    const nick = restRows()[0];
+    const group = await within(nick).findByRole('img', { name: NICK_LABEL });
+    const sub = group.parentElement as HTMLElement;
+    expect(sub).toHaveClass('rq-board-sub', 'rq-board-sub--table');
+    expect([...sub.children].map((child) => child.getAttribute('aria-label') ?? child.textContent)).toEqual([expect.stringMatching(/^Lvl \d+ · .+ km$/), NICK_LABEL]);
+    // namnet står ensamt: ingen .rq-board-namerow, inga minis bredvid namnknappen
+    expect(nick.querySelector('.rq-board-namerow')).toBeNull();
+    const nameButton = within(nick).getByRole('button', { name: 'Nicklas von Elling' });
+    expect(nameButton.parentElement?.querySelector('.rq-badge-minis')).toBe(group);
+    expect(nameButton.nextElementSibling).toBe(sub);
+
+    const ribbons = within(nick).getByLabelText('Challenges to send: 5 minor, 1 major');
+    expect(sub.contains(ribbons)).toBe(false);
+    const cells = within(nick).getAllByRole('cell');
+    const lastRunCell = cells[cells.length - 1];
+    expect(lastRunCell).toHaveClass('rq-board-cell-stack');
+    expect([...lastRunCell.children].map((child) => child.tagName.toLowerCase() + (child.getAttribute('aria-label') ? `:${child.getAttribute('aria-label')}` : ''))).toEqual(['span', 'span:Challenges to send: 5 minor, 1 major']);
+    expect(lastRunCell.contains(ribbons)).toBe(true);
+  });
+
+  it('desktop, tabellen: ALLA rest-raders sub-rad rymmer en mini (min-height-klassen), med och utan minis', async () => {
+    serveBadges([{ user_id: 'u-nick', showcase: NICK_BADGES }]);
+    renderBoard('/board', DESKTOP);
+    await screen.findByTestId('podium-1');
+    await within(restRows()[0]).findByRole('img', { name: NICK_LABEL });
+
+    const subs = restRows().map((row) => row.querySelector('.rq-board-sub'));
+    expect(subs).toHaveLength(2);
+    for (const sub of subs) expect(sub).toHaveClass('rq-board-sub--table');
+    expect(restRows()[1].querySelector('.rq-badge-minis')).toBeNull();
+  });
+
+  it.each([MOBILE, DESKTOP])('podiets namnrad bär min-height-klassen på ALLA kort, med och utan minis (%ipx)', async (width) => {
+    serveStandardBadges();
+    renderBoard('/board', width);
+    await within(await screen.findByTestId('podium-1')).findByRole('img', { name: KARL_LABEL });
+
+    for (const rank of [1, 2, 3]) {
+      const card = screen.getByTestId(`podium-${rank}`);
+      const name = within(card).getByRole('button', { name: /^(Karl Persson|Joel Lindberg|Adam Einstein)$/ });
+      expect(name.closest('.rq-board-podium__nameline')).toHaveClass('rq-board-podium__nameline--room');
+    }
+    // Joel (plats 2) har inga visade badges: raden har rum men inga minis.
+    expect(screen.getByTestId('podium-2').querySelector('.rq-badge-minis')).toBeNull();
+  });
+
+  it('mobil, rest-rad med minis men utan utmaningar: ingen tom ribbons-behållare', async () => {
+    serveBadges([{ user_id: 'u-dan', showcase: NICK_BADGES }]);
+    renderBoard();
+    await screen.findByTestId('podium-1');
+
+    const dan = restRows()[1];
+    await within(dan).findByRole('img', { name: NICK_LABEL });
+    expect(dan.querySelector('.rq-board-cell-ribbons')).toBeNull();
+  });
+
+  it('Week och Streaks är orörda: ingen badge-hämtning och inga minis', async () => {
+    serveStandardBadges();
+    renderBoard('/board?view=week');
+    await screen.findByRole('table', { name: 'This week' });
+    expect(badgesApi.getGroupBadges).not.toHaveBeenCalled();
+    expect(document.querySelector('.rq-badge-minis')).toBeNull();
+  });
+});
+
+describe('vimpeln som utmaningstecken (RUN-147, spec F12.4)', () => {
+  it.each([MOBILE, DESKTOP])('varje vimpel ritas med svalstjärt-pathen, siffran på y 16.5 och viewBox 0 0 26 32 (%ipx)', async (width) => {
+    const { container } = renderBoard('/board', width);
+    await screen.findByTestId('podium-1');
+
+    const pennants = [...container.querySelectorAll('svg.rq-ribbon')];
+    expect(pennants.length).toBeGreaterThan(0);
+    for (const svg of pennants) {
+      expect(svg).toHaveAttribute('viewBox', '0 0 26 32');
+      expect(svg.querySelector('path')).toHaveAttribute('d', 'M1.5 1.5 H24.5 V30.5 L13 23.5 L1.5 30.5 Z');
+      expect(svg.querySelector('path')).toHaveAttribute('d', PENNANT_PATH);
+      expect(svg.querySelector('text')).toHaveAttribute('y', '16.5');
+      expect(svg.querySelector('text')).toHaveAttribute('y', String(PENNANT_TEXT_Y));
+    }
+    // inget spår av sköldens bottenspets
+    expect(container.innerHTML).not.toContain('V21 L13 30.5');
+  });
+
+  it('nivåattribut, antal och tillgänglig etikett är oförändrade', async () => {
+    renderBoard();
+    const karl = await screen.findByTestId('podium-1');
+    const group = within(karl).getByLabelText('Challenges to send: 3 minor, 1 major');
+    expect(group).toHaveAttribute('role', 'img');
+    const marks = [...group.querySelectorAll('svg.rq-ribbon')];
+    expect(marks.map((svg) => svg.getAttribute('data-tier'))).toEqual(['minor', 'major']);
+    expect(marks.map((svg) => svg.textContent)).toEqual(['3', '1']);
+    for (const svg of marks) expect(svg).toHaveAttribute('aria-hidden', 'true');
+  });
+});
+
+describe('Council 8: vimpel och minis i aldrig en gemensam behållare (RUN-147, spec F12.4/F12.5)', () => {
+  const BADGES = [{ series: 'milestoner', tier: 3 }, { series: 'climber', tier: 5 }];
+
+  // Kortets/radens egen rot: podiets innehållsbox (.rq-board-podium__body) och tabellens/listans rad. Allt däremellan är en "behållare".
+  const isRoot = (el: Element) => el.matches('[role="row"], .rq-board-podium__body');
+  const containersAbove = (el: Element): Element[] => {
+    const found: Element[] = [];
+    for (let node = el.parentElement; node && !isRoot(node); node = node.parentElement) found.push(node);
+    return found;
+  };
+
+  async function renderWithMinisEverywhere(width: number) {
+    badgesApi.getGroupBadges.mockResolvedValue({
+      members: [KARL, JOEL, ADAM, NICKLAS, DANIEL].map((user) => ({ user_id: user.id, showcase: BADGES })),
+      holders: {},
+      member_count: 5,
+    });
+    const view = renderBoard('/board', width);
+    await screen.findByTestId('podium-1');
+    await waitFor(() => expect(view.container.querySelectorAll('.rq-badge-minis').length).toBe(5));
+    return view.container;
+  }
+
+  it.each([MOBILE, DESKTOP])('ingen behållare mellan en minis-grupp och kortets/radens rot rymmer också en vimpel (%ipx)', async (width) => {
+    const container = await renderWithMinisEverywhere(width);
+
+    const groups = [...container.querySelectorAll('.rq-badge-minis')];
+    expect(groups).toHaveLength(5);
+    let rootsWithBoth = 0;
+    for (const group of groups) {
+      const root = group.closest('[role="row"], .rq-board-podium__body');
+      expect(root).not.toBeNull();
+      if (root!.querySelector('.rq-ribbons')) rootsWithBoth += 1;
+      for (const holder of containersAbove(group)) expect(holder.querySelector('.rq-ribbons')).toBeNull();
+    }
+    // Adam och Daniel har inga utmaningar; Karl, Joel och Nicklas har både minis och vimplar i samma kort/rad (annars vore testet tomt).
+    expect(rootsWithBoth).toBe(3);
+    // och åt andra hållet: ingen behållare ovanför en vimpel rymmer minis
+    for (const ribbons of container.querySelectorAll('.rq-ribbons')) {
+      for (const holder of containersAbove(ribbons)) expect(holder.querySelector('.rq-badge-minis')).toBeNull();
+    }
+  });
+
+  it('testet fäller när de delar behållare (mutationskontroll)', async () => {
+    const container = await renderWithMinisEverywhere(MOBILE);
+    const group = container.querySelector('.rq-badge-minis') as HTMLElement;
+    const ribbons = container.querySelector('.rq-ribbons') as HTMLElement;
+    group.parentElement!.appendChild(ribbons.cloneNode(true));
+    expect(containersAbove(group).some((holder) => holder.querySelector('.rq-ribbons'))).toBe(true);
+  });
+
+  it.each([MOBILE, DESKTOP])('tour-ankaret och raderna utan badges: ankaret oförändrat, ingen tom minis- eller vimpelbehållare (%ipx)', async (width) => {
+    renderBoard('/board', width);
+    const karl = await screen.findByTestId('podium-1');
+    expect(karl).toHaveAttribute('data-tour', 'leaderboard-card');
+    // Daniel har varken badges eller utmaningar: inga tomma behållare
+    const daniel = within(screen.getByRole('table', { name: 'Rest of the pack' })).getAllByRole('row')[2];
+    expect(daniel.querySelector('.rq-badge-minis')).toBeNull();
+    expect(daniel.querySelector('.rq-ribbons')).toBeNull();
+    expect(daniel.querySelector('.rq-board-cell-ribbons')).toBeNull();
   });
 });
 

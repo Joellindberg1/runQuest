@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="./runquest-icons.js"></script>
+<script src="./runquest-badges.js"></script>
+<style>
+  html, body { margin:0; background:#0d0d0d; color:#edeeed; font-family:'Barlow Condensed',sans-serif; }
+  a { color:#ffd700; text-decoration:none; }
+  a:hover { color:#fff2a8; }
+  @keyframes rqGlow { 0%,100% { filter:drop-shadow(0 0 3px currentColor); } 50% { filter:drop-shadow(0 0 13px currentColor); } }
+  @keyframes rqIgnite { from { filter:drop-shadow(0 0 0 rgba(0,0,0,0)); } }
+  @keyframes rqSkel { 0%,100% { opacity:.45; } 50% { opacity:.9; } }
+</style>
+</helmet>
+
+<div style="padding:40px 48px 90px; display:flex; flex-direction:column; gap:48px;">
+  <header style="display:flex; align-items:flex-end; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:14px;">
+    <div>
+      <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.34em; text-transform:uppercase; color:rgba(255,255,255,.3);">RunQuest · badge system · frames F2–F8</div>
+      <div style="font-family:'Bebas Neue',sans-serif; font-size:46px; line-height:1; color:#fff;">BADGES IN CONTEXT</div>
+      <div style="font-size:15px; color:rgba(255,255,255,.45); margin-top:4px;">F1 emblem sheet lives in the component library, section 05. Mobile frames 402 w · desktop frames 1440 w.</div>
+    </div>
+    <div style="color:#edeeed;">{{ logo }}</div>
+  </header>
+
+  <!-- ======================= F2 PROFILE · MY COLLECTION ======================= -->
+  <section data-screen-label="F2 Profile collection" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">F2 · Profile — my collection</div>
+    <div style="display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+
+      <div style="width:402px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px; display:flex; flex-direction:column; gap:12px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); border-left:3px solid rgba(255,215,0,.6); padding:12px 14px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:24px; color:#fff; line-height:1;">JOEL LINDBERG</span>
+            <span style="display:flex; gap:4px;"><sc-for list="{{ heroMinis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+          </div>
+          <div style="font-size:14px; color:rgba(255,255,255,.45);">Lvl 24 · #2 in the group · 133 runs</div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:13px 14px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+            {{ shieldIcon }}
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:19px; color:#ffd700; letter-spacing:.04em;">BADGES</span>
+            <span style="margin-left:auto; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">5 of 8 series</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 11px; background:rgba(255,215,0,.07); border:1px solid rgba(255,215,0,.26); margin-bottom:10px;">
+            <span style="font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.5);">On display</span>
+            <span style="display:flex; gap:4px;"><sc-for list="{{ heroMinis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+            <span style="margin-left:auto; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.4);" style-hover="color:#ffd700; cursor:pointer;">Edit</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <sc-for list="{{ colCards }}" as="c" hint-placeholder-count="8">
+              <div style="{{ c.cardStyleM }}">
+                <span style="{{ c.glow }}"><span style="{{ c.frame }}"><span style="{{ c.ring }}"></span><span style="{{ c.inner }}">{{ c.svg }}</span></span></span>
+                <div style="font-weight:700; font-size:14px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed; margin-top:8px;">{{ c.name }}</div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:5px;">
+                  <span style="{{ c.chipStyle }}">{{ c.chipLabel }}</span>
+                </div>
+                <span style="display:flex; gap:3px; margin-top:6px;"><sc-for list="{{ c.pips }}" as="p" hint-placeholder-count="6"><span style="{{ p.style }}"></span></sc-for></span>
+                <div style="font-size:13px; line-height:1.35; color:rgba(255,255,255,.55); margin-top:7px;">{{ c.line1 }}</div>
+                <sc-if value="{{ c.hasFl }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px; font-style:italic; color:rgba(255,255,255,.35); margin-top:1px;">{{ c.flavour }}</div></sc-if>
+                <div style="{{ c.line2Style }}">{{ c.line2 }}</div>
+                <sc-if value="{{ c.hasHeld }}" hint-placeholder-val="{{ true }}"><div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.35); margin-top:7px;">{{ c.held }}</div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28);">Mobile 402 · under the hero card</div>
+      </div>
+
+      <div style="width:1440px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:24px 32px; box-sizing:border-box;">
+        <div style="display:grid; grid-template-columns:1fr 340px; gap:16px; align-items:start;">
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); border-left:3px solid rgba(255,215,0,.6); padding:15px 20px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-family:'Bebas Neue',sans-serif; font-size:38px; color:#fff; letter-spacing:.02em; line-height:1;">JOEL LINDBERG</span>
+                <span style="display:flex; gap:5px;"><sc-for list="{{ heroMinis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+              </div>
+              <div style="font-size:16px; color:rgba(255,255,255,.45);">#2 in the group · 133 runs · 659 XP to level 25</div>
+            </div>
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:15px 20px;">
+              <div style="display:flex; align-items:center; gap:9px; margin-bottom:12px;">
+                {{ shieldIcon }}
+                <span style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:#ffd700; letter-spacing:.04em;">BADGES</span>
+                <span style="margin-left:auto; font-size:13px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.35);">5 of 8 series</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; background:rgba(255,215,0,.07); border:1px solid rgba(255,215,0,.26); margin-bottom:12px;">
+                <span style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.5);">On display</span>
+                <span style="display:flex; gap:5px;"><sc-for list="{{ heroMinis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+                <span style="font-size:14px; color:rgba(255,255,255,.45);">Streak Keeper · Early Bird · Milestoner</span>
+                <span style="margin-left:auto; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.4);" style-hover="color:#ffd700; cursor:pointer;">Edit display</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;">
+                <sc-for list="{{ colCards }}" as="c" hint-placeholder-count="8">
+                  <div style="{{ c.cardStyle }}">
+                    <div style="display:flex; gap:12px; align-items:flex-start;">
+                      <span style="{{ c.glow }}"><span style="{{ c.frame }}"><span style="{{ c.ring }}"></span><span style="{{ c.inner }}">{{ c.svg }}</span></span></span>
+                      <div style="min-width:0;">
+                        <div style="font-weight:700; font-size:16px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed; line-height:1.15;">{{ c.name }}</div>
+                        <div style="display:flex; align-items:center; gap:6px; margin-top:5px;"><span style="{{ c.chipStyle }}">{{ c.chipLabel }}</span></div>
+                        <span style="display:flex; gap:3px; margin-top:7px;"><sc-for list="{{ c.pips }}" as="p" hint-placeholder-count="6"><span style="{{ p.style }}"></span></sc-for></span>
+                      </div>
+                    </div>
+                    <div style="font-size:14px; line-height:1.4; color:rgba(255,255,255,.55); margin-top:10px;">{{ c.line1 }}</div>
+                    <sc-if value="{{ c.hasFl }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px; font-style:italic; color:rgba(255,255,255,.35); margin-top:1px;">{{ c.flavour }}</div></sc-if>
+                    <div style="{{ c.line2Style }}">{{ c.line2 }}</div>
+                    <sc-if value="{{ c.hasHeld }}" hint-placeholder-val="{{ true }}"><div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.1em; color:rgba(255,255,255,.35); margin-top:8px;">{{ c.held }}</div></sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:14px 16px;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                {{ shieldIconSm }}
+                <span style="font-family:'Bebas Neue',sans-serif; font-size:19px; color:#ffd700; letter-spacing:.04em;">BADGES</span>
+                <span style="margin-left:auto; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">5 of 8</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <sc-for list="{{ sideList }}" as="s" hint-placeholder-count="5">
+                  <div style="display:flex; align-items:center; gap:10px; padding:6px 9px; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);">
+                    <span style="{{ s.glow }}"><span style="{{ s.frame }}"><span style="{{ s.ring }}"></span><span style="{{ s.inner }}">{{ s.svg }}</span></span></span>
+                    <span style="font-weight:600; font-size:14px; letter-spacing:.04em; text-transform:uppercase; color:#edeeed;">{{ s.name }}</span>
+                    <span style="margin-left:auto;"><span style="{{ s.chipStyle }}">{{ s.chipLabel }}</span></span>
+                  </div>
+                </sc-for>
+              </div>
+              <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:9px;">Alternative · side column, above MY TITLES</div>
+            </div>
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.08); padding:13px 16px;">
+              <span style="font-family:'Bebas Neue',sans-serif; font-size:19px; color:#ffd700; letter-spacing:.04em;">MY TITLES</span>
+              <div style="font-size:13px; color:rgba(255,255,255,.35); margin-top:6px;">5 held · 3 runner-up (unchanged)</div>
+            </div>
+          </div>
+        </div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:12px;">Desktop 1440 · main column placement (primary) + side-column alternative</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= F3 SHOWCASE PICKER ======================= -->
+  <section data-screen-label="F3 Showcase picker" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">F3 · Showcase picker — 3 display slots</div>
+    <div style="display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+
+      <div style="width:402px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px; display:flex; flex-direction:column; gap:12px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:13px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:19px; color:#ffd700; letter-spacing:.04em;">ON DISPLAY</span>
+            <span style="font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4);">3 / 3</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:7px;">
+            <sc-for list="{{ slots }}" as="d" hint-placeholder-count="3">
+              <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; background:rgba(255,215,0,.07); border:1px solid rgba(255,215,0,.3);">
+                <span style="display:flex; align-items:center; justify-content:center; width:19px; height:19px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:13px; line-height:1;">{{ d.pos }}</span>
+                <span style="{{ d.glow }}"><span style="{{ d.frame }}"><span style="{{ d.ring }}"></span><span style="{{ d.inner }}">{{ d.svg }}</span></span></span>
+                <div style="flex:1;">
+                  <div style="font-weight:600; font-size:14px; letter-spacing:.04em; text-transform:uppercase; color:#edeeed; line-height:1.15;">{{ d.name }}</div>
+                  <div style="font-size:12px; color:rgba(255,255,255,.38);">{{ d.tierName }}</div>
+                </div>
+                <span style="font-size:14px; color:rgba(255,255,255,.28);" style-hover="color:#f87171; cursor:pointer;">✕</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:10px; padding:9px 10px; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.07);">
+            <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-bottom:5px;">Preview on leaderboard</div>
+            <div style="display:flex; align-items:center; gap:7px;">
+              <span style="font-family:'Bebas Neue',sans-serif; font-size:17px; color:rgba(255,255,255,.2);">4</span>
+              <span style="font-weight:700; font-size:14px; letter-spacing:.05em; text-transform:uppercase; color:#edeeed;">JOEL LINDBERG</span>
+              <span style="display:flex; gap:4px;"><sc-for list="{{ heroMinis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+            <span style="padding:8px 20px; border:1px solid rgba(255,215,0,.55); color:#ffd700; font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:.06em; cursor:pointer;" style-hover="background:rgba(255,215,0,.08);">SAVE DISPLAY</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          <sc-for list="{{ pickRows }}" as="c" hint-placeholder-count="5">
+            <div style="{{ c.rowStyle }}">
+              <span style="{{ c.glow }}"><span style="{{ c.frame }}"><span style="{{ c.ring }}"></span><span style="{{ c.inner }}">{{ c.svg }}</span></span></span>
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; font-size:15px; letter-spacing:.05em; text-transform:uppercase; color:#edeeed;">{{ c.name }}</div>
+                <div style="font-size:12px; color:rgba(255,255,255,.4);">{{ c.sub }}</div>
+              </div>
+              <span aria-pressed="{{ c.pressed }}" style="{{ c.toggleStyle }}">{{ c.toggleLabel }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28);">Mobile 402 · state 3/3 — remaining toggles disabled</div>
+      </div>
+
+      <div style="width:560px; display:flex; flex-direction:column; gap:10px;">
+        <div style="background:#070e09; border:1px solid rgba(255,255,255,.1); padding:16px; display:flex; flex-direction:column; gap:10px;">
+          <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.35);">Slot states</div>
+          <div style="display:flex; gap:10px;">
+            <div style="flex:1; padding:9px 10px; border:1px dashed rgba(255,255,255,.18); display:flex; align-items:center; gap:9px;">
+              <span style="display:flex; align-items:center; justify-content:center; width:19px; height:19px; border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.4); font-family:'Bebas Neue',sans-serif; font-size:13px;">1</span>
+              <span style="font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.35);">Empty slot</span>
+            </div>
+            <div style="flex:1; padding:9px 10px; border:1px dashed rgba(255,255,255,.18); display:flex; align-items:center; gap:9px;">
+              <span style="display:flex; align-items:center; justify-content:center; width:19px; height:19px; border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.4); font-family:'Bebas Neue',sans-serif; font-size:13px;">3</span>
+              <span style="font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.35);">0/3 and 2/3 use the same empty slot</span>
+            </div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-top:4px;">Save states</div>
+          <div style="display:flex; flex-direction:column; gap:7px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 11px; border:1px solid rgba(255,255,255,.1);">
+              <span style="font-size:14px; color:rgba(255,255,255,.6);">Unsaved changes</span>
+              <span style="padding:6px 16px; border:1px solid rgba(255,215,0,.55); color:#ffd700; font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:.06em; cursor:pointer;">SAVE DISPLAY</span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 11px; border:1px solid rgba(255,255,255,.1);">
+              <span style="font-size:14px; color:rgba(255,255,255,.6);">Saving</span>
+              <span style="padding:6px 16px; border:1px solid rgba(255,255,255,.2); color:rgba(255,255,255,.4); font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:.06em;">SAVING…</span>
+            </div>
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(74,222,128,.4); border-left:3px solid #4ade80; padding:9px 12px; font-size:14px; color:rgba(255,255,255,.7);">Saved — your Board card is updated.</div>
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(248,113,113,.4); border-left:3px solid #f87171; padding:9px 12px;">
+              <span style="font-size:14px; color:rgba(255,255,255,.7);">Could not save. Your pick is still here — try again.</span>
+              <span style="margin-left:10px; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#f87171; cursor:pointer;">Retry</span>
+            </div>
+            <div style="padding:8px 11px; border:1px solid rgba(255,255,255,.1); font-size:14px; color:rgba(255,255,255,.45);">Disabled toggle tooltip: <span style="color:rgba(255,255,255,.7);">“3 of 3 on display — remove one first.”</span> Locked series cannot be selected.</div>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28);">Desktop uses the same panel at 340 px in the Titles layout · toggle sits on each collection card</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= F4 RUNNER CARD ======================= -->
+  <section data-screen-label="F4 Runner card" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">F4 · Runner card — someone else's badges</div>
+    <div style="display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+      <div style="width:402px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px; display:flex; flex-direction:column; gap:12px;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); border-left:3px solid #ffd700; padding:12px 14px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:24px; color:#fff; line-height:1;">KARL PERSSON</span>
+            <span style="display:flex; gap:4px;"><sc-for list="{{ karlMinis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+          </div>
+          <div style="font-size:14px; color:rgba(255,255,255,.45); margin-bottom:10px;">#1 in the group · Lvl 24 · The Double Trouble</div>
+          <span style="display:inline-block; padding:8px 20px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:.06em; cursor:pointer;" style-hover="background:#fff2a8;">CHALLENGE</span>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:13px 14px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+            {{ shieldIconSm2 }}
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:19px; color:#ffd700; letter-spacing:.04em;">BADGES</span>
+            <span style="margin-left:auto; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);">6 of 8 series</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <sc-for list="{{ karlList }}" as="s" hint-placeholder-count="6">
+              <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);">
+                <span style="{{ s.glow }}"><span style="{{ s.frame }}"><span style="{{ s.ring }}"></span><span style="{{ s.inner }}">{{ s.svg }}</span></span></span>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span style="font-weight:600; font-size:14px; letter-spacing:.04em; text-transform:uppercase; color:#edeeed;">{{ s.name }}</span>
+                    <sc-if value="{{ s.onDisplay }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,215,0,.7);">On display</span></sc-if>
+                  </div>
+                  <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.35);">{{ s.held }}</div>
+                </div>
+                <span style="{{ s.chipStyle }}">{{ s.chipLabel }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:9px;">Earned only · displayed first, then highest tier · Challenge stays the one gold button</div>
+        </div>
+      </div>
+      <div style="width:402px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:16px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.35);">Desktop placement</div>
+        <div style="font-size:15px; line-height:1.55; color:rgba(255,255,255,.55);">Same BADGES panel in the 340 px side column, above TITLES. Hero line gets the 3 minis after the name, exactly as in F2 desktop.</div>
+        <div style="border:1px dashed rgba(255,255,255,.18); padding:11px 12px; font-size:14px; color:rgba(255,255,255,.45);">No badges yet.</div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.28);">Empty state for a runner without badges</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= F5 BOARD · SEASON ======================= -->
+  <section data-screen-label="F5 Board season" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">F5 · Board, season view — minis inline, rows keep their height</div>
+    <div style="display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+
+      <div style="width:402px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px; display:flex; flex-direction:column; gap:10px;">
+        <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+          <div style="{{ p.cardStyle }}">
+            <div style="position:absolute; top:6px; right:9px; font-family:'Bebas Neue',sans-serif; font-size:56px; line-height:.78; color:{{ p.ghost }}; pointer-events:none;">{{ p.rank }}</div>
+            <div style="position:relative; padding:11px 13px 12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid {{ p.color }}; display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:14px; color:{{ p.color }};">{{ p.initials }}</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
+                    <span style="font-weight:700; font-size:16px; letter-spacing:.05em; text-transform:uppercase; color:#fff; line-height:1.1;">{{ p.name }}</span>
+                    <span style="font-size:12px; color:{{ p.deltaColor }};">{{ p.delta }}</span>
+                    <span style="display:flex; gap:4px;"><sc-for list="{{ p.minis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:12px; color:rgba(255,255,255,.42);">Lvl {{ p.level }} · {{ p.title }}</span>
+                    {{ p.pennant }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+        <div style="display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08);">
+          <sc-for list="{{ rest }}" as="r" hint-placeholder-count="3">
+            <div style="display:grid; grid-template-columns:26px 1fr 74px; align-items:center; gap:10px; background:rgba(255,255,255,.025); border-left:3px solid {{ r.edge }}; padding:9px 12px;">
+              <span style="font-family:'Bebas Neue',sans-serif; font-size:21px; color:rgba(255,255,255,.2);">{{ r.rank }}</span>
+              <div style="min-width:0;">
+                <div style="font-weight:700; font-size:16px; letter-spacing:.05em; text-transform:uppercase; color:#edeeed; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.name }}</div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="font-size:12px; color:rgba(255,255,255,.38); white-space:nowrap;">Lvl {{ r.level }} · {{ r.km }} km</span>
+                  <span style="display:flex; gap:4px; flex-shrink:0;"><sc-for list="{{ r.minis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+                </div>
+              </div>
+              <span style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; color:rgba(255,255,255,.6); text-align:right;">{{ r.xp }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28);">Mobile 402 · podium: minis on the name line · rest rows: minis on the sub line (name ellipsizes, row height constant) · vertical pennant = challenge token, crest = badge · no badges → nothing (rank 5)</div>
+      </div>
+
+      <div style="width:900px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:20px 24px; box-sizing:border-box;">
+        <div style="display:grid; grid-template-columns:44px 1fr 80px 100px 90px 70px; gap:12px; padding:8px 12px; background:rgba(168,168,168,.1); border:1px solid rgba(255,255,255,.08); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.5);">
+          <span>#</span><span>Runner</span><span>Level</span><span>Distance</span><span>XP</span><span style="text-align:right;">Form</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); border-top:none;">
+          <sc-for list="{{ tableRows }}" as="r" hint-placeholder-count="6">
+            <div style="display:grid; grid-template-columns:44px 1fr 80px 100px 90px 70px; gap:12px; align-items:center; background:rgba(255,255,255,.025); border-left:3px solid {{ r.edge }}; padding:10px 12px;">
+              <span style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:{{ r.rankColor }};">{{ r.rank }}</span>
+              <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                <span style="font-weight:700; font-size:17px; letter-spacing:.05em; text-transform:uppercase; color:#edeeed; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.name }}</span>
+                <span style="display:flex; gap:4px; flex-shrink:0;"><sc-for list="{{ r.minis }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+              </div>
+              <span style="font-size:15px; color:rgba(255,255,255,.55);">{{ r.level }}</span>
+              <span style="font-size:15px; color:rgba(255,255,255,.55);">{{ r.km }} km</span>
+              <span style="font-family:'Share Tech Mono',monospace; font-size:14px; color:#ffd700;">{{ r.xp }}</span>
+              <span style="font-size:14px; text-align:right; color:{{ r.deltaColor }};">{{ r.delta }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:10px;">Desktop table · longest name + 3 minis on row 6 · whole row still opens the runner card (minis are decorative)</div>
+      </div>
+
+      <div style="width:330px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35);">Challenge token · new form — naval pennant, vertical</div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.08); padding:13px 14px; display:flex; align-items:center; gap:18px;">
+          <sc-for list="{{ pennants }}" as="pn" hint-placeholder-count="4">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:7px;">
+              {{ pn.node }}
+              <span style="font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.35); text-align:center;">{{ pn.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.08); padding:11px 14px; display:flex; align-items:center; gap:14px;">
+          {{ sideBySide.node }}
+          <span style="{{ sideBySide.crest.glow }}"><span style="{{ sideBySide.crest.frame }}"><span style="{{ sideBySide.crest.ring }}"></span><span style="{{ sideBySide.crest.inner }}">{{ sideBySide.crest.svg }}</span></span></span>
+          <span style="font-size:13px; line-height:1.5; color:rgba(255,255,255,.5);">Side by side: swallowtail bottom vs crest point — no confusion at 1:1.</span>
+        </div>
+        <div style="font-size:13px; line-height:1.55; color:rgba(255,255,255,.45);">Old ribbon colours, size (22×27) and count kept — only the silhouette changes. Shared as pennant() in runquest-badges.js; next step is swapping the three prototypes' ribbon() to it.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= F6 TIER-UP POPUP ======================= -->
+  <section data-screen-label="F6 Tier-up popup" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">F6 · Tier-up popup — ignite once (0.9 s ease-out), no bounce, no confetti</div>
+    <div style="display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+      <sc-for list="{{ pops }}" as="p" hint-placeholder-count="5">
+        <div style="{{ p.wrapStyle }}">
+          <div style="width:{{ p.w }}px; background:rgba(20,20,20,.98); border:1px solid rgba(255,255,255,.12); box-shadow:0 24px 60px rgba(0,0,0,.7); padding:22px 20px 20px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; position:relative;">
+            <span style="position:absolute; top:10px; right:13px; font-size:15px; color:rgba(255,255,255,.35); cursor:pointer;" style-hover="color:#edeeed;">✕</span>
+            <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">{{ p.eyebrow }}</div>
+            <div style="display:flex; align-items:center; gap:14px; margin-top:4px;">
+              <sc-if value="{{ p.hasOld }}" hint-placeholder-val="{{ false }}">
+                <span style="{{ p.oldGlow }}"><span style="{{ p.oldFrame }}"><span style="{{ p.oldRing }}"></span><span style="{{ p.oldInner }}">{{ p.oldSvg }}</span></span></span>
+                <span style="font-size:16px; color:rgba(255,255,255,.35);">→</span>
+              </sc-if>
+              <span style="{{ p.bigGlow }}"><span style="{{ p.bigFrame }}"><span style="{{ p.bigRing }}"></span><span style="{{ p.bigInner }}">{{ p.bigSvg }}</span></span></span>
+            </div>
+            <div style="font-family:'Bebas Neue',sans-serif; font-size:28px; color:#fff; line-height:1;">{{ p.title }}</div>
+            <sc-if value="{{ p.hasTier }}" hint-placeholder-val="{{ false }}"><div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:{{ p.tierColor }};">{{ p.tierLine }}</div></sc-if>
+            <span style="{{ p.chipStyle }}">{{ p.chipLabel }}</span>
+            <p style="font-size:15px; line-height:1.45; margin:0; color:rgba(255,255,255,.55); max-width:280px;">{{ p.body }}</p>
+            <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.1em; color:rgba(255,255,255,.4);">{{ p.held }}</div>
+            <span style="margin-top:4px; padding:8px 26px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:.06em; cursor:pointer; outline:2px solid rgba(255,215,0,.35); outline-offset:2px;" style-hover="background:#fff2a8;">GOT IT</span>
+            <sc-if value="{{ p.queue }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; gap:14px; align-items:center;">
+                <span style="padding:6px 14px; border:1px solid rgba(255,255,255,.16); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.55); cursor:pointer;" style-hover="border-color:rgba(255,255,255,.4);">Skip all</span>
+                <span style="font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.4); cursor:pointer;" style-hover="color:#ffd700;">View badges</span>
+              </div>
+            </sc-if>
+          </div>
+          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-top:10px; text-align:center;">{{ p.caption }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- ======================= F7 NEWS ======================= -->
+  <section data-screen-label="F7 News badge_earned" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">F7 · Pack news — badge_earned in the Levels category</div>
+    <div style="display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+      <div style="width:402px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px;">
+        <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-bottom:7px;">Today</div>
+        <div style="display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.07);">
+          <sc-for list="{{ newsRows }}" as="n" hint-placeholder-count="3">
+            <div style="display:grid; grid-template-columns:30px 1fr; align-items:start; gap:10px; background:{{ n.bg }}; border-left:3px solid #4ade80; padding:10px 12px;">
+              <sc-if value="{{ n.hasMini }}" hint-placeholder-val="{{ true }}">
+                <span style="{{ n.glow }}"><span style="{{ n.frame }}"><span style="{{ n.ring }}"></span><span style="{{ n.inner }}">{{ n.svg }}</span></span></span>
+              </sc-if>
+              <sc-if value="{{ n.hasZap }}" hint-placeholder-val="{{ false }}">{{ n.zapIcon }}</sc-if>
+              <div>
+                <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#4ade80;">
+                  <span>{{ n.kind }}</span><span style="color:rgba(255,255,255,.26);">{{ n.time }}</span>
+                </div>
+                <div style="font-size:14px; line-height:1.4; color:rgba(255,255,255,.75);">{{ n.text }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:9px;">Row 1 unread (tinted) · row 2 read · row 3 = alternative keeping the zap · Levels filter chip unchanged</div>
+      </div>
+      <div style="width:420px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:16px;">
+        <div style="background:rgba(20,20,20,.98); border:1px solid rgba(255,215,0,.3); box-shadow:0 20px 50px rgba(0,0,0,.6);">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.08);">
+            <span style="font-family:'Bebas Neue',sans-serif; font-size:19px; letter-spacing:.05em; color:#ffd700;">THE PACK NEWS</span>
+            <span style="font-size:16px; color:rgba(255,255,255,.35); cursor:pointer;">✕</span>
+          </div>
+          <div style="display:flex; gap:6px; padding:10px 14px 4px;">
+            <span style="display:flex; align-items:center; gap:5px; padding:4px 10px; background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.45); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:#4ade80;">{{ zapChipIcon }}Levels</span>
+            <span style="padding:4px 10px; border:1px solid rgba(255,255,255,.14); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.45);">Titles</span>
+            <span style="padding:4px 10px; border:1px solid rgba(255,255,255,.14); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.45);">Challenges</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.06); margin:8px 14px 14px; border:1px solid rgba(255,255,255,.07);">
+            <sc-for list="{{ newsRowsPop }}" as="n" hint-placeholder-count="2">
+              <div style="display:grid; grid-template-columns:30px 1fr; align-items:start; gap:10px; background:{{ n.bg }}; border-left:3px solid #4ade80; padding:10px 12px;">
+                <span style="{{ n.glow }}"><span style="{{ n.frame }}"><span style="{{ n.ring }}"></span><span style="{{ n.inner }}">{{ n.svg }}</span></span></span>
+                <div>
+                  <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#4ade80;">
+                    <span>{{ n.kind }}</span><span style="color:rgba(255,255,255,.26);">{{ n.time }}</span>
+                  </div>
+                  <div style="font-size:14px; line-height:1.4; color:rgba(255,255,255,.75);">{{ n.text }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:9px;">Desktop bell popover · mini emblem replaces the zap in the icon column</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= F8 STATES ======================= -->
+  <section data-screen-label="F8 States" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">F8 · States</div>
+    <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:stretch;">
+      <div style="width:330px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px;">
+        <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-bottom:9px;">Collection loading · skeleton</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <sc-for list="{{ skels }}" as="s" hint-placeholder-count="3">
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.07); padding:12px; display:flex; gap:12px; align-items:center; animation:rqSkel 1.6s ease-in-out infinite; animation-delay:{{ s.delay }};">
+              <span style="width:56px; height:63px; clip-path:polygon(50% 0%, 100% 14%, 100% 60%, 50% 100%, 0% 60%, 0% 14%); background:rgba(255,255,255,.07); flex-shrink:0;"></span>
+              <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+                <span style="height:12px; width:60%; background:rgba(255,255,255,.08);"></span>
+                <span style="height:9px; width:85%; background:rgba(255,255,255,.05);"></span>
+                <span style="height:9px; width:45%; background:rgba(255,255,255,.05);"></span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="width:330px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px;">
+        <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-bottom:9px;">No badges yet</div>
+        <div style="border:1px dashed rgba(255,255,255,.18); padding:18px 14px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:24px; color:#fff; line-height:1;">NO BADGES YET</div>
+          <div style="font-size:14px; color:rgba(255,255,255,.5);">Log a run to start collecting.</div>
+          <div style="display:flex; gap:7px; flex-wrap:wrap; justify-content:center; margin-top:4px;">
+            <sc-for list="{{ lockedMinis }}" as="l" hint-placeholder-count="8">
+              <span style="{{ l.glow }}"><span style="{{ l.frame }}"><span style="{{ l.ring }}"></span><span style="{{ l.inner }}">{{ l.svg }}</span></span></span>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="width:330px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35);">Collection error</div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(248,113,113,.4); border-left:3px solid #f87171; padding:13px 14px;">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:20px; color:#fff; line-height:1.05;">COULDN'T LOAD YOUR BADGES</div>
+          <div style="font-size:14px; color:rgba(255,255,255,.55); margin-top:4px;">Your runs are safe.</div>
+          <span style="display:inline-block; margin-top:9px; padding:6px 16px; border:1px solid rgba(255,255,255,.2); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.7); cursor:pointer;" style-hover="border-color:#f87171; color:#f87171;">Retry</span>
+        </div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35); margin-top:4px;">Held-by line missing</div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.07); padding:10px 12px; display:flex; align-items:center; gap:10px;">
+          <span style="{{ omitEmblem.glow }}"><span style="{{ omitEmblem.frame }}"><span style="{{ omitEmblem.ring }}"></span><span style="{{ omitEmblem.inner }}">{{ omitEmblem.svg }}</span></span></span>
+          <div>
+            <div style="font-weight:600; font-size:14px; letter-spacing:.04em; text-transform:uppercase; color:#edeeed;">Precisionist</div>
+            <div style="font-size:12px; color:rgba(255,255,255,.4);">Line simply omitted — no placeholder</div>
+          </div>
+        </div>
+        <div style="font-size:13px; line-height:1.5; color:rgba(255,255,255,.45);">On the Board a badge failure shows nothing at all — rows render as if no badges were chosen.</div>
+      </div>
+      <div style="width:330px; background:#070e09; border:1px solid rgba(255,255,255,.1); padding:14px; display:flex; flex-direction:column; gap:8px;">
+        <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.35);">New tokens · deviations</div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; line-height:1.9; color:rgba(255,255,255,.55);">
+          --rq-tier-common #a8a8a8<br>--rq-tier-uncommon #4ade80<br>--rq-tier-rare #60a5fa<br>--rq-tier-heroic #f87171 · alt #fbbf24<br>--rq-tier-epic #c084fc<br>--rq-tier-legendary #ffd700 · alt #ff9a1f<br>--rq-emblem-mini 28×31 · med 56×63 · lg 96×108<br>--rq-emblem-icon 15 / 24 / 42<br>--rq-pip 6px · --rq-popup-w 400px<br>--rq-glow-static 7px @45% · breathe 3→13px
+        </div>
+        <div style="font-size:13px; line-height:1.55; color:rgba(255,255,255,.45);">Deviations: (1) Heroic adds a hairline ring — a 4th emblem layer beyond the brief's three, needed as its non-colour mark. (2) "Held by 0" is omitted, not written out. (3) Tokens are documented here but authored as literals, per this project's inline-style convention.</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;heroicAmber&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Tier palette&quot;},&quot;legendaryOrange&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Tier palette&quot;},&quot;breathe&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Motion&quot;}}">
+class Component extends DCLogic {
+  rq() { return window.RQIcons(React); }
+  rb() { return window.RQBadges(React, { heroicAmber: this.props.heroicAmber ?? false, legendaryOrange: this.props.legendaryOrange ?? false, breathe: this.props.breathe !== false }); }
+
+  VIEWER = { milestoner: 3, earth: 2, climber: 1, streak: 6, early: 4, night: 0, speedster: 0, precisionist: 0 };
+  HELD = { milestoner: 5, earth: 6, climber: 4, streak: 1, early: 2, night: 3, speedster: 1, precisionist: 0 };
+  DISPLAYED = ['streak', 'early', 'milestoner'];
+
+  heldLine(x, viewerHolds) {
+    if (!x) return null;
+    if (x === 1 && viewerHolds) return 'Only you hold this in your pack';
+    return 'Held by ' + x + ' of 6 in your pack';
+  }
+
+  renderVals() {
+    const B = this.rb(), T = B.TIERS, ORD = B.ORDER;
+    const em = (t, ic, sz, o) => B.emblem(t, ic, sz, o);
+    const bySeries = {}; B.SERIES.forEach(s => bySeries[s.key] = s);
+    const up = '#4ade80', down = '#f87171', gold = '#ffd700';
+
+    const mkCard = (s) => {
+      const tier = this.VIEWER[s.key], tKey = tier > 0 ? ORD[tier - 1] : null;
+      const held = this.heldLine(this.HELD[s.key], tier > 0);
+      const showFl = ['milestoner', 'climber', 'streak'].indexOf(s.key) >= 0 && tier > 0;
+      const line2 = tier === 0 ? 'Unlock: Common — ' + s.tiers[0].req
+        : tier < 6 ? 'Next: ' + T[ORD[tier]].name + ' — ' + s.tiers[tier].req : 'Top tier reached';
+      return Object.assign({
+        name: s.name,
+        chipStyle: B.chip(tKey), chipLabel: tKey ? T[tKey].name : 'Locked',
+        pips: B.pips(tKey),
+        line1: tier > 0 ? T[tKey].name + ' — ' + s.tiers[tier - 1].req : s.metric,
+        hasFl: showFl, flavour: showFl ? '“' + s.tiers[tier - 1].fl + '”' : '',
+        line2: line2,
+        line2Style: 'font-size:13px; line-height:1.35; margin-top:5px; ' + (tier === 6 ? 'color:' + gold + '; letter-spacing:.1em; text-transform:uppercase; font-size:12px;' : 'color:rgba(255,255,255,.4);'),
+        hasHeld: !!held, held: held || '',
+        cardStyle: 'padding:13px 14px; background:rgba(255,255,255,.02); ' + (tier === 0 ? 'border:1px dashed rgba(255,255,255,.16);' : 'border:1px solid rgba(255,255,255,.08);'),
+        cardStyleM: 'padding:11px 12px; background:rgba(255,255,255,.02); ' + (tier === 0 ? 'border:1px dashed rgba(255,255,255,.16);' : 'border:1px solid rgba(255,255,255,.08);')
+      }, em(tKey, s.icon, 'medium'));
+    };
+
+    const KARL = [['speedster', 5, true], ['milestoner', 3, true], ['night', 2, true], ['streak', 4, false], ['earth', 2, false], ['climber', 1, false]];
+    const miniOf = (key, tier) => em(ORD[tier - 1], bySeries[key].icon, 'mini');
+    const MINIS = {
+      karl: [miniOf('speedster', 5), miniOf('milestoner', 3), miniOf('night', 2)],
+      joel: [miniOf('streak', 6), miniOf('early', 4), miniOf('milestoner', 3)],
+      johan: [miniOf('streak', 4), miniOf('earth', 3), miniOf('climber', 1)],
+      nicklas: [miniOf('climber', 3), miniOf('milestoner', 2)],
+      adam: [],
+      daniel: [miniOf('earth', 1), miniOf('night', 2), miniOf('climber', 3)]
+    };
+
+    const penGroup = (nodes) => React.createElement('span', { style: { display: 'flex', gap: 4, flexShrink: 0, alignItems: 'center' } }, nodes.map((n, i) => React.createElement('span', { key: i, style: { display: 'inline-flex' } }, n)));
+    const popBase = 'display:flex; flex-direction:column; background:rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.06); padding:30px 28px 22px; align-items:center;';
+    const mkPop = (o) => {
+      const big = em(o.tier, o.icon, 'large', { ignite: true });
+      const old = o.oldTier ? em(o.oldTier, o.icon, 'mini') : null;
+      return {
+        wrapStyle: popBase, w: o.mobile ? 340 : 400,
+        eyebrow: o.eyebrow, title: o.title,
+        hasTier: !!o.tierLine, tierLine: o.tierLine || '', tierColor: T[o.tier].c,
+        chipStyle: B.chip(o.tier), chipLabel: T[o.tier].name,
+        body: o.body, held: o.held, queue: !!o.queue, caption: o.caption,
+        hasOld: !!old,
+        oldGlow: old ? old.glow : '', oldFrame: old ? old.frame : '', oldRing: old ? old.ring : '', oldInner: old ? old.inner : '', oldSvg: old ? old.svg : null,
+        bigGlow: big.glow, bigFrame: big.frame, bigRing: big.ring, bigInner: big.inner, bigSvg: big.svg
+      };
+    };
+
+    const newsRow = (kind, time, text, mini, unread, zap) => Object.assign({
+      kind: kind, time: time, text: text,
+      bg: unread ? 'rgba(74,222,128,.06)' : 'rgba(255,255,255,.015)',
+      hasMini: !zap, hasZap: !!zap, zapIcon: zap ? B.icon('zap', 17, up) : null
+    }, mini || { glow: '', frame: '', ring: '', inner: '', svg: null });
+
+    return {
+      logo: this.rq().logo({ taglineFill: gold, width: 170, height: 42 }),
+      shieldIcon: B.icon('shield', 18, gold), shieldIconSm: B.icon('shield', 16, gold), shieldIconSm2: B.icon('shield', 16, gold),
+      zapChipIcon: B.icon('zap', 13, up),
+
+      heroMinis: MINIS.joel,
+      colCards: B.SERIES.map(mkCard),
+      sideList: B.SERIES.filter(s => this.VIEWER[s.key] > 0).map(s => {
+        const tKey = ORD[this.VIEWER[s.key] - 1];
+        return Object.assign({ name: s.name, chipStyle: B.chip(tKey), chipLabel: T[tKey].name }, em(tKey, s.icon, 'mini'));
+      }),
+
+      slots: this.DISPLAYED.map((k, i) => Object.assign({
+        pos: i + 1, name: bySeries[k].name, tierName: T[ORD[this.VIEWER[k] - 1]].name
+      }, miniOf(k, this.VIEWER[k]))),
+      pickRows: B.SERIES.map(s => {
+        const tier = this.VIEWER[s.key], tKey = tier > 0 ? ORD[tier - 1] : null;
+        const disp = this.DISPLAYED.indexOf(s.key);
+        const locked = tier === 0, full = disp < 0 && !locked;
+        return Object.assign({
+          name: s.name,
+          sub: locked ? 'Locked — cannot be selected' : T[tKey].name,
+          pressed: disp >= 0 ? 'true' : 'false',
+          toggleLabel: disp >= 0 ? 'On display — ' + (disp + 1) : locked ? 'Locked' : 'Show',
+          toggleStyle: 'padding:5px 12px; font-size:12px; letter-spacing:.12em; text-transform:uppercase; white-space:nowrap; ' +
+            (disp >= 0 ? 'background:rgba(255,215,0,.1); border:1px solid rgba(255,215,0,.45); color:' + gold + '; cursor:pointer;'
+              : locked ? 'border:1px solid rgba(255,255,255,.08); color:rgba(255,255,255,.22);'
+              : 'border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.3);'),
+          rowStyle: 'display:flex; align-items:center; gap:10px; padding:8px 11px; background:rgba(33,33,33,.62); border:1px ' + (locked ? 'dashed rgba(255,255,255,.12)' : 'solid rgba(255,255,255,.08)') + ';' + (full ? ' opacity:.75;' : '')
+        }, em(tKey, s.icon, 'mini'));
+      }),
+
+      karlMinis: MINIS.karl,
+      karlList: KARL.map(k => {
+        const s = bySeries[k[0]], tKey = ORD[k[1] - 1];
+        return Object.assign({
+          name: s.name, onDisplay: k[2],
+          chipStyle: B.chip(tKey), chipLabel: T[tKey].name,
+          held: this.heldLine(Math.max(this.HELD[k[0]], 1), false) || 'Held by 1 of 6 in your pack'
+        }, em(tKey, s.icon, 'medium'));
+      }),
+
+      podium: [
+        { rank: '1', name: 'KARL PERSSON', initials: 'KP', level: 24, title: 'The Double Trouble', color: gold, ghost: 'rgba(255,215,0,.12)', delta: '▲ 1', deltaColor: up, minis: MINIS.karl, pennant: penGroup([B.pennant(3, 'minor'), B.pennant(1, 'major')]),
+          cardStyle: 'position:relative; background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.55); border-left:3px solid ' + gold + ';' },
+        { rank: '2', name: 'JOEL LINDBERG', initials: 'JL', level: 24, title: 'The Weekend Destroyer', color: '#a8a8a8', ghost: 'rgba(168,168,168,.12)', delta: '▼ 1', deltaColor: down, minis: MINIS.joel, pennant: penGroup([B.pennant(2, 'minor')]),
+          cardStyle: 'position:relative; background:rgba(33,33,33,.62); border:1px solid rgba(168,168,168,.4); border-left:3px solid #a8a8a8;' },
+        { rank: '3', name: 'JOHAN BJÖRELL', initials: 'JB', level: 22, title: 'The Comeback', color: '#cd7f32', ghost: 'rgba(205,127,50,.14)', delta: '▲ 2', deltaColor: up, minis: MINIS.johan, pennant: penGroup([B.pennant(1, 'minor'), B.pennant(1, 'legendary')]),
+          cardStyle: 'position:relative; background:rgba(33,33,33,.62); border:1px solid rgba(205,127,50,.4); border-left:3px solid #cd7f32;' }
+      ],
+      rest: [
+        { rank: '4', name: 'NICKLAS VON ELLING', level: 21, km: '14.2', xp: '96 / d', edge: 'rgba(255,255,255,.14)', minis: MINIS.nicklas },
+        { rank: '5', name: 'ADAM EINSTEIN', level: 19, km: '9.8', xp: '71 / d', edge: 'rgba(255,255,255,.14)', minis: MINIS.adam },
+        { rank: '6', name: 'DANIEL LINDBLAD LÜTHJE', level: 18, km: '6.1', xp: '48 / d', edge: 'rgba(255,255,255,.14)', minis: MINIS.daniel }
+      ],
+      tableRows: [
+        { rank: '1', name: 'KARL PERSSON', level: 24, km: '38.2', xp: '214', delta: '▲ 1', deltaColor: up, rankColor: gold, edge: gold, minis: MINIS.karl },
+        { rank: '2', name: 'JOEL LINDBERG', level: 24, km: '31.0', xp: '186', delta: '▼ 1', deltaColor: down, rankColor: '#a8a8a8', edge: '#a8a8a8', minis: MINIS.joel },
+        { rank: '3', name: 'JOHAN BJÖRELL', level: 22, km: '27.4', xp: '158', delta: '▲ 2', deltaColor: up, rankColor: '#cd7f32', edge: '#cd7f32', minis: MINIS.johan },
+        { rank: '4', name: 'NICKLAS VON ELLING', level: 21, km: '14.2', xp: '96', delta: '▼ 2', deltaColor: down, rankColor: 'rgba(255,255,255,.3)', edge: 'rgba(255,255,255,.14)', minis: MINIS.nicklas },
+        { rank: '5', name: 'ADAM EINSTEIN', level: 19, km: '9.8', xp: '71', delta: '—', deltaColor: 'rgba(255,255,255,.3)', rankColor: 'rgba(255,255,255,.3)', edge: 'rgba(255,255,255,.14)', minis: MINIS.adam },
+        { rank: '6', name: 'DANIEL LINDBLAD LÜTHJE', level: 18, km: '6.1', xp: '48', delta: '▼ 1', deltaColor: down, rankColor: 'rgba(255,255,255,.3)', edge: 'rgba(255,255,255,.14)', minis: MINIS.daniel }
+      ],
+
+      pops: [
+        mkPop({ eyebrow: 'BADGE EARNED', title: 'NIGHT OWL', tier: 'common', icon: 'moon', body: '5 runs started 21:00–03:59.', held: 'Held by 4 of 6 in your pack', caption: 'New badge · desktop 400' }),
+        mkPop({ eyebrow: 'BADGE EVOLVED', title: 'MILESTONER', tier: 'rare', oldTier: 'uncommon', icon: 'flag', tierLine: 'Uncommon → Rare', body: 'A single run of 21.1 km — “Half Marathon”.', held: 'Held by 5 of 6 in your pack', caption: 'Upgrade · old tier as mini' }),
+        mkPop({ eyebrow: 'BADGE EVOLVED', title: 'STREAK KEEPER', tier: 'legendary', oldTier: 'epic', icon: 'flame', tierLine: 'Epic → Legendary', body: '100 days in a row — “The Hundred”.', held: 'Only you hold this in your pack', caption: 'Legendary · ignites, then breathes' }),
+        mkPop({ eyebrow: 'BADGE EARNED · 1 OF 3', title: 'EARLY BIRD', tier: 'common', icon: 'sun', body: '5 runs started 04:00–06:59.', held: 'Held by 6 of 6 in your pack', queue: true, caption: 'Queued · ghost skip + quiet link' }),
+        mkPop({ eyebrow: 'BADGE EVOLVED', title: 'MILESTONER', tier: 'rare', oldTier: 'uncommon', icon: 'flag', tierLine: 'Uncommon → Rare', body: 'A single run of 21.1 km — “Half Marathon”.', held: 'Held by 5 of 6 in your pack', mobile: true, caption: 'Mobile 340 inside 402 screen' })
+      ],
+
+      newsRows: [
+        newsRow('Badge earned', '2 h', 'Karl earned Streak Keeper — Common.', em('common', 'flame', 'mini'), true),
+        newsRow('Badge evolved', 'Yesterday', 'You evolved Milestoner from Uncommon to Rare.', em('rare', 'flag', 'mini'), false),
+        newsRow('Badge evolved', 'Yesterday', 'You evolved Milestoner from Uncommon to Rare.', null, false, true)
+      ],
+      newsRowsPop: [
+        newsRow('Badge earned', '2 h', 'Karl earned Streak Keeper — Common.', em('common', 'flame', 'mini'), true),
+        newsRow('Badge evolved', 'Yesterday', 'You evolved Milestoner from Uncommon to Rare.', em('rare', 'flag', 'mini'), false)
+      ],
+
+      pennants: [
+        { label: 'Minor · 3', node: B.pennant(3, 'minor') },
+        { label: 'Major · 1', node: B.pennant(1, 'major') },
+        { label: 'Legendary · 1', node: B.pennant(1, 'legendary') },
+        { label: 'Light theme', node: React.createElement('span', { style: { background: '#f3efe7', padding: '5px 7px', display: 'inline-flex' } }, B.pennant(2, 'minor', true)) }
+      ],
+      sideBySide: {
+        node: B.pennant(3, 'minor'),
+        crest: em('heroic', 'sun', 'mini')
+      },
+
+      skels: [{ delay: '0s' }, { delay: '.2s' }, { delay: '.4s' }],
+      lockedMinis: B.SERIES.map(s => em(null, s.icon, 'mini')),
+      omitEmblem: em('common', 'target', 'medium')
+    };
+  }
+}
+</script>
+</body>
+</html>
+

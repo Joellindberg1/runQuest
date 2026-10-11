@@ -152,6 +152,8 @@
   border: var(--rq-hair) solid var(--rq-line-4);
 }
 .rq-popover--gold { border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); }
+/* Popover som kan öppnas inifrån en modal (t.ex. emblem-popovern på Runner card som overlay): Radix portar den till body, så den måste själv ligga över .rq-scrim (65) och .rq-modal (66). */
+.rq-popover.rq-popover--over-modal { z-index: var(--rq-z-popover-over-modal); }
 .rq-menu { width: var(--rq-menu-w); }
 .rq-menu__head { padding: var(--rq-sp-10) var(--rq-sp-14); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
 .rq-menu__name { font-family: var(--rq-font-display); font-size: var(--rq-fs-title); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }

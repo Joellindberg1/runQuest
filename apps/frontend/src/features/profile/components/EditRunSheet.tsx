@@ -6,6 +6,9 @@ import { useDeleteRun, useUpdateRun } from '../hooks/useRunChanges';
 import { formatKm } from '../profileFormat';
 import { STRAVA_DELETE_HINT, buildUpdate, buildXpParts, deleteNotice, editFormFor, isDirty, isStravaRun, updateNotice, validateEdit, type EditForm } from '../profileModel';
 
+/** RUN-139: Strava är sanningskällan för distans och datum — en Strava-runda visas skrivskyddad, utan Save. */
+const STRAVA_READ_ONLY_HINT = "Synced from Strava. Distance and date come from Strava and can't be changed here.";
+
 interface EditRunSheetProps {
   run: Run;
   /** Stockholm-dagen: datumfältets övre gräns. */
@@ -25,6 +28,9 @@ interface EditRunSheetProps {
  * tokens). EN guldknapp (Save changes); Delete är en röd hårlinje och bekräftas i ett eget steg där den fyllda röda knappen
  * finns — oåterkalleligt. Serverns fel visas i rutan (permanent live-region), valideringsfel bredvid fältet. Rutan stängs
  * först när servern svarat och omhämtningen är klar; efter det visar skärmen bekräftelsen. Monteras bara medan den är öppen.
+ * En Strava-runda (RUN-139) visas skrivskyddad: distans och datum som text, en rad om att den synkats från Strava, ingen
+ * Save (PUT redigerar bara just de två fälten) och Delete fortsatt spärrad. Ett 409 från servern (gammal klient/kapplöpning)
+ * hamnar som vanligt i felregionen.
  */
 export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: EditRunSheetProps) {
   const doneRef = useRef(false);
@@ -80,6 +86,20 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
     }
   };
 
+  const xpSection = (
+    <section aria-label="What this run earned">
+      <p className="rq-label rq-profile-sub">What this run earned</p>
+      <dl className="rq-hairgrid rq-profile-sheet__xp">
+        {buildXpParts(run).map((part) => (
+          <div key={part.key} className="rq-profile-sheet__xp-row" data-total={part.key === 'total' || undefined}>
+            <dt>{part.label}</dt>
+            <dd>{part.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+
   return (
     <Dialog.Root open onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
       <Dialog.Portal>
@@ -94,7 +114,7 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
         >
           <header className="rq-profile-sheet__head">
             <div className="rq-profile-sheet__id">
-              <Dialog.Title className="rq-profile-sheet__title">{confirming ? 'Delete run' : 'Edit run'}</Dialog.Title>
+              <Dialog.Title className="rq-profile-sheet__title">{confirming ? 'Delete run' : fromStrava ? 'Run details' : 'Edit run'}</Dialog.Title>
               <p className="rq-profile-sheet__sub">{runDate} · {formatKm(run.distance)} km</p>
             </div>
             <Dialog.Close className="rq-sheet__close" aria-label="Close" disabled={pending}>✕</Dialog.Close>
@@ -117,6 +137,39 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
                 </button>
               </footer>
             </>
+          ) : fromStrava ? (
+            <div className="rq-profile-sheet__form">
+              <div className="rq-profile-sheet__body">
+                {/* Strava är sanningskällan (RUN-139): distans och datum visas men går inte att ändra, och servern avvisar PUT med 409. */}
+                <section aria-label="Date and distance">
+                  <dl className="rq-hairgrid rq-profile-sheet__xp">
+                    <div className="rq-profile-sheet__xp-row">
+                      <dt>Date</dt>
+                      <dd>{runDate}</dd>
+                    </div>
+                    <div className="rq-profile-sheet__xp-row">
+                      <dt>Distance</dt>
+                      <dd>{formatKm(run.distance)} km</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                {xpSection}
+
+                <p className="rq-profile-sheet__hint">{STRAVA_READ_ONLY_HINT}</p>
+                {/* Synlig förklaring för den som inte kan hovra (touch); skärmläsare får samma text i knappen. */}
+                <p className="rq-profile-sheet__hint" aria-hidden="true">{STRAVA_DELETE_HINT}.</p>
+                <p role="alert" className="rq-profile-sheet__error">{serverError}</p>
+              </div>
+
+              <footer className="rq-profile-sheet__foot">
+                <Dialog.Close className="rq-btn rq-btn--ghost" disabled={pending}>Close</Dialog.Close>
+                <button type="button" className="rq-btn rq-btn--danger" disabled title={STRAVA_DELETE_HINT}>
+                  Delete run
+                  <span className="sr-only"> — {STRAVA_DELETE_HINT}</span>
+                </button>
+              </footer>
+            </div>
           ) : (
             <form noValidate onSubmit={(event) => void save(event)} aria-label="Edit run" className="rq-profile-sheet__form">
               <div className="rq-profile-sheet__body">
@@ -157,21 +210,9 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
                   </div>
                 </div>
 
-                <section aria-label="What this run earned">
-                  <p className="rq-label rq-profile-sub">What this run earned</p>
-                  <dl className="rq-hairgrid rq-profile-sheet__xp">
-                    {buildXpParts(run).map((part) => (
-                      <div key={part.key} className="rq-profile-sheet__xp-row" data-total={part.key === 'total' || undefined}>
-                        <dt>{part.label}</dt>
-                        <dd>{part.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </section>
+                {xpSection}
 
                 <p className="rq-profile-sheet__hint">Changing the date or distance recalculates your streak and XP from that day on.</p>
-                {/* Synlig förklaring för den som inte kan hovra (touch); skärmläsare får samma text i knappen. */}
-                {fromStrava && <p className="rq-profile-sheet__hint" aria-hidden="true">{STRAVA_DELETE_HINT}.</p>}
                 <p role="alert" className="rq-profile-sheet__error">{serverError}</p>
               </div>
 
@@ -183,12 +224,10 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
                 <button
                   type="button"
                   className="rq-btn rq-btn--danger"
-                  disabled={pending || fromStrava}
-                  title={fromStrava ? STRAVA_DELETE_HINT : undefined}
+                  disabled={pending}
                   onClick={() => { setConfirming(true); setServerError(null); }}
                 >
                   Delete run
-                  {fromStrava && <span className="sr-only"> — {STRAVA_DELETE_HINT}</span>}
                 </button>
               </footer>
             </form>

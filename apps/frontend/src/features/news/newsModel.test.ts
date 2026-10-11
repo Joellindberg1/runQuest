@@ -1,12 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { ACTIVITY_TYPES } from '@runquest/shared';
+import { describe, expect, it, vi } from 'vitest';
+import { logger } from '@/shared/utils/logger';
+import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, type ActivityType, type NewsItem } from '@runquest/shared';
 import {
   CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, countByFilter, dedupeById, describeNews,
   feedFromPage, formatAgo, fullTime, gapCursor, groupByDay, isUnread, markSeenInFeed, mergeNewer, parseFilterParam, serializeFilterParam,
-  replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, type NewsContext,
+  replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
 } from './newsModel';
 import { formatInt } from '@/features/log/logFormat';
-import { ADAM, DAN, ME, NICK, NOW, KARL, at, challengeWon, eventOpen, item, levelUp, meta, streakBroken, titleTaken } from './news.fixture';
+import { ADAM, DAN, ME, NICK, NOW, KARL, at, badgeEarned, challengeWon, eventOpen, item, levelUp, meta, streakBroken, titleTaken } from './news.fixture';
 
 const ctx = (over: Partial<NewsContext> = {}): NewsContext => ({ viewerId: ME.id, now: NOW, ...over });
 
@@ -19,9 +20,10 @@ describe('kategorier och filter', () => {
     expect(NEWS_FILTERS.flatMap((filter) => filter.types).sort()).toEqual([...ACTIVITY_TYPES].sort());
   });
 
-  it('Levels = level_up + run_milestone (ADR 008)', () => {
-    expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone']);
+  it('Levels = level_up + run_milestone (ADR 008) + badge_earned (ADR 009 beslut 5, F7)', () => {
+    expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone', 'badge_earned']);
     expect(CATEGORY_OF.run_milestone).toBe('level');
+    expect(CATEGORY_OF.badge_earned).toBe('level');
   });
 
   it('adressparametern: okända nycklar och dubbletter faller bort, ordningen är chipens, alla fem = inget filter', () => {
@@ -43,13 +45,15 @@ describe('kategorier och filter', () => {
   it('chipsens typer blir serverns type= i stabil ordning; inget filter = ingen parameter', () => {
     expect(typesForFilters([])).toBeNull();
     expect(typeParamOf(null)).toBeUndefined();
-    expect(typesForFilters(['levels', 'titles'])).toEqual(['title_unlocked', 'title_taken', 'title_revoked', 'level_up', 'run_milestone']);
+    expect(typesForFilters(['levels', 'titles'])).toEqual(['title_unlocked', 'title_taken', 'title_revoked', 'level_up', 'run_milestone', 'badge_earned']);
     expect(typeParamOf(typesForFilters(['streaks']))).toBe('streak_broken');
   });
 
   it('chip-räknarna är antal per kategori i det laddade fönstret', () => {
     const counts = countByFilter([titleTaken(5), titleTaken(4), levelUp(3, 25), streakBroken(2), eventOpen(1)]);
     expect(counts).toEqual({ titles: 2, challenges: 0, events: 1, levels: 1, streaks: 1 });
+    // badge_earned räknas under Levels.
+    expect(countByFilter([badgeEarned(2), levelUp(1, 25)]).levels).toBe(2);
   });
 });
 
@@ -347,6 +351,75 @@ describe('texterna ur typ + payload + vem som tittar', () => {
     });
   });
 
+  describe('badge_earned (F7)', () => {
+    it('previous_tier null → "earned" med serienamn och tier-namn ur shared', () => {
+      expect(describeNews(badgeEarned(1), ctx())).toEqual({ kind: 'Badge earned', text: 'Karl earned Streak Keeper — Common.' });
+      expect(describeNews(badgeEarned(1, { actor: ME }, { series: 'night_owl', tier: 3 }), ctx()))
+        .toEqual({ kind: 'Badge earned', text: 'You earned Night Owl — Rare.' });
+    });
+
+    it('previous_tier satt → "evolved" från gamla till nya tiern', () => {
+      expect(describeNews(badgeEarned(1, { actor: ME }, { series: 'milestoner', tier: 3, previous_tier: 2 }), ctx()))
+        .toEqual({ kind: 'Badge evolved', text: 'You evolved Milestoner from Uncommon to Rare.' });
+      const climber = BADGE_SERIES.find((series) => series.key === 'climber')!;
+      expect(describeNews(badgeEarned(1, {}, { series: 'climber', tier: 6, previous_tier: 5 }), ctx()).text)
+        .toBe(`Karl evolved ${climber.name} from Epic to Legendary.`);
+    });
+
+    it('serie- och tier-namnen kommer ur BADGE_SERIES/TIER_NAMES — varje serie och tier renderas utan hårdkodning', () => {
+      for (const series of BADGE_SERIES) {
+        TIER_NAMES.forEach((tierName, index) => {
+          expect(describeNews(badgeEarned(1, {}, { series: series.key, tier: index + 1 }), ctx()).text)
+            .toBe(`Karl earned ${series.name} — ${tierName}.`);
+        });
+      }
+    });
+
+    it('en raderad användare är "A former member"; en okänd serie eller tier ger ett läsbart reservnamn, inte "undefined"', () => {
+      expect(describeNews(badgeEarned(1, { actor: null }), ctx()).text).toBe('A former member earned Streak Keeper — Common.');
+      const unknown = describeNews(badgeEarned(1, {}, { series: 'retired_series', tier: 9, previous_tier: 8 }), ctx()).text;
+      expect(unknown).not.toMatch(/undefined|NaN/);
+      expect(unknown).toContain('retired_series');
+    });
+
+    it('en payload utan previous_tier (fältet saknas) räknas som earned; utan tier utelämnas tiern — aldrig "undefined"', () => {
+      const noPrevious = badgeEarned(1, {}, { series: 'milestoner', tier: 2 });
+      delete (noPrevious.payload as { previous_tier?: number | null }).previous_tier;
+      expect(describeNews(noPrevious, ctx())).toEqual({ kind: 'Badge earned', text: 'Karl earned Milestoner — Uncommon.' });
+
+      const noTier = badgeEarned(1, {}, { series: 'milestoner', previous_tier: null });
+      delete (noTier.payload as { tier?: number }).tier;
+      expect(describeNews(noTier, ctx())).toEqual({ kind: 'Badge earned', text: 'Karl earned Milestoner.' });
+
+      const evolvedNoTier = badgeEarned(1, {}, { series: 'milestoner', previous_tier: 1 });
+      delete (evolvedNoTier.payload as { tier?: number }).tier;
+      expect(describeNews(evolvedNoTier, ctx())).toEqual({ kind: 'Badge evolved', text: 'Karl evolved Milestoner.' });
+
+      const noSeries = badgeEarned(1, {}, { tier: 1 });
+      delete (noSeries.payload as { series?: string }).series;
+      expect(describeNews(noSeries, ctx()).text).toBe('Karl earned a badge — Common.');
+
+      for (const row of [noPrevious, noTier, evolvedNoTier, noSeries]) expect(describeNews(row, ctx()).text).not.toMatch(/undefined|NaN|null/);
+    });
+
+    it('raden ligger i Levels: kategori level, zap-ikon (dekorativ, texten bär betydelsen), grön ton', () => {
+      expect(buildNewsRow(badgeEarned(1), ctx())).toMatchObject({ category: 'level', tone: 'level', icon: 'zap', kind: 'Badge earned' });
+      expect(buildNewsRow(badgeEarned(1, {}, { tier: 2, previous_tier: 1 }), ctx()).kind).toBe('Badge evolved');
+    });
+
+    it('emblem (F7): serien och den NYA nivån för en känd serie; null för okänd serie, tier utanför 1..6 och alla andra typer', () => {
+      expect(buildNewsRow(badgeEarned(1), ctx()).emblem).toEqual({ series: 'streak_keeper', tier: 1 });
+      expect(buildNewsRow(badgeEarned(1, {}, { series: 'milestoner', tier: 3, previous_tier: 2 }), ctx()).emblem).toEqual({ series: 'milestoner', tier: 3 });
+      for (const payload of [{ series: 'retired_series', tier: 2 }, { series: 'milestoner', tier: 9 }, { series: 'milestoner', tier: 0 }, { series: 'milestoner', tier: 2.5 }]) {
+        expect(buildNewsRow(badgeEarned(1, {}, payload), ctx()).emblem).toBeNull();
+      }
+      const noTier = badgeEarned(1, {}, { series: 'milestoner' });
+      delete (noTier.payload as { tier?: number }).tier;
+      expect(buildNewsRow(noTier, ctx()).emblem).toBeNull();
+      expect(buildNewsRow(levelUp(1, 25), ctx()).emblem).toBeNull();
+    });
+  });
+
   describe('events', () => {
     it('öppet till midnatt, och med klockslag/veckodag/datum längre fram', () => {
       expect(describeNews(eventOpen(1), ctx())).toEqual({ kind: 'Event open', text: '5K Friday is open until midnight · +25 XP' });
@@ -419,5 +492,100 @@ describe('vymodeller', () => {
     const rows = buildPopoverRows(items, ctx());
     expect(rows).toHaveLength(5);
     expect(rows.map((row) => row.id)).toEqual([8, 7, 6, 5, 4]);
+  });
+});
+
+describe('okända händelsetyper och trasiga rader (RUN-138)', () => {
+  // Backend kan vara nyare än fliken: typen kommer som string, payloaden är okänd.
+  const unknownItem = (id: number, over: Partial<UnknownNewsItem> = {}): UnknownNewsItem => ({ ...levelUp(id, 1), type: 'quest_completed', payload: { quest: 'x' }, ...over });
+  const brokenPayload = (id: number): WireNewsItem => ({ ...titleTaken(id), payload: null } as unknown as WireNewsItem);
+
+  it('okänd händelsetyp → ingen krasch, raden filtreras (describeNews: null, buildNewsRow: null)', () => {
+    expect(isKnownNewsItem(unknownItem(1))).toBe(false);
+    expect(describeNews(unknownItem(1), ctx())).toBeNull();
+    expect(buildNewsRow(unknownItem(1), ctx())).toBeNull();
+    expect(() => buildNewsGroups([unknownItem(2)], ctx())).not.toThrow();
+  });
+
+  it('loggar en varning med id och typ (aldrig payload) när en okänd typ eller en trasig rad filtreras', () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    try {
+      buildNewsRow(unknownItem(701, { payload: { secret: 'hemligt' } }), ctx());
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('id=701 type=quest_completed'));
+      buildNewsRow(brokenPayload(702), ctx());
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('id=702 type=title_taken'));
+      expect(warn.mock.calls.flat().join(' ')).not.toContain('hemligt');
+      // Samma rad vid nästa rendering loggar inte igen.
+      warn.mockClear();
+      buildNewsRow(unknownItem(701), ctx());
+      expect(warn).not.toHaveBeenCalled();
+      // Kända, fungerande rader loggar inget.
+      buildNewsRow(levelUp(703, 2), ctx());
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('skärmens lista: den okända raden är borta, de kända raderna och dag-grupperna är orörda', () => {
+    const groups = buildNewsGroups([unknownItem(4, { occurred_at: at(1) }), titleTaken(3, { occurred_at: at(2) }), unknownItem(2, { occurred_at: at(30) }), levelUp(1, 25, { occurred_at: at(24 * 2) })], ctx());
+    expect(groups.map((group) => [group.label, group.rows.map((row) => row.id)])).toEqual([
+      ['Today', [3]],
+      ['Earlier this week', [1]],
+    ]);
+  });
+
+  it('en dag som bara hade okända rader ger ingen tom dag-grupp', () => {
+    expect(buildNewsGroups([unknownItem(1)], ctx())).toEqual([]);
+  });
+
+  it('popovern: okända rader tar ingen av de fem platserna', () => {
+    const known = Array.from({ length: 6 }, (_, index) => levelUp(index + 1, index + 1, { occurred_at: at(10 - index) }));
+    const rows = buildPopoverRows([unknownItem(99, { occurred_at: at(0) }), ...known], ctx());
+    expect(rows.map((row) => row.id)).toEqual([6, 5, 4, 3, 2]);
+  });
+
+  it('chip-räknarna räknar inte okända rader', () => {
+    expect(countByFilter([levelUp(1, 2), unknownItem(2), unknownItem(3)])).toEqual({ titles: 0, challenges: 0, events: 0, levels: 1, streaks: 0 });
+  });
+
+  it('flödet behåller okända rader (så att "Mark all read" når det verkliga högsta id:t) men ingen oläst-markör byggs för dem', () => {
+    const feed = feedFromPage({ items: [levelUp(8, 3, { is_unread: true })], meta: meta({ unread_count: 2 }) });
+    const withUnknown = [unknownItem(9, { is_unread: true }), ...feed.items];
+    expect(topIdOf(withUnknown)).toBe(9);
+    expect(buildNewsGroups(withUnknown, ctx()).flatMap((group) => group.rows).filter((row) => row.unread).map((row) => row.id)).toEqual([8]);
+  });
+
+  it('känd typ med trasig payload (null / tomt objekt) kraschar inte och filtreras', () => {
+    expect(() => buildNewsRow(brokenPayload(1), ctx())).not.toThrow();
+    expect(buildNewsRow(brokenPayload(1), ctx())).toBeNull();
+    expect(buildNewsGroups([brokenPayload(2), levelUp(1, 4)], ctx()).flatMap((group) => group.rows.map((row) => row.id))).toEqual([1]);
+    expect(buildNewsRow({ ...challengeWon(3), payload: {} } as unknown as WireNewsItem, ctx())).toBeNull();
+  });
+
+  it('en rad med oläslig tid kraschar inte listan', () => {
+    expect(buildNewsGroups([{ ...levelUp(1, 4), occurred_at: 'inte-en-tid' }, levelUp(2, 5)], ctx()).flatMap((group) => group.rows.map((row) => row.id))).toEqual([2]);
+  });
+
+  it('exhaustiveness: varje känd ACTIVITY_TYPES-typ ger text och rad (Record<ActivityType, …> kräver ett exempel per ny typ vid tsc)', () => {
+    const samples: Record<ActivityType, NewsItem> = {
+      title_unlocked: item('title_unlocked', 1, { title_id: 't', title_name: 'The Longest Run', metric_key: 'longestRun', value: 5 }, { actor: KARL }),
+      title_taken: titleTaken(2),
+      title_revoked: item('title_revoked', 3, { title_id: 't', title_name: 'The Longest Run', metric_key: 'longestRun' }, { actor: KARL }),
+      challenge_received: item('challenge_received', 4, { challenge_id: 'c', tier: 'bronze', metric: 'distance', duration_days: 7 }, { actor: KARL, target: ME }),
+      challenge_won: challengeWon(5),
+      challenge_draw: item('challenge_draw', 6, { challenge_id: 'c', tier: 'bronze', metric: 'distance', duration_days: 7, challenger_value: 1, opponent_value: 1 }, { actor: KARL, target: ME }),
+      level_up: levelUp(7, 3),
+      run_milestone: item('run_milestone', 8, { kind: 'total_km', threshold: 100 }, { actor: KARL }),
+      streak_broken: streakBroken(9),
+      event_open: eventOpen(10),
+      event_closed: item('event_closed', 11, { event_id: 'e', event_type: 'participation', template_name: '5K Friday', participants: 3, members: 5 }),
+      badge_earned: badgeEarned(12),
+    };
+    for (const type of ACTIVITY_TYPES) {
+      expect(isKnownNewsItem(samples[type]), type).toBe(true);
+      expect(describeNews(samples[type], ctx())?.text, type).toBeTruthy();
+      expect(buildNewsRow(samples[type], ctx()), type).not.toBeNull();
+    }
   });
 });

@@ -41,7 +41,11 @@ export function NewsScreen() {
 
   const unread = all.feed?.meta.unread_count ?? 0;
   const counts = useMemo(() => countByFilter(all.feed?.items ?? []), [all.feed]);
-  const groups = useMemo(() => buildNewsGroups(active.feed?.items ?? [], ctx), [active.feed, ctx]);
+  // Synligheten (tomtillstånd, filter, tur) följer de RENDERADE raderna: okända/oläsliga rader ligger kvar i flödet men visas inte.
+  const unfiltered = selected.length === 0;
+  const allGroups = useMemo(() => buildNewsGroups(all.feed?.items ?? [], ctx), [all.feed, ctx]);
+  const groups = useMemo(() => (unfiltered ? allGroups : buildNewsGroups(active.feed?.items ?? [], ctx)), [unfiltered, allGroups, active.feed, ctx]);
+  const loaded = useMemo(() => allGroups.reduce((sum, group) => sum + group.rows.length, 0), [allGroups]);
 
   const setFilter = (next: readonly NewsFilterKey[]) =>
     setParams(
@@ -68,16 +72,16 @@ export function NewsScreen() {
     if (seen.error) markRef.current?.focus();
   }, [seen.error]);
 
-  const hasItems = (active.feed?.items.length ?? 0) > 0;
-  // Mark all read-steget finns bara när något är oläst (knappen visas då); turen kräver ett icke-tomt flöde.
-  const tourReady = (all.feed?.items.length ?? 0) > 0;
+  const hasItems = groups.length > 0;
+  // Mark all read-steget finns bara när något är oläst (knappen visas då); turen kräver ett flöde med synliga rader.
+  const tourReady = loaded > 0;
   const tourSteps = useMemo(
     () => (tourReady ? TOUR_NEWS_V1.filter((step) => step.element !== MARK_READ_ANCHOR || unread > 0) : null),
     // Stegen läses när turen startar; senare ändringar av räknaren ska inte bygga om dem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tourReady],
   );
-  const showFilter = selected.length > 0 || (all.feed?.items.length ?? 0) > 0;
+  const showFilter = selected.length > 0 || loaded > 0;
 
   let feed;
   if (active.feed && hasItems) {
@@ -137,7 +141,7 @@ export function NewsScreen() {
         <div className="rq-news__split">
           {showFilter && (
             <aside className="rq-news__side">
-              <NewsFilters selected={selected} counts={counts} loaded={all.feed?.items.length ?? 0} onToggle={(key) => setFilter(toggleFilter(selected, key))} />
+              <NewsFilters selected={selected} counts={counts} loaded={loaded} onToggle={(key) => setFilter(toggleFilter(selected, key))} />
             </aside>
           )}
           <div className="rq-news__main">{feed}</div>

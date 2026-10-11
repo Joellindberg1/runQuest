@@ -9,7 +9,7 @@ import { EnhancedTitleService } from '../src/services/enhancedTitleService';
 async function main() {
   console.log('🏆 Starting full title reprocess...');
   const service = new EnhancedTitleService();
-  await service.processAllUsersTitles();
+  await service.processAllUsersTitles(undefined, { allGroups: true });
   console.log('✅ Done.');
   process.exit(0);
 }

@@ -51,6 +51,8 @@
 .rq-dot.rq-news-unread { color: var(--rq-gold); margin-right: var(--rq-sp-6); vertical-align: middle; }
 .rq-news-row[data-category="event"] { border-left-color: rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha-quiet)); }
 .rq-news-row__icon { grid-area: icon; display: inline-flex; align-self: center; color: var(--rq-c-solid); }
+/* badge_earned: ikonkolumnen rymmer ett sm-emblem (RUN-128, F7). Kanten, typraden och texten är oförändrade Levels-grönt. */
+.rq-news-row[data-emblem] { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr) auto; }
 .rq-news-row__kind { grid-area: kind; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-c-solid); }
 .rq-news-row__time { grid-area: time; justify-self: end; font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); letter-spacing: 0; text-transform: none; color: var(--rq-text-4); }
 .rq-news-row__text { grid-area: text; margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
@@ -126,6 +128,9 @@
 }
 .rq-news-pop__row[data-unread] { background: var(--rq-unread-bg); }
 .rq-news-pop__dot { margin-top: var(--rq-sp-6); color: var(--rq-c-solid); }
+/* badge_earned: ett sm-emblem i stället för pricken; samma kolumnbredd som flödesraden (--rq-news-row-icon-badge-w). Övriga rader är oförändrade. */
+.rq-news-pop__row[data-emblem] { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr); }
+.rq-news-pop__emblem { display: inline-flex; align-self: start; }
 .rq-news-pop__meta { display: flex; justify-content: space-between; gap: var(--rq-sp-10); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-c-solid); }
 .rq-news-pop__time { color: var(--rq-text-4); white-space: nowrap; }
 .rq-news-pop__text { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }

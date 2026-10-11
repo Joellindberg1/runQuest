@@ -3,8 +3,9 @@ import { logger } from './logger.js';
 import { getLevelFromXP } from '../services/levelService.js';
 import { reconcileTokensForLevel } from '../services/challengeService.js';
 import { recordLevelUps, recordRunMilestones } from '../services/activityLog.js';
+import { evaluateBadges } from '../services/badgeService.js';
 
-export async function calculateUserTotals(userId: string, groupId?: string) {
+export async function calculateUserTotals(userId: string) {
   try {
     const startTime = Date.now();
     const supabase = getSupabaseClient();
@@ -12,7 +13,7 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
     // Get all runs for the user
     const { data: runs, error } = await supabase
       .from('runs')
-      .select('xp_gained, distance, date, start_time, total_elevation_gain, pace_std_dev, moving_time')
+      .select('xp_gained, distance, date, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
       .eq('user_id', userId)
       .order('date', { ascending: true });
 
@@ -29,7 +30,7 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
 
     // Fetch event_xp separately — accumulated from event settlements.
     // current_level/total_km/group_id läses i SAMMA select och är "föregående värden" för Pack News
-    // (level_up/run_milestone, ADR 008); gruppen kommer ur users.group_id, inte ur groupId-parametern.
+    // (level_up/run_milestone, ADR 008); gruppen (Pack News och titelomräkningen) kommer ur users.group_id, inte ur anroparens JWT.
     const { data: userData } = await supabase
       .from('users')
       .select('event_xp, current_level, total_km, group_id')
@@ -82,18 +83,32 @@ export async function calculateUserTotals(userId: string, groupId?: string) {
       await recordRunMilestones(userId, prevTotalKm, Math.round(totalDistance * 100) / 100, userGroupId);
     }
 
-    // 🏆 Process titles for ALL users to ensure complete leaderboard
-    // This is necessary because title rankings depend on ALL users' achievements
+    // 🏅 Badges utvärderas ur samma rundor, även vid noll rundor (raderade rundor nedgraderar/raderar). Körs före titlarna
+    // och rör aldrig totalerna: evaluateBadges kastar inte, men try/catch här håller kedjan intakt även om det ändras (STATE zon 1).
     try {
-      logger.info('🏆 Processing titles for all users...');
+      await evaluateBadges(userId, { longestStreak });
+    } catch (badgeError) {
+      logger.error('❌ Error evaluating badges:', badgeError);
+    }
+
+    // 🏆 Omräkningen av titlar är gruppavgränsad (RUN-104): bara användarens EGEN grupp, aldrig andra grupper.
+    // Rankingen (update_all_title_leaderboards → title_leaderboard) är däremot GLOBAL: topp 10 per titel över alla grupper.
+    // Gruppen är den färska users.group_id — JWT-gruppen blir inaktuell efter groups/join (STATE zon 8).
+    // Användare utan grupp har inga gruppmedlemmar att rangordna mot: bara de egna titlarna räknas om.
+    try {
       const { EnhancedTitleService } = await import('../services/enhancedTitleService.js');
       const titleService = new EnhancedTitleService();
-      
-      // Process titles for all users in the same group
-      // This ensures leaderboard always shows correct rankings within the group
-      await titleService.processAllUsersTitles(groupId);
-      
-      logger.info('✅ All users titles processed successfully');
+
+      if (userGroupId) {
+        logger.info(`🏆 Processing titles for group ${userGroupId}...`);
+        await titleService.processAllUsersTitles(userGroupId);
+        logger.info('✅ Group titles processed successfully');
+      } else {
+        logger.info(`🏆 User ${userId} has no group — processing own titles only...`);
+        const runsWithAlias = userRuns.map((run: any) => ({ ...run, distance_km: run.distance }));
+        await titleService.processUserTitlesAfterRun(userId, runsWithAlias, Math.round(totalDistance * 100) / 100, longestStreak); // numeric(8,2) som users.total_km i gruppvägen
+        logger.info('✅ Own titles processed successfully');
+      }
       
       // Now refresh the title leaderboard with complete user_titles data
       logger.info('🏆 Refreshing title leaderboard...');

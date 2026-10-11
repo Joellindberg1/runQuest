@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -75,6 +75,53 @@ describe('Run — minimidistans (routes/runs.ts, routes/strava.ts)', () => {
 
   it('basen betalas från konfigurationens min_run_distance (calculateRunXP), inte från 1 km', () => {
     expect(text('xp')).toContain('The base is paid from 1.0 km.');
+  });
+});
+
+describe('Titles — säsongstitlar och när titlarna räknas om (RUN-102)', () => {
+  it('vinterfönstret är 1 december–28/29 februari på Stockholm-datum: december räknar årets vinter, jan–nov den som började föregående december', () => {
+    const utils = backend('src/titleEngines/_utils.ts');
+    expect(utils).toContain('toStockholmDate(now.toISOString())');
+    expect(utils).toContain('const winterStartYear = month === 12 ? year : year - 1;');
+    expect(utils).toContain('start: `${winterStartYear}-12-01`, end: `${winterStartYear + 1}-03-01`');
+    expect(backend('src/titleEngines/winterKm.ts')).toContain('r.date >= start && r.date < end');
+    const titles = text('titles');
+    expect(titles).toMatch(/they count the winter, December to February, by the date of each run/);
+    expect(titles).toMatch(/the one that just ended, so nothing resets on 1 March/);
+  });
+
+  it('inget schemalagt jobb räknar om titlar på datum: ingen fil i scheduler/ anropar omräkningen — utom väder-backfill-grenen i stravaSync.ts', () => {
+    const dir = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../backend/src/scheduler');
+    const files = readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith('.ts') && !/\.test\.ts$/.test(entry.name)).map((entry) => entry.name);
+    expect(files).toEqual(expect.arrayContaining(['eventScheduler.ts', 'streakScheduler.ts', 'challengeScheduler.ts', 'stravaSync.ts']));
+    const RECALC = /calculateUserTotals|processAllUsersTitles|EnhancedTitleService|enhancedTitleService|titleLeaderboardService/;
+    const scheduled = files.filter((name) => backend(`src/scheduler/${name}`).includes('cron.schedule'));
+    expect(scheduled).toContain('stravaSync.ts');
+    for (const name of files) {
+      if (name === 'stravaSync.ts') continue;
+      expect({ name, recalculates: RECALC.test(backend(`src/scheduler/${name}`)) }).toEqual({ name, recalculates: false });
+    }
+    // stravaSync.ts: omräkningen finns på exakt ett ställe, bara nåbar när väder-backfillen sparade rader.
+    const sync = backend('src/scheduler/stravaSync.ts');
+    expect(sync.match(/processAllUsersTitles\(/g)).toHaveLength(1);
+    expect(sync).not.toContain('calculateUserTotals');
+    expect(sync.match(/recalculateTitlesAfterWeather\(/g)).toHaveLength(2); // deklaration + ett anrop
+    expect(sync).toMatch(/const savedWeather = await WeatherService\.backfillMissingWeather\(\);\s*if \(savedWeather > 0\) await recalculateTitlesAfterWeather\(savedWeather\);/);
+    expect(sync).toMatch(/async function recalculateTitlesAfterWeather\([^)]*\): Promise<void> \{\s*try \{[\s\S]{0,200}?processAllUsersTitles\(undefined, \{ allGroups: true \}\);/);
+  });
+
+  it('omräkningen sker när en runda loggas, redigeras, raderas eller synkas från Strava (väder hämtas före omräkningen) — och använder omräkningens "nu", inte rundans datum', () => {
+    const runs = backend('src/routes/runs.ts');
+    expect(runs.match(/await calculateUserTotals\(userId\);/g)).toHaveLength(3); // POST, PUT, DELETE
+    const strava = backend('src/routes/strava.ts');
+    expect(strava).toMatch(/await WeatherService\.fetchAndSaveWeatherForRuns\(newRunData\);\s*await calculateUserTotals\(userId\);/);
+    const service = backend('src/services/enhancedTitleService.ts');
+    expect(service).toContain('const ctx: TitleContext = { now: new Date() };');
+    expect(backend('src/utils/calculateUserTotals.ts')).toContain('await titleService.processAllUsersTitles(userGroupId);');
+    const titles = text('titles');
+    expect(titles).toMatch(/doesn’t start at midnight on 1 December/);
+    expect(titles).toMatch(/the first time the titles are updated after that, which is normally when the next run is logged or synced from Strava/);
+    expect(titles).toMatch(/a title can sit empty until someone passes its threshold/);
   });
 });
 

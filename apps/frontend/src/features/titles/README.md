@@ -23,7 +23,7 @@ Mobil = App Prototypens titles-skärm, desktop = Web Prototypens (grupper | sido
 - **Titlar, regler och värden kommer ur databasen** (`/titles/leaderboard`, `/titles/group-eligibility`; ägarbeslut 3).
   Inga titelnamn i koden — guards.test vaktar det. Regeln på kortet är `titles.description` ordagrant.
 - **Kategorin är en frontend-mappning på `metric_key`** (backend har ingen kategori). En titel vars nyckel saknas i
-  mappningen hamnar i **Other** — den försvinner aldrig. `titleCategories.test.ts` kräver att alla 21 motorer är mappade
+  mappningen hamnar i **Other** — den försvinner aldrig. `titleCategories.test.ts` kräver att alla 24 motorer är mappade; ingen motor får ligga i Other. Weather (`sun`, före Other) rymmer stormRunCount, coldRunCount och winterKm
   och läser backendens `titleEngines/` från disk: lägger du till en motor fäller testet tills du lagt en rad i
   `titleMetricKeys.fixture.ts` OCH `titleCategories.ts`.
 - **Enheten** på ett värde kommer ur `metric_key` (`titleFormat`); ett mått utan känd enhet visar bara talet, aldrig en gissad enhet.

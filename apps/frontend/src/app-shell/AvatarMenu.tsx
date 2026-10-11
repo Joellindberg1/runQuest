@@ -39,6 +39,16 @@ export function AvatarMenu({ user, variant }: AvatarMenuProps) {
   const navigate = useNavigate();
   const { isAdmin, logout } = useAuth();
 
+  // Utloggning → Landing, utan dialog och utan `next` (ADR 006 beslut 1, addendum). navigate() och logout() körs synkront i samma händelse och
+  // batchas av React 18 till EN rendering där adressen är `/` och användaren null — ordningen mellan dem spelar ingen roll. Det som spelar roll är att
+  // logout() nollställer användaren synkront (inget setTimeout, ingen await före setUser): annars hinner en rendering emellan med användaren kvar på `/`
+  // (Index → /board) eller med adressen kvar på skyddade sidan (RequireAuth → /login?next=<sidan>). App.logout.test.tsx faller i båda fallen.
+  // (Ett 401 mitt i sessionen är medvetet något annat: där vill vi ha dialogen med `next`, så man kommer tillbaka dit man var.)
+  const logOutToLanding = () => {
+    navigate(paths.landing, { replace: true });
+    logout();
+  };
+
   const items: MenuItemSpec[] = [
     ...(variant === 'mobile'
       ? [
@@ -48,7 +58,7 @@ export function AvatarMenu({ user, variant }: AvatarMenuProps) {
       : []),
     { key: 'settings', label: 'Settings', icon: 'settings', to: paths.settings },
     ...(isAdmin ? [{ key: 'admin', label: 'Admin', icon: 'shield', to: paths.admin, hint: variant === 'mobile' ? 'admin' : undefined } as MenuItemSpec] : []),
-    { key: 'logout', label: 'Log out', icon: 'logout', danger: true, onSelect: logout },
+    { key: 'logout', label: 'Log out', icon: 'logout', danger: true, onSelect: logOutToLanding },
   ];
 
   const select = (item: MenuItemSpec) => {

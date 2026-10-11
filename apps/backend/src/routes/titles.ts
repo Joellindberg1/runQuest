@@ -185,7 +185,7 @@ router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) =
   try {
     logger.info('🔄 API: Full title reprocess requested...');
     // Admin-underhåll ska inte spamma Pack News (ADR 008 beslut 6).
-    await enhancedTitleService.processAllUsersTitles(undefined, { emitNews: false });
+    await enhancedTitleService.processAllUsersTitles(undefined, { emitNews: false, allGroups: true });
     res.status(200).json({ success: true, message: 'All user titles reprocessed and leaderboards refreshed' });
   } catch (error) {
     logger.error('❌ API Error in /titles/reprocess-all:', error);
@@ -226,12 +226,13 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
       return;
     }
 
-    // For each user, fetch runs and calculate values
+    // For each user, fetch runs and calculate values (ett gemensamt "nu" för hela svaret)
+    const ctx = { now: new Date() };
     const eligibilityResults = await Promise.all(
       users.map(async (user: any) => {
         const { data: runs } = await supabase.client
           .from('runs')
-          .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time')
+          .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
           .eq('user_id', user.id)
           .order('date', { ascending: true });
 
@@ -239,7 +240,8 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
         const values = enhancedTitleService.calculateUserValues(
           runsWithAlias,
           user.total_km || 0,
-          user.longest_streak || 0
+          user.longest_streak || 0,
+          ctx
         );
 
         return {

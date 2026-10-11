@@ -1,0 +1,327 @@
+/* Badge-emblemet och pipsen (RUN-127, ADR 009, spec §3/§5): kronsköld i CSS (clip-path), fem lager, nivåfärger som --rq-badge-*-tokens.
+   ENDAST tokens (regel 1). Måtten, färgerna och glöden definieras i temafilen, sektion 1.34 (index.css + docs/design/temafil-forslag.css) —
+   inga egna :root-definitioner här. De lokala --rq-emblem-*-variablerna är bara en mappning av nivå/storlek på de tokens, så att varje lager
+   skrivs en gång. Nivåfärg är emblemmaterial, aldrig status- eller varningsfärg (Design Council 6).
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen.
+
+   Lager (uppifrån och ner i DOM): .rq-badge (glow-wrapper, drop-shadow) > __frame (ram, nivåns gradient) > __ring (bara Heroic) > __core (mörk kärna) > __icon. */
+
+/* ── Nivå → färgvariabler (emblem, pips och chip delar dem) ─────────────────── */
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="common"]    { --rq-emblem-c: var(--rq-badge-common);    --rq-emblem-c-rgb: var(--rq-badge-common-rgb);    --rq-emblem-grad: var(--rq-badge-common-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="uncommon"]  { --rq-emblem-c: var(--rq-badge-uncommon);  --rq-emblem-c-rgb: var(--rq-badge-uncommon-rgb);  --rq-emblem-grad: var(--rq-badge-uncommon-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="rare"]      { --rq-emblem-c: var(--rq-badge-rare);      --rq-emblem-c-rgb: var(--rq-badge-rare-rgb);      --rq-emblem-grad: var(--rq-badge-rare-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="heroic"]    { --rq-emblem-c: var(--rq-badge-heroic);    --rq-emblem-c-rgb: var(--rq-badge-heroic-rgb);    --rq-emblem-grad: var(--rq-badge-heroic-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="epic"]      { --rq-emblem-c: var(--rq-badge-epic);      --rq-emblem-c-rgb: var(--rq-badge-epic-rgb);      --rq-emblem-grad: var(--rq-badge-epic-grad); }
+:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="legendary"] { --rq-emblem-c: var(--rq-badge-legendary); --rq-emblem-c-rgb: var(--rq-badge-legendary-rgb); --rq-emblem-grad: var(--rq-badge-legendary-grad); }
+/* Låst: dämpad ram (.12) och dämpad ikon (.28), ingen glöd. */
+.rq-badge[data-tier="locked"] { --rq-emblem-c: var(--rq-badge-locked-icon); --rq-emblem-grad: var(--rq-badge-locked-frame); }
+
+/* ── Storlekar (28 / 44 / 56 / 96 px, höjd × 1.12; ikon 15 / 20 / 24 / 42 gäller bara här inne) ── */
+.rq-badge--sm {
+  --rq-emblem-w: var(--rq-badge-w-sm); --rq-emblem-h: var(--rq-badge-h-sm); --rq-emblem-icon: var(--rq-badge-icon-sm);
+  --rq-emblem-core: var(--rq-badge-core-sm); --rq-emblem-ring: var(--rq-badge-ring-sm); --rq-emblem-ring-core: var(--rq-badge-ring-core-sm);
+  --rq-emblem-glow: var(--rq-badge-glow-sm); --rq-emblem-glow-leg: var(--rq-badge-glow-leg-sm);
+}
+/* cp (44 px, kompakt: profilens sammanfattning och Runner card): glöden är -sm-glöden eftersom bredden är under 56 (runquest-badges.js: S.w >= 56). Statisk — aldrig andning. */
+.rq-badge--cp {
+  --rq-emblem-w: var(--rq-badge-w-cp); --rq-emblem-h: var(--rq-badge-h-cp); --rq-emblem-icon: var(--rq-badge-icon-cp);
+  --rq-emblem-core: var(--rq-badge-core-cp); --rq-emblem-ring: var(--rq-badge-ring-cp); --rq-emblem-ring-core: var(--rq-badge-ring-core-cp);
+  --rq-emblem-glow: var(--rq-badge-glow-sm); --rq-emblem-glow-leg: var(--rq-badge-glow-leg-sm);
+}
+.rq-badge--md {
+  --rq-emblem-w: var(--rq-badge-w-md); --rq-emblem-h: var(--rq-badge-h-md); --rq-emblem-icon: var(--rq-badge-icon-md);
+  --rq-emblem-core: var(--rq-badge-core-md); --rq-emblem-ring: var(--rq-badge-ring-md); --rq-emblem-ring-core: var(--rq-badge-ring-core-md);
+  --rq-emblem-glow: var(--rq-badge-glow-ml); --rq-emblem-glow-leg: var(--rq-badge-glow-leg-ml);
+}
+.rq-badge--lg {
+  --rq-emblem-w: var(--rq-badge-w-lg); --rq-emblem-h: var(--rq-badge-h-lg); --rq-emblem-icon: var(--rq-badge-icon-lg);
+  --rq-emblem-core: var(--rq-badge-core-lg); --rq-emblem-ring: var(--rq-badge-ring-lg); --rq-emblem-ring-core: var(--rq-badge-ring-core-lg);
+  --rq-emblem-glow: var(--rq-badge-glow-ml); --rq-emblem-glow-leg: var(--rq-badge-glow-leg-ml);
+}
+
+/* ── Lagren ───────────────────────────────────────────────────────────────── */
+.rq-badge { display: inline-flex; flex-shrink: 0; vertical-align: middle; }
+.rq-badge .rq-badge__frame {
+  position: relative; display: flex; flex-shrink: 0; width: var(--rq-emblem-w); height: var(--rq-emblem-h);
+  clip-path: var(--rq-badge-clip); background: var(--rq-emblem-grad);
+}
+/* Heroic: hairline-ringen är den icke-färgbundna nivåmarkören (Council 5) — samma sköld, inset ring1, mellan ram och kärna. */
+.rq-badge .rq-badge__ring { position: absolute; inset: var(--rq-emblem-ring); clip-path: var(--rq-badge-clip); background: var(--rq-badge-ring); }
+.rq-badge .rq-badge__core {
+  position: absolute; inset: var(--rq-emblem-core); display: flex; align-items: center; justify-content: center;
+  clip-path: var(--rq-badge-clip); background: var(--rq-badge-core); color: var(--rq-emblem-c);
+}
+.rq-badge[data-tier="heroic"] .rq-badge__core { inset: var(--rq-emblem-ring-core); }
+/* Ikonens mått ligger i CSS (tokenen), inte i width/height-attributen som RQIcon själv sätter. */
+.rq-badge .rq-badge__icon { width: var(--rq-emblem-icon); height: var(--rq-emblem-icon); }
+
+/* ── Glöd: ingen på Common/Uncommon och låst; statisk från Rare ─────────────── */
+.rq-badge:is([data-tier="rare"], [data-tier="heroic"], [data-tier="epic"]) {
+  filter: drop-shadow(0 0 var(--rq-emblem-glow) rgb(var(--rq-emblem-c-rgb) / var(--rq-badge-glow-alpha)));
+}
+.rq-badge[data-tier="legendary"] {
+  filter: drop-shadow(0 0 var(--rq-emblem-glow-leg) rgb(var(--rq-emblem-c-rgb) / var(--rq-badge-glow-leg-alpha)));
+}
+
+/* ── Rörelse: ägarbeslut E1+E2, Rörelse-undantaget i STATE.md ──────────────────
+   Tändning (bara popupen, ett varv) och Legendary-andning (md/lg, tre cykler). Allt ligger i no-preference-blocket; under
+   prefers-reduced-motion visas slutläget direkt (statisk glöd, Common/Uncommon utan glöd). Keyframen börjar/slutar i emblemets egna
+   statiska värde, så glöden står kvar utan hopp när animationen är slut. */
+@keyframes rqBadgeIgnite { from { filter: var(--rq-emblem-ignite-from); } }
+/* Egen keyframe i stället för rqGlowIcon: den börjar/slutar i Legendarys statiska glöd (7 px @ .35) och toppar i --rq-badge-breathe-max, inte i 3 px med currentColor. */
+@keyframes rqBadgeGlow {
+  0%, 100% { filter: drop-shadow(0 0 var(--rq-emblem-glow-leg) rgb(var(--rq-emblem-c-rgb) / var(--rq-badge-glow-leg-alpha))); }
+  50%      { filter: drop-shadow(0 0 var(--rq-badge-breathe-max) rgb(var(--rq-emblem-c-rgb))); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Rare+ tänder glöden: 0 → nivåns egen glöd (slutvärdet är det vanliga filtret). */
+  .rq-badge--ignite:is([data-tier="rare"], [data-tier="heroic"], [data-tier="epic"], [data-tier="legendary"]) {
+    --rq-emblem-ignite-from: drop-shadow(0 0 0 transparent);
+    animation: rqBadgeIgnite var(--rq-dur-badge-ignite) ease-out both;
+  }
+  /* Common/Uncommon: ljusflimmer i ramen, ingen färgglöd. */
+  .rq-badge--ignite:is([data-tier="common"], [data-tier="uncommon"]) .rq-badge__frame {
+    --rq-emblem-ignite-from: brightness(var(--rq-badge-flash));
+    animation: rqBadgeIgnite var(--rq-dur-badge-ignite) ease-out both;
+  }
+  /* Legendary-andning: bara md/lg, aldrig sm eller cp. Tre cykler i --rq-dur-glow, därefter står den statiska glöden kvar. */
+  .rq-badge--md[data-tier="legendary"],
+  .rq-badge--lg[data-tier="legendary"] {
+    animation: rqBadgeGlow var(--rq-dur-glow) ease-in-out var(--rq-badge-breathe-count);
+  }
+  /* Legendary i popupen: tändning, därefter andning från --rq-badge-ignite-handoff (ingen backwards-fyllning, så tändningen syns under väntan). */
+  .rq-badge--ignite.rq-badge--md[data-tier="legendary"],
+  .rq-badge--ignite.rq-badge--lg[data-tier="legendary"] {
+    animation: rqBadgeIgnite var(--rq-dur-badge-ignite) ease-out both, rqBadgeGlow var(--rq-dur-glow) ease-in-out var(--rq-badge-ignite-handoff) var(--rq-badge-breathe-count);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rq-badge, .rq-badge .rq-badge__frame { animation: none !important; }
+}
+
+/* ── Chip: status-receptet (tint .10 / kant .45 / text i full nivåfärg) via .rq-chip--status ──────────────
+   Användning: <span className="rq-chip rq-chip--status rq-badge-chip" data-tier={tierKey(tier)}>{nivånamn}</span>.
+   Låst chip: bara .rq-chip (ingen --status) — dess text är --rq-text-4 (≥ 4.5:1, verifierad i temafilen). */
+.rq-badge-chip[data-tier] { --rq-c: var(--rq-emblem-c-rgb); --rq-c-solid: var(--rq-emblem-c); }
+/* Nivåchippet har en svagare bakgrundstint än status-chippet (.06 mot .10): de dämpade nivåfärgerna (Heroic, Rare) klarar annars inte 4.5:1 mot chippets egen bakgrund.
+   Sammansatt selektor slår .rq-chip--status oavsett laddningsordning; övriga status-chip är orörda. */
+.rq-chip.rq-badge-chip[data-tier] { background: rgb(var(--rq-c) / var(--rq-badge-chip-tint)); }
+
+/* ── Pips: sex kvadrater, position (inte framsteg) ───────────────────────────── */
+.rq-badge-pips { display: inline-flex; align-items: center; gap: var(--rq-badge-pip-gap); }
+.rq-badge-pips .rq-badge-pips__pip { width: var(--rq-badge-pip); height: var(--rq-badge-pip); background: var(--rq-line-4); }
+.rq-badge-pips .rq-badge-pips__pip--on { background: var(--rq-emblem-c); }
+
+/* ── BADGES-panelen på Runner card (RUN-152, spec F11): kompakt rutnät av 44 px-emblem (BadgeEmblemDetail) ───────────
+   Klasserna är komponentens (components/BadgePanel). Bara rubrik, räknare och emblemknappar; chip, held-by och "On display" bor i popovern (.rq-badge-detail).
+   Rubrik och räknare delar baslinje och räknaren ligger intill rubriken, inte utskjuten (designen: App Prototype 494–502, Web Prototype 1639–1651). */
+.rq-badge-panel__head { display: flex; align-items: baseline; gap: var(--rq-sp-10); margin-bottom: var(--rq-sp-10); }
+.rq-badge-panel__title { margin: 0; font-weight: 400; }
+.rq-badge-panel__aside { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-badge-panel__grid { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--rq-sp-8); }
+.rq-badge-panel__item { display: flex; }
+.rq-badge-panel__empty { margin: 0; padding: var(--rq-sp-10); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-badge-panel__loading { display: flex; justify-content: center; padding: var(--rq-sp-16) 0; }
+
+/* ── Profilens sammanfattning (RUN-151, spec v2 F10) ──────────────────────────────────────────────────────────
+   components/BadgeSummary: rubrikrad med "All badges →", intjänade serier som 44 px-emblem (BadgeEmblemDetail) och under en hårlinje de låsta. Mobil har ingen kortyta (som
+   designen), desktop ligger i .rq-card. Text: räknare och "Locked · n left" i --rq-text-4 (≥ 4.5:1), ingen opacity-dimning (Council 9). Guld bara i desktoprubriken (rollguld). */
+.rq-badge-summary__head { display: flex; align-items: center; gap: var(--rq-sp-12); margin-bottom: var(--rq-sp-10); }
+.rq-badge-summary__title, .rq-badge-summary__eyebrow { margin: 0; font-weight: 400; }
+.rq-badge-summary__count { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+/* "All badges →" längst till höger. Tryckytan ur --rq-badge-pick-hit (mobil 44, desktop 24); ghost = hårlinjekant, inte en guldknapp. */
+.rq-btn.rq-badge-summary__all { margin-left: auto; flex-shrink: 0; min-height: var(--rq-badge-pick-hit); }
+.rq-badge-summary__row { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--rq-sp-8); }
+.rq-badge-summary__locked { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); margin-top: var(--rq-sp-8); padding-top: var(--rq-sp-8); border-top: var(--rq-hair) solid var(--rq-line-2); }
+.rq-badge-summary__locked-note { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-badge-summary__empty { margin: 0; padding: var(--rq-sp-10); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+@media (min-width: 1024px) {
+  .rq-badge-summary__locked-note { font-size: var(--rq-fs-label); }
+}
+
+/* Namnraden i hjältekortet (bara desktop, F10.6): namn + minis. Raden rymmer en mini även utan, så kortet inte hoppar när badge-queryn landar (som Runner card och Board).
+   Ryms inte båda på en rad hamnar minisen under namnet — namnet bryts inte mitt i (Council 12: namnet dominerar). */
+.rq-badge-nameline .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-4); }
+.rq-badge-nameline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-4) var(--rq-sp-8); min-height: var(--rq-badge-h-sm); }
+
+/* Samlingskortets bas (badges-sidans liggande kort bygger på den med .rq-badge-card--landscape längre ned). */
+.rq-badge-card { display: flex; flex-direction: column; gap: var(--rq-sp-8); min-width: 0; padding: var(--rq-sp-12); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-badge-card[data-state="locked"] { border-style: dashed; border-color: var(--rq-line-5); }
+.rq-badge-card__who { display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-6); min-width: 0; }
+.rq-badge-card .rq-badge-card__name { margin: 0; color: var(--rq-text-1); overflow-wrap: break-word; }
+.rq-badge-card__body { display: flex; flex-direction: column; gap: var(--rq-sp-6); }
+.rq-badge-card__body > p { margin: 0; }
+.rq-badge-card__req { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+/* Flavor: egen rad, citerad kursiv, full textfärg, Barlow Condensed, första typsteget ≥ 14 px (Council 2). */
+.rq-badge-card__flavor { font-family: var(--rq-font-ui); font-style: italic; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-1); }
+.rq-badge-card__next { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-badge-card__max { font-weight: 600; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-badge-card__held { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+
+/* Tomläge (F8, badges-sidan): streckad ruta — rubrik och en rad. Profilens sammanfattning har sin egen (.rq-badge-summary__empty). */
+.rq-badge-empty { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-20) var(--rq-sp-12); border: var(--rq-hair) dashed var(--rq-line-5); text-align: center; }
+.rq-badge-empty__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-display); font-weight: 400; line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+.rq-badge-empty__text { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+
+/* Skelett (F8): tre kort med ett sköldblock (md-storlek) och tre streck. Pulsen (rqSkel) ligger i no-preference-blocket nedan — reduced-motion visar de stilla blocken. */
+.rq-badge-skel { display: flex; align-items: center; gap: var(--rq-sp-14); padding: var(--rq-sp-12); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-badge-skel__shape { flex-shrink: 0; width: var(--rq-badge-w-md); height: var(--rq-badge-h-md); clip-path: var(--rq-badge-clip); background-color: var(--rq-fill-1); }
+.rq-badge-skel__lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-badge-skel__bar { height: var(--rq-skel-h-2); background-color: var(--rq-fill-1); }
+.rq-badge-skel__bar:nth-child(1) { width: 55%; }
+.rq-badge-skel__bar:nth-child(2) { width: 100%; }
+.rq-badge-skel__bar:nth-child(3) { width: 70%; }
+/* Profilens sammanfattning (F10.5): en rad cp-stora sköldblock utan kortyta. */
+.rq-badge-skel__shape.rq-badge-skel__shape--cp { width: var(--rq-badge-w-cp); height: var(--rq-badge-h-cp); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .rq-badge-skel :is(.rq-badge-skel__shape, .rq-badge-skel__bar), .rq-badge-skel-row .rq-badge-skel__shape {
+    background-image: linear-gradient(90deg, var(--rq-fill-1), var(--rq-line-4), var(--rq-fill-1)); background-size: 200% 100%;
+    animation: rqSkel var(--rq-dur-badge-skel) linear infinite;
+  }
+  .rq-badge-skel:nth-child(2) :is(.rq-badge-skel__shape, .rq-badge-skel__bar) { animation-delay: var(--rq-badge-skel-stagger); }
+  .rq-badge-skel:nth-child(3) :is(.rq-badge-skel__shape, .rq-badge-skel__bar) { animation-delay: calc(var(--rq-badge-skel-stagger) * 2); }
+  .rq-badge-skel-row .rq-badge-skel__shape:nth-child(even) { animation-delay: var(--rq-badge-skel-stagger); }
+}
+
+/* ── Uppgraderingspopupen (RUN-132, spec F6, Council 4, 19–21) ──────────────────────────────────────────────────────
+   Återanvänder skalets delade lager (.rq-scrim, .rq-modal, .rq-modal__close i app-shell.css); bredd, bakgrund och skugga är F6:s (--rq-popover,
+   --rq-shadow-pop), därför sammansatta selektorer mot .rq-modal. Ingen permanent ring på "Got it": bara den globala :focus-visible-ringen. */
+.rq-modal.rq-badge-popup {
+  width: min(var(--rq-badge-popup-w), 95vw); align-items: center; overflow-y: auto; text-align: center; box-sizing: border-box;
+  padding: var(--rq-sp-32) var(--rq-sp-24) var(--rq-sp-24); background: var(--rq-popover); box-shadow: var(--rq-shadow-pop);
+}
+.rq-modal__close.rq-badge-popup__close {
+  top: var(--rq-sp-6); right: var(--rq-sp-6); display: inline-flex; align-items: center; justify-content: center;
+  min-width: var(--rq-badge-popup-target); min-height: var(--rq-badge-popup-target);
+}
+.rq-eyebrow.rq-badge-popup__eyebrow { margin: 0 0 var(--rq-sp-16); color: var(--rq-gold-text); }
+.rq-badge-popup__emblems { display: flex; align-items: center; justify-content: center; gap: var(--rq-sp-16); margin-bottom: var(--rq-sp-14); }
+.rq-badge-popup__arrow { font-size: var(--rq-fs-lead); line-height: var(--rq-lh-tight); color: var(--rq-text-4); }
+.rq-heading.rq-badge-popup__title { margin: 0 0 var(--rq-sp-8); font-weight: 400; text-transform: uppercase; }
+/* Nivårad (bara evolved): "UNCOMMON → RARE" i den nya nivåns färg (--rq-emblem-c via data-tier, se överst). */
+.rq-badge-popup__tierline {
+  margin: 0 0 var(--rq-sp-10); font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-eyebrow);
+  text-transform: uppercase; color: var(--rq-emblem-c);
+}
+.rq-badge-popup .rq-chip { margin-bottom: var(--rq-sp-14); }
+.rq-badge-popup__req { margin: 0 0 var(--rq-sp-8); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+/* Flavor: egen rad, citerad kursiv, full textfärg, Barlow Condensed, ≥ 14 px (Council 2). */
+.rq-badge-popup__flavor { margin: 0 0 var(--rq-sp-12); font-family: var(--rq-font-ui); font-style: italic; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-1); }
+.rq-badge-popup__held { margin: 0 0 var(--rq-sp-20); font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-body); letter-spacing: var(--rq-ls-label); color: var(--rq-text-4); }
+.rq-badge-popup__actions { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-10); }
+.rq-btn.rq-badge-popup__btn { min-height: var(--rq-badge-popup-target); }
+.rq-btn--primary.rq-badge-popup__btn { padding-inline: var(--rq-sp-32); }
+
+/* ── Badges-sidans byggstenar (RUN-149, spec F9, F10.4, F13.4) ─────────────────────────────────────────────────────
+   Eget block: rutnätet, det liggande kortet, växlaren och emblem-popovern. Sidan (RUN-150), profilens sammanfattning (RUN-151) och Runner card-panelen (RUN-152) bygger på dem.
+   Det liggande kortet är en MODIFIERARE på samlingskortets bas (.rq-badge-card--landscape; det stående kortet togs bort i RUN-151), och sammansatta
+   selektorer gör att specificiteten avgör, inte laddningsordningen. Kortet och texten dimmas aldrig (ingen opacity, Council 17): bara växlaren får ett avstängt utseende. */
+
+/* Rutnätet: så många kolumner som ryms med kortets minsta bredd — 1 på telefon, 4 på 1440, 3 på 1280, 2 på 1024 (antagande, Q4). */
+.rq-badge-page-grid {
+  margin: 0; padding: 0; list-style: none; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--rq-badge-page-card-min)), 1fr)); gap: var(--rq-badge-page-gap);
+}
+
+/* Områdena (emblem · who · body) kommer ur token: mobil "emblem who" / "emblem body", desktop "emblem who" / "body body". */
+.rq-badge-card.rq-badge-card--landscape {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: var(--rq-badge-card-areas);
+  column-gap: var(--rq-sp-12); row-gap: var(--rq-sp-8); align-items: start; align-content: start; padding: var(--rq-pad-card);
+}
+.rq-badge-card.rq-badge-card--landscape[data-display="true"] { border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); }
+.rq-badge-card--landscape .rq-badge-card__emblem { grid-area: emblem; display: flex; }
+/* Mobil: namn och chip på samma rad (radbryts), pips under. */
+.rq-badge-card--landscape .rq-badge-card__who { grid-area: who; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: var(--rq-sp-8); row-gap: var(--rq-sp-6); }
+.rq-badge-card--landscape .rq-badge-card__who .rq-badge-pips { flex-basis: 100%; }
+.rq-badge-card--landscape .rq-badge-card__body { grid-area: body; }
+/* Held-by till vänster och växlaren till höger i fotraden; fotraden får radbrytas, så en lång held-by aldrig trycker ut växlaren ur kortet. */
+.rq-badge-card__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rq-sp-8); margin-top: var(--rq-sp-2); }
+.rq-badge-card__foot > p { margin: 0; min-width: 0; }
+.rq-badge-card__foot > .rq-badge-toggle { margin-left: auto; }
+
+@media (min-width: 1024px) {
+  /* Desktop: namn, chip och pips staplas bredvid emblemet; kroppen spänner under emblemet över hela kortets bredd. */
+  .rq-badge-card--landscape .rq-badge-card__who { flex-direction: column; align-items: flex-start; }
+  .rq-badge-card--landscape .rq-badge-card__who .rq-badge-pips { flex-basis: auto; }
+}
+
+/* Växlaren (F9.6): Show · On display — N · fullt/sparar (avstängd, kvar i tabbordningen) · Låst (ingen knapp). Tryckytan ur --rq-badge-pick-hit (mobil 44, desktop 24).
+   Hover före pressed före avstängd: lika specificitet, så den senare vinner. Den valda växlaren behåller guldutseendet även medan sparandet pågår. */
+.rq-badge-card .rq-badge-toggle {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit); padding: 0 var(--rq-sp-10);
+  background: none; border: var(--rq-hair) solid var(--rq-line-5); cursor: pointer; white-space: nowrap;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3);
+}
+.rq-badge-card .rq-badge-toggle:hover { border-color: var(--rq-line-hover); color: var(--rq-text-2); }
+.rq-badge-card .rq-badge-toggle[aria-pressed="true"] {
+  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-status)); color: var(--rq-gold-text);
+}
+.rq-badge-card .rq-badge-toggle[aria-disabled="true"]:not([aria-pressed="true"]) { background: var(--rq-fill-1); border-color: transparent; color: var(--rq-text-5); cursor: not-allowed; }
+.rq-badge-card .rq-badge-toggle--locked { border-style: dashed; border-color: var(--rq-line-5); background: none; color: var(--rq-text-5); cursor: default; }
+/* Den låsta rutan är ingen knapp: hover får inte byta färg (lika specificitet som :hover ovan, senare i filen vinner). */
+.rq-badge-card .rq-badge-toggle--locked:hover { border-color: var(--rq-line-5); color: var(--rq-text-5); }
+
+/* Emblemknappen (F10.4): det dekorativa 44 px-emblemet är tryckytan. Hover ger en tunn ram runt knappen — inget glödbyte, ingen permanent ring (fokusringen är den globala). */
+.rq-badge-detail__trigger { display: inline-flex; flex-shrink: 0; padding: 0; background: none; border: var(--rq-hair) solid transparent; cursor: pointer; }
+.rq-badge-detail__trigger:hover { border-color: var(--rq-line-hover); }
+
+/* Popovern: .rq-popover (yta, kant, skugga, lager) kommer från skalet; här bredd och innehåll. Lagret över modalen kommer från skalets .rq-popover--over-modal (komponenten sätter klassen; badges-CSS har aldrig z-index).
+   Ingen animation. Containern tar fokus vid öppning utan egen ring. */
+.rq-popover.rq-badge-detail {
+  box-sizing: border-box; width: var(--rq-badge-detail-w); max-width: var(--radix-popover-content-available-width);
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-8); padding: var(--rq-sp-12) var(--rq-sp-14);
+}
+.rq-popover.rq-badge-detail:focus-visible { outline: none; }
+.rq-badge-detail p { margin: 0; }
+.rq-badge-detail__display { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-badge-detail__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); }
+.rq-badge-detail .rq-badge-detail__name { margin: 0; color: var(--rq-text-1); overflow-wrap: anywhere; }
+.rq-badge-detail__req { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-badge-detail__unlock { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+/* Flavor: egen rad, citerad kursiv, full textfärg, Barlow Condensed, ≥ 14 px (Council 2). */
+.rq-badge-detail__flavor { font-family: var(--rq-font-ui); font-style: italic; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-1); }
+.rq-badge-detail__held { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+
+
+/* ── Badges-sidan (RUN-150, spec F9) ────────────────────────────────────────────────────────────────────────────────
+   components/BadgesScreen (sidhuvud, rytm), BadgeDisplayStrip (ON DISPLAY-remsan, SAVE DISPLAY, statusrader). Rutnätet och kortet kommer från byggstenarna ovan.
+   Remsans yta är --rq-panel med rollguldets kant (inte Legendary). SAVE DISPLAY är sidans enda guldknapp (.rq-btn--secondary); avstängd (SAVED/SAVING…) är den grå.
+   Sammansatta selektorer där en delad .rq-*-primitiv ska överstyras (feature-CSS laddas före index.css). */
+.rq-badges { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+.rq-badges__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-badges__titles { flex: 1; min-width: 0; }
+.rq-badges__title { margin: 0; font-weight: 400; }
+.rq-badges__lead { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-badges__count { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-badges__count.rq-badges__count--aside { flex-shrink: 0; margin: 0; font-family: var(--rq-font-mono); letter-spacing: var(--rq-ls-label); }
+/* Tillbaka-länken (mobil): glyfen ‹ i en tryckyta på minst --rq-badge-pick-hit. */
+.rq-back.rq-badges__back { flex-shrink: 0; align-self: center; justify-content: center; min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit); margin-bottom: 0; font-size: var(--rq-fs-lead); }
+
+/* Remsan: etikett · minis · hjälptext · SAVE DISPLAY längst till höger. Får radbrytas. */
+.rq-badge-strip { display: flex; flex-direction: column; }
+.rq-badge-strip__bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8) var(--rq-sp-12); padding: var(--rq-sp-10) var(--rq-sp-12);
+  background: var(--rq-panel); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft));
+}
+.rq-badge-strip__label { flex-shrink: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3); }
+.rq-badge-strip__bar .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-4); }
+.rq-badge-strip__hint { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+.rq-btn.rq-badge-strip__save { margin-left: auto; min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit); }
+.rq-btn.rq-badge-strip__save[aria-disabled="true"] { background: none; border-color: var(--rq-line-4); color: var(--rq-text-4); cursor: default; }
+
+/* Statusraderna ligger i permanenta behållare (live-regioner); raden bär sitt eget avstånd, så en tom behållare inte tar plats. */
+.rq-badge-strip__limit { margin: var(--rq-sp-8) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-badge-note {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rq-sp-8) var(--rq-sp-12); margin: var(--rq-sp-8) 0 0; padding: var(--rq-sp-10) var(--rq-sp-12);
+  background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w) solid var(--rq-up);
+  font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2);
+}
+.rq-badge-note[data-status="error"] { border-left-color: var(--rq-down); }
+.rq-badge-retry {
+  min-width: var(--rq-badge-pick-hit); min-height: var(--rq-badge-pick-hit); padding: 0 var(--rq-sp-4); border: 0; background: none; cursor: pointer;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); color: var(--rq-down);
+}
+.rq-badge-retry:hover { color: var(--rq-text-1); }

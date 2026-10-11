@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
 import { syncAllStravaUsers } from '../routes/strava.js';
 import { WeatherService } from '../services/weatherService.js';
+import { enhancedTitleService } from '../services/enhancedTitleService.js';
 
 const SYNC_INTERVAL_MINUTES = 30;
 
@@ -32,6 +33,17 @@ export function getSyncInfo(): SyncState {
   return { ...syncState };
 }
 
+// Väder kommer efter importen, och Stormborn/Iceborn hänger på det: ny väderdata kan ändra vem som håller titlarna.
+// Alla grupper (explicit allGroups, RUN-104); ett fel här är inte ett synkfel — synken och backfillen har redan lyckats.
+async function recalculateTitlesAfterWeather(savedRows: number): Promise<void> {
+  try {
+    logger.info(`🏆 Weather saved for ${savedRows} run(s) — recalculating titles...`);
+    await enhancedTitleService.processAllUsersTitles(undefined, { allGroups: true });
+  } catch (error) {
+    logger.error('❌ Title recalculation after weather backfill failed:', error);
+  }
+}
+
 // PRODUCTION: Run every 30 minutes
 export function startStravaScheduler() {
   logger.info(`🕐 Starting Strava sync scheduler for production (every ${SYNC_INTERVAL_MINUTES} minutes)...`);
@@ -53,7 +65,8 @@ export function startStravaScheduler() {
       logger.info(`✅ Scheduled sync completed: ${result.message}`);
 
       // Backfill weather for any runs still missing it (new + retries from previous failures)
-      await WeatherService.backfillMissingWeather();
+      const savedWeather = await WeatherService.backfillMissingWeather();
+      if (savedWeather > 0) await recalculateTitlesAfterWeather(savedWeather);
     } catch (error) {
       syncState.lastSyncStatus = 'error';
       syncState.nextSyncEstimated = computeNextSync();
@@ -62,17 +75,4 @@ export function startStravaScheduler() {
   });
 
   logger.info('✅ Strava sync scheduler started');
-}
-
-// Manual trigger for testing/admin use
-export async function triggerManualSync() {
-  logger.info('🔄 Manual sync trigger...');
-  try {
-    const result = await syncAllStravaUsers();
-    logger.info('📊 Manual sync result:', result);
-    return result;
-  } catch (error) {
-    logger.error('❌ Manual sync trigger error:', error);
-    return { success: false, error: 'Manual sync failed' };
-  }
 }

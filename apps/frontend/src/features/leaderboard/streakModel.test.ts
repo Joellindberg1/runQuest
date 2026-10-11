@@ -24,7 +24,7 @@ const user = (id: string, streak: number, runs: Run[], best = streak): User => (
 
 describe('streak-status — samma streakDeadline som Right now-pillen', () => {
   it('SAFE: sprang idag → deadline slutet på morgondagen, text "ran … ago"', () => {
-    const row = buildStreakRow(user('ann', 3, [run('2026-10-04', { start_time: '2026-10-04T05:00:00Z' })]), NOW, LADDER);
+    const row = buildStreakRow(user('ann', 3, [run('2026-10-04', { start_time: '2026-10-04T07:00:00Z' })]), NOW, LADDER);
     expect(row.status).toBe('safe');
     expect(row.days).toBe(3);
     expect(row.detail).toBe('ran 5 h ago');

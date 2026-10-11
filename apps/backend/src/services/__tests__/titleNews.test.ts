@@ -225,7 +225,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
       tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
     });
-    await service.processAllUsersTitles(undefined, { emitNews: false });
+    await service.processAllUsersTitles(undefined, { emitNews: false, allGroups: true });
     expect(tables.activity_log).toHaveLength(0);
     expect(db.queries.some((q) => q.table === 'title_leaderboard')).toBe(false);
   });

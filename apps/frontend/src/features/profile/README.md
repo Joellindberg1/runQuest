@@ -2,8 +2,8 @@
 
 Hjältekort · Frodo's journey (zoom) · statflikar (`?view=distance|streak|fun|consistency`, `useViewParam`) · MY TITLES · RUN HISTORY med redigera/radera
 och profilbild. Mobil = App Prototypens profil (allt i en kolumn), desktop = Web Prototypens (hjälte · Frodo · statflikar | titlar + rundhistorik på 340 px).
-`pages/ProfilePage.tsx` är tunn. Bottenbarens "You" och sidnavens Profile pekar hit (ADR 006). Badge-sektionerna i prototyperna är medvetet INTE byggda
-(ägaren designar dem).
+`pages/ProfilePage.tsx` är tunn. Bottenbarens "You" och sidnavens Profile pekar hit (ADR 006). Badge-sammanfattningen (kompakt rad med "All badges →", RUN-151, spec v2 F10; komponenterna bor i `features/badges/components`)
+ersatte samlingskortet (RUN-128), och väljaren för visade badges (RUN-129) är ersatt av badges-sidan `/badges` (RUN-150). Hjältekortets minis finns kvar bara på desktop.
 
 Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: hjälte-, cell-, distans-, streak- och titellogiken är EN definition i
 `runner/runnerModel`; Profile skiljer sig i Fun facts, Consistency-fliken, rundhistoriken och att den egna profilen kan ändras.
@@ -12,7 +12,11 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 
 - **components/**
   - `ProfileScreen` — all datakoppling (`useUsersWithRuns`, titlar), laddning/fel/"User not found", tour, layout
-  - `ProfileHero` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop) och profilbilden
+  - `ProfileHero` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn (+ badge-minis, `BadgeMinis`, bara desktop)/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop) och profilbilden
+  - BADGES-sammanfattningen (`BadgeSummary`, `features/badges`, RUN-151, spec v2 F10) — kompakt rubrikrad med "All badges →" (länk till `/badges`, mobilens enda ingång), intjänade serier som 44 px-emblem på nivå och en låsta-rad; varje emblem öppnar en popover (`BadgeEmblemDetail`).
+    `ProfileScreen` äger badge-queryerna (`useUserBadges(me.id)`, `useGroupBadges()`) och renderar den på EN plats åt gången: **desktop** sist i `.rq-profile__main` (efter statflikarna, i ett `.rq-card`), **mobil** i `.rq-profile__side` mellan MY TITLES och RUN HISTORY
+    (utan kortyta; mobilens kolumn staplar main → side). Ett badgefel/laddning stannar i sammanfattningen (felkort med Retry, skelett) och rör aldrig resten av sidan. Ingen tur-ankare för den (turen `tour_profile_v2` är oförändrad)
+  - **Ingen väljare i profilen (RUN-150/151):** valet av visade badges görs på `/badges` (`features/badges`, `BadgesScreen`). `ProfileScreen` äger ingen `pickerOpen`/`editRef`/panel och sammanfattningen har ingen Edit-knapp. Tur-ankarna är oförändrade.
   - `FrodoRoad` — vägen (waypoints, ticks, stapel, markör, ändetiketter) och `ZoomButton`; EN komponent som även Runner cards desktop-väg använder (`prefix` styr klassnamnen)
   - `JourneyCard` — Frodo: vägen med waypoints/ticks, zoomknapp (Overview → Zoomed → Close-up) på mobil OCH desktop, procent, nästa mål
   - `StatsPanel` — `ViewTabs variant="underline"` över `?view=`; `Heatmap` är Consistency-fliken
@@ -35,6 +39,11 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 - **Redigera/radera använder SAMMA invalideringskedja som POST** (`features/runs/runEffects.invalidateAfterRunChange`, delad med Log): users-with-runs
   (väntas in), leaderboard, öppna event (direkt + en gång efter 4 s), titlar (båda rötterna), utmaningar, head-to-head och gruppens historik. Förr hämtades bara
   users-with-runs om — leaderboard, Duels och Group history stod kvar med gamla siffror. Rutan stängs först när omhämtningen är klar; då visas bekräftelsen och fokus flyttas dit (rutan är kontrollerad och har ingen Dialog.Trigger, så Radix har inget att återföra fokus till — det föll till body; `EditRunSheet.onRestoreFocus` styr i stället: bekräftelsen efter sparat/raderat, annars tillbaka till Edit-knappen, även vid Cancel, ✕ och Esc).
+- **Strava-rundor är skrivskyddade (RUN-139, ägarbeslut 2026-10-11).** Strava är sanningskällan för distans och datum, och `PUT /runs/:id` redigerar
+  bara de två fälten — en Strava-runda har alltså inget redigerbart kvar. `EditRunSheet` visar då distans och datum som text, "Synced from Strava. Distance and date come from Strava and can't be changed
+  here.", ingen Save och Delete spärrad (som förut). Servern är sista skyddet: PUT på en Strava-runda ger `409 { error: 'Strava runs are read-only' }` utan
+  skrivning eller omräkning (ägarskapet 404/403 kontrolleras först); en gammal klient eller kapplöpning ser felet i rutans alert-region. Manuella rundor
+  (`source` manual, null eller saknad) är oförändrade. Rutans rubrik är då "Run details" och radens knapp "View" (manuella rundor: "Edit", som förut).
 - **Inga toasts i det här flödet.** Bekräftelser ligger i permanenta `role="status"`-regioner (rundhistoriken, bildraden), fel i `role="alert"` (redigeringsrutan,
   bildraden): samma mönster som Log och Duels, texten finns kvar tills man gör något annat och läses upp pålitligt. (Toastern är monterad i `AppProviders` och
   äldre features använder den; de gamla anropen i Profile-flödet visades alltså, men ersattes av konsekvensskäl.) `guards.test.ts` förbjuder sonner/toast i featuren.
@@ -44,7 +53,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   Delete är en röd hårlinje som öppnar ett eget bekräftelsesteg — där finns den fyllda röda knappen (oåterkalleligt). Ingen guldknapp på sidan; EN i rutan (Save).
 - **Strava-rundor kan inte raderas här** (`isStravaRun`: `source === 'strava'`; null/saknas = manuell). DELETE lämnar ingen gravsten, så synken importerar tillbaka
   rundan inom sitt 7-dagarsfönster. Delete-knappen i redigeringsrutan är avstängd med "Strava runs come back on next sync — delete it in Strava instead"
-  (`title` + `sr-only`-text i knappen, som Titles valknapp; en synlig rad med samma text för touch). Edit är tillåten. `source` följer med ur users-with-runs
+  (`title` + `sr-only`-text i knappen, som Titles valknapp; en synlig rad med samma text för touch). Redigering är också låst (RUN-139, se nedan): Strava-rundor öppnas skrivskyddade via View. `source` följer med ur users-with-runs
   (`mapApiUser`). **409 vid radering** (rundan kvalificerade ett event, ADR 008 addendum 5): serverns klartext visas i rutans `role="alert"` och rutan står kvar.
 - **Heatmapen:** en ruta per dag, veckor mån–sön, en vecka tillhör månaden där dess måndag ligger (4–5 per månad, som prototypen). Intensitet = dagens km:
   0 · <5 · 5–10 · 10–15 · 15+ (stegen följer distansbonusarna). Desktop 12 månader, mobil 6. Raden är scrollbar (fokus går att panorera) och visar nyaste delen. Etiketten räknar de block som faktiskt ritas ("runs · 5 months" tidigt i en månad). Rutor med runda har `role="img"` + aria-label (dag · km · rundor); dagar utan runda är dekor.

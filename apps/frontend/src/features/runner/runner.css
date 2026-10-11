@@ -12,6 +12,10 @@
 .rq-runner__body { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
 .rq-runner__split { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
 .rq-runner__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
+/* Nedre rutnätet (spec F11.1): BADGES | Head to head i samma kolumner som raden ovanför (340 px kontrolleras). Mobil: en kolumn, badges före head to head.
+   Head to head sträcks till radens höjd (designen: Web Prototype 1653); panelen utan head to head (ingen inloggad) tar första kolumnen ensam. */
+.rq-runner__lower { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
+.rq-runner__lower > .rq-runner-h2h { align-self: stretch; }
 .rq-runner[data-variant="overlay"] .rq-runner__bar { margin: 0; padding: var(--rq-sp-14) var(--rq-runner-close-gutter) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
 .rq-runner[data-variant="overlay"] .rq-runner__body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
 
@@ -33,7 +37,12 @@
 .rq-runner-ring__level { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: .9; color: var(--rq-gold-text); }
 .rq-runner-ring__caption { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-runner-hero__who { min-width: 0; }
-.rq-runner-hero__name { margin: 0; font-weight: 400; text-transform: uppercase; overflow-wrap: anywhere; }
+.rq-runner-hero__name { margin: 0; min-width: 0; font-weight: 400; text-transform: uppercase; overflow-wrap: anywhere; }
+/* Namn + badge-minis (RUN-130, spec F4). Raden rymmer en mini även utan (som Board, Council 10), så kortet inte hoppar när badge-queryn landar.
+   Minisen krymper aldrig. Ryms inte namn + minis på en rad (smal mobil) hamnar minisen under namnet — namnet bryts inte mitt i (Council 12:
+   namnet dominerar); ett namn som är bredare än raden radbryts först då. */
+.rq-runner-hero__nameline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-4) var(--rq-sp-8); min-height: var(--rq-badge-h-sm); }
+.rq-runner .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-4); }
 .rq-runner-hero__meta { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-runner-hero__xp { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
 
@@ -103,6 +112,8 @@
 .rq-runner-title__value { flex-shrink: 0; font-weight: 600; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
 .rq-runner-title__main { display: flex; flex-direction: column; min-width: 0; }
 .rq-runner-title__holder { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+
+/* BADGES-panelen (RUN-130) bor sedan RUN-128 i features/badges/badges.css, med komponenten. */
 
 /* ── Head to head: senaste mötena ─────────────────────────────────────────── */
 .rq-runner-meetings { margin: 0; padding: 0; list-style: none; }

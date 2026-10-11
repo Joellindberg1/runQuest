@@ -234,13 +234,13 @@ describe('Pack News — filter (?type=)', () => {
     expect(filterButton('Titles')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('flera chips samtidigt; Levels = level_up + run_milestone; att avmarkera tar bort parametern', async () => {
+  it('flera chips samtidigt; Levels = level_up + run_milestone + badge_earned; att avmarkera tar bort parametern', async () => {
     renderNews();
     await screen.findByText('7 unread');
     fireEvent.click(filterButton('Levels'));
     fireEvent.click(filterButton('Streaks'));
     await waitFor(() => expect(location()).toBe('/news?type=levels%2Cstreaks'));
-    await waitFor(() => expect(news.server.calls.some((call) => call.type === 'level_up,run_milestone,streak_broken')).toBe(true));
+    await waitFor(() => expect(news.server.calls.some((call) => call.type === 'level_up,run_milestone,streak_broken,badge_earned')).toBe(true));
     await waitFor(() => expect(rowTexts()).toEqual(['Karl reached level 25', 'Daniel lost a 27-day streak — multiplier back to 1.0×', 'You reached level 9', 'Nicklas reached level 5']));
 
     fireEvent.click(filterButton('Levels'));
@@ -318,6 +318,16 @@ describe('Pack News — laddning, tomt och fel', () => {
     expect(await screen.findByRole('heading', { name: 'No news yet — go make some' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Log a run' }));
     await waitFor(() => expect(location()).toBe('/log'));
+  });
+
+  it('ett flöde med bara okända händelsetyper: tomtillståndet visas, inget filter och ingen tour (RUN-138)', async () => {
+    const unknown = (id: number) => ({ ...levelUp(id, 1), type: 'quest_completed', payload: { quest: 'x' } }) as unknown as NewsItem;
+    setup([unknown(31), unknown(30)], null);
+    renderNews();
+    expect(await screen.findByRole('heading', { name: 'No news yet — go make some' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.rq-news-row')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /^Titles/ })).toBeNull();
+    expect(screen.queryByTestId('feature-tour')).toBeNull();
   });
 
   it('fel: felkort med Retry — Retry hämtar om', async () => {

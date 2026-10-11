@@ -19,7 +19,10 @@ import { lastRunOfWeekEngine }         from './lastRunOfWeek';
 import { maxKmRolling30Engine }        from './maxKmRolling30';
 import { totalElevationGainEngine }    from './totalElevationGain';
 import { bestSingleRunElevationEngine } from './bestSingleRunElevation';
-import type { TitleEngine }            from './types';
+import { winterKmEngine }            from './winterKm';
+import { stormRunCountEngine }   from './stormRunCount';
+import { coldRunCountEngine }    from './coldRunCount';
+import type { TitleEngine }          from './types';
 
 // Registry: add one line here when adding a new title engine
 const engines: TitleEngine[] = [
@@ -44,6 +47,9 @@ const engines: TitleEngine[] = [
   bestSingleRunElevationEngine,
   fastest5kmEngine,
   avgPaceStdDevEngine,
+  winterKmEngine,
+  stormRunCountEngine,
+  coldRunCountEngine,
 ];
 
 export const titleEngineRegistry = new Map(

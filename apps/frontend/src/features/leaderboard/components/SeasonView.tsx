@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { UserTitle } from '@runquest/types';
 import { useNow } from '@/app-shell/useNow';
+import { useGroupBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { useAuth } from '@/providers/authContext';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { ErrorState } from '@/shared/components/ErrorState';
@@ -10,7 +11,7 @@ import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import { paths } from '@/paths';
 import { useRankDelta } from '../hooks/useBoardQueries';
-import { rankDeltaMap } from '../seasonModel';
+import { badgeShowcaseMap, rankDeltaMap } from '../seasonModel';
 import { SeasonBoard } from './SeasonBoard';
 
 const LOADING_ROWS = 6;
@@ -30,6 +31,9 @@ export function SeasonView() {
   const titlesQuery = useMultipleUserTitles(useMemo(() => ranked.map((runner) => runner.id), [ranked]));
   const rankDeltaQuery = useRankDelta(!!users);
   const rankDeltaByUser = useMemo(() => rankDeltaMap(rankDeltaQuery.data?.users), [rankDeltaQuery.data]);
+  // Minis är dekor: laddar eller felar gruppens badges ritas Board exakt som förut (inget felkort, ingen spinner).
+  const groupBadgesQuery = useGroupBadges(!!user);
+  const badgesByUser = useMemo(() => badgeShowcaseMap(groupBadgesQuery.data?.members), [groupBadgesQuery.data]);
 
   if (usersQuery.isError) {
     return <ErrorState title="Couldn't load the standings" retrying={usersQuery.isFetching} onRetry={() => void usersQuery.refetch()} />;
@@ -44,6 +48,7 @@ export function SeasonView() {
       users={users}
       titlesByUser={titlesQuery.data ?? NO_TITLES}
       rankDeltaByUser={rankDeltaByUser}
+      badgesByUser={badgesByUser}
       now={now}
     />
   );

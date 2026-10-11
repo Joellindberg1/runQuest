@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
+
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
@@ -12,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Bebas+Neue&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="./runquest-icons.js"></script>
+<script src="./runquest-badges.js"></script>
 <style>
   html { background:#0a0a0a; }
   body { margin:0; background:#0a0a0a; color:#edeeed; font-family:'Barlow Condensed',sans-serif; }
@@ -314,101 +317,122 @@
       <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:9px;">
         <span style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.3em; color:rgba(255,255,255,.28);">05</span>
         <h2 style="margin:0; font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:.03em; color:#fff;">BADGES</h2>
-        <span style="font-size:16px; color:rgba(255,255,255,.4);">Ten series, three ranks each, six rarities. Anyone can hold the badge — the rarity says who earned it.</span>
+        <span style="font-size:16px; color:rgba(255,255,255,.4);">Eight series, six tiers. Anyone can hold a badge — rarity is pack-relative, never global.</span>
       </div>
 
       <div>
-        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Rarity scale</div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Tier scale · position shown by chip + pips, never colour alone</div>
         <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px;">
-          <sc-for list="{{ rarityLadder }}" as="r" hint-placeholder-count="6">
+          <sc-for list="{{ tierScale }}" as="t" hint-placeholder-count="6">
             <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:18px 12px 14px; display:flex; flex-direction:column; align-items:center; gap:9px;">
-              <span style="{{ r.glow }}"><span style="{{ r.frame }}"><span style="{{ r.inner }}">{{ r.svg }}</span></span></span>
-              <span style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:16px; letter-spacing:.14em; text-transform:uppercase; color:{{ r.color }};">{{ r.name }}</span>
-              <span data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; color:rgba(255,255,255,.35);">{{ r.pct }}</span>
+              <span style="{{ t.glow }}"><span style="{{ t.frame }}"><span style="{{ t.ring }}"></span><span style="{{ t.inner }}">{{ t.svg }}</span></span></span>
+              <span style="{{ t.chipStyle }}">{{ t.name }}</span>
+              <span style="display:flex; gap:4px;"><sc-for list="{{ t.pips }}" as="p" hint-placeholder-count="6"><span style="{{ p.style }}"></span></sc-for></span>
+              <span data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35); text-align:center;">{{ t.note }}</span>
             </div>
           </sc-for>
         </div>
-        <div data-spec="1" style="font-size:14px; color:rgba(255,255,255,.4); margin-top:10px;">Series badges climb Common → Rare → Legendary. Uncommon, Heroic and Epic are reserved for one-off event badges. Legendary is the only tier that animates.</div>
+        <div style="display:flex; gap:12px; margin-top:12px; align-items:stretch;">
+          <sc-for list="{{ tierAlts }}" as="a" hint-placeholder-count="5">
+            <div style="flex:1; background:rgba(33,33,33,.62); border:1px dashed rgba(255,255,255,.14); padding:14px 10px 12px; display:flex; flex-direction:column; align-items:center; gap:8px;">
+              <span style="{{ a.glow }}"><span style="{{ a.frame }}"><span style="{{ a.ring }}"></span><span style="{{ a.inner }}">{{ a.svg }}</span></span></span>
+              <span data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.4); text-align:center;">{{ a.label }}</span>
+            </div>
+          </sc-for>
+        </div>
       </div>
 
       <div>
-        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">The ten series</div>
-        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px;">
-          <sc-for list="{{ badgeSeries }}" as="b" hint-placeholder-count="10">
-            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:16px 18px; display:flex; gap:16px;">
-              <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-                <span style="{{ b.glow }}"><span style="{{ b.frame }}"><span style="{{ b.inner }}">{{ b.svg }}</span></span></span>
-                <span style="display:flex; gap:4px;"><sc-for list="{{ b.pips }}" as="p" hint-placeholder-count="3"><span style="{{ p.style }}"></span></sc-for></span>
-              </div>
-              <div style="flex:1; min-width:0;">
-                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
-                  <span style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:19px; letter-spacing:.06em; text-transform:uppercase; color:#fff;">{{ b.name }}</span>
-                  <span style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.18em; color:{{ b.stateColor }};">{{ b.state }}</span>
-                </div>
-                <div style="font-size:15px; line-height:1.35; color:rgba(255,255,255,.45); margin-top:2px;">{{ b.desc }}</div>
-                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
-                  <sc-for list="{{ b.levels }}" as="l" hint-placeholder-count="3"><span style="{{ l.style }}">{{ l.label }}</span></sc-for>
-                </div>
-                <sc-if value="{{ b.hasProg }}" hint-placeholder-val="{{ false }}">
-                  <div style="margin-top:10px;">
-                    <div style="height:5px; background:rgba(255,255,255,.06);"><div style="{{ b.progW }}"></div></div>
-                    <div style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.38); margin-top:5px;">{{ b.progLabel }}</div>
-                  </div>
-                </sc-if>
-              </div>
-            </div>
-          </sc-for>
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:16px; align-items:start;">
-        <div>
-          <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:16px 18px;">
-            <div style="display:flex; align-items:center; gap:12px;">
-              <span style="width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid #ffd700; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:16px; color:#ffd700;">JB</span>
-              <div style="flex:1; min-width:0;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <span style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:20px; letter-spacing:.06em; text-transform:uppercase; color:#fff;">JOHAN BJÖRELL</span>
-                  <span style="display:flex; gap:4px;"><sc-for list="{{ minis }}" as="m" hint-placeholder-count="3"><span style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
-                </div>
-                <div style="font-size:15px; color:rgba(255,255,255,.4);">Lvl 27 · 12-day streak</div>
-              </div>
-            </div>
-            <div style="display:flex; gap:10px; margin-top:14px; padding-top:14px; border-top:1px solid rgba(255,255,255,.07);">
-              <sc-for list="{{ slots }}" as="sl" hint-placeholder-count="3">
-                <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:13px 8px 10px;">
-                  <span style="{{ sl.glow }}"><span style="{{ sl.frame }}"><span style="{{ sl.inner }}">{{ sl.svg }}</span></span></span>
-                  <span style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.38);">{{ sl.cap }}</span>
-                </div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Eight series × six tiers · medium 56 px</div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:6px 14px 14px;">
+          <div style="display:grid; grid-template-columns:170px repeat(6,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.08);">
+            <span></span>
+            <sc-for list="{{ tierHead }}" as="h" hint-placeholder-count="6">
+              <span style="font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4); text-align:center;">{{ h }}</span>
+            </sc-for>
+          </div>
+          <sc-for list="{{ emblemMatrix }}" as="r" hint-placeholder-count="8">
+            <div style="display:grid; grid-template-columns:170px repeat(6,1fr); gap:6px; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,.05);">
+              <span style="display:flex; align-items:center; gap:9px;">{{ r.ic }}<span style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:16px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed;">{{ r.name }}</span></span>
+              <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="6">
+                <span style="display:flex; justify-content:center;"><span style="{{ c.glow }}"><span style="{{ c.frame }}"><span style="{{ c.ring }}"></span><span style="{{ c.inner }}">{{ c.svg }}</span></span></span></span>
               </sc-for>
             </div>
-            <div style="font-size:15px; color:rgba(255,255,255,.4); margin-top:12px;">Every runner picks three badges to wear on their card and in the XP table.</div>
-          </div>
-          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Player card · three showcase slots</div>
+          </sc-for>
         </div>
+      </div>
 
-        <div>
-          <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.35); padding:26px 18px 22px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:9px;">
-            <span style="{{ mvGlow }}"><span style="{{ mvFrame }}"><span style="{{ mvInner }}">{{ mvSvg }}</span></span></span>
-            <div style="font-family:'Bebas Neue',sans-serif; font-size:28px; color:#fff; line-height:1; margin-top:4px;">THE STREAK KEEPER</div>
-            <div style="font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:#ffd700;">Rank III · Legendary</div>
-            <p style="font-size:15px; line-height:1.45; margin:0; color:rgba(255,255,255,.5); max-width:240px;">100 days in a row. Held by 1.2% of all runners.</p>
-          </div>
-          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Mastery flash · lead with your rarest</div>
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Locked · dim frame, icon at .28, no glow, empty pips</div>
+        <div style="display:flex; gap:12px; background:rgba(33,33,33,.62); border:1px dashed rgba(255,255,255,.14); padding:16px 18px;">
+          <sc-for list="{{ lockedRow }}" as="l" hint-placeholder-count="8">
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;">
+              <span style="{{ l.glow }}"><span style="{{ l.frame }}"><span style="{{ l.ring }}"></span><span style="{{ l.inner }}">{{ l.svg }}</span></span></span>
+              <span style="font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.35); text-align:center;">{{ l.name }}</span>
+            </div>
+          </sc-for>
         </div>
+      </div>
 
-        <div>
-          <div style="background:rgba(20,20,20,.98); border:1px solid rgba(255,215,0,.3); box-shadow:0 24px 60px rgba(0,0,0,.7); padding:24px 18px 20px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:9px;">
-            <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:#ffd700;">Congratulations</div>
-            <span style="{{ evoGlow }}"><span style="{{ evoFrame }}"><span style="{{ evoInner }}">{{ evoSvg }}</span></span></span>
-            <div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#fff; line-height:1;">MILESTONER → RANK II</div>
-            <p style="font-size:15px; line-height:1.45; margin:0; color:rgba(255,255,255,.55); max-width:250px;">15 km in one stretch. Your badge traded iron for blue.</p>
-            <div style="display:flex; gap:9px; margin-top:5px;">
-              <span style="padding:8px 18px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:.06em; cursor:pointer;" style-hover="background:#fff2a8;">FLAUNT IT</span>
-              <span style="padding:8px 15px; border:1px solid rgba(255,255,255,.16); font-size:14px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.6); cursor:pointer;" style-hover="border-color:rgba(255,255,255,.4); color:#edeeed;">Later</span>
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:10px;">Sizes · Milestoner · height = width × 1.12 · Legendary never breathes at mini</div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:8px 18px 14px;">
+          <sc-for list="{{ sizeRows }}" as="s" hint-placeholder-count="3">
+            <div style="display:flex; align-items:center; gap:18px; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.05);">
+              <span style="width:170px; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.16em; color:rgba(255,255,255,.4);">{{ s.label }}</span>
+              <sc-for list="{{ s.cells }}" as="c" hint-placeholder-count="6">
+                <span style="{{ c.glow }}"><span style="{{ c.frame }}"><span style="{{ c.ring }}"></span><span style="{{ c.inner }}">{{ c.svg }}</span></span></span>
+              </sc-for>
+            </div>
+          </sc-for>
+          <div style="display:flex; gap:12px; margin-top:14px;">
+            <div style="flex:1; background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:11px 14px; display:flex; align-items:center; gap:8px;">
+              <span style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:16px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed;">JOEL LINDBERG</span>
+              <span style="display:flex; gap:4px;"><sc-for list="{{ miniDemo }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+              <span data-spec="1" style="margin-left:auto; font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.3);">1:1 mini on panel</span>
+            </div>
+            <div style="flex:1; background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.55); border-left:3px solid #ffd700; padding:11px 14px; display:flex; align-items:center; gap:8px;">
+              <span style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:16px; letter-spacing:.06em; text-transform:uppercase; color:#fff;">KARL PERSSON</span>
+              <span style="display:flex; gap:4px;"><sc-for list="{{ miniDemo }}" as="m" hint-placeholder-count="3"><span title="{{ m.tip }}" style="{{ m.glow }}"><span style="{{ m.frame }}"><span style="{{ m.ring }}"></span><span style="{{ m.inner }}">{{ m.svg }}</span></span></span></sc-for></span>
+              <span data-spec="1" style="margin-left:auto; font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.3);">1:1 mini on podium card</span>
             </div>
           </div>
-          <div data-spec="1" style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-top:9px;">Evolution popup</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:16px 18px;">
+          <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">Anatomy</div>
+          <div style="display:flex; gap:22px; align-items:center;">
+            <span style="{{ anatomy.glow }}"><span style="{{ anatomy.frame }}"><span style="{{ anatomy.ring }}"></span><span style="{{ anatomy.inner }}">{{ anatomy.svg }}</span></span></span>
+            <div style="font-size:15px; line-height:1.7; color:rgba(255,255,255,.55);">
+              <div><span style="color:#edeeed;">1 · Glow wrapper</span> — drop-shadow; none below Rare, static from Rare, Legendary breathes (M/L only)</div>
+              <div><span style="color:#edeeed;">2 · Crest frame</span> — clip-path crest, tier gradient</div>
+              <div><span style="color:#edeeed;">3 · Hairline ring</span> — Heroic only, its non-colour mark</div>
+              <div><span style="color:#edeeed;">4 · Core</span> — #1c1c1c, same crest clip</div>
+              <div><span style="color:#edeeed;">5 · Series icon</span> — RQIcons, 15 / 24 / 42 px, same on every tier</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:16px 18px;">
+          <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:14px;">Colour-blind check · Uncommon vs Heroic</div>
+          <div style="display:flex; gap:22px; align-items:center;">
+            <div style="display:flex; gap:16px; filter:grayscale(1);">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:7px;">
+                <span style="{{ cbUn.glow }}"><span style="{{ cbUn.frame }}"><span style="{{ cbUn.ring }}"></span><span style="{{ cbUn.inner }}">{{ cbUn.svg }}</span></span></span>
+                <span style="display:flex; gap:4px;"><sc-for list="{{ cbUnPips }}" as="p" hint-placeholder-count="6"><span style="{{ p.style }}"></span></sc-for></span>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:7px;">
+                <span style="{{ cbHe.glow }}"><span style="{{ cbHe.frame }}"><span style="{{ cbHe.ring }}"></span><span style="{{ cbHe.inner }}">{{ cbHe.svg }}</span></span></span>
+                <span style="display:flex; gap:4px;"><sc-for list="{{ cbHePips }}" as="p" hint-placeholder-count="6"><span style="{{ p.style }}"></span></sc-for></span>
+              </div>
+            </div>
+            <div style="font-size:15px; line-height:1.7; color:rgba(255,255,255,.55);">
+              <div>Uncommon: no glow, no ring, 2 pips</div>
+              <div>Heroic: static glow, hairline ring, 4 pips</div>
+              <div>Chip text and tooltip always carry the tier name</div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -865,27 +889,8 @@
 class Component extends DCLogic {
   state = { secs: 26064, tab: 'week', seg: '30 d', on: true, km: 8.2 };
 
-  RAR = {
-    common:    { name: 'Common',    c: '#a8a8a8', tint: 'rgba(168,168,168,.12)', bord: 'rgba(168,168,168,.5)',  grad: 'linear-gradient(145deg,#c2c2c2,#636363)', pct: '92% of runners' },
-    uncommon:  { name: 'Uncommon',  c: '#4ade80', tint: 'rgba(74,222,128,.1)',   bord: 'rgba(74,222,128,.5)',   grad: 'linear-gradient(145deg,#86efac,#166534)', pct: '61% of runners' },
-    rare:      { name: 'Rare',      c: '#60a5fa', tint: 'rgba(96,165,250,.1)',   bord: 'rgba(96,165,250,.5)',   grad: 'linear-gradient(145deg,#93c5fd,#1e40af)', pct: '34% of runners' },
-    heroic:    { name: 'Heroic',    c: '#f87171', tint: 'rgba(248,113,113,.1)',  bord: 'rgba(248,113,113,.5)',  grad: 'linear-gradient(145deg,#fca5a5,#991b1b)', pct: '12% of runners' },
-    epic:      { name: 'Epic',      c: '#c084fc', tint: 'rgba(192,132,252,.1)',  bord: 'rgba(192,132,252,.5)',  grad: 'linear-gradient(145deg,#d8b4fe,#6b21a8)', pct: '4.8% of runners' },
-    legendary: { name: 'Legendary', c: '#ffd700', tint: 'rgba(255,215,0,.12)',   bord: 'rgba(255,215,0,.55)',   grad: 'linear-gradient(145deg,#fff2a8,#ffd700 45%,#8a6d1c)', pct: '1.2% of runners' }
-  };
-
-  /* Badge emblem: crest clip-path, rarity gradient frame, dark core. rar=null → locked. */
-  emblem(rar, name, size) {
-    const R = this.RAR[rar];
-    const clip = 'polygon(50% 0%, 100% 14%, 100% 60%, 50% 100%, 0% 60%, 0% 14%)';
-    const inset = size < 32 ? 2 : 3;
-    return {
-      glow: 'display:inline-flex;' + (rar === 'legendary' ? ' color:#ffd700; animation:rqGlow 2.2s ease-in-out infinite;' : rar === 'epic' ? ' color:#c084fc; animation:rqGlow 3.6s ease-in-out infinite;' : ''),
-      frame: 'display:flex; width:' + size + 'px; height:' + Math.round(size * 1.12) + 'px; clip-path:' + clip + '; background:' + (R ? R.grad : 'rgba(255,255,255,.13)') + '; position:relative; flex-shrink:0;',
-      inner: 'position:absolute; inset:' + inset + 'px; clip-path:' + clip + '; background:#1c1c1c; display:flex; align-items:center; justify-content:center;',
-      svg: this.icon(name, Math.round(size * 0.44), R ? R.c : 'rgba(255,255,255,.28)')
-    };
-  }
+  /* Badge system (tiers, series, emblem builder) lives in runquest-badges.js — shared, do not redefine. */
+  rb() { return window.RQBadges(React); }
 
   componentDidMount() {
     this.t = setInterval(() => this.setState(s => ({ secs: s.secs > 0 ? s.secs - 1 : 86399 })), 1000);
@@ -941,50 +946,29 @@ class Component extends DCLogic {
       shield: ['rgba(255,255,255,.6)', 'shield · title'], sparkles: ['rgba(255,255,255,.6)', 'sparkles · boost']
     };
 
-    const R = this.RAR, roman = ['I', 'II', 'III'], lvlRar = ['common', 'rare', 'legendary'];
-    const em = (rar, name, sz) => this.emblem(rar, name, sz);
-    // Sample runner state demonstrates every badge state: maxed, mid-series, next-rank progress, locked.
-    const seriesSrc = [
-      { icon: 'flag', name: 'The Milestoner', desc: 'Longest single run — max capacity on record.', lv: ['5 km', '15 km', '42.2 km'], have: 2, prog: ['31.5', '42.2', 'km best run', 75] },
-      { icon: 'globe', name: 'The Earth Trotter', desc: 'Total distance since joining. The long grind.', lv: ['100 km', '1 000 km', '4 015 km'], have: 1, prog: ['612', '1 000', 'km total', 61] },
-      { icon: 'mountain', name: 'The Climber', desc: 'Accumulated metres of elevation gain.', lv: ['500 m', '4 800 m', '8 848 m'], have: 2, prog: ['5 920', '8 848', 'm climbed', 67] },
-      { icon: 'flame', name: 'The Streak Keeper', desc: 'Consecutive days with a run.', lv: ['3 days', '14 days', '100 days'], have: 3, prog: null },
-      { icon: 'sun', name: 'The Early Bird', desc: 'Runs started before the day does.', lv: ['5 before 07:00', '50 before 07:00', '100 before 06:00'], have: 1, prog: ['23', '50', 'early starts', 46] },
-      { icon: 'snow', name: 'The Weathered Soul', desc: 'Running when the forecast says no.', lv: ['Rain or <10°C', 'Below 0°C', 'Arctic · <−10°C'], have: 2, prog: ['−6°C', '−10°C', 'coldest run', 60] },
-      { icon: 'zap', name: 'The Speedster', desc: 'Fastest 5 km on record.', lv: ['Sub 30:00', 'Sub 22:00', 'Sub 18:00'], have: 0, prog: ['31:12', '30:00', '5k best', 88] },
-      { icon: 'moon', name: 'The Night Owl', desc: 'Runs started after dark.', lv: ['5 after 21:00', '50 after 21:00', 'The Midnight Run'], have: 1, prog: ['11', '50', 'night starts', 22] },
-      { icon: 'users', name: 'The Socialite', desc: 'Running is better with witnesses.', lv: ['Ran with a friend', 'Group of 5', 'Pack Leader · 10 in a day'], have: 0, prog: null },
-      { icon: 'target', name: 'The Precisionist', desc: 'For those who stop at exactly .00.', lv: ['3 exact finishes', '25 exact finishes', '10.00 / 21.10 / 42.20'], have: 0, prog: ['1', '3', 'exact finishes', 33] }
-    ];
-    const mv = em('legendary', 'flame', 88), evo = em('rare', 'flag', 62);
+    const B = this.rb(), ORD = B.ORDER;
+    const em = (t, ic, sz, o) => B.emblem(t, ic, sz, o);
+    const glowNotes = { common: 'No glow', uncommon: 'No glow', rare: 'Static glow', heroic: 'Glow + hairline ring', epic: 'Static glow', legendary: 'Breathes · M/L only' };
 
     return {
       logo: this.rq().logo({ taglineFill: gold, width: 190, height: 46 }),
 
-      rarityLadder: Object.keys(R).map(k => Object.assign({ name: R[k].name, color: R[k].c, pct: R[k].pct }, em(k, 'shield', 56))),
-      badgeSeries: seriesSrc.map(b => Object.assign({}, em(b.have === 3 ? 'legendary' : b.have === 2 ? 'rare' : b.have === 1 ? 'common' : null, b.icon, 56), {
-        name: b.name, desc: b.desc,
-        state: b.have === 3 ? 'MAXED' : b.have === 0 ? 'LOCKED' : 'RANK ' + roman[b.have - 1],
-        stateColor: b.have === 3 ? gold : b.have === 0 ? 'rgba(255,255,255,.3)' : R[lvlRar[b.have - 1]].c,
-        pips: lvlRar.map((lk, i) => ({ style: 'width:9px; height:9px; background:' + (i < b.have ? R[lk].c : 'rgba(255,255,255,.1)') + ';' })),
-        levels: b.lv.map((txt, i) => ({
-          label: roman[i] + ' · ' + txt,
-          style: 'padding:4px 10px; font-size:13px; letter-spacing:.1em; text-transform:uppercase; ' + (i < b.have
-            ? 'background:' + R[lvlRar[i]].tint + '; border:1px solid ' + R[lvlRar[i]].bord + '; color:' + R[lvlRar[i]].c + ';'
-            : i === b.have ? 'border:1px solid rgba(255,255,255,.3); color:rgba(255,255,255,.65);' : 'border:1px solid rgba(255,255,255,.12); color:rgba(255,255,255,.3);')
-        })),
-        hasProg: !!(b.prog && b.have < 3),
-        progW: b.prog ? 'height:100%; width:' + b.prog[3] + '%; background:rgba(255,215,0,.6);' : '',
-        progLabel: b.prog ? b.prog[0] + ' / ' + b.prog[1] + ' ' + b.prog[2] : ''
-      })),
-      minis: [em('legendary', 'flame', 24), em('rare', 'zap', 24), em('common', 'sun', 24)],
-      slots: [
-        Object.assign({ cap: 'Streak · III' }, em('legendary', 'flame', 46)),
-        Object.assign({ cap: 'Speedster · II' }, em('rare', 'zap', 46)),
-        Object.assign({ cap: 'Empty' }, em(null, 'plus', 46))
+      tierScale: ORD.map(k => Object.assign({ name: B.TIERS[k].name, chipStyle: B.chip(k), pips: B.pips(k), note: glowNotes[k] }, em(k, 'shield', 'medium'))),
+      tierAlts: [
+        Object.assign({ label: 'Heroic — red (primary)' }, em('heroic', 'shield', 'medium')),
+        Object.assign({ label: 'Heroic — amber (alternative)' }, em('heroic', 'shield', 'medium', { alt: true })),
+        Object.assign({ label: 'Legendary — gold (primary)' }, em('legendary', 'shield', 'medium')),
+        Object.assign({ label: 'Legendary — orange (alternative)' }, em('legendary', 'shield', 'medium', { alt: true })),
+        Object.assign({ label: 'Legendary — static fallback' }, em('legendary', 'shield', 'medium', { breathe: false }))
       ],
-      mvGlow: mv.glow, mvFrame: mv.frame, mvInner: mv.inner, mvSvg: mv.svg,
-      evoGlow: evo.glow, evoFrame: evo.frame, evoInner: evo.inner, evoSvg: evo.svg,
+      tierHead: ORD.map(k => B.TIERS[k].name),
+      emblemMatrix: B.SERIES.map(s => ({ name: s.name, ic: B.icon(s.icon, 15, 'rgba(255,255,255,.5)'), cells: ORD.map(t => em(t, s.icon, 'medium')) })),
+      lockedRow: B.SERIES.map(s => Object.assign({ name: s.name }, em(null, s.icon, 'medium'))),
+      sizeRows: [['mini', 'MINI · 28 PX · ICON 15'], ['medium', 'MEDIUM · 56 PX · ICON 24'], ['large', 'LARGE · 96 PX · ICON 42']].map(p => ({ label: p[1], cells: ORD.map(t => em(t, 'flag', p[0])) })),
+      miniDemo: [em('legendary', 'flame', 'mini'), em('heroic', 'sun', 'mini'), em('rare', 'flag', 'mini')],
+      cbUn: em('uncommon', 'flag', 'medium'), cbHe: em('heroic', 'flag', 'medium'),
+      cbUnPips: B.pips('uncommon'), cbHePips: B.pips('heroic'),
+      anatomy: em('legendary', 'flame', 'large'),
       iconSet: this.rq().names.map(n => ({
         name: (roles[n] || [null, n])[1],
         svg: this.icon(n, 24, (roles[n] || ['rgba(255,255,255,.6)'])[0])
@@ -1077,4 +1061,3 @@ class Component extends DCLogic {
 </script>
 </body>
 </html>
-

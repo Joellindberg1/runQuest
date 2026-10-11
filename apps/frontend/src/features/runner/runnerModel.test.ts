@@ -179,6 +179,12 @@ describe('fun facts', () => {
       expect(countDoubleRunDays([at('2026-10-01', '06:00'), at('2026-10-01', '10:00')])).toBe(1);
     });
 
+    // start_time är lokal väggklocka; differensen mellan två väggklockor samma dag är rätt avstånd utan zonomräkning.
+    it('mäts som differens mellan väggklockor: 06:00 + 17:30 räknas, 06:00 + 09:30 räknas inte', () => {
+      expect(countDoubleRunDays([at('2026-10-01', '06:00'), at('2026-10-01', '17:30')])).toBe(1);
+      expect(countDoubleRunDays([at('2026-10-01', '06:00'), at('2026-10-01', '09:30')])).toBe(0);
+    });
+
     it('gränsen är inklusive: exakt 4 h räknas, 3 h 59 min räknas inte', () => {
       expect(DOUBLE_RUN_MIN_GAP_MS).toBe(4 * 3600 * 1000);
       expect(countDoubleRunDays([at('2026-10-01', '06:00'), at('2026-10-01', '10:00')])).toBe(1);

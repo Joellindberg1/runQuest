@@ -11,6 +11,11 @@
       "icon": "crown"
     },
     {
+      "title": "Badges",
+      "body": "Eight series with six tiers each, collected across seasons. Pick up to three on the Badges page to show on the Board and your Runner card",
+      "icon": "shield"
+    },
+    {
       "title": "Duels",
       "body": "1v1 challenges with tokens earned at level-up. Send one in a few taps, the winner gets a boost",
       "icon": "swords"
@@ -58,16 +63,6 @@
   ],
   "workingOn": [
     {
-      "title": "Badges",
-      "body": "Visual achievements for milestones and rough conditions",
-      "icon": "trophy",
-      "details": [
-        "Weather-based badges",
-        "Streak and distance milestones",
-        "Special event badges"
-      ]
-    },
-    {
       "title": "Notifications",
       "body": "Get told about challenges, titles and group activity as they happen",
       "icon": "bell",
@@ -79,6 +74,43 @@
     }
   ],
   "releases": [
+    {
+      "version": "0.6.0",
+      "type": "minor",
+      "date": "11 October 2026",
+      "title": "Badges and weather titles",
+      "announce": true,
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Badges are here: eight series, six tiers from Common to Legendary, collected across seasons. They have their own page: on a wide screen open Badges in the side menu; on your phone tap All badges → on your Profile. Each card shows what it takes to reach the next tier."
+        },
+        {
+          "type": "feature",
+          "description": "Pick up to three badges to show on the Board and your Runner card: tap Show on a badge, then SAVE DISPLAY. A popup tells you when you reach a new tier, and Pack News tells the group."
+        },
+        {
+          "type": "feature",
+          "description": "Three new titles in a new Weather category: Stormborn (most runs in gusts of 12 m/s or more, about 43 km/h), Iceborn (most runs at 5 °C or colder) and Winter Warrior (most km in December to February). Playbook explains how the winter is counted, and when a new winter starts."
+        },
+        {
+          "type": "improvement",
+          "description": "Your Profile and every Runner card show badges as a compact row you can tap to see the tier and what it takes. On a wide screen the Runner card row sits next to Head to head."
+        },
+        {
+          "type": "improvement",
+          "description": "Signing in now opens as a popup over the start page, and Log out takes you back to the start page."
+        },
+        {
+          "type": "improvement",
+          "description": "Challenge tokens are now small pennants instead of shields, on the Board and in Duels."
+        },
+        {
+          "type": "improvement",
+          "description": "Runs imported from Strava are read-only in RunQuest, since distance and date come from Strava. Early Bird and Night Owl badges go by the clock where you ran, and 'x h ago' on the Board is no longer an hour or two off for runs in Sweden."
+        }
+      ]
+    },
     {
       "version": "0.5.3",
       "type": "patch",

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { User, UserTitle } from '@runquest/types';
+import type { BadgeShowcaseEntry } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { buildSeasonRows } from '../seasonModel';
@@ -12,6 +13,8 @@ interface SeasonBoardProps {
   users: User[];
   titlesByUser: Record<string, UserTitle[]>;
   rankDeltaByUser: Record<string, number | null>;
+  /** user_id → visade badges (minis i raderna). Utelämnad = inga minis; preview-sidan och landningen behöver ingen badge-hämtning. */
+  badgesByUser?: Record<string, BadgeShowcaseEntry[]>;
   now: Date;
 }
 
@@ -26,12 +29,12 @@ function desktopPodiumOrder<T>(podium: T[]): T[] {
  * Season/All-time-vyn: podium (topp 3) + resten. Ren presentation över users/titlar/rank-delta, så
  * samma komponent driver Board och preview-sidan. En variant i DOM åt gången (≥1024 = desktop).
  */
-export function SeasonBoard({ users, titlesByUser, rankDeltaByUser, now }: SeasonBoardProps) {
+export function SeasonBoard({ users, titlesByUser, rankDeltaByUser, badgesByUser, now }: SeasonBoardProps) {
   const isDesktop = useIsDesktop();
   const openRunner = useOpenRunner();
   const rows = useMemo(
-    () => buildSeasonRows(users, { now, titlesByUser, rankDeltaByUser }),
-    [users, now, titlesByUser, rankDeltaByUser],
+    () => buildSeasonRows(users, { now, titlesByUser, rankDeltaByUser, badgesByUser }),
+    [users, now, titlesByUser, rankDeltaByUser, badgesByUser],
   );
 
   if (isDesktop === undefined) return null;
