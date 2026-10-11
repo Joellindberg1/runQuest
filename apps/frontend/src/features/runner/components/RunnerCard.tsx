@@ -31,7 +31,8 @@ interface RunnerCardProps {
  *
  * Löparens badges (spec F4): minis i hjältekortet och den skrivskyddade BADGES-panelen. Samma panel överallt, men plats efter bredd:
  * mobil direkt under hjältekortet, desktop i 340 px-sidokolumnen ovanför TITLES (Council 16). Badges är tillägg: medan de laddas visar panelen
- * laddaren, och felar de (404 inkluderat) ritas inga minis och panelen visar tomläget — resten av kortet och Challenge berörs inte.
+ * laddaren, och felar de ritas inga minis och panelen visar ett felkort med Retry (tomläget gäller bara ett lyckat, tomt svar; 404 kan inte nås
+ * eftersom kortet bara öppnas för gruppmedlemmar) — resten av kortet och Challenge berörs inte.
  */
 export function RunnerCard({ user, allUsers, variant, onBack }: RunnerCardProps) {
   const { user: me } = useAuth();
@@ -50,7 +51,11 @@ export function RunnerCard({ user, allUsers, variant, onBack }: RunnerCardProps)
     () => buildRunnerBadges(userBadges.data, groupBadges.data, { viewerId: me?.id ?? null, ownerId: user.id }),
     [userBadges.data, groupBadges.data, me?.id, user.id],
   );
-  const badgePanel = <BadgePanel rows={badges.rows} loading={userBadges.isLoading} />;
+  // Felkort med Retry bara när det inte finns något att visa: en misslyckad bakgrundsomhämtning låter den gamla samlingen stå kvar.
+  const badgeError = userBadges.isError && !userBadges.data
+    ? { retrying: userBadges.isFetching, onRetry: () => void userBadges.refetch() }
+    : undefined;
+  const badgePanel = <BadgePanel rows={badges.rows} loading={userBadges.isLoading} error={badgeError} />;
 
   return (
     <div className="rq-runner rq-rise" data-variant={variant}>

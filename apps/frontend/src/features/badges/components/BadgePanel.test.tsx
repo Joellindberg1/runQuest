@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
 import type { BadgeUserItem, BadgeUserResponse } from '@runquest/shared';
 import type { GroupBadges } from '../api';
@@ -113,5 +113,22 @@ describe('BadgePanel', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Loading badges');
     expect(screen.queryByText('No badges yet.')).toBeNull();
     expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  it('felläge: felkort med Retry i stället för tomläget och raderna, utan räknare; Retry anropar onRetry', () => {
+    const onRetry = vi.fn();
+    render(<BadgePanel rows={[]} error={{ onRetry, retrying: false }} />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load badges");
+    expect(screen.queryByText('No badges yet.')).toBeNull();
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(screen.queryByText(/series$/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('felläge under omförsök: Retry är avstängd', () => {
+    render(<BadgePanel rows={[]} error={{ onRetry: () => {}, retrying: true }} />);
+    expect(screen.getByRole('button', { name: 'Retrying…' })).toBeDisabled();
   });
 });

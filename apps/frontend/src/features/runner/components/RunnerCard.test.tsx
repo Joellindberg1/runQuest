@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { User } from '@runquest/types';
@@ -179,17 +179,25 @@ describe('BADGES-panelen (T2, T3)', () => {
 });
 
 describe('robusthet (T4)', () => {
-  it('404 → tom panel ("No badges yet."), kortet i övrigt oförändrat', async () => {
-    badgesApi.getUserBadges.mockRejectedValue(new Error('User not found'));
+  it('badge-fel → felkort med Retry i panelen (inte "No badges yet."), inga minis, kortet i övrigt oförändrat; Retry hämtar om', async () => {
+    badgesApi.getUserBadges.mockRejectedValue(new Error('boom'));
     const { container } = renderCard();
 
-    expect(await within(badgesPanel()).findByText('No badges yet.', undefined, SLOW)).toBeInTheDocument();
+    const panel = badgesPanel();
+    expect(await within(panel).findByText("Couldn't load badges", undefined, SLOW)).toBeInTheDocument();
+    expect(within(panel).queryByText('No badges yet.')).toBeNull();
     expect(await heroName()).toBeInTheDocument();
     expect(screen.getByText(/in the group · 0 runs$/)).toBeInTheDocument();
     expect(container.querySelector('.rq-badge-minis')).toBeNull();
     expect(screen.getByRole('link', { name: 'Challenge' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: "Frodo's journey" })).toBeInTheDocument();
     expect(await screen.findByRole('region', { name: 'Head to head' })).toBeInTheDocument();
+
+    badgesApi.getUserBadges.mockResolvedValue(KARL_BADGES);
+    fireEvent.click(within(panel).getByRole('button', { name: 'Retry' }));
+    expect(await within(badgesPanel()).findByRole('list', { name: 'Earned badges' }, SLOW)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /^Badges:/ })).toBeInTheDocument();
+    expect(within(badgesPanel()).queryByText("Couldn't load badges")).toBeNull();
   });
 
   it('en löpare utan badges: samma tomläge, inga minis', async () => {
@@ -208,8 +216,10 @@ describe('robusthet (T4)', () => {
     const h2h = await screen.findByRole('region', { name: 'Head to head' });
     expect(await within(h2h).findByText('you won', { exact: false })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Challenge' })).toHaveAttribute('href', '/duels?send=1&opponent=u-karl');
-    await within(badgesPanel()).findByText('No badges yet.', undefined, SLOW);
-    expect(screen.queryByText(/couldn't load/i)).toBeNull();
+    await within(badgesPanel()).findByText("Couldn't load badges", undefined, SLOW);
+    // Bara badge-panelen har ett felkort; titlar och head-to-head är opåverkade.
+    expect(screen.getAllByText(/couldn't load/i)).toHaveLength(1);
+    expect(screen.queryByText('No badges yet.')).toBeNull();
     expect(screen.getByRole('link', { name: 'Challenge' })).toBeInTheDocument();
   });
 
