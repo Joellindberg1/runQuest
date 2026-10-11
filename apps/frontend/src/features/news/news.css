@@ -10,6 +10,7 @@
 [data-category="challenge"] { --rq-c: var(--rq-duel-base-rgb); --rq-c-edge: var(--rq-duel-rgb); --rq-c-solid: var(--rq-duel); }  /* tint/kant på base (#f97316), text på duel (#fdba74) */
 [data-category="level"]     { --rq-c: var(--rq-up-rgb);        --rq-c-edge: var(--rq-up-rgb);   --rq-c-solid: var(--rq-up); }
 [data-category="event"]     { --rq-c: var(--rq-ink-rgb);       --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }
+[data-category="release"]   { --rq-c: var(--rq-ink-rgb);       --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }  /* som event: ink, inga nya färger (RUN-161) */
 [data-category="streak"]    { --rq-c: var(--rq-down-rgb);      --rq-c-edge: var(--rq-down-rgb); --rq-c-solid: var(--rq-down); }
 /* Popoverns prick och typrad: en förlorad utmaning är röd (Web Prototypens popover), annars kategorins färg */
 [data-tone="loss"]          { --rq-c-solid: var(--rq-down); }
@@ -49,7 +50,7 @@
 .rq-news-row[data-unread] { background: var(--rq-unread-bg); }
 /* Olästmarkören: tinten ensam (4 %) syns knappt (ägarbeslut 2026-10-05). Statisk — inget loopar. */
 .rq-dot.rq-news-unread { color: var(--rq-gold); margin-right: var(--rq-sp-6); vertical-align: middle; }
-.rq-news-row[data-category="event"] { border-left-color: rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha-quiet)); }
+.rq-news-row[data-category="event"], .rq-news-row[data-category="release"] { border-left-color: rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha-quiet)); }
 .rq-news-row__icon { grid-area: icon; display: inline-flex; align-self: center; color: var(--rq-c-solid); }
 /* badge_earned: ikonkolumnen rymmer ett sm-emblem (RUN-128, F7). Kanten, typraden och texten är oförändrade Levels-grönt. */
 .rq-news-row[data-emblem] { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr) auto; }

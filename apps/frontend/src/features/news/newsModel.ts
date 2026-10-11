@@ -16,11 +16,12 @@ import { resolveGenderedTitle, titleValueText } from '@/features/titles/titleFor
 
 // ─── Kategorier och filter ──────────────────────────────────────────────────
 
-export type NewsCategory = 'title' | 'challenge' | 'level' | 'event' | 'streak';
+export type NewsCategory = 'title' | 'challenge' | 'level' | 'event' | 'streak' | 'release';
 
 /**
  * Kategorin styr ikon, färg och kant. run_milestone hör till Levels (ADR 008: Levels = level_up + run_milestone), liksom
- * badge_earned (ADR 009 beslut 5, F7: kanten förblir Levels-grön).
+ * badge_earned (ADR 009 beslut 5, F7: kanten förblir Levels-grön). release_published (RUN-161) är en systemhändelse med en
+ * egen kategori utan filterchip: raden syns när inget filter är valt.
  */
 export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   title_unlocked: 'title',
@@ -35,6 +36,7 @@ export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   event_open: 'event',
   event_closed: 'event',
   badge_earned: 'level',
+  release_published: 'release',
 };
 
 /** Ikonerna ur runquest-icons (prototypens `kinds`). */
@@ -44,6 +46,7 @@ export const CATEGORY_ICON: Record<NewsCategory, RQIconName> = {
   level: 'zap',
   event: 'calendar',
   streak: 'flame',
+  release: 'sparkles',
 };
 
 export type NewsFilterKey = 'titles' | 'challenges' | 'events' | 'levels' | 'streaks';
@@ -472,6 +475,14 @@ export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | n
       const winnerName = first ? (first.user_id === ctx.viewerId ? 'You' : (ctx.nameOf?.(first.user_id) ? firstName(ctx.nameOf(first.user_id) as string) : null)) : null;
       const took = `${payload.participants} of ${payload.members} took part`;
       return { kind: 'Event closed', text: `${payload.template_name} closed — ${winnerName ? `${winnerName} won · ` : ''}${took}` };
+    }
+    case 'release_published': {
+      // Tåligt mot en payload utan fält (som badge_earned): saknad rubrik utelämnas, saknad version ger en neutral formulering.
+      const { version, title } = item.payload ?? {};
+      const hasVersion = typeof version === 'string' && version !== '';
+      const hasTitle = typeof title === 'string' && title !== '';
+      const lead = hasVersion ? `RunQuest v${version} is out` : 'A new RunQuest version is out';
+      return { kind: 'New version', text: hasTitle ? `${lead} — ${title}` : lead };
     }
     default: {
       const unhandled: never = item;

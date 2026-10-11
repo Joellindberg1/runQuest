@@ -60,6 +60,10 @@ export const eventOpen = (id: number, over: Partial<Omit<ItemOf<'event_open'>, '
     event_id: 'e-5k', event_type: 'participation', template_name: '5K Friday', icon: 'calendar', reward_xp: 25, ends_at: '2026-10-08T21:59:00Z', ...payload,
   }, over);
 
+/** Systemhändelse (RUN-161): ingen aktör, ingen target. */
+export const releasePublished = (id: number, over: Partial<Omit<ItemOf<'release_published'>, 'type' | 'payload' | 'id'>> = {}, payload: Partial<ItemOf<'release_published'>['payload']> = {}) =>
+  item('release_published', id, { version: '0.6.1', title: 'News about releases', ...payload }, over);
+
 export const challengeWon = (id: number, over: Partial<Omit<ItemOf<'challenge_won'>, 'type' | 'payload' | 'id'>> = {}, payload: Partial<ItemOf<'challenge_won'>['payload']> = {}) =>
   item('challenge_won', id, {
     challenge_id: 'c1', tier: 'major', metric: 'km', duration_days: 7, winner_value: 44, loser_value: 38.2,

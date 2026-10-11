@@ -4,6 +4,7 @@ Pack News (ADR 008): vad gruppen gjort — titelbyten, utmaningsutfall, level up
 Klockan i headern (`app-shell/NotificationsPopover`) öppnar en popover med de fem senaste och en oläst-räknare ur SAMMA flöde; "See all pack news" går
 till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = Web Prototypens (flöde | 300 px filterkort). `pages/NewsPage.tsx` är tunn.
 `badge_earned` (ADR 009, spec F7) ligger under Levels och ritar ett `sm`-emblem i ikonkolumnen (RUN-128); se nedan.
+`release_published` (RUN-161) är en systemrad ("New version", `RunQuest vX is out — titel`, ikon `sparkles`) i kategorin `release` med samma ink-token som events och UTAN filterchip — den syns när inget filter är valt. Raden har ingen länk (nyhetsrader har inget klickmönster). Den skrivs aldrig av appen/servern, bara av `npm run announce:release` (backend).
 
 ## Struktur
 

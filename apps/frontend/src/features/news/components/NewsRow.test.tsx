@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
 import { buildNewsRow, type NewsContext } from '../newsModel';
-import { KARL, ME, NOW, badgeEarned, levelUp } from '../news.fixture';
+import { KARL, ME, NOW, badgeEarned, levelUp, releasePublished } from '../news.fixture';
 import { NewsRow } from './NewsRow';
 
 // badge_earned-raden i flödet (RUN-128, spec F7, Council 23): sm-emblem i ikonkolumnen (aria-hidden) i stället för zap, Levels-grön kant, typraden bär betydelsen.
@@ -67,5 +67,24 @@ describe('NewsRow — badge_earned (F7)', () => {
     expect(container.querySelector('.rq-badge')).toBeNull();
     expect(container.querySelector('.rq-news-row__icon svg')).not.toBeNull();
     expect(container.querySelector('.rq-news-row')).not.toHaveAttribute('data-emblem');
+  });
+});
+
+describe('NewsRow — release_published (RUN-161)', () => {
+  it('ritar sparkles-ikonen (ingen emblem-kolumn), typraden "New version" och texten "RunQuest vX is out — titel"', () => {
+    const { container } = renderRow(buildNewsRow(releasePublished(1), ctx));
+    const row = container.querySelector('.rq-news-row') as HTMLElement;
+    expect(row).toHaveAttribute('data-category', 'release');
+    expect(row).not.toHaveAttribute('data-emblem');
+    expect(container.querySelector('.rq-news-row__icon svg')).not.toBeNull();
+    expect(container.querySelector('.rq-badge')).toBeNull();
+    expect(screen.getByText('New version')).toHaveClass('rq-news-row__kind');
+    expect(screen.getByText('RunQuest v0.6.1 is out — News about releases')).toBeInTheDocument();
+  });
+
+  it('ingen länk eller knapp: nyhetsrader har inget klickmönster', () => {
+    renderRow(buildNewsRow(releasePublished(1), ctx));
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 });
