@@ -273,10 +273,10 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
 // POST /api/runs - Create a new run
 router.post('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { date, distance, source = 'manual', is_treadmill } = req.body;
+    const { date, distance, is_treadmill } = req.body;
     const userId = req.user!.user_id;
 
-    logger.info('📝 Create run request:', { userId, date, distance, source, is_treadmill });
+    logger.info('📝 Create run request:', { userId, date, distance, is_treadmill });
 
     if (!date || !distance) {
       res.status(400).json({ error: 'Date and distance are required' }); return;
@@ -303,7 +303,9 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
         user_id: userId,
         date: date,
         distance: distanceNum,
-        source: source,
+        // Servern äger source: klientens body.source ignoreras. Bara Strava-importen (routes/strava.ts) skriver 'strava'
+        // — annars kringgår en manuell runda Strava-gatade badges (Precisionist) och Strava-dedupen (RUN-136).
+        source: 'manual',
         base_xp: 0,
         km_xp: 0,
         distance_bonus: 0,
