@@ -40,7 +40,7 @@ describe('EditRunSheet — Strava-runda (RUN-139)', () => {
     expect(within(details).getByText(/10[.,]5 km/)).toBeInTheDocument();
     // Ingen Save, och förklaringen står där.
     expect(screen.queryByRole('button', { name: /save/i })).toBeNull();
-    expect(screen.getByText('Synced from Strava — edit it in Strava.')).toBeInTheDocument();
+    expect(screen.getByText("Synced from Strava. Distance and date come from Strava and can't be changed here.")).toBeInTheDocument();
     // Delete fortsatt spärrad.
     expect(screen.getByRole('button', { name: /Delete run/ })).toBeDisabled();
     // Rundans XP-uppdelning finns kvar.

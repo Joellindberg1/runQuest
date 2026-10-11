@@ -7,7 +7,7 @@ import { formatKm } from '../profileFormat';
 import { STRAVA_DELETE_HINT, buildUpdate, buildXpParts, deleteNotice, editFormFor, isDirty, isStravaRun, updateNotice, validateEdit, type EditForm } from '../profileModel';
 
 /** RUN-139: Strava är sanningskällan för distans och datum — en Strava-runda visas skrivskyddad, utan Save. */
-const STRAVA_READ_ONLY_HINT = 'Synced from Strava — edit it in Strava.';
+const STRAVA_READ_ONLY_HINT = "Synced from Strava. Distance and date come from Strava and can't be changed here.";
 
 interface EditRunSheetProps {
   run: Run;

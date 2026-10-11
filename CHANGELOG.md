@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (11 October 2026)
+## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
 
 Rullar ihop epicsen RUN-1 (Badges), RUN-91 (Stormborn, Iceborn, Winter Warrior) och RUN-92 (städning och nivåtabellen via backend), plus
 Strava-låset (RUN-139). Migrationerna 035–038 och en badge-backfill är prod-steg som kräver ägar-ja (se "Prod-steg" nedan).

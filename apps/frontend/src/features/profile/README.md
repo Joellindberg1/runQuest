@@ -43,8 +43,8 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   (väntas in), leaderboard, öppna event (direkt + en gång efter 4 s), titlar (båda rötterna), utmaningar, head-to-head och gruppens historik. Förr hämtades bara
   users-with-runs om — leaderboard, Duels och Group history stod kvar med gamla siffror. Rutan stängs först när omhämtningen är klar; då visas bekräftelsen och fokus flyttas dit (rutan är kontrollerad och har ingen Dialog.Trigger, så Radix har inget att återföra fokus till — det föll till body; `EditRunSheet.onRestoreFocus` styr i stället: bekräftelsen efter sparat/raderat, annars tillbaka till Edit-knappen, även vid Cancel, ✕ och Esc).
 - **Strava-rundor är skrivskyddade (RUN-139, ägarbeslut 2026-10-11).** Strava är sanningskällan för distans och datum, och `PUT /runs/:id` redigerar
-  bara de två fälten — en Strava-runda har alltså inget redigerbart kvar. `EditRunSheet` visar då distans och datum som text, "Synced from Strava — edit it in
-  Strava.", ingen Save och Delete spärrad (som förut). Servern är sista skyddet: PUT på en Strava-runda ger `409 { error: 'Strava runs are read-only' }` utan
+  bara de två fälten — en Strava-runda har alltså inget redigerbart kvar. `EditRunSheet` visar då distans och datum som text, "Synced from Strava. Distance and date come from Strava and can't be changed
+  here.", ingen Save och Delete spärrad (som förut). Servern är sista skyddet: PUT på en Strava-runda ger `409 { error: 'Strava runs are read-only' }` utan
   skrivning eller omräkning (ägarskapet 404/403 kontrolleras först); en gammal klient eller kapplöpning ser felet i rutans alert-region. Manuella rundor
   (`source` manual, null eller saknad) är oförändrade. Rutans rubrik är då "Run details" och radens knapp "View" (manuella rundor: "Edit", som förut).
 - **Inga toasts i det här flödet.** Bekräftelser ligger i permanenta `role="status"`-regioner (rundhistoriken, bildraden), fel i `role="alert"` (redigeringsrutan,
