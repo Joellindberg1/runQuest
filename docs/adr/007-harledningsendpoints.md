@@ -261,6 +261,9 @@ manuella rundor; ingen regeländring). Skickat → sparas som `true`/`false`.
 Svarets `run` får `is_treadmill`. `PUT /runs/:id` ändras inte (att redigera
 löpbandsflaggan i efterhand ingår inte). Titel-/event-/väderlogik som
 använder `is_treadmill` är oförändrad.
+RUN-139: `PUT` och `DELETE` på rundor med `source='strava'` ger `409 { error:
+'Strava runs are read-only' }` (Strava är sanningskällan; kontrollen sker efter
+ägarskapet 404/403 och före all skrivning).
 
 ### C. Utanför paketet (medvetet)
 - **Progress-batchning för Duels live-kort** (planens inkrement 5): max en

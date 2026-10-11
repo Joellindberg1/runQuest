@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import type { Run } from '@runquest/types';
 import { paths } from '@/paths';
 import { EmptyState } from '@/shared/components/EmptyState';
-import { HISTORY_PREVIEW_COUNT, buildRunRows, showAllLabel } from '../profileModel';
+import { HISTORY_PREVIEW_COUNT, buildRunRows, isStravaRun, showAllLabel } from '../profileModel';
 import { EditRunSheet } from './EditRunSheet';
 
 interface RunHistoryProps {
@@ -12,7 +12,7 @@ interface RunHistoryProps {
 }
 
 /**
- * RUN HISTORY: mina rundor, nyast först. Fyra rader tills "Show all N runs" (båda prototyperna). Varje rad har Edit, som öppnar
+ * RUN HISTORY: mina rundor, nyast först. Fyra rader tills "Show all N runs" (båda prototyperna). Varje rad har Edit (Strava-rundor: View, skrivskyddat), som öppnar
  * redigera/radera-rutan; bekräftelsen efter en ändring ligger i en permanent live-region (statusregion i stället för toast).
  */
 export function RunHistory({ runs, today }: RunHistoryProps) {
@@ -49,8 +49,9 @@ export function RunHistory({ runs, today }: RunHistoryProps) {
                   <p className="rq-profile-run__xp">{row.xp}</p>
                   <p className="rq-profile-run__mult">{row.multiplier}</p>
                 </div>
-                <button type="button" className="rq-btn rq-btn--ghost rq-btn--compact" aria-label={`Edit run ${row.date}`} onClick={(event) => { openerRef.current = event.currentTarget; setNotice(null); setEditing(row.run); }}>
-                  Edit
+                <button type="button" className="rq-btn rq-btn--ghost rq-btn--compact" aria-label={`${isStravaRun(row.run) ? 'View' : 'Edit'} run ${row.date}`} onClick={(event) => { openerRef.current = event.currentTarget; setNotice(null); setEditing(row.run); }}>
+                  {/* Strava-rundor går inte att redigera (RUN-139): arket är skrivskyddat, så knappen heter View. */}
+                  {isStravaRun(row.run) ? 'View' : 'Edit'}
                 </button>
               </li>
             ))}

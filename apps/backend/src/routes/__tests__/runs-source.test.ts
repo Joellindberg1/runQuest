@@ -118,6 +118,7 @@ describe('PUT /api/runs/:id — source och external_id kan inte ändras', () => 
     expect(tables.runs[0].external_id).toBeNull();
   });
 
+  // Sedan RUN-139 avvisas PUT på en Strava-runda med 409 (se runs-strava-lock.test.ts); här säkras att inget i body kan flytta source/external_id.
   it("en Strava-runda förblir 'strava' med oförändrat external_id vid redigering med source/external_id i body", async () => {
     const tables = use({ runs: [manualRun({ source: 'strava', external_id: '42' })] });
     await put('run-1', { distance: 6, source: 'manual', external_id: null });

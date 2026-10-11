@@ -390,7 +390,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Verify run belongs to user and get old date
     const { data: existingRun, error: fetchError } = await supabase
       .from('runs')
-      .select('user_id, date, distance, streak_day')
+      .select('user_id, date, distance, streak_day, source')
       .eq('id', id)
       .single();
 
@@ -400,6 +400,14 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     if (existingRun.user_id !== userId) {
       res.status(403).json({ error: 'Not authorized to update this run' }); return;
+    }
+
+    // Strava är sanningskällan för distans och datum (ägarbeslut 2026-10-11, RUN-139). PUT redigerar bara just de två
+    // fälten, så en Strava-runda har inget redigerbart kvar. 409 (tillståndskonflikt, samma mönster som DELETE nedan för
+    // event-kvalificerande rundor) — inte 403, som här betyder "inte din runda". Kontrollen ligger EFTER ägarskapet
+    // (404/403 oförändrade) och FÖRE all skrivning och omräkning.
+    if (existingRun.source === 'strava') {
+      res.status(409).json({ error: 'Strava runs are read-only' }); return;
     }
 
     // Check if date changed (requires full reprocess)
@@ -496,7 +504,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // Verify run belongs to user and fetch date for targeted reprocess
     const { data: existingRun, error: fetchError } = await supabase
       .from('runs')
-      .select('user_id, date')
+      .select('user_id, date, source')
       .eq('id', id)
       .single();
 
@@ -506,6 +514,14 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     if (existingRun.user_id !== userId) {
       res.status(403).json({ error: 'Not authorized to delete this run' }); return;
+    }
+
+    // Strava-rundor är skrivskyddade (RUN-139): spärren som förut bara satt i UI:t sitter nu även i API:t — annars raderas
+    // rundan vid ett direkt anrop och synken importerar tillbaka den (ingen gravsten). Kontrollen ligger efter ägarskapet
+    // (404/403 oförändrade), före all skrivning/omräkning och FÖRE event-409:an nedan: den är permanent och billig (ingen
+    // query), och event-meddelandet ("edit it instead") vore fel för en Strava-runda, som inte går att redigera.
+    if (existingRun.source === 'strava') {
+      res.status(409).json({ error: 'Strava runs are read-only' }); return;
     }
 
     const deletedDate = existingRun.date;

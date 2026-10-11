@@ -35,6 +35,11 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 - **Redigera/radera använder SAMMA invalideringskedja som POST** (`features/runs/runEffects.invalidateAfterRunChange`, delad med Log): users-with-runs
   (väntas in), leaderboard, öppna event (direkt + en gång efter 4 s), titlar (båda rötterna), utmaningar, head-to-head och gruppens historik. Förr hämtades bara
   users-with-runs om — leaderboard, Duels och Group history stod kvar med gamla siffror. Rutan stängs först när omhämtningen är klar; då visas bekräftelsen och fokus flyttas dit (rutan är kontrollerad och har ingen Dialog.Trigger, så Radix har inget att återföra fokus till — det föll till body; `EditRunSheet.onRestoreFocus` styr i stället: bekräftelsen efter sparat/raderat, annars tillbaka till Edit-knappen, även vid Cancel, ✕ och Esc).
+- **Strava-rundor är skrivskyddade (RUN-139, ägarbeslut 2026-10-11).** Strava är sanningskällan för distans och datum, och `PUT /runs/:id` redigerar
+  bara de två fälten — en Strava-runda har alltså inget redigerbart kvar. `EditRunSheet` visar då distans och datum som text, "Synced from Strava — edit it in
+  Strava.", ingen Save och Delete spärrad (som förut). Servern är sista skyddet: PUT på en Strava-runda ger `409 { error: 'Strava runs are read-only' }` utan
+  skrivning eller omräkning (ägarskapet 404/403 kontrolleras först); en gammal klient eller kapplöpning ser felet i rutans alert-region. Manuella rundor
+  (`source` manual, null eller saknad) är oförändrade. Rutans rubrik är då "Run details" och radens knapp "View" (manuella rundor: "Edit", som förut).
 - **Inga toasts i det här flödet.** Bekräftelser ligger i permanenta `role="status"`-regioner (rundhistoriken, bildraden), fel i `role="alert"` (redigeringsrutan,
   bildraden): samma mönster som Log och Duels, texten finns kvar tills man gör något annat och läses upp pålitligt. (Toastern är monterad i `AppProviders` och
   äldre features använder den; de gamla anropen i Profile-flödet visades alltså, men ersattes av konsekvensskäl.) `guards.test.ts` förbjuder sonner/toast i featuren.
@@ -44,7 +49,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   Delete är en röd hårlinje som öppnar ett eget bekräftelsesteg — där finns den fyllda röda knappen (oåterkalleligt). Ingen guldknapp på sidan; EN i rutan (Save).
 - **Strava-rundor kan inte raderas här** (`isStravaRun`: `source === 'strava'`; null/saknas = manuell). DELETE lämnar ingen gravsten, så synken importerar tillbaka
   rundan inom sitt 7-dagarsfönster. Delete-knappen i redigeringsrutan är avstängd med "Strava runs come back on next sync — delete it in Strava instead"
-  (`title` + `sr-only`-text i knappen, som Titles valknapp; en synlig rad med samma text för touch). Edit är tillåten. `source` följer med ur users-with-runs
+  (`title` + `sr-only`-text i knappen, som Titles valknapp; en synlig rad med samma text för touch). Redigering är också låst (RUN-139, se nedan): Strava-rundor öppnas skrivskyddade via View. `source` följer med ur users-with-runs
   (`mapApiUser`). **409 vid radering** (rundan kvalificerade ett event, ADR 008 addendum 5): serverns klartext visas i rutans `role="alert"` och rutan står kvar.
 - **Heatmapen:** en ruta per dag, veckor mån–sön, en vecka tillhör månaden där dess måndag ligger (4–5 per månad, som prototypen). Intensitet = dagens km:
   0 · <5 · 5–10 · 10–15 · 15+ (stegen följer distansbonusarna). Desktop 12 månader, mobil 6. Raden är scrollbar (fokus går att panorera) och visar nyaste delen. Etiketten räknar de block som faktiskt ritas ("runs · 5 months" tidigt i en månad). Rutor med runda har `role="img"` + aria-label (dag · km · rundor); dagar utan runda är dekor.
