@@ -49,3 +49,28 @@ export interface BadgeGroupMeta {
 
 export type BadgeUserApiResponse = ApiSuccess<BadgeUserResponse>;
 export type BadgeGroupApiResponse = ApiSuccess<BadgeGroupResponse, BadgeGroupMeta>;
+
+// PUT /api/badges/showcase och POST /api/badges/seen (ADR 009 beslut 4 och 5).
+
+export interface ShowcaseRequest {
+  /** Valda serier i visningsordning: högst MAX_SHOWCASE, unika, kända och ägda av anroparen — annars 400. [] rensar. */
+  series: string[];
+}
+
+export interface ShowcaseResponse {
+  /** Det sparade valet, i angiven ordning (samma form som BadgeUserResponse.showcase). */
+  showcase: string[];
+}
+
+export interface SeenRequest {
+  /** Serier som ska markeras som sedda. Utelämnad = alla anroparens serier; [] = inga. Okänd serie → 400. */
+  series?: string[];
+}
+
+export interface SeenResponse {
+  /** Serier vars seen_tier höjdes av just det här anropet (i BADGE_SERIES-ordning); [] vid upprepat anrop. */
+  updated: string[];
+}
+
+export type ShowcaseApiResponse = ApiSuccess<ShowcaseResponse>;
+export type SeenApiResponse = ApiSuccess<SeenResponse>;
