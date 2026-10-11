@@ -45,6 +45,20 @@ describe('useLevelRequirements', () => {
     expect(client.getQueryCache().find({ queryKey: LEVELS_QUERY_KEY })?.isStale()).toBe(false);
   });
 
+  it('SPA-inloggning: samma hook-instans utloggad (inget anrop), sedan inloggad -> exakt ett anrop och data finns', async () => {
+    service.refresh.mockResolvedValue(TABLE);
+    const { result, rerender } = setup();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(service.refresh).not.toHaveBeenCalled();
+    expect(result.current.data).toBeUndefined();
+
+    auth.user = { id: 'u1' };
+    rerender();
+
+    await waitFor(() => expect(result.current.data).toEqual(TABLE));
+    expect(service.refresh).toHaveBeenCalledTimes(1);
+  });
+
   it('fel: ett omförsök, sedan felläge (levelService räknar under tiden mot fallback)', async () => {
     auth.user = { id: 'u1' };
     service.refresh.mockRejectedValue(new Error('offline'));

@@ -21,7 +21,7 @@ text | bana i hjälten, preview | steg bredvid varandra, vänsterjusterad logga,
 
 - **Ingen backend (ägarbeslut 4).** Landing-FEATUREN gör inga anrop: ingen endpoint, ingen react-query, ingen `useAuth`. `guards.test.ts` och `LandingScreen.test.tsx`
   (renderar utan QueryClientProvider och bevakar `fetch`) vaktar det. Siffrorna (128 430 km · 9 412 runs · 1 284 600 XP · "14 packs running") är påhittade.
-  (App-skalet gör ett Supabase-anrop, `level_requirements` via `useAppInit`, på alla routes — även `/`. Onboarding-prefetchen i samma hook gör inget anrop utan token. Inget av det är Landing och ändrades inte.)
+  (App-skalet hämtar nivåtabellen via backenden, `GET /api/config/levels` (`useLevelRequirements`, `enabled: !!user`, anropad från `useAppInit`), bara när användaren är inloggad. Utloggad — inklusive `/` — görs inget anrop och shareds fallback-tabell används. Onboarding-prefetchen i samma hook gör inget anrop utan token. Inget av det är Landing.)
 - **Previewn återanvänder `features/leaderboard/previewUsers`** — samma påhittade flock som `/preview` (LeaderboardPreviewPage importerar nu därifrån). Bara förnamn visas.
   Radens delta-pil är Boards `DeltaMark`/`deltaView`. Topp fem sorteras som Board (nivå, sedan XP).
 - **How it works ur shared.** XP-raden (15 + 2/km, bonus vid 5/10/15/20 km) och streak-raden (från dag 5 ×1.1 upp till ×2.0 vid dag 270) läses ur
