@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ACTIVITY_PAYLOAD_VERSION,
   ACTIVITY_TYPES,
   RUN_MILESTONES,
   activityKeys,
   addDaysToDay,
+  buildBadgeEarnedDraft,
   buildChallengeReceivedDraft,
   buildChallengeSettledDraft,
   buildEventClosedDraft,
@@ -26,9 +28,9 @@ import {
 } from '../activity.js';
 
 describe('ACTIVITY_TYPES', () => {
-  it('är exakt ADR 008:s elva typer, unika', () => {
+  it('är exakt ADR 008:s elva typer + badge_earned (ADR 009 beslut 5), unika', () => {
     expect([...ACTIVITY_TYPES].sort()).toEqual([
-      'challenge_draw', 'challenge_received', 'challenge_won', 'event_closed', 'event_open', 'level_up',
+      'badge_earned', 'challenge_draw', 'challenge_received', 'challenge_won', 'event_closed', 'event_open', 'level_up',
       'run_milestone', 'streak_broken', 'title_revoked', 'title_taken', 'title_unlocked',
     ]);
     expect(new Set(ACTIVITY_TYPES).size).toBe(ACTIVITY_TYPES.length);
@@ -36,6 +38,7 @@ describe('ACTIVITY_TYPES', () => {
 
   it('isActivityType avvisar okända värden och icke-strängar', () => {
     expect(isActivityType('level_up')).toBe(true);
+    expect(isActivityType('badge_earned')).toBe(true);
     expect(isActivityType('challenge_lost')).toBe(false);
     expect(isActivityType(5)).toBe(false);
     expect(isActivityType(undefined)).toBe(false);
@@ -54,6 +57,16 @@ describe('activityKeys (stabila nycklar — live och backfill delar dem)', () =>
     expect(activityKeys.titleUnlocked('t1', 'u1', 42, '2026-10-05')).toBe('title_unlocked:t1:u1:42:2026-10-05');
     expect(activityKeys.titleTaken('t1', 'new', 'old', 42.5, '2026-10-05')).toBe('title_taken:t1:new:old:42.5:2026-10-05');
     expect(activityKeys.titleRevoked('t1', 'u1', '2026-10-05')).toBe('title_revoked:t1:u1:2026-10-05');
+  });
+
+  it('badge_earned-nyckeln är stabil (ADR 009 beslut 5: badge_earned:<userId>:<series>:<tier>)', () => {
+    expect(activityKeys.badgeEarned('u1', 'streak_keeper', 1)).toBe('badge_earned:u1:streak_keeper:1');
+    expect(activityKeys.badgeEarned('u1', 'milestoner', 3)).toBe('badge_earned:u1:milestoner:3');
+    // Första gången tiern nås: samma (användare, serie, tier) ger alltid samma nyckel, andra värden en annan.
+    expect(activityKeys.badgeEarned('u1', 'milestoner', 3)).toBe(activityKeys.badgeEarned('u1', 'milestoner', 3));
+    expect(activityKeys.badgeEarned('u1', 'milestoner', 3)).not.toBe(activityKeys.badgeEarned('u1', 'milestoner', 4));
+    expect(activityKeys.badgeEarned('u1', 'milestoner', 3)).not.toBe(activityKeys.badgeEarned('u2', 'milestoner', 3));
+    expect(activityKeys.badgeEarned('u1', 'milestoner', 3)).not.toBe(activityKeys.badgeEarned('u1', 'climber', 3));
   });
 
   it('numeriska värden normaliseras (12.5 och "12.5000" ger samma nyckel)', () => {
@@ -349,6 +362,40 @@ describe('eventbyggare', () => {
   it('event_closed för participation har ingen top', () => {
     const d = buildEventClosedDraft(participation, { participants: 1, members: 6, top: [{ user_id: 'a', rank: 1, xp: 1 }] }, 'x');
     expect(d.payload).not.toHaveProperty('top');
+  });
+});
+
+describe('buildBadgeEarnedDraft', () => {
+  const at = '2026-10-11T08:00:00.000Z';
+
+  it('första tiern i en serie: previous_tier null, aktör = användaren, ingen target, nyckel per tier', () => {
+    const d = buildBadgeEarnedDraft('u1', 'g1', 'streak_keeper', 1, null, at);
+    expect(d).toEqual({
+      type: 'badge_earned', group_id: 'g1', actor_user_id: 'u1', target_user_id: null,
+      payload: { series: 'streak_keeper', tier: 1, previous_tier: null },
+      payload_version: ACTIVITY_PAYLOAD_VERSION,
+      dedupe_key: 'badge_earned:u1:streak_keeper:1', occurred_at: at, is_backfill: false,
+    });
+  });
+
+  it('uppgradering: previous_tier bär den gamla tiern; nyckeln följer den nya', () => {
+    const d = buildBadgeEarnedDraft('u1', 'g1', 'milestoner', 3, 2, at);
+    expect(d.payload).toEqual({ series: 'milestoner', tier: 3, previous_tier: 2 });
+    expect(d.dedupe_key).toBe('badge_earned:u1:milestoner:3');
+  });
+
+  it('isBackfill vidarebefordras (default false)', () => {
+    expect(buildBadgeEarnedDraft('u1', 'g1', 'milestoner', 1, null, at, true).is_backfill).toBe(true);
+    expect(buildBadgeEarnedDraft('u1', 'g1', 'milestoner', 1, null, at).is_backfill).toBe(false);
+  });
+
+  it('payload innehåller ingen PII/Strava-id: exakt series, tier och previous_tier', () => {
+    const d = buildBadgeEarnedDraft('u1', 'g1', 'early_bird', 2, 1, at);
+    expect(Object.keys(d.payload).sort()).toEqual(['previous_tier', 'series', 'tier']);
+    const json = JSON.stringify(d.payload);
+    for (const forbidden of ['email', 'password', 'token', 'external_id', 'strava', 'run_id']) {
+      expect(json).not.toContain(forbidden);
+    }
   });
 });
 
