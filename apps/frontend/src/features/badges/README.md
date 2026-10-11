@@ -1,9 +1,11 @@
 # Badges Feature (v0.6.0)
 
 Badges (ADR 009): härledda, återkallbara serier med sex nivåer (Common..Legendary). Allt är byggt i v0.6.0: grunden (RUN-126: API-klient, hooks och ren modell) och vyerna ovanpå —
-emblem/tokens (RUN-127), Profile-samling och News-emblem (RUN-128), väljaren för visade badges (RUN-129; ersatt av badges-sidan i RUN-150), Runner card (RUN-130), Board-raderna (RUN-131) och uppgraderingspopupen (RUN-132).
+emblem/tokens (RUN-127), Profile-samling och News-emblem (RUN-128), väljaren för visade badges (RUN-129), Runner card (RUN-130), Board-raderna (RUN-131) och uppgraderingspopupen (RUN-132).
+**v2 (RUN-146–152, ägarens omritning) ersatte tre av dem:** profilens samling (RUN-128) är nu en kompakt sammanfattning (RUN-151), väljaren (RUN-129) är badges-sidan `/badges` (RUN-150) och Runner card-panelen (RUN-130) är en kompakt emblemrad (RUN-152);
+Board-placeringarna och vimpeln kom i RUN-147. Avsnitten nedan om dem är märkta; texten om det som ersattes står kvar bara som historik där den förklarar ett beslut.
 Komponenterna ligger under `components/`; `BadgeMinis` (ritar de visade badgesen) används av Profile, Runner card och Board (layouten för Board bor i `features/leaderboard/board.css`, se dess README).
-Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts ihop, §12 där Council-villkoren går före bilderna).
+Designfacit: `docs/design/badges/spec.md` (avsnittet "v2" först — det gäller före v1 där de krockar; §4 vyerna, §6 hur texterna sätts ihop, §12 där Council-villkoren går före bilderna).
 
 ## Struktur
 
@@ -35,7 +37,7 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
   `dismissSeries(entry)` = `[serien]`; "Skip all" skickar `skipAllSeries(queue)`. Kön krymper när `useMarkBadgesSeen` uppdaterar cachen optimistiskt — **"1 of 3"
   måste därför frysas av popupen (antalet vid öppning)**, inte räknas om från den levande kön.
 - **Showcase** följer titelvalets mönster (`cleanShowcase`/`toggleShowcase`): max `MAX_SHOWCASE`, bara ägda serier, vald ordning bevaras; en serie jag tappat
-  städas bort ur utkastet. Utkastet ligger lokalt i vyn (som `useDisplaySelection`) tills `useSaveShowcase().save(series)` lyckas.
+  städas bort ur utkastet. Utkastet ligger lokalt i `useShowcaseDraft` på badges-sidan (som `useDisplaySelection` för titlar) tills `useSaveShowcase().save(series)` lyckas.
 - **Cachen:** `['badges','user',<id>]` per användare (egen och andras blandas aldrig; `seen_tier` finns bara i min) och `['badges','group']` (delad av alla
   Board-rader och held-by). `invalidateAfterRunChange` invaliderar `['badges']` — badges räknas om synkront i samma skrivväg som totalerna (`evaluateBadges` i
   `calculateUserTotals`), så ingen uppföljande hämtning behövs. Användarbytet rensar inget särskilt: nyckeln bär användar-id:t, och gruppens data är densamma för alla i gruppen.
@@ -46,7 +48,7 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
   bara när `queryClient.isMutating({ mutationKey }) === 1` (den sista). Annars kan A:s avslut låta en omhämtning läsa servern före B:s POST och lägga tillbaka B i popupkön.
 - **Hook-signaturerna tar användar-id** (`useSaveShowcase(userId)`, `useMarkBadgesSeen(userId)`) i stället för att läsa inloggningen själva: hookarna är rena mot
   providers och testas utan auth-kontext. Vyerna har id:t från `useAuth()`.
-- **Inte här:** "Preview on leaderboard" (uppföljning).
+- **Inte byggt:** "Preview on leaderboard" (v1-väljarens uppföljning; väljaren finns inte längre och v2 har ingen yta för den).
 
 ## Emblemet och tokens (RUN-127)
 
@@ -63,7 +65,7 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
   v2 (RUN-146, dämpade nivåfärger): kortbakgrunden är `--rq-panel` över `--rq-bg-shell` plus `--rq-row-soft` ≈ (28.9, 31.5, 29.7). Med status-chippets tint .10 hamnar Heroic på 4.48:1 (och Rare på 4.55), alltså under 4.5:1. Nivåchippet har därför en egen bakgrundstint, `--rq-badge-chip-tint` .06 (regeln `.rq-chip.rq-badge-chip[data-tier]` i badges.css; övriga status-chip är orörda): Common 5.55, Uncommon 6.02, Rare 4.83, Heroic 4.74, Epic 5.08, Legendary 8.40 (uppmätt i skärmdump av `/preview/badges`, sektionen "Tier chips on a collection card": 5.71 / 6.16 / 4.93 / 4.83 / 5.19 / 8.66). `guards.test.ts` räknar kontrasten ur tokens för alla sex nivåer och fäller testet om en färg- eller tintändring går under 4.5:1.
   Designens .45 verifierades mot kortbakgrunden (ca #181818): 4.49:1, alltså under 4.5:1; .50 ger 5.3:1 och är det närmaste tokensteget som klarar kravet (Council 9).
 - **Layouttokens** (spec §5): vakttestet kräver att varje token läses, så varje story lägger in sina när den bygger dem. Inlagda: skelettets takt `--rq-dur-badge-skel`/`--rq-badge-skel-stagger`.
-  News-radens ikonkolumn heter `--rq-news-row-icon-badge-w` (30 px mobil, 34 desktop; avsnitt 1.28, läses av `news.css` — inte `--rq-badge-*`, eftersom badges-vakten bara läser `badges.css`). Popupbredden kommer med RUN-129.
+  News-radens ikonkolumn heter `--rq-news-row-icon-badge-w` (30 px mobil, 34 desktop; avsnitt 1.28, läses av `news.css` — inte `--rq-badge-*`, eftersom badges-vakten bara läser `badges.css`). Popupbredden (`--rq-badge-popup-w`) kom med RUN-132, badges-sidans och popoverns tokens med RUN-149 (se längre ned).
 
 ### Runner card: BadgePanel (RUN-130, omarbetad i RUN-152, spec F11)
 
