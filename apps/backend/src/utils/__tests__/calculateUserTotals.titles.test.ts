@@ -12,6 +12,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 vi.mock('../../services/levelService.js', () => ({ getLevelFromXP: vi.fn(async () => 1) }));
 vi.mock('../../services/challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
+vi.mock('../../services/badgeService.js', () => ({ evaluateBadges: vi.fn(async () => null) })); // badges testas i calculateUserTotals.badges*.test.ts
 const processAllUsersTitles = vi.fn(async (..._args: unknown[]) => undefined);
 const processUserTitlesAfterRun = vi.fn(async (..._args: unknown[]) => undefined);
 vi.mock('../../services/enhancedTitleService.js', () => ({
