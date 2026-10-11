@@ -31,6 +31,7 @@ interface ShowcasePickerProps {
 export function ShowcasePicker({ rows, userId, onClose }: ShowcasePickerProps) {
   const panelRef = useRef<HTMLElement>(null);
   const saveRef = useRef<HTMLButtonElement>(null);
+  const afterRemove = useRef<{ index: number; series: string } | null>(null);
   const owned = useMemo(() => rows.filter((row) => row.earned).map((row) => row.series), [rows]);
   const saved = useMemo(
     () => rows.filter((row) => row.displayPosition !== null).sort((a, b) => (a.displayPosition as number) - (b.displayPosition as number)).map((row) => row.series),
@@ -51,6 +52,15 @@ export function ShowcasePicker({ rows, userId, onClose }: ShowcasePickerProps) {
   const draft = useMemo(() => cleanShowcase(picked, owned), [picked, owned]);
   const byKey = useMemo(() => new Map(rows.map((row) => [row.series, row])), [rows]);
   const selectedRows = draft.map((key) => byKey.get(key) as BadgeRow);
+  // ✕ tar bort sin egen knapp ur DOM: fokus går till närmaste kvarvarande ✕ (samma plats, annars den före), och när inga finns kvar till den borttagna seriens växlare.
+  useEffect(() => {
+    const removed = afterRemove.current;
+    if (!removed) return;
+    afterRemove.current = null;
+    const buttons = panelRef.current?.querySelectorAll<HTMLElement>('.rq-badge-slot__remove');
+    const next = buttons?.[Math.min(removed.index, (buttons?.length ?? 0) - 1)];
+    (next ?? panelRef.current?.querySelector<HTMLElement>(`[data-series="${removed.series}"]`))?.focus();
+  }, [draft]);
   const dirty = !sameShowcase(draft, saved);
   const full = draft.length >= MAX_SHOWCASE;
 
@@ -70,6 +80,7 @@ export function ShowcasePicker({ rows, userId, onClose }: ShowcasePickerProps) {
 
   const remove = (series: string) => {
     if (isPending) return;
+    afterRemove.current = { index: draft.indexOf(series), series };
     change(draft.filter((key) => key !== series), `${byKey.get(series)?.name ?? series} removed from display.`);
   };
 
@@ -146,6 +157,7 @@ export function ShowcasePicker({ rows, userId, onClose }: ShowcasePickerProps) {
                 <button
                   type="button"
                   className="rq-badge-pick__toggle"
+                  data-series={row.series}
                   aria-pressed={on}
                   aria-disabled={blocked ? true : undefined}
                   aria-describedby={blocked ? LIMIT_ID : undefined}

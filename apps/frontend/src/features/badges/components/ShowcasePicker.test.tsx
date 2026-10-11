@@ -148,6 +148,33 @@ describe('ShowcasePicker — platspanelen (Council 18 steg 3)', () => {
     expect(toggleOf(streakKeeper.name)).toHaveAttribute('aria-pressed', 'false');
   });
 
+  describe('fokus efter ✕ (knappen försvinner ur DOM)', () => {
+    const removeOf = (name: string) => screen.getByRole('button', { name: `Remove ${name} from display` });
+
+    it('mittenplatsen borttagen: fokus på ✕ som nu ligger på samma plats', () => {
+      renderPicker([streakKeeper.key, earlyBird.key, milestoner.key]);
+      removeOf(earlyBird.name).focus();
+      fireEvent.click(removeOf(earlyBird.name));
+      expect(document.body).not.toHaveFocus();
+      expect(removeOf(milestoner.name)).toHaveFocus();
+    });
+
+    it('sista platsen borttagen: fokus på ✕ före den', () => {
+      renderPicker([streakKeeper.key, earlyBird.key, milestoner.key]);
+      removeOf(milestoner.name).focus();
+      fireEvent.click(removeOf(milestoner.name));
+      expect(removeOf(earlyBird.name)).toHaveFocus();
+    });
+
+    it('enda platsen borttagen: fokus på den seriens växlare i listan', () => {
+      renderPicker([streakKeeper.key]);
+      removeOf(streakKeeper.name).focus();
+      fireEvent.click(removeOf(streakKeeper.name));
+      expect(document.body).not.toHaveFocus();
+      expect(toggleOf(streakKeeper.name)).toHaveFocus();
+    });
+  });
+
   it('nivån står som text i platsen (aldrig bara färg)', () => {
     renderPicker([streakKeeper.key]);
     expect(within(slots()[0]).getByText('Legendary')).toBeInTheDocument();
