@@ -89,7 +89,6 @@ export function BadgesScreen() {
             <BadgeSeriesCard
               key={row.series}
               row={row}
-              layout="landscape"
               toggle={{ position: display.positionOf(row.series), full: display.full, saving: display.saving, limitId, onToggle: () => display.toggle(row.series) }}
             />
           ))}

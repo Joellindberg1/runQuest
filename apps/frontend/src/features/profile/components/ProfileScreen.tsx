@@ -7,7 +7,7 @@ import { EmptyState } from '@/shared/components/EmptyState';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { buildCollection, buildRunnerBadges } from '@/features/badges/badgeModel';
-import { BadgeCollection } from '@/features/badges/components/BadgeCollection';
+import { BadgeSummary } from '@/features/badges/components/BadgeSummary';
 import { useGroupBadges, useUserBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
@@ -26,7 +26,7 @@ import { TitlesPanel } from './TitlesPanel';
 const LOADING_ROWS = 6;
 
 /**
- * /profile: hjältekort · Frodo's journey · statflikar (`?view=`) · mina titlar · rundhistorik med redigera/radera.
+ * /profile: hjältekort · Frodo's journey · statflikar (`?view=`) · mina titlar · badge-sammanfattning · rundhistorik med redigera/radera.
  * All datahämtning bor här; panelerna är presentation. Mobil = App Prototypens profil (allt i en kolumn), desktop = Web
  * Prototypens (hjälte · Frodo · statflikar | titlar + rundhistorik på 340 px). Allt härleds ur `users-with-runs` (samma
  * cache som skalet, Board och Runner card) plus titlarna — ingen egen endpoint.
@@ -40,7 +40,7 @@ export function ProfileScreen() {
   const titlesQuery = useRunnerTitles(user?.id ?? '');
   const boardQuery = useTitleLeaderboard();
 
-  // Badges är ett tillägg: egna queries, och ett badgefel stannar i badgekortet (resten av profilen berörs inte). Gruppens holders ger held-by;
+  // Badges är ett tillägg: egna queries, och ett badgefel stannar i sammanfattningen (resten av profilen berörs inte). Gruppens holders ger held-by;
   // felar den utelämnas raden (data är då undefined) utan platshållare.
   const userBadges = useUserBadges(user?.id);
   const groupBadges = useGroupBadges(!!user);
@@ -71,18 +71,22 @@ export function ProfileScreen() {
     return <EmptyState title="User not found" text="We could not load your runner data." actionLabel="Back to the board" actionTo={paths.board} />;
   }
 
+  // En plats åt gången (F10.1): desktop sist i huvudkolumnen (efter statflikarna), mobil i sidokolumnen mellan MY TITLES och RUN HISTORY (mobilens kolumn staplar main → side).
+  const summary = <BadgeSummary rows={badges.rows} loading={userBadges.isLoading} error={badgeError} isDesktop={isDesktop} />;
+
   return (
     <div className="rq-profile rq-rise">
       <FeatureTour slug="tour_profile_v2" steps={TOUR_PROFILE_V2} />
       <div className="rq-profile__split">
         <div className="rq-profile__main">
-          <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} showcase={badges.showcase} />
-          <BadgeCollection rows={badges.rows} loading={userBadges.isLoading} error={badgeError} isDesktop={isDesktop} />
+          <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} showcase={isDesktop ? badges.showcase : undefined} />
           <JourneyCard totalKm={me.total_km} isDesktop={isDesktop} />
           <StatsPanel user={me} now={now} isDesktop={isDesktop} />
+          {isDesktop && summary}
         </div>
         <div className="rq-profile__side">
           <TitlesPanel user={me} titles={titlesQuery} board={boardQuery} isDesktop={isDesktop} />
+          {!isDesktop && summary}
           <RunHistory runs={me.runs ?? []} today={todayOf(now)} />
         </div>
       </div>

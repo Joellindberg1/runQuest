@@ -38,7 +38,7 @@ function renderCard(row: BadgeRow, toggle: ShowcaseToggle = idle()) {
     <>
       <p id={LIMIT_ID}>{LIMIT_TEXT}</p>
       <ul>
-        <BadgeSeriesCard row={row} layout="landscape" toggle={toggle} />
+        <BadgeSeriesCard row={row} toggle={toggle} />
       </ul>
     </>,
   );
@@ -118,14 +118,11 @@ describe('BadgeSeriesCard liggande — låst kort (Council 1)', () => {
     expect(within(card()).queryByText(/in your pack/)).toBeNull();
   });
 
-  it('försvar på komponentnivå: en handgjord låst rad med heldBy, flavor och next visar ingen av dem (liggande och stående)', () => {
+  it('försvar på komponentnivå: en handgjord låst rad med heldBy, flavor och next visar ingen av dem', () => {
     const forged: BadgeRow = { ...rowOf(nightOwl.key), heldBy: 'Held by 3 of 6 in your pack', flavor: 'Forged flavor', next: 'Next: Forged — nothing', maxed: false };
     expect(forged.earned).toBe(false);
-    const view = renderCard(forged);
+    renderCard(forged);
     for (const text of ['Held by 3 of 6 in your pack', '"Forged flavor"', 'Next: Forged — nothing']) expect(within(card()).queryByText(text), text).toBeNull();
-    view.unmount();
-    render(<ul><BadgeSeriesCard row={forged} /></ul>);
-    for (const text of ['Held by 3 of 6 in your pack', '"Forged flavor"', 'Next: Forged — nothing']) expect(screen.queryByText(text), text).toBeNull();
   });
 
   it('växlaren är ingen knapp: en aria-hidden "Locked"-ruta', () => {
@@ -235,7 +232,7 @@ describe('BadgeSeriesCard liggande — växlaren (F9.6)', () => {
       <>
         <p id={LIMIT_ID}>{LIMIT_TEXT}</p>
         <ul>
-          <BadgeSeriesCard row={rowOf(climber.key)} layout="landscape" toggle={{ ...toggle, position: 1 }} />
+          <BadgeSeriesCard row={rowOf(climber.key)} toggle={{ ...toggle, position: 1 }} />
         </ul>
       </>,
     );
@@ -266,21 +263,5 @@ describe('BadgeSeriesCard — ingen global procent och ingen "has it" (O2, F9.12
     const text = card().textContent ?? '';
     expect(text).not.toMatch(/globally|%|has it/i);
     expect(text).not.toMatch(/in pack/i);
-  });
-});
-
-describe('BadgeSeriesCard — det stående kortet är oförändrat (BadgeCollection)', () => {
-  it('utan layout ritas det som förut: ingen växlare, ingen liggande modifierare, id-blocket med emblem + namn', () => {
-    render(
-      <ul>
-        <BadgeSeriesCard row={rowOf(milestoner.key)} />
-      </ul>,
-    );
-    const stacked = screen.getByRole('listitem');
-    expect(stacked).toHaveClass('rq-badge-card');
-    expect(stacked).not.toHaveClass('rq-badge-card--landscape');
-    expect(stacked.querySelector('.rq-badge-card__id')).not.toBeNull();
-    expect(within(stacked).queryByRole('button')).toBeNull();
-    expect(stacked.querySelector('.rq-badge-toggle')).toBeNull();
   });
 });

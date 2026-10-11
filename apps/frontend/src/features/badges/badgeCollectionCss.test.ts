@@ -57,14 +57,46 @@ describe('skelettet (F8)', () => {
   });
 });
 
-describe('rutnätet', () => {
-  it('kolumnerna kommer ur --rq-badge-grid-cols: 2 på mobil, 4 på desktop, ordagrant lika i båda temafilerna', () => {
-    expect(badgesCss).toMatch(/\.rq-badge-grid\s*\{[^}]*grid-template-columns:\s*var\(--rq-badge-grid-cols\)/);
-    for (const css of [indexCss, facitCss]) {
-      expect(css).toMatch(/--rq-badge-grid-cols:\s*repeat\(2, minmax\(0, 1fr\)\);/);
-      const desktop = css.slice(css.indexOf('@media (min-width: 1024px)'));
-      expect(desktop).toMatch(/--rq-badge-grid-cols:\s*repeat\(4, minmax\(0, 1fr\)\);/);
-    }
+describe('profilens samlingskort är borta (RUN-151, spec V2.7)', () => {
+  it('ingen CSS för BadgeCollection: .rq-badge-collection*, .rq-badge-display*, .rq-badge-grid, stående kortets .rq-badge-card__id, skelettlistan och tomrutans minis', () => {
+    expect(badgesCss).not.toMatch(/\.rq-badge-(collection|display)/);
+    expect(badgesCss).not.toMatch(/\.rq-badge-grid\b/);
+    expect(badgesCss).not.toMatch(/\.rq-badge-card__id|\.rq-badge-skel-list|\.rq-badge-empty__minis/);
+  });
+
+  it('--rq-badge-grid-cols är borta ur båda temafilerna (inget läser den längre)', () => {
+    for (const css of [indexCss, facitCss]) expect(css).not.toMatch(/--rq-badge-grid-cols/);
+    expect(badgesCss).not.toMatch(/--rq-badge-grid-cols/);
+  });
+});
+
+describe('profilens sammanfattning (RUN-151, spec F10)', () => {
+  const rules = [...badgesCss.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }));
+  const rule = (selector: string) => rules.find((candidate) => candidate.selector === selector)?.body ?? '';
+
+  it('de låsta ligger under en hårlinje (--rq-line-2) med --rq-sp-8 mellanrum och padding', () => {
+    const locked = rule('.rq-badge-summary__locked');
+    expect(locked).toMatch(/border-top:\s*var\(--rq-hair\) solid var\(--rq-line-2\)/);
+    expect(locked).toMatch(/margin-top:\s*var\(--rq-sp-8\)/);
+    expect(locked).toMatch(/padding-top:\s*var\(--rq-sp-8\)/);
+  });
+
+  it('emblemraden bryts (flex-wrap) med --rq-sp-8 glapp, och "All badges →" har tryckytan --rq-badge-pick-hit och ligger längst till höger', () => {
+    expect(rule('.rq-badge-summary__row')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.rq-badge-summary__row')).toMatch(/gap:\s*var\(--rq-sp-8\)/);
+    expect(rule('.rq-btn.rq-badge-summary__all')).toMatch(/min-height:\s*var\(--rq-badge-pick-hit\)/);
+    expect(rule('.rq-btn.rq-badge-summary__all')).toMatch(/margin-left:\s*auto/);
+  });
+
+  it('räknare och låst-text läser --rq-text-4 (≥ 4.5:1); skelettblocket är cp-stort ur tokens', () => {
+    expect(rule('.rq-badge-summary__count')).toContain('color: var(--rq-text-4)');
+    expect(rule('.rq-badge-summary__locked-note')).toContain('color: var(--rq-text-4)');
+    expect(rule('.rq-badge-skel__shape.rq-badge-skel__shape--cp')).toMatch(/width:\s*var\(--rq-badge-w-cp\)[^}]*height:\s*var\(--rq-badge-h-cp\)/);
+  });
+
+  it('skelettradens puls ligger i no-preference-blocket (stilla block under reduced-motion)', () => {
+    const noPreference = mediaBodies(badgesCss, 'prefers-reduced-motion: no-preference').join('\n');
+    expect(noPreference).toMatch(/\.rq-badge-skel-row \.rq-badge-skel__shape/);
   });
 });
 

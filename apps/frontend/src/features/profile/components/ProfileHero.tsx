@@ -48,13 +48,13 @@ interface ProfileHeroProps {
   cells: StatCell[];
   /** Web Prototype har fem celler, App Prototype tre. */
   isDesktop: boolean;
-  /** De visade badges (max tre, användarens ordning) — minis efter namnet. Tom/utelämnad (laddar, fel, inget valt): ingenting ritas, ingen platshållare. */
+  /** De visade badges (max tre, användarens ordning) — minis efter namnet, bara på desktop (mobilens hjältekort har inga minis, F10.6). Tom/utelämnad: ingenting ritas, ingen platshållare. */
   showcase?: readonly BadgeShowcaseEntry[];
 }
 
 /**
  * Hjältekortet (`.rq-card--hero`): nivåring, namn (+ badge-minis) · rank · rundor · XP kvar, statceller i hårlinjegrid och profilbilden.
- * Minisen är ett eget element efter h1:an, så rubriken förblir bara namnet; BadgeMinis bär själv role="img" och etiketten.
+ * Minisen (bara desktop) är ett eget element efter h1:an, så rubriken förblir bara namnet; BadgeMinis bär själv role="img" och etiketten. Mobil ritar bara `<h1>`.
  */
 export function ProfileHero({ user, hero, cells, isDesktop, showcase = [] }: ProfileHeroProps) {
   const visible = cells.filter((cell) => isDesktop || !cell.wideOnly);
@@ -73,10 +73,14 @@ export function ProfileHero({ user, hero, cells, isDesktop, showcase = [] }: Pro
         </div>
       </div>
       <div className="rq-profile-hero__who">
-        <div className="rq-badge-nameline">
+        {isDesktop ? (
+          <div className="rq-badge-nameline">
+            <h1 className="rq-display rq-profile-hero__name">{hero.name}</h1>
+            <BadgeMinis showcase={showcase} />
+          </div>
+        ) : (
           <h1 className="rq-display rq-profile-hero__name">{hero.name}</h1>
-          <BadgeMinis showcase={showcase} />
-        </div>
+        )}
         <p className="rq-profile-hero__meta">{standing}</p>
         <p className="rq-profile-hero__xp">{xpToNextText(hero)}</p>
       </div>

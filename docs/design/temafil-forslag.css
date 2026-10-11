@@ -637,8 +637,7 @@
   --rq-dur-badge-ignite:     .9s;      /* rqBadgeIgnite: engångs, ease-out, alla nivåer i popupen */
   --rq-badge-ignite-handoff: 1.3s;     /* Legendary i popupen: andningen startar här */
 
-  /* Samlingen i profilen (RUN-128, spec §5): rutnätet (mobil 2 kolumner, desktop 4 i avsnitt 2) och skelettets takt (F8: rqSkel 1.6 s, stagger .2 s). */
-  --rq-badge-grid-cols:      repeat(2, minmax(0, 1fr));
+  /* Badge-skelettets takt (F8: rqSkel 1.6 s, stagger .2 s). */
   --rq-dur-badge-skel:       1.6s;
   --rq-badge-skel-stagger:   .2s;
 
@@ -787,7 +786,6 @@
     --rq-news-row-pad-x: 16px;
     --rq-news-row-icon-badge-w: 34px;
     --rq-news-badge: 15px;
-    --rq-badge-grid-cols: repeat(4, minmax(0, 1fr));
     --rq-badge-pick-hit: 24px;
     --rq-badge-popup-w: 400px;
     --rq-badge-popup-target: 24px;
