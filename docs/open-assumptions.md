@@ -171,7 +171,7 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - **Admin: läsfel är felkort med Retry** (inställningar/trappa, medlemmar, titlar) i stället för toast + tomt/standardvärden. Save är låst tills BÅDA läsningarna
   lyckats (`settingsLoaded`/`canSave`, oförändrat), nu med synlig förklaring. Alla toasts (Admin, Settings) är ersatta av permanenta status/alert-regioner.
   "Admin password" är fortfarande inte kopplat till backend (som tidigare) — svaret säger det i stället för att låtsas lyckas.
-- **Inloggningen är ritad utan prototyp** i Landingens språk (glöd, logotyp, hjältekort, Components-filens fält). Felet landar i en permanent `role=alert`-region
+- **Inloggningen är ritad utan prototyp** (sedan RUN-145 en popup över Landing, inte en egen sida — `features/auth/README.md`) i Landingens språk (glöd, logotyp, hjältekort, Components-filens fält). Felet landar i en permanent `role=alert`-region
   (`FormNotices`, som övriga formulär) och fälten pekar på det; under pågående inloggning är fälten `readOnly` och knappen `aria-disabled` (inte `disabled`), så
   fokus aldrig tappas. `App.login.test` väntar på alert-textens innehåll (regionen finns tom från början). Ingen "Forgot password" (ingen funktion).
 - **Formulärfält är 16/18 px** (`--rq-fs-stat-value`), inte Components-filens 19 px och inte `.rq-field`-standardens lead (17/22): prototypens Settings/Admin-fält är
@@ -243,7 +243,9 @@ LÖST: backendens init-logger skriver bara "set"/"missing" för service-nyckeln 
 - **Prototypens textsteg snappade till tokens**: kortrubrik 18 px → `--rq-fs-name` (20 på desktop), beskrivningar 16 px → `--rq-fs-body` (17 på desktop), release-datum 15 → `--rq-fs-meta`.
 - **Alla som redan sett de gamla patchnotes (`patch_2026_04_02_*`) får 0.5.0-popupen en gång** — slugen `patch_v0.5.0` är ny. De gamla slugarna ligger kvar i tabellen, ofarliga.
 
-## Badge-samlingen i profilen (RUN-128, v0.6.0)
+## Badge-samlingen i profilen (RUN-128, v0.6.0) — historik: ersatt av v2
+
+> Profilens samlingskort och väljaren (RUN-128/129) finns inte längre: badge-design v2 (RUN-146–152) ersatte dem med badges-sidan `/badges` och en kompakt sammanfattning på profilen. Antagandena nedan gäller bara det som lever kvar (News-raden, skelettet, flavor-storleken).
 
 - **Samlingskortet är lodrätt på alla bredder, även desktop.** F2:s desktopkort (emblem till vänster, namn + chip + pips till höger) förutsätter ca 200 px breda kort. Skalets huvudkolumn är smalare än i designens 1440-bild (sidonav 250 + sidokolumn 340), så fyra kolumner ger ca 145 px (1280) / 180 px (1440), där LEGENDARY-chippet inte ryms bredvid emblemet och namnen bröts mitt i orden. Det lodräta mobilkortet i 4 kolumner läses rent. Byt till raden om rutnätet får fler pixlar (färre kolumner eller bredare kolumn).
 - RÄTTAT (RUN-129): ON DISPLAY-remsan ritas även utan valda badges när användaren har intjänade badges — då med uppmaningen "Pick up to 3 badges to show on the Board." + Edit; utan intjänade badges ritas ingen remsa. Ingen platshållare för minis.

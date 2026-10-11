@@ -108,7 +108,7 @@
   --rq-today-gap:  var(--rq-panel-solid);                   /* luckan mellan cell och ring = ytfärgen */
 
   /* ── 1.6 Token-nivåer (utmaningar): minor / major / legendary ──────────────
-     base = tint + kant, fg = text/siffra, stroke = sköldens linje.
+     base = tint + kant, fg = text/siffra, stroke = vimpelns linje.
      Recept: kortval tint .12 / kant .65 · ribbon tint .16 / stroke .75–.85    */
   --rq-tier-minor-rgb:     59 130 246;
   --rq-tier-minor:         #3b82f6;           /* vänsterkant */
@@ -590,7 +590,7 @@
   --rq-badge-legendary:      #e3c23e;
   --rq-badge-legendary-grad: linear-gradient(145deg, #edd98f, #e3c23e 45%, #7c661f);
 
-  /* Form och mått: kronsköld, höjd = bredd × 1.12 (avrundad 31 / 63 / 108). Ikonerna 15/24/42 gäller bara inuti emblemet (Council 7). */
+  /* Form och mått: kronsköld, höjd = bredd × 1.12 (avrundad 31 / 49 / 63 / 108). Ikonerna 15/20/24/42 gäller bara inuti emblemet (Council 7). */
   --rq-badge-clip:           polygon(50% 0%, 100% 14%, 100% 60%, 50% 100%, 0% 60%, 0% 14%);
   --rq-badge-w-sm:           28px;
   --rq-badge-h-sm:           31px;

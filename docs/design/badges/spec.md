@@ -18,7 +18,7 @@ Det levande projektet: https://claude.ai/design/p/23754cb4-e3ec-4cd3-8cd8-4be2f0
 
 ## v2 (ägarens omritning 2026-10-11) — gäller före v1 där de krockar
 
-**Status: KLAR att bygga. Ej dömd av Design Council** (Lead avgör om v2 går som helhet till Council: de nya avvikelserna står i V2.10). Facit är ägarens HTML-export (beslut 38: "HTML-exporten och/eller skärmdumpar"); ingen ny PNG är renderad av Designern, se V2.12. Ingen backend, inget API och ingen ADR ändras: `GET /api/badges/user/:id`, `GET /api/badges/group`, `PUT /api/badges/showcase` och `POST /api/badges/seen` är oförändrade. ADR 009 står kvar (ingen global percentil, allt gruppavgränsat).
+**Status: BYGGD i v0.6.0 (RUN-146–152, städning RUN-153; status per vy i V2.12). Ej dömd av Design Council** (Lead avgör om v2 går som helhet till Council: de nya avvikelserna står i V2.10). Facit är ägarens HTML-export (beslut 38: "HTML-exporten och/eller skärmdumpar"); ingen ny PNG är renderad av Designern, se V2.12. Ingen backend, inget API och ingen ADR ändras: `GET /api/badges/user/:id`, `GET /api/badges/group`, `PUT /api/badges/showcase` och `POST /api/badges/seen` är oförändrade. ADR 009 står kvar (ingen global percentil, allt gruppavgränsat).
 
 ### V2.0 Beslut och företräde
 
@@ -50,7 +50,7 @@ Det levande projektet: https://claude.ai/design/p/23754cb4-e3ec-4cd3-8cd8-4be2f0
 
 ### V2.1 Facit — var designen ligger (radreferenser)
 
-Filerna är ägarens byte-exakta exporter (2026-10-11). Radnumren gäller dessa kopior; de ska in i repot under `docs/design/claude-design/` i byggsteg 1 (V2.13) med repots filnamn nedan, och radnumren är då oförändrade. Kopiorna ligger tills vidare i `…/scratchpad/design-delta/design/` (`app-full.html`, `web-full.html`, `badge-system.dc.html`, `runquest-badges.js`). Obs: repots nuvarande `RunQuest Web Prototype.dc.html` är avkapad (markör `…[+18977 bytes truncated` på rad 3045) och måste ersättas av den hela kopian.
+Filerna är ägarens byte-exakta exporter (2026-10-11). Radnumren gäller dessa kopior. De ligger sedan RUN-146 (byggsteg 1) i repot under `docs/design/claude-design/` med repots filnamn nedan, och radnumren är oförändrade; `RunQuest Web Prototype.dc.html` är nu hel (den tidigare kopian var avkapad på rad 3045). Kolumnen "Scratch-kopia" är historik från skrivandet.
 
 | Repo-filnamn | Scratch-kopia | Avser |
 |---|---|---|
@@ -456,7 +456,7 @@ Inga djuplänkar, inga query-parametrar. Mobilnavet (fem flikar) är oförändra
 | CSS i `badges.css`: `.rq-badge-slots`, `.rq-badge-slot*`, `.rq-badge-pick` (panelen), `__head/__title/__count`, `.rq-badge-textlink`, `.rq-badge-grid` | `.rq-badge-page-*` |
 | Tokens: `--rq-badge-pick-clear`, `--rq-badge-grid-cols` | F13.4 |
 | Copy: "ON DISPLAY"-platspanelen, "Empty slot", "Remove … from display", "Close", "Edit", "Preview on leaderboard"-noteringen | — |
-| Spec/README: `features/badges/README.md` avsnitten RUN-128/RUN-129; `features/profile/README.md` väljarplatsen | uppdatera i byggsteg 8 |
+| Spec/README: `features/badges/README.md` avsnitten RUN-128/RUN-129; `features/profile/README.md` väljarplatsen | uppdaterat i byggsteg 8 (RUN-153) |
 
 **Återanvänds oförändrat:** `api.ts`, `hooks/useBadgeQueries.ts` (inkl. `useSaveShowcase` med optimistik och återställning), `badgeModel.ts` (`buildCollection`, `buildRunnerBadges`, `buildPopupQueue`, `toggleShowcase`, `cleanShowcase`, `sameShowcase`, `applyShowcase`, `applySeen`), `BadgeEmblem` (+ `cp`), `BadgeChip`, `BadgePips`, `BadgeMinis`, `badgeTier.ts`, popupen (`BadgeUpgradeDialog`/`Host`), News-raden, `ErrorState`, `TrackLoader`, skelettklasserna `.rq-badge-skel*`, `.rq-badge-empty*`, `.rq-badge-display*` (omstylad), `.rq-badge-pick__toggle` (blir `.rq-badge-toggle`), `.rq-badge-pick__note`/`__retry` (blir `.rq-badge-note`/`.rq-badge-retry`), `/preview/badges`-arket (får `cp` i storleksraden).
 
@@ -520,23 +520,23 @@ Rörelse-undantaget är oförändrat (Legendary-andning bara md/lg). Lägg ocks�
 
 | ID | Vy | Referens | Status |
 |---|---|---|---|
-| F9 | Badges-sidan mobil (402) | HTML-export `app-full.html` 1282–1321 + 1613–1645 | **KLAR** (normalläget är ritat; tillstånden laddar/tomt/fel återanvänder `reference/f8.png`, sparlägena `reference/f3.png`) |
-| F9 | Badges-sidan desktop (1440) | HTML-export `web-full.html` 567–603 + 1719–1751 | **KLAR** (som ovan; bredder 1024–1439 är antagande, Q4) |
-| F10 | Profil, sammanfattning mobil | `app-full.html` 1480–1489 | **KLAR** (länken "All badges →" och popovern är Designerns tillägg, V2.9 #8/#12) |
-| F10 | Profil, sammanfattning desktop | `web-full.html` 502–515 | **KLAR** (popovern: samma tillägg) |
-| F11 | Runner card, panel mobil | `app-full.html` 494–502 | **KLAR** |
-| F11 | Runner card, panel + nedre rutnät desktop | `web-full.html` 1639–1663 | **KLAR** |
-| F12 | Board Season mobil (podium, rest, vimplar) | `app-full.html` 222, 276–285 | **KLAR** |
-| F12 | Board Season desktop | `web-full.html` 190, 243–246, 261–264 | **KLAR** |
-| F12 | Vimpeln | `runquest-badges.js` 106–128, `badge-system.dc.html` 305, 351–368 | **KLAR** |
-| F13 | Tokens (färg, glöd, storlekar) | `runquest-badges.js` 14–47 | **KLAR** (inget att rita) |
-| F14 | Navigering och route | `web-full.html` 1854–1858, `app-full.html` 1713 | **KLAR** |
-| F6 | Uppgraderingspopup | `reference/f6.png` + nya färger via tokens | **KLAR** (ingen layoutändring) |
-| F7 | News-rad | `reference/f7.png` + nya färger | **KLAR** (ingen layoutändring) |
-| F8 | Tillstånd | `reference/f8.png` | **KLAR** (återanvänds av F9/F10) |
-| F1 | Emblem-ark `/preview/badges` | `reference/f1.png` | **KLAR** (får `cp`-storlek och nya färger) |
+| F9 | Badges-sidan mobil (402) | HTML-export `app-full.html` 1282–1321 + 1613–1645 | **BYGGD** (RUN-149, RUN-150) (normalläget är ritat; tillstånden laddar/tomt/fel återanvänder `reference/f8.png`, sparlägena `reference/f3.png`) |
+| F9 | Badges-sidan desktop (1440) | HTML-export `web-full.html` 567–603 + 1719–1751 | **BYGGD** (RUN-149, RUN-150) (som ovan; bredder 1024–1439 är antagande, Q4) |
+| F10 | Profil, sammanfattning mobil | `app-full.html` 1480–1489 | **BYGGD** (RUN-149, RUN-151) (länken "All badges →" och popovern är Designerns tillägg, V2.9 #8/#12) |
+| F10 | Profil, sammanfattning desktop | `web-full.html` 502–515 | **BYGGD** (RUN-149, RUN-151) (popovern: samma tillägg) |
+| F11 | Runner card, panel mobil | `app-full.html` 494–502 | **BYGGD** (RUN-152) |
+| F11 | Runner card, panel + nedre rutnät desktop | `web-full.html` 1639–1663 | **BYGGD** (RUN-152) |
+| F12 | Board Season mobil (podium, rest, vimplar) | `app-full.html` 222, 276–285 | **BYGGD** (RUN-147) |
+| F12 | Board Season desktop | `web-full.html` 190, 243–246, 261–264 | **BYGGD** (RUN-147) |
+| F12 | Vimpeln | `runquest-badges.js` 106–128, `badge-system.dc.html` 305, 351–368 | **BYGGD** (RUN-147) |
+| F13 | Tokens (färg, glöd, storlekar) | `runquest-badges.js` 14–47 | **BYGGD** (RUN-146) (inget att rita) |
+| F14 | Navigering och route | `web-full.html` 1854–1858, `app-full.html` 1713 | **BYGGD** (RUN-148) |
+| F6 | Uppgraderingspopup | `reference/f6.png` + nya färger via tokens | **BYGGD** (RUN-146) (ingen layoutändring) |
+| F7 | News-rad | `reference/f7.png` + nya färger | **BYGGD** (RUN-146) (ingen layoutändring) |
+| F8 | Tillstånd | `reference/f8.png` | **BYGGD** (RUN-149, RUN-150, RUN-151) (återanvänds av F9/F10) |
+| F1 | Emblem-ark `/preview/badges` | `reference/f1.png` | **BYGGD** (RUN-146, RUN-149) (får `cp`-storlek och nya färger) |
 
-Ingen vy är BLOCKERAD. Ingen vy är utelämnad. v2 saknar egna PNG-referenser; ägarens HTML-export är facit och byggaren sparar skärmdumpar (402 och 1440, plus Runner card-modal 860) som `docs/design/badges/reference/v2-*-built.png`.
+Ingen vy är BLOCKERAD. Ingen vy är utelämnad. v2 saknar egna PNG-referenser; ägarens HTML-export är facit och byggarna sparade skärmdumpar (402 och 1440, plus Runner card-modal 860) som `docs/design/badges/reference/v2-*.png`. Alla vyer ovan är byggda.
 
 ### V2.13 Byggordning
 
@@ -925,7 +925,7 @@ Alla fem röster: godkänt med villkor. Villkoren gäller manifest för RUN-127/
 
 ---
 
-## 10. Status per vy (beslut 54)
+## 10. Status per vy (beslut 54) — historik (v1), ersatt av v2, se V2.12
 
 | ID | Vy | Referensbild | Mobil | Desktop | Status |
 |---|---|---|---|---|---|

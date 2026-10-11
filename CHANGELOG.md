@@ -3,7 +3,7 @@
 ## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
 
 Rullar ihop epicsen RUN-1 (Badges), RUN-91 (Stormborn, Iceborn, Winter Warrior) och RUN-92 (städning och nivåtabellen via backend), plus
-Strava-låset (RUN-139). Migrationerna 035–037 och en badge-backfill är prod-steg som kräver ägar-ja (038/039 applicerades redan som säkerhetshotfix; 040 skrivs separat efter releasen) (se "Prod-steg" nedan).
+Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login som popup (RUN-145). Migrationerna 035–037 och en badge-backfill är prod-steg som kräver ägar-ja (038/039 applicerades redan som säkerhetshotfix; 040 skrivs separat efter releasen) (se "Prod-steg" nedan).
 
 ### Nytt
 - **Badges (ADR 009, RUN-1).** Åtta serier × sex nivåer (Common till Legendary) som gruppen samlar över säsonger: Milestoner, Earth Trotter, Climber,
@@ -12,11 +12,26 @@ Strava-låset (RUN-139). Migrationerna 035–037 och en badge-backfill är prod-
   användare och serie, migration 035) och skriver bara skillnaden; raderas eller ändras en runda så sjunker nivån. Precisionist räknar bara Strava-rundor
   (servern sätter `source`, RUN-136). Lästa via `GET /api/badges/user/:userId` och `/group` (gruppavgränsade), skrivna via `PUT /api/badges/showcase` (max 3 visade,
   `users.displayed_badge_series`) och `POST /api/badges/seen` (popup-vattenmärket `seen_tier`).
-  - Profile: samlingen (kort per serie, "Held by X of N in your pack"), väljaren för visade badges och minis i hjältekortet.
-  - Board: de visade badgesen som minis på podiet och i Season-raderna. Runner card: andras badges i en skrivskyddad panel.
+  - Badges-sidan `/badges` (v2, se nedan): kort per serie ("Held by X of N in your pack") och valet av visade badges (Show / On display + SAVE DISPLAY). Profile visar en kompakt sammanfattning med "All badges →"; minis i hjältekortet (desktop).
+  - Board: de visade badgesen som minis på podiet och i Season-raderna. Runner card: andras badges som en kompakt, skrivskyddad rad emblem (v2).
   - Uppgraderingspopupen visas i skalet när `tier > seen_tier` (en gång per nivå, väntar på onboarding och turer). Pack News: `badge_earned` (migration 036) under
     filtret Levels, med emblem i raden och i klock-popovern; raden dras tillbaka om nivån tappas.
   - `npm run backfill:badges` (dry-run som standard, `--apply`, `--silent`) räknar ut historiska badges utan news och utan popup-flod.
+- **Badge-design v2 (RUN-146–152, ägarens omritning 2026-10-11).** Ersätter v1:s profilsamling, väljare och Runner card-panel; facit är `docs/design/badges/spec.md` (avsnittet "v2") och
+  designkällan i `docs/design/claude-design/`. Ingen backend, inget API och ingen migration ändras.
+  - **Designkälla, färger, storlekar (RUN-146).** De fyra designfilerna ligger i repot (`RunQuest Web Prototype.dc.html` är nu hel, den var avkapad). Dämpade nivåfärger (bl.a. Heroic `#d97070`,
+    Legendary `#e3c23e`), svagare glöd och en fjärde emblemstorlek `cp` (44 × 49 px, ikon 20): storlekarna är 28/44/56/96 px. Nivåchippet har en egen bakgrundstint (`--rq-badge-chip-tint`) så att alla sex nivåer klarar 4.5:1.
+  - **Vimpeln som utmaningstecken (RUN-147).** Sköldarna för osända challenge-tokens är vimplar (svalstjärt) på Board och i Duels, med delad geometri (`shared/components/challengeMark.ts`).
+    Minis står högerställda på podiet (`--rq-board-minis-inset`), och vimpel och minis delar aldrig behållare.
+  - **Route och navigering (RUN-148).** `/badges` och "Badges" (ikon `shield`) i sidonavet under YOU. Mobilnaven är oförändrad; mobilens ingång är "All badges →" på profilen.
+  - **Byggstenarna (RUN-149).** `buildBadgeSummary`, `useShowcaseDraft` (utkast + spara), liggande `BadgeSeriesCard` med växlare och `BadgeEmblemDetail` (44 px-emblem som öppnar en popover med nivå och krav).
+  - **Badges-sidan (RUN-150).** ON DISPLAY-remsa med SAVE DISPLAY / SAVING… / SAVED, ett kort per serie med Show / On display — N / Locked, "3 of 3 on display — remove one first." och tillstånden laddar/tomt/fel.
+    Den separata väljaren är borttagen (`ShowcasePicker`, `ShowcaseSlots`, `showcasePickerId`). Ingen global procent någonstans, bara "Held by X of N in your pack".
+  - **Profilen (RUN-151).** Kompakt `BadgeSummary` (intjänade som 44 px-emblem på nivå, låsta under en hårlinje) med "All badges →"; `BadgeCollection` är borttagen. Mobilprofilens hjältekort har inga minis; desktop behåller dem.
+  - **Runner card (RUN-152).** Kompakt `BadgePanel` (bara emblem, popover för detaljer) bredvid Head to head i det nedre rutnätet (desktop), efter TITLES på mobil.
+- **Login som popup (RUN-145).** Inloggningen är en dialog (`LoginDialog`) över Landing på `/login` i stället för en egen sida (`LoginPage`/`LoginScreen` borta); `?next=` bevaras.
+  Log out (AvatarMenu) går till startsidan `/` utan dialog. ADR 006, addendum 2026-10-11.
+- **Cachen rensas vid inloggning, utloggning och 401 (RUN-143).** `AuthProvider` anropar `queryClient.clear()` vid login, logout och `onUnauthorized`, så att förra användarens data (badges, grupp, users-with-runs, sett-listan, news) aldrig visas för nästa. Ingen loop: `clear()` startar ingen omhämtning.
 - **Tre nya titlar i kategorin Weather (RUN-91).** Stormborn (flest rundor med vindbyar på minst 12 m/s, `stormRunCount`), Iceborn (flest rundor vid 5 °C eller kallare,
   `coldRunCount`) och Winter Warrior (flest km under vintern 1 december–28/29 februari; utanför vintern räknas senast avslutade vinter, `winterKm`/`winterWindow`).
   Titelramverket fick väder i `RunData` och `ctx.now`; väder hämtas nu även för användare utan grupp, och titlarna räknas om efter väder-backfill. Migration 037 lägger
@@ -37,6 +52,8 @@ Strava-låset (RUN-139). Migrationerna 035–037 och en badge-backfill är prod-
 - Städning (RUN-105): `supabase-js` borttagen ur frontend (inloggningen är backend-JWT), `triggerManualSync` och död kod borta, `createRun` skickar inte `source`.
 - Dokumentation (RUN-108): ADR 009 (Godkänd), STATE.md, permissions, README:er för badges, news och claude-design.
 - Versionsbump till 0.6.0 (rot och frontend), `changelog.json` med "What's new"-popup.
+- Städning efter badge v2 (RUN-153): README:erna för badges, profile och claude-design pekar på det byggda, spec V2.12 markerar alla vyer BYGGD, och "What's new" beskriver badges-sidan, den kompakta profilen och Runner card, vimpeln och login-popupen.
+  Tokens och CSS som spec V2.7 listade (`--rq-badge-grid-cols`, `--rq-badge-pick-clear`, väljar- och samlings-CSS) var redan borttagna i RUN-150/151; ingen kvarvarande badge-token eller badge-klass saknar läsare.
 
 ### Prod-steg (kräver ägar-ja var för sig, ordning enligt STATE.md)
 1. Migration 035 (`user_badges`, `displayed_badge_series`) — redan applicerad 2026-10-11.

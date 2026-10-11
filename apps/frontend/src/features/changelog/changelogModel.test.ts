@@ -131,6 +131,26 @@ describe('changelog: v0.6.0', () => {
     expect(text).toMatch(/Winter Warrior[^.]*December to February/);
   });
 
+  it('badge-, login- och vimpelpunkterna nämner knappar och ställen som finns kvar i koden (texten driftar inte från UI:t)', () => {
+    const source = (file: string) => readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../..', file), 'utf8');
+    const text = v060?.changes.map((change) => change.description).join(' ') ?? '';
+    const claims: Array<[RegExp, string, string]> = [
+      [/SAVE DISPLAY/, 'features/badges/components/BadgeDisplayStrip.tsx', 'SAVE DISPLAY'],
+      [/tap Show on a badge/, 'features/badges/components/BadgeSeriesCard.tsx', "'Show'"],
+      [/All badges →/, 'features/badges/components/BadgeSummary.tsx', 'All badges'],
+      [/on a wide screen open Badges in the side menu; on your phone tap All badges → on your Profile/, 'app-shell/SideNav.tsx', "label: 'Badges'"],
+      [/Log out takes you back to the start page/, 'app-shell/AvatarMenu.tsx', 'paths.landing'],
+      [/Signing in now opens as a popup over the start page/, 'pages/Index.tsx', '<LoginDialog'],
+      [/pennants instead of shields, on the Board and in Duels/, 'features/leaderboard/components/BoardParts.tsx', 'PENNANT_PATH'],
+      [/pennants instead of shields, on the Board and in Duels/, 'features/challenges/components/TierRibbon.tsx', 'PENNANT_PATH'],
+      [/next to Head to head/, 'features/runner/components/RunnerCard.tsx', 'HeadToHeadPanel'],
+    ];
+    for (const [claim, file, evidence] of claims) {
+      expect({ claim: claim.source, written: claim.test(text), file, found: source(file).includes(evidence) }).toEqual({ claim: claim.source, written: true, file, found: true });
+    }
+    expect(text).not.toMatch(/picker|collection on Profile/i); // väljaren och profilsamlingen finns inte längre
+  });
+
   it('innehåller inga interna ticketnummer (RUN-123) i texterna gruppen ser', () => {
     expect(JSON.stringify(changelog)).not.toMatch(/\bRUN-\d+/);
   });
