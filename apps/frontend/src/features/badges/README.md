@@ -65,14 +65,17 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
 - **Layouttokens** (spec §5): vakttestet kräver att varje token läses, så varje story lägger in sina när den bygger dem. Inlagda: `--rq-badge-grid-cols` (samlingsrutnätet, RUN-128) och skelettets takt `--rq-dur-badge-skel`/`--rq-badge-skel-stagger`.
   News-radens ikonkolumn heter `--rq-news-row-icon-badge-w` (30 px mobil, 34 desktop; avsnitt 1.28, läses av `news.css` — inte `--rq-badge-*`, eftersom badges-vakten bara läser `badges.css`). Popupbredden kommer med RUN-129.
 
-### Runner card: BadgePanel (RUN-130)
+### Runner card: BadgePanel (RUN-130, omarbetad i RUN-152, spec F11)
 
-- **components/BadgePanel.tsx** — `BadgePanel({ rows, loading?, error? })` (spec F4): den skrivskyddade BADGES-panelen. En rad per intjänad serie: md-emblem (`decorative`, raden läses en gång),
-  serienamn, "On display" (bara visade), held-by när modellen har ett värde, nivå-chip (`.rq-chip--status` + `data-tier`). Inga knappar.
+- **components/BadgePanel.tsx** — `BadgePanel({ rows, loading?, error? })`: den kompakta, skrivskyddade BADGES-panelen. Rubrik (`.rq-title` "BADGES", ingen ikon) + räknare "{N} of {BADGE_SERIES.length} series" och intjänade serier som
+  `<ul aria-label="Earned badges">` med ett `BadgeEmblemDetail` (44 px, `cp`) per `<li>` i ett `flex-wrap` (`gap --rq-sp-8`). Panelen bär bara rubrik, räknare och emblemknappar: nivå, krav, "On display" och held-by
+  ligger i emblemets popover (L4 — ingen information hänger på en tooltip). Låsta serier visas inte i panelen; ingen chip, held-by eller "On display" i raden (V2.9 #9). Raderna byggs med `buildRunnerBadges`, så
+  held-by får rätt viewer (göms vid X = N på andras kort, utelämnas när group-queryn felar).
 - **Data:** `rows` kommer ur `buildRunnerBadges(userBadges, group, viewer)`: bara intjänade serier, visade först (i löparens ordning), sedan högst nivå, sedan serieordning. Samma funktion ger
-  `showcase` till minis i Runner cardens hjältekort. Held-by göms när X = N (andras kort) och utelämnas när group-queryn felar.
-- **Lägen:** laddar → TrackLoader; `error` (`{ onRetry, retrying }`) → `ErrorState` med Retry; tom `rows` → streckad ruta "No badges yet." (bara ett lyckat, tomt svar).
-- **Stil:** `.rq-badge-panel*` bor i `badges.css` (flyttad hit från `features/runner/runner.css` i RUN-128, oförändrad; Runner card ser likadan ut). Placering och datakoppling: `features/runner/README.md`.
+  `showcase` till minis i Runner cardens hjältekort (oförändrade).
+- **Lägen:** laddar → TrackLoader; `error` (`{ onRetry, retrying }`) → `ErrorState` med Retry; tom `rows` → streckad ruta "No badges yet." (bara ett lyckat, tomt svar). Räknaren visas bara med emblem.
+- **Stil:** `.rq-badge-panel*` (`__head`, `__title`, `__aside`, `__grid`, `__item`, `__empty`, `__loading`) bor i `badges.css`. Raden (`__row`/`__text`/`__nameline`/`__display`/`__held`) är borttagen i RUN-152.
+  Placering och datakoppling: `features/runner/README.md`.
 
 ### Profilen: samlingen (RUN-128, spec F2/F8)
 
@@ -149,7 +152,7 @@ Bara byggstenarna — sidan (`BadgesScreen`, RUN-150, byggd), profilens sammanfa
   som sidan äger) / sparar (alla aria-disabled, den valda behåller guldet) / låst (aria-hidden-ruta, ingen knapp). Kortet dimmas aldrig (ingen opacity i badges.css). `data-display="true"` när `position` är satt.
 - **`BadgeEmblemDetail({ row })`** — 44 px (`cp`) dekorativt emblem i en `<button>` med namnet "{Tier} {Serie}" ("Locked {Serie}") som öppnar en Radix-popover (`.rq-popover.rq-badge-detail`, `aria-label` = serienamnet): "On display" (intjänad och i sparade valet — `row.displayPosition`), namn + chip, pips, krav, flavor, held-by; låst: Locked-chip, måttetikett, "Unlock: …". Ingen Next, ingen global siffra.
   `.rq-popover` kommer från `app-shell.css`, så komponenten ritas inom skalet (`/preview/badges` importerar den själv).
-- **Tokens (1.34, båda temafilerna):** `--rq-badge-page-card-min` (300/240 px), `--rq-badge-page-gap` (`--rq-sp-8`/`--rq-sp-12`), `--rq-badge-card-areas` (mobil `"emblem who" "emblem body"`, desktop `"emblem who" "body body"`), `--rq-badge-detail-w` (280 px). CSS: `.rq-badge-page-grid` (rutnätet), `.rq-badge-card--landscape`, `.rq-badge-toggle`, `.rq-badge-detail*` — sist i badges.css.
+- **Tokens (1.34, båda temafilerna):** `--rq-badge-page-card-min` (300/240 px), `--rq-badge-page-gap` (`--rq-sp-8`/`--rq-sp-12`), `--rq-badge-card-areas` (mobil `"emblem who" "emblem body"`, desktop `"emblem who" "body body"`), `--rq-badge-detail-w` (280 px), `--rq-z-popover-over-modal` (67: popovern ritas över Runner card-modalen, `.rq-scrim` 65 / `.rq-modal` 66; läses av skalets `.rq-popover--over-modal` i app-shell.css som komponenten lägger på, så badges-CSS har aldrig z-index; skalets andra popovers behåller 60). CSS: `.rq-badge-page-grid` (rutnätet), `.rq-badge-card--landscape`, `.rq-badge-toggle`, `.rq-badge-detail*` — sist i badges.css.
 - **Vakter:** `noGlobalStats.test.ts` (inga "globally", "has it", `%` eller "in pack" i featurens kod), `badgeCollectionCss.test.ts` (token- och rutnätsregler för de nya blocken). `/preview/badges` visar varje växlarläge, ett levande utkast och emblemknapparna med påhittad data.
 
 ### Badges-sidan `/badges` (RUN-150, spec v2 F9) — ersätter väljaren (RUN-129)

@@ -114,20 +114,14 @@
 .rq-badge-pips .rq-badge-pips__pip { width: var(--rq-badge-pip); height: var(--rq-badge-pip); background: var(--rq-line-4); }
 .rq-badge-pips .rq-badge-pips__pip--on { background: var(--rq-emblem-c); }
 
-/* ── BADGES-panelen på Runner card (RUN-130, spec F4): skrivskyddad lista över intjänade serier ───────────────────
-   Klasserna är komponentens (components/BadgePanel); stilen flyttades hit från features/runner/runner.css i RUN-128 (oförändrad).
-   Held-by: 11 px (--rq-fs-eyebrow) i --rq-text-4 (.50, ≥ 4.5:1) — får radbrytas, aldrig ellipsiseras. */
-.rq-badge-panel__head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
+/* ── BADGES-panelen på Runner card (RUN-152, spec F11): kompakt rutnät av 44 px-emblem (BadgeEmblemDetail) ───────────
+   Klasserna är komponentens (components/BadgePanel). Bara rubrik, räknare och emblemknappar; chip, held-by och "On display" bor i popovern (.rq-badge-detail).
+   Rubrik och räknare delar baslinje och räknaren ligger intill rubriken, inte utskjuten (designen: App Prototype 494–502, Web Prototype 1639–1651). */
+.rq-badge-panel__head { display: flex; align-items: baseline; gap: var(--rq-sp-10); margin-bottom: var(--rq-sp-10); }
 .rq-badge-panel__title { margin: 0; font-weight: 400; }
-.rq-badge-panel__aside { margin-left: auto; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-badge-panel__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
-.rq-badge-panel__row { display: flex; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-8) var(--rq-sp-10); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
-.rq-badge-panel__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--rq-sp-2); }
-.rq-badge-panel__nameline { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--rq-sp-8); }
-.rq-badge-panel .rq-badge-panel__name { color: var(--rq-text-1); overflow-wrap: anywhere; }
-.rq-badge-panel__display { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-gold-text); }
-.rq-badge-panel__held { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); color: var(--rq-text-4); }
-.rq-badge-panel__row .rq-badge-chip { flex-shrink: 0; }
+.rq-badge-panel__aside { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-badge-panel__grid { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--rq-sp-8); }
+.rq-badge-panel__item { display: flex; }
 .rq-badge-panel__empty { margin: 0; padding: var(--rq-sp-10); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-badge-panel__loading { display: flex; justify-content: center; padding: var(--rq-sp-16) 0; }
 
@@ -276,7 +270,8 @@
 .rq-badge-detail__trigger { display: inline-flex; flex-shrink: 0; padding: 0; background: none; border: var(--rq-hair) solid transparent; cursor: pointer; }
 .rq-badge-detail__trigger:hover { border-color: var(--rq-line-hover); }
 
-/* Popovern: .rq-popover (yta, kant, skugga, lager) kommer från skalet; här bredd och innehåll. Ingen animation. Containern tar fokus vid öppning utan egen ring. */
+/* Popovern: .rq-popover (yta, kant, skugga, lager) kommer från skalet; här bredd och innehåll. Lagret över modalen kommer från skalets .rq-popover--over-modal (komponenten sätter klassen; badges-CSS har aldrig z-index).
+   Ingen animation. Containern tar fokus vid öppning utan egen ring. */
 .rq-popover.rq-badge-detail {
   box-sizing: border-box; width: var(--rq-badge-detail-w); max-width: var(--radix-popover-content-available-width);
   display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-8); padding: var(--rq-sp-12) var(--rq-sp-14);

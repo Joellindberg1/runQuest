@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { User } from '@runquest/types';
-import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { buildRunnerBadges } from '@/features/badges/badgeModel';
 import { BadgePanel } from '@/features/badges/components/BadgePanel';
@@ -29,15 +28,15 @@ interface RunnerCardProps {
  * Runner card (ADR 006 beslut 6): hjältekort · Frodo's journey · statflikar · titlar · head-to-head och den
  * ENDA guldknappen, Challenge. Datahämtningen delas av båda varianterna; bara ramen skiljer.
  *
- * Löparens badges (spec F4): minis i hjältekortet och den skrivskyddade BADGES-panelen. Samma panel överallt, men plats efter bredd:
- * mobil direkt under hjältekortet, desktop i 340 px-sidokolumnen ovanför TITLES (Council 16). Badges är tillägg: medan de laddas visar panelen
+ * Löparens badges (spec F11): minis i hjältekortet och den kompakta, skrivskyddade BADGES-panelen (44 px-emblem med detaljpopover). Panelen har EN plats i
+ * DOM-ordningen för alla bredder — `.rq-runner__lower` under statflikar | titlar, bredvid Head to head på desktop och efter TITLES (före Head to head) på mobil;
+ * staplingen avgörs av `--rq-runner-split-cols`, inte av JS. Badges är tillägg: medan de laddas visar panelen
  * laddaren, och felar de ritas inga minis och panelen visar ett felkort med Retry (tomläget gäller bara ett lyckat, tomt svar; 404 kan inte nås
  * eftersom kortet bara öppnas för gruppmedlemmar) — resten av kortet och Challenge berörs inte.
  */
 export function RunnerCard({ user, allUsers, variant, onBack }: RunnerCardProps) {
   const { user: me } = useAuth();
   const now = useNow();
-  const wide = useIsDesktop() === true;
   const titlesQuery = useRunnerTitles(user.id);
   const headToHead = useHeadToHead(user.id);
   const userBadges = useUserBadges(user.id);
@@ -74,24 +73,25 @@ export function RunnerCard({ user, allUsers, variant, onBack }: RunnerCardProps)
 
       <div className="rq-runner__body">
         <HeroCard hero={hero} cells={cells} showcase={badges.showcase} />
-        {!wide && badgePanel}
         <JourneyCard totalKm={user.total_km} />
         <div className="rq-runner__split">
           <StatsPanel user={user} now={now} />
           <div className="rq-runner__side">
-            {wide && badgePanel}
             <TitlesPanel user={user} />
-            {me && (
-              <HeadToHeadPanel
-                opponentName={user.name}
-                meId={me.id}
-                data={headToHead.data}
-                isError={headToHead.isError}
-                isFetching={headToHead.isFetching}
-                onRetry={() => void headToHead.refetch()}
-              />
-            )}
           </div>
+        </div>
+        <div className="rq-runner__lower">
+          {badgePanel}
+          {me && (
+            <HeadToHeadPanel
+              opponentName={user.name}
+              meId={me.id}
+              data={headToHead.data}
+              isError={headToHead.isError}
+              isFetching={headToHead.isFetching}
+              onRetry={() => void headToHead.refetch()}
+            />
+          )}
         </div>
       </div>
     </div>

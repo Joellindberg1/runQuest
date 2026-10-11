@@ -45,7 +45,7 @@ export function BadgeEmblemDetail({ row }: BadgeEmblemDetailProps) {
           sideOffset={SIDE_OFFSET}
           collisionPadding={COLLISION_PADDING}
           aria-label={row.name}
-          className="rq-popover rq-badge-detail"
+          className="rq-popover rq-popover--over-modal rq-badge-detail"
         >
           {onDisplay && <p className="rq-badge-detail__display">On display</p>}
           <div className="rq-badge-detail__head">
