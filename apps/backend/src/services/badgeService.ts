@@ -82,7 +82,7 @@ function toBadgeRun(row: any): BadgeRun {
 }
 
 /** Alla rundor sidvis (stabil ordning date, id så att inga rader hoppas över eller dubbleras mellan sidor). */
-async function readRuns(userId: string): Promise<BadgeRun[]> {
+export async function readRuns(userId: string): Promise<BadgeRun[]> {
   const supabase = getSupabaseClient();
   const runs: BadgeRun[] = [];
   for (let pageIndex = 0; pageIndex < MAX_RUNS_PAGES; pageIndex++) {
@@ -113,7 +113,7 @@ async function readLongestStreak(userId: string): Promise<number> {
   return Number.isFinite(streak) ? streak : 0;
 }
 
-async function readExistingBadges(userId: string): Promise<ExistingBadgeRow[]> {
+export async function readExistingBadges(userId: string): Promise<ExistingBadgeRow[]> {
   const { data, error } = await getSupabaseClient()
     .from(USER_BADGES_TABLE)
     .select('series, tier, seen_tier, earned_at, source_run_id')
@@ -250,6 +250,21 @@ async function reconcileShowcase(userId: string, present: ReadonlySet<string>): 
 }
 
 /**
+ * Skriver en färdig diff och städar showcasen mot det som finns efteråt. Den delade skrivvägen: evaluateBadges
+ * och backfill:badges (RUN-124) går båda hit, så backfillen skriver exakt som den löpande utvärderingen.
+ * Kastar inte på skrivfel (de syns i `complete` och i loggen).
+ */
+export async function applyBadgeDiff(
+  userId: string,
+  existing: readonly ExistingBadgeRow[],
+  diff: BadgeDiff
+): Promise<EvaluateBadgesResult> {
+  const result = await writeDiff(userId, diff);
+  const showcaseOk = await reconcileShowcase(userId, seriesAfterWrite(existing, result.written));
+  return { written: result.written, complete: result.complete && showcaseOk };
+}
+
+/**
  * Räknar om användarens badges ur alla rundor och synkar user_badges + users.displayed_badge_series.
  * KASTAR ALDRIG.
  *
@@ -273,9 +288,7 @@ export async function evaluateBadges(
     const computed = computeBadgeTiers(runs, { longest_streak: longestStreak });
     const diff = diffBadgeTiers(existing, computed, { now: opts.now, markSeen: opts.markSeen });
 
-    const result = await writeDiff(userId, diff);
-    const showcaseOk = await reconcileShowcase(userId, seriesAfterWrite(existing, result.written));
-    return { written: result.written, complete: result.complete && showcaseOk };
+    return await applyBadgeDiff(userId, existing, diff);
   } catch (e) {
     logger.error('❌ [Badges] evaluateBadges failed:', e);
     return null;
