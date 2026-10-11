@@ -11,6 +11,11 @@
       "icon": "crown"
     },
     {
+      "title": "Badges",
+      "body": "Eight series with six tiers each, collected across seasons. Pick up to three to show on the Board and your Runner card",
+      "icon": "shield"
+    },
+    {
       "title": "Duels",
       "body": "1v1 challenges with tokens earned at level-up. Send one in a few taps, the winner gets a boost",
       "icon": "swords"
@@ -58,16 +63,6 @@
   ],
   "workingOn": [
     {
-      "title": "Badges",
-      "body": "Visual achievements for milestones and rough conditions",
-      "icon": "trophy",
-      "details": [
-        "Weather-based badges",
-        "Streak and distance milestones",
-        "Special event badges"
-      ]
-    },
-    {
       "title": "Notifications",
       "body": "Get told about challenges, titles and group activity as they happen",
       "icon": "bell",
@@ -79,6 +74,39 @@
     }
   ],
   "releases": [
+    {
+      "version": "0.6.0",
+      "type": "minor",
+      "date": "11 October 2026",
+      "title": "Badges and weather titles",
+      "announce": true,
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Badges are here: eight series, six tiers from Common to Legendary, collected across seasons. Your collection is on Profile, with what it takes to reach the next tier."
+        },
+        {
+          "type": "feature",
+          "description": "Pick up to three badges to show on the Board and your Runner card. A popup tells you when you reach a new tier, and Pack News tells the group."
+        },
+        {
+          "type": "feature",
+          "description": "Three new titles in a new Weather category: Stormborn (most runs in gusts of 12 m/s or more, about 43 km/h), Iceborn (most runs at 5 °C or colder) and Winter Warrior (most km in December to February)."
+        },
+        {
+          "type": "improvement",
+          "description": "Times of day count in your own local time. Early Bird, Night Owl and the other time-of-day titles and badges go by the clock where you ran, and 'x h ago' on the Board is no longer an hour or two off for runs in Sweden."
+        },
+        {
+          "type": "improvement",
+          "description": "Runs imported from Strava are read-only in RunQuest. Distance and date come from Strava, so they can't be edited or deleted here."
+        },
+        {
+          "type": "improvement",
+          "description": "Playbook now explains seasonal titles: how the winter is counted, and when a new winter starts."
+        }
+      ]
+    },
     {
       "version": "0.5.3",
       "type": "patch",

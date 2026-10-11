@@ -99,6 +99,32 @@ describe('den riktiga changelog.json', () => {
   });
 });
 
+describe('changelog: v0.6.0', () => {
+  const v060 = changelog.releases.find((entry) => entry.version === '0.6.0');
+
+  it('changelog: v0.6.0 listar badges som levererat', () => {
+    expect(v060).toBeDefined();
+    expect(v060?.type).toBe('minor');
+    expect(v060?.announce).toBe(true);
+    expect(v060?.changes.some((change) => change.type === 'feature' && /badges/i.test(change.description))).toBe(true);
+    // Levererat = ett kort under Features, inte längre under Working on (Notifications ligger kvar där).
+    expect(changelog.features.map((feature) => feature.title)).toContain('Badges');
+    expect(changelog.workingOn.map((item) => item.title)).not.toContain('Badges');
+    expect(changelog.workingOn.map((item) => item.title)).toContain('Notifications');
+  });
+
+  it('nämner de tre nya titlarna med de trösklar motorerna använder (12 m/s, 5 °C, dec–feb)', () => {
+    const text = v060?.changes.map((change) => change.description).join(' ') ?? '';
+    expect(text).toMatch(/Stormborn[^.]*12 m\/s/);
+    expect(text).toMatch(/Iceborn[^.]*5 °C/);
+    expect(text).toMatch(/Winter Warrior[^.]*December to February/);
+  });
+
+  it('innehåller inga interna ticketnummer (RUN-123) i texterna gruppen ser', () => {
+    expect(JSON.stringify(changelog)).not.toMatch(/\bRUN-\d+/);
+  });
+});
+
 describe('flikarna', () => {
   it('Features är standard, i prototypens ordning', () => {
     expect([...CHANGELOG_VIEWS]).toEqual(['features', 'working', 'releases']);

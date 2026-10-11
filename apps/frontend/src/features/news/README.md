@@ -49,7 +49,7 @@ till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = W
   som visas. Optimistiskt: räknaren och raderna är lästa direkt i alla flöden; serverns svar (kan vara > 0 om nya rader hann komma) skriver över, ett fel återställer, och flödena invalideras (catch-up).
 - **Live regions:** bekräftelsen ("N marked as read") står i en permanent `role="status"` som får fokus (knappen försvinner när inget är oläst), fel i `role="alert"` — inga toasts.
   Tomma behållare är kvar i tillgänglighetsträdet (ingen display:none).
-- **Filtret** mappas i klienten (`NEWS_FILTERS`; Levels = level_up + run_milestone) till serverns `type=`; `?type=` bär chip-nycklar (`titles,levels`). Flera kan vara valda, alla fem = inget.
+- **Filtret** mappas i klienten (`NEWS_FILTERS`; Levels = level_up + run_milestone + badge_earned) till serverns `type=`; `?type=` bär chip-nycklar (`titles,levels`). Flera kan vara valda, alla fem = inget.
   Varje filter har egen cache; räknarna är antal i det laddade ofiltrerade fönstret.
 - **Dag-grupper** i Stockholm-tid: Today · Yesterday · Earlier this week · en grupp per äldre dag. Ordningen är `occurred_at` (backfill kan ha högt id men gammal dag).
 - **Tour:** `tour_news_v1` (ny skärm — ingen gammal slug fanns). Ankare `news-feed`, `news-filter`, `news-mark-read`; klockan (`header-news`) har ingen egen tourstep. Turen monteras bara när flödet har rader (tomt flöde = flytande rutor över en tom skärm, och slugen markeras sedd för alltid), och `news-mark-read`-steget bara när något är oläst.

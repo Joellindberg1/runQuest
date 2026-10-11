@@ -1,9 +1,9 @@
-# Badges Feature — grunden (RUN-126, v0.6.0)
+# Badges Feature (v0.6.0)
 
-Badges (ADR 009): härledda, återkallbara serier med sex nivåer (Common..Legendary). Grunden är logiken (RUN-126) — API-klient, hooks och ren
-modell. Vyerna (tokens/emblem RUN-127, Profile-samling och väljare RUN-128, Runner card RUN-130, Board-rader RUN-131, popup RUN-129, News-rad RUN-132)
-byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts ihop,
-§12 där Council-villkoren går före bilderna).
+Badges (ADR 009): härledda, återkallbara serier med sex nivåer (Common..Legendary). Allt är byggt i v0.6.0: grunden (RUN-126: API-klient, hooks och ren modell) och vyerna ovanpå —
+emblem/tokens (RUN-127), Profile-samling och News-emblem (RUN-128), väljaren för visade badges (RUN-129), Runner card (RUN-130), Board-raderna (RUN-131) och uppgraderingspopupen (RUN-132).
+Komponenterna ligger under `components/`; `BadgeMinis` (ritar de visade badgesen) används av Profile, Runner card och Board (layouten för Board bor i `features/leaderboard/board.css`, se dess README).
+Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts ihop, §12 där Council-villkoren går före bilderna).
 
 ## Struktur
 

@@ -5,12 +5,12 @@ https://claude.ai/design/p/23754cb4-e3ec-4cd3-8cd8-4be2f0167208
 
 Exporter:
 - **2026-10-04** — första exporten (prototyper, komponentbibliotek, laddare, ikoner).
-- **2026-10-11** — badge-systemet (RUN-2): ny `RunQuest Badge System.dc.html` + `runquest-badges.js`, uppdaterad `RunQuest Components.dc.html` (sektion 05 BADGES omskriven) och `runquest-icons.js` (ikonuppsättningen). Badge-komponenterna är nu klara att implementera efter Design Council (se `docs/design/badges/spec.md`; F3 och F4 saknar desktopbild).
+- **2026-10-11** — badge-systemet (RUN-2): ny `RunQuest Badge System.dc.html` + `runquest-badges.js`, uppdaterad `RunQuest Components.dc.html` (sektion 05 BADGES omskriven) och `runquest-icons.js` (ikonuppsättningen). Badge-designen är byggd i v0.6.0 (F1–F8, se `docs/design/badges/spec.md`; F3 och F4 saknar desktopbild, de byggdes mot spec-texten och F2). Utanför det byggda ligger två uppföljningar: "Preview on leaderboard" i väljaren och Board-fallbacken "Legendary-minis utan glöd" (spec §12).
 
 **Designprojektet är sanningen** — dessa filer är implementationsreferens
 (beslut 38). Vid avvikelse: öppna länken. Ägaren arbetar aktivt i projektet;
-badge-delen är färdig i exporten 2026-10-11 men får inte byggas före Council och
-RUN-127 (tokens).
+badge-delen (export 2026-10-11) är byggd i v0.6.0 efter Design Council och RUN-127 (tokens);
+ändringar i badge-designen går via designprojektet och spec.md.
 
 | Fil | Innehåll | Export |
 |---|---|---|
