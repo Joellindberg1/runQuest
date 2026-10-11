@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { paths } from '@/paths';
@@ -8,7 +8,6 @@ import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { buildCollection, buildRunnerBadges } from '@/features/badges/badgeModel';
 import { BadgeCollection } from '@/features/badges/components/BadgeCollection';
-import { ShowcasePicker } from '@/features/badges/components/ShowcasePicker';
 import { useGroupBadges, useUserBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
@@ -52,14 +51,6 @@ export function ProfileScreen() {
   // Felkort med Retry bara när det inte finns något att visa: en misslyckad bakgrundsomhämtning låter den gamla samlingen stå kvar.
   const badgeError = userBadges.isError && !userBadges.data ? { retrying: userBadges.isFetching, onRetry: () => void userBadges.refetch() } : undefined;
 
-  // Väljaren för visade badges (RUN-129): öppnas från Edit i ON DISPLAY-remsan, ritas på ETT ställe åt gången (se layouten) och fokus går tillbaka till Edit.
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const editRef = useRef<HTMLButtonElement>(null);
-  const closePicker = () => {
-    setPickerOpen(false);
-    editRef.current?.focus();
-  };
-
   const hero = useMemo(() => (me ? buildHero(me, usersQuery.data ?? []) : null), [me, usersQuery.data]);
   const heldTitles = titlesQuery.data ? titlesQuery.data.filter((title) => title.is_current_holder).length : null;
   const cells = useMemo(() => (me ? buildStatCells(me, heldTitles) : []), [me, heldTitles]);
@@ -80,30 +71,17 @@ export function ProfileScreen() {
     return <EmptyState title="User not found" text="We could not load your runner data." actionLabel="Back to the board" actionTo={paths.board} />;
   }
 
-  // Samma panel på mobil och desktop: desktop i den 340 px breda sidokolumnen ovanför TITLES (Council 16), mobil direkt ovanför BADGES-kortet (där Edit-knappen sitter, så panelen öppnas där man tittar — under kortet låg den bakom åtta samlingskort).
-  const picker = pickerOpen ? <ShowcasePicker rows={badges.rows} userId={user?.id} onClose={closePicker} /> : null;
-
   return (
     <div className="rq-profile rq-rise">
       <FeatureTour slug="tour_profile_v2" steps={TOUR_PROFILE_V2} />
       <div className="rq-profile__split">
         <div className="rq-profile__main">
           <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} showcase={badges.showcase} />
-          {!isDesktop && picker}
-          <BadgeCollection
-            rows={badges.rows}
-            loading={userBadges.isLoading}
-            error={badgeError}
-            isDesktop={isDesktop}
-            onEdit={() => (pickerOpen ? closePicker() : setPickerOpen(true))}
-            editing={pickerOpen}
-            editButtonRef={editRef}
-          />
+          <BadgeCollection rows={badges.rows} loading={userBadges.isLoading} error={badgeError} isDesktop={isDesktop} />
           <JourneyCard totalKm={me.total_km} isDesktop={isDesktop} />
           <StatsPanel user={me} now={now} isDesktop={isDesktop} />
         </div>
         <div className="rq-profile__side">
-          {isDesktop && picker}
           <TitlesPanel user={me} titles={titlesQuery} board={boardQuery} isDesktop={isDesktop} />
           <RunHistory runs={me.runs ?? []} today={todayOf(now)} />
         </div>

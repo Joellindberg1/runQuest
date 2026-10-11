@@ -1,7 +1,7 @@
 # Badges Feature (v0.6.0)
 
 Badges (ADR 009): härledda, återkallbara serier med sex nivåer (Common..Legendary). Allt är byggt i v0.6.0: grunden (RUN-126: API-klient, hooks och ren modell) och vyerna ovanpå —
-emblem/tokens (RUN-127), Profile-samling och News-emblem (RUN-128), väljaren för visade badges (RUN-129), Runner card (RUN-130), Board-raderna (RUN-131) och uppgraderingspopupen (RUN-132).
+emblem/tokens (RUN-127), Profile-samling och News-emblem (RUN-128), väljaren för visade badges (RUN-129; ersatt av badges-sidan i RUN-150), Runner card (RUN-130), Board-raderna (RUN-131) och uppgraderingspopupen (RUN-132).
 Komponenterna ligger under `components/`; `BadgeMinis` (ritar de visade badgesen) används av Profile, Runner card och Board (layouten för Board bor i `features/leaderboard/board.css`, se dess README).
 Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts ihop, §12 där Council-villkoren går före bilderna).
 
@@ -78,7 +78,7 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
 
 - **components/BadgeCollection.tsx** — `BadgeCollection({ rows, loading?, error?, isDesktop })`: BADGES-kortet. Rubrik (Bebas guld, `shield` i `--rq-icon-md`) + "N of 8 series", ON DISPLAY-remsan (`BadgeMinis` i användarens ordning; desktop dessutom
   namnen, `aria-hidden` eftersom minisens etikett redan säger nivå + serie) och rutnätet (`<ul aria-label="Badge series">`, ett `BadgeSeriesCard` per rad i `buildCollection`-ordning). Remsan ritas inte utan valda badges (ingen tom remsa).
-  "Edit"/"Edit display" i remsan (`onEdit`, RUN-129) öppnar väljaren; utan `onEdit` ritas ingen knapp. Datahämtningen bor i `ProfileScreen` (`useUserBadges(me.id)` + `useGroupBadges()`), så ett badgefel aldrig kan fälla resten av sidan.
+  Ingen Edit-ingång (RUN-150: valet görs på /badges). Datahämtningen bor i `ProfileScreen` (`useUserBadges(me.id)` + `useGroupBadges()`), så ett badgefel aldrig kan fälla resten av sidan.
 - **components/BadgeSeriesCard.tsx** — ett kort. Intjänat: md-emblem (dekorativt), serienamn (versaler), `BadgeChip`, pips ("Tier N of 6"), `requirement` UTAN nivåprefix (`--rq-text-2`), `flavor` på egen rad (citerad kursiv, `--rq-text-1`,
   Barlow Condensed, `--rq-fs-body` = första typsteget ≥ 14 px), "Next: …" (`--rq-text-3`) eller på maxad serie guld "TOP TIER REACHED", held-by (11 px mono, `--rq-text-4`). Låst: streckad kant, Locked-chip, dekorativa tomma pips, måttetiketten,
   "Unlock: Common — …"; aldrig flavor, Next eller held-by (Council 1) — och kravtexten står en gång. Alla texter kommer färdiga ur modellen; kortet skriver aldrig en platshållare.
@@ -91,30 +91,6 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
   (en `role="img"`-grupp "Locked badges: …"); fel → `ErrorState` ("Couldn't load your badges" / "Your runs are safe." / Retry) i stället för kortet, bara när det inte finns äldre data att visa. Gruppens fel utelämnar bara held-by.
 - **Hjältekortet:** `ProfileHero` får `showcase` (ur `buildRunnerBadges(...).showcase`) och ritar `BadgeMinis` efter `<h1>` i `.rq-badge-nameline` (min-height `--rq-badge-h-sm`, så kortet inte hoppar när queryn landar). Inga minis utan valda badges, ingen platshållare.
 - **Vakter:** `seriesIcons.test.ts` (varje `BADGE_SERIES[].icon` finns i `RQ_ICON_NAMES`), `badgeCollectionCss.test.ts` (skelettets rörelse i no-preference-blocket, rutnätstokens, panel-CSS flyttad).
-
-### Väljaren för visade badges (RUN-129, spec F3, Council 16–18)
-
-- **components/ShowcasePicker.tsx** — `ShowcasePicker({ rows, userId, onClose })`: ON DISPLAY-platspanelen (`ShowcaseSlots`), "SAVE DISPLAY" + sparlägen och en rad per serie (BADGE_SERIES-ordning) med sm-emblem, serienamn,
-  `BadgeChip` och växlare. EN panel, samma på mobil och desktop. "Preview on leaderboard" byggs inte (uppföljning, spec §12). Ingen egen query: `useSaveShowcase(userId)` sparar och uppdaterar.
-- **Rader:** växlaren är `<button aria-pressed>` med texten "Show" / "On display — N" och serienamnet som osynlig text före ("Climber: Show"), så knappens namn är unikt och innehåller den synliga texten. Låst serie = streckad rad
-  "Locked — cannot be selected" och en `aria-hidden`-"Locked"-ruta som inte är en knapp. Vid 3/3: de övriga växlarna får `aria-disabled="true"` (kvar i tabbordningen) + `aria-describedby` mot den SYNLIGA texten
-  "3 of 3 on display — remove one first."; det är växlaren som dimmas, aldrig raden eller texten (Council 17; ingen `opacity` finns i badges.css).
-- **Platspanelen:** alltid tre platser (fyllda i valordning, resten streckade "Empty slot"), markör `--rq-titles-pos` (19 px), ✕ = `aria-label="Remove {Serie} from display"`. Nivån står som text. Ändringar läses upp i en
-  `aria-live="polite"`-region ("{Serie} added to display, position N." / "… removed from display.").
-- **Utkast och spara:** utkastet ligger lokalt (`picked`) och städas mot det jag äger (`cleanShowcase`) vid varje rendering, så en serie som försvunnit under tiden varken syns eller skickas. Växling går via `toggleShowcase`
-  (max `MAX_SHOWCASE`, inga dubbletter). SAVE DISPLAY är avstängd när utkastet är lika med sparat (`sameShowcase`) och medan sparandet pågår ("SAVING…", valet kan då inte ändras). Sparat → `role="status"`
-  "Saved — your Board card is updated." (grön kant, `--rq-up`); fel → `role="alert"` "Could not save. Your pick is still here — try again." + RETRY (röd kant, `--rq-down`) och utkastet ligger kvar (hooken återställer
-  samlingen, inte utkastet). Bekräftelsen försvinner när valet ändras. Remsan, hjältekortet och Board-minisen följer med via hookens optimistiska skrivning + invalidering.
-- **EN guldknapp:** SAVE DISPLAY (`.rq-btn--secondary`, som på Titles). Edit/Close/RETRY är textlänkar, inte guldknappar.
-- **Fokus:** panelen (`tabIndex -1`, `aria-labelledby` = rubriken) tar fokus när den öppnas (`preventScroll`, därefter `scrollIntoView({ block: 'nearest' })` med `scroll-margin-top: --rq-badge-pick-clear` så den inte hamnar bakom
-  skalets klibbiga topprad). Close, Esc och Edit stänger; skärmen återför fokus till Edit-knappen (`editButtonRef`). **Utkastet kastas** vid Close, Esc, Edit-växling och byte av brytpunkt (panelen avmonteras/byggs om); bara ett lyckat SAVE DISPLAY behåller valet.
-  **Fokus vid spara:** SAVE DISPLAY är `aria-disabled` (inte `disabled`) när inget ändrats och medan sparandet pågår, så fokus aldrig faller till body; klicket spärras i hanteraren. RETRY flyttar fokus till SAVE DISPLAY innan felraden
-  försvinner.
-- **Remsan (`BadgeCollection`):** med `onEdit` ritas remsan alltid när något är intjänat; inget valt → en kort uppmaning ("Pick up to 3 badges to show on the Board.") + Edit, aldrig platshållare för minis. Inget intjänat → inget
-  Edit (det finns inget att välja; det tomma läget gäller). Edit är `aria-expanded` + `aria-controls` mot panelen.
-- **Tokens (1.34, båda temafilerna):** `--rq-badge-pick-hit` (tryckyta för växlare, ✕, Edit, Close och RETRY: mobil 44 px, desktop 24) och `--rq-badge-pick-clear` (88 px mobil, 72 desktop). CSS-block: `.rq-badge-pick*`, `.rq-badge-slot*`,
-  `.rq-badge-textlink` i badges.css, efter ON DISPLAY-remsan.
-- **Var väljaren ritas** bestäms av `ProfileScreen` (se `features/profile/README.md`): desktop överst i den 340 px breda sidokolumnen (uppmätt exakt 340 px), mobil direkt ovanför BADGES-kortet.
 
 ### Rörelse (ägarbeslut E1+E2, Rörelse-undantaget i STATE.md)
 
@@ -160,11 +136,11 @@ Designfacit: `docs/design/badges/spec.md` (§4 vyerna, §6 hur texterna sätts i
 
 ### Badge-design v2: byggstenarna (RUN-149, spec "v2" F9, F10, F11)
 
-Bara byggstenarna — sidan (`BadgesScreen`, RUN-150), profilens sammanfattning (RUN-151) och Runner card-panelen (RUN-152) bygger på dem. `ShowcasePicker` och `BadgeCollection` ligger kvar tills RUN-150/151 tar bort dem.
+Bara byggstenarna — sidan (`BadgesScreen`, RUN-150, byggd), profilens sammanfattning (RUN-151) och Runner card-panelen (RUN-152) bygger på dem. `BadgeCollection` ligger kvar tills RUN-151 tar bort den (`ShowcasePicker` är borta sedan RUN-150).
 
 - **`buildBadgeSummary(rows)`** (badgeModel.ts) — ren funktion över `buildCollection`-raderna: `{ earned, locked, earnedCount, lockedCount, total }`. `earned` på nivå (högst först, lika nivå i BADGE_SERIES-ordning, ingen visad-först),
   `locked` i serieordning. Serieordningen läses ur BADGE_SERIES, inte ur radernas ordning in. Raderna är samma objekt (inga kopior).
-- **`useShowcaseDraft(rows, userId)`** (hooks/useShowcaseDraft.ts) — utkastet för visade badges, logiken ur `ShowcasePicker` utan UI. Returnerar `{ draft, saved, dirty, full, status, saving, announcement, positionOf, toggle, save }`.
+- **`useShowcaseDraft(rows, userId)`** (hooks/useShowcaseDraft.ts) — utkastet för visade badges, logiken ur den gamla väljaren (RUN-129, borttagen) utan UI. Returnerar `{ draft, saved, dirty, full, status, saving, announcement, positionOf, toggle, save }`.
   Tillstånd i en ren reducer (`picked: string[] | null`, null = följ det sparade): flera växlingar i samma tick komponeras i ordning (inga förlorade klick, inga dubbletter, max `MAX_SHOWCASE`), och en växling i samma tick som `save()` ignoreras.
   `draft` städas mot det jag äger vid varje rendering; en omhämtning mitt i ett utkast rör inget utkast men räknar om `dirty`. `save()` avvisas aldrig: lyckat → `picked = null` + `status 'saved'`, fel → `status 'error'` och utkastet kvar (RETRY = `save()` igen).
   `saving` = en spara pågår (ref-spärr mot dubbelklick). Statusen går tillbaka till `idle` vid nästa ändring. Hooken anropar `useSaveShowcase` — aldrig `badgesApi` direkt (vakttestet).
@@ -175,6 +151,25 @@ Bara byggstenarna — sidan (`BadgesScreen`, RUN-150), profilens sammanfattning 
   `.rq-popover` kommer från `app-shell.css`, så komponenten ritas inom skalet (`/preview/badges` importerar den själv).
 - **Tokens (1.34, båda temafilerna):** `--rq-badge-page-card-min` (300/240 px), `--rq-badge-page-gap` (`--rq-sp-8`/`--rq-sp-12`), `--rq-badge-card-areas` (mobil `"emblem who" "emblem body"`, desktop `"emblem who" "body body"`), `--rq-badge-detail-w` (280 px). CSS: `.rq-badge-page-grid` (rutnätet), `.rq-badge-card--landscape`, `.rq-badge-toggle`, `.rq-badge-detail*` — sist i badges.css.
 - **Vakter:** `noGlobalStats.test.ts` (inga "globally", "has it", `%` eller "in pack" i featurens kod), `badgeCollectionCss.test.ts` (token- och rutnätsregler för de nya blocken). `/preview/badges` visar varje växlarläge, ett levande utkast och emblemknapparna med påhittad data.
+
+### Badges-sidan `/badges` (RUN-150, spec v2 F9) — ersätter väljaren (RUN-129)
+
+Den separata väljaren är borttagen (`ShowcasePicker`, `ShowcaseSlots`, `showcasePickerId`, CSS `.rq-badge-pick*`/`.rq-badge-slot*`/`.rq-badge-textlink`, token `--rq-badge-pick-clear`). Valet görs bara här (O3), med Show / On display-knappar direkt på korten. Profilen har ingen ingång till valet kvar (ingen Edit-knapp, ingen uppmaning) tills RUN-151 lägger "All badges →".
+
+- **`pages/BadgesPage.tsx`** — tunn: `<BadgesScreen />`.
+- **`components/BadgesScreen.tsx`** — datahämtning (`useUserBadges(user.id)` + `useGroupBadges(!!user)` → `buildCollection`), `useShowcaseDraft(rows, user.id)`, sidhuvud, remsa och rutnät. Sidhuvudet: `h1.rq-display.rq-badges__title`; mobil: tillbaka-länk `‹` (`aria-label="Back to profile"`, tryckyta `--rq-badge-pick-hit`) och "N of 8 series unlocked" under rubriken;
+  desktop: ingressen ("Eight series, six tiers. …", talen som ord räknade ur `BADGE_SERIES.length` och `MAX_TIER`) och räknaren i mono till höger. **Brytpunkten läses före allt som beror på den:** `isDesktop === false` ritar länken, `=== true` ingressen; `undefined` (matchMedia inte läst) ritar varken eller (test fäller mutationen `!isDesktop`).
+  Räknaren utelämnas under laddning och fel.
+- **`components/BadgeDisplayStrip.tsx`** — ON DISPLAY-remsan (`role="group" aria-label="On display"`): etikett, `BadgeMinis` med UTKASTET (inte serverns val), hjälptext (desktop) eller uppmaning (mobil, tomt utkast), **SAVE DISPLAY** (`.rq-btn--secondary`, sidans enda guldknapp) och tre permanenta statusbehållare:
+  `aria-live="polite"` (den synliga meningen "3 of 3 on display — remove one first." med id = `limitId`, plus en `sr-only`-rad med senaste ändringen), `role="status"` (sparat, grön kant) och `role="alert"` (fel, röd kant + RETRY).
+  SAVE DISPLAY är `aria-disabled` (aldrig `disabled`) när inget är osparat (`SAVED`) och medan sparandet pågår (`SAVING…`); klicket spärras i hanteraren. RETRY fokuserar SAVE DISPLAY innan sparandet startar (felraden försvinner då), och sparar om.
+- **Rutnätet:** `<ul aria-label="Badge series" className="rq-badge-page-grid">` med åtta `BadgeSeriesCard layout="landscape"` i `BADGE_SERIES`-ordning (låsta också). `toggle` = `{ position: positionOf(serie), full, saving, limitId, onToggle }` ur samma utkast som remsan.
+  Kolumnerna är `auto-fill` ur `--rq-badge-page-card-min` (300 px mobil / 240 px desktop): uppmätt 1 kolumn på 402, 4 på 1440 med sidonav, 3 på 1280 och 2 på 1024 (antagande Q4, godtaget).
+- **Tillstånd (F9.8):** laddar → tre skelettkort (`.rq-badge-skel` i `.rq-badge-page-grid`, `role="status"` + "Loading badges"), ingen remsa, ingen räknare; fel (`isError && !data`) → `ErrorState` ("Couldn't load your badges" / Retry = `refetch`) i stället för remsa + rutnät;
+  inga intjänade → streckad ruta ("No badges yet" / "Log a run to start collecting.", utan minis) i stället för remsan, därunder åtta låsta kort, ingen SAVE DISPLAY; gruppen felar → held-by utelämnas, allt annat oförändrat.
+  Spec F9.3 nämner även "Earn your first badge to put it on display." för tomläget, men F9.8 och manifestet ersätter remsan med rutan: meningen ritas inte (rutan säger redan att inget är intjänat).
+- **CSS** — eget block sist i `badges.css` ("Badges-sidan"): `.rq-badges*` (sidhuvud, rytm `--rq-gap-stack`), `.rq-badge-strip*` (remsan), `.rq-badge-note` (sparat/fel, 3 px tillståndskant `--rq-up`/`--rq-down`), `.rq-badge-retry`. Ingen opacity; sammansatta selektorer där `.rq-btn`/`.rq-back` överstyrs.
+  `--rq-badge-pick-hit` (namnet historiskt) behålls: växlare, SAVE DISPLAY, RETRY och tillbaka-länken läser den. `--rq-badge-grid-cols` och `.rq-badge-grid` används fortfarande av BadgeCollection tills RUN-151.
 
 ### Förhandsvisning
 
