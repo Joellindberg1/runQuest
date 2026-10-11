@@ -571,7 +571,7 @@ describe('Profile — Strava-rundor och spärrad radering', () => {
     return screen.findByRole('dialog', { name: 'Edit run' });
   };
 
-  it('en Strava-runda: Delete är avstängd med förklaringen (title + skärmläsartext) och Edit/Save fungerar som vanligt', async () => {
+  it('en Strava-runda: Delete är avstängd med förklaringen (title + skärmläsartext) och distans/datum är skrivskyddade utan Save (RUN-139)', async () => {
     setup({ runs: RUNS.map((r) => (r.id === 'r2' ? { ...r, source: 'strava' } : r)) });
     const sheet = await openEdit('2026-10-02');
     const del = within(sheet).getByRole('button', { name: /Delete run/ });
@@ -583,9 +583,12 @@ describe('Profile — Strava-rundor och spärrad radering', () => {
     expect(screen.getByRole('dialog', { name: 'Edit run' })).toBeInTheDocument();
     expect(deleteRun).not.toHaveBeenCalled();
 
-    fireEvent.change(distanceField(), { target: { value: '9' } });
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(updateRun).toHaveBeenCalledTimes(1));
+    // Strava är sanningskällan: ingen input för distans/datum, ingen Save, och inget PUT kan skickas.
+    expect(within(sheet).queryByLabelText('Distance (km)')).toBeNull();
+    expect(within(sheet).queryByLabelText('Date')).toBeNull();
+    expect(within(sheet).queryByRole('button', { name: 'Save changes' })).toBeNull();
+    expect(within(sheet).getByText('Synced from Strava — edit it in Strava.')).toBeInTheDocument();
+    expect(updateRun).not.toHaveBeenCalled();
   });
 
   it('en manuell runda (source manual, null eller saknad): Delete är på och utan förklaring', async () => {
