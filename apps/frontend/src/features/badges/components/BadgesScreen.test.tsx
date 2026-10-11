@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { BADGE_SERIES, MAX_SHOWCASE, MAX_TIER, TIER_NAMES, requirementText } from '@runquest/shared';
 import type { BadgeUserItem, BadgeUserResponse } from '@runquest/shared';
 import { renderWithApp } from '@/test/renderApp';
+import { useAuth } from '@/providers/authContext';
+import { useGroupBadges, useUserBadges } from '../hooks/useBadgeQueries';
 import type { GroupBadges } from '../api';
 import { BadgesScreen } from './BadgesScreen';
 
@@ -83,16 +85,33 @@ describe('BadgesScreen — sidhuvud (F9.2)', () => {
     expect(screen.getByText(`${OWNED.length} of ${BADGE_SERIES.length} series unlocked`)).toHaveClass('rq-badges__count--aside');
   });
 
-  it('"Eight"/"six" i ingressen motsvarar BADGE_SERIES.length och MAX_TIER (så copyn inte driftar)', () => {
-    expect(BADGE_SERIES.length).toBe(8);
-    expect(MAX_TIER).toBe(6);
-  });
-
-  it('en sida med ett enda h1 och ett h3 per serie', async () => {
+  it('"Eight"/"six" i den RENDERADE ingressen motsvarar BADGE_SERIES.length och MAX_TIER (så copyn inte driftar)', async () => {
+    // Oberoende ordlista: ett antal utan ord här fäller testet och kräver ett medvetet copy-beslut.
+    const WORDS: Record<number, string> = { 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten' };
     renderScreen(DESKTOP);
     await grid();
+    const capitalised = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+    const lead = document.querySelector('.rq-badges__lead') as HTMLElement;
+    expect(lead.textContent).toMatch(new RegExp(`^${capitalised(WORDS[BADGE_SERIES.length])} series, ${WORDS[MAX_TIER]} tiers\\. `));
+  });
+
+  it('en sida med ett enda h1, en h2 före rutnätet och ett h3 per serie: hierarkin h1 → h2 → h3 (ingen nivå hoppas över)', async () => {
+    renderScreen(DESKTOP);
+    const list = await grid();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    const h2 = screen.getByRole('heading', { level: 2, name: 'Your badges' });
+    expect(h2).toHaveClass('sr-only');
+    expect(h2.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(BADGE_SERIES.length);
+    const levels = screen.getAllByRole('heading').map((heading) => Number(heading.tagName.slice(1)));
+    for (let i = 1; i < levels.length; i += 1) expect(levels[i] - levels[i - 1]).toBeLessThanOrEqual(1);
+  });
+
+  it('tomläget: h1 → h2 ("No badges yet") → h3 utan extra "Your badges"', async () => {
+    api.getUserBadges.mockResolvedValue({ items: [], showcase: [] });
+    renderScreen(DESKTOP);
+    await screen.findByRole('heading', { level: 2, name: 'No badges yet' });
+    expect(screen.queryByRole('heading', { name: 'Your badges' })).toBeNull();
   });
 });
 
@@ -415,5 +434,129 @@ describe('BadgesScreen — väljaren är borta', () => {
     expect(screen.queryByText(/Empty slot|Preview on leaderboard/)).toBeNull();
     expect(screen.queryByRole('button', { name: /^(Close|Edit)/ })).toBeNull();
     expect(document.querySelector('.rq-badge-pick, .rq-badge-slots, .rq-badge-slot')).toBeNull();
+  });
+});
+
+// Sparflödet på skärmnivå (kritikerns lucka): sidan + hookarna + en SEPARAT konsument av samma queries, med en server som minns valet. Ersätter profiltestet
+// "spara … hjältekortet och Board-cachen följer med" från den gamla väljaren.
+describe('BadgesScreen — spara på skärmnivå (cache, förlorat svar, dubbelklick)', () => {
+  /** Motsvarar Board-minis och profilens hjältekort: läser samma user- och group-queries som sidan och visar det sparade valet. */
+  function Consumer() {
+    const { user } = useAuth();
+    const mine = useUserBadges(user?.id);
+    const group = useGroupBadges(!!user);
+    return <p data-testid="consumer">{mine.data ? mine.data.showcase.join(',') : 'none'}|{group.data ? 'group' : 'nogroup'}</p>;
+  }
+  const renderWithConsumer = () => renderWithApp(<><BadgesScreen /><Consumer /></>, { entry: '/badges', width: MOBILE });
+  const consumer = () => screen.getByTestId('consumer');
+
+  /** En server som minns valet: omhämtningen efter en spara ger det nya. */
+  function rememberingServer(initial: string[]) {
+    const server = { showcase: initial };
+    api.getUserBadges.mockImplementation(async () => ({ items: OWNED, showcase: server.showcase }));
+    return server;
+  }
+
+  it('(a) spara: den separata konsumenten visar det nya valet, och användar- och gruppqueryn hämtas om', async () => {
+    const server = rememberingServer([streakKeeper.key]);
+    api.saveShowcase.mockImplementation(async (series: string[]) => {
+      server.showcase = series;
+      return { showcase: series };
+    });
+    renderWithConsumer();
+    await grid();
+    await waitFor(() => expect(consumer()).toHaveTextContent(`${streakKeeper.key}|group`));
+    const userCalls = api.getUserBadges.mock.calls.length;
+    const groupCalls = api.getGroupBadges.mock.calls.length;
+
+    fireEvent.click(toggleOf(climber));
+    fireEvent.click(saveButton());
+    await screen.findByText('Saved — your Board card is updated.');
+    expect(api.saveShowcase).toHaveBeenCalledWith([streakKeeper.key, climber.key]);
+    await waitFor(() => expect(consumer()).toHaveTextContent(`${streakKeeper.key},${climber.key}|group`));
+    await waitFor(() => expect(api.getUserBadges.mock.calls.length).toBeGreaterThan(userCalls));
+    await waitFor(() => expect(api.getGroupBadges.mock.calls.length).toBeGreaterThan(groupCalls));
+    expect(saveButton()).toHaveTextContent('SAVED');
+  });
+
+  it('(b) förlorat svar: PUT gick igenom men klienten får fel — felet rensas efter omhämtningen och inget andra PUT går iväg', async () => {
+    const server = rememberingServer([streakKeeper.key]);
+    api.saveShowcase.mockImplementation(async (series: string[]) => {
+      server.showcase = series;
+      throw new Error('response lost');
+    });
+    renderWithConsumer();
+    await grid();
+    fireEvent.click(toggleOf(climber));
+    fireEvent.click(saveButton());
+
+    // Omhämtningen ger sparat = utkast: felet har inget att göra och rensas (ingen påhittad bekräftelse), knappen säger SAVED.
+    await waitFor(() => expect(saveButton()).toHaveTextContent('SAVED'));
+    expect(screen.queryByText('Could not save. Your pick is still here — try again.')).toBeNull();
+    expect(screen.queryByText('Saved — your Board card is updated.')).toBeNull();
+    expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
+    expect(toggleOf(climber)).toHaveTextContent('On display — 2');
+    await waitFor(() => expect(consumer()).toHaveTextContent(`${streakKeeper.key},${climber.key}|group`));
+    expect(api.saveShowcase).toHaveBeenCalledTimes(1);
+    // Inget andra PUT även sedan det en stund har gått och SAVE trycks igen på ett rent utkast.
+    fireEvent.click(saveButton());
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(api.saveShowcase).toHaveBeenCalledTimes(1);
+  });
+
+  describe('dubbelklick', () => {
+    it('(c) två klick på SAVE i samma tick ger exakt ett PUT', async () => {
+      rememberingServer([streakKeeper.key]);
+      renderWithConsumer();
+      await grid();
+      fireEvent.click(toggleOf(climber));
+      const save = saveButton();
+      // Båda klicken i en och samma act: ingen omrendering emellan, så bara hookens spärr (inte knappens aria-disabled) kan stoppa det andra.
+      act(() => {
+        save.click();
+        save.click();
+      });
+      await screen.findByText('Saved — your Board card is updated.');
+      expect(api.saveShowcase).toHaveBeenCalledTimes(1);
+    });
+
+    it('(c) klick på SAVING… medan anropet pågår ger inget nytt PUT', async () => {
+      let finish: (value: { showcase: string[] }) => void = () => {};
+      api.saveShowcase.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+      rememberingServer([streakKeeper.key]);
+      renderWithConsumer();
+      await grid();
+      fireEvent.click(toggleOf(climber));
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(saveButton()).toHaveTextContent('SAVING…'));
+      fireEvent.click(saveButton());
+      fireEvent.click(saveButton());
+      expect(api.saveShowcase).toHaveBeenCalledTimes(1);
+      finish({ showcase: [streakKeeper.key, climber.key] });
+      await screen.findByText('Saved — your Board card is updated.');
+      expect(api.saveShowcase).toHaveBeenCalledTimes(1);
+    });
+
+    it('(d) RETRY med dubbelklick: exakt ett nytt PUT, och fokus ligger på SAVE DISPLAY', async () => {
+      rememberingServer([streakKeeper.key]);
+      api.saveShowcase.mockRejectedValueOnce(new Error('boom'));
+      renderWithConsumer();
+      await grid();
+      fireEvent.click(toggleOf(climber));
+      fireEvent.click(saveButton());
+      const retry = await screen.findByRole('button', { name: 'RETRY' });
+      expect(api.saveShowcase).toHaveBeenCalledTimes(1);
+      retry.focus();
+      act(() => {
+        retry.click();
+        retry.click();
+      });
+      expect(saveButton()).toHaveFocus();
+      await screen.findByText('Saved — your Board card is updated.');
+      expect(api.saveShowcase).toHaveBeenCalledTimes(2);
+      expect(api.saveShowcase).toHaveBeenLastCalledWith([streakKeeper.key, climber.key]);
+      expect(document.body).not.toHaveFocus();
+      expect(saveButton()).toHaveFocus();
+    });
   });
 });

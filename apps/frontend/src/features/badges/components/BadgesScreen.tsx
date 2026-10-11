@@ -82,6 +82,8 @@ export function BadgesScreen() {
     body = (
       <>
         {earned === 0 ? <EmptyBox /> : <BadgeDisplayStrip rows={rows} display={display} limitId={limitId} isDesktop={isDesktop} />}
+        {/* Mellanrubrik så hierarkin är h1 → h2 → h3 även i normalläget (tomläget har "No badges yet" som h2). */}
+        {earned > 0 && <h2 className="sr-only">Your badges</h2>}
         <ul className="rq-badge-page-grid" aria-label="Badge series">
           {rows.map((row) => (
             <BadgeSeriesCard
