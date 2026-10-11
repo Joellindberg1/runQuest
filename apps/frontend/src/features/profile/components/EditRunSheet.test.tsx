@@ -35,7 +35,7 @@ describe('EditRunSheet — Strava-runda (RUN-139)', () => {
     expect(screen.queryByLabelText('Distance (km)')).toBeNull();
     expect(screen.queryByRole('textbox')).toBeNull();
     // Värdena visas ändå, som text.
-    const details = screen.getByRole('region', { name: 'Run details' });
+    const details = screen.getByRole('region', { name: 'Date and distance' });
     expect(within(details).getByText('2026-10-03')).toBeInTheDocument();
     expect(within(details).getByText(/10[.,]5 km/)).toBeInTheDocument();
     // Ingen Save, och förklaringen står där.
@@ -47,12 +47,42 @@ describe('EditRunSheet — Strava-runda (RUN-139)', () => {
     expect(screen.getByRole('region', { name: 'What this run earned' })).toBeInTheDocument();
   });
 
-  it('Strava-runda: inget PUT skickas någonsin från arket', () => {
-    const updateRun = vi.fn();
-    handlers.updateRun = updateRun;
+  it('Strava-runda: rubriken är "Run details" och arket har varken form-element eller submit-knapp (inget PUT kan skickas)', () => {
     renderSheet(strava);
-    fireEvent.submit(screen.getByRole('dialog'));
-    expect(updateRun).not.toHaveBeenCalled();
+    const sheet = screen.getByRole('dialog', { name: 'Run details' });
+    expect(sheet.querySelector('form')).toBeNull();
+    expect(screen.queryByRole('form')).toBeNull();
+    expect(sheet.querySelector('button[type="submit"]')).toBeNull();
+    // Alla knappar är uttryckligen type="button" (en knapp utan type vore submit i ett form).
+    for (const button of within(sheet).getAllByRole('button')) {
+      expect(button.getAttribute('type')).not.toBe('submit');
+    }
+  });
+
+  it('Strava-runda: Close i foten anropar onClose', async () => {
+    const { onClose } = renderSheet(strava);
+    const sheet = screen.getByRole('dialog', { name: 'Run details' });
+    fireEvent.click(within(sheet).getByText('Close', { selector: 'button' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('Strava-runda: fokus hamnar på ✕ i headern när arket öppnas (inget fält att fokusera)', async () => {
+    renderSheet(strava);
+    const sheet = screen.getByRole('dialog', { name: 'Run details' });
+    const header = sheet.querySelector('header') as HTMLElement;
+    const closeX = within(header).getByRole('button', { name: 'Close' });
+    await waitFor(() => expect(document.activeElement).toBe(closeX));
+  });
+
+  it('servern svarar 409 på radering (gammal klient som tror att rundan är manuell): serverns text visas, arket står kvar', async () => {
+    handlers.deleteRun = async () => ({ success: false, error: 'Strava runs are read-only' });
+    const { onDone, onClose } = renderSheet(manual);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete run' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Delete run' });
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Delete run' }));
+    await waitFor(() => expect(within(sheet).getByRole('alert')).toHaveTextContent('Strava runs are read-only'));
+    expect(onDone).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 

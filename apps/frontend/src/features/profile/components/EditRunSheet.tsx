@@ -114,7 +114,7 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
         >
           <header className="rq-profile-sheet__head">
             <div className="rq-profile-sheet__id">
-              <Dialog.Title className="rq-profile-sheet__title">{confirming ? 'Delete run' : 'Edit run'}</Dialog.Title>
+              <Dialog.Title className="rq-profile-sheet__title">{confirming ? 'Delete run' : fromStrava ? 'Run details' : 'Edit run'}</Dialog.Title>
               <p className="rq-profile-sheet__sub">{runDate} · {formatKm(run.distance)} km</p>
             </div>
             <Dialog.Close className="rq-sheet__close" aria-label="Close" disabled={pending}>✕</Dialog.Close>
@@ -141,7 +141,7 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
             <div className="rq-profile-sheet__form">
               <div className="rq-profile-sheet__body">
                 {/* Strava är sanningskällan (RUN-139): distans och datum visas men går inte att ändra, och servern avvisar PUT med 409. */}
-                <section aria-label="Run details">
+                <section aria-label="Date and distance">
                   <dl className="rq-hairgrid rq-profile-sheet__xp">
                     <div className="rq-profile-sheet__xp-row">
                       <dt>Date</dt>

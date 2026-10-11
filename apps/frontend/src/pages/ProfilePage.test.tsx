@@ -564,23 +564,23 @@ describe('Profile — radera en runda', () => {
 });
 
 describe('Profile — Strava-rundor och spärrad radering', () => {
-  const openEdit = async (date: string) => {
+  const openEdit = async (date: string, dialogName: string) => {
     renderProfile();
     await screen.findByRole('list', { name: 'Your runs' });
-    fireEvent.click(editButton(date));
-    return screen.findByRole('dialog', { name: 'Edit run' });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^(Edit|View) run ${date}$`) }));
+    return screen.findByRole('dialog', { name: dialogName });
   };
 
   it('en Strava-runda: Delete är avstängd med förklaringen (title + skärmläsartext) och distans/datum är skrivskyddade utan Save (RUN-139)', async () => {
     setup({ runs: RUNS.map((r) => (r.id === 'r2' ? { ...r, source: 'strava' } : r)) });
-    const sheet = await openEdit('2026-10-02');
+    const sheet = await openEdit('2026-10-02', 'Run details');
     const del = within(sheet).getByRole('button', { name: /Delete run/ });
     expect(del).toBeDisabled();
     expect(del).toHaveAttribute('title', 'Strava runs come back on next sync — delete it in Strava instead');
     expect(del).toHaveAccessibleName('Delete run — Strava runs come back on next sync — delete it in Strava instead');
 
     fireEvent.click(del);
-    expect(screen.getByRole('dialog', { name: 'Edit run' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Run details' })).toBeInTheDocument();
     expect(deleteRun).not.toHaveBeenCalled();
 
     // Strava är sanningskällan: ingen input för distans/datum, ingen Save, och inget PUT kan skickas.
@@ -608,8 +608,20 @@ describe('Profile — Strava-rundor och spärrad radering', () => {
 
   it('source följer med från users-with-runs till rundan (mapApiUser tappar den inte)', async () => {
     setup({ runs: RUNS.map((r) => (r.id === 'r3' ? { ...r, source: 'strava' } : r)) });
-    const sheet = await openEdit('2026-10-03');
+    const sheet = await openEdit('2026-10-03', 'Run details');
     expect(within(sheet).getByRole('button', { name: /Delete run/ })).toBeDisabled();
+  });
+
+  it('radens knapp: Strava-runda heter "View" (synlig text + aria-label), manuell behåller "Edit" exakt som förut', async () => {
+    setup({ runs: RUNS.map((r) => (r.id === 'r3' ? { ...r, source: 'strava' } : r)) });
+    renderProfile();
+    await screen.findByRole('list', { name: 'Your runs' });
+    const view = screen.getByRole('button', { name: 'View run 2026-10-03' });
+    expect(view).toHaveTextContent(/^View$/);
+    expect(screen.queryByRole('button', { name: 'Edit run 2026-10-03' })).toBeNull();
+    const edit = screen.getByRole('button', { name: 'Edit run 2026-10-02' });
+    expect(edit).toHaveTextContent(/^Edit$/);
+    expect(screen.queryByRole('button', { name: 'View run 2026-10-02' })).toBeNull();
   });
 });
 
