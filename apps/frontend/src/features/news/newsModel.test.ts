@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIVITY_TYPES } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
 import {
   CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, countByFilter, dedupeById, describeNews,
   feedFromPage, formatAgo, fullTime, gapCursor, groupByDay, isUnread, markSeenInFeed, mergeNewer, parseFilterParam, serializeFilterParam,
   replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, type NewsContext,
 } from './newsModel';
 import { formatInt } from '@/features/log/logFormat';
-import { ADAM, DAN, ME, NICK, NOW, KARL, at, challengeWon, eventOpen, item, levelUp, meta, streakBroken, titleTaken } from './news.fixture';
+import { ADAM, DAN, ME, NICK, NOW, KARL, at, badgeEarned, challengeWon, eventOpen, item, levelUp, meta, streakBroken, titleTaken } from './news.fixture';
 
 const ctx = (over: Partial<NewsContext> = {}): NewsContext => ({ viewerId: ME.id, now: NOW, ...over });
 
@@ -19,9 +19,10 @@ describe('kategorier och filter', () => {
     expect(NEWS_FILTERS.flatMap((filter) => filter.types).sort()).toEqual([...ACTIVITY_TYPES].sort());
   });
 
-  it('Levels = level_up + run_milestone (ADR 008)', () => {
-    expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone']);
+  it('Levels = level_up + run_milestone (ADR 008) + badge_earned (ADR 009 beslut 5, F7)', () => {
+    expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone', 'badge_earned']);
     expect(CATEGORY_OF.run_milestone).toBe('level');
+    expect(CATEGORY_OF.badge_earned).toBe('level');
   });
 
   it('adressparametern: okända nycklar och dubbletter faller bort, ordningen är chipens, alla fem = inget filter', () => {
@@ -43,13 +44,15 @@ describe('kategorier och filter', () => {
   it('chipsens typer blir serverns type= i stabil ordning; inget filter = ingen parameter', () => {
     expect(typesForFilters([])).toBeNull();
     expect(typeParamOf(null)).toBeUndefined();
-    expect(typesForFilters(['levels', 'titles'])).toEqual(['title_unlocked', 'title_taken', 'title_revoked', 'level_up', 'run_milestone']);
+    expect(typesForFilters(['levels', 'titles'])).toEqual(['title_unlocked', 'title_taken', 'title_revoked', 'level_up', 'run_milestone', 'badge_earned']);
     expect(typeParamOf(typesForFilters(['streaks']))).toBe('streak_broken');
   });
 
   it('chip-räknarna är antal per kategori i det laddade fönstret', () => {
     const counts = countByFilter([titleTaken(5), titleTaken(4), levelUp(3, 25), streakBroken(2), eventOpen(1)]);
     expect(counts).toEqual({ titles: 2, challenges: 0, events: 1, levels: 1, streaks: 1 });
+    // badge_earned räknas under Levels.
+    expect(countByFilter([badgeEarned(2), levelUp(1, 25)]).levels).toBe(2);
   });
 });
 
@@ -344,6 +347,43 @@ describe('texterna ur typ + payload + vem som tittar', () => {
       expect(describeNews(milestone, ctx())).toEqual({ kind: 'Milestone', text: `Adam passed ${formatInt(1000)} km in total` });
       expect(describeNews(streakBroken(3), ctx())).toEqual({ kind: 'Streak broken', text: 'Daniel lost a 27-day streak — multiplier back to 1.0×' });
       expect(describeNews(streakBroken(3, { actor: ME }), ctx()).text).toBe('You lost a 27-day streak — multiplier back to 1.0×');
+    });
+  });
+
+  describe('badge_earned (F7)', () => {
+    it('previous_tier null → "earned" med serienamn och tier-namn ur shared', () => {
+      expect(describeNews(badgeEarned(1), ctx())).toEqual({ kind: 'Badge earned', text: 'Karl earned Streak Keeper — Common.' });
+      expect(describeNews(badgeEarned(1, { actor: ME }, { series: 'night_owl', tier: 3 }), ctx()))
+        .toEqual({ kind: 'Badge earned', text: 'You earned Night Owl — Rare.' });
+    });
+
+    it('previous_tier satt → "evolved" från gamla till nya tiern', () => {
+      expect(describeNews(badgeEarned(1, { actor: ME }, { series: 'milestoner', tier: 3, previous_tier: 2 }), ctx()))
+        .toEqual({ kind: 'Badge evolved', text: 'You evolved Milestoner from Uncommon to Rare.' });
+      const climber = BADGE_SERIES.find((series) => series.key === 'climber')!;
+      expect(describeNews(badgeEarned(1, {}, { series: 'climber', tier: 6, previous_tier: 5 }), ctx()).text)
+        .toBe(`Karl evolved ${climber.name} from Epic to Legendary.`);
+    });
+
+    it('serie- och tier-namnen kommer ur BADGE_SERIES/TIER_NAMES — varje serie och tier renderas utan hårdkodning', () => {
+      for (const series of BADGE_SERIES) {
+        TIER_NAMES.forEach((tierName, index) => {
+          expect(describeNews(badgeEarned(1, {}, { series: series.key, tier: index + 1 }), ctx()).text)
+            .toBe(`Karl earned ${series.name} — ${tierName}.`);
+        });
+      }
+    });
+
+    it('en raderad användare är "A former member"; en okänd serie eller tier ger ett läsbart reservnamn, inte "undefined"', () => {
+      expect(describeNews(badgeEarned(1, { actor: null }), ctx()).text).toBe('A former member earned Streak Keeper — Common.');
+      const unknown = describeNews(badgeEarned(1, {}, { series: 'retired_series', tier: 9, previous_tier: 8 }), ctx()).text;
+      expect(unknown).not.toMatch(/undefined|NaN/);
+      expect(unknown).toContain('retired_series');
+    });
+
+    it('raden ligger i Levels: kategori level, zap-ikon (dekorativ, texten bär betydelsen), grön ton', () => {
+      expect(buildNewsRow(badgeEarned(1), ctx())).toMatchObject({ category: 'level', tone: 'level', icon: 'zap', kind: 'Badge earned' });
+      expect(buildNewsRow(badgeEarned(1, {}, { tier: 2, previous_tier: 1 }), ctx()).kind).toBe('Badge evolved');
     });
   });
 

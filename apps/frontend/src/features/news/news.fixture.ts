@@ -48,7 +48,11 @@ export const titleTaken = (id: number, over: Partial<Omit<ItemOf<'title_taken'>,
 export const levelUp = (id: number, level: number, over: Partial<Omit<ItemOf<'level_up'>, 'type' | 'payload' | 'id'>> = {}) =>
   item('level_up', id, { level }, { actor: KARL, ...over });
 
-export const streakBroken = (id: number, over: Partial<Omit<ItemOf<'streak_broken'>, 'type' | 'payload' | 'id'>> = {}) =>
+/** `previous_tier: null` = första tiern i serien ("earned"); annars "evolved" från den gamla tiern. */
+export const badgeEarned = (id: number, over: Partial<Omit<ItemOf<'badge_earned'>, 'type' | 'payload' | 'id'>> = {}, payload: Partial<ItemOf<'badge_earned'>['payload']> = {}) =>
+  item('badge_earned', id, { series: 'streak_keeper', tier: 1, previous_tier: null, ...payload }, { actor: KARL, ...over });
+
+export const streakBroken =(id: number, over: Partial<Omit<ItemOf<'streak_broken'>, 'type' | 'payload' | 'id'>> = {}) =>
   item('streak_broken', id, { length: 27, last_run_date: '2026-10-05' }, { actor: DAN, ...over });
 
 export const eventOpen = (id: number, over: Partial<Omit<ItemOf<'event_open'>, 'type' | 'payload' | 'id'>> = {}, payload: Partial<ItemOf<'event_open'>['payload']> = {}) =>

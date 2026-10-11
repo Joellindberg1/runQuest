@@ -1,4 +1,4 @@
-import { ACTIVITY_TYPES, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/types';
 import { stockholmClock } from '@/app-shell/rightNowItems';
 import type { RQIconName } from '@/shared/components/icons';
@@ -16,7 +16,10 @@ import { resolveGenderedTitle, titleValueText } from '@/features/titles/titleFor
 
 export type NewsCategory = 'title' | 'challenge' | 'level' | 'event' | 'streak';
 
-/** Kategorin styr ikon, färg och kant. run_milestone hör till Levels (ADR 008: Levels = level_up + run_milestone). */
+/**
+ * Kategorin styr ikon, färg och kant. run_milestone hör till Levels (ADR 008: Levels = level_up + run_milestone), liksom
+ * badge_earned (ADR 009 beslut 5, F7: kanten förblir Levels-grön).
+ */
 export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   title_unlocked: 'title',
   title_taken: 'title',
@@ -29,6 +32,7 @@ export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   streak_broken: 'streak',
   event_open: 'event',
   event_closed: 'event',
+  badge_earned: 'level',
 };
 
 /** Ikonerna ur runquest-icons (prototypens `kinds`). */
@@ -54,7 +58,7 @@ export const NEWS_FILTERS: readonly NewsFilter[] = [
   { key: 'titles', label: 'Titles', category: 'title', types: ['title_unlocked', 'title_taken', 'title_revoked'] },
   { key: 'challenges', label: 'Challenges', category: 'challenge', types: ['challenge_received', 'challenge_won', 'challenge_draw'] },
   { key: 'events', label: 'Events', category: 'event', types: ['event_open', 'event_closed'] },
-  { key: 'levels', label: 'Levels', category: 'level', types: ['level_up', 'run_milestone'] },
+  { key: 'levels', label: 'Levels', category: 'level', types: ['level_up', 'run_milestone', 'badge_earned'] },
   { key: 'streaks', label: 'Streaks', category: 'streak', types: ['streak_broken'] },
 ];
 
@@ -337,6 +341,11 @@ function boostIsLive(boost: { type: string; delta: number; duration: number | nu
   return Date.parse(occurredAt) + boost.duration * MS_DAY > now.getTime();
 }
 
+/** Serienamnet ur BADGE_SERIES; en okänd (pensionerad) nyckel visas som den är hellre än som ett tomt ord. */
+const badgeSeriesName = (seriesKey: string): string => BADGE_SERIES.find((series) => series.key === seriesKey)?.name ?? seriesKey;
+/** Tier-namnet ur TIER_NAMES (1-baserat); en okänd tier blir "Tier N". */
+const badgeTierName = (tier: number): string => TIER_NAMES[tier - 1] ?? `Tier ${tier}`;
+
 /** "midnight" för 23:59, annars klockslaget. */
 const clockOrMidnight = (iso: string): string => {
   const clock = formatClock(iso);
@@ -408,6 +417,14 @@ export function describeNews(item: NewsItem, ctx: NewsContext): NewsText {
       return { kind: 'Level up', text: `${subject(actor, ctx)} reached level ${item.payload.level}` };
     case 'run_milestone':
       return { kind: 'Milestone', text: `${subject(actor, ctx)} passed ${formatInt(item.payload.threshold)} km in total` };
+    case 'badge_earned': {
+      const { series, tier, previous_tier: previousTier } = item.payload;
+      const name = badgeSeriesName(series);
+      // F7: "Karl earned Streak Keeper — Common." / "You evolved Milestoner from Uncommon to Rare."
+      return previousTier === null
+        ? { kind: 'Badge earned', text: `${subject(actor, ctx)} earned ${name} — ${badgeTierName(tier)}.` }
+        : { kind: 'Badge evolved', text: `${subject(actor, ctx)} evolved ${name} from ${badgeTierName(previousTier)} to ${badgeTierName(tier)}.` };
+    }
     case 'streak_broken':
       return { kind: 'Streak broken', text: `${subject(actor, ctx)} lost a ${item.payload.length}-day streak — multiplier back to 1.0×` };
     case 'event_open': {
