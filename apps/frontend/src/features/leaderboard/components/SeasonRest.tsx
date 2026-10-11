@@ -67,7 +67,7 @@ export function RestList({ rows, onOpen }: RestProps) {
           <div role="cell" className="rq-board-cell-right">
             <div className="rq-board-num" data-tone={row.pace.tone}>{row.pace.text}</div>
             <div className="rq-board-cell-sub">{etaText(row, false)}</div>
-            {hasMinis(row) && (
+            {hasMinis(row) && row.tokensLeft > 0 && (
               <div className="rq-board-cell-ribbons">
                 <ChallengeRibbons tokens={row.tokens} />
               </div>

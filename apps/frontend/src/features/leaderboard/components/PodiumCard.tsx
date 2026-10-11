@@ -64,17 +64,14 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
                   <span className="rq-board-lvl">Lvl {row.level}</span>
                   <DeltaMark delta={row.delta} />
                 </div>
-                {hasMinis ? (
-                  <div className="rq-board-podium__nameline" data-minis="true">
-                    <RunnerName name={row.name} onOpen={open} />
-                    <BadgeMinis showcase={row.showcase} />
-                  </div>
-                ) : (
+                {/* Namnraden rymmer en mini på alla kort, så kortet inte växer när badge-queryn landar. */}
+                <div className="rq-board-podium__nameline rq-board-podium__nameline--room" data-minis={hasMinis || undefined}>
                   <RunnerName name={row.name} onOpen={open} />
-                )}
+                  <BadgeMinis showcase={row.showcase} />
+                </div>
               </>
             ) : (
-              <div className="rq-board-podium__nameline" data-minis={hasMinis || undefined}>
+              <div className="rq-board-podium__nameline rq-board-podium__nameline--room" data-minis={hasMinis || undefined}>
                 <RunnerName name={row.name} onOpen={open} />
                 <DeltaMark delta={row.delta} />
                 <BadgeMinis showcase={row.showcase} />

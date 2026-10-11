@@ -670,6 +670,30 @@ describe('visade badges i Season-raderna (RUN-131)', () => {
     expect(ribbons.closest('.rq-board-sub')).not.toBeNull();
   });
 
+  it.each([MOBILE, DESKTOP])('podiets namnrad bär min-height-klassen på ALLA kort, med och utan minis (%ipx)', async (width) => {
+    serveStandardBadges();
+    renderBoard('/board', width);
+    await within(await screen.findByTestId('podium-1')).findByRole('img', { name: KARL_LABEL });
+
+    for (const rank of [1, 2, 3]) {
+      const card = screen.getByTestId(`podium-${rank}`);
+      const name = within(card).getByRole('button', { name: /^(Karl Persson|Joel Lindberg|Adam Einstein)$/ });
+      expect(name.closest('.rq-board-podium__nameline')).toHaveClass('rq-board-podium__nameline--room');
+    }
+    // Joel (plats 2) har inga visade badges: raden har rum men inga minis.
+    expect(screen.getByTestId('podium-2').querySelector('.rq-badge-minis')).toBeNull();
+  });
+
+  it('mobil, rest-rad med minis men utan utmaningar: ingen tom ribbons-behållare', async () => {
+    serveBadges([{ user_id: 'u-dan', showcase: NICK_BADGES }]);
+    renderBoard();
+    await screen.findByTestId('podium-1');
+
+    const dan = restRows()[1];
+    await within(dan).findByRole('img', { name: NICK_LABEL });
+    expect(dan.querySelector('.rq-board-cell-ribbons')).toBeNull();
+  });
+
   it('Week och Streaks är orörda: ingen badge-hämtning och inga minis', async () => {
     serveStandardBadges();
     renderBoard('/board?view=week');
