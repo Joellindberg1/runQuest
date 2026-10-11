@@ -66,42 +66,20 @@ describe('rutnätet', () => {
   });
 });
 
-describe('väljaren (RUN-129, Council 17)', () => {
-  // Bara väljarens egna regler (selektorer med .rq-badge-pick / .rq-badge-slot / .rq-badge-textlink) granskas, så andra block i badges.css (popup, nivåfärger, rörelse) inte påverkar testerna.
-  const pickerRules = [...badgesCss.matchAll(/([^{}]+)\{([^}]*)\}/g)]
-    .map(([, selector, body]) => ({ selector: selector.trim(), body }))
-    .filter(({ selector }) => /\.rq-badge-(pick|slot|textlink)/.test(selector));
-  const pickerCss = pickerRules.map(({ selector, body }) => `${selector} {${body}}`).join('\n');
+describe('den separata väljaren är borta (RUN-150, spec V2.7, F13.4)', () => {
+  it('ingen CSS för väljaren eller platspanelen: .rq-badge-pick*, .rq-badge-slot*, .rq-badge-textlink', () => {
+    expect(badgesCss).not.toMatch(/\.rq-badge-(pick|slot|textlink)/);
+    expect(badgesCss).not.toMatch(/\.rq-badge-display__(edit|empty)/);
+  });
 
-  it('tryckytan är 44 px på mobil och 24 px på desktop, i båda temafilerna, och växlare, ✕ och Edit läser den', () => {
+  it('--rq-badge-pick-clear är borta ur båda temafilerna; --rq-badge-pick-hit (tryckytan) finns kvar: 44 px mobil, 24 px desktop, och läses av badges.css', () => {
     for (const css of [indexCss, facitCss]) {
+      expect(css).not.toMatch(/--rq-badge-pick-clear/);
       expect(css).toMatch(/--rq-badge-pick-hit:\s*44px;/);
-      const desktop = css.slice(css.indexOf('@media (min-width: 1024px)'));
-      expect(desktop).toMatch(/--rq-badge-pick-hit:\s*24px;/);
+      expect(css.slice(css.indexOf('@media (min-width: 1024px)'))).toMatch(/--rq-badge-pick-hit:\s*24px;/);
     }
-    for (const selector of ['.rq-badge-pick .rq-badge-pick__toggle', '.rq-badge-slot .rq-badge-slot__remove', '.rq-badge-textlink']) {
-      const rule = pickerRules.find((candidate) => candidate.selector === selector);
-      expect(rule?.body, selector).toMatch(/min-height:\s*var\(--rq-badge-pick-hit\)/);
-      expect(rule?.body, selector).toMatch(/min-width:\s*var\(--rq-badge-pick-hit\)/);
-    }
-  });
-
-  it('platsmarkören är --rq-titles-pos (19 px) och "Preview on leaderboard" har ingen stil här', () => {
-    expect(pickerRules.length).toBeGreaterThan(10);
-    expect(pickerCss).toMatch(/\.rq-badge-slot__pos\s*\{[^}]*width:\s*var\(--rq-titles-pos\)/);
-    expect(pickerCss).not.toMatch(/preview/i);
-  });
-
-  it('vid 3/3 dimmas växlaren (aria-disabled) — inte raden: ingen regel på raden eller texten sätter opacity', () => {
-    expect(pickerCss).toMatch(/\.rq-badge-pick__toggle\[aria-disabled="true"\]\s*\{/);
-    expect(pickerCss).not.toMatch(/opacity/);
-  });
-
-  it('spara/fel är semantisk grön/röd (--rq-up / --rq-down), aldrig en nivåfärg', () => {
-    const note = pickerRules.find(({ selector }) => selector === '.rq-badge-pick__note')?.body ?? '';
-    expect(note).toContain('var(--rq-up)');
-    expect(pickerCss).toMatch(/\.rq-badge-pick \.rq-badge-pick__note\[data-status="error"\]\s*\{[^}]*var\(--rq-down\)/);
-    expect(pickerCss).not.toMatch(/var\(--rq-badge-(common|uncommon|rare|heroic|epic|legendary)/);
+    expect(badgesCss).toMatch(/var\(--rq-badge-pick-hit\)/);
+    expect(badgesCss).not.toMatch(/--rq-badge-pick-clear/);
   });
 });
 

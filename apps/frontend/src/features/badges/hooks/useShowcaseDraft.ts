@@ -72,7 +72,7 @@ function reduce(state: DraftState, action: DraftAction): DraftState {
 }
 
 /**
- * Utkastet för visade badges på /badges (spec F9.7): logiken ur ShowcasePicker, utan UI. `rows` är `buildCollection`-raderna (de bär vad jag äger och det sparade
+ * Utkastet för visade badges på /badges (spec F9.7): logiken ur den tidigare väljaren (RUN-129, borttagen i RUN-150), utan UI. `rows` är `buildCollection`-raderna (de bär vad jag äger och det sparade
  * valet), `userId` går till `useSaveShowcase` som skriver optimistiskt, återställer vid fel och invaliderar samlingen + gruppen.
  *
  * `picked` null betyder "följ det sparade": en omhämtning mitt i ett utkast rör alltså inget utkast som redan ändrats, men uppdaterar `dirty` mot det nya sparade.
