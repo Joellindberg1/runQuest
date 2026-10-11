@@ -1,19 +1,13 @@
-/* Inloggningen (inkrement 11): logotyp · rubrik · hjältekort med två fält och EN guldknapp. ENDAST tokens (regel 1). Måtten
-   (--rq-login-*) definieras i temafilen, sektion 1.29 (index.css + docs/design/temafil-forslag.css) — inga egna :root-
-   definitioner här. Fälten, anteckningar och felkortet kommer från det delade formulärkitet (shared/components/form).
-   Ingen rörelse: inloggningen har inget som lever. Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
+/* Inloggningen (RUN-145): en popup ovanpå Landing — rubrik · rad under · två fält och EN guldknapp. ENDAST tokens (regel 1). Måttet
+   (--rq-login-w) definieras i temafilen, sektion 1.29 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
+   Skalets delade lager (.rq-scrim, .rq-modal, .rq-modal__close i app-shell.css) ger mörkläggning, ram och skugga; fälten, anteckningar och
+   felkortet kommer från det delade formulärkitet (shared/components/form). Ingen rörelse: dialogen är ett flytande lager som står still.
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
-.rq-login {
-  position: relative; box-sizing: border-box; min-height: 100dvh; overflow: hidden;
-  display: flex; align-items: center; justify-content: center; padding: var(--rq-pad-screen);
-  background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui);
-}
-.rq-login__glow {
-  position: absolute; top: var(--rq-login-glow-top); left: 50%; width: var(--rq-login-glow-w); height: var(--rq-login-glow-h);
-  transform: translateX(-50%); background: var(--rq-hero-glow); pointer-events: none;
-}
-.rq-login__inner { position: relative; width: 100%; max-width: var(--rq-login-w); display: flex; flex-direction: column; gap: var(--rq-sp-24); }
-.rq-login-logo { align-self: center; width: var(--rq-login-logo-w); height: auto; color: var(--rq-text-2); }
-.rq-login__head { text-align: center; }
-.rq-login__title { margin: 0; font-weight: 400; text-transform: uppercase; }
-.rq-login__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-modal.rq-login-dialog { width: min(var(--rq-login-w), 95vw); }
+
+.rq-login-dialog__head { padding: var(--rq-sp-20) var(--rq-sp-48) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
+.rq-heading.rq-login-dialog__title { margin: 0; font-weight: 400; text-transform: uppercase; }
+.rq-login-dialog__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+
+.rq-form.rq-login-dialog__form { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-20); }

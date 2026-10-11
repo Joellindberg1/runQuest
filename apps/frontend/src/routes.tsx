@@ -6,11 +6,9 @@ import { AppShell } from '@/app-shell/AppShell';
 import { RequireAuth } from '@/app-shell/RequireAuth';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { legacyChallengesTarget } from '@/app-shell/legacyRedirects';
-import { resolveNextPath } from '@/app-shell/safeNext';
 import { ShellErrorBoundary } from '@/app-shell/ShellErrorBoundary';
 import { readBackground, useCloseRunner } from '@/shared/hooks/useOpenRunner';
 import Index from '@/pages/Index';
-import LoginPage from '@/pages/LoginPage';
 import BoardPage from '@/pages/BoardPage';
 import TitlesPage from '@/pages/TitlesPage';
 import DuelsPage from '@/pages/DuelsPage';
@@ -29,12 +27,6 @@ const AdminPage = lazy(() => import('@/pages/AdminPage'));
 const PlaybookPage = lazy(() => import('@/pages/PlaybookPage'));
 const FeaturesPage = lazy(() => import('@/pages/FeaturesPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
-
-const LoginRoute: React.FC = () => {
-  const { user } = useAuth();
-  const { search } = useLocation();
-  return user ? <Navigate to={resolveNextPath(search)} replace /> : <LoginPage />;
-};
 
 const AdminRoute: React.FC = () => {
   const { isAdmin } = useAuth();
@@ -60,8 +52,9 @@ export const AppRoutes: React.FC = () => {
   return (
     <>
       <Routes location={background ?? location}>
-        <Route path="/" element={<Index />} />
-        <Route path={paths.login} element={<LoginRoute />} />
+        <Route path={paths.landing} element={<Index />} />
+        {/* Login är Landing med dialogen öppen: samma element på samma plats, så Landing består när dialogen öppnas (se Index). */}
+        <Route path={paths.login} element={<Index loginOpen />} />
         <Route path={paths.legacyChallenges} element={<LegacyChallengesRedirect />} />
         <Route path={paths.previewBoard} element={<LeaderboardPreviewPage />} />
         <Route path={paths.previewDuels} element={<ChallengesPreviewPage />} />

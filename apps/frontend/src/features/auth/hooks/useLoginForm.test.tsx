@@ -14,7 +14,7 @@ describe('useLoginForm', () => {
       result.current.setPassword('hemligt');
     });
     await act(() => result.current.submit(submitEvent));
-    expect(login).toHaveBeenCalledWith('anna', 'hemligt');
+    expect(login).toHaveBeenCalledWith('anna', 'hemligt', { signal: expect.any(AbortSignal) });
     expect(submitEvent.preventDefault).toHaveBeenCalled();
     expect(result.current.error).toBe('');
     expect(result.current.loading).toBe(false);

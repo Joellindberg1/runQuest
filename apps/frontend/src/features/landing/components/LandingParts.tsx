@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { paths } from '@/paths';
+import { FROM_LANDING_STATE, paths } from '@/paths';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { DeltaMark } from '@/features/leaderboard/components/BoardParts';
 import { formatInt } from '@/features/log/logFormat';
@@ -27,7 +27,8 @@ export function LandingHero() {
         Every run earns XP. XP becomes levels, levels become titles. Strava syncs the runs — you bring the arguing.
       </p>
       <div className="rq-landing-cta">
-        <Link to={paths.login} className="rq-btn rq-btn--primary rq-btn--lg">Sign in to your pack</Link>
+        {/* Öppnar inloggningsdialogen (adressen blir /login; pages/Index monterar dialogen). Landing-featuren gör själv inga anrop. */}
+        <Link to={paths.login} state={FROM_LANDING_STATE} className="rq-btn rq-btn--primary rq-btn--lg" aria-haspopup="dialog">Sign in to your pack</Link>
         <a href={`#${HOW_IT_WORKS_ID}`} className="rq-btn rq-btn--ghost rq-btn--lg">See how it works</a>
         <p className="rq-landing-note">Starting your own pack is coming soon.</p>
       </div>
