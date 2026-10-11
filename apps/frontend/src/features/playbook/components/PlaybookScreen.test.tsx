@@ -110,6 +110,12 @@ describe('Playbook — desktop', () => {
     expect(within(list).getByText('Unlocks at 100.0 km')).toBeInTheDocument();
   });
 
+  it('Titles-kapitlet nämner att säsongstitlar byter säsong vid nästa omräkning efter 1 december', async () => {
+    renderPlaybook('/playbook?view=titles');
+    expect(await screen.findByText(/doesn’t start at midnight on 1 December/)).toBeInTheDocument();
+    expect(screen.getByText(/December to February/)).toBeInTheDocument();
+  });
+
   it('titellistan går inte att läsa: felkort med Retry, resten av kapitlet står kvar', async () => {
     handlers.getTitleLeaderboard = () => ({ success: false, error: 'down' });
     renderPlaybook('/playbook?view=titles');

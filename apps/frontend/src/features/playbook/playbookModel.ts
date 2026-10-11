@@ -177,6 +177,7 @@ function titlesChapter(): Omit<Chapter, 'num'> {
     lead: 'Titles are held, not awarded. Beat the holder’s number and the title moves to you.',
     paras: [
       'Each title belongs to whoever has the best value for its metric right now, and the holders are recalculated after every run. Some titles have to be unlocked first: until someone passes the threshold the title sits empty, with the best attempt on show.',
+      'Some titles are seasonal: they count the winter, December to February, by the date of each run. In winter that’s the current winter; the rest of the year it’s the one that just ended, so nothing resets on 1 March. The new winter doesn’t start at midnight on 1 December. It starts the first time the titles are updated after that, which is normally when the next run is logged or synced from Strava. Until then last winter’s numbers stay on the board; after that the new winter starts from zero, and a title can sit empty until someone passes its threshold.',
       `You can show up to ${MAX_DISPLAYED} titles on your leaderboard card.`,
     ],
     table: null,
