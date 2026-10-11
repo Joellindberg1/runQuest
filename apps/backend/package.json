@@ -14,7 +14,8 @@
     "backfill:activity-log": "tsx src/scripts/backfillActivityLog.ts",
     "convert:wind-ms": "tsx src/scripts/convertWindToMs.ts",
     "backfill:badges": "tsx src/scripts/backfillBadges.ts",
-    "reveal:badges": "tsx src/scripts/revealBadges.ts"
+    "reveal:badges": "tsx src/scripts/revealBadges.ts",
+    "announce:release": "tsx src/scripts/announceRelease.ts"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",

@@ -53,10 +53,10 @@
  * övriga körs vidare och skriptet avslutar med exit-kod 1 — kör om för att ta resten.
  */
 import { pathToFileURL } from 'node:url';
-import { randomUUID } from 'node:crypto';
 import { getSupabaseClient } from '../config/database.js';
 import { ACTIVITY_LOG_TABLE, recordActivities } from '../services/activityLog.js';
 import { supabaseHost } from './backfillActivityLog.js';
+import { probeActivityType } from './lib/activityTypeProbe.js';
 import {
   activityKeys,
   badgeNewsChanges,
@@ -254,37 +254,24 @@ async function readExistingKeys(supabase: Client, keys: readonly string[]): Prom
  * Kastar RevealPreconditionError om förkravet saknas eller inte kan verifieras; ger annars en beskrivning.
  */
 export async function assertBadgeEarnedAllowed(supabase: Client): Promise<string> {
-  const probeKey = `reveal-badges-probe:${randomUUID()}`;
-  const { error } = await supabase.from(ACTIVITY_LOG_TABLE).insert({
-    group_id: randomUUID(), // finns inte i groups → raden kan aldrig bli kvar
-    type: 'badge_earned',
-    actor_user_id: null,
-    target_user_id: null,
-    payload: {},
-    payload_version: 1,
-    dedupe_key: probeKey,
-    is_backfill: false,
-  });
-
-  if (!error) {
-    // Oväntat: FK:n släppte igenom. Städa vår egen testrad (unik nyckel) och godkänn — CHECK:en tillät typen.
-    const cleanup = await supabase.from(ACTIVITY_LOG_TABLE).delete().eq('dedupe_key', probeKey);
-    if (cleanup.error) {
-      throw new RevealPreconditionError(`036 probe row was inserted and could not be removed (dedupe_key ${probeKey}): ${cleanup.error.message}`);
-    }
-    return 'activity_log accepts badge_earned (probe row was inserted and removed again)';
+  // Själva testinserten och tolkningen av svaret ligger i den delade hjälparen (scripts/lib/activityTypeProbe.ts);
+  // meddelandena nedan är revealBadges egna.
+  const verdict = await probeActivityType(supabase, 'badge_earned', 'reveal-badges-probe');
+  switch (verdict.kind) {
+    case 'allowed':
+      return verdict.via === 'inserted_and_removed'
+        ? 'activity_log accepts badge_earned (probe row was inserted and removed again)'
+        : 'activity_log accepts badge_earned (check constraint passed; probe rejected by the group foreign key, nothing written)';
+    case 'rejected':
+      throw new RevealPreconditionError(
+        'Migration 036 is not applied: activity_log_type_check rejects type "badge_earned". Nothing was written. ' +
+          'Apply 036 (after the v0.6.0 deploy), then re-run.'
+      );
+    case 'cleanup_failed':
+      throw new RevealPreconditionError(`036 probe row was inserted and could not be removed (dedupe_key ${verdict.probeKey}): ${verdict.detail}`);
+    case 'unverifiable':
+      throw new RevealPreconditionError(`Could not verify migration 036 (unexpected error: ${verdict.detail}). Nothing was written.`);
   }
-  const text = `${error.code ?? ''} ${error.message ?? ''}`;
-  if (error.code === '23514' || /activity_log_type_check/.test(text)) {
-    throw new RevealPreconditionError(
-      'Migration 036 is not applied: activity_log_type_check rejects type "badge_earned". Nothing was written. ' +
-        'Apply 036 (after the v0.6.0 deploy), then re-run.'
-    );
-  }
-  if (error.code === '23503' || /foreign key/i.test(text)) {
-    return 'activity_log accepts badge_earned (check constraint passed; probe rejected by the group foreign key, nothing written)';
-  }
-  throw new RevealPreconditionError(`Could not verify migration 036 (unexpected error: ${text.trim()}). Nothing was written.`);
 }
 
 /** seen_tier = 0 på en rad. Tier-vakten gör att en rad vars tier ändrats under tiden inte träffas. */
