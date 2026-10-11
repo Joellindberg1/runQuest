@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import type { User } from '@runquest/types';
+import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
+import { buildRunnerBadges } from '@/features/badges/badgeModel';
+import { BadgePanel } from '@/features/badges/components/BadgePanel';
+import { useGroupBadges, useUserBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { useAuth } from '@/providers/authContext';
 import { useHeadToHead, useRunnerTitles } from '../hooks/useRunnerQueries';
 import { buildHero, buildStatCells } from '../runnerModel';
@@ -24,16 +28,34 @@ interface RunnerCardProps {
 /**
  * Runner card (ADR 006 beslut 6): hjältekort · Frodo's journey · statflikar · titlar · head-to-head och den
  * ENDA guldknappen, Challenge. Datahämtningen delas av båda varianterna; bara ramen skiljer.
+ *
+ * Löparens badges (spec F4): minis i hjältekortet och den skrivskyddade BADGES-panelen. Samma panel överallt, men plats efter bredd:
+ * mobil direkt under hjältekortet, desktop i 340 px-sidokolumnen ovanför TITLES (Council 16). Badges är tillägg: medan de laddas visar panelen
+ * laddaren, och felar de ritas inga minis och panelen visar ett felkort med Retry (tomläget gäller bara ett lyckat, tomt svar; 404 kan inte nås
+ * eftersom kortet bara öppnas för gruppmedlemmar) — resten av kortet och Challenge berörs inte.
  */
 export function RunnerCard({ user, allUsers, variant, onBack }: RunnerCardProps) {
   const { user: me } = useAuth();
   const now = useNow();
+  const wide = useIsDesktop() === true;
   const titlesQuery = useRunnerTitles(user.id);
   const headToHead = useHeadToHead(user.id);
+  const userBadges = useUserBadges(user.id);
+  const groupBadges = useGroupBadges(!!me);
 
   const hero = useMemo(() => buildHero(user, allUsers), [user, allUsers]);
   const heldTitles = titlesQuery.data ? titlesQuery.data.filter((title) => title.is_current_holder).length : null;
   const cells = useMemo(() => buildStatCells(user, heldTitles), [user, heldTitles]);
+  // Gruppens holders ger held-by; felar den utelämnas raden (data är då undefined) utan platshållare.
+  const badges = useMemo(
+    () => buildRunnerBadges(userBadges.data, groupBadges.data, { viewerId: me?.id ?? null, ownerId: user.id }),
+    [userBadges.data, groupBadges.data, me?.id, user.id],
+  );
+  // Felkort med Retry bara när det inte finns något att visa: en misslyckad bakgrundsomhämtning låter den gamla samlingen stå kvar.
+  const badgeError = userBadges.isError && !userBadges.data
+    ? { retrying: userBadges.isFetching, onRetry: () => void userBadges.refetch() }
+    : undefined;
+  const badgePanel = <BadgePanel rows={badges.rows} loading={userBadges.isLoading} error={badgeError} />;
 
   return (
     <div className="rq-runner rq-rise" data-variant={variant}>
@@ -51,11 +73,13 @@ export function RunnerCard({ user, allUsers, variant, onBack }: RunnerCardProps)
       </div>
 
       <div className="rq-runner__body">
-        <HeroCard hero={hero} cells={cells} />
+        <HeroCard hero={hero} cells={cells} showcase={badges.showcase} />
+        {!wide && badgePanel}
         <JourneyCard totalKm={user.total_km} />
         <div className="rq-runner__split">
           <StatsPanel user={user} now={now} />
           <div className="rq-runner__side">
+            {wide && badgePanel}
             <TitlesPanel user={user} />
             {me && (
               <HeadToHeadPanel

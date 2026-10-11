@@ -1,5 +1,5 @@
 import { BADGE_SERIES, MAX_SHOWCASE, MAX_TIER, TIER_NAMES, badgeMetricLabel, requirementText, tierFlavor } from '@runquest/shared';
-import type { BadgeSeriesDef, BadgeUserItem, BadgeUserResponse } from '@runquest/shared';
+import type { BadgeSeriesDef, BadgeShowcaseEntry, BadgeUserItem, BadgeUserResponse } from '@runquest/shared';
 import type { GroupBadges } from './api';
 import { isEarnedTier, pipsText } from './components/badgeTier';
 
@@ -117,6 +117,27 @@ export function buildCollection(userBadges: BadgeUserResponse | undefined, group
   const byKey = new Map(validItems(userBadges?.items ?? []).map((entry) => [entry.series, entry]));
   const shown = cleanShowcase(userBadges?.showcase ?? [], [...byKey.keys()]);
   return BADGE_SERIES.map((def) => buildRow(def, byKey.get(def.key), shown, group, viewer));
+}
+
+/** Runner card (spec F4): löparens visade badges till minis i hjältekortet och de intjänade serierna till BADGES-panelen. */
+export interface RunnerBadges {
+  /** De visade (högst MAX_SHOWCASE) i användarens ordning, med tier — samma form som Board-minisen. */
+  showcase: BadgeShowcaseEntry[];
+  /** Bara intjänade serier: visade först (i användarens ordning), sedan högst tier, sedan BADGE_SERIES-ordning. */
+  rows: BadgeRow[];
+}
+
+/** Held-by följer `viewer`-reglerna (X = N göms på andras kort) och utelämnas när `group` saknas. Utan svar blir allt tomt. */
+export function buildRunnerBadges(userBadges: BadgeUserResponse | undefined, group: GroupBadges | undefined, viewer: BadgeViewer): RunnerBadges {
+  const earned = buildCollection(userBadges, group, viewer).filter((row) => row.earned);
+  const rows = [...earned].sort(
+    (a, b) =>
+      (a.displayPosition ?? Number.POSITIVE_INFINITY) - (b.displayPosition ?? Number.POSITIVE_INFINITY)
+      || (b.tier as number) - (a.tier as number)
+      || (SERIES_ORDER.get(a.series) as number) - (SERIES_ORDER.get(b.series) as number),
+  );
+  const showcase = rows.filter((row) => row.displayPosition !== null).map((row) => ({ series: row.series, tier: row.tier as number }));
+  return { showcase, rows };
 }
 
 // ─── Showcase (max tre, bara ägda; samma mönster som titelvalet) ─────────────────────────────────

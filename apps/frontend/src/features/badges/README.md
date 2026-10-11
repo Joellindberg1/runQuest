@@ -10,7 +10,7 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
 - **api.ts** — `badgesApi`: de fyra endpointsen ovanpå `backendApi.authenticatedRequest` (token, 401, bas-URL), så `backendApi.ts` inte växer. Packar upp
   `{ success, data, meta }` och **kastar** allt annat (react-query gör kastet till felläge). `getGroupBadges` packar `meta.member_count` som `member_count`.
 - **hooks/useBadgeQueries.ts** — den ENDA query-definitionen per resurs: `BADGE_QUERY_KEYS`, `useUserBadges`, `useGroupBadges`, `useSaveShowcase`, `useMarkBadgesSeen`.
-- **badgeModel.ts** — ren logik: `buildCollection`, `buildPopupQueue`, `cleanShowcase`/`toggleShowcase`/`sameShowcase`, `ownedSeriesOf`, `applySeen`/`applyShowcase`
+- **badgeModel.ts** — ren logik: `buildCollection`, `buildRunnerBadges` (Runner card, RUN-130), `buildPopupQueue`, `cleanShowcase`/`toggleShowcase`/`sameShowcase`, `ownedSeriesOf`, `applySeen`/`applyShowcase`
   (cache-uppdateringarna), `dismissSeries`/`skipAllSeries`.
 - `guards.test.ts` — vakttester (delade typer, en query-definition, inga hårdkodade serienamn/texter). Globben tar med framtida `components/` automatiskt.
 
@@ -46,8 +46,7 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
   bara när `queryClient.isMutating({ mutationKey }) === 1` (den sista). Annars kan A:s avslut låta en omhämtning läsa servern före B:s POST och lägga tillbaka B i popupkön.
 - **Hook-signaturerna tar användar-id** (`useSaveShowcase(userId)`, `useMarkBadgesSeen(userId)`) i stället för att läsa inloggningen själva: hookarna är rena mot
   providers och testas utan auth-kontext. Vyerna har id:t från `useAuth()`.
-- **Inte här:** tokens, emblem, komponenter, Runner card-ordningen (visade först, sedan högst nivå, sedan serieordning — RUN-130 bygger den ur `BadgeRow.displayPosition`
-  och `tier`), "Preview on leaderboard" (uppföljning).
+- **Inte här:** "Preview on leaderboard" (uppföljning).
 
 ## Emblemet och tokens (RUN-127)
 
@@ -63,6 +62,15 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
 - **Chip:** `<span className="rq-chip rq-chip--status rq-badge-chip" data-tier={tierKey(tier)}>{nivånamn}</span>` (status-receptet, nivåfärg). Låst chip = bara `.rq-chip` (text `--rq-text-4`, .50).
   Designens .45 verifierades mot kortbakgrunden (ca #181818): 4.49:1, alltså under 4.5:1; .50 ger 5.3:1 och är det närmaste tokensteget som klarar kravet (Council 9).
 - **Layouttokens** (samlingsrutnät, popupbredd, News-radens ikonkolumn, spec §5) finns INTE än: vakttestet kräver att varje token läses, så RUN-128/129/132 lägger in sina när de bygger dem.
+
+### Runner card: BadgePanel (RUN-130)
+
+- **components/BadgePanel.tsx** — `BadgePanel({ rows, loading?, error? })` (spec F4): den skrivskyddade BADGES-panelen. En rad per intjänad serie: md-emblem (`decorative`, raden läses en gång),
+  serienamn, "On display" (bara visade), held-by när modellen har ett värde, nivå-chip (`.rq-chip--status` + `data-tier`). Inga knappar.
+- **Data:** `rows` kommer ur `buildRunnerBadges(userBadges, group, viewer)`: bara intjänade serier, visade först (i löparens ordning), sedan högst nivå, sedan serieordning. Samma funktion ger
+  `showcase` till minis i Runner cardens hjältekort. Held-by göms när X = N (andras kort) och utelämnas när group-queryn felar.
+- **Lägen:** laddar → TrackLoader; `error` (`{ onRetry, retrying }`) → `ErrorState` med Retry; tom `rows` → streckad ruta "No badges yet." (bara ett lyckat, tomt svar).
+- **Stil:** `.rq-badge-panel*` ligger i `features/runner/runner.css` tills Profile återanvänder panelen (RUN-128) — då flyttas blocket hit. Placering och datakoppling: `features/runner/README.md`.
 
 ### Rörelse (ägarbeslut E1+E2, Rörelse-undantaget i STATE.md)
 

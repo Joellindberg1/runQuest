@@ -12,6 +12,14 @@ import { renderWithApp } from '@/test/renderApp';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
+// Badge-panelen har ett eget felkort med Retry; här svarar badge-anropen tomt så att de här testernas Retry-knappar (streak, titlar, head-to-head) är entydiga.
+// Badge-lägena provas i features/runner/components/RunnerCard.test.tsx.
+vi.mock('@/features/badges/api', () => ({
+  badgesApi: {
+    getUserBadges: async () => ({ items: [], showcase: [] }),
+    getGroupBadges: async () => ({ members: [], holders: {}, member_count: 0 }),
+  },
+}));
 
 const MOBILE = 390;
 const DESKTOP = 1280;
