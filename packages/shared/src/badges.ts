@@ -3,8 +3,9 @@
 // (kravtexter) delar den. Trösklarna är startvärden som justeras efter dry-run (RUN-125).
 //
 // Att lägga till en serie = en post i BADGE_SERIES (och en post i BADGE_METRICS om måttet är nytt).
-// Reglerna är PER TIER: olika tiers i samma serie kan ha olika mått och icke-monotona trösklar
-// (Early Bird, Night Owl, Precisionist i RUN-116). Motorn (evaluateSeries) ändras inte.
+// Alla serier har EN mätning i alla sex nivåer och strikt stigande trösklar (Speedster: fallande), så en
+// högre nivå kan aldrig nås före en lägre (ägarbeslut 2026-10-11, RUN-135). Motorn (evaluateSeries) är
+// ändå generisk och tillåter olika mått per tier; kontraktstestet är det som håller serierna enhetliga.
 
 /** Antal nivåer per serie. */
 export const MAX_TIER = 6;
@@ -27,6 +28,8 @@ export interface BadgeRun {
   /** Meter; null när okänt (bara Strava-rundor har höjd). */
   total_elevation_gain: number | null;
   is_treadmill: boolean | null;
+  /** Var rundan kommer ifrån (runs.source). Precisionist räknar bara 'strava': en manuell distans är inskriven, inte mätt. */
+  source: 'manual' | 'strava';
 }
 
 /** Värden som inte kan räknas ur rundorna (samma källa som users.longest_streak). */
@@ -85,7 +88,7 @@ function inWindow(minute: number, start: number, end: number): boolean {
   return start <= end ? minute >= start && minute < end : minute >= start || minute < end;
 }
 
-const hhmm = (h: number, m = 0): number => h * 60 + m;
+const hhmm = (h: number): number => h * 60;
 
 /** Antal rundor vars väggklocka ligger i [start, slut); rundor utan start_time räknas inte. */
 function countStartsInWindow(runs: readonly BadgeRun[], start: number, end: number): BadgeMeasurement {
@@ -99,11 +102,6 @@ function countStartsInWindow(runs: readonly BadgeRun[], start: number, end: numb
 
 /** Hundradelar per hel km; "exakt hel km" avgörs med heltalsaritmetik, inte flyttal. */
 const HUNDREDTHS_PER_KM = 100;
-
-/** Antal rundor på exakt `hundredths` hundradelar (21,10 km = 2110). */
-function exactDistanceRuns(runs: readonly BadgeRun[], hundredths: number): BadgeRun[] {
-  return runs.filter((run) => toHundredths(run.distance_km) === hundredths);
-}
 
 export const BADGE_METRICS = {
   /** Längsta enskilda runda, hundradelar av km. */
@@ -149,30 +147,15 @@ export const BADGE_METRICS = {
       return { value: Math.max(0, days) };
     },
   },
-  /** Early Bird tier 1–4: rundor med start [04:00, 07:00). */
+  /** Early Bird: rundor med start [04:00, 07:00). */
   early_bird_runs: {
     scale: 1,
     measure: (runs) => countStartsInWindow(runs, hhmm(4), hhmm(7)),
   },
-  /** Early Bird tier 5–6: rundor med start [04:00, 06:00). */
-  early_bird_deep_runs: {
-    scale: 1,
-    measure: (runs) => countStartsInWindow(runs, hhmm(4), hhmm(6)),
-  },
-  /** Night Owl tier 1–4: rundor med start [21:00, 04:00), över midnatt. */
+  /** Night Owl: rundor med start [21:00, 04:00), över midnatt. */
   night_owl_runs: {
     scale: 1,
     measure: (runs) => countStartsInWindow(runs, hhmm(21), hhmm(4)),
-  },
-  /** Night Owl tier 5: rundor med start [22:30, 04:00), över midnatt. */
-  night_owl_late_runs: {
-    scale: 1,
-    measure: (runs) => countStartsInWindow(runs, hhmm(22, 30), hhmm(4)),
-  },
-  /** Night Owl tier 6: rundor med start [23:30, 00:30), över midnatt. */
-  midnight_runs: {
-    scale: 1,
-    measure: (runs) => countStartsInWindow(runs, hhmm(23, 30), hhmm(0, 30)),
   },
   /**
    * Speedster: bästa moving_time (råa sekunder) bland rundor 4,90 <= km < 10,00. Samma kvalificering
@@ -194,32 +177,21 @@ export const BADGE_METRICS = {
       return best ? { value: best.moving_time as number, source_run_id: best.id } : null;
     },
   },
-  /** Precisionist tier 1–4: rundor på exakt hel km, minst 1 km (distance % 100 === 0 i hundradelar). */
-  exact_km_runs: {
+  /**
+   * Precisionist: STRAVA-rundor på exakt hel km, minst 1 km (distance % 100 === 0 i hundradelar).
+   * Manuella rundor räknas inte — en inskriven distans är inte en mätning.
+   */
+  exact_km_strava_runs: {
     scale: 1,
     measure(runs) {
       let count = 0;
       for (const run of runs) {
+        if (run.source !== 'strava') continue;
         const hundredths = toHundredths(run.distance_km);
         if (hundredths >= HUNDREDTHS_PER_KM && hundredths % HUNDREDTHS_PER_KM === 0) count += 1;
       }
       return { value: count };
     },
-  },
-  /** Precisionist tier 5: rundor på exakt 21,10 km; tröskeln är 1, så första träffen ensam ger tiern. */
-  exact_half_marathon_runs: {
-    scale: 1,
-    measure(runs) {
-      const hits = exactDistanceRuns(runs, 2110);
-      return hits.length > 0 ? { value: hits.length, source_run_id: hits[0].id } : { value: 0 };
-    },
-  },
-  /** Precisionist tier 6: hur många av 10,00 / 21,10 / 42,20 km som träffats exakt (distinkta, max 3). */
-  exact_classic_distances: {
-    scale: 1,
-    measure: (runs) => ({
-      value: [1000, 2110, 4220].filter((hundredths) => exactDistanceRuns(runs, hundredths).length > 0).length,
-    }),
   },
 } satisfies Record<string, BadgeMetricDef>;
 
@@ -313,8 +285,8 @@ export const BADGE_SERIES = [
     key: 'earth_trotter',
     name: 'Earth Trotter',
     icon: 'globe',
-    tiers: uniformTiers('total_distance_km', [100, 500, 1000, 2000, 4015, 10000]),
-    flavors: ['Off the Mark', 'Road Worn', 'Four Figures', 'The Long Way', 'Coast to Coast to Coast', 'Ten Thousand'],
+    tiers: uniformTiers('total_distance_km', [100, 300, 1000, 2000, 3000, 5000]),
+    flavors: ['Off the Mark', 'Road Worn', 'Four Figures', 'The Long Way', 'Coast to Coast to Coast', 'Five Thousand'],
     metricLabel: 'Total distance',
     requirement: (km) => `${formatNumber(km)} km total distance`,
   }),
@@ -322,8 +294,8 @@ export const BADGE_SERIES = [
     key: 'climber',
     name: 'Climber',
     icon: 'mountain',
-    tiers: uniformTiers('total_elevation_m', [500, 1345, 4800, 5895, 8848, 17696]),
-    flavors: ['Foothills', 'Ben Nevis', 'Mont Blanc', 'Kilimanjaro', 'Everest', 'Everest, Twice'],
+    tiers: uniformTiers('total_elevation_m', [500, 1345, 4808, 8848, 17696, 26544]),
+    flavors: ['Foothills', 'Ben Nevis', 'Mont Blanc', 'Everest', 'Everest, Twice', 'Everest, Thrice'],
     metricLabel: 'Total elevation gain',
     requirement: (m) => `${formatNumber(m)} m of elevation gain`,
   }),
@@ -331,8 +303,8 @@ export const BADGE_SERIES = [
     key: 'streak_keeper',
     name: 'Streak Keeper',
     icon: 'flame',
-    tiers: uniformTiers('longest_streak_days', [3, 7, 14, 30, 60, 100]),
-    flavors: ['Long Weekend', 'Full Week', 'Fortnight', 'Calendar Month', 'Two Months', 'The Hundred'],
+    tiers: uniformTiers('longest_streak_days', [7, 14, 50, 100, 365, 730]),
+    flavors: ['Full Week', 'Fortnight', 'Fifty Straight', 'The Hundred', 'A Full Year', 'Two Full Years'],
     metricLabel: 'Longest run streak',
     requirement: (days) => `${formatNumber(days)} days in a row`,
   }),
@@ -340,41 +312,20 @@ export const BADGE_SERIES = [
     key: 'early_bird',
     name: 'Early Bird',
     icon: 'sun',
-    // Tier 5–6 byter till det smalare fönstret 04:00–06:00 med tröskel 50/100 (icke-monotont mot tier 4).
-    tiers: [
-      { metric: 'early_bird_runs', threshold: 5 },
-      { metric: 'early_bird_runs', threshold: 15 },
-      { metric: 'early_bird_runs', threshold: 50 },
-      { metric: 'early_bird_runs', threshold: 100 },
-      { metric: 'early_bird_deep_runs', threshold: 50 },
-      { metric: 'early_bird_deep_runs', threshold: 100 },
-    ],
+    tiers: uniformTiers('early_bird_runs', [5, 20, 50, 100, 200, 300]),
     flavors: ['First Light', 'Dawn Patrol', 'Sunrise Regular', 'Morning Fixture', 'Before the Birds', 'The Dark Hours'],
     metricLabel: 'Early starts',
     // Slutminuten visas inklusive så att texten matchar det halvöppna fönstret [start, slut).
-    requirement: (count, tier) =>
-      `${formatNumber(count)} runs started 04:00${EN_DASH}${tier <= 4 ? '06:59' : '05:59'}`,
+    requirement: (count) => `${formatNumber(count)} runs started 04:00${EN_DASH}06:59`,
   }),
   defineBadgeSeries({
     key: 'night_owl',
     name: 'Night Owl',
     icon: 'moon',
-    tiers: [
-      { metric: 'night_owl_runs', threshold: 5 },
-      { metric: 'night_owl_runs', threshold: 15 },
-      { metric: 'night_owl_runs', threshold: 50 },
-      { metric: 'night_owl_runs', threshold: 100 },
-      { metric: 'night_owl_late_runs', threshold: 25 },
-      { metric: 'midnight_runs', threshold: 10 },
-    ],
+    tiers: uniformTiers('night_owl_runs', [5, 20, 50, 100, 200, 300]),
     flavors: ['Lights Out', 'Street-lamp Pace', 'Closing Time', 'Nocturnal', 'Past Midnight', 'The Midnight Run'],
     metricLabel: 'Late starts',
-    // Nivå 6 slutar 00:29 (ägarbeslut), inte designens 00:30: slutminuten visas inklusive som i övriga fönster.
-    requirement: (count, tier) => {
-      const window =
-        tier <= 4 ? `21:00${EN_DASH}03:59` : tier === 5 ? `22:30${EN_DASH}03:59` : `23:30${EN_DASH}00:29`;
-      return `${formatNumber(count)} runs started ${window}`;
-    },
+    requirement: (count) => `${formatNumber(count)} runs started 21:00${EN_DASH}03:59`,
   }),
   defineBadgeSeries({
     key: 'speedster',
@@ -389,21 +340,10 @@ export const BADGE_SERIES = [
     key: 'precisionist',
     name: 'Precisionist',
     icon: 'target',
-    tiers: [
-      { metric: 'exact_km_runs', threshold: 3 },
-      { metric: 'exact_km_runs', threshold: 10 },
-      { metric: 'exact_km_runs', threshold: 25 },
-      { metric: 'exact_km_runs', threshold: 50 },
-      { metric: 'exact_half_marathon_runs', threshold: 1 },
-      { metric: 'exact_classic_distances', threshold: 3 },
-    ],
-    flavors: ['On the Nose', 'Measured', 'Calibrated', 'Clockwork', 'The Half, Exactly', 'The Full Set'],
+    tiers: uniformTiers('exact_km_strava_runs', [5, 20, 50, 100, 200, 300]),
+    flavors: ['On the Nose', 'Measured', 'Calibrated', 'Clockwork', 'Surgical', 'Atomic Clock'],
     metricLabel: 'Exact finishes',
-    requirement: (count, tier) => {
-      if (tier === 5) return 'One run of exactly 21.10 km';
-      if (tier === 6) return 'One run each of exactly 10.00, 21.10 and 42.20 km';
-      return `${formatNumber(count)} runs on an exact whole km`;
-    },
+    requirement: (count) => `${formatNumber(count)} runs on an exact whole km`,
   }),
 ];
 

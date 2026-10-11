@@ -34,7 +34,7 @@ const RUNS_PAGE_SIZE = 1000;
 /** Säkerhetsgräns för sid-loopen (100 000 rundor): en loop som aldrig tar slut får inte hänga en skrivväg. */
 export const MAX_RUNS_PAGES = 100;
 
-const RUN_COLUMNS = 'id, date, distance, start_time, moving_time, total_elevation_gain, is_treadmill';
+const RUN_COLUMNS = 'id, date, distance, start_time, moving_time, total_elevation_gain, is_treadmill, source';
 
 export interface EvaluateBadgesOptions {
   /** Anroparen har redan räknat streaken (calculateUserTotals) — spar en läsning av users.longest_streak. */
@@ -78,6 +78,8 @@ function toBadgeRun(row: any): BadgeRun {
     moving_time: row.moving_time == null ? null : Number(row.moving_time),
     total_elevation_gain: row.total_elevation_gain == null ? null : Number(row.total_elevation_gain),
     is_treadmill: row.is_treadmill ?? null,
+    // Okänd eller saknad källa räknas som manuell: Precisionist ska aldrig ge en badge på overifierad distans.
+    source: row.source === 'strava' ? 'strava' : 'manual',
   };
 }
 

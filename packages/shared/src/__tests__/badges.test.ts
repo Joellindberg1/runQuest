@@ -30,6 +30,7 @@ function run(over: Partial<BadgeRun> = {}): BadgeRun {
     moving_time: null,
     total_elevation_gain: null,
     is_treadmill: false,
+    source: 'manual',
     ...over,
   };
 }
@@ -90,33 +91,59 @@ describe('badge-registret (kontraktstest)', () => {
     }
   });
 
-  it('serier där alla tiers delar mått och riktning har strikt stigande (below: fallande) trösklar', () => {
+  it('T1: varje serie har EN mätning i alla sex nivåer och strikt stigande (Speedster: fallande) trösklar', () => {
     for (const s of BADGE_SERIES) {
-      const shared = s.tiers.every(
-        (r) => r.metric === s.tiers[0].metric && r.direction === s.tiers[0].direction
-      );
-      if (!shared) continue;
+      expect(new Set(s.tiers.map((r) => r.metric)).size, `${s.key} mått`).toBe(1);
+      expect(new Set(s.tiers.map((r) => r.direction)).size, `${s.key} riktning`).toBe(1);
       for (let i = 1; i < MAX_TIER; i++) {
         const prev = s.tiers[i - 1].threshold;
         const next = s.tiers[i].threshold;
-        if (s.tiers[0].direction === 'below') expect(next).toBeLessThan(prev);
-        else expect(next).toBeGreaterThan(prev);
+        if (s.tiers[0].direction === 'below') expect(next, `${s.key} tier ${i + 1}`).toBeLessThan(prev);
+        else expect(next, `${s.key} tier ${i + 1}`).toBeGreaterThan(prev);
       }
     }
   });
 
-  it('de fyra serierna i RUN-115 delar mått över alla tiers (monotonikravet gäller dem)', () => {
-    const run115 = ['milestoner', 'earth_trotter', 'climber', 'streak_keeper'];
-    for (const s of BADGE_SERIES.filter((x) => run115.includes(x.key))) {
-      expect(new Set(s.tiers.map((r) => r.metric)).size).toBe(1);
-    }
+  it('T1: trösklarna är ägarbeslutets (RUN-135)', () => {
+    const thresholds = (key: string) => BADGE_SERIES.find((s) => s.key === key)!.tiers.map((r) => r.threshold);
+    expect(thresholds('milestoner')).toEqual([5, 10, 21.1, 30, 42.2, 50]);
+    expect(thresholds('earth_trotter')).toEqual([100, 300, 1000, 2000, 3000, 5000]);
+    expect(thresholds('climber')).toEqual([500, 1345, 4808, 8848, 17696, 26544]);
+    expect(thresholds('streak_keeper')).toEqual([7, 14, 50, 100, 365, 730]);
+    expect(thresholds('early_bird')).toEqual([5, 20, 50, 100, 200, 300]);
+    expect(thresholds('night_owl')).toEqual([5, 20, 50, 100, 200, 300]);
+    expect(thresholds('speedster')).toEqual([35, 30, 25, 22, 20, 18]);
+    expect(thresholds('precisionist')).toEqual([5, 20, 50, 100, 200, 300]);
   });
 
-  it('Early Bird, Night Owl och Precisionist byter mått mellan tiers (regeln är per tier)', () => {
-    for (const key of ['early_bird', 'night_owl', 'precisionist']) {
-      const s = BADGE_SERIES.find((x) => x.key === key)!;
-      expect(new Set(s.tiers.map((r) => r.metric)).size).toBeGreaterThan(1);
+  it('T1: serierna använder rätt mått', () => {
+    const metric = (key: string) => BADGE_SERIES.find((s) => s.key === key)!.tiers[0].metric;
+    expect(BADGE_SERIES.map((s) => metric(s.key))).toEqual([
+      'longest_run_km',
+      'total_distance_km',
+      'total_elevation_m',
+      'longest_streak_days',
+      'early_bird_runs',
+      'night_owl_runs',
+      'best_5k_time',
+      'exact_km_strava_runs',
+    ]);
+  });
+
+  it('T1: mått som inte längre används är borttagna ur registret, och alla kvarvarande används', () => {
+    const keys = Object.keys(BADGE_METRICS);
+    for (const gone of [
+      'early_bird_deep_runs',
+      'night_owl_late_runs',
+      'midnight_runs',
+      'exact_half_marathon_runs',
+      'exact_classic_distances',
+      'exact_km_runs',
+    ]) {
+      expect(keys).not.toContain(gone);
     }
+    const used = new Set<string>(BADGE_SERIES.flatMap((s) => s.tiers.map((r) => r.metric)));
+    for (const key of keys) expect(used.has(key), key).toBe(true);
   });
 
   it('Speedster är en "below"-serie med fallande minuttrösklar 35/30/25/22/20/18', () => {
@@ -185,15 +212,16 @@ describe('earth_trotter (total distans, heltals-hundradelar)', () => {
   it.each([
     [99.99, 0],
     [100, 1],
-    [499.99, 1],
-    [500, 2],
+    [299.99, 1],
+    [300, 2],
     [999.99, 2],
     [1000, 3],
     [1999.99, 3],
     [2000, 4],
-    [4014.99, 4],
-    [4015, 5],
-    [9999.99, 5],
+    [2999.99, 4],
+    [3000, 5],
+    [4999.99, 5],
+    [5000, 6],
     [10000, 6],
   ])('en total på %s km ger tier %s', (km, expected) => {
     expect(tier('earth_trotter', [run({ distance_km: km })])).toBe(expected);
@@ -221,8 +249,8 @@ describe('earth_trotter (total distans, heltals-hundradelar)', () => {
     expect(tier('earth_trotter', runs)).toBe(1);
   });
 
-  it('flera serier kan nås av samma rundor: 10 000 km i en runda ger milestoner 6 och earth_trotter 6', () => {
-    const result = computeBadgeTiers([run({ distance_km: 10000 })], NO_STREAK);
+  it('flera serier kan nås av samma rundor: 5 000 km i en runda ger milestoner 6 och earth_trotter 6', () => {
+    const result = computeBadgeTiers([run({ distance_km: 5000 })], NO_STREAK);
     expect(result.milestoner.tier).toBe(6);
     expect(result.earth_trotter).toEqual({ tier: 6 });
   });
@@ -246,14 +274,14 @@ describe('climber (summa höjdmeter)', () => {
     [500, 1],
     [1344, 1],
     [1345, 2],
-    [4799, 2],
-    [4800, 3],
-    [5894, 3],
-    [5895, 4],
-    [8847, 4],
-    [8848, 5],
-    [17695, 5],
-    [17696, 6],
+    [4807, 2],
+    [4808, 3],
+    [8847, 3],
+    [8848, 4],
+    [17695, 4],
+    [17696, 5],
+    [26543, 5],
+    [26544, 6],
   ])('%s m ger tier %s', (m, expected) => {
     expect(tier('climber', withElevation(m))).toBe(expected);
   });
@@ -264,9 +292,9 @@ describe('climber (summa höjdmeter)', () => {
       run({ total_elevation_gain: null }),
       run({ total_elevation_gain: 4847.5 }),
     ];
-    expect(tier('climber', runs)).toBe(4); // 8847,5 < 8848
+    expect(tier('climber', runs)).toBe(3); // 8847,5 < 8848
     runs.push(run({ total_elevation_gain: 0.5 }));
-    expect(tier('climber', runs)).toBe(5); // exakt 8848
+    expect(tier('climber', runs)).toBe(4); // exakt 8848
   });
 
   it('ignorerar negativa och icke-ändliga värden i stället för att förgifta summan', () => {
@@ -282,19 +310,19 @@ describe('climber (summa höjdmeter)', () => {
 describe('streak_keeper (längsta svit)', () => {
   it.each([
     [0, 0],
-    [2, 0],
-    [3, 1],
-    [6, 1],
-    [7, 2],
-    [13, 2],
-    [14, 3],
-    [29, 3],
-    [30, 4],
-    [59, 4],
-    [60, 5],
-    [99, 5],
-    [100, 6],
-    [365, 6],
+    [6, 0],
+    [7, 1],
+    [13, 1],
+    [14, 2],
+    [49, 2],
+    [50, 3],
+    [99, 3],
+    [100, 4],
+    [364, 4],
+    [365, 5],
+    [729, 5],
+    [730, 6],
+    [2000, 6],
   ])('longest_streak %s ger tier %s', (streak, expected) => {
     expect(tier('streak_keeper', [], { longest_streak: streak })).toBe(expected);
   });
@@ -380,7 +408,7 @@ describe('wallClockMinutes (väggklocka, ingen tidszonskonvertering)', () => {
   });
 });
 
-describe('early_bird (rundor med start i fönster, väggklocka)', () => {
+describe('early_bird (rundor med start i [04:00, 07:00), väggklocka)', () => {
   it.each([
     ['03:59', 0],
     ['04:00', 1],
@@ -395,45 +423,29 @@ describe('early_bird (rundor med start i fönster, väggklocka)', () => {
   it.each([
     [4, 0],
     [5, 1],
-    [14, 1],
-    [15, 2],
-    [49, 2],
-    [50, 5], // 50 rundor kl 05:00 är också 50 före 06:00 => tier 5 (högsta uppfyllda)
-    [99, 5],
-    [100, 6],
-  ])('%s rundor kl 05:00 ger tier %s', (n, expected) => {
-    expect(tier('early_bird', many(n, () => at('05:00')))).toBe(expected);
-  });
-
-  it.each([
-    [14, 1],
-    [15, 2],
+    [19, 1],
+    [20, 2],
     [49, 2],
     [50, 3],
     [99, 3],
     [100, 4],
-  ])('%s rundor kl 06:30 ger tier %s (tier 1–4 räknar [04:00, 07:00))', (n, expected) => {
-    expect(tier('early_bird', many(n, () => at('06:30')))).toBe(expected);
+    [199, 4],
+    [200, 5],
+    [299, 5],
+    [300, 6],
+    [500, 6],
+  ])('%s rundor kl 06:59 ger tier %s (samma fönster i alla sex nivåer)', (n, expected) => {
+    expect(tier('early_bird', many(n, () => at('06:59')))).toBe(expected);
   });
 
-  it('06:00 räknas inte mot tier 5/6: 100 rundor kl 06:00 ger tier 4, 100 kl 05:59 ger tier 6', () => {
-    expect(tier('early_bird', many(100, () => at('06:00')))).toBe(4);
-    expect(tier('early_bird', many(100, () => at('05:59')))).toBe(6);
+  it('06:59 räknas överallt, 07:00 räknas aldrig: 300 rundor kl 07:00 ger tier 0', () => {
+    expect(tier('early_bird', many(300, () => at('07:00')))).toBe(0);
+    expect(tier('early_bird', many(300, () => at('06:59')))).toBe(6);
   });
 
-  it('50 rundor kl 06:00 ger bara tier 3, 50 kl 05:59 ger tier 5', () => {
-    expect(tier('early_bird', many(50, () => at('06:00')))).toBe(3);
-    expect(tier('early_bird', many(50, () => at('05:59')))).toBe(5);
-  });
-
-  it('04:00-gränsen gäller även tier 5: 50 rundor kl 03:59 ger tier 0, kl 04:00 ger tier 5', () => {
-    expect(tier('early_bird', many(50, () => at('03:59')))).toBe(0);
-    expect(tier('early_bird', many(50, () => at('04:00')))).toBe(5);
-  });
-
-  it('fönstren räknas var för sig: 30 kl 05:00 + 20 kl 06:30 är 50 i [04:00,07:00) men bara 30 före 06:00 => tier 3', () => {
-    const runs = [...many(30, () => at('05:00')), ...many(20, () => at('06:30'))];
-    expect(tier('early_bird', runs)).toBe(3);
+  it('rundor från olika delar av fönstret räknas ihop: 150 kl 04:00 + 150 kl 06:59 ger tier 6', () => {
+    const runs = [...many(150, () => at('04:00')), ...many(150, () => at('06:59'))];
+    expect(tier('early_bird', runs)).toBe(6);
   });
 
   it('manuell runda utan start_time räknas inte', () => {
@@ -451,7 +463,7 @@ describe('early_bird (rundor med start i fönster, väggklocka)', () => {
   });
 });
 
-describe('night_owl (fönster över midnatt, väggklocka)', () => {
+describe('night_owl (fönster [21:00, 04:00) över midnatt, väggklocka)', () => {
   it.each([
     ['20:59', 0],
     ['21:00', 1],
@@ -467,51 +479,37 @@ describe('night_owl (fönster över midnatt, väggklocka)', () => {
   it.each([
     [4, 0],
     [5, 1],
-    [14, 1],
-    [15, 2],
+    [19, 1],
+    [20, 2],
     [49, 2],
     [50, 3],
     [99, 3],
     [100, 4],
-  ])('%s rundor kl 21:30 ger tier %s', (n, expected) => {
-    expect(tier('night_owl', many(n, () => at('21:30')))).toBe(expected);
+    [199, 4],
+    [200, 5],
+    [299, 5],
+    [300, 6],
+    [500, 6],
+  ])('%s rundor kl 03:59 ger tier %s (samma fönster i alla sex nivåer)', (n, expected) => {
+    expect(tier('night_owl', many(n, () => at('03:59')))).toBe(expected);
   });
 
-  it('tier 5: 25 rundor [22:30, 04:00) — 22:29 räknas inte, 22:30 och 03:59 räknas, 04:00 inte', () => {
-    expect(tier('night_owl', many(25, () => at('22:29')))).toBe(2); // 25 >= 15 men inte tier 5
-    expect(tier('night_owl', many(25, () => at('22:30')))).toBe(5);
-    expect(tier('night_owl', many(25, () => at('03:59')))).toBe(5);
-    expect(tier('night_owl', many(25, () => at('04:00')))).toBe(0);
-    expect(tier('night_owl', many(24, () => at('22:30')))).toBe(2);
+  it('03:59 räknas överallt, 04:00 räknas aldrig: 300 rundor kl 04:00 ger tier 0', () => {
+    expect(tier('night_owl', many(300, () => at('04:00')))).toBe(0);
+    expect(tier('night_owl', many(300, () => at('03:59')))).toBe(6);
   });
 
-  it.each([
-    ['23:29', 1],
-    ['23:30', 6],
-    ['23:59', 6],
-    ['00:00', 6],
-    ['00:29', 6],
-    ['00:30', 1],
-    ['03:59', 1],
-  ])('tier 6: 10 rundor kl %s ger tier %s (fönstret är [23:30, 00:30))', (time, expected) => {
-    expect(tier('night_owl', many(10, () => at(time)))).toBe(expected);
-  });
-
-  it('tier 6 räknar rundor på båda sidor om midnatt tillsammans: 5 kl 23:45 + 5 kl 00:15', () => {
-    const runs = [...many(5, () => at('23:45')), ...many(5, () => at('00:15'))];
+  it('rundor på båda sidor om midnatt räknas ihop: 150 kl 23:45 + 150 kl 00:15 ger tier 6', () => {
+    const runs = [...many(150, () => at('23:45')), ...many(150, () => at('00:15'))];
     expect(tier('night_owl', runs)).toBe(6);
-  });
-
-  it('9 midnattsrundor räcker inte till tier 6', () => {
-    expect(tier('night_owl', many(9, () => at('23:45')))).toBe(1);
   });
 
   it('manuell runda utan start_time räknas inte', () => {
     expect(tier('night_owl', many(5, () => run({ start_time: null })))).toBe(0);
   });
 
-  it('en natt-runda utomlands räknas i sin lokala tid: 23:40 lagrad som …T23:40:00Z', () => {
-    expect(tier('night_owl', many(10, () => at('23:40')))).toBe(6);
+  it('en natt-runda utomlands räknas i sin lokala tid: 5 rundor lagrade som …T23:40:00Z ger tier 1', () => {
+    expect(tier('night_owl', many(5, () => at('23:40')))).toBe(1);
   });
 });
 
@@ -592,89 +590,76 @@ describe('speedster (bästa tid på runda 4,9 <= km < 10,0, råa sekunder, strik
   });
 });
 
-describe('precisionist (exakt helt km, heltals-hundradelar)', () => {
-  const dist = (km: number, over: Partial<BadgeRun> = {}) => run({ distance_km: km, ...over });
+describe('precisionist (STRAVA-rundor på exakt hel km, heltals-hundradelar)', () => {
+  const dist = (km: number, over: Partial<BadgeRun> = {}) => run({ distance_km: km, source: 'strava', ...over });
   const exact = (n: number) => many(n, () => dist(5));
 
   it('10,00 räknas som exakt hel km, 10,01 inte, 0,00 inte', () => {
-    expect(tier('precisionist', many(3, () => dist(10)))).toBe(1);
-    expect(tier('precisionist', many(3, () => dist(10.01)))).toBe(0);
-    expect(tier('precisionist', many(3, () => dist(0)))).toBe(0);
-    expect(tier('precisionist', [dist(10), dist(10), dist(10.01)])).toBe(0);
+    expect(tier('precisionist', many(5, () => dist(10)))).toBe(1);
+    expect(tier('precisionist', many(5, () => dist(10.01)))).toBe(0);
+    expect(tier('precisionist', many(5, () => dist(0)))).toBe(0);
+    expect(tier('precisionist', [...many(4, () => dist(10)), dist(10.01)])).toBe(0);
   });
 
   it('under 1 km räknas inte (0,50 är inte en hel km), 1,00 räknas', () => {
-    expect(tier('precisionist', many(3, () => dist(0.5)))).toBe(0);
-    expect(tier('precisionist', many(3, () => dist(1)))).toBe(1);
+    expect(tier('precisionist', many(5, () => dist(0.5)))).toBe(0);
+    expect(tier('precisionist', many(5, () => dist(1)))).toBe(1);
   });
 
   it('flyttalsrester ger inget falskt utfall: 8,2, 2,3 och 0,7+0,1 är inte hela km, 7,0 och 3,00 är', () => {
-    expect(tier('precisionist', [dist(8.2), dist(2.3), dist(0.7 + 0.1)])).toBe(0);
-    expect(tier('precisionist', [dist(7), dist(3.0), dist(1)])).toBe(1);
+    expect(tier('precisionist', [dist(8.2), dist(2.3), dist(0.7 + 0.1), dist(8.2), dist(2.3)])).toBe(0);
+    expect(tier('precisionist', [dist(7), dist(3.0), dist(1), dist(2), dist(4)])).toBe(1);
   });
 
-  it('tiers 1–4: 3/10/25/50 rundor', () => {
+  it('T2: 5/20/50/100/200/300 Strava-rundor på hel km ger tier 1–6, med gränsfall', () => {
     const cases: Array<[number, number]> = [
-      [2, 0],
-      [3, 1],
-      [9, 1],
-      [10, 2],
-      [24, 2],
-      [25, 3],
-      [49, 3],
-      [50, 4],
-      [200, 4],
+      [4, 0],
+      [5, 1],
+      [19, 1],
+      [20, 2],
+      [49, 2],
+      [50, 3],
+      [99, 3],
+      [100, 4],
+      [199, 4],
+      [200, 5],
+      [299, 5],
+      [300, 6],
+      [450, 6],
     ];
-    for (const [n, expected] of cases) expect(tier('precisionist', exact(n))).toBe(expected);
+    for (const [n, expected] of cases) expect(tier('precisionist', exact(n)), `${n} rundor`).toBe(expected);
   });
 
-  it('tier 5: en runda på exakt 21,10 km (21,09 och 21,11 räcker inte)', () => {
-    expect(tier('precisionist', [dist(21.1)])).toBe(5);
-    expect(tier('precisionist', [dist(21.09)])).toBe(0);
-    expect(tier('precisionist', [dist(21.11)])).toBe(0);
+  it('T3: manuell runda på exakt hel km räknas inte i Precisionist', () => {
+    const manual = many(5, () => run({ distance_km: 5, source: 'manual' }));
+    expect(tier('precisionist', manual)).toBe(0);
   });
 
-  it('tier 5 är inte nästlad: ensam 21,10 ger tier 5; 50 hela km utan 21,10 ger tier 4', () => {
-    expect(tier('precisionist', exact(50))).toBe(4);
-    expect(tier('precisionist', [...exact(50), dist(21.1)])).toBe(5);
+  it('T3: bara Strava-rundorna räknas i en blandad mängd: 4 Strava + 100 manuella ger tier 0, 5 Strava + 100 manuella ger tier 1', () => {
+    const manual = many(100, () => run({ distance_km: 5, source: 'manual' }));
+    expect(tier('precisionist', [...exact(4), ...manual])).toBe(0);
+    expect(tier('precisionist', [...exact(5), ...manual])).toBe(1);
   });
 
-  it('tier 5 source_run_id är rundan på 21,10', () => {
-    const result = computeBadgeTiers([dist(5), dist(21.1, { id: 'half' }), dist(8)], NO_STREAK);
-    expect(result.precisionist).toEqual({ tier: 5, source_run_id: 'half' });
+  it('T3: manuella rundor påverkar inte andra serier negativt (Milestoner räknar dem fortfarande)', () => {
+    expect(tier('milestoner', [run({ distance_km: 10, source: 'manual' })])).toBe(2);
   });
 
-  it('tier 6: exakt 10,00, 21,10 och 42,20 (en runda vardera) ger tier 6 utan source_run_id', () => {
-    const result = computeBadgeTiers([dist(10), dist(21.1), dist(42.2)], NO_STREAK);
-    expect(result.precisionist).toEqual({ tier: 6 });
-    expect('source_run_id' in result.precisionist).toBe(false);
+  it('en runda utan känd source (saknat fält) räknas inte', () => {
+    const unknown = many(5, () => run({ distance_km: 5, source: undefined as never }));
+    expect(tier('precisionist', unknown)).toBe(0);
   });
 
-  it('två av tre ger tier 5 när 21,10 ingår', () => {
-    expect(tier('precisionist', [dist(10), dist(21.1)])).toBe(5);
-    expect(tier('precisionist', [dist(21.1), dist(42.2)])).toBe(5);
-  });
-
-  it('10,00 + 42,20 utan 21,10 ger varken tier 5 eller 6 (42,20 är inte en hel km => en hel-km-runda => tier 0)', () => {
-    expect(tier('precisionist', [dist(10), dist(42.2)])).toBe(0);
-  });
-
-  it('samma distans flera gånger räknas som en distinkt: 3 × 10,00 + 3 × 21,10 ger tier 5, inte 6', () => {
-    const runs = [...many(3, () => dist(10)), ...many(3, () => dist(21.1))];
-    expect(tier('precisionist', runs)).toBe(5);
-  });
-
-  it('42,19 och 42,21 räknas inte som 42,20', () => {
-    expect(tier('precisionist', [dist(10), dist(21.1), dist(42.19)])).toBe(5);
-    expect(tier('precisionist', [dist(10), dist(21.1), dist(42.21)])).toBe(5);
+  it('precisionist har inget source_run_id (räknemått)', () => {
+    expect(computeBadgeTiers(exact(5), NO_STREAK).precisionist).toEqual({ tier: 1 });
   });
 
   it('löpband räknas som för XP', () => {
-    expect(tier('precisionist', many(3, () => dist(5, { is_treadmill: true })))).toBe(1);
+    expect(tier('precisionist', many(5, () => dist(5, { is_treadmill: true })))).toBe(1);
   });
 
   it('ogiltiga distanser (NaN, negativ) räknas inte', () => {
-    expect(tier('precisionist', [dist(Number.NaN), dist(-10), dist(-1)])).toBe(0);
+    expect(tier('precisionist', [dist(Number.NaN), dist(-10), dist(-1), dist(Number.NaN), dist(-5)])).toBe(0);
   });
 });
 
@@ -811,8 +796,8 @@ describe('evaluateSeries — registret är utbyggbart med nya poster (RUN-116)',
 
 const EN = '–'; // tankstreck som i designen (runquest-badges.js)
 
-// Facit: docs/design/badges/spec.md §6 och runquest-badges.js. Ordagrant — en ändrad text ska synas här.
-// Undantag (ägarbeslut): Night Owl 6 slutar 00:29, inte designens 00:30, så texten matchar halvöppna [23:30, 00:30).
+// Facit: designens format (docs/design/badges/spec.md §6) med ägarbeslutet 2026-10-11 (RUN-135) för trösklar och
+// flavors. Ordagrant — en ändrad text ska synas här.
 const COPY: Record<string, { name: string; metricLabel: string; tiers: [string, string][] }> = {
   milestoner: {
     name: 'Milestoner',
@@ -831,11 +816,11 @@ const COPY: Record<string, { name: string; metricLabel: string; tiers: [string, 
     metricLabel: 'Total distance',
     tiers: [
       ['100 km total distance', 'Off the Mark'],
-      ['500 km total distance', 'Road Worn'],
+      ['300 km total distance', 'Road Worn'],
       ['1,000 km total distance', 'Four Figures'],
       ['2,000 km total distance', 'The Long Way'],
-      ['4,015 km total distance', 'Coast to Coast to Coast'],
-      ['10,000 km total distance', 'Ten Thousand'],
+      ['3,000 km total distance', 'Coast to Coast to Coast'],
+      ['5,000 km total distance', 'Five Thousand'],
     ],
   },
   climber: {
@@ -844,22 +829,22 @@ const COPY: Record<string, { name: string; metricLabel: string; tiers: [string, 
     tiers: [
       ['500 m of elevation gain', 'Foothills'],
       ['1,345 m of elevation gain', 'Ben Nevis'],
-      ['4,800 m of elevation gain', 'Mont Blanc'],
-      ['5,895 m of elevation gain', 'Kilimanjaro'],
+      ['4,808 m of elevation gain', 'Mont Blanc'],
       ['8,848 m of elevation gain', 'Everest'],
       ['17,696 m of elevation gain', 'Everest, Twice'],
+      ['26,544 m of elevation gain', 'Everest, Thrice'],
     ],
   },
   streak_keeper: {
     name: 'Streak Keeper',
     metricLabel: 'Longest run streak',
     tiers: [
-      ['3 days in a row', 'Long Weekend'],
       ['7 days in a row', 'Full Week'],
       ['14 days in a row', 'Fortnight'],
-      ['30 days in a row', 'Calendar Month'],
-      ['60 days in a row', 'Two Months'],
+      ['50 days in a row', 'Fifty Straight'],
       ['100 days in a row', 'The Hundred'],
+      ['365 days in a row', 'A Full Year'],
+      ['730 days in a row', 'Two Full Years'],
     ],
   },
   early_bird: {
@@ -867,11 +852,11 @@ const COPY: Record<string, { name: string; metricLabel: string; tiers: [string, 
     metricLabel: 'Early starts',
     tiers: [
       [`5 runs started 04:00${EN}06:59`, 'First Light'],
-      [`15 runs started 04:00${EN}06:59`, 'Dawn Patrol'],
+      [`20 runs started 04:00${EN}06:59`, 'Dawn Patrol'],
       [`50 runs started 04:00${EN}06:59`, 'Sunrise Regular'],
       [`100 runs started 04:00${EN}06:59`, 'Morning Fixture'],
-      [`50 runs started 04:00${EN}05:59`, 'Before the Birds'],
-      [`100 runs started 04:00${EN}05:59`, 'The Dark Hours'],
+      [`200 runs started 04:00${EN}06:59`, 'Before the Birds'],
+      [`300 runs started 04:00${EN}06:59`, 'The Dark Hours'],
     ],
   },
   night_owl: {
@@ -879,11 +864,11 @@ const COPY: Record<string, { name: string; metricLabel: string; tiers: [string, 
     metricLabel: 'Late starts',
     tiers: [
       [`5 runs started 21:00${EN}03:59`, 'Lights Out'],
-      [`15 runs started 21:00${EN}03:59`, 'Street-lamp Pace'],
+      [`20 runs started 21:00${EN}03:59`, 'Street-lamp Pace'],
       [`50 runs started 21:00${EN}03:59`, 'Closing Time'],
       [`100 runs started 21:00${EN}03:59`, 'Nocturnal'],
-      [`25 runs started 22:30${EN}03:59`, 'Past Midnight'],
-      [`10 runs started 23:30${EN}00:29`, 'The Midnight Run'],
+      [`200 runs started 21:00${EN}03:59`, 'Past Midnight'],
+      [`300 runs started 21:00${EN}03:59`, 'The Midnight Run'],
     ],
   },
   speedster: {
@@ -902,12 +887,12 @@ const COPY: Record<string, { name: string; metricLabel: string; tiers: [string, 
     name: 'Precisionist',
     metricLabel: 'Exact finishes',
     tiers: [
-      ['3 runs on an exact whole km', 'On the Nose'],
-      ['10 runs on an exact whole km', 'Measured'],
-      ['25 runs on an exact whole km', 'Calibrated'],
-      ['50 runs on an exact whole km', 'Clockwork'],
-      ['One run of exactly 21.10 km', 'The Half, Exactly'],
-      ['One run each of exactly 10.00, 21.10 and 42.20 km', 'The Full Set'],
+      ['5 runs on an exact whole km', 'On the Nose'],
+      ['20 runs on an exact whole km', 'Measured'],
+      ['50 runs on an exact whole km', 'Calibrated'],
+      ['100 runs on an exact whole km', 'Clockwork'],
+      ['200 runs on an exact whole km', 'Surgical'],
+      ['300 runs on an exact whole km', 'Atomic Clock'],
     ],
   },
 };
@@ -927,14 +912,16 @@ describe('badgetexter enligt designen (RUN-134)', () => {
     }
   });
 
-  it('T1: Night Owl nivå 6 slutar 00:29 (ägarbeslut), inte designens 00:30', () => {
-    expect(requirementText(find('night_owl'), 6)).toBe(`10 runs started 23:30${EN}00:29`);
-    expect(requirementText(find('night_owl'), 6)).not.toContain('00:30');
+  it('T4: fönstertexterna är samma i alla nivåer (Early Bird 04:00–06:59, Night Owl 21:00–03:59)', () => {
+    for (let t = 1; t <= MAX_TIER; t++) {
+      expect(requirementText(find('early_bird'), t)).toMatch(new RegExp(`runs started 04:00${EN}06:59$`));
+      expect(requirementText(find('night_owl'), t)).toMatch(new RegExp(`runs started 21:00${EN}03:59$`));
+    }
   });
 
   it('T1: tusenavgränsare som i designen, inga gamla formuleringar kvar', () => {
     expect(requirementText(find('earth_trotter'), 3)).toBe('1,000 km total distance');
-    expect(requirementText(find('earth_trotter'), 6)).toBe('10,000 km total distance');
+    expect(requirementText(find('earth_trotter'), 6)).toBe('5,000 km total distance');
     expect(requirementText(find('climber'), 2)).toBe('1,345 m of elevation gain');
     for (const s of BADGE_SERIES) {
       for (let t = 1; t <= MAX_TIER; t++) {
