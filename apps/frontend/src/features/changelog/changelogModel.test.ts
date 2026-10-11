@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { RQ_ICON_NAMES } from '@/shared/components/icons';
@@ -113,10 +114,20 @@ describe('changelog: v0.6.0', () => {
     expect(changelog.workingOn.map((item) => item.title)).toContain('Notifications');
   });
 
-  it('nämner de tre nya titlarna med de trösklar motorerna använder (12 m/s, 5 °C, dec–feb)', () => {
+  it('titeltrösklarna i texten är de motorerna använder (läses ur motorfilerna: 12 m/s, 5 °C, december–februari)', () => {
+    // Motorfilerna läses som text (som playbookFacts) — frontend importerar ingen backendkod.
+    const engine = (file: string) => readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../backend/src/titleEngines', file), 'utf8');
+    const storm = Number(/STORM_GUST_MS\s*=\s*(\d+)/.exec(engine('stormRunCount.ts'))?.[1]);
+    const ice = Number(/ICE_TEMP_C\s*=\s*(\d+)/.exec(engine('coldRunCount.ts'))?.[1]);
+    expect({ storm: Number.isFinite(storm), ice: Number.isFinite(ice) }).toEqual({ storm: true, ice: true });
+    // winterWindow: från 1 december till 1 mars (exklusiv) = december–februari.
+    const utils = engine('_utils.ts');
+    expect(utils).toContain('-12-01');
+    expect(utils).toContain('-03-01');
+
     const text = v060?.changes.map((change) => change.description).join(' ') ?? '';
-    expect(text).toMatch(/Stormborn[^.]*12 m\/s/);
-    expect(text).toMatch(/Iceborn[^.]*5 °C/);
+    expect(text).toMatch(new RegExp(`Stormborn[^.]*${storm} m/s`));
+    expect(text).toMatch(new RegExp(`Iceborn[^.]*${ice} °C`));
     expect(text).toMatch(/Winter Warrior[^.]*December to February/);
   });
 

@@ -95,7 +95,7 @@
         },
         {
           "type": "improvement",
-          "description": "Times of day count in your own local time. Early Bird, Night Owl and the other time-of-day titles and badges go by the clock where you ran, and 'x h ago' on the Board is no longer an hour or two off for runs in Sweden."
+          "description": "Early Bird and Night Owl badges go by the clock where you ran, and 'x h ago' on the Board is no longer an hour or two off for runs in Sweden."
         },
         {
           "type": "improvement",
