@@ -1,0 +1,38 @@
+/* Emblem-arket /preview/badges (RUN-127, F1). ENDAST tokens (regel 1) — arket har inga egna mått; emblem, chip och pips kommer ur
+   features/badges/badges.css. Sammansatta selektorer, så att specificiteten avgör och inte laddningsordningen. */
+
+.rq-badge-sheet { padding: var(--rq-pad-screen); display: flex; flex-direction: column; gap: var(--rq-sp-24); }
+.rq-badge-sheet .rq-badge-sheet__head { display: flex; flex-direction: column; gap: var(--rq-sp-4); }
+.rq-badge-sheet .rq-badge-sheet__head h1 { margin: 0; }
+.rq-badge-sheet .rq-badge-sheet__section { display: flex; flex-direction: column; gap: var(--rq-sp-12); }
+.rq-badge-sheet .rq-badge-sheet__eyebrow { margin: 0; }
+
+.rq-badge-sheet .rq-badge-sheet__tiers { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--rq-gap-hair); }
+@media (min-width: 1024px) { .rq-badge-sheet .rq-badge-sheet__tiers { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.rq-badge-sheet .rq-badge-sheet__tier-card {
+  display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-8); padding: var(--rq-pad-card);
+  background: var(--rq-card-bg); border: var(--rq-hair) solid var(--rq-panel-border);
+}
+
+.rq-badge-sheet .rq-badge-sheet__matrix { width: 100%; border-collapse: collapse; background: var(--rq-card-bg); }
+.rq-badge-sheet .rq-badge-sheet__matrix :is(th, td) { padding: var(--rq-sp-8) var(--rq-sp-6); text-align: center; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+.rq-badge-sheet .rq-badge-sheet__matrix thead th { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-weight: 400; color: var(--rq-text-eyebrow); text-transform: uppercase; }
+.rq-badge-sheet .rq-badge-sheet__matrix tbody th { text-align: left; font-family: var(--rq-font-ui); font-size: var(--rq-fs-label); font-weight: 700; letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-2); }
+
+.rq-badge-sheet .rq-badge-sheet__locked { margin: 0; padding: var(--rq-pad-card); list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--rq-sp-16); background: var(--rq-card-bg); }
+.rq-badge-sheet .rq-badge-sheet__locked li { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-8); }
+
+.rq-badge-sheet .rq-badge-sheet__size-row { display: flex; flex-direction: column; gap: var(--rq-sp-8); padding: var(--rq-pad-card); background: var(--rq-card-bg); border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+.rq-badge-sheet .rq-badge-sheet__size-emblems { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-16); }
+.rq-badge-sheet .rq-badge-sheet__motion { display: flex; flex-direction: column; gap: var(--rq-gap-hair); }
+
+.rq-badge-sheet .rq-badge-sheet__panel { display: flex; align-items: center; gap: var(--rq-sp-12); }
+.rq-badge-sheet .rq-badge-sheet__minis { display: inline-flex; align-items: center; gap: var(--rq-sp-6); }
+
+.rq-badge-sheet .rq-badge-sheet__heroic-check { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rq-gap-hair); }
+.rq-badge-sheet .rq-badge-sheet__heroic-case { margin: 0; display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-8); padding: var(--rq-pad-card); background: var(--rq-card-bg); }
+.rq-badge-sheet .rq-badge-sheet__gray { filter: grayscale(1); }
+
+.rq-badge-sheet .rq-badge-sheet__anatomy { display: flex; align-items: center; gap: var(--rq-sp-24); }
+.rq-badge-sheet .rq-badge-sheet__anatomy-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-6); font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-badge-sheet .rq-badge-sheet__anatomy-list strong { color: var(--rq-text-2); }
