@@ -2,8 +2,8 @@
 
 Hjältekort · Frodo's journey (zoom) · statflikar (`?view=distance|streak|fun|consistency`, `useViewParam`) · MY TITLES · RUN HISTORY med redigera/radera
 och profilbild. Mobil = App Prototypens profil (allt i en kolumn), desktop = Web Prototypens (hjälte · Frodo · statflikar | titlar + rundhistorik på 340 px).
-`pages/ProfilePage.tsx` är tunn. Bottenbarens "You" och sidnavens Profile pekar hit (ADR 006). Badge-samlingen (BADGES-kortet direkt under hjältekortet, minis i hjältekortets namnrad)
-byggdes i RUN-128 (spec F2/F8, komponenterna bor i `features/badges/components`); väljaren för visade badges (RUN-129) är ersatt av badges-sidan `/badges` (RUN-150).
+`pages/ProfilePage.tsx` är tunn. Bottenbarens "You" och sidnavens Profile pekar hit (ADR 006). Badge-sammanfattningen (kompakt rad med "All badges →", RUN-151, spec v2 F10; komponenterna bor i `features/badges/components`)
+ersatte samlingskortet (RUN-128), och väljaren för visade badges (RUN-129) är ersatt av badges-sidan `/badges` (RUN-150). Hjältekortets minis finns kvar bara på desktop.
 
 Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: hjälte-, cell-, distans-, streak- och titellogiken är EN definition i
 `runner/runnerModel`; Profile skiljer sig i Fun facts, Consistency-fliken, rundhistoriken och att den egna profilen kan ändras.
@@ -12,10 +12,11 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 
 - **components/**
   - `ProfileScreen` — all datakoppling (`useUsersWithRuns`, titlar), laddning/fel/"User not found", tour, layout
-  - `ProfileHero` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn (+ badge-minis, `BadgeMinis`)/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop) och profilbilden
-  - BADGES-kortet (`BadgeCollection`, `features/badges`) — monteras av `ProfileScreen` direkt efter hjältekortet i huvudkolumnen (mobil och desktop). `ProfileScreen` äger badge-queryerna (`useUserBadges(me.id)`, `useGroupBadges()`);
-    ett badgefel/laddning stannar i kortet (felkort med Retry, skelett) och rör aldrig resten av sidan. Ingen tur-ankare för kortet (turen `tour_profile_v2` är oförändrad)
-  - **Ingen väljare i profilen (RUN-150):** valet av visade badges görs på `/badges` (`features/badges`, `BadgesScreen`). `ProfileScreen` äger ingen `pickerOpen`/`editRef`/panel längre, och BADGES-kortet (`BadgeCollection`) har ingen Edit-knapp; en remsa utan valda badges ritas inte. Profilens nya kompakta rad + "All badges →" kommer i RUN-151. Tur-ankarna är oförändrade.
+  - `ProfileHero` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn (+ badge-minis, `BadgeMinis`, bara desktop)/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop) och profilbilden
+  - BADGES-sammanfattningen (`BadgeSummary`, `features/badges`, RUN-151, spec v2 F10) — kompakt rubrikrad med "All badges →" (länk till `/badges`, mobilens enda ingång), intjänade serier som 44 px-emblem på nivå och en låsta-rad; varje emblem öppnar en popover (`BadgeEmblemDetail`).
+    `ProfileScreen` äger badge-queryerna (`useUserBadges(me.id)`, `useGroupBadges()`) och renderar den på EN plats åt gången: **desktop** sist i `.rq-profile__main` (efter statflikarna, i ett `.rq-card`), **mobil** i `.rq-profile__side` mellan MY TITLES och RUN HISTORY
+    (utan kortyta; mobilens kolumn staplar main → side). Ett badgefel/laddning stannar i sammanfattningen (felkort med Retry, skelett) och rör aldrig resten av sidan. Ingen tur-ankare för den (turen `tour_profile_v2` är oförändrad)
+  - **Ingen väljare i profilen (RUN-150/151):** valet av visade badges görs på `/badges` (`features/badges`, `BadgesScreen`). `ProfileScreen` äger ingen `pickerOpen`/`editRef`/panel och sammanfattningen har ingen Edit-knapp. Tur-ankarna är oförändrade.
   - `FrodoRoad` — vägen (waypoints, ticks, stapel, markör, ändetiketter) och `ZoomButton`; EN komponent som även Runner cards desktop-väg använder (`prefix` styr klassnamnen)
   - `JourneyCard` — Frodo: vägen med waypoints/ticks, zoomknapp (Overview → Zoomed → Close-up) på mobil OCH desktop, procent, nästa mål
   - `StatsPanel` — `ViewTabs variant="underline"` över `?view=`; `Heatmap` är Consistency-fliken

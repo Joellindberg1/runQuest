@@ -66,12 +66,12 @@ const CardModes: React.FC = () => {
     <>
       <p id={limitId} className="rq-badge-sheet__note">{LIMIT_TEXT}</p>
       <ul className="rq-badge-page-grid" aria-label="Badge series, every toggle mode">
-        <BadgeSeriesCard row={row(2)} layout="landscape" toggle={switcher(limitId)} />
-        <BadgeSeriesCard row={row(0)} layout="landscape" toggle={switcher(limitId, { position: 2 })} />
-        <BadgeSeriesCard row={row(1)} layout="landscape" toggle={switcher(limitId, { full: true })} />
-        <BadgeSeriesCard row={row(4)} layout="landscape" toggle={switcher(limitId, { saving: true })} />
-        <BadgeSeriesCard row={row(3)} layout="landscape" toggle={switcher(limitId, { saving: true, position: 1 })} />
-        <BadgeSeriesCard row={row(5)} layout="landscape" toggle={switcher(limitId)} />
+        <BadgeSeriesCard row={row(2)} toggle={switcher(limitId)} />
+        <BadgeSeriesCard row={row(0)} toggle={switcher(limitId, { position: 2 })} />
+        <BadgeSeriesCard row={row(1)} toggle={switcher(limitId, { full: true })} />
+        <BadgeSeriesCard row={row(4)} toggle={switcher(limitId, { saving: true })} />
+        <BadgeSeriesCard row={row(3)} toggle={switcher(limitId, { saving: true, position: 1 })} />
+        <BadgeSeriesCard row={row(5)} toggle={switcher(limitId)} />
       </ul>
     </>
   );
@@ -96,7 +96,6 @@ const LiveCards: React.FC = () => {
           <BadgeSeriesCard
             key={row.series}
             row={row}
-            layout="landscape"
             toggle={switcher(limitId, {
               position: picked.includes(row.series) ? picked.indexOf(row.series) + 1 : null,
               full,

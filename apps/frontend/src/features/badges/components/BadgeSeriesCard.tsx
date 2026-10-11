@@ -21,19 +21,11 @@ export interface ShowcaseToggle {
   onToggle: () => void;
 }
 
-type BadgeSeriesCardProps =
-  | {
-      /** En rad ur `buildCollection`: intjänad eller låst. Alla texter är redan ihopsatta av modellen. */
-      row: BadgeRow;
-      /** Det stående kortet i profilens BADGES-kort (BadgeCollection). Utgår när profilen byter till sammanfattningen. */
-      layout?: 'stacked';
-    }
-  | {
-      row: BadgeRow;
-      /** Badges-sidans liggande kort med växlare. */
-      layout: 'landscape';
-      toggle: ShowcaseToggle;
-    };
+interface BadgeSeriesCardProps {
+  /** En rad ur `buildCollection`: intjänad eller låst. Alla texter är redan ihopsatta av modellen. */
+  row: BadgeRow;
+  toggle: ShowcaseToggle;
+}
 
 /** Växlaren på ett intjänat kort. En `<button aria-pressed>`: den dimmas (aria-disabled) men lämnar aldrig tabbordningen, så skälet kan läsas. */
 function ShowcaseSwitch({ row, toggle }: { row: BadgeRow; toggle: ShowcaseToggle }) {
@@ -77,40 +69,20 @@ function Details({ row, children }: { row: BadgeRow; children?: ReactNode }) {
 }
 
 /**
- * Ett samlingskort (spec §4 F2 stående, v2 F9.5 liggande; Council 1, 2, 9, 14, 17), en `<li>` i rutnätet.
+ * Ett samlingskort (spec v2 F9.5, liggande; Council 1, 2, 9, 14, 17), en `<li>` i badges-sidans rutnät. Det stående kortet (v1 F2) togs bort i RUN-151 när profilens
+ * samlingskort ersattes av sammanfattningen; sidan är nu kortets enda användare.
  *
  * Intjänat: serienamn (versaler), nivå-chip, pips, kravtext UTAN nivåprefix (--rq-text-2), flavor på egen rad, "Next: …" eller, på maxad serie, guld "TOP TIER REACHED",
  * och held-by. Låst (streckad kant): "Locked"-chip, tomma pips, måttetiketten och "Unlock: Common — …" — ingen flavor, ingen Next och ingen held-by.
  * Valfria rader finns bara när modellen har ett värde; här skrivs aldrig en platshållare. Ingen global procent (O2).
  *
- * Stående (standard): emblemet överst. Liggande: tre rutnätsområden (emblem · who · body) ur `--rq-badge-card-areas`, och växlaren längst ned i body, till höger om held-by.
+ * Tre rutnätsområden (emblem · who · body) ur `--rq-badge-card-areas`, och växlaren längst ned i body, till höger om held-by.
  * Kortet i sig är inte klickbart; växlaren är dess enda interaktiva element.
  *
  * Tillgänglighet: emblemet är dekorativt (kortet läses en gång: namn, nivå, krav). Pips bär "Tier N of 6" på intjänade kort; på låsta kort säger chippet redan "Locked",
  * så pipsen är dekor där. Låst serie = ingen knapp, bara en aria-hidden "Locked"-ruta.
  */
-export function BadgeSeriesCard(props: BadgeSeriesCardProps) {
-  const { row } = props;
-
-  if (props.layout !== 'landscape') {
-    return (
-      <li className="rq-badge-card" data-state={row.earned ? 'earned' : 'locked'}>
-        <div className="rq-badge-card__id">
-          <BadgeEmblem series={row.series} tier={row.tier} size="md" decorative />
-          <div className="rq-badge-card__who">
-            <h3 className="rq-name rq-badge-card__name">{row.name}</h3>
-            <BadgeChip tier={row.tier} />
-            <BadgePips tier={row.tier} decorative={!row.earned} />
-          </div>
-        </div>
-        <div className="rq-badge-card__body">
-          <Details row={row}>{row.earned && row.heldBy && <p className="rq-badge-card__held">{row.heldBy}</p>}</Details>
-        </div>
-      </li>
-    );
-  }
-
-  const { toggle } = props;
+export function BadgeSeriesCard({ row, toggle }: BadgeSeriesCardProps) {
   const foot = (
     <div className="rq-badge-card__foot">
       {row.earned && row.heldBy && <p className="rq-badge-card__held">{row.heldBy}</p>}
