@@ -53,11 +53,10 @@ describe('activity_log_type_check — senaste migrationen som definierar CHECK:e
 
 describe('migration 036_activity_log_badge_earned.sql', () => {
   it('är bara ett constraint-byte: drop + add av activity_log_type_check på activity_log, inget annat', () => {
-    // Alla satser utom transaktionsramen.
     const statements = sql036
       .split(';')
       .map((statement) => statement.replace(/\s+/g, ' ').trim())
-      .filter((statement) => statement !== '' && !/^(begin|commit)$/i.test(statement));
+      .filter((statement) => statement !== '');
     expect(statements).toHaveLength(2);
     expect(statements[0]).toMatch(/^alter table public\.activity_log drop constraint if exists activity_log_type_check$/i);
     expect(statements[1]).toMatch(/^alter table public\.activity_log add constraint activity_log_type_check check \(type in \(/i);
@@ -65,9 +64,8 @@ describe('migration 036_activity_log_badge_earned.sql', () => {
     expect(sql036).not.toMatch(/\bdrop\s+(table|column|index)\b/i);
   });
 
-  it('i en transaktion (begin … commit), idempotent (drop … if exists före add) och ingen data rörs', () => {
-    expect(sql036.trim()).toMatch(/^begin;/i);
-    expect(sql036.trim()).toMatch(/commit;$/i);
+  it('ingen egen transaktionsram (apply_migration äger transaktionen) och idempotent (drop … if exists före add)', () => {
+    expect(sql036).not.toMatch(/\b(begin|commit|rollback|start\s+transaction)\b/i);
     expect(sql036.search(/drop constraint if exists activity_log_type_check/i)).toBeGreaterThan(-1);
     expect(sql036.search(/drop constraint if exists/i)).toBeLessThan(sql036.search(/add constraint/i));
   });

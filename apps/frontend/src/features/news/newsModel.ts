@@ -342,7 +342,9 @@ function boostIsLive(boost: { type: string; delta: number; duration: number | nu
 }
 
 /** Serienamnet ur BADGE_SERIES; en okänd (pensionerad) nyckel visas som den är hellre än som ett tomt ord. */
-const badgeSeriesName = (seriesKey: string): string => BADGE_SERIES.find((series) => series.key === seriesKey)?.name ?? seriesKey;
+const badgeSeriesName = (seriesKey: string | null | undefined): string =>
+  typeof seriesKey === 'string' && seriesKey !== '' ? (BADGE_SERIES.find((series) => series.key === seriesKey)?.name ?? seriesKey) : 'a badge';
+const isTier = (tier: unknown): tier is number => typeof tier === 'number' && Number.isFinite(tier);
 /** Tier-namnet ur TIER_NAMES (1-baserat); en okänd tier blir "Tier N". */
 const badgeTierName = (tier: number): string => TIER_NAMES[tier - 1] ?? `Tier ${tier}`;
 
@@ -421,9 +423,15 @@ export function describeNews(item: NewsItem, ctx: NewsContext): NewsText {
       const { series, tier, previous_tier: previousTier } = item.payload;
       const name = badgeSeriesName(series);
       // F7: "Karl earned Streak Keeper — Common." / "You evolved Milestoner from Uncommon to Rare."
-      return previousTier === null
-        ? { kind: 'Badge earned', text: `${subject(actor, ctx)} earned ${name} — ${badgeTierName(tier)}.` }
-        : { kind: 'Badge evolved', text: `${subject(actor, ctx)} evolved ${name} from ${badgeTierName(previousTier)} to ${badgeTierName(tier)}.` };
+      // Tåligt mot en payload utan fält: saknad previous_tier = "earned"; saknad tier utelämnas hellre än "Tier undefined".
+      const who = subject(actor, ctx);
+      if (!isTier(previousTier)) {
+        return { kind: 'Badge earned', text: isTier(tier) ? `${who} earned ${name} — ${badgeTierName(tier)}.` : `${who} earned ${name}.` };
+      }
+      return {
+        kind: 'Badge evolved',
+        text: isTier(tier) ? `${who} evolved ${name} from ${badgeTierName(previousTier)} to ${badgeTierName(tier)}.` : `${who} evolved ${name}.`,
+      };
     }
     case 'streak_broken':
       return { kind: 'Streak broken', text: `${subject(actor, ctx)} lost a ${item.payload.length}-day streak — multiplier back to 1.0×` };

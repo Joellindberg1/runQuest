@@ -381,6 +381,26 @@ describe('texterna ur typ + payload + vem som tittar', () => {
       expect(unknown).toContain('retired_series');
     });
 
+    it('en payload utan previous_tier (fältet saknas) räknas som earned; utan tier utelämnas tiern — aldrig "undefined"', () => {
+      const noPrevious = badgeEarned(1, {}, { series: 'milestoner', tier: 2 });
+      delete (noPrevious.payload as { previous_tier?: number | null }).previous_tier;
+      expect(describeNews(noPrevious, ctx())).toEqual({ kind: 'Badge earned', text: 'Karl earned Milestoner — Uncommon.' });
+
+      const noTier = badgeEarned(1, {}, { series: 'milestoner', previous_tier: null });
+      delete (noTier.payload as { tier?: number }).tier;
+      expect(describeNews(noTier, ctx())).toEqual({ kind: 'Badge earned', text: 'Karl earned Milestoner.' });
+
+      const evolvedNoTier = badgeEarned(1, {}, { series: 'milestoner', previous_tier: 1 });
+      delete (evolvedNoTier.payload as { tier?: number }).tier;
+      expect(describeNews(evolvedNoTier, ctx())).toEqual({ kind: 'Badge evolved', text: 'Karl evolved Milestoner.' });
+
+      const noSeries = badgeEarned(1, {}, { tier: 1 });
+      delete (noSeries.payload as { series?: string }).series;
+      expect(describeNews(noSeries, ctx()).text).toBe('Karl earned a badge — Common.');
+
+      for (const row of [noPrevious, noTier, evolvedNoTier, noSeries]) expect(describeNews(row, ctx()).text).not.toMatch(/undefined|NaN|null/);
+    });
+
     it('raden ligger i Levels: kategori level, zap-ikon (dekorativ, texten bär betydelsen), grön ton', () => {
       expect(buildNewsRow(badgeEarned(1), ctx())).toMatchObject({ category: 'level', tone: 'level', icon: 'zap', kind: 'Badge earned' });
       expect(buildNewsRow(badgeEarned(1, {}, { tier: 2, previous_tier: 1 }), ctx()).kind).toBe('Badge evolved');

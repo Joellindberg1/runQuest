@@ -5,11 +5,10 @@
 -- Bara ett constraint-byte: släpp och lägg om activity_log_type_check med 'badge_earned' tillagd. Inga kolumner,
 -- index, policyer eller data rörs; befintliga rader har typer som alla finns kvar i den nya listan, så valideringen
 -- av den nya constrainten går igenom.
+-- Ingen egen begin/commit: apply_migration kör filen som en transaktion (som övriga migrationer).
 -- Idempotent: drop ... if exists före add, så en omkörning ger samma slutläge.
 -- Listan måste vara identisk med ACTIVITY_TYPES i packages/shared/src/activity.ts (statiskt test:
 -- activityLogMigration.test.ts, "senaste migrationen som definierar activity_log_type_check").
-
-begin;
 
 alter table public.activity_log drop constraint if exists activity_log_type_check;
 
@@ -19,4 +18,3 @@ alter table public.activity_log add constraint activity_log_type_check check (ty
   'level_up','run_milestone','streak_broken',
   'event_open','event_closed','badge_earned'));
 
-commit;
