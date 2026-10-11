@@ -71,7 +71,7 @@ Där designen visar två alternativ står vilket som är PRIMÄRT; alternativet 
 
 ### 2.1 Följdbeslut
 
-- **B1 flavor:** alla 48 ingår (avsnitt 6). Earth Trotter tier 6 heter "Ten Thousand".
+- **B1 flavor:** alla 48 ingår (avsnitt 6). Earth Trotter tier 6 heter "Five Thousand" efter trösklar v2 (tidigare "Ten Thousand").
 - **B2 "Held by" på låsta kort: AVGJORD av Council 1 — raden visas INTE på något låst kort** (bilden F2 visar den på låst Night Owl/Speedster; den ritas inte). Held-by visas bara på intjänade kort och i popupen, se F2/F4/F6. Därmed faller Q1:s fråga om vad talet betyder för en låst serie.
 - **B4 "Counts Strava runs":** byggs inte.
 - **B5 Speedster-text:** "A 5 km run under 35:00".
