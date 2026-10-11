@@ -276,9 +276,16 @@ export interface BadgeSeriesDef<K extends string = string, M extends string = st
   /** Nyckel till RQIcon (frontend); shared känner inte till ikonerna. */
   icon: string;
   tiers: BadgeTierRules<M>;
-  /** Engelsk kravtext för en tier; får skilja sig åt mellan tiers med olika mått. */
+  /** Engelsk kravtext för en tier (designens copy); får skilja sig åt mellan tiers med olika mått. */
   requirement: (threshold: number, tier: number) => string;
+  /** Flavor-namn per tier, tier 1 först (t.ex. "Half Marathon"); visas i popupen. */
+  flavors: BadgeFlavors;
+  /** Måttets etikett på det låsta kortets första rad (t.ex. "Longest single run"). */
+  metricLabel: string;
 }
+
+/** Exakt ett flavor-namn per tier, tier 1 först. */
+export type BadgeFlavors = readonly [string, string, string, string, string, string];
 
 /** Registrerar en serie; `metric` typas mot BADGE_METRICS så att stavfel fångas av tsc. */
 function defineBadgeSeries<K extends string>(
@@ -289,34 +296,45 @@ function defineBadgeSeries<K extends string>(
 
 const formatNumber = (n: number): string => n.toLocaleString('en-US');
 
+/** Tankstreck som i designens klockslagsintervall ("04:00–06:59"). */
+const EN_DASH = '\u2013';
+
 export const BADGE_SERIES = [
   defineBadgeSeries({
     key: 'milestoner',
     name: 'Milestoner',
     icon: 'flag',
     tiers: uniformTiers('longest_run_km', [5, 10, 21.1, 30, 42.2, 50]),
-    requirement: (km) => `Run ${formatNumber(km)} km in a single run`,
+    flavors: ['First Five', 'Double Digits', 'Half Marathon', 'The Long Haul', 'Marathon', 'Ultra'],
+    metricLabel: 'Longest single run',
+    requirement: (km) => `A single run of ${formatNumber(km)} km`,
   }),
   defineBadgeSeries({
     key: 'earth_trotter',
     name: 'Earth Trotter',
     icon: 'globe',
     tiers: uniformTiers('total_distance_km', [100, 500, 1000, 2000, 4015, 10000]),
-    requirement: (km) => `Run ${formatNumber(km)} km in total`,
+    flavors: ['Off the Mark', 'Road Worn', 'Four Figures', 'The Long Way', 'Coast to Coast to Coast', 'Ten Thousand'],
+    metricLabel: 'Total distance',
+    requirement: (km) => `${formatNumber(km)} km total distance`,
   }),
   defineBadgeSeries({
     key: 'climber',
-    name: 'The Climber',
+    name: 'Climber',
     icon: 'mountain',
     tiers: uniformTiers('total_elevation_m', [500, 1345, 4800, 5895, 8848, 17696]),
-    requirement: (m) => `Climb ${formatNumber(m)} m in total`,
+    flavors: ['Foothills', 'Ben Nevis', 'Mont Blanc', 'Kilimanjaro', 'Everest', 'Everest, Twice'],
+    metricLabel: 'Total elevation gain',
+    requirement: (m) => `${formatNumber(m)} m of elevation gain`,
   }),
   defineBadgeSeries({
     key: 'streak_keeper',
     name: 'Streak Keeper',
     icon: 'flame',
     tiers: uniformTiers('longest_streak_days', [3, 7, 14, 30, 60, 100]),
-    requirement: (days) => `Reach a ${formatNumber(days)}-day streak`,
+    flavors: ['Long Weekend', 'Full Week', 'Fortnight', 'Calendar Month', 'Two Months', 'The Hundred'],
+    metricLabel: 'Longest run streak',
+    requirement: (days) => `${formatNumber(days)} days in a row`,
   }),
   defineBadgeSeries({
     key: 'early_bird',
@@ -331,9 +349,11 @@ export const BADGE_SERIES = [
       { metric: 'early_bird_deep_runs', threshold: 50 },
       { metric: 'early_bird_deep_runs', threshold: 100 },
     ],
+    flavors: ['First Light', 'Dawn Patrol', 'Sunrise Regular', 'Morning Fixture', 'Before the Birds', 'The Dark Hours'],
+    metricLabel: 'Early starts',
     // Slutminuten visas inklusive så att texten matchar det halvöppna fönstret [start, slut).
     requirement: (count, tier) =>
-      `Start ${formatNumber(count)} runs between 04:00 and ${tier <= 4 ? '06:59' : '05:59'}`,
+      `${formatNumber(count)} runs started 04:00${EN_DASH}${tier <= 4 ? '06:59' : '05:59'}`,
   }),
   defineBadgeSeries({
     key: 'night_owl',
@@ -347,9 +367,13 @@ export const BADGE_SERIES = [
       { metric: 'night_owl_late_runs', threshold: 25 },
       { metric: 'midnight_runs', threshold: 10 },
     ],
+    flavors: ['Lights Out', 'Street-lamp Pace', 'Closing Time', 'Nocturnal', 'Past Midnight', 'The Midnight Run'],
+    metricLabel: 'Late starts',
+    // Nivå 6 slutar 00:29 (ägarbeslut), inte designens 00:30: slutminuten visas inklusive som i övriga fönster.
     requirement: (count, tier) => {
-      const window = tier <= 4 ? '21:00 and 03:59' : tier === 5 ? '22:30 and 03:59' : '23:30 and 00:29';
-      return `Start ${formatNumber(count)} runs between ${window}`;
+      const window =
+        tier <= 4 ? `21:00${EN_DASH}03:59` : tier === 5 ? `22:30${EN_DASH}03:59` : `23:30${EN_DASH}00:29`;
+      return `${formatNumber(count)} runs started ${window}`;
     },
   }),
   defineBadgeSeries({
@@ -357,7 +381,9 @@ export const BADGE_SERIES = [
     name: 'Speedster',
     icon: 'zap',
     tiers: uniformTiers('best_5k_time', [35, 30, 25, 22, 20, 18], 'below'),
-    requirement: (minutes) => `A 5 km run in under ${minutes}:00`,
+    flavors: ['Moving', 'Brisk', 'Quick', 'Fast', 'Sub-20', 'Flying'],
+    metricLabel: 'Fastest 5 km',
+    requirement: (minutes) => `A 5 km run under ${minutes}:00`,
   }),
   defineBadgeSeries({
     key: 'precisionist',
@@ -371,10 +397,12 @@ export const BADGE_SERIES = [
       { metric: 'exact_half_marathon_runs', threshold: 1 },
       { metric: 'exact_classic_distances', threshold: 3 },
     ],
+    flavors: ['On the Nose', 'Measured', 'Calibrated', 'Clockwork', 'The Half, Exactly', 'The Full Set'],
+    metricLabel: 'Exact finishes',
     requirement: (count, tier) => {
-      if (tier === 5) return 'Run exactly 21.10 km in a single run';
-      if (tier === 6) return 'Run exactly 10.00 km, 21.10 km and 42.20 km (one run each)';
-      return `Finish ${formatNumber(count)} runs on an exact whole km`;
+      if (tier === 5) return 'One run of exactly 21.10 km';
+      if (tier === 6) return 'One run each of exactly 10.00, 21.10 and 42.20 km';
+      return `${formatNumber(count)} runs on an exact whole km`;
     },
   }),
 ];
@@ -445,12 +473,27 @@ export function computeBadgeTiers(runs: readonly BadgeRun[], stats: BadgeStats):
   return computeSeriesTiers(BADGE_SERIES, BADGE_METRICS, runs, stats) as BadgeTiers;
 }
 
-/** Engelsk kravtext för att nå `tier` (1..MAX_TIER) i serien. */
-export function requirementText(series: BadgeSeriesDef, tier: number): string {
+function assertTier(tier: number): void {
   if (!Number.isInteger(tier) || tier < 1 || tier > MAX_TIER) {
     throw new RangeError(`tier must be an integer 1..${MAX_TIER}, got ${tier}`);
   }
+}
+
+/** Engelsk kravtext för att nå `tier` (1..MAX_TIER) i serien. */
+export function requirementText(series: BadgeSeriesDef, tier: number): string {
+  assertTier(tier);
   return series.requirement(series.tiers[tier - 1].threshold, tier);
+}
+
+/** Flavor-namnet för `tier` (1..MAX_TIER) i serien, t.ex. "Half Marathon". */
+export function tierFlavor(series: BadgeSeriesDef, tier: number): string {
+  assertTier(tier);
+  return series.flavors[tier - 1];
+}
+
+/** Måttets etikett för serien (låst korts första rad), t.ex. "Longest single run". */
+export function badgeMetricLabel(series: BadgeSeriesDef): string {
+  return series.metricLabel;
 }
 
 // ─── Läsvägen (GET /api/badges/*, ADR 009 beslut 4 och 7) ───────────────────────────────────────
