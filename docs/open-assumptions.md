@@ -180,10 +180,9 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   användaren) och de gamla `XPSettings/UserManagement/TitleConfig/AdminSecurity`, `StravaSettings/PasswordSettings`.
 
 ## Skal & delat
-- **Logout rensar inte användarspecifika query-cachar** (utom onboarding, som
-  rensas sedan i10b): users-with-runs m.fl. ligger kvar om en annan användare
-  loggar in i samma flik. Låg risk i en vängrupp; åtgärd = qc.clear() vid
-  logout/401 — tas i en senare skalrunda.
+- **Logout rensar inte användarspecifika query-cachar** — LÖST (RUN-143, v0.6.0):
+  `AuthProvider` kör `qc.clear()` vid login, logout och 401 (hela cachen, inga
+  undantag; nivåtabellen hämtas bara om). Test: `AuthProvider.test.tsx`.
 - RÄTTAT 2026-10-04: Toastern ÄR monterad (AppProviders) och gamla `toast()`-
   anrop visas. Nya features använder ändå permanenta `role=status`-ytor —
   motivet är konsekvens och pålitlig uppläsning, inte att Toastern saknas.
