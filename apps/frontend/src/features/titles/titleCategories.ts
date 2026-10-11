@@ -25,7 +25,7 @@ export const TITLE_CATEGORIES: readonly CategoryDef[] = [
 ];
 
 interface MetricDef {
-  category: Exclude<TitleCategoryId, 'other'>;
+  category: TitleCategoryId;
   /** Titelns egen ikon (designen ritar en per titel); saknas den används kategorins. */
   icon?: RQIconName;
 }
@@ -58,6 +58,9 @@ const METRICS: Record<string, MetricDef> = {
 
   longestRunAfterBreak14: { category: 'comeback', icon: 'sparkles' },
   longestRunAfterBreak30: { category: 'comeback', icon: 'sparkles' },
+
+  // Tillfälligt i Other med en egen rad (så driftvakten är grön); RUN-101 flyttar den till kategorin Weather.
+  winterKm: { category: 'other' },
 };
 
 /** Måttnycklarna som har en egen rad i mappningen (testet jämför dem mot motorregistret). */

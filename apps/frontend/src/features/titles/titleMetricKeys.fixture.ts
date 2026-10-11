@@ -1,4 +1,4 @@
-// De 21 måttnycklarna (`metric_key`) som title-motorerna i backend producerar — apps/backend/src/titleEngines/index.ts.
+// De 22 måttnycklarna (`metric_key`) som title-motorerna i backend producerar — apps/backend/src/titleEngines/index.ts.
 // Fixtur för kategorimappningens tester: den får INTE härledas ur mappningen den testar. Driftvakten i
 // titleCategories.test.ts läser motorfilerna och faller om den här listan halkar efter registret.
 export const TITLE_ENGINE_METRIC_KEYS = [
@@ -23,4 +23,5 @@ export const TITLE_ENGINE_METRIC_KEYS = [
   'bestSingleRunElevation',
   'fastest5km',
   'avgPaceStdDev',
+  'winterKm',
 ] as const;

@@ -32,6 +32,7 @@ const ENGINE_KEYS = [
   'maxRunsOneWeek', 'longestRunAfterBreak14', 'longestRunAfterBreak30', 'lowestPaceStdDev', 'maxWeekdayStreak',
   'bestDoubleDayKm', 'fastestMarathon', 'fastestHalfMarathon', 'lastRunOfWeek', 'maxKmRolling30',
   'totalElevationGain', 'bestSingleRunElevation', 'fastest5km', 'avgPaceStdDev',
+  'winterKm', // RUN-100: första motorn efter de 21
 ];
 
 let server: TestServer;
@@ -72,7 +73,7 @@ function seed() {
 }
 
 describe('GET /api/titles/group-eligibility', () => {
-  it('svarets form är oförändrad: envelope, {userId, name, gender, values} och de 21 motornycklarna', async () => {
+  it('svarets form är oförändrad: envelope, {userId, name, gender, values} och motornycklarna (21 + winterKm)', async () => {
     seed();
     const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-1' }) });
 
