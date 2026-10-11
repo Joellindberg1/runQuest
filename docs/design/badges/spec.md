@@ -280,49 +280,41 @@ Typsteg (Council 1, 2, 9): källan använder literaler. Buildern snappar till `-
 
 ---
 
-## 6. Copy: designen (`runquest-badges.js`) mot `packages/shared/src/badges.ts`
+## 6. Copy: `packages/shared/src/badges.ts` (trösklar v2)
 
-Designen är facit för copy. Tiernamnen är identiska. Serienycklar påverkas inte.
+**Uppdaterad 2026-10-11 efter trösklar v2 (ägarbeslut, RUN-135; ADR 009 beslut 3).** Copyn från designen infördes i RUN-134. Därefter bytte RUN-135 trösklarna och gav varje serie en enda mätning. Därför är `badges.ts` nu facit för krav- och flavor-text. `runquest-badges.js` och f1–f8 visar fortfarande de gamla trösklarna, men de används bara som referens för det visuella. Tiernamnen och serienycklarna är oförändrade.
 
-| Serie / tier | Kod idag (`requirementText`) | Design (facit) |
+| Serie | Kravtext (`requirementText`, tier 1 … 6) | Måttetikett (låst kort, rad 1) |
 |---|---|---|
-| Milestoner 1–6 | "Run 5 km in a single run" … "Run 50 km in a single run" | "A single run of 5 km" … "A single run of 50 km" |
-| Earth Trotter 1–6 | "Run 100 km in total" | "100 km total distance" (1,000 / 10,000 med tusenavgränsare som idag) |
-| Climber, namn | "The Climber" | "Climber" |
-| Climber 1–6 | "Climb 500 m in total" | "500 m of elevation gain" |
-| Streak Keeper 1–6 | "Reach a 3-day streak" | "3 days in a row" |
-| Early Bird 1–4 | "Start 5 runs between 04:00 and 06:59" | "5 runs started 04:00–06:59" |
-| Early Bird 5–6 | "Start 50 runs between 04:00 and 05:59" | "50 runs started 04:00–05:59" |
-| Night Owl 1–4 | "Start 5 runs between 21:00 and 03:59" | "5 runs started 21:00–03:59" |
-| Night Owl 5 | "Start 25 runs between 22:30 and 03:59" | "25 runs started 22:30–03:59" |
-| Night Owl 6 | "Start 10 runs between 23:30 and 00:29" | **"10 runs started 23:30–00:29"** (ÄGARBESLUT 2026-10-11, Council 25: designens "00:30" ändras; Q3 avgjord) |
-| Speedster 1–6 | "A 5 km run in under 35:00" | "A 5 km run under 35:00" |
-| Precisionist 1–4 | "Finish 3 runs on an exact whole km" | "3 runs on an exact whole km" |
-| Precisionist 5 | "Run exactly 21.10 km in a single run" | "One run of exactly 21.10 km" |
-| Precisionist 6 | "Run exactly 10.00 km, 21.10 km and 42.20 km (one run each)" | "One run each of exactly 10.00, 21.10 and 42.20 km" |
-| Måttetikett per serie (låst kort rad 1) | finns inte | "Longest single run", "Total distance", "Total elevation gain", "Longest run streak", "Early starts", "Late starts", "Fastest 5 km", "Exact finishes" |
-| Flavor per tier (`fl`) | finns inte | 48 namn, se tabellen nedan |
+| Milestoner | "A single run of 5 km" … 10 / 21.1 / 30 / 42.2 / 50 km | "Longest single run" |
+| Earth Trotter | "100 km total distance" … 300 / 1,000 / 2,000 / 3,000 / 5,000 | "Total distance" |
+| Climber | "500 m of elevation gain" … 1,345 / 4,808 / 8,848 / 17,696 / 26,544 | "Total elevation gain" |
+| Streak Keeper | "7 days in a row" … 14 / 50 / 100 / 365 / 730 | "Longest run streak" |
+| Early Bird | "5 runs started 04:00–06:59" … 20 / 50 / 100 / 200 / 300 (samma fönster i alla tiers) | "Early starts" |
+| Night Owl | "5 runs started 21:00–03:59" … 20 / 50 / 100 / 200 / 300 (samma fönster i alla tiers) | "Late starts" |
+| Speedster | "A 5 km run under 35:00" … 30 / 25 / 22 / 20 / 18 | "Fastest 5 km" |
+| Precisionist | "5 runs on an exact whole km" … 20 / 50 / 100 / 200 / 300 (bara Strava-rundor) | "Exact finishes" |
 
-**Flavor-namn (designen, 1 → 6):**
+Ägarbeslutet "Night Owl nivå 6 = 23:30–00:29" (Q3) gällde det gamla tier 6-fönstret och upphör med v2. Där finns ett enda fönster, 21:00–03:59.
+
+**Flavor-namn (`tierFlavor`, 1 → 6).** Ändrade mot designen där tröskeln flyttats:
 
 | Serie | Common | Uncommon | Rare | Heroic | Epic | Legendary |
 |---|---|---|---|---|---|---|
 | Milestoner | First Five | Double Digits | Half Marathon | The Long Haul | Marathon | Ultra |
-| Earth Trotter | Off the Mark | Road Worn | Four Figures | The Long Way | Coast to Coast to Coast | Ten Thousand |
-| Climber | Foothills | Ben Nevis | Mont Blanc | Kilimanjaro | Everest | Everest, Twice |
-| Streak Keeper | Long Weekend | Full Week | Fortnight | Calendar Month | Two Months | The Hundred |
+| Earth Trotter | Off the Mark | Road Worn | Four Figures | The Long Way | Coast to Coast to Coast | Five Thousand |
+| Climber | Foothills | Ben Nevis | Mont Blanc | Everest | Everest, Twice | Everest, Thrice |
+| Streak Keeper | Full Week | Fortnight | Fifty Straight | The Hundred | A Full Year | Two Full Years |
 | Early Bird | First Light | Dawn Patrol | Sunrise Regular | Morning Fixture | Before the Birds | The Dark Hours |
 | Night Owl | Lights Out | Street-lamp Pace | Closing Time | Nocturnal | Past Midnight | The Midnight Run |
 | Speedster | Moving | Brisk | Quick | Fast | Sub-20 | Flying |
-| Precisionist | On the Nose | Measured | Calibrated | Clockwork | The Half, Exactly | The Full Set |
+| Precisionist | On the Nose | Measured | Calibrated | Clockwork | Surgical | Atomic Clock |
 
 **Sammansättning (frontendens ansvar, inte shared), ÄNDRAD av Council 2:**
 - Intjänat kort: **kravtext utan nivåprefix** (`"{krav}"`), därunder flavor på egen rad (`"{flavor}"`, citerad kursiv). Tidigare `"{Tier} — {krav}"` utgår.
 - Nästa: `"Next: {Tier} — {krav}"` (behåller nivånamn; ingen flavor).
 - Låst: `"Unlock: Common — {krav}"` (behåller nivånamn; ingen flavor).
 - Popup: kravtext på en rad och flavor `"{flavor}"` på EGEN rad (inte längre `{krav} — "{flavor}".` på en rad).
-
-**Förslag (liten story/fix, Lead skapar; Designern ändrar inte koden):** i `badges.ts` (1) skriv om alla `requirement`-funktioner enligt kolumnen Design, med Night Owl 6 = "23:30–00:29" (koden säger redan 00:29: ingen ändring för den raden); (2) byt `name: 'The Climber'` till `'Climber'`; (3) lägg till `flavors: readonly [string x6]` och `metricLabel: string` i `BadgeSeriesDef` samt `tierFlavor(series, tier)` bredvid `requirementText`; (4) uppdatera enhetstesterna; (5) ingen ändring i motor, mått eller DB.
 
 ---
 
@@ -352,7 +344,7 @@ Alla fem röster: godkänt med villkor. Villkoren gäller manifest för RUN-127/
 
 - **Q1 AVGJORD.** Held-by visas inte på låsta kort; på intjänade kort = medlemmar på din nivå eller högre (ADR `holders`). Inget "≥ tier 1"-antal behövs. Bildens siffror är platshållare.
 - **Q2 AVGJORD (ägarbeslut).** Väljaren är samma panel på mobil och desktop (340 px-sidokolumn), växlare på raderna i väljaren, inte på samlingskorten. Inline som `DisplayPanel` på Titles. Ingång: "Edit" / "Edit display" i ON DISPLAY-remsan.
-- **Q3 AVGJORD (ägarbeslut).** Night Owl nivå 6 = "23:30–00:29".
+- **Q3 AVGJORD (ägarbeslut).** Night Owl nivå 6 = "23:30–00:29". Upphävd av trösklar v2 (2026-10-11): Night Owl har ett fönster, 21:00–03:59, i alla tiers.
 - **Q4 AVGJORD.** Flavor visas på alla intjänade kort och i popupen, på egen rad.
 - **B3.** Nedgradering/radering sker tyst (ingen vy). Oförändrat.
 - **B6.** Showcase-ordning = arrayordning (platsnummer 1/2/3 vänster→höger). Oförändrat.
