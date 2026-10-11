@@ -3,7 +3,7 @@
 ## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
 
 Rullar ihop epicsen RUN-1 (Badges), RUN-91 (Stormborn, Iceborn, Winter Warrior) och RUN-92 (städning och nivåtabellen via backend), plus
-Strava-låset (RUN-139). Migrationerna 035–038 och en badge-backfill är prod-steg som kräver ägar-ja (se "Prod-steg" nedan).
+Strava-låset (RUN-139). Migrationerna 035–040 och en badge-backfill är prod-steg som kräver ägar-ja (se "Prod-steg" nedan).
 
 ### Nytt
 - **Badges (ADR 009, RUN-1).** Åtta serier × sex nivåer (Common till Legendary) som gruppen samlar över säsonger: Milestoner, Earth Trotter, Climber,
@@ -44,7 +44,8 @@ Strava-låset (RUN-139). Migrationerna 035–038 och en badge-backfill är prod-
 3. Deploy av release/v0.6.0 (backend med motorerna `stormRunCount`, `coldRunCount`, `winterKm` måste ligga före titelraderna).
 4. Migration 036 (`badge_earned` i `activity_log_type_check`) direkt efter deployen.
 5. Migration 037 (titelraderna) efter deployen, sedan tyst omräkning: `POST /api/titles/reprocess-all` (`emitNews: false`).
-6. Migration 038 (stäng anon-läsning av `level_requirements`, RUN-112) först när v0.6.0 är live. Filen ingår inte i release/v0.6.0 och skrivs separat.
+6. Migration 040 (stäng anon-läsning av `level_requirements`, RUN-112) först när v0.6.0 är live. Filen ingår inte i release/v0.6.0 och skrivs separat.
+7. Redan applicerat 2026-10-11 som säkerhetshotfix (ägar-ja): 038 stänger alla RLS-policyer för Supabase-Auth-sessioner (users-tabellen med email och password_hash var läsbar för en Supabase-session), 039 stänger anon-läsning av `title_leaderboard_view` (namn, kön, titelvärden) och signup-triggern `on_auth_user_created`.
 
 ## v0.5.3.2 — Alla CSS-overrides som avgjordes av laddningsordningen (2026-10-07)
 
