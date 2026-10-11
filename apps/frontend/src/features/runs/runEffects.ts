@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { BADGE_QUERY_KEYS } from '@/features/badges/hooks/useBadgeQueries';
 import { EVENTS_QUERY_KEYS } from '@/features/events/hooks/useEventsQueries';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 import { LOG_QUERY_KEYS } from '@/features/log/hooks/useLogQueries';
@@ -20,7 +21,7 @@ export const EVENT_FOLLOW_UP_MS = 4_000;
 /**
  * Allt som räknas ur rundorna när en runda läggs till, ändras eller raderas: gruppens användare (streak, XP, nivå, km, hela
  * rundlistan), Boards leaderboard/vecka/rank-delta, öppna event, titlarna (`['titles']` samt `['multiple-user-titles']`),
- * pågående utmaningars progress, Runner cards head-to-head, gruppens historik och Pack News. Alla invalideras; bara användarna väntas in
+ * pågående utmaningars progress, Runner cards head-to-head, gruppens historik, Pack News och badges. Alla invalideras; bara användarna väntas in
  * (skärmarna läser dem, så bekräftelsen och nästa rendering stämmer överens). EN kedja för POST (Log) och PUT/DELETE (Profile).
  */
 export async function invalidateAfterRunChange(queryClient: QueryClient): Promise<void> {
@@ -33,6 +34,8 @@ export async function invalidateAfterRunChange(queryClient: QueryClient): Promis
   void queryClient.invalidateQueries({ queryKey: LOG_QUERY_KEYS.history });
   // Klockan och Pack News: en egen runda kan ge level up/milstolpe/titelbyte — räknaren ska inte vänta på nästa poll.
   void queryClient.invalidateQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot });
+  // Badges räknas om synkront i samma skrivväg som totalerna (evaluateBadges i calculateUserTotals): samling, popup och Board-rader.
+  void queryClient.invalidateQueries({ queryKey: BADGE_QUERY_KEYS.root });
   setTimeout(() => void queryClient.invalidateQueries({ queryKey: EVENTS_QUERY_KEYS.open, exact: true }), EVENT_FOLLOW_UP_MS);
   await queryClient.invalidateQueries({ queryKey: USERS_WITH_RUNS_QUERY_KEY });
 }
