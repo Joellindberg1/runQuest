@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.5.3.2 — Alla CSS-overrides som avgjordes av laddningsordningen (2026-10-07)
+
+### Fixat
+- Uppföljning av v0.5.3.1 (PR #23). En genomgång av alla `className` i TSX mot alla CSS-regler (specificitet och den faktiska ordningen i bygget)
+  hittade fler enkla klasser som skulle åsidosätta delade `.rq-*`-primitiver på samma specificitet och därför förlorade i produktion, eftersom
+  feature-CSS i huvudbunten laddas FÖRE `index.css`. De är nu sammansatta selektorer, så specificiteten avgör:
+  - app-shell: `.rq-pill` (gap, padding, letter-spacing mot `.rq-chip`) och `.rq-header__avatar`
+  - board: stapelhöjderna (`.rq-board-track`, `--thin`, `.rq-board-streak__track`) mot `.rq-track` (6 px)
+  - duels: hairgrid-cellerna (`how__item`, `record__cell`) mot `.rq-cell`
+  - landing: titelns letter-spacing mot `.rq-display-xl` (desktop-`@media` följer med)
+  - runner: ringhålet, Frodo-stapeln och statkortet
+  - profile: fotoknappens disabled-färg vid hover mot `.rq-btn--ghost:hover`
+  - whatsNew: eyebrow-färgen (samma värde i dag; följer annars eyebrow-experimentet)
+  - duels/events: den egna raden — hover vinner fortfarande, nu uttryckligen (`:not(:hover)`)
+- Lazy-sidorna (admin, changelog, playbook, settings) vann bara för att de laddas sist; samma sammansatta selektorer, ingen synlig ändring.
+
+### Tekniskt
+- Filhuvudena som påstod "ligger utanför @layer så att klasserna vinner" är rättade.
+
+## v0.5.3.1 — Log- och Profile-overrides som förlorade mot primitiverna (2026-10-06)
+
+### Fixat
+- Tailwind 3 plattar ut `@layer` i bygget, och Log/Profile ligger i huvudbunten, så `log.css`/`profile.css` laddas FÖRE `index.css`. Enkla klasser
+  med samma specificitet som de delade `.rq-*`-primitiverna förlorade därför (PR #21). Nu sammansatta selektorer:
+  - Log: padding på väntekortet (`.rq-card.rq-log-pending`); `.rq-log-run__name` dubblerade `.rq-name` (`font: inherit` förlorade) och återställer nu bara knappen
+  - Profile: statkortets och historikens padding (`.rq-card.…`), stapelhöjden 9/11 (`.rq-track.rq-profile-track`) och ringhålets inset 7
+    (`.rq-ring.rq-profile-ring > .rq-ring-hole`)
+
+### Tekniskt
+- READMEs för Log och Profile och filhuvudena beskriver nu den verkliga CSS-ordningen i stället för "utanför @layer".
+
 ## v0.5.3 — Storm Chaser kräver riktig blåst, tydligare eyebrows (2026-10-06)
 
 ### Ändrat

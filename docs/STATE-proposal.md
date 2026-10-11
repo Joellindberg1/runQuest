@@ -18,7 +18,7 @@ Produkt          ← live på runquest.dev, 6 aktiva användare
 - Hosting: Railway, två tjänster — runQuest-frontend (www.runquest.dev), runQuest-backend (api.runquest.dev). Deploy vid push till `main`. [RÄTTAT 2026-10-05: det finns ingen rot-`railway.toml`; backendens bygg/start ligger i Railway-UI:t + rot-`package.json`. Frontend serveras av Caddy via Railpack med repo-rotens `Caddyfile` — se STATE.md.]
 - Externa API:er: Strava (OAuth2, aktiviteter), Open-Meteo (väder + prognos, ingen nyckel).
 - Test/CI: Vitest ^4 (backend 67 tester, packages/shared 35, frontend 0). `.github/workflows/ci.yml`: backend = tsc + build + test, frontend = `tsc --noEmit` (se sköra zoner: troligen verkningslös). Node 20 i CI (engines `>=18`).
-- Miljövariabler: backend `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `CORS_ORIGIN`, `NODE_ENV`, `PORT`; frontend `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- Miljövariabler: backend `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `CORS_ORIGIN`, `NODE_ENV`, `PORT`; frontend `VITE_API_URL` (frontend har ingen Supabase-klient och inga Supabase-nycklar — RUN-105; auth är backend-JWT i localStorage `runquest_token`/`runquest_user`).
 - Arkitekturdiagram: `docs/architecture/runquest-architecture.json` (SSOT) + genererad `.html`.
 
 ## Arkitektur
