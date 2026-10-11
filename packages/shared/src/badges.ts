@@ -452,3 +452,60 @@ export function requirementText(series: BadgeSeriesDef, tier: number): string {
   }
   return series.requirement(series.tiers[tier - 1].threshold, tier);
 }
+
+// ─── Läsvägen (GET /api/badges/*, ADR 009 beslut 4 och 7) ───────────────────────────────────────
+
+/** Antal i gruppen per serie och tier: `holders[serie][t]` = medlemmar med tier ≥ t. */
+export type BadgeHolders = Record<string, Record<number, number>>;
+
+/** Det en lagrad user_badges-rad måste uppge för att räknas. */
+export interface HeldBadge {
+  series: string;
+  tier: number;
+}
+
+/**
+ * "Hålls av n i din pack" (ADR 009 beslut 7): per serie och tier t antalet rader med tier ≥ t, så att
+ * en medlem på tier 3 räknas i 1–3. Svaret är ett fullständigt rutnät (alla kända serier x 1..MAX_TIER,
+ * nollor inkluderade) så att klienten aldrig behöver gissa. Indata är en rad per (användare, serie);
+ * okända serier och tier utanför 1..MAX_TIER ignoreras. Gruppavgränsningen sker av anroparen.
+ */
+export function countHolders(
+  rows: readonly HeldBadge[],
+  seriesKeys: readonly string[] = BADGE_SERIES.map((s) => s.key)
+): BadgeHolders {
+  const holders: BadgeHolders = {};
+  for (const key of seriesKeys) {
+    holders[key] = {};
+    for (let tier = 1; tier <= MAX_TIER; tier += 1) holders[key][tier] = 0;
+  }
+  for (const row of rows) {
+    const bySeries = holders[row.series];
+    if (!bySeries || !Number.isInteger(row.tier) || row.tier < 1 || row.tier > MAX_TIER) continue;
+    for (let tier = 1; tier <= row.tier; tier += 1) bySeries[tier] += 1;
+  }
+  return holders;
+}
+
+/** Högst så många badges visas på spelarkort och Board-rader (users_displayed_badge_series_max3). */
+export const MAX_SHOWCASE = 3;
+
+/**
+ * Sparade `displayed_badge_series` skurna mot det användaren äger just nu (en serie kan ha återkallats
+ * innan evaluateBadges hunnit rensa arrayen). Sparad ordning behålls; okända serier, dubbletter och
+ * ägd tier 0 släpps; högst MAX_SHOWCASE.
+ */
+export function resolveShowcase(
+  displayed: readonly string[] | null | undefined,
+  ownedTiers: ReadonlyMap<string, number>
+): HeldBadge[] {
+  const known = new Set<string>(BADGE_SERIES.map((s) => s.key));
+  const result: HeldBadge[] = [];
+  for (const series of displayed ?? []) {
+    const tier = ownedTiers.get(series) ?? 0;
+    if (!known.has(series) || tier < 1 || result.some((r) => r.series === series)) continue;
+    result.push({ series, tier });
+    if (result.length === MAX_SHOWCASE) break;
+  }
+  return result;
+}
