@@ -18,7 +18,9 @@
 // ett tidigare fel städas vid nästa körning.
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
+import { recordActivities, retractActivity } from './activityLog.js';
 import {
+  badgeNewsChanges,
   computeBadgeTiers,
   diffBadgeTiers,
   type BadgeDiff,
@@ -39,7 +41,7 @@ const RUN_COLUMNS = 'id, date, distance, start_time, moving_time, total_elevatio
 export interface EvaluateBadgesOptions {
   /** Anroparen har redan räknat streaken (calculateUserTotals) — spar en läsning av users.longest_streak. */
   longestStreak?: number;
-  /** Backfill/--silent: nya och uppgraderade rader får seen_tier = tier (ingen popup). */
+  /** Backfill/--silent: nya och uppgraderade rader får seen_tier = tier (ingen popup) och inga news skrivs eller retractas. */
   markSeen?: boolean;
   /** Injiceras i test; standard är systemklockan. */
   now?: Date;
@@ -266,13 +268,38 @@ export async function applyBadgeDiff(
   return { written: result.written, complete: result.complete && showcaseOk };
 }
 
+/** users.group_id för news-raderna (ADR 009 beslut 5); null = ingen grupp. Kastar vid läsfel (fångas av writeBadgeNews). */
+async function readGroupId(userId: string): Promise<string | null> {
+  const { data, error } = await getSupabaseClient().from('users').select('group_id').eq('id', userId).single();
+  if (error || !data) throw new Error(`read users.group_id failed: ${JSON.stringify(error ?? 'user not found')}`);
+  return data.group_id ?? null;
+}
+
+/**
+ * Pack News för det som FAKTISKT skrevs (ADR 009 beslut 5): badge_earned för nya/uppgraderade tiers, retract av
+ * raderna för förlorade tiers. Best-effort och icke-kastande — user_badges är redan skriven och står kvar vid fel.
+ * Ligger här och inte i applyBadgeDiff så att backfill:badges (som går direkt till applyBadgeDiff) aldrig skriver news.
+ * Retract först, sedan skrivning; dedupe_key gör att samtidiga utvärderingar inte kan ge dubbletter.
+ */
+async function writeBadgeNews(userId: string, written: BadgeDiff, now: Date): Promise<void> {
+  try {
+    const needsGroup = written.inserts.length > 0 || written.upgrades.length > 0;
+    const groupId = needsGroup ? await readGroupId(userId) : null;
+    const { drafts, retractKeys } = badgeNewsChanges(written, { userId, groupId, occurredAt: now.toISOString() });
+    await Promise.all(retractKeys.map((key) => retractActivity(key)));
+    await recordActivities(drafts);
+  } catch (e) {
+    logger.error('❌ [Badges] Failed to write badge news:', { error: e, userId });
+  }
+}
+
 /**
  * Räknar om användarens badges ur alla rundor och synkar user_badges + users.displayed_badge_series.
  * KASTAR ALDRIG.
  *
  * Returnerar `null` bara när utvärderingen avbröts FÖRE skrivning (läsfel, sid-gräns eller oväntat fel):
  * inget har ändrats. Annars `{ written, complete }` där `written` är det som faktiskt skrevs — även när
- * `complete` är false (någon skrivning föll). Anroparen (RUN-123) skriver news för `written`, aldrig för
+ * `complete` är false (någon skrivning föll). News (writeBadgeNews, RUN-123) skrivs för `written`, aldrig för
  * hela diffen, så lyckade uppgraderingar inte tappar sin news när en annan skrivning faller. Misslyckade
  * poster räknas om vid nästa körning eftersom raderna då fortfarande skiljer sig från beräkningen.
  */
@@ -290,7 +317,9 @@ export async function evaluateBadges(
     const computed = computeBadgeTiers(runs, { longest_streak: longestStreak });
     const diff = diffBadgeTiers(existing, computed, { now: opts.now, markSeen: opts.markSeen });
 
-    return await applyBadgeDiff(userId, existing, diff);
+    const result = await applyBadgeDiff(userId, existing, diff);
+    if (!opts.markSeen) await writeBadgeNews(userId, result.written, opts.now ?? new Date());
+    return result;
   } catch (e) {
     logger.error('❌ [Badges] evaluateBadges failed:', e);
     return null;
