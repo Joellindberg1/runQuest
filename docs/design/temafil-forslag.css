@@ -637,6 +637,10 @@
   --rq-badge-grid-cols:      repeat(2, minmax(0, 1fr));
   --rq-dur-badge-skel:       1.6s;
   --rq-badge-skel-stagger:   .2s;
+
+  /* Väljaren för visade badges (RUN-129, spec F3, Council 17): minsta tryckyta för växlare, ✕ och Edit (mobil 44, desktop 24 i avsnitt 2). */
+  --rq-badge-pick-hit:       44px;
+  --rq-badge-pick-clear:     88px;     /* luft över väljaren när fokus scrollar den i bild: skalets klibbiga topprad (mobil 81 px, desktop 64) + glapp */
 }
 
 
@@ -768,6 +772,8 @@
     --rq-news-row-icon-badge-w: 34px;
     --rq-news-badge: 15px;
     --rq-badge-grid-cols: repeat(4, minmax(0, 1fr));
+    --rq-badge-pick-hit: 24px;
+    --rq-badge-pick-clear: 72px;
     --rq-login-logo-w: 190px;
     --rq-login-glow-w: 900px;
     --rq-login-glow-h: 560px;

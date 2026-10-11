@@ -66,6 +66,38 @@ describe('rutnätet', () => {
   });
 });
 
+describe('väljaren (RUN-129, Council 17)', () => {
+  it('tryckytan är 44 px på mobil och 24 px på desktop, i båda temafilerna, och växlare, ✕ och Edit läser den', () => {
+    for (const css of [indexCss, facitCss]) {
+      expect(css).toMatch(/--rq-badge-pick-hit:\s*44px;/);
+      const desktop = css.slice(css.indexOf('@media (min-width: 1024px)'));
+      expect(desktop).toMatch(/--rq-badge-pick-hit:\s*24px;/);
+    }
+    for (const selector of ['.rq-badge-pick .rq-badge-pick__toggle', '.rq-badge-slot .rq-badge-slot__remove', '.rq-badge-textlink']) {
+      const rule = new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(badgesCss);
+      expect(rule?.[1], selector).toMatch(/min-height:\s*var\(--rq-badge-pick-hit\)/);
+    }
+  });
+
+  it('platsmarkören är --rq-titles-pos (19 px) och "Preview on leaderboard" har ingen stil här', () => {
+    expect(badgesCss).toMatch(/\.rq-badge-slot__pos\s*\{[^}]*width:\s*var\(--rq-titles-pos\)/);
+    expect(badgesCss).not.toMatch(/preview/i);
+  });
+
+  it('vid 3/3 dimmas växlaren (aria-disabled) — inte raden: ingen regel på raden eller texten sätter opacity', () => {
+    expect(badgesCss).toMatch(/\.rq-badge-pick__toggle\[aria-disabled="true"\]\s*\{/);
+    expect(badgesCss).not.toMatch(/opacity/);
+  });
+
+  it('spara/fel är semantisk grön/röd (--rq-up / --rq-down), aldrig en nivåfärg', () => {
+    const note = /\.rq-badge-pick__note\s*\{([^}]*)\}/.exec(badgesCss)?.[1] ?? '';
+    expect(note).toContain('var(--rq-up)');
+    expect(badgesCss).toMatch(/\.rq-badge-pick \.rq-badge-pick__note\[data-status="error"\]\s*\{[^}]*var\(--rq-down\)/);
+    const pickerCss = badgesCss.slice(badgesCss.indexOf('.rq-badge-textlink'), badgesCss.indexOf('.rq-badge-nameline'));
+    expect(pickerCss).not.toMatch(/var\(--rq-badge-(common|uncommon|rare|heroic|epic|legendary)/);
+  });
+});
+
 describe('BADGES-panelen på Runner card (T5)', () => {
   it('.rq-badge-panel* bor i badges.css och finns inte kvar i runner.css', () => {
     expect(runnerCss).not.toMatch(/rq-badge-panel/);

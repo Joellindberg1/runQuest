@@ -62,17 +62,48 @@ describe('BadgeCollection — rubrik, remsa och rutnät', () => {
     expect(screen.queryByText(/·/)).toBeNull();
   });
 
-  it('ingen Edit-knapp i RUN-128 (byggs i RUN-129): inga knappar alls i kortet', () => {
+  it('utan onEdit finns ingen Edit-knapp: inga knappar alls i kortet', () => {
     renderCollection({ isDesktop: true });
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.queryByText(/^edit/i)).toBeNull();
   });
 
-  it('inga valda badges: ingen tom remsa och ingen platshållare', () => {
+  it('Edit (mobil) / Edit display (desktop) i remsan anropar onEdit; aria-expanded följer editing', () => {
+    const onEdit = vi.fn();
+    const { unmount } = renderCollection({ onEdit });
+    const mobile = screen.getByRole('button', { name: 'Edit' });
+    expect(mobile).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(mobile);
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Edit display' })).toBeNull();
+    unmount();
+    renderCollection({ onEdit, isDesktop: true, editing: true });
+    const desktop = screen.getByRole('button', { name: 'Edit display' });
+    expect(desktop).toHaveAttribute('aria-expanded', 'true');
+    expect(desktop).toHaveAttribute('aria-controls');
+    expect(within(desktop.closest('.rq-badge-display') as HTMLElement).getByText('On display')).toBeInTheDocument();
+  });
+
+  it('inga valda badges, utan onEdit: ingen tom remsa och ingen platshållare', () => {
     renderCollection({ rows: rowsFor({ ...DATA, showcase: [] }, HELD) });
     expect(screen.queryByText('On display')).toBeNull();
     expect(screen.queryByRole('img', { name: /^Badges:/ })).toBeNull();
     expect(cards()).toHaveLength(BADGE_SERIES.length);
+  });
+
+  it('inga valda badges, med onEdit: remsan visar en kort uppmaning och Edit — ingen platshållare för minis', () => {
+    renderCollection({ rows: rowsFor({ ...DATA, showcase: [] }, HELD), onEdit: vi.fn() });
+    const strip = screen.getByText('On display').closest('.rq-badge-display') as HTMLElement;
+    expect(within(strip).getByText('Pick up to 3 badges to show on the Board.')).toBeInTheDocument();
+    expect(within(strip).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(strip.querySelector('.rq-badge')).toBeNull();
+    expect(screen.queryByRole('img', { name: /^Badges:/ })).toBeNull();
+  });
+
+  it('inget intjänat än: ingen Edit-knapp (det finns inget att välja) — det tomma läget är kvar', () => {
+    renderCollection({ rows: rowsFor({ items: [], showcase: [] }, HELD), onEdit: vi.fn() });
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByRole('heading', { name: /^no badges yet$/i })).toBeInTheDocument();
   });
 
   it('ingen text matchar /% of/ (ingen percentil, Council 1) och ingen "undefined"/"null"', () => {

@@ -77,7 +77,7 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
 
 - **components/BadgeCollection.tsx** — `BadgeCollection({ rows, loading?, error?, isDesktop })`: BADGES-kortet. Rubrik (Bebas guld, `shield` i `--rq-icon-md`) + "N of 8 series", ON DISPLAY-remsan (`BadgeMinis` i användarens ordning; desktop dessutom
   namnen, `aria-hidden` eftersom minisens etikett redan säger nivå + serie) och rutnätet (`<ul aria-label="Badge series">`, ett `BadgeSeriesCard` per rad i `buildCollection`-ordning). Remsan ritas inte utan valda badges (ingen tom remsa).
-  **Ingen Edit-knapp** i RUN-128: "Edit"/"Edit display" byggs i RUN-129 (väljaren). Datahämtningen bor i `ProfileScreen` (`useUserBadges(me.id)` + `useGroupBadges()`), så ett badgefel aldrig kan fälla resten av sidan.
+  "Edit"/"Edit display" i remsan (`onEdit`, RUN-129) öppnar väljaren; utan `onEdit` ritas ingen knapp. Datahämtningen bor i `ProfileScreen` (`useUserBadges(me.id)` + `useGroupBadges()`), så ett badgefel aldrig kan fälla resten av sidan.
 - **components/BadgeSeriesCard.tsx** — ett kort. Intjänat: md-emblem (dekorativt), serienamn (versaler), `BadgeChip`, pips ("Tier N of 6"), `requirement` UTAN nivåprefix (`--rq-text-2`), `flavor` på egen rad (citerad kursiv, `--rq-text-1`,
   Barlow Condensed, `--rq-fs-body` = första typsteget ≥ 14 px), "Next: …" (`--rq-text-3`) eller på maxad serie guld "TOP TIER REACHED", held-by (11 px mono, `--rq-text-4`). Låst: streckad kant, Locked-chip, dekorativa tomma pips, måttetiketten,
   "Unlock: Common — …"; aldrig flavor, Next eller held-by (Council 1) — och kravtexten står en gång. Alla texter kommer färdiga ur modellen; kortet skriver aldrig en platshållare.
@@ -90,6 +90,28 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
   (en `role="img"`-grupp "Locked badges: …"); fel → `ErrorState` ("Couldn't load your badges" / "Your runs are safe." / Retry) i stället för kortet, bara när det inte finns äldre data att visa. Gruppens fel utelämnar bara held-by.
 - **Hjältekortet:** `ProfileHero` får `showcase` (ur `buildRunnerBadges(...).showcase`) och ritar `BadgeMinis` efter `<h1>` i `.rq-badge-nameline` (min-height `--rq-badge-h-sm`, så kortet inte hoppar när queryn landar). Inga minis utan valda badges, ingen platshållare.
 - **Vakter:** `seriesIcons.test.ts` (varje `BADGE_SERIES[].icon` finns i `RQ_ICON_NAMES`), `badgeCollectionCss.test.ts` (skelettets rörelse i no-preference-blocket, rutnätstokens, panel-CSS flyttad).
+
+### Väljaren för visade badges (RUN-129, spec F3, Council 16–18)
+
+- **components/ShowcasePicker.tsx** — `ShowcasePicker({ rows, userId, onClose })`: ON DISPLAY-platspanelen (`ShowcaseSlots`), "SAVE DISPLAY" + sparlägen och en rad per serie (BADGE_SERIES-ordning) med sm-emblem, serienamn,
+  `BadgeChip` och växlare. EN panel, samma på mobil och desktop. "Preview on leaderboard" byggs inte (uppföljning, spec §12). Ingen egen query: `useSaveShowcase(userId)` sparar och uppdaterar.
+- **Rader:** växlaren är `<button aria-pressed>` med texten "Show" / "On display — N" och serienamnet som osynlig text före ("Climber: Show"), så knappens namn är unikt och innehåller den synliga texten. Låst serie = streckad rad
+  "Locked — cannot be selected" och en `aria-hidden`-"Locked"-ruta som inte är en knapp. Vid 3/3: de övriga växlarna får `aria-disabled="true"` (kvar i tabbordningen) + `aria-describedby` mot den SYNLIGA texten
+  "3 of 3 on display — remove one first."; det är växlaren som dimmas, aldrig raden eller texten (Council 17; ingen `opacity` finns i badges.css).
+- **Platspanelen:** alltid tre platser (fyllda i valordning, resten streckade "Empty slot"), markör `--rq-titles-pos` (19 px), ✕ = `aria-label="Remove {Serie} from display"`. Nivån står som text. Ändringar läses upp i en
+  `aria-live="polite"`-region ("{Serie} added to display, position N." / "… removed from display.").
+- **Utkast och spara:** utkastet ligger lokalt (`picked`) och städas mot det jag äger (`cleanShowcase`) vid varje rendering, så en serie som försvunnit under tiden varken syns eller skickas. Växling går via `toggleShowcase`
+  (max `MAX_SHOWCASE`, inga dubbletter). SAVE DISPLAY är avstängd när utkastet är lika med sparat (`sameShowcase`) och medan sparandet pågår ("SAVING…", valet kan då inte ändras). Sparat → `role="status"`
+  "Saved — your Board card is updated." (grön kant, `--rq-up`); fel → `role="alert"` "Could not save. Your pick is still here — try again." + RETRY (röd kant, `--rq-down`) och utkastet ligger kvar (hooken återställer
+  samlingen, inte utkastet). Bekräftelsen försvinner när valet ändras. Remsan, hjältekortet och Board-minisen följer med via hookens optimistiska skrivning + invalidering.
+- **EN guldknapp:** SAVE DISPLAY (`.rq-btn--secondary`, som på Titles). Edit/Close/RETRY är textlänkar, inte guldknappar.
+- **Fokus:** panelen (`tabIndex -1`, `aria-labelledby` = rubriken) tar fokus när den öppnas (`preventScroll`, därefter `scrollIntoView({ block: 'nearest' })` med `scroll-margin-top: --rq-badge-pick-clear` så den inte hamnar bakom
+  skalets klibbiga topprad). Close, Esc och Edit stänger; skärmen återför fokus till Edit-knappen (`editButtonRef`). Ett stängt utkast kastas.
+- **Remsan (`BadgeCollection`):** med `onEdit` ritas remsan alltid när något är intjänat; inget valt → en kort uppmaning ("Pick up to 3 badges to show on the Board.") + Edit, aldrig platshållare för minis. Inget intjänat → inget
+  Edit (det finns inget att välja; det tomma läget gäller). Edit är `aria-expanded` + `aria-controls` mot panelen.
+- **Tokens (1.34, båda temafilerna):** `--rq-badge-pick-hit` (tryckyta för växlare, ✕, Edit, Close och RETRY: mobil 44 px, desktop 24) och `--rq-badge-pick-clear` (88 px mobil, 72 desktop). CSS-block: `.rq-badge-pick*`, `.rq-badge-slot*`,
+  `.rq-badge-textlink` i badges.css, efter ON DISPLAY-remsan.
+- **Var väljaren ritas** bestäms av `ProfileScreen` (se `features/profile/README.md`): desktop överst i den 340 px breda sidokolumnen (uppmätt exakt 340 px), mobil direkt ovanför BADGES-kortet.
 
 ### Rörelse (ägarbeslut E1+E2, Rörelse-undantaget i STATE.md)
 
