@@ -203,8 +203,7 @@ en radering kan inte skapa kvalificering och avkvalificering vore en
 regeländring; dessutom svarar DELETE nu 409 för kvalificerande rundor).
 NYTT känt (orört): bakdaterad POST kan kvalificera ett pågående event
 (POST/Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
-Backendens init-logger skriver ut service-nyckelns PREFIX i loggen — ta bort
-raden (liten städfix, nästa backend-runda).
+LÖST: backendens init-logger skriver bara "set"/"missing" för service-nyckeln (config/database.ts).
 1. `group-stats` flaggar `has_pending_challenge` bara för utmanaren — en medlem
    med inkommande väntande utmaning ser ledig ut i send-sheeten (400 visas
    graciöst). Vill ha: flagga även mottagarsidan.
@@ -221,12 +220,11 @@ raden (liten städfix, nästa backend-runda).
    Delete-block i Profile (synlig hint, null = manuell).
 7. ~~PUT kvalificerar inte event~~ LÖST i i9 (PUT med dagsfönster; DELETE
    medvetet utan anrop, svarar 409 för kvalificerande rundor).
-8. **Utgången/ogiltig JWT ger 403, inte 401** — frontend loggar bara ut vid
+8. ~~**Utgången/ogiltig JWT ger 403, inte 401**~~ LÖST (middleware/auth.ts svarar 401). Ursprunglig text: frontend loggar bara ut vid
    401, så en användare borta >7 dagar fastnar på felkort överallt. BESLUT
    (Lead): backend ändrar jwt.verify-felet till 401 (autentisering, inte
    auktorisering); IDOR-403:orna är oförändrade. Tas i backend-mikrorundan.
-9. **Init-loggen skriver service-nyckelns prefix** (config/database.ts:18) —
-   raden tas bort i backend-mikrorundan, före release.
+9. ~~**Init-loggen skriver service-nyckelns prefix**~~ LÖST (config/database.ts loggar bara "set"/"missing").
 10. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
     klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
     bara till). Medvetet val i9c; läker vid window focus.
@@ -249,7 +247,7 @@ raden (liten städfix, nästa backend-runda).
 ## Badge-samlingen i profilen (RUN-128, v0.6.0)
 
 - **Samlingskortet är lodrätt på alla bredder, även desktop.** F2:s desktopkort (emblem till vänster, namn + chip + pips till höger) förutsätter ca 200 px breda kort. Skalets huvudkolumn är smalare än i designens 1440-bild (sidonav 250 + sidokolumn 340), så fyra kolumner ger ca 145 px (1280) / 180 px (1440), där LEGENDARY-chippet inte ryms bredvid emblemet och namnen bröts mitt i orden. Det lodräta mobilkortet i 4 kolumner läses rent. Byt till raden om rutnätet får fler pixlar (färre kolumner eller bredare kolumn).
-- **ON DISPLAY-remsan ritas inte när inga badges är valda** (ingen tom remsa, ingen platshållare). "Edit"/"Edit display" byggs i RUN-129, som avgör remsans tomläge med sin ingång.
+- RÄTTAT (RUN-129): ON DISPLAY-remsan ritas även utan valda badges när användaren har intjänade badges — då med uppmaningen "Pick up to 3 badges to show on the Board." + Edit; utan intjänade badges ritas ingen remsa. Ingen platshållare för minis.
 - **News-radens ikonkolumn är 30 px på mobil men övriga rader har 26 px** (spec §5: `--rq-badge-news-icon-w`, "när den bär ett sm-emblem"), så texten på badge-rader börjar 4 px längre in än på övriga rader. Tokenen heter `--rq-news-row-icon-badge-w` (news-vakten läser `--rq-news-*`; badges-vakten läser bara `badges.css`). Desktop 34 px = som övriga rader. Vill ägaren ha utlinjering bör `--rq-news-row-cols` (26 px) höjas till 30 px för alla rader.
 - **Flavor-storleken är `--rq-fs-body`** (15 px mobil, 17 desktop): första `--rq-fs-*`-steget ≥ 14 px som inte är en knappstorlek (`--rq-fs-btn-sm` = 14 px finns men är en knappkonstant).
 - **Skelettet är en loop (`infinite`)** — F8 anger `rqSkel` 1.6 s och det är en laddare som pulserar tills datan kommer. Vakttestet "inget infinite i badges.css" gäller nu bara emblemreglerna (undantag för `.rq-badge-skel`).
