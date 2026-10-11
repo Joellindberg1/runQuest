@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { User } from '@runquest/types';
@@ -287,5 +288,68 @@ describe('robusthet (T4)', () => {
     const badgeKeys = queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter((key) => key[0] === 'badges');
     expect(badgeKeys).toEqual(expect.arrayContaining([[...BADGE_QUERY_KEYS.user('u-karl')], [...BADGE_QUERY_KEYS.group]]));
     expect(badgeKeys).toHaveLength(2);
+  });
+});
+
+// Emblem-popovern inuti Runner card-dialogen (RUN-152): samma Radix-struktur som RunnerPage (Dialog.Root/Portal/Overlay/Content). Popovern portas till body, utanför dialogens innehåll —
+// den får varken räknas som ett klick utanför (stänger dialogen) eller ta Escape från dialogen.
+describe('emblem-popovern i Runner card-dialogen', () => {
+  function renderInDialog() {
+    setViewportWidth(DESKTOP);
+    const onOpenChange = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthContext.Provider value={auth}>
+          <MemoryRouter>
+            <Dialog.Root open onOpenChange={onOpenChange}>
+              <Dialog.Portal>
+                <Dialog.Overlay className="rq-scrim" />
+                <Dialog.Content className="rq-modal" aria-describedby={undefined}>
+                  <Dialog.Title className="sr-only">{KARL.name}</Dialog.Title>
+                  <Dialog.Close aria-label="Close">✕</Dialog.Close>
+                  <RunnerCard user={KARL} allUsers={PACK} variant="overlay" />
+                </Dialog.Content>
+              </Dialog.Portal>
+            </Dialog.Root>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </QueryClientProvider>,
+    );
+    return { onOpenChange };
+  }
+  const runnerDialog = () => screen.getByRole('dialog', { name: KARL.name });
+  const popover = () => screen.queryByRole('dialog', { name: speedster.name });
+
+  it('emblemet öppnar popovern; ett klick inuti den stänger inte Runner card-dialogen', async () => {
+    const { onOpenChange } = renderInDialog();
+    const panel = await screen.findByRole('region', { name: 'Badges' });
+    await within(panel).findByRole('list', { name: 'Earned badges' });
+
+    fireEvent.click(within(panel).getByRole('button', { name: nameOf(5, speedster) }));
+    const detail = await screen.findByRole('dialog', { name: speedster.name });
+    expect(runnerDialog()).toBeInTheDocument();
+    // Popovern ligger utanför dialogens innehåll (Radix-portal), inte inuti det.
+    expect(runnerDialog().contains(detail)).toBe(false);
+
+    fireEvent.pointerDown(within(detail).getByRole('heading', { name: speedster.name }));
+    fireEvent.click(within(detail).getByRole('heading', { name: speedster.name }));
+    expect(popover()).toBeInTheDocument();
+    expect(runnerDialog()).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('Escape stänger bara popovern: Runner card-dialogen står kvar', async () => {
+    const { onOpenChange } = renderInDialog();
+    const panel = await screen.findByRole('region', { name: 'Badges' });
+    await within(panel).findByRole('list', { name: 'Earned badges' });
+
+    fireEvent.click(within(panel).getByRole('button', { name: nameOf(5, speedster) }));
+    const detail = await screen.findByRole('dialog', { name: speedster.name });
+
+    fireEvent.keyDown(detail, { key: 'Escape' });
+    await waitFor(() => expect(popover()).toBeNull());
+    expect(runnerDialog()).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });
