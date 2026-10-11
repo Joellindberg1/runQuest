@@ -1,7 +1,12 @@
 -- 036: badge_earned i händelseloggen (ADR 009 beslut 5; migrationen delad i två enligt ADR 009 addendum 2026-10-11).
 -- Datum: 2026-10-11. Ägargodkännande för APPLICERING krävs (permissions.md: migration mot prod = ask);
--- filen är skriven men inte körd (RUN-122). Applicering via Supabase MCP apply_migration
--- (name: 036_activity_log_badge_earned) FÖRE deploy av kod som skriver badge_earned-rader (ADR 002 beslut 3).
+-- (RUN-122). Applicering via Supabase MCP apply_migration (name: 036_activity_log_badge_earned).
+-- KÖRORDNING (Lead-beslut 2026-10-11, avviker medvetet från ADR 002 beslut 3): DIREKT EFTER att v0.6.0-backend och
+-- -frontend är live. Skäl: v0.5.3-frontendens News saknar default-gren och kraschar på okända typer — så länge 036 inte
+-- finns kan inga badge_earned-rader skrivas (CHECK-felet loggas och sväljs i activityLog.ts). Pris: badge-news för
+-- nivåhöjningar mellan deploy och 036 skrivs aldrig (user_badges och popupen påverkas inte). Öppna flikar från före
+-- releasen måste laddas om. Rollback av frontend till v0.5.3 efter att badge_earned-rader finns kräver att de raderas
+-- (delete from activity_log where type = 'badge_earned' — ägar-ja).
 -- Bara ett constraint-byte: släpp och lägg om activity_log_type_check med 'badge_earned' tillagd. Inga kolumner,
 -- index, policyer eller data rörs; befintliga rader har typer som alla finns kvar i den nya listan, så valideringen
 -- av den nya constrainten går igenom.

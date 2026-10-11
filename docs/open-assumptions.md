@@ -114,8 +114,8 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - ~~/login är fortfarande den gamla inloggningssidan~~ OMRITAD i inkrement 11 (spår B). Landingens knapp leder dit.
 - **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade — men utloggad gör den inget nätverksanrop.** Landing-FEATUREN anropar inget själv.
   `useAppInit` kör `useLevelRequirements`, som hämtar nivåtabellen via `GET /api/config/levels` (kräver token) först när en användare är inloggad
-  (`enabled: !!user`, även efter SPA-inloggning); utloggad och vid fel gäller `FALLBACK_LEVEL_REQUIREMENTS`. Onboarding-prefetchen gör INGET anrop utan
-  token (returnerar [] direkt). [RÄTTAT efter RUN-110/111: tidigare stod här att appskalet gjorde ETT Supabase-anrop för `level_requirements` även för
+  (`enabled: !!user`, även efter SPA-inloggning); utloggad och vid fel gäller `FALLBACK_LEVEL_REQUIREMENTS`. Onboarding-prefetchen gör INGET nätverksanrop utan
+  token (onboardingApi kastar utan token och prefetchen sväljer felet). [RÄTTAT efter RUN-110/111: tidigare stod här att appskalet gjorde ETT Supabase-anrop för `level_requirements` även för
   utloggade — frontend har ingen Supabase-klient längre, och gating på `user` är gjord.]
 - Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
 

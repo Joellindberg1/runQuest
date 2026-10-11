@@ -1,6 +1,6 @@
 -- 035: Badgesystemet (ADR 009 beslut 1) — tabellen user_badges + users.displayed_badge_series.
 -- Datum: 2026-10-11. Ägargodkännande för APPLICERING krävs (permissions.md: migration mot prod = ask);
--- filen är skriven men inte körd (RUN-113). Applicering via Supabase MCP apply_migration
+-- APPLICERAD i prod 2026-10-11 (RUN-113, ägar-ja). Applicering via Supabase MCP apply_migration
 -- (name: 035_create_user_badges) FÖRE deploy av kod som skriver till tabellen (ADR 002 beslut 3).
 -- Additiv (expand): ny tabell + ny kolumn med default; inget befintligt ändras, inget tas bort.
 -- Idempotent: kan köras flera gånger (create ... if not exists, add column if not exists, villkorlig CHECK).

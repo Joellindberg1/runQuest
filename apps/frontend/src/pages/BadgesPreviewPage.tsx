@@ -121,7 +121,7 @@ const BadgesPreviewPage: React.FC = () => {
 
       <Section id="bs-panel" title="1:1 mini on a panel">
         <div className="rq-card rq-badge-sheet__panel">
-          <span className="rq-name">Joel Lindberg</span>
+          <span className="rq-name">Nova Ridley</span>
           <span role="img" aria-label={showcaseLabel} className="rq-badge-sheet__minis">
             {SHOWCASE.map(({ series, tier }) => (
               <BadgeEmblem key={series.key} series={series.key} tier={tier} size="sm" decorative />

@@ -10,7 +10,7 @@
 -- level_requirements och supabase.auth.signOut()). RLS är på för alla berörda tabeller (kontrollerat i prod före
 -- applicering) — utan policyer nekas all klientåtkomst.
 -- Kvar med avsikt: "Anyone can view level requirements" (anon + authenticated) tills v0.6.0 (frontend läser nivåerna
--- via GET /api/config/levels) är live; den stängs i migration 039 (RUN-112). Storage-policyn för profile-pictures rörs inte.
+-- via GET /api/config/levels) är live; den stängs i migration 040 (RUN-112). Storage-policyn för profile-pictures rörs inte.
 -- Idempotent (drop policy if exists). Additiv i säkerhetsriktning: inga tabeller, kolumner eller data ändras.
 
 drop policy if exists "Users can view all users" on public.users;

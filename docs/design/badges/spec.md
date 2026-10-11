@@ -397,7 +397,7 @@ Alla åtta vyer är KLARA att bygga. Byggaren får inte improvisera fram en desk
 | F3 desktop-text | "toggle sits on each collection card" | Gäller inte: samma väljarpanel som mobil, 340 px |
 | F5 (podie rad 2) | "▼ 1" nästan i kontakt med första minin (ca 6 px) | ≥ 8 px |
 | F5 mobil | Rest-rader med minis ca 15 px högre än raden utan | `min-height` på alla rest-rader |
-| F5 | Legendary-mini med glöd (Joel, rad 2) | Behåll glöd; fallback utan glöd om kritikern anser att minis dominerar |
+| F5 | Legendary-mini med glöd (rad 2) | Behåll glöd; fallback utan glöd om kritikern anser att minis dominerar |
 | F5 | Utmaningsskölden står på podiets `sub`-rad, minis på namnraden (olika rader) | Behåll: olika rader uppfyller "aldrig på samma rad" |
 | F6 | Flavor inbakad i brödtexten (`A single run of 21.1 km — "Half Marathon".`) | Egen rad (se F6) |
 | F6 | "View badges" i kö-varianten | Utgår |
