@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -10,16 +10,17 @@ import { ME } from '@/test/fakeBackend';
 import { setViewportWidth } from '@/test/viewport';
 import type { GroupBadges } from '../api';
 import { BADGE_QUERY_KEYS } from '../hooks/useBadgeQueries';
-import { BadgeUpgradeHost } from './BadgeUpgradeHost';
+import { BadgeUpgradeHost, GROUP_WAIT_MS } from './BadgeUpgradeHost';
+import { DISMISS_GUARD_MS } from './BadgeUpgradeDialog';
 
 // Uppgraderingspopupens värd (RUN-132, ADR 009 beslut 5, Council 22): kön ur min samling, en popup per serie, "seen" vid avfärdande och väntan på
 // onboarding-touren och "What's new". Nätverket (badges-API, onboarding-status) är ersatt; hooks, modell och dialog är de riktiga.
 
 const api = vi.hoisted(() => ({ getUserBadges: vi.fn(), getGroupBadges: vi.fn(), saveShowcase: vi.fn(), markSeen: vi.fn() }));
 vi.mock('../api', () => ({ badgesApi: api }));
-const onboarding = vi.hoisted(() => ({ seen: [] as string[], fail: false }));
+const onboarding = vi.hoisted(() => ({ seen: [] as string[], fail: false, gate: null as Promise<void> | null }));
 vi.mock('@/features/onboarding/onboardingApi', () => ({
-  fetchOnboardingStatus: async () => { if (onboarding.fail) throw new Error('no status'); return [...onboarding.seen]; },
+  fetchOnboardingStatus: async () => { if (onboarding.gate) await onboarding.gate; if (onboarding.fail) throw new Error('no status'); return [...onboarding.seen]; },
   markOnboardingSeen: async () => {},
 }));
 vi.mock('@/features/changelog/changelogData', () => ({
@@ -58,7 +59,18 @@ function renderHost(entry = '/board') {
 const dialog = () => screen.queryByRole('dialog');
 const eyebrow = () => document.querySelector('.rq-badge-popup__eyebrow')?.textContent;
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => { resolve = res; });
+  return { promise, resolve };
+};
+// Dubbelklicksskyddet räknar med Date.now(): bara Date är falsk (timers och waitFor är riktiga), och passGuard() går förbi skyddet för nästa avfärdande.
+const passGuard = () => vi.setSystemTime(Date.now() + DISMISS_GUARD_MS + 1);
+
+afterEach(() => { vi.useRealTimers(); });
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  onboarding.gate = null;
   for (const fn of Object.values(api)) fn.mockReset();
   api.getGroupBadges.mockResolvedValue(group());
   api.markSeen.mockResolvedValue({ seen: true });
@@ -103,6 +115,7 @@ describe('BadgeUpgradeHost: kön ur min samling (T1)', () => {
 
     await screen.findByRole('dialog', { name: first.name });
     expect(eyebrow()).toBe('Badge earned · 1 of 2');
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
 
     await screen.findByRole('dialog', { name: second.name });
@@ -166,14 +179,17 @@ describe('BadgeUpgradeHost: avfärdande (T4)', () => {
     renderHost();
 
     await screen.findByRole('dialog', { name: first.name });
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     await waitFor(() => expect(api.markSeen).toHaveBeenNthCalledWith(1, [first.key]));
 
     await screen.findByRole('dialog', { name: second.name });
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(api.markSeen).toHaveBeenNthCalledWith(2, [second.key]));
 
     await screen.findByRole('dialog', { name: third.name });
+    passGuard();
     fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Escape' });
     await waitFor(() => expect(api.markSeen).toHaveBeenNthCalledWith(3, [third.key]));
     await waitFor(() => expect(dialog()).toBeNull());
@@ -184,6 +200,7 @@ describe('BadgeUpgradeHost: avfärdande (T4)', () => {
     renderHost();
 
     await screen.findByRole('dialog', { name: first.name });
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Skip all' }));
 
     await waitFor(() => expect(api.markSeen).toHaveBeenCalledTimes(1));
@@ -196,8 +213,10 @@ describe('BadgeUpgradeHost: avfärdande (T4)', () => {
     renderHost();
 
     await screen.findByRole('dialog', { name: first.name });
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     await screen.findByRole('dialog', { name: second.name });
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Skip all' }));
 
     await waitFor(() => expect(api.markSeen).toHaveBeenLastCalledWith([second.key, third.key]));
@@ -210,6 +229,7 @@ describe('BadgeUpgradeHost: avfärdande (T4)', () => {
     renderHost();
 
     await screen.findByRole('dialog', { name: first.name });
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     await screen.findByRole('dialog', { name: second.name });
 
@@ -228,6 +248,7 @@ describe('BadgeUpgradeHost: avfärdande (T4)', () => {
 
     await screen.findByRole('dialog', { name: first.name });
     expect(eyebrow()).toBe('Badge earned · 1 of 3');
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     await screen.findByRole('dialog', { name: second.name });
     await act(async () => { await Promise.resolve(); });
@@ -238,6 +259,7 @@ describe('BadgeUpgradeHost: avfärdande (T4)', () => {
     api.getUserBadges.mockResolvedValue(mine(item(first.key, 1, 0)));
     renderHost();
     await screen.findByRole('dialog', { name: first.name });
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     await waitFor(() => expect(dialog()).toBeNull());
 
@@ -281,12 +303,37 @@ describe('BadgeUpgradeHost: väntar på onboarding och changelog (T5, Council 22
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
-  it('öppnas inte medan onboarding-statusen laddas', async () => {
+  it('öppnas inte när hela den globala kön återstår (inget i onboarding-statusen är sett)', async () => {
     unseen();
     onboarding.seen = [];
     renderHost();
     await settle();
     expect(dialog()).toBeNull();
+  });
+
+  it('öppnas inte medan onboarding-statusen fortfarande hämtas (isLoading), och visas när svaret landar', async () => {
+    unseen();
+    const gate = deferred<void>();
+    onboarding.gate = gate.promise; // svaret hänger; när det släpps är allt globalt sett
+    renderHost();
+
+    await waitFor(() => expect(api.getGroupBadges).toHaveBeenCalled());
+    await settle();
+    expect(dialog()).toBeNull();
+
+    await act(async () => { gate.resolve(); });
+    expect(await screen.findByRole('dialog', { name: first.name })).toBeInTheDocument();
+  });
+
+  it('gruppen väntas in högst GROUP_WAIT_MS: ett hängande svar får inte hålla tillbaka popupen — den visas då utan held-by', async () => {
+    unseen();
+    api.getGroupBadges.mockReturnValue(new Promise(() => {}));
+    renderHost();
+
+    await settle();
+    expect(dialog()).toBeNull();
+    expect(await screen.findByRole('dialog', { name: first.name }, { timeout: GROUP_WAIT_MS + 1500 })).toBeInTheDocument();
+    expect(document.querySelector('.rq-badge-popup__held')).toBeNull();
   });
 
   it('en körande tour (driver.js sätter driver-active på <body>) döljer popupen och släpper tillbaka den när touren är klar', async () => {
@@ -325,5 +372,112 @@ describe('BadgeUpgradeHost: väntar på onboarding och changelog (T5, Council 22
     renderHost();
 
     expect(await screen.findByRole('dialog', { name: first.name })).toBeInTheDocument();
+  });
+});
+
+describe('BadgeUpgradeHost: skydd mot dubbelklick och hållna tangenter', () => {
+  const threeUnseen = () => api.getUserBadges.mockResolvedValue(mine(item(first.key, 1, 0), item(second.key, 1, 0), item(third.key, 1, 0)));
+
+  it('två klick i rad på Got it ger exakt ett markSeen, och nästa badge avfärdas inte osedd', async () => {
+    threeUnseen();
+    renderHost();
+    await screen.findByRole('dialog', { name: first.name });
+
+    passGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+
+    await waitFor(() => expect(api.markSeen).toHaveBeenCalledTimes(1));
+    expect(api.markSeen).toHaveBeenCalledWith([first.key]);
+    expect(await screen.findByRole('dialog', { name: second.name })).toBeInTheDocument();
+    expect(eyebrow()).toBe('Badge earned · 2 of 3');
+  });
+
+  it('ett riktigt dubbelklick (andra klicket har detail 2) ger också exakt ett markSeen', async () => {
+    threeUnseen();
+    renderHost();
+    await screen.findByRole('dialog', { name: first.name });
+
+    passGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }), { detail: 1 });
+    passGuard(); // även efter skyddstiden avfärdar inte klicket med detail 2
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }), { detail: 2 });
+
+    await waitFor(() => expect(api.markSeen).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('dialog', { name: second.name })).toBeInTheDocument();
+  });
+
+  it('Escape med repeat (hållen tangent) ger exakt ett markSeen: bara första tryckningen avfärdar', async () => {
+    threeUnseen();
+    renderHost();
+    await screen.findByRole('dialog', { name: first.name });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Got it' })).toHaveFocus());
+
+    passGuard();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Escape' });
+    await screen.findByRole('dialog', { name: second.name });
+    passGuard(); // skyddstiden har gått, men tangenten hålls fortfarande
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Escape', repeat: true });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Escape', repeat: true });
+
+    await waitFor(() => expect(api.markSeen).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('dialog', { name: second.name })).toBeInTheDocument();
+  });
+
+  it('Escape-repeat strax efter att posten visats (inom skyddstiden) avfärdar inte heller', async () => {
+    threeUnseen();
+    renderHost();
+    await screen.findByRole('dialog', { name: first.name });
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Escape' });
+    expect(api.markSeen).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: first.name })).toBeInTheDocument();
+  });
+});
+
+describe('BadgeUpgradeHost: robust kö', () => {
+  it('felar POST /badges/seen (5xx) på sista posten kommer den avfärdade serien inte tillbaka i samma appsession, trots återställd cache och omhämtning', async () => {
+    api.getUserBadges.mockResolvedValue(mine(item(first.key, 1, 0)));
+    api.markSeen.mockRejectedValue(new Error('500'));
+    renderHost();
+    await screen.findByRole('dialog', { name: first.name });
+
+    passGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    await waitFor(() => expect(api.markSeen).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(dialog()).toBeNull());
+
+    // Hooken återställer cachen (kön är tillbaka i datat) och invaliderar: omhämtningen ger fortfarande serien som osedd.
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: BADGE_QUERY_KEYS.user(ME.id) }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    expect(queryClient.getQueryData<BadgeUserResponse>(BADGE_QUERY_KEYS.user(ME.id))?.items[0].seen_tier).toBe(0);
+    expect(dialog()).toBeNull();
+    expect(api.markSeen).toHaveBeenCalledTimes(1);
+  });
+
+  it('en avfärdad serie som får en högre tier senare i appsessionen visas igen (serie och tier är nyckeln)', async () => {
+    api.getUserBadges.mockResolvedValue(mine(item(first.key, 1, 0)));
+    api.markSeen.mockRejectedValue(new Error('500'));
+    renderHost();
+    await screen.findByRole('dialog', { name: first.name });
+    passGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    await waitFor(() => expect(dialog()).toBeNull());
+
+    api.getUserBadges.mockResolvedValue(mine(item(first.key, 2, 0)));
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: BADGE_QUERY_KEYS.user(ME.id) }); });
+
+    expect(await screen.findByRole('dialog', { name: first.name })).toBeInTheDocument();
+    expect(screen.getByText(TIER_NAMES[1], { selector: '.rq-chip' })).toBeInTheDocument();
+  });
+
+  it('ett oväntat svar (utan items) kraschar inte skalet: ingen popup, inget kast', async () => {
+    api.getUserBadges.mockResolvedValue({ showcase: [] } as unknown as BadgeUserResponse);
+    renderHost();
+
+    await waitFor(() => expect(api.getUserBadges).toHaveBeenCalled());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    expect(dialog()).toBeNull();
   });
 });

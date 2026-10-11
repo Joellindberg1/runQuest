@@ -1,9 +1,14 @@
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
 import type { BadgePopupEntry } from '../badgeModel';
-import { BadgeUpgradeDialog, type BadgeUpgradeDialogProps } from './BadgeUpgradeDialog';
+import { BadgeUpgradeDialog, DISMISS_GUARD_MS, type BadgeUpgradeDialogProps } from './BadgeUpgradeDialog';
+
+// Dubbelklicksskyddet räknar med Date.now(): bara Date är falsk (timers och waitFor är riktiga), och passGuard() går förbi skyddet för nästa avfärdande.
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); });
+afterEach(() => { vi.useRealTimers(); });
+const passGuard = () => vi.setSystemTime(Date.now() + DISMISS_GUARD_MS + 1);
 
 // Uppgraderingspopupen (RUN-132, spec F6, Council 4, 19–21): knapptexter, semantik, fokus, rörelseklasser. Dialogen är ren presentation —
 // kön, väntan och "seen" testas i BadgeUpgradeHost.test.tsx.
@@ -148,6 +153,7 @@ describe('BadgeUpgradeDialog: semantik och fokus (Council 19)', () => {
     fireEvent.click(opener);
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Got it' })).toHaveFocus());
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(opener).toHaveFocus());
@@ -171,6 +177,7 @@ describe('BadgeUpgradeDialog: semantik och fokus (Council 19)', () => {
     const { onDismiss, onSkipAll } = renderDialog({ total: 3 });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Got it' })).toHaveFocus());
 
+    passGuard();
     fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Escape' });
 
     expect(onDismiss).toHaveBeenCalledTimes(1);
@@ -182,6 +189,7 @@ describe('BadgeUpgradeDialog: semantik och fokus (Council 19)', () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
 
     const scrim = document.querySelector('.rq-scrim') as HTMLElement;
+    passGuard();
     fireEvent.pointerDown(scrim);
 
     expect(onDismiss).toHaveBeenCalledTimes(1);
@@ -190,10 +198,13 @@ describe('BadgeUpgradeDialog: semantik och fokus (Council 19)', () => {
   it('✕ och "Got it" gör samma sak; "Skip all" anropar onSkipAll', () => {
     const { onDismiss, onSkipAll } = renderDialog({ position: 1, total: 3 });
 
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     expect(onDismiss).toHaveBeenCalledTimes(2);
 
+    passGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Skip all' }));
     expect(onSkipAll).toHaveBeenCalledTimes(1);
   });
@@ -210,5 +221,72 @@ describe('BadgeUpgradeDialog: tändning en gång per popup (key = serie + tier)'
     rerender(<BadgeUpgradeDialog entry={entry({ series: second.key, name: second.name, tier: 2, tierName: TIER_NAMES[1] })} position={2} total={3} onDismiss={onDismiss} onSkipAll={onSkipAll} />);
     expect(emblems()[0]).not.toBe(before);
     expect(emblems()[0]).toHaveClass('rq-badge--ignite');
+  });
+});
+
+describe('BadgeUpgradeDialog: skydd mot dubbelklick och hållna tangenter', () => {
+  const guardMs = DISMISS_GUARD_MS;
+
+  it('avfärdande strax efter att en post blivit aktuell ignoreras (Got it, ✕, Escape, scrim och Skip all) och går igenom efter skyddstiden', async () => {
+    const { onDismiss, onSkipAll } = renderDialog({ position: 1, total: 3 });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Skip all' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Escape' });
+    fireEvent.pointerDown(document.querySelector('.rq-scrim') as HTMLElement);
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(onSkipAll).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + guardMs + 1);
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('skyddet startar om för varje ny post i kön', () => {
+    const { rerender, onDismiss, onSkipAll } = renderDialog({ position: 1, total: 3 });
+    passGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+
+    rerender(<BadgeUpgradeDialog entry={entry({ series: second.key, name: second.name })} position={2} total={3} onDismiss={onDismiss} onSkipAll={onSkipAll} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('ett andra klick i ett dubbelklick (event.detail > 1) avfärdar inte, inte ens efter skyddstiden', () => {
+    const { onDismiss, onSkipAll } = renderDialog({ position: 1, total: 3 });
+    passGuard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }), { detail: 2 });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }), { detail: 2 });
+    fireEvent.click(screen.getByRole('button', { name: 'Skip all' }), { detail: 2 });
+
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(onSkipAll).not.toHaveBeenCalled();
+  });
+
+  it('en hållen tangent (repeat) avfärdar inte: Escape stängs inte av, och Enter på knapparna får ingen standardhandling (inget nytt klick)', async () => {
+    const { onDismiss } = renderDialog({ position: 1, total: 3 });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Got it' })).toHaveFocus());
+    passGuard();
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Escape', repeat: true });
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    for (const name of ['Got it', 'Skip all', 'Close']) {
+      const notPrevented = fireEvent.keyDown(screen.getByRole('button', { name }), { key: 'Enter', repeat: true });
+      expect({ name, notPrevented }).toEqual({ name, notPrevented: false });
+    }
+    // Första tryckningen (inte repeat) är opåverkad.
+    expect(fireEvent.keyDown(screen.getByRole('button', { name: 'Got it' }), { key: 'Enter' })).toBe(true);
+  });
+
+  it('ingen permanent ring: inga klasser på knapparna sätter ring, outline eller skugga (CSS-sidan vaktas i badgeUpgradeCss.test.ts)', () => {
+    renderDialog({ position: 1, total: 3 });
+    for (const button of within(dialog()).getAllByRole('button')) {
+      expect({ text: button.textContent, ring: /ring|outline|shadow/.test(button.className) }).toEqual({ text: button.textContent, ring: false });
+    }
   });
 });

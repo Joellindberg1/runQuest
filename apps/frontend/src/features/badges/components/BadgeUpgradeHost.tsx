@@ -10,6 +10,8 @@ import { BadgeUpgradeDialog } from './BadgeUpgradeDialog';
 const PAGE_TOUR_PREFIX = 'tour_';
 /** driver.js sätter klassen på <body> så länge en tour (första inloggningen eller en sidtour) körs. */
 const TOUR_RUNNING_CLASS = 'driver-active';
+/** Så länge väntar popupen in gruppen (held-by); sedan visas den utan held-by hellre än inte alls. */
+export const GROUP_WAIT_MS = 2000;
 
 const entryKey = (entry: Pick<BadgePopupEntry, 'series' | 'tier'>): string => `${entry.series}:${entry.tier}`;
 
@@ -37,37 +39,45 @@ function useWaitsForOnboarding(): boolean {
   return isLoading || globalPending || tourRunning;
 }
 
+/** True medan gruppen laddas, men högst GROUP_WAIT_MS: ett segt eller hängande svar får inte hålla tillbaka popupen. */
+function useWaitsForGroup(loading: boolean): boolean {
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setGaveUp(true), GROUP_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [loading]);
+  return loading && !gaveUp;
+}
+
 interface UpgradeSessionProps {
   items: readonly BadgeUserItem[];
   userId: string;
+  /** Avfärdade `serie:tier` i den här appsessionen — ägs av värden, så de överlever att sessionen avslutas (se UserUpgrades). */
+  dismissed: ReadonlySet<string>;
+  onDismissed: (keys: readonly string[]) => void;
 }
 
 /**
- * En session = från att kön får poster till att den är tom. Serierna som avfärdats hålls borta lokalt (nyckel serie+tier) direkt, så "1 of 3" inte
- * hoppar medan den optimistiska cachen hinner ikapp, och så en serie aldrig visas två gånger — även om en omhämtning landar mitt i kön.
+ * En session = från att kön får poster till att den är tom. De avfärdade serierna hålls borta direkt, så "1 of 3" inte hoppar medan den
+ * optimistiska cachen hinner ikapp. Räknarna gäller bara sessionen: den avslutas (avmonteras) när kön är tom och nästa börjar från noll.
  */
-function UpgradeSession({ items, userId }: UpgradeSessionProps) {
+function UpgradeSession({ items, userId, dismissed, onDismissed }: UpgradeSessionProps) {
   const { markSeen } = useMarkBadgesSeen(userId);
   const waiting = useWaitsForOnboarding();
-  // Held-by kommer ur gruppen: popupen väntar in första svaret så texten inte dyker upp efter öppningen. Ett fel utelämnar held-by (modellen).
+  // Held-by kommer ur gruppen: popupen väntar in första svaret (högst GROUP_WAIT_MS) så texten inte dyker upp efter öppningen. Ett fel utelämnar held-by (modellen).
   const group = useGroupBadges();
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+  const waitingForGroup = useWaitsForGroup(group.isLoading);
 
   const pending = buildPopupQueue(items, group.data).filter((entry) => !dismissed.has(entryKey(entry)));
-  // "1 of 3" = antalet vid öppning (README): växer bara om en ny serie tillkommer mitt i kön, krymper aldrig medan kön töms. Räknarna gäller en kö i
-  // taget: när den är tom börjar nästa från noll (`dismissed` lever kvar och skyddar mot en gammal omhämtning).
+  // "1 of 3" = antalet vid öppning (README): växer bara om en ny serie tillkommer mitt i kön, krymper aldrig medan kön töms.
   const [done, setDone] = useState(0);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(pending.length);
   const reached = done + pending.length;
-  if (pending.length === 0 && (done !== 0 || total !== 0)) {
-    setDone(0);
-    setTotal(0);
-  } else if (reached > total) {
-    setTotal(reached);
-  }
+  if (reached > total) setTotal(reached);
 
   const current = pending[0];
-  if (!current || waiting || group.isLoading) return null;
+  if (!current || waiting || waitingForGroup) return null;
 
   return (
     <BadgeUpgradeDialog
@@ -75,15 +85,37 @@ function UpgradeSession({ items, userId }: UpgradeSessionProps) {
       position={done + 1}
       total={Math.max(total, reached)}
       onDismiss={() => {
-        setDismissed((known) => new Set(known).add(entryKey(current)));
+        onDismissed([entryKey(current)]);
         setDone((count) => count + 1);
         markSeen(dismissSeries(current));
       }}
       onSkipAll={() => {
-        setDismissed((known) => new Set([...known, ...pending.map(entryKey)]));
+        onDismissed(pending.map(entryKey));
         setDone((count) => count + pending.length);
         markSeen(skipAllSeries(pending));
       }}
+    />
+  );
+}
+
+/**
+ * Per användare (key): kön ur min samling och mängden avfärdade serier. Mängden ligger HÄR och inte i sessionen: när sista posten avfärdas töms kön
+ * optimistiskt och sessionen avslutas, och felar sedan POST /badges/seen (5xx) återställs cachen och kön kommer tillbaka. En avfärdad serie visas
+ * ändå inte igen i samma appsession (den kommer tillbaka nästa gång appen öppnas, då servern inte fick veta att den var sedd).
+ */
+function UserUpgrades({ userId }: { userId: string }) {
+  const { data } = useUserBadges(userId);
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+  // Värden är globalt monterad: ett oväntat svar (utan items) får aldrig krascha skalet.
+  const items = data?.items ?? [];
+  if (!Array.isArray(items)) return null;
+  if (buildPopupQueue(items).every((entry) => dismissed.has(entryKey(entry)))) return null;
+  return (
+    <UpgradeSession
+      items={items}
+      userId={userId}
+      dismissed={dismissed}
+      onDismissed={(keys) => setDismissed((known) => new Set([...known, ...keys]))}
     />
   );
 }
@@ -94,7 +126,6 @@ function UpgradeSession({ items, userId }: UpgradeSessionProps) {
  */
 export function BadgeUpgradeHost() {
   const { user } = useAuth();
-  const { data } = useUserBadges(user?.id);
-  if (!user || !data || buildPopupQueue(data.items).length === 0) return null;
-  return <UpgradeSession items={data.items} userId={user.id} />;
+  if (!user) return null;
+  return <UserUpgrades key={user.id} userId={user.id} />;
 }
