@@ -89,7 +89,7 @@ Rök-test per flöde = kortaste kedjan som bevisar att flödet lever.
 Temafil: apps/frontend/src/index.css — EN tokenuppsättning (--rq-*, källa: docs/design/temafil-forslag.css); mörkt är standard, ljust brons via <html data-theme="light"> (förberett, ej designat). Referens: docs/design/claude-design/ (Components = tokens, App Prototype = skärmar; designprojektet är sanningen). Regler: docs/design/designsprak-forslag.md.
 Ton: mörk arena (#070e09-bas, panel #212121) där guld (#ffd700) är belöningssignalen — XP, rank 1, primär handling. Skarpa hörn (radius 0), hårlinjer i stället för kanter, ett kort = 3 px vänsterkant i tillståndsfärg. Tagline "RUN - RANK - REIGN". En guldknapp per vy.
 Typ: Bebas Neue (rubriker/siffror/primärknappar) · Barlow Condensed (allt annat; namn VERSALER 700) · Share Tech Mono (klockor, XP, eyebrows) · Oswald endast i logotypen.
-Rörelse: staplar växer från noll en gång (1.6 s) och står still; bara live-saker loopar (pulserande prickar, sweep på live-kort, grid-drift, podium #1-glöd).
+Rörelse: staplar växer från noll en gång (1.6 s) och står still; bara live-saker loopar (pulserande prickar, sweep på live-kort, grid-drift, podium #1-glöd). Undantag badges (ägarbeslut 2026-10-11, Design Council): engångständning 0.9 s i nivåhöjnings-popupen (alla nivåer; Common/Uncommon som ljusflimmer i ramen) och Legendary-andning på md/lg i tempot --rq-dur-glow 3.2 s, tre cykler och sedan statisk glöd, aldrig på sm; båda av under prefers-reduced-motion.
 Skuld: 240 inline-styles + 7 typsnitt i nuvarande kod ersätts per inkrement (redesign-plan.md); shadcn-alias + legacy --rq-* i temafilen är temporära.
 
 ## Verifieringsnivå (styrs av Läge)

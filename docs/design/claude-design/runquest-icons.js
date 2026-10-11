@@ -94,4 +94,3 @@
   window.RQIcons.PATHS = PATHS;
   window.RQIcons.names = Object.keys(PATHS);
 })();
-

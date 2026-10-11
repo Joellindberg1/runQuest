@@ -1,19 +1,28 @@
 # Claude Design-export — "Gamification-sida behöver liv"
 
-Ögonblicksbilder exporterade 2026-10-04 från det levande designprojektet:
+Ögonblicksbilder från det levande designprojektet:
 https://claude.ai/design/p/23754cb4-e3ec-4cd3-8cd8-4be2f0167208
 
-**Designprojektet är sanningen** — dessa filer är implementationsreferens
-(beslut 38). Vid avvikelse: öppna länken. Ägaren arbetar aktivt i projektet
-(badge-komponenter pågår och ska INTE implementeras förrän de är klara).
+Exporter:
+- **2026-10-04** — första exporten (prototyper, komponentbibliotek, laddare, ikoner).
+- **2026-10-11** — badge-systemet (RUN-2): ny `RunQuest Badge System.dc.html` + `runquest-badges.js`, uppdaterad `RunQuest Components.dc.html` (sektion 05 BADGES omskriven) och `runquest-icons.js` (ikonuppsättningen). Badge-komponenterna är nu klara att implementera efter Design Council (se `docs/design/badges/spec.md`; F3 och F4 saknar desktopbild).
 
-| Fil | Innehåll |
-|---|---|
-| `RunQuest App Prototype.dc.html` | Mobil-prototypen — 10 skärmar (landing, leaderboard, runner card, titles, challenges, events, pack news, log runs, profile, playbook). BYGGS FÖRST |
-| `RunQuest Web Prototype.dc.html` | Desktop-prototypen (ljust bronstema som variant) — byggs "samtidigt" |
-| `RunQuest Components.dc.html` | Komponentbiblioteket: tokens, typskala, knappar, kort, chips, progress m.m. (snapshot medan badge-arbete pågick) |
-| `RunQuest Loaders.dc.html` | Laddare: stadion-ovalen i tre storlekar + skeleton-rader |
-| `runquest-icons.js` | Enda källan för ikoner + wordmark (lucide-stil 24×24, stroke 1.9) |
+**Designprojektet är sanningen** — dessa filer är implementationsreferens
+(beslut 38). Vid avvikelse: öppna länken. Ägaren arbetar aktivt i projektet;
+badge-delen är färdig i exporten 2026-10-11 men får inte byggas före Council och
+RUN-127 (tokens).
+
+| Fil | Innehåll | Export |
+|---|---|---|
+| `RunQuest App Prototype.dc.html` | Mobil-prototypen — 10 skärmar (landing, leaderboard, runner card, titles, challenges, events, pack news, log runs, profile, playbook). BYGGS FÖRST | 2026-10-04 |
+| `RunQuest Web Prototype.dc.html` | Desktop-prototypen (ljust bronstema som variant) — byggs "samtidigt" | 2026-10-04 |
+| `RunQuest Components.dc.html` | Komponentbiblioteket: tokens, typskala, knappar, kort, chips, progress m.m. Sektion 05 BADGES är uppdaterad (åtta serier × sex nivåer, F1) | 2026-10-04, sektion 05 uppdaterad 2026-10-11 |
+| `RunQuest Badge System.dc.html` | Badges i sammanhang: ramarna F2–F8 (profil, väljare, runner card, Board Season, uppgraderingspopup, News, tillstånd). Mobil 402 + desktop 1440 | 2026-10-11 (ny) |
+| `runquest-badges.js` | Enda källan för badge-tierfärger, gradienter, emblemgeometri, storlekar (28/56/96, ikon 15/24/42), chip-/pips-recept, serier med kravtexter och flavor-namn per tier | 2026-10-11 (ny) |
+| `RunQuest Loaders.dc.html` | Laddare: stadion-ovalen i tre storlekar + skeleton-rader | 2026-10-04 |
+| `runquest-icons.js` | Enda källan för ikoner + wordmark (lucide-stil 24×24, stroke 1.9) | 2026-10-04, uppdaterad 2026-10-11 |
+
+Referensbilder (PNG) för badge-ramarna F1–F8 ligger i `docs/design/badges/reference/`; spec, ägarens beslut, tokenförslag och copy-skillnader mot `packages/shared/src/badges.ts` i `docs/design/badges/spec.md`.
 
 Medvetet EJ exporterade: `support.js` (DC-runtime, inte designinnehåll),
 `ios-frame.jsx` (telefonram för prototypvisning), `RunQuest Redesign.dc.html`
