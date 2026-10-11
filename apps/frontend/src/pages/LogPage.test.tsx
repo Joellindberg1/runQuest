@@ -266,7 +266,7 @@ describe('Log — att logga en runda', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Treadmill' }));
     submit();
 
-    await waitFor(() => expect(createRun).toHaveBeenCalledWith(TODAY, 8.4, 'manual', true));
+    await waitFor(() => expect(createRun).toHaveBeenCalledWith(TODAY, 8.4, true));
     expect(await screen.findByText('Run logged: 8.0 km for 44 XP · streak day 5 at 1.1×')).toBeInTheDocument();
     expect(distanceField().value).toBe('');
     expect(screen.getByRole('button', { name: 'Outdoor' })).toHaveAttribute('aria-pressed', 'true');
@@ -277,7 +277,7 @@ describe('Log — att logga en runda', () => {
     await screen.findByText('Enter a distance');
     type('5');
     submit();
-    await waitFor(() => expect(createRun).toHaveBeenCalledWith(TODAY, 5, 'manual', false));
+    await waitFor(() => expect(createRun).toHaveBeenCalledWith(TODAY, 5, false));
   });
 
   it('bekräftelsen och felet ligger i permanenta live-regioner som finns redan före texten', async () => {

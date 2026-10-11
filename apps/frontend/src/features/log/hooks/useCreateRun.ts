@@ -16,7 +16,7 @@ export function useCreateRun() {
 
   return useMutation({
     mutationFn: async (submission: RunSubmission): Promise<Run> => {
-      const res = await backendApi.createRun(submission.date, submission.distance, 'manual', submission.isTreadmill);
+      const res = await backendApi.createRun(submission.date, submission.distance, submission.isTreadmill);
       if (!res.success || !res.data) throw new Error(res.error || 'Failed to log the run');
       return res.data;
     },
