@@ -1,6 +1,7 @@
 // GET /api/config/xp (ADR 007 B4) — effektiva XP-värden, läsbara för alla inloggade.
 // Innehåller aldrig admin_password_hash, id eller tidsstämplar.
 import type { ApiSuccess } from './common.js';
+import type { LevelRequirement } from '../levelCalculation.js';
 
 export interface XpConfigSettings {
   base_xp: number;
@@ -25,3 +26,10 @@ export interface XpConfigMeta {
 }
 
 export type XpConfigApiResponse = ApiSuccess<XpConfigResponse, XpConfigMeta>;
+
+// GET /api/config/levels (RUN-110) — nivåtabellen (level_requirements), läsbar för alla inloggade.
+// Raderna är samma LevelRequirement som levelCalculation (ADR 004, enda källan); snake_case som i DB.
+export type LevelsResponse = LevelRequirement[];
+
+/** Stigande på `level`. */
+export type LevelsApiResponse = ApiSuccess<LevelsResponse>;
