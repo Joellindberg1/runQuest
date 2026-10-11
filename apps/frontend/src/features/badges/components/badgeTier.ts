@@ -7,8 +7,8 @@ import { MAX_TIER, TIER_NAMES } from '@runquest/shared';
 export const LOCKED_TIER_KEY = 'locked';
 
 /** Giltig nivå = heltal 1..MAX_TIER. Allt annat (null, 0, 7, bråkdelar, NaN från en annan serverversion) ritas som låst. */
-export function isEarnedTier(tier: number | null): tier is number {
-  return tier !== null && Number.isInteger(tier) && tier >= 1 && tier <= MAX_TIER;
+export function isEarnedTier(tier: unknown): tier is number {
+  return Number.isInteger(tier) && (tier as number) >= 1 && (tier as number) <= MAX_TIER;
 }
 
 /** "common" … "legendary", eller "locked". Värdet på data-tier. */
@@ -16,7 +16,7 @@ export function tierKey(tier: number | null): string {
   return isEarnedTier(tier) ? TIER_NAMES[tier - 1].toLowerCase() : LOCKED_TIER_KEY;
 }
 
-/** Textmotsvarigheten till pipsen: "Tier 3 of 6", låst "Locked" (spec §3, Council 14). Samma format som BadgeRow.pipsLabel. */
+/** Textmotsvarigheten till pipsen: "Tier 3 of 6", låst "Locked" (spec §3, Council 14). Enda källan: badgeModel (BadgeRow.pipsLabel) importerar den. */
 export function pipsText(tier: number | null): string {
   return isEarnedTier(tier) ? `Tier ${tier} of ${MAX_TIER}` : 'Locked';
 }

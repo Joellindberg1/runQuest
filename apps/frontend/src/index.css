@@ -947,7 +947,7 @@
    5. ANIMATIONS-KEYFRAMES
    Namnkonflikter i exporten löst så här (Components ≠ App/Web):
      rqGlow      = KORT-glöd (box-shadow) — App/Web, podium #1
-     rqGlowIcon  = drop-shadow på emblem — Components "rqGlow" (badge-spåret, pågår)
+     rqGlowIcon  = drop-shadow på emblem — Components "rqGlow"; reserv, används inte av badge-emblemet (det har egna rqBadgeGlow/rqBadgeIgnite i features/badges/badges.css)
      rqPulse     = PING på levande prick (scale+fade) — Components
      rqRing      = guldring som andas på hjältekort — App/Web "rqPulse" (landing-preview)
    Policy: allt loopar INTE. Staplar en gång; bara live-saker loopar.
