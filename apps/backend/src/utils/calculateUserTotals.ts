@@ -106,8 +106,13 @@ export async function calculateUserTotals(userId: string) {
       } else {
         logger.info(`🏆 User ${userId} has no group — processing own titles only...`);
         const runsWithAlias = userRuns.map((run: any) => ({ ...run, distance_km: run.distance }));
-        await titleService.processUserTitlesAfterRun(userId, runsWithAlias, Math.round(totalDistance * 100) / 100, longestStreak); // numeric(8,2) som users.total_km i gruppvägen
-        logger.info('✅ Own titles processed successfully');
+        // Kastar vid fel (RUN-157); fångas här så att den globala omräkningen nedan ändå körs, som i gruppvägen.
+        try {
+          await titleService.processUserTitlesAfterRun(userId, runsWithAlias, Math.round(totalDistance * 100) / 100, longestStreak); // numeric(8,2) som users.total_km i gruppvägen
+          logger.info('✅ Own titles processed successfully');
+        } catch (ownTitlesError) {
+          logger.error('❌ Error processing own titles:', ownTitlesError);
+        }
       }
       
       // Now refresh the title leaderboard with complete user_titles data

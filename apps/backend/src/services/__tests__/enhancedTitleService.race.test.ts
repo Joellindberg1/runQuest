@@ -41,7 +41,7 @@ function tables(): Record<string, Row[]> {
 type RpcError = { code: string; message: string };
 
 /** fakeDb + en update_title_leaderboard som beter sig som plpgsql-funktionen under samtidighet. */
-function setup(opts: { failRpc?: RpcError } = {}) {
+function setup(opts: { failRpc?: RpcError; failInsertFor?: string } = {}) {
   const data = tables();
   const db = createFakeDb(data, { autoIds: true });
   const rpcErrors: RpcError[] = [];
@@ -69,7 +69,16 @@ function setup(opts: { failRpc?: RpcError } = {}) {
   }
 
   holder.client = {
-    from: db.client.from,
+    from(table: string) {
+      const builder = db.client.from(table);
+      if (table !== 'user_titles' || !opts.failInsertFor) return builder;
+      // I prod bygger triggern på user_titles om topplistan i samma sats — 23505 kan alltså komma redan vid skrivningen.
+      const insert = builder.insert;
+      builder.insert = (values: Row) => values.user_id === opts.failInsertFor
+        ? Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key value' } })
+        : insert(values);
+      return builder;
+    },
     async rpc(name: string, args: any) {
       if (name !== 'update_title_leaderboard') return { data: null, error: null };
       const error = await updateTitleLeaderboard(args.p_title_id);
@@ -103,5 +112,15 @@ describe('processAllUsersTitles — delade title_leaderboard (RUN-157)', () => {
     const result = await service.processAllUsersTitles('g1', { emitNews: false });
 
     expect(result).toEqual({ total: 3, processed: 0, failed: 3 });
+  });
+
+  it('ett skrivfel i user_titles räknas som misslyckad användare och stoppar inte de övriga', async () => {
+    const { data, rpcErrors, service } = setup({ failInsertFor: 'u3' });
+
+    const result = await service.processAllUsersTitles('g1', { emitNews: false });
+
+    expect(result).toEqual({ total: 3, processed: 2, failed: 1 });
+    expect(rpcErrors).toEqual([]);
+    expect(data.title_leaderboard.map((r) => [r.position, r.user_id])).toEqual([[1, 'u2'], [2, 'u1']]);
   });
 });

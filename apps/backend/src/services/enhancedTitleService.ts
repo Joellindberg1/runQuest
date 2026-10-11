@@ -29,10 +29,7 @@ export class EnhancedTitleService {
         .from('titles')
         .select('id, name, description, unlock_requirement, metric_key');
 
-      if (titlesError) {
-        logger.error('❌ Error fetching titles:', titlesError);
-        return;
-      }
+      if (titlesError) throw new Error(`Titles fetch failed: ${titlesError.message}`);
 
       const runData: RunData[] = runs.map(toRunData);
       const userStats: UserStats = { totalKm, longestStreak };
@@ -50,14 +47,24 @@ export class EnhancedTitleService {
         )
         .map((t: any) => t.id);
 
-      await Promise.allSettled(
+      // Olika titlar har olika topplistor, så inom EN användare krockar ombyggnaderna inte. Mellan användare gör de det,
+      // därför räknar processAllUsersTitles användarna en i taget (RUN-157).
+      const refreshResults = await Promise.allSettled(
         titlesToUpdate.map((titleId: string) => titleLeaderboardService.refreshTitleLeaderboard(titleId))
       );
+
+      // Alla titlar har försökts; ett enda fel gör ändå användarens omräkning misslyckad (förr loggat och sväljt, RUN-157).
+      const failedChecks = titleCheckResults.filter(r => r.status === 'rejected').length;
+      const failedRefreshes = refreshResults.filter(r => r.status === 'rejected').length;
+      if (failedChecks + failedRefreshes > 0) {
+        throw new Error(`${failedChecks} title check(s) and ${failedRefreshes} leaderboard refresh(es) failed`);
+      }
 
       logger.info(`✅ Processed ${titles.length} titles, updated ${titlesToUpdate.length} leaderboards`);
 
     } catch (error) {
       logger.error('❌ Error processing user titles:', error);
+      throw error;
     }
   }
 
@@ -76,7 +83,8 @@ export class EnhancedTitleService {
   }
 
   /**
-   * Check and update a specific title for a user
+   * Check and update a specific title for a user. Databasfel kastas — i prod kan även triggern på user_titles,
+   * som bygger om title_leaderboard, ge 23505 här.
    */
   private async checkAndUpdateTitle(
     title: any,
@@ -103,17 +111,14 @@ export class EnhancedTitleService {
         .eq('title_id', title.id)
         .single();
 
-      if (existingError && existingError.code !== 'PGRST116') {
-        logger.error('❌ Error checking existing title:', existingError);
-        return false;
-      }
+      if (existingError && existingError.code !== 'PGRST116') throw existingError;
 
       if (userValue < title.unlock_requirement) {
         // Bugg #10: kravet inte (längre) uppfyllt. Fanns en tilldelning —
         // t.ex. efter att rundan som gav titeln raderats — återkallas den.
         if (existingTitle) {
           const { error } = await supabase.client.from('user_titles').delete().eq('id', existingTitle.id);
-          if (error) { logger.error('❌ Error revoking user title:', error); return false; }
+          if (error) throw error;
           logger.info(`🗑️ Revoked "${title.name}" from user ${userId} (${userValue} < ${title.unlock_requirement})`);
           return true; // leaderboarden måste uppdateras
         }
@@ -125,22 +130,23 @@ export class EnhancedTitleService {
       if (existingTitle) {
         if (existingTitle.value !== userValue) {
           const { error } = await supabase.client.from('user_titles').update(titleData).eq('id', existingTitle.id);
-          if (error) { logger.error('❌ Error updating user title:', error); return false; }
+          if (error) throw error;
           logger.info(`🔄 Updated "${title.name}": ${existingTitle.value} → ${userValue}`);
         } else {
           logger.info(`✓ "${title.name}" value unchanged: ${userValue}`);
         }
       } else {
         const { error } = await supabase.client.from('user_titles').insert(titleData);
-        if (error) { logger.error('❌ Error inserting user title:', error); return false; }
+        if (error) throw error;
         logger.info(`🆕 Awarded "${title.name}" to user ${userId} with value ${userValue}`);
       }
 
       return true;
 
     } catch (error) {
+      // Kastas vidare (RUN-157): en misslyckad skrivning ska räknas som fel, inte som "ingen ändring".
       logger.error(`❌ Error checking title "${title.name}":`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -153,11 +159,14 @@ export class EnhancedTitleService {
    * Pack News (ADR 008 beslut 6): innehavarna (position 1) ögonblicksfotograferas före och efter
    * och skillnaden loggas (title_unlocked/_taken/_revoked, endast framåt). `emitNews: false` för
    * regel-/data-underhåll (admin /titles/reprocess-all) så att flödet inte spammas.
+   *
+   * Returnerar hur många användare som räknades om och hur många som misslyckades (RUN-157) — ett fel hos en
+   * användare kastar inte, så att övriga användare och den avslutande globala omräkningen ändå körs.
    */
   async processAllUsersTitles(
     groupId?: string,
     options: { emitNews?: boolean; allGroups?: boolean } = {}
-  ): Promise<void> {
+  ): Promise<{ total: number; processed: number; failed: number }> {
     if (!groupId && options.allGroups !== true) {
       throw new Error('processAllUsersTitles kräver groupId eller { allGroups: true }');
     }
@@ -174,14 +183,19 @@ export class EnhancedTitleService {
       if (groupId) query = query.eq('group_id', groupId);
 
       const { data: users, error: usersError } = await query;
-      if (usersError) { logger.error('❌ Error fetching users:', usersError); return; }
+      if (usersError) throw new Error(`Users fetch failed: ${usersError.message}`);
 
       logger.info(`📊 Found ${users.length} users to process`);
       const startTime = Date.now();
       const ctx: TitleContext = { now: new Date() }; // ett "nu" för hela körningen, delat av alla användare
 
-      const userResults = await Promise.allSettled(
-        users.map(async (user: any) => {
+      // En användare i taget (RUN-157): varje användares omräkning bygger om de DELADE topplistorna per titel
+      // (update_title_leaderboard och triggern på user_titles: DELETE + INSERT). Parallella ombyggnader av samma
+      // titel krockade på (title_id, position) med 23505. Ett fel hos en användare stoppar inte de övriga.
+      let processedCount = 0;
+      let failedCount = 0;
+      for (const user of users as any[]) {
+        try {
           const { data: runs, error: runsError } = await supabase.client
             .from('runs')
             .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
@@ -194,12 +208,14 @@ export class EnhancedTitleService {
           // beräknar motorerna 0/−∞ → revocation-grenen rensar titlarna.
           const runsWithAlias = (runs ?? []).map((run: any) => ({ ...run, distance_km: run.distance }));
           await this.processUserTitlesAfterRun(user.id, runsWithAlias, user.total_km || 0, user.longest_streak || 0, ctx);
-        })
-      );
+          processedCount++;
+        } catch (error) {
+          failedCount++;
+          logger.error(`❌ Title processing failed for user ${user.id}:`, error);
+        }
+      }
 
-      const processedCount = userResults.filter(r => r.status === 'fulfilled').length;
-      const failedCount = userResults.filter(r => r.status === 'rejected').length;
-      if (failedCount > 0) logger.error(`❌ Title processing failed for ${failedCount} users`);
+      if (failedCount > 0) logger.error(`❌ Title processing failed for ${failedCount}/${users.length} users`);
 
       logger.info(`✅ Processed titles for ${processedCount}/${users.length} users in ${Date.now() - startTime}ms`);
 
@@ -208,6 +224,7 @@ export class EnhancedTitleService {
         if (holdersAfter) await emitTitleNews(holdersBefore, holdersAfter);
       }
 
+      return { total: users.length, processed: processedCount, failed: failedCount };
     } catch (error) {
       logger.error('❌ Error processing all users titles:', error);
       throw error;

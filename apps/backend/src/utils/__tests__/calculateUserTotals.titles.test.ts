@@ -95,4 +95,11 @@ describe('calculateUserTotals → titelomräkning', () => {
     await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
   });
+
+  it('RUN-157: utan grupp — ett fel i de egna titlarna hoppar inte över den globala omräkningen', async () => {
+    use(tables(null));
+    processUserTitlesAfterRun.mockRejectedValueOnce(new Error('23505'));
+    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    expect(leaderboardRefresh).toHaveBeenCalledTimes(1);
+  });
 });
