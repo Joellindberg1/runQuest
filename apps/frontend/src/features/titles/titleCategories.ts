@@ -4,7 +4,7 @@ import type { RQIconName } from '@/shared/components/icons';
 // (ägarbeslut 3), men databasen har ingen kategori — mappningen lever här och en ny titel utan rad faller
 // i 'other' i stället för att försvinna ur vyn. titleCategories.test.ts vaktar att alla motorer är mappade.
 
-export type TitleCategoryId = 'time' | 'distance' | 'pace' | 'volume' | 'elevation' | 'consistency' | 'comeback' | 'other';
+export type TitleCategoryId = 'time' | 'distance' | 'pace' | 'volume' | 'elevation' | 'consistency' | 'comeback' | 'weather' | 'other';
 
 interface CategoryDef {
   id: TitleCategoryId;
@@ -21,6 +21,7 @@ export const TITLE_CATEGORIES: readonly CategoryDef[] = [
   { id: 'elevation', label: 'Elevation', icon: 'mountain' },
   { id: 'consistency', label: 'Consistency', icon: 'flame' },
   { id: 'comeback', label: 'Comeback', icon: 'sync' },
+  { id: 'weather', label: 'Weather', icon: 'sun' },
   { id: 'other', label: 'Other', icon: 'trophy' },
 ];
 
@@ -59,10 +60,9 @@ const METRICS: Record<string, MetricDef> = {
   longestRunAfterBreak14: { category: 'comeback', icon: 'sparkles' },
   longestRunAfterBreak30: { category: 'comeback', icon: 'sparkles' },
 
-  // Tillfälligt i Other med en egen rad (så driftvakten är grön); RUN-101 flyttar den till kategorin Weather.
-  winterKm: { category: 'other' },
-  stormRunCount: { category: 'other' },
-  coldRunCount: { category: 'other' },
+  stormRunCount: { category: 'weather', icon: 'zap' },
+  coldRunCount: { category: 'weather', icon: 'snow' },
+  winterKm: { category: 'weather', icon: 'snow' },
 };
 
 /** Måttnycklarna som har en egen rad i mappningen (testet jämför dem mot motorregistret). */
