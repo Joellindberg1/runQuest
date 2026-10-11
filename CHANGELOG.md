@@ -57,7 +57,7 @@ Strava-låset (RUN-139), ägarens badge-omritning v2 (RUN-146–152) och login s
 
 ### Prod-steg (kräver ägar-ja var för sig, ordning enligt STATE.md)
 1. Migration 035 (`user_badges`, `displayed_badge_series`) — redan applicerad 2026-10-11.
-2. `backfill:badges`: dry-run, sedan `--apply` med dry-run-rapporten som underlag, FÖRE deployen av backend (efter deployen: `--apply --silent`).
+2. `backfill:badges`: dry-run, sedan `--apply` med dry-run-rapporten som underlag, FÖRE deployen av backend — KÖRD 2026-10-11 (ägar-ja): 36 rader med seen_tier = tier, inga news-rader, omkörning skriver inget. Efter deployen bara vid tröskeländring: `--apply --silent`.
 3. Deploy av release/v0.6.0 (backend med motorerna `stormRunCount`, `coldRunCount`, `winterKm` måste ligga före titelraderna).
 4. Migration 036 (`badge_earned` i `activity_log_type_check`) direkt efter deployen — avsiktligt efter, eftersom v0.5.3-frontendens News kraschar på okända händelsetyper; badge-news för nivåhöjningar i fönstret skrivs aldrig. Öppna flikar från v0.5.3 laddas om. Rollback av frontend till v0.5.3 efter att badge_earned-rader finns kräver att de raderas (ägar-ja).
 5. Migration 037 (titelraderna) efter deployen och DIREKT därefter tyst omräkning (annars kan en vanlig skrivning hinna ge title_unlocked för de nya titlarna): `POST /api/titles/reprocess-all` (`emitNews: false`).

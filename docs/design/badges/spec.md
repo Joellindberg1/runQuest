@@ -18,7 +18,7 @@ Det levande projektet: https://claude.ai/design/p/23754cb4-e3ec-4cd3-8cd8-4be2f0
 
 ## v2 (ägarens omritning 2026-10-11) — gäller före v1 där de krockar
 
-**Status: BYGGD i v0.6.0 (RUN-146–152, städning RUN-153; status per vy i V2.12). Ej dömd av Design Council** (Lead avgör om v2 går som helhet till Council: de nya avvikelserna står i V2.10). Facit är ägarens HTML-export (beslut 38: "HTML-exporten och/eller skärmdumpar"); ingen ny PNG är renderad av Designern, se V2.12. Ingen backend, inget API och ingen ADR ändras: `GET /api/badges/user/:id`, `GET /api/badges/group`, `PUT /api/badges/showcase` och `POST /api/badges/seen` är oförändrade. ADR 009 står kvar (ingen global percentil, allt gruppavgränsat).
+**Status: BYGGD i v0.6.0 (RUN-146–152, städning RUN-153; status per vy i V2.12). Ej dömd av Design Council** — Leads beslut (V2.14): ingen separat Council för v2, eftersom det är ägarens egen omritning; Council-villkoren är inbyggda i krocktabellen V2.9 och kritikerna granskade varje story mot dem. Facit är ägarens HTML-export (beslut 38: "HTML-exporten och/eller skärmdumpar"); ingen ny PNG är renderad av Designern, se V2.12. Ingen backend, inget API och ingen ADR ändras: `GET /api/badges/user/:id`, `GET /api/badges/group`, `PUT /api/badges/showcase` och `POST /api/badges/seen` är oförändrade. ADR 009 står kvar (ingen global percentil, allt gruppavgränsat).
 
 ### V2.0 Beslut och företräde
 
@@ -536,7 +536,7 @@ Rörelse-undantaget är oförändrat (Legendary-andning bara md/lg). Lägg ocks�
 | F8 | Tillstånd | `reference/f8.png` | **BYGGD** (RUN-149, RUN-150, RUN-151) (återanvänds av F9/F10) |
 | F1 | Emblem-ark `/preview/badges` | `reference/f1.png` | **BYGGD** (RUN-146, RUN-149) (får `cp`-storlek och nya färger) |
 
-Ingen vy är BLOCKERAD. Ingen vy är utelämnad. v2 saknar egna PNG-referenser; ägarens HTML-export är facit och byggarna sparade skärmdumpar (402 och 1440, plus Runner card-modal 860) som `docs/design/badges/reference/v2-*.png`. Alla vyer ovan är byggda.
+Ingen vy är BLOCKERAD. Ingen vy är utelämnad. Ägarens HTML-export är facit; byggd-referenser finns som `docs/design/badges/reference/v2-*.png` och byggarna sparade skärmdumpar (402 och 1440, plus Runner card-modal 860) som `docs/design/badges/reference/v2-*.png`. Alla vyer ovan är byggda.
 
 ### V2.13 Byggordning
 
