@@ -211,16 +211,16 @@ Socialite kräver att gemensamma rundor upptäcks, vilket är en annan sorts fun
 
 ## Beslutsöversikt (ägarbeslut och Lead-beslut 2026-10-11)
 
-| # | Fråga | Beslut | Av |
+| Rad | Fråga | Beslut | Av |
 |---|---|---|---|
-| 1 | Antal nivåer | Sex (Common/Uncommon/Rare/Heroic/Epic/Legendary) | Ägaren |
-| 2 | Tid på dygnet | Löparens lokala väggklocka ur `start_time` (UTC-getters), aldrig konvertering; manuella rundor räknas inte i tidsserierna | Ägaren |
-| 3 | Global percentil | Nej; tiernamn + gruppräkning | Lead |
-| 4 | Belöning vid tier-up | Kosmetiskt; knappen byter text från "Claim Reward" | Lead |
-| 5 | Lagra `user_badges` | Ja (som `user_titles`) | Lead |
-| 6 | Återkallbara | Ja | Lead |
-| 7 | Socialite, Weathered Soul | Skjuts till egna epics/stories | Lead |
-| 8 | Trösklar | v2 (ägarbeslut efter dry-run i prod, RUN-135): en mätning per serie, strikt stigande, flerårsstegar; Precisionist bara Strava-rundor | Ägaren |
+| Ö1 | Antal nivåer | Sex (Common/Uncommon/Rare/Heroic/Epic/Legendary) | Ägaren |
+| Ö2 | Tid på dygnet | Löparens lokala väggklocka ur `start_time` (UTC-getters), aldrig konvertering; manuella rundor räknas inte i tidsserierna | Ägaren |
+| Ö3 | Global percentil | Nej; tiernamn + gruppräkning | Lead |
+| Ö4 | Belöning vid tier-up | Kosmetiskt; knappen byter text från "Claim Reward" | Lead |
+| Ö5 | Lagra `user_badges` | Ja (som `user_titles`) | Lead |
+| Ö6 | Återkallbara | Ja | Lead |
+| Ö7 | Socialite, Weathered Soul | Skjuts till egna epics/stories | Lead |
+| Ö8 | Trösklar | v2 (ägarbeslut efter dry-run i prod, RUN-135): en mätning per serie, strikt stigande, flerårsstegar; Precisionist bara Strava-rundor | Ägaren |
 | – | Migration 035 + backfill `--apply` | Kräver ägarens uttryckliga ja | Ägaren |
 
 ## Föreslagen STATE.md-indexrad
