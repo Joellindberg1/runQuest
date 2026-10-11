@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { RQIcon } from '@/shared/components/icons';
+import { PENNANT_PATH, PENNANT_TEXT_X, PENNANT_TEXT_Y, PENNANT_VIEW_BOX } from '@/shared/components/challengeMark';
 import { deltaLabel, type DeltaView } from '../boardFormat';
 import { titleLine, type SeasonRow, type TierTokens } from '../seasonModel';
 
@@ -57,7 +58,7 @@ export function RunnerName({ name, onOpen }: RunnerNameProps) {
 
 const TIER_ORDER = ['minor', 'major', 'legendary'] as const;
 
-/** Osända challenge-tokens som sköldar (minor/major/legendary), bara de nivåer som finns. */
+/** Osända challenge-tokens som vimplar (minor/major/legendary), bara de nivåer som finns. */
 export function ChallengeRibbons({ tokens }: { tokens: TierTokens }) {
   const present = TIER_ORDER.filter((tier) => tokens[tier] > 0);
   if (present.length === 0) return null;
@@ -65,9 +66,9 @@ export function ChallengeRibbons({ tokens }: { tokens: TierTokens }) {
   return (
     <span className="rq-ribbons" role="img" aria-label={`Challenges to send: ${summary}`}>
       {present.map((tier) => (
-        <svg key={tier} className="rq-ribbon" data-tier={tier} viewBox="0 0 26 32" aria-hidden="true">
-          <path d="M1.5 1.5 H24.5 V21 L13 30.5 L1.5 21 Z" />
-          <text x="13" y="17" textAnchor="middle">{tokens[tier]}</text>
+        <svg key={tier} className="rq-ribbon" data-tier={tier} viewBox={PENNANT_VIEW_BOX} aria-hidden="true">
+          <path d={PENNANT_PATH} />
+          <text x={PENNANT_TEXT_X} y={PENNANT_TEXT_Y} textAnchor="middle">{tokens[tier]}</text>
         </svg>
       ))}
     </span>

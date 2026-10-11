@@ -147,10 +147,20 @@ describe('Duels — rubrik och Live (mobil)', () => {
     expect(location()).toBe('/duels?send=1');
   });
 
-  it('tokens-panelen: en rad per nivå med sköld-antal och insats', async () => {
+  it('tokens-panelen: en rad per nivå med vimpel-antal och insats', async () => {
     renderDuels();
     await screen.findByText('2 live · 5 tokens');
     const panel = screen.getByRole('region', { name: 'Your tokens' });
+    // vimpeln (RUN-147): samma geometri som Board, siffran i vimpeln, dekorativ
+    const marks = [...panel.querySelectorAll('svg.rq-duels-ribbon')];
+    expect(marks).toHaveLength(3);
+    for (const svg of marks) {
+      expect(svg).toHaveAttribute('viewBox', '0 0 26 32');
+      expect(svg).toHaveAttribute('aria-hidden', 'true');
+      expect(svg.querySelector('path')).toHaveAttribute('d', 'M1.5 1.5 H24.5 V30.5 L13 23.5 L1.5 30.5 Z');
+      expect(svg.querySelector('text')).toHaveAttribute('y', '16.5');
+    }
+    expect(marks.map((svg) => svg.getAttribute('data-tier'))).toEqual(['minor', 'major', 'legendary']);
     const rows = within(panel).getAllByRole('listitem');
     expect(rows.map((row) => row.textContent)).toEqual([
       '3Minor+0.15× win · −0.07× lossSend',

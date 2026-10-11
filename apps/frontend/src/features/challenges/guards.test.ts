@@ -23,7 +23,7 @@ describe('Duels-filerna följer designspråket', () => {
     expect(css.length).toBeGreaterThan(500);
   });
 
-  it('ingen lucide-import; <svg> bara i TierRibbon (skölden är en egen form, inte en ikon)', () => {
+  it('ingen lucide-import; <svg> bara i TierRibbon (vimpeln är en egen form, inte en ikon)', () => {
     for (const [path, text] of codeFiles) {
       const svgAllowed = path.endsWith('/TierRibbon.tsx');
       expect({ path, lucide: /lucide-react/.test(text), svg: !svgAllowed && /<svg/.test(text) }).toEqual({ path, lucide: false, svg: false });
@@ -109,7 +109,14 @@ describe('Duels-filerna följer designspråket', () => {
     expect([...declared(index)].sort()).toEqual([...declared(facit)].sort());
   });
 
-  it('skölden återanvänder Boards mått, och de finns i temafilen', () => {
+  it('TierRibbon ritar vimpeln ur den delade geometrin (challengeMark), inte en egen path', () => {
+    const ribbon = sources['./components/TierRibbon.tsx'];
+    expect(ribbon).toContain("from '@/shared/components/challengeMark'");
+    expect(ribbon).toContain('d={PENNANT_PATH}');
+    expect(ribbon).not.toMatch(/\bd="/);
+  });
+
+  it('vimpeln återanvänder Boards mått, och de finns i temafilen', () => {
     const index = readFromDisk('../../index.css');
     for (const name of ['--rq-board-ribbon-w', '--rq-board-ribbon-h', '--rq-board-ribbon-font']) {
       expect({ name, used: css.includes(`var(${name})`), declared: new RegExp(`^\\s*${name}:`, 'm').test(index) }).toEqual({ name, used: true, declared: true });

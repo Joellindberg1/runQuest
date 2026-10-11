@@ -11,7 +11,7 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   - `DuelsScreen` — all datakoppling, handlingar, send-sheetens URL-tillstånd, tour. Ritar `DuelsLayout`.
   - `DuelsLayout` — ren presentation av färdiga vymodeller (rubrik, flikar, aktiv vy, sidokolumn). Preview-sidan återanvänder den.
   - `OfferCards` (`IncomingOffer` "Waiting on you", `SentOffer`), `LiveSection` (live-kort), `StandingsTable`, `HistoryList`, `RulesView`,
-    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `StakeBlocks`, `TierRibbon` (nivåns sköld — enda `<svg>` i featuren)
+    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren)
 - **duelsFormat.ts** — tier/mått/insatser/tider som text (en-GB, Stockholm-kalenderdagar, `now` skickas in)
 - **duelsModel.ts** — live-kort, inkommande/skickad, token-grupper, standings, historikrader, boosts, rekord, rubrikrad
 - **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering
@@ -50,5 +50,5 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   dagsboosts går på `expires_at`. Bakgrunden ("Won against Adam …") hittas i min egen historik (`/challenges/my` ger 20 senaste) och utelämnas annars.
 - **CSS-ordning:** feature-CSS hamnar före `index.css` i kaskaden (main.tsx importerar index.css sist). En override av en delad `.rq-*`-primitiv på
   samma specificitet förlorar därför — använd sammansatta selektorer (`.rq-card.rq-duels-standings`, `.rq-hairgrid > .rq-duels-…`).
-- Skölden (`TierRibbon`) har samma form/recept som Boards challenge-sköld men egen stil; den återanvänder `--rq-board-ribbon-*`-måtten.
+- Vimpeln (`TierRibbon`, svalstjärt, RUN-147) ritas ur samma geometri som Boards challenge-vimpel (`shared/components/challengeMark`: path, text-x/y, viewBox) men har egen stil; den återanvänder `--rq-board-ribbon-*`-måtten. Ingen kod i `apps/frontend/src` får innehålla den gamla sköldens path (vakt i `shared/components/challengeMark.test.ts`).
 - Tour `tour_duels_v2` (ankare `duels-tokens`, `duels-send`, `duels-tabs`) startar först när sidan är ritad.

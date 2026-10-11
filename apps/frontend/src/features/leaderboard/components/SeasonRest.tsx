@@ -15,8 +15,6 @@ interface RestProps {
 const rowVars = (row: SeasonRow) =>
   cssVars({ '--w': `${row.progress.pct}%`, '--rq-delay': `${row.rank * RANK_STAGGER_SECONDS}s` });
 
-const hasMinis = (row: SeasonRow) => row.showcase.length > 0;
-
 const edgeStep =(row: SeasonRow) => Math.min(row.rank, LAST_EDGE_STEP);
 
 function etaText(row: SeasonRow, short: boolean): string {
@@ -57,17 +55,16 @@ export function RestList({ rows, onOpen }: RestProps) {
             <div className="rq-track rq-board-track--thin">
               <div className="rq-fill rq-fill--rest" style={rowVars(row)} />
             </div>
-            {/* Utmaningsskölden står aldrig på samma rad som minis: med minis flyttar den till höger kolumn. */}
+            {/* Minis på sub-raden; vimplarna står alltid i högerkolumnen (aldrig i samma behållare som minis, F12.4). */}
             <div className="rq-board-sub rq-board-sub--list">
               <span>{row.kmTotal} km</span>
               <BadgeMinis showcase={row.showcase} />
-              {!hasMinis(row) && <ChallengeRibbons tokens={row.tokens} />}
             </div>
           </div>
           <div role="cell" className="rq-board-cell-right">
             <div className="rq-board-num" data-tone={row.pace.tone}>{row.pace.text}</div>
             <div className="rq-board-cell-sub">{etaText(row, false)}</div>
-            {hasMinis(row) && row.tokensLeft > 0 && (
+            {row.tokensLeft > 0 && (
               <div className="rq-board-cell-ribbons">
                 <ChallengeRibbons tokens={row.tokens} />
               </div>
@@ -105,18 +102,12 @@ export function RestTable({ rows, onOpen }: RestProps) {
           <span role="cell" className="rq-board-ranknum">{row.rank}</span>
           <div role="cell" className="rq-board-nameline rq-board-nameline--desktop">
             <DeltaMark delta={row.delta} />
-            <div data-minis={hasMinis(row) || undefined}>
-              {hasMinis(row) ? (
-                <div className="rq-board-namerow">
-                  <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
-                  <BadgeMinis showcase={row.showcase} />
-                </div>
-              ) : (
-                <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
-              )}
-              <div className="rq-board-sub">
+            <div>
+              <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+              {/* Minis på sub-raden efter "Lvl N · X km"; vimplarna bor i Last run-cellen. Raden rymmer en mini på alla rader (Council 10). */}
+              <div className="rq-board-sub rq-board-sub--table">
                 <span>Lvl {row.level} · {row.kmTotal} km</span>
-                <ChallengeRibbons tokens={row.tokens} />
+                <BadgeMinis showcase={row.showcase} />
               </div>
             </div>
           </div>
@@ -132,9 +123,10 @@ export function RestTable({ rows, onOpen }: RestProps) {
           <span role="cell" className="rq-board-num">{row.avgPerRun} km</span>
           <span role="cell" className="rq-board-num" data-tone={row.pace.tone}>{row.pace.text}</span>
           <span role="cell" className="rq-board-num rq-board-num--soft">{etaText(row, true)}</span>
-          <span role="cell" className="rq-board-num rq-board-num--soft">
-            {row.lastRun ? `${row.lastRun.age} · ${row.lastRun.km} km` : '—'}
-          </span>
+          <div role="cell" className="rq-board-num rq-board-num--soft rq-board-cell-stack">
+            <span>{row.lastRun ? `${row.lastRun.age} · ${row.lastRun.km} km` : '—'}</span>
+            <ChallengeRibbons tokens={row.tokens} />
+          </div>
         </div>
       ))}
     </div>

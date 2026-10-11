@@ -12,7 +12,7 @@ interface TokensPanelProps {
 }
 
 /**
- * "Your tokens": osända tokens per nivå (sköld med antal, insats, Send). Send på en nivå öppnar send-sheeten med nivån
+ * "Your tokens": osända tokens per nivå (vimpel med antal, insats, Send). Send på en nivå öppnar send-sheeten med nivån
  * förvald. Går det inte att skicka just nu är knapparna låsta och orsaken står under listan.
  */
 export function TokensPanel({ groups, blocker, showIntro, onSend }: TokensPanelProps) {

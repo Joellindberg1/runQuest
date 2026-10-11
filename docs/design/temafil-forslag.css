@@ -332,9 +332,9 @@
   --rq-board-avatar: 36px;          /* avatar i podiekort (desktop 42) */
   --rq-board-bar-h: 5px;            /* nivåstapel i podiekort (desktop 6) */
   --rq-board-bar-h-thin: 4px;       /* nivåstapel i listrad (desktop 6) */
-  --rq-board-ribbon-w: 22px;        /* challenge-sköld */
+  --rq-board-ribbon-w: 22px;        /* challenge-vimpel */
   --rq-board-ribbon-h: 27px;
-  --rq-board-ribbon-font: 15px;     /* siffran i skölden (SVG-enheter) */
+  --rq-board-ribbon-font: 15px;     /* siffran i vimpeln (SVG-enheter) */
   --rq-board-daybars-h: 34px;       /* veckans dagstaplar (desktop 44) */
   --rq-board-streak-bar-h: 6px;     /* multiplikatorstapel (desktop 8) */
   --rq-board-plinth-1: 78px;        /* sockel under podiekort (desktop) */
@@ -342,6 +342,7 @@
   --rq-board-plinth-3: 38px;
   --rq-board-side-w: 300px;         /* desktop: sidokolumn (Mover/Pack/Alert/Ladder) */
   --rq-board-delta-w: 26px;         /* desktop: fast kolumn för ▲/▼ framför namnet */
+  --rq-board-minis-inset: 28px;     /* podiets minis: luft åt höger så de går fria från spöksiffran (desktop 46) */
   --rq-board-rest-cols: 26px 1fr 74px;
   --rq-board-week-cols: 24px 1fr 62px;
   --rq-board-streak-cols: 1fr;
@@ -377,7 +378,7 @@
   /* ── 1.23 Duels-mått (inkrement 5) ─────────────────────────────────────────
      Mått ur App-/Web-prototypens challenges-skärm som saknade token. Endast mått —
      ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
-     avsnitt 2. Skölden återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
+     avsnitt 2. Vimpeln återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
   --rq-duels-split-cols: minmax(0, 1fr);                              /* desktop: vy | sidokolumn (320 px) */
   --rq-duels-live-cols: minmax(0, 1fr);                               /* live-korten: mobil 1 kolumn, desktop 2 */
   --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 */
@@ -676,6 +677,7 @@
     --rq-board-daybars-h: 44px;
     --rq-board-streak-bar-h: 8px;
     --rq-board-rest-cols: 40px 300px 1fr 78px 84px 88px 112px;
+    --rq-board-minis-inset: 46px;
     --rq-board-week-cols: 38px 190px 1fr 128px 92px;
     --rq-board-streak-cols: 190px 96px 1fr 150px;
     --rq-runner-ring: 96px;
