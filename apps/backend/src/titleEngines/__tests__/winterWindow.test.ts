@@ -53,6 +53,9 @@ describe('winterWindow vid nyår och februari/mars (RUN-102 T3)', () => {
   const inWindow = (date: string, w: { start: string; end: string }) => date >= w.start && date < w.end;
   const stats = { totalKm: 0, longestStreak: 0 };
 
+  // Fönstret byter varken vid nyår eller vid 1 mars, så ett test kan inte skilja Stockholm-väggklocka från UTC där:
+  // både 31 dec och 1 jan ger samma fönster. Tidszonsgränsen som faktiskt gör skillnad är 30 nov/1 dec
+  // ('datumet tas i Stockholm-tid' ovan). Testerna här vaktar i stället att nyåret och feb/mars INTE byter vinter.
   it('31 dec 23:30 och 1 jan 00:30 lokal tid ger samma vinter (nyåret byter inte vinter)', () => {
     expect(at('2026-12-31T22:30:00Z')).toEqual(WINTER_2026); // 31 dec 23:30 Stockholm
     expect(at('2026-12-31T23:30:00Z')).toEqual(WINTER_2026); // 1 jan 00:30 Stockholm
@@ -74,7 +77,7 @@ describe('winterWindow vid nyår och februari/mars (RUN-102 T3)', () => {
     }
   });
 
-  it('nyår efter en skottårsvinter: 31 dec 2028 / 1 jan 2029 ger vintern 2028–29 (slutar 1 mars)', () => {
+  it('nyår i ett skottår: 31 dec 2028 / 1 jan 2029 ger vintern 2028–29 (slutar 1 mars 2029, inte 29 feb)', () => {
     const expected = { start: '2028-12-01', end: '2029-03-01' };
     expect(at('2028-12-31T22:30:00Z')).toEqual(expected);
     expect(at('2028-12-31T23:30:00Z')).toEqual(expected);
@@ -84,6 +87,8 @@ describe('winterWindow vid nyår och februari/mars (RUN-102 T3)', () => {
     expect(at('2027-02-10T12:00:00Z')).toEqual(WINTER_2026);
     expect(inWindow('2027-02-28', WINTER_2026)).toBe(true);
     expect(inWindow('2027-03-01', WINTER_2026)).toBe(false);
+    const runs = [{ date: '2027-02-28', distance_km: 4 }, { date: '2027-03-01', distance_km: 9 }];
+    expect(winterKmEngine.calculate(runs, stats, { now: new Date('2027-02-28T23:30:00Z') })).toBe(4);
   });
 
   it('1 mars 00:30 lokal tid (28 feb 23:30Z) pekar fortfarande på vintern som just slutade — samma fönster som kvällen före', () => {

@@ -112,7 +112,7 @@ describe('Playbook — desktop', () => {
 
   it('Titles-kapitlet nämner att säsongstitlar byter säsong vid nästa omräkning efter 1 december', async () => {
     renderPlaybook('/playbook?view=titles');
-    expect(await screen.findByText(/starts when the titles are next recalculated on or after 1 December/)).toBeInTheDocument();
+    expect(await screen.findByText(/doesn’t start at midnight on 1 December/)).toBeInTheDocument();
     expect(screen.getByText(/December to February/)).toBeInTheDocument();
   });
 
