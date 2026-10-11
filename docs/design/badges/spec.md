@@ -329,7 +329,7 @@ Bara Season (som v1). Ingen ny data. Tokens: **`--rq-board-minis-inset`** (NY, s
 | `<path d>` | `M1.5 1.5 H24.5 V21 L13 30.5 L1.5 21 Z` | `M1.5 1.5 H24.5 V30.5 L13 23.5 L1.5 30.5 Z` |
 | `<text y>` | `17` | `16.5` |
 
-Konstanterna `PENNANT_PATH` och `PENNANT_TEXT_Y` bor i `BoardParts.tsx`. Geometrin är SVG-data, inte stil. **Sök i hela `apps/frontend/src` efter `M1.5 1.5 H24.5 V21`** (Duels, preview-sidor, tester); alla som ritar utmaningstecknet ska använda samma komponent/konstant. Källa: `runquest-badges.js` 106–128. Tecknet förblir ikonlöst och dämpat (Council 8).
+Konstanterna `PENNANT_PATH`, `PENNANT_TEXT_X/Y` och `PENNANT_VIEW_BOX` bor i `apps/frontend/src/shared/components/challengeMark.ts` (Board och Duels importerar därifrån; RUN-147). Geometrin är SVG-data, inte stil. **Sök i hela `apps/frontend/src` efter `M1.5 1.5 H24.5 V21`** (Duels, preview-sidor, tester); alla som ritar utmaningstecknet ska använda samma komponent/konstant. Källa: `runquest-badges.js` 106–128. Tecknet förblir ikonlöst och dämpat (Council 8).
 
 *Kontroll "aldrig på samma rad som minis":* podium mobil/desktop: minis på namnraden, vimplar i foten — olika rader. Rest mobil: minis i mitten-cellens sub-rad, vimplar i högerkolumnens cell. Rest desktop: minis i Runner-cellens sub-rad, vimplar i Last run-cellen — olika celler, ≥ 1 kolumn emellan. Regeln operationaliseras som: **ingen gemensam behållare** (flex-rad/cell/`rq-board-sub`/`rq-board-nameline*`) innehåller både `.rq-badge-minis` och `.rq-ribbons` (test). Obs: i tabellraderna hamnar de visuellt på ungefär samma höjd i olika kolumner (designens val); Q2 frågar om det räcker.
 
