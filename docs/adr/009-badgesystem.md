@@ -154,8 +154,10 @@ Socialite kräver att gemensamma rundor upptäcks, vilket är en annan sorts fun
 ### 10. Utrullning
 1. Ägargodkänd migration 035 (`apply_migration`; `list_migrations`; `get_advisors security` efteråt — RLS på, anon → 42501 som för 034).
 2. `scripts/backfillBadges.ts` (som `backfillActivityLog.ts`): **default dry-run** (tierfördelning per användare och serie, ingen skrivning), `--apply` skriver diffen (nya rader och uppgraderingar) med `seen_tier = tier` och inga news-rader. Valfritt `--series=`. `--silent` (med `--apply`) normaliserar dessutom befintliga rader med `seen_tier < tier` till `seen_tier = tier`, för retuning eller en körning efter deploy. Idempotent. Trösklarna i beslut 3 (v2) är kalibrerade mot dry-run i prod. Efter varje tröskeländring körs dry-run → `--apply --silent`.
-3. Deploya backend (kod som skriver kräver att tabellen finns; annars loggas icke-fatala fel), därefter frontend.
-4. `changelog.json`: "workingOn → Badges" flyttas till levererat vid release.
+3. Deploy: merge release → main via PR med grön CI; Railway deployar backend och frontend samtidigt (ingen garanterad ordning). Ny frontend mot gammal backend degraderar (nivåer → fallback, badges → felkort/tomt); gammal frontend mot ny backend fungerar utom News vid `badge_earned` (se 4).
+4. **Addendum 2026-10-11 (Lead, efter integrationskritiken):** migration 036 (`badge_earned` i CHECK) appliceras DIREKT EFTER att båda tjänsterna är live, inte före — v0.5.3-frontendens News saknar default-gren och kraschar på okända typer. Före 036 misslyckas badge_earned-skrivningen tyst (loggas); nivåhöjningar i fönstret får ingen news-rad. Öppna flikar från v0.5.3 laddas om.
+5. `changelog.json`: "workingOn → Badges" flyttas till levererat vid release (gjort i RUN-133).
+6. Rollback: se CHANGELOG.md v0.6.0 "Rollback".
 
 ### 11. Teststrategi (ADR 001, Produkt-läge)
 | Vad | Nivå | Innehåll |

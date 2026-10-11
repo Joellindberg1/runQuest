@@ -3,7 +3,7 @@
 ## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
 
 Rullar ihop epicsen RUN-1 (Badges), RUN-91 (Stormborn, Iceborn, Winter Warrior) och RUN-92 (städning och nivåtabellen via backend), plus
-Strava-låset (RUN-139). Migrationerna 035–040 och en badge-backfill är prod-steg som kräver ägar-ja (se "Prod-steg" nedan).
+Strava-låset (RUN-139). Migrationerna 035–037 och en badge-backfill är prod-steg som kräver ägar-ja (038/039 applicerades redan som säkerhetshotfix; 040 skrivs separat efter releasen) (se "Prod-steg" nedan).
 
 ### Nytt
 - **Badges (ADR 009, RUN-1).** Åtta serier × sex nivåer (Common till Legendary) som gruppen samlar över säsonger: Milestoner, Earth Trotter, Climber,
@@ -46,6 +46,13 @@ Strava-låset (RUN-139). Migrationerna 035–040 och en badge-backfill är prod-
 5. Migration 037 (titelraderna) efter deployen och DIREKT därefter tyst omräkning (annars kan en vanlig skrivning hinna ge title_unlocked för de nya titlarna): `POST /api/titles/reprocess-all` (`emitNews: false`).
 6. Migration 040 (stäng anon-läsning av `level_requirements`, RUN-112) först när v0.6.0 är live. Filen ingår inte i release/v0.6.0 och skrivs separat.
 7. Redan applicerat 2026-10-11 som säkerhetshotfix (ägar-ja): 038 stänger alla RLS-policyer för Supabase-Auth-sessioner (users-tabellen med email och password_hash var läsbar för en Supabase-session), 039 stänger anon-läsning av `title_leaderboard_view` (namn, kön, titelvärden) och signup-triggern `on_auth_user_created`.
+
+### Rollback (beslutas av ägaren; snabbast först)
+1. **Kod:** Railway → respektive tjänst → Deployments → välj den senaste v0.5.3-deployen → Redeploy (frontend och/eller backend). Därefter en PR som revertar merge-commiten på main, så att nästa push inte deployar v0.6.0 igen.
+2. **Ordning:** frontend först om felet syns i UI:t, backend först om API:t felar. Backend v0.5.3 tål 035–037 (additiva; okända `metric_key` hoppas över med varning).
+3. **Data före frontend-rollback:** finns `badge_earned`-rader (efter 036) måste de raderas innan v0.5.3-frontenden tas tillbaka, annars kraschar News: `delete from activity_log where type = 'badge_earned'` (ägar-ja).
+4. **Migrationer:** 036 och 037 kan ligga kvar vid kodrollback. 037 kan tas bort med den kommenterade SQL:en i filhuvudet om titlarna måste bort. 035/038/039 rullas inte tillbaka (additiva respektive stängningar).
+5. **Efter 040:** v0.5.3-frontenden läser `level_requirements` direkt — en frontend-rollback efter 040 kräver att policyn öppnas igen (anges i 040:s huvud när filen skrivs).
 
 ## v0.5.3.2 — Alla CSS-overrides som avgjordes av laddningsordningen (2026-10-07)
 
