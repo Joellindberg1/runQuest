@@ -193,6 +193,16 @@ describe('BadgeEmblemDetail — popovern, låst serie (Council 1)', () => {
   });
 });
 
+describe('BadgeEmblemDetail — försvar på komponentnivå', () => {
+  it('en handgjord låst rad med heldBy, flavor och next visar ingen av dem i popovern', async () => {
+    const forged: BadgeRow = { ...rowOf(collection([]), nightOwl.key), heldBy: 'Held by 3 of 6 in your pack', flavor: 'Forged flavor', next: 'Next: Forged — nothing' };
+    expect(forged.earned).toBe(false);
+    render(<BadgeEmblemDetail row={forged} />);
+    const dialog = await open(`Locked ${nightOwl.name}`);
+    for (const text of ['Held by 3 of 6 in your pack', '"Forged flavor"', 'Next: Forged — nothing']) expect(within(dialog).queryByText(text), text).toBeNull();
+  });
+});
+
 describe('BadgeEmblemDetail — öppna och stänga (F10.4)', () => {
   it('fokus flyttar in i popovern vid öppning', async () => {
     render(<BadgeEmblemDetail row={rowOf(collection([]), milestoner.key)} />);

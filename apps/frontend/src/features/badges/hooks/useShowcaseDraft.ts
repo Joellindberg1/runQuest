@@ -38,7 +38,8 @@ type DraftAction =
   | { type: 'toggle'; series: string; name: string; owned: readonly string[]; saved: readonly string[] }
   | { type: 'saveStart' }
   | { type: 'saved' }
-  | { type: 'failed' };
+  | { type: 'failed' }
+  | { type: 'settle' };
 
 const INITIAL: DraftState = { picked: null, status: 'idle', announcement: '' };
 
@@ -64,6 +65,9 @@ function reduce(state: DraftState, action: DraftAction): DraftState {
     // Fel: utkastet ligger kvar (useSaveShowcase återställer samlingen, inte utkastet).
     case 'failed':
       return { ...state, status: 'error' };
+    // Felet rensas (RETRY när inget längre är osparat); utkastet rörs inte.
+    case 'settle':
+      return state.status === 'error' ? { ...state, status: 'idle' } : state;
   }
 }
 
@@ -87,6 +91,9 @@ export function useShowcaseDraft(rows: readonly BadgeRow[], userId: string | und
   const names = useMemo(() => new Map(rows.map((row) => [row.series, row.name])), [rows]);
   const draft = useMemo(() => cleanShowcase(state.picked ?? saved, owned), [state.picked, saved, owned]);
   const dirty = !sameShowcase(draft, saved);
+  // Ett fel som inte längre har något att göra: PUT lyckades men svaret gick förlorat, och refetchen gav sparat = utkast. Visas som 'idle', inte 'saved':
+  // vi vet inte att det var vårt anrop som gick igenom (det kan vara en annan enhet), så vi påstår ingen bekräftelse — knappen säger redan SAVED när inget är osparat.
+  const status = !dirty && state.status === 'error' ? 'idle' : state.status;
 
   const toggle = useCallback(
     (series: string) => dispatch({ type: 'toggle', series, name: names.get(series) ?? series, owned, saved }),
@@ -95,7 +102,12 @@ export function useShowcaseDraft(rows: readonly BadgeRow[], userId: string | und
 
   const save = useCallback(async () => {
     // Ref-spärren gäller även ett andra anrop i samma tick, innan `status` hunnit renderas.
-    if (inFlight.current || !dirty) return;
+    if (inFlight.current) return;
+    if (!dirty) {
+      // RETRY efter ett förlorat svar: servern har redan utkastet (sparat = utkast), så det finns inget att skicka — bara felet att rensa.
+      if (state.status === 'error') dispatch({ type: 'settle' });
+      return;
+    }
     inFlight.current = true;
     dispatch({ type: 'saveStart' });
     try {
@@ -106,7 +118,7 @@ export function useShowcaseDraft(rows: readonly BadgeRow[], userId: string | und
     } finally {
       inFlight.current = false;
     }
-  }, [dirty, draft, saveShowcase]);
+  }, [dirty, draft, saveShowcase, state.status]);
 
   const positionOf = useCallback((series: string) => (draft.includes(series) ? draft.indexOf(series) + 1 : null), [draft]);
 
@@ -115,7 +127,7 @@ export function useShowcaseDraft(rows: readonly BadgeRow[], userId: string | und
     saved,
     dirty,
     full: draft.length >= MAX_SHOWCASE,
-    status: state.status,
+    status,
     saving: state.status === 'saving' || isPending,
     announcement: state.announcement,
     positionOf,

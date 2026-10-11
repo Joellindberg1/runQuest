@@ -176,6 +176,21 @@ describe('badges-sidans byggstenar (RUN-149, spec F9.9, F13.4)', () => {
     expect(rule('.rq-badge-card .rq-badge-toggle[aria-disabled="true"]:not([aria-pressed="true"])')).toBeDefined();
   });
 
+  it('den låsta rutan ändrar inte utseende vid hover: --locked:hover finns efter :hover, med samma specificitet och låst-färgerna', () => {
+    const hover = rules.findIndex(({ selector }) => selector === '.rq-badge-card .rq-badge-toggle:hover');
+    const lockedHover = rules.findIndex(({ selector }) => selector === '.rq-badge-card .rq-badge-toggle--locked:hover');
+    expect(hover).toBeGreaterThanOrEqual(0);
+    expect(lockedHover).toBeGreaterThan(hover);
+    const locked = rule('.rq-badge-card .rq-badge-toggle--locked')?.body ?? '';
+    const body = rules[lockedHover].body;
+    // Samma kantfärg och textfärg som låst-utseendet, så hover inte kan läsas som klickbart.
+    expect(body).toContain('border-color: var(--rq-line-5)');
+    expect(body).toContain('color: var(--rq-text-5)');
+    expect(locked).toContain('border-color: var(--rq-line-5)');
+    expect(locked).toContain('color: var(--rq-text-5)');
+    expect(body).not.toMatch(/--rq-line-hover|--rq-text-2/);
+  });
+
   it('valt kort: guldkant ur rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)) via [data-display]; låst kort har streckad kant', () => {
     expect(rule('.rq-badge-card.rq-badge-card--landscape[data-display="true"]')?.body).toContain('rgb(var(--rq-gold-rgb) / var(--rq-edge-soft))');
     expect(rule('.rq-badge-card[data-state="locked"]')?.body).toMatch(/border-style:\s*dashed/);

@@ -346,6 +346,8 @@
 }
 .rq-badge-card .rq-badge-toggle[aria-disabled="true"]:not([aria-pressed="true"]) { background: var(--rq-fill-1); border-color: transparent; color: var(--rq-text-5); cursor: not-allowed; }
 .rq-badge-card .rq-badge-toggle--locked { border-style: dashed; border-color: var(--rq-line-5); background: none; color: var(--rq-text-5); cursor: default; }
+/* Den låsta rutan är ingen knapp: hover får inte byta färg (lika specificitet som :hover ovan, senare i filen vinner). */
+.rq-badge-card .rq-badge-toggle--locked:hover { border-color: var(--rq-line-5); color: var(--rq-text-5); }
 
 /* Emblemknappen (F10.4): det dekorativa 44 px-emblemet är tryckytan. Hover ger en tunn ram runt knappen — inget glödbyte, ingen permanent ring (fokusringen är den globala). */
 .rq-badge-detail__trigger { display: inline-flex; flex-shrink: 0; padding: 0; background: none; border: var(--rq-hair) solid transparent; cursor: pointer; }

@@ -370,6 +370,43 @@ describe('useShowcaseDraft — spara', () => {
     expect(result.current.dirty).toBe(true);
   });
 
+  it('förlorat svar: PUT lyckades men svaret kom aldrig — refetchen ger sparat = utkast, så felet försvinner och RETRY gör inget nätverksanrop', async () => {
+    const { result, server } = renderLive([s1.key]);
+    await waitFor(() => expect(result.current.saved).toEqual([s1.key]));
+    // Servern tar emot valet, men klienten får ett fel (nätverket föll innan svaret).
+    api.saveShowcase.mockImplementation(async (series: string[]) => {
+      server.showcase = [...series];
+      throw new Error('Network error');
+    });
+    act(() => result.current.toggle(s2.key));
+    await act(async () => { await result.current.save(); });
+
+    // Refetchen (onSettled) läser serverns värde: saved = utkast, alltså inte längre osparat, och ingen felbanner.
+    await waitFor(() => expect(result.current.saved).toEqual([s1.key, s2.key]));
+    expect(result.current.dirty).toBe(false);
+    expect(result.current.status).toBe('idle');
+
+    // RETRY (save) gör inget anrop men rensar felet för gott.
+    await act(async () => { await result.current.save(); });
+    expect(api.saveShowcase).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('idle');
+    expect(result.current.draft).toEqual([s1.key, s2.key]);
+  });
+
+  it('felet kommer inte tillbaka om sparat senare ändras bakom ryggen (rensat vid RETRY)', async () => {
+    api.saveShowcase.mockRejectedValue(new Error('Network error'));
+    const { result, rerender } = renderDraft([s1.key]);
+    act(() => result.current.toggle(s2.key));
+    await act(async () => { await result.current.save(); });
+    expect(result.current.status).toBe('error');
+    rerender({ rows: rowsOf([s1.key, s2.key]) });
+    expect(result.current.status).toBe('idle');
+    await act(async () => { await result.current.save(); });
+    rerender({ rows: rowsOf([s3.key]) });
+    expect(result.current.dirty).toBe(true);
+    expect(result.current.status).toBe('idle');
+  });
+
   it('nytt försök efter fel (RETRY) sparar samma utkast', async () => {
     const { result } = renderLive([s1.key]);
     api.saveShowcase.mockRejectedValueOnce(new Error('Server error'));

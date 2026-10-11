@@ -118,6 +118,16 @@ describe('BadgeSeriesCard liggande — låst kort (Council 1)', () => {
     expect(within(card()).queryByText(/in your pack/)).toBeNull();
   });
 
+  it('försvar på komponentnivå: en handgjord låst rad med heldBy, flavor och next visar ingen av dem (liggande och stående)', () => {
+    const forged: BadgeRow = { ...rowOf(nightOwl.key), heldBy: 'Held by 3 of 6 in your pack', flavor: 'Forged flavor', next: 'Next: Forged — nothing', maxed: false };
+    expect(forged.earned).toBe(false);
+    const view = renderCard(forged);
+    for (const text of ['Held by 3 of 6 in your pack', '"Forged flavor"', 'Next: Forged — nothing']) expect(within(card()).queryByText(text), text).toBeNull();
+    view.unmount();
+    render(<ul><BadgeSeriesCard row={forged} /></ul>);
+    for (const text of ['Held by 3 of 6 in your pack', '"Forged flavor"', 'Next: Forged — nothing']) expect(screen.queryByText(text), text).toBeNull();
+  });
+
   it('växlaren är ingen knapp: en aria-hidden "Locked"-ruta', () => {
     renderCard(rowOf(nightOwl.key));
     expect(within(card()).queryByRole('button')).toBeNull();
