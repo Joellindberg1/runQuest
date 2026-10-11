@@ -238,7 +238,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
       tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
     });
-    await expect(service.processAllUsersTitles('g1')).resolves.toBeUndefined();
+    await expect(service.processAllUsersTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
     expect(spy).toHaveBeenCalled();
   });
 
@@ -247,7 +247,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
     use(tables, { errors: { title_leaderboard: { message: 'boom' } } });
     const service = new EnhancedTitleService();
     const spy = simulate(service, tables, () => {});
-    await expect(service.processAllUsersTitles('g1')).resolves.toBeUndefined();
+    await expect(service.processAllUsersTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
     expect(spy).toHaveBeenCalledTimes(2); // båda gruppmedlemmarna bearbetades
     expect(tables.activity_log).toHaveLength(0);
   });
