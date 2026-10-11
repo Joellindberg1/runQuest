@@ -168,9 +168,9 @@ describe('buildTitlesView', () => {
     const view = buildTitlesView(all, [], ME, 'all');
     const ids = view.groups.flatMap((group) => group.rows.map((row) => row.id));
     expect(ids.sort()).toEqual(all.map((entry) => entry.id).sort());
-    // winterKm ligger i Other tills RUN-101 flyttar den till Weather; inget annat får hamna där.
+    // winterKm, stormRunCount och coldRunCount ligger i Other tills RUN-101 flyttar dem till Weather; inget annat får hamna där.
     const other = view.groups.find((group) => group.id === 'other');
-    expect(other?.rows.map((row) => row.id)).toEqual(['id-winterKm']);
+    expect(other?.rows.map((row) => row.id)).toEqual(['id-winterKm', 'id-stormRunCount', 'id-coldRunCount']);
   });
 });
 

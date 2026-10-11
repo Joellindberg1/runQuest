@@ -65,7 +65,7 @@ const legacyMap = (r: any): RunData => ({
 const stats: UserStats = { ...FIXTURE_STATS };
 
 // Motorer som tillkommit efter RUN-98 har egna tester (t.ex. winterKm.test.ts) och ingår inte i de 21 fasta värdena.
-const ADDED_AFTER_RUN98 = ['winterKm'];
+const ADDED_AFTER_RUN98 = ['winterKm', 'stormRunCount', 'coldRunCount'];
 const withoutNewer = (values: Record<string, number>): Record<string, number> =>
   Object.fromEntries(Object.entries(values).filter(([key]) => !ADDED_AFTER_RUN98.includes(key)));
 
@@ -90,7 +90,7 @@ afterAll(() => {
 describe('titelmotorernas regression (RUN-98)', () => {
   it('registret har de 21 förväntade motorerna (plus de som tillkommit efter RUN-98)', () => {
     expect([...titleEngineRegistry.keys()].sort()).toEqual([...Object.keys(EXPECTED), ...ADDED_AFTER_RUN98].sort());
-    expect(titleEngineRegistry.size).toBe(22);
+    expect(titleEngineRegistry.size).toBe(24);
   });
 
   it('de 21 befintliga motorerna ger oförändrade värden på en fast fixtur (gamla mappningen)', () => {

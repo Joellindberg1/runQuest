@@ -31,6 +31,13 @@ export function dayOfWeek(dateStr: string): number {
   return new Date(dateStr).getUTCDay();
 }
 
+/** Antal rundor som uppfyller villkoret (gemensam för räknande motorer). */
+export function countRunsWhere(runs: RunData[], predicate: (run: RunData) => boolean): number {
+  let count = 0;
+  for (const run of runs) if (predicate(run)) count++;
+  return count;
+}
+
 /** numeric från PostgREST kan komma som sträng. Tomt/ogiltigt → null (aldrig NaN, aldrig tyst 0). */
 function toNullableNumber(v: unknown): number | null {
   if (v === null || v === undefined || (typeof v === 'string' && v.trim() === '')) return null;

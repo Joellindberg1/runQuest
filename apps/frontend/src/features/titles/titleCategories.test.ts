@@ -6,13 +6,13 @@ import { MAPPED_METRIC_KEYS, TITLE_CATEGORIES, categoryOf, iconOf } from './titl
 import { TITLE_ENGINE_METRIC_KEYS } from './titleMetricKeys.fixture';
 
 describe('kategorimappningen metric_key → grupp', () => {
-  it('fixturen har de 22 motorerna', () => {
-    expect(TITLE_ENGINE_METRIC_KEYS).toHaveLength(22);
-    expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(22);
+  it('fixturen har de 24 motorerna', () => {
+    expect(TITLE_ENGINE_METRIC_KEYS).toHaveLength(24);
+    expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(24);
   });
 
-  // winterKm ligger tillfälligt i Other (RUN-100); RUN-101 flyttar den till Weather och tömmer den här listan.
-  const TEMPORARILY_IN_OTHER: readonly string[] = ['winterKm'];
+  // winterKm, stormRunCount och coldRunCount ligger tillfälligt i Other (RUN-100, RUN-99); RUN-101 flyttar dem till Weather och tömmer den här listan.
+  const TEMPORARILY_IN_OTHER: readonly string[] = ['winterKm', 'stormRunCount', 'coldRunCount'];
 
   it.each(TITLE_ENGINE_METRIC_KEYS.filter((key) => !TEMPORARILY_IN_OTHER.includes(key)))(
     '%s är mappad till en riktig kategori (inte Other)',

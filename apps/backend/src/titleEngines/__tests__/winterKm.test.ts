@@ -77,6 +77,6 @@ describe('winterKm (RUN-100 T2)', () => {
 describe('winterKm i registret (RUN-100 T3)', () => {
   it('är registrerad under metricKey winterKm', () => {
     expect(titleEngineRegistry.get('winterKm')).toBe(winterKmEngine);
-    expect(titleEngineRegistry.size).toBe(22);
+    expect(titleEngineRegistry.size).toBeGreaterThanOrEqual(22); // exakt storlek vaktas i regression.test.ts
   });
 });

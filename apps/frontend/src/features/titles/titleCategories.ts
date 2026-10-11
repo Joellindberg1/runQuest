@@ -61,6 +61,8 @@ const METRICS: Record<string, MetricDef> = {
 
   // Tillfälligt i Other med en egen rad (så driftvakten är grön); RUN-101 flyttar den till kategorin Weather.
   winterKm: { category: 'other' },
+  stormRunCount: { category: 'other' },
+  coldRunCount: { category: 'other' },
 };
 
 /** Måttnycklarna som har en egen rad i mappningen (testet jämför dem mot motorregistret). */
