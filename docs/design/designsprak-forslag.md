@@ -88,4 +88,4 @@ Skuld: 240 inline-styles + 7 typsnitt i nuvarande kod ersätts per inkrement (re
     brons på siffra, ring och kant; placering 4+ är `--rq-rank-rest`. Guld får
     aldrig användas som dekor på något som inte är belöning, rank eller primär
     handling.
-   Undantag badges (Design Council 2026-10-11): ikonen inuti ett badge-emblem skalar med emblemet (15/24/42 px vid 28/56/96 px) — gäller bara inuti emblemet; panelrubrikers ikoner följer ikontrappan (`--rq-icon-md`). Nivåfärgerna `--rq-badge-*` används bara på emblem, chip, pips och nivårad, aldrig som status- eller varningsfärg; Rare-blå aliasas inte mot `--rq-tier-minor`.
+   Undantag badges (Design Council 2026-10-11): ikonen inuti ett badge-emblem skalar med emblemet (15/20/24/42 px vid 28/44/56/96 px; v2 2026-10-11) — gäller bara inuti emblemet; panelrubrikers ikoner följer ikontrappan (`--rq-icon-md`). Nivåfärgerna `--rq-badge-*` används bara på emblem, chip, pips och nivårad, aldrig som status- eller varningsfärg; Rare-blå aliasas inte mot `--rq-tier-minor`.
