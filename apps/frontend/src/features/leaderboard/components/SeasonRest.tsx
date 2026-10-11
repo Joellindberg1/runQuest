@@ -1,3 +1,4 @@
+import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
 import { titleLine, type SeasonRow } from '../seasonModel';
 import { ChallengeRibbons, DeltaMark, RunnerName, TitleLine } from './BoardParts';
 import { cssVars } from '../cssVars';
@@ -14,7 +15,9 @@ interface RestProps {
 const rowVars = (row: SeasonRow) =>
   cssVars({ '--w': `${row.progress.pct}%`, '--rq-delay': `${row.rank * RANK_STAGGER_SECONDS}s` });
 
-const edgeStep = (row: SeasonRow) => Math.min(row.rank, LAST_EDGE_STEP);
+const hasMinis = (row: SeasonRow) => row.showcase.length > 0;
+
+const edgeStep =(row: SeasonRow) => Math.min(row.rank, LAST_EDGE_STEP);
 
 function etaText(row: SeasonRow, short: boolean): string {
   if (row.nextLevelDays !== null) return short ? `${row.nextLevelDays} d` : `${row.nextLevelDays} d to lvl`;
@@ -54,14 +57,21 @@ export function RestList({ rows, onOpen }: RestProps) {
             <div className="rq-track rq-board-track--thin">
               <div className="rq-fill rq-fill--rest" style={rowVars(row)} />
             </div>
-            <div className="rq-board-sub">
+            {/* Utmaningsskölden står aldrig på samma rad som minis: med minis flyttar den till höger kolumn. */}
+            <div className="rq-board-sub rq-board-sub--list">
               <span>{row.kmTotal} km</span>
-              <ChallengeRibbons tokens={row.tokens} />
+              <BadgeMinis showcase={row.showcase} />
+              {!hasMinis(row) && <ChallengeRibbons tokens={row.tokens} />}
             </div>
           </div>
           <div role="cell" className="rq-board-cell-right">
             <div className="rq-board-num" data-tone={row.pace.tone}>{row.pace.text}</div>
             <div className="rq-board-cell-sub">{etaText(row, false)}</div>
+            {hasMinis(row) && (
+              <div className="rq-board-cell-ribbons">
+                <ChallengeRibbons tokens={row.tokens} />
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -95,8 +105,15 @@ export function RestTable({ rows, onOpen }: RestProps) {
           <span role="cell" className="rq-board-ranknum">{row.rank}</span>
           <div role="cell" className="rq-board-nameline rq-board-nameline--desktop">
             <DeltaMark delta={row.delta} />
-            <div>
-              <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+            <div data-minis={hasMinis(row) || undefined}>
+              {hasMinis(row) ? (
+                <div className="rq-board-namerow">
+                  <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+                  <BadgeMinis showcase={row.showcase} />
+                </div>
+              ) : (
+                <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+              )}
               <div className="rq-board-sub">
                 <span>Lvl {row.level} · {row.kmTotal} km</span>
                 <ChallengeRibbons tokens={row.tokens} />

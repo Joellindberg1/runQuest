@@ -1,3 +1,4 @@
+import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
 import { type SeasonRow } from '../seasonModel';
 import { ChallengeRibbons, DeltaMark, RunnerAvatar, RunnerName, TitleLine } from './BoardParts';
 import { cssVars } from '../cssVars';
@@ -41,6 +42,7 @@ interface PodiumCardProps {
 /** Podiekortet (kortvariant 3/3): rankfärgad kant, spökrank, glöd på #1. Klick → Runner card. */
 export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
   const open = () => onOpen(row.id);
+  const hasMinis = row.showcase.length > 0;
   const fillVars = cssVars({ '--w': `${row.progress.pct}%`, '--rq-delay': `${row.rank * RANK_STAGGER_SECONDS}s` });
 
   return (
@@ -62,12 +64,20 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
                   <span className="rq-board-lvl">Lvl {row.level}</span>
                   <DeltaMark delta={row.delta} />
                 </div>
-                <RunnerName name={row.name} onOpen={open} />
+                {hasMinis ? (
+                  <div className="rq-board-podium__nameline" data-minis="true">
+                    <RunnerName name={row.name} onOpen={open} />
+                    <BadgeMinis showcase={row.showcase} />
+                  </div>
+                ) : (
+                  <RunnerName name={row.name} onOpen={open} />
+                )}
               </>
             ) : (
-              <div className="rq-board-podium__nameline">
+              <div className="rq-board-podium__nameline" data-minis={hasMinis || undefined}>
                 <RunnerName name={row.name} onOpen={open} />
                 <DeltaMark delta={row.delta} />
+                <BadgeMinis showcase={row.showcase} />
               </div>
             )}
             <TitleLine row={row} />
