@@ -91,7 +91,8 @@ export async function calculateUserTotals(userId: string) {
       logger.error('❌ Error evaluating badges:', badgeError);
     }
 
-    // 🏆 Titlar räknas om för användarens EGEN grupp (rankingen är relativ inom gruppen), aldrig för andra grupper.
+    // 🏆 Omräkningen av titlar är gruppavgränsad (RUN-104): bara användarens EGEN grupp, aldrig andra grupper.
+    // Rankingen (update_all_title_leaderboards → title_leaderboard) är däremot GLOBAL: topp 10 per titel över alla grupper.
     // Gruppen är den färska users.group_id — JWT-gruppen blir inaktuell efter groups/join (STATE zon 8).
     // Användare utan grupp har inga gruppmedlemmar att rangordna mot: bara de egna titlarna räknas om.
     try {
