@@ -637,6 +637,10 @@
   --rq-badge-grid-cols:      repeat(2, minmax(0, 1fr));
   --rq-dur-badge-skel:       1.6s;
   --rq-badge-skel-stagger:   .2s;
+
+  /* Uppgraderingspopupen (RUN-132, spec F6): bredden (mobil 340, desktop 400 i avsnitt 2) och knappmålet (mobil 44, desktop 24 — Council 19). */
+  --rq-badge-popup-w:        340px;
+  --rq-badge-popup-target:   44px;
 }
 
 
@@ -768,6 +772,8 @@
     --rq-news-row-icon-badge-w: 34px;
     --rq-news-badge: 15px;
     --rq-badge-grid-cols: repeat(4, minmax(0, 1fr));
+    --rq-badge-popup-w: 400px;
+    --rq-badge-popup-target: 24px;
     --rq-login-logo-w: 190px;
     --rq-login-glow-w: 900px;
     --rq-login-glow-h: 560px;

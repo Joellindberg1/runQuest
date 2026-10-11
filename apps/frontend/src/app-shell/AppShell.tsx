@@ -1,4 +1,5 @@
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
+import { BadgeUpgradeHost } from '@/features/badges/components/BadgeUpgradeHost';
 import { DesktopShell } from './DesktopShell';
 import { MobileShell } from './MobileShell';
 import { useIsDesktop } from './useIsDesktop';
@@ -18,5 +19,10 @@ export function AppShell() {
       </div>
     );
   }
-  return isDesktop ? <DesktopShell /> : <MobileShell />;
+  return (
+    <>
+      {isDesktop ? <DesktopShell /> : <MobileShell />}
+      <BadgeUpgradeHost />
+    </>
+  );
 }

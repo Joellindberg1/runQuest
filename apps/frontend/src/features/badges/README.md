@@ -107,6 +107,25 @@ byggs ovanpå och lägger sina komponenter under `components/`. Designfacit: `do
   ring-alfan är en token för alla storlekar).
 - **Board-fallback** (spec §4 F5, Council 12): "Legendary-minis utan glöd" är inte byggd; kritikern avgör om den behövs. Tillägget är då en modifierare som sätter `filter: none` på `.rq-badge[data-tier="legendary"]`.
 
+### Uppgraderingspopupen (RUN-132, spec F6, Council 4, 19–22)
+
+- **components/BadgeUpgradeHost.tsx** — monteras EN gång i `AppShell` (båda varianterna; en rad, ingen tour-ankare rörd), alltså aldrig på `/`, `/login` eller landningen. Drivs av `useUserBadges(<jag>)` → `buildPopupQueue`
+  (`tier > seen_tier`, en post per serie). Tom kö = ingenting renderas och varken gruppen eller onboarding-statusen hämtas av värden. Med poster monteras en *session* som hämtar gruppen (held-by; väntar in första svaret,
+  ett fel utelämnar held-by) och visar första posten.
+- **Kön och "1 of 3":** sessionen håller en lokal mängd avfärdade `serie:tier` (en serie visas aldrig två gånger, även om en omhämtning landar mitt i kön — det kompletterar `isMutating`-gaten i hooken) och räknarna `done`/`total`.
+  `total` är antalet vid öppning (README ovan: kön krymper optimistiskt) och växer bara om en ny serie tillkommer; när kön är tom börjar nästa från noll. Avfärdande = `markSeen(dismissSeries(entry))`, "Skip all" = `markSeen(skipAllSeries(pending))`.
+- **Väntan (Council 22):** `useWaitsForOnboarding` = (a) onboarding-statusen laddas, (b) `useOnboardingQueue().currentItem` är `onboarding_v1` eller en "What's new"-slug (allt som inte börjar på `tour_`, samma regel som `FeatureTour`),
+  eller (c) `document.body` har klassen `driver-active` (driver.js sätter den medan en tour — första inloggningens eller en sidtour — körs; MutationObserver). Under väntan renderas ingen dialog; när väntan är över visas den
+  (och tändningen spelas då). Sidtourer väntar inte på något och blockerar inte (annars hade en oläst tour på en sida du aldrig besöker hindrat popupen för alltid). Går onboarding-statusen inte att hämta blockeras ingenting.
+- **components/BadgeUpgradeDialog.tsx** — ren presentation: Radix Dialog (`.rq-scrim`/`.rq-modal` från skalet, därför får `app-shell.css` inte saknas där den renderas), `aria-modal="true"`, `aria-labelledby` = serienamnet (Radix `Dialog.Title`),
+  fokus till "Got it" vid öppning, tillbaka till det som hade fokus före vid stängning (Radix har ingen Trigger här, så dialogen lämnar själv tillbaka fokus), fokusfälla, Escape/scrim/✕/"Got it" = `onDismiss`.
+  Innehåll: eyebrow ("Badge earned"/"Badge evolved", i kö + " · 1 of 3" i `aria-live="polite"`), lg-emblem med `ignite` (evolved: gammalt sm + → + nytt lg), serienamn, nivårad (bara evolved, nya nivåns färg), `BadgeChip`,
+  kravtext (`Dialog.Description`), flavor på egen rad, held-by, "Got it" (enda fyllda guldknappen, ingen permanent ring) och i kö "Skip all" (ghost; döljs på sista platsen). Ingen "View badges" och ingen belöningstext.
+- **Tändning:** emblemet har `key={serie-tier}` — CSS-animationen startar bara när elementet monteras, så nästa badge i kön måste vara ett nytt element. `ignite` är satt så länge popupen visas (växlar den av startar Legendary-andningen om).
+- **Tokens:** `--rq-badge-popup-w` (mobil 340, desktop 400 i desktop-skalan) och `--rq-badge-popup-target` (knappmål: mobil 44, desktop 24 — Council 19), i båda temafilerna. Popup-reglerna ligger i eget block sist i `badges.css`;
+  nivåraden återanvänder `--rq-emblem-c` genom att `.rq-badge-popup__tierline` ligger i nivå→färg-listorna överst.
+- Skärmdumpar mot F6: `docs/design/badges/reference/f6-built-*.png` (t200 = ca 0.3 s efter öppning, mitt i tändningen).
+
 ### Förhandsvisning
 
 `/preview/badges` (`pages/BadgesPreviewPage.tsx`, stil i `pages/preview/badgeSheet.css`): F1-arket med de riktiga komponenterna — sex nivåkort, matrisen 8 × 6, låsta, storlekar, 1:1 på panel,
