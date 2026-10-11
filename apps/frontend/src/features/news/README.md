@@ -22,6 +22,10 @@ Badge-komponenterna i prototyperna är medvetet INTE byggda (ägaren designar de
 
 - **Typerna kommer ur `@runquest/shared`** (`NewsItem`/`NewsMeta`/`NewsResponse`/`NewsSeenResponse`, `ACTIVITY_TYPES`) — aldrig speglade. Ett test kräver att varje händelsetyp
   hör till exakt ett filter och en kategori, så en ny typ i shared tvingar fram ett beslut här.
+- **Okända händelsetyper kraschar aldrig News** (RUN-138): backend kan vara nyare än fliken, så typen är en `string` (`WireNewsItem`/`UnknownNewsItem`). `buildNewsRow` ger `null` för en okänd typ
+  eller en känd typ vars payload/tid inte går att rendera, och `buildNewsGroups`/`buildPopoverRows` filtrerar bort raden (popovern före gränsen på fem). Raden ligger KVAR i `NewsFeed` så att
+  "Mark all read" kvitterar upp till det verkliga högsta id:t. Serverns `unread_count` räknar alla typer, så siffran kan innehålla dolda rader tills de kvitterats.
+  `describeNews`s switch har `never`-kontroll i default: en ny typ i `ACTIVITY_TYPES` utan case ger tsc-fel.
 - **Raden är ett faktum, texten renderas här** ur typ + payload + vem som tittar ("took … from you"). Förnamn som prototypen; en raderad användare är "a former member".
 - **EN query-definition.** `useNewsFeed(types)` används av skalet (klockan + popovern, alla typer) och av skärmen (valt filter + alla typer för räknarna).
   Nyckel `['news','feed', <type-param|all>]`, poll 2 min + fönsterfokus. Skalet hämtar 30 rader (popovern visar fem) — en enda hämtning delas.

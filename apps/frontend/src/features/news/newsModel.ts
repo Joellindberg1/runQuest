@@ -1,7 +1,8 @@
-import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, isActivityType, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/types';
 import { stockholmClock } from '@/app-shell/rightNowItems';
 import type { RQIconName } from '@/shared/components/icons';
+import { logger } from '@/shared/utils/logger';
 import { deltaText, durationLongText, firstName, metricLabel } from '@/features/challenges/duelsFormat';
 import { formatClock, stockholmDate, weekdayOf } from '@/features/events/eventsFormat';
 import { formatInt } from '@/features/log/logFormat';
@@ -92,11 +93,23 @@ export function typesForFilters(keys: readonly NewsFilterKey[]): ActivityType[] 
 
 export const typeParamOf = (types: readonly ActivityType[] | null): string | undefined => (types && types.length > 0 ? types.join(',') : undefined);
 
-/** Antal rader per chip i det laddade fönstret (ADR 008: chip-räknare = antal i det laddade fönstret). */
-export function countByFilter(items: readonly Pick<NewsItem, 'type'>[]): Record<NewsFilterKey, number> {
+/**
+ * En rad med en händelsetyp den här klienten inte känner (backend nyare än fliken). Typen kommer som string från API:t —
+ * `NewsItem` lovar bara de kända — så anropare som tar emot svaret rått typar mot `WireNewsItem`.
+ */
+export type UnknownNewsItem = Omit<NewsItem, 'type' | 'payload'> & { type: string; payload: unknown };
+export type WireNewsItem = NewsItem | UnknownNewsItem;
+
+/** Typvakt: raden är en av de kända händelsetyperna (och därmed typad per payload). */
+export const isKnownNewsItem = (item: WireNewsItem): item is NewsItem => isActivityType(item.type);
+
+/** Antal rader per chip i det laddade fönstret (ADR 008: chip-räknare = antal i det laddade fönstret). Okända typer räknas inte. */
+export function countByFilter(items: readonly Pick<WireNewsItem, 'type'>[]): Record<NewsFilterKey, number> {
   const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, events: 0, levels: 0, streaks: 0 };
   for (const item of items) {
-    const filter = NEWS_FILTERS.find((candidate) => candidate.types.includes(item.type));
+    if (!isActivityType(item.type)) continue;
+    const type = item.type;
+    const filter = NEWS_FILTERS.find((candidate) => candidate.types.includes(type));
     if (filter) counts[filter.key] += 1;
   }
   return counts;
@@ -106,7 +119,7 @@ export function countByFilter(items: readonly Pick<NewsItem, 'type'>[]): Record<
 
 export interface NewsFeed {
   /** id fallande, deduplicerade. */
-  items: NewsItem[];
+  items: WireNewsItem[];
   /**
    * unread_count och last_seen_id följer det senaste svaret; has_more/next_before beskriver flödets ÄLDRE kant
    * (det som "Show more" fortsätter från).
@@ -115,7 +128,7 @@ export interface NewsFeed {
 }
 
 export interface NewsPage {
-  items: NewsItem[];
+  items: WireNewsItem[];
   meta: NewsMeta;
 }
 
@@ -125,9 +138,9 @@ export const NEWS_CATCH_UP_LIMIT = 100;
 export const NEWS_MAX_GAP_PAGES = 5;
 
 /** Första förekomsten av varje id vinner; ordningen id fallande. */
-export function dedupeById(items: readonly NewsItem[]): NewsItem[] {
+export function dedupeById<T extends { id: number }>(items: readonly T[]): T[] {
   const seen = new Set<number>();
-  const unique: NewsItem[] = [];
+  const unique: T[] = [];
   for (const item of items) {
     if (seen.has(item.id)) continue;
     seen.add(item.id);
@@ -158,7 +171,7 @@ export function gapCursor(page: NewsPage, knownTopId: number): number | null {
  * Annars (fler nya rader än catch-upen orkar hämta) ersätts fönstret med det vi fick, och `meta` (sista sidans) bär den äldre
  * kanten: hellre ett kortare flöde än ett med hål i mitten.
  */
-export function mergeNewer(feed: NewsFeed, fetched: readonly NewsItem[], meta: NewsMeta, complete: boolean): NewsFeed {
+export function mergeNewer(feed: NewsFeed, fetched: readonly WireNewsItem[], meta: NewsMeta, complete: boolean): NewsFeed {
   if (!complete) return { items: dedupeById(fetched), meta };
   return {
     items: dedupeById([...fetched, ...feed.items]),
@@ -370,7 +383,15 @@ export interface NewsText {
   text: string;
 }
 
-export function describeNews(item: NewsItem, ctx: NewsContext): NewsText {
+/**
+ * Texten för en rad. En okänd typ har ingen text att visa → null (anroparen filtrerar bort raden); en känd typ ger alltid text.
+ * Switchen är uttömmande över ACTIVITY_TYPES: en ny typ utan case gör `item` icke-`never` i default och tsc säger till.
+ */
+export function describeNews(item: NewsItem, ctx: NewsContext): NewsText;
+export function describeNews(item: WireNewsItem, ctx: NewsContext): NewsText | null;
+export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | null {
+  if (!isKnownNewsItem(wire)) return null;
+  const item = wire;
   const { actor, target } = item;
   const viewerIsTarget = isViewer(target, ctx);
   const viewerIsActor = isViewer(actor, ctx);
@@ -451,6 +472,11 @@ export function describeNews(item: NewsItem, ctx: NewsContext): NewsText {
       const took = `${payload.participants} of ${payload.members} took part`;
       return { kind: 'Event closed', text: `${payload.template_name} closed — ${winnerName ? `${winnerName} won · ` : ''}${took}` };
     }
+    default: {
+      const unhandled: never = item;
+      void unhandled;
+      return null;
+    }
   }
 }
 
@@ -476,7 +502,35 @@ export interface NewsRowModel {
   unread: boolean;
 }
 
-export function buildNewsRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
+/**
+ * Vymodellen för en rad, eller null när raden inte går att visa: en okänd händelsetyp (ingen text) eller en känd typ vars
+ * payload/tid inte går att rendera. Ett fel i en enskild rad ska aldrig fälla hela skärmen (ShellErrorBoundary).
+ */
+export function buildNewsRow(item: NewsItem, ctx: NewsContext): NewsRowModel;
+export function buildNewsRow(item: WireNewsItem, ctx: NewsContext): NewsRowModel | null;
+export function buildNewsRow(item: WireNewsItem, ctx: NewsContext): NewsRowModel | null {
+  if (!isKnownNewsItem(item)) {
+    warnFiltered(item, 'unknown type');
+    return null;
+  }
+  try {
+    return renderRow(item, ctx);
+  } catch {
+    warnFiltered(item, 'could not be rendered');
+    return null;
+  }
+}
+
+/** Raderna byggs om vid varje rendering — en varning per rad och orsak räcker. Bara id och typ loggas, aldrig payloaden. */
+const warnedRows = new Set<string>();
+function warnFiltered(item: Pick<WireNewsItem, 'id' | 'type'>, reason: string): void {
+  const key = `${item.id}:${item.type}:${reason}`;
+  if (warnedRows.has(key)) return;
+  warnedRows.add(key);
+  logger.warn(`News row filtered (${reason}): id=${item.id} type=${item.type}`);
+}
+
+function renderRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
   const category = CATEGORY_OF[item.type];
   const { kind, text } = describeNews(item, ctx);
   return {
@@ -494,14 +548,29 @@ export function buildNewsRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
   };
 }
 
-export function buildNewsGroups(items: readonly NewsItem[], ctx: NewsContext): NewsDayGroup<NewsRowModel>[] {
-  return groupByDay(items, ctx.now).map((group) => ({ ...group, rows: group.rows.map((item) => buildNewsRow(item, ctx)) }));
+/**
+ * Rader som inte går att visa (okänd typ, trasig payload) filtreras bort HÄR och inte i flödet: de ligger kvar i `NewsFeed`
+ * så att "Mark all read" kvitterar upp till det verkliga högsta id:t och serverns oläst-räkning (alla typer) kan nollas.
+ */
+export function buildNewsGroups(items: readonly WireNewsItem[], ctx: NewsContext): NewsDayGroup<NewsRowModel>[] {
+  const entries = items.flatMap((item) => {
+    const row = buildNewsRow(item, ctx);
+    return row ? [{ id: item.id, occurred_at: item.occurred_at, row }] : [];
+  });
+  return groupByDay(entries, ctx.now).map((group) => ({ key: group.key, label: group.label, rows: group.rows.map((entry) => entry.row) }));
 }
 
 export const POPOVER_ROWS = 5;
 
 /** Popovern: de senaste fem i visningsordning (samma ordning som skärmens översta rader). */
-export function buildPopoverRows(items: readonly NewsItem[], ctx: NewsContext, limit = POPOVER_ROWS): NewsRowModel[] {
+export function buildPopoverRows(items: readonly WireNewsItem[], ctx: NewsContext, limit = POPOVER_ROWS): NewsRowModel[] {
   const ordered = [...items].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at) || b.id - a.id);
-  return ordered.slice(0, limit).map((item) => buildNewsRow(item, ctx));
+  const rows: NewsRowModel[] = [];
+  // Filtreringen sker före gränsen så att en okänd rad inte tar en av de fem platserna.
+  for (const item of ordered) {
+    if (rows.length >= limit) break;
+    const row = buildNewsRow(item, ctx);
+    if (row) rows.push(row);
+  }
+  return rows;
 }
