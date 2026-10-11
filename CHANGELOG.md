@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.6.1 — Badges-filter och release-rad i Pack News (2026-10-11)
+
+Patch efter v0.6.0 på ägarens önskan: badges får eget filter i Pack News, och en ny version syns som en rad i Pack News (inte bara som What's new-popupen).
+
+### Ändrat
+- Pack News: eget filterchip **Badges** efter Levels (ikon `shield`, Levels-färg). `badge_earned` ligger inte längre under Levels; raderna är oförändrade (grön kant, sm-emblem). ADR 009 beslut 5 addendum. (RUN-160)
+- Ny händelsetyp `release_published` — en systemrad per grupp och version ("RunQuest vX is out — titel", ikon `sparkles`, kategori `release` med events ink-token, inget filterchip). Skrivs ALDRIG av appen eller servern, bara av `npm run announce:release` (dry-run default, `--apply`, idempotent, avbryter om CHECK saknar typen). Release-previewn mot prod kan alltså inte förbruka den. 036-proben är extraherad till `scripts/lib/activityTypeProbe.ts` och delas med `reveal:badges`. (RUN-161)
+- Migration 041: `release_published` i `activity_log_type_check`.
+
+### Prod-steg (kräver ägar-ja var för sig)
+1. Deploy via PR + grön CI.
+2. Migration 041 efter deployen. v0.6.0-flikar kraschar inte på den nya typen (okända typer filtreras bort i News); de kan räkna raden som oläst utan att visa den tills de laddas om.
+3. `announce:release`: dry-run, kontrollera att versionen i utskriften är 0.6.1, sedan `--apply --version=0.6.1` (uttrycklig version, så att en saknad changelog-post aldrig annonserar fel version).
+
+### Rollback
+- Kod: redeploya v0.6.0 i Railway och revert-PR på main. v0.6.0-frontenden tål `release_published`-rader (filtreras bort), så ingen data behöver raderas. 041 kan ligga kvar (additiv).
+
 ## v0.6.0 — Badges, väder- och vintertitlar, väggklocka och Strava-lås (2026-10-11)
 
 Rullar ihop epicsen RUN-1 (Badges), RUN-91 (Stormborn, Iceborn, Winter Warrior) och RUN-92 (städning och nivåtabellen via backend), plus
