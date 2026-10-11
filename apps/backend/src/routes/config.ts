@@ -2,8 +2,9 @@
 import express from 'express';
 import { authenticateJWT } from '../middleware/auth.js';
 import { getXpConfig } from '../services/xpConfig.js';
+import { levelService } from '../services/levelService.js';
 import { logger } from '../utils/logger.js';
-import type { XpConfigApiResponse } from '@runquest/shared';
+import type { XpConfigApiResponse, LevelsApiResponse } from '@runquest/shared';
 
 const router = express.Router();
 
@@ -18,6 +19,22 @@ router.get('/xp', authenticateJWT, async (_req, res): Promise<void> => {
   } catch (error) {
     logger.error('❌ Error fetching XP config:', error);
     res.status(500).json({ error: 'Failed to fetch XP config' });
+  }
+});
+
+// GET /api/config/levels — nivåtabellen (level_requirements) för alla inloggade (RUN-110, ADR 004).
+// Global tabell; ingen gruppavgränsning. levelService äger läsning + cache + fallback.
+router.get('/levels', authenticateJWT, async (_req, res): Promise<void> => {
+  try {
+    const rows = await levelService.getAllLevelRequirements();
+    const data = rows
+      .map(({ level, xp_required }) => ({ level, xp_required }))
+      .sort((a, b) => a.level - b.level);
+    const body: LevelsApiResponse = { success: true, data };
+    res.json(body);
+  } catch (error) {
+    logger.error('❌ Error fetching level requirements:', error);
+    res.status(500).json({ error: 'Failed to fetch level requirements' });
   }
 });
 

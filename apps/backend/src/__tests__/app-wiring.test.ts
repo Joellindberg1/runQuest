@@ -37,6 +37,7 @@ const WIRED: Array<[prefix: string, method: string, path: string]> = [
   ['/api/leaderboard', 'GET', '/api/leaderboard/week'],
   ['/api/leaderboard', 'GET', '/api/leaderboard/rank-delta'],
   ['/api/config', 'GET', '/api/config/xp'],
+  ['/api/config', 'GET', '/api/config/levels'],
   // ADR 008: Pack News
   ['/api/news', 'GET', '/api/news'],
   ['/api/news', 'POST', '/api/news/seen'],
