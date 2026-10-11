@@ -1124,7 +1124,7 @@ class BackendApiService {
   // ─── Runs ─────────────────────────────────────────────────────────────────
 
   /** POST /runs. `isTreadmill` utelämnas → kolumnen förblir NULL (okänt); formuläret skickar alltid en bool. */
-  async createRun(date: string, distance: number, source: string = 'manual', isTreadmill?: boolean): Promise<ApiResponse<Run>> {
+  async createRun(date: string, distance: number, isTreadmill?: boolean): Promise<ApiResponse<Run>> {
     try {
       const response = await fetch(`${API_BASE_URL}/runs`, {
         method: 'POST',
@@ -1132,7 +1132,7 @@ class BackendApiService {
           'Authorization': `Bearer ${this.getToken()}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ date, distance, source, ...(isTreadmill !== undefined && { is_treadmill: isTreadmill }) }),
+        body: JSON.stringify({ date, distance, ...(isTreadmill !== undefined && { is_treadmill: isTreadmill }) }),
       });
 
       const data = await response.json();

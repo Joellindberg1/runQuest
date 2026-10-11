@@ -76,16 +76,3 @@ export function startStravaScheduler() {
 
   logger.info('✅ Strava sync scheduler started');
 }
-
-// Manual trigger for testing/admin use
-export async function triggerManualSync() {
-  logger.info('🔄 Manual sync trigger...');
-  try {
-    const result = await syncAllStravaUsers();
-    logger.info('📊 Manual sync result:', result);
-    return result;
-  } catch (error) {
-    logger.error('❌ Manual sync trigger error:', error);
-    return { success: false, error: 'Manual sync failed' };
-  }
-}

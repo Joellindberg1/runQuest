@@ -282,7 +282,7 @@ export function startEventScheduler(): void {
   // Måndag 00:05 Stockholm — alltid strikt efter weekly events ends_at (sön 23:59
   // Stockholm). settleCompetitionEvents settlar bara events vars ends_at passerat.
   cron.schedule('5 0 * * 1', async () => {
-    logger.info('⏰ [EventScheduler] Sunday settlement...');
+    logger.info('⏰ [EventScheduler] Monday settlement...');
     try {
       await settleCompetitionEvents();
     } catch (e) {
