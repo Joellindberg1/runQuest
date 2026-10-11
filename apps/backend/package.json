@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts",
     "backfill:activity-log": "tsx src/scripts/backfillActivityLog.ts",
-    "convert:wind-ms": "tsx src/scripts/convertWindToMs.ts"
+    "convert:wind-ms": "tsx src/scripts/convertWindToMs.ts",
+    "backfill:badges": "tsx src/scripts/backfillBadges.ts"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",
