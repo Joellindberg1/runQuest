@@ -77,30 +77,39 @@ alter table public.activity_log add  constraint activity_log_type_check check (t
 - **Aldrig mer än spelmekanik:** inga regler eller texter genereras av AI/ML; reglerna är deterministiska och enhetstestade.
 
 ### 3. Trösklar per serie och tier
-Hämtade ur `badges-playground.html` (fältet `req`) utom där "Justerad" anges. **Alla värden är startvärden som "justeras efter dry-run"** (beslut 10): konstanter i shared, ändras utan migration. Strikt jämförelse där texten säger "under". "Väggklocka" = `start_time` läst enligt beslut 2.
+**Revision v2 (ägarbeslut 2026-10-11, RUN-135).** Startvärdena ur `badges-playground.html` ersattes efter dry-run mot prod. Badges samlas över flera säsonger och resettas inte som titlarna. Därför gäller:
+- **En mätning per serie.** Alla sex tiers mäter samma sak med samma fönster (`uniformTiers` i shared).
+- **Strikt stigande.** Legendary kan aldrig nås före Epic.
+- **Fokus ska löna sig.** En specialist når toppen på 2–3 år, gruppens bästa i dagens takt på 5–6 år.
+
+Konstanterna bor i `packages/shared/src/badges.ts` och ändras utan migration. Strikt jämförelse där texten säger "under". "Väggklocka" = `start_time` läst enligt beslut 2. Fönstren är halvöppna `[start, slut)`.
 
 | Serie (`series`) | Mått | Tier 1 | 2 | 3 | 4 | 5 | 6 |
 |---|---|---|---|---|---|---|---|
 | Milestoner (`milestoner`) — längsta enskilda runda | km, ≥ | 5 | 10 | 21,1 | 30 | 42,2 | 50 |
-| Earth Trotter (`earth_trotter`) — total distans | km, ≥ | 100 | 500 | 1 000 | 2 000 | 4 015 | **10 000** (justerad, prototypens 40 000 ouppnåeligt) |
-| Climber (`climber`) — total höjdmeter (bara Strava-rundor har höjd) | m, ≥ | 500 | 1 345 | 4 800 | 5 895 | **8 848** (Everest) | **17 696** (Everest ×2; justerad) |
-| Streak Keeper (`streak_keeper`) — längsta svit (samma källa som `users.longest_streak`) | dagar, ≥ | 3 | 7 | 14 | 30 | 60 | 100 |
-| Early Bird (`early_bird`) — rundor med start (väggklocka) | st, ≥ | 5 st 04:00–06:59 | 15 | 50 | 100 | 50 st 04:00–05:59 | 100 st 04:00–05:59 |
-| Night Owl (`night_owl`) — rundor med start (väggklocka) | st, ≥ | 5 st 21:00–03:59 | 15 | 50 | 100 | 25 st 22:30–03:59 | **10 st 23:30–00:30** (justerad; prototypens enstaka midnattsrunda var lättare än tier 5) |
+| Earth Trotter (`earth_trotter`) — total distans | km, ≥ | 100 | 300 | 1 000 | 2 000 | 3 000 | 5 000 |
+| Climber (`climber`) — total höjdmeter (bara Strava-rundor har höjd) | m, ≥ | 500 | 1 345 | 4 808 | 8 848 | 17 696 | 26 544 |
+| Streak Keeper (`streak_keeper`) — längsta svit (samma källa som `users.longest_streak`) | dagar, ≥ | 7 | 14 | 50 | 100 | 365 | 730 |
+| Early Bird (`early_bird`) — rundor med start 04:00–06:59 (väggklocka) | st, ≥ | 5 | 20 | 50 | 100 | 200 | 300 |
+| Night Owl (`night_owl`) — rundor med start 21:00–03:59 (väggklocka) | st, ≥ | 5 | 20 | 50 | 100 | 200 | 300 |
 | Speedster (`speedster`) — bästa 5 km-tid (runda 4,9–<10,0 km, råa `moving_time`; samma kvalificering som titeln `fastest5km`) | min, < | 35 | 30 | 25 | 22 | 20 | 18 |
-| Precisionist (`precisionist`) — rundor på exakt helt km (distans ≥ 1 och 2 decimaler = .00) | st, ≥ | 3 | 10 | 25 | 50 | 1 runda på exakt 21,10 km | **minst en runda på vardera exakt 10,00, 21,10 och 42,20 km** (justerad: "eller" → "och") |
+| Precisionist (`precisionist`) — **Strava-rundor** på exakt helt km (distans ≥ 1 och 2 decimaler = .00) | st, ≥ | 5 | 20 | 50 | 100 | 200 | 300 |
 | Weathered Soul (`weathered_soul`) — *skjuten, beslut 8* — "blöt" = `weather_code ≥ 51`, "kall" = `temperature_c` | st, ≥ | 1 blöt eller < 10 °C | 10 blöta eller < 10 °C (tiernamn **"Squall Runner"**, se not) | 1 runda < 0 °C | 10 rundor < 0 °C | 1 runda < −10 °C | 10 rundor < −10 °C |
 | Socialite (`socialite`) — *skjuten, beslut 6* | – | – | – | – | – | – | – |
 
-Skavankerna i prototypens trösklar är lösta med motiverade förslag (alla "justeras efter dry-run"):
-- **Night Owl tier 6:** prototypens "en runda 23:55–00:05" var lättare än tier 5 (25 rundor efter 22:30). Förslag: 10 rundor som startar 23:30–00:30 — smalare fönster, och svårare än att ta enstaka sena rundor. Behåller namnet "Midnight Run".
-- **Precisionist tier 6:** prototypens "exakt 10,00, 21,10 *eller* 42,20" var lättare än tier 5 (en exakt 21,10). Förslag: alla tre distanserna någon gång ("och").
-- **Climber tier 5/6:** prototypens K2 8 611 → Everest 8 848 skilde bara 237 m (och Everest på livstid är nåbart för en aktiv löpare). Förslag: tier 5 = Everest 8 848, tier 6 = Everest ×2 17 696; K2 utgår. Landmärkesnamnen för tier 1–4 behålls.
-- **Earth Trotter tier 6:** prototypens 40 000 km (jordens omkrets) är ouppnåeligt för en grupp om 6. Förslag: 10 000 km. Jordens omkrets kan bli en framtida tier 7 eller säsongsbadge.
+Vad v2 ersatte (startvärdena):
+- **Blandade mätningar.** Early Bird, Night Owl och Precisionist bytte mått eller fönster i tier 5–6, t.ex. Night Owl 6 = "10 rundor 23:30–00:30" och Precisionist 6 = "exakt 10,00, 21,10 och 42,20 km". Det gjorde att en högre tier kunde nås före en lägre. Nu gäller en mätning per serie.
+- **Precisionist räknar bara Strava-rundor** (ägarbeslut). Manuella rundor kan skrivas in på exakt helt km och ska inte kunna "mata in" serien. Mätningen heter `exact_km_strava_runs` och bygger på `BadgeRun.source`. RUN-136 gör att POST `/api/runs` alltid sätter `source = 'manual'`.
+- **Toppnivåerna** är skalade för flera år: Earth Trotter 10 000 → 5 000 km, Climber till Everest ×3 och Streak Keeper till två år.
 - **Namnkrock:** prototypens Weathered Soul tier 2 heter "Storm Chaser", vilket krockar med eventmallen Storm Chaser (v0.5.3, vind ≥ 15 m/s). I ADR:n heter tiern **"Squall Runner"**; slutligt namn sätts av Designern när serien släpps.
 - **Väder-not (skjuten serie):** `WeatherService` räknade tidigare rundans ålder som om `start_time` vore en UTC-tidpunkt. Rättat i RUN-106 (2026-10-11): åldern räknas via `wallClockToInstantMs` (shared), timmatchningen mot Open-Meteo läser väggklockan.
 
-Antaganden (konstanter i shared): (a) fönstren för Early Bird/Night Owl är mina — prototypen säger bara "före 07:00"/"efter 21:00"; (b) 5 km-tiden jämförs mot råa `moving_time` för rundor 4,9–<10,0 km (samma regel som titeln); (c) löpband räknas som för XP, utom där data saknas (väder/höjd/starttid); (d) manuella rundor räknas som för XP i distansserierna (Precisionist och Milestoner går därför att "mata in"; samma exponering som XP har i dag) men inte i tidsserierna; (e) "blöt" via `weather_code` (modellens sammanvägda bedömning av rundtimmen).
+Antaganden (konstanter i shared):
+- (a) Fönstren för Early Bird och Night Owl är Leads val. Prototypen säger bara "före 07:00" och "efter 21:00".
+- (b) 5 km-tiden jämförs mot råa `moving_time` för rundor 4,9–<10,0 km (samma regel som titeln).
+- (c) Löpband räknas som för XP, utom där data saknas (väder, höjd, starttid).
+- (d) Manuella rundor räknas som för XP i Milestoner och Earth Trotter. De går därför att "mata in", samma exponering som XP har i dag. Manuella rundor räknas inte i tidsserierna eller i Precisionist.
+- (e) "Blöt" mäts via `weather_code`, modellens sammanvägda bedömning av rundtimmen.
 
 ### 4. Visning (designen ägs av Designern i RUN-2; ADR:n fastställer data och platser)
 Tre platser, alla gruppavgränsade:
@@ -119,7 +128,7 @@ Samma 3 valda visas på alla platser (antagande; separat uppsättning är YAGNI)
 - **Badges ger ingen XP och inga tokens** (Lead-beslut; reglerna rörs inte, skrivvägen öppnas inte). Prototypens popup-knapp "Claim Reward" byts mot text utan belöningslöfte ("Got it"; slutlig text sätts av Designern).
 - **Popup:** drivs av `tier > seen_tier` ur `GET /api/badges/user/<jag>`. Ingen push behövs: Strava-synken sker i cron när användaren inte är där, så popupen visas nästa gång appen öppnas eller efter att en runda loggats och badge-queryn invalideras. En popup per serie (högsta nya tier), kö vid flera; avfärdande anropar `POST /badges/seen`. **Backfill och `--silent`-körningar sätter `seen_tier = tier`** → ingen popup-flod vid utrullning eller retuning.
 - **News:** ny `ActivityType` `badge_earned` (payload v1: `series, tier, previous_tier | null`; actor = användaren, ingen target). Dedupe-nyckel `badge_earned:<userId>:<series>:<tier>` (första gången tiern nås — som `level_up`). Skrivs via `recordActivities` efter lyckad `user_badges`-skrivning (best-effort, ADR 008 beslut 4); gruppen ur `users.group_id`. Backfill skriver **inga** news-rader. **Vid nedgradering/radering retractas `badge_earned`-raderna för de förlorade tierna** (`retractActivity`, deterministiska nycklar) så flödet inte visar en badge som inte finns och raderade Strava-rundor inte lever kvar i flödet. Kräver `ACTIVITY_TYPES` + CHECK (migration 035) + en rad i frontendens news-modell (exhaustive switch i `newsModel.ts`, chip-mappning). Första kandidaten att skjuta om v0.6.0 trängs.
-- `run_milestone` (100/250/500/1000/2500/5000 km, ADR 008) och Earth Trotter (100/500/1 000/…) överlappar delvis och kan ge två news-rader samtidigt. Accepterat; Designern avgör renderingen.
+- `run_milestone` (100/250/500/1000/2500/5000 km, ADR 008) och Earth Trotter (100/300/1 000/…) överlappar delvis och kan ge två news-rader samtidigt. Accepterat; Designern avgör renderingen.
 
 ### 6. Socialite skjuts till en senare epic/story
 Socialite kräver att gemensamma rundor upptäcks, vilket är en annan sorts funktion: (1) **korsanvändar-beroende** — A:s badge ändras när B loggar eller raderar en runda, så utvärderingen måste köras för hela gruppen och återkallelse kan drabba någon som inte själv gjort något; (2) prototypens definitioner är **dag-baserade** ("samma dag som 1/3/5 andra") — med 6 användare vanligt utan att man sprungit tillsammans — medan epiken talar om GPS-start + tid, vilket betyder att jämföra användares startkoordinater, en analys över Strava-data nära gränsen i hållningen; (3) tier 5–6 ("få andra att springa") mäter andra användares beteende. Beslut: ingen Socialite i v0.6.0. Definitionen (dag-baserad utan GPS = enklast och Strava-säkrast; tid+plats = meningsfullare men kräver Strava-bedömning) väljs när den egna epicen/storyn tas. Påverkar inte systemet: `socialite` läggs till senare som en serie i shared.
@@ -144,7 +153,7 @@ Socialite kräver att gemensamma rundor upptäcks, vilket är en annan sorts fun
 
 ### 10. Utrullning
 1. Ägargodkänd migration 035 (`apply_migration`; `list_migrations`; `get_advisors security` efteråt — RLS på, anon → 42501 som för 034).
-2. `scripts/backfillBadges.ts` (som `backfillActivityLog.ts`): **default dry-run** (tierfördelning per användare och serie, ingen skrivning), `--apply` skriver nya rader med `seen_tier = tier` och inga news-rader, valfritt `--series=` och `--silent` (retuning: `seen_tier = tier` även vid uppgradering). Idempotent. **Trösklarna i beslut 3 är startvärden som justeras efter dry-run-utfallet** innan `--apply`.
+2. `scripts/backfillBadges.ts` (som `backfillActivityLog.ts`): **default dry-run** (tierfördelning per användare och serie, ingen skrivning), `--apply` skriver diffen (nya rader och uppgraderingar) med `seen_tier = tier` och inga news-rader. Valfritt `--series=`. `--silent` (med `--apply`) normaliserar dessutom befintliga rader med `seen_tier < tier` till `seen_tier = tier`, för retuning eller en körning efter deploy. Idempotent. Trösklarna i beslut 3 (v2) är kalibrerade mot dry-run i prod. Efter varje tröskeländring körs dry-run → `--apply --silent`.
 3. Deploya backend (kod som skriver kräver att tabellen finns; annars loggas icke-fatala fel), därefter frontend.
 4. `changelog.json`: "workingOn → Badges" flyttas till levererat vid release.
 
@@ -211,7 +220,7 @@ Socialite kräver att gemensamma rundor upptäcks, vilket är en annan sorts fun
 | 5 | Lagra `user_badges` | Ja (som `user_titles`) | Lead |
 | 6 | Återkallbara | Ja | Lead |
 | 7 | Socialite, Weathered Soul | Skjuts till egna epics/stories | Lead |
-| 8 | Trösklar | Prototypens som start + motiverade justeringar (Night Owl 6, Precisionist 6, Climber 5/6, Earth Trotter 6); dry-run före `--apply`, "justeras efter dry-run" | Lead |
+| 8 | Trösklar | v2 (ägarbeslut efter dry-run i prod, RUN-135): en mätning per serie, strikt stigande, flerårsstegar; Precisionist bara Strava-rundor | Ägaren |
 | – | Migration 035 + backfill `--apply` | Kräver ägarens uttryckliga ja | Ägaren |
 
 ## Föreslagen STATE.md-indexrad
