@@ -27,10 +27,10 @@ Mobil (<1024 px) och desktop (≥1024) är två varianter av samma data; exakt e
   - Placering (RUN-147, spec F12): podiet har minis högerställda på namnraden (`margin-left: auto; margin-right: var(--rq-board-minis-inset)`, 28 px mobil / 46 px desktop, sektion 1.20
     i temafilerna) i ordningen namn, delta, minis (glappet är `--rq-sp-8`, >= 8 px); wide-podiet har "Lvl N" + delta på rad 1 och namn + minis på rad 2; mobilens rest-rader har minis på
     `sub`-raden efter km; desktoptabellen har namnet ensamt på namnraden och minis på sub-raden efter "Lvl N · X km" (glapp `--rq-sp-8`). Minis krymper aldrig.
-  - Utmaningstecknet är en vimpel (vertikal, svalstjärt; `PENNANT_PATH`/`PENNANT_TEXT_Y` i `BoardParts`, ur designens `pennant()`), inte en sköld. Vimpel och minis står aldrig i en gemensam
+  - Utmaningstecknet är en vimpel (vertikal, svalstjärt; geometrin `PENNANT_*` i `shared/components/challengeMark`, ur designens `pennant()`, delas med Duels), inte en sköld. Vimpel och minis står aldrig i en gemensam
     behållare (Council 8, F12.4): podiet har vimplarna i foten; mobila rest-rader i högerkolumnen under "N d to lvl" (`.rq-board-cell-ribbons`, alltid, oavsett minis — ingen tom
     behållare utan tokens); desktoptabellen i Last run-cellen under tiden (`.rq-board-cell-stack`). `BoardPage.test` fäller om någon behållare mellan en minis-grupp och radens/kortets rot också
-    rymmer en vimpel. `features/challenges/TierRibbon` ritar fortfarande skölden (egen komponent, ej ändrad här).
+    rymmer en vimpel. `features/challenges/TierRibbon` (Duels) ritar samma vimpel ur samma konstanter men med egen stil.
   - Alla rest-rader har en sub-rad med min-height `--rq-badge-h-sm` (`.rq-board-sub--list` mobil, `.rq-board-sub--table` desktop) så raderna inte hoppar när queryn landar.
   - Legendary-minis har sin statiska glöd på Board (Council 12-fallbacken "utan glöd" är inte byggd: namn och rank dominerar fortfarande på skärmdumpen).
   - Minis-gruppens layout (`.rq-board .rq-badge-minis`) ligger i `board.css`; en annan vy som återanvänder `BadgeMinis` (Runner card) behöver egen layoutregel.

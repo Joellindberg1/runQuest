@@ -378,7 +378,7 @@
   /* ── 1.23 Duels-mått (inkrement 5) ─────────────────────────────────────────
      Mått ur App-/Web-prototypens challenges-skärm som saknade token. Endast mått —
      ingen färg, ingen typskala. Mobil = standard; desktop skriver över i
-     avsnitt 2. Skölden återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
+     avsnitt 2. Vimpeln återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
   --rq-duels-split-cols: minmax(0, 1fr);                              /* desktop: vy | sidokolumn (320 px) */
   --rq-duels-live-cols: minmax(0, 1fr);                               /* live-korten: mobil 1 kolumn, desktop 2 */
   --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 */

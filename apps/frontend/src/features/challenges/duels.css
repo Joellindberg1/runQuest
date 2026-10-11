@@ -1,11 +1,11 @@
 /* Duels-skärmen (inkrement 5): rubrik · flikar · inkommande/skickad · live-kort · standings · regler · historik ·
    tokens/boost/rekord · send-sheet. ENDAST tokens (regel 1). Måtten (--rq-duels-*) definieras i temafilen, sektion 1.23
-   (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Skölden återanvänder Boards
-   --rq-board-ribbon-*-mått (samma sköld, samma storlek).
+   (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Vimpeln återanvänder Boards
+   --rq-board-ribbon-*-mått (samma vimpel, samma storlek) och ritas ur den delade geometrin i shared/components/challengeMark.
    OBS: feature-CSS hamnar FÖRE index.css i kaskaden (main.tsx importerar index.css efter App), så en
    override av en delad .rq-*-primitiv på samma specificitet förlorar — använd en sammansatt selektor (.rq-card.rq-duels-…). */
 
-/* ── Nivåns färger: sätts av data-tier och läses av kantlinje, sköld, token och kort ──────────────────── */
+/* ── Nivåns färger: sätts av data-tier och läses av kantlinje, vimpel, token och kort ──────────────────── */
 .rq-duels [data-tier="minor"], .rq-duels-sheet [data-tier="minor"] {
   --rq-duels-tier: var(--rq-tier-minor); --rq-duels-tier-rgb: var(--rq-tier-minor-rgb);
   --rq-duels-tier-fg: var(--rq-tier-minor-fg); --rq-duels-tier-stroke: var(--rq-tier-minor-stroke);

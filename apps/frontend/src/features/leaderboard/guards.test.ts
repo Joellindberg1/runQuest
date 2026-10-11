@@ -116,11 +116,11 @@ describe('podiets minis och vimpeln (RUN-147, spec F12/F13)', () => {
     }
   });
 
-  it('sköldens path finns inte kvar i Board-koden; vimpelns path bor i en enda konstant (PENNANT_PATH)', () => {
+  it('sköldens path finns inte kvar i Board-koden; vimpelns path importeras ur shared/components/challengeMark', () => {
     const drawn = codeFiles.filter(([, text]) => /<path\b/.test(stripComments(text))).map(([path]) => path);
     expect(drawn).toEqual(['./components/BoardParts.tsx']);
     for (const [path, text] of codeFiles) expect({ path, shield: text.includes('V21 L13') }).toEqual({ path, shield: false });
-    expect(sources['./components/BoardParts.tsx']).toContain("PENNANT_PATH = 'M1.5 1.5 H24.5 V30.5 L13 23.5 L1.5 30.5 Z'");
+    expect(sources['./components/BoardParts.tsx']).toContain("from '@/shared/components/challengeMark'");
   });
 
   it('den gamla namnraden för tabellen (.rq-board-namerow) är borta', () => {

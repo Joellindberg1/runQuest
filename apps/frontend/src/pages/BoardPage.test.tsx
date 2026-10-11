@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { Run, User, UserTitle } from '@runquest/types';
 import BoardPage from './BoardPage';
-import { PENNANT_PATH, PENNANT_TEXT_Y } from '@/features/leaderboard/components/BoardParts';
+import { PENNANT_PATH, PENNANT_TEXT_Y } from '@/shared/components/challengeMark';
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
 import { ME, RANK_DELTA, WEEK, XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
