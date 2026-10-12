@@ -34,9 +34,10 @@ export class StreakService {
       .order('date', { ascending: true });
 
     if (error) {
-      // TODO: replace with a shared backend logger utility when available
+      // Kastar i stället för att returnera 0/0: anroparna skriver resultatet rakt in i users, och ett läsfel
+      // är inte detsamma som "användaren har ingen streak" (RUN-215).
       logger.error('Error fetching runs:', error);
-      return { currentStreak: 0, streakDayForRun: 1, longestStreak: 0 };
+      throw new Error(`Failed to fetch runs for streak calculation (user ${userId}): ${error.message}`);
     }
 
     // Om vi kollar en specifik run, inkludera den i beräkningen
@@ -183,11 +184,17 @@ export class StreakService {
     const streakResult = await this.calculateUserStreaks(userId);
     
     const supabase = getSupabaseClient();
-    const { data: before } = await supabase
+    const { data: before, error: beforeError } = await supabase
       .from('users')
       .select('current_streak, group_id')
       .eq('id', userId)
       .single();
+
+    // PGRST116 = användaren finns inte (då finns inget att uppdatera). Andra fel hade tyst släckt streak_broken-loggen.
+    if (beforeError && beforeError.code !== 'PGRST116') {
+      logger.error('Error fetching user streak before update:', beforeError);
+      throw new Error(`Failed to fetch current streak (user ${userId}): ${beforeError.message}`);
+    }
 
     const { error } = await supabase
       .from('users')
@@ -198,9 +205,9 @@ export class StreakService {
       .eq('id', userId);
 
     if (error) {
-      // TODO: replace with a shared backend logger utility when available
+      // Kastas så att schedulern räknar användaren som misslyckad (och inte loggar streak_broken för en streak som aldrig skrevs).
       logger.error('Error updating user streak:', error);
-      return;
+      throw new Error(`Failed to update streak (user ${userId}): ${error.message}`);
     }
 
     await this.recordStreakBroken(userId, before?.current_streak, streakResult.currentStreak, before?.group_id);

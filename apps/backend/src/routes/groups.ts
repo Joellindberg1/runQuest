@@ -75,7 +75,8 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'invite_code is required' }); return;
     }
 
-    logger.info(`👥 User ${userId} attempting to join group with invite code: ${invite_code}`);
+    // Invite-koden är en hemlighet som ger tillträde till gruppen: aldrig i loggen.
+    logger.info(`👥 User ${userId} attempting to join a group with an invite code`);
 
     const supabase = getSupabaseClient();
 

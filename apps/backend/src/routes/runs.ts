@@ -38,11 +38,13 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   // Fetch all user boosts (historical — applied per-run below).
   // multiplier_runs är statelös: förbrukningen härleds ur löphistoriken
   // (boostCalculation i @runquest/shared), så omräkning är alltid idempotent.
-  const { data: userBoosts } = await supabase
+  const { data: userBoosts, error: boostsError } = await supabase
     .from('user_boosts')
     .select('type, delta, remaining, created_at, expires_at')
     .eq('user_id', userId)
     .in('type', ['multiplier_days', 'multiplier_runs']);
+  // Alla läsningar kastar vid fel (RUN-215): en omräkning på ofullständig indata skriver fel XP/streak till rundorna.
+  if (boostsError) throw new Error(`Failed to fetch boosts for reprocess (user ${userId}): ${boostsError.message}`);
 
   const boostSpecs: BoostSpec[] = await Promise.all(
     (userBoosts ?? []).map(async (b: { type: string; delta: number; remaining: number | null; created_at: string; expires_at: string | null }) => {
@@ -57,12 +59,13 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
       }
       // multiplier_runs: räkna laddningar som redan förbrukats av rundor FÖRE
       // omräkningsfönstret (de rundorna räknas inte om och behåller sin XP).
-      const { count } = await supabase
+      const { count, error: usedError } = await supabase
         .from('runs')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
         .gte('date', startDate)
         .lt('date', fromDate);
+      if (usedError) throw new Error(`Failed to count used boost charges for reprocess (user ${userId}): ${usedError.message}`);
       return {
         type: 'multiplier_runs' as const,
         delta: Number(b.delta),
@@ -74,13 +77,14 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   );
 
   // Get the run immediately before fromDate to seed the streak count correctly
-  const { data: prevRuns } = await supabase
+  const { data: prevRuns, error: prevError } = await supabase
     .from('runs')
     .select('date, streak_day')
     .eq('user_id', userId)
     .lt('date', fromDate)
     .order('date', { ascending: false })
     .limit(1);
+  if (prevError) throw new Error(`Failed to fetch previous run for reprocess (user ${userId}): ${prevError.message}`);
 
   const prevRun = prevRuns?.[0] ?? null;
   let currentStreakCount = prevRun?.streak_day ?? 0;
@@ -94,10 +98,11 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     .gte('date', fromDate)
     .order('date', { ascending: true });
 
-  if (error || !runs?.length) {
-    if (error) logger.error('❌ Error fetching runs to reprocess:', error);
-    return;
+  if (error) {
+    logger.error('❌ Error fetching runs to reprocess:', error);
+    throw new Error(`Failed to fetch runs to reprocess (user ${userId}): ${error.message}`);
   }
+  if (!runs?.length) return;
 
   logger.info(`📊 Reprocessing ${runs.length} affected runs (of user's total)`);
 
@@ -133,8 +138,9 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     };
   });
 
-  // Parallel updates instead of sequential
-  await Promise.all(
+  // Parallel updates instead of sequential. supabase-js kastar inte på {error}: varje svar kontrolleras, så att en
+  // misslyckad rad aldrig rapporteras som "Reprocessed". Alla rader försöker skrivas; felet kastas efteråt.
+  const updateResults = await Promise.all(
     updates.map((u: { id: string; streak_day: number; multiplier: number; base_xp: number; km_xp: number; distance_bonus: number; streak_bonus: number; xp_gained: number }) =>
       supabase.from('runs').update({
         streak_day: u.streak_day,
@@ -147,8 +153,28 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
       }).eq('id', u.id)
     )
   );
+  const failedUpdates = updateResults.filter((r: { error: { message: string } | null }) => r.error);
+  if (failedUpdates.length > 0) {
+    logger.error(`❌ ${failedUpdates.length} of ${updates.length} run updates failed during reprocess:`, failedUpdates[0].error);
+    throw new Error(`${failedUpdates.length} of ${updates.length} run updates failed during reprocess (user ${userId}): ${failedUpdates[0].error!.message}`);
+  }
 
   logger.info(`✅ Reprocessed ${runs.length} runs successfully`);
+}
+
+/**
+ * Kör omräkningen men kastar inte: returnerar false vid fel. Rutterna anropar calculateUserTotals ändå (best-effort,
+ * den kastar aldrig) och svarar sedan 500 — ett reprocess-fel får inte lämna totalerna sämre än före RUN-215, då
+ * totalerna alltid räknades om. Rundor som hann få placeholder-XP rättas av nästa skrivning/omräkning från samma datum.
+ */
+async function tryReprocessRunsFromDate(userId: string, fromDate: string): Promise<boolean> {
+  try {
+    await reprocessRunsFromDate(userId, fromDate);
+    return true;
+  } catch (e) {
+    logger.error(`❌ Reprocess from ${fromDate} failed for user ${userId}:`, e);
+    return false;
+  }
 }
 
 // GET /api/runs/group-history[?limit=&offset=] - Get runs for users in same group (ADR 007 B9)
@@ -326,9 +352,9 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     logger.info(`✅ Run created, reprocessing from ${date}...`);
 
     // Only reprocess from this run's date — earlier runs are unaffected
-    await reprocessRunsFromDate(userId, date);
+    const reprocessed = await tryReprocessRunsFromDate(userId, date);
 
-    // Recalculate user totals (scoped to user's group for title processing)
+    // Recalculate user totals (scoped to user's group for title processing) — även om omräkningen felade (best-effort)
     await calculateUserTotals(userId);
 
     // Check if this run qualifies for any active events (fire-and-forget, non-blocking)
@@ -339,6 +365,10 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       distanceKm: distanceNum,
       groupId: req.user!.group_id,
     }).catch(e => logger.error('❌ checkEventQualification error:', e));
+
+    if (!reprocessed) {
+      res.status(500).json({ error: 'Run was created but XP recalculation failed' }); return;
+    }
 
     // Fetch the fully processed run
     const { data: processedRun, error: fetchError } = await supabase
@@ -430,18 +460,19 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Failed to update run' }); return;
     }
 
+    let reprocessed = true;
     if (dateChanged) {
       // Date changed — reprocess from the earlier of old and new date
       const fromDate = existingRun.date < date ? existingRun.date : date;
       logger.info(`🔄 Date changed (${existingRun.date} → ${date}), reprocessing from ${fromDate}`);
-      await reprocessRunsFromDate(userId, fromDate);
+      reprocessed = await tryReprocessRunsFromDate(userId, fromDate);
     } else if (distanceChanged) {
       // Only distance changed — reprocess just this run's date (streak order unchanged)
       logger.info(`⚡ Distance changed, reprocessing from ${existingRun.date}`);
-      await reprocessRunsFromDate(userId, existingRun.date);
+      reprocessed = await tryReprocessRunsFromDate(userId, existingRun.date);
     }
 
-    // Recalculate user totals (scoped to user's group for title processing)
+    // Recalculate user totals (scoped to user's group for title processing) — även om omräkningen felade (best-effort)
     await calculateUserTotals(userId);
 
     // En redigering kan nå eventgränsen (t.ex. distansen höjs över min_km, eller datumet flyttas in i ett
@@ -460,6 +491,10 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
         // en gammal runda ett event som pågår just nu.
         enforceRunDateWindow: true,
       }).catch(e => logger.error('❌ checkEventQualification error (PUT):', e));
+    }
+
+    if (!reprocessed) {
+      res.status(500).json({ error: 'Run was updated but XP recalculation failed' }); return;
     }
 
     logger.info('\n' + '='.repeat(80));
@@ -556,10 +591,14 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     logger.info(`✅ Run deleted, reprocessing from ${deletedDate}...`);
 
     // Reprocess only runs from the deleted run's date onwards
-    await reprocessRunsFromDate(userId, deletedDate);
+    const reprocessed = await tryReprocessRunsFromDate(userId, deletedDate);
 
-    // Recalculate user totals (scoped to user's group for title processing)
+    // Recalculate user totals (scoped to user's group for title processing) — även om omräkningen felade (best-effort)
     await calculateUserTotals(userId);
+
+    if (!reprocessed) {
+      res.status(500).json({ error: 'Run was deleted but XP recalculation failed' }); return;
+    }
 
     // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
     // SKAPA kvalificeringar ur en runda, och en radering skapar aldrig en ny — därför anropas den inte här.

@@ -10,6 +10,7 @@ import cron from 'node-cron';
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { StreakService } from '../services/streakService.js';
+import { summarizeSettled } from './settledSummary.js';
 
 export async function recalculateAllStreaks(): Promise<void> {
   const supabase = getSupabaseClient();
@@ -23,8 +24,8 @@ export async function recalculateAllStreaks(): Promise<void> {
   const results = await Promise.allSettled(
     users.map((u: { id: string }) => StreakService.updateUserStreak(u.id))
   );
-  const failed = results.filter(r => r.status === 'rejected').length;
-  logger.info(`✅ [StreakScheduler] Recalculated streaks for ${users.length - failed}/${users.length} users`);
+  const { succeeded, total } = summarizeSettled('[StreakScheduler] Streak recalculation', results);
+  logger.info(`✅ [StreakScheduler] Recalculated streaks for ${succeeded}/${total} users`);
 }
 
 export function startStreakScheduler(): void {

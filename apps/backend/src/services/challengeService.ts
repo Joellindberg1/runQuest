@@ -167,29 +167,35 @@ export async function getProgressForChallenge(challengeId: string): Promise<Prog
     .eq('id', challengeId)
     .single();
 
-  if (error || !challenge || !challenge.start_date) return null;
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to read challenge ${challengeId} for progress: ${error.message}`);
+  }
+  if (!challenge || !challenge.start_date) return null;
 
   const startDate = challenge.start_date;
   const endDate = challenge.end_date ?? new Date().toISOString().split('T')[0];
 
   const fetchValue = async (userId: string): Promise<number> => {
+    // Läsfel kastas: ett fel som blev 0 skulle annars avgöra utmaningen på ofullständig data (0–0 = oavgjort).
     if (challenge.metric === 'runs') {
-      const { count } = await supabase
+      const { count, error: countError } = await supabase
         .from('runs')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
         .gte('date', startDate)
         .lte('date', endDate);
+      if (countError) throw new Error(`Failed to read run count for challenge ${challengeId} (user ${userId}): ${countError.message}`);
       return count ?? 0;
     }
 
     const col = challenge.metric === 'km' ? 'distance' : 'xp_gained';
-    const { data } = await supabase
+    const { data, error: runsError } = await supabase
       .from('runs')
       .select(col)
       .eq('user_id', userId)
       .gte('date', startDate)
       .lte('date', endDate);
+    if (runsError) throw new Error(`Failed to read runs for challenge ${challengeId} (user ${userId}): ${runsError.message}`);
 
     return (data ?? []).reduce((sum: number, r: any) => sum + (Number(r[col]) || 0), 0);
   };
@@ -220,7 +226,11 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     .eq('id', challengeId)
     .single();
 
-  if (error || !challenge || challenge.status !== 'active') return;
+  // PGRST116 = utmaningen finns inte → inget att avgöra. Andra läsfel är inte "klart": de ska synas, och schedulern tar om.
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to read challenge ${challengeId} for settling: ${error.message}`);
+  }
+  if (!challenge || challenge.status !== 'active') return;
 
   const progress = await getProgressForChallenge(challengeId);
   if (!progress) {
@@ -248,32 +258,111 @@ export async function settleChallenge(challengeId: string): Promise<void> {
   // 1. Claim: markera completed ENDAST om fortfarande active (bugg #6) —
   // vid överlappande instanser vinner exakt en, så W/D/L och boosts kan
   // aldrig delas ut dubbelt.
-  const { data: claimed } = await supabase
+  const { data: claimed, error: claimError } = await supabase
     .from('challenges')
     .update({ status: 'completed', winner_id: winnerId, outcome, challenger_final_value: c.value, opponent_final_value: o.value })
     .eq('id', challengeId)
     .eq('status', 'active')
     .select('id');
 
+  if (claimError) {
+    // Ett fel är inte "redan avgjord": ingen annan instans har vunnit claimen, ingenting är skrivet, schedulern tar om.
+    throw new Error(`Failed to claim challenge ${challengeId} for settling: ${claimError.message}`);
+  }
   if (!claimed?.length) {
     logger.info(`↷ Challenge ${challengeId} already settled by another instance`);
     return;
   }
 
-  // 2. Reset challenge_active for both users
-  await supabase
+  // 2. Create boosts — FÖRST efter claimen, före allt annat som inte går att göra om. Misslyckas insertet släpps
+  // claimen (utmaningen är active igen och schedulern avgör den om), och eftersom W/D/L och challenge_active
+  // ännu inte rörts kan omförsöket inte dubbelräkna något. En draw ger inga boostar.
+  if (outcome !== 'draw') {
+    const now = new Date();
+
+    const winnerBoost = {
+      user_id: winnerId!,
+      challenge_id: challengeId,
+      outcome: 'winner',
+      type: challenge.winner_type,
+      delta: Number(challenge.winner_delta),
+      remaining: challenge.winner_type === 'multiplier_runs' ? challenge.winner_duration : null,
+      expires_at: challenge.winner_type === 'multiplier_days'
+        ? new Date(now.getTime() + challenge.winner_duration * 86400000).toISOString()
+        : null,
+    };
+
+    const loserBoost = {
+      user_id: loserId!,
+      challenge_id: challengeId,
+      outcome: 'loser',
+      type: challenge.loser_type,
+      delta: Number(challenge.loser_delta), // negative
+      remaining: challenge.loser_type === 'multiplier_runs' ? challenge.loser_duration : null,
+      expires_at: challenge.loser_type === 'multiplier_days'
+        ? new Date(now.getTime() + challenge.loser_duration * 86400000).toISOString()
+        : null,
+    };
+
+    const { error: boostError } = await supabase.from('user_boosts').insert([winnerBoost, loserBoost]);
+
+    if (boostError) {
+      logger.error(`❌ Boost insert failed for challenge ${challengeId}:`, boostError);
+      const { error: releaseError } = await supabase
+        .from('challenges')
+        .update({ status: 'active', winner_id: null, outcome: null, challenger_final_value: null, opponent_final_value: null })
+        .eq('id', challengeId)
+        .eq('status', 'completed');
+      if (releaseError) {
+        // Fastlåst tillstånd: utmaningen är completed utan boostar och schedulern tar den aldrig igen. Spelarna ska
+        // åtminstone inte hållas upptagna (challenge_active) — det återställs best-effort. W/D/L delas inte ut: något
+        // avgjort resultat finns inte förrän någon rättat boostarna manuellt.
+        logger.error(
+          `🚨 KRITISK: challenge ${challengeId} is completed WITHOUT boosts and the claim could not be released — manual repair needed ` +
+          `(insert winner/loser rows in user_boosts or set the challenge back to active):`,
+          { boostError, releaseError },
+        );
+        const { error: freeError } = await supabase
+          .from('users')
+          .update({ challenge_active: false })
+          .in('id', [challenge.challenger_id, challenge.opponent_id]);
+        if (freeError) {
+          logger.error(`🚨 KRITISK: could not reset challenge_active for the players of challenge ${challengeId} either:`, freeError);
+        }
+        throw new Error(
+          `Failed to create boosts for challenge ${challengeId}: ${boostError.message}; ` +
+          `the claim could not be released either (challenge stays completed without boosts): ${releaseError.message}`,
+        );
+      }
+      throw new Error(`Failed to create boosts for challenge ${challengeId}: ${boostError.message} (claim released, will be retried)`);
+    }
+  }
+
+  // Från och med här är boostarna utdelade: avgörandet släpps inte längre (ett omförsök skulle dela ut dem igen).
+  // Delfel samlas, resten körs, och felet kastas efteråt så att det syns i schedulern/anroparen.
+  const postClaimErrors: string[] = [];
+
+  // 3. Reset challenge_active for both users
+  const { error: activeError } = await supabase
     .from('users')
     .update({ challenge_active: false })
     .in('id', [challenge.challenger_id, challenge.opponent_id]);
+  if (activeError) {
+    logger.error(`❌ Failed to reset challenge_active after settling ${challengeId}:`, activeError);
+    postClaimErrors.push(`challenge_active reset failed: ${activeError.message}`);
+  }
 
-  // 3. Update W/D/L
-  const { data: users } = await supabase
+  // 4. Update W/D/L
+  const { data: users, error: usersError } = await supabase
     .from('users')
     .select('id, wins, draws, losses')
     .in('id', [challenge.challenger_id, challenge.opponent_id]);
 
-  if (users) {
-    await Promise.all(
+  if (usersError) {
+    logger.error(`❌ Failed to read W/D/L after settling ${challengeId}:`, usersError);
+    postClaimErrors.push(`W/D/L read failed: ${usersError.message}`);
+  } else if (users) {
+    const wdlResults = await Promise.all(
       users.map((user: any) => {
         let update: Record<string, number>;
         if (outcome === 'draw') {
@@ -286,9 +375,15 @@ export async function settleChallenge(challengeId: string): Promise<void> {
         return supabase.from('users').update(update).eq('id', user.id);
       })
     );
+    for (const res of wdlResults) {
+      if (res.error) {
+        logger.error(`❌ Failed to update W/D/L after settling ${challengeId}:`, res.error);
+        postClaimErrors.push(`W/D/L update failed: ${res.error.message}`);
+      }
+    }
   }
 
-  // Pack News (ADR 008): loggas EFTER claim + W/D/L, icke-kastande. dedupe_key challenge_settled:<id>
+  // Pack News (ADR 008): loggas EFTER claim + boostar + W/D/L, icke-kastande. dedupe_key challenge_settled:<id>
   // ger exakt en rad även om avgörandet körs om.
   await recordChallengeSettled({
     ...challenge,
@@ -297,39 +392,14 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     opponent_final_value: o.value,
   });
 
+  if (postClaimErrors.length > 0) {
+    throw new Error(`Challenge ${challengeId} settled with errors: ${postClaimErrors.join('; ')}`);
+  }
+
   if (outcome === 'draw') {
     logger.info(`🤝 Challenge ${challengeId} ended in a draw`);
     return;
   }
-
-  // 4. Create boosts
-  const now = new Date();
-
-  const winnerBoost = {
-    user_id: winnerId!,
-    challenge_id: challengeId,
-    outcome: 'winner',
-    type: challenge.winner_type,
-    delta: Number(challenge.winner_delta),
-    remaining: challenge.winner_type === 'multiplier_runs' ? challenge.winner_duration : null,
-    expires_at: challenge.winner_type === 'multiplier_days'
-      ? new Date(now.getTime() + challenge.winner_duration * 86400000).toISOString()
-      : null,
-  };
-
-  const loserBoost = {
-    user_id: loserId!,
-    challenge_id: challengeId,
-    outcome: 'loser',
-    type: challenge.loser_type,
-    delta: Number(challenge.loser_delta), // negative
-    remaining: challenge.loser_type === 'multiplier_runs' ? challenge.loser_duration : null,
-    expires_at: challenge.loser_type === 'multiplier_days'
-      ? new Date(now.getTime() + challenge.loser_duration * 86400000).toISOString()
-      : null,
-  };
-
-  await supabase.from('user_boosts').insert([winnerBoost, loserBoost]);
 
   logger.info(`✅ Challenge ${challengeId} settled. Winner: ${winnerId}, boosts created.`);
 }
