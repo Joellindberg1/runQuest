@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { checkEmptySuites, checkTodos, isEntryPoint, KNOWN_UNTAGGED, listWorkspaces, walkFiles } from './ci-guards.mjs';
+import { checkEmptySuites, checkTodos, isEntryPoint, listWorkspaces, walkFiles } from './ci-guards.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const script = join(here, 'ci-guards.mjs');
@@ -50,7 +50,7 @@ describe('checkEmptySuites', () => {
 });
 
 describe('checkTodos', () => {
-  const scan = (content, path = 'apps/backend/src/x.ts', known = []) => checkTodos([{ path, content }], known);
+  const scan = (content, path = 'apps/backend/src/x.ts') => checkTodos([{ path, content }]);
 
   it('fails an untagged TODO and reports file:line', () => {
     const errors = scan('const a = 1;\n// TODO: fix this\n');
@@ -84,23 +84,10 @@ describe('checkTodos', () => {
     assert.match(errors[0], /:2:/);
   });
 
-  it('skips only the exact known line in the known file', () => {
-    const known = KNOWN_UNTAGGED[0];
-    const knownLine = `      // ${known.text}`;
-    assert.deepEqual(scan(knownLine, known.file, KNOWN_UNTAGGED), []);
-    // samma text i en annan fil fäller
-    assert.equal(scan(knownLine, 'apps/backend/src/other.ts', KNOWN_UNTAGGED).length, 1);
-    // en annan otaggad TODO i den kända filen fäller
-    assert.equal(scan(`${knownLine}\n// TODO: something else`, known.file, KNOWN_UNTAGGED).length, 1);
-  });
-
-  it('the shipped allowlist covers the two TODOs main still has in streakService.ts', () => {
-    const known = KNOWN_UNTAGGED[0];
-    const mainLines = [
-      '      // TODO: replace with a shared backend logger utility when available',
-      '      // TODO: replace with a shared backend logger utility when available',
-    ];
-    assert.deepEqual(scan(mainLines.join('\n'), known.file, KNOWN_UNTAGGED), []);
+  it('is text based: a string literal or regex containing the marker also fails', () => {
+    assert.equal(scan("const s = 'TODO: x';").length, 1);
+    assert.equal(scan('const r = /FIXME/;').length, 1);
+    assert.deepEqual(scan("const s = 'TODO(RUN-1)';"), []);
   });
 });
 

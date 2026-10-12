@@ -6,11 +6,12 @@ on:
   pull_request:
     branches: [main]
 
-# Ny push på samma PR avbryter den gamla körningen (sparar minuter). Pushar till main avbryts aldrig,
-# så varje main-commit får sin kontroll. Inga paths-ignore: required checks (branch protection) skulle då
-# stå som pending för alltid på PR:er som bara rör docs.
+# Ny push på samma PR avbryter den gamla körningen (sparar minuter). Gruppnyckeln är PR-numret, och för pushar commit-sha:n.
+# En main-push får därmed en egen grupp och kan varken avbrytas eller ersättas som köad körning av en senare commit
+# (en väntande körning i samma grupp ersätts av en nyare även utan cancel-in-progress), så varje main-commit får sin kontroll.
+# Inga paths-ignore: required checks (branch protection) skulle då stå som pending för alltid på PR:er som bara rör docs.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

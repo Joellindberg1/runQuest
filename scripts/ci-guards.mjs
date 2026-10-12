@@ -5,6 +5,9 @@
 //     (flytt, felaktig glob, borttagen mapp) ska fälla bygget, inte gå grönt på "0 tester".
 //  2. TODO/FIXME-nyckel: varje `TODO`/`FIXME` i källkoden under apps/* och packages/* måste peka på en Jira-ticket,
 //     t.ex. `TODO(RUN-123): ...` eller `FIXME RUN-123 ...`. Annars glöms de bort.
+//     Vakten är textbaserad, den förstår inte kod: den läser rad för rad och ser inte skillnad på kommentar, sträng och regex.
+//     Ett strängliteral eller ett regex som innehåller ordet TODO eller FIXME (versaler, helt ord) fäller alltså också. Kringgå det
+//     genom att skriva `TODO(RUN-nnn)` på stället, eller välj ett annat ord (t.ex. "PLACEHOLDER" eller "att göra").
 //
 // Körs:  node scripts/ci-guards.mjs [empty-suites|todos|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
@@ -20,18 +23,6 @@ const SOURCE_FILE = /\.(?:[cm]?[jt]s|[jt]sx|css)$/;
 const MARKER = /\b(TODO|FIXME)\b/g;
 // Godkänd nyckel direkt efter markören: `TODO(RUN-12)`, `TODO: RUN-12`, `TODO [RUN-12]`, `FIXME RUN-12`.
 const TAGGED_TAIL = /^[\s:(\[]*RUN-\d+\b/;
-
-/**
- * Kända, redan existerande TODO-rader som får stå otaggade tills de försvinner. Matchas på filsökväg + exakt radtext, så en ny
- * otaggad TODO i samma fil fäller fortfarande. Raderna finns på main men är borta på release/v0.6.1.1 (RUN-215 tog bort dem);
- * posten är ofarlig när raden saknas och ska tas bort när main har släppt förbi den.
- */
-export const KNOWN_UNTAGGED = [
-  {
-    file: 'apps/backend/src/services/streakService.ts',
-    text: 'TODO: replace with a shared backend logger utility when available',
-  },
-];
 
 /** Alla filer under `dir` (rekursivt), hoppar över node_modules, dist m.fl. Returnerar sökvägar relativt `root`, med snedstreck. */
 export function walkFiles(root, dir, readDir = readdirSync, stat = statSync) {
@@ -85,14 +76,12 @@ export function checkEmptySuites(workspaces, filesByDir) {
 
 /**
  * Regel 2. `files`: [{ path, content }] (path relativt repo-roten, snedstreck). Returnerar felmeddelanden "path:rad: text".
- * Rader som matchar KNOWN_UNTAGGED (samma fil + exakt radtext) hoppas över.
  */
-export function checkTodos(files, known = KNOWN_UNTAGGED) {
+export function checkTodos(files) {
   const errors = [];
   for (const { path, content } of files) {
     const lines = content.split(/\r?\n/);
     lines.forEach((line, index) => {
-      if (known.some((entry) => entry.file === path && line.includes(entry.text))) return;
       for (const match of line.matchAll(MARKER)) {
         const tail = line.slice(match.index + match[0].length);
         if (!TAGGED_TAIL.test(tail)) {
