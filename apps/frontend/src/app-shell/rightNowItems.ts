@@ -1,4 +1,4 @@
-import { stockholmDay, streakStatus } from '@runquest/shared';
+import { MS_DAY, stockholmClock, streakStatus } from '@runquest/shared';
 import { paths } from '@/paths';
 import type { RQIconName } from '@/shared/components/icons';
 
@@ -52,8 +52,6 @@ export interface RightNowInput {
 
 const MS_MINUTE = 60_000;
 const MS_HOUR = 3_600_000;
-const MS_DAY = 86_400_000;
-const STOCKHOLM = 'Europe/Stockholm';
 
 const METRIC_LABELS: Record<ShellDuel['metric'], string> = {
   km: 'Most km',
@@ -69,25 +67,9 @@ export function formatRemaining(ms: number): string {
   return `${Math.floor(ms / MS_DAY)} d`;
 }
 
-export interface StockholmClock {
-  date: string;
-  msIntoDay: number;
-}
-
-/** Stockholm-datum + ms in i dygnet. Delas med Board ("X h ago", streak-status). */
-export function stockholmClock(now: Date): StockholmClock {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: STOCKHOLM,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
-  return {
-    date: stockholmDay(now),
-    msIntoDay: (Number(get('hour')) * 3600 + Number(get('minute')) * 60 + Number(get('second'))) * 1000,
-  };
-}
+// Implementationen bor i shared (calendar.ts). Återexporten finns kvar för pages/BoardPage.tsx, som importerar härifrån;
+// features importerar direkt från @runquest/shared.
+export { stockholmClock };
 
 /**
  * Tid kvar tills streaken bryts (Stockholm-dagar, som backend). Senaste rundan idag → deadline

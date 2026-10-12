@@ -1,6 +1,5 @@
-import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, isActivityType, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, TIER_NAMES, daysBetween, isActivityType, mondayOf, stockholmClock, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/types';
-import { stockholmClock } from '@/app-shell/rightNowItems';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
 import { logger } from '@/shared/utils/logger';
@@ -234,21 +233,12 @@ export function unreadSummary(unreadCount: number): string {
 
 const MS_MINUTE = 60_000;
 const MS_HOUR = 3_600_000;
-const MS_DAY = 86_400_000;
 const DAYS_BEFORE_DATE = 7;
 
 const dayNumbers = (day: string): [number, number, number] => {
   const [year, month, date] = day.split('-').map(Number);
   return [year, month, date];
 };
-
-const utcDay = (day: string): number => {
-  const [year, month, date] = dayNumbers(day);
-  return Date.UTC(year, month - 1, date);
-};
-
-/** Hela dygn mellan två kalenderdagar (YYYY-MM-DD). */
-const daysApart = (earlier: string, later: string): number => Math.round((utcDay(later) - utcDay(earlier)) / MS_DAY);
 
 /** "2 Oct" — med år när det inte är innevarande år ("2 Oct 2025"). */
 function dateText(day: string, todayKey: string): string {
@@ -265,7 +255,7 @@ export function formatAgo(iso: string, now: Date, long = false): string {
   if (ms < MS_MINUTE) return long ? 'Just now' : 'now';
   if (ms < MS_HOUR) return long ? `${Math.floor(ms / MS_MINUTE)}m ago` : `${Math.floor(ms / MS_MINUTE)}m`;
   if (ms < MS_DAY) return long ? `${Math.floor(ms / MS_HOUR)}h ago` : `${Math.floor(ms / MS_HOUR)}h`;
-  const days = Math.max(1, Math.min(daysApart(dayKey, todayKey), Math.floor(ms / MS_DAY)));
+  const days = Math.max(1, Math.min(daysBetween(dayKey, todayKey), Math.floor(ms / MS_DAY)));
   if (days >= DAYS_BEFORE_DATE) return dateText(dayKey, todayKey);
   if (long) return days === 1 ? 'Yesterday' : `${days} days ago`;
   return `${days}d`;
@@ -284,16 +274,10 @@ export interface NewsDayGroup<T> {
   rows: T[];
 }
 
-/** Måndagen i veckan som `day` tillhör (ISO-vecka, Stockholm-dagar). */
-function mondayOf(day: string): string {
-  const weekday = (new Date(utcDay(day)).getUTCDay() + 6) % 7;
-  return new Date(utcDay(day) - weekday * MS_DAY).toISOString().slice(0, 10);
-}
-
 function bucketOf(dayKey: string, todayKey: string): { key: string; label: string } {
   // Ett klockslag i framtiden (klockskev) hör hemma i dag.
   if (dayKey >= todayKey) return { key: 'today', label: 'Today' };
-  const days = daysApart(dayKey, todayKey);
+  const days = daysBetween(dayKey, todayKey);
   if (days === 1) return { key: 'yesterday', label: 'Yesterday' };
   if (dayKey >= mondayOf(todayKey)) return { key: 'week', label: 'Earlier this week' };
   return { key: dayKey, label: `${weekdayOf(dayKey)} ${dateText(dayKey, todayKey)}` };
@@ -379,7 +363,7 @@ export function untilText(endsAt: string, now: Date): string {
   const endDay = stockholmDate(endsAt);
   const todayKey = stockholmClock(now).date;
   if (endDay === todayKey) return `until ${clockOrMidnight(endsAt)}`;
-  const ahead = daysApart(todayKey, endDay);
+  const ahead = daysBetween(todayKey, endDay);
   if (ahead > 0 && ahead < DAYS_BEFORE_DATE) return `until ${weekdayOf(endDay)} ${clockOrMidnight(endsAt)}`;
   return `until ${dateText(endDay, todayKey)}`;
 }

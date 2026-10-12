@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  daysBetween, deltaLabel, deltaView, latestRunOf, formatCountdown, formatHoursMinutes, formatInt, formatRunAge, isoWeekNumber, preciseRunTime,
+  deltaLabel, deltaView, latestRunOf, formatCountdown, formatHoursMinutes, formatInt, formatRunAge, isoWeekNumber, preciseRunTime,
 } from './boardFormat';
+import { daysBetween } from '@runquest/shared';
 
 // Fast klocka: 2026-10-04 12:00 Stockholm (CEST, UTC+2) = 10:00 UTC.
 const NOW = new Date('2026-10-04T10:00:00Z');

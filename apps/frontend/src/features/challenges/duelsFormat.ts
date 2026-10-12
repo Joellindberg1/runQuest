@@ -1,6 +1,5 @@
 import type { ChallengeMetric, ChallengeTier } from '@runquest/types';
-import { stockholmClock } from '@/app-shell/rightNowItems';
-import { daysBetween } from '@/features/leaderboard/boardFormat';
+import { daysBetween, stockholmClock } from '@runquest/shared';
 
 // Rena formatterare för Duels: tier, mått, insatser, tider. `now` skickas alltid in så att tiderna går att testa.
 // Engelskt UI — tal och datum i en-GB (som resten av redesignen).

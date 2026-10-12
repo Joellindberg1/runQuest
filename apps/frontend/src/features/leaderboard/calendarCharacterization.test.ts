@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Run } from '@runquest/types';
-import { stockholmClock } from '@/app-shell/rightNowItems';
+import { daysBetween, stockholmClock } from '@runquest/shared';
 import { formatCountdown } from '@/features/events/eventsFormat';
 import { formatAgo } from '@/features/news/newsModel';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { daysBetween, isoWeekNumber } from './boardFormat';
+import { isoWeekNumber } from './boardFormat';
 
 // RUN-218 T2 — karaktärisering av frontendens datumkopior (boardFormat, newsModel, rightNowItems, leaderboardUtils) INNAN
 // de ersattes av packages/shared/src/calendar.ts. Samma tabeller som i shared/backend ska ge samma svar här.
