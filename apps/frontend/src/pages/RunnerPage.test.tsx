@@ -465,10 +465,9 @@ describe('desktop-overlayn (background location)', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).getByRole('tab', { name: 'Fun facts' })).toHaveAttribute('aria-selected', 'true');
-    // Skalet är en lazy-chunk och kan landa efter overlayn.
-    await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
+    expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1);
     // Radix döljer bakgrunden för hjälpmedel medan dialogen är öppen, därför hidden: true.
-    expect(await screen.findByRole('heading', { name: 'The standings', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'The standings', hidden: true })).toBeInTheDocument();
   });
 
   it('Challenge i overlayn stänger den och landar på /duels med förvald motståndare', async () => {

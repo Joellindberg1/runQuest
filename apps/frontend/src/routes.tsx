@@ -2,30 +2,30 @@ import React, { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/providers/authContext';
 import { paths } from '@/paths';
+import { AppShell } from '@/app-shell/AppShell';
 import { RequireAuth } from '@/app-shell/RequireAuth';
-import { RoutePending } from '@/app-shell/RoutePending';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { legacyChallengesTarget } from '@/app-shell/legacyRedirects';
 import { ShellErrorBoundary } from '@/app-shell/ShellErrorBoundary';
 import { readBackground, useCloseRunner } from '@/shared/hooks/useOpenRunner';
-// Skalets delade lager (.rq-scrim, .rq-modal, .rq-shell__pending) används även av landningens inloggningsdialog och App.tsx:s laddningsbild,
-// så CSS:en ska ligga i startpaketet och inte följa med skal-chunken.
+import { RoutePending } from '@/app-shell/RoutePending';
+// Skalets delade lager (.rq-scrim, .rq-modal, .rq-shell__pending) används även av landningens inloggningsdialog och App.tsx:s laddningsbild.
+// Det är den enda statiska CSS-importen här (se routes.guard.test.ts); övrig feature-CSS följer med sina moduler.
 import '@/app-shell/app-shell.css';
+import BoardPage from '@/pages/BoardPage';
+import TitlesPage from '@/pages/TitlesPage';
+import DuelsPage from '@/pages/DuelsPage';
+import EventsPage from '@/pages/EventsPage';
+import NewsPage from '@/pages/NewsPage';
+import LogPage from '@/pages/LogPage';
+import ProfilePage from '@/pages/ProfilePage';
+import BadgesPage from '@/pages/BadgesPage';
+import RunnerRoute from '@/pages/RunnerPage';
+import NotFound from '@/pages/NotFound';
 
-// Varje sida är en egen chunk (ADR 006 beslut 11): landningen laddar varken skalet, sidorna eller touren (driver.js).
-// Suspense-gränsen för sidorna inne i skalet ligger i ShellOutlet; AppRoutes har en för allt utanför.
+// Lazy (ADR 006 beslut 11): sällan besökta sidor, landningen, preview-sidorna och touren (driver.js, via App.tsx). Skalet och huvudsidorna är
+// eager. Suspense-gränsen för sidorna inne i skalet ligger i ShellOutlet; AppRoutes har en för landning och preview.
 const Index = lazy(() => import('@/pages/Index'));
-const AppShell = lazy(() => import('@/app-shell/AppShell').then((m) => ({ default: m.AppShell })));
-const BoardPage = lazy(() => import('@/pages/BoardPage'));
-const TitlesPage = lazy(() => import('@/pages/TitlesPage'));
-const DuelsPage = lazy(() => import('@/pages/DuelsPage'));
-const EventsPage = lazy(() => import('@/pages/EventsPage'));
-const NewsPage = lazy(() => import('@/pages/NewsPage'));
-const LogPage = lazy(() => import('@/pages/LogPage'));
-const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
-const BadgesPage = lazy(() => import('@/pages/BadgesPage'));
-const RunnerRoute = lazy(() => import('@/pages/RunnerPage'));
-const NotFound = lazy(() => import('@/pages/NotFound'));
 const LeaderboardPreviewPage = lazy(() => import('@/pages/LeaderboardPreviewPage'));
 const ChallengesPreviewPage = lazy(() => import('@/pages/ChallengesPreviewPage'));
 const BadgesPreviewPage = lazy(() => import('@/pages/BadgesPreviewPage'));
@@ -90,11 +90,9 @@ export const AppRoutes: React.FC = () => {
 
       {background && (
         <ShellErrorBoundary key={location.pathname} onClose={closeOverlay}>
-          <Suspense fallback={null}>
-            <Routes>
-              <Route path={paths.runnerPattern} element={<RunnerRoute presentation="overlay" />} />
-            </Routes>
-          </Suspense>
+          <Routes>
+            <Route path={paths.runnerPattern} element={<RunnerRoute presentation="overlay" />} />
+          </Routes>
         </ShellErrorBoundary>
       )}
     </>

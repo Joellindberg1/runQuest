@@ -1,5 +1,5 @@
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
 import { setViewportWidth } from '@/test/viewport';
@@ -44,6 +44,7 @@ vi.mock('@/pages/BoardPage', () => ({
 }));
 
 import App from './App';
+import { warmLanding, warmOnboarding } from '@/test/warmLazy';
 
 const ALL_SLUGS = [
   'onboarding_v1',
@@ -80,6 +81,11 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+beforeAll(async () => {
+  await warmLanding();
+  await warmOnboarding();
 });
 
 describe('onboarding efter SPA-inloggning', () => {

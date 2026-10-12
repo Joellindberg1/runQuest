@@ -1,9 +1,6 @@
 import { afterEach, vi } from "vitest";
-import { cleanup, configure } from "@testing-library/react";
+import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-
-// Routes och skalet är lazy-chunkar (routes.tsx); den första importen i en testfil är kall och kan ta längre än standardsekunden när sviten körs parallellt.
-configure({ asyncUtilTimeout: 5000 });
 
 // Globals är avstängda i vitest.config.ts, så RTL:s auto-cleanup måste kopplas in här.
 afterEach(() => {

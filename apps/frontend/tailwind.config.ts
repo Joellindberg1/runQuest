@@ -1,5 +1,4 @@
 import type { Config } from "tailwindcss";
-import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
 	// Mörkt är standardtemat (:root); ljust slås på med <html data-theme="light">.
@@ -126,5 +125,5 @@ export default {
 		}
 	}
 	},
-	plugins: [tailwindcssAnimate],
+	plugins: [],
 } satisfies Config;
