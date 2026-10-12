@@ -5,8 +5,8 @@
 Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: en städrunda mellan epics, inget användarsynligt utöver buggfixarna nedan.
 
 ### Säkerhet och drift
-- Beroenden uppdaterade inom semver (express 5.3, jsonwebtoken 9.0.3, react-router 6.30.6, autoprefixer m.fl.): `npm audit --omit=dev` från 25 (1 critical, 18 high) till 11 (0 critical, 5 high — alla kräver major: tailwind 4, node-cron 4, react-router 7). (RUN-213)
-- Pinnade versioner med släppvillkor i commit-bodyn: `@supabase/supabase-js` 2.105.1 (senaste som fungerar på Node 20, som prod kör enligt `.nvmrc`; nyare kraschar i `createClient`) — släpps när Node höjs till 22; nytt smoketest fäller om pinnen släpps för tidigt. `tailwindcss` 3.4.17 (3.4.18/19 kraschar bygget), `rollup` 4.64.2 (nyare blockeras lokalt av Windows application control). (RUN-213)
+- Beroenden uppdaterade inom semver (express 5.3, jsonwebtoken 9.0.3, react-router 6.30.6, autoprefixer m.fl.): `npm audit` från 43 (2 critical, 30 high) till 11 (6 moderate, 5 high, 0 critical); `npm audit --omit=dev` till 4 moderate. Kvarvarande kräver major (tailwind 4 — de 5 high är tailwinds byggverktygskedja braces/micromatch/fast-glob/chokidar —, node-cron 4, react-router 7). (RUN-213)
+- Pinnade versioner med släppvillkor i commit-bodyn: `@supabase/supabase-js` 2.105.1 (senaste som fungerar på Node 20, som prod kör enligt `.nvmrc`; nyare kraschar i `createClient`) — släpps när Node höjs till 22; nytt smoketest fäller om pinnen släpps för tidigt. `tailwindcss` 3.4.17 (3.4.18/19 kraschar bygget), `rollup` 4.64.2 (nyare blockeras lokalt av Windows application control) — släppvillkor för alla tre i commit 0f3bc56. (RUN-213)
 - Prod-loggern serialiserar fel (message, stack, Postgrest-koder) — förut blev de `{}`. Känslig loggning bort: e-post, hela user-objektet, tokenprefix, invite-koder; request-loggen utan query. (RUN-214, RUN-215)
 
 ### Buggfixar

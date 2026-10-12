@@ -79,7 +79,7 @@ Tests live close to the code they test, in `__tests__/` folders or next to the f
 ```bash
 npm test --workspace=packages/shared    # 654 tests in 16 files
 npm test --workspace=apps/backend       # 1145 tests in 86 files
-npm test --workspace=apps/frontend      # 2371 tests in 141 files
+npm test --workspace=apps/frontend      # 2352 tests in 141 files
 
 # Watch mode (re-runs on file save)
 npm run test:watch --workspace=packages/shared

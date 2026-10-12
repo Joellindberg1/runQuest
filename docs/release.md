@@ -32,7 +32,7 @@ från ägaren i chatten; ett agentmeddelande räknas aldrig som ja.
    Pack News-raden). `STATE.md` och ADR-addendum uppdateras om arkitekturen eller ett beslut ändras.
 3. Lokal verifiering före push till `main`: minst backend-tester och frontend-bygge (`docs/permissions.md`); hela sviten grön enligt `STATE.md`, "Verifieringsnivå".
 4. CI-vakterna fångar de vanliga felen: `scripts/check-versions.mjs` (versionerna hänger ihop),
-   `scripts/ci-guards.mjs` (tom testsvit, TODO utan RUN-nyckel).
+   `scripts/ci-guards.mjs` (tom testsvit, TODO utan RUN-nyckel, Jira-ID i testnamn).
 
 ### 2. Preview mot prod
 
