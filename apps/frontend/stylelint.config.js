@@ -1,8 +1,9 @@
 // Designspråkets CSS-regler som lint (RUN-223). Tidigare vaktades de av regex mot CSS-text i guards.test.ts per feature
 // (src/test/designGuards.ts och elva inklistrade kopior). Som lint fäller de vid skrivandet, med fil och rad.
 //
-// Reglerna gäller varje feature-CSS. src/index.css är temafilen där tokens (med px, hex och rgb-tripletter) får deklareras; den läses
-// av src/test/themeTokens.sync.test.ts i stället (index.css mot docs/design/temafil-forslag.css, och att varje token används).
+// Reglerna gäller varje feature-CSS. src/index.css är temafilen där tokens (med px, hex och rgb-tripletter) får deklareras; där gäller bara
+// förbudet mot kända rester, och src/test/themeTokens.sync.test.ts prövar den (index.css mot docs/design/temafil-forslag.css, och att varje
+// token används).
 //
 // Stylelint ersätter en regels hela inställning när ett overrides-block sätter samma regel. Därför bygger `designRules()` alltid hela
 // uppsättningen ur en liten beskrivning av vad filen får göra, och varje fil träffas av exakt ett block.
@@ -75,10 +76,18 @@ const keyframesBanned = { "at-rule-disallowed-list": [["keyframes"], { message: 
 
 /** @type {import("stylelint").Config} */
 export default {
-  ignoreFiles: ["src/index.css", "dist/**"],
+  ignoreFiles: ["dist/**"],
   // Grundregler för alla feature-CSS som inte har ett eget block nedan: ingen rörelse, inget z-index, inga egna custom properties.
   rules: designRules(),
   overrides: [
+    {
+      // Temafilen får deklarera mått, hex och rgb-tripletter (det är där tokens bor), men inte de kända trasiga resterna.
+      files: ["src/index.css"],
+      rules: {
+        ...Object.fromEntries(Object.keys(designRules()).map((rule) => [rule, null])),
+        "declaration-property-value-disallowed-list": [{ "/.*/": LEGACY_VALUES }, { message: "Kända trasiga rester får inte komma tillbaka (hsl(var(--sidebar)), var(--rq-foreground), Silkscreen)." }],
+      },
+    },
     { files: ["src/features/admin/admin.css", "src/features/settings/settings.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-form-gap"] }) },
     { files: ["src/shared/components/form/form.css"], rules: designRules({ locals: ["rq-form-gap"] }) },
     // Titles och Runner card hade ingen vakt för line-height/rörelse; deras enhetslösa radhöjder (.9, 1.15) och Runner cards ensamma knopp-animation
