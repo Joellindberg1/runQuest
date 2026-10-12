@@ -147,6 +147,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
               const list = String(f.value).replace(/^\(|\)$/g, '').split(',').map((s) => s.trim());
               return !list.includes(String(v));
             }
+            case 'not.is': return f.value === null ? v != null : v !== f.value;
             case 'or':
               return String(f.value).split(',').some((part) => {
                 const [col, op, ...rest] = part.split('.');

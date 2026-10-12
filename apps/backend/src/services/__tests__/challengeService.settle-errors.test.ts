@@ -87,6 +87,55 @@ describe('settleChallenge — fel efter claim', () => {
     await expect(settleChallenge('c1')).rejects.toThrow(/boost insert failed.*release failed|release failed.*boost insert failed/s);
   });
 
+  describe('boost-insert fails AND the claim cannot be released', () => {
+    const bothFail = (q: RecordedQuery) => {
+      if (q.table === 'user_boosts' && q.mutation === 'insert') return fail('boost insert failed');
+      if (q.table === 'challenges' && q.mutation === 'update' && q.filters.some((f) => f.column === 'status' && f.value === 'completed')) {
+        return fail('release failed');
+      }
+      return null;
+    };
+
+    it('resets challenge_active best-effort so the players are not locked out', async () => {
+      const tables = baseTables();
+      use(tables, bothFail);
+
+      await expect(settleChallenge('c1')).rejects.toThrow();
+
+      expect(tables.users.map((u) => u.challenge_active)).toEqual([false, false]);
+      // W/D/L delas inte ut: det här är inget avgjort resultat för spelarna, bara ett fastlåst tillstånd som måste rättas manuellt.
+      expect(tables.users.map((u) => [u.wins, u.losses, u.draws])).toEqual([[0, 0, 0], [0, 0, 0]]);
+    });
+
+    it('logs a KRITISK line with the challenge id for manual repair', async () => {
+      use(baseTables(), bothFail);
+
+      await expect(settleChallenge('c1')).rejects.toThrow();
+
+      const critical = vi.mocked(logger.error).mock.calls.map((c: unknown[]) => String(c[0])).filter((l) => /KRITISK/.test(l));
+      expect(critical).toHaveLength(1);
+      expect(critical[0]).toContain('c1');
+    });
+
+    it('a failing challenge_active reset on top is still reported (and does not mask the original error)', async () => {
+      const tables = baseTables();
+      use(tables, (q) => (q.table === 'users' && q.mutation === 'update' ? fail('reset failed') : bothFail(q)));
+
+      await expect(settleChallenge('c1')).rejects.toThrow(/boost insert failed/);
+      expect(vi.mocked(logger.error).mock.calls.some((c: unknown[]) => /KRITISK/.test(String(c[0])))).toBe(true);
+    });
+
+    it('a released claim (only the boost insert fails) logs no KRITISK line and leaves challenge_active alone', async () => {
+      const tables = baseTables();
+      use(tables, (q) => (q.table === 'user_boosts' && q.mutation === 'insert' ? fail('boost insert failed') : null));
+
+      await expect(settleChallenge('c1')).rejects.toThrow();
+
+      expect(vi.mocked(logger.error).mock.calls.some((c: unknown[]) => /KRITISK/.test(String(c[0])))).toBe(false);
+      expect(tables.users.map((u) => u.challenge_active)).toEqual([true, true]);
+    });
+  });
+
   it('settleChallenge surfaces a failed W/D/L update', async () => {
     const tables = baseTables();
     use(tables, (q) => (q.table === 'users' && q.mutation === 'update' && hasOp(q, 'eq') ? fail('wdl failed') : null));

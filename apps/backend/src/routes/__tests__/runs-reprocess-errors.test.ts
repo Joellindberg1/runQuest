@@ -134,16 +134,71 @@ describe('reprocessRunsFromDate — lyckad väg oförändrad', () => {
   });
 });
 
-describe('POST /api/runs — skrivfel i omräkningen ger 500, inte 201', () => {
-  it('create run returns 500 when the reprocess update fails', async () => {
-    use((q) => (q.table === 'runs' && q.mutation === 'update' ? { message: 'update failed' } : null), { runs: [] });
+// Ett reprocess-fel ger 500, men totalerna räknas ändå om best-effort — annars lämnas data sämre än före RUN-215
+// (då gick calculateUserTotals alltid).
+const token = () => mintToken({ user_id: 'user-1', group_id: 'group-1' });
+const reprocessUpdateFails = (q: RecordedQuery) => (q.table === 'runs' && q.mutation === 'update' ? { message: 'update failed' } : null);
 
-    const res = await server.request('POST', '/api/runs', {
-      token: mintToken({ user_id: 'user-1', group_id: 'group-1' }),
-      body: { date: '2026-10-01', distance: 5 },
-    });
+describe('POST /api/runs — skrivfel i omräkningen ger 500, inte 201', () => {
+  it('create run returns 500 when the reprocess update fails — totals still recalculated best-effort', async () => {
+    use(reprocessUpdateFails, { runs: [] });
+
+    const res = await server.request('POST', '/api/runs', { token: token(), body: { date: '2026-10-01', distance: 5 } });
 
     expect(res.status).toBe(500);
-    expect(calculateUserTotals).not.toHaveBeenCalled();
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+  });
+
+  it('lyckad POST oförändrad: 200 och totaler räknade', async () => {
+    use(undefined, { runs: [] });
+    const res = await server.request('POST', '/api/runs', { token: token(), body: { date: '2026-10-01', distance: 5 } });
+    expect(res.status).toBe(200);
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+  });
+});
+
+describe('PUT /api/runs/:id — reprocess-fel', () => {
+  /** Rundans egen update (första) går igenom; omräkningens updates (efterföljande) faller. */
+  const secondAndLaterUpdatesFail = () => {
+    let n = 0;
+    return (q: RecordedQuery) => (q.table === 'runs' && q.mutation === 'update' && ++n > 1 ? { message: 'update failed' } : null);
+  };
+
+  it('PUT returns 500 when the reprocess fails — totals still recalculated best-effort', async () => {
+    use(secondAndLaterUpdatesFail(), { runs: [run({ source: 'manual' }), run({ id: 'run-2', date: '2026-10-02', source: 'manual' })] });
+
+    const res = await server.request('PUT', '/api/runs/run-1', { token: token(), body: { distance: 9, date: '2026-10-01' } });
+
+    expect(res.status).toBe(500);
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+  });
+
+  it('lyckad PUT oförändrad: 200', async () => {
+    use(undefined, { runs: [run({ source: 'manual' })] });
+    const res = await server.request('PUT', '/api/runs/run-1', { token: token(), body: { distance: 9, date: '2026-10-01' } });
+    expect(res.status).toBe(200);
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+  });
+});
+
+describe('DELETE /api/runs/:id — reprocess-fel', () => {
+  it('DELETE returns 500 when the reprocess fails — totals still recalculated best-effort', async () => {
+    const tables = use(reprocessUpdateFails, {
+      runs: [run({ source: 'manual' }), run({ id: 'run-2', date: '2026-10-02', source: 'manual' })],
+      event_entries: [],
+    });
+
+    const res = await server.request('DELETE', '/api/runs/run-1', { token: token() });
+
+    expect(res.status).toBe(500);
+    expect(tables.runs.map((r) => r.id)).toEqual(['run-2']); // raderingen skedde — därför ska totalerna ändå räknas om
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+  });
+
+  it('lyckad DELETE oförändrad: 200', async () => {
+    use(undefined, { runs: [run({ source: 'manual' })], event_entries: [] });
+    const res = await server.request('DELETE', '/api/runs/run-1', { token: token() });
+    expect(res.status).toBe(200);
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
   });
 });
