@@ -9,7 +9,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(),
 }));
 vi.mock('../../services/levelService.js', () => ({ getLevelFromXP: vi.fn(async (xp: number) => (xp >= 50 ? 2 : 1)) }));

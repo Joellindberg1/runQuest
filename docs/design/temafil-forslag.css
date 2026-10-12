@@ -50,14 +50,13 @@
   --rq-bg-shell-glass: rgba(7, 14, 9, .90);      /* sticky header + Right-now-rad (.94 på desktop-header) */
   --rq-bg-nav:         rgba(10, 18, 11, .94);    /* bottenbar (mobil) */
   --rq-bg-sidebar:     rgba(10, 18, 11, .60);    /* desktop-sidebar */
-  --rq-panel:          rgba(33, 33, 33, .62);    /* kort; halvgenomskinlig så rqGrid skymtar */
+  --rq-panel:          rgba(33, 33, 33, .62);    /* kort; halvgenomskinlig */
   --rq-panel-solid:    #212121;                  /* ringhål, laddare, plats där grid inte ska synas */
   --rq-row:            rgba(24, 24, 24, .60);    /* desktop-tabellrad */
   --rq-row-hover:      rgba(38, 38, 38, .75);
   --rq-row-soft:       rgba(255, 255, 255, .025);/* mobilrad / lista på panel */
   --rq-cell:           rgba(255, 255, 255, .02); /* statcell i hårlinjegrid */
   --rq-table-head:     rgba(168, 168, 168, .10); /* rubrikrad: silvertint (App+Web-leaderboard) */
-  --rq-table-head-solid: #141414;                /* Components "table head" — äldre variant, undvik */
   --rq-popover:        rgba(20, 20, 20, .98);
   --rq-modal:          rgba(15, 15, 15, .97);
   --rq-inset:          rgba(0, 0, 0, .40);       /* inmatningsfältets botten */
@@ -72,7 +71,6 @@
   --rq-duel-rgb:   253 186 116;   /* duell/utmaning — TEXT-/kantton (#fdba74) */
   --rq-duel-base-rgb: 249 115 22; /* duell — tint-/vänsterkantton (#f97316) */
   --rq-silver-rgb: 168 168 168;
-  --rq-bronze-rgb: 205 127 50;
   --rq-strava-rgb: 252 82 0;      /* ENDAST som källmarkör, aldrig accent */
 
   /* ── 1.4 Färgroller (solida) ──────────────────────────────────────────────── */
@@ -99,13 +97,7 @@
   --rq-rank-1-edge: rgb(255 215 0 / .85);     /* podiekortets 3 px vänsterkant (guld .85) */
   --rq-rank-2-edge: rgb(168 168 168 / .75);   /* silver/brons .75 */
   --rq-rank-3-edge: rgb(205 127 50 / .75);
-  --rq-rank-1-border: rgb(255 215 0 / .55);   /* fullkant (desktopens kompletta podiekort) */
-  --rq-rank-2-border: rgb(168 168 168 / .55);
-  --rq-rank-3-border: rgb(205 127 50 / .55);
-  --rq-plinth-alpha: .16;                     /* sockel under podiekort (desktop): tint .16–.18 */
   --rq-bar-pack: linear-gradient(90deg, #cd7f32, #ffd700);  /* "pack total": brons → guld */
-  --rq-today-ring: rgb(var(--rq-up-rgb) / .9);              /* idag-markör: 2 px grön ring */
-  --rq-today-gap:  var(--rq-panel-solid);                   /* luckan mellan cell och ring = ytfärgen */
 
   /* ── 1.6 Token-nivåer (utmaningar): minor / major / legendary ──────────────
      base = tint + kant, fg = text/siffra, stroke = vimpelns linje.
@@ -161,7 +153,6 @@
   --rq-heat-2: rgb(var(--rq-gold-rgb) / .42);
   --rq-heat-3: rgb(var(--rq-gold-rgb) / .72);
   --rq-heat-4: var(--rq-gold);
-  --rq-heat-gap: 2px;                                 /* mobil 2 px, desktop-komponentbibliotek 4 px */
   --rq-unread-bg: rgb(var(--rq-gold-rgb) / .04);      /* Pack News: oläst rad */
   --rq-read-bg:   rgb(var(--rq-ink-rgb) / .02);       /* läst rad */
   --rq-news-edge-alpha: .6;                           /* nyhetsradens 3 px kant (event: ink .18) */
@@ -199,7 +190,6 @@
      tabbar            10       —         Barlow 600 VERSALER .10em (endast mobil)
      btn-lg/md/sm      22/19/14 samma     Bebas / Bebas / Barlow 600 .12em      */
   --rq-fs-display-xl: 46px;
-  --rq-fs-number-xl:  52px;
   --rq-fs-display:    26px;
   --rq-fs-heading:    23px;
   --rq-fs-number:     34px;
@@ -250,7 +240,6 @@
   --rq-tour-w-max:       340px;
 
   /* ── 1.13 Form: hörn och kantlinjer ───────────────────────────────────────── */
-  --radius:          0rem;     /* shadcn-läsare (tailwind borderRadius lg/md/sm) — SKARPT */
   --rq-radius:       0;
   --rq-radius-round: 50%;      /* avatar, ring, prick */
   --rq-radius-pill:  999px;    /* ENDAST toggle-spår + räknebadge */
@@ -286,7 +275,6 @@
   --rq-btn-secondary-edge: rgb(var(--rq-gold-rgb) / .50);
   --rq-btn-down-edge:      rgb(var(--rq-down-rgb) / .50);
   --rq-icon-btn: 40px;                      /* fyrkantig ikonknapp */
-  --rq-fab: 44px;                           /* runda guld-plussen (Components) — enda runda knappen */
   --rq-toggle-w: 42px; --rq-toggle-h: 21px; --rq-toggle-knob: 15px;
 
   /* ── 1.16 Fokus (antagande: designen visar bara guldkant på fält) ────────── */
@@ -297,8 +285,6 @@
   /* ── 1.17 Ikoner (runquest-icons.js: 24×24, stroke 1.9, runda ändar, ingen fyllning) */
   --rq-icon-stroke: 1.9;
   --rq-icon-sm: 15px;   /* rader, chips */
-  --rq-icon-md: 17px;   /* headers */
-  --rq-icon-lg: 21px;   /* klockan */
 
   /* ── 1.18 Rörelse ──────────────────────────────────────────────────────────
      Staplar: från noll EN gång, 1.6 s, stapel-easing, sedan stilla. Stagger via
@@ -310,9 +296,6 @@
   --rq-dur-blink-live:  1.4s;/* levande prick (1.4–1.8) */
   --rq-dur-blink-alarm: 1.2s;/* streak-risk */
   --rq-dur-glow:  3.2s;      /* podium #1 */
-  --rq-dur-grid:  9s;
-  --rq-grid-line: rgb(var(--rq-gold-rgb) / .03);   /* desktop .035 */
-  --rq-grid-size: 40px;
 
   /* ── 1.19 Skeleton-rader (Loaders-förlagan: rank 34 · namn + stapel · värde 90) ─
      Kolumnbredder och blockhöjder för SkeletonRows. 1 = rank-block, 2 = namnstreck,
@@ -457,7 +440,7 @@
   --rq-profile-journey-row-2: 34px;                                   /* … etikettrad 2 (desktop 46) */
   --rq-profile-journey-label-h: 11px;                                 /* … etikettens höjd (desktop 13) */
   --rq-profile-heat-cell: 8px;                                        /* heatmapens ruta (desktop 11) */
-  --rq-profile-heat-gap: 2px;                                         /* ruta ↔ ruta (båda prototyperna 2 px; --rq-heat-gap är 4 px på desktop) */
+  --rq-profile-heat-gap: 2px;                                         /* ruta ↔ ruta (båda prototyperna 2 px) */
   --rq-profile-heat-stagger: .02s;                                    /* veckokolumnernas fördröjning när rutnätet växer in (en gång) */
   --rq-profile-sheet-w: min(100%, var(--rq-shell-narrow-max));        /* redigera/radera: bottensheet (mobil) → centrerad dialog (desktop) */
   --rq-profile-sheet-top: auto;
@@ -671,12 +654,10 @@
     --rq-fs-tab: 16px;
     --rq-pad-screen: 32px;     --rq-pad-card: 18px;
     --rq-pad-row-y: 13px;      --rq-pad-row-x: 18px;   --rq-gap-stack: 16px;
-    --rq-heat-gap: 4px;
     --rq-ghost-rank-size: 96px;
     --rq-card-shadow-podium: 0 16px 36px rgba(0, 0, 0, .45);
     --rq-shadow-pop: 0 24px 60px rgba(0, 0, 0, .70);
     --rq-bg-shell-glass: rgba(7, 14, 9, .94);
-    --rq-grid-line: rgb(var(--rq-gold-rgb) / .035);
     --rq-board-avatar: 42px;
     --rq-board-bar-h: 6px;
     --rq-board-bar-h-thin: 6px;
@@ -838,7 +819,6 @@
   --rq-row-soft:       rgb(38 35 31 / .03);
   --rq-cell:           rgb(38 35 31 / .03);
   --rq-table-head:     rgb(38 35 31 / .06);
-  --rq-table-head-solid: rgb(38 35 31 / .06);
   --rq-popover:        #ffffff;
   --rq-modal:          #ffffff;
   --rq-inset:          rgb(38 35 31 / .04);
@@ -852,7 +832,6 @@
   --rq-duel-rgb:   180 83 9;                    /* #b45309 */
   --rq-duel-base-rgb: 194 65 12;                /* #c2410c */
   --rq-silver-rgb: 107 114 128;
-  --rq-bronze-rgb: 139 69 19;
   /* strava-rgb oförändrad */
 
   --rq-gold:        #cd7f32;
@@ -875,11 +854,7 @@
   --rq-rank-1-edge: rgb(184 134 11 / .90);
   --rq-rank-2-edge: rgb(107 114 128 / .85);
   --rq-rank-3-edge: rgb(139 69 19 / .80);
-  --rq-rank-1-border: rgb(184 134 11 / .75);
-  --rq-rank-2-border: rgb(107 114 128 / .60);
-  --rq-rank-3-border: rgb(139 69 19 / .65);
   --rq-bar-pack: linear-gradient(90deg, #8b4513, #cd7f32);
-  --rq-today-gap: #ffffff;
 
   --rq-tier-minor-fg:     #1d4ed8;
   --rq-tier-minor-stroke: rgb(29 78 216 / .80);
@@ -900,7 +875,6 @@
   --rq-card-shadow-podium: 0 2px 10px rgba(0, 0, 0, .07);
   --rq-shadow-pop:   0 12px 32px rgba(38, 35, 31, .18);
   --rq-shadow-modal: 0 20px 60px rgba(38, 35, 31, .22);
-  --rq-grid-line:    rgb(205 127 50 / .05);
 }
 
 
@@ -944,22 +918,6 @@
   --podium-gold: 51 100% 50%;          --podium-gold-border: 51 100% 50%;
   --podium-silver: 0 0% 66%;           --podium-silver-border: 0 0% 66%;
   --podium-bronze: 30 61% 50%;         --podium-bronze-border: 30 61% 50%;
-
-  /* Legacy --rq-* som nuvarande komponenter läser (alias → nya tokens) */
-  --rq-gold-mid:      rgb(var(--rq-gold-rgb) / .14);
-  --rq-gold-fg:       var(--rq-on-gold);
-  --rq-surface-1:     var(--rq-row-soft);
-  --rq-surface-2:     rgb(var(--rq-ink-rgb) / .04);
-  --rq-border-1:      var(--rq-line-2);
-  --rq-border-2:      var(--rq-line-3);
-  --rq-avatar-border: var(--rq-line-6);
-  --rq-watermark:     rgb(var(--rq-ink-rgb) / 1);
-  --rq-text-dim:      var(--rq-text-5);
-  --rq-text-muted:    var(--rq-text-4);
-  --rq-text-soft:     var(--rq-text-3);
-  --rq-text-strong:   var(--rq-text-2);
-  --rq-success:       var(--rq-up);
-  --rq-danger:        var(--rq-down);
 }
 [data-theme="light"] {
   --background: 33 45% 94%;            --foreground: 330 2% 15%;
@@ -1005,7 +963,6 @@
   50%      { box-shadow: 0 0 0 1px rgb(var(--rq-gold-rgb) / .80), 0 0 46px rgb(var(--rq-gold-rgb) / .24); }
 }
 @keyframes rqGlowIcon { 0%, 100% { filter: drop-shadow(0 0 3px currentColor); } 50% { filter: drop-shadow(0 0 13px currentColor); } }
-@keyframes rqGrid    { from { background-position: 0 0; } to { background-position: 0 -160px; } } /* 4 × 40 px = sömlöst */
 @keyframes rqSweep   { from { transform: translateX(-120%); } to { transform: translateX(320%); } } /* live-kort */
 @keyframes rqMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes rqSkel    { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
@@ -1043,9 +1000,7 @@
   .rq-heading    { font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
   .rq-number     { font-family: var(--rq-font-display); font-size: var(--rq-fs-number); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
   .rq-title      { font-family: var(--rq-font-display); font-size: var(--rq-fs-title); letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
-  .rq-stat       { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
   .rq-name       { font-family: var(--rq-font-ui); font-weight: 700; font-size: var(--rq-fs-name); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-2); line-height: 1.1; }
-  .rq-stat-value { font-family: var(--rq-font-ui); font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); }
   .rq-lead       { font-size: var(--rq-fs-lead); line-height: var(--rq-lh-lead); color: var(--rq-text-3); }
   .rq-body       { font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
   .rq-meta       { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
@@ -1117,7 +1072,6 @@
   .rq-btn--link:hover { color: var(--rq-gold-text); border-color: var(--rq-gold); }
   .rq-btn--icon { width: var(--rq-icon-btn); height: var(--rq-icon-btn); padding: 0; border-color: var(--rq-line-5); color: var(--rq-text-3); }
   .rq-btn--icon:hover { border-color: var(--rq-gold); color: var(--rq-gold-text); }
-  .rq-btn--fab { width: var(--rq-fab); height: var(--rq-fab); padding: 0; border-radius: var(--rq-radius-round); background: var(--rq-gold); color: var(--rq-on-gold); font-size: 30px; }
 
   /* ── Chips: sätt accent via modifierare (--rq-c = RGB-triplett, --rq-c-solid = textfärg).
         Status = tint .10 / kant .45 / text full. Metadata idle = line-5 + text-3. ── */
@@ -1137,8 +1091,6 @@
   .rq-tab[aria-selected="true"] { color: var(--rq-gold-text); border-bottom-color: var(--rq-gold); }
   .rq-filter { padding: 7px 15px; font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; cursor: pointer; border: var(--rq-hair) solid var(--rq-line-4); color: var(--rq-text-3); }
   .rq-filter[aria-pressed="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
-  .rq-segmented { display: inline-flex; border: var(--rq-hair) solid var(--rq-line-5); }
-  .rq-segmented > [aria-pressed="true"] { background: var(--rq-gold); color: var(--rq-on-gold); }
 
   /* ── Staplar, ringar, avatar, bakgrund ── */
   .rq-track { height: 6px; background: var(--rq-fill-1); }
@@ -1152,7 +1104,6 @@
   .rq-dot { display: inline-block; width: 6px; height: 6px; border-radius: var(--rq-radius-round); background: currentColor; }
   .rq-dot--live  { color: var(--rq-up);   animation: rqBlink var(--rq-dur-blink-live) ease-in-out infinite; }
   .rq-dot--alarm { color: var(--rq-down); animation: rqBlink var(--rq-dur-blink-alarm) ease-in-out infinite; }
-  .rq-grid-bg { background-image: linear-gradient(var(--rq-grid-line) 1px, transparent 1px); background-size: 100% var(--rq-grid-size); animation: rqGrid var(--rq-dur-grid) linear infinite; }
   .rq-skel { background: linear-gradient(90deg, var(--rq-fill-1), rgb(var(--rq-ink-rgb) / .12), var(--rq-fill-1)); background-size: 200% 100%; animation: rqSkel 1.4s linear infinite; }
   /* Skeleton-rad: hårlinjegridens cell med rank · namn · värde. Höjder via --rq-skel-h-* i klassnamn. */
   .rq-skel-row { display: grid; grid-template-columns: var(--rq-skel-col-icon) 1fr var(--rq-skel-col-value); align-items: center; gap: var(--rq-sp-14); background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x); }

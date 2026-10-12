@@ -22,7 +22,6 @@ vi.mock('node-cron', () => ({
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(),
 }));
 vi.mock('../../services/challengeService.js', () => ({ settleChallenge: h.settleChallenge }));
