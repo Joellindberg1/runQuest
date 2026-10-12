@@ -18,7 +18,7 @@ const original = run({ id: 'r1', date: '2026-10-02', distance: 8 });
 
 function setup<T>(useHook: () => T) {
   resetFakeBackend();
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { ...renderHook(useHook, { wrapper }), invalidate };
