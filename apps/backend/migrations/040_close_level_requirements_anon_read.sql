@@ -1,5 +1,5 @@
 -- 040: Stäng anonym läsning av public.level_requirements (RUN-112) — sista anonpolicyn.
--- Datum: 2026-10-12. Ägarbeslut 2026-10-12: gör den nu. Ägar-ja för applicering i prod ges separat, vid körning.
+-- Datum: 2026-10-12. Ägarbeslut 2026-10-12: gör den nu. APPLICERAD i prod 2026-10-12 (ägar-ja), efter merge av PR #31.
 -- Bakgrund: efter 030, 031, 038 och 039 var "Anyone can view level requirements" (SELECT, roller anon + authenticated) den
 -- enda kvarvarande policyn för klientroller. Den fanns för att frontenden läste nivåtabellen direkt med den publika
 -- nyckeln. Sedan v0.6.0 har frontenden ingen Supabase-klient (RUN-105) och hämtar tabellen via GET /api/config/levels

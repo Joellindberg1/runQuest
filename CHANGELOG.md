@@ -9,7 +9,7 @@ Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: stän
 
 ### Prod-steg (kräver ägar-ja)
 1. Merge av PR:en till main (docs, migrationsfil och test; ingen runtime-kod ändras).
-2. Migration 040 appliceras mot prod med ägar-ja (en rad, idempotent).
+2. Migration 040 appliceras mot prod med ägar-ja (en rad, idempotent). KÖRD 2026-10-12 (ägar-ja): 0 policyer på level_requirements, service role läser 30 nivåer, inga nya advisor-varningar. Tagg v0.6.1.2 (PR #31).
 3. Verifiera: anon-REST mot `/rest/v1/level_requirements?select=*` med publishable key ger tom lista eller 401/403 (inte 30 rader); `GET /api/config/levels` med giltig token ger fortfarande 30 nivåer; Supabase advisors visar inga nya varningar.
 
 ### Rollback
