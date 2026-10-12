@@ -23,7 +23,8 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Name/email and password required' }); return;
     }
 
-    logger.info(`🔍 Looking up user: ${nameOrEmail}`);
+    // Inloggningsfältet kan vara en e-postadress — det får inte hamna i loggen.
+    logger.info('🔍 Looking up user by name/email');
     
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
@@ -187,7 +188,6 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
 router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     logger.info('👥 Admin request to fetch all users');
-    logger.info('🔑 Request user info:', (req as any).user);
 
     const supabase = getSupabaseClient();
     const groupId = req.user!.group_id;
@@ -244,7 +244,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       res.status(400).json({ error: 'Password must be at least 6 characters long' }); return;
     }
 
-    logger.info(`🔍 Creating user: ${name} (${email})`);
+    logger.info(`🔍 Creating user: ${name}`);
     
     const supabase = getSupabaseClient();
     
