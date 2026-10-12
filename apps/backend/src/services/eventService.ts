@@ -2,7 +2,7 @@
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './levelService.js';
-import { toStockholmDate } from '../utils/dateUtils.js';
+import { toStockholmDate, tomorrowStockholm } from '../utils/dateUtils.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
 import { buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
 
@@ -676,10 +676,9 @@ export async function checkStormChaserForecast(): Promise<boolean> {
     const codes: number[] = json?.hourly?.weather_code ?? [];
     const gusts: number[] = json?.hourly?.wind_gusts_10m ?? [];
 
-    // Hitta imorgondatumets timmar (index 24–47 vid 2-dagars forecast)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    // Hitta imorgondatumets timmar (index 24–47 vid 2-dagars forecast). Open-Meteo svarar i Stockholm-tid, så
+    // "imorgon" är Stockholm-dagen + 1 — inte UTC-dagen.
+    const tomorrowStr = tomorrowStockholm(); // "YYYY-MM-DD"
 
     let stormyHours = 0;
     let gustyHours = 0;
