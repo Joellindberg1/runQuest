@@ -35,7 +35,8 @@ vi.mock('driver.js', () => ({
 }));
 
 const [first] = BADGE_SERIES;
-const TOUR_DELAY_MS = 300;
+// Tourens fördröjning styrs av falska timers (se beforeEach): testet flyttar klockan själv och hänger inte på verklig tid under last.
+const TOUR_DELAY_MS = 10_000;
 const item = (series: string, tier: number, seen: number): BadgeUserItem => ({ series, tier, earned_at: '2026-10-01T12:00:00Z', seen_tier: seen });
 const mine = (...items: BadgeUserItem[]): BadgeUserResponse => ({ items, showcase: [] });
 const group = (): GroupBadges => ({
@@ -44,6 +45,11 @@ const group = (): GroupBadges => ({
   member_count: 6,
 });
 const dialog = () => screen.queryByRole('dialog');
+// Flyttar den falska klockan och släpper fram väntande löften (hämtningar, renderingar) några varv, så "popupen syns inte" prövas efter att en felaktig popup hunnit synas.
+const advance = async (ms: number) => {
+  await act(async () => { vi.advanceTimersByTime(ms); });
+  for (let i = 0; i < 5; i += 1) await act(async () => { await Promise.resolve(); });
+};
 
 function renderPage() {
   setViewportWidth(390);
@@ -62,7 +68,8 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ['Date'] });
+  // shouldAdvanceTime låter React Query och waitFor gå vidare i verklig takt; tourens fördröjning flyttas däremot bara med advance().
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'], shouldAdvanceTime: true });
   for (const fn of Object.values(api)) fn.mockReset();
   api.getUserBadges.mockResolvedValue(mine(item(first.key, 1, 0)));
   api.getGroupBadges.mockResolvedValue(group());
@@ -80,12 +87,13 @@ describe('BadgeUpgradeHost: osedd sidtour (RUN-155)', () => {
 
     // Före tourens start (fördröjningen): gruppen har hunnit hämtas, men popupen får inte glimta förbi.
     await waitFor(() => expect(api.getGroupBadges).toHaveBeenCalled());
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, TOUR_DELAY_MS / 3)); });
+    await advance(TOUR_DELAY_MS / 2);
     expect(document.body.classList.contains('driver-active')).toBe(false);
     expect(dialog()).toBeNull();
 
     // Touren körs.
-    await waitFor(() => expect(document.body.classList.contains('driver-active')).toBe(true));
+    await advance(TOUR_DELAY_MS);
+    expect(document.body.classList.contains('driver-active')).toBe(true);
     expect(dialog()).toBeNull();
 
     // Klar: popupen kommer, och avfärdandet markerar serien som sedd.
