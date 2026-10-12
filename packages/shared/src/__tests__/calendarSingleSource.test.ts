@@ -38,22 +38,36 @@ const UTC_TODAY = /new Date\(\s*(?:Date\.now\(\))?\s*\)\s*\.toISOString\(\)\s*\.
 
 // Datumaritmetik via Date-muterare/-läsare (setDate(getDate() - 7), getUTCMonth() + 1, setHours(0,0,0,0)). De läser processens
 // tidszon eller UTC-dagen i stället för Stockholm-dagen; kalenderaritmetik hör hemma i calendar.ts (addDays, stockholmDay, ...).
-const DATE_ARITHMETIC = /\.(?:setDate|getDate|setUTCDate|getUTCDate|setMonth|getMonth|setUTCMonth|getUTCMonth|setHours|setUTCHours)\(/;
+// `state.setDate` är formulärtillståndets setter i RunForm (React-state, inte Date) och undantas via lookbehind; en riktig Date
+// som heter `state` skulle alltså slinka igenom.
+//
+// KÄNDA LUCKOR (heuristik, inte bevis): vakten ser inte `getFullYear`/`setFullYear`, `getDay`, `getHours`/`getMinutes`
+// (visning av lokal enhetstid, t.ex. settingsModel), `getTime() + n * MS_DAY` (dygnsaritmetik på ögonblick), eller lokala
+// midnattstolkningar som `new Date(`${day}T00:00:00`)` (t.ex. app-shell/rightNowItems.ts duel-fönstret). Sådant fångas
+// bara i granskning tills en träffsäkrare regel finns.
+const DATE_ARITHMETIC_SOURCE =
+  '(?<!\\bstate)\\.(?:setDate|getDate|setUTCDate|getUTCDate|setMonth|getMonth|setUTCMonth|getUTCMonth|setHours|setUTCHours)\\(';
 
-// Heuristiken är grov, så legitima träffar är listade här med skäl. Varje undantag måste fortfarande träffa (annars är
-// det inaktuellt och ska bort), och nya träffar utanför listan fäller testet.
-const DATE_ARITHMETIC_EXCEPTIONS: Record<string, string> = {
-  'apps/backend/src/utils/dateUtils.ts':
-    'isIsoCalendarDate: tur-och-retur-kontroll av ett YYYY-MM-DD mot Date.UTC — validering, ingen aritmetik, tidszonsfri',
-  'apps/frontend/src/features/log/logModel.ts':
-    'isCalendarDate: samma tur-och-retur-validering via Date.UTC — ingen aritmetik, tidszonsfri',
-  'apps/frontend/src/features/log/components/RunForm.tsx':
-    'falsk träff: state.setDate är formulärtillståndets setter för fältet "datum", inte Date.prototype.setDate',
-  'apps/frontend/src/pages/LeaderboardPreviewPage.tsx':
-    'exempelsida med påhittad data: endDate = idag + 5 i webbläsarens lokala tid. Utanför RUN-224:s scope, kvar att flytta till calendar.ts',
-  'apps/frontend/src/pages/preview/ActiveChallengeWidget.tsx':
-    'exempelwidget med påhittad data: "idag" som lokal midnatt för Today/Tomorrow-text. Utanför RUN-224:s scope, kvar att flytta till calendar.ts',
+// Undantagen gäller EXAKT antal träffar per fil, inte hela filen: en ny träff i en undantagen fil fäller testet, och en
+// träff som försvinner gör undantaget inaktuellt (sänk eller ta bort det).
+const DATE_ARITHMETIC_EXCEPTIONS: Record<string, { hits: number; reason: string }> = {
+  'apps/backend/src/utils/dateUtils.ts': {
+    hits: 2,
+    reason: 'isIsoCalendarDate: tur-och-retur-kontroll (getUTCMonth, getUTCDate) av ett YYYY-MM-DD mot Date.UTC — validering, ingen aritmetik, tidszonsfri',
+  },
+  'apps/frontend/src/features/log/logModel.ts': {
+    hits: 2,
+    reason: 'isCalendarDate: samma tur-och-retur-validering (getUTCMonth, getUTCDate) via Date.UTC — ingen aritmetik, tidszonsfri',
+  },
 };
+
+const hitCount = (code: string) => code.match(new RegExp(DATE_ARITHMETIC_SOURCE, 'g'))?.length ?? 0;
+const dateArithmeticDeviations = (files = SOURCES) =>
+  files.flatMap(({ path, code }) => {
+    const found = hitCount(code);
+    const allowed = DATE_ARITHMETIC_EXCEPTIONS[path]?.hits ?? 0;
+    return found === allowed ? [] : [{ path, found, allowed }];
+  });
 
 const offenders = (pattern: RegExp, files = SOURCES) => files.filter(({ code }) => pattern.test(code)).map(({ path }) => path);
 
@@ -76,10 +90,9 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
   });
 
   it('ingen datumaritmetik med setDate/getDate/setUTCDate/getUTCMonth/setHours utanför calendar.ts (utom listade undantag)', () => {
-    const hits = offenders(DATE_ARITHMETIC);
-    expect(hits.filter((path) => !(path in DATE_ARITHMETIC_EXCEPTIONS))).toEqual([]);
-    // Inaktuella undantag göms inte: träffar de inte längre ska de bort ur listan.
-    expect(Object.keys(DATE_ARITHMETIC_EXCEPTIONS).filter((path) => !hits.includes(path))).toEqual([]);
+    // Fler träffar än tillåtet fäller (även i undantagna filer); färre betyder att undantaget är inaktuellt.
+    expect(dateArithmeticDeviations()).toEqual([]);
+    expect(Object.keys(DATE_ARITHMETIC_EXCEPTIONS).filter((path) => !SOURCES.some((s) => s.path === path))).toEqual([]);
   });
 
   it('konsumenterna importerar calendar-funktionerna från @runquest/shared', () => {
