@@ -123,6 +123,20 @@ describe('streakOutlook', () => {
   it('klarar datum med klockslag och oordnade rundor', () => {
     expect(streakOutlook([run('2026-10-03T00:00:00.000Z', 5), run('2026-09-20', 1)], '2026-10-04')).toEqual({ day: 6, kind: 'continue' });
   });
+
+  it('flera rundor på föregående dag: den högsta streakdagen avgör', () => {
+    expect(streakOutlook([run('2026-10-03', 4), run('2026-10-03', 5)], '2026-10-04')).toEqual({ day: 6, kind: 'continue' });
+  });
+
+  it('förlänger över månads- och årsskifte, börjar om efter en tom dag', () => {
+    expect(streakOutlook([run('2026-09-30', 3)], '2026-10-01')).toEqual({ day: 4, kind: 'continue' });
+    expect(streakOutlook([run('2026-12-31', 8)], '2027-01-01')).toEqual({ day: 9, kind: 'continue' });
+    expect(streakOutlook([run('2026-12-30', 8)], '2027-01-01')).toEqual({ day: 1, kind: 'start' });
+  });
+
+  it('förlänger över sommartidsskiftet (25 okt)', () => {
+    expect(streakOutlook([run('2026-10-25', 2)], '2026-10-26')).toEqual({ day: 3, kind: 'continue' });
+  });
 });
 
 describe('confirmationText', () => {
