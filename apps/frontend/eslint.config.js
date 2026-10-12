@@ -169,6 +169,14 @@ const designImports = ({ sonner = false } = {}) => [
   },
 ];
 
+// Varje designgrupp (och icons/loaders-blocket) anmäler sig här. src/test/lintScope.test.ts läser listan och fäller om en glob inte längre
+// matchar någon fil, eller om en feature saknar grupp: lint som tyst slutat gälla är värre än en vakt som fäller.
+export const DESIGN_GROUPS = [];
+const registerDesignGroup = (block) => {
+  DESIGN_GROUPS.push({ files: block.files, ignores: block.ignores });
+  return block;
+};
+
 /**
  * @param {string[]} files
  * @param {object} [options]
@@ -178,7 +186,7 @@ const designImports = ({ sonner = false } = {}) => [
  * @param {string[]} [options.ignores] Filer som ligger i ett eget undantagsblock.
  * @param {boolean} [options.allowSonner] Filen får importera sonner (ett dokumenterat undantag).
  */
-const designGroup = (files, { style = "cssVars", omit = [], extra = [], ignores = [], allowSonner = false } = {}) => ({
+const designGroup = (files, { style = "cssVars", omit = [], extra = [], ignores = [], allowSonner = false } = {}) => registerDesignGroup({
   files,
   ignores: [...NOT_PRODUCTION, ...ignores],
   rules: {
@@ -333,7 +341,7 @@ export default tseslint.config(
     { ignores: ["src/app-shell/NotificationsPopover.tsx"] },
   ),
   // icons/ och loaders/: regel 1 för className (inga råa px, varken som mått eller som Tailwind-hakparentes).
-  {
+  registerDesignGroup({
     files: ["src/shared/components/icons/**/*.{ts,tsx}", "src/shared/components/loaders/**/*.{ts,tsx}"],
     ignores: NOT_PRODUCTION,
     rules: {
@@ -344,7 +352,7 @@ export default tseslint.config(
         ...DESIGN_EVERYWHERE,
       ],
     },
-  },
+  }),
 
   // Undantag: en enda fil får rita en <svg> eller en path.
   // Duels vimpel är en egen form, inte en ikon: den ritas ur den delade geometrin (challengeMark), aldrig med en egen path.
