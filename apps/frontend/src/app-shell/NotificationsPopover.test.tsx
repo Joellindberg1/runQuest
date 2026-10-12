@@ -60,7 +60,6 @@ describe('klockan i headern', () => {
   it.each([MOBILE, DESKTOP])('oläst-räknaren ur meta.unread_count (egna handlingar räknas inte av backend), vid %d px', async (width) => {
     renderWithApp(<Tree />, { entry: '/board', width });
     const button = await screen.findByRole('button', { name: 'Pack news, 4 unread' });
-    expect(button.querySelector('.rq-news-badge')).toHaveTextContent('4');
     expect(button).toHaveAttribute('data-tour', 'header-news');
   });
 

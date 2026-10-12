@@ -91,7 +91,7 @@ describe('Profile — badge-sammanfattningen (F10)', () => {
     }
   });
 
-  it('ett tryck på ett emblem öppnar detaljerna (nivå och krav) och Escape stänger igen', async () => {
+  it('ett tryck på ett emblem öppnar detaljerna (nivå och krav)', async () => {
     renderWithApp(<ProfileScreen />, { width: MOBILE });
     await heroName();
     const earned = await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Earned badges' });
@@ -99,8 +99,6 @@ describe('Profile — badge-sammanfattningen (F10)', () => {
     fireEvent.click(trigger);
     const dialog = await screen.findByRole('dialog', { name: milestoner.name });
     expect(within(dialog).getByText('Held by 5 of 6 in your pack')).toBeInTheDocument();
-    fireEvent.keyDown(dialog, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 });
 

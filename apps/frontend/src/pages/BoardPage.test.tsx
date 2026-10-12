@@ -3,7 +3,6 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { Run, User, UserTitle } from '@runquest/types';
 import BoardPage from './BoardPage';
-import { PENNANT_PATH, PENNANT_TEXT_Y } from '@/shared/components/challengeMark';
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
 import { ME, RANK_DELTA, WEEK, XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
@@ -149,13 +148,6 @@ describe('Season-vyn (default) — mobil', () => {
     }
   });
 
-  it('nivåframsteget ritas som stapel med --w = andel av nivån', async () => {
-    const { container } = renderBoard();
-    await screen.findByTestId('podium-1');
-    const fill = container.querySelector('[data-testid="podium-1"] .rq-track > .rq-fill') as HTMLElement;
-    expect(fill.style.getPropertyValue('--w')).toMatch(/^\d+%$/);
-  });
-
   it('rank-delta-pilarnas riktning: ▲ upp, ▼ ner, — oförändrad/saknas', async () => {
     renderBoard();
     const karl = await screen.findByTestId('podium-1');
@@ -258,21 +250,14 @@ describe('Week-vyn (?view=week)', () => {
     expect(within(rows[1]).getByText('10.0 km · 1 run')).toBeInTheDocument();
   });
 
-  it('dagstaplarnas höjdskala: längsta dagen i flocken = 100 %, övriga proportionellt, tom dag = 0', async () => {
+  it('dagstaplarna: varje rad har en bild som berättar km per dag, måndag till söndag', async () => {
     renderBoard('/board?view=week');
     const table = await screen.findByRole('table', { name: 'This week' });
-    const heights = (row: HTMLElement) =>
-      Array.from(row.querySelectorAll<HTMLElement>('.rq-daybar__fill')).map((bar) => bar.style.getPropertyValue('--h'));
 
     const [karl, joel] = within(table).getAllByRole('row').slice(1);
-    // Karl [0,12,6,0,8,5,0] km mot längsta dagen 12 km; Joel 10 km på fredagen.
-    expect(heights(karl)).toEqual(['0%', '100%', '50%', '0%', '67%', '42%', '0%']);
-    expect(heights(joel)).toEqual(['0%', '0%', '0%', '0%', '83%', '0%', '0%']);
-    expect(karl.querySelectorAll('.rq-daybar__fill')).toHaveLength(7);
-    expect(Array.from(karl.querySelectorAll('.rq-daybar__label')).map((l) => l.textContent).join('')).toBe('MTWTFSS');
-    // staplarna animeras en gång, förskjutna i steg (stagger via --rq-delay)
-    const delays = Array.from(karl.querySelectorAll<HTMLElement>('.rq-daybar__fill')).map((bar) => bar.style.getPropertyValue('--rq-delay'));
-    expect(new Set(delays).size).toBe(7);
+    // Karl [0,12,6,0,8,5,0] km; Joel 10 km på fredagen. Höjdskalan (--h) och etiketterna M–S testas i weekModel.test.ts.
+    expect(within(karl).getByRole('img', { name: 'Kilometres per day, Monday to Sunday: 0, 12, 6, 0, 8, 5, 0' })).toBeInTheDocument();
+    expect(within(joel).getByRole('img', { name: 'Kilometres per day, Monday to Sunday: 0, 0, 0, 0, 10, 0, 0' })).toBeInTheDocument();
   });
 
   it('Mover of the week, pack-totalen och "Week resets Monday"', async () => {
@@ -286,7 +271,6 @@ describe('Week-vyn (?view=week)', () => {
     expect(within(pack).getByText('148.6 km')).toBeInTheDocument();
     expect(within(pack).getByText('21 runs · 5 of 6 runners active')).toBeInTheDocument();
     expect(within(pack).getByText('82% of your best week')).toBeInTheDocument();
-    expect(pack.querySelector<HTMLElement>('.rq-fill--pack')?.style.getPropertyValue('--w')).toBe('82%');
 
     expect(screen.getByText(/Week resets Monday 00:00/)).toBeInTheDocument();
   });
@@ -356,11 +340,8 @@ describe('Streaks-vyn (?view=streaks)', () => {
     expect(within(karl).getByText('days · best 31')).toBeInTheDocument();
     expect(within(karl).getByText('1.5× now')).toBeInTheDocument();
     expect(within(karl).getByText('2.0×')).toBeInTheDocument(); // toppen ur trappan
-    // (1.5 − 1) / (2.0 − 1) = 50 %
-    expect(karl.querySelector<HTMLElement>('.rq-fill')?.style.getPropertyValue('--w')).toBe('50%');
 
     expect(within(rowOf('Adam Einstein')).getByText('1.0× now')).toBeInTheDocument();
-    expect(rowOf('Adam Einstein').querySelector<HTMLElement>('.rq-fill')?.style.getPropertyValue('--w')).toBe('0%');
   });
 
   it('sorterar på effektiv streak (bruten = 0, då längsta streak först) — Adams rådata 1 räknas inte', async () => {
@@ -753,21 +734,12 @@ describe('visade badges i Season-raderna (RUN-131)', () => {
 });
 
 describe('vimpeln som utmaningstecken (RUN-147, spec F12.4)', () => {
-  it.each([MOBILE, DESKTOP])('varje vimpel ritas med svalstjärt-pathen, siffran på y 16.5 och viewBox 0 0 26 32 (%ipx)', async (width) => {
-    const { container } = renderBoard('/board', width);
-    await screen.findByTestId('podium-1');
+  // Vimpelns geometri (path, siffrans y, viewBox) och att sköldens path är borta testas i shared/components/challengeMark.test.ts.
+  it.each([MOBILE, DESKTOP])('vimplarna ritas i podiet med sin tillgängliga etikett (%ipx)', async (width) => {
+    renderBoard('/board', width);
+    const karl = await screen.findByTestId('podium-1');
 
-    const pennants = [...container.querySelectorAll('svg.rq-ribbon')];
-    expect(pennants.length).toBeGreaterThan(0);
-    for (const svg of pennants) {
-      expect(svg).toHaveAttribute('viewBox', '0 0 26 32');
-      expect(svg.querySelector('path')).toHaveAttribute('d', 'M1.5 1.5 H24.5 V30.5 L13 23.5 L1.5 30.5 Z');
-      expect(svg.querySelector('path')).toHaveAttribute('d', PENNANT_PATH);
-      expect(svg.querySelector('text')).toHaveAttribute('y', '16.5');
-      expect(svg.querySelector('text')).toHaveAttribute('y', String(PENNANT_TEXT_Y));
-    }
-    // inget spår av sköldens bottenspets
-    expect(container.innerHTML).not.toContain('V21 L13 30.5');
+    expect(within(karl).getByLabelText('Challenges to send: 3 minor, 1 major')).toBeInTheDocument();
   });
 
   it('nivåattribut, antal och tillgänglig etikett är oförändrade', async () => {

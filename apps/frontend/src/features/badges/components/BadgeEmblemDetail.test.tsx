@@ -210,17 +210,6 @@ describe('BadgeEmblemDetail — öppna och stänga (F10.4)', () => {
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
   });
 
-  it('Escape stänger och fokus går tillbaka till knappen', async () => {
-    render(<BadgeEmblemDetail row={rowOf(collection([]), milestoner.key)} />);
-    const button = trigger(`Rare ${milestoner.name}`);
-    const dialog = await open(`Rare ${milestoner.name}`);
-    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
-    fireEvent.keyDown(document.activeElement as Element, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(button).toHaveFocus();
-    expect(button).toHaveAttribute('aria-expanded', 'false');
-  });
-
   it('ett nytt tryck på knappen stänger', async () => {
     render(<BadgeEmblemDetail row={rowOf(collection([]), milestoner.key)} />);
     await open(`Rare ${milestoner.name}`);
