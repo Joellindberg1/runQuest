@@ -6,6 +6,8 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
+import { getXpConfig } from '../services/xpConfig.js';
+import { calculateCompleteRunXP } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
@@ -208,8 +210,9 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
     }
     
+    // Aldrig någon del av token-värdet i loggen — bara om den finns.
     logger.info('✅ Strava tokens received:', {
-      access_token: tokenData.access_token ? `${tokenData.access_token.substring(0, 10)}...` : 'missing',
+      has_access_token: Boolean(tokenData.access_token),
       expires_at: tokenData.expires_at
     });
     
@@ -633,9 +636,12 @@ async function syncUserStravaActivities(userId: string): Promise<{
   message?: string;
   error?: string;
 }> {
+  // Äldsta datum bland importerade rundor som aldrig fick sin XP (se självläkningen nedan); consumed = den nya importens omräkning tog över.
+  let healFrom: string | null = null;
+  let healConsumed = false;
   try {
     const supabase = getSupabaseClient();
-    
+
     // Get user's Strava tokens (including connection_date)
     const { data: tokens, error: tokenError } = await supabase
       .from('strava_tokens')
@@ -664,13 +670,37 @@ async function syncUserStravaActivities(userId: string): Promise<{
     // Get existing runs to avoid duplicates
     const { data: existingRuns, error: runsError } = await supabase
       .from('runs')
-      .select('external_id, date, distance')
+      .select('external_id, date, distance, xp_gained')
       .eq('user_id', userId)
       .eq('source', 'strava')
       .not('external_id', 'is', null);
-    
+
     if (runsError) {
       return { success: false, error: 'Failed to fetch existing runs' };
+    }
+
+    // Självläkning (RUN-215): en import vars omräkning felade lämnar rader med placeholder-XP 0, och nästa synk ser
+    // dem som "redan importerade" och räknar aldrig om dem. Läk bara rader som BORDE ha XP > 0 (samma beräkning och
+    // inställningar som reprocess) men har xp_gained ≤ 0 — en 0.3 km-runda ger legitimt 0 XP och skulle annars trigga
+    // en omräkning + calculateUserTotals vid varje synk. Distansspärren gör att inställningarna bara läses när det
+    // finns en kandidat. Själva läkningen körs senare (`finally`) eller, om synken importerar nya rundor, i deras
+    // omräkning från det tidigaste av de två datumen — aldrig två gånger.
+    // Begränsning: förväntad XP räknas utan streak-/boost-effekt (streakdag 1, boost 0); en runda vars XP bara blev 0
+    // av en negativ boost kan därför läkas i onödan (ofarligt: omräkningen är idempotent).
+    const zeroXpCandidates = (existingRuns ?? []).filter((run: any) => !(Number(run.xp_gained) > 0) && Number(run.distance) > 0);
+    if (zeroXpCandidates.length > 0) {
+      try {
+        const { settings, streak_multipliers } = await getXpConfig();
+        const unprocessed = zeroXpCandidates.filter(
+          (run: any) => calculateCompleteRunXP(Number(run.distance), 1, settings, streak_multipliers, 0).finalXP > 0,
+        );
+        if (unprocessed.length > 0) {
+          healFrom = unprocessed.map((run: any) => run.date as string).sort()[0];
+          logger.warn(`⚠️ ${unprocessed.length} imported Strava run(s) have placeholder XP 0 — will reprocess from ${healFrom}`);
+        }
+      } catch (configError) {
+        logger.error(`❌ Could not evaluate Strava runs for self-heal (user ${userId}):`, configError);
+      }
     }
     
     logger.info(`💾 Found ${existingRuns?.length || 0} existing Strava runs in database`);
@@ -814,13 +844,28 @@ async function syncUserStravaActivities(userId: string): Promise<{
       const dates = validActivities
         .map((a: any) => a.start_date_local.split('T')[0])
         .sort();
-      const earliestDate = dates[0];
+      // Läkningen (om någon) ingår i samma omräkning: det tidigaste av läkningsdatumet och importdatumet, en gång.
+      const earliestDate = healFrom && healFrom < dates[0] ? healFrom : dates[0];
+      healConsumed = true;
       logger.info(`🔄 Reprocessing from ${earliestDate} to recalculate streaks and XP...`);
-      await reprocessRunsFromDate(userId, earliestDate);
+      // Ett omräkningsfel avbryter inte resten: totaler, väder och eventkvalificering körs best-effort (annars är datat
+      // sämre än före RUN-215), och synken rapporteras som misslyckad. Rader med XP 0 läks av nästa synk (se ovan).
+      let reprocessError: unknown = null;
+      try {
+        await reprocessRunsFromDate(userId, earliestDate);
+      } catch (e) {
+        reprocessError = e;
+        logger.error(`❌ Reprocess after Strava import failed for user ${userId}:`, e);
+      }
 
       // Fetch weather before title calculation so all data is available
       const newRunData = fulfilledResults.map(r => r.value).filter(Boolean);
-      await WeatherService.fetchAndSaveWeatherForRuns(newRunData);
+      try {
+        await WeatherService.fetchAndSaveWeatherForRuns(newRunData);
+      } catch (weatherError) {
+        if (!reprocessError) throw weatherError;
+        logger.error(`❌ Weather fetch failed after failed reprocess for user ${userId}:`, weatherError);
+      }
 
       await calculateUserTotals(userId);
 
@@ -836,6 +881,15 @@ async function syncUserStravaActivities(userId: string): Promise<{
           isTreadmill: activity.trainer === true,
         }).catch((e: unknown) => logger.error('❌ checkEventQualification (strava) error:', e));
       }
+
+      if (reprocessError) {
+        return {
+          success: false,
+          newRuns: importedRuns,
+          totalActivities: activities.length,
+          error: 'Imported runs but failed to recalculate XP',
+        };
+      }
     }
 
     return {
@@ -848,6 +902,17 @@ async function syncUserStravaActivities(userId: string): Promise<{
   } catch (error) {
     logger.error('❌ Error syncing Strava activities:', error);
     return { success: false, error: 'Failed to sync activities' };
+  } finally {
+    // Ingen ny import tog över läkningen (inga nya rundor, Strava-API-fel, alla inserts föll): läk här, best-effort.
+    // Misslyckas den försöker nästa synk igen; synkresultatet påverkas inte.
+    if (healFrom && !healConsumed) {
+      try {
+        await reprocessRunsFromDate(userId, healFrom);
+        await calculateUserTotals(userId);
+      } catch (healError) {
+        logger.error(`❌ Self-heal reprocess from ${healFrom} failed for user ${userId}:`, healError);
+      }
+    }
   }
 }
 

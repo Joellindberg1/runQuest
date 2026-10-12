@@ -12,7 +12,8 @@ import {
   streakSegments,
   type BackfillChallengeRow,
 } from '../activityBackfill.js';
-import { stockholmMidnightIso, type ActivityDraft, type EventActivityRow } from '../activity.js';
+import { type ActivityDraft, type EventActivityRow } from '../activity.js';
+import { stockholmMidnightIso } from '../calendar.js';
 import { buildXpLedger } from '../xpLedger.js';
 import type { LevelRequirement } from '../levelCalculation.js';
 

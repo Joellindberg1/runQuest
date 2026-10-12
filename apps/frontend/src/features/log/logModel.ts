@@ -1,6 +1,5 @@
 import type { Run } from '@runquest/types';
-import { stockholmClock } from '@/app-shell/rightNowItems';
-import { daysBetween } from '@/features/leaderboard/boardFormat';
+import { advanceStreakDay, isNextDay, stockholmClock } from '@runquest/shared';
 import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 import { formatInt, formatKm, formatLongDate, formatMultiplier } from './logFormat';
 
@@ -124,9 +123,9 @@ export function streakOutlook(runs: readonly StreakRun[], date: string): StreakO
   const before = runs.filter((run) => day(run) < date);
   if (before.length === 0) return { day: 1, kind: 'start' };
   const prevDate = before.reduce((latest, run) => (day(run) > latest ? day(run) : latest), '');
-  if (daysBetween(prevDate, date) !== 1) return { day: 1, kind: 'start' };
   const prevDay = Math.max(...before.filter((run) => day(run) === prevDate).map((run) => run.streak_day));
-  return { day: prevDay + 1, kind: 'continue' };
+  const next = advanceStreakDay({ day: prevDate, streakDay: prevDay }, date);
+  return isNextDay(prevDate, date) ? { day: next, kind: 'continue' } : { day: next, kind: 'start' };
 }
 
 /** Bekräftelsen efter en lyckad inlämning — siffrorna är serverns, inte förhandsvisningens. */

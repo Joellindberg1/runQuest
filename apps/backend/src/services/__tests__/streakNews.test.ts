@@ -7,7 +7,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(),
 }));
 vi.mock('../xpConfig.js', () => ({ getXpConfig: vi.fn() }));
@@ -134,7 +133,8 @@ describe('StreakService.updateUserStreak → streak_broken', () => {
       activity_log: [], users: [{ id: 'u1', group_id: 'g1', current_streak: 7 }], runs: days('2026-09-01', 7),
     };
     use(tables, { failWhen: (q) => (q.table === 'users' && q.select === null ? { message: 'update failed' } : null) });
-    await StreakService.updateUserStreak('u1');
+    // RUN-215: uppdateringsfelet kastas nu (schedulern räknar användaren som misslyckad) i stället för att sväljas.
+    await expect(StreakService.updateUserStreak('u1')).rejects.toThrow(/update failed/);
     expect(tables.activity_log).toHaveLength(0);
   });
 });

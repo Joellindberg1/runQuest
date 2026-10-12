@@ -1,5 +1,6 @@
 
 import type { Run, User } from '@runquest/types'
+import { MS_DAY, dayOfWeek, mondayOf } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { MAX_LEVEL } from '@/constants/appConstants';
 export { getInitials, formatXPForDisplay } from '@/shared/utils/formatters';
@@ -74,15 +75,13 @@ export const leaderboardUtils = {
     const weekendTotals = new Map<string, number>();
     
     runs.forEach(run => {
-      const date = new Date(run.date);
-      const day = date.getDay();
-      
+      const date = run.date.slice(0, 10);
+      const day = dayOfWeek(date);
+
       if (day === 0 || day === 6) { // Sunday or Saturday
-        // Get the Monday of the week containing this weekend day
-        const monday = new Date(date);
-        monday.setDate(date.getDate() - (date.getDay() === 0 ? 6 : date.getDay() - 1));
-        const weekKey = monday.toISOString().split('T')[0];
-        
+        // The Monday of the week containing this weekend day groups Saturday and Sunday together
+        const weekKey = mondayOf(date);
+
         weekendTotals.set(weekKey, (weekendTotals.get(weekKey) || 0) + run.distance);
       }
     });
@@ -93,7 +92,7 @@ export const leaderboardUtils = {
 
   calculateLast14DaysXP(user: User): number {
     const today = new Date();
-    const fourteenDaysAgo = new Date(today.getTime() - (13 * 24 * 60 * 60 * 1000)); // 13 days ago + today = 14 days
+    const fourteenDaysAgo = new Date(today.getTime() - (13 * MS_DAY)); // 13 days ago + today = 14 days
     
     const last14DaysRuns = (user.runs || []).filter(run => {
       const runDate = new Date(run.date);

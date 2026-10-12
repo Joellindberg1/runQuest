@@ -107,12 +107,3 @@ export function getXPForLevel(level: number): number {
 export function getXPForNextLevel(level: number): number {
   return frontendLevelService.getXPForLevelSync(Math.min(level + 1, MAX_LEVEL));
 }
-
-// Async versions for new code
-export async function getLevelFromXPAsync(totalXP: number): Promise<number> {
-  return frontendLevelService.getLevelFromXP(totalXP);
-}
-
-export async function getLevelProgressAsync(totalXP: number) {
-  return frontendLevelService.getLevelProgress(totalXP);
-}

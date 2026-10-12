@@ -32,7 +32,7 @@ const deferred = <T,>() => {
 };
 
 beforeEach(() => {
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: Infinity }, mutations: { retry: false } } });
   for (const fn of Object.values(api)) fn.mockReset();
   api.saveShowcase.mockImplementation(async (series: string[]) => ({ showcase: series }));
 });

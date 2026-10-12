@@ -1,11 +1,12 @@
 import type { TitleEngine, RunData, UserStats } from './types';
+import { dayOfWeek, mondayOf } from '@runquest/shared';
 
 export const weekendAvgEngine: TitleEngine = {
   metricKey: 'weekendAvg',
   calculate(runs: RunData[], _userStats: UserStats): number {
     // Filter weekend runs (Saturday = 6, Sunday = 0)
     const weekendRuns = runs.filter(run => {
-      const day = new Date(run.date).getDay();
+      const day = dayOfWeek(run.date);
       return day === 0 || day === 6;
     });
 
@@ -15,12 +16,7 @@ export const weekendAvgEngine: TitleEngine = {
     const weekendTotals = new Map<string, number>();
 
     for (const run of weekendRuns) {
-      const date = new Date(run.date);
-      const dayOfWeek = date.getDay();
-      const monday = new Date(date);
-      monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-      monday.setHours(0, 0, 0, 0);
-      const weekKey = monday.toISOString().split('T')[0];
+      const weekKey = mondayOf(run.date);
       weekendTotals.set(weekKey, (weekendTotals.get(weekKey) ?? 0) + run.distance_km);
     }
 

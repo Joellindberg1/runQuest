@@ -398,3 +398,7 @@ Avvikelser och tillägg som uppstod vid bygget av inkrement 2 (Board-delmängden
 
 ### Notering 2026-10-11 (ägarbeslut)
 Undantaget (anon läser `level_requirements` direkt; B4 pt 5 och "Level-gränser läses som i ADR 004") upphävs — `GET /api/config/levels` (RUN-110), frontend byter (RUN-111), anon-policyn stängs (RUN-112). Endpointen ger `{ success, data: [{ level, xp_required }] }` (stigande på `level`, kontrakt `LevelsApiResponse`), kräver token men inte `group_id`, och går via backendens `levelService` (cache + fallback-tabell enligt ADR 004).
+
+### Notering 2026-10-12 (RUN-215, Lead)
+
+`POST/PUT/DELETE /api/runs` kan svara **500 `{ error, written: true }`** när raden skrevs men XP-omräkningen fallerade (additivt fält enligt A2; felformen `{ error }` enligt A1 oförändrad). Klienten ska då behandla skrivningen som genomförd: invalidera run-/totals-cachen, återställa formuläret och inte uppmana till nytt försök. Ett 500 utan `written` betyder att inget skrevs. Övriga endpoints använder inte fältet.

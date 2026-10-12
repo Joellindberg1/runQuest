@@ -8,6 +8,10 @@ export default {
 		"./components/**/*.{ts,tsx}",
 		"./app/**/*.{ts,tsx}",
 		"./src/**/*.{ts,tsx}",
+		// Testfiler innehåller klassnamn-liknande strängar som annars ger tomma selektorer i CSS:en.
+		"!./src/**/*.test.{ts,tsx}",
+		"!./src/**/*.spec.{ts,tsx}",
+		"!./src/test/**",
 	],
 	prefix: "",
 	// De delade .rq-*-primitiverna (index.css, @layer components) ska alltid finnas med,
@@ -121,5 +125,5 @@ export default {
 		}
 	}
 	},
-	plugins: [import('tailwindcss-animate')],
+	plugins: [],
 } satisfies Config;

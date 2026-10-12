@@ -17,7 +17,7 @@ const cached = (typeParam?: string) => queryClient.getQueryData<NewsFeed>(NEWS_Q
 const ids = (feed?: NewsFeed) => feed?.items.map((row) => row.id);
 
 beforeEach(() => {
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: Infinity } } });
   api.getNews.mockReset();
   api.markNewsSeen.mockReset();
 });

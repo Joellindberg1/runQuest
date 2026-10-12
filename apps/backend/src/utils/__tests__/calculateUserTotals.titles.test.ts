@@ -7,7 +7,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(),
 }));
 vi.mock('../../services/levelService.js', () => ({ getLevelFromXP: vi.fn(async () => 1) }));
@@ -21,6 +20,7 @@ vi.mock('../../services/enhancedTitleService.js', () => ({
 
 import { getSupabaseClient } from '../../config/database.js';
 import { calculateUserTotals } from '../calculateUserTotals.js';
+import { logger } from '../logger.js';
 import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 
 const leaderboardRefresh = vi.fn(() => ({ data: null, error: null }));
@@ -96,10 +96,38 @@ describe('calculateUserTotals → titelomräkning', () => {
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
   });
 
-  it('RUN-157: utan grupp — ett fel i de egna titlarna hoppar inte över den globala omräkningen', async () => {
+  it('utan grupp — ett fel i de egna titlarna hoppar inte över den globala omräkningen', async () => {
     use(tables(null));
     processUserTitlesAfterRun.mockRejectedValueOnce(new Error('23505'));
     await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
     expect(leaderboardRefresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('misslyckade användare i gruppomräkningen syns i loggen', () => {
+  it('failed > 0 ger logger.warn med antalen — och totalerna skrivs ändå', async () => {
+    const t = tables('g1');
+    use(t);
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    processAllUsersTitles.mockResolvedValueOnce({ total: 6, processed: 4, failed: 2 });
+
+    await calculateUserTotals('u1');
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toMatch(/2.*6/);
+    expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
+    expect(leaderboardRefresh).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('failed 0 ger ingen varning', async () => {
+    use(tables('g1'));
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    processAllUsersTitles.mockResolvedValueOnce({ total: 6, processed: 6, failed: 0 });
+
+    await calculateUserTotals('u1');
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

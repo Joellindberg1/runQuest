@@ -210,3 +210,24 @@ Svitens körtid ska hållas under ~5 min.
   fake vs riktig DB.
 - E2E-flödena i STATE.md ändras, eller fler än ~15 användare / fler
   utvecklare -> ompröva coverage-krav och retroaktiv täckning.
+
+## Addendum 2026-10-12 (RUN-220): nuläget mot ursprungsbeslutet
+Beslutet ovan står kvar. Det här är en avstämning mot koden på release/v0.6.1.1; texten ovan beskriver läget 2026-10-04 och ändras inte.
+
+**Läget**
+- **Frontend har en testsvit och den är blockerande.** Vitest + RTL + jsdom. Antal vid körning på release/v0.6.1.1 (HEAD 3ec57b0): backend 1145 tester i 86 filer, `packages/shared` 654 i 16, frontend 2371 i 141.
+- **Typ- och lintskulden är betald och ratchet finns inte.** `ci.yml` har inga `continue-on-error` och ingen baslinjefil (`.ci/frontend-debt-baseline.json` skapades aldrig). Frontend kör `tsc -b` och `eslint . --max-warnings 0` som blockerande steg (0 fel, 0 varningar), efter versionsvakten, repo-vakterna, bygget och Caddy-kontrollen. Backend kör `tsc --noEmit`, bygge och test; shared kör test.
+- **Repo-vakter (RUN-221, `scripts/ci-guards.mjs`):** ett workspace med `test`-skript utan en enda testfil fäller bygget ("tom svit = FAIL" är därmed maskinellt vaktad, inte bara ett beslut), och varje `TODO`/`FIXME` i `apps/*` och `packages/*` måste bära en RUN-nyckel.
+- **Inget lint i backend och shared ännu.** Frontend är enda workspacet med eslint-konfiguration; ADR:ns mål ("lägg lint i backend och shared när skulden är betald") är ogjort.
+- **Kritiska flöden är nio, inte sju** (STATE.md, "Kritiska flöden": Pack News är flöde 8 och Badges flöde 9). De gäller rök-checklistan inför release och en framtida Playwright-svit.
+- **Titelmotorer: 24 i registret** (`titleEngines/index.ts`), inte 21. `regression.test.ts` (RUN-98) låser registrets nycklar och de 21 äldres värden på en fast fixtur; `coldRunCount`, `stormRunCount` och `winterKm` har egna tester. Det finns fortfarande inget parametriserat kontraktstest och inte ett enhetstest per motor (STATE.md zon 9).
+- **Supabase-fake:** ADR:ns `test-utils/fakeSupabase.ts` byggdes inte. Den in-memory-fake som finns heter `fakeDb` (`apps/backend/src/routes/__tests__/helpers/fakeDb.ts`) och används av route-, service- och `calculateUserTotals`-tester. Den tillämpar filter (`eq`/`in`/`gte`/`lte` …) på riktiga rader, så ett test kan bevisa att en annan grupps data inte syns. Den sammanhållna XP-kedjesviten med scenarierna under "Beteendetest för XP-kedjan" är ännu inte byggd (STATE.md zon 9); badge- och titelflödet har egna flödestester.
+- **RLS och migrationer testas statiskt.** Migrationstesterna läser SQL-filerna: `userBadgesMigration.test.ts` kontrollerar att RLS är på och att ingen policy skapas, `activityLogMigration.test.ts` att CHECK-listan är identisk med `ACTIVITY_TYPES` i shared. Rollfördelning: builder-data skriver dem, critic-data granskar dem.
+- **Playwright är fortfarande inte installerat** (ingen icke-prod-miljö, se ADR 002). Det gäller även `vitest-axe` eller motsvarande tillgänglighetstest.
+
+**Framtida story (ej beslutad, ej schemalagd):** tester mot en riktig Postgres (lokal Supabase ur `000_baseline.sql` + migrationer ≥ 032, kräver att staging-/lokal-DB-beslutet i ADR 002 tas), Playwright-rök för de nio flödena och `vitest-axe` för tillgänglighet i komponenttesterna. De hänger ihop: alla tre förutsätter en miljö som inte är prod.
+
+**Testregel framåt (RUN-154, RUN-223).** Gäller nya och ändrade tester; befintliga tester skrivs inte om retroaktivt (i dag asserterar 33 frontendfiler klassnamn, 94 träffar på `toHaveClass`/`classList`).
+1. **En regel testas i ett lager.** Samma regel prövas inte om i route-, service- och komponenttest; välj det lager där regeln bor (ren funktion i `shared`/`utils`, route för HTTP-form och auth, komponent för beteende).
+2. **Inga klass- eller CSS-assertions.** Test asserterar roller, text, tillstånd och beteende, inte klassnamn eller stilvärden. Utseendet bevisas av designgranskningen, inte av att en klass finns.
+3. **Vakter är lint, inte tester.** Strukturregler som kräver att skanna källkod (förbjudna importer, tokens, TODO utan nyckel) hör hemma som lintregel eller CI-vakt (`scripts/ci-guards.mjs` är mönstret), inte som vitest-filer. Befintliga `guards.test.ts` i frontend ligger kvar tills de flyttas.

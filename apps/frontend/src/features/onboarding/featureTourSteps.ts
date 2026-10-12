@@ -142,6 +142,6 @@ export const TOUR_PROFILE_V2: TourStep[] = [
   {
     element: '[data-tour="profile-history"]',
     title: 'Run history',
-    description: 'Every run you have logged. Press Edit if a distance or date looks wrong, or to delete the run. Your streak and XP are recalculated from that day on.',
+    description: 'Every run you have logged. Manual runs can be edited or deleted if a distance or date looks wrong; Strava runs come from Strava and are read-only here. Your streak and XP are recalculated from that day on.',
   },
 ];

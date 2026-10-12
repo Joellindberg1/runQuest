@@ -15,7 +15,6 @@ const holder = vi.hoisted(() => ({ client: null as any }));
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { get client() { return holder.client; } },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(() => holder.client),
 }));
 
@@ -92,7 +91,7 @@ function setup(opts: { failRpc?: RpcError; failInsertFor?: string } = {}) {
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-describe('processAllUsersTitles — delade title_leaderboard (RUN-157)', () => {
+describe('processAllUsersTitles — delade title_leaderboard', () => {
   it('flera användare som tar samma titel ger ingen 23505 och rätt slutlig topplista', async () => {
     const { data, rpcErrors, service } = setup();
 

@@ -1,5 +1,5 @@
 import type { TitleEngine, RunData, UserStats } from './types';
-import { daysBetween } from './_utils';
+import { daysBetween } from '@runquest/shared';
 
 export const longestRunAfterBreak30Engine: TitleEngine = {
   metricKey: 'longestRunAfterBreak30',

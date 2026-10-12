@@ -75,7 +75,6 @@ export class TitleLeaderboardService {
         throw error;
       }
 
-      logger.info('🔍 Raw title_leaderboard_view data:', data);
       logger.info('📊 Found', data?.length || 0, 'rows in title_leaderboard_view');
 
       // Group by title for easier frontend consumption

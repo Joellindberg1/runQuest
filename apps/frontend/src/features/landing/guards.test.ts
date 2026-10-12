@@ -163,17 +163,7 @@ describe('Landing — layout som inte får gå sönder', () => {
 });
 
 describe('Landing-FEATUREN är publik och gör inga anrop (ägarbeslut 4; App-skalet hämtar nivåtabellen via GET /api/config/levels först när någon är inloggad — utloggad ingen)', () => {
-  it('ingen fil hämtar data: inga fetch-anrop, backendApi, react-query, supabase eller datahooks', () => {
-    for (const [path, text] of codeFiles) {
-      const code = stripComments(text);
-      expect({
-        path,
-        fetch: /\bfetch\(/.test(code),
-        api: /backendApi|services\/|react-query|supabase|axios/.test(code),
-        hooks: /useUsersWithRuns|useXpConfig|useGroupName|useQuery|useMutation|useAuth/.test(code),
-      }).toEqual({ path, fetch: false, api: false, hooks: false });
-    }
-  });
+  // Inga anrop (fetch, backendApi, react-query, supabase, datahooks) vaktas av ESLint, se eslint.config.js (LANDING_IMPORTS/LANDING_SYNTAX).
 
   it('exempeldatan är EN delad definition (features/leaderboard/previewUsers) — featuren skriver inga egna löpare', () => {
     expect(sources['./components/LandingScreen.tsx']).toMatch(/leaderboard\/previewUsers/);
@@ -184,20 +174,19 @@ describe('Landing-FEATUREN är publik och gör inga anrop (ägarbeslut 4; App-sk
     const model = sources['./landingModel.ts'];
     expect(model).toMatch(/DEFAULT_ADMIN_SETTINGS/);
     expect(model).toMatch(/DEFAULT_STREAK_MULTIPLIERS/);
-    for (const [path, text] of codeFiles) expect({ path, constants: /streakConstants/.test(stripComments(text)) }).toEqual({ path, constants: false });
+    // Att ingen fil importerar constants/streakConstants vaktas av ESLint (STREAK_CONSTANTS i eslint.config.js).
   });
 });
 
 describe('Routing (ADR 006)', () => {
-  it('Index visar Landing för utloggade; /login är samma sida med inloggningsdialogen ovanpå (RUN-145) — ingen egen inloggningssida', () => {
+  it('Index visar Landing för utloggade; /login är samma sida med inloggningsdialogen ovanpå — ingen egen inloggningssida', () => {
     const [source] = Object.values(indexPage);
     expect(source).toMatch(/LandingPage/);
     expect(source).toMatch(/LoginDialog/);
     expect(source).not.toMatch(/LoginPage|LoginScreen/);
   });
 
-  it('gränsen mot auth: Landing-featuren importerar inget ur features/auth eller providers/auth (dialogen monteras av pages/Index, som får göra inloggningsanropet via AuthProvider); Sign in är en vanlig länk till paths.login', () => {
-    for (const [path, text] of codeFiles) expect({ path, auth: /features\/auth|providers\/auth/.test(stripComments(text)) }).toEqual({ path, auth: false });
+  it('Sign in är en vanlig länk till paths.login (gränsen mot auth — inga importer ur features/auth eller providers/auth — vaktas av ESLint; dialogen monteras av pages/Index)', () => {
     expect(sources['./components/LandingParts.tsx']).toMatch(/<Link to=\{paths\.login\} state=\{FROM_LANDING_STATE\}/);
   });
 

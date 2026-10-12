@@ -3,12 +3,14 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
-import { addDaysToDate, isIsoCalendarDate, mondayOf, todayStockholm, toStockholmDate, weekRange } from '../utils/dateUtils.js';
+import { isIsoCalendarDate, todayStockholm, toStockholmDate, weekRange } from '../utils/dateUtils.js';
 import {
+  addDays,
   bestWeekKm,
   buildRankDelta,
   buildWeekLeaderboard,
   buildXpLedger,
+  mondayOf,
   percentOfBest,
   type LedgerEventEntry,
   type RankDeltaApiResponse,
@@ -171,7 +173,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
         .from('event_entries')
         .select('id, user_id, event_id, xp_awarded, qualified_at, events!inner(type, ends_at, settled_at, group_id)')
         .eq('events.group_id', groupId)
-        .gte('events.ends_at', `${addDaysToDate(asOf, -14)}T00:00:00Z`)
+        .gte('events.ends_at', `${addDays(asOf, -14)}T00:00:00Z`)
         .gt('xp_awarded', 0),
     ]);
     if (usersResult.error) throw usersResult.error;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
 import { setViewportWidth } from '@/test/viewport';
@@ -30,6 +30,7 @@ vi.mock('@/pages/BoardPage', () => ({ default: () => <h1>Board page</h1> }));
 vi.mock('@/pages/ProfilePage', () => ({ default: () => <h1>Profile page</h1> }));
 
 import App from './App';
+import { warmLanding } from '@/test/warmLazy';
 
 const LANDING_HEADLINE = 'Your group chat deserves a leaderboard';
 const url = () => window.location.pathname + window.location.search;
@@ -50,6 +51,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+
+beforeAll(warmLanding);
 
 describe('Log out → Landing', () => {
   it.each([['/profile', 'Profile page'], ['/board', 'Board page']])(

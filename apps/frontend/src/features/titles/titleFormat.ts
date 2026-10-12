@@ -10,6 +10,12 @@ export function resolveGenderedTitle(name: string, gender?: string | null): stri
   return name;
 }
 
+/** Räknemått: singular vid exakt 1 ("1 run"), annars plural. */
+function countText(value: number, singular: string, plural: string): string {
+  const n = Math.round(value);
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
 /** Format a title value for display given its metric_key (km-måtten har egna rader; okänt mått → bara talet). */
 export function formatTitleValue(metricKey: string | undefined, value: number): string {
   switch (metricKey) {
@@ -18,13 +24,13 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     case 'lunchRunCount':
     case 'stormRunCount':
     case 'coldRunCount':
-      return `${Math.round(value)} runs`;
+      return countText(value, 'run', 'runs');
     case 'maxRunsOneWeek':
-      return `${Math.round(value)} runs/wk`;
+      return `${countText(value, 'run', 'runs')}/wk`;
     case 'maxWeekdayStreak':
-      return `${Math.round(value)} weekdays`;
+      return countText(value, 'weekday', 'weekdays');
     case 'longestStreak':
-      return `${Math.round(value)} days`;
+      return countText(value, 'day', 'days');
     case 'totalElevationGain':
     case 'bestSingleRunElevation':
       return `${Math.round(value)}m`;
@@ -46,7 +52,7 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     }
     case 'lastRunOfWeek': {
       const d = new Date(value * 1000);
-      // Värdet är väggklockan kodad som UTC-sekunder (se wallClock.ts): läs dagen i UTC, annars glider
+      // Värdet är väggklockan kodad som UTC-sekunder (se calendar.ts): läs dagen i UTC, annars glider
       // sena kvällsrundor till nästa dag i zoner öster om UTC.
       return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     }

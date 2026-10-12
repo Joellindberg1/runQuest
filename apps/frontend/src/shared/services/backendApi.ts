@@ -5,6 +5,7 @@ import type {
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
   NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
 } from '@runquest/shared';
+import { logger } from '@/shared/utils/logger';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -94,6 +95,13 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   message?: string;
+  /** POST/PUT/DELETE /runs: servern skrev ändringen men XP-omräkningen föll (500). Cachen är inaktuell och ett nytt försök kan dubblera. */
+  written?: true;
+}
+
+/** Felsvaret när servern skrev raden men omräkningen föll — `written` följer med så att hookarna kan hålla cachen i takt. */
+function writtenFailure(error: unknown): ApiResponse<never> {
+  return { success: false, error: typeof error === 'string' ? error : undefined, written: true };
 }
 
 class BackendApiService {
@@ -105,7 +113,7 @@ class BackendApiService {
   }
 
   private handleUnauthorized(): void {
-    console.warn('⚠️ Session expired - clearing authentication');
+    logger.warn('Session expired - clearing authentication');
     this.logout();
     this.onUnauthorized?.();
   }
@@ -124,7 +132,7 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('❌ Backend login failed:', data.error);
+        logger.error('Backend login failed:', data.error);
         return { success: false, error: data.error || 'Login failed' };
       }
 
@@ -141,7 +149,7 @@ class BackendApiService {
       };
 
     } catch (error) {
-      console.error('❌ Backend login error:', error);
+      logger.error('Backend login error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
@@ -169,7 +177,7 @@ class BackendApiService {
       return { success: response.ok, data };
 
     } catch (error) {
-      console.error('❌ Token refresh error:', error);
+      logger.error('Token refresh error:', error);
       return { success: false, error: 'Token refresh failed' };
     }
   }
@@ -198,14 +206,14 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        console.error('❌ Password change failed:', data.error);
+        logger.error('Password change failed:', data.error);
         return { success: false, error: data.error || 'Password change failed' };
       }
 
       return { success: true, data };
 
     } catch (error) {
-      console.error('❌ Password change error:', error);
+      logger.error('Password change error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
@@ -236,14 +244,14 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        console.error('❌ Failed to fetch users:', data.error);
+        logger.error('Failed to fetch users:', data.error);
         return { success: false, error: data.error || 'Failed to fetch users' };
       }
 
       return { success: true, data: data.data };
 
     } catch (error) {
-      console.error('❌ Error fetching users:', error);
+      logger.error('Error fetching users:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
@@ -280,7 +288,7 @@ class BackendApiService {
       return { success: true, data: data.data };
 
     } catch (error) {
-      console.error('❌ Error fetching users with runs:', error);
+      logger.error('Error fetching users with runs:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
@@ -309,7 +317,7 @@ class BackendApiService {
       }
       return { success: true, data: body.data };
     } catch (error) {
-      console.error(`❌ ${failure}:`, error);
+      logger.error(`${failure}:`, error);
       return { success: false, error: error instanceof Error ? error.message : 'Network error' };
     }
   }
@@ -366,7 +374,7 @@ class BackendApiService {
       }
       return { success: true, data: body.data, meta: body.meta };
     } catch (error) {
-      console.error('❌ Failed to fetch challenge history:', error);
+      logger.error('Failed to fetch challenge history:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Network error' };
     }
   }
@@ -395,14 +403,14 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        console.error('❌ Failed to create user:', data.error);
+        logger.error('Failed to create user:', data.error);
         return { success: false, error: data.error || 'Failed to create user' };
       }
 
       return { success: true, data: data.data };
 
     } catch (error) {
-      console.error('❌ Error creating user:', error);
+      logger.error('Error creating user:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
@@ -434,14 +442,14 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        console.error('❌ Failed to reset password:', data.error);
+        logger.error('Failed to reset password:', data.error);
         return { success: false, error: data.error || 'Failed to reset password' };
       }
 
       return { success: true, data };
 
     } catch (error) {
-      console.error('❌ Error resetting password:', error);
+      logger.error('Error resetting password:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
@@ -513,7 +521,7 @@ class BackendApiService {
       };
 
     } catch (error) {
-      console.error('❌ Authenticated request error:', error);
+      logger.error('Authenticated request error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
@@ -623,7 +631,7 @@ class BackendApiService {
       return { success: true, data: result.data };
 
     } catch (error) {
-      console.error('❌ Get last sync error:', error);
+      logger.error('Get last sync error:', error);
       return { success: false, error: 'Failed to get sync info' };
     }
   }
@@ -659,7 +667,7 @@ class BackendApiService {
       return { success: true, data: result.data };
 
     } catch (error) {
-      console.error('❌ Upload profile picture error:', error);
+      logger.error('Upload profile picture error:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Network error' };
     }
   }
@@ -721,14 +729,14 @@ class BackendApiService {
       });
 
       if (!response.success) {
-        console.error('❌ Failed to refresh title leaderboards:', response.error);
+        logger.error('Failed to refresh title leaderboards:', response.error);
         return { success: false, error: response.error };
       }
 
       return { success: true };
 
     } catch (error) {
-      console.error('❌ Error refreshing title leaderboards:', error);
+      logger.error('Error refreshing title leaderboards:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -756,7 +764,7 @@ class BackendApiService {
 
       return { success: true, data: data.data };
     } catch (error) {
-      console.error('❌ Error fetching admin settings:', error);
+      logger.error('Error fetching admin settings:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -792,7 +800,7 @@ class BackendApiService {
 
       return { success: true, data: data.data, message: data.message };
     } catch (error) {
-      console.error('❌ Error updating admin settings:', error);
+      logger.error('Error updating admin settings:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -819,7 +827,7 @@ class BackendApiService {
 
       return { success: true, data: data.data };
     } catch (error) {
-      console.error('❌ Error fetching streak multipliers:', error);
+      logger.error('Error fetching streak multipliers:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -847,7 +855,7 @@ class BackendApiService {
 
       return { success: true, data: data.data, message: data.message };
     } catch (error) {
-      console.error('❌ Error updating streak multipliers:', error);
+      logger.error('Error updating streak multipliers:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -876,12 +884,13 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        if (data.written === true) return writtenFailure(data.error);
         throw new Error(data.error || 'Failed to update run');
       }
 
       return { success: true, data: data.run, message: data.message };
     } catch (error) {
-      console.error('❌ Error updating run:', error);
+      logger.error('Error updating run:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -903,12 +912,13 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        if (data.written === true) return writtenFailure(data.error);
         throw new Error(data.error || 'Failed to delete run');
       }
 
       return { success: true, message: data.message };
     } catch (error) {
-      console.error('❌ Error deleting run:', error);
+      logger.error('Error deleting run:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -1116,7 +1126,7 @@ class BackendApiService {
       }
       return { ok: true, body: parsed as T };
     } catch (error) {
-      console.error(`❌ ${failure}:`, error);
+      logger.error(`${failure}:`, error);
       return { ok: false, error: error instanceof Error ? error.message : 'Network error' };
     }
   }
@@ -1142,12 +1152,13 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        if (data.written === true) return writtenFailure(data.error);
         throw new Error(data.error || 'Failed to create run');
       }
 
       return { success: true, data: data.run, message: data.message };
     } catch (error) {
-      console.error('❌ Error creating run:', error);
+      logger.error('Error creating run:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }

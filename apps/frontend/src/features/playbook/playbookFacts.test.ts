@@ -78,7 +78,7 @@ describe('Run — minimidistans (routes/runs.ts, routes/strava.ts)', () => {
   });
 });
 
-describe('Titles — säsongstitlar och när titlarna räknas om (RUN-102)', () => {
+describe('Titles — säsongstitlar och när titlarna räknas om', () => {
   it('vinterfönstret är 1 december–28/29 februari på Stockholm-datum: december räknar årets vinter, jan–nov den som började föregående december', () => {
     const utils = backend('src/titleEngines/_utils.ts');
     expect(utils).toContain('toStockholmDate(now.toISOString())');
@@ -114,7 +114,12 @@ describe('Titles — säsongstitlar och när titlarna räknas om (RUN-102)', () 
     const runs = backend('src/routes/runs.ts');
     expect(runs.match(/await calculateUserTotals\(userId\);/g)).toHaveLength(3); // POST, PUT, DELETE
     const strava = backend('src/routes/strava.ts');
-    expect(strava).toMatch(/await WeatherService\.fetchAndSaveWeatherForRuns\(newRunData\);\s*await calculateUserTotals\(userId\);/);
+    // Faktum: väder hämtas före omräkningen (titlarna hänger på väder). Låst som ordning, inte som exakt kodform —
+    // väderanropet får ligga i try/catch (RUN-215: ett väderfel ska inte stoppa totalerna).
+    const weatherAt = strava.indexOf('WeatherService.fetchAndSaveWeatherForRuns(');
+    const firstTotalsAt = strava.indexOf('await calculateUserTotals(userId);');
+    expect(weatherAt).toBeGreaterThan(-1);
+    expect(firstTotalsAt).toBeGreaterThan(weatherAt);
     const service = backend('src/services/enhancedTitleService.ts');
     expect(service).toContain('const ctx: TitleContext = { now: new Date() };');
     expect(backend('src/utils/calculateUserTotals.ts')).toContain('await titleService.processAllUsersTitles(userGroupId);');

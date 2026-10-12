@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { mondayOf, weekRange, isIsoCalendarDate, todayStockholm } from '../dateUtils.js';
+import { mondayOf } from '@runquest/shared';
+import { weekRange, isIsoCalendarDate, todayStockholm } from '../dateUtils.js';
 
 afterEach(() => { vi.useRealTimers(); });
 

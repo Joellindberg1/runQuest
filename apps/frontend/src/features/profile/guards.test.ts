@@ -127,14 +127,7 @@ describe('Profile-filerna följer designspråket', () => {
 });
 
 describe('Profile bygger på delade definitioner, inte egna kopior', () => {
-  it('multiplikatortrappan kommer ur config-endpointen: ingen Profile-fil läser streakConstants eller DEFAULT_STREAK_MULTIPLIERS', () => {
-    for (const [path, text] of codeFiles) {
-      const code = stripComments(text);
-      expect({ path, constants: /streakConstants/.test(code), defaults: /DEFAULT_STREAK_MULTIPLIERS|STREAK_MULTIPLIERS/.test(code) }).toEqual({
-        path, constants: false, defaults: false,
-      });
-    }
-  });
+  // Att multiplikatortrappan kommer ur config-endpointen (ingen streakConstants, ingen DEFAULT_STREAK_MULTIPLIERS) vaktas av ESLint, se eslint.config.js.
 
   it('nivåring och XP kommer ur shared-matematiken via runnerModel (ADR 004): inga egna nivåformler', () => {
     for (const [path, text] of codeFiles) {

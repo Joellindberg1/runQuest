@@ -55,7 +55,7 @@ const loggedOut: AuthContextType = { ...auth, user: null };
 
 function renderCard(width = MOBILE, authValue: AuthContextType = auth, variant: 'page' | 'overlay' = 'page') {
   setViewportWidth(width);
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
   const view = render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={authValue}>
@@ -297,7 +297,7 @@ describe('emblem-popovern i Runner card-dialogen', () => {
   function renderInDialog() {
     setViewportWidth(DESKTOP);
     const onOpenChange = vi.fn();
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
     render(
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={auth}>

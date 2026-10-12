@@ -15,7 +15,7 @@ defineDesignGuards({
   tokenPrefix: '--rq-login-',
 });
 
-describe('Login — dialogen (RUN-145)', () => {
+describe('Login — dialogen', () => {
   const dialog = sources['./components/LoginDialog.tsx'];
 
   it('återanvänder skalets delade lager (Radix Dialog + .rq-scrim/.rq-modal) i stället för egen mörkläggning och egen fokusfälla', () => {

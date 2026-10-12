@@ -46,7 +46,7 @@ let queryClient: QueryClient;
 
 function renderHost(entry = '/board') {
   setViewportWidth(390);
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: Infinity }, mutations: { retry: false } } });
   const auth: AuthContextType = { user: { id: ME.id, name: ME.name, email: 'joel@example.com' }, login: async () => ({ success: true }), logout: () => {}, loading: false, isAdmin: false };
   return render(
     <QueryClientProvider client={queryClient}>
@@ -144,7 +144,7 @@ describe('BadgeUpgradeHost: kön ur min samling (T1)', () => {
   it('visas inte på /, /login eller landningen: värden ligger i skalet, så utloggade vägar hämtar ingen badge-data och öppnar ingen popup', async () => {
     api.getUserBadges.mockResolvedValue(mine(item(first.key, 3, 0)));
     for (const path of ['/', '/login']) {
-      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
       const auth: AuthContextType = { user: null, login: async () => ({ success: true }), logout: () => {}, loading: false, isAdmin: false };
       const { unmount } = render(
         <QueryClientProvider client={queryClient}><AuthContext.Provider value={auth}>
@@ -162,7 +162,7 @@ describe('BadgeUpgradeHost: kön ur min samling (T1)', () => {
   it('kontroll: inne i skalet (AppRoutes → /board, inloggad) visas samma popup', async () => {
     api.getUserBadges.mockResolvedValue(mine(item(first.key, 3, 0)));
     setViewportWidth(390);
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
     const auth: AuthContextType = { user: { id: ME.id, name: ME.name, email: 'joel@example.com' }, login: async () => ({ success: true }), logout: () => {}, loading: false, isAdmin: false };
     render(
       <QueryClientProvider client={client}><AuthContext.Provider value={auth}>

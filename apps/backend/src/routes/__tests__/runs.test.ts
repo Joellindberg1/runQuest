@@ -19,13 +19,14 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(),
 }));
 
 // ── Mock XP calculation ───────────────────────────────────────────────────────
 // ── Mock @runquest/shared ─────────────────────────────────────────────────────
-vi.mock('@runquest/shared', () => ({
+// Allt i paketet är riktigt utom de mockade funktionerna nedan (calendar-funktionerna som utils/dateUtils delegerar till ingår).
+vi.mock('@runquest/shared', async () => ({
+  ...(await vi.importActual<typeof import('@runquest/shared')>('@runquest/shared')),
   calculateCompleteRunXP: vi.fn().mockReturnValue({
     baseXP: 15, kmXP: 10, distanceBonus: 5, streakBonus: 0,
     multiplier: 1.0, finalXP: 30,

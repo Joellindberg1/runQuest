@@ -32,7 +32,7 @@ describe('kategorier och filter', () => {
     for (const filter of NEWS_FILTERS) expect(typesForFilters([filter.key])).not.toContain('release_published');
   });
 
-  it('Levels = level_up + run_milestone (ADR 008); badge_earned har eget chip sedan v0.6.1 men raderna behåller kategorin level (ADR 009 beslut 5, F7)', () => {
+  it('Levels = level_up + run_milestone (ADR 008); badge_earned har eget chip sedan v0.6.1 men raderna behåller kategorin level (ADR 009 beslut 5)', () => {
     expect(NEWS_FILTERS.find((filter) => filter.key === 'levels')?.types).toEqual(['level_up', 'run_milestone']);
     expect(CATEGORY_OF.run_milestone).toBe('level');
     expect(CATEGORY_OF.badge_earned).toBe('level');
@@ -435,7 +435,7 @@ describe('texterna ur typ + payload + vem som tittar', () => {
       expect(buildNewsRow(badgeEarned(1, {}, { tier: 2, previous_tier: 1 }), ctx()).kind).toBe('Badge evolved');
     });
 
-    it('emblem (F7): serien och den NYA nivån för en känd serie; null för okänd serie, tier utanför 1..6 och alla andra typer', () => {
+    it('emblem: serien och den NYA nivån för en känd serie; null för okänd serie, tier utanför 1..6 och alla andra typer', () => {
       expect(buildNewsRow(badgeEarned(1), ctx()).emblem).toEqual({ series: 'streak_keeper', tier: 1 });
       expect(buildNewsRow(badgeEarned(1, {}, { series: 'milestoner', tier: 3, previous_tier: 2 }), ctx()).emblem).toEqual({ series: 'milestoner', tier: 3 });
       for (const payload of [{ series: 'retired_series', tier: 2 }, { series: 'milestoner', tier: 9 }, { series: 'milestoner', tier: 0 }, { series: 'milestoner', tier: 2.5 }]) {
@@ -448,7 +448,7 @@ describe('texterna ur typ + payload + vem som tittar', () => {
     });
   });
 
-  describe('release_published (RUN-161)', () => {
+  describe('release_published', () => {
     it('"New version" med texten "RunQuest vX is out — titel"; systemrad utan aktör', () => {
       expect(describeNews(releasePublished(1), ctx())).toEqual({ kind: 'New version', text: 'RunQuest v0.6.1 is out — News about releases' });
       expect(describeNews(releasePublished(1, {}, { version: '0.7.0', title: 'Season stats' }), ctx()).text).toBe('RunQuest v0.7.0 is out — Season stats');
@@ -567,7 +567,7 @@ describe('vymodeller', () => {
   });
 });
 
-describe('okända händelsetyper och trasiga rader (RUN-138)', () => {
+describe('okända händelsetyper och trasiga rader', () => {
   // Backend kan vara nyare än fliken: typen kommer som string, payloaden är okänd.
   const unknownItem = (id: number, over: Partial<UnknownNewsItem> = {}): UnknownNewsItem => ({ ...levelUp(id, 1), type: 'quest_completed', payload: { quest: 'x' }, ...over });
   const brokenPayload = (id: number): WireNewsItem => ({ ...titleTaken(id), payload: null } as unknown as WireNewsItem);

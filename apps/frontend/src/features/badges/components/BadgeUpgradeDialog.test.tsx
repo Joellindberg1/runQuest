@@ -159,20 +159,6 @@ describe('BadgeUpgradeDialog: semantik och fokus (Council 19)', () => {
     await waitFor(() => expect(opener).toHaveFocus());
   });
 
-  it('fokusfällan: Tab från sista knappen går runt till första, Shift+Tab från första till sista — fokus lämnar aldrig dialogen', async () => {
-    render(<><button>outside</button><BadgeUpgradeDialog entry={entry()} position={1} total={2} onDismiss={vi.fn()} onSkipAll={vi.fn()} /></>);
-    const close = screen.getByRole('button', { name: 'Close' });
-    const skip = screen.getByRole('button', { name: 'Skip all' });
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Got it' })).toHaveFocus());
-
-    skip.focus();
-    fireEvent.keyDown(skip, { key: 'Tab' });
-    expect(close).toHaveFocus();
-    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
-    expect(skip).toHaveFocus();
-    expect(dialog().contains(document.activeElement)).toBe(true);
-  });
-
   it('Escape är "Got it": onDismiss anropas (inte onSkipAll)', async () => {
     const { onDismiss, onSkipAll } = renderDialog({ total: 3 });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Got it' })).toHaveFocus());

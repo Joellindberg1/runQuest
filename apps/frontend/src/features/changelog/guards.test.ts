@@ -1,10 +1,10 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // Vakttester över Feature & Version och "What's new"-popupen: designspråkets regel 1 (tokens, inga råvärden), 2 (skarpa hörn),
 // 3 (EN guldknapp), 8 (rörelse), 10 (ikoner ur RQIcon, inga emojis) + att CSS-måtten finns i temafilen (index.css OCH docs/design/temafil-forslag.css)
-// + att changelog.json har EN läsare och att den gamla patchNotes.ts/changelogHelpers.ts inte har kommit tillbaka.
+// + att popupen härleds ur announcedNotes. (changelog.json har EN läsare — det vaktas av ESLint, se eslint.config.js.)
 
 const sources = import.meta.glob(
   [
@@ -19,7 +19,6 @@ const everyApp = import.meta.glob(['../../**/*.{ts,tsx}', '!../../**/*.test.{ts,
 
 // CSS läses från disk: vitest (css: false) tömmer ?raw-importer av .css, så en glob ger tomma strängar och tysta godkännanden.
 const readFromDisk = (relative: string) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
-const existsOnDisk = (relative: string) => existsSync(fileURLToPath(new URL(relative, import.meta.url)));
 const stylesheets = { 'changelog.css': readFromDisk('./changelog.css'), 'whatsNew.css': readFromDisk('../onboarding/whatsNew.css') };
 
 const codeFiles = Object.entries(sources);
@@ -137,18 +136,8 @@ describe('Feature & Version och "What\'s new" följer designspråket', () => {
 });
 
 describe('En källa för det gruppen ser', () => {
-  it('bara changelogData läser changelog.json', () => {
-    for (const [path, text] of Object.entries(everyApp)) {
-      if (path.endsWith('changelogData.ts')) continue;
-      expect({ path, reads: /data\/changelog\.json/.test(stripComments(text)) }).toEqual({ path, reads: false });
-    }
-  });
-
-  it('den gamla patchNotes.ts och changelogHelpers.ts finns inte kvar, och ingen kod refererar PATCH_NOTES', () => {
-    expect(existsOnDisk('../onboarding/patchNotes.ts')).toBe(false);
-    expect(existsOnDisk('../../shared/utils/changelogHelpers.ts')).toBe(false);
-    for (const [path, text] of Object.entries(everyApp)) expect({ path, old: /PATCH_NOTES|changelogHelpers|onboarding\/patchNotes/.test(stripComments(text)) }).toEqual({ path, old: false });
-  });
+  // Att bara changelogData läser changelog.json vaktas av ESLint (CHANGELOG_JSON i eslint.config.js). Att den gamla patchNotes.ts/
+  // changelogHelpers.ts inte är tillbaka fäller tsc: en import av en saknad modul eller en odeklarerad PATCH_NOTES kompilerar inte.
 
   it('popupen och onboarding-kön härleder sina poster ur announcedNotes (ingen egen lista)', () => {
     const queue = stripComments(everyApp['../onboarding/hooks/useOnboardingQueue.ts']);

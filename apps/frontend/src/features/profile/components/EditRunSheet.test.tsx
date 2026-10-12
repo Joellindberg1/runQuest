@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
+import { RUN_DELETED_RECALCULATING, RUN_SAVED_RECALCULATING } from '@/features/runs/runEffects';
 import { run } from '../profile.fixture';
 import { EditRunSheet } from './EditRunSheet';
 
@@ -12,7 +13,7 @@ const manual = run({ id: 'r-manual', date: '2026-10-02', distance: 8, source: 'm
 const strava = run({ id: 'r-strava', date: '2026-10-03', distance: 10.5, source: 'strava' });
 
 function renderSheet(target = manual) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
   const props = { onClose: vi.fn(), onDone: vi.fn(), onRestoreFocus: vi.fn() };
   render(
     <QueryClientProvider client={client}>
@@ -26,7 +27,7 @@ beforeEach(() => {
   resetFakeBackend();
 });
 
-describe('EditRunSheet — Strava-runda (RUN-139)', () => {
+describe('EditRunSheet — Strava-runda', () => {
   it('Strava-runda: distans och datum skrivskyddade, ingen Save', () => {
     renderSheet(strava);
 
@@ -106,6 +107,30 @@ describe('EditRunSheet — manuell runda', () => {
 
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
     expect(updateRun).toHaveBeenCalledWith('r-manual', { distance: 9 });
+  });
+});
+
+describe('EditRunSheet — servern skrev men XP-omräkningen föll', () => {
+  it('sparad ändring: arket stängs med "Saved — XP is recalculating" i stället för att visa ett fel', async () => {
+    handlers.updateRun = async () => ({ success: false, error: 'Run was updated but XP recalculation failed', written: true });
+    const { onDone } = renderSheet(manual);
+
+    fireEvent.change(screen.getByLabelText('Distance (km)'), { target: { value: '9' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(RUN_SAVED_RECALCULATING));
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+  });
+
+  it('raderad runda: arket stängs med "Run deleted — XP is recalculating"', async () => {
+    handlers.deleteRun = async () => ({ success: false, error: 'Run was deleted but XP recalculation failed', written: true });
+    const { onDone } = renderSheet(manual);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete run' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Delete run' });
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Delete run' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(RUN_DELETED_RECALCULATING));
   });
 });
 

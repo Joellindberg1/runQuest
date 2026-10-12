@@ -7,7 +7,8 @@ import {
   getProgressForChallenge,
   settleChallenge,
 } from '../services/challengeService.js';
-import { tomorrowStockholm, addDaysToDate, at3amStockholm } from '../utils/dateUtils.js';
+import { addDays } from '@runquest/shared';
+import { tomorrowStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
 import {
@@ -19,6 +20,29 @@ import {
 import type { ChallengeGroupHistoryApiResponse, HeadToHeadApiResponse } from '@runquest/shared';
 
 const router = express.Router();
+
+/**
+ * Decline/withdraw: återställ token och spelarnas challenge_active innan utmaningen raderas (FK-ordning).
+ * Returnerar första felet (supabase-js kastar inte på {error}) eller null. Båda skrivningarna är idempotenta.
+ */
+async function restoreAfterDecline(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  challengeId: string,
+  challengerId: string,
+  opponentId: string,
+): Promise<{ message: string } | null> {
+  const [tokenRes, usersRes] = await Promise.all([
+    supabase
+      .from('user_challenge_tokens')
+      .update({ sent_at: null, challenge_id: null })
+      .eq('challenge_id', challengeId),
+    supabase
+      .from('users')
+      .update({ challenge_active: false })
+      .in('id', [challengerId, opponentId]),
+  ]);
+  return tokenRes.error ?? usersRes.error ?? null;
+}
 
 // ─── GET /api/challenges/my ──────────────────────────────────────────────────
 // Returns: tokens, sent_challenge, received_challenges, boosts, history, group_active
@@ -252,10 +276,18 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     // Mark token as sent + link to challenge
-    await supabase
+    const { error: tokenError } = await supabase
       .from('user_challenge_tokens')
       .update({ sent_at: sentAt, challenge_id: challenge.id })
       .eq('id', token_id);
+
+    if (tokenError) {
+      // Utmaningen utan markerad token är ett halvt utskick (token kan skickas igen): ta bort den nyss skapade raden.
+      logger.error('❌ Failed to mark token as sent:', tokenError);
+      const { error: rollbackError } = await supabase.from('challenges').delete().eq('id', challenge.id);
+      if (rollbackError) logger.error(`❌ Could not roll back challenge ${challenge.id} after failed token update:`, rollbackError);
+      res.status(500).json({ error: 'Failed to send challenge' }); return;
+    }
 
     // Pack News (ADR 008): loggas efter insert + token-markering; icke-kastande, påverkar inte svaret.
     await recordChallengeReceived(
@@ -312,16 +344,12 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       }
 
       // Restore token and reset challenge_active before deleting (FK order)
-      await Promise.all([
-        supabase
-          .from('user_challenge_tokens')
-          .update({ sent_at: null, challenge_id: null })
-          .eq('challenge_id', id),
-        supabase
-          .from('users')
-          .update({ challenge_active: false })
-          .in('id', [challenge.challenger_id, challenge.opponent_id]),
-      ]);
+      const restoreError = await restoreAfterDecline(supabase, id, challenge.challenger_id, challenge.opponent_id);
+      if (restoreError) {
+        // Utmaningen raderas inte med en token som fortfarande pekar på den; båda stegen är idempotenta, så klienten kan försöka igen.
+        logger.error(`❌ Failed to restore token/challenge_active for declined challenge ${id}:`, restoreError);
+        res.status(500).json({ error: 'Failed to decline challenge' }); return;
+      }
       const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
       // Raden i flödet tas bara bort om utmaningen faktiskt raderades — annars visar flödet en utmaning som finns.
       if (deleteError) logger.error(`❌ Failed to delete declined challenge ${id}:`, deleteError);
@@ -333,19 +361,33 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
 
     // Accept: activate challenge — always starts next midnight Stockholm time
     const startDate = tomorrowStockholm();
-    const endDate = addDaysToDate(startDate, challenge.duration_days);
-    const determineAt = at3amStockholm(addDaysToDate(startDate, challenge.duration_days + 1)).toISOString();
+    const endDate = addDays(startDate, challenge.duration_days);
+    const determineAt = at3amStockholm(addDays(startDate, challenge.duration_days + 1)).toISOString();
 
-    await Promise.all([
-      supabase
+    // Sekventiellt: utmaningen aktiveras först, spelarnas flagga efteråt. Misslyckas flaggan släpps aktiveringen
+    // (tillbaka till pending), så utmaningen aldrig lämnas aktiv medan spelarna inte räknas som upptagna.
+    const { error: activateError } = await supabase
+      .from('challenges')
+      .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
+      .eq('id', id);
+    if (activateError) {
+      logger.error(`❌ Failed to activate challenge ${id}:`, activateError);
+      res.status(500).json({ error: 'Failed to accept challenge' }); return;
+    }
+
+    const { error: flagError } = await supabase
+      .from('users')
+      .update({ challenge_active: true })
+      .in('id', [challenge.challenger_id, challenge.opponent_id]);
+    if (flagError) {
+      logger.error(`❌ Failed to set challenge_active for challenge ${id}:`, flagError);
+      const { error: revertError } = await supabase
         .from('challenges')
-        .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
-        .eq('id', id),
-      supabase
-        .from('users')
-        .update({ challenge_active: true })
-        .in('id', [challenge.challenger_id, challenge.opponent_id]),
-    ]);
+        .update({ status: 'pending', start_date: null, end_date: null, determine_at: null })
+        .eq('id', id);
+      if (revertError) logger.error(`❌ Could not revert activation of challenge ${id}:`, revertError);
+      res.status(500).json({ error: 'Failed to accept challenge' }); return;
+    }
 
     logger.info(`✅ Challenge ${id} accepted. Runs ${startDate} → ${endDate}`);
 
@@ -380,16 +422,11 @@ router.put('/:id/withdraw', authenticateJWT, async (req, res): Promise<void> => 
       res.status(400).json({ error: 'Legendary challenges cannot be withdrawn' }); return;
     }
 
-    await Promise.all([
-      supabase
-        .from('user_challenge_tokens')
-        .update({ sent_at: null, challenge_id: null })
-        .eq('challenge_id', id),
-      supabase
-        .from('users')
-        .update({ challenge_active: false })
-        .in('id', [challenge.challenger_id, challenge.opponent_id]),
-    ]);
+    const restoreError = await restoreAfterDecline(supabase, id, challenge.challenger_id, challenge.opponent_id);
+    if (restoreError) {
+      logger.error(`❌ Failed to restore token/challenge_active for withdrawn challenge ${id}:`, restoreError);
+      res.status(500).json({ error: 'Failed to withdraw challenge' }); return;
+    }
     const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
     if (deleteError) logger.error(`❌ Failed to delete withdrawn challenge ${id}:`, deleteError);
     else await retractChallengeReceived(id);
@@ -557,7 +594,13 @@ router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => 
       challenge.determine_at &&
       new Date(challenge.determine_at) <= new Date()
     ) {
-      await settleChallenge(id);
+      // Avgörandet är schedulerns jobb i första hand; ett fel här (loggat av settleChallenge) fäller inte läsningen —
+      // utmaningen är kvar som active och tas om vid nästa körning.
+      try {
+        await settleChallenge(id);
+      } catch (settleError) {
+        logger.error(`❌ Auto-settle of challenge ${id} failed:`, settleError);
+      }
     }
 
     const progress = await getProgressForChallenge(id);

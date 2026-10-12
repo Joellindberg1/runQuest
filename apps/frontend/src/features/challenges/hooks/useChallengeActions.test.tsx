@@ -10,12 +10,12 @@ vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBa
 
 function setup() {
   resetFakeBackend();
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { ...renderHook(() => useChallengeActions(), { wrapper }), invalidate };
 }
-const keys = (invalidate: ReturnType<typeof vi.spyOn>) => invalidate.mock.calls.map(([filters]) => (filters as { queryKey: unknown }).queryKey);
+const keys = (invalidate: ReturnType<typeof vi.spyOn>) => invalidate.mock.calls.map(([filters]: unknown[]) => (filters as { queryKey: unknown }).queryKey);
 
 describe('utmaningsmutationerna uppdaterar Pack News direkt (klockan väntar inte på nästa poll)', () => {
   it.each([

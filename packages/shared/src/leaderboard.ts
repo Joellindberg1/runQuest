@@ -1,6 +1,7 @@
 // Veckoleaderboard — rena funktioner (ADR 007 B1). Ingen DB, ingen klocka:
 // handlern läser data och avgör vilken måndag som gäller (Stockholm-tid);
 // här räknas bara på kalenderdagar (YYYY-MM-DD), som är tidszonsfria.
+import { addDays, mondayOf } from './calendar.js';
 import type { WeekDay, WeekLeaderboardResponse, WeekLeaderboardTotals, WeekLeaderboardUser } from './contracts/leaderboard.js';
 
 /** Medlem i gruppen. `created_date` = Stockholm-kalenderdag då användaren skapades (null = okänt → räknas som medlem). */
@@ -18,31 +19,6 @@ export interface WeekRun {
   /** numeric kan komma som sträng från databasen. */
   distance: number | string;
   xp_gained: number | null;
-}
-
-// ─── Kalenderhjälpare ────────────────────────────────────────────────────────
-
-function toUtcNoon(dateStr: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  // Mitt på dagen i UTC: ingen sommartidsförskjutning kan flytta datumet.
-  return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-}
-
-function formatUtc(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-/** Lägger N dagar på ett kalenderdatum (YYYY-MM-DD). Ren kalenderaritmetik, tidszonsfri. */
-export function addDaysToCalendarDate(dateStr: string, days: number): string {
-  const d = toUtcNoon(dateStr);
-  d.setUTCDate(d.getUTCDate() + days);
-  return formatUtc(d);
-}
-
-/** Måndagen i veckan (mån–sön) som kalenderdatumet tillhör. */
-export function mondayOfCalendarDate(dateStr: string): string {
-  const dow = toUtcNoon(dateStr).getUTCDay(); // 0 = söndag
-  return addDaysToCalendarDate(dateStr, -((dow + 6) % 7));
 }
 
 function round2(n: number): number {
@@ -104,10 +80,10 @@ export function buildWeekLeaderboard(
   runs: WeekRun[],
   weekStart: string,
 ): WeekComputation {
-  const prevStart = addDaysToCalendarDate(weekStart, -7);
-  const dates = Array.from({ length: 7 }, (_, i) => addDaysToCalendarDate(weekStart, i));
+  const prevStart = addDays(weekStart, -7);
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const dayIndex = new Map(dates.map((d, i) => [d, i]));
-  const prevDates = new Set(Array.from({ length: 7 }, (_, i) => addDaysToCalendarDate(prevStart, i)));
+  const prevDates = new Set(Array.from({ length: 7 }, (_, i) => addDays(prevStart, i)));
 
   const current = new Map<string, Accum & { days: WeekDay[] }>();
   const previous = new Map<string, Accum>();
@@ -191,7 +167,7 @@ export function buildWeekLeaderboard(
 export function bestWeekKm(runs: Array<{ date: string; distance: number | string }>): number {
   const perWeek = new Map<string, number>();
   for (const r of runs) {
-    const monday = mondayOfCalendarDate(r.date);
+    const monday = mondayOf(r.date);
     perWeek.set(monday, (perWeek.get(monday) ?? 0) + (Number(r.distance) || 0));
   }
   let best = 0;

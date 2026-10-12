@@ -31,8 +31,10 @@ koden 2026-10-04:
   turer (`featureTourSteps.ts`: events, challenges, leaderboard, titles,
   profile) pekar på ankare inne i respektive sida (`leaderboard-card`,
   `titles-my-titles-tab`, `challenges-tokens`, `events-*`, `profile-*` …).
-- **Brytpunkt idag:** 768 px (Tailwind `md`, `useIsMobile`), sidebar
-  `w-[60vw] md:w-[15%]`.
+- **Brytpunkt vid beslutet:** 768 px (Tailwind `md`, `useIsMobile`), sidebar
+  `w-[60vw] md:w-[15%]`. [RÄTTAT 2026-10-12 (RUN-220): beskriver läget före
+  redesignen. `useIsMobile` och shadcn-sidebaren är borttagna (RUN-217); skalet
+  väljer med `useIsDesktop` (1024 px), se beslut 5.]
 - **Designen** (App Prototype = mobil, Web Prototype = desktop): mobil har
   femflikars bottenbar Ranks / Titles / +New / Duels / You, header med
   gruppnamn, kalenderikon (events), klockikon (news) och avatarmeny; "Right
@@ -129,7 +131,9 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
      `DesktopShell` (`SideNav` + header). **Exakt EN variant finns i DOM** —
      inte CSS-döljning — så att `data-tour`-ankare är unika, fokusordning/ARIA
      inte dubbleras och queries inte körs dubbelt. `useIsMobile`
-     (shadcn-sidebarens hook) rörs inte men används inte för skal-val.
+     (shadcn-sidebarens hook) användes aldrig för skal-val och är sedan RUN-217
+     borttagen tillsammans med shadcn-sidebaren; `useIsDesktop` är den enda
+     brytpunktshooken i skalet.
    - **Skärmarna är samma komponenter i båda lägena.** En route-komponent per
      skärm som anpassar sig med `lg:`-klasser; datahooks delas. Endast tre
      ställen får grena i JS: (a) skalet, (b) Runner card (sida på mobil,
@@ -279,8 +283,8 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
   5. Frontend `tsc`/eslint är blockerande (ADR 001) — alla nya filer måste
      vara rena från start.
   6. `useIsDesktop` ger ett första-render-flimmer om värdet är `undefined`
-     (som `useIsMobile`); skalet ska rendera `null`/skeleton tills
-     `matchMedia` lästs, inte gissa.
+     (som den gamla `useIsMobile`, nu borttagen); skalet ska rendera
+     `null`/skeleton tills `matchMedia` lästs, inte gissa.
 - **Arkitekturdiagram:** ingen ändring — frontend är en SPA-komponent i
   diagrammet och inga runtime-komponenter eller kopplingar läggs till.
 - **STATE.md-ändringar att föreslå:** (1) ADR-index: rad 006. (2) Stack/

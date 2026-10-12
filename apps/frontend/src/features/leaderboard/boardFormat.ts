@@ -1,12 +1,10 @@
 import type { Run } from '@runquest/types';
-import { wallClockToInstantMs } from '@runquest/shared';
-import { stockholmClock } from '@/app-shell/rightNowItems';
+import { MS_DAY, addDays, dayOfWeek, daysBetween, stockholmClock, wallClockToInstantMs } from '@runquest/shared';
 
 // Rena formatterare för Board. `now` skickas alltid in så att tiderna går att testa med fasta klockslag.
 
 const MS_MINUTE = 60_000;
 const MS_HOUR = 3_600_000;
-const MS_DAY = 86_400_000;
 
 /** "1 126" — heltal med tusentalsmellanrum som designen. */
 export function formatInt(value: number): string {
@@ -18,23 +16,12 @@ export function formatDecimal(value: number, digits = 1): string {
   return value.toFixed(digits);
 }
 
-function calendarDayNumber(isoDate: string): number {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  return Date.UTC(y, m - 1, d) / MS_DAY;
-}
-
-/** Heltalsdagar mellan två kalenderdagar (YYYY-MM-DD). */
-export function daysBetween(fromDate: string, toDate: string): number {
-  return calendarDayNumber(toDate) - calendarDayNumber(fromDate);
-}
-
 /** ISO-veckonummer (mån–sön, vecka 1 = veckan med årets första torsdag) för en kalenderdag. */
 export function isoWeekNumber(isoDate: string): number {
-  const dayNumber = calendarDayNumber(isoDate);
-  const weekday = (new Date(dayNumber * MS_DAY).getUTCDay() + 6) % 7; // 0 = måndag
-  const thursday = dayNumber - weekday + 3;
-  const year = new Date(thursday * MS_DAY).getUTCFullYear();
-  return Math.floor((thursday - Date.UTC(year, 0, 1) / MS_DAY) / 7) + 1;
+  const weekday = (dayOfWeek(isoDate) + 6) % 7; // 0 = måndag
+  const thursday = addDays(isoDate, 3 - weekday);
+  const year = thursday.slice(0, 4);
+  return Math.floor(daysBetween(`${year}-01-01`, thursday) / 7) + 1;
 }
 
 /**

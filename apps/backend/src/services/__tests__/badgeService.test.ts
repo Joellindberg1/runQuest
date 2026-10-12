@@ -8,7 +8,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(),
 }));
 
@@ -54,7 +53,7 @@ const run = (over: Row = {}): Row => ({
 const writes = (db: ReturnType<typeof setup>, table?: string) =>
   db.queries.filter((q) => q.mutation && (!table || q.table === table));
 
-describe('evaluateBadges — läsning (T2)', () => {
+describe('evaluateBadges — läsning (T2, T3)', () => {
   it('1 200 rundor över två sidor: alla räknas och Earth Trotter-summan stämmer', async () => {
     // 1000 rundor à 0,9 km (900 km = tier 2) + 200 à 1 km på sida två: 1 100 km = tier 3 (>= 1000) bara om sida två räknas.
     const runs: Row[] = [];
@@ -107,7 +106,7 @@ describe('evaluateBadges — läsning (T2)', () => {
     expect((await badgesOf(db)).find((b) => b.series === 'early_bird')).toMatchObject({ tier: 1 });
   });
 
-  it('T3: runs.source läses: fem Strava-rundor på hel km ger Precisionist tier 1, fem manuella ger ingen rad', async () => {
+  it('runs.source läses: fem Strava-rundor på hel km ger Precisionist tier 1, fem manuella ger ingen rad', async () => {
     const stravaRuns = [1, 2, 3, 4, 5].map((d) => run({ id: `s${d}`, date: `2026-10-0${d}`, distance: 4, source: 'strava' }));
     const strava = setup({ runs: stravaRuns });
     await evaluateBadges(USER, { now: NOW });
@@ -119,7 +118,7 @@ describe('evaluateBadges — läsning (T2)', () => {
     expect((await badgesOf(manual)).find((b) => b.series === 'precisionist')).toBeUndefined();
   });
 
-  it('T3: en rad utan source (null) behandlas som manuell och räknas inte i Precisionist', async () => {
+  it('en rad utan source (null) behandlas som manuell och räknas inte i Precisionist', async () => {
     const runs = [1, 2, 3, 4, 5].map((d) => run({ id: `n${d}`, date: `2026-10-0${d}`, distance: 4, source: null }));
     const db = setup({ runs });
     await evaluateBadges(USER, { now: NOW });

@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AppRoutes } from './routes';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { warmLanding } from '@/test/warmLazy';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turerna startar driver.js efter en timer; de har egna tester och stör inte routingen.
@@ -28,6 +29,8 @@ const location = () => screen.getByTestId('location').textContent;
 beforeEach(() => {
   resetFakeBackend();
 });
+
+beforeAll(warmLanding);
 
 describe('varje route renderar utan krasch inne i skalet', () => {
   it.each([
@@ -123,7 +126,7 @@ describe('okända adresser', () => {
 });
 
 describe('auth', () => {
-  it('utloggad på en skyddad route → /login?next=<path>: Landing med inloggningsdialogen öppen (RUN-145)', async () => {
+  it('utloggad på en skyddad route → /login?next=<path>: Landing med inloggningsdialogen öppen', async () => {
     renderWithApp(<AppRoutes />, { entry: '/duels?view=live', user: null, width: MOBILE });
     await waitFor(() => expect(location()).toBe('/login?next=%2Fduels%3Fview%3Dlive'));
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
@@ -131,7 +134,7 @@ describe('auth', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard', hidden: true })).toBeInTheDocument();
   });
 
-  it('utloggad på /badges → /login?next=%2Fbadges: Landing med inloggningsdialogen öppen, inget skal (RUN-145)', async () => {
+  it('utloggad på /badges → /login?next=%2Fbadges: Landing med inloggningsdialogen öppen, inget skal', async () => {
     const { container } = renderWithApp(<AppRoutes />, { entry: '/badges', user: null, width: MOBILE });
     await waitFor(() => expect(location()).toBe('/login?next=%2Fbadges'));
     expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();

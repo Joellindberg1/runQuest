@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.6.1.1 — Förvaltningsrunda: säkerhet, felhantering, en källa för streak och kalender, död kod, snabbare tester (2026-10-12)
+
+Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: en städrunda mellan epics, inget användarsynligt utöver buggfixarna nedan.
+
+### Säkerhet och drift
+- Beroenden uppdaterade inom semver (express 5.3, jsonwebtoken 9.0.3, react-router 6.30.6, autoprefixer m.fl.): `npm audit` från 43 (2 critical, 30 high) till 11 (6 moderate, 5 high, 0 critical); `npm audit --omit=dev` till 4 moderate. Kvarvarande kräver major (tailwind 4 — de 5 high är tailwinds byggverktygskedja braces/micromatch/fast-glob/chokidar —, node-cron 4, react-router 7). (RUN-213)
+- Pinnade versioner med släppvillkor i commit-bodyn: `@supabase/supabase-js` 2.105.1 (senaste som fungerar på Node 20, som prod kör enligt `.nvmrc`; nyare kraschar i `createClient`) — släpps när Node höjs till 22; nytt smoketest fäller om pinnen släpps för tidigt. `tailwindcss` 3.4.17 (3.4.18/19 kraschar bygget), `rollup` 4.64.2 (nyare blockeras lokalt av Windows application control) — släppvillkor för alla tre i commit 0f3bc56. (RUN-213)
+- Prod-loggern serialiserar fel (message, stack, Postgrest-koder) — förut blev de `{}`. Känslig loggning bort: e-post, hela user-objektet, tokenprefix, invite-koder; request-loggen utan query. (RUN-214, RUN-215)
+
+### Buggfixar
+- Skrivkedjan sväljer inte längre fel: omräkning av rundor, utmaningsavgörande (boosts), event-XP, streak-jobbet (skrev 0/0 vid läsfel), schedulers och utmaningsroutes. Strava-rundor som fått XP 0 vid ett omräkningsfel självläks vid nästa synk. När en runda sparats/ändrats/raderats men XP-omräkningen fallerar svarar POST/PUT/DELETE `/api/runs` 500 `{ error, written: true }`; appen uppdaterar listan och visar "Saved — XP is recalculating; don't submit again" i stället för ett fel som lockar till dubblett. En loggrad som skrev ut topplistedata (namn, värden) är borta. (RUN-215)
+- Streak räknas en gång, i shared, med Stockholmsdatum — en runda 00:00–02:00 svensk tid gav förut streak 0 till nattjobbet. (RUN-216)
+- Kalendermodul i shared ersätter ~30 kopior av datumaritmetik. Rättar: "idag" i utmaningar och events (UTC → Stockholm), Storm Chaser-prognosen (tittade på dagens i stället för morgondagens väder efter midnatt), eventfönster som startar 00:00 på sommartidsdygnen. (RUN-218)
+- Titelomräkning: `reprocess-all` svarar ärligt (200/207/500 + antal), varning vid fel; migration 042 serialiserar topplistebygget per titel (advisory-lås). (RUN-158)
+- levelService fastnar inte längre på fallback efter ett DB-fel (nytt försök efter 5 min). (RUN-137)
+- Singular för räknemått ("1 run", "1 day") i titlar, Runner card och admin. (RUN-140)
+- Badge-popupen väntar tills en sidtour är klar; tourtexten säger att Strava-rundor är skrivskyddade. (RUN-155)
+- "Best so far"/eligibility för säsongstitlar använder samma vinter som de lagrade innehavarna. (RUN-141)
+
+### Kodhälsa
+- Död kod bort: 49 oanvända shadcn-ui-filer, Radix-toast, ~40 paket, 31 CSS-tokens, 7 klasser (huvud-CSS −43 kB, huvud-JS −17 kB). (RUN-217)
+- Bygget: Tailwind läser inte testfiler (tom CSS-regel borta), död animate-plugin bort, landning/preview/onboarding/admin-sidor lazy, manualChunks, `noImplicitAny`. Huvudbunten 700 → ~446 kB. (RUN-219)
+- Testsviten: frontend 28 s i stället för ~45 s (rena logiktester utan jsdom, `retryDelay: 0`), arkitekturgränser som ESLint-regler, CSS-/klass-assertions bort där roll-/texttest täcker, Jira-ID bort ur testnamn (CI-vakt). (RUN-154; del 2 = RUN-223)
+- CI-vakter: tom testsvit, TODO/FIXME utan RUN-nyckel, Jira-ID i testnamn; concurrency och timeouts. (RUN-221)
+- Docs: releasekedjan samlad i `docs/release.md`; ADR 001/002/006, README och open-assumptions i takt med koden. (RUN-220)
+- Repohygien: 68 gamla worktrees och 169 mergade lokala brancher bort; `.claude/worktrees/` ignoreras i repot. (RUN-222)
+
+### Prod-steg (kräver ägar-ja var för sig)
+1. PR release/v0.6.1.1 → main, grön CI, merge (= deploy). Ingen versionsbump, ingen What's new, ingen announce (intern version).
+2. Migration 042 (`update_title_leaderboard` med advisory-lås). Additiv, kan köras före eller efter deploy.
+3. Tagg `v0.6.1.1` på merge-commiten.
+
+### Rollback
+- Kod: redeploya v0.6.1 i Railway och revert-PR på main. Inga dataformat ändrade.
+- Migration 042: rollback-SQL står i filhuvudet (funktionen utan lås).
+
 ## v0.6.1 — Badges-filter och release-rad i Pack News (2026-10-11)
 
 Patch efter v0.6.0 på ägarens önskan: badges får eget filter i Pack News, och en ny version syns som en rad i Pack News (inte bara som What's new-popupen).

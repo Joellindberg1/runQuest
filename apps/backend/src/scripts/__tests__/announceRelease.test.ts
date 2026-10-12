@@ -11,7 +11,6 @@ import { join } from 'node:path';
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(),
 }));
 

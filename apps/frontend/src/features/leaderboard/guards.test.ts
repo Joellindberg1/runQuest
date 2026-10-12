@@ -101,7 +101,7 @@ describe('Board-filerna följer designspråket', () => {
   });
 });
 
-describe('podiets minis och vimpeln (RUN-147, spec F12/F13)', () => {
+describe('podiets minis och vimpeln (F12/F13)', () => {
   const [, css] = cssFiles.find(([path]) => path.endsWith('board.css'))!;
 
   it('podiets minis är högerställda via --rq-board-minis-inset (28 px mobil, 46 px desktop), identiskt i båda temafilerna', () => {
@@ -129,13 +129,4 @@ describe('podiets minis och vimpeln (RUN-147, spec F12/F13)', () => {
   });
 });
 
-describe('multiplikatortrappan kommer ur config-endpointen', () => {
-  it('ingen Board-fil importerar constants/streakConstants eller läser DEFAULT_STREAK_MULTIPLIERS', () => {
-    for (const [path, text] of codeFiles) {
-      const code = stripComments(text);
-      expect({ path, constants: /streakConstants/.test(code), defaults: /DEFAULT_STREAK_MULTIPLIERS|STREAK_MULTIPLIERS/.test(code) }).toEqual({
-        path, constants: false, defaults: false,
-      });
-    }
-  });
-});
+// Att multiplikatortrappan kommer ur config-endpointen (ingen streakConstants, ingen DEFAULT_STREAK_MULTIPLIERS) vaktas av ESLint, se eslint.config.js.

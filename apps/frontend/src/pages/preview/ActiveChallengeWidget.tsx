@@ -3,6 +3,7 @@ import { TierBadge } from './TierBadge';
 import { Swords, Clock } from 'lucide-react';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import type { Challenge } from '@runquest/types';
+import { MS_DAY } from '@runquest/shared';
 
 interface ActiveChallengeWidgetProps {
   challenge: Challenge;
@@ -24,7 +25,7 @@ function formatEndDate(endDate: string): string {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const end = new Date(endDate + 'T00:00:00');
-  const diff = Math.round((end.getTime() - today.getTime()) / 86_400_000);
+  const diff = Math.round((end.getTime() - today.getTime()) / MS_DAY);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
   return endDate;

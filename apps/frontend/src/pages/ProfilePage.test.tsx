@@ -571,7 +571,7 @@ describe('Profile — Strava-rundor och spärrad radering', () => {
     return screen.findByRole('dialog', { name: dialogName });
   };
 
-  it('en Strava-runda: Delete är avstängd med förklaringen (title + skärmläsartext) och distans/datum är skrivskyddade utan Save (RUN-139)', async () => {
+  it('en Strava-runda: Delete är avstängd med förklaringen (title + skärmläsartext) och distans/datum är skrivskyddade utan Save', async () => {
     setup({ runs: RUNS.map((r) => (r.id === 'r2' ? { ...r, source: 'strava' } : r)) });
     const sheet = await openEdit('2026-10-02', 'Run details');
     const del = within(sheet).getByRole('button', { name: /Delete run/ });

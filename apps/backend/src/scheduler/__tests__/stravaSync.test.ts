@@ -20,6 +20,7 @@ vi.mock('../../services/weatherService.js', () => ({ WeatherService: { backfillM
 vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllUsersTitles: h.processAllUsersTitles } }));
 
 import { startStravaScheduler, getSyncInfo } from '../stravaSync.js';
+import { logger } from '../../utils/logger.js';
 
 async function runTick(): Promise<void> {
   expect(h.cronCallback).not.toBeNull();
@@ -31,7 +32,7 @@ beforeEach(() => {
   h.order.length = 0;
   h.syncAllStravaUsers.mockResolvedValue({ success: true, message: 'ok', syncedUsers: 1, totalUsers: 1, totalNewRuns: 0 });
   h.backfillMissingWeather.mockImplementation(async () => { h.order.push('backfill'); return 0; });
-  h.processAllUsersTitles.mockImplementation(async () => { h.order.push('titles'); });
+  h.processAllUsersTitles.mockImplementation(async () => { h.order.push('titles'); return { total: 1, processed: 1, failed: 0 }; });
   startStravaScheduler();
 });
 
@@ -59,5 +60,30 @@ describe('stravaSync — titelomräkning efter väder-backfill', () => {
     await expect(runTick()).resolves.toBeUndefined();
 
     expect(getSyncInfo().lastSyncStatus).toBe('success');
+  });
+});
+
+describe('misslyckade användare i titelomräkningen efter väder syns i loggen', () => {
+  it('failed > 0 ger logger.warn med antalen och fäller inte synkstatusen', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    h.backfillMissingWeather.mockResolvedValue(2);
+    h.processAllUsersTitles.mockResolvedValue({ total: 6, processed: 5, failed: 1 });
+
+    await runTick();
+
+    expect(warn.mock.calls.some((c) => /1.*6/.test(String(c[0])))).toBe(true);
+    expect(getSyncInfo().lastSyncStatus).toBe('success');
+    warn.mockRestore();
+  });
+
+  it('failed 0 ger ingen varning', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    h.backfillMissingWeather.mockResolvedValue(2);
+    h.processAllUsersTitles.mockResolvedValue({ total: 6, processed: 6, failed: 0 });
+
+    await runTick();
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

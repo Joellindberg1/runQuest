@@ -2,7 +2,7 @@
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './levelService.js';
-import { toStockholmDate } from '../utils/dateUtils.js';
+import { toStockholmDate, tomorrowStockholm } from '../utils/dateUtils.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
 import { buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
 
@@ -232,6 +232,8 @@ export async function checkEventQualification(params: {
 
   if (error || !events?.length) return;
 
+  const failures: string[] = [];
+
   for (const event of events) {
     try {
       if (params.enforceRunDateWindow) {
@@ -261,7 +263,20 @@ export async function checkEventQualification(params: {
           logger.error(`❌ [EventQual] Failed to insert participation entry:`, insertErr);
         } else if (!insertErr) {
           // Lägg till XP (ökar både event_xp och total_xp via RPC)
-          await supabase.rpc('increment_event_xp', { p_user_id: params.userId, p_xp: rewardXp });
+          const { error: xpErr } = await supabase.rpc('increment_event_xp', { p_user_id: params.userId, p_xp: rewardXp });
+          if (xpErr) {
+            // Entryn säger xp_awarded men ingen XP gick in, och UNIQUE gör att ett omförsök annars bara får 23505.
+            // Ta bort den så att nästa kvalificering (t.ex. en redigering av rundan) kan försöka igen.
+            logger.error(`❌ [EventQual] increment_event_xp failed for user ${params.userId}, event ${event.id}:`, xpErr);
+            const { error: rollbackErr } = await supabase
+              .from('event_entries')
+              .delete()
+              .eq('event_id', event.id)
+              .eq('user_id', params.userId);
+            if (rollbackErr) logger.error(`❌ [EventQual] Could not roll back entry for event ${event.id}, user ${params.userId}:`, rollbackErr);
+            failures.push(`increment_event_xp failed for event ${event.id}: ${xpErr.message}`);
+            continue;
+          }
 
           // Räkna om level baserat på ny total_xp
           // current_level/group_id i samma select = föregående nivå för level_up-loggen (ADR 008).
@@ -305,6 +320,11 @@ export async function checkEventQualification(params: {
       logger.error(`❌ [EventQual] Unexpected error for event ${event.id}:`, e);
     }
   }
+
+  // Kastas först efter loopen så att ett fallerat event inte hindrar de övriga; anroparna loggar via .catch.
+  if (failures.length > 0) {
+    throw new Error(`Event qualification failed for user ${params.userId}: ${failures.join('; ')}`);
+  }
 }
 
 // ─── settleCompetitionEvents ──────────────────────────────────────────────────
@@ -341,6 +361,8 @@ export async function settleCompetitionEvents(): Promise<void> {
     logger.info('ℹ️ [Settlement] No competition events to settle');
     return;
   }
+
+  const failedEvents: string[] = [];
 
   for (const event of events) {
     try {
@@ -413,18 +435,30 @@ export async function settleCompetitionEvents(): Promise<void> {
       scored.sort((a, b) => b.totalValue - a.totalValue);
 
       // Dela ut XP per placering
+      const payoutFailures: string[] = [];
       for (let i = 0; i < scored.length; i++) {
         const { entryId, userId, totalValue } = scored[i];
         const xp = i < xpPerRank.length ? xpPerRank[i] : 0;
         const rank = i + 1;
 
-        await supabase
+        const { error: rankErr } = await supabase
           .from('event_entries')
           .update({ rank, xp_awarded: xp, total_value: totalValue })
           .eq('id', entryId);
+        if (rankErr) {
+          logger.error(`❌ [Settlement] Failed to save rank ${rank} for user ${userId}, event ${event.id}:`, rankErr);
+          payoutFailures.push(`entry update failed for user ${userId}: ${rankErr.message}`);
+        }
 
         if (xp > 0) {
-          await supabase.rpc('increment_event_xp', { p_user_id: userId, p_xp: xp });
+          // Eventet är redan claimat (settled): en misslyckad utbetalning kan inte köras om, så den loggas med
+          // användare/belopp för manuell rättning och kastas efter loopen — aldrig som "+XP" i loggen.
+          const { error: xpErr } = await supabase.rpc('increment_event_xp', { p_user_id: userId, p_xp: xp });
+          if (xpErr) {
+            logger.error(`❌ [Settlement] increment_event_xp failed for user ${userId} (+${xp} XP owed, rank ${rank}) in event ${event.id}:`, xpErr);
+            payoutFailures.push(`increment_event_xp failed for user ${userId} (+${xp} XP): ${xpErr.message}`);
+            continue;
+          }
           // Räkna om level baserat på ny total_xp
           const { data: userData } = await supabase
             .from('users').select('total_xp, current_level, group_id').eq('id', userId).single();
@@ -452,10 +486,21 @@ export async function settleCompetitionEvents(): Promise<void> {
         ));
       }
 
+      if (payoutFailures.length > 0) {
+        failedEvents.push(`event ${event.id}: ${payoutFailures.join('; ')}`);
+        continue;
+      }
+
       logger.info(`✅ [Settlement] Competition event ${event.id} settled (${scored.length} participants)`);
     } catch (e) {
       logger.error(`❌ [Settlement] Unexpected error settling event ${event.id}:`, e);
+      failedEvents.push(`event ${event.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  // Efter loopen, så att ett event med fel inte hindrar de övriga; schedulern loggar felet.
+  if (failedEvents.length > 0) {
+    throw new Error(`Competition settlement had failures: ${failedEvents.join(' | ')}`);
   }
 }
 
@@ -631,10 +676,9 @@ export async function checkStormChaserForecast(): Promise<boolean> {
     const codes: number[] = json?.hourly?.weather_code ?? [];
     const gusts: number[] = json?.hourly?.wind_gusts_10m ?? [];
 
-    // Hitta imorgondatumets timmar (index 24–47 vid 2-dagars forecast)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    // Hitta imorgondatumets timmar (index 24–47 vid 2-dagars forecast). Open-Meteo svarar i Stockholm-tid, så
+    // "imorgon" är Stockholm-dagen + 1 — inte UTC-dagen.
+    const tomorrowStr = tomorrowStockholm(); // "YYYY-MM-DD"
 
     let stormyHours = 0;
     let gustyHours = 0;

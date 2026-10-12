@@ -2,6 +2,7 @@
 // Liggaren härleds ur befintliga tabeller (runs.xp_gained + event_entries.xp_awarded);
 // ingen ny lagring. Återanvänds av ADR 008:s backfill.
 import type { RankDeltaUser as RankDeltaResultUser } from './contracts/leaderboard.js';
+import { stockholmDay } from './calendar.js';
 import { compareByNameThenId } from './leaderboard.js';
 
 export interface LedgerRun {
@@ -35,13 +36,6 @@ export interface XpLedgerEntry {
   xp: number;
 }
 
-const stockholmDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' });
-
-/** ISO-tidpunkt → Stockholm-kalenderdag (YYYY-MM-DD). */
-function toStockholmDay(iso: string): string {
-  return stockholmDay.format(new Date(iso));
-}
-
 /**
  * Bygger XP-liggaren. Datering av event-XP: participation → qualified_at;
  * competition → settled_at ?? ends_at (XP betalas ut vid avräkningen, inte vid anmälan).
@@ -60,7 +54,7 @@ export function buildXpLedger(runs: LedgerRun[], eventEntries: LedgerEventEntry[
     if (xp <= 0) continue;
     const at = e.event_type === 'competition' ? (e.settled_at ?? e.ends_at) : e.qualified_at;
     if (!at) continue;
-    ledger.push({ user_id: e.user_id, source: 'event', ref_id: e.entry_id, date: toStockholmDay(at), xp });
+    ledger.push({ user_id: e.user_id, source: 'event', ref_id: e.entry_id, date: stockholmDay(new Date(at)), xp });
   }
 
   return ledger;

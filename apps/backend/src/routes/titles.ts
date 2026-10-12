@@ -2,6 +2,7 @@ import express from 'express';
 import { logger } from '../utils/logger.js';
 import { titleLeaderboardService } from '../services/titleLeaderboardService';
 import { enhancedTitleService } from '../services/enhancedTitleService';
+import { getTitleRecalcContext } from '../services/titleRecalcClock';
 import { supabase } from '../config/database';
 import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
@@ -180,13 +181,31 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
 /**
  * POST /api/titles/reprocess-all
  * Recalculates user_titles for all users from scratch using current algorithm, then refreshes leaderboard.
+ *
+ * Ärligt svar (RUN-158): {success, message, total, processed, failed}. Ett fel hos en användare stoppar inte
+ * körningen (RUN-157), så statusen speglar utfallet: 200 när alla lyckades, 207 när bara några misslyckades
+ * (success:false — en del av arbetet är gjort och en del inte), 500 när ingen lyckades.
  */
 router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) => {
   try {
     logger.info('🔄 API: Full title reprocess requested...');
     // Admin-underhåll ska inte spamma Pack News (ADR 008 beslut 6).
-    await enhancedTitleService.processAllUsersTitles(undefined, { emitNews: false, allGroups: true });
-    res.status(200).json({ success: true, message: 'All user titles reprocessed and leaderboards refreshed' });
+    const { total, processed, failed } = await enhancedTitleService.processAllUsersTitles(undefined, { emitNews: false, allGroups: true });
+    const counts = { total, processed, failed };
+
+    if (failed === 0) {
+      res.status(200).json({ success: true, message: 'All user titles reprocessed and leaderboards refreshed', ...counts });
+      return;
+    }
+
+    logger.warn(`⚠️ Title reprocess finished with failures: ${failed} of ${total} users failed`);
+    if (processed === 0) {
+      const message = `All ${total} users failed`;
+      // ADR 007 A1: 5xx-svar bär error bredvid message (additivt).
+      res.status(500).json({ success: false, error: message, message, ...counts });
+      return;
+    }
+    res.status(207).json({ success: false, message: `${failed} of ${total} users failed; the rest were recalculated`, ...counts });
   } catch (error) {
     logger.error('❌ API Error in /titles/reprocess-all:', error);
     res.status(500).json({ success: false, error: 'Failed to reprocess titles' });
@@ -226,8 +245,9 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
       return;
     }
 
-    // For each user, fetch runs and calculate values (ett gemensamt "nu" för hela svaret)
-    const ctx = { now: new Date() };
+    // For each user, fetch runs and calculate values. Ett gemensamt "nu" för hela svaret: senaste omräkningens klocka,
+    // så att winterKm räknar samma vinter som de lagrade innehavarna (RUN-141).
+    const ctx = await getTitleRecalcContext();
     const eligibilityResults = await Promise.all(
       users.map(async (user: any) => {
         const { data: runs } = await supabase.client

@@ -45,7 +45,7 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
 });
 
 const renderQueue = (withPageTour = false) => render(
-  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } })}>
     <OnboardingOrchestrator />
     {withPageTour && <FeatureTour slug="tour_news_v1" steps={PAGE_TOUR_STEPS} />}
   </QueryClientProvider>,

@@ -10,7 +10,7 @@ samma sak på två ställen.
 | Publik | Dokument | Språk | Ägare |
 |---|---|---|---|
 | **Gruppen** (användarna) | `apps/frontend/src/data/changelog.json` → Feature & Version-sidan och popupen "What's new" | Enkel engelska, vad *du* märker | Lead vid release |
-| **Utvecklare** | `CHANGELOG.md` (tekniskt, varje release) · `STATE.md` (nuläget) · `docs/adr/` (beslut) · `docs/open-assumptions.md` · feature-READMEs i `apps/frontend/src/features/*/README.md` | Svenska | Lead / respektive builder |
+| **Utvecklare** | `CHANGELOG.md` (tekniskt, varje release) · `STATE.md` (nuläget) · `docs/adr/` (beslut) · `docs/release.md` (releasekedjan) · `docs/open-assumptions.md` · feature-READMEs i `apps/frontend/src/features/*/README.md` | Svenska | Lead / respektive builder |
 | **Ägaren** | Notion (idéer, roadmap, monetisering — hålls utanför det publika repot) | Fritt | Ägaren |
 
 `docs/archive/` innehåller äldre dokument som inte längre uppdateras.
@@ -67,6 +67,9 @@ formen och att versionerna hänger ihop (se feature-README:n
 `apps/frontend/src/features/changelog/README.md`).
 
 ## Releasechecklista (Lead, i samma PR som ändringen)
+
+Checklistan gäller innehållet i release-PR:en. Själva kedjan från preview till live (prod-steg, ägar-ja per steg,
+`announce:release`, rollback) står i [`docs/release.md`](release.md).
 
 1. Bumpa versionen i rotens `package.json` och `apps/frontend/package.json` till
    användarversionens tre delar (hoppa över detta för ett internt steg `vX.Y.Z.N`).

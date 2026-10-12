@@ -1,3 +1,4 @@
+import { MS_DAY, stockholmClock, streakStatus } from '@runquest/shared';
 import { paths } from '@/paths';
 import type { RQIconName } from '@/shared/components/icons';
 
@@ -51,8 +52,6 @@ export interface RightNowInput {
 
 const MS_MINUTE = 60_000;
 const MS_HOUR = 3_600_000;
-const MS_DAY = 86_400_000;
-const STOCKHOLM = 'Europe/Stockholm';
 
 const METRIC_LABELS: Record<ShellDuel['metric'], string> = {
   km: 'Most km',
@@ -68,30 +67,9 @@ export function formatRemaining(ms: number): string {
   return `${Math.floor(ms / MS_DAY)} d`;
 }
 
-export interface StockholmClock {
-  date: string;
-  msIntoDay: number;
-}
-
-/** Stockholm-datum + ms in i dygnet. Delas med Board ("X h ago", streak-status). */
-export function stockholmClock(now: Date): StockholmClock {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: STOCKHOLM,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
-  return {
-    date: `${get('year')}-${get('month')}-${get('day')}`,
-    msIntoDay: (Number(get('hour')) * 3600 + Number(get('minute')) * 60 + Number(get('second'))) * 1000,
-  };
-}
-
-function previousDay(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
-}
+// Implementationen bor i shared (calendar.ts). Återexporten finns kvar för pages/BoardPage.tsx, som importerar härifrån;
+// features importerar direkt från @runquest/shared.
+export { stockholmClock };
 
 /**
  * Tid kvar tills streaken bryts (Stockholm-dagar, som backend). Senaste rundan idag → deadline
@@ -104,9 +82,9 @@ export function streakDeadline(
   if (!lastRunDate) return null;
   const clock = stockholmClock(now);
   const msLeftToday = MS_DAY - clock.msIntoDay;
-  const last = lastRunDate.slice(0, 10);
-  if (last === clock.date) return { msLeft: msLeftToday + MS_DAY, ranToday: true };
-  if (last === previousDay(clock.date)) return { msLeft: msLeftToday, ranToday: false };
+  const status = streakStatus(lastRunDate.slice(0, 10), clock.date);
+  if (status === 'ran_today') return { msLeft: msLeftToday + MS_DAY, ranToday: true };
+  if (status === 'ran_yesterday') return { msLeft: msLeftToday, ranToday: false };
   return null;
 }
 

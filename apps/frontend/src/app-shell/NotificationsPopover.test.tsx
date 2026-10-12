@@ -60,7 +60,8 @@ describe('klockan i headern', () => {
   it.each([MOBILE, DESKTOP])('oläst-räknaren ur meta.unread_count (egna handlingar räknas inte av backend), vid %d px', async (width) => {
     renderWithApp(<Tree />, { entry: '/board', width });
     const button = await screen.findByRole('button', { name: 'Pack news, 4 unread' });
-    expect(button.querySelector('.rq-news-badge')).toHaveTextContent('4');
+    // Siffran är aria-hidden (namnet bär räknaren för hjälpmedel), så den hittas på text, inte på roll.
+    expect(within(button).getByText('4')).toBeInTheDocument();
     expect(button).toHaveAttribute('data-tour', 'header-news');
   });
 

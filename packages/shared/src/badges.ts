@@ -7,6 +7,8 @@
 // högre nivå kan aldrig nås före en lägre (ägarbeslut 2026-10-11, RUN-135). Motorn (evaluateSeries) är
 // ändå generisk och tillåter olika mått per tier; kontraktstestet är det som håller serierna enhetliga.
 
+import { wallClockMinutes } from './calendar.js';
+
 /** Antal nivåer per serie. */
 export const MAX_TIER = 6;
 
@@ -61,23 +63,6 @@ export interface BadgeMetricDef {
 function toHundredths(value: number | null): number {
   if (value == null || !Number.isFinite(value) || value <= 0) return 0;
   return Math.round(value * 100);
-}
-
-/**
- * Minuter sedan midnatt i löparens lokala väggklocka, ur `start_time`.
- * `start_time` är Strava `start_date_local` lagrad med falskt 'Z' (ADR 009 beslut 2): siffrorna ÄR
- * väggklockan. Klockslaget läses direkt ur strängen — ingen Date, alltså ingen konvertering till
- * någon tidszon (processens, DST, en angiven offset eller löparens). Null, rent datum utan klockslag
- * eller ogiltigt klockslag (manuella rundor) => null = ingen räkning.
- */
-export function wallClockMinutes(startTime: string | null): number | null {
-  if (!startTime) return null;
-  const match = /T(\d{2}):(\d{2})/.exec(startTime);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours > 23 || minutes > 59) return null;
-  return hours * 60 + minutes;
 }
 
 /**

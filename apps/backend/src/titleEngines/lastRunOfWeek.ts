@@ -1,5 +1,5 @@
 import type { TitleEngine, RunData, UserStats } from './types';
-import { dayOfWeek } from './_utils';
+import { dayOfWeek } from '@runquest/shared';
 
 // Value = latest start_time (Unix seconds) among Sunday runs.
 // The user who most recently ran on a Sunday holds the title.

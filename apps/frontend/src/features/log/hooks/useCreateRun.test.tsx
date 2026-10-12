@@ -16,13 +16,13 @@ const submission = { date: '2026-10-04', distance: 8, isTreadmill: false };
 function setup() {
   resetFakeBackend();
   handlers.createRun = async () => ({ success: true, data: { id: 'new', xp_gained: 44, multiplier: 1.1, streak_day: 5, distance: 8 } });
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { ...renderHook(() => useCreateRun(), { wrapper }), invalidate };
 }
 
-const invalidatedKeys = (invalidate: ReturnType<typeof vi.spyOn>): unknown[] => invalidate.mock.calls.map(([filters]) => (filters as { queryKey: unknown }).queryKey);
+const invalidatedKeys = (invalidate: ReturnType<typeof vi.spyOn>): unknown[] => invalidate.mock.calls.map(([filters]: unknown[]) => (filters as { queryKey: unknown }).queryKey);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -60,6 +60,15 @@ describe('useCreateRun — vad en lyckad runda invaliderar', () => {
     const before = invalidatedKeys(invalidate).filter((key) => key === EVENTS_QUERY_KEYS.open).length;
     followUps[0]();
     expect(invalidatedKeys(invalidate).filter((key) => key === EVENTS_QUERY_KEYS.open)).toHaveLength(before + 1);
+  });
+
+  it('servern svarade 500 EFTER att rundan skrevs (written): hela kedjan invalideras ändå, så listan inte släpar efter och en retry inte dubblar', async () => {
+    const { result, invalidate } = setup();
+    handlers.createRun = async () => ({ success: false, error: 'Run was created but XP recalculation failed', written: true });
+
+    await expect(result.current.mutateAsync(submission)).rejects.toThrow('Run was created but XP recalculation failed');
+
+    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining([USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], EVENTS_QUERY_KEYS.open, ['titles'], LOG_QUERY_KEYS.history]));
   });
 
   it('ett misslyckat anrop invaliderar ingenting och kastar serverns meddelande', async () => {

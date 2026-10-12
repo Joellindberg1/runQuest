@@ -20,7 +20,7 @@ interface RenderOptions {
 
 export function renderWithApp(ui: React.ReactNode, { entry = '/', user = AUTH_USER, admin = false, width = 390 }: RenderOptions = {}) {
   setViewportWidth(width);
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
   const auth: AuthContextType = {
     user: user ? { ...user, is_admin: admin } : null,
     login: async () => ({ success: true }),

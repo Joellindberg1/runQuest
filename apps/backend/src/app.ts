@@ -47,8 +47,11 @@ export function createApp(): express.Express {
   app.use(express.json());
 
   // Request logging
-  app.use((req, _res, next) => {
-    logger.info(`📨 ${new Date().toISOString()} - ${req.method} ${req.path}`);
+  app.use((req, res, next) => {
+    // Pathen läses nu: sub-routrar skriver om req.path/baseUrl innan svaret är klart.
+    // req.path saknar query-strängen (kan bära tokens/koder); tidsstämpel sätter loggern själv.
+    const { method, path } = req;
+    res.on('finish', () => logger.info(`📨 ${method} ${path} ${res.statusCode}`));
     next();
   });
 

@@ -4,7 +4,6 @@ import {
   ACTIVITY_TYPES,
   RUN_MILESTONES,
   activityKeys,
-  addDaysToDay,
   buildBadgeEarnedDraft,
   buildChallengeReceivedDraft,
   buildChallengeSettledDraft,
@@ -20,16 +19,16 @@ import {
   isStreakBroken,
   levelsCrossed,
   milestonesCrossed,
-  stockholmMidnightIso,
   streakBrokenOccurredAt,
   streakBrokenThreshold,
   type ChallengeActivityRow,
   type EventActivityRow,
   type TitleHolder,
 } from '../activity.js';
+import { addDays, stockholmMidnightIso } from '../calendar.js';
 
 describe('ACTIVITY_TYPES', () => {
-  it('är exakt ADR 008:s elva typer + badge_earned (ADR 009 beslut 5) + release_published (RUN-161), unika', () => {
+  it('är exakt ADR 008:s elva typer + badge_earned (ADR 009 beslut 5) + release_published, unika', () => {
     expect([...ACTIVITY_TYPES].sort()).toEqual([
       'badge_earned', 'challenge_draw', 'challenge_received', 'challenge_won', 'event_closed', 'event_open', 'level_up',
       'release_published', 'run_milestone', 'streak_broken', 'title_revoked', 'title_taken', 'title_unlocked',
@@ -103,11 +102,11 @@ describe('stockholmMidnightIso', () => {
   });
 });
 
-describe('addDaysToDay', () => {
+describe('addDays', () => {
   it('klarar månads- och årsskiften', () => {
-    expect(addDaysToDay('2026-01-31', 1)).toBe('2026-02-01');
-    expect(addDaysToDay('2026-12-31', 2)).toBe('2027-01-02');
-    expect(addDaysToDay('2026-03-01', -1)).toBe('2026-02-28');
+    expect(addDays('2026-01-31', 1)).toBe('2026-02-01');
+    expect(addDays('2026-12-31', 2)).toBe('2027-01-02');
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
   });
 });
 
@@ -401,7 +400,7 @@ describe('buildBadgeEarnedDraft', () => {
   });
 });
 
-describe('buildReleasePublishedDraft (RUN-161)', () => {
+describe('buildReleasePublishedDraft', () => {
   const at = '2026-10-12T08:00:00.000Z';
 
   it('systemhändelse: ingen aktör, ingen target, aldrig backfill, payload {version, title}, nyckel per grupp och version', () => {

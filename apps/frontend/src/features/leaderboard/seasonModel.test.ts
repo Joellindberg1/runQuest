@@ -143,7 +143,7 @@ describe('rankDeltaMap', () => {
   });
 });
 
-describe('badges i raderna (RUN-131)', () => {
+describe('badges i raderna', () => {
   const adam = user({ id: 'a', name: 'Adam', total_xp: 4000 });
   const bea = user({ id: 'b', name: 'Bea', total_xp: 3000 });
 

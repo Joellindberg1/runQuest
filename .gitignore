@@ -91,3 +91,5 @@ architecture.md
 INTERNAL_API.md
 STRAVA_API.md
 README_API.md
+# Agentworktrees (lokala, skapas av Claude Code)
+.claude/worktrees/

@@ -6,17 +6,16 @@ import {
   ACTIVITY_PAYLOAD_VERSION,
   RUN_MILESTONES,
   activityKeys,
-  addDaysToDay,
   buildChallengeReceivedDraft,
   buildChallengeSettledDraft,
   buildEventClosedDraft,
   buildEventOpenDraft,
   buildStreakBrokenDraft,
-  stockholmMidnightIso,
   type ActivityDraft,
   type ChallengeActivityRow,
   type EventActivityRow,
 } from './activity.js';
+import { addDays, stockholmMidnightIso } from './calendar.js';
 import { levelFromXP } from './levelCalculation.js';
 import type { LevelRequirement } from './levelCalculation.js';
 import type { XpLedgerEntry } from './xpLedger.js';
@@ -223,7 +222,7 @@ export function streakSegments(days: ReadonlyArray<string>): StreakSegment[] {
   let prev: string | null = null;
   let length = 0;
   for (const day of sorted) {
-    if (prev !== null && addDaysToDay(prev, 1) === day) {
+    if (prev !== null && addDays(prev, 1) === day) {
       length++;
     } else {
       if (start !== null && prev !== null) segments.push({ start, end: prev, length });
@@ -259,7 +258,7 @@ export function backfillStreakBroken(
     if (!group) continue;
     for (const seg of streakSegments(days)) {
       if (seg.length < threshold) continue;
-      if (addDaysToDay(seg.end, 2) > today) continue; // streaken lever fortfarande (idag/igår) eller kan räddas
+      if (addDays(seg.end, 2) > today) continue; // streaken lever fortfarande (idag/igår) eller kan räddas
       out.push(buildStreakBrokenDraft(userId, group, seg.length, seg.end, true));
     }
   }
@@ -286,5 +285,5 @@ export function sortChronologically(drafts: ReadonlyArray<ActivityDraft>): Activ
 
 /** Dag (YYYY-MM-DD) som är `days` dagar före `today` — default `--since`. */
 export function defaultSinceDay(today: string, days: number = BACKFILL_DEFAULT_DAYS): string {
-  return addDaysToDay(today, -days);
+  return addDays(today, -days);
 }

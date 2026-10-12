@@ -1,8 +1,7 @@
-# Öppna antaganden — redesignen
+# Öppna antaganden
 
-Lead underhåller. En rad per antagande: vad som antagits, var det bor, och vad som
-skulle göra det fel. Antaganden som blivit beslut flyttas till STATE.md/ADR;
-backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
+Gäller hela appen. Lead underhåller. En rad per antagande: vad som antagits, var det bor, och vad som skulle göra det fel. Antaganden som blivit beslut
+flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda punkter tas bort härifrån och står kort under Historik.
 
 ## Events (inkrement 6)
 - "Your record" aggregeras i klienten: historiken läses i sidor om 50 (max 10
@@ -13,10 +12,6 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
 - Nedräkningsringens fyllnad = andel av fönstret som återstår (prototypens 62 %
   är hårdkodad och har ingen semantik).
 - "Up next" = det event som öppnar först, oavsett typ; resten hamnar i This week.
-- ~~Ingen invalidering av `['events']` när en runda loggas~~ LÖST i inkrement 7:
-  `useCreateRun` invaliderar `['events']` direkt + en gång till efter 4 s
-  (backend kör checkEventQualification fire-and-forget, första omhämtningen kan
-  hinna före).
 - Ett event räknas som öppet efter klockan, inte efter `status` (cron flyttar
   scheduled→active var 5:e min). Skal och skärm delar regeln via eventPhase.
 - Historik-pagern navigerar med `replace: true` — webbläsarens Back lämnar
@@ -63,8 +58,6 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   "Longest gap" räknar bara avslutade uppehåll.
 - Alla stats härleds klient-side ur users-with-runs (hela rundlistan finns
   redan i payloaden; GET /users/me/stats ej aktuell än).
-- ~~Edit-datumets max vs serverns UTC-"idag"~~ LÖST i i9-dataspåret: servern
-  validerar nu Stockholm-dagen (todayStockholm).
 - En runda kan bara ändras på datum och distans (servern tar inget annat).
 - Strava-rundor: Delete är avstängd (title + sr-only enligt Titles valknapp) och en synlig rad med samma text
   (`aria-hidden`) lades till i redigeringsrutan så att touch-användare ser förklaringen — det ligger utanför det
@@ -106,12 +99,11 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   270, miss a day and it starts over" (prototypen: "up to 2× … resets to 1×"). Siffrorna läses ur shared-standardvärdena
   (`DEFAULT_ADMIN_SETTINGS`, `DEFAULT_STREAK_MULTIPLIERS`); ändrar admin inställningarna i databasen följer texten inte med (Landing gör inga anrop).
   "Miss a day and it starts over" är VERIFIERAT mot streak-motorn (critic 2026-10-05): ett glapp som inte är exakt en dag ger streakdag 1, och
-  calculateCurrentStreak ger 0 när senaste dag varken är idag eller igår — ingen grace-regel finns.
+  currentStreak (shared/streak.ts) ger 0 när senaste dag varken är idag eller igår — ingen grace-regel finns.
 - **"+50 XP"-poppen ligger i banans mitt (text-anchor middle), inte där prototypen har den** (x 770 → 700): med den ursprungliga platsen klipptes
   texten av den klippta banrutan på desktop.
 - **Banans löpare går med CSS offset-path på SVG-cirklar** (samma `rqOrbit` som stadion-laddaren) i stället för prototypens SMIL `<animateMotion>`, så
   `prefers-reduced-motion` stoppar dem. Silver- och bronsprickarna är heltäckande rankfärger (prototypen hade .75/.8 i alfa).
-- ~~/login är fortfarande den gamla inloggningssidan~~ OMRITAD i inkrement 11 (spår B). Landingens knapp leder dit.
 - **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade — men utloggad gör den inget nätverksanrop.** Landing-FEATUREN anropar inget själv.
   `useAppInit` kör `useLevelRequirements`, som hämtar nivåtabellen via `GET /api/config/levels` (kräver token) först när en användare är inloggad
   (`enabled: !!user`, även efter SPA-inloggning); utloggad och vid fel gäller `FALLBACK_LEVEL_REQUIREMENTS`. Onboarding-prefetchen gör INGET nätverksanrop utan
@@ -180,9 +172,6 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   användaren) och de gamla `XPSettings/UserManagement/TitleConfig/AdminSecurity`, `StravaSettings/PasswordSettings`.
 
 ## Skal & delat
-- **Logout rensar inte användarspecifika query-cachar** — LÖST (RUN-143, v0.6.0):
-  `AuthProvider` kör `qc.clear()` vid login, logout och 401 (hela cachen, inga
-  undantag; nivåtabellen hämtas bara om). Test: `AuthProvider.test.tsx`.
 - RÄTTAT 2026-10-04: Toastern ÄR monterad (AppProviders) och gamla `toast()`-
   anrop visas. Nya features använder ändå permanenta `role=status`-ytor —
   motivet är konsekvens och pålitlig uppläsning, inte att Toastern saknas.
@@ -194,15 +183,7 @@ backend-kontraktsfrågor samlas längst ned inför nästa data-inkrement.
   använder en-GB och är stabil i test men kan skilja mellan miljöer).
 
 ## Backend-kontraktsfrågor
-LÖSTA i i9-dataspåret 2026-10-05: fråga 0 (Stockholm-datumvalidering + avvisade
-ogiltiga kalenderdagar), fråga 6 (`source` i users-with-runs; frontend ska
-blockera Delete för `'strava'` och tolka null som manual), fråga 7
-(PUT kvalificerar event med dagsfönster; DELETE medvetet utan anrop —
-en radering kan inte skapa kvalificering och avkvalificering vore en
-regeländring; dessutom svarar DELETE nu 409 för kvalificerande rundor).
-NYTT känt (orört): bakdaterad POST kan kvalificera ett pågående event
-(POST/Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
-LÖST: backendens init-logger skriver bara "set"/"missing" för service-nyckeln (config/database.ts).
+Lösta frågor står under Historik längst ned. Öppet och orört: en bakdaterad POST kan kvalificera ett pågående event (POST och Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
 1. `group-stats` flaggar `has_pending_challenge` bara för utmanaren — en medlem
    med inkommande väntande utmaning ser ledig ut i send-sheeten (400 visas
    graciöst). Vill ha: flagga även mottagarsidan.
@@ -215,18 +196,9 @@ LÖST: backendens init-logger skriver bara "set"/"missing" för service-nyckeln 
    som lista i gamla UI:t. Rätta typerna i packages/shared (kräver
    data-inkrement, shared får inte röras i komponentinkrement).
 5. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
-6. ~~Raderade Strava-rundor återuppstår~~ LÖST i i9: source-fält +
-   Delete-block i Profile (synlig hint, null = manuell).
-7. ~~PUT kvalificerar inte event~~ LÖST i i9 (PUT med dagsfönster; DELETE
-   medvetet utan anrop, svarar 409 för kvalificerande rundor).
-8. ~~**Utgången/ogiltig JWT ger 403, inte 401**~~ LÖST (middleware/auth.ts svarar 401). Ursprunglig text: frontend loggar bara ut vid
-   401, så en användare borta >7 dagar fastnar på felkort överallt. BESLUT
-   (Lead): backend ändrar jwt.verify-felet till 401 (autentisering, inte
-   auktorisering); IDOR-403:orna är oförändrade. Tas i backend-mikrorundan.
-9. ~~**Init-loggen skriver service-nyckelns prefix**~~ LÖST (config/database.ts loggar bara "set"/"missing").
-10. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
-    klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
-    bara till). Medvetet val i9c; läker vid window focus.
+6. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
+   klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
+   bara till). Medvetet val i9c; läker vid window focus.
 
 ## Feature & Version + What's new (inkrement 11A)
 
@@ -238,17 +210,22 @@ LÖST: backendens init-logger skriver bara "set"/"missing" för service-nyckeln 
   (0.5.0.1) och finns bara i CHANGELOG.md/git-taggar; package.json håller de tre första delarna av översta rubriken (docs/dokumentation.md).
 - **Datumformatet behålls** ("5 October 2026", som "2 April 2026") — prototypen har "24 aug 2026", men befintliga poster väger tyngre; vakten kräver formen.
 - **Features-listan är kuraterad mot dagens app**: "Dark mode" och "Onboarding" från prototypens exempeldata är borta (ljust tema är förberett men inte designat; touren är
-  inte ett säljargument), och nya funktioner (Duels, Runner card, Pack News, Log runs) tillagda. Working on = Badges + Notifications som i prototypen (båda finns på roadmapen).
+  inte ett säljargument), och nya funktioner (Duels, Runner card, Pack News, Log runs) tillagda. Working on = Notifications (Badges flyttades till Features när de släpptes i v0.6.0).
 - **Popupen har ingen prototyp** — härledd ur skalets delade modal (`.rq-modal`/`.rq-scrim`), Bebas-rubrik, hårlinjegrid för punkterna, en guldknapp. Fokus startar på "Got it".
 - **Prototypens textsteg snappade till tokens**: kortrubrik 18 px → `--rq-fs-name` (20 på desktop), beskrivningar 16 px → `--rq-fs-body` (17 på desktop), release-datum 15 → `--rq-fs-meta`.
 - **Alla som redan sett de gamla patchnotes (`patch_2026_04_02_*`) får 0.5.0-popupen en gång** — slugen `patch_v0.5.0` är ny. De gamla slugarna ligger kvar i tabellen, ofarliga.
 
-## Badge-samlingen i profilen (RUN-128, v0.6.0) — historik: ersatt av v2
+## Badges (v2)
 
-> Profilens samlingskort och väljaren (RUN-128/129) finns inte längre: badge-design v2 (RUN-146–152) ersatte dem med badges-sidan `/badges` och en kompakt sammanfattning på profilen. Antagandena nedan gäller bara det som lever kvar (News-raden, skelettet, flavor-storleken).
-
-- **Samlingskortet är lodrätt på alla bredder, även desktop.** F2:s desktopkort (emblem till vänster, namn + chip + pips till höger) förutsätter ca 200 px breda kort. Skalets huvudkolumn är smalare än i designens 1440-bild (sidonav 250 + sidokolumn 340), så fyra kolumner ger ca 145 px (1280) / 180 px (1440), där LEGENDARY-chippet inte ryms bredvid emblemet och namnen bröts mitt i orden. Det lodräta mobilkortet i 4 kolumner läses rent. Byt till raden om rutnätet får fler pixlar (färre kolumner eller bredare kolumn).
-- RÄTTAT (RUN-129): ON DISPLAY-remsan ritas även utan valda badges när användaren har intjänade badges — då med uppmaningen "Pick up to 3 badges to show on the Board." + Edit; utan intjänade badges ritas ingen remsa. Ingen platshållare för minis.
 - **News-radens ikonkolumn är 30 px på mobil men övriga rader har 26 px** (spec §5: `--rq-badge-news-icon-w`, "när den bär ett sm-emblem"), så texten på badge-rader börjar 4 px längre in än på övriga rader. Tokenen heter `--rq-news-row-icon-badge-w` (news-vakten läser `--rq-news-*`; badges-vakten läser bara `badges.css`). Desktop 34 px = som övriga rader. Vill ägaren ha utlinjering bör `--rq-news-row-cols` (26 px) höjas till 30 px för alla rader.
 - **Flavor-storleken är `--rq-fs-body`** (15 px mobil, 17 desktop): första `--rq-fs-*`-steget ≥ 14 px som inte är en knappstorlek (`--rq-fs-btn-sm` = 14 px finns men är en knappkonstant).
-- **Skelettet är en loop (`infinite`)** — F8 anger `rqSkel` 1.6 s och det är en laddare som pulserar tills datan kommer. Vakttestet "inget infinite i badges.css" gäller nu bara emblemreglerna (undantag för `.rq-badge-skel`).
+- **Skelettet är en loop (`infinite`)** — F8 anger `rqSkel` 1.6 s och det är en laddare som pulserar tills datan kommer. Vakttestet "inget infinite i badges.css" gäller bara emblemreglerna (undantag för `.rq-badge-skel`).
+## Historik (avgjort, kort)
+Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
+- **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
+- **Edit-datumets max mot serverns UTC-"idag"** — löst i i9-dataspåret (servern validerar Stockholm-dagen och avvisar ogiltiga kalenderdagar).
+- **`/login` som den gamla inloggningssidan** — omritad i inkrement 11, sedan en popup över Landing (RUN-145, ADR 006 addendum).
+- **Backend-kontraktsfrågor löstes i i9-dataspåret 2026-10-05:** `source` i users-with-runs (Strava-rundor kan inte raderas; null = manuell), PUT kvalificerar event med dagsfönster (DELETE medvetet utan anrop, svarar 409 för kvalificerande rundor), Stockholm-datumvalidering.
+- **Utgången eller ogiltig JWT gav 403** — nu 401 (`middleware/auth.ts`), så klienten loggar ut.
+- **Init-loggen skrev service-nyckelns prefix** — loggar nu bara "set"/"missing" (`config/database.ts`).
+- **Logout rensade inte användarspecifika query-cachar** — löst i RUN-143 (v0.6.0): `AuthProvider` kör `qc.clear()` vid login, logout och 401 (`AuthProvider.test.tsx`).

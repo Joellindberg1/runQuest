@@ -34,6 +34,42 @@ describe('titleValueText', () => {
   });
 });
 
+describe('singular vid värdet 1', () => {
+  it.each([
+    ['nightRunCount', '1 run'],
+    ['earlyRunCount', '1 run'],
+    ['lunchRunCount', '1 run'],
+    ['stormRunCount', '1 run'],
+    ['coldRunCount', '1 run'],
+    ['longestStreak', '1 day'],
+    ['maxWeekdayStreak', '1 weekday'],
+    ['maxRunsOneWeek', '1 run/wk'],
+  ])('%s med värdet 1 blir "%s" i formatTitleValue, titleValueText och unlockText', (metricKey, expected) => {
+    expect(formatTitleValue(metricKey, 1)).toBe(expected);
+    expect(titleValueText(metricKey, 1)).toBe(expected);
+    expect(unlockText(metricKey, 1)).toBe(expected);
+  });
+
+  it('övriga värden förblir i plural, och 0 och 2 påverkas inte', () => {
+    expect(formatTitleValue('earlyRunCount', 0)).toBe('0 runs');
+    expect(formatTitleValue('earlyRunCount', 2)).toBe('2 runs');
+    expect(formatTitleValue('longestStreak', 2)).toBe('2 days');
+    expect(formatTitleValue('maxWeekdayStreak', 2)).toBe('2 weekdays');
+    expect(formatTitleValue('maxRunsOneWeek', 2)).toBe('2 runs/wk');
+  });
+});
+
+describe('avrundning före singular/plural', () => {
+  it.each([
+    [0.4, '0 runs'],
+    [0.5, '1 run'],
+    [1.49, '1 run'],
+    [1.5, '2 runs'],
+  ])('värdet %f blir "%s"', (value, expected) => {
+    expect(formatTitleValue('earlyRunCount', value)).toBe(expected);
+  });
+});
+
 describe('formatTitleValue (värden är kodade för sortering)', () => {
   it('tider avkodas ur sorteringsvärdet', () => {
     expect(formatTitleValue('fastest5km', 40)).toBe('20:00');
@@ -58,7 +94,7 @@ describe('lastRunOfWeek', () => {
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 9, 4, 12) / 1000)).toBe('4 Oct');
   });
 
-  // Värdet är väggklockan kodad som UTC-sekunder (se wallClock.ts), så dagen läses i UTC — inte i webbläsarens zon.
+  // Värdet är väggklockan kodad som UTC-sekunder (se calendar.ts), så dagen läses i UTC — inte i webbläsarens zon.
   it('dagen läses i UTC: 23:30 väggklocka förblir samma dag oavsett processens tidszon', () => {
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 9, 4, 23, 30) / 1000)).toBe('4 Oct');
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 6, 5, 23, 0) / 1000)).toBe('5 Jul');
