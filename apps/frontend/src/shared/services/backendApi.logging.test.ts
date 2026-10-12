@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // RUN-214: backendApi loggar via frontendens logger (en enda plats att styra nivåer/maskering),
-// inte via console.* direkt.
+// inte via console.* direkt (att backendApi.ts inte har några console.*-anrop vaktas av ESLint: no-console i eslint.config.js).
 vi.mock('../utils/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
 
-import backendApiSource from './backendApi.ts?raw';
 import { logger } from '../utils/logger';
 import { backendApi } from './backendApi';
 
@@ -29,9 +28,5 @@ describe('backendApi logging', () => {
     expect(logger.error).toHaveBeenCalledTimes(1);
     expect(vi.mocked(logger.error).mock.calls[0][1]).toBeInstanceOf(Error);
     expect(consoleError).not.toHaveBeenCalled();
-  });
-
-  it('backendApi.ts innehåller inga console.*-anrop', () => {
-    expect(backendApiSource).not.toMatch(/\bconsole\./);
   });
 });

@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.6.1.3 — Designreglerna som lint i stället för källtexttester (RUN-223) (2026-10-12)
+
+Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: RUN-223 delas upp — steg 2 (designregler som lint) nu, steg 4 (RUN-227) i v0.7.0 efter RUN-93, steg 6 löpande.
+
+### Kodhälsa
+- Designspråkets regler kontrolleras av lint i stället för av tester som läser CSS och kod som text: Stylelint 16 (`apps/frontend/stylelint.config.js`, `npm run lint:css`) för CSS (px, hex/rgba, radie, transition, z-index, typsnitt, rå line-height, egna custom properties, `:focus` utan `-visible`, kända rester) och ESLint-regeln `rq/design-syntax` per designgrupp (lucide, egen svg, emoji, inline-style, hex, godtyckliga Tailwind-värden, sonner, locale, console m.m.). Täcker mer än förut, bl.a. `app-shell.css` som inte var vaktad.
+- `src/test/themeTokens.sync.test.ts` jämför temafilen och `index.css` på värde och sammanhang (media, selektor) och fäller lästa men odeklarerade tokens — ersätter per-feature-kontrollerna.
+- `src/test/lintScope.test.ts` fäller när en designgrupps eller ett Stylelint-overrides glob inte matchar någon fil, och när en mapp under `src/features/` saknar designgrupp (ny feature = ny designGroup, ADR 001).
+- 28 källtextvakter och `designGuards.ts` borta: frontend 2365 → 2169 tester, ~900 rader mindre. Kritikern planterade 71 överträdelser och byggaren 99 — alla fälldes av rätt regel.
+- CI: nytt steg `Stylelint` i frontend-jobbet (blockerande, `--max-warnings 0`).
+
+### Prod-steg (kräver ägar-ja)
+1. PR release/v0.6.1.3 → main, grön CI, merge (= deploy). Ingen runtime-kod ändras (lint-konfig, tester, CI och lockfil med nya dev-paket). Ingen migration.
+2. Tagg `v0.6.1.3` på merge-commiten.
+
+### Rollback
+- Revert-PR på main. Bygget och runtime påverkas inte.
+
 ## v0.6.1.2 — Anonym läsning av nivåtabellen stängd (RUN-112) (2026-10-12)
 
 Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: stäng den sista anonpolicyn nu, när frontenden sedan v0.6.0 läser nivåtabellen via backenden.
