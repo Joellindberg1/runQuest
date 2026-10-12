@@ -8,12 +8,24 @@ import {
   type LevelRequirement, type LevelProgress,
 } from '@runquest/shared';
 
+// Fallback ska vara tillfälligt: utan nytt försök sitter en process med ett engångsfel kvar på
+// fallback-nivåerna tills den startas om (RUN-137).
+export const FALLBACK_RETRY_TTL_MS = 5 * 60 * 1000;
+
 class LevelService {
   private levelRequirements: LevelRequirement[] = [];
   private initialized = false;
+  // null = värdena kommer från DB och cachas utan tidsgräns; annars när fallback får bytas ut.
+  private retryAfter: number | null = null;
+
+  private useFallback() {
+    this.levelRequirements = FALLBACK_LEVEL_REQUIREMENTS;
+    this.initialized = true;
+    this.retryAfter = Date.now() + FALLBACK_RETRY_TTL_MS;
+  }
 
   async initialize() {
-    if (this.initialized) return;
+    if (this.initialized && (this.retryAfter === null || Date.now() < this.retryAfter)) return;
 
     try {
       const supabase = getSupabaseClient();
@@ -24,19 +36,18 @@ class LevelService {
 
       if (error || !data?.length) {
         if (error) logger.error('Error fetching level requirements:', error);
-        this.levelRequirements = FALLBACK_LEVEL_REQUIREMENTS;
-        this.initialized = true;
+        this.useFallback();
         logger.warn('⚠️ Level service using fallback values');
         return;
       }
 
       this.levelRequirements = data;
       this.initialized = true;
+      this.retryAfter = null;
       logger.info(`✅ Level service initialized with ${this.levelRequirements.length} levels`);
     } catch (error) {
       logger.error('Error initializing level service:', error);
-      this.levelRequirements = FALLBACK_LEVEL_REQUIREMENTS;
-      this.initialized = true;
+      this.useFallback();
     }
   }
 
