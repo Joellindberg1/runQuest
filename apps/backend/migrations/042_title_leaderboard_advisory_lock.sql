@@ -1,5 +1,5 @@
 -- 042: update_title_leaderboard serialiseras per titel med pg_advisory_xact_lock (RUN-158, intern v0.6.1.1).
--- Datum: 2026-10-12. EJ APPLICERAD — Lead applicerar via Supabase MCP apply_migration
+-- Datum: 2026-10-12. APPLICERAD i prod 2026-10-12 (ägar-ja) via Supabase MCP apply_migration
 -- (name: 042_title_leaderboard_advisory_lock) efter ägar-ja. (040 är reserverat för RUN-112, 041 är körd.)
 --
 -- Problem: update_title_leaderboard(p_title_id) bygger om den delade title_leaderboard för EN titel med
