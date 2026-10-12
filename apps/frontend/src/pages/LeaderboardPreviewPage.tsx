@@ -4,7 +4,7 @@ import '@/features/leaderboard/board.css';
 import { ActiveChallengeWidget } from './preview/ActiveChallengeWidget';
 import { PREVIEW_RANK_DELTAS, PREVIEW_USERS } from '@/features/leaderboard/previewUsers';
 import type { Challenge } from '@runquest/types';
-import { MS_DAY } from '@runquest/shared';
+import { MS_DAY, addDays, stockholmDay } from '@runquest/shared';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -45,9 +45,6 @@ const MOCK_TITLE_OVERRIDES: Record<string, import('@runquest/types').UserTitle[]
 };
 
 // Active challenge widget data
-const endDate = new Date();
-endDate.setDate(endDate.getDate() + 5);
-
 const ACTIVE_CHALLENGE: Challenge = {
   id: 'c1', group_id: 'g1', tier: 'major',
   challenger_id: 'u1', challenger_name: 'Anna Lindqvist',
@@ -56,7 +53,7 @@ const ACTIVE_CHALLENGE: Challenge = {
   winner_delta: 0.25, winner_duration: 10, winner_type: 'multiplier_days',
   loser_delta: -0.12, loser_duration: 10, loser_type: 'multiplier_days',
   challenger_level: 12, opponent_level: 10,
-  end_date: endDate.toISOString().split('T')[0],
+  end_date: addDays(stockholmDay(new Date()), 5),
   status: 'active',
   created_at: new Date(Date.now() - 5 * MS_DAY).toISOString(),
 };
