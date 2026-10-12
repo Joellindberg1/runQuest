@@ -2,6 +2,7 @@ import express from 'express';
 import { logger } from '../utils/logger.js';
 import { titleLeaderboardService } from '../services/titleLeaderboardService';
 import { enhancedTitleService } from '../services/enhancedTitleService';
+import { getTitleRecalcContext } from '../services/titleRecalcClock';
 import { supabase } from '../config/database';
 import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
@@ -244,8 +245,9 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
       return;
     }
 
-    // For each user, fetch runs and calculate values (ett gemensamt "nu" för hela svaret)
-    const ctx = { now: new Date() };
+    // For each user, fetch runs and calculate values. Ett gemensamt "nu" för hela svaret: senaste omräkningens klocka,
+    // så att winterKm räknar samma vinter som de lagrade innehavarna (RUN-141).
+    const ctx = await getTitleRecalcContext();
     const eligibilityResults = await Promise.all(
       users.map(async (user: any) => {
         const { data: runs } = await supabase.client
