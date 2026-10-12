@@ -36,6 +36,25 @@ const CALENDAR_FUNCTIONS =
 const INTL_STOCKHOLM = /\btimeZone\s*:\s*['"`]Europe\/Stockholm['"`]|\btimeZone\s*:\s*STOCKHOLM\w*/;
 const UTC_TODAY = /new Date\(\s*(?:Date\.now\(\))?\s*\)\s*\.toISOString\(\)\s*\.\s*(?:split|slice)\s*\(/;
 
+// Datumaritmetik via Date-muterare/-läsare (setDate(getDate() - 7), getUTCMonth() + 1, setHours(0,0,0,0)). De läser processens
+// tidszon eller UTC-dagen i stället för Stockholm-dagen; kalenderaritmetik hör hemma i calendar.ts (addDays, stockholmDay, ...).
+const DATE_ARITHMETIC = /\.(?:setDate|getDate|setUTCDate|getUTCDate|setMonth|getMonth|setUTCMonth|getUTCMonth|setHours|setUTCHours)\(/;
+
+// Heuristiken är grov, så legitima träffar är listade här med skäl. Varje undantag måste fortfarande träffa (annars är
+// det inaktuellt och ska bort), och nya träffar utanför listan fäller testet.
+const DATE_ARITHMETIC_EXCEPTIONS: Record<string, string> = {
+  'apps/backend/src/utils/dateUtils.ts':
+    'isIsoCalendarDate: tur-och-retur-kontroll av ett YYYY-MM-DD mot Date.UTC — validering, ingen aritmetik, tidszonsfri',
+  'apps/frontend/src/features/log/logModel.ts':
+    'isCalendarDate: samma tur-och-retur-validering via Date.UTC — ingen aritmetik, tidszonsfri',
+  'apps/frontend/src/features/log/components/RunForm.tsx':
+    'falsk träff: state.setDate är formulärtillståndets setter för fältet "datum", inte Date.prototype.setDate',
+  'apps/frontend/src/pages/LeaderboardPreviewPage.tsx':
+    'exempelsida med påhittad data: endDate = idag + 5 i webbläsarens lokala tid. Utanför RUN-224:s scope, kvar att flytta till calendar.ts',
+  'apps/frontend/src/pages/preview/ActiveChallengeWidget.tsx':
+    'exempelwidget med påhittad data: "idag" som lokal midnatt för Today/Tomorrow-text. Utanför RUN-224:s scope, kvar att flytta till calendar.ts',
+};
+
 const offenders = (pattern: RegExp, files = SOURCES) => files.filter(({ code }) => pattern.test(code)).map(({ path }) => path);
 
 describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
@@ -54,6 +73,13 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
 
   it('ingen "idag" ur UTC-dagen: new Date().toISOString().split/slice', () => {
     expect(offenders(UTC_TODAY, SOURCES)).toEqual([]);
+  });
+
+  it('ingen datumaritmetik med setDate/getDate/setUTCDate/getUTCMonth/setHours utanför calendar.ts (utom listade undantag)', () => {
+    const hits = offenders(DATE_ARITHMETIC);
+    expect(hits.filter((path) => !(path in DATE_ARITHMETIC_EXCEPTIONS))).toEqual([]);
+    // Inaktuella undantag göms inte: träffar de inte längre ska de bort ur listan.
+    expect(Object.keys(DATE_ARITHMETIC_EXCEPTIONS).filter((path) => !hits.includes(path))).toEqual([]);
   });
 
   it('konsumenterna importerar calendar-funktionerna från @runquest/shared', () => {
