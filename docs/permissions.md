@@ -29,14 +29,16 @@ att sänka kraven.
 - Backend använder secret-nyckeln (env i Railway). Frontend har ingen
   Supabase-klient och inga Supabase-nycklar (RUN-105) — den pratar bara med
   backenden (`VITE_API_URL`) med backend-JWT.
-- RLS-baslinje efter migration 030 + 031 + 038 + 039 (2026-10-11): anon läser endast
-  `level_requirements`; det finns INGA policyer för rollerna authenticated/public
-  (038) och ingen klientroll kan läsa `title_leaderboard_view` (039). RunQuest
-  använder inte Supabase Auth (egen backend-JWT); en ny policy för anon eller
-  authenticated = avvikelse → eskaleras. Kvar med avsikt: storage-SELECT på
-  `profile-pictures` (publika profilbilds-URL:er). Frontend läser inte längre
-  `level_requirements` direkt (`GET /api/config/levels`, RUN-110/111); migration
-  040 (RUN-112) stänger även den sista anonpolicyn efter v0.6.0-deploy.
+- RLS-baslinje efter migration 030 + 031 + 038 + 039 + 040 (040 från och med att den
+  applicerats i prod): anon läser ingenting. Det finns INGA policyer för rollerna
+  anon, authenticated eller public (038, 040) och ingen klientroll kan läsa
+  `title_leaderboard_view` (039). RunQuest använder inte Supabase Auth (egen
+  backend-JWT); en ny policy för anon eller authenticated = avvikelse →
+  eskaleras. Kvar med avsikt: storage-SELECT på `profile-pictures` (publika
+  profilbilds-URL:er). Frontend läser inte `level_requirements` direkt
+  (`GET /api/config/levels`, RUN-110/111); migration 040 (RUN-112, ägar-ja
+  2026-10-12) tar bort den sista anonpolicyn. En frontend-rollback till v0.5.3
+  eller äldre kräver att 040 rullas tillbaka (rollback-SQL i filhuvudet).
   Ingen anon-skrivning någonstans — skrivningar går via backend.
 - Claude Codes Supabase-MCP är låst till RunQuest-projektet via `--project-ref`
   i `.mcp.json` och en finkornig PAT (Projects: read, Database: read/write).

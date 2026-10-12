@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.6.1.2 — Anonym läsning av nivåtabellen stängd (RUN-112) (2026-10-12)
+
+Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: stäng den sista anonpolicyn nu, när frontenden sedan v0.6.0 läser nivåtabellen via backenden.
+
+### Säkerhet
+- Migration 040 droppar policyn "Anyone can view level requirements" på `level_requirements` (SELECT för anon + authenticated). RLS är på och tabellen får inga policyer, så klientroller nekas; backenden (service role) och `GET /api/config/levels` påverkas inte. Anon läser därefter ingenting i databasen. RLS-baslinjen i `docs/permissions.md` är uppdaterad. Ingen kod- eller frontendändring.
+
+### Prod-steg (kräver ägar-ja)
+1. Merge av PR:en till main (docs, migrationsfil och test; ingen runtime-kod ändras).
+2. Migration 040 appliceras mot prod med ägar-ja (en rad, idempotent).
+3. Verifiera: anon-REST mot `/rest/v1/level_requirements?select=*` med publishable key ger tom lista eller 401/403 (inte 30 rader); `GET /api/config/levels` med giltig token ger fortfarande 30 nivåer; Supabase advisors visar inga nya varningar.
+
+### Rollback
+- Policyn återskapas exakt som i `000_baseline.sql` rad 652:
+  `create policy "Anyone can view level requirements" on public.level_requirements for select to anon, authenticated using (true);`
+- Behövs bara vid frontend-rollback till v0.5.3 eller äldre (den läser tabellen direkt med anon-nyckeln); det är den rollback som v0.6.0:s rollbackpunkt "Efter 040" pekar på.
+
 ## v0.6.1.1 — Förvaltningsrunda: säkerhet, felhantering, en källa för streak och kalender, död kod, snabbare tester (2026-10-12)
 
 Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: en städrunda mellan epics, inget användarsynligt utöver buggfixarna nedan.
