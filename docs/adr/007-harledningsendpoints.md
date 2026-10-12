@@ -402,3 +402,7 @@ Undantaget (anon läser `level_requirements` direkt; B4 pt 5 och "Level-gränser
 ### Notering 2026-10-12 (RUN-215, Lead)
 
 `POST/PUT/DELETE /api/runs` kan svara **500 `{ error, written: true }`** när raden skrevs men XP-omräkningen fallerade (additivt fält enligt A2; felformen `{ error }` enligt A1 oförändrad). Klienten ska då behandla skrivningen som genomförd: invalidera run-/totals-cachen, återställa formuläret och inte uppmana till nytt försök. Ett 500 utan `written` betyder att inget skrevs. Övriga endpoints använder inte fältet.
+
+### Notering 2026-10-13 (RUN-225, Lead)
+
+`POST /api/runs` tar headern **`Idempotency-Key`** (uuid v4, en per inskick; annat format → 400 `{ error: 'Idempotency-Key must be a UUID v4' }`; saknas headern är beteendet oförändrat). Samma nyckel igen från samma användare skapar ingen ny runda och ger samma status och form som det första lyckade svaret (200 `{ success, message, run }`), utan ny omräkning; nyckeln lagras i `runs.client_request_id` med unikt index per `user_id` (migration 043). Har den första förfrågan skrivit rundan men omräkningen fallerat (`written: true`) returnerar upprepningen rundan; omräkningen självläker som tidigare (nästa omräkning från rundans datum), ingen ny mekanism. Gäller inte PUT/DELETE eller Strava-importen (idempotent via `external_id`).
