@@ -39,6 +39,16 @@ describe('streakDeadline (Stockholm-dagar)', () => {
     expect(streakDeadline(null, NOW)).toBeNull();
   });
 
+  it('räknar igår rätt över månads- och årsskifte', () => {
+    expect(streakDeadline('2026-09-30', new Date('2026-10-01T10:00:00Z'))?.ranToday).toBe(false);
+    expect(streakDeadline('2026-12-31', new Date('2027-01-01T10:00:00Z'))?.ranToday).toBe(false);
+    expect(streakDeadline('2026-12-30', new Date('2027-01-01T10:00:00Z'))).toBeNull();
+  });
+
+  it('en runda daterad efter idag ger ingen deadline', () => {
+    expect(streakDeadline('2026-10-05', NOW)).toBeNull();
+  });
+
   it('läser dagen i Stockholm, inte UTC (23:30 UTC = 01:30 nästa dag i Stockholm)', () => {
     const lateUtc = new Date('2026-10-04T23:30:00Z');
     expect(streakDeadline('2026-10-05', lateUtc)?.ranToday).toBe(true);
