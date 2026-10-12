@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",
-    "@supabase/supabase-js": "^2.117.3",
+    "@supabase/supabase-js": "2.105.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
