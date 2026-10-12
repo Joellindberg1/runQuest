@@ -11,6 +11,7 @@ import {
   checkStormChaserForecast,
   getEventPool,
 } from '../services/eventService.js';
+import { summarizeSettled } from './settledSummary.js';
 
 const STOCKHOLM = 'Europe/Stockholm';
 
@@ -41,9 +42,10 @@ async function createForAllGroups(
 ): Promise<void> {
   const groups = await getAllGroupIds();
   if (!groups.length) return;
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     groups.map(groupId => maybeCreateEvent(templateName, groupId, startsAt, endsAt))
   );
+  summarizeSettled(`[EventScheduler] Creating "${templateName}" for groups`, results);
 }
 
 // ─── Daglig participation-lottning — Morgonrunda / Kvällsrunda / Storm Chaser ─

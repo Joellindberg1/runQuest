@@ -38,11 +38,13 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   // Fetch all user boosts (historical — applied per-run below).
   // multiplier_runs är statelös: förbrukningen härleds ur löphistoriken
   // (boostCalculation i @runquest/shared), så omräkning är alltid idempotent.
-  const { data: userBoosts } = await supabase
+  const { data: userBoosts, error: boostsError } = await supabase
     .from('user_boosts')
     .select('type, delta, remaining, created_at, expires_at')
     .eq('user_id', userId)
     .in('type', ['multiplier_days', 'multiplier_runs']);
+  // Alla läsningar kastar vid fel (RUN-215): en omräkning på ofullständig indata skriver fel XP/streak till rundorna.
+  if (boostsError) throw new Error(`Failed to fetch boosts for reprocess (user ${userId}): ${boostsError.message}`);
 
   const boostSpecs: BoostSpec[] = await Promise.all(
     (userBoosts ?? []).map(async (b: { type: string; delta: number; remaining: number | null; created_at: string; expires_at: string | null }) => {
@@ -57,12 +59,13 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
       }
       // multiplier_runs: räkna laddningar som redan förbrukats av rundor FÖRE
       // omräkningsfönstret (de rundorna räknas inte om och behåller sin XP).
-      const { count } = await supabase
+      const { count, error: usedError } = await supabase
         .from('runs')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
         .gte('date', startDate)
         .lt('date', fromDate);
+      if (usedError) throw new Error(`Failed to count used boost charges for reprocess (user ${userId}): ${usedError.message}`);
       return {
         type: 'multiplier_runs' as const,
         delta: Number(b.delta),
@@ -74,13 +77,14 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   );
 
   // Get the run immediately before fromDate to seed the streak count correctly
-  const { data: prevRuns } = await supabase
+  const { data: prevRuns, error: prevError } = await supabase
     .from('runs')
     .select('date, streak_day')
     .eq('user_id', userId)
     .lt('date', fromDate)
     .order('date', { ascending: false })
     .limit(1);
+  if (prevError) throw new Error(`Failed to fetch previous run for reprocess (user ${userId}): ${prevError.message}`);
 
   const prevRun = prevRuns?.[0] ?? null;
   let currentStreakCount = prevRun?.streak_day ?? 0;
@@ -94,10 +98,11 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     .gte('date', fromDate)
     .order('date', { ascending: true });
 
-  if (error || !runs?.length) {
-    if (error) logger.error('❌ Error fetching runs to reprocess:', error);
-    return;
+  if (error) {
+    logger.error('❌ Error fetching runs to reprocess:', error);
+    throw new Error(`Failed to fetch runs to reprocess (user ${userId}): ${error.message}`);
   }
+  if (!runs?.length) return;
 
   logger.info(`📊 Reprocessing ${runs.length} affected runs (of user's total)`);
 
@@ -133,8 +138,9 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     };
   });
 
-  // Parallel updates instead of sequential
-  await Promise.all(
+  // Parallel updates instead of sequential. supabase-js kastar inte på {error}: varje svar kontrolleras, så att en
+  // misslyckad rad aldrig rapporteras som "Reprocessed". Alla rader försöker skrivas; felet kastas efteråt.
+  const updateResults = await Promise.all(
     updates.map((u: { id: string; streak_day: number; multiplier: number; base_xp: number; km_xp: number; distance_bonus: number; streak_bonus: number; xp_gained: number }) =>
       supabase.from('runs').update({
         streak_day: u.streak_day,
@@ -147,6 +153,11 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
       }).eq('id', u.id)
     )
   );
+  const failedUpdates = updateResults.filter((r: { error: { message: string } | null }) => r.error);
+  if (failedUpdates.length > 0) {
+    logger.error(`❌ ${failedUpdates.length} of ${updates.length} run updates failed during reprocess:`, failedUpdates[0].error);
+    throw new Error(`${failedUpdates.length} of ${updates.length} run updates failed during reprocess (user ${userId}): ${failedUpdates[0].error!.message}`);
+  }
 
   logger.info(`✅ Reprocessed ${runs.length} runs successfully`);
 }
