@@ -48,6 +48,11 @@ describe('maxKmRolling30 runt månadsskiftet', () => {
     expect(maxKmRolling30Engine.calculate(DEC_RUNS, stats)).toBe(9);
   });
 
+  it('ett injicerat ctx.now går före systemklockan', () => {
+    at('2027-01-15T12:00:00Z');
+    expect(maxKmRolling30Engine.calculate(RUNS, stats, { now: new Date('2026-10-31T23:30:00Z') })).toBe(15);
+  });
+
   it('inga rundor ger 0', () => {
     expect(maxKmRolling30Engine.calculate([], stats)).toBe(0);
   });
