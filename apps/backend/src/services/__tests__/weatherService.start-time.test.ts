@@ -1,5 +1,5 @@
 /**
- * runs.start_time är lokal väggklocka med falskt Z (se packages/shared/src/wallClock.ts). Rundans ålder
+ * runs.start_time är lokal väggklocka med falskt Z (se packages/shared/src/calendar.ts). Rundans ålder
  * (past_hours) måste räknas från det verkliga ögonblicket, medan timmatchningen mot Open-Meteo (som svarar
  * i Stockholmstid) fortsätter ske på väggklockan.
  */

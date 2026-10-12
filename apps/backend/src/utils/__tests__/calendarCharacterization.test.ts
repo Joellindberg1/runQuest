@@ -8,7 +8,10 @@
 import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest';
 import { addDays, dayOfWeek, daysBetween, mondayOf } from '@runquest/shared';
 import { at3amStockholm, todayStockholm, toStockholmDate, tomorrowStockholm, weekRange } from '../dateUtils.js';
-import { utcMinutes } from '../../titleEngines/_utils.js';
+import { wallClockMinutes as utcMinutes } from '@runquest/shared';
+import { earlyRunCountEngine } from '../../titleEngines/earlyRunCount.js';
+import { lunchRunCountEngine } from '../../titleEngines/lunchRunCount.js';
+import { nightRunCountEngine } from '../../titleEngines/nightRunCount.js';
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -107,7 +110,7 @@ describe('dayOfWeek (was titleEngines/_utils) — 0 = söndag', () => {
   });
 });
 
-describe('utcMinutes (titleEngines/_utils) — klockslag ur siffrorna i start_time', () => {
+describe('utcMinutes (was titleEngines/_utils) — klockslag ur siffrorna i start_time', () => {
   it.each([
     ['2026-07-04T05:30:00Z', 330],
     ['2026-01-10T04:00:00+00:00', 240],
@@ -119,14 +122,23 @@ describe('utcMinutes (titleEngines/_utils) — klockslag ur siffrorna i start_ti
     expect(utcMinutes(startTime)).toBe(expected);
   });
 
-  it('ogiltigt värde ger NaN', () => {
-    expect(utcMinutes('inte-ett-datum')).toBeNaN();
+  // utcMinutes gav NaN för ogiltiga värden (och räknades därför aldrig av motorerna); wallClockMinutes ger null och motorerna
+  // kollar det, så resultatet är detsamma. Här fastslås det på motornivå.
+  it('ogiltiga start_time räknas inte av klockslagsmotorerna', () => {
+    const runs = ['inte-ett-datum', '2026-07-04', '2026-07-04T24:00:00Z'].map((start_time) => (
+      { date: '2026-07-04', distance_km: 5, start_time }
+    ));
+    const stats = { totalKm: 0, longestStreak: 0 };
+    expect(earlyRunCountEngine.calculate(runs, stats)).toBe(0);
+    expect(lunchRunCountEngine.calculate(runs, stats)).toBe(0);
+    expect(nightRunCountEngine.calculate(runs, stats)).toBe(0);
   });
 
-  // Dokumenterad avvikelse mot shared wallClockMinutes (som läser siffrorna rakt av): en verklig offset konverteras till UTC.
-  // PostgREST levererar timestamptz som +00:00, så det slår aldrig in på riktig data. Flyttas i commiten som tar bort utcMinutes.
-  it('nuvarande beteende: en verklig offset konverteras (08:00+02:00 är 06:00 UTC)', () => {
-    expect(utcMinutes('2026-07-04T08:00:00+02:00')).toBe(360);
+  // Dokumenterad skillnad (RUN-218): utcMinutes konverterade en verklig offset till UTC (08:00+02:00 -> 360), shared
+  // wallClockMinutes läser siffrorna rakt av (-> 480), som badgemotorn alltid gjort. PostgREST levererar timestamptz som
+  // +00:00 och Strava-importen skriver Z, så en verklig offset förekommer inte i riktig data.
+  it('en verklig offset ändrar inte siffrorna (08:00+02:00 är 08:00 väggklocka)', () => {
+    expect(utcMinutes('2026-07-04T08:00:00+02:00')).toBe(480);
   });
 });
 

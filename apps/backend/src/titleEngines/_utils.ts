@@ -1,16 +1,6 @@
 import type { RunData } from './types';
 import { toStockholmDate } from '../utils/dateUtils';
 
-/**
- * Minutes since midnight as read from the UTC fields of an ISO timestamp.
- * For runs.start_time this IS the runner's local wall-clock time: Strava's start_date_local is stored with a
- * false 'Z' (see packages/shared/src/wallClock.ts). Do not convert time zones here — time of day = local time.
- */
-export function utcMinutes(ts: string): number {
-  const d = new Date(ts);
-  return d.getUTCHours() * 60 + d.getUTCMinutes();
-}
-
 /** Antal rundor som uppfyller villkoret (gemensam för räknande motorer). */
 export function countRunsWhere(runs: RunData[], predicate: (run: RunData) => boolean): number {
   let count = 0;
