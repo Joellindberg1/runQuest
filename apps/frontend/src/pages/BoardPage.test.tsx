@@ -851,3 +851,37 @@ describe('tour-ankare (leaderboard-touren)', () => {
     expect(within(container.querySelector('[data-tour="leaderboard-card"]') as HTMLElement).getByRole('button', { name: 'Karl Persson' })).toBeInTheDocument();
   });
 });
+
+// Beräkningen av procenten testas i modellerna (seasonModel, weekModel, streakModel). Här vaktas bara inkopplingen: att varje stapel
+// får sin CSS-variabel från rätt fält. Staplarna har ingen roll eller text, så variabeln är det enda som visar bredden/höjden.
+describe('modellens procent kopplas till stapelns CSS-variabel', () => {
+  const cssVar = (element: Element | null | undefined, name: string) => (element as HTMLElement | null)?.style.getPropertyValue(name);
+
+  it('Season: nivåstapelns --w följer procenten som "x / y XP" visar', async () => {
+    renderBoard();
+    const card = await screen.findByTestId('podium-1');
+    const [, into, total] = /(\d[\d\s]*) \/ (\d[\d\s]*) XP/.exec(within(card).getByText(/\d+ \/ \d+ XP/).textContent ?? '')!;
+    const expected = (Number(into.replace(/\s/g, '')) / Number(total.replace(/\s/g, ''))) * 100;
+    const width = parseInt(cssVar(card.querySelector('.rq-track > .rq-fill'), '--w') ?? '', 10);
+    expect(Math.abs(width - expected)).toBeLessThanOrEqual(1);
+  });
+
+  it('Week: packens stapel får --w ur pctOfBest och varje dagstapel --h ur heightPct', async () => {
+    renderBoard('/board?view=week');
+    const table = await screen.findByRole('table', { name: 'This week' });
+
+    const pack = screen.getByRole('region', { name: 'Pack total this week' });
+    expect(cssVar(pack.querySelector('.rq-fill--pack'), '--w')).toBe('82%');
+
+    // Karl [0,12,6,0,8,5,0] km mot längsta dagen 12 km.
+    const [karl] = within(table).getAllByRole('row').slice(1);
+    expect([...karl.querySelectorAll('.rq-daybar__fill')].map((bar) => cssVar(bar, '--h'))).toEqual(['0%', '100%', '50%', '0%', '67%', '42%', '0%']);
+  });
+
+  it('Streaks: radens stapel får --w ur pct (8 dagar = 1.5× av toppen 2.0× = 50 %)', async () => {
+    renderBoard('/board?view=streaks');
+    const table = await screen.findByRole('table', { name: 'Streaks' });
+    const karl = within(table).getAllByRole('row').find((row) => within(row).queryByRole('button', { name: 'Karl Persson' }))!;
+    expect(cssVar(karl.querySelector('.rq-fill'), '--w')).toBe('50%');
+  });
+});
