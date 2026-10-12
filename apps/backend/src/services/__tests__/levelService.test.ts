@@ -13,6 +13,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { getSupabaseClient } from '../../config/database.js';
 import { FALLBACK_LEVEL_REQUIREMENTS } from '@runquest/shared';
+import { FALLBACK_RETRY_TTL_MS } from '../levelService.js';
 
 const DB_ROWS = [
   { level: 1, xp_required: 0 },
@@ -101,6 +102,34 @@ describe('levelService – retry efter fallback', () => {
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
 
     expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
+  });
+
+  it('tom data ger fallback, och efter TTL ger ok-svar DB-värdena', async () => {
+    const read = mockReads({ data: [] as any, error: null }, ok);
+    const service = await freshService();
+
+    expect(await service.getAllLevelRequirements()).toEqual(FALLBACK_LEVEL_REQUIREMENTS);
+    expect(read).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(FALLBACK_RETRY_TTL_MS);
+
+    expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('lyckad retry cachas permanent: fel, TTL, ok, sedan 1 timme utan nytt DB-anrop', async () => {
+    const read = mockReads(failing, ok, failing);
+    const service = await freshService();
+
+    expect(await service.getAllLevelRequirements()).toEqual(FALLBACK_LEVEL_REQUIREMENTS);
+    await vi.advanceTimersByTimeAsync(FALLBACK_RETRY_TTL_MS);
+    expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
+    expect(read).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
+    expect(read).toHaveBeenCalledTimes(2);
   });
 
   it('lyckad läsning cachas: inget nytt DB-anrop, ens långt efter TTL', async () => {
