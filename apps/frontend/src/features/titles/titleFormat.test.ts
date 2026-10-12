@@ -94,7 +94,7 @@ describe('lastRunOfWeek', () => {
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 9, 4, 12) / 1000)).toBe('4 Oct');
   });
 
-  // Värdet är väggklockan kodad som UTC-sekunder (se wallClock.ts), så dagen läses i UTC — inte i webbläsarens zon.
+  // Värdet är väggklockan kodad som UTC-sekunder (se calendar.ts), så dagen läses i UTC — inte i webbläsarens zon.
   it('dagen läses i UTC: 23:30 väggklocka förblir samma dag oavsett processens tidszon', () => {
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 9, 4, 23, 30) / 1000)).toBe('4 Oct');
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 6, 5, 23, 0) / 1000)).toBe('5 Jul');

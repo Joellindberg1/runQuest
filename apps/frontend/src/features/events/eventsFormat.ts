@@ -1,5 +1,4 @@
-import { stockholmClock } from '@/app-shell/rightNowItems';
-import { daysBetween } from '@/features/leaderboard/boardFormat';
+import { MS_DAY, dayOfWeek, daysBetween, stockholmClock } from '@runquest/shared';
 
 // Rena formatterare för Events: tider i Stockholm, nedräkningar, mått. `now` skickas alltid in så att allt går att testa
 // med fasta klockslag. Engelskt UI — tal och datum i en-GB, egna månads- och veckodagsnamn (Intl:s förkortningar skiljer
@@ -7,7 +6,6 @@ import { daysBetween } from '@/features/leaderboard/boardFormat';
 
 const MS_MINUTE = 60_000;
 const MS_HOUR = 3_600_000;
-const MS_DAY = 86_400_000;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
@@ -28,8 +26,7 @@ export function formatClock(iso: string): string {
 
 /** "Sat" för en kalenderdag (YYYY-MM-DD). */
 export function weekdayOf(date: string): string {
-  const [year, month, day] = date.split('-').map(Number);
-  return WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return WEEKDAYS[dayOfWeek(date)];
 }
 
 /** "21 Aug" för en kalenderdag (YYYY-MM-DD). */

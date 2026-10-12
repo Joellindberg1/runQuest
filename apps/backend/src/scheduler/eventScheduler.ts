@@ -1,7 +1,8 @@
 // 📅 Event Scheduler
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
-import { tomorrowStockholm, addDaysToDate } from '../utils/dateUtils.js';
+import { addDays, stockholmWallClockToInstant } from '@runquest/shared';
+import { tomorrowStockholm, todayStockholm } from '../utils/dateUtils.js';
 import {
   maybeCreateEvent,
   getAllGroupIds,
@@ -12,27 +13,6 @@ import {
   getEventPool,
 } from '../services/eventService.js';
 import { summarizeSettled } from './settledSummary.js';
-
-const STOCKHOLM = 'Europe/Stockholm';
-
-// ─── Timezone helper ──────────────────────────────────────────────────────────
-
-/** Returnerar en Date för hour:minute Stockholm-tid på ett givet "YYYY-MM-DD" datum.
- *  Använder Intl.DateTimeFormat.formatToParts för att bestämma UTC-offset —
- *  korrekt oavsett serverns lokala tidszon och hanterar DST automatiskt. */
-function atStockholm(dateStr: string, hour: number, minute: number = 0): Date {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  // Sond mot kl 12:00 UTC samma dag för att hämta Stockholms faktiska offset (hanterar DST)
-  const probe = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: STOCKHOLM,
-    hour: 'numeric',
-    hour12: false,
-  }).formatToParts(probe);
-  const stockholmNoon = Number(parts.find(p => p.type === 'hour')?.value ?? '12');
-  const offsetHours = stockholmNoon - 12;
-  return new Date(Date.UTC(y, m - 1, d, hour - offsetHours, minute, 0));
-}
 
 /** Skapar events för alla grupper för ett givet template och tidsfönster. */
 async function createForAllGroups(
@@ -115,9 +95,9 @@ async function runDailyParticipationDraw(): Promise<DailyDrawResult> {
     if (rand <= 0) { picked = c; break; }
   }
 
-  const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
-  const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
+  const startsAt = stockholmWallClockToInstant(tomorrow, picked.startHour, 0);
+  const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
+  const endsAt   = stockholmWallClockToInstant(endDate, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Daily roll: "${picked.name}" selected for ${tomorrow} (weight ${picked.weight} / total ${totalWeight.toFixed(2)})`);
   await createForAllGroups(picked.name, startsAt, endsAt);
@@ -155,9 +135,9 @@ async function scheduleHangoverRun(): Promise<void> {
 
   const picked = pool.members[0];
   const tomorrow = tomorrowStockholm();
-  const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
-  const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
+  const startsAt = stockholmWallClockToInstant(tomorrow, picked.startHour, 0);
+  const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
+  const endsAt   = stockholmWallClockToInstant(endDate, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Hangover Run triggered for ${tomorrow}`);
   await createForAllGroups(picked.name, startsAt, endsAt);
@@ -190,9 +170,9 @@ async function scheduleFridayEvent(): Promise<void> {
   for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
 
   const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
-  const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
-  const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
+  const startsAt = stockholmWallClockToInstant(tomorrow, picked.startHour, 0);
+  const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
+  const endsAt   = stockholmWallClockToInstant(endDate, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Thursday roll: "${picked.name}" selected for ${tomorrow} (ends ${endDate})`);
   await createForAllGroups(picked.name, startsAt, endsAt);
@@ -225,11 +205,11 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
   let picked = pool.members[pool.members.length - 1];
   for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
 
-  const today   = new Intl.DateTimeFormat('sv-SE', { timeZone: STOCKHOLM }).format(new Date());
-  const monday  = addDaysToDate(today, 2);
-  const sunday  = addDaysToDate(today, 8);
-  const startsAt = atStockholm(monday, 0, 1);
-  const endsAt   = atStockholm(sunday, 23, 59);
+  const today   = todayStockholm();
+  const monday  = addDays(today, 2);
+  const sunday  = addDays(today, 8);
+  const startsAt = stockholmWallClockToInstant(monday, 0, 1);
+  const endsAt   = stockholmWallClockToInstant(sunday, 23, 59);
 
   logger.info(`📅 [EventScheduler] Weekly competition: "${picked.name}" selected for ${monday}→${sunday} (weight ${picked.weight} / total ${totalWeight.toFixed(2)})`);
   await createForAllGroups(picked.name, startsAt, endsAt);

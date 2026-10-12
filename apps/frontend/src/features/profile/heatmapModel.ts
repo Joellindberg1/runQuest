@@ -1,4 +1,5 @@
 import type { Run, User } from '@runquest/types';
+import { addDays, mondayOf } from '@runquest/shared';
 import { streakDeadline } from '@/app-shell/rightNowItems';
 import { latestRunOf } from '@/features/leaderboard/boardFormat';
 import { SHORT_MONTHS, formatDay } from './profileFormat';
@@ -58,17 +59,6 @@ export interface Heatmap {
   /** Skärmläsarens sammanfattning av hela rutnätet. */
   summary: string;
 }
-
-const MS_DAY = 86_400_000;
-
-const toMs = (isoDate: string): number => {
-  const [year, month, day] = isoDate.split('-').map(Number);
-  return Date.UTC(year, month - 1, day);
-};
-const fromMs = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
-const addDays = (isoDate: string, days: number): string => fromMs(toMs(isoDate) + days * MS_DAY);
-/** Måndagen i veckan som innehåller dagen. */
-const mondayOf = (isoDate: string): string => addDays(isoDate, -((new Date(toMs(isoDate)).getUTCDay() + 6) % 7));
 
 export function heatLevel(km: number): HeatLevel {
   if (km <= 0) return 0;

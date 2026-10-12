@@ -7,7 +7,7 @@ export * from './xpLedger.js';
 export * from './activity.js';
 export * from './activityBackfill.js';
 export * from './streak.js';
-export * from './wallClock.js';
+export * from './calendar.js';
 export * from './contracts/index.js';
 export * from './badges.js';
 export * from './badgeDiff.js';

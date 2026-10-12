@@ -23,7 +23,7 @@ const CONSUMERS: Consumer[] = [
   { file: 'apps/backend/src/services/streakService.ts', uses: ['currentStreak', 'longestStreak', 'streakDayForRun', 'stockholmDay'] },
   { file: 'apps/backend/src/routes/runs.ts', uses: ['advanceStreakDay'] },
   { file: 'apps/frontend/src/features/log/logModel.ts', uses: ['advanceStreakDay', 'isNextDay'] },
-  { file: 'apps/frontend/src/app-shell/rightNowItems.ts', uses: ['streakStatus', 'stockholmDay'] },
+  { file: 'apps/frontend/src/app-shell/rightNowItems.ts', uses: ['streakStatus', 'stockholmClock'] },
 ];
 
 /** Mönster som avslöjar en handskriven streak-loop eller en egen "idag"-härledning. */

@@ -4,6 +4,7 @@ import '@/features/leaderboard/board.css';
 import { ActiveChallengeWidget } from './preview/ActiveChallengeWidget';
 import { PREVIEW_RANK_DELTAS, PREVIEW_USERS } from '@/features/leaderboard/previewUsers';
 import type { Challenge } from '@runquest/types';
+import { MS_DAY } from '@runquest/shared';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ const ACTIVE_CHALLENGE: Challenge = {
   challenger_level: 12, opponent_level: 10,
   end_date: endDate.toISOString().split('T')[0],
   status: 'active',
-  created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+  created_at: new Date(Date.now() - 5 * MS_DAY).toISOString(),
 };
 
 const ACTIVE_PROGRESS = [

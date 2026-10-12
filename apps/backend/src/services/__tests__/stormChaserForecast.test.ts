@@ -84,3 +84,48 @@ describe('checkStormChaserForecast', () => {
     expect(await checkStormChaserForecast()).toBe(false);
   });
 });
+
+/**
+ * RUN-218 T4 — "imorgon" är Stockholm-dagen. Open-Meteo svarar med Stockholm-tid, men imorgondatumet togs ur UTC
+ * (`new Date()` + 1 dag, toISOString): mellan Stockholm-midnatt och UTC-midnatt letade prognoskollen efter dagens
+ * datum i stället för morgondagens.
+ */
+describe('checkStormChaserForecast — imorgon i Stockholm-tid', () => {
+  function forecastFor(day: string, hours: Record<number, { code?: number; gust?: number }>) {
+    const time: string[] = [];
+    const weather_code: number[] = [];
+    const wind_gusts_10m: number[] = [];
+    for (const d of ['2026-07-04', '2026-07-05', '2026-07-06', '2026-12-31', '2027-01-01', '2027-01-02']) {
+      for (let h = 0; h < 24; h++) {
+        time.push(`${d}T${String(h).padStart(2, '0')}:00`);
+        weather_code.push(d === day ? (hours[h]?.code ?? CLEAR) : CLEAR);
+        wind_gusts_10m.push(d === day ? (hours[h]?.gust ?? 3) : 3);
+      }
+    }
+    return { hourly: { time, weather_code, wind_gusts_10m } };
+  }
+
+  it('sommar: 00:30 Stockholm den 5 juli (22:30 UTC den 4:e) -> prognosen för den 6:e avgör', async () => {
+    vi.setSystemTime(new Date('2026-07-04T22:30:00.000Z'));
+    respond(forecastFor('2026-07-06', gusty(10, 4, 20)));
+    expect(await checkStormChaserForecast()).toBe(true);
+  });
+
+  it('sommar: storm bara den 5:e (idag i Stockholm) kvalificerar inte', async () => {
+    vi.setSystemTime(new Date('2026-07-04T22:30:00.000Z'));
+    respond(forecastFor('2026-07-05', gusty(10, 4, 20)));
+    expect(await checkStormChaserForecast()).toBe(false);
+  });
+
+  it('vinter över årsskiftet: 00:30 Stockholm den 1 jan (23:30 UTC den 31 dec) -> prognosen för den 2:a avgör', async () => {
+    vi.setSystemTime(new Date('2026-12-31T23:30:00.000Z'));
+    respond(forecastFor('2027-01-02', gusty(10, 4, 20)));
+    expect(await checkStormChaserForecast()).toBe(true);
+  });
+
+  it('mitt på dagen (Stockholm- och UTC-dag lika) är oförändrat: prognosen för nästa dag avgör', async () => {
+    vi.setSystemTime(new Date('2026-07-04T10:00:00.000Z'));
+    respond(forecastFor('2026-07-05', gusty(10, 4, 20)));
+    expect(await checkStormChaserForecast()).toBe(true);
+  });
+});

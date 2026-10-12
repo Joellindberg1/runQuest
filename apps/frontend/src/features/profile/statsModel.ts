@@ -1,6 +1,5 @@
 import type { Run, User } from '@runquest/types';
-import { stockholmClock } from '@/app-shell/rightNowItems';
-import { daysBetween } from '@/features/leaderboard/boardFormat';
+import { daysBetween, stockholmClock } from '@runquest/shared';
 import { buildDistanceRows, buildStreakRows, favouriteWeekday, marathonEquivalents, type StatRow } from '@/features/runner/runnerModel';
 import { formatDays } from './profileFormat';
 

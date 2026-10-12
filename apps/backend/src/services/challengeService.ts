@@ -2,6 +2,8 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { recordChallengeSettled } from './activityLog.js';
+import { MS_DAY } from '@runquest/shared';
+import { todayStockholm } from '../utils/dateUtils.js';
 
 // Boost-tillämpningen bor i @runquest/shared (boostDeltasForRuns) och anropas
 // från reprocessRunsFromDate. multiplier_runs är statelös — `remaining` på
@@ -173,7 +175,7 @@ export async function getProgressForChallenge(challengeId: string): Promise<Prog
   if (!challenge || !challenge.start_date) return null;
 
   const startDate = challenge.start_date;
-  const endDate = challenge.end_date ?? new Date().toISOString().split('T')[0];
+  const endDate = challenge.end_date ?? todayStockholm();
 
   const fetchValue = async (userId: string): Promise<number> => {
     // Läsfel kastas: ett fel som blev 0 skulle annars avgöra utmaningen på ofullständig data (0–0 = oavgjort).
@@ -288,7 +290,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
       delta: Number(challenge.winner_delta),
       remaining: challenge.winner_type === 'multiplier_runs' ? challenge.winner_duration : null,
       expires_at: challenge.winner_type === 'multiplier_days'
-        ? new Date(now.getTime() + challenge.winner_duration * 86400000).toISOString()
+        ? new Date(now.getTime() + challenge.winner_duration * MS_DAY).toISOString()
         : null,
     };
 
@@ -300,7 +302,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
       delta: Number(challenge.loser_delta), // negative
       remaining: challenge.loser_type === 'multiplier_runs' ? challenge.loser_duration : null,
       expires_at: challenge.loser_type === 'multiplier_days'
-        ? new Date(now.getTime() + challenge.loser_duration * 86400000).toISOString()
+        ? new Date(now.getTime() + challenge.loser_duration * MS_DAY).toISOString()
         : null,
     };
 

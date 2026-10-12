@@ -1,11 +1,9 @@
 import type { TitleEngine, RunData, UserStats } from './types';
-import { dayOfWeek } from './_utils';
+import { addDays, dayOfWeek } from '@runquest/shared';
 
 function nextWeekday(dateStr: string): string {
-  const date = new Date(dateStr);
   // Friday (5) → +3 days to Monday; any other weekday → +1 day
-  date.setUTCDate(date.getUTCDate() + (date.getUTCDay() === 5 ? 3 : 1));
-  return date.toISOString().split('T')[0];
+  return addDays(dateStr, dayOfWeek(dateStr) === 5 ? 3 : 1);
 }
 
 export const maxWeekdayStreakEngine: TitleEngine = {

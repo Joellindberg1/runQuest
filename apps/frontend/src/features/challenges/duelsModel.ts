@@ -1,6 +1,5 @@
 import type { Challenge, ChallengeMetric, ChallengeTier, ChallengeToken, Run, UserBoost } from '@runquest/types';
-import type { ChallengeHistoryItem } from '@runquest/shared';
-import { stockholmClock } from '@/app-shell/rightNowItems';
+import { MS_DAY, stockholmClock, type ChallengeHistoryItem } from '@runquest/shared';
 import {
   TIERS, durationLongText, durationText, firstName, formatDayMonth, formatMetricValue, metricLabel, metricUnit,
   startsInText, stakeOf, tierLabel, timeLeft, type Stake, type StakeSource, type TimeLeft,
@@ -145,7 +144,7 @@ export interface IncomingCard {
   note: string | null;
 }
 
-const LEGENDARY_AUTO_START_MS = 4 * 86_400_000;
+const LEGENDARY_AUTO_START_MS = 4 * MS_DAY;
 const MS_HOUR = 3_600_000;
 const HOURS_PER_DAY = 24;
 
@@ -379,7 +378,6 @@ export interface BoostView {
   detail: string | null;
 }
 
-const MS_DAY = 86_400_000;
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
 /** Aktiva boosts. `runs` (mina) behövs bara för boosts per runda: laddningarna är totala och förbrukas av rundor efter skapandet. */

@@ -1,6 +1,5 @@
 import type { Run } from '@runquest/types';
-import { advanceStreakDay, isNextDay } from '@runquest/shared';
-import { stockholmClock } from '@/app-shell/rightNowItems';
+import { advanceStreakDay, isNextDay, stockholmClock } from '@runquest/shared';
 import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 import { formatInt, formatKm, formatLongDate, formatMultiplier } from './logFormat';
 

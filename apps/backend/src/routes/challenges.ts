@@ -7,7 +7,8 @@ import {
   getProgressForChallenge,
   settleChallenge,
 } from '../services/challengeService.js';
-import { tomorrowStockholm, addDaysToDate, at3amStockholm } from '../utils/dateUtils.js';
+import { addDays } from '@runquest/shared';
+import { tomorrowStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
 import {
@@ -360,8 +361,8 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
 
     // Accept: activate challenge — always starts next midnight Stockholm time
     const startDate = tomorrowStockholm();
-    const endDate = addDaysToDate(startDate, challenge.duration_days);
-    const determineAt = at3amStockholm(addDaysToDate(startDate, challenge.duration_days + 1)).toISOString();
+    const endDate = addDays(startDate, challenge.duration_days);
+    const determineAt = at3amStockholm(addDays(startDate, challenge.duration_days + 1)).toISOString();
 
     // Sekventiellt: utmaningen aktiveras först, spelarnas flagga efteråt. Misslyckas flaggan släpps aktiveringen
     // (tillbaka till pending), så utmaningen aldrig lämnas aktiv medan spelarna inte räknas som upptagna.

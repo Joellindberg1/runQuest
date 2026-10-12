@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  advanceStreakDay, calendarDaysBetween, currentStreak, isNextDay, longestStreak, stockholmDay, streakDayForRun, streakStatus,
+  advanceStreakDay, currentStreak, isNextDay, longestStreak, streakDayForRun, streakStatus,
 } from '../streak.js';
+import { daysBetween, stockholmDay } from '../calendar.js';
 
 describe('stockholmDay', () => {
   it('ger Stockholm-dagen, inte UTC-dagen: 22:30 UTC i sommartid är 00:30 nästa dag', () => {
@@ -24,13 +25,13 @@ describe('stockholmDay', () => {
   });
 });
 
-describe('calendarDaysBetween / isNextDay', () => {
+describe('daysBetween / isNextDay', () => {
   it('räknar kalenderdagar över månads-, års- och sommartidsskiften', () => {
-    expect(calendarDaysBetween('2026-09-30', '2026-10-01')).toBe(1);
-    expect(calendarDaysBetween('2026-12-31', '2027-01-01')).toBe(1);
-    expect(calendarDaysBetween('2026-10-25', '2026-10-26')).toBe(1);
-    expect(calendarDaysBetween('2026-03-29', '2026-03-28')).toBe(-1);
-    expect(calendarDaysBetween('2028-02-28', '2028-03-01')).toBe(2); // skottår
+    expect(daysBetween('2026-09-30', '2026-10-01')).toBe(1);
+    expect(daysBetween('2026-12-31', '2027-01-01')).toBe(1);
+    expect(daysBetween('2026-10-25', '2026-10-26')).toBe(1);
+    expect(daysBetween('2026-03-29', '2026-03-28')).toBe(-1);
+    expect(daysBetween('2028-02-28', '2028-03-01')).toBe(2); // skottår
   });
 
   it('isNextDay', () => {

@@ -1,7 +1,6 @@
 import type { Run, User, UserTitle } from '@runquest/types';
 import type { ChallengeHistoryItem, HeadToHeadResponse, XpConfigResponse } from '@runquest/shared';
-import { calculateStreakMultiplier } from '@runquest/shared';
-import { stockholmClock } from '@/app-shell/rightNowItems';
+import { calculateStreakMultiplier, dayOfWeek, stockholmClock } from '@runquest/shared';
 import { formatDecimal, formatInt } from '@/features/leaderboard/boardFormat';
 import { buildStreakRow, formatMultiplier } from '@/features/leaderboard/streakModel';
 import { hasLinearGap, resolveGenderedTitle, titleValueText } from '@/features/titles/titleFormat';
@@ -166,8 +165,7 @@ export function countDoubleRunDays(runs: Pick<Run, 'date' | 'start_time'>[]): nu
 export function favouriteWeekday(runs: Pick<Run, 'date' | 'distance'>[]): string | null {
   const byWeekday = new Map<number, { count: number; km: number }>();
   for (const run of runs) {
-    const [year, month, day] = dayOf(run).split('-').map(Number);
-    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    const weekday = dayOfWeek(dayOf(run));
     const entry = byWeekday.get(weekday) ?? { count: 0, km: 0 };
     byWeekday.set(weekday, { count: entry.count + 1, km: entry.km + run.distance });
   }

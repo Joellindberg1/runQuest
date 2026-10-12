@@ -4,7 +4,8 @@ import cron from 'node-cron';
 import { getSupabaseClient } from '../config/database.js';
 import { settleChallenge } from '../services/challengeService.js';
 import { retractChallengeReceived } from '../services/activityLog.js';
-import { todayStockholm, addDaysToDate, at3amStockholm } from '../utils/dateUtils.js';
+import { MS_DAY, addDays } from '@runquest/shared';
+import { todayStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { summarizeSettled } from './settledSummary.js';
 
 // ─── Settle ended challenges ─────────────────────────────────────────────────
@@ -33,7 +34,7 @@ async function settleEndedChallenges(): Promise<void> {
 
 async function autoStartLegendaryChallenges(): Promise<void> {
   const supabase = getSupabaseClient();
-  const cutoff = new Date(Date.now() - 4 * 86400000).toISOString();
+  const cutoff = new Date(Date.now() - 4 * MS_DAY).toISOString();
 
   const { data: challenges, error } = await supabase
     .from('challenges')
@@ -54,8 +55,8 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
   const results = await Promise.allSettled(
     challenges.map(async (c: any) => {
-      const endDate = addDaysToDate(startDate, c.duration_days);
-      const determineAt = at3amStockholm(addDaysToDate(startDate, c.duration_days + 1)).toISOString();
+      const endDate = addDays(startDate, c.duration_days);
+      const determineAt = at3amStockholm(addDays(startDate, c.duration_days + 1)).toISOString();
       const { error: startError } = await supabase
         .from('challenges')
         .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
@@ -73,7 +74,7 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
 export async function autoDeclinePendingChallenges(): Promise<void> {
   const supabase = getSupabaseClient();
-  const cutoff = new Date(Date.now() - 3 * 86400000).toISOString();
+  const cutoff = new Date(Date.now() - 3 * MS_DAY).toISOString();
 
   const { data: challenges, error } = await supabase
     .from('challenges')
