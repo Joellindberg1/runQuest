@@ -29,8 +29,8 @@ Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: en st
 
 ### Prod-steg (kräver ägar-ja var för sig)
 1. PR release/v0.6.1.1 → main, grön CI, merge (= deploy). Ingen versionsbump, ingen What's new, ingen announce (intern version).
-2. Migration 042 (`update_title_leaderboard` med advisory-lås). Additiv, kan köras före eller efter deploy.
-3. Tagg `v0.6.1.1` på merge-commiten.
+2. Migration 042 (`update_title_leaderboard` med advisory-lås). Additiv, kan köras före eller efter deploy. KÖRD 2026-10-12 (ägar-ja), verifierad: låset finns, search_path oförändrad, alla innehavare = plats 1.
+3. Tagg `v0.6.1.1` på merge-commiten. KLAR (PR #29, 64df02c).
 
 ### Rollback
 - Kod: redeploya v0.6.1 i Railway och revert-PR på main. Inga dataformat ändrade.

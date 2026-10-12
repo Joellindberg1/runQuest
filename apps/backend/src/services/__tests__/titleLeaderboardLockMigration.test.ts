@@ -72,7 +72,8 @@ describe('migration 042_title_leaderboard_advisory_lock.sql', () => {
   it('headern anger körordning och rollback-SQL', () => {
     expect(sql).toMatch(/KÖRORDNING/);
     expect(sql).toMatch(/Rollback/);
-    expect(sql).toMatch(/EJ APPLICERAD/);
+    // Applikationsstatus står i headern (EJ APPLICERAD före prod, APPLICERAD i prod efter).
+    expect(sql).toMatch(/APPLICERAD/);
     // Rollbacken är den ursprungliga funktionen utan låset.
     const rollback = sql.split('\n').filter((l) => /^--   /.test(l)).map((l) => l.replace(/^--   /, '')).join('\n');
     expect(rollback).toMatch(/create or replace function public\.update_title_leaderboard/i);
