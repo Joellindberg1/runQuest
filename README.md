@@ -1,152 +1,152 @@
 # RunQuest
 
-En löparapp där du och dina vänner tävlar, följer era framsteg och importerar rundor från Strava — med XP och nivåer, leaderboards, streaks, titlar, badges, duellutmaningar och event.
+A running app where you and your friends compete, track progress and import runs from Strava — with XP and levels, leaderboards, streaks, titles, badges, 1v1 duels and events.
 
 **Live:** [runquest.dev](https://www.runquest.dev) · **Version:** 0.6.1
 
 ---
 
-## Teknik
+## Tech Stack
 
-| Del | Teknik |
-|-----|--------|
-| Frontend | React 18, TypeScript, Vite, Tailwind 3 med egen tokenuppsättning (`--rq-*`), Radix-primitiver, TanStack Query, react-router v6 |
+| Part | Technology |
+|------|------------|
+| Frontend | React 18, TypeScript, Vite, Tailwind 3 with its own token set (`--rq-*`), Radix primitives, TanStack Query, react-router v6 |
 | Backend | Node.js 20 (`.nvmrc`), Express 5, TypeScript, node-cron |
-| Databas | Supabase (PostgreSQL). Bara backend pratar med databasen (service-nyckel); frontend har ingen Supabase-klient |
-| Auth | Egen JWT (backend) + Strava OAuth2 |
-| Externa API:er | Strava, Open-Meteo (väder, ingen nyckel) |
-| Hosting | Railway: två tjänster (frontend och backend), deploy vid push till `main`. Frontend serveras av Caddy via Railpack |
-| Tester | Vitest (React Testing Library i frontend) |
+| Database | Supabase (PostgreSQL). Only the backend talks to the database (service key); the frontend has no Supabase client |
+| Auth | Own backend JWT + Strava OAuth2 |
+| External APIs | Strava, Open-Meteo (weather, no key) |
+| Hosting | Railway: two services (frontend and backend), deployed on push to `main`. The frontend is served by Caddy via Railpack |
+| Tests | Vitest (React Testing Library in the frontend) |
 
 ---
 
-## Projektstruktur
+## Project Structure
 
 ```
 runquest/
 ├── apps/
 │   ├── frontend/
 │   │   └── src/
-│   │       ├── app-shell/      # Skalet: header, bottenbar/sidnav, RequireAuth
-│   │       ├── features/       # Funktionsmoduler: admin, auth, badges, challenges, changelog, events, landing,
+│   │       ├── app-shell/      # The shell: header, bottom bar/side nav, RequireAuth
+│   │       ├── features/       # Feature modules: admin, auth, badges, challenges, changelog, events, landing,
 │   │       │                   #   leaderboard, log, news, onboarding, playbook, profile, runner, runs, settings, titles
-│   │       ├── pages/          # Tunna route-komponenter: layout + feature-importer
-│   │       ├── providers/      # AppProviders (QueryClient, tema, toaster) och AuthProvider
-│   │       └── shared/         # Delade komponenter, hooks, services (backendApi, levelService) och utils
+│   │       ├── pages/          # Thin route components: layout + feature imports
+│   │       ├── providers/      # AppProviders (QueryClient, theme, toaster) and AuthProvider
+│   │       └── shared/         # Shared components, hooks, services (backendApi, levelService) and utils
 │   └── backend/
-│       ├── migrations/         # 000_baseline.sql + migrationer ≥ 032 (ADR 002)
+│       ├── migrations/         # 000_baseline.sql + migrations ≥ 032 (ADR 002)
 │       └── src/
-│           ├── routes/         # En Express-router per domän
-│           ├── services/       # Affärslogik (streak, utmaningar, event, väder, badges, titlar …)
-│           ├── titleEngines/   # En titelmotor per mått (24 st)
-│           ├── scheduler/      # Cron: Strava-synk, utmaningar, event
-│           ├── scripts/        # Engångs- och releaseskript (backfill, announce:release …)
-│           ├── middleware/     # Auth, admin-kontroll, rate limiting
-│           └── config/         # Databas, miljö
+│           ├── routes/         # One Express router per domain
+│           ├── services/       # Business logic (streak, challenges, events, weather, badges, titles …)
+│           ├── titleEngines/   # One title engine per metric (24)
+│           ├── scheduler/      # Cron: Strava sync, challenges, events
+│           ├── scripts/        # One-off and release scripts (backfill, announce:release …)
+│           ├── middleware/     # Auth, admin check, rate limiting
+│           └── config/         # Database, env
 ├── packages/
-│   ├── shared/                 # Ren logik och API-kontrakt som både frontend och backend använder
-│   └── types/                  # Delade typer (User, Run …)
-├── scripts/                    # Versionsvakt och CI-vakter
-└── docs/                       # ADR:er, release, behörigheter, designunderlag
+│   ├── shared/                 # Pure logic and API contracts used by both frontend and backend
+│   └── types/                  # Shared types (User, Run …)
+├── scripts/                    # Version guard and CI guards
+└── docs/                       # ADRs, release process, permissions, design material
 ```
 
 ---
 
-## Komma igång
+## Getting Started
 
 ```bash
-# Installera beroenden (Node 20)
+# Install dependencies (Node 20)
 npm install
 
-# Kopiera miljöfilerna och fyll i värden
+# Copy the env files and fill in the values
 cp apps/backend/.env.example apps/backend/.env
 cp apps/frontend/.env.example apps/frontend/.env
 
-# Starta frontend (port 8080) och backend (port 3001) i varsin terminal
+# Start frontend (port 8080) and backend (port 3001) in separate terminals
 npm run dev:frontend
 npm run dev:backend
 ```
 
-Backend behöver Supabase-, JWT- och Strava-nycklar i `apps/backend/.env` (se `.env.example`). Frontend behöver bara `VITE_API_URL`
-(standard `http://localhost:3001/api`). Hemligheter ligger aldrig i kod eller i repot.
+The backend needs Supabase, JWT and Strava keys in `apps/backend/.env` (see `.env.example`). The frontend only needs `VITE_API_URL`
+(default `http://localhost:3001/api`). Secrets never go in code or in the repo.
 
 ---
 
-## Tester
+## Tests
 
-Testerna ligger nära koden de testar, i `__tests__/`-mappar eller bredvid filen (`*.test.ts(x)`).
+Tests live close to the code they test, in `__tests__/` folders or next to the file (`*.test.ts(x)`).
 
 ```bash
-npm test --workspace=packages/shared    # 654 tester i 16 filer
-npm test --workspace=apps/backend       # 1145 tester i 86 filer
-npm test --workspace=apps/frontend      # 2371 tester i 141 filer
+npm test --workspace=packages/shared    # 654 tests in 16 files
+npm test --workspace=apps/backend       # 1145 tests in 86 files
+npm test --workspace=apps/frontend      # 2371 tests in 141 files
 
-# Bevakningsläge (kör om vid filändring)
+# Watch mode (re-runs on file save)
 npm run test:watch --workspace=packages/shared
 npm run test:watch --workspace=apps/backend
 npm run test:watch --workspace=apps/frontend
 
-# Repo-vakter (inga beroenden behövs)
+# Repo guards (no dependencies needed)
 node scripts/check-versions.mjs && node --test scripts/check-versions.test.mjs
 node scripts/ci-guards.mjs && node --test scripts/ci-guards.test.mjs
 ```
 
-Antalen är uppmätta 2026-10-12 på `release/v0.6.1.1` och förändras med koden; CI är facit.
+The counts were measured on 2026-10-12 on `release/v0.6.1.1` and change with the code; CI is the source of truth.
 
-### Vad som testas
+### What is tested
 
-- **`packages/shared`** — den rena logiken: XP-formeln, streak och multiplikator, boost, nivåmatematik, badgeregler och badgeutvärdering, händelsetyper, kalender och väggklocka, API-kontrakt.
-- **`apps/backend`** — route-tester (supertest mot `createApp()`, databasen ersatt av en in-memory-fake, `fakeDb`), tjänster (streak, utmaningar, event, väder, badges, titlar), titelmotorerna (regressionssvit plus tester för de nyare motorerna), `calculateUserTotals`-kedjan och migrationsfilerna (statiska tester).
-- **`apps/frontend`** — komponent- och hooktester (RTL), modellfunktioner per feature, routing och skal, samt statiska vakter per feature.
+- **`packages/shared`** — the pure logic: the XP formula, streak and multiplier, boosts, level math, badge rules and evaluation, activity types, calendar and wall clock, API contracts.
+- **`apps/backend`** — route tests (supertest against `createApp()`, the database replaced by an in-memory fake, `fakeDb`), services (streak, challenges, events, weather, badges, titles), the title engines (a regression suite plus tests for the newer engines), the `calculateUserTotals` chain and the migration files (static tests).
+- **`apps/frontend`** — component and hook tests (RTL), model functions per feature, routing and shell, and static guards per feature.
 
-CI (`.github/workflows/ci.yml`) är blockerande på varje PR mot `main`: backend `tsc` + build + test, shared-test, och för frontend versionsvakt, repo-vakter, build, Caddy-kontroll, `tsc -b`, `eslint --max-warnings 0` och test. Teststrategin står i `docs/adr/001-teststrategi.md`.
-
----
-
-## Funktioner
-
-- **Leaderboard (Board)** — Säsong, vecka och streaks med pall och rankingrader.
-- **XP och nivåer** — Basxp + xp per km + distansbonusar + streakmultiplikator, 30 nivåer. Värdena kan justeras av admin; shared har standardvärdena.
-- **Streaks** — Dagliga rundor ger en växande multiplikator (standardtrappan går från ×1,1 vid dag 5 till ×2,0 vid dag 270); en missad dag nollar streaken.
-- **Strava** — Koppla via OAuth2 (popup). Rundor synkas automatiskt var 30:e minut och kan synkas manuellt. Strava-rundor är skrivskyddade i appen; bara manuella rundor kan ändras eller raderas.
-- **Logga rundor** — Manuell loggning med XP-förhandsvisning.
-- **Titlar** — 24 titelmotorer (längsta runda, flest km, tidpunkt på dygnet, tempo, höjdmeter, comeback, väder- och vintertitlar som Stormborn, Iceborn och Winter Warrior …), indelade i kategorier. Titlar kan återkallas när kravet inte längre uppfylls.
-- **Badges** — Åtta serier × sex nivåer (Common till Legendary), härledda ur rundorna och återkallbara. Sidan `/badges`, upp till tre visade badges, uppgraderingspopup.
-- **Duels (utmaningar)** — 1 mot 1 i tre nivåer (Minor, Major, Legendary). Token delas ut vid nivåuppgång och lottar nivå, mått (km, rundor, XP), längd och insats; vid sändning väljer spelaren token och motståndare. Vinnaren får en XP-boost.
-- **Events** — Deltagarevent som ger XP direkt vid kvalificerande runda (bland annat det väderberoende Storm Chaser) och veckotävlingar som avräknas på måndagen.
-- **Pack News** — Gruppens händelseflöde (titlar, nivåer, badges, utmaningar, event, streakbrott, milstolpar) med filter, oläst-räknare i headern och en rad per release.
-- **Runner card** — Andras profil med head-to-head, titlar och badges.
-- **Profil** — Statistik, heatmap och rundhistorik.
-- **Playbook** — Spelets regler, med siffror ur konfigurationen.
-- **Features & Version** — Funktionslista, vad som är på gång och versionshistorik; "What's new"-popupen visar nya releaser.
-- **Landing och inloggning** — Publik startsida; inloggningen är en dialog över den (`/login`).
-- **Onboarding** — Guidade turer.
-- **Admin** — XP-inställningar, streaktrappa och medlemmar.
-- **Tema** — Mörkt tema är standard och det enda som är designat. Ljust tema är förberett i temafilen (`data-theme="light"`) men inte designat.
+CI (`.github/workflows/ci.yml`) is blocking on every PR to `main`: backend `tsc` + build + test, shared tests, and for the frontend the version guard, repo guards, build, Caddy check, `tsc -b`, `eslint --max-warnings 0` and tests. The test strategy is in `docs/adr/001-teststrategi.md`.
 
 ---
 
-## Arkitekturprinciper
+## Features
 
-Det här är riktningen. Den fullständiga bilden med kända avsteg står i `STATE.md` ("Konventioner") och besluten i `docs/adr/`.
-
-- **Sidor är lim** — en sida importerar features och sätter layouten. Ingen affärslogik.
-- **Features äger sin logik** — komponenter, hooks och modeller bor i `features/<x>/`. Det som flera features behöver ligger i `shared/`. Importer mellan features förekommer ändå på några ställen och är skuld, inte mönster.
-- **Servertillstånd i TanStack Query** — datahämtning går via hooks med cache och invalidering, och EN HTTP-klient (`backendApi`). Några admin- och profilkomponenter anropar den fortfarande direkt.
-- **Delad logik i `packages/shared`** — XP, nivåer, streak, boost, badges och kalender är rena funktioner som körs identiskt i frontend (förhandsvisning) och backend (sparande). Paketet konsumeras direkt ur `src/`.
-- **Typer och kontrakt** — `packages/types` har `User`, `Run` m.fl.; nya endpoints delar sina svarstyper via `packages/shared/src/contracts/` (ADR 007).
-- **Databasändringar** — `000_baseline.sql` + migrationer ≥ 032, körda via Supabase MCP efter ägargodkännande (ADR 002, `docs/permissions.md`).
+- **Leaderboard (Board)** — Season, week and streak views with a podium and ranking rows.
+- **XP & Levels** — Base XP + XP per km + distance bonuses + streak multiplier, 30 levels. Admins can adjust the values; `packages/shared` holds the defaults.
+- **Streaks** — Daily runs give a growing multiplier (the default ladder goes from ×1.1 at day 5 to ×2.0 at day 270); a missed day resets the streak.
+- **Strava** — Connect via OAuth2 (popup). Runs sync automatically every 30 minutes and can be synced manually. Strava runs are read-only in the app; only manual runs can be edited or deleted.
+- **Log runs** — Manual logging with an XP preview.
+- **Titles** — 24 title engines (longest run, most km, time of day, pace, elevation, comeback, weather and winter titles such as Stormborn, Iceborn and Winter Warrior …), grouped into categories. Titles can be revoked when the requirement is no longer met.
+- **Badges** — Eight series × six tiers (Common to Legendary), derived from the runs and revocable. The `/badges` page, up to three displayed badges, an upgrade popup.
+- **Duels (challenges)** — 1v1 across three tiers (Minor, Major, Legendary). A token is awarded at level-up and draws tier, metric (km, runs, XP), duration and stake; when sending, the player only picks the token and the opponent. The winner gets an XP boost.
+- **Events** — Participation events that give XP right away on a qualifying run (including the weather-dependent Storm Chaser) and weekly competitions settled on Monday.
+- **Pack News** — The group's activity feed (titles, levels, badges, challenges, events, streak breaks, milestones) with filters, an unread counter in the header and one row per release.
+- **Runner card** — Another member's profile with head-to-head, titles and badges.
+- **Profile** — Stats, heatmap and run history.
+- **Playbook** — The rules of the game, with numbers read from the configuration.
+- **Features & Version** — Feature list, what is coming and the version history; the "What's new" popup shows new releases.
+- **Landing and login** — A public start page; login is a dialog over it (`/login`).
+- **Onboarding** — Guided tours.
+- **Admin** — XP settings, streak ladder and members.
+- **Theme** — Dark is the default and the only designed theme. A light theme is prepared in the theme file (`data-theme="light"`) but not designed.
 
 ---
 
-## Dokumentation
+## Architecture Principles
 
-| Dokument | Innehåll |
+This is the direction. The full picture, including known deviations, is in `STATE.md` ("Konventioner") and the decisions are in `docs/adr/`.
+
+- **Pages are glue** — a page imports features and sets the layout. No business logic.
+- **Features own their logic** — components, hooks and models live in `features/<x>/`. What several features need lives in `shared/`. Imports between features still occur in a few places and are debt, not a pattern.
+- **Server state in TanStack Query** — data fetching goes through hooks with caching and invalidation, and ONE HTTP client (`backendApi`). A few admin and profile components still call it directly.
+- **Shared logic in `packages/shared`** — XP, levels, streak, boosts, badges and calendar are pure functions that run identically in the frontend (preview) and the backend (save). The package is consumed directly from `src/`.
+- **Types and contracts** — `packages/types` holds `User`, `Run` etc.; new endpoints share their response types via `packages/shared/src/contracts/` (ADR 007).
+- **Database changes** — `000_baseline.sql` + migrations ≥ 032, run via Supabase MCP after owner approval (ADR 002, `docs/permissions.md`).
+
+---
+
+## Documentation
+
+| Document | Contents |
 |----------|----------|
-| `STATE.md` | Nuläget: stack, konventioner, sköra zoner, kritiska flöden |
-| `CHANGELOG.md` | Teknisk historik per release |
-| `docs/dokumentation.md` | Vem läser vad, versionsschemat och releasechecklistan |
-| `docs/release.md` | Releasekedjan från PR till live, med rollback |
-| `docs/adr/` | Arkitekturbeslut |
-| `docs/permissions.md` | Vad som kräver ägarens ja |
-| `docs/open-assumptions.md` | Öppna antaganden och kontraktsfrågor |
+| `STATE.md` | Current state: stack, conventions, fragile zones, critical flows |
+| `CHANGELOG.md` | Technical history per release |
+| `docs/dokumentation.md` | Who reads what, the versioning scheme and the release checklist |
+| `docs/release.md` | The release chain from PR to live, with rollback |
+| `docs/adr/` | Architecture decisions |
+| `docs/permissions.md` | What requires the owner's approval |
+| `docs/open-assumptions.md` | Open assumptions and contract questions |
