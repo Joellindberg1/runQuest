@@ -4,7 +4,6 @@ import {
   ACTIVITY_TYPES,
   RUN_MILESTONES,
   activityKeys,
-  addDaysToDay,
   buildBadgeEarnedDraft,
   buildChallengeReceivedDraft,
   buildChallengeSettledDraft,
@@ -20,13 +19,13 @@ import {
   isStreakBroken,
   levelsCrossed,
   milestonesCrossed,
-  stockholmMidnightIso,
   streakBrokenOccurredAt,
   streakBrokenThreshold,
   type ChallengeActivityRow,
   type EventActivityRow,
   type TitleHolder,
 } from '../activity.js';
+import { addDays, stockholmMidnightIso } from '../calendar.js';
 
 describe('ACTIVITY_TYPES', () => {
   it('är exakt ADR 008:s elva typer + badge_earned (ADR 009 beslut 5) + release_published (RUN-161), unika', () => {
@@ -103,11 +102,11 @@ describe('stockholmMidnightIso', () => {
   });
 });
 
-describe('addDaysToDay', () => {
+describe('addDays', () => {
   it('klarar månads- och årsskiften', () => {
-    expect(addDaysToDay('2026-01-31', 1)).toBe('2026-02-01');
-    expect(addDaysToDay('2026-12-31', 2)).toBe('2027-01-02');
-    expect(addDaysToDay('2026-03-01', -1)).toBe('2026-02-28');
+    expect(addDays('2026-01-31', 1)).toBe('2026-02-01');
+    expect(addDays('2026-12-31', 2)).toBe('2027-01-02');
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
   });
 });
 

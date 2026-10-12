@@ -3,11 +3,10 @@ import {
   buildWeekLeaderboard,
   bestWeekKm,
   percentOfBest,
-  mondayOfCalendarDate,
-  addDaysToCalendarDate,
   type WeekMember,
   type WeekRun,
 } from '../leaderboard.js';
+import { addDays, mondayOf } from '../calendar.js';
 
 const WEEK = '2026-09-28'; // måndag
 const PREV = '2026-09-21';
@@ -20,18 +19,18 @@ function run(user_id: string, date: string, distance: number, xp_gained: number)
 }
 
 describe('kalenderhjälpare (rena, tidszonsfria)', () => {
-  it('mondayOfCalendarDate ger måndagen för alla veckodagar, söndag hör till veckan som slutar', () => {
-    expect(mondayOfCalendarDate('2026-09-28')).toBe('2026-09-28'); // mån
-    expect(mondayOfCalendarDate('2026-10-01')).toBe('2026-09-28'); // tors
-    expect(mondayOfCalendarDate('2026-10-04')).toBe('2026-09-28'); // sön
-    expect(mondayOfCalendarDate('2026-10-05')).toBe('2026-10-05'); // nästa mån
+  it('mondayOf ger måndagen för alla veckodagar, söndag hör till veckan som slutar', () => {
+    expect(mondayOf('2026-09-28')).toBe('2026-09-28'); // mån
+    expect(mondayOf('2026-10-01')).toBe('2026-09-28'); // tors
+    expect(mondayOf('2026-10-04')).toBe('2026-09-28'); // sön
+    expect(mondayOf('2026-10-05')).toBe('2026-10-05'); // nästa mån
   });
 
-  it('addDaysToCalendarDate hanterar sommartidsskiften och årsskiften', () => {
-    expect(addDaysToCalendarDate('2026-03-28', 2)).toBe('2026-03-30'); // över DST-skiftet 29 mars
-    expect(addDaysToCalendarDate('2026-10-24', 2)).toBe('2026-10-26'); // över DST-skiftet 25 okt
-    expect(addDaysToCalendarDate('2025-12-29', 6)).toBe('2026-01-04');
-    expect(addDaysToCalendarDate('2026-01-05', -7)).toBe('2025-12-29');
+  it('addDays hanterar sommartidsskiften och årsskiften', () => {
+    expect(addDays('2026-03-28', 2)).toBe('2026-03-30'); // över DST-skiftet 29 mars
+    expect(addDays('2026-10-24', 2)).toBe('2026-10-26'); // över DST-skiftet 25 okt
+    expect(addDays('2025-12-29', 6)).toBe('2026-01-04');
+    expect(addDays('2026-01-05', -7)).toBe('2025-12-29');
   });
 });
 
@@ -174,7 +173,7 @@ describe('buildWeekLeaderboard', () => {
       expect(dates).toHaveLength(7);
       expect(dates[0]).toBe(start);
       expect(dates[6]).toBe(last);
-      for (let i = 1; i < 7; i++) expect(dates[i]).toBe(addDaysToCalendarDate(dates[i - 1], 1));
+      for (let i = 1; i < 7; i++) expect(dates[i]).toBe(addDays(dates[i - 1], 1));
     }
   });
 

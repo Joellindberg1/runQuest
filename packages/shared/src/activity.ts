@@ -6,6 +6,8 @@
 // activity_log_type_check (034, utökad av 036 och 041) måste vara identisk
 // (statiskt test i backend: activityLogMigration.test.ts).
 
+import { addDays, stockholmMidnightIso } from './calendar.js';
+
 export const ACTIVITY_TYPES = [
   'title_unlocked',
   'title_taken',
@@ -214,45 +216,6 @@ export const activityKeys = {
   titleRevoked: (titleId: string, userId: string, day: string) => `title_revoked:${titleId}:${userId}:${day}`,
 } as const;
 
-// ─── Stockholm-tid (ren kalenderaritmetik, ingen systemtid) ──────────────────────────────────────
-
-const STOCKHOLM_TZ = 'Europe/Stockholm';
-
-const stockholmParts = new Intl.DateTimeFormat('en-US', {
-  timeZone: STOCKHOLM_TZ,
-  hourCycle: 'h23',
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', second: '2-digit',
-});
-
-/** Stockholms UTC-offset (ms) vid ett givet UTC-ögonblick. */
-function stockholmOffsetMs(instantMs: number): number {
-  const parts: Record<string, number> = {};
-  for (const p of stockholmParts.formatToParts(new Date(instantMs))) {
-    if (p.type !== 'literal') parts[p.type] = Number(p.value);
-  }
-  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-  return asUtc - Math.floor(instantMs / 1000) * 1000;
-}
-
-/** Lägger N dagar till en YYYY-MM-DD-sträng (kalenderaritmetik, DST-fri via UTC-middag). */
-export function addDaysToDay(day: string, days: number): string {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days, 12, 0, 0)).toISOString().slice(0, 10);
-}
-
-/** ISO-ögonblicket (UTC) då Stockholm-dagen `day` (YYYY-MM-DD) börjar, kl 00:00 lokal tid. DST-säker. */
-export function stockholmMidnightIso(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  const utcMidnight = Date.UTC(y, m - 1, d, 0, 0, 0);
-  // Två steg: offseten vid gissningen kan skilja från offseten vid det verkliga midnattsögonblicket
-  // (DST-dagar växlar mellan midnatt och middag).
-  const o1 = stockholmOffsetMs(utcMidnight);
-  const first = utcMidnight - o1;
-  const o2 = stockholmOffsetMs(first);
-  return new Date(o2 === o1 ? first : utcMidnight - o2).toISOString();
-}
-
 // ─── Detektion: nivåer, milstolpar, streak ───────────────────────────────────────────────────────
 
 /** Nivåerna i (prev, next] — en per uppnådd nivå. Tom om nivån inte ökat eller värden saknas. */
@@ -284,7 +247,7 @@ export function isStreakBroken(prevStreak: number | null | undefined, nextStreak
 
 /** streak_broken inträffar kl 00:00 Stockholm dag `last_run_date + 2` (då är streaken inte längre räddningsbar). */
 export function streakBrokenOccurredAt(lastRunDate: string): string {
-  return stockholmMidnightIso(addDaysToDay(lastRunDate, 2));
+  return stockholmMidnightIso(addDays(lastRunDate, 2));
 }
 
 // ─── Titeldetektion (snapshot-diff, ADR 008 beslut 6) ────────────────────────────────────────────

@@ -6,25 +6,23 @@
  * värdena låser beteendet som sammanslagningen inte får ändra; efter sammanslagningen pekar alla etiketter på samma funktion.
  */
 import { describe, expect, it } from 'vitest';
-import { addDaysToDay, stockholmMidnightIso } from '../activity.js';
-import { addDaysToCalendarDate, mondayOfCalendarDate } from '../leaderboard.js';
-import { calendarDaysBetween, stockholmDay } from '../streak.js';
+import { addDays, daysBetween, mondayOf, stockholmDay, stockholmMidnightIso } from '../calendar.js';
 import { buildXpLedger } from '../xpLedger.js';
 
 const ADD_DAYS: Array<[string, (day: string, days: number) => string]> = [
-  ['activity.addDaysToDay', addDaysToDay],
-  ['leaderboard.addDaysToCalendarDate', addDaysToCalendarDate],
+  ['activity.addDaysToDay (legacy)', addDays],
+  ['leaderboard.addDaysToCalendarDate (legacy)', addDays],
 ];
 
 const MONDAY_OF: Array<[string, (day: string) => string]> = [
-  ['leaderboard.mondayOfCalendarDate', mondayOfCalendarDate],
+  ['leaderboard.mondayOfCalendarDate (legacy)', mondayOf],
 ];
 
 const DAYS_BETWEEN: Array<[string, (from: string, to: string) => number]> = [
-  ['streak.calendarDaysBetween', calendarDaysBetween],
+  ['streak.calendarDaysBetween (legacy)', daysBetween],
 ];
 
-describe.each(ADD_DAYS)('addDays — %s', (_label, addDays) => {
+describe.each(ADD_DAYS)('addDays — %s', (_label, add) => {
   it.each([
     ['2026-10-04', 1, '2026-10-05'],
     ['2026-10-04', 0, '2026-10-04'],
@@ -46,16 +44,16 @@ describe.each(ADD_DAYS)('addDays — %s', (_label, addDays) => {
     ['2026-03-23', 7, '2026-03-30'], // en vecka över sommartidsskiftet
     ['2026-10-19', 7, '2026-10-26'],
   ])('%s %i dagar -> %s', (day, days, expected) => {
-    expect(addDays(day, days)).toBe(expected);
+    expect(add(day, days)).toBe(expected);
   });
 
   it('ogiltig indata kastar RangeError (ingen tyst NaN-sträng)', () => {
-    expect(() => addDays('inte-ett-datum', 1)).toThrow(RangeError);
-    expect(() => addDays('2026-10-04T10:00:00Z', 1)).toThrow(RangeError);
+    expect(() => add('inte-ett-datum', 1)).toThrow(RangeError);
+    expect(() => add('2026-10-04T10:00:00Z', 1)).toThrow(RangeError);
   });
 });
 
-describe.each(MONDAY_OF)('mondayOf — %s', (_label, mondayOf) => {
+describe.each(MONDAY_OF)('mondayOf — %s', (_label, monday) => {
   it.each([
     ['2026-09-28', '2026-09-28'], // mån
     ['2026-09-29', '2026-09-28'],
@@ -74,11 +72,11 @@ describe.each(MONDAY_OF)('mondayOf — %s', (_label, mondayOf) => {
     ['2026-10-25', '2026-10-19'], // sommartid slutar (söndag)
     ['2026-10-26', '2026-10-26'],
   ])('%s -> %s', (day, expected) => {
-    expect(mondayOf(day)).toBe(expected);
+    expect(monday(day)).toBe(expected);
   });
 });
 
-describe.each(DAYS_BETWEEN)('daysBetween — %s', (_label, daysBetween) => {
+describe.each(DAYS_BETWEEN)('daysBetween — %s', (_label, between) => {
   it.each([
     ['2026-10-04', '2026-10-04', 0],
     ['2026-10-04', '2026-10-05', 1],
@@ -92,12 +90,12 @@ describe.each(DAYS_BETWEEN)('daysBetween — %s', (_label, daysBetween) => {
     ['2026-01-01', '2027-01-01', 365],
     ['2028-01-01', '2029-01-01', 366],
   ])('%s -> %s = %i', (from, to, expected) => {
-    expect(daysBetween(from, to)).toBe(expected);
+    expect(between(from, to)).toBe(expected);
   });
 
   it('ogiltig indata ger NaN', () => {
-    expect(daysBetween('x', 'y')).toBeNaN();
-    expect(daysBetween('2026-10-04', 'inte-ett-datum')).toBeNaN();
+    expect(between('x', 'y')).toBeNaN();
+    expect(between('2026-10-04', 'inte-ett-datum')).toBeNaN();
   });
 });
 
@@ -159,8 +157,8 @@ describe('stockholmMidnightIso (activity.ts)', () => {
     for (let i = 0; i < 365; i += 1) {
       const start = Date.parse(stockholmMidnightIso(day));
       expect(stockholmDay(new Date(start))).toBe(day);
-      expect(stockholmDay(new Date(start - 1))).toBe(addDaysToDay(day, -1));
-      day = addDaysToDay(day, 1);
+      expect(stockholmDay(new Date(start - 1))).toBe(addDays(day, -1));
+      day = addDays(day, 1);
     }
   });
 });

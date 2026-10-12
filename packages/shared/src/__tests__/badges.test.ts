@@ -16,8 +16,8 @@ import {
   type BadgeSeriesDef,
   type BadgeSeriesKey,
   type BadgeStats,
-  wallClockMinutes,
 } from '../badges.js';
+import { wallClockMinutes } from '../calendar.js';
 
 let seq = 0;
 function run(over: Partial<BadgeRun> = {}): BadgeRun {
