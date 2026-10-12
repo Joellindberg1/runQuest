@@ -1,10 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Vakttester över källkoden (ADR 006 beslut 8 + designspråkets regel 1 och 10).
+// Vakttester över källkoden (ADR 006 beslut 8). Designreglerna för skalet (inga lucide, inga råvärden, bara tokens i app-shell.css) och de
+// kända trasiga variablerna (hsl(var(--sidebar)), var(--rq-foreground), Silkscreen) vaktas av lint: eslint.config.js och stylelint.config.js.
 
-const rawSources = import.meta.glob(['../**/*.{ts,tsx,css}', '!../**/*.test.{ts,tsx}'], {
+const rawSources = import.meta.glob(['../**/*.{ts,tsx}', '!../**/*.test.{ts,tsx}'], {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -45,59 +44,6 @@ describe('tour-ankarvakten: varje data-tour i turerna finns i en komponentkälla
     expect(onboarding).not.toMatch(/data-tour="sidebar-/);
     for (const anchor of ['nav-ranks', 'nav-titles', 'nav-duels', 'nav-new', 'nav-you', 'right-now-strava', 'header-events', 'nav-events']) {
       expect(onboarding).toContain(`data-tour="${anchor}"`);
-    }
-  });
-});
-
-describe('nya skal-filer följer designspråket', () => {
-  const shellFiles = Object.entries(sources).filter(
-    ([path]) => /\/app-shell\/[^/]+\.(tsx?|css)$/.test(path) || /\/(paths|routes)\.tsx?$/.test(path) || /pages\/(NewsPage|NotFound|Index|RunnerPage).tsx$/.test(path) || /shared\/components\/EmptyState\.tsx$/.test(path),
-  );
-
-  it('hittar skal-filerna', () => {
-    expect(shellFiles.length).toBeGreaterThan(15);
-  });
-
-  it('ingen lucide-import i nya skal-filer (RQIcon är enda ikonkällan, regel 10)', () => {
-    for (const [path, text] of shellFiles) {
-      expect({ path, lucide: /lucide-react/.test(text) }).toEqual({ path, lucide: false });
-    }
-  });
-
-  it('inga råvärden: hex, rgba(), px i klassnamn eller inline-styles i skalets komponenter (regel 1)', () => {
-    for (const [path, text] of shellFiles) {
-      const hex = text.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
-      const rgba = text.match(/rgba?\(/g) ?? [];
-      const inlineStyle = text.match(/style=\{\{/g) ?? [];
-      const pxInClass = (text.match(/className=(?:"[^"]*"|\{[^}]*\})/g) ?? []).filter((c) => /[\d.]+px/.test(c));
-      expect({ path, hex, rgba, inlineStyle, pxInClass }).toEqual({ path, hex: [], rgba: [], inlineStyle: [], pxInClass: [] });
-    }
-  });
-
-  it('skalets CSS använder bara tokens: inga px-mått, hex eller rgba()', () => {
-    // Läses från disk: vitest (css: false) tömmer ?raw-importer av .css, så globben ger en tom sträng.
-    const css = readFileSync(resolve(process.cwd(), 'src/app-shell/app-shell.css'), 'utf8');
-    expect(css.length).toBeGreaterThan(200);
-    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(withoutComments.match(/[\d.]+px/g) ?? []).toEqual([]);
-    expect(withoutComments.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([]);
-    // rgb(var(--rq-…-rgb) / alfa) är det sanktionerade alfa-receptet; bokstavliga rgb()/rgba() är det inte.
-    expect(withoutComments.match(/rgba\(|rgb\(\s*\d/g) ?? []).toEqual([]);
-    expect(withoutComments.match(/border-radius:\s*(?!0|var\(--rq-radius)/g) ?? []).toEqual([]);
-  });
-});
-
-describe('kända trasiga variabler är borta', () => {
-  it('ingen hsl(var(--sidebar)) eller var(--rq-foreground) kvar i källan', () => {
-    for (const [path, text] of Object.entries(sources)) {
-      expect({ path, sidebar: /hsl\(var\(--sidebar\)\)/.test(text) }).toEqual({ path, sidebar: false });
-      expect({ path, foreground: /var\(--rq-foreground\)/.test(text) }).toEqual({ path, foreground: false });
-    }
-  });
-
-  it('inga Silkscreen-rester', () => {
-    for (const [path, text] of Object.entries(sources)) {
-      expect({ path, silkscreen: /silkscreen/i.test(text) }).toEqual({ path, silkscreen: false });
     }
   });
 });
