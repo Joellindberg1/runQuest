@@ -25,7 +25,7 @@ export interface LogFormState {
  */
 export function useLogForm(now: Date): LogFormState {
   const create = useCreateRun();
-  const [form, setForm] = useState<LogForm>(() => initialForm(new Date()));
+  const [form, setForm] = useState<LogForm>(() => initialForm(now));
   const [attempted, setAttempted] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const today = todayOf(now);
@@ -51,14 +51,14 @@ export function useLogForm(now: Date): LogFormState {
     try {
       const run = await create.mutateAsync(built.submission);
       setNotice(confirmationText(run));
-      setForm(initialForm(new Date()));
+      setForm(initialForm(now));
       setAttempted(false);
     } catch (error) {
       if (error instanceof RunWrittenError) {
         // Rundan finns redan (cachen är invaliderad): formuläret återställs så att en ny inskickning inte skapar en dubblett.
         create.reset();
         setNotice(RUN_SAVED_RECALCULATING);
-        setForm(initialForm(new Date()));
+        setForm(initialForm(now));
         setAttempted(false);
       }
       // Övriga fel ligger i create.error och visas av skärmen.
