@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { AppProviders } from '@/providers/AppProviders';
 import { useAuth } from '@/providers/authContext';
 import { useAppInit } from '@/shared/hooks/useAppInit';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
 import { AppRoutes } from './routes';
-import { OnboardingOrchestrator } from './features/onboarding/components/OnboardingOrchestrator';
+// Touren (driver.js) behövs först för inloggade användare, så den ligger i en egen chunk.
+const OnboardingOrchestrator = lazy(() =>
+  import('./features/onboarding/components/OnboardingOrchestrator').then((m) => ({ default: m.OnboardingOrchestrator })),
+);
 
 const AppContent = () => {
   const { user, loading } = useAuth();
@@ -28,7 +31,11 @@ const AppContent = () => {
 
   return (
     <>
-      {user && <OnboardingOrchestrator />}
+      {user && (
+        <Suspense fallback={null}>
+          <OnboardingOrchestrator />
+        </Suspense>
+      )}
       <AppRoutes />
     </>
   );

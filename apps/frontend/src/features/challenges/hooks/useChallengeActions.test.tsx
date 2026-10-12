@@ -15,7 +15,7 @@ function setup() {
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { ...renderHook(() => useChallengeActions(), { wrapper }), invalidate };
 }
-const keys = (invalidate: ReturnType<typeof vi.spyOn>) => invalidate.mock.calls.map(([filters]) => (filters as { queryKey: unknown }).queryKey);
+const keys = (invalidate: ReturnType<typeof vi.spyOn>) => invalidate.mock.calls.map(([filters]: unknown[]) => (filters as { queryKey: unknown }).queryKey);
 
 describe('utmaningsmutationerna uppdaterar Pack News direkt (klockan väntar inte på nästa poll)', () => {
   it.each([

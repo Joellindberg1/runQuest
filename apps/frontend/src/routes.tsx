@@ -1,4 +1,4 @@
-import React, { lazy } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/providers/authContext';
 import { paths } from '@/paths';
@@ -8,7 +8,10 @@ import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { legacyChallengesTarget } from '@/app-shell/legacyRedirects';
 import { ShellErrorBoundary } from '@/app-shell/ShellErrorBoundary';
 import { readBackground, useCloseRunner } from '@/shared/hooks/useOpenRunner';
-import Index from '@/pages/Index';
+import { RoutePending } from '@/app-shell/RoutePending';
+// Skalets delade lager (.rq-scrim, .rq-modal, .rq-shell__pending) används även av landningens inloggningsdialog och App.tsx:s laddningsbild.
+// Det är den enda statiska CSS-importen här (se routes.guard.test.ts); övrig feature-CSS följer med sina moduler.
+import '@/app-shell/app-shell.css';
 import BoardPage from '@/pages/BoardPage';
 import TitlesPage from '@/pages/TitlesPage';
 import DuelsPage from '@/pages/DuelsPage';
@@ -19,11 +22,13 @@ import ProfilePage from '@/pages/ProfilePage';
 import BadgesPage from '@/pages/BadgesPage';
 import RunnerRoute from '@/pages/RunnerPage';
 import NotFound from '@/pages/NotFound';
-import LeaderboardPreviewPage from '@/pages/LeaderboardPreviewPage';
-import ChallengesPreviewPage from '@/pages/ChallengesPreviewPage';
-import BadgesPreviewPage from '@/pages/BadgesPreviewPage';
 
-// Sällan besökta sidor laddas först när de behövs (ADR 006 beslut 11); Suspense-gränsen ligger i ShellOutlet.
+// Lazy (ADR 006 beslut 11): sällan besökta sidor, landningen, preview-sidorna och touren (driver.js, via App.tsx). Skalet och huvudsidorna är
+// eager. Suspense-gränsen för sidorna inne i skalet ligger i ShellOutlet; AppRoutes har en för landning och preview.
+const Index = lazy(() => import('@/pages/Index'));
+const LeaderboardPreviewPage = lazy(() => import('@/pages/LeaderboardPreviewPage'));
+const ChallengesPreviewPage = lazy(() => import('@/pages/ChallengesPreviewPage'));
+const BadgesPreviewPage = lazy(() => import('@/pages/BadgesPreviewPage'));
 const AdminPage = lazy(() => import('@/pages/AdminPage'));
 const PlaybookPage = lazy(() => import('@/pages/PlaybookPage'));
 const FeaturesPage = lazy(() => import('@/pages/FeaturesPage'));
@@ -52,34 +57,36 @@ export const AppRoutes: React.FC = () => {
 
   return (
     <>
-      <Routes location={background ?? location}>
-        <Route path={paths.landing} element={<Index />} />
-        {/* Login är Landing med dialogen öppen: samma element på samma plats, så Landing består när dialogen öppnas (se Index). */}
-        <Route path={paths.login} element={<Index loginOpen />} />
-        <Route path={paths.legacyChallenges} element={<LegacyChallengesRedirect />} />
-        <Route path={paths.previewBoard} element={<LeaderboardPreviewPage />} />
-        <Route path={paths.previewDuels} element={<ChallengesPreviewPage />} />
-        <Route path={paths.previewBadges} element={<BadgesPreviewPage />} />
+      <Suspense fallback={<RoutePending />}>
+        <Routes location={background ?? location}>
+          <Route path={paths.landing} element={<Index />} />
+          {/* Login är Landing med dialogen öppen: samma element på samma plats, så Landing består när dialogen öppnas (se Index). */}
+          <Route path={paths.login} element={<Index loginOpen />} />
+          <Route path={paths.legacyChallenges} element={<LegacyChallengesRedirect />} />
+          <Route path={paths.previewBoard} element={<LeaderboardPreviewPage />} />
+          <Route path={paths.previewDuels} element={<ChallengesPreviewPage />} />
+          <Route path={paths.previewBadges} element={<BadgesPreviewPage />} />
 
-        <Route element={<RequireAuth />}>
-          <Route element={<AppShell />}>
-            <Route path={paths.board} element={<BoardPage />} />
-            <Route path={paths.titles} element={<TitlesPage />} />
-            <Route path={paths.duels} element={<DuelsPage />} />
-            <Route path={paths.events} element={<EventsPage />} />
-            <Route path={paths.news} element={<NewsPage />} />
-            <Route path={paths.log} element={<LogPage />} />
-            <Route path={paths.profile} element={<ProfilePage />} />
-            <Route path={paths.badges} element={<BadgesPage />} />
-            <Route path={paths.runnerPattern} element={<RunnerRoute presentation="page" />} />
-            <Route path={paths.playbook} element={<PlaybookPage />} />
-            <Route path={paths.features} element={<FeaturesPage />} />
-            <Route path={paths.settings} element={<SettingsPage />} />
-            <Route path={paths.admin} element={<AdminRoute />} />
-            <Route path="*" element={<NotFound />} />
+          <Route element={<RequireAuth />}>
+            <Route element={<AppShell />}>
+              <Route path={paths.board} element={<BoardPage />} />
+              <Route path={paths.titles} element={<TitlesPage />} />
+              <Route path={paths.duels} element={<DuelsPage />} />
+              <Route path={paths.events} element={<EventsPage />} />
+              <Route path={paths.news} element={<NewsPage />} />
+              <Route path={paths.log} element={<LogPage />} />
+              <Route path={paths.profile} element={<ProfilePage />} />
+              <Route path={paths.badges} element={<BadgesPage />} />
+              <Route path={paths.runnerPattern} element={<RunnerRoute presentation="page" />} />
+              <Route path={paths.playbook} element={<PlaybookPage />} />
+              <Route path={paths.features} element={<FeaturesPage />} />
+              <Route path={paths.settings} element={<SettingsPage />} />
+              <Route path={paths.admin} element={<AdminRoute />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
+        </Routes>
+      </Suspense>
 
       {background && (
         <ShellErrorBoundary key={location.pathname} onClose={closeOverlay}>

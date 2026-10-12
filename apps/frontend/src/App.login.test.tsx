@@ -1,5 +1,5 @@
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
 import { setViewportWidth } from '@/test/viewport';
@@ -23,6 +23,7 @@ vi.mock('@/pages/BoardPage', () => ({ default: () => <h1>Board page</h1> }));
 vi.mock('@/pages/TitlesPage', () => ({ default: () => <h1>Titles page</h1> }));
 
 import App from './App';
+import { warmLanding } from '@/test/warmLazy';
 
 /** React Routers historikindex (`idx` i history.state): 0 = första posten. Skiljer navigate(-1) från replace. */
 const historyIndex = () => (window.history.state as { idx?: number } | null)?.idx;
@@ -44,6 +45,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
 });
+
+beforeAll(warmLanding);
 
 describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () => {
   it('felaktigt lösenord: felet syns (role=alert) och fälten står kvar — dialogen avmonteras inte', async () => {
