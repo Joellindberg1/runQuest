@@ -172,6 +172,56 @@ describe('syncUserStravaActivities — självläkning av rader med XP 0', () => 
     expect(t.runs[0].xp_gained).toBe(0); // fortfarande 0 → nästa synk försöker igen
   });
 
+  it('a 0.3 km Strava run that legitimately earns 0 XP is not healed — no reprocess, no totals', async () => {
+    stubStrava([]);
+    const { db } = use({ runs: [stravaRun({ distance: 0.3, xp_gained: 0 })] });
+
+    const res = await sync();
+
+    expect(res.status).toBe(200);
+    expect(db.queries.filter((q) => q.table === 'runs' && q.mutation === 'update')).toHaveLength(0);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+  });
+
+  it('a legit-zero run does not block healing of a real zero row next to it', async () => {
+    stubStrava([]);
+    const { t } = use({
+      runs: [stravaRun({ id: 'tiny', external_id: '5', date: '2026-10-01', distance: 0.3 }), stravaRun({ id: 'real', external_id: '6', date: '2026-10-02', distance: 5 })],
+    });
+
+    await sync();
+
+    expect(t.runs.find((r) => r.id === 'real')!.xp_gained).toBeGreaterThan(0);
+    expect(calculateUserTotals).toHaveBeenCalledTimes(1);
+  });
+
+  it('healing and a new import in the same sync reprocess once and recalculate totals once', async () => {
+    stubStrava([activity(1001, '2026-10-01'), activity(1002, '2026-10-03')]); // 1001 finns redan (XP 0), 1002 är ny
+    const { t } = use({ runs: [stravaRun()] });
+
+    const res = await sync();
+
+    expect(res.status).toBe(200);
+    const reprocessLogs = vi.mocked(logger.info).mock.calls.filter((c: unknown[]) => String(c[0]).startsWith('🔄 Reprocessing runs from'));
+    expect(reprocessLogs).toHaveLength(1);
+    expect(String(reprocessLogs[0][0])).toContain('2026-10-01'); // det tidigaste av läkningsdatumet och importdatumet
+    expect(calculateUserTotals).toHaveBeenCalledTimes(1);
+    expect(t.runs).toHaveLength(2);
+    expect(t.runs.every((r) => r.xp_gained > 0)).toBe(true);
+  });
+
+  it('en ny import tidigare än den ofullständiga raden styr startdatumet', async () => {
+    stubStrava([activity(1002, '2026-09-25')]);
+    const { t } = use({ runs: [stravaRun({ date: '2026-10-01' })] });
+
+    await sync();
+
+    const reprocessLogs = vi.mocked(logger.info).mock.calls.filter((c: unknown[]) => String(c[0]).startsWith('🔄 Reprocessing runs from'));
+    expect(reprocessLogs).toHaveLength(1);
+    expect(String(reprocessLogs[0][0])).toContain('2026-09-25');
+    expect(t.runs.every((r) => r.xp_gained > 0)).toBe(true);
+  });
+
   it('inga rader med XP 0 → ingen onödig omräkning', async () => {
     stubStrava([]);
     const { db } = use({ runs: [stravaRun({ xp_gained: 25 })] });
