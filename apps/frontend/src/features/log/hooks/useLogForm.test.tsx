@@ -29,7 +29,7 @@ describe('useLogForm — datumet kommer från skärmens klocka, inte systemklock
   it.each(['2026-01-05T12:00:00+01:00', '2030-06-01T12:00:00+02:00'])('systemklockan %s: formuläret föreslår skärmens dag och går att skicka', async (systemTime) => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(systemTime));
-    const createRun = vi.fn(async () => ({ success: true, data: { id: 'new', xp_gained: 44, multiplier: 1.1, streak_day: 5, distance: 8 } }));
+    const createRun = vi.fn(async (..._args: unknown[]) => ({ success: true, data: { id: 'new', xp_gained: 44, multiplier: 1.1, streak_day: 5, distance: 8 } }));
     handlers.createRun = createRun;
     const { result } = setup();
     expect(result.current.form.date).toBe('2026-10-12');
