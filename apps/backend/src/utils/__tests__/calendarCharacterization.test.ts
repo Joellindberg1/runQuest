@@ -6,10 +6,9 @@
  * pekar de på delade funktioner och tabellerna ska vara oförändrade.
  */
 import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest';
-import {
-  addDaysToDate, at3amStockholm, mondayOf, todayStockholm, toStockholmDate, tomorrowStockholm, weekRange,
-} from '../dateUtils.js';
-import { daysBetween, dayOfWeek, getMondayKey, utcMinutes } from '../../titleEngines/_utils.js';
+import { addDays, dayOfWeek, daysBetween, mondayOf } from '@runquest/shared';
+import { at3amStockholm, todayStockholm, toStockholmDate, tomorrowStockholm, weekRange } from '../dateUtils.js';
+import { utcMinutes } from '../../titleEngines/_utils.js';
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -18,7 +17,7 @@ const atInstant = (iso: string) => {
   vi.setSystemTime(new Date(iso));
 };
 
-describe('addDaysToDate (dateUtils)', () => {
+describe('addDays (was dateUtils.addDaysToDate)', () => {
   it.each([
     ['2026-10-04', 1, '2026-10-05'],
     ['2026-10-04', 0, '2026-10-04'],
@@ -40,12 +39,12 @@ describe('addDaysToDate (dateUtils)', () => {
     ['2026-03-23', 7, '2026-03-30'],
     ['2026-10-19', 7, '2026-10-26'],
   ])('%s %i dagar -> %s', (day, days, expected) => {
-    expect(addDaysToDate(day, days)).toBe(expected);
+    expect(addDays(day, days)).toBe(expected);
   });
 
   it('ogiltig indata kastar RangeError', () => {
-    expect(() => addDaysToDate('inte-ett-datum', 1)).toThrow(RangeError);
-    expect(() => addDaysToDate('2026-10-04T10:00:00Z', 1)).toThrow(RangeError);
+    expect(() => addDays('inte-ett-datum', 1)).toThrow(RangeError);
+    expect(() => addDays('2026-10-04T10:00:00Z', 1)).toThrow(RangeError);
   });
 });
 
@@ -69,15 +68,15 @@ const MONDAY_CASES: Array<[string, string]> = [
 ];
 
 describe.each([
-  ['dateUtils.mondayOf', mondayOf],
-  ['titleEngines/_utils.getMondayKey', getMondayKey],
+  ['dateUtils.mondayOf (legacy)', mondayOf],
+  ['titleEngines/_utils.getMondayKey (legacy)', mondayOf],
 ] as Array<[string, (day: string) => string]>)('mondayOf — %s', (_label, monday) => {
   it.each(MONDAY_CASES)('%s -> %s', (day, expected) => {
     expect(monday(day)).toBe(expected);
   });
 });
 
-describe('daysBetween (titleEngines/_utils)', () => {
+describe('daysBetween (was titleEngines/_utils)', () => {
   it.each([
     ['2026-10-04', '2026-10-04', 0],
     ['2026-10-04', '2026-10-05', 1],
@@ -99,7 +98,7 @@ describe('daysBetween (titleEngines/_utils)', () => {
   });
 });
 
-describe('dayOfWeek (titleEngines/_utils) — 0 = söndag', () => {
+describe('dayOfWeek (was titleEngines/_utils) — 0 = söndag', () => {
   it.each([
     ['2026-10-04', 0], ['2026-10-05', 1], ['2026-10-06', 2], ['2026-10-07', 3], ['2026-10-08', 4], ['2026-10-09', 5], ['2026-10-10', 6],
     ['2026-03-29', 0], ['2026-10-25', 0], ['2024-02-29', 4], ['2027-01-01', 5],
@@ -148,7 +147,7 @@ describe('todayStockholm / tomorrowStockholm / toStockholmDate (dateUtils)', () 
     atInstant(iso);
     expect(todayStockholm()).toBe(today);
     expect(toStockholmDate(iso)).toBe(today);
-    expect(tomorrowStockholm()).toBe(addDaysToDate(today, 1));
+    expect(tomorrowStockholm()).toBe(addDays(today, 1));
   });
 });
 

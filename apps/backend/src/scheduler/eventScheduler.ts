@@ -1,7 +1,8 @@
 // 📅 Event Scheduler
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
-import { tomorrowStockholm, addDaysToDate } from '../utils/dateUtils.js';
+import { addDays } from '@runquest/shared';
+import { tomorrowStockholm, todayStockholm } from '../utils/dateUtils.js';
 import {
   maybeCreateEvent,
   getAllGroupIds,
@@ -116,7 +117,7 @@ async function runDailyParticipationDraw(): Promise<DailyDrawResult> {
   }
 
   const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
+  const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
   const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Daily roll: "${picked.name}" selected for ${tomorrow} (weight ${picked.weight} / total ${totalWeight.toFixed(2)})`);
@@ -156,7 +157,7 @@ async function scheduleHangoverRun(): Promise<void> {
   const picked = pool.members[0];
   const tomorrow = tomorrowStockholm();
   const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
+  const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
   const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Hangover Run triggered for ${tomorrow}`);
@@ -191,7 +192,7 @@ async function scheduleFridayEvent(): Promise<void> {
 
   const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
   const startsAt = atStockholm(tomorrow, picked.startHour, 0);
-  const endDate  = picked.endDayOffset > 0 ? addDaysToDate(tomorrow, picked.endDayOffset) : tomorrow;
+  const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
   const endsAt   = atStockholm(endDate, picked.endHour, picked.endMinute);
 
   logger.info(`📅 [EventScheduler] Thursday roll: "${picked.name}" selected for ${tomorrow} (ends ${endDate})`);
@@ -225,9 +226,9 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
   let picked = pool.members[pool.members.length - 1];
   for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
 
-  const today   = new Intl.DateTimeFormat('sv-SE', { timeZone: STOCKHOLM }).format(new Date());
-  const monday  = addDaysToDate(today, 2);
-  const sunday  = addDaysToDate(today, 8);
+  const today   = todayStockholm();
+  const monday  = addDays(today, 2);
+  const sunday  = addDays(today, 8);
   const startsAt = atStockholm(monday, 0, 1);
   const endsAt   = atStockholm(sunday, 23, 59);
 
