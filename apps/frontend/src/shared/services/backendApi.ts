@@ -1133,14 +1133,19 @@ class BackendApiService {
 
   // ─── Runs ─────────────────────────────────────────────────────────────────
 
-  /** POST /runs. `isTreadmill` utelämnas → kolumnen förblir NULL (okänt); formuläret skickar alltid en bool. */
-  async createRun(date: string, distance: number, isTreadmill?: boolean): Promise<ApiResponse<Run>> {
+  /**
+   * POST /runs. `isTreadmill` utelämnas → kolumnen förblir NULL (okänt); formuläret skickar alltid en bool.
+   * `idempotencyKey` (uuid v4, en per inskick) skickas som headern Idempotency-Key: servern skapar då aldrig en andra
+   * runda för samma nyckel, så ett omförsök efter ett svar som aldrig kom fram blir ingen dubblett.
+   */
+  async createRun(date: string, distance: number, isTreadmill?: boolean, idempotencyKey?: string): Promise<ApiResponse<Run>> {
     try {
       const response = await fetch(`${API_BASE_URL}/runs`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.getToken()}`,
           'Content-Type': 'application/json',
+          ...(idempotencyKey && { 'Idempotency-Key': idempotencyKey }),
         },
         body: JSON.stringify({ date, distance, ...(isTreadmill !== undefined && { is_treadmill: isTreadmill }) }),
       });

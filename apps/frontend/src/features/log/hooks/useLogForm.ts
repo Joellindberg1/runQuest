@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { buildSubmission, confirmationText, initialForm, todayOf, validateForm, type FieldErrors, type LogForm, type Surface } from '../logModel';
 import { RUN_SAVED_RECALCULATING, RunWrittenError } from '@/features/runs/runEffects';
+import { newIdempotencyKey } from '../idempotencyKey';
 import { useCreateRun } from './useCreateRun';
 
 export interface LogFormState {
@@ -22,6 +23,11 @@ export interface LogFormState {
 /**
  * Formulärets tillstånd bor här (inte i vyn) så att det som skrivits överlever ett byte till Group history och tillbaka.
  * `now` är skärmens klocka: datumreglerna räknas mot Stockholm-dagen.
+ *
+ * Idempotens: varje inskick får en nyckel (uuid v4) som skickas som Idempotency-Key. Ett omförsök av SAMMA inskick (efter
+ * nätfel/timeout där svaret aldrig kom fram) återanvänder nyckeln, så servern svarar med den redan skapade rundan i stället
+ * för att skapa en dubblett. Nyckeln nollställs när rundan är sparad (lyckat svar eller `written`) och när något av
+ * formulärvärdena ändras. Ett andra submit medan ett pågår gör ingenting.
  */
 export function useLogForm(now: Date): LogFormState {
   const create = useCreateRun();
@@ -29,18 +35,24 @@ export function useLogForm(now: Date): LogFormState {
   const [attempted, setAttempted] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const today = todayOf(now);
+  const idempotencyKey = useRef<string | null>(null);
+  const inFlight = useRef(false);
 
   const { reset } = create;
   const edit = useCallback(
     (patch: Partial<LogForm>) => {
+      if ((Object.keys(patch) as Array<keyof LogForm>).some((field) => patch[field] !== form[field])) {
+        idempotencyKey.current = null; // ändrade värden = ett annat inskick
+      }
       setForm((previous) => ({ ...previous, ...patch }));
       setNotice(null);
       reset();
     },
-    [reset],
+    [form, reset],
   );
 
   const submit = async (): Promise<FieldErrors | null> => {
+    if (inFlight.current) return null;
     setNotice(null);
     create.reset();
     const built = buildSubmission(form, today);
@@ -48,20 +60,26 @@ export function useLogForm(now: Date): LogFormState {
       setAttempted(true);
       return built.errors;
     }
+    inFlight.current = true;
+    idempotencyKey.current ??= newIdempotencyKey();
     try {
-      const run = await create.mutateAsync(built.submission);
+      const run = await create.mutateAsync({ ...built.submission, idempotencyKey: idempotencyKey.current });
+      idempotencyKey.current = null;
       setNotice(confirmationText(run));
       setForm(initialForm(now));
       setAttempted(false);
     } catch (error) {
       if (error instanceof RunWrittenError) {
         // Rundan finns redan (cachen är invaliderad): formuläret återställs så att en ny inskickning inte skapar en dubblett.
+        idempotencyKey.current = null;
         create.reset();
         setNotice(RUN_SAVED_RECALCULATING);
         setForm(initialForm(now));
         setAttempted(false);
       }
-      // Övriga fel ligger i create.error och visas av skärmen.
+      // Övriga fel ligger i create.error och visas av skärmen; nyckeln behålls så att ett omförsök blir idempotent.
+    } finally {
+      inFlight.current = false;
     }
     return null;
   };
