@@ -41,7 +41,7 @@ function tier(seriesKey: BadgeSeriesKey, runs: BadgeRun[], stats: BadgeStats = N
   return computeBadgeTiers(runs, stats)[seriesKey].tier;
 }
 
-describe('badge-registret (kontraktstest)', () => {
+describe('badge-registret (kontraktstest, T1)', () => {
   it('MAX_TIER är 6 och TIER_NAMES täcker alla tiers i stigande ordning', () => {
     expect(MAX_TIER).toBe(6);
     expect(TIER_NAMES).toEqual(['Common', 'Uncommon', 'Rare', 'Heroic', 'Epic', 'Legendary']);
@@ -58,7 +58,7 @@ describe('badge-registret (kontraktstest)', () => {
     }
   });
 
-  it('registret innehåller exakt de åtta serierna i v0.6.0 (RUN-115 + RUN-116)', () => {
+  it('registret innehåller exakt de åtta serierna i v0.6.0', () => {
     expect(BADGE_SERIES.map((s) => s.key)).toEqual([
       'milestoner',
       'earth_trotter',
@@ -71,7 +71,7 @@ describe('badge-registret (kontraktstest)', () => {
     ]);
   });
 
-  it('ikonnycklarna för RUN-116-serierna är sun, moon, zap, target', () => {
+  it('ikonnycklarna för Early Bird, Night Owl, Speedster och Precisionist är sun, moon, zap, target', () => {
     const icon = (key: string) => BADGE_SERIES.find((s) => s.key === key)!.icon;
     expect([icon('early_bird'), icon('night_owl'), icon('speedster'), icon('precisionist')]).toEqual([
       'sun',
@@ -91,7 +91,7 @@ describe('badge-registret (kontraktstest)', () => {
     }
   });
 
-  it('T1: varje serie har EN mätning i alla sex nivåer och strikt stigande (Speedster: fallande) trösklar', () => {
+  it('varje serie har EN mätning i alla sex nivåer och strikt stigande (Speedster: fallande) trösklar', () => {
     for (const s of BADGE_SERIES) {
       expect(new Set(s.tiers.map((r) => r.metric)).size, `${s.key} mått`).toBe(1);
       expect(new Set(s.tiers.map((r) => r.direction)).size, `${s.key} riktning`).toBe(1);
@@ -104,7 +104,7 @@ describe('badge-registret (kontraktstest)', () => {
     }
   });
 
-  it('T1: trösklarna är ägarbeslutets (RUN-135)', () => {
+  it('trösklarna är ägarbeslutets', () => {
     const thresholds = (key: string) => BADGE_SERIES.find((s) => s.key === key)!.tiers.map((r) => r.threshold);
     expect(thresholds('milestoner')).toEqual([5, 10, 21.1, 30, 42.2, 50]);
     expect(thresholds('earth_trotter')).toEqual([100, 300, 1000, 2000, 3000, 5000]);
@@ -116,7 +116,7 @@ describe('badge-registret (kontraktstest)', () => {
     expect(thresholds('precisionist')).toEqual([5, 20, 50, 100, 200, 300]);
   });
 
-  it('T1: serierna använder rätt mått', () => {
+  it('serierna använder rätt mått', () => {
     const metric = (key: string) => BADGE_SERIES.find((s) => s.key === key)!.tiers[0].metric;
     expect(BADGE_SERIES.map((s) => metric(s.key))).toEqual([
       'longest_run_km',
@@ -130,7 +130,7 @@ describe('badge-registret (kontraktstest)', () => {
     ]);
   });
 
-  it('T1: mått som inte längre används är borttagna ur registret, och alla kvarvarande används', () => {
+  it('mått som inte längre används är borttagna ur registret, och alla kvarvarande används', () => {
     const keys = Object.keys(BADGE_METRICS);
     for (const gone of [
       'early_bird_deep_runs',
@@ -590,7 +590,7 @@ describe('speedster (bästa tid på runda 4,9 <= km < 10,0, råa sekunder, strik
   });
 });
 
-describe('precisionist (STRAVA-rundor på exakt hel km, heltals-hundradelar)', () => {
+describe('precisionist (STRAVA-rundor på exakt hel km, heltals-hundradelar; T2, T3)', () => {
   const dist = (km: number, over: Partial<BadgeRun> = {}) => run({ distance_km: km, source: 'strava', ...over });
   const exact = (n: number) => many(n, () => dist(5));
 
@@ -611,7 +611,7 @@ describe('precisionist (STRAVA-rundor på exakt hel km, heltals-hundradelar)', (
     expect(tier('precisionist', [dist(7), dist(3.0), dist(1), dist(2), dist(4)])).toBe(1);
   });
 
-  it('T2: 5/20/50/100/200/300 Strava-rundor på hel km ger tier 1–6, med gränsfall', () => {
+  it('5/20/50/100/200/300 Strava-rundor på hel km ger tier 1–6, med gränsfall', () => {
     const cases: Array<[number, number]> = [
       [4, 0],
       [5, 1],
@@ -630,18 +630,18 @@ describe('precisionist (STRAVA-rundor på exakt hel km, heltals-hundradelar)', (
     for (const [n, expected] of cases) expect(tier('precisionist', exact(n)), `${n} rundor`).toBe(expected);
   });
 
-  it('T3: manuell runda på exakt hel km räknas inte i Precisionist', () => {
+  it('manuell runda på exakt hel km räknas inte i Precisionist', () => {
     const manual = many(5, () => run({ distance_km: 5, source: 'manual' }));
     expect(tier('precisionist', manual)).toBe(0);
   });
 
-  it('T3: bara Strava-rundorna räknas i en blandad mängd: 4 Strava + 100 manuella ger tier 0, 5 Strava + 100 manuella ger tier 1', () => {
+  it('bara Strava-rundorna räknas i en blandad mängd: 4 Strava + 100 manuella ger tier 0, 5 Strava + 100 manuella ger tier 1', () => {
     const manual = many(100, () => run({ distance_km: 5, source: 'manual' }));
     expect(tier('precisionist', [...exact(4), ...manual])).toBe(0);
     expect(tier('precisionist', [...exact(5), ...manual])).toBe(1);
   });
 
-  it('T3: manuella rundor påverkar inte andra serier negativt (Milestoner räknar dem fortfarande)', () => {
+  it('manuella rundor påverkar inte andra serier negativt (Milestoner räknar dem fortfarande)', () => {
     expect(tier('milestoner', [run({ distance_km: 10, source: 'manual' })])).toBe(2);
   });
 
@@ -687,7 +687,7 @@ describe('tomma indata', () => {
   });
 });
 
-describe('evaluateSeries — registret är utbyggbart med nya poster (RUN-116)', () => {
+describe('evaluateSeries — registret är utbyggbart med nya poster', () => {
   it('ett nytt mått + en ny serie fungerar utan ändring av motorn, även "below"-riktning', () => {
     const fastest: BadgeSeriesDef = {
       key: 'fake_speed',
@@ -897,7 +897,7 @@ const COPY: Record<string, { name: string; metricLabel: string; tiers: [string, 
   },
 };
 
-describe('badgetexter enligt designen (RUN-134)', () => {
+describe('badgetexter enligt designen (T1, T2, T3, T4)', () => {
   const find = (key: string) => BADGE_SERIES.find((s) => s.key === key)!;
   const keys = Object.keys(COPY);
 
@@ -905,21 +905,21 @@ describe('badgetexter enligt designen (RUN-134)', () => {
     expect(BADGE_SERIES.map((s) => s.key)).toEqual(keys);
   });
 
-  it('T1: alla 48 kravtexter är ordagranna mot designen', () => {
+  it('alla 48 kravtexter är ordagranna mot designen', () => {
     for (const key of keys) {
       const actual = Array.from({ length: MAX_TIER }, (_, i) => requirementText(find(key), i + 1));
       expect(actual, key).toEqual(COPY[key].tiers.map(([req]) => req));
     }
   });
 
-  it('T4: fönstertexterna är samma i alla nivåer (Early Bird 04:00–06:59, Night Owl 21:00–03:59)', () => {
+  it('fönstertexterna är samma i alla nivåer (Early Bird 04:00–06:59, Night Owl 21:00–03:59)', () => {
     for (let t = 1; t <= MAX_TIER; t++) {
       expect(requirementText(find('early_bird'), t)).toMatch(new RegExp(`runs started 04:00${EN}06:59$`));
       expect(requirementText(find('night_owl'), t)).toMatch(new RegExp(`runs started 21:00${EN}03:59$`));
     }
   });
 
-  it('T1: tusenavgränsare som i designen, inga gamla formuleringar kvar', () => {
+  it('tusenavgränsare som i designen, inga gamla formuleringar kvar', () => {
     expect(requirementText(find('earth_trotter'), 3)).toBe('1,000 km total distance');
     expect(requirementText(find('earth_trotter'), 6)).toBe('5,000 km total distance');
     expect(requirementText(find('climber'), 2)).toBe('1,345 m of elevation gain');
@@ -930,13 +930,13 @@ describe('badgetexter enligt designen (RUN-134)', () => {
     }
   });
 
-  it('T2: visningsnamnen är designens (Climber, inte The Climber); serienycklarna är oförändrade', () => {
+  it('visningsnamnen är designens (Climber, inte The Climber); serienycklarna är oförändrade', () => {
     expect(BADGE_SERIES.map((s) => s.name)).toEqual(keys.map((k) => COPY[k].name));
     expect(find('climber').name).toBe('Climber');
     expect(find('climber').key).toBe('climber');
   });
 
-  it('T3: alla 48 flavor-namn är designens, via både flavors och tierFlavor', () => {
+  it('alla 48 flavor-namn är designens, via både flavors och tierFlavor', () => {
     for (const key of keys) {
       const expected = COPY[key].tiers.map(([, fl]) => fl);
       expect([...find(key).flavors], key).toEqual(expected);
@@ -945,14 +945,14 @@ describe('badgetexter enligt designen (RUN-134)', () => {
     }
   });
 
-  it('T3: de åtta måttetiketterna är designens, via både metricLabel och badgeMetricLabel', () => {
+  it('de åtta måttetiketterna är designens, via både metricLabel och badgeMetricLabel', () => {
     for (const key of keys) {
       expect(find(key).metricLabel, key).toBe(COPY[key].metricLabel);
       expect(badgeMetricLabel(find(key)), key).toBe(COPY[key].metricLabel);
     }
   });
 
-  it('T3 kontraktstest: varje serie har exakt 6 icke-tomma flavors (unika inom serien) och en icke-tom metricLabel', () => {
+  it('kontraktstest: varje serie har exakt 6 icke-tomma flavors (unika inom serien) och en icke-tom metricLabel', () => {
     for (const s of BADGE_SERIES) {
       expect(s.flavors, s.key).toHaveLength(MAX_TIER);
       for (const fl of s.flavors) expect(fl.trim().length, s.key).toBeGreaterThan(0);
@@ -962,7 +962,7 @@ describe('badgetexter enligt designen (RUN-134)', () => {
     expect(new Set(BADGE_SERIES.map((s) => s.metricLabel)).size).toBe(BADGE_SERIES.length);
   });
 
-  it('T3: tierFlavor kastar RangeError för tier utanför 1..MAX_TIER och för icke-heltal', () => {
+  it('tierFlavor kastar RangeError för tier utanför 1..MAX_TIER och för icke-heltal', () => {
     const s = find('milestoner');
     expect(() => tierFlavor(s, 0)).toThrow(RangeError);
     expect(() => tierFlavor(s, 7)).toThrow(RangeError);

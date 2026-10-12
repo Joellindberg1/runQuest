@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { checkEmptySuites, checkTodos, isEntryPoint, listWorkspaces, walkFiles } from './ci-guards.mjs';
+import { checkEmptySuites, checkTestNames, checkTodos, isEntryPoint, listWorkspaces, walkFiles } from './ci-guards.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const script = join(here, 'ci-guards.mjs');
@@ -91,6 +91,49 @@ describe('checkTodos', () => {
   });
 });
 
+describe('checkTestNames', () => {
+  const scan = (content, path = 'apps/frontend/src/x.test.ts') => checkTestNames([{ path, content }]);
+
+  it('fails a Jira ID in an it, test or describe name and reports file:line', () => {
+    for (const call of ["it('klockan (RUN-141)', () => {});", "test('RUN-1: x', () => {});", 'describe("grupp RUN-22", () => {});', 'it(`mall RUN-9 ${x}`, () => {});']) {
+      const errors = scan(`import { it } from 'vitest';\n${call}\n`);
+      assert.equal(errors.length, 1, call);
+      assert.match(errors[0], /^apps\/frontend\/src\/x\.test\.ts:2: Jira-ID i testnamn/, call);
+    }
+  });
+
+  it('sees .skip/.only/.each variants and names that start on the next line', () => {
+    for (const call of [
+      "it.skip('a RUN-5', () => {});",
+      "describe.only('a RUN-5', () => {});",
+      "it.each([1, 2])('a RUN-5 %i', () => {});",
+      "describe.each([['a', 1]])('a RUN-5 %s', () => {});",
+      "it.each(rows.map((r) => [r.a]))('a RUN-5', () => {});",
+      "it(\n    'a RUN-5',\n    () => {},\n  );",
+    ]) {
+      assert.equal(scan(call).length, 1, call);
+    }
+  });
+
+  it('accepts names without a Jira ID, including spec IDs and ADR references', () => {
+    for (const call of ["it('upgrade (T3)', () => {});", "describe('badgetexter (F9.12, ADR 009)', () => {});", "it('RUN är ett ord', () => {});", "it('RUN-', () => {});"]) {
+      assert.deepEqual(scan(call), [], call);
+    }
+  });
+
+  it('ignores RUN IDs outside the name: comments, bodies, other string arguments and non-test functions', () => {
+    assert.deepEqual(scan("// RUN-1 fix\nit('beteende', () => { expect(x).toBe('RUN-2'); /* RUN-3 */ });\n"), []);
+    assert.deepEqual(scan("const t = submit('RUN-4');\nexpect.it('RUN-5');\nmyit('RUN-6');\n"), []);
+    assert.deepEqual(scan("it('beteende', () => {\n  expect(parse('RUN-7')).toBe(7);\n});\n"), []);
+  });
+
+  it('reports every offending name and handles CRLF', () => {
+    const errors = scan("it('a RUN-1', () => {});\r\nit('b', () => {});\r\nit('c RUN-2', () => {});\r\n");
+    assert.equal(errors.length, 2);
+    assert.match(errors[1], /:3:/);
+  });
+});
+
 describe('walkFiles / listWorkspaces', () => {
   it('skips node_modules and dist, and returns slash-separated relative paths', () => {
     const fs = { '/r/p': ['src', 'node_modules', 'dist'], '/r/p/src': ['a.ts', 'sub'], '/r/p/src/sub': ['b.ts'] };
@@ -113,19 +156,19 @@ describe('CLI', () => {
   const temp = mkdtempSync(join(tmpdir(), 'ci-guards-'));
   after(() => rmSync(temp, { recursive: true, force: true }));
 
-  const makeRepo = (name, { testFile = true, srcContent = 'export const a = 1;\n' } = {}) => {
+  const makeRepo = (name, { testFile = true, srcContent = 'export const a = 1;\n', testContent = 'export {};\n' } = {}) => {
     const root = join(temp, name);
     const ws = join(root, 'apps', 'one');
     mkdirSync(join(ws, 'src'), { recursive: true });
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
     writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'one', scripts: { test: 'vitest run' } }));
     writeFileSync(join(ws, 'src', 'a.ts'), srcContent);
-    if (testFile) writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+    if (testFile) writeFileSync(join(ws, 'src', 'a.test.ts'), testContent);
     return root;
   };
 
-  it('exits 0 on the current repo (all, empty-suites, todos)', () => {
-    for (const mode of ['all', 'empty-suites', 'todos']) {
+  it('exits 0 on the current repo (all, empty-suites, todos, test-names)', () => {
+    for (const mode of ['all', 'empty-suites', 'todos', 'test-names']) {
       const result = runCli(mode);
       assert.equal(result.status, 0, `${mode}: ${result.stderr}`);
     }
@@ -146,6 +189,20 @@ describe('CLI', () => {
     assert.equal(bad.status, 1);
     assert.match(bad.stderr, /apps\/one\/src\/a\.ts:1/);
     assert.equal(runCli('todos', makeRepo('todo-good', { srcContent: '// TODO(RUN-221): fix\n' })).status, 0);
+  });
+
+  it('exits 1 on a Jira ID in a test name (also under all) and 0 once the name describes behaviour', () => {
+    const bad = makeRepo('names-bad', { testContent: "describe('klockan (RUN-141)', () => { it('går rätt', () => {}); });\n" });
+    for (const mode of ['test-names', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/one\/src\/a\.test\.ts:1: Jira-ID i testnamn/);
+    }
+    assert.equal(runCli('test-names', makeRepo('names-good', { testContent: "describe('klockan (T2)', () => { it('går rätt', () => {}); });\n" })).status, 0);
+  });
+
+  it('does not flag a Jira ID in a non-test source file when checking test names', () => {
+    assert.equal(runCli('test-names', makeRepo('names-src', { srcContent: "export const t = it('RUN-1');\n" })).status, 0);
   });
 
   it('ignores TODOs in node_modules and dist', () => {

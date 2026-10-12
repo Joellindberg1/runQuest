@@ -329,7 +329,7 @@ describe('Admin — security', () => {
     expect(result).toHaveTextContent('Joel LindbergToken refresh failed');
   });
 
-  it('Run backfill: en uppdaterad runda skrivs i singular (RUN-140)', async () => {
+  it('Run backfill: en uppdaterad runda skrivs i singular', async () => {
     handlers.backfillStravaExtendedData = () => ({
       success: true, data: { totalUpdated: 1, summary: [{ user: 'Karl Persson', updated: 1 }, { user: 'Joel Lindberg', updated: 0 }] },
     });

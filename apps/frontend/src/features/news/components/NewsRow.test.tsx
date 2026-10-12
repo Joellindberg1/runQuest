@@ -70,7 +70,7 @@ describe('NewsRow — badge_earned (F7)', () => {
   });
 });
 
-describe('NewsRow — release_published (RUN-161)', () => {
+describe('NewsRow — release_published', () => {
   it('ritar sparkles-ikonen (ingen emblem-kolumn), typraden "New version" och texten "RunQuest vX is out — titel"', () => {
     const { container } = renderRow(buildNewsRow(releasePublished(1), ctx));
     const row = container.querySelector('.rq-news-row') as HTMLElement;

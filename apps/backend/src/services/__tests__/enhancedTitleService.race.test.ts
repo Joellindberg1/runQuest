@@ -91,7 +91,7 @@ function setup(opts: { failRpc?: RpcError; failInsertFor?: string } = {}) {
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-describe('processAllUsersTitles — delade title_leaderboard (RUN-157)', () => {
+describe('processAllUsersTitles — delade title_leaderboard', () => {
   it('flera användare som tar samma titel ger ingen 23505 och rätt slutlig topplista', async () => {
     const { data, rpcErrors, service } = setup();
 

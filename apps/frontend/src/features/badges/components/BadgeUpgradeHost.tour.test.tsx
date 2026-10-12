@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); });
 
-describe('BadgeUpgradeHost: osedd sidtour (RUN-155)', () => {
+describe('BadgeUpgradeHost: osedd sidtour', () => {
   it('popupen syns aldrig medan sidtouren väntar på sin start eller körs, och visas när touren är klar', async () => {
     renderPage();
 

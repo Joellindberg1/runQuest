@@ -8,7 +8,7 @@ import { winterKmEngine } from '../winterKm.js';
 
 const at = (iso: string) => winterWindow(new Date(iso));
 
-describe('winterWindow (RUN-100 T1)', () => {
+describe('winterWindow (T1)', () => {
   it('mitt i januari → fönster från 1 dec föregående år', () => {
     expect(at('2027-01-15T12:00:00Z')).toEqual({ start: '2026-12-01', end: '2027-03-01' });
   });
@@ -48,7 +48,7 @@ describe('winterWindow (RUN-100 T1)', () => {
 });
 
 // RUN-102 T3 — nyårsgränsen och månadsskiftet feb/mars. Stockholm är UTC+1 hela vintern, så lokal väggklocka 23:30 = 22:30Z.
-describe('winterWindow vid nyår och februari/mars (RUN-102 T3)', () => {
+describe('winterWindow vid nyår och februari/mars (T3)', () => {
   const WINTER_2026 = { start: '2026-12-01', end: '2027-03-01' };
   const inWindow = (date: string, w: { start: string; end: string }) => date >= w.start && date < w.end;
   const stats = { totalKm: 0, longestStreak: 0 };

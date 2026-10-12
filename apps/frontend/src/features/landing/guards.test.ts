@@ -179,7 +179,7 @@ describe('Landing-FEATUREN är publik och gör inga anrop (ägarbeslut 4; App-sk
 });
 
 describe('Routing (ADR 006)', () => {
-  it('Index visar Landing för utloggade; /login är samma sida med inloggningsdialogen ovanpå (RUN-145) — ingen egen inloggningssida', () => {
+  it('Index visar Landing för utloggade; /login är samma sida med inloggningsdialogen ovanpå — ingen egen inloggningssida', () => {
     const [source] = Object.values(indexPage);
     expect(source).toMatch(/LandingPage/);
     expect(source).toMatch(/LoginDialog/);

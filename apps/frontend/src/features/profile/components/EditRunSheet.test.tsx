@@ -26,7 +26,7 @@ beforeEach(() => {
   resetFakeBackend();
 });
 
-describe('EditRunSheet — Strava-runda (RUN-139)', () => {
+describe('EditRunSheet — Strava-runda', () => {
   it('Strava-runda: distans och datum skrivskyddade, ingen Save', () => {
     renderSheet(strava);
 

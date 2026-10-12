@@ -101,7 +101,7 @@ describe('Board-filerna följer designspråket', () => {
   });
 });
 
-describe('podiets minis och vimpeln (RUN-147, spec F12/F13)', () => {
+describe('podiets minis och vimpeln (F12/F13)', () => {
   const [, css] = cssFiles.find(([path]) => path.endsWith('board.css'))!;
 
   it('podiets minis är högerställda via --rq-board-minis-inset (28 px mobil, 46 px desktop), identiskt i båda temafilerna', () => {

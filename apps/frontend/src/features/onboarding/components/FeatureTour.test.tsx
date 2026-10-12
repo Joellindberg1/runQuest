@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 afterEach(() => { document.body.removeAttribute(ATTR); });
 
-describe('FeatureTour: data-rq-tour-pending läcker inte (RUN-155)', () => {
+describe('FeatureTour: data-rq-tour-pending läcker inte', () => {
   it('sätts när touren aktiveras och försvinner när den avmonteras under fördröjningen (route-byte)', async () => {
     const { unmount } = render(wrap(['tour_a']));
     await waitFor(() => expect(pending()).toBe('1'));

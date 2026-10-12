@@ -96,7 +96,7 @@ describe('calculateUserTotals → titelomräkning', () => {
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
   });
 
-  it('RUN-157: utan grupp — ett fel i de egna titlarna hoppar inte över den globala omräkningen', async () => {
+  it('utan grupp — ett fel i de egna titlarna hoppar inte över den globala omräkningen', async () => {
     use(tables(null));
     processUserTitlesAfterRun.mockRejectedValueOnce(new Error('23505'));
     await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
@@ -104,7 +104,7 @@ describe('calculateUserTotals → titelomräkning', () => {
   });
 });
 
-describe('RUN-158: misslyckade användare i gruppomräkningen syns i loggen', () => {
+describe('misslyckade användare i gruppomräkningen syns i loggen', () => {
   it('failed > 0 ger logger.warn med antalen — och totalerna skrivs ändå', async () => {
     const t = tables('g1');
     use(t);

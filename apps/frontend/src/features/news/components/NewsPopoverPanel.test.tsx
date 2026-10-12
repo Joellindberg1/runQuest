@@ -57,7 +57,7 @@ describe('NewsPopoverPanel — badge_earned (F7)', () => {
   });
 });
 
-describe('NewsPopoverPanel — release_published (RUN-161)', () => {
+describe('NewsPopoverPanel — release_published', () => {
   it('visar raden med "New version" och releasetexten, kategorin release och pricken (inget emblem)', async () => {
     setup([releasePublished(2, { occurred_at: at(1) }, { version: '0.6.1', title: 'News about releases' }), levelUp(1, 25, { occurred_at: at(3) })]);
     renderWithApp(<NewsPopoverPanel onClose={() => {}} />);

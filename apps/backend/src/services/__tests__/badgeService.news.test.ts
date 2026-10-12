@@ -79,7 +79,7 @@ const newsRow = (series: string, tier: number, previous: number | null = null): 
 
 const keysOf = (rows: Row[]) => rows.map((r) => r.dedupe_key).sort();
 
-describe('evaluateBadges — badge_earned (RUN-123 T2)', () => {
+describe('evaluateBadges — badge_earned (T2)', () => {
   it('första gången: exakt en badge_earned med previous_tier null, rätt grupp, aktör och tid', async () => {
     const db = setup({ runs: [run({ distance: 5 })] });
 

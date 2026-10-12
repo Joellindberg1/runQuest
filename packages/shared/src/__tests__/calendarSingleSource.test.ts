@@ -79,7 +79,7 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
   });
 });
 
-describe('todayStockholm och streakschedulern (RUN-218 T5)', () => {
+describe('todayStockholm och streakschedulern (T5)', () => {
   const source = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
 
   it('todayStockholm/toStockholmDate i backend delegerar till stockholmDay: ingen egen Intl-formaterare', () => {

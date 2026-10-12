@@ -19,7 +19,7 @@ const run = (date: string, distance_km: number): RunData => ({ date, distance_km
 const jan = { now: new Date('2027-01-15T12:00:00Z') }; // fönster 2026-12-01 .. 2027-03-01
 const calc = (runs: RunData[], ctx?: { now: Date }) => winterKmEngine.calculate(runs, stats, ctx);
 
-describe('winterKm (RUN-100 T2)', () => {
+describe('winterKm (T2)', () => {
   it('har metricKey winterKm', () => {
     expect(winterKmEngine.metricKey).toBe('winterKm');
   });
@@ -73,7 +73,7 @@ describe('winterKm (RUN-100 T2)', () => {
   });
 });
 
-describe('winterKm i registret (RUN-100 T3)', () => {
+describe('winterKm i registret (T3)', () => {
   it('är registrerad under metricKey winterKm', () => {
     expect(titleEngineRegistry.get('winterKm')).toBe(winterKmEngine);
     expect(titleEngineRegistry.size).toBeGreaterThanOrEqual(22); // exakt storlek vaktas i regression.test.ts

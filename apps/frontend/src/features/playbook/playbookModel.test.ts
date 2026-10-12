@@ -130,7 +130,7 @@ describe('Challenges, Events, Frodo', () => {
   });
 });
 
-describe('Titles — säsongstitlar (RUN-102)', () => {
+describe('Titles — säsongstitlar', () => {
   const body = (): string => [chapter('titles').lead, ...chapter('titles').paras].join(' ');
 
   it('Titles-kapitlet nämner att säsongstitlar byter säsong vid nästa uppdatering efter 1 december, inte vid midnatt', () => {

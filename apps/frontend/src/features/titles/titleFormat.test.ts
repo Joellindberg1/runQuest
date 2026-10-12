@@ -34,7 +34,7 @@ describe('titleValueText', () => {
   });
 });
 
-describe('singular vid värdet 1 (RUN-140)', () => {
+describe('singular vid värdet 1', () => {
   it.each([
     ['nightRunCount', '1 run'],
     ['earlyRunCount', '1 run'],
@@ -59,7 +59,7 @@ describe('singular vid värdet 1 (RUN-140)', () => {
   });
 });
 
-describe('avrundning före singular/plural (RUN-140)', () => {
+describe('avrundning före singular/plural', () => {
   it.each([
     [0.4, '0 runs'],
     [0.5, '1 run'],

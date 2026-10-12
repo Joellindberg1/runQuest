@@ -9,7 +9,7 @@ const TOUR_ANCHORS = ['nav-ranks', 'nav-titles', 'nav-duels', 'nav-events', 'nav
 const renderNav = (entry: string) => renderWithApp(<SideNav rightNow={[]} />, { entry, width: DESKTOP });
 const primary = () => screen.getByRole('navigation', { name: 'Primary' });
 
-describe('SideNav: Badges-raden (RUN-148)', () => {
+describe('SideNav: Badges-raden', () => {
   it('Badges ligger i gruppen You, mellan Profile och Log Runs, och länkar till /badges', () => {
     renderNav('/board');
 

@@ -16,7 +16,7 @@ const stats: UserStats = { totalKm: 0, longestStreak: 0 };
 const run = (temperature_c?: number | null): RunData => ({ date: '2026-01-10', distance_km: 5, temperature_c });
 const calc = (runs: RunData[]) => coldRunCountEngine.calculate(runs, stats);
 
-describe('coldRunCount (RUN-99 T2)', () => {
+describe('coldRunCount (T2)', () => {
   it('har metricKey coldRunCount och tröskeln 5 °C', () => {
     expect(coldRunCountEngine.metricKey).toBe('coldRunCount');
     expect(ICE_TEMP_C).toBe(5);

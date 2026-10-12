@@ -151,7 +151,7 @@ describe('changelog: v0.6.0', () => {
     expect(text).not.toMatch(/picker|collection on Profile/i); // väljaren och profilsamlingen finns inte längre
   });
 
-  it('innehåller inga interna ticketnummer (RUN-123) i texterna gruppen ser', () => {
+  it('innehåller inga interna ticketnummer i texterna gruppen ser', () => {
     expect(JSON.stringify(changelog)).not.toMatch(/\bRUN-\d+/);
   });
 });

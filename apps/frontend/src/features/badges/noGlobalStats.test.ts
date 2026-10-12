@@ -14,7 +14,7 @@ function userFacingPercents(body: string): string[] {
   return [...strings, ...jsxText].filter((text) => text.includes('%'));
 }
 
-describe('badges-featuren: ingen global procent (O2)', () => {
+describe('badges-featuren: ingen global procent (O2, L9)', () => {
   it('hittar källfilerna, inklusive de nya byggstenarna', () => {
     const paths = Object.keys(sources);
     expect(paths).toEqual(expect.arrayContaining(['./badgeModel.ts', './hooks/useShowcaseDraft.ts', './components/BadgeSeriesCard.tsx', './components/BadgeEmblemDetail.tsx']));
@@ -34,7 +34,7 @@ describe('badges-featuren: ingen global procent (O2)', () => {
     expect(userFacingPercents('const even = index % 2 === 0;')).toEqual([]);
   });
 
-  it('"in pack" skrivs aldrig utan "your" (L9: "in your pack" överallt)', () => {
+  it('"in pack" skrivs aldrig utan "your" ("in your pack" överallt)', () => {
     for (const [path, text] of Object.entries(sources)) expect({ path, bare: /in pack\b/i.test(code(text)) }).toEqual({ path, bare: false });
   });
 });

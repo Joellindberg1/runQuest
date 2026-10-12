@@ -509,7 +509,7 @@ describe('laddning, fel och tomt — Season', () => {
   });
 });
 
-describe('visade badges i Season-raderna (RUN-131)', () => {
+describe('visade badges i Season-raderna', () => {
   const KARL_BADGES = [{ series: 'milestoner', tier: 3 }, { series: 'climber', tier: 5 }];
   const NICK_BADGES = [{ series: 'night_owl', tier: 1 }, { series: 'speedster', tier: 2 }, { series: 'climber', tier: 4 }];
 
@@ -733,7 +733,7 @@ describe('visade badges i Season-raderna (RUN-131)', () => {
   });
 });
 
-describe('vimpeln som utmaningstecken (RUN-147, spec F12.4)', () => {
+describe('vimpeln som utmaningstecken (F12.4)', () => {
   // Vimpelns geometri (path, siffrans y, viewBox) och att sköldens path är borta testas i shared/components/challengeMark.test.ts.
   it.each([MOBILE, DESKTOP])('vimplarna ritas i podiet med sin tillgängliga etikett (%ipx)', async (width) => {
     renderBoard('/board', width);
@@ -754,7 +754,7 @@ describe('vimpeln som utmaningstecken (RUN-147, spec F12.4)', () => {
   });
 });
 
-describe('Council 8: vimpel och minis i aldrig en gemensam behållare (RUN-147, spec F12.4/F12.5)', () => {
+describe('Council 8: vimpel och minis i aldrig en gemensam behållare (F12.4/F12.5)', () => {
   const BADGES = [{ series: 'milestoner', tier: 3 }, { series: 'climber', tier: 5 }];
 
   // Kortets/radens egen rot: podiets innehållsbox (.rq-board-podium__body) och tabellens/listans rad. Allt däremellan är en "behållare".

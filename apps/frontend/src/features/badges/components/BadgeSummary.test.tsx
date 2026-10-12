@@ -38,7 +38,7 @@ const earnedList = () => screen.getByRole('list', { name: 'Earned badges' });
 const lockedList = () => screen.getByRole('list', { name: 'Locked badges' });
 const buttonNames = (list: HTMLElement) => within(list).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
 
-describe('BadgeSummary — innehåll (F10.2, F10.3)', () => {
+describe('BadgeSummary — innehåll (F10.2, F10.3, O2)', () => {
   it('intjänade serier som emblemknappar i nivåordning (högst först, lika nivå i serieordning)', () => {
     renderSummary();
     expect(buttonNames(earnedList())).toEqual([
@@ -71,7 +71,7 @@ describe('BadgeSummary — innehåll (F10.2, F10.3)', () => {
     expect(within(earnedList()).getAllByRole('button')).toHaveLength(BADGE_SERIES.length);
   });
 
-  it('inga procent och ingen global siffra någonstans i sammanfattningen (O2)', () => {
+  it('inga procent och ingen global siffra någonstans i sammanfattningen', () => {
     const { container } = renderSummary();
     expect(container.textContent).not.toMatch(/%|globally|has it/i);
   });
