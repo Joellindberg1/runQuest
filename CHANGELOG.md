@@ -10,7 +10,7 @@ Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: en st
 - Prod-loggern serialiserar fel (message, stack, Postgrest-koder) — förut blev de `{}`. Känslig loggning bort: e-post, hela user-objektet, tokenprefix, invite-koder; request-loggen utan query. (RUN-214, RUN-215)
 
 ### Buggfixar
-- Skrivkedjan sväljer inte längre fel: omräkning av rundor, utmaningsavgörande (boosts), event-XP, streak-jobbet (skrev 0/0 vid läsfel), schedulers och utmaningsroutes. Strava-rundor som fått XP 0 vid ett omräkningsfel självläks vid nästa synk. (RUN-215)
+- Skrivkedjan sväljer inte längre fel: omräkning av rundor, utmaningsavgörande (boosts), event-XP, streak-jobbet (skrev 0/0 vid läsfel), schedulers och utmaningsroutes. Strava-rundor som fått XP 0 vid ett omräkningsfel självläks vid nästa synk. När en runda sparats/ändrats/raderats men XP-omräkningen fallerar svarar POST/PUT/DELETE `/api/runs` 500 `{ error, written: true }`; appen uppdaterar listan och visar "Saved — XP is recalculating; don't submit again" i stället för ett fel som lockar till dubblett. En loggrad som skrev ut topplistedata (namn, värden) är borta. (RUN-215)
 - Streak räknas en gång, i shared, med Stockholmsdatum — en runda 00:00–02:00 svensk tid gav förut streak 0 till nattjobbet. (RUN-216)
 - Kalendermodul i shared ersätter ~30 kopior av datumaritmetik. Rättar: "idag" i utmaningar och events (UTC → Stockholm), Storm Chaser-prognosen (tittade på dagens i stället för morgondagens väder efter midnatt), eventfönster som startar 00:00 på sommartidsdygnen. (RUN-218)
 - Titelomräkning: `reprocess-all` svarar ärligt (200/207/500 + antal), varning vid fel; migration 042 serialiserar topplistebygget per titel (advisory-lås). (RUN-158)
