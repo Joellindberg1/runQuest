@@ -63,6 +63,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # vitest transpilerar utan att typkontrollera: typfel i kontrakten skulle annars bara synas i konsumenternas tsc.
+      - name: Typecheck
+        run: npx tsc --noEmit -p packages/shared
+
       - name: Run tests
         run: npm test -w packages/shared
 
