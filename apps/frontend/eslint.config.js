@@ -45,7 +45,8 @@ const NO_STREAK_DEFAULTS = {
 const LANDING_IMPORTS = [
   STREAK_CONSTANTS,
   { regex: "backendApi|(^|/)services/|react-query|supabase|axios", message: "Landing-featuren gör inga anrop (ägarbeslut 4): hårdskriven data, ingen backend." },
-  { regex: "features/auth|providers/auth", message: "Landing importerar inget ur features/auth eller providers/auth; dialogen monteras av pages/Index." },
+  // Täcker både alias (@/features/auth, @/providers/auth) och relativa importer (../auth/foo, ../../providers/authContext).
+  { regex: "features/auth|providers/auth|(^|/)\\.\\.?/(.*/)?auth/", message: "Landing importerar inget ur features/auth eller providers/auth; dialogen monteras av pages/Index." },
 ];
 const LANDING_SYNTAX = [
   { selector: "CallExpression[callee.name='fetch']", message: "Landing-featuren gör inga anrop (ägarbeslut 4)." },
