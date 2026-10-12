@@ -12,6 +12,7 @@ import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { isIsoCalendarDate, toStockholmDate, todayStockholm } from '../utils/dateUtils.js';
+import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../utils/idempotencyKey.js';
 import type { GroupRunHistoryResponse } from '@runquest/shared';
 
 const router = express.Router();
@@ -289,13 +290,35 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
   return { error: null, distanceNum };
 }
 
+/** Kolumnerna i POST-svarets `run` — samma lista för den nyskapade och för den återspelade (idempotent) rundan. */
+const CREATED_RUN_COLUMNS = 'id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id, is_treadmill';
+
+/** Det partiella unika indexet (user_id, client_request_id) från migration 043. */
+const CLIENT_REQUEST_ID_INDEX = 'runs_user_client_request_id_key';
+
+/**
+ * Sant om insert-felet är en krock på just idempotensindexet (Postgres 23505). En 23505 på något annat index —
+ * t.ex. (user_id, external_id) för Strava — är INTE ett återspelat anrop och ska fortsatt vara ett fel.
+ */
+function isClientRequestIdConflict(error: { code?: string; message?: string; details?: string | null } | null): boolean {
+  return error?.code === '23505' && `${error.message ?? ''} ${error.details ?? ''}`.includes(CLIENT_REQUEST_ID_INDEX);
+}
+
 // POST /api/runs - Create a new run
+// Idempotency-Key (uuid v4, valfri): samma nyckel igen skapar ingen ny runda — svaret är det första lyckade svaret
+// (samma form och status) och ingen ny omräkning körs. Utan header är beteendet oförändrat.
 router.post('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const { date, distance, is_treadmill } = req.body;
     const userId = req.user!.user_id;
 
     logger.info('📝 Create run request:', { userId, date, distance, is_treadmill });
+
+    const keyParse = parseIdempotencyKey(req.headers[IDEMPOTENCY_KEY_HEADER.toLowerCase()]);
+    if (!keyParse.ok) {
+      res.status(400).json({ error: keyParse.error }); return;
+    }
+    const idempotencyKey = keyParse.key;
 
     if (!date || !distance) {
       res.status(400).json({ error: 'Date and distance are required' }); return;
@@ -315,11 +338,35 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
 
     const supabase = getSupabaseClient();
 
+    // Svarar med en redan skapad runda (upprepning med samma nyckel). Gör ingen skrivning och ingen omräkning:
+    // rundan är redan räknad — eller, om omräkningen föll (written: true), självläker den som idag (nästa omräkning
+    // från rundans datum, t.ex. en annan runda eller admin reprocess) — ingen ny mekanism.
+    const findRunByKey = (key: string) => supabase
+      .from('runs')
+      .select(CREATED_RUN_COLUMNS)
+      .eq('user_id', userId)
+      .eq('client_request_id', key)
+      .maybeSingle();
+    const replayExisting = (existing: unknown, how: string): void => {
+      logger.info(`♻️ Idempotent replay (${how}) — returning existing run, no new write`, { userId });
+      res.json({ success: true, message: 'Run created successfully', run: existing });
+    };
+
+    if (idempotencyKey) {
+      const { data: existing, error: lookupError } = await findRunByKey(idempotencyKey);
+      if (lookupError) {
+        logger.error('❌ Error looking up run by idempotency key:', lookupError);
+        res.status(500).json({ error: 'Failed to create run' }); return;
+      }
+      if (existing) { replayExisting(existing, 'sequential'); return; }
+    }
+
     // Insert with placeholder XP — reprocessRunsFromDate recalculates correctly right after
     const { data: newRun, error: insertError } = await supabase
       .from('runs')
       .insert({
         user_id: userId,
+        ...(idempotencyKey && { client_request_id: idempotencyKey }),
         date: date,
         distance: distanceNum,
         // Servern äger source: klientens body.source ignoreras. Bara Strava-importen (routes/strava.ts) skriver 'strava'
@@ -338,7 +385,14 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (insertError) {
-      logger.error('❌ Error inserting run:', insertError);
+      if (idempotencyKey && isClientRequestIdConflict(insertError)) {
+        // Race: ett samtidigt anrop med samma nyckel hann före. Läs dess rad och svara med den.
+        const { data: winner, error: winnerError } = await findRunByKey(idempotencyKey);
+        if (winner) { replayExisting(winner, 'concurrent'); return; }
+        logger.error('❌ Idempotency conflict but the existing run could not be read:', winnerError ?? 'no row');
+      } else {
+        logger.error('❌ Error inserting run:', insertError);
+      }
       res.status(500).json({ error: 'Failed to create run' }); return;
     }
 
@@ -366,7 +420,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     // Fetch the fully processed run
     const { data: processedRun, error: fetchError } = await supabase
       .from('runs')
-      .select('id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id, is_treadmill')
+      .select(CREATED_RUN_COLUMNS)
       .eq('id', newRun.id)
       .single();
 

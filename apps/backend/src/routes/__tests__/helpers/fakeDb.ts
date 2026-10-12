@@ -30,6 +30,14 @@ export interface FakeDbOptions {
   autoIds?: boolean;
   /** Tabeller vars insatta rader utan `id` får ett numeriskt löpande id (1, 2, ...) — som en bigint identity (activity_log). */
   numericIds?: string[];
+  /**
+   * Unika index som INSERT ska respektera (Postgres-semantik: rader där någon kolumn är null ingår aldrig i ett
+   * partiellt index med `is not null`-villkor, och null krockar inte med null). En krock ger 23505 med indexnamnet i
+   * meddelandet, som PostgREST. `onInsert` körs före varje insert i tabellen (t.ex. för att simulera ett samtidigt anrop).
+   */
+  uniqueIndexes?: Array<{ table: string; name: string; columns: string[] }>;
+  /** Anropas precis innan en insert i `table` utvärderas — för att simulera att en annan förfrågan hann före. */
+  beforeInsert?: (table: string, tables: Record<string, Row[]>) => void;
   /** Svar för supabase.rpc(namn, args). Okänd rpc → { data: null, error: null }. */
   rpc?: Record<string, (args: any) => { data?: unknown; error?: { message: string } | null }>;
 }
@@ -121,7 +129,25 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       }
 
       if (mutation?.kind === 'insert') {
+        options.beforeInsert?.(table, tables);
         const raw = Array.isArray(mutation.values) ? mutation.values : [mutation.values as Row];
+        for (const index of options.uniqueIndexes ?? []) {
+          if (index.table !== table) continue;
+          const taken = (r: Row) => index.columns.every((c) => r[c] != null);
+          for (const r of raw.filter(taken)) {
+            if ((tables[table] ?? []).some((e) => taken(e) && index.columns.every((c) => e[c] === r[c]))) {
+              return {
+                data: null,
+                error: {
+                  code: '23505',
+                  message: `duplicate key value violates unique constraint "${index.name}"`,
+                  details: `Key (${index.columns.join(', ')}) already exists.`,
+                },
+                count: null,
+              };
+            }
+          }
+        }
         const withGenerated = options.autoIds ? raw.map((r) => (r.id === undefined ? { ...r, id: `gen-${nextId++}` } : r)) : raw;
         const inserted = options.numericIds?.includes(table)
           ? withGenerated.map((r) => (r.id === undefined ? { ...r, id: nextNumericId(table) } : r))
