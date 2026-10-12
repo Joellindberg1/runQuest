@@ -12,8 +12,8 @@ Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: RUN-2
 - CI: nytt steg `Stylelint` i frontend-jobbet (blockerande, `--max-warnings 0`).
 
 ### Prod-steg (kräver ägar-ja)
-1. PR release/v0.6.1.3 → main, grön CI, merge (= deploy). Ingen runtime-kod ändras (lint-konfig, tester, CI och lockfil med nya dev-paket). Ingen migration.
-2. Tagg `v0.6.1.3` på merge-commiten.
+1. PR release/v0.6.1.3 → main, grön CI, merge (= deploy). Ingen runtime-kod ändras (lint-konfig, tester, CI och lockfil med nya dev-paket). Ingen migration. KÖRD 2026-10-12 (ägar-ja): PR #33, Railway-deploy SUCCESS, www och api svarar 200.
+2. Tagg `v0.6.1.3` på merge-commiten. KÖRD 2026-10-12 (tagg v0.6.1.3 på 176bf38).
 
 ### Rollback
 - Revert-PR på main. Bygget och runtime påverkas inte.
