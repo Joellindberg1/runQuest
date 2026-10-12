@@ -38,7 +38,11 @@ export function getSyncInfo(): SyncState {
 async function recalculateTitlesAfterWeather(savedRows: number): Promise<void> {
   try {
     logger.info(`🏆 Weather saved for ${savedRows} run(s) — recalculating titles...`);
-    await enhancedTitleService.processAllUsersTitles(undefined, { allGroups: true });
+    const result = await enhancedTitleService.processAllUsersTitles(undefined, { allGroups: true });
+    // processAllUsersTitles kastar inte vid fel hos enskilda användare (RUN-157): räknarna är det enda som syns.
+    if (result.failed > 0) {
+      logger.warn(`⚠️ Title recalculation after weather: ${result.failed} of ${result.total} users failed`);
+    }
   } catch (error) {
     logger.error('❌ Title recalculation after weather backfill failed:', error);
   }

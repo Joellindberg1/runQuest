@@ -101,8 +101,14 @@ export async function calculateUserTotals(userId: string) {
 
       if (userGroupId) {
         logger.info(`🏆 Processing titles for group ${userGroupId}...`);
-        await titleService.processAllUsersTitles(userGroupId);
-        logger.info('✅ Group titles processed successfully');
+        const titleRun = await titleService.processAllUsersTitles(userGroupId);
+        // RUN-158: processAllUsersTitles kastar inte vid fel hos enskilda användare (RUN-157) — utan varningen
+        // skulle ett delvis misslyckat omräkningspass se lyckat ut i loggen.
+        if (titleRun && titleRun.failed > 0) {
+          logger.warn(`⚠️ Group ${userGroupId}: titles failed for ${titleRun.failed} of ${titleRun.total} users`);
+        } else {
+          logger.info('✅ Group titles processed successfully');
+        }
       } else {
         logger.info(`🏆 User ${userId} has no group — processing own titles only...`);
         const runsWithAlias = userRuns.map((run: any) => ({ ...run, distance_km: run.distance }));
