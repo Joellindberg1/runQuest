@@ -110,7 +110,9 @@ export function findSettingsProblem(settings: AdminSettings): string | null {
 
 /** "Level 24 · 5 539 XP · 159 runs · 8 streak" */
 export function memberMeta(user: AdminUser): string {
-  return `Level ${user.current_level} · ${formatInt(user.total_xp)} XP · ${formatInt(user.total_runs)} runs · ${user.current_streak} streak`;
+  return `Level ${user.current_level} · ${formatInt(user.total_xp)} XP · ${formatInt(user.total_runs)} ${user.total_runs === 1 ? 'run' : 'runs'} · ${user.current_streak} streak`;
 }
 
-export const memberCountText = (count: number): string => `${count} ${count === 1 ? 'member' : 'members'}`;
+export const runsText = (count: number): string => `${count} ${count === 1 ? 'run' : 'runs'}`;
+
+export const memberCountText =(count: number): string => `${count} ${count === 1 ? 'member' : 'members'}`;

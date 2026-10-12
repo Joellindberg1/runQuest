@@ -25,7 +25,7 @@ export function HeroCard({ hero, cells, showcase = [] }: HeroCardProps) {
   const ringLabel = hero.nextLevel === null
     ? `Level ${hero.level}, max level`
     : `Level ${hero.level}, ${percent}% of the way to level ${hero.nextLevel}`;
-  const standing = [hero.rank === null ? null : `#${hero.rank} in the group`, `${formatInt(hero.runs)} runs`].filter(Boolean).join(' · ');
+  const standing = [hero.rank === null ? null : `#${hero.rank} in the group`, `${formatInt(hero.runs)} ${hero.runs === 1 ? 'run' : 'runs'}`].filter(Boolean).join(' · ');
 
   return (
     <section className="rq-card rq-card--hero rq-runner-hero" aria-label="Runner">

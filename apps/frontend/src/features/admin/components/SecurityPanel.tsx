@@ -3,6 +3,7 @@ import { FormNotices } from '@/shared/components/form/FormNotices';
 import { TextField } from '@/shared/components/form/TextField';
 import { RQIcon } from '@/shared/components/icons';
 import { backendApi } from '@/shared/services/backendApi';
+import { runsText } from '../adminModel';
 import type { AdminNotice } from '../hooks/useAdminData';
 
 interface BackfillResult {
@@ -76,12 +77,12 @@ export function SecurityPanel({ newAdminPassword, setNewAdminPassword, onChangeA
         <div role="status" aria-label="Backfill result">
           {result && (
             <div className="rq-admin-backfill">
-              <p className="rq-admin-backfill__total">Total updated: {result.totalUpdated} runs</p>
+              <p className="rq-admin-backfill__total">Total updated: {runsText(result.totalUpdated)}</p>
               <ul className="rq-hairgrid rq-admin-backfill__rows">
                 {result.summary.map((entry) => (
                   <li key={entry.user} className="rq-admin-backfill__row" data-tone={entry.error ? 'down' : undefined}>
                     <span>{entry.user}</span>
-                    <span>{entry.error ?? `${entry.updated} runs`}</span>
+                    <span>{entry.error ?? runsText(entry.updated)}</span>
                   </li>
                 ))}
               </ul>

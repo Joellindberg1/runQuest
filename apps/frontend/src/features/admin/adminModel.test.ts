@@ -82,8 +82,8 @@ describe('memberMeta / memberCountText', () => {
   });
 
   it('en runda och en streak-dag: singular för rundor, streak oförändrat (RUN-140)', () => {
-    expect(memberMeta({ ...user, total_runs: 1, current_streak: 1 } as AdminUser)).toBe('Level 24 · 5 539 XP · 1 run · 1 streak');
-    expect(memberMeta({ ...user, total_runs: 0 } as AdminUser)).toBe('Level 24 · 5 539 XP · 0 runs · 8 streak');
+    expect(memberMeta({ ...user, total_xp: 539, total_runs: 1, current_streak: 1 } as AdminUser)).toBe('Level 24 · 539 XP · 1 run · 1 streak');
+    expect(memberMeta({ ...user, total_xp: 539, total_runs: 0 } as AdminUser)).toBe('Level 24 · 539 XP · 0 runs · 8 streak');
   });
 
   it('medlemsantalet i singular och plural', () => {
