@@ -79,6 +79,15 @@ describe('useUpdateRun — PUT /runs/:id', () => {
     expect(updated).toMatchObject({ id: 'r1', date: '2026-10-01', distance: 9.5 });
   });
 
+  it('servern svarade 500 EFTER att ändringen skrevs (written): hela kedjan invalideras ändå', async () => {
+    const { result, invalidate } = setup(() => useUpdateRun());
+    handlers.updateRun = async () => ({ success: false, error: 'Run was updated but XP recalculation failed', written: true });
+
+    await expect(result.current.mutateAsync({ run: original, update: { date: '2026-10-02', distance: 9 } })).rejects.toThrow('Run was updated but XP recalculation failed');
+
+    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(CHAIN));
+  });
+
   it('ett misslyckat anrop invaliderar ingenting och kastar serverns meddelande', async () => {
     const { result, invalidate } = setup(() => useUpdateRun());
     handlers.updateRun = async () => ({ success: false, error: 'Runs can only be logged from 1 June 2025' });
@@ -99,6 +108,15 @@ describe('useDeleteRun — DELETE /runs/:id', () => {
     await result.current.mutateAsync(original);
 
     expect(calls).toEqual([['r1']]);
+    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(CHAIN));
+  });
+
+  it('servern svarade 500 EFTER att rundan raderades (written): hela kedjan invalideras ändå, så rundan inte ligger kvar i listan', async () => {
+    const { result, invalidate } = setup(() => useDeleteRun());
+    handlers.deleteRun = async () => ({ success: false, error: 'Run was deleted but XP recalculation failed', written: true });
+
+    await expect(result.current.mutateAsync(original)).rejects.toThrow('Run was deleted but XP recalculation failed');
+
     expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(CHAIN));
   });
 
