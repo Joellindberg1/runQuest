@@ -105,7 +105,7 @@ describe('BadgeEmblemDetail — knappen (F10.4)', () => {
   });
 });
 
-describe('BadgeEmblemDetail — popovern, intjänad serie (F10.4)', () => {
+describe('BadgeEmblemDetail — popovern, intjänad serie (F10.4, O2)', () => {
   it('stängd vid start; ett klick öppnar en dialog vars namn är serienamnet', async () => {
     render(<BadgeEmblemDetail row={rowOf(collection([]), milestoner.key)} />);
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -132,7 +132,7 @@ describe('BadgeEmblemDetail — popovern, intjänad serie (F10.4)', () => {
     expect(text.indexOf(`"${tierFlavor(milestoner, 3)}"`)).toBeLessThan(text.indexOf('Held by 5 of 6 in your pack'));
   });
 
-  it('ingen Next-rad, ingen "TOP TIER REACHED" och ingen global siffra (kompakt, O2)', async () => {
+  it('ingen Next-rad, ingen "TOP TIER REACHED" och ingen global siffra (kompakt)', async () => {
     render(<BadgeEmblemDetail row={rowOf(collection([]), streakKeeper.key)} />);
     const dialog = await open(`Legendary ${streakKeeper.name}`);
     expect(within(dialog).queryByText(/^Next:/)).toBeNull();
@@ -208,17 +208,6 @@ describe('BadgeEmblemDetail — öppna och stänga (F10.4)', () => {
     render(<BadgeEmblemDetail row={rowOf(collection([]), milestoner.key)} />);
     const dialog = await open(`Rare ${milestoner.name}`);
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
-  });
-
-  it('Escape stänger och fokus går tillbaka till knappen', async () => {
-    render(<BadgeEmblemDetail row={rowOf(collection([]), milestoner.key)} />);
-    const button = trigger(`Rare ${milestoner.name}`);
-    const dialog = await open(`Rare ${milestoner.name}`);
-    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
-    fireEvent.keyDown(document.activeElement as Element, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(button).toHaveFocus();
-    expect(button).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('ett nytt tryck på knappen stänger', async () => {

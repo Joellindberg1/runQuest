@@ -86,8 +86,8 @@ afterAll(() => {
   else process.env.TZ = originalTz;
 });
 
-describe('titelmotorernas regression (RUN-98)', () => {
-  it('registret har de 21 förväntade motorerna (plus de som tillkommit efter RUN-98)', () => {
+describe('titelmotorernas regression', () => {
+  it('registret har de 21 förväntade motorerna (plus de som tillkommit senare)', () => {
     expect([...titleEngineRegistry.keys()].sort()).toEqual([...Object.keys(EXPECTED), ...ADDED_AFTER_RUN98].sort());
     expect(titleEngineRegistry.size).toBe(24);
   });
@@ -111,7 +111,7 @@ describe('titelmotorernas regression (RUN-98)', () => {
     expect(valuesFrom(withWeather.map(toRunData), ctx)).toEqual(EXPECTED);
   });
 
-  it('toRunData ger samma värden som den gamla mappningen för alla fält som fanns före RUN-98', () => {
+  it('toRunData ger samma värden som den gamla mappningen för alla fält som fanns i den ursprungliga mappningen', () => {
     for (const r of FIXTURE_ROWS) {
       const { temperature_c, wind_speed_ms, wind_gusts_ms, ...legacyFields } = toRunData(r);
       expect(legacyFields).toEqual(legacyMap(r));

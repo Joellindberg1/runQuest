@@ -78,7 +78,7 @@ describe('Run — minimidistans (routes/runs.ts, routes/strava.ts)', () => {
   });
 });
 
-describe('Titles — säsongstitlar och när titlarna räknas om (RUN-102)', () => {
+describe('Titles — säsongstitlar och när titlarna räknas om', () => {
   it('vinterfönstret är 1 december–28/29 februari på Stockholm-datum: december räknar årets vinter, jan–nov den som började föregående december', () => {
     const utils = backend('src/titleEngines/_utils.ts');
     expect(utils).toContain('toStockholmDate(now.toISOString())');

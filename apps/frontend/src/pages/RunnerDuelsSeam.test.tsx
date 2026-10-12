@@ -31,7 +31,7 @@ const H2H: HeadToHeadResponse = {
 // då delas ingen cache mellan sidorna och skarven kan inte provas.
 function renderWithSharedCache(ui: ReactNode, entry: string) {
   setViewportWidth(390);
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   const auth: AuthContextType = {
     user: { id: ME.id, name: ME.name, email: 'joel@example.com', is_admin: false },
     login: async () => ({ success: true }), logout: () => {}, loading: false, isAdmin: false,

@@ -115,7 +115,7 @@ describe('BadgesScreen — sidhuvud (F9.2)', () => {
   });
 });
 
-describe('BadgesScreen — rutnätet (F9.4, F9.5)', () => {
+describe('BadgesScreen — rutnätet (F9.4, F9.5, F9.8, F9.12, T3)', () => {
   it('en <ul aria-label="Badge series"> med åtta liggande kort i BADGE_SERIES-ordning, låsta också', async () => {
     renderScreen(DESKTOP);
     const list = await grid();
@@ -126,7 +126,7 @@ describe('BadgesScreen — rutnätet (F9.4, F9.5)', () => {
     expect(cardOf(nightOwl)).toHaveAttribute('data-state', 'locked');
   });
 
-  it('held-by "in your pack" på intjänade kort — och ingen global siffra någonstans (T3)', async () => {
+  it('held-by "in your pack" på intjänade kort — och ingen global siffra någonstans', async () => {
     renderScreen(MOBILE);
     await grid();
     expect(within(cardOf(milestoner)).getByText('Held by 5 of 6 in your pack')).toBeInTheDocument();
@@ -134,7 +134,7 @@ describe('BadgesScreen — rutnätet (F9.4, F9.5)', () => {
     expect(document.body.textContent).not.toMatch(/globally|has it|%|in pack\b/i);
   });
 
-  it('låst kort: ingen held-by, flavor eller Next även när gruppen har tal för serien (F9.12)', async () => {
+  it('låst kort: ingen held-by, flavor eller Next även när gruppen har tal för serien', async () => {
     renderScreen(MOBILE);
     await grid();
     const locked = cardOf(nightOwl);
@@ -145,7 +145,7 @@ describe('BadgesScreen — rutnätet (F9.4, F9.5)', () => {
     expect(within(locked).queryByText(/^Next:/)).toBeNull();
   });
 
-  it('intjänat kort: kravraden börjar inte med ett nivånamn och flavor står i en egen <p> (F9.12)', async () => {
+  it('intjänat kort: kravraden börjar inte med ett nivånamn och flavor står i en egen <p>', async () => {
     renderScreen(MOBILE);
     await grid();
     const card = cardOf(milestoner);
@@ -156,7 +156,7 @@ describe('BadgesScreen — rutnätet (F9.4, F9.5)', () => {
     expect(flavor).not.toBe(req);
   });
 
-  it('gruppen felar: held-by utelämnas på alla kort, allt annat är oförändrat (F9.8)', async () => {
+  it('gruppen felar: held-by utelämnas på alla kort, allt annat är oförändrat', async () => {
     api.getGroupBadges.mockRejectedValue(new Error('group down'));
     renderScreen(MOBILE);
     await grid();

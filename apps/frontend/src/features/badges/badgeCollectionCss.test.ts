@@ -49,7 +49,7 @@ describe('skelettet (F8)', () => {
     expect(outsideMotion).toMatch(/\.rq-badge-skel__shape\s*\{[^}]*background-color:\s*var\(--rq-fill-1\)/);
   });
 
-  it('takten är 1.6 s och staggern .2 s i båda temafilerna (F8)', () => {
+  it('takten är 1.6 s och staggern .2 s i båda temafilerna', () => {
     for (const css of [indexCss, facitCss]) {
       expect(css).toMatch(/--rq-dur-badge-skel:\s*1\.6s;/);
       expect(css).toMatch(/--rq-badge-skel-stagger:\s*\.2s;/);
@@ -57,7 +57,7 @@ describe('skelettet (F8)', () => {
   });
 });
 
-describe('profilens samlingskort är borta (RUN-151, spec V2.7)', () => {
+describe('profilens samlingskort är borta (V2.7)', () => {
   it('ingen CSS för BadgeCollection: .rq-badge-collection*, .rq-badge-display*, .rq-badge-grid, stående kortets .rq-badge-card__id, skelettlistan och tomrutans minis', () => {
     expect(badgesCss).not.toMatch(/\.rq-badge-(collection|display)/);
     expect(badgesCss).not.toMatch(/\.rq-badge-grid\b/);
@@ -70,7 +70,7 @@ describe('profilens samlingskort är borta (RUN-151, spec V2.7)', () => {
   });
 });
 
-describe('profilens sammanfattning (RUN-151, spec F10)', () => {
+describe('profilens sammanfattning (F10)', () => {
   const rules = [...badgesCss.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }));
   const rule = (selector: string) => rules.find((candidate) => candidate.selector === selector)?.body ?? '';
 
@@ -100,7 +100,7 @@ describe('profilens sammanfattning (RUN-151, spec F10)', () => {
   });
 });
 
-describe('den separata väljaren är borta (RUN-150, spec V2.7, F13.4)', () => {
+describe('den separata väljaren är borta (V2.7, F13.4)', () => {
   it('ingen CSS för väljaren eller platspanelen: .rq-badge-pick*, .rq-badge-slot*, .rq-badge-textlink', () => {
     expect(badgesCss).not.toMatch(/\.rq-badge-(pick|slot|textlink)/);
     expect(badgesCss).not.toMatch(/\.rq-badge-display__(edit|empty)/);
@@ -117,7 +117,7 @@ describe('den separata väljaren är borta (RUN-150, spec V2.7, F13.4)', () => {
   });
 });
 
-describe('badges-sidans byggstenar (RUN-149, spec F9.9, F13.4)', () => {
+describe('badges-sidans byggstenar (F9.9, F13.4)', () => {
   const rules = [...badgesCss.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }));
   const rule = (selector: string) => rules.find((candidate) => candidate.selector === selector);
   /** Deklarationerna före (mobil) respektive efter (desktop) den första ≥ 1024 px-blocket i en temafil. */
@@ -158,7 +158,7 @@ describe('badges-sidans byggstenar (RUN-149, spec F9.9, F13.4)', () => {
     expect(rule('.rq-popover.rq-badge-detail')?.body).toMatch(/width:\s*var\(--rq-badge-detail-w\)/);
   });
 
-  it('popovern ligger över Runner card-modalen (RUN-152): --rq-z-popover-over-modal (samma i båda temafilerna) är större än .rq-scrim och .rq-modal, skalets .rq-popover--over-modal läser den och emblem-popovern bär klassen', () => {
+  it('popovern ligger över Runner card-modalen: --rq-z-popover-over-modal (samma i båda temafilerna) är större än .rq-scrim och .rq-modal, skalets .rq-popover--over-modal läser den och emblem-popovern bär klassen', () => {
     const shellZ = (selector: string) => {
       const body = new RegExp(`${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(shellCss)?.[1] ?? '';
       return Number(/z-index:\s*(\d+)/.exec(body)?.[1]);
@@ -252,7 +252,7 @@ describe('BADGES-panelen på Runner card (T5)', () => {
   });
 });
 
-describe('Runner cards nedre rutnät (RUN-152, spec F11.1)', () => {
+describe('Runner cards nedre rutnät (F11.1)', () => {
   const rules = [...runnerCss.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }));
   const body = (selector: string) => rules.find((candidate) => candidate.selector === selector)?.body ?? '';
 

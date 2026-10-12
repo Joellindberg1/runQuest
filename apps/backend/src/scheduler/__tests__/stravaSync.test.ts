@@ -63,7 +63,7 @@ describe('stravaSync — titelomräkning efter väder-backfill', () => {
   });
 });
 
-describe('RUN-158: misslyckade användare i titelomräkningen efter väder syns i loggen', () => {
+describe('misslyckade användare i titelomräkningen efter väder syns i loggen', () => {
   it('failed > 0 ger logger.warn med antalen och fäller inte synkstatusen', async () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
     h.backfillMissingWeather.mockResolvedValue(2);

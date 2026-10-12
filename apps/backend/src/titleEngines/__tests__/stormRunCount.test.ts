@@ -17,7 +17,7 @@ const run = (wind_gusts_ms?: number | null, extra: Partial<RunData> = {}): RunDa
   ({ date: '2026-10-01', distance_km: 5, wind_gusts_ms, ...extra });
 const calc = (runs: RunData[]) => stormRunCountEngine.calculate(runs, stats);
 
-describe('stormRunCount (RUN-99 T1)', () => {
+describe('stormRunCount (T1)', () => {
   it('har metricKey stormRunCount och tröskeln 12 m/s', () => {
     expect(stormRunCountEngine.metricKey).toBe('stormRunCount');
     expect(STORM_GUST_MS).toBe(12);

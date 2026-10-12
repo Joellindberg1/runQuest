@@ -142,7 +142,7 @@ describe('veckotävlingen — måndag 00:01 till söndag 23:59, bokad lördag kv
   });
 });
 
-describe('Hangover Run på själva skiftessöndagen — offseten tas vid klockslaget, inte vid middagen (RUN-218)', () => {
+describe('Hangover Run på själva skiftessöndagen — offseten tas vid klockslaget, inte vid middagen', () => {
   // Före RUN-218 räknade eventScheduler hela dagen med offseten vid 12:00. 00:00 ligger FÖRE växlingen, så fönstret började
   // en timme fel på de två skiftesdagarna (vår: 23:00 lördag lokal tid, höst: 01:00 söndag lokal tid). Nu börjar det vid
   // verklig Stockholm-midnatt. Slutet (23:59) ligger efter växlingen och var redan rätt.

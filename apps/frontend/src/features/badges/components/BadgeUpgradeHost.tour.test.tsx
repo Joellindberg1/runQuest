@@ -53,7 +53,7 @@ const advance = async (ms: number) => {
 
 function renderPage() {
   setViewportWidth(390);
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: Infinity }, mutations: { retry: false } } });
   const auth: AuthContextType = { user: { id: ME.id, name: ME.name, email: 'joel@example.com' }, login: async () => ({ success: true }), logout: () => {}, loading: false, isAdmin: false };
   return render(
     <QueryClientProvider client={queryClient}>
@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); });
 
-describe('BadgeUpgradeHost: osedd sidtour (RUN-155)', () => {
+describe('BadgeUpgradeHost: osedd sidtour', () => {
   it('popupen syns aldrig medan sidtouren väntar på sin start eller körs, och visas när touren är klar', async () => {
     renderPage();
 

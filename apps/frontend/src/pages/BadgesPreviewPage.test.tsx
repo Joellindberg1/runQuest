@@ -71,7 +71,7 @@ describe('/preview/badges', () => {
     expect(after).not.toBe(before);
   });
 
-  it('byggstenarna (RUN-149): varje växlarläge finns som kort — Show, On display — N, fullt, sparar (vald och icke vald) och låst', () => {
+  it('byggstenarna: varje växlarläge finns som kort — Show, On display — N, fullt, sparar (vald och icke vald) och låst', () => {
     render(<BadgesPreviewPage />);
     const modes = within(screen.getByRole('region', { name: /^landscape card · every toggle mode/i }));
     const buttons = modes.getAllByRole('button');

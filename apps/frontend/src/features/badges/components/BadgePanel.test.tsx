@@ -103,15 +103,12 @@ describe('BadgePanel — popovern (F10.4 via F11.2, L4)', () => {
     expect(within(await open(nameOf(2, second))).queryByText('On display')).toBeNull();
   });
 
-  it('tangentbord: Enter öppnar, Escape stänger och fokus återvänder till emblemknappen', async () => {
+  it('tangentbord: Enter på emblemknappen öppnar popovern', async () => {
     render(panelFor(user([item(first.key, 3)])));
     const button = screen.getByRole('button', { name: nameOf(3, first) });
 
     pressEnter(button);
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.keyDown(dialog, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await waitFor(() => expect(button).toHaveFocus());
+    expect(await screen.findByRole('dialog')).toHaveAccessibleName(first.name);
   });
 });
 

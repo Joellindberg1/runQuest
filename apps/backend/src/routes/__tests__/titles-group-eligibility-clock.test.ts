@@ -53,7 +53,7 @@ async function winterKmFromEndpoint(): Promise<number> {
   return res.body.data[0].values.winterKm;
 }
 
-describe('GET /api/titles/group-eligibility — klockan (RUN-141)', () => {
+describe('GET /api/titles/group-eligibility — klockan', () => {
   it('1 dec, senaste omräkningen 30 nov: samma vinter som de lagrade innehavarna (förra), inte den nya', async () => {
     seed([
       { id: 't-old', metric_key: 'totalKm', updated_at: '2026-11-30T12:00:00Z' },

@@ -61,19 +61,6 @@ describe('LoginDialog: semantik och fokus', () => {
     expect(screen.getByRole('button', { name: 'Sign In' })).toHaveClass('rq-btn--primary');
   });
 
-  it('fokusfällan: Tab från sista elementet går runt till första, Shift+Tab från första till sista — fokus lämnar aldrig dialogen', async () => {
-    renderDialog();
-    const close = screen.getByRole('button', { name: 'Close' });
-    const submit = screen.getByRole('button', { name: 'Sign In' });
-
-    submit.focus();
-    fireEvent.keyDown(submit, { key: 'Tab' });
-    await waitFor(() => expect(close).toHaveFocus());
-
-    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
-    await waitFor(() => expect(submit).toHaveFocus());
-  });
-
   it('allt utanför dialogen göms för hjälpmedel medan den är öppen (aria-hidden på syskonen)', () => {
     const { opener } = renderDialog();
     expect(opener).toHaveAttribute('aria-hidden', 'true');

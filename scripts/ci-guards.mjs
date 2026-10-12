@@ -9,7 +9,12 @@
 //     Ett strängliteral eller ett regex som innehåller ordet TODO eller FIXME (versaler, helt ord) fäller alltså också. Kringgå det
 //     genom att skriva `TODO(RUN-nnn)` på stället, eller välj ett annat ord (t.ex. "PLACEHOLDER" eller "att göra").
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|all]   (standard: all)
+//  3. Jira-ID i testnamn (RUN-154): inget test- eller describe-namn får innehålla `RUN-nnn`. Namnet ska beskriva beteendet; spårbarheten
+//     finns i commit-meddelandet, Jira-länken och `git blame`. Spec-/manifest-ID (T1, F9.12) får stå i describe-namnet, inte upprepas i it-namnen.
+//     Vakten är textbaserad: den läser första strängargumentet till describe/it/test (även .each/.skip/.only) över radbrytningar,
+//     men ser inte namn som byggs upp av variabler.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -94,6 +99,27 @@ export function checkTodos(files) {
   return errors;
 }
 
+// describe/it/test, valfritt följt av .each/.skip/.only/... och en tabell i parentes (två parentesnivåer räcker för it.each([...])),
+// sedan parentesen med namnet. Gruppen 2 är namnets text. (?<![\w.$]) hindrar träff på t.ex. `expect.it(` eller `submit(`.
+const TEST_NAME_CALL =
+  /(?<![\w.$])(?:describe|it|test)(?:\.(?:each|skip|only|todo|concurrent|sequential|fails|runIf|skipIf))*(?:\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))?\s*\(\s*(['"`])((?:\\[\s\S]|(?!\1)[^\\])*)\1/g;
+const JIRA_ID = /RUN-\d+/;
+
+/**
+ * Regel 3. `files`: [{ path, content }] (bara testfiler). Returnerar felmeddelanden "path:rad: text".
+ */
+export function checkTestNames(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    for (const match of content.matchAll(TEST_NAME_CALL)) {
+      if (!JIRA_ID.test(match[2])) continue;
+      const line = content.slice(0, match.index).split(/\r?\n/).length;
+      errors.push(`${path}:${line}: Jira-ID i testnamn — beskriv beteendet i stället, ID:t hör hemma i commit-meddelandet — "${match[2]}"`);
+    }
+  }
+  return errors;
+}
+
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -113,8 +139,8 @@ export function collectSourceFiles(root, workspaces) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos`);
+  if (!['all', 'empty-suites', 'todos', 'test-names'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -129,10 +155,17 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names') {
     const files = collectSourceFiles(root, workspaces);
-    errors.push(...checkTodos(files));
-    summary.push(`${files.length} källfiler utan otaggade TODO/FIXME`);
+    if (mode !== 'test-names') {
+      errors.push(...checkTodos(files));
+      summary.push(`${files.length} källfiler utan otaggade TODO/FIXME`);
+    }
+    if (mode !== 'todos') {
+      const testFiles = files.filter(({ path }) => TEST_FILE.test(path));
+      errors.push(...checkTestNames(testFiles));
+      summary.push(`${testFiles.length} testfiler utan Jira-ID i testnamn`);
+    }
   }
 
   if (errors.length > 0) {

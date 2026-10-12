@@ -12,7 +12,7 @@ const manual = run({ id: 'r-manual', date: '2026-10-02', distance: 8, source: 'm
 const strava = run({ id: 'r-strava', date: '2026-10-03', distance: 10.5, source: 'strava' });
 
 function renderSheet(target = manual) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
   const props = { onClose: vi.fn(), onDone: vi.fn(), onRestoreFocus: vi.fn() };
   render(
     <QueryClientProvider client={client}>
@@ -26,7 +26,7 @@ beforeEach(() => {
   resetFakeBackend();
 });
 
-describe('EditRunSheet — Strava-runda (RUN-139)', () => {
+describe('EditRunSheet — Strava-runda', () => {
   it('Strava-runda: distans och datum skrivskyddade, ingen Save', () => {
     renderSheet(strava);
 

@@ -16,7 +16,7 @@ const submission = { date: '2026-10-04', distance: 8, isTreadmill: false };
 function setup() {
   resetFakeBackend();
   handlers.createRun = async () => ({ success: true, data: { id: 'new', xp_gained: 44, multiplier: 1.1, streak_day: 5, distance: 8 } });
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { ...renderHook(() => useCreateRun(), { wrapper }), invalidate };

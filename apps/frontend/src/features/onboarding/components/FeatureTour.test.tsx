@@ -28,12 +28,12 @@ const wrap = (slugs: string[]) => (
 );
 
 beforeEach(() => {
-  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: Infinity }, mutations: { retry: false } } });
   document.body.removeAttribute(ATTR);
 });
 afterEach(() => { document.body.removeAttribute(ATTR); });
 
-describe('FeatureTour: data-rq-tour-pending läcker inte (RUN-155)', () => {
+describe('FeatureTour: data-rq-tour-pending läcker inte', () => {
   it('sätts när touren aktiveras och försvinner när den avmonteras under fördröjningen (route-byte)', async () => {
     const { unmount } = render(wrap(['tour_a']));
     await waitFor(() => expect(pending()).toBe('1'));

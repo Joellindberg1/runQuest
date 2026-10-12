@@ -10,7 +10,7 @@ vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBa
 
 function setup() {
   resetFakeBackend();
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { ...renderHook(() => useChallengeActions(), { wrapper }), invalidate };

@@ -7,7 +7,7 @@ const hero = (runs: number): RunnerHero => ({
   id: 'u-1', name: 'Karl Persson', level: 3, ringTurn: 0.4, rank: 2, runs, xpToNext: 120, nextLevel: 4,
 });
 
-describe('HeroCard — rundor i singular och plural (RUN-140)', () => {
+describe('HeroCard — rundor i singular och plural', () => {
   it.each([
     [0, '#2 in the group · 0 runs'],
     [1, '#2 in the group · 1 run'],

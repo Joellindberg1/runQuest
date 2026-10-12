@@ -340,7 +340,7 @@ describe('Pack News — laddning, tomt och fel', () => {
     await waitFor(() => expect(location()).toBe('/log'));
   });
 
-  it('ett flöde med bara okända händelsetyper: tomtillståndet visas, inget filter och ingen tour (RUN-138)', async () => {
+  it('ett flöde med bara okända händelsetyper: tomtillståndet visas, inget filter och ingen tour', async () => {
     const unknown = (id: number) => ({ ...levelUp(id, 1), type: 'quest_completed', payload: { quest: 'x' } }) as unknown as NewsItem;
     setup([unknown(31), unknown(30)], null);
     renderNews();

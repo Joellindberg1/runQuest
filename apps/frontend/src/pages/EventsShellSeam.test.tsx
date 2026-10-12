@@ -31,7 +31,7 @@ const open = (id: string, name: string, over: Partial<EventItem> = {}) =>
 // med klienten utlämnad så att testet kan tvinga fram en ny hämtning.
 function renderShell(entry: string, width = 390) {
   setViewportWidth(width);
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   const auth: AuthContextType = {
     user: { id: ME.id, name: ME.name, email: 'joel@example.com', is_admin: false },
     login: async () => ({ success: true }), logout: () => {}, loading: false, isAdmin: false,

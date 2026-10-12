@@ -20,10 +20,8 @@ describe('badges-featuren: delade definitioner, inte egna kopior', () => {
     expect(codeFiles.map(([path]) => path).sort()).toEqual(expect.arrayContaining(['./api.ts', './badgeModel.ts', './hooks/useBadgeQueries.ts']));
   });
 
-  it('typerna kommer ur @runquest/shared: ingen egen deklaration av kontraktstyperna', () => {
-    const contract = /^\s*(export\s+)?(interface|type)\s+(BadgeUserItem|BadgeUserResponse|BadgeUserApiResponse|BadgeGroupMember|BadgeGroupResponse|BadgeGroupMeta|BadgeGroupApiResponse|BadgeShowcaseEntry|ShowcaseRequest|ShowcaseResponse|SeenRequest|SeenResponse|BadgeSeriesDef)\b/m;
-    for (const [path, text] of codeFiles) expect({ path, own: contract.test(stripComments(text)) }).toEqual({ path, own: false });
-  });
+  // Kontraktstyperna ur @runquest/shared (ingen egen deklaration), att bara api.ts nämner /badges-sökvägar/authenticatedRequest/fetch och att
+  // bara hooks/useBadgeQueries.ts anropar badgesApi, skriver badges-nycklar eller använder useQuery/useMutation vaktas av ESLint (eslint.config.js).
 
   it('inga hårdkodade serienamn, nycklar, tiernamn, flavors, måttetiketter eller kravtexter: allt läses ur shared', () => {
     const literals = new Set<string>([...TIER_NAMES]);
@@ -39,25 +37,9 @@ describe('badges-featuren: delade definitioner, inte egna kopior', () => {
       expect({ path, found }).toEqual({ path, found: [] });
     }
   });
-
-  it('klienten och endpoints bor i api.ts: bara api.ts nämner /badges/-sökvägar eller authenticatedRequest', () => {
-    for (const [path, text] of codeFiles) {
-      if (path === './api.ts') continue;
-      const code = stripComments(text);
-      expect({ path, endpoints: /['"`]\/badges\b/.test(code), request: /authenticatedRequest|\bfetch\(/.test(code) }).toEqual({ path, endpoints: false, request: false });
-    }
-  });
 });
 
 describe('badges-featuren: EN query-definition per resurs', () => {
-  it('bara useBadgeQueries anropar badgesApi och skriver badges-nycklar; vyerna går via hookarna', () => {
-    for (const [path, text] of codeFiles) {
-      if (path === './hooks/useBadgeQueries.ts' || path === './api.ts') continue;
-      const code = stripComments(text);
-      expect({ path, api: /badgesApi/.test(code), keys: /\[\s*'badges'/.test(code), query: /\buse(Query|Mutation)\(/.test(code) }).toEqual({ path, api: false, keys: false, query: false });
-    }
-  });
-
   it('varje resurs har exakt en useQuery: användarens samling och gruppen', () => {
     const hooks = stripComments(sources['./hooks/useBadgeQueries.ts']);
     expect(hooks.match(/\buseQuery\(/g)).toHaveLength(2);
