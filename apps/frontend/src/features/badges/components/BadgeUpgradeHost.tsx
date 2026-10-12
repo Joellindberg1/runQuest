@@ -10,19 +10,23 @@ import { BadgeUpgradeDialog } from './BadgeUpgradeDialog';
 const PAGE_TOUR_PREFIX = 'tour_';
 /** driver.js sätter klassen på <body> så länge en tour (första inloggningen eller en sidtour) körs. */
 const TOUR_RUNNING_CLASS = 'driver-active';
+/** FeatureTour sätter attributet på <body> från att en sidtour aktiverats tills den är klar, alltså även under fördröjningen innan driver.js startar (RUN-155). */
+const TOUR_PENDING_ATTR = 'data-rq-tour-pending';
 /** Så länge väntar popupen in gruppen (held-by); sedan visas den utan held-by hellre än inte alls. */
 export const GROUP_WAIT_MS = 2000;
 
 const entryKey = (entry: Pick<BadgePopupEntry, 'series' | 'tier'>): string => `${entry.series}:${entry.tier}`;
 
-/** True medan en driver.js-tour är igång. Läser <body>-klassen, så den fångar även sidtourer som startar efter en fördröjning. */
+const tourActive = (): boolean => document.body.classList.contains(TOUR_RUNNING_CLASS) || document.body.hasAttribute(TOUR_PENDING_ATTR);
+
+/** True medan en tour är igång eller en sidtour är på väg att starta. Läser <body>, så den fångar även sidtourer som startar efter en fördröjning. */
 function useTourRunning(): boolean {
-  const [running, setRunning] = useState(() => document.body.classList.contains(TOUR_RUNNING_CLASS));
+  const [running, setRunning] = useState(tourActive);
   useEffect(() => {
-    const sync = () => setRunning(document.body.classList.contains(TOUR_RUNNING_CLASS));
+    const sync = () => setRunning(tourActive());
     sync();
     const observer = new MutationObserver(sync);
-    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class', TOUR_PENDING_ATTR] });
     return () => observer.disconnect();
   }, []);
   return running;
