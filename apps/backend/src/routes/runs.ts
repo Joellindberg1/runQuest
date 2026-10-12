@@ -4,7 +4,10 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
-import { calculateCompleteRunXP, boostDeltasForRuns, type AdminSettings, type StreakMultiplier, type BoostSpec } from '@runquest/shared';
+import {
+  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns,
+  type AdminSettings, type StreakMultiplier, type BoostSpec, type PreviousRunDay,
+} from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
@@ -87,8 +90,7 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   if (prevError) throw new Error(`Failed to fetch previous run for reprocess (user ${userId}): ${prevError.message}`);
 
   const prevRun = prevRuns?.[0] ?? null;
-  let currentStreakCount = prevRun?.streak_day ?? 0;
-  let lastRunDate: Date | null = prevRun ? new Date(prevRun.date) : null;
+  let previous: PreviousRunDay | null = prevRun ? { day: prevRun.date, streakDay: prevRun.streak_day ?? 0 } : null;
 
   // Fetch only the affected runs
   const { data: runs, error } = await supabase
@@ -111,24 +113,15 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
 
   // Calculate all updates in memory — zero DB calls per run
   const updates = runs.map((run: { id: string; date: string; distance: number }, runIndex: number) => {
-    const runDate = new Date(run.date);
-    const daysDiff = lastRunDate
-      ? Math.floor((runDate.getTime() - lastRunDate.getTime()) / (1000 * 60 * 60 * 24))
-      : -1;
+    // Samma dag som föregående runda behåller dagen, dagen efter ökar den, ett glapp nollställer (shared/streak.ts).
+    const streakDay = advanceStreakDay(previous, run.date);
+    previous = { day: run.date, streakDay };
 
-    if (!lastRunDate || daysDiff > 1) {
-      currentStreakCount = 1;
-    } else if (daysDiff === 1) {
-      currentStreakCount++;
-    }
-    // daysDiff === 0 (same day): keep streak count as-is
-
-    const xp = calculateCompleteRunXP(run.distance, currentStreakCount, xpSettings, multipliers, boostDeltas[runIndex]);
-    lastRunDate = runDate;
+    const xp = calculateCompleteRunXP(run.distance, streakDay, xpSettings, multipliers, boostDeltas[runIndex]);
 
     return {
       id: run.id,
-      streak_day: currentStreakCount,
+      streak_day: streakDay,
       multiplier: xp.multiplier,
       base_xp: xp.baseXP,
       km_xp: xp.kmXP,

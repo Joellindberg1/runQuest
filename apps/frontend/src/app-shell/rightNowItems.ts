@@ -1,3 +1,4 @@
+import { stockholmDay, streakStatus } from '@runquest/shared';
 import { paths } from '@/paths';
 import type { RQIconName } from '@/shared/components/icons';
 
@@ -83,14 +84,9 @@ export function stockholmClock(now: Date): StockholmClock {
   }).formatToParts(now);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
   return {
-    date: `${get('year')}-${get('month')}-${get('day')}`,
+    date: stockholmDay(now),
     msIntoDay: (Number(get('hour')) * 3600 + Number(get('minute')) * 60 + Number(get('second'))) * 1000,
   };
-}
-
-function previousDay(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
 }
 
 /**
@@ -104,9 +100,9 @@ export function streakDeadline(
   if (!lastRunDate) return null;
   const clock = stockholmClock(now);
   const msLeftToday = MS_DAY - clock.msIntoDay;
-  const last = lastRunDate.slice(0, 10);
-  if (last === clock.date) return { msLeft: msLeftToday + MS_DAY, ranToday: true };
-  if (last === previousDay(clock.date)) return { msLeft: msLeftToday, ranToday: false };
+  const status = streakStatus(lastRunDate.slice(0, 10), clock.date);
+  if (status === 'ran_today') return { msLeft: msLeftToday + MS_DAY, ranToday: true };
+  if (status === 'ran_yesterday') return { msLeft: msLeftToday, ranToday: false };
   return null;
 }
 
