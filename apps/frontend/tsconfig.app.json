@@ -18,7 +18,7 @@
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "noFallthroughCasesInSwitch": false,
     "maxNodeModuleJsDepth": 2,
     "resolveJsonModule": true,

@@ -22,7 +22,7 @@ function setup() {
   return { ...renderHook(() => useCreateRun(), { wrapper }), invalidate };
 }
 
-const invalidatedKeys = (invalidate: ReturnType<typeof vi.spyOn>): unknown[] => invalidate.mock.calls.map(([filters]) => (filters as { queryKey: unknown }).queryKey);
+const invalidatedKeys = (invalidate: ReturnType<typeof vi.spyOn>): unknown[] => invalidate.mock.calls.map(([filters]: unknown[]) => (filters as { queryKey: unknown }).queryKey);
 
 afterEach(() => {
   vi.restoreAllMocks();

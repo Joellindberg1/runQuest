@@ -24,7 +24,7 @@ function setup<T>(useHook: () => T) {
   return { ...renderHook(useHook, { wrapper }), invalidate };
 }
 
-const invalidatedKeys = (invalidate: ReturnType<typeof vi.spyOn>): unknown[] => invalidate.mock.calls.map(([filters]) => (filters as { queryKey: unknown }).queryKey);
+const invalidatedKeys = (invalidate: ReturnType<typeof vi.spyOn>): unknown[] => invalidate.mock.calls.map(([filters]: unknown[]) => (filters as { queryKey: unknown }).queryKey);
 
 // Samma kedja som useCreateRun (Log): users-with-runs, leaderboard, öppna event, titlar (båda rötterna), utmaningar, head-to-head, gruppens historik.
 const CHAIN = [USERS_WITH_RUNS_QUERY_KEY, ['leaderboard'], EVENTS_QUERY_KEYS.open, ['titles'], ['multiple-user-titles'], ['challenges'], HEAD_TO_HEAD_ROOT, LOG_QUERY_KEYS.history, NEWS_QUERY_KEYS.feedRoot];
