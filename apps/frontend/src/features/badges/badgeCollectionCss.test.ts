@@ -57,18 +57,10 @@ describe('skelettet (F8)', () => {
   });
 });
 
-describe('profilens samlingskort är borta (V2.7)', () => {
-  it('ingen CSS för BadgeCollection: .rq-badge-collection*, .rq-badge-display*, .rq-badge-grid, stående kortets .rq-badge-card__id, skelettlistan och tomrutans minis', () => {
-    expect(badgesCss).not.toMatch(/\.rq-badge-(collection|display)/);
-    expect(badgesCss).not.toMatch(/\.rq-badge-grid\b/);
-    expect(badgesCss).not.toMatch(/\.rq-badge-card__id|\.rq-badge-skel-list|\.rq-badge-empty__minis/);
-  });
-
-  it('--rq-badge-grid-cols är borta ur båda temafilerna (inget läser den längre)', () => {
-    for (const css of [indexCss, facitCss]) expect(css).not.toMatch(/--rq-badge-grid-cols/);
-    expect(badgesCss).not.toMatch(/--rq-badge-grid-cols/);
-  });
-});
+// Att profilens samlingskort (.rq-badge-collection*, .rq-badge-display*, .rq-badge-grid, .rq-badge-card__id, skelettlistan, tomrutans minis), den
+// separata väljaren (.rq-badge-pick*, .rq-badge-slot*, .rq-badge-textlink) och panelens gamla rad är borta ur badges.css vaktas av Stylelint
+// (selector-disallowed-list i stylelint.config.js). Att en token som ingen läser inte blir kvar (t.ex. --rq-badge-grid-cols, --rq-badge-pick-clear)
+// prövar themeTokens.sync.test.
 
 describe('profilens sammanfattning (F10)', () => {
   const rules = [...badgesCss.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }));
@@ -100,20 +92,13 @@ describe('profilens sammanfattning (F10)', () => {
   });
 });
 
-describe('den separata väljaren är borta (V2.7, F13.4)', () => {
-  it('ingen CSS för väljaren eller platspanelen: .rq-badge-pick*, .rq-badge-slot*, .rq-badge-textlink', () => {
-    expect(badgesCss).not.toMatch(/\.rq-badge-(pick|slot|textlink)/);
-    expect(badgesCss).not.toMatch(/\.rq-badge-display__(edit|empty)/);
-  });
-
-  it('--rq-badge-pick-clear är borta ur båda temafilerna; --rq-badge-pick-hit (tryckytan) finns kvar: 44 px mobil, 24 px desktop, och läses av badges.css', () => {
+describe('tryckytan (V2.7, F13.4)', () => {
+  it('--rq-badge-pick-hit (tryckytan) är 44 px mobil och 24 px desktop, och läses av badges.css', () => {
     for (const css of [indexCss, facitCss]) {
-      expect(css).not.toMatch(/--rq-badge-pick-clear/);
       expect(css).toMatch(/--rq-badge-pick-hit:\s*44px;/);
       expect(css.slice(css.indexOf('@media (min-width: 1024px)'))).toMatch(/--rq-badge-pick-hit:\s*24px;/);
     }
     expect(badgesCss).toMatch(/var\(--rq-badge-pick-hit\)/);
-    expect(badgesCss).not.toMatch(/--rq-badge-pick-clear/);
   });
 });
 
@@ -168,7 +153,6 @@ describe('badges-sidans byggstenar (F9.9, F13.4)', () => {
     expect(indexZ).toBe(facitZ);
     expect(shellCss).toMatch(/\.rq-popover\.rq-popover--over-modal\s*\{[^}]*z-index:\s*var\(--rq-z-popover-over-modal\)/);
     expect(detailTsx).toMatch(/className="rq-popover rq-popover--over-modal rq-badge-detail"/);
-    expect(badgesCss).not.toMatch(/z-index/);
     expect(shellZ('.rq-modal')).toBeGreaterThan(0);
     expect(Number(indexZ)).toBeGreaterThan(shellZ('.rq-modal'));
     expect(Number(indexZ)).toBeGreaterThan(shellZ('.rq-scrim'));
@@ -242,13 +226,11 @@ describe('badges-sidans byggstenar (F9.9, F13.4)', () => {
 });
 
 describe('BADGES-panelen på Runner card (T5)', () => {
-  it('.rq-badge-panel* bor i badges.css och finns inte kvar i runner.css', () => {
-    expect(runnerCss).not.toMatch(/rq-badge-panel/);
-    // RUN-152: panelen är ett kompakt emblemrutnät; raden (__row/__text/__nameline/__display/__held) och namn-overriden är borta.
+  it('.rq-badge-panel* bor i badges.css (att de inte finns kvar i runner.css och att panelens gamla rad är borta vaktas av Stylelint)', () => {
+    // Panelen är ett kompakt emblemrutnät; raden (__row/__text/__nameline/__display/__held) och namn-overriden är borta.
     for (const selector of ['__head', '__title', '__aside', '__grid', '__item', '__empty', '__loading']) {
       expect(badgesCss, selector).toContain(`.rq-badge-panel${selector}`);
     }
-    expect(badgesCss).not.toMatch(/\.rq-badge-panel__(row|text|nameline|display|held|list|name)\b/);
   });
 });
 

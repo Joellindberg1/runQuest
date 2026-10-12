@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { defineDesignGuards } from '@/test/designGuards';
 
 // Vakttester över badges-featuren (ADR 009): typerna kommer ur @runquest/shared, varje resurs har EN query-definition, och inga
 // serienamn/texter är hårdkodade — allt om serierna läses ur shared (BADGE_SERIES, TIER_NAMES, requirementText, tierFlavor).
-// Globben tar med framtida vyer (components/) automatiskt, så reglerna gäller även RUN-127 och framåt.
+// Globben tar med framtida vyer (components/) automatiskt, så reglerna gäller även nya vyer. Språk-, ikon- och emojiregler för badges-koden
+// (sv-SE, toast, lucide, egna <svg>, emojis), designreglerna för CSS:en och "ingen global procent" vaktas av lint (eslint.config.js, stylelint.config.js).
 
 const sources = import.meta.glob(['./**/*.{ts,tsx}', '!./**/*.test.{ts,tsx}', '!./**/*.fixture.ts'], {
   query: '?raw', import: 'default', eager: true,
@@ -61,50 +61,11 @@ describe('badges-featuren: EN query-definition per resurs', () => {
   });
 });
 
-describe('badges-featuren: språk och UI-regler som gäller även logiken', () => {
-  it('engelskt UI i en-GB: ingen sv-SE, inga toast-anrop och inga Intl-datumformat', () => {
-    for (const [path, text] of codeFiles) {
-      const code = stripComments(text);
-      expect({
-        path, svSE: /sv-SE/.test(code), toast: /\btoast[.(]|from ['"]sonner['"]/.test(code), locale: /toLocale(Date|Time)?String|Intl\.DateTimeFormat/.test(code),
-      }).toEqual({ path, svSE: false, toast: false, locale: false });
-    }
-  });
-
-  it('ingen lucide-import, inga egna <svg> och inga emojis i texterna (RQIcon är enda ikonkällan, regel 10)', () => {
-    for (const [path, text] of codeFiles) {
-      const code = stripComments(text);
-      expect({ path, lucide: /lucide-react/.test(code), svg: /<svg/.test(code), emoji: code.match(/\p{Extended_Pictographic}/gu) ?? [] }).toEqual({
-        path, lucide: false, svg: false, emoji: [],
-      });
-    }
-  });
-});
-
-// ─── RUN-127: emblemet, tokens och rörelse (spec §3 och §5, Design Council 3–7) ──────────────────────────────────────────────────
-
-const viewSources = import.meta.glob(['./components/**/*.{ts,tsx}', '!./**/*.test.{ts,tsx}', '../../pages/BadgesPreviewPage.tsx'], {
-  query: '?raw', import: 'default', eager: true,
-}) as Record<string, string>;
-
-defineDesignGuards({
-  name: 'Badge-emblemet och förhandsvisningen',
-  baseUrl: import.meta.url,
-  sources: viewSources,
-  cssFiles: ['./badges.css', '../../pages/preview/badgeSheet.css'],
-  tokenPrefix: '--rq-badge-',
-  // --rq-emblem-* mappar nivå/storlek på tokens (så att varje lager skrivs en gång); --rq-c/--rq-c-solid är chipets accent (.rq-chip--status).
-  localVars: [
-    '--rq-emblem-c', '--rq-emblem-c-rgb', '--rq-emblem-grad', '--rq-emblem-w', '--rq-emblem-h', '--rq-emblem-icon', '--rq-emblem-core',
-    '--rq-emblem-ring', '--rq-emblem-ring-core', '--rq-emblem-glow', '--rq-emblem-glow-leg', '--rq-emblem-ignite-from', '--rq-c', '--rq-c-solid',
-  ],
-  allowAnimation: true,
-});
+// ─── Emblemet, tokens och rörelse (spec §3 och §5, Design Council 3–7) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const readFromDisk = (relative: string) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
 const badgesCss = stripComments(readFromDisk('./badges.css'));
 const indexCss = readFromDisk('../../index.css');
-const facitCss = readFromDisk('../../../../../docs/design/temafil-forslag.css');
 
 interface CssBlock { at: string; selector: string; body: string }
 
@@ -228,18 +189,11 @@ describe('badges.css: glöden (spec §3)', () => {
   });
 });
 
-describe('--rq-badge-*-tokens: samma värden i index.css och temafil-forslag.css, och i designkällan runquest-badges.js', () => {
+describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js (att index.css och temafil-forslag.css är lika prövar themeTokens.sync.test)', () => {
   const declarations = (text: string) =>
     new Map([...text.matchAll(/^\s*(--rq-(?:dur-)?badge-[a-z0-9-]+):\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim().replace(/\s+/g, ' ')] as const));
   const index = declarations(indexCss);
-  const facit = declarations(facitCss);
   const norm = (value: string | undefined) => (value ?? '').replace(/\s+/g, '').toLowerCase();
-
-  it('varje token har exakt samma värde i båda temafilerna (inklusive --rq-dur-badge-ignite)', () => {
-    expect(index.size).toBeGreaterThan(40);
-    expect([...index.keys()].sort()).toEqual([...facit.keys()].sort());
-    for (const [name, value] of index) expect({ name, value }).toEqual({ name, value: facit.get(name) });
-  });
 
   const source = readFromDisk('../../../../../docs/design/claude-design/runquest-badges.js');
   const tiersBlock = source.slice(source.indexOf('const TIERS = {'), source.indexOf('const ORDER'));

@@ -211,6 +211,7 @@ const CHANGELOG_EXTRA = [
   ...syntaxRule("Datumen står som text i changelog.json: inget new Date().", "NewExpression[callee.name='Date']"),
 ];
 const NO_NUMBER_FORMAT = syntaxRule("Landing formaterar inte tal med Intl (texten är hårdskriven).", "MemberExpression[object.name='Intl'][property.name='NumberFormat']");
+const NO_NAMEROW = textRule("Den gamla namnraden för tabellen (.rq-board-namerow) är borta.", "rq-board-namerow");
 const NO_RQ_DOT = textRule("Olästpricken är statisk: de delade prick-varianterna .rq-dot--live/--alarm blinkar.", "rq-dot--");
 
 export default tseslint.config(
@@ -318,7 +319,7 @@ export default tseslint.config(
       "src/shared/hooks/useViewParam.ts", "src/shared/hooks/useXpConfig.ts",
     ],
     {
-      style: "noLiteral",
+      style: "noLiteral", extra: NO_NAMEROW,
       ignores: ["src/features/leaderboard/boardFormat.ts", "src/features/leaderboard/components/BoardParts.tsx", "src/features/leaderboard/hooks/useLeaderboardData.ts"],
     },
   ),
@@ -364,9 +365,9 @@ export default tseslint.config(
   // - BoardParts.tsx: vimpeln ritas som en <svg> ur den delade geometrin (challengeMark).
   // - useLeaderboardData.ts: ett toast.error vid hämtningsfel.
   // - titleFormat.ts: dagen skrivs med toLocaleDateString('en-GB', { timeZone: 'UTC' }).
-  designGroup(["src/features/leaderboard/boardFormat.ts"], { style: "noLiteral", omit: ["locale"] }),
-  designGroup(["src/features/leaderboard/components/BoardParts.tsx"], { style: "noLiteral", omit: ["svg"] }),
-  designGroup(["src/features/leaderboard/hooks/useLeaderboardData.ts"], { style: "noLiteral", omit: ["toast"], allowSonner: true }),
+  designGroup(["src/features/leaderboard/boardFormat.ts"], { style: "noLiteral", extra: NO_NAMEROW, omit: ["locale"] }),
+  designGroup(["src/features/leaderboard/components/BoardParts.tsx"], { style: "noLiteral", extra: NO_NAMEROW, omit: ["svg"] }),
+  designGroup(["src/features/leaderboard/hooks/useLeaderboardData.ts"], { style: "noLiteral", extra: NO_NAMEROW, omit: ["toast"], allowSonner: true }),
   designGroup(["src/features/titles/titleFormat.ts"], { omit: ["locale"] }),
 
   // Loggning går via logger (en enda plats att styra nivåer/maskering), aldrig console.* direkt.

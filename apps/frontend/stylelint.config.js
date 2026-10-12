@@ -93,7 +93,15 @@ export default {
     // Titles och Runner card hade ingen vakt för line-height/rörelse; deras enhetslösa radhöjder (.9, 1.15) och Runner cards ensamma knopp-animation
     // är kända luckor som inte ändras här (CSS-ändring = visuell ändring), men de får inte växa.
     { files: ["src/features/titles/titles.css"], rules: designRules({ locals: ["rq-edge"], rawLineHeight: true }) },
-    { files: ["src/features/runner/runner.css"], rules: designRules({ animations: ["/^rqRunnerKnob var\\(--rq-dur-bar\\) var\\(--rq-ease-bar\\) both$/"], rawLineHeight: true }) },
+    {
+      files: ["src/features/runner/runner.css"],
+      rules: designRules({
+        animations: ["/^rqRunnerKnob var\\(--rq-dur-bar\\) var\\(--rq-ease-bar\\) both$/"],
+        rawLineHeight: true,
+        // BADGES-panelens stil bor i badges.css (flyttad från runner.css).
+        bannedSelectors: ["/rq-badge-panel/"],
+      }),
+    },
     { files: ["src/shared/components/error-state.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line"] }) },
     {
       // Emblemets lokala mappning nivå/storlek → tokens (--rq-emblem-*) och chippets accent. Animationen får vara vilken som helst (andning,
