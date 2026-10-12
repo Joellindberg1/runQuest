@@ -18,6 +18,32 @@ const MULTIPLE_USER_TITLES_ROOT = ['multiple-user-titles'] as const;
  */
 export const EVENT_FOLLOW_UP_MS = 4_000;
 
+/** Texten när en runda sparats men serverns XP-omräkning föll — ett nytt försök skulle skapa en dubblett. */
+export const RUN_SAVED_RECALCULATING = "Saved — XP is recalculating; don't submit again";
+/** Samma sak vid radering: rundan är borta, omräkningen av streak och XP är inte klar. */
+export const RUN_DELETED_RECALCULATING = 'Run deleted — XP is recalculating';
+
+/**
+ * Felet när servern skrev ändringen men omräkningen föll (500 med `written: true`). Skilt från vanliga fel så att hookarna
+ * invaliderar cachen och skärmarna visar "sparad" i stället för ett generiskt fel.
+ */
+export class RunWrittenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RunWrittenError';
+  }
+}
+
+/** Felet en run-mutation kastar för ett misslyckat svar: `RunWrittenError` om servern skrev, annars ett vanligt `Error`. */
+export function runChangeError(response: { error?: string; written?: true }, fallback: string): Error {
+  return response.written ? new RunWrittenError(response.error || fallback) : new Error(response.error || fallback);
+}
+
+/** `onError` för run-mutationerna: skrev servern ändå är cachen inaktuell och hela kedjan invalideras (vanliga fel rör ingenting). */
+export function invalidateIfRunWritten(queryClient: QueryClient) {
+  return (error: Error): Promise<void> | undefined => (error instanceof RunWrittenError ? invalidateAfterRunChange(queryClient) : undefined);
+}
+
 /**
  * Allt som räknas ur rundorna när en runda läggs till, ändras eller raderas: gruppens användare (streak, XP, nivå, km, hela
  * rundlistan), Boards leaderboard/vecka/rank-delta, öppna event, titlarna (`['titles']` samt `['multiple-user-titles']`),

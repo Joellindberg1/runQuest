@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { buildSubmission, confirmationText, initialForm, todayOf, validateForm, type FieldErrors, type LogForm, type Surface } from '../logModel';
+import { RUN_SAVED_RECALCULATING, RunWrittenError } from '@/features/runs/runEffects';
 import { useCreateRun } from './useCreateRun';
 
 export interface LogFormState {
@@ -52,8 +53,15 @@ export function useLogForm(now: Date): LogFormState {
       setNotice(confirmationText(run));
       setForm(initialForm(new Date()));
       setAttempted(false);
-    } catch {
-      // Felet ligger i create.error och visas av skärmen.
+    } catch (error) {
+      if (error instanceof RunWrittenError) {
+        // Rundan finns redan (cachen är invaliderad): formuläret återställs så att en ny inskickning inte skapar en dubblett.
+        create.reset();
+        setNotice(RUN_SAVED_RECALCULATING);
+        setForm(initialForm(new Date()));
+        setAttempted(false);
+      }
+      // Övriga fel ligger i create.error och visas av skärmen.
     }
     return null;
   };

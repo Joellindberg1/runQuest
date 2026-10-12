@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { Run } from '@runquest/types';
 import { MIN_RUN_DATE } from '@/constants/appConstants';
+import { RUN_DELETED_RECALCULATING, RUN_SAVED_RECALCULATING, RunWrittenError } from '@/features/runs/runEffects';
 import { useDeleteRun, useUpdateRun } from '../hooks/useRunChanges';
 import { formatKm } from '../profileFormat';
 import { STRAVA_DELETE_HINT, buildUpdate, buildXpParts, deleteNotice, editFormFor, isDirty, isStravaRun, updateNotice, validateEdit, type EditForm } from '../profileModel';
@@ -70,6 +71,12 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
       doneRef.current = true;
       onDone(updateNotice(updated));
     } catch (error) {
+      if (error instanceof RunWrittenError) {
+        // Ändringen är skriven och cachen omhämtad; rutan stängs så att ingen sparar om samma sak.
+        doneRef.current = true;
+        onDone(RUN_SAVED_RECALCULATING);
+        return;
+      }
       setServerError(error instanceof Error ? error.message : 'Failed to update the run');
     }
   };
@@ -82,6 +89,11 @@ export function EditRunSheet({ run, today, onClose, onDone, onRestoreFocus }: Ed
       doneRef.current = true;
       onDone(deleteNotice(run));
     } catch (error) {
+      if (error instanceof RunWrittenError) {
+        doneRef.current = true;
+        onDone(RUN_DELETED_RECALCULATING);
+        return;
+      }
       setServerError(error instanceof Error ? error.message : 'Failed to delete the run');
     }
   };

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Run } from '@runquest/types';
 import { backendApi } from '@/shared/services/backendApi';
-import { invalidateAfterRunChange } from '@/features/runs/runEffects';
+import { invalidateAfterRunChange, invalidateIfRunWritten, runChangeError } from '@/features/runs/runEffects';
 import type { RunSubmission } from '../logModel';
 
 export { EVENT_FOLLOW_UP_MS } from '@/features/runs/runEffects';
@@ -17,9 +17,10 @@ export function useCreateRun() {
   return useMutation({
     mutationFn: async (submission: RunSubmission): Promise<Run> => {
       const res = await backendApi.createRun(submission.date, submission.distance, submission.isTreadmill);
-      if (!res.success || !res.data) throw new Error(res.error || 'Failed to log the run');
+      if (!res.success || !res.data) throw runChangeError(res, 'Failed to log the run');
       return res.data;
     },
     onSuccess: () => invalidateAfterRunChange(queryClient),
+    onError: invalidateIfRunWritten(queryClient),
   });
 }

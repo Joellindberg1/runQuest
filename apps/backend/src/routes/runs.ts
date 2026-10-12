@@ -360,7 +360,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     }).catch(e => logger.error('❌ checkEventQualification error:', e));
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was created but XP recalculation failed' }); return;
+      res.status(500).json({ error: 'Run was created but XP recalculation failed', written: true }); return;
     }
 
     // Fetch the fully processed run
@@ -487,7 +487,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was updated but XP recalculation failed' }); return;
+      res.status(500).json({ error: 'Run was updated but XP recalculation failed', written: true }); return;
     }
 
     logger.info('\n' + '='.repeat(80));
@@ -590,7 +590,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     await calculateUserTotals(userId);
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was deleted but XP recalculation failed' }); return;
+      res.status(500).json({ error: 'Run was deleted but XP recalculation failed', written: true }); return;
     }
 
     // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
