@@ -95,6 +95,13 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   message?: string;
+  /** POST/PUT/DELETE /runs: servern skrev ändringen men XP-omräkningen föll (500). Cachen är inaktuell och ett nytt försök kan dubblera. */
+  written?: true;
+}
+
+/** Felsvaret när servern skrev raden men omräkningen föll — `written` följer med så att hookarna kan hålla cachen i takt. */
+function writtenFailure(error: unknown): ApiResponse<never> {
+  return { success: false, error: typeof error === 'string' ? error : undefined, written: true };
 }
 
 class BackendApiService {
@@ -877,6 +884,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        if (data.written === true) return writtenFailure(data.error);
         throw new Error(data.error || 'Failed to update run');
       }
 
@@ -904,6 +912,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        if (data.written === true) return writtenFailure(data.error);
         throw new Error(data.error || 'Failed to delete run');
       }
 
@@ -1143,6 +1152,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        if (data.written === true) return writtenFailure(data.error);
         throw new Error(data.error || 'Failed to create run');
       }
 

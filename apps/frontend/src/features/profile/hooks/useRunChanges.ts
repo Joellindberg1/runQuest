@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Run } from '@runquest/types';
 import { backendApi } from '@/shared/services/backendApi';
-import { invalidateAfterRunChange } from '@/features/runs/runEffects';
+import { invalidateAfterRunChange, invalidateIfRunWritten, runChangeError } from '@/features/runs/runEffects';
 import type { RunUpdate } from '../profileModel';
 
 interface UpdateRunArgs {
@@ -21,10 +21,11 @@ export function useUpdateRun() {
   return useMutation({
     mutationFn: async ({ run, update }: UpdateRunArgs): Promise<Run> => {
       const res = await backendApi.updateRun(run.id, update);
-      if (!res.success) throw new Error(res.error || 'Failed to update the run');
+      if (!res.success) throw runChangeError(res, 'Failed to update the run');
       return res.data ? { ...run, ...res.data } : { ...run, ...update };
     },
     onSuccess: () => invalidateAfterRunChange(queryClient),
+    onError: invalidateIfRunWritten(queryClient),
   });
 }
 
@@ -35,9 +36,10 @@ export function useDeleteRun() {
   return useMutation({
     mutationFn: async (run: Run): Promise<Run> => {
       const res = await backendApi.deleteRun(run.id);
-      if (!res.success) throw new Error(res.error || 'Failed to delete the run');
+      if (!res.success) throw runChangeError(res, 'Failed to delete the run');
       return run;
     },
     onSuccess: () => invalidateAfterRunChange(queryClient),
+    onError: invalidateIfRunWritten(queryClient),
   });
 }
