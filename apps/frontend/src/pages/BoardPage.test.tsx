@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { Run, User, UserTitle } from '@runquest/types';
 import BoardPage from './BoardPage';
+import { PENNANT_PATH, PENNANT_VIEW_BOX } from '@/shared/components/challengeMark';
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
 import { ME, RANK_DELTA, WEEK, XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
@@ -735,6 +736,18 @@ describe('visade badges i Season-raderna', () => {
 
 describe('vimpeln som utmaningstecken (F12.4)', () => {
   // Vimpelns geometri (path, siffrans y, viewBox) och att sköldens path är borta testas i shared/components/challengeMark.test.ts.
+  it('varje vimpel ritas med den delade geometrin: viewBox och path ur challengeMark', async () => {
+    const { container } = renderBoard();
+    await screen.findByTestId('podium-1');
+
+    const pennants = [...container.querySelectorAll('svg.rq-ribbon')];
+    expect(pennants.length).toBeGreaterThan(0);
+    for (const svg of pennants) {
+      expect(svg).toHaveAttribute('viewBox', PENNANT_VIEW_BOX);
+      expect(svg.querySelector('path')).toHaveAttribute('d', PENNANT_PATH);
+    }
+  });
+
   it.each([MOBILE, DESKTOP])('vimplarna ritas i podiet med sin tillgängliga etikett (%ipx)', async (width) => {
     renderBoard('/board', width);
     const karl = await screen.findByTestId('podium-1');
