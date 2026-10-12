@@ -60,4 +60,58 @@ describe('levelService – retry efter fallback', () => {
 
     expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
   });
+
+  it('fallback hålls kvar och DB läses inte om innan TTL gått ut', async () => {
+    const read = mockReads(failing, ok);
+    const service = await freshService();
+
+    await service.getAllLevelRequirements();
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 - 1);
+
+    expect(await service.getAllLevelRequirements()).toEqual(FALLBACK_LEVEL_REQUIREMENTS);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('misslyckas även retryn får fallback ett nytt TTL-fönster innan nästa försök', async () => {
+    const read = mockReads(failing, failing, ok);
+    const service = await freshService();
+
+    await service.getAllLevelRequirements();
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    expect(await service.getAllLevelRequirements()).toEqual(FALLBACK_LEVEL_REQUIREMENTS);
+    expect(read).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 - 1);
+    await service.getAllLevelRequirements();
+    expect(read).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
+    expect(read).toHaveBeenCalledTimes(3);
+  });
+
+  it('om getSupabaseClient kastar används fallback och nytt försök görs efter TTL', async () => {
+    const service = await freshService();
+    vi.mocked(getSupabaseClient).mockImplementation(() => {
+      throw new Error('not configured');
+    });
+    expect(await service.getAllLevelRequirements()).toEqual(FALLBACK_LEVEL_REQUIREMENTS);
+
+    mockReads(ok);
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+    expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
+  });
+
+  it('lyckad läsning cachas: inget nytt DB-anrop, ens långt efter TTL', async () => {
+    const read = mockReads(ok, failing);
+    const service = await freshService();
+
+    expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    expect(await service.getAllLevelRequirements()).toEqual(DB_ROWS);
+    expect(await service.getLevelFromXP(15)).toBe(2);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
 });
