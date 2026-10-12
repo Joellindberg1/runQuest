@@ -6,10 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+# Ny push på samma PR avbryter den gamla körningen (sparar minuter). Pushar till main avbryts aldrig,
+# så varje main-commit får sin kontroll. Inga paths-ignore: required checks (branch protection) skulle då
+# stå som pending för alltid på PR:er som bara rör docs.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   backend:
     name: Backend — typecheck & tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/backend
@@ -40,6 +48,7 @@ jobs:
   shared:
     name: Shared — tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +68,7 @@ jobs:
   frontend:
     name: Frontend — build, typecheck & lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/frontend
@@ -78,6 +88,14 @@ jobs:
         run: |
           node scripts/check-versions.mjs
           node --test scripts/check-versions.test.mjs
+        working-directory: .
+
+      # Repo-vakter (RUN-221): inget workspace med test-skript får sakna testfiler, och varje TODO/FIXME
+      # i apps/* och packages/* måste bära en RUN-nyckel. Inga beroenden, så de kör före npm ci.
+      - name: Repo guards
+        run: |
+          node scripts/ci-guards.mjs
+          node --test scripts/ci-guards.test.mjs
         working-directory: .
 
       - name: Install dependencies
