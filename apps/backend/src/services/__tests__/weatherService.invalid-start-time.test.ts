@@ -9,7 +9,6 @@ const upsert = vi.fn(async () => ({ error: null }));
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(() => ({ from: () => ({ upsert }) })),
 }));
 

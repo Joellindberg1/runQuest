@@ -11,20 +11,6 @@ export const titleQueryKeys = {
   userTitles: (userId: string) => [...titleQueryKeys.all, 'user', userId] as const,
 };
 
-/** Fetch all titles (regardless of leaderboard status) for eligibility display. */
-export function useAllTitles() {
-  return useQuery({
-    queryKey: [...titleQueryKeys.all, 'all-titles'] as const,
-    queryFn: async () => {
-      const response = await backendApi.getAllTitles();
-      return response.success ? (response.data ?? []) : [];
-    },
-    staleTime: 10 * 60 * 1000,
-    gcTime: 20 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-}
-
 /** Fetch full title leaderboard with React Query caching. */
 export function useTitleLeaderboard() {
   return useQuery({
@@ -79,13 +65,6 @@ export function useMultipleUserTitles(userIds: string[]) {
   });
 }
 
-/** Mutation to save current user's displayed title selection (up to 3, ordered). */
-export function useUpdateDisplayedTitles() {
-  return useMutation({
-    mutationFn: (titleIds: string[]) => backendApi.updateDisplayedTitles(titleIds),
-  });
-}
-
 /** Mutation for refreshing title leaderboard calculations (admin). */
 export function useRefreshTitleLeaderboards() {
   const queryClient = useQueryClient();
@@ -95,25 +74,4 @@ export function useRefreshTitleLeaderboards() {
       queryClient.invalidateQueries({ queryKey: titleQueryKeys.all });
     },
   });
-}
-
-/** Invalidate title cache after run operations. */
-export function useInvalidateTitleQueries() {
-  const queryClient = useQueryClient();
-  return {
-    invalidateLeaderboard: () =>
-      queryClient.invalidateQueries({ queryKey: titleQueryKeys.leaderboard() }),
-    invalidateUserTitles: (userId?: string) => {
-      if (userId) {
-        queryClient.invalidateQueries({ queryKey: titleQueryKeys.userTitles(userId) });
-      } else {
-        queryClient.invalidateQueries({
-          queryKey: titleQueryKeys.all,
-          predicate: (query) => query.queryKey.includes('user'),
-        });
-      }
-    },
-    invalidateAll: () =>
-      queryClient.invalidateQueries({ queryKey: titleQueryKeys.all }),
-  };
 }

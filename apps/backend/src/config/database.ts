@@ -41,37 +41,6 @@ export const supabase = {
   }
 };
 
-// Test database connection function
-export async function testDatabaseConnection() {
-  try {
-    logger.info('🔍 Testing database connection...');
-    
-    const client = initializeSupabase();
-    
-    const { error, count } = await client
-      .from('users')
-      .select('id', { count: 'exact', head: true });
-
-    if (error) {
-      logger.error('❌ Database connection failed:', error.message);
-      return { success: false, error: error.message };
-    }
-
-    logger.info(`✅ Database connection successful!`);
-    logger.info(`📊 Users table accessible, total users: ${count}`);
-
-    return {
-      success: true,
-      message: 'Database connection working',
-      usersCount: count
-    };
-    
-  } catch (error) {
-    logger.error('❌ Database test failed:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
 export default supabase;
 
 // Export direct client getter for convenience

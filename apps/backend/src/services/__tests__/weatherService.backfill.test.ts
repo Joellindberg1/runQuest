@@ -9,7 +9,6 @@ const holder = vi.hoisted(() => ({ client: null as any }));
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
-  testDatabaseConnection: vi.fn(),
   getSupabaseClient: vi.fn(() => holder.client),
 }));
 

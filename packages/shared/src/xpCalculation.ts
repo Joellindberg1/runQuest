@@ -195,34 +195,3 @@ export function calculateCompleteRunXP(
     breakdown
   };
 }
-
-/**
- * Validates that an XP calculation result is internally consistent.
- */
-export function validateXPCalculation(
-  distanceKm: number,
-  result: XPCalculationResult | CompleteRunXP
-): { isValid: boolean; error?: string } {
-  if (!distanceKm || distanceKm <= 0) {
-    return { isValid: false, error: 'Invalid distance provided' };
-  }
-
-  const totalXP = 'finalXP' in result ? result.finalXP : result.totalXP;
-
-  if (distanceKm >= 1.0 && totalXP <= 0) {
-    return {
-      isValid: false,
-      error: `Run of ${distanceKm}km should generate XP but got ${totalXP}`
-    };
-  }
-
-  if (!result.baseXP && result.baseXP !== 0) {
-    return { isValid: false, error: 'Missing baseXP in calculation result' };
-  }
-
-  if (!result.kmXP && result.kmXP !== 0) {
-    return { isValid: false, error: 'Missing kmXP in calculation result' };
-  }
-
-  return { isValid: true };
-}
