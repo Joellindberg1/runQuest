@@ -314,7 +314,21 @@ export async function settleChallenge(challengeId: string): Promise<void> {
         .eq('id', challengeId)
         .eq('status', 'completed');
       if (releaseError) {
-        logger.error(`❌ Could not release claim on challenge ${challengeId} after failed boost insert:`, releaseError);
+        // Fastlåst tillstånd: utmaningen är completed utan boostar och schedulern tar den aldrig igen. Spelarna ska
+        // åtminstone inte hållas upptagna (challenge_active) — det återställs best-effort. W/D/L delas inte ut: något
+        // avgjort resultat finns inte förrän någon rättat boostarna manuellt.
+        logger.error(
+          `🚨 KRITISK: challenge ${challengeId} is completed WITHOUT boosts and the claim could not be released — manual repair needed ` +
+          `(insert winner/loser rows in user_boosts or set the challenge back to active):`,
+          { boostError, releaseError },
+        );
+        const { error: freeError } = await supabase
+          .from('users')
+          .update({ challenge_active: false })
+          .in('id', [challenge.challenger_id, challenge.opponent_id]);
+        if (freeError) {
+          logger.error(`🚨 KRITISK: could not reset challenge_active for the players of challenge ${challengeId} either:`, freeError);
+        }
         throw new Error(
           `Failed to create boosts for challenge ${challengeId}: ${boostError.message}; ` +
           `the claim could not be released either (challenge stays completed without boosts): ${releaseError.message}`,

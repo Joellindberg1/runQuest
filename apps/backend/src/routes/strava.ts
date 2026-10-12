@@ -664,13 +664,31 @@ async function syncUserStravaActivities(userId: string): Promise<{
     // Get existing runs to avoid duplicates
     const { data: existingRuns, error: runsError } = await supabase
       .from('runs')
-      .select('external_id, date, distance')
+      .select('external_id, date, distance, xp_gained')
       .eq('user_id', userId)
       .eq('source', 'strava')
       .not('external_id', 'is', null);
-    
+
     if (runsError) {
       return { success: false, error: 'Failed to fetch existing runs' };
+    }
+
+    // Självläkning (RUN-215): en import vars omräkning felade lämnar rader med placeholder-XP 0, och nästa synk ser
+    // dem som "redan importerade" och räknar aldrig om dem. En riktig runda har alltid XP > 0 (basXP > 0), så XP 0 =
+    // aldrig omräknad: räkna om från den äldsta, best-effort och innan Strava-anropet så att läkningen inte hänger på
+    // Strava-API:t. Misslyckas den försöker nästa synk igen; synken i övrigt påverkas inte.
+    const unprocessedDates = (existingRuns ?? [])
+      .filter((run: any) => !(Number(run.xp_gained) > 0))
+      .map((run: any) => run.date as string)
+      .sort();
+    if (unprocessedDates.length > 0) {
+      logger.warn(`⚠️ ${unprocessedDates.length} imported Strava run(s) have placeholder XP 0 — reprocessing from ${unprocessedDates[0]}`);
+      try {
+        await reprocessRunsFromDate(userId, unprocessedDates[0]);
+        await calculateUserTotals(userId);
+      } catch (healError) {
+        logger.error(`❌ Self-heal reprocess from ${unprocessedDates[0]} failed for user ${userId}:`, healError);
+      }
     }
     
     logger.info(`💾 Found ${existingRuns?.length || 0} existing Strava runs in database`);
@@ -816,11 +834,24 @@ async function syncUserStravaActivities(userId: string): Promise<{
         .sort();
       const earliestDate = dates[0];
       logger.info(`🔄 Reprocessing from ${earliestDate} to recalculate streaks and XP...`);
-      await reprocessRunsFromDate(userId, earliestDate);
+      // Ett omräkningsfel avbryter inte resten: totaler, väder och eventkvalificering körs best-effort (annars är datat
+      // sämre än före RUN-215), och synken rapporteras som misslyckad. Rader med XP 0 läks av nästa synk (se ovan).
+      let reprocessError: unknown = null;
+      try {
+        await reprocessRunsFromDate(userId, earliestDate);
+      } catch (e) {
+        reprocessError = e;
+        logger.error(`❌ Reprocess after Strava import failed for user ${userId}:`, e);
+      }
 
       // Fetch weather before title calculation so all data is available
       const newRunData = fulfilledResults.map(r => r.value).filter(Boolean);
-      await WeatherService.fetchAndSaveWeatherForRuns(newRunData);
+      try {
+        await WeatherService.fetchAndSaveWeatherForRuns(newRunData);
+      } catch (weatherError) {
+        if (!reprocessError) throw weatherError;
+        logger.error(`❌ Weather fetch failed after failed reprocess for user ${userId}:`, weatherError);
+      }
 
       await calculateUserTotals(userId);
 
@@ -835,6 +866,15 @@ async function syncUserStravaActivities(userId: string): Promise<{
           distanceKm: activity.distance / 1000,
           isTreadmill: activity.trainer === true,
         }).catch((e: unknown) => logger.error('❌ checkEventQualification (strava) error:', e));
+      }
+
+      if (reprocessError) {
+        return {
+          success: false,
+          newRuns: importedRuns,
+          totalActivities: activities.length,
+          error: 'Imported runs but failed to recalculate XP',
+        };
       }
     }
 

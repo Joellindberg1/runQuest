@@ -162,6 +162,21 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   logger.info(`✅ Reprocessed ${runs.length} runs successfully`);
 }
 
+/**
+ * Kör omräkningen men kastar inte: returnerar false vid fel. Rutterna anropar calculateUserTotals ändå (best-effort,
+ * den kastar aldrig) och svarar sedan 500 — ett reprocess-fel får inte lämna totalerna sämre än före RUN-215, då
+ * totalerna alltid räknades om. Rundor som hann få placeholder-XP rättas av nästa skrivning/omräkning från samma datum.
+ */
+async function tryReprocessRunsFromDate(userId: string, fromDate: string): Promise<boolean> {
+  try {
+    await reprocessRunsFromDate(userId, fromDate);
+    return true;
+  } catch (e) {
+    logger.error(`❌ Reprocess from ${fromDate} failed for user ${userId}:`, e);
+    return false;
+  }
+}
+
 // GET /api/runs/group-history[?limit=&offset=] - Get runs for users in same group (ADR 007 B9)
 // Utan parametrar: samma default (100) som tidigare; svaret får additivt meta.
 const GROUP_RUNS_PAGE = { defaultLimit: 100, maxLimit: 200 };
@@ -337,9 +352,9 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     logger.info(`✅ Run created, reprocessing from ${date}...`);
 
     // Only reprocess from this run's date — earlier runs are unaffected
-    await reprocessRunsFromDate(userId, date);
+    const reprocessed = await tryReprocessRunsFromDate(userId, date);
 
-    // Recalculate user totals (scoped to user's group for title processing)
+    // Recalculate user totals (scoped to user's group for title processing) — även om omräkningen felade (best-effort)
     await calculateUserTotals(userId);
 
     // Check if this run qualifies for any active events (fire-and-forget, non-blocking)
@@ -350,6 +365,10 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       distanceKm: distanceNum,
       groupId: req.user!.group_id,
     }).catch(e => logger.error('❌ checkEventQualification error:', e));
+
+    if (!reprocessed) {
+      res.status(500).json({ error: 'Run was created but XP recalculation failed' }); return;
+    }
 
     // Fetch the fully processed run
     const { data: processedRun, error: fetchError } = await supabase
@@ -441,18 +460,19 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Failed to update run' }); return;
     }
 
+    let reprocessed = true;
     if (dateChanged) {
       // Date changed — reprocess from the earlier of old and new date
       const fromDate = existingRun.date < date ? existingRun.date : date;
       logger.info(`🔄 Date changed (${existingRun.date} → ${date}), reprocessing from ${fromDate}`);
-      await reprocessRunsFromDate(userId, fromDate);
+      reprocessed = await tryReprocessRunsFromDate(userId, fromDate);
     } else if (distanceChanged) {
       // Only distance changed — reprocess just this run's date (streak order unchanged)
       logger.info(`⚡ Distance changed, reprocessing from ${existingRun.date}`);
-      await reprocessRunsFromDate(userId, existingRun.date);
+      reprocessed = await tryReprocessRunsFromDate(userId, existingRun.date);
     }
 
-    // Recalculate user totals (scoped to user's group for title processing)
+    // Recalculate user totals (scoped to user's group for title processing) — även om omräkningen felade (best-effort)
     await calculateUserTotals(userId);
 
     // En redigering kan nå eventgränsen (t.ex. distansen höjs över min_km, eller datumet flyttas in i ett
@@ -471,6 +491,10 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
         // en gammal runda ett event som pågår just nu.
         enforceRunDateWindow: true,
       }).catch(e => logger.error('❌ checkEventQualification error (PUT):', e));
+    }
+
+    if (!reprocessed) {
+      res.status(500).json({ error: 'Run was updated but XP recalculation failed' }); return;
     }
 
     logger.info('\n' + '='.repeat(80));
@@ -567,10 +591,14 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     logger.info(`✅ Run deleted, reprocessing from ${deletedDate}...`);
 
     // Reprocess only runs from the deleted run's date onwards
-    await reprocessRunsFromDate(userId, deletedDate);
+    const reprocessed = await tryReprocessRunsFromDate(userId, deletedDate);
 
-    // Recalculate user totals (scoped to user's group for title processing)
+    // Recalculate user totals (scoped to user's group for title processing) — även om omräkningen felade (best-effort)
     await calculateUserTotals(userId);
+
+    if (!reprocessed) {
+      res.status(500).json({ error: 'Run was deleted but XP recalculation failed' }); return;
+    }
 
     // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
     // SKAPA kvalificeringar ur en runda, och en radering skapar aldrig en ny — därför anropas den inte här.
