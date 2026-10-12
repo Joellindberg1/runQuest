@@ -208,8 +208,9 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
     }
     
+    // Aldrig någon del av token-värdet i loggen — bara om den finns.
     logger.info('✅ Strava tokens received:', {
-      access_token: tokenData.access_token ? `${tokenData.access_token.substring(0, 10)}...` : 'missing',
+      has_access_token: Boolean(tokenData.access_token),
       expires_at: tokenData.expires_at
     });
     
