@@ -93,6 +93,16 @@ describe('GET /api/titles/group-eligibility — klockan (RUN-141)', () => {
     expect(await winterKmFromEndpoint()).toBe(3);
   });
 
+  it('klampen: updated_at efter request-tid (2 dec när nu är 1 dec) ger request-tid, alltså nya vintern', async () => {
+    seed([{ id: 'future', metric_key: 'x', updated_at: '2026-12-02T09:00:00Z' }]);
+    // Utan klampen skulle klockan stå på 2 dec; båda ligger i nya vintern, så ett datum före 1 dec visar att klampen inte släpper igenom framtiden
+    expect(await winterKmFromEndpoint()).toBe(3);
+
+    vi.setSystemTime(new Date('2026-11-30T12:00:00Z'));
+    seed([{ id: 'future', metric_key: 'x', updated_at: '2026-12-02T09:00:00Z' }]);
+    expect(await winterKmFromEndpoint()).toBe(12); // request-tid 30 nov = förra vintern, inte framtida 2 dec
+  });
+
   it('inga titlar att läsa klocka ur → request-tiden (oförändrat beteende)', async () => {
     seed([]);
     expect(await winterKmFromEndpoint()).toBe(3);
