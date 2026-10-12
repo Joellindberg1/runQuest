@@ -329,6 +329,19 @@ describe('Admin — security', () => {
     expect(result).toHaveTextContent('Joel LindbergToken refresh failed');
   });
 
+  it('Run backfill: en uppdaterad runda skrivs i singular (RUN-140)', async () => {
+    handlers.backfillStravaExtendedData = () => ({
+      success: true, data: { totalUpdated: 1, summary: [{ user: 'Karl Persson', updated: 1 }, { user: 'Joel Lindberg', updated: 0 }] },
+    });
+    renderAdmin('/admin?view=security');
+    fireEvent.click(await screen.findByRole('button', { name: 'Run backfill' }));
+    const result = await screen.findByRole('status', { name: 'Backfill result' });
+    await waitFor(() => expect(result).toHaveTextContent('Total updated: 1 run'));
+    expect(result).not.toHaveTextContent('1 runs');
+    expect(result).toHaveTextContent('Karl Persson1 run');
+    expect(result).toHaveTextContent('Joel Lindberg0 runs');
+  });
+
   it('misslyckad backfill: ett fel i alert (tidigare tyst)', async () => {
     handlers.backfillStravaExtendedData = () => ({ success: false, error: 'Strava is down' });
     renderAdmin('/admin?view=security');

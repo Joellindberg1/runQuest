@@ -59,6 +59,17 @@ describe('singular vid värdet 1 (RUN-140)', () => {
   });
 });
 
+describe('avrundning före singular/plural (RUN-140)', () => {
+  it.each([
+    [0.4, '0 runs'],
+    [0.5, '1 run'],
+    [1.49, '1 run'],
+    [1.5, '2 runs'],
+  ])('värdet %f blir "%s"', (value, expected) => {
+    expect(formatTitleValue('earlyRunCount', value)).toBe(expected);
+  });
+});
+
 describe('formatTitleValue (värden är kodade för sortering)', () => {
   it('tider avkodas ur sorteringsvärdet', () => {
     expect(formatTitleValue('fastest5km', 40)).toBe('20:00');
