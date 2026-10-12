@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { Challenge, ChallengeToken, UserBoost } from '@runquest/types';
-import type { ChallengeHistoryItem } from '@runquest/shared';
+import { MS_DAY, type ChallengeHistoryItem } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { DuelsLayout } from '@/features/challenges/components/DuelsLayout';
 import {
@@ -14,11 +14,10 @@ import { useViewParam } from '@/shared/hooks/useViewParam';
 // /preview/challenges — Duels-skärmen med exempeldata, utan inloggning. Samma DuelsLayout som /duels, men med färdiga
 // vymodeller byggda ur nedanstående data i stället för hämtade; Send/Accept/… gör ingenting.
 
-const DAY_MS = 86_400_000;
 const ME_ID = 'u1';
 
-const isoDay = (offsetDays: number): string => new Date(Date.now() + offsetDays * DAY_MS).toISOString().split('T')[0];
-const isoTime = (offsetDays: number): string => new Date(Date.now() + offsetDays * DAY_MS).toISOString();
+const isoDay = (offsetDays: number): string => new Date(Date.now() + offsetDays * MS_DAY).toISOString().split('T')[0];
+const isoTime = (offsetDays: number): string => new Date(Date.now() + offsetDays * MS_DAY).toISOString();
 
 const MEMBERS: Array<{ id: string; name: string; wins: number; draws: number; losses: number; level: number }> = [
   { id: 'u1', name: 'Anna Lindqvist', wins: 5, draws: 1, losses: 2, level: 12 },

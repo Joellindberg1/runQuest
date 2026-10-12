@@ -25,9 +25,9 @@ vi.mock('../../config/database.js', () => ({
 
 // ── Mock XP calculation ───────────────────────────────────────────────────────
 // ── Mock @runquest/shared ─────────────────────────────────────────────────────
-// stockholmDay är den riktiga (utils/dateUtils delegerar dit); resten av paketet är mockat.
+// Allt i paketet är riktigt utom de mockade funktionerna nedan (calendar-funktionerna som utils/dateUtils delegerar till ingår).
 vi.mock('@runquest/shared', async () => ({
-  stockholmDay: (await vi.importActual<typeof import('@runquest/shared')>('@runquest/shared')).stockholmDay,
+  ...(await vi.importActual<typeof import('@runquest/shared')>('@runquest/shared')),
   calculateCompleteRunXP: vi.fn().mockReturnValue({
     baseXP: 15, kmXP: 10, distanceBonus: 5, streakBonus: 0,
     multiplier: 1.0, finalXP: 30,

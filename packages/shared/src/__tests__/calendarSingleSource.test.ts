@@ -29,16 +29,6 @@ const SOURCES = ['apps/backend/src', 'apps/frontend/src', 'packages/shared/src']
   .map((file) => ({ path: relative(file), code: stripComments(readFileSync(file, 'utf8')) }))
   .filter(({ path }) => path !== CALENDAR);
 
-/**
- * Förhandsgranskningssidor (UI-kod, demo-data) som fortfarande har egna dygnskonstanter. De ägs av frontend-spåret och
- * hålls utanför den här kontrollen tills de byts mot MS_DAY; ett test nedan fäller så fort en av dem blivit ren, så att listan krymper.
- */
-const PENDING_UI_FILES = [
-  'apps/frontend/src/pages/ChallengesPreviewPage.tsx',
-  'apps/frontend/src/pages/LeaderboardPreviewPage.tsx',
-  'apps/frontend/src/pages/preview/ActiveChallengeWidget.tsx',
-];
-
 const DAY_MS_LITERAL = /\b86_?400_?000\b|\b24\s*\*\s*60\s*\*\s*60\s*\*\s*1000\b|\b1000\s*\*\s*60\s*\*\s*60\s*\*\s*24\b/;
 const DAY_MS_CONSTANT = /\b(?:const|let|var)\s+(?:MS_DAY|MS_PER_DAY|DAY_MS|DAY_IN_MS|ONE_DAY\w*|MS_IN_DAY)\b/;
 const CALENDAR_FUNCTIONS =
@@ -47,12 +37,11 @@ const INTL_STOCKHOLM = /\btimeZone\s*:\s*['"`]Europe\/Stockholm['"`]|\btimeZone\
 const UTC_TODAY = /new Date\(\s*(?:Date\.now\(\))?\s*\)\s*\.toISOString\(\)\s*\.\s*(?:split|slice)\s*\(/;
 
 const offenders = (pattern: RegExp, files = SOURCES) => files.filter(({ code }) => pattern.test(code)).map(({ path }) => path);
-const nonPending = SOURCES.filter(({ path }) => !PENDING_UI_FILES.includes(path));
 
 describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
   it('inga egna dygnskonstanter (86400000, 24*60*60*1000, MS_DAY/DAY_MS-definitioner) utanför calendar.ts', () => {
-    expect(offenders(DAY_MS_LITERAL, nonPending)).toEqual([]);
-    expect(offenders(DAY_MS_CONSTANT, nonPending)).toEqual([]);
+    expect(offenders(DAY_MS_LITERAL, SOURCES)).toEqual([]);
+    expect(offenders(DAY_MS_CONSTANT, SOURCES)).toEqual([]);
   });
 
   it('inga egna addDays/mondayOf/daysBetween/dayOfWeek/stockholmDay/offset-funktioner utanför calendar.ts', () => {
@@ -64,15 +53,7 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
   });
 
   it('ingen "idag" ur UTC-dagen: new Date().toISOString().split/slice', () => {
-    expect(offenders(UTC_TODAY, nonPending)).toEqual([]);
-  });
-
-  it('listan över väntande UI-filer krymper: varje fil i den har fortfarande en egen dygnskonstant', () => {
-    for (const path of PENDING_UI_FILES) {
-      const file = SOURCES.find((source) => source.path === path);
-      expect({ path, exists: Boolean(file) }).toEqual({ path, exists: true });
-      expect({ path, stillOwnsDayMs: DAY_MS_LITERAL.test(file!.code) }).toEqual({ path, stillOwnsDayMs: true });
-    }
+    expect(offenders(UTC_TODAY, SOURCES)).toEqual([]);
   });
 
   it('konsumenterna importerar calendar-funktionerna från @runquest/shared', () => {
