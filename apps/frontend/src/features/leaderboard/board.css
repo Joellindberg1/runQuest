@@ -118,9 +118,6 @@
 .rq-board-cell-center { text-align: center; }
 .rq-board-cell-sub { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-board-xp { font-family: var(--rq-font-mono); font-size: var(--rq-fs-stat-value); color: var(--rq-gold-text); text-align: right; }
-.rq-board-form { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); text-align: right; }
-.rq-board-form[data-dir="up"] { color: var(--rq-up); }
-.rq-board-form[data-dir="down"] { color: var(--rq-down); }
 
 /* ── Dagstaplar (Week) ────────────────────────────────────────────────────── */
 .rq-daybars { display: flex; align-items: stretch; gap: var(--rq-sp-4); height: var(--rq-board-daybars-h); margin-top: var(--rq-sp-4); }
