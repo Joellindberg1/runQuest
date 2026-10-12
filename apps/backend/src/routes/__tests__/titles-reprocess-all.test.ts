@@ -55,7 +55,7 @@ describe('POST /api/titles/reprocess-all', () => {
 
     expect(res.status).toBe(207);
     expect(res.body).toMatchObject({ success: false, total: 6, processed: 4, failed: 2 });
-    expect(res.body.message).toMatch(/2 av 6/);
+    expect(res.body.message).toBe('2 of 6 users failed; the rest were recalculated');
   });
 
   it('alla misslyckas: 500 med räknarna', async () => {
@@ -65,6 +65,8 @@ describe('POST /api/titles/reprocess-all', () => {
 
     expect(res.status).toBe(500);
     expect(res.body).toMatchObject({ success: false, total: 3, processed: 0, failed: 3 });
+    expect(res.body.message).toBe('All 3 users failed');
+    expect(res.body.error).toBe(res.body.message); // ADR 007 A1: 5xx bär error bredvid message (additivt)
   });
 
   it('noll användare är inget fel: 200', async () => {

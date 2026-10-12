@@ -198,10 +198,13 @@ router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) =
     }
 
     logger.warn(`⚠️ Title reprocess finished with failures: ${failed} of ${total} users failed`);
-    const message = processed === 0
-      ? `Alla ${total} användare misslyckades`
-      : `${failed} av ${total} användare misslyckades; övriga omräknade`;
-    res.status(processed === 0 ? 500 : 207).json({ success: false, message, ...counts });
+    if (processed === 0) {
+      const message = `All ${total} users failed`;
+      // ADR 007 A1: 5xx-svar bär error bredvid message (additivt).
+      res.status(500).json({ success: false, error: message, message, ...counts });
+      return;
+    }
+    res.status(207).json({ success: false, message: `${failed} of ${total} users failed; the rest were recalculated`, ...counts });
   } catch (error) {
     logger.error('❌ API Error in /titles/reprocess-all:', error);
     res.status(500).json({ success: false, error: 'Failed to reprocess titles' });
