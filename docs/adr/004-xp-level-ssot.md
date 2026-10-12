@@ -234,3 +234,6 @@ gäller om verifieringen (Beslut 4) visar samma data överallt; skiljer sig data
 
 ## Notering 2026-10-11 (ägarbeslut)
 Undantaget (anon läser `level_requirements` direkt) upphävs — `GET /api/config/levels` (RUN-110), frontend byter (RUN-111), anon-policyn stängs (RUN-112). Revisit-triggern "Frontend slutar läsa `level_requirements` direkt" är därmed utlöst.
+
+## Notering 2026-10-12 (RUN-112)
+Migration 040 (`apps/backend/migrations/040_close_level_requirements_anon_read.sql`) droppar policyn "Anyone can view level requirements" — den sista anonpolicyn. Nivåtabellen läses därefter bara av backendens `levelService` (service role, förbigår RLS) och når klienten via `GET /api/config/levels`. Diagrammets anon-koppling (`browser-to-db-anon`) och raden "Frontend läser level_requirements direkt" i `docs/architecture/` är historik och ritas om vid nästa diagramrevision. En frontend-rollback till v0.5.3 eller äldre kräver att 040 rullas tillbaka.

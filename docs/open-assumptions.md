@@ -108,7 +108,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   `useAppInit` kör `useLevelRequirements`, som hämtar nivåtabellen via `GET /api/config/levels` (kräver token) först när en användare är inloggad
   (`enabled: !!user`, även efter SPA-inloggning); utloggad och vid fel gäller `FALLBACK_LEVEL_REQUIREMENTS`. Onboarding-prefetchen gör INGET nätverksanrop utan
   token (onboardingApi kastar utan token och prefetchen sväljer felet). [RÄTTAT efter RUN-110/111: tidigare stod här att appskalet gjorde ETT Supabase-anrop för `level_requirements` även för
-  utloggade — frontend har ingen Supabase-klient längre, och gating på `user` är gjord.]
+  utloggade — frontend har ingen Supabase-klient längre, och gating på `user` är gjord. Migration 040 (RUN-112) tar bort den sista anon-policyn på `level_requirements`; anon läser därefter ingenting.]
 - Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
 
 ## Restsidor: Playbook, Settings, Admin, Login (inkrement 11, spår B)
