@@ -18,7 +18,7 @@ export function mintToken(claims: { user_id?: string; group_id?: string | null }
 }
 
 export interface TestServer {
-  request(method: string, path: string, opts?: { token?: string; body?: unknown }): Promise<{ status: number; body: any }>;
+  request(method: string, path: string, opts?: { token?: string; body?: unknown; headers?: Record<string, string> }): Promise<{ status: number; body: any }>;
   close(): Promise<void>;
 }
 
@@ -41,6 +41,7 @@ export function startServer(app: express.Express | http.RequestListener): Promis
                   'Content-Type': 'application/json',
                   'Content-Length': Buffer.byteLength(payload),
                   ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+                  ...opts.headers,
                 },
               },
               (res) => {
