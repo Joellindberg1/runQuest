@@ -142,14 +142,15 @@ describe('veckotävlingen — måndag 00:01 till söndag 23:59, bokad lördag kv
   });
 });
 
-describe('Hangover Run på själva skiftessöndagen — nuvarande beteende (atStockholm använder middagens offset för alla klockslag)', () => {
-  // Dokumenterad avvikelse, inte ett önskat facit: 00:00 ligger FÖRE växlingen men fönstret räknas med offseten vid
-  // 12:00. Fönstret börjar därför en timme fel på de två skiftesdagarna. Testet flyttas i commiten som tar bort atStockholm.
-  it('vår (lördag 22:00 -> söndag 2026-03-29): start 22:00 UTC (verklig midnatt är 23:00 UTC)', async () => {
-    expect(await windowOf(WEEKEND, '2026-03-28T21:00:00Z', [member()])).toEqual(['2026-03-28T22:00:00.000Z', '2026-03-29T21:59:00.000Z']);
+describe('Hangover Run på själva skiftessöndagen — offseten tas vid klockslaget, inte vid middagen (RUN-218)', () => {
+  // Före RUN-218 räknade eventScheduler hela dagen med offseten vid 12:00. 00:00 ligger FÖRE växlingen, så fönstret började
+  // en timme fel på de två skiftesdagarna (vår: 23:00 lördag lokal tid, höst: 01:00 söndag lokal tid). Nu börjar det vid
+  // verklig Stockholm-midnatt. Slutet (23:59) ligger efter växlingen och var redan rätt.
+  it('vår (lördag 22:00 -> söndag 2026-03-29): start 23:00 UTC = 00:00 CET', async () => {
+    expect(await windowOf(WEEKEND, '2026-03-28T21:00:00Z', [member()])).toEqual(['2026-03-28T23:00:00.000Z', '2026-03-29T21:59:00.000Z']);
   });
 
-  it('höst (lördag 22:00 -> söndag 2026-10-25): start 23:00 UTC (verklig midnatt är 22:00 UTC)', async () => {
-    expect(await windowOf(WEEKEND, '2026-10-24T20:00:00Z', [member()])).toEqual(['2026-10-24T23:00:00.000Z', '2026-10-25T22:59:00.000Z']);
+  it('höst (lördag 22:00 -> söndag 2026-10-25): start 22:00 UTC = 00:00 CEST', async () => {
+    expect(await windowOf(WEEKEND, '2026-10-24T20:00:00Z', [member()])).toEqual(['2026-10-24T22:00:00.000Z', '2026-10-25T22:59:00.000Z']);
   });
 });
