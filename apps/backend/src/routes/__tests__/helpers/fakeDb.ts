@@ -33,7 +33,7 @@ export interface FakeDbOptions {
   /**
    * Unika index som INSERT ska respektera (Postgres-semantik: rader där någon kolumn är null ingår aldrig i ett
    * partiellt index med `is not null`-villkor, och null krockar inte med null). En krock ger 23505 med indexnamnet i
-   * meddelandet, som PostgREST. `onInsert` körs före varje insert i tabellen (t.ex. för att simulera ett samtidigt anrop).
+   * meddelandet, som PostgREST. `beforeInsert` körs före varje insert i tabellen (t.ex. för att simulera ett samtidigt anrop).
    */
   uniqueIndexes?: Array<{ table: string; name: string; columns: string[] }>;
   /** Anropas precis innan en insert i `table` utvärderas — för att simulera att en annan förfrågan hann före. */
@@ -106,6 +106,8 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
     };
 
     function execute() {
+      // Före felkontrollen: ett simulerat samtidigt anrop hinner committa oavsett om vår egen insert sedan felar.
+      if (mutation?.kind === 'insert') options.beforeInsert?.(table, tables);
       const err = options.errors?.[table] ?? options.failWhen?.(q);
       if (err) return { data: null, error: err, count: null };
 
@@ -129,7 +131,6 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       }
 
       if (mutation?.kind === 'insert') {
-        options.beforeInsert?.(table, tables);
         const raw = Array.isArray(mutation.values) ? mutation.values : [mutation.values as Row];
         for (const index of options.uniqueIndexes ?? []) {
           if (index.table !== table) continue;

@@ -45,6 +45,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { checkEventQualification } from '../../services/eventService.js';
 import app from '../../app.js';
+import { CLIENT_REQUEST_ID_INDEX } from '../runs.js';
 import { createFakeDb, type FakeDbOptions, type RecordedQuery, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
@@ -55,7 +56,7 @@ beforeEach(() => { vi.clearAllMocks(); });
 
 const KEY = '3f2b8c1e-5d4a-4b7e-9c3a-1a2b3c4d5e6f';
 const OTHER_KEY = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d';
-const INDEX = 'runs_user_client_request_id_key';
+const INDEX = CLIENT_REQUEST_ID_INDEX;
 const token = mintToken({ user_id: 'user-1', group_id: 'group-1' });
 const otherToken = mintToken({ user_id: 'user-2', group_id: 'group-1' });
 
@@ -154,17 +155,39 @@ describe('POST /api/runs med Idempotency-Key', () => {
     expect(checkEventQualification).not.toHaveBeenCalled();
   });
 
-  it('23505 på ett ANNAT index är inte en återspelning: 500 som idag', async () => {
+  it('23505 på ett ANNAT index är inte en återspelning: 500 som idag, även när en rad med samma nyckel finns att läsa', async () => {
+    let raced = false;
     const { tables } = use([], {
       autoIds: true,
+      // Raden med vår nyckel finns när insert felar — en felaktig "alla 23505 är återspelning" skulle svara 200 med den.
+      beforeInsert: (table, t) => {
+        if (table !== 'runs' || raced) return;
+        raced = true;
+        t.runs.push(existingRun());
+      },
       failWhen: (q) => (q.table === 'runs' && q.mutation === 'insert'
         ? ({ code: '23505', message: 'duplicate key value violates unique constraint "idx_runs_external_id"' } as { message: string })
         : null),
     });
     const res = await post({ 'Idempotency-Key': KEY });
+    expect(raced).toBe(true);
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'Failed to create run' });
+    expect(tables.runs).toHaveLength(1);
+    expect(tables.runs[0].id).toBe('winner-1');
+  });
+
+  it('förkontrollen felar (läsfel på runs): 500, ingen insert görs och inget skapas', async () => {
+    const { tables, queries } = use([], {
+      autoIds: true,
+      failWhen: (q) => (q.table === 'runs' && q.select !== null && !q.mutation ? { message: 'read failed' } : null),
+    });
+    const res = await post({ 'Idempotency-Key': KEY });
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to create run' });
+    expect(queries.some((q) => q.mutation === 'insert')).toBe(false);
     expect(tables.runs).toHaveLength(0);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
   });
 
   it('23505 på idempotensindexet men raden går inte att läsa → 500, inget påstås vara skapat', async () => {
