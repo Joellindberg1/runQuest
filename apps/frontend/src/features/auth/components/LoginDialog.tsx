@@ -37,7 +37,7 @@ export function LoginDialog() {
           onOpenAutoFocus={(event) => { event.preventDefault(); usernameRef.current?.focus(); }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (returnFocusTo instanceof HTMLElement && returnFocusTo !== document.body && returnFocusTo.isConnected) returnFocusTo.focus();
+            if (returnFocusTo instanceof HTMLElement && returnFocusTo !== document.body && returnFocusTo.isConnected) returnFocusTo.focus({ preventScroll: true });
           }}
         >
           <Dialog.Close className="rq-modal__close" aria-label="Close">✕</Dialog.Close>

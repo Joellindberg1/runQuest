@@ -98,6 +98,17 @@ describe('LoginDialog: stängning', () => {
     await waitFor(() => expect(opener).toHaveFocus());
   });
 
+  // Utan preventScroll hoppar sidan när fokus går tillbaka till Sign in-länken i den fasta headern (scrollade sidan flyttades till länkens ursprungsplats).
+  it('fokus lämnas tillbaka utan att sidan scrollar (preventScroll)', async () => {
+    const { opener, unmount } = renderDialog();
+    await waitFor(() => expect(screen.getByLabelText('Username')).toHaveFocus());
+    const focus = vi.spyOn(opener, 'focus');
+
+    unmount();
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
   // En död ✕ utan signal (och ett login-anrop utan timeout) vore en fälla: dialogen går alltid att lämna. Försöket avbryts då, och svaret kastas (AuthProvider.login).
   it.each([
     ['Escape', () => fireEvent.keyDown(dialog(), { key: 'Escape' })],
