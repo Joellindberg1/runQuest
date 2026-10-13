@@ -1,3 +1,4 @@
+import { TrackBackdrop } from '@/shared/components/TrackBackdrop';
 import { AppHeader } from './AppHeader';
 import { ShellOutlet } from './ShellOutlet';
 import { SideNav } from './SideNav';
@@ -11,6 +12,7 @@ export function DesktopShell() {
 
   return (
     <div className="rq-shell rq-shell--desktop" data-shell="desktop">
+      <TrackBackdrop />
       <SideNav rightNow={items} />
       <div className="rq-shell__col">
         <div className="rq-shell__top">

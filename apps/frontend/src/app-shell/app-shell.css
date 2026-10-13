@@ -15,12 +15,17 @@
   position: sticky; top: 0; z-index: 20;
   background: var(--rq-bg-shell-glass);
 }
+/* position: relative är bärande: bakgrunden (TrackBackdrop, fast lager utan z-index) ligger först i skalet, och ett positionerat element
+   ritas i trädordning, alltså över den. Utan den ritas den icke-positionerade sidan UNDER bakgrunden (trackBackdrop.guards.test.ts). */
 .rq-shell__main {
+  position: relative;
   flex: 1; min-width: 0; width: 100%; margin-inline: auto;
   padding: var(--rq-sp-12) var(--rq-pad-screen) var(--rq-sp-24);
 }
 .rq-shell--mobile .rq-shell__main { max-width: var(--rq-shell-narrow-max); }
 .rq-shell--desktop .rq-shell__main { max-width: var(--rq-content-max); padding-block: var(--rq-sp-24) var(--rq-sp-32); }
+/* Desktop: bakgrunden täcker sidan, inte sidnavens genomskinliga yta (Web Prototypen lägger den i <main>). */
+.rq-shell--desktop > .rq-track-bg { left: var(--rq-sidebar-w); }
 .rq-shell__pending { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: var(--rq-bg-shell); }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
