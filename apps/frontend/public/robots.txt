@@ -1,14 +1,21 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /preview
 
 User-agent: Bingbot
 Allow: /
+Disallow: /preview
 
 User-agent: Twitterbot
 Allow: /
+Disallow: /preview
 
 User-agent: facebookexternalhit
 Allow: /
+Disallow: /preview
 
 User-agent: *
 Allow: /
+Disallow: /preview
+
+Sitemap: https://www.runquest.dev/sitemap.xml

@@ -1,0 +1,29 @@
+/* Legal (/legal): en läsbar textsida i appens mörka tema. ENDAST tokens (regel 1), inga egna mått: kolumnen är skalets smala maxbredd
+   (--rq-shell-narrow-max) och sidmarginalen landningens (--rq-landing-pad). En kolumn från 320 till 1440 px, ingen horisontell scroll.
+   Fokusringen kommer från temafilens globala :focus-visible. */
+
+.rq-legal { min-height: 100dvh; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+.rq-legal__inner {
+  box-sizing: border-box; width: 100%; max-width: var(--rq-shell-narrow-max); margin-inline: auto;
+  padding: 0 var(--rq-landing-pad) var(--rq-sp-40);
+}
+
+.rq-legal-header { padding: var(--rq-sp-14) 0 var(--rq-sp-18); }
+.rq-legal-back { display: inline-block; padding-block: var(--rq-sp-6); font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; }
+
+.rq-legal-main { display: flex; flex-direction: column; gap: var(--rq-sp-32); }
+.rq-legal-title { margin: 0; font-weight: 400; overflow-wrap: break-word; }
+
+/* Ankarna (#privacy, #terms) och rubrikernas id: scroll-margin håller rubriken fri från skärmkanten när sidan hoppar dit. */
+.rq-legal-part { scroll-margin-top: var(--rq-sp-24); border-top: var(--rq-hair) solid var(--rq-line-3); padding-top: var(--rq-sp-24); }
+.rq-legal-part__title { margin: 0 0 var(--rq-sp-12); font-weight: 400; }
+.rq-legal p.rq-legal-controller { margin: 0 0 var(--rq-sp-4); }
+.rq-legal p.rq-legal-version { margin: 0 0 var(--rq-sp-24); }
+
+.rq-legal-article { scroll-margin-top: var(--rq-sp-24); margin-bottom: var(--rq-sp-24); }
+.rq-legal-article__title { margin: 0 0 var(--rq-sp-8); font-weight: 400; }
+.rq-legal p { margin: 0 0 var(--rq-sp-12); overflow-wrap: break-word; }
+.rq-legal p a { text-decoration: underline; text-underline-offset: .2em; }
+
+.rq-legal-footer { margin-top: var(--rq-sp-40); border-top: var(--rq-hair) solid var(--rq-line-3); padding-top: var(--rq-sp-18); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-legal-footer p { margin: 0; }

@@ -29,6 +29,7 @@ const Index = lazy(() => import('@/pages/Index'));
 const LeaderboardPreviewPage = lazy(() => import('@/pages/LeaderboardPreviewPage'));
 const ChallengesPreviewPage = lazy(() => import('@/pages/ChallengesPreviewPage'));
 const BadgesPreviewPage = lazy(() => import('@/pages/BadgesPreviewPage'));
+const LegalPage = lazy(() => import('@/pages/LegalPage'));
 const AdminPage = lazy(() => import('@/pages/AdminPage'));
 const PlaybookPage = lazy(() => import('@/pages/PlaybookPage'));
 const FeaturesPage = lazy(() => import('@/pages/FeaturesPage'));
@@ -66,6 +67,7 @@ export const AppRoutes: React.FC = () => {
           <Route path={paths.previewBoard} element={<LeaderboardPreviewPage />} />
           <Route path={paths.previewDuels} element={<ChallengesPreviewPage />} />
           <Route path={paths.previewBadges} element={<BadgesPreviewPage />} />
+          <Route path={paths.legal} element={<LegalPage />} />
 
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
