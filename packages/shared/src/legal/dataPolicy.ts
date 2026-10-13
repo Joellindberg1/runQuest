@@ -86,6 +86,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     title: 'What is stored',
     paragraphs: [
       'Everything below is used to run the game: to log you in, to work out XP, levels, streaks, titles and badges, and to show them to your pack.',
+      'Legal basis: these details, including runs imported from Strava, are needed to provide the game you joined (performance of a contract). The waitlist is the exception and is based on your consent (see the Waitlist section).',
       'Account: your username, your email address and a hashed password (the password itself is never stored). Accounts are created by the administrator; there is no public sign-up. An account can also hold a gender, which the title standings use.',
       'Runs: the date and distance of each run, whether it was on a treadmill, and the XP, level and streak worked out from them. Runs come from Strava (see the Strava section) or are added by hand in the app.',
       'Profile picture: if you upload one, the file is stored in Supabase Storage in a public bucket. Anyone who has the address of the picture can open it.',

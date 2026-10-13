@@ -75,6 +75,31 @@
   ],
   "releases": [
     {
+      "version": "0.6.2",
+      "type": "patch",
+      "date": "13 October 2026",
+      "title": "A new start page",
+      "announce": true,
+      "changes": [
+        {
+          "type": "feature",
+          "description": "The start page is rebuilt for people who haven't joined yet: what RunQuest is, a 49-second film, real numbers from the app (km, runners and challenges), how XP works and what's in the game."
+        },
+        {
+          "type": "feature",
+          "description": "Friends who want in can join a waitlist on the start page. They get an invite when a pack can start. No email is sent yet."
+        },
+        {
+          "type": "feature",
+          "description": "New page Privacy & Terms (linked at the bottom of the start page) explains what RunQuest stores, who sees it and how to have it removed."
+        },
+        {
+          "type": "improvement",
+          "description": "Sign in now sits at the top right of the start page. Shared links to RunQuest show a proper preview with title and image."
+        }
+      ]
+    },
+    {
       "version": "0.6.1",
       "type": "patch",
       "date": "11 October 2026",

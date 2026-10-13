@@ -16,7 +16,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-13', sha256: '15ea950c6e4a0db3cd5c6ad6506dbfe15e3e1adebed9e26e08c3a1b3b6a504d9' };
+const PINNED_POLICY = { version: '2026-10-13', sha256: '5c6519005158b75fd207049c4d765d949af50cc2fcaa2fe22b79443f89bcb119' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
