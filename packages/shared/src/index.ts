@@ -12,3 +12,4 @@ export * from './contracts/index.js';
 export * from './badges.js';
 export * from './badgeDiff.js';
 export * from './badgeNews.js';
+export * from './legal/index.js';
