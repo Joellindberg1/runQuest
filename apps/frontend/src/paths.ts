@@ -4,6 +4,8 @@ export const paths = {
   landing: '/',
   /** Landing med inloggningsdialogen öppen (ADR 006 beslut 1, addendum 2026-10-11): adressen speglar att dialogen är öppen. */
   login: '/login',
+  /** Integritet och villkor, publik (RUN-204). */
+  legal: '/legal',
   board: '/board',
   titles: '/titles',
   duels: '/duels',
@@ -24,6 +26,12 @@ export const paths = {
   /** Gamla adressen som redirectas till `duels` (ADR 006 beslut 7). */
   legacyChallenges: '/challenges',
 } as const;
+
+/** Ankare på /legal (RUN-204): integritetsdelen och villkoren. */
+export const LEGAL_PRIVACY_ID = 'privacy';
+export const LEGAL_TERMS_ID = 'terms';
+export const legalPrivacyPath = `${paths.legal}#${LEGAL_PRIVACY_ID}`;
+export const legalTermsPath = `${paths.legal}#${LEGAL_TERMS_ID}`;
 
 /** Delvy-parametern för "send challenge"-sheeten (ADR 006 beslut 4). Konsumeras av DuelsScreen (features/challenges). */
 export const SEND_PARAM = 'send';

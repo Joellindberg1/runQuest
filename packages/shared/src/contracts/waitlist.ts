@@ -1,13 +1,13 @@
 // API-kontrakt för väntelistan (nivå 1): POST /api/waitlist (publik) och GET /api/admin/waitlist (admin).
 // Endast typer och konstanter.
 import type { ApiSuccess } from './common.js';
+import { DATA_POLICY_VERSION } from '../legal/dataPolicy.js';
 
 /**
  * Vilken samtyckestext anmälaren godkände; sparas i waitlist_signups.consent_version.
- * PROVISORISK: den slutliga integritets-/samtyckestexten kommer i RUN-201 och ersätter då det här värdet.
- * Väntelisteformuläret (RUN-211) får inte publiceras innan dess.
+ * Alltid DATA_POLICY_VERSION (legal/dataPolicy.ts): versionen av den integritetstext som visades vid anmälan.
  */
-export const WAITLIST_CONSENT_VERSION = 'draft-2026-10-13';
+export const WAITLIST_CONSENT_VERSION = DATA_POLICY_VERSION;
 
 /** Källa för anmälningar från landningssidan (waitlist_signups.source). */
 export const WAITLIST_SOURCE_LANDING = 'landing';

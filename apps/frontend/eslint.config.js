@@ -16,7 +16,7 @@ const NOT_PRODUCTION = ["**/*.test.{ts,tsx}", "**/*.fixture.ts"];
 // Lazy-gränsen (ADR 006 beslut 11): de här sidorna och onboarding-orkestratorn laddas bara via lazy(() => import(...)).
 // no-restricted-imports granskar statiska importer; dynamisk import() faller utanför, så lazy() i routes.tsx/App.tsx är tillåten.
 const LAZY_ONLY = {
-  regex: "(^@/pages/|^\\.\\.?/(.*/)?pages/|^\\./)(Index|\\w+PreviewPage|AdminPage|PlaybookPage|FeaturesPage|SettingsPage)$|(^|/)OnboardingOrchestrator$",
+  regex: "(^@/pages/|^\\.\\.?/(.*/)?pages/|^\\./)(Index|\\w+PreviewPage|AdminPage|PlaybookPage|FeaturesPage|SettingsPage|LegalPage)$|(^|/)OnboardingOrchestrator$",
   message: "Importeras bara via lazy(() => import(...)) (ADR 006 beslut 11) — en statisk import drar in sidan i huvudbunten.",
 };
 
@@ -41,18 +41,36 @@ const NO_STREAK_DEFAULTS = {
   message: "Multiplikatortrappan kommer ur config-endpointen (useXpConfig), inte ur DEFAULT_STREAK_MULTIPLIERS.",
 };
 
-// Landing är publik och gör inga anrop (ägarbeslut 4) och importerar inget ur auth: dialogen monteras av pages/Index.
+// Landing är publik, importerar inget ur auth (dialogen monteras av pages/Index) och gör ETT anrop vid sidladdning: GET /api/public/stats
+// (ADR 006-addendum 2026-10-13, ändrar ägarbeslut 4). Bara hooks/usePublicStats.ts får importera klienten och react-query.
+const LANDING_AUTH_IMPORT = {
+  // Täcker både alias (@/features/auth, @/providers/auth) och relativa importer (../auth/foo, ../../providers/authContext).
+  regex: "features/auth|providers/auth|(^|/)\\.\\.?/(.*/)?auth/",
+  message: "Landing importerar inget ur features/auth eller providers/auth; dialogen monteras av pages/Index.",
+};
 const LANDING_IMPORTS = [
   STREAK_CONSTANTS,
-  { regex: "backendApi|(^|/)services/|react-query|supabase|axios", message: "Landing-featuren gör inga anrop (ägarbeslut 4): hårdskriven data, ingen backend." },
-  // Täcker både alias (@/features/auth, @/providers/auth) och relativa importer (../auth/foo, ../../providers/authContext).
-  { regex: "features/auth|providers/auth|(^|/)\\.\\.?/(.*/)?auth/", message: "Landing importerar inget ur features/auth eller providers/auth; dialogen monteras av pages/Index." },
+  { regex: "backendApi|(^|/)services/|react-query|supabase|axios", message: "Landings enda anrop (GET /public/stats) ligger i hooks/usePublicStats.ts; övriga landningsfiler importerar varken klienten eller react-query." },
+  LANDING_AUTH_IMPORT,
 ];
 const LANDING_SYNTAX = [
-  { selector: "CallExpression[callee.name='fetch']", message: "Landing-featuren gör inga anrop (ägarbeslut 4)." },
+  { selector: "CallExpression[callee.name='fetch']", message: "Landing gör bara ett anrop (GET /public/stats), och det går via backendApi i hooks/usePublicStats.ts." },
   {
     selector: "Identifier[name=/^(useUsersWithRuns|useXpConfig|useGroupName|useQuery|useMutation|useAuth)$/]",
-    message: "Landing-featuren hämtar ingen data (ägarbeslut 4): inga datahooks och ingen auth.",
+    message: "Landing hämtar ingen data utom /public/stats (hooks/usePublicStats.ts): inga andra datahooks och ingen auth.",
+  },
+];
+// Hookfilen får klienten och useQuery, men fortfarande ingen auth, ingen rå fetch, ingen STREAK_CONSTANTS och inga andra datahooks.
+const LANDING_STATS_HOOK_IMPORTS = [
+  STREAK_CONSTANTS,
+  { regex: "supabase|axios", message: "Landing-hooken går via backendApi, inte supabase eller axios." },
+  LANDING_AUTH_IMPORT,
+];
+const LANDING_STATS_HOOK_SYNTAX = [
+  { selector: "CallExpression[callee.name='fetch']", message: "Anropet går via backendApi.getPublicStats(), inte en egen fetch." },
+  {
+    selector: "Identifier[name=/^(useUsersWithRuns|useXpConfig|useGroupName|useMutation|useAuth)$/]",
+    message: "Landing hämtar ingen data utom /public/stats: inga andra datahooks och ingen auth.",
   },
 ];
 
@@ -275,13 +293,21 @@ export default tseslint.config(
     },
   },
 
-  // Landing: publik, inga anrop, ingen auth, trappan ur shared (DEFAULT_STREAK_MULTIPLIERS är tillåten här men inte streakConstants).
+  // Landing: publik, ingen auth, trappan ur shared (DEFAULT_STREAK_MULTIPLIERS är tillåten här men inte streakConstants). Ett enda anrop, i hookfilen nedan.
   {
     files: ["src/features/landing/**/*.{ts,tsx}", "src/pages/LandingPage.tsx"],
     ignores: NOT_PRODUCTION,
     rules: {
       "no-restricted-imports": importRestrictions(...LANDING_IMPORTS),
       "no-restricted-syntax": ["error", ...LANDING_SYNTAX],
+    },
+  },
+  // Landings enda anrop: GET /api/public/stats. Bara den här filen får importera klienten och react-query (ersätter landningsblocket för filen).
+  {
+    files: ["src/features/landing/hooks/usePublicStats.ts"],
+    rules: {
+      "no-restricted-imports": importRestrictions(...LANDING_STATS_HOOK_IMPORTS),
+      "no-restricted-syntax": ["error", ...LANDING_STATS_HOOK_SYNTAX],
     },
   },
 
@@ -298,6 +324,21 @@ export default tseslint.config(
   {
     files: ["src/features/badges/api.ts"],
     rules: { "no-restricted-syntax": ["error", ...BADGE_SHARED_TYPES] },
+  },
+
+  // Väntelistans hook (RUN-211) är landingens enda datahook: den får importera backendApi och react-query och använda useMutation.
+  // Allt annat i landningsblocket gäller kvar för filen (ingen auth, ingen fetch, inga datahooks, inte streakConstants); blocket byggs
+  // ur landningens listor så att en ändring där följer med. Ligger efter landningsblocket, annars skulle det blocket ersätta detta.
+  {
+    files: ["src/features/landing/hooks/useJoinWaitlist.ts"],
+    ignores: NOT_PRODUCTION,
+    rules: {
+      "no-restricted-imports": importRestrictions(...LANDING_IMPORTS.filter((pattern) => !String(pattern.regex).includes("backendApi"))),
+      "no-restricted-syntax": [
+        "error",
+        ...LANDING_SYNTAX.map((rule) => (rule.selector.startsWith("Identifier[") ? { ...rule, selector: rule.selector.replace("|useMutation", "") } : rule)),
+      ],
+    },
   },
 
   // ─── Designregler (RUN-223) ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -334,6 +375,7 @@ export default tseslint.config(
   designGroup(["src/features/profile/**/*.{ts,tsx}", "src/features/runs/**/*.{ts,tsx}", "src/pages/ProfilePage.tsx"]),
   designGroup(["src/features/runner/**/*.{ts,tsx}", "src/pages/RunnerPage.tsx"]),
   designGroup(["src/features/titles/**/*.{ts,tsx}", "src/pages/TitlesPage.tsx"], { ignores: ["src/features/titles/titleFormat.ts"] }),
+  designGroup(["src/features/legal/**/*.{ts,tsx}", "src/pages/LegalPage.tsx"]),
   designGroup(
     [
       "src/app-shell/*.{ts,tsx}", "src/paths.ts", "src/routes.tsx", "src/pages/Index.tsx", "src/pages/NotFound.tsx", "src/shared/components/EmptyState.tsx",

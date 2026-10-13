@@ -8,6 +8,40 @@
 // Stylelint ersätter en regels hela inställning när ett overrides-block sätter samma regel. Därför bygger `designRules()` alltid hela
 // uppsättningen ur en liten beskrivning av vad filen får göra, och varje fil träffas av exakt ett block.
 
+import stylelint from "stylelint";
+
+// Stravas regler för "Compatible with Strava"-loggan (landningens footer): oförändrad, aldrig animerad, inte större än omgivande text och utan
+// hover-effekt på själva bilden. Stylelint har ingen inbyggd regel för "höjd högst 1em" per selektor, så det här är en liten egen regel som bara
+// läser regler som siktar på loggan (eller på en `img` i landningens footer). Den prövas med negativa prov i src/features/landing/stravaLogoLint.test.ts.
+const STRAVA_TARGET = /rq-landing-footer__strava|rq-landing-footer\b[^,{]*\bimg\b/;
+const STRAVA_FORBIDDEN_PROPERTIES = /^(?:-webkit-)?(?:filter|backdrop-filter|opacity|transform|rotate|scale|translate|zoom|mix-blend-mode|mask(?:-.*)?|clip-path|animation(?:-.*)?|transition(?:-.*)?)$/;
+const STRAVA_STATE_SELECTOR = /:(?:hover|active|focus|focus-visible|focus-within)\b/;
+const AT_MOST_ONE_EM = /^(?:0?\.\d+|1)(?:\.0+)?em$/;
+const STRAVA_RULE_NAME = "rq/strava-logo";
+const stravaMessages = stylelint.utils.ruleMessages(STRAVA_RULE_NAME, {
+  property: (property) => `Stravas logga får inte modifieras eller animeras: "${property}" är förbjuden på loggan.`,
+  state: (selector) => `Stravas logga får ingen hover- eller fokuseffekt på bilden: "${selector}".`,
+  height: (value) => `Stravas logga får vara högst lika hög som textens teckenhöjd (höjd högst 1em), inte "${value}".`,
+  width: (value) => `Stravas logga behåller bildens proportion: bredden är auto, inte "${value}".`,
+});
+const stravaLogoRule = stylelint.createPlugin(STRAVA_RULE_NAME, (enabled) => (root, result) => {
+  if (!enabled) return;
+  root.walkRules((rule) => {
+    if (!STRAVA_TARGET.test(rule.selector)) return;
+    if (STRAVA_STATE_SELECTOR.test(rule.selector)) {
+      stylelint.utils.report({ result, ruleName: STRAVA_RULE_NAME, message: stravaMessages.state(rule.selector), node: rule });
+    }
+    rule.walkDecls((decl) => {
+      const prop = decl.prop.toLowerCase();
+      const value = decl.value.trim();
+      const report = (message) => stylelint.utils.report({ result, ruleName: STRAVA_RULE_NAME, message, node: decl, word: decl.prop });
+      if (STRAVA_FORBIDDEN_PROPERTIES.test(prop)) report(stravaMessages.property(prop));
+      else if ((prop === "height" || prop === "max-height") && !AT_MOST_ONE_EM.test(value)) report(stravaMessages.height(value));
+      else if ((prop === "width" || prop === "max-width") && value !== "auto") report(stravaMessages.width(value));
+    });
+  });
+});
+
 /** Värde för `animations` och `zIndex` som betyder "inte begränsat i den här filen". */
 const ANY = "any";
 
@@ -77,6 +111,7 @@ const keyframesBanned = { "at-rule-disallowed-list": [["keyframes"], { message: 
 /** @type {import("stylelint").Config} */
 export default {
   ignoreFiles: ["dist/**"],
+  plugins: [stravaLogoRule],
   // Grundregler för alla feature-CSS som inte har ett eget block nedan: ingen rörelse, inget z-index, inga egna custom properties.
   rules: designRules(),
   overrides: [
@@ -87,6 +122,16 @@ export default {
         ...Object.fromEntries(Object.keys(designRules()).map((rule) => [rule, null])),
         "declaration-property-value-disallowed-list": [{ "/.*/": LEGACY_VALUES }, { message: "Kända trasiga rester får inte komma tillbaka (hsl(var(--sidebar)), var(--rq-foreground), Silkscreen)." }],
       },
+    },
+    {
+      // Filmen: bara play-ringen pulserar (rqPulse, samma takt som previewkortets ring). Reducerad rörelse hanteras av temafilens globala regel.
+      // --rq-film-progress sätts inline (cssVars) och läses av progressen; den deklareras aldrig i CSS.
+      files: ["src/features/landing/landingFilm.css"],
+      rules: designRules({
+        animations: ["/^rqPulse var\\(--rq-landing-pulse\\) ease-in-out infinite$/"],
+        bannedProperties: ["animation-duration"],
+        extraRules: { "declaration-no-important": [true, { message: "landingFilm.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }] },
+      }),
     },
     { files: ["src/features/admin/admin.css", "src/features/settings/settings.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-form-gap"] }) },
     { files: ["src/shared/components/form/form.css"], rules: designRules({ locals: ["rq-form-gap"] }) },
@@ -149,18 +194,22 @@ export default {
       }),
     },
     {
-      // Bara levande saker loopar: löparna, "+50 XP"-poppen, kortets guldring och sweep. Reducerad rörelse hanteras av temafilens globala regel,
-      // så landing.css sätter ingen egen animation-duration eller !important. "LEADERBOARD" bryts aldrig mitt i ordet.
+      // Bara levande saker loopar: rutnätet, löparna och deras XP-pop, kortets guldring och sweep. Reducerad rörelse hanteras av temafilens globala
+      // regel, så landing.css sätter ingen egen animation-duration eller !important. "LEADERBOARD" bryts aldrig mitt i ordet.
       files: ["src/features/landing/landing.css"],
       rules: designRules({
         animations: [
-          "/^rqOrbit var\\(--rq-landing-lap-[123]\\) linear infinite$/",
-          "/^rqLandingPop var\\(--rq-landing-lap-1\\) linear infinite$/",
+          "/^rqGrid var\\(--rq-landing-grid-dur\\) linear infinite$/",
+          "/^rqOrbit var\\(--rq-landing-lap-[1-6]\\) linear infinite$/",
+          "/^rqLandingPop var\\(--rq-landing-lap-[1-6]\\) linear infinite$/",
           "/^rqRing var\\(--rq-landing-pulse\\) ease-in-out infinite$/",
           "/^rqSweep var\\(--rq-landing-sweep\\) linear infinite$/",
         ],
         bannedProperties: ["animation-duration", "overflow-wrap", "word-break"],
-        extraRules: { "declaration-no-important": [true, { message: "landing.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }] },
+        extraRules: {
+          "declaration-no-important": [true, { message: "landing.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }],
+          [STRAVA_RULE_NAME]: true,
+        },
       }),
     },
     {
@@ -173,6 +222,19 @@ export default {
       }),
     },
     { files: ["src/features/log/log.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-log-tone", "rq-log-tone-rgb"] }) },
+    {
+      // Väntelistans kort (RUN-211): ingen rörelse, inget z-index, inga egna custom properties. Honeypot-fältet ligger utanför skärmen:
+      // det får inte döljas med display eller visibility, annars hoppar enkla botar över det. Testerna kör med css:false och kan inte prova klassen.
+      files: ["src/features/landing/landingWaitlist.css"],
+      rules: designRules({
+        extraRules: {
+          "rule-selector-property-disallowed-list": [
+            { "/rq-landing-waitlist__trap/": ["display", "visibility"] },
+            { message: "Honeypot-fältet ska ligga utanför skärmen (position + left), inte döljas med display eller visibility." },
+          ],
+        },
+      }),
+    },
     {
       files: ["src/features/profile/profile.css"],
       rules: designRules({

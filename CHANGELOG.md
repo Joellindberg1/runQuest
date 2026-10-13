@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.6.2 — Landningssidan marknadsföringsklar, väntelista, /legal (2026-10-13)
+
+Användarversion (What's new + Pack News-rad via announce:release). Epic RUN-159. Ägaren godkände design, copy och integritetstext 2026-10-13.
+
+### Nytt
+- Landningen ombyggd efter ägarens design (RUN-207–210): header med Sign in som konturknapp och "Join the waitlist" som enda guldknapp, desktopbana (5 banor) och rutnät, sanna siffror från `GET /api/public/stats` (km · runners · challenges, ingen uppräkning), exempelgruppen "Sample pack", How the game works med XP-formeln ur shared, funktionsrutnät (synk var 30:e minut) och footer med Privacy, Legal, officiell "Compatible with Strava"-logga och versionen.
+- Filmen (RUN-257): 49 s, komprimerad från 1080p till 720p (3,1 MB) och 480p (1,8 MB), startar vid klick (`preload="none"`, `playsinline`), poster i WebP, kontrollrad under bilden på desktop. Originalet ligger aldrig i git (CI-vakt + .gitignore).
+- Väntelistans formulär (RUN-211) mot `POST /api/waitlist` (v0.6.1.4): e-post + samtyckesbock, honeypot och tidsfälla, samma tack för ny och dubblett.
+- /legal (RUN-204) med Privacy och Terms ur en gemensam källa i shared (RUN-201, `DATA_POLICY_VERSION` 2026-10-13): personuppgiftsansvarig Joel Lindberg (joellindberg23@gmail.com), rättslig grund (avtal för spelet, samtycke för väntelistan), dagens Strava-beteende (radering på begäran via e-post; automatisk radering kommer med RUN-93). Snapshotvakt kräver versionshöjning vid textändring.
+- Metadata (RUN-205, ADR 006-addendum: statisk meta, ingen prerender): titel, description, canonical och Open Graph/Twitter-kort med delningsbild (filmens slutruta), favicon (löparsymbolen), app-ikoner och `site.webmanifest`. robots.txt stänger `/preview` i alla grupper och sitemap listar `/` och `/legal` (RUN-206).
+- Caddy: `/media/*` immutable med 404 för saknade filer och Range (206); `/site.webmanifest` som `application/manifest+json`.
+
+### Kodhälsa
+- Nya lintvakter: Stravas loggregler (`rq/strava-logo`), honeypotens CSS, lazy-gränsen för LegalPage; sitemap-vakten läser routerns faktiska konfiguration. `.gitattributes` låser Strava-loggornas radslut.
+
+### Prod-steg (kräver ägar-ja)
+1. PR release/v0.6.2 → main, grön CI (inkl. verify-static-serving på Linux), merge (= deploy). Ingen migration.
+2. Röktest: `/` utloggad visar siffrorna från prod, filmen spelar, `/legal` öppnas, väntelistan svarar, `/media/*` och `/site.webmanifest` serveras rätt.
+3. Tagg `v0.6.2` på merge-commiten.
+4. `announce:release --version=0.6.2` (dry-run, sedan `--apply`).
+
+### Rollback
+- Kod: redeploya v0.6.1.4 i Railway och revert-PR. Inga dataformat ändrade, ingen migration.
+
 ## v0.6.1.4 — Inga dubbla rundor, datum i svensk tid, väntelista och publika siffror i backend (2026-10-13)
 
 Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-13: det som var klart i v0.6.2 släpps nu medan landningens ritningar färdigställs; landningen själv blir v0.6.2.

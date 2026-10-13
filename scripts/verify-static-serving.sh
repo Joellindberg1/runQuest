@@ -62,7 +62,8 @@ check "hashad fil har JS-typ"                     "/$asset"                     
 check "saknad hashad fil ger 404, aldrig cachad"  "/assets/index-DOESNOTEXIST.js"  404 "^cache-control: no-store" "immutable|content-type: text/html"
 check "assets-katalogen ger 404, aldrig cachad"   "/assets/"                       404 "^cache-control: no-store" "immutable"
 check "Strava-popupen serveras"                   "/strava-popup.html"             200 "^content-type: text/html"
-check "robots.txt serveras"                       "/robots.txt"                    200 ""
+check "robots.txt serveras"                       "/robots.txt"                    200 "^content-type: text/plain" "content-type: text/html"
+check "sitemap.xml serveras"                      "/sitemap.xml"                   200 "^content-type: (text|application)/xml" "content-type: text/html"
 check "health svarar utan index.html"             "/health"                        200 "" "content-type: text/html"
 if [[ -n "$(curl -s "http://127.0.0.1:$PORT/health")" ]]; then
   echo "FAIL health: kroppen ska vara tom (skuggad av SPA-blocket?)"; failures=$((failures + 1))
@@ -89,6 +90,40 @@ host_check "runquest.dev skickas till www"            "runquest.dev"            
 host_check "runquest.dev-roten skickas till www"      "runquest.dev"                     "/"                308 "https://www.runquest.dev/"
 host_check "www serveras utan omdirigering"           "www.runquest.dev"                 "/board"           200
 host_check "Railways egen adress serveras"            "spectacular-rebirth-production-186c.up.railway.app" "/" 200
+
+# Filmen, ikonerna, manifestet och delningsbilden (RUN-257, RUN-199, RUN-205). check_with skickar extra curl-argument: filmen begärs
+# MED Accept-Encoding, annars prövas aldrig att Caddy låter bli att komprimera mp4, och Range ska ge 206.
+check_with() {
+  local desc="$1" path="$2" want_status="$3" header_pattern="$4" reject_pattern="$5"
+  shift 5
+  local headers status
+  headers="$(curl -s -o /dev/null -D - "$@" "http://127.0.0.1:$PORT$path" | tr -d '\r')"
+  status="$(printf '%s\n' "$headers" | head -1 | awk '{print $2}')"
+  if [[ "$status" != "$want_status" ]]; then
+    echo "FAIL $desc: $path gav $status, väntade $want_status"; failures=$((failures + 1)); return
+  fi
+  if [[ -n "$header_pattern" ]] && ! printf '%s\n' "$headers" | grep -qiE "$header_pattern"; then
+    echo "FAIL $desc: $path saknar header /$header_pattern/"; printf '%s\n' "$headers"; failures=$((failures + 1)); return
+  fi
+  if [[ -n "$reject_pattern" ]] && printf '%s\n' "$headers" | grep -qiE "$reject_pattern"; then
+    echo "FAIL $desc: $path har förbjuden header /$reject_pattern/"; printf '%s\n' "$headers"; failures=$((failures + 1)); return
+  fi
+  echo "ok   $desc"
+}
+
+films=("$DIST"/media/landing-film-720.v*.mp4)
+film="media/$(basename "${films[0]}")"
+accept=(-H "Accept-Encoding: gzip, zstd")
+check_with "filmen serveras som video, utan komprimering      " "/$film" 200 "^content-type: video/mp4" "content-encoding:" "${accept[@]}"
+check_with "filmen är cachad som immutable"                          "/$film" 200 "^cache-control: public, max-age=31536000, immutable" "content-encoding:" "${accept[@]}"
+check_with "filmen svarar på Range med 206"                          "/$film" 206 "^content-range: bytes 0-1023/" "content-encoding:" "${accept[@]}" -H "Range: bytes=0-1023"
+check_with "saknad mediafil ger 404, aldrig index.html"              "/media/saknas.mp4" 404 "^cache-control: no-store" "immutable|content-type: text/html" "${accept[@]}"
+check_with "favicon.svg serveras med bildtyp"                        "/favicon.svg" 200 "^content-type: image/svg\+xml" "content-type: text/html"
+check_with "favicon.ico serveras med ikontyp"                        "/favicon.ico" 200 "^content-type: image/(x-icon|vnd\.microsoft\.icon)" "content-type: text/html"
+check_with "apple-touch-icon serveras som PNG"                       "/apple-touch-icon.png" 200 "^content-type: image/png" "content-type: text/html"
+check_with "site.webmanifest har manifesttyp"                        "/site.webmanifest" 200 "^content-type: application/manifest\+json" "content-type: text/html"
+check_with "saknad manifestfil får inte manifesttypen"        "/saknas.webmanifest" 200 "^content-type: text/html" "application/manifest[+]json"
+check_with "delningsbilden serveras som PNG"                         "/og-image.v1.png" 200 "^content-type: image/png" "content-type: text/html"
 
 if (( failures > 0 )); then
   echo "--- caddy-logg ---"; tail -20 "$WORK/caddy.log"
