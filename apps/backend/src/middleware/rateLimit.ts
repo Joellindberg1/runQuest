@@ -6,10 +6,9 @@ import { logger } from '../utils/logger.js';
 
 interface Entry { count: number; resetAt: number }
 
-const attempts = new Map<string, Entry>();
 const MAX_TRACKED = 5000;
 
-export function rateLimiter(windowMs: number, max: number) {
+function limiterOver(attempts: Map<string, Entry>, windowMs: number, max: number) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const key = req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
@@ -36,6 +35,21 @@ export function rateLimiter(windowMs: number, max: number) {
     }
     next();
   };
+}
+
+/** Kartan som alla `rateLimiter(...)`-anrop delar (login). Nya routes ska använda `createRateLimiter`. */
+const sharedAttempts = new Map<string, Entry>();
+
+export function rateLimiter(windowMs: number, max: number) {
+  return limiterOver(sharedAttempts, windowMs, max);
+}
+
+/**
+ * En limiter med EGEN räknarkarta (nyckel: IP). Två limiters från fabriken, eller en fabrikslimiter och
+ * login-limitern, påverkar aldrig varandras räknare — använd den för varje ny route som behöver en gräns.
+ */
+export function createRateLimiter(windowMs: number, max: number) {
+  return limiterOver(new Map<string, Entry>(), windowMs, max);
 }
 
 /** 20 försök per 15 minuter och IP — bromsar lösenordsgissning utan att störa riktiga användare. */
