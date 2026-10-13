@@ -88,6 +88,16 @@ export default {
         "declaration-property-value-disallowed-list": [{ "/.*/": LEGACY_VALUES }, { message: "Kända trasiga rester får inte komma tillbaka (hsl(var(--sidebar)), var(--rq-foreground), Silkscreen)." }],
       },
     },
+    {
+      // Filmen: bara play-ringen pulserar (rqPulse, samma takt som previewkortets ring). Reducerad rörelse hanteras av temafilens globala regel.
+      // --rq-film-progress sätts inline (cssVars) och läses av progressen; den deklareras aldrig i CSS.
+      files: ["src/features/landing/landingFilm.css"],
+      rules: designRules({
+        animations: ["/^rqPulse var\\(--rq-landing-pulse\\) ease-in-out infinite$/"],
+        bannedProperties: ["animation-duration"],
+        extraRules: { "declaration-no-important": [true, { message: "landingFilm.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }] },
+      }),
+    },
     { files: ["src/features/admin/admin.css", "src/features/settings/settings.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-form-gap"] }) },
     { files: ["src/shared/components/form/form.css"], rules: designRules({ locals: ["rq-form-gap"] }) },
     // Titles och Runner card hade ingen vakt för line-height/rörelse; deras enhetslösa radhöjder (.9, 1.15) och Runner cards ensamma knopp-animation

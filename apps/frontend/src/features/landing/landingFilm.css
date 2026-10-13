@@ -1,0 +1,108 @@
+/* Filmen på landningen (RUN-257): spelaren i en desktopvy (sektion med rubrik, hörnmarkeringar, kontrollrad och steg) och en mobilvy (en ruta med
+   liten play-ruta och tunn progress). ENDAST tokens (regel 1); måtten (--rq-landing-film-*) bor i temafilen, sektion 1.27 (index.css +
+   docs/design/temafil-forslag.css). Rörelse: bara play-ringen pulserar (rqPulse). Reducerad rörelse hanteras av temafilens globala regel,
+   så filen sätter ingen egen animation-duration eller !important. */
+
+.rq-film { color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+
+/* ── Rutan: 16:9, ett lager i taget (video · poster · knapp · felmeddelande · kontrollrad) ─────────────────────────────────────── */
+.rq-film__stage {
+  position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: var(--rq-bg-page);
+  border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft));
+}
+.rq-film__video { display: block; width: 100%; height: 100%; background: var(--rq-bg-page); }
+.rq-film--desktop .rq-film__video { cursor: pointer; }
+.rq-film__poster { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: block; }
+.rq-film__poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rq-film__poster::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: var(--rq-landing-film-scrim); }
+
+/* Play-knappen ligger över hela rutan (på mobilen är den också paus-knappen medan filmen spelar). */
+.rq-film__overlay,
+.rq-film__toggle {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--rq-sp-10); margin: 0; padding: 0; border: 0; background: none; color: var(--rq-gold-text); cursor: pointer;
+  font-family: var(--rq-font-display);
+}
+.rq-film__overlay { gap: var(--rq-sp-18); }
+.rq-film__overlay:focus-visible,
+.rq-film__toggle:focus-visible,
+.rq-film__btn:focus-visible { outline: var(--rq-focus-ring); outline-offset: calc(-1 * var(--rq-focus-offset)); }
+
+.rq-film__play-box {
+  position: relative; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  width: var(--rq-landing-film-play-box); height: var(--rq-landing-film-play-box);
+  border: var(--rq-edge-w-thin) solid var(--rq-gold); background: var(--rq-bg-shell-glass); color: var(--rq-gold);
+}
+.rq-film__overlay:hover .rq-film__play-box,
+.rq-film__toggle:hover .rq-film__play-box { background: rgb(var(--rq-gold-rgb) / .18); }
+/* Ringen pingar ut från rutan (rqPulse: scale + tona ut), bara på desktop. */
+.rq-film--desktop .rq-film__play-box::after {
+  content: ""; position: absolute; top: calc(-1 * var(--rq-edge-w-thin)); right: calc(-1 * var(--rq-edge-w-thin));
+  bottom: calc(-1 * var(--rq-edge-w-thin)); left: calc(-1 * var(--rq-edge-w-thin)); pointer-events: none;
+  border: var(--rq-edge-w-thin) solid var(--rq-gold); animation: rqPulse var(--rq-landing-pulse) ease-in-out infinite;
+}
+.rq-film__play-label { font-size: var(--rq-landing-film-label-fs); letter-spacing: var(--rq-ls-chip); line-height: var(--rq-lh-tight); }
+
+/* Triangel och dubbla streck ritas i CSS (inga egna <svg> i landningen, regel 10). */
+.rq-film__glyph { display: block; background: currentColor; }
+.rq-film__glyph--play { width: var(--rq-landing-film-glyph-w); height: var(--rq-landing-film-glyph-h); clip-path: polygon(7% 6%, 93% 50%, 7% 94%); }
+.rq-film__glyph--pause { width: var(--rq-sp-12); height: var(--rq-sp-14); background: linear-gradient(90deg, currentColor 0 35%, transparent 35% 65%, currentColor 65% 100%); }
+.rq-film__btn .rq-film__glyph--play { width: var(--rq-sp-12); height: var(--rq-sp-14); }
+
+.rq-film__error {
+  position: absolute; right: 0; bottom: 0; left: 0; margin: 0; padding: var(--rq-sp-10) var(--rq-sp-14); pointer-events: none;
+  background: var(--rq-bg-shell-glass); color: var(--rq-down); text-align: center; text-transform: uppercase;
+  font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label);
+}
+
+/* ── Desktopens kontrollrad: play/paus · tid · sökbar progress. Ingen ljudknapp (filmen saknar ljud). ───────────────────────────── */
+.rq-film__bar {
+  position: absolute; right: 0; bottom: 0; left: 0; display: flex; align-items: center; gap: var(--rq-sp-14);
+  padding: var(--rq-sp-12) var(--rq-sp-16); background: var(--rq-landing-film-bar-bg);
+}
+.rq-film__btn {
+  flex: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 0; padding: 0;
+  width: var(--rq-landing-film-btn); height: var(--rq-landing-film-btn); background: none; cursor: pointer;
+  border: var(--rq-hair) solid var(--rq-btn-secondary-edge); color: var(--rq-gold-text);
+}
+.rq-film__btn:hover { background: rgb(var(--rq-gold-rgb) / .15); }
+.rq-film__time { flex: none; font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-film__range { flex: 1; min-width: 0; margin: 0; padding: 0; background: none; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.rq-film__range:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-offset); }
+.rq-film__range::-webkit-slider-runnable-track {
+  height: var(--rq-landing-film-track-h);
+  background: linear-gradient(90deg, var(--rq-gold) var(--rq-film-progress, 0%), var(--rq-line-5) var(--rq-film-progress, 0%));
+}
+.rq-film__range::-moz-range-track {
+  height: var(--rq-landing-film-track-h);
+  background: linear-gradient(90deg, var(--rq-gold) var(--rq-film-progress, 0%), var(--rq-line-5) var(--rq-film-progress, 0%));
+}
+.rq-film__range::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none; width: var(--rq-landing-film-thumb); height: var(--rq-landing-film-thumb); border: 0;
+  border-radius: 0; background: var(--rq-gold); margin-top: calc((var(--rq-landing-film-track-h) - var(--rq-landing-film-thumb)) / 2);
+}
+.rq-film__range::-moz-range-thumb { width: var(--rq-landing-film-thumb); height: var(--rq-landing-film-thumb); border: 0; border-radius: 0; background: var(--rq-gold); }
+
+/* ── Mobilens progress: tre pixlar i nederkanten, ingen kontrollrad ─────────────────────────────────────────────────────────────── */
+.rq-film__progress {
+  position: absolute; right: 0; bottom: 0; left: 0; height: var(--rq-landing-film-progress-h); pointer-events: none;
+  background: linear-gradient(90deg, var(--rq-gold) var(--rq-film-progress, 0%), var(--rq-line-6) var(--rq-film-progress, 0%));
+}
+
+/* ── Desktopsektionen: rubrikrad, spelare med guldhörn, stegen under ───────────────────────────────────────────────────────────── */
+.rq-film--desktop { padding: var(--rq-sp-40) 0 var(--rq-sp-48); border-top: var(--rq-hair) solid var(--rq-line-2); scroll-margin-top: var(--rq-sp-24); }
+.rq-film__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--rq-sp-10) var(--rq-sp-24); margin-bottom: var(--rq-sp-24); }
+.rq-film__eyebrow { margin: 0 0 var(--rq-sp-6); font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-film__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-display-xl); letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+.rq-film__aside { margin: 0; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-label); text-transform: uppercase; text-align: right; color: var(--rq-text-4); }
+
+.rq-film__player { position: relative; max-width: var(--rq-landing-max); margin-inline: auto; }
+.rq-film__corner { position: absolute; width: var(--rq-landing-film-corner); height: var(--rq-landing-film-corner); pointer-events: none; border: 0 solid rgb(var(--rq-gold-rgb) / .6); }
+.rq-film__corner[data-corner="tl"] { top: var(--rq-landing-film-corner-off); left: var(--rq-landing-film-corner-off); border-top-width: var(--rq-landing-film-corner-w); border-left-width: var(--rq-landing-film-corner-w); }
+.rq-film__corner[data-corner="tr"] { top: var(--rq-landing-film-corner-off); right: var(--rq-landing-film-corner-off); border-top-width: var(--rq-landing-film-corner-w); border-right-width: var(--rq-landing-film-corner-w); }
+.rq-film__corner[data-corner="bl"] { bottom: var(--rq-landing-film-corner-off); left: var(--rq-landing-film-corner-off); border-bottom-width: var(--rq-landing-film-corner-w); border-left-width: var(--rq-landing-film-corner-w); }
+.rq-film__corner[data-corner="br"] { bottom: var(--rq-landing-film-corner-off); right: var(--rq-landing-film-corner-off); border-bottom-width: var(--rq-landing-film-corner-w); border-right-width: var(--rq-landing-film-corner-w); }
+
+.rq-film__steps { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--rq-sp-10) var(--rq-sp-40); margin: var(--rq-sp-24) 0 0; padding: 0; list-style: none; }
+.rq-film__step { display: flex; align-items: baseline; gap: var(--rq-sp-8); font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-film__step-num { font-family: var(--rq-font-mono); color: var(--rq-gold-text); }
