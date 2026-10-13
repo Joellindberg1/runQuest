@@ -159,6 +159,28 @@ describe('BadgeUpgradeDialog: semantik och fokus (Council 19)', () => {
     await waitFor(() => expect(opener).toHaveFocus());
   });
 
+  it('fokus lämnas tillbaka utan att sidan scrollar (preventScroll)', async () => {
+    const Harness = () => {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>opener</button>
+          {open && <BadgeUpgradeDialog entry={entry()} position={1} total={1} onDismiss={() => setOpen(false)} onSkipAll={() => setOpen(false)} />}
+        </>
+      );
+    };
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'opener' });
+    opener.focus();
+    const focus = vi.spyOn(opener, 'focus');
+    fireEvent.click(opener);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Got it' })).toHaveFocus());
+    passGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
   it('Escape är "Got it": onDismiss anropas (inte onSkipAll)', async () => {
     const { onDismiss, onSkipAll } = renderDialog({ total: 3 });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Got it' })).toHaveFocus());

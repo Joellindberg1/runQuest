@@ -18,10 +18,14 @@
 //     och summan är högst 7 MiB; ingen .mp4/.mov är spårad i git utanför den mappen (originalet ligger utanför git); .gitignore
 //     innehåller raderna som håller originalet utanför. Kontrollen hoppas över i `all` när repot saknar apps/frontend/public.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|media|all]   (standard: all)
+//  5. Självhostade typsnitt: filerna i apps/frontend/public/fonts/ är versionerade woff2 (namn.v<N>.woff2, riktig woff2-signatur), högst 60 KiB
+//     styck, och licensfilen OFL.txt ligger bredvid. Integritetstexten lovar att inga typsnitt hämtas från Google; en stor eller felaktig fil
+//     i den mappen är oftast ett tecken på att någon lagt dit fel sak.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -184,6 +188,47 @@ export function checkGitignoreForVideo(content) {
   return REQUIRED_IGNORE_LINES.filter((line) => !lines.has(line)).map((line) => `.gitignore saknar raden "${line}".`);
 }
 
+const FONTS_DIR = 'apps/frontend/public/fonts';
+const FONT_SIZE_LIMIT = 60 * 1024;
+// <familj>-<vikt>.v<N>.woff2, eller <familj>-<vikt>.latin-ext.v<N>.woff2 för latin-ext-delmängden.
+const FONT_NAME = /^[a-z0-9][a-z0-9-]*(?:\.latin-ext)?\.v\d+\.woff2$/;
+const FONT_LICENCE = 'OFL.txt';
+const WOFF2_SIGNATURE = 'wOF2';
+
+/** Regel 5. `files`: [{ name, size, magic }] för varje fil direkt i public/fonts; `magic` är filens fyra första tecken. Returnerar felmeddelanden. */
+export function checkFontFiles(files) {
+  const errors = [];
+  const fonts = files.filter(({ name }) => name !== FONT_LICENCE);
+  for (const { name, size, magic } of fonts) {
+    if (!FONT_NAME.test(name)) {
+      errors.push(`${FONTS_DIR}/${name}: namnet följer inte mönstret <namn>[.latin-ext].v<N>.woff2 (versionen i namnet håller den immutable-cachade filen sann).`);
+    } else if (magic !== WOFF2_SIGNATURE) {
+      errors.push(`${FONTS_DIR}/${name}: filen är inte woff2 (saknar signaturen "${WOFF2_SIGNATURE}").`);
+    }
+    if (size > FONT_SIZE_LIMIT) errors.push(`${FONTS_DIR}/${name}: ${size} byte, gränsen är ${FONT_SIZE_LIMIT} byte.`);
+  }
+  if (fonts.length > 0 && !files.some(({ name }) => name === FONT_LICENCE)) {
+    errors.push(`${FONTS_DIR}/${FONT_LICENCE} saknas: typsnitten är OFL-licensierade och licenstexten ska ligga bredvid.`);
+  }
+  return errors;
+}
+
+function listFontFiles(root) {
+  const dir = join(root, FONTS_DIR);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).map((name) => {
+    const path = join(dir, name);
+    const head = Buffer.alloc(4);
+    const fd = openSync(path, 'r');
+    try {
+      readSync(fd, head, 0, 4, 0);
+    } finally {
+      closeSync(fd);
+    }
+    return { name, size: statSync(path).size, magic: head.toString('latin1') };
+  });
+}
+
 function listMediaFiles(root) {
   const dir = join(root, MEDIA_DIR);
   if (!existsSync(dir)) return [];
@@ -203,8 +248,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'media'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | media`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -240,6 +285,12 @@ function runCli(argv = process.argv.slice(2)) {
     const tracked = gitTrackedFiles(root);
     if (tracked) errors.push(...checkNoTrackedVideoOriginals(tracked));
     summary.push(`${files.length} mediafiler inom storleksgränserna${tracked ? ', inga videooriginal i git' : ' (git ls-files ej tillgängligt: spårningskontrollen hoppades över)'}`);
+  }
+
+  if (mode === 'fonts' || (mode === 'all' && existsSync(join(root, 'apps/frontend/public')))) {
+    const files = listFontFiles(root);
+    errors.push(...checkFontFiles(files));
+    summary.push(`${files.filter(({ name }) => name !== FONT_LICENCE).length} typsnittsfiler som woff2 inom storleksgränsen`);
   }
 
   if (errors.length > 0) {

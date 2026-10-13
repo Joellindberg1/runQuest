@@ -16,7 +16,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-13', sha256: '5c6519005158b75fd207049c4d765d949af50cc2fcaa2fe22b79443f89bcb119' };
+const PINNED_POLICY = { version: '2026-10-13.1', sha256: '2488ea4e3337bde7a196a93c97e4d74849c390614a7cd214ca772c8e5b9443a3' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -121,12 +121,16 @@ describe('dataPolicy', () => {
   it('dataPolicy covers the whole service: what is stored, third parties, storage, retention and rights', () => {
     const text = policyText();
     for (const pattern of [
-      /email address/i, /hashed password/i, /username/i, /profile picture/i, /Supabase/, /Railway/, /Open-Meteo/, /Google Fonts/,
+      /email address/i, /hashed password/i, /username/i, /profile picture/i, /Supabase/, /Railway/, /Open-Meteo/,
       /local storage/i, /access/i, /correct/i, /delet/i, /pack/i,
     ]) {
       expect(text).toMatch(pattern);
     }
     expect(text).toMatch(/DNS/);
+  });
+
+  it('dataPolicy no longer names Google: the typefaces are served from RunQuest itself', () => {
+    expect(policyText()).not.toMatch(/Google|fonts\.googleapis|fonts\.gstatic/i);
   });
 
   it('dataPolicy waitlist section states purpose, legal basis, retention and how to request deletion', () => {

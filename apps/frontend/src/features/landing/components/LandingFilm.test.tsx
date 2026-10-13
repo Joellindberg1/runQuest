@@ -49,7 +49,9 @@ afterEach(() => {
 });
 
 const getVideo = (container: HTMLElement) => container.querySelector('video') as HTMLVideoElement;
-const playButton = () => screen.getByRole('button', { name: PLAY_LABEL });
+// Knappen på postern: synlig text ("PLAY — 0:49" / "WATCH THE FILM — 0:49") och ett namn som börjar med den.
+const POSTER_BUTTON_NAME = /^(?:play|watch the film) — 0:49: the RunQuest film, no sound$/i;
+const playButton = () => screen.getByRole('button', { name: POSTER_BUTTON_NAME });
 
 /** Klick på play och sedan första bildrutan: filmen spelar. */
 function startFilm(container: HTMLElement) {
@@ -113,6 +115,19 @@ describe('filmen: innan den startar', () => {
       startFilm(container);
       expect(container.textContent).not.toMatch(/sound on/i);
       for (const button of screen.getAllByRole('button')) expect(button).not.toHaveAccessibleName(/\b(mute|unmute|volume|sound on)\b/i);
+      unmount();
+    }
+  });
+
+  it('play-knappens tillgängliga namn börjar med dess synliga text', () => {
+    for (const [variant, width] of [['desktop', 1440], ['mobile', 390]] as const) {
+      stubViewport(width);
+      const { unmount } = render(<LandingFilm variant={variant} />);
+      const button = playButton();
+      const visibleText = (button.textContent ?? '').trim();
+      expect(visibleText).toMatch(/0:49$/);
+      const name = (button.getAttribute('aria-label') ?? '').toLowerCase();
+      expect(name.startsWith(visibleText.toLowerCase())).toBe(true);
       unmount();
     }
   });
@@ -298,7 +313,7 @@ describe('filmen: en spelare per skärmbredd', () => {
       );
       expect(container.querySelectorAll('#film')).toHaveLength(1);
       expect(container.querySelectorAll('video')).toHaveLength(1);
-      expect(screen.getAllByRole('button', { name: PLAY_LABEL })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: POSTER_BUTTON_NAME })).toHaveLength(1);
       expect(container.querySelector('#film')?.tagName).toBe(expected === 'desktop' ? 'SECTION' : 'DIV');
       unmount();
     }

@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.6.2.1 — Fast header på landningen, typsnitten från egen server (2026-10-13)
+
+Intern version (ingen versionsbump, ingen What's new, ingen announce). Ägarbeslut 2026-10-13: headern följer med vid scroll, "Free while in beta" bort (inget prisbeslut finns), "snabba vinster" efter Lighthouse-mätningen. RUN-212.
+
+### Ändrat
+- Landningens header är fast (sticky) på mobil och desktop, med safe-area-marginal, egen z-index-token (`--rq-z-landing-header`) och höjd-tokens; ankarlänkarna landar under headern (`scroll-padding-top`). En mjuk ton under headern ligger bakom innehållet så att rubriken behåller full styrka. Inloggningsdialogen återställer fokus utan att sidan hoppar.
+- "Free while in beta" borttaget ur väntelistan; en vakt fäller om landningen nämner "free".
+- Typsnitten (Barlow Condensed, Bebas Neue, Share Tech Mono, Oswald) serveras från egen server under `/fonts/*` (woff2, latin + latin-ext, OFL-licens bredvid); rubrikens typsnitt förladdas. Inga anrop till Google Fonts längre.
+- Integritetstexten: Google Fonts-stycket borta (Google får inte längre besökarens IP), `DATA_POLICY_VERSION` 2026-10-13.1.
+- Filmens play-knapp: skärmläsarnamnet börjar med den synliga texten (WCAG 2.5.3).
+- Caddy: `/fonts/*` immutable med `font/woff2` och 404 för saknade filer; CI-vakt för typsnittsfilernas storlek och format.
+
+### Mätning (Lighthouse 12.1 mobil, lokalt, median av 3)
+- Prestanda 80 → 82, LCP 4,56 → 4,16 s. Resten av LCP hänger på JS-kedjan (filmens poster laddas först efter JS) och tas i RUN-260 (v0.8.0).
+
+### Prod-steg (kräver ägar-ja)
+1. PR release/v0.6.2.1 → main, grön CI (inkl. verify-static-serving på Linux), merge (= deploy). Ingen migration.
+2. Röktest: `/` sticky header, inga anrop till Google Fonts, `/fonts/*` rätt typ och cache, `/legal` visar version 2026-10-13.1. Lighthouse mobil mot prod.
+3. Tagg `v0.6.2.1` på merge-commiten.
+
+### Rollback
+- Kod: redeploya v0.6.2 i Railway och revert-PR. Inga dataformat ändrade, ingen migration.
+
 ## v0.6.2 — Landningssidan marknadsföringsklar, väntelista, /legal (2026-10-13)
 
 Användarversion (What's new + Pack News-rad via announce:release). Epic RUN-159. Ägaren godkände design, copy och integritetstext 2026-10-13.

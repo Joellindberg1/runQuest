@@ -52,7 +52,7 @@ export function BadgeUpgradeDialog({ entry, position, total, onDismiss, onSkipAl
           onOpenAutoFocus={(event) => { event.preventDefault(); gotItRef.current?.focus(); }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (returnFocusTo instanceof HTMLElement && returnFocusTo !== document.body && returnFocusTo.isConnected) returnFocusTo.focus();
+            if (returnFocusTo instanceof HTMLElement && returnFocusTo !== document.body && returnFocusTo.isConnected) returnFocusTo.focus({ preventScroll: true });
           }}
         >
           <Dialog.Close className="rq-modal__close rq-badge-popup__close" aria-label="Close" onKeyDown={blockRepeat} onClick={(event) => { if (event.detail > 1) event.preventDefault(); }}>✕</Dialog.Close>
