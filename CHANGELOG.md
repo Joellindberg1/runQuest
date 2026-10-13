@@ -18,8 +18,8 @@ Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-13: det s
 ### Prod-steg (kräver ägar-ja)
 1. Migration 044 (`waitlist_signups`) — KÖRD 2026-10-13 (ägar-ja): RLS på, 0 policyer, anon/authenticated utan åtkomst, inga nya advisor-varningar.
 2. Migration 043 (`runs.client_request_id` + partiellt unikt index) före deploy — KÖRD 2026-10-13 (ägar-ja): 736 rundor orörda, indexet finns.
-3. PR release/v0.6.1.4 → main, grön CI, merge (= deploy). Ingen versionsbump.
-4. Tagg `v0.6.1.4` på merge-commiten. Röktest: `GET /api/public/stats` ger tre tal.
+3. PR release/v0.6.1.4 → main, grön CI, merge (= deploy). Ingen versionsbump. KÖRD 2026-10-13 (ägar-ja): PR #35, grön CI.
+4. Tagg `v0.6.1.4` på merge-commiten. Röktest: `GET /api/public/stats` ger tre tal. KÖRD 2026-10-13: tagg på da2dbd0; röktest i prod: stats 200 (6 löpare, 4 utmaningar, 4 551 km), ogiltig väntelisteanmälan 400, admin-listan 401 utan token, webben 200.
 
 ### Rollback
 - Kod: redeploya v0.6.1.3 i Railway + revert-PR. Migrationerna är additiva och kan ligga kvar (gammal kod läser dem inte).
