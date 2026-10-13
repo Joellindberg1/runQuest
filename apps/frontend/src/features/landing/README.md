@@ -12,7 +12,7 @@ geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten 
 ## Struktur
 
 - **components/**
-  - `LandingScreen` — sidan: rutnät och glöd (dekor), header, `main`, footer. Inget annat än sammansättning, och platserna för film och väntelista (se nedan).
+  - `LandingScreen` — sidan: rutnät och glöd (dekor), header, `main`, footer. Inget annat än sammansättning, inklusive filmen och väntelistan (se nedan).
   - `LandingHeader` — wordmark, `nav aria-label="Sections"` (bara desktop: The game → `#film`, XP & levels → `#how-it-works`, Titles → `#features`) och Sign in (`rq-btn--secondary`)
   - `LandingParts` — `LandingHero` (h1 · bana · ingress · knappar · film (mobil) · sifferrad; **h1 `id="landing-title"` ligger här**), `PackPreview`, `HowItWorks` (stegen och XP-formeln)
   - `LandingStats` — sifferraden; `LandingFeatures` — de sex korten; `LandingFooter` — Privacy, Legal, Strava, versionen
@@ -21,16 +21,14 @@ geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten 
 - **landingModel.ts** — vymodellen: ankar-id:n, `buildStatViews`, `buildPreviewRows`, `buildHowItWorks`, `buildXpFormula`, `buildFeatures` och banans geometri (`ARENA`)
 - `landing.css` — enda stilfilen; mått (`--rq-landing-*`) i temafilen, sektion 1.27 (index.css + docs/design/temafil-forslag.css)
 
-## Platser för film och väntelista
+## Film och väntelista
 
-Lead byter in komponenterna från de andra spåren vid integrationen; platserna har kommentarer som börjar med `PLATS (Lead):`.
-
-- `LandingHero` tar `watchFilm` och `mobileFilm`. Ordning i textspalten: knappraden (Join the waitlist + `watchFilm`), `mobileFilm`, sifferraden. Platshållaren för `watchFilm` är en länk till `#film`.
-- `<div id="film" data-slot="film" />` mellan hjälten och previewn; `<div id="waitlist" data-slot="waitlist" />` efter funktionsrutnätet, före footern. Komponenterna som byts in bär själva ankar-id:t.
+- `LandingHero` tar `watchFilm` (`<WatchFilmButton />`) och `mobileFilm` (`<LandingFilm variant="mobile" />`). Ordning i textspalten: knappraden (Join the waitlist + Watch the film), filmen (mobil), sifferraden.
+- `<LandingFilm variant="desktop" />` ligger mellan hjälten och previewn och `<LandingWaitlist />` efter funktionsrutnätet, före footern. Komponenterna bär själva ankar-id:t (`#film`, `#waitlist`); filmen renderar bara den variant som passar bredden, så `#film` finns exakt en gång.
 
 ## Regler värda att komma ihåg
 
-- **Ett anrop (ADR 006-addendum 2026-10-13, ändrar ägarbeslut 4).** Landing gör exakt ett anrop vid sidladdning, `GET /api/public/stats` (utan Authorization). Bara `hooks/usePublicStats.ts`
+- **Ett anrop (ADR 006-addendum 2026-10-13, ändrar ägarbeslut 4).** Landing gör exakt ett anrop vid sidladdning, `GET /api/public/stats` (utan Authorization), plus ett omförsök vid 5xx eller nätverksfel (inget vid 4xx). Väntelistans formulär skickar `POST /api/waitlist` först när besökaren trycker. Bara `hooks/usePublicStats.ts`
   får importera klienten och react-query (ESLint, `eslint.config.js`), och `LandingScreen.test.tsx` kräver exakt ett anrop med exakt den sökvägen. Ingen `useAuth`, ingen annan data.
   (App-skalet hämtar nivåtabellen via backenden, `GET /api/config/levels` (`useLevelRequirements`, `enabled: !!user`, anropad från `useAppInit`), bara när användaren är inloggad.
   Utloggad — inklusive `/` — görs inget annat anrop och shareds fallback-tabell används. Inget av det är Landing.)

@@ -55,6 +55,7 @@ describe('Landing — struktur och tillgänglighet', () => {
     expect(headingOutline()).toEqual([
       [1, 'Your group chat deserves a leaderboard'],
       [2, 'RunQuest in numbers'],
+      [2, 'From a run to a rank'],
       [2, 'The leaderboard, live'],
       [3, 'Sample pack'],
       [3, 'Rank changes show up'],
@@ -72,6 +73,7 @@ describe('Landing — struktur och tillgänglighet', () => {
       [3, 'Events'],
       [3, 'Strava sync'],
       [3, 'The journey'],
+      [2, 'Join the waitlist'],
     ]);
   });
 
@@ -132,11 +134,15 @@ describe('Landing — header och knappar', () => {
     expect(within(screen.getByRole('region', { name: 'Your group chat deserves a leaderboard' })).getByRole('link', { name: 'Join the waitlist' })).toBe(join);
   });
 
-  it('inga andra guldknappar än Join the waitlist finns på sidan', async () => {
+  it('inga andra guldknappar än Join the waitlist finns på sidan: hjältens länk och formulärets skicka-knapp', async () => {
     const { container } = renderLanding({ width: DESKTOP });
     await loaded();
     const gold = [...container.querySelectorAll('.rq-btn--primary')];
-    expect(gold.map((node) => node.textContent)).toEqual(['Join the waitlist']);
+    expect(gold.map((node) => node.textContent)).toEqual(['Join the waitlist', 'Join the waitlist']);
+    const [heroLink, submit] = gold;
+    expect(heroLink).toHaveAttribute('href', '#waitlist');
+    expect(submit).toHaveAttribute('type', 'submit');
+    expect(container.querySelector('#waitlist')).toContainElement(submit as HTMLElement);
   });
 
   it('Watch the film är en neutral konturknapp bredvid guldknappen, med platshållaren som mål', async () => {
@@ -160,7 +166,11 @@ describe('Landing — header och knappar', () => {
     renderLanding({ width: DESKTOP });
     await loaded();
     expect(screen.queryByLabelText(/username|password/i)).toBeNull();
-    expect(screen.queryByRole('textbox')).toBeNull();
+    // Enda textfältet på sidan är väntelistans e-post.
+    const fields = screen.queryAllByRole('textbox');
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toHaveAttribute('type', 'email');
+    expect(document.querySelector('#waitlist')).toContainElement(fields[0]);
     expect(screen.queryByText(/coming soon/i)).toBeNull();
     expect(screen.queryByText(/pack name|start a pack/i)).toBeNull();
   });
@@ -194,15 +204,15 @@ describe('Landing — header och knappar', () => {
 });
 
 describe('Landing — platser för film och väntelista', () => {
-  it('filmen och formuläret har var sin tomma plats med rätt ankare, utan rubrik eller landmärkesroll', async () => {
-    const { container } = renderLanding();
+  it('filmen och väntelistan är monterade i sina ankare, exakt en gång var', async () => {
+    const { container } = renderLanding({ width: DESKTOP });
     await loaded();
-    for (const [id, slot] of [['film', 'film'], ['waitlist', 'waitlist']]) {
-      const place = container.querySelector(`#${id}`) as HTMLElement;
-      expect(place).toHaveAttribute('data-slot', slot);
-      expect(place).toBeEmptyDOMElement();
-      expect(place.getAttribute('role')).toBeNull();
+    for (const id of ['film', 'waitlist']) {
+      expect(container.querySelectorAll(`#${id}`)).toHaveLength(1);
+      expect(container.querySelector(`#${id}`)?.tagName).toBe('SECTION');
     }
+    expect(screen.getByRole('region', { name: 'From a run to a rank' })).toHaveAttribute('id', 'film');
+    expect(screen.getByRole('region', { name: 'Join the waitlist' })).toHaveAttribute('id', 'waitlist');
   });
 
   it('filmen ligger mellan hjälten och previewn, väntelistan efter funktionerna och före footern', async () => {
