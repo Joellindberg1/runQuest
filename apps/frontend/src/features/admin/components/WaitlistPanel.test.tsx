@@ -11,8 +11,9 @@ vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBa
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
 
 const entry = (id: string, email: string, created_at: string): AdminWaitlistEntry => ({ id, email, created_at, source: 'landing' });
-const ANNA = entry('w2', 'anna@example.com', '2026-10-13T08:00:00Z');
-const BO = entry('w1', 'bo@example.com', '2026-10-12T12:00:00Z');
+// Nyast är alfabetiskt sist: en klientsidig omsortering på e-post ska fälla ordningstestet.
+const ZOE = entry('w2', 'zoe@example.com', '2026-10-13T08:00:00Z');
+const ANNA = entry('w1', 'anna@example.com', '2026-10-12T12:00:00Z');
 
 const SLOW = { timeout: 4000 };
 
@@ -34,21 +35,22 @@ beforeEach(() => {
 
 describe('Admin — waitlist', () => {
   it('admin waitlist tab lists signups and the total', async () => {
-    handlers.getAdminWaitlist = () => ({ success: true, data: { entries: [ANNA, BO], total: 2 } });
+    handlers.getAdminWaitlist = () => ({ success: true, data: { entries: [ZOE, ANNA], total: 2 } });
     renderAdmin('/admin?view=waitlist');
 
     const list = await screen.findByRole('list', { name: 'Waitlist' });
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveTextContent('anna@example.com');
+    expect(rows[0]).toHaveTextContent('zoe@example.com');
     expect(rows[0]).toHaveTextContent('13 October 2026');
-    expect(rows[1]).toHaveTextContent('bo@example.com');
+    expect(rows[1]).toHaveTextContent('anna@example.com');
+    expect(rows[1]).toHaveTextContent('12 October 2026');
     expect(screen.getByText('2 signups')).toBeInTheDocument();
     expect(screen.queryByText(/Showing the latest/)).not.toBeInTheDocument();
   });
 
   it('admin waitlist tab says when the list is cut short of the total', async () => {
-    handlers.getAdminWaitlist = () => ({ success: true, data: { entries: [ANNA, BO], total: 1234 } });
+    handlers.getAdminWaitlist = () => ({ success: true, data: { entries: [ZOE, ANNA], total: 1234 } });
     renderAdmin('/admin?view=waitlist');
 
     await screen.findByRole('list', { name: 'Waitlist' });

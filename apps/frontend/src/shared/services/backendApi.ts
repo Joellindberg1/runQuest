@@ -339,7 +339,7 @@ class BackendApiService {
     return this.getEnvelope<AdminWaitlistData>('/admin/waitlist', 'Failed to load the waitlist');
   }
 
-  /** GET /config/xp— effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */
+  /** GET /config/xp — effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */
   async getXpConfig(): Promise<ApiResponse<XpConfigResponse>> {
     return this.getEnvelope<XpConfigResponse>('/config/xp', 'Failed to fetch XP config');
   }
