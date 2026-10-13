@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.6.1.4 — Inga dubbla rundor, datum i svensk tid, väntelista och publika siffror i backend (2026-10-13)
+
+Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-13: det som var klart i v0.6.2 släpps nu medan landningens ritningar färdigställs; landningen själv blir v0.6.2.
+
+### Buggfixar
+- Inga dubblettrundor när svaret på "Log run" uteblir och man skickar igen: klienten skickar en `Idempotency-Key` per inskick, servern sparar den (`runs.client_request_id`, migration 043) och svarar med samma runda vid upprepning; dubbelklick ger ett anrop. (RUN-225)
+- "Förra kalendermånaden" i titelmotorn maxKmRolling30, Strava-synkens tidsfönster och preview-sidornas datum räknas i svensk tid via kalendermodulen; datumvakten fäller nu fler former av datumaritmetik och undantagen gäller exakt antal träffar per fil. (RUN-224)
+- Testet för loggformuläret berodde på dagens datum (rött från 2026-10-13); formuläret använder nu skärmens klocka överallt. (RUN-225)
+
+### Nytt (osynligt för gruppen tills landningen släpps)
+- `GET /api/public/stats`: publik, ingen persondata — antal löpare, avgjorda utmaningar och total km som tre heltal, cachat 5 min. Underlag för landningens sanna siffror. (RUN-231)
+- Väntelista nivå 1: tabellen `waitlist_signups` (migration 044; RLS utan policyer, bara backend), `POST /api/waitlist` (publik; honeypot, tidsfälla, egen rate limit 5/15 min/IP, 1 kB, samma svar för ny och dubblett, e-post loggas aldrig) och `GET /api/admin/waitlist`. Inget mail skickas. (RUN-202, RUN-203)
+- Admin: ny flik Waitlist med anmälda och totalen. (RUN-232)
+- ADR 006-addendum: den publika landningen förblir klientrenderad med statisk metadata i `index.html`, ingen prerender. (RUN-200)
+
+### Prod-steg (kräver ägar-ja)
+1. Migration 044 (`waitlist_signups`) — KÖRD 2026-10-13 (ägar-ja): RLS på, 0 policyer, anon/authenticated utan åtkomst, inga nya advisor-varningar.
+2. Migration 043 (`runs.client_request_id` + partiellt unikt index) före deploy — KÖRD 2026-10-13 (ägar-ja): 736 rundor orörda, indexet finns.
+3. PR release/v0.6.1.4 → main, grön CI, merge (= deploy). Ingen versionsbump.
+4. Tagg `v0.6.1.4` på merge-commiten. Röktest: `GET /api/public/stats` ger tre tal.
+
+### Rollback
+- Kod: redeploya v0.6.1.3 i Railway + revert-PR. Migrationerna är additiva och kan ligga kvar (gammal kod läser dem inte).
+- Migration 043: `drop index if exists public.runs_user_client_request_id_key; alter table public.runs drop column if exists client_request_id;`
+- Migration 044: `drop table if exists public.waitlist_signups;` (tar bort sparade adresser — ägar-ja).
+
 ## v0.6.1.3 — Designreglerna som lint i stället för källtexttester (RUN-223) (2026-10-12)
 
 Intern version (ingen What's new, ingen announce). Ägarbeslut 2026-10-12: RUN-223 delas upp — steg 2 (designregler som lint) nu, steg 4 (RUN-227) i v0.7.0 efter RUN-93, steg 6 löpande.
