@@ -15,9 +15,10 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { getSupabaseClient } from '../../config/database.js';
 import { createApp } from '../../app.js';
-import { resetPublicStatsCache } from '../../services/publicStats.js';
+import { getPublicStats, resetPublicStatsCache } from '../../services/publicStats.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { startServer, type TestServer } from './helpers/http.js';
 
@@ -31,6 +32,31 @@ function use(tables: Record<string, Row[]>, options: Parameters<typeof createFak
   const db = createFakeDb(tables, options);
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return db;
+}
+
+/**
+ * Omsluter fakens klient: varje fråga svarar först efter delayMs (som ett riktigt nätverksanrop, så att samtidiga
+ * anrop hinner överlappa) och .limit(n) kapas vid maxRows (som PostgREST max-rows).
+ */
+function wrapClient(client: any, opts: { delayMs?: number; maxRows?: number }) {
+  const wrap = (target: any): any => new Proxy(target, {
+    get(t, prop) {
+      if (prop === 'then') {
+        return (resolve: (v: unknown) => void, reject: (e: unknown) => void) =>
+          new Promise((ok) => setTimeout(ok, opts.delayMs ?? 0))
+            .then(() => new Promise((done, fail) => t.then(done, fail)))
+            .then(resolve, reject);
+      }
+      const value = t[prop];
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        if (prop === 'limit' && opts.maxRows !== undefined) args = [Math.min(Number(args[0]), opts.maxRows)];
+        const out = value.apply(t, args);
+        return out === t ? wrap(t) : out;
+      };
+    },
+  });
+  return { ...client, from: (table: string) => wrap(client.from(table)) };
 }
 
 const user = (id: string): Row => ({ id, name: `Secret ${id}`, email: `${id}@example.com`, password_hash: 'x' });
@@ -96,8 +122,9 @@ describe('public stats', () => {
   });
 
   it('public stats sums km over all users', async () => {
-    // Fler rader än en sida (1000) så att summeringen bevisligen går över sidgränsen.
-    const runs = Array.from({ length: 2500 }, (_, i) => run(`r${String(i).padStart(5, '0')}`, i % 2 ? 'u1' : 'u2', 1.1));
+    // Fler rader än en sida (1000), med slumpade uuid i slumpad insättningsordning: summan stämmer bara om
+    // sidorna läses sorterade på id.
+    const runs = Array.from({ length: 2500 }, (_, i) => run(randomUUID(), i % 2 ? 'u1' : 'u2', 1.1));
     use({ users: [user('u1'), user('u2')], challenges: [], runs });
     const res = await get();
     expect(res.body.data.km).toBe(2750);
@@ -111,10 +138,22 @@ describe('public stats', () => {
     expect(res.body.data.km).toBe(2000);
   });
 
-  it('public stats rounds km to a whole number', async () => {
-    use({ users: [user('u1')], challenges: [], runs: [run('r1', 'u1', 0.1), run('r2', 'u1', 0.2), run('r3', 'u1', 5.2)] });
+  it.each([
+    [[0.1, 0.2, 5.2], 6], // 5.5 avrundas uppåt (inte golv)
+    [[0.1, 0.2, 5.1], 5], // 5.4 avrundas nedåt (inte tak)
+    [[0.2, 0.2, 5.0], 5], // 5.4 igen, annan uppdelning
+  ])('public stats rounds km %j to the nearest whole number %i', async (distances, expected) => {
+    use({ users: [user('u1')], challenges: [], runs: distances.map((d, i) => run(`r${i}`, 'u1', d)) });
     const res = await get();
-    expect(res.body.data.km).toBe(6); // 5.5 avrundas uppåt
+    expect(res.body.data.km).toBe(expected);
+  });
+
+  it('public stats keeps reading when the database caps a page below the page size', async () => {
+    const runs = Array.from({ length: 750 }, () => run(randomUUID(), 'u1', 1));
+    const db = createFakeDb({ users: [user('u1')], challenges: [], runs });
+    vi.mocked(getSupabaseClient).mockReturnValue(wrapClient(db.client, { maxRows: 500 }) as any);
+    const res = await get();
+    expect(res.body.data.km).toBe(750);
   });
 
   it('public stats returns zeros for an empty database', async () => {
@@ -151,13 +190,18 @@ describe('public stats cache', () => {
   });
 
   it('public stats shares one database load between simultaneous requests', async () => {
-    const db = use({ users: [user('u1')], challenges: [], runs: [run('r1', 'u1', 4)] });
-    await get();
+    const db = createFakeDb({ users: [user('u1')], challenges: [], runs: [run('r1', 'u1', 4)] });
+    vi.mocked(getSupabaseClient).mockReturnValue(wrapClient(db.client, { delayMs: 15 }) as any);
+
+    await getPublicStats();
     const queriesPerLoad = db.queries.length;
 
     resetPublicStatsCache();
-    await Promise.all([get(), get(), get()]);
+    // Anropen startar medan den första laddningen fortfarande väntar på databasen.
+    const results = await Promise.all([getPublicStats(), getPublicStats(), getPublicStats()]);
     expect(db.queries.length).toBe(queriesPerLoad * 2);
+    expect(results[1]).toEqual(results[0]);
+    expect(results[2]).toEqual(results[0]);
   });
 
   it('public stats sends a five minute public Cache-Control header', async () => {
@@ -168,9 +212,9 @@ describe('public stats cache', () => {
 });
 
 describe('public stats failures', () => {
-  it('public stats returns 500 without database details on failure', async () => {
+  it.each(['users', 'challenges', 'runs'])('public stats returns 500 without database details when %s fails', async (table) => {
     use({ users: [user('u1')], challenges: [], runs: [] }, {
-      errors: { runs: { message: 'connection to db.internal.supabase.co:5432 refused (password authentication failed)' } },
+      errors: { [table]: { message: 'connection to db.internal.supabase.co:5432 refused (password authentication failed)' } },
     });
     const res = await get();
     expect(res.status).toBe(500);

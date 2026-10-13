@@ -40,7 +40,8 @@ async function sumKm(): Promise<number> {
     if (error) throw error;
     const rows = (data ?? []) as Array<{ id: string; distance: number | string | null }>;
     for (const r of rows) hundredths += Math.round(Number(r.distance ?? 0) * 100);
-    if (rows.length < PAGE_SIZE) break;
+    // Först en tom sida betyder slut: PostgREST max-rows kan kapa en sida under PAGE_SIZE.
+    if (rows.length === 0) break;
     after = rows[rows.length - 1].id;
   }
   return Math.round(hundredths / 100);
