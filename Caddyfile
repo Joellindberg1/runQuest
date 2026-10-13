@@ -5,6 +5,8 @@
 #   1. index.html och SPA-routes får Cache-Control: no-cache, så en deploy aldrig fastnar
 #      bakom en gammal cachad startsida som pekar på borttagna kodfiler.
 #   2. Saknade filer under /assets ger 404 i stället för index.html (HTML som JS = vit sida).
+#   3. Filmen under /media (RUN-257): versionerade filnamn (landing-film-720.v1.mp4) cachas för alltid, saknade filer ger 404, och mp4 komprimeras
+#      inte (encode tar bara text, json, svg m.fl.; Range ger 206 av file_server). .webmanifest får sin typ explicit (RUN-205).
 # Beteendet verifieras i CI mot det byggda dist/ (scripts/verify-static-serving.sh).
 
 {
@@ -64,6 +66,30 @@
 		respond @missing "Not found" 404
 		file_server
 	}
+
+	# Filmens mediefiler: namnet bär versionen (.v1), så en ändrad fil får ett nytt namn och cachen kan vara för alltid. Samma mönster som /assets.
+	handle /media/* {
+		@exists {
+			file
+			not path */
+		}
+		header @exists Cache-Control "public, max-age=31536000, immutable"
+		@missing not {
+			file
+			not path */
+		}
+		header @missing Cache-Control "no-store"
+		respond @missing "Not found" 404
+		file_server
+	}
+
+	# Go och Caddy saknar .webmanifest i sin inbyggda typtabell, och typtabellen i prodcontainern är okänd: typen sätts explicit.
+	# file_server skriver bara över Content-Type när den saknas, så den här gäller. Bara om filen finns: en saknad manifestfil faller tillbaka på index.html och ska inte få manifesttypen.
+	@webmanifest {
+		path /site.webmanifest
+		file
+	}
+	header @webmanifest Content-Type "application/manifest+json"
 
 	handle {
 		header Cache-Control "no-cache"

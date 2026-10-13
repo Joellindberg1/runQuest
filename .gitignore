@@ -93,3 +93,7 @@ STRAVA_API.md
 README_API.md
 # Agentworktrees (lokala, skapas av Claude Code)
 .claude/worktrees/
+
+# Filmens original (RUN-257): ligger i ägarens OneDrive och i Claude Design, aldrig i git. Bara de komprimerade filerna i apps/frontend/public/media/ spåras.
+docs/design/*.mp4
+docs/design/landing-media/

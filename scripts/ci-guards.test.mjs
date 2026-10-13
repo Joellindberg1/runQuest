@@ -7,7 +7,17 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { checkEmptySuites, checkTestNames, checkTodos, isEntryPoint, listWorkspaces, walkFiles } from './ci-guards.mjs';
+import {
+  checkEmptySuites,
+  checkGitignoreForVideo,
+  checkMediaFiles,
+  checkNoTrackedVideoOriginals,
+  checkTestNames,
+  checkTodos,
+  isEntryPoint,
+  listWorkspaces,
+  walkFiles,
+} from './ci-guards.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const script = join(here, 'ci-guards.mjs');
@@ -134,6 +144,86 @@ describe('checkTestNames', () => {
   });
 });
 
+describe('checkMediaFiles', () => {
+  const LIMITS = {
+    'landing-film-720.v1.mp4': 4_194_304,
+    'landing-film-480.v1.mp4': 2_621_440,
+    'landing-film-poster-720.v1.webp': 61_440,
+    'landing-film-poster-480.v1.webp': 30_720,
+  };
+
+  it('passes every file at exactly its limit when the sum stays under 7 MiB', () => {
+    assert.deepEqual(checkMediaFiles([{ name: 'landing-film-720.v1.mp4', size: 4_194_304 }, { name: 'landing-film-480.v1.mp4', size: 2_621_440 }]), []);
+    assert.deepEqual(checkMediaFiles(Object.keys(LIMITS).map((name) => ({ name, size: 1 }))), []);
+  });
+
+  it('fails each file one byte over its limit and names the file', () => {
+    for (const [name, limit] of Object.entries(LIMITS)) {
+      const errors = checkMediaFiles([{ name, size: limit + 1 }]);
+      assert.equal(errors.length, 1, name);
+      assert.ok(errors[0].includes(name), errors[0]);
+    }
+  });
+
+  it('fails a file whose name does not follow the versioned pattern', () => {
+    for (const name of ['landing-film-1080.v1.mp4', 'landing-film-720.mp4', 'landing-film-720.vx.mp4', 'trailer.mp4', 'landing-film-poster-720.v1.png', 'notes.txt']) {
+      assert.equal(checkMediaFiles([{ name, size: 1 }]).length, 1, name);
+    }
+  });
+
+  it('accepts a new version number for a re-encoded file', () => {
+    assert.deepEqual(checkMediaFiles([{ name: 'landing-film-720.v2.mp4', size: 1 }, { name: 'landing-film-poster-480.v12.webp', size: 1 }]), []);
+  });
+
+  it('fails when the sum is over 7 MiB even though every file is within its own limit', () => {
+    const errors = checkMediaFiles([
+      { name: 'landing-film-720.v1.mp4', size: 4_194_304 },
+      { name: 'landing-film-720.v2.mp4', size: 4_194_304 },
+    ]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /7 MiB/);
+  });
+
+  it('passes an empty folder', () => {
+    assert.deepEqual(checkMediaFiles([]), []);
+  });
+});
+
+describe('checkNoTrackedVideoOriginals', () => {
+  it('passes video only under apps/frontend/public/media/', () => {
+    assert.deepEqual(checkNoTrackedVideoOriginals(['apps/frontend/public/media/landing-film-720.v1.mp4', 'apps/frontend/src/a.ts']), []);
+  });
+
+  it('fails an .mp4 or .mov anywhere else, in any letter case', () => {
+    const errors = checkNoTrackedVideoOriginals([
+      'docs/design/RunQuest Mixed (1).mp4',
+      'docs/x/clip.MOV',
+      'apps/frontend/public/other/clip.mp4',
+    ]);
+    assert.equal(errors.length, 3);
+  });
+
+  it('ignores other file types, also in docs/design', () => {
+    assert.deepEqual(checkNoTrackedVideoOriginals(['docs/design/landing-media/readme.txt', 'docs/design/poster.webp']), []);
+  });
+});
+
+describe('checkGitignoreForVideo', () => {
+  it('passes when both lines are present, with CRLF and surrounding lines', () => {
+    assert.deepEqual(checkGitignoreForVideo('node_modules/\r\ndocs/design/*.mp4\r\ndocs/design/landing-media/\r\n'), []);
+  });
+
+  it('names each missing line', () => {
+    assert.equal(checkGitignoreForVideo('docs/design/*.mp4\n').length, 1);
+    assert.equal(checkGitignoreForVideo('docs/design/landing-media/\n').length, 1);
+    assert.equal(checkGitignoreForVideo('').length, 2);
+  });
+
+  it('does not count a commented-out line', () => {
+    assert.equal(checkGitignoreForVideo('# docs/design/*.mp4\ndocs/design/landing-media/\n').length, 1);
+  });
+});
+
 describe('walkFiles / listWorkspaces', () => {
   it('skips node_modules and dist, and returns slash-separated relative paths', () => {
     const fs = { '/r/p': ['src', 'node_modules', 'dist'], '/r/p/src': ['a.ts', 'sub'], '/r/p/src/sub': ['b.ts'] };
@@ -212,6 +302,54 @@ describe('CLI', () => {
       writeFileSync(join(root, 'apps', 'one', 'src', dir, 'x.ts'), '// TODO: vendored\n');
     }
     assert.equal(runCli('todos', root).status, 0);
+  });
+
+  it('exits 0 on the real repo in media mode, and all skips the media check in a repo without apps/frontend/public', () => {
+    const real = runCli('media');
+    assert.equal(real.status, 0, real.stderr);
+    assert.match(real.stdout, /mediafiler/);
+    assert.equal(runCli('all', makeRepo('no-frontend')).status, 0);
+  });
+
+  it('exits 1 in media mode, also under all, when a media file is over its limit', () => {
+    const root = makeRepo('media-bad');
+    const media = join(root, 'apps', 'frontend', 'public', 'media');
+    mkdirSync(media, { recursive: true });
+    writeFileSync(join(media, 'landing-film-poster-480.v1.webp'), Buffer.alloc(30_721));
+    writeFileSync(join(root, '.gitignore'), 'docs/design/*.mp4\ndocs/design/landing-media/\n');
+    for (const mode of ['media', 'all']) {
+      const result = runCli(mode, root);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /landing-film-poster-480\.v1\.webp/);
+    }
+  });
+
+  it('exits 1 in a git repo when a video original is tracked or .gitignore lacks the lines, and 0 once both are fine', () => {
+    const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+    const makeGitRepo = (name, { ignore, trackVideo }) => {
+      const root = makeRepo(name);
+      mkdirSync(join(root, 'apps', 'frontend', 'public', 'media'), { recursive: true });
+      mkdirSync(join(root, 'docs', 'design'), { recursive: true });
+      writeFileSync(join(root, '.gitignore'), ignore);
+      writeFileSync(join(root, 'docs', 'design', 'original.mp4'), 'x');
+      assert.equal(git(root, 'init', '-q').status, 0);
+      assert.equal(git(root, 'add', '-f', '.gitignore', trackVideo ? 'docs/design/original.mp4' : 'package.json').status, 0);
+      return root;
+    };
+    const fullIgnore = 'docs/design/*.mp4\ndocs/design/landing-media/\n';
+
+    const tracked = runCli('media', makeGitRepo('git-tracked', { ignore: fullIgnore, trackVideo: true }));
+    assert.equal(tracked.status, 1);
+    assert.match(tracked.stderr, /docs\/design\/original\.mp4: videofil spårad i git/);
+
+    const noIgnore = runCli('media', makeGitRepo('git-no-ignore', { ignore: 'node_modules/\n', trackVideo: false }));
+    assert.equal(noIgnore.status, 1);
+    assert.match(noIgnore.stderr, /\.gitignore saknar raden "docs\/design\/\*\.mp4"/);
+    assert.match(noIgnore.stderr, /\.gitignore saknar raden "docs\/design\/landing-media\/"/);
+
+    const clean = runCli('media', makeGitRepo('git-clean', { ignore: fullIgnore, trackVideo: false }));
+    assert.equal(clean.status, 0, clean.stderr);
+    assert.match(clean.stdout, /inga videooriginal i git/);
   });
 
   it('rejects an unknown mode', () => {

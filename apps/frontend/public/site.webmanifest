@@ -1,0 +1,15 @@
+{
+  "name": "RunQuest",
+  "short_name": "RunQuest",
+  "description": "Your group chat deserves a leaderboard. Every run earns XP, XP becomes levels, levels become titles.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "browser",
+  "theme_color": "#070e09",
+  "background_color": "#070e09",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

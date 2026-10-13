@@ -14,9 +14,14 @@
 //     Vakten är textbaserad: den läser första strängargumentet till describe/it/test (även .each/.skip/.only) över radbrytningar,
 //     men ser inte namn som byggs upp av variabler.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|all]   (standard: all)
+//  4. Filmens mediefiler (RUN-257): filerna i apps/frontend/public/media/ följer namnmönstret (med version), håller sina storleksgränser
+//     och summan är högst 7 MiB; ingen .mp4/.mov är spårad i git utanför den mappen (originalet ligger utanför git); .gitignore
+//     innehåller raderna som håller originalet utanför. Kontrollen hoppas över i `all` när repot saknar apps/frontend/public.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|media|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
-import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -137,10 +142,69 @@ export function collectSourceFiles(root, workspaces) {
   return files;
 }
 
+const MEDIA_DIR = 'apps/frontend/public/media';
+const MEDIA_SUM_LIMIT = 7 * 1024 * 1024;
+// Namnmönster med version (`.v1`): en ny kodning får ett nytt namn, så den immutable-cachade filen aldrig skrivs över.
+const MEDIA_RULES = [
+  { pattern: /^landing-film-720\.v\d+\.mp4$/, limit: 4_194_304 },
+  { pattern: /^landing-film-480\.v\d+\.mp4$/, limit: 2_621_440 },
+  { pattern: /^landing-film-poster-720\.v\d+\.webp$/, limit: 61_440 },
+  { pattern: /^landing-film-poster-480\.v\d+\.webp$/, limit: 30_720 },
+];
+const VIDEO_FILE = /\.(?:mp4|mov)$/i;
+const REQUIRED_IGNORE_LINES = ['docs/design/*.mp4', 'docs/design/landing-media/'];
+
+/** Regel 4a. `files`: [{ name, size }] för varje fil direkt i public/media. Returnerar felmeddelanden. */
+export function checkMediaFiles(files) {
+  const errors = [];
+  let sum = 0;
+  for (const { name, size } of files) {
+    sum += size;
+    const rule = MEDIA_RULES.find(({ pattern }) => pattern.test(name));
+    if (!rule) {
+      errors.push(`${MEDIA_DIR}/${name}: namnet följer inte mönstret landing-film-(720|480).v<N>.mp4 eller landing-film-poster-(720|480).v<N>.webp.`);
+    } else if (size > rule.limit) {
+      errors.push(`${MEDIA_DIR}/${name}: ${size} byte, gränsen är ${rule.limit} byte.`);
+    }
+  }
+  if (sum > MEDIA_SUM_LIMIT) errors.push(`${MEDIA_DIR}: filerna är ${sum} byte tillsammans, gränsen är 7 MiB (${MEDIA_SUM_LIMIT} byte).`);
+  return errors;
+}
+
+/** Regel 4b. `trackedPaths`: utdata från `git ls-files`. Videoorginal (.mp4/.mov) får inte vara spårade utanför public/media. */
+export function checkNoTrackedVideoOriginals(trackedPaths) {
+  return trackedPaths
+    .filter((path) => VIDEO_FILE.test(path) && !path.startsWith(`${MEDIA_DIR}/`))
+    .map((path) => `${path}: videofil spårad i git utanför ${MEDIA_DIR}/ (originalet ligger i ägarens OneDrive, inte i repot).`);
+}
+
+/** Regel 4c. `.gitignore` måste hålla originalet utanför git. */
+export function checkGitignoreForVideo(content) {
+  const lines = new Set(content.split(/\r?\n/).map((line) => line.trim()));
+  return REQUIRED_IGNORE_LINES.filter((line) => !lines.has(line)).map((line) => `.gitignore saknar raden "${line}".`);
+}
+
+function listMediaFiles(root) {
+  const dir = join(root, MEDIA_DIR);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).map((name) => ({ name, size: statSync(join(dir, name)).size }));
+}
+
+/** Spårade filer enligt git, eller null när katalogen inte är ett git-repo (t.ex. ett temporärt provrepo). */
+function gitTrackedFiles(root) {
+  try {
+    return execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 })
+      .split('\0')
+      .filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'media'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | media`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -166,6 +230,16 @@ function runCli(argv = process.argv.slice(2)) {
       errors.push(...checkTestNames(testFiles));
       summary.push(`${testFiles.length} testfiler utan Jira-ID i testnamn`);
     }
+  }
+
+  if (mode === 'media' || (mode === 'all' && existsSync(join(root, 'apps/frontend/public')))) {
+    const files = listMediaFiles(root);
+    errors.push(...checkMediaFiles(files));
+    const ignorePath = join(root, '.gitignore');
+    errors.push(...checkGitignoreForVideo(existsSync(ignorePath) ? readFileSync(ignorePath, 'utf8') : ''));
+    const tracked = gitTrackedFiles(root);
+    if (tracked) errors.push(...checkNoTrackedVideoOriginals(tracked));
+    summary.push(`${files.length} mediafiler inom storleksgränserna${tracked ? ', inga videooriginal i git' : ' (git ls-files ej tillgängligt: spårningskontrollen hoppades över)'}`);
   }
 
   if (errors.length > 0) {

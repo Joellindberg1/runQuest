@@ -42,3 +42,51 @@ text | bana i hjälten, preview | steg bredvid varandra, vänsterjusterad logga,
 - **Back efter inloggning (känt beteende, ej åtgärdat).** Historiken blir `/` → `/login`; efter lyckad inloggning `replace`:ar `Index` `/login` med `next`/`/board`, så historiken är `/` → `/board`. Back går då till `/`, som för en inloggad `replace`:ar vidare till `/board` — användaren måste trycka Back två gånger för att lämna appen. Samma mönster som övriga redirects i ADR 006 beslut 7.
 - **Inloggningen är en dialog, inte en sida, men Landing gör den till huvudvägen in.** `AuthProvider.login` sätter ingen global `loading` längre (den bytte ut hela routerträdet mot en loader, så dialogen avmonterades och fel/fält försvann); `loading` betyder bara "sessionen återställs vid appstart". Dialogen har egen laddning. Testad i `App.login.test.tsx`.
 - **Utloggning och 401.** Log out (AvatarMenu) leder hit, till `/` utan dialog och utan `next`. Ett 401 mitt i sessionen leder till `/login?next=<sidan>` — Landing med dialogen öppen — så att man kommer tillbaka dit man var. Se `features/auth/README.md`.
+
+## Filmen, ikonerna och delningsbilden
+
+**Källa.** Filmen "RunQuest Mixed" (1920×1080, 30 fps, H.264, 49 s, inget ljudspår; namnen i den är påhittade). Originalet ligger i ägarens OneDrive och i Claude Design-projektet, **utanför git**: `.gitignore` håller `docs/design/*.mp4` och `docs/design/landing-media/` utanför, och CI-vakten `media` (`node scripts/ci-guards.mjs media`) fäller en spårad `.mp4`/`.mov` utanför `apps/frontend/public/media/`. Bara de komprimerade filerna nedan spåras. Ingen Git LFS.
+
+**Filer och gränser** (`apps/frontend/public/media/`, vaktade av `ci-guards`, summan högst 7 MiB):
+
+| Fil | Mått | Gräns | Storlek nu |
+|---|---|---|---|
+| `landing-film-720.v1.mp4` | 1280×720 | 4 194 304 byte | 3 067 216 |
+| `landing-film-480.v1.mp4` | 854×480 | 2 621 440 byte | 1 751 580 |
+| `landing-film-poster-720.v1.webp` | 1280×720 | 61 440 byte | 50 954 |
+| `landing-film-poster-480.v1.webp` | 854×480 | 30 720 byte | 27 246 |
+
+**Versionsregeln.** `.v1` är versionen. Caddy cachar `/media/*` som `immutable` i ett år, så en ändrad kodning får ett **nytt filnamn** (`.v2`) och skrivs aldrig över; spelaren (`components/LandingFilm.tsx`) och vakten pekar då på det nya namnet.
+
+**Kodning** (ffmpeg 9.0 med libx264 och libwebp, körd från mappen med originalet; verktyget är inget beroende i repot). Inget ljud (`-an`), ingen metadata (`-map_metadata -1`, bitexact, och x264:s SEI-text borttagen), `moov` före `mdat`, en nyckelruta varannan sekund:
+
+```
+ffmpeg -i "RunQuest Mixed (1).mp4" -map 0:v:0 -an -map_metadata -1 -fflags +bitexact -flags:v +bitexact -vf "scale=1280:-2:flags=lanczos" -c:v libx264 -preset veryslow -profile:v high -pix_fmt yuv420p -crf 27 -maxrate 650k -bufsize 1300k -g 60 -keyint_min 60 -sc_threshold 0 -bsf:v filter_units=remove_types=6 -movflags +faststart landing-film-720.v1.mp4
+ffmpeg -i "RunQuest Mixed (1).mp4" -map 0:v:0 -an -map_metadata -1 -fflags +bitexact -flags:v +bitexact -vf "scale=854:-2:flags=lanczos" -c:v libx264 -preset veryslow -profile:v high -pix_fmt yuv420p -crf 28 -maxrate 400k -bufsize 800k -g 60 -keyint_min 60 -sc_threshold 0 -bsf:v filter_units=remove_types=6 -movflags +faststart landing-film-480.v1.mp4
+ffmpeg -ss 20.5 -i "RunQuest Mixed (1).mp4" -frames:v 1 -map_metadata -1 -vf "scale=1280:-2:flags=lanczos" -c:v libwebp -quality 88 -compression_level 6 landing-film-poster-720.v1.webp
+ffmpeg -ss 20.5 -i "RunQuest Mixed (1).mp4" -frames:v 1 -map_metadata -1 -vf "scale=854:-2:flags=lanczos" -c:v libwebp -quality 85 -compression_level 6 landing-film-poster-480.v1.webp
+```
+
+Libx264 skriver strömtaggen `encoder=Lavc libx264` trots bitexact, så båda mp4-filerna remuxades därefter utan omkodning (byte för byte lika stora, ffprobe visar ingen encoder-tagg):
+
+```
+ffmpeg -i landing-film-720.v1.mp4 -map 0:v:0 -c copy -an -map_metadata -1 -metadata:s:v:0 encoder= -fflags +bitexact -movflags +faststart ut.mp4
+```
+
+**Postern** är rutan vid **20,5 s**: ledartavlan "The standings" med appen i bild (inte en svart övergång). Samma ruta i båda storlekarna.
+
+**Spelaren.** Videon har `preload="none"` och inget `autoplay`, `loop` eller `controls`; ingenting av filmen hämtas före play. Källorna står i ordning: 720p med `media="(min-width: 1024px)"`, sedan 480p utan `media` som reserv. Postern är en `<picture>` (720-postern från 1024 px, annars 480-postern). När filmen spelat klart återgår spelaren till postern med play. Ingen ljudknapp och ingen "sound on" (filmen saknar ljud). Webbläsaren skickar `error` på varje `<source>` som inte passar media-frågan (720p på en telefon), så bara `<video>` med ett `MediaError` och den sista källan räknas som fel.
+
+**Ikonerna** är löparsymbolen (gruppen `runner` i `logo()`, `RQLogo.tsx`) i guld `#ffd700` på `#070e09`. Geometrin är oförändrad; streckbredden är 4,5 i stället för 3,5 och huvudets radie 4,2 i stället för 3,5, så att figuren håller i 16 px. `favicon.svg` (viewBox 64×64, rundade hörn) är källan. ffmpeg-bygget saknar librsvg, så SVG:erna rastrerades med Edge headless (1024 px) och skalades med ffmpeg (`scale=N:N:flags=area`): `favicon.ico` (PNG-poster i 16, 32 och 48 px), `apple-touch-icon.png` 180, `icon-192.png`, `icon-512.png` (heltäckande ruta) och `icon-maskable-512.png` (symbolen på 80 % skala, innanför den säkra cirkeln med 80 % diameter). ICO-filen packades i Node utan beroenden. Hjälpskripten committas inte; ändras symbolen görs ikonerna om på samma sätt.
+
+**Delningsbilden** `og-image.v1.png` (1200×630, högst 300 kB; nu 41 652 byte) är filmens slutruta (RUNQUEST-wordmarken på mörk botten):
+
+```
+ffmpeg -sseof -0.1 -i "RunQuest Mixed (1).mp4" -frames:v 1 -map_metadata -1 -vf "crop=1280:670:310:154,scale=1200:630:flags=lanczos" -compression_level 100 og-image.v1.png
+```
+
+Beskärningen (1280×670 kring wordmarken) ger 1.91:1; wordmarken klipps varken där eller vid en centrerad 1:1-beskärning (630×630 i mitten). Ändras bilden: nytt namn (`og-image.v2.png`) och nya `og:image`-adresser i `index.html`, eftersom plattformarna cachar länkkort per adress.
+
+**Metadata** (`apps/frontend/index.html`, statisk enligt ADR 006-addendum 2026-10-13): title, description, canonical (`https://www.runquest.dev/` för alla SPA-adresser), Open Graph, Twitter, ikonlänkar, `theme-color`, `site.webmanifest` och en `<noscript>` med samma h1 som landningen. Siffror står aldrig där (de är påhittade exempel). `src/test/staticHead.test.ts` läser filen från disk och jämför noscript-rubriken med h1-texten ovan.
+
+**Leverans.** `Caddyfile` har blocket `handle /media/*` (immutable, 404 med `no-store` för saknad fil, aldrig `index.html`; mp4 komprimeras inte och Range ger 206) och ett explicit `Content-Type: application/manifest+json` för `.webmanifest`. `scripts/verify-static-serving.sh` prövar filmen (MED `Accept-Encoding`), Range, saknad fil, ikonerna, manifestet och delningsbilden mot det byggda `dist/`.
