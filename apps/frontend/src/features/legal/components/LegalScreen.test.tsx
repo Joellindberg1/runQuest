@@ -115,12 +115,23 @@ describe('LegalScreen — kopplingar', () => {
     expect(xhrOpen).not.toHaveBeenCalled();
   });
 
-  it('sets the page title while mounted', () => {
-    document.title = 'Run Quest';
+  it('sets title, description and canonical for /legal while mounted and restores them on unmount', () => {
+    document.head.innerHTML =
+      '<title>Run Quest</title><meta name="description" content="Gamification for running" /><link rel="canonical" href="https://www.runquest.dev/" />';
+    const description = () => document.head.querySelector('meta[name="description"]');
+    const canonical = () => document.head.querySelector('link[rel="canonical"]');
+
     const { unmount } = renderLegal();
     expect(document.title).toBe('Privacy & Terms — RunQuest');
+    expect(description()?.getAttribute('content')).toMatch(/\S/);
+    expect(description()?.getAttribute('content')).not.toMatch(/\d/);
+    expect(canonical()).toHaveAttribute('href', 'https://www.runquest.dev/legal');
+
     unmount();
     expect(document.title).toBe('Run Quest');
+    expect(description()).toHaveAttribute('content', 'Gamification for running');
+    expect(canonical()).toHaveAttribute('href', 'https://www.runquest.dev/');
+    document.head.innerHTML = '';
   });
 
   it('scrolls to the terms anchor when the page opens with #terms', () => {

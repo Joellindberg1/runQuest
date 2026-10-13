@@ -1,10 +1,29 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import type { ReactNode } from 'react';
+import { createRoutesFromChildren, type RouteObject } from 'react-router-dom';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { RequireAuth } from '@/app-shell/RequireAuth';
 import { paths } from '@/paths';
+import { AppRoutes } from '@/routes';
+import { renderWithApp } from '@/test/renderApp';
 
 // robots.txt och sitemap.xml ligger i public/ och serveras som de är (Caddyfile ändras inte). Vakten läser filerna från disk.
-// Filen är .tsx för att DOMParser (jsdom) validerar sitemapens XML: .test.ts går i node-projektet, som saknar den.
+// Filen är .tsx av två skäl: DOMParser (jsdom) validerar sitemapens XML, och routerträdet renderas för att läsa de publika sidorna.
+// .test.ts går i node-projektet, som saknar båda.
+
+// Routerns faktiska konfiguration: Routes fångar sina children i stället för att rendera dem.
+const captured = vi.hoisted(() => ({ children: [] as ReactNode[] }));
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return {
+    ...actual,
+    Routes: ({ children }: { children?: ReactNode }) => {
+      captured.children.push(children);
+      return null;
+    },
+  };
+});
 
 const ORIGIN = 'https://www.runquest.dev';
 const read = (relative: string) => readFileSync(resolve(__dirname, relative), 'utf8').replace(/\r/g, '');
@@ -34,20 +53,38 @@ describe('robots.txt', () => {
   });
 });
 
-describe('sitemap.xml', () => {
-  const sitemap = read('../../public/sitemap.xml');
+const EXCLUDED_FROM_SITEMAP: readonly string[] = [paths.login, paths.legacyChallenges];
+const isExcluded = (path: string) => EXCLUDED_FROM_SITEMAP.includes(path) || path === paths.previewBoard || path.startsWith(`${paths.previewBoard}/`);
 
-  /** De publika sidorna ur routerträdet: routerna utanför RequireAuth, utom login-dialogen, preview-sidorna och redirecten. */
+const joinPath = (parent: string, path: string | undefined): string => {
+  if (!path) return parent;
+  if (path.startsWith('/')) return path;
+  return `${parent.replace(/\/$/, '')}/${path}`;
+};
+
+/** Sidorna (med element) som ingen förfader skyddar med RequireAuth. Wildcard och parametrar är aldrig sitemapsidor. */
+function publicPaths(routes: RouteObject[], parent = '/', insideAuth = false): string[] {
+  return routes.flatMap((route) => {
+    const path = joinPath(parent, route.path);
+    const protectedHere = insideAuth || (route.element as { type?: unknown } | null | undefined)?.type === RequireAuth;
+    const own = !protectedHere && route.path !== undefined && route.element && !/[*:]/.test(path) ? [path] : [];
+    return [...own, ...publicPaths(route.children ?? [], path, protectedHere)];
+  });
+}
+
+describe('sitemap.xml', () => {
+  beforeAll(() => {
+    renderWithApp(<AppRoutes />, { entry: '/', user: null });
+  });
+
+  /** De publika sidorna ur routerns faktiska konfiguration, utom login-dialogen, preview-sidorna och redirecten. */
   const publicPages = (): string[] => {
-    const routes = read('../routes.tsx');
-    const outsideAuth = routes.slice(0, routes.indexOf('<RequireAuth'));
-    const keys = [...outsideAuth.matchAll(/<Route\s[^>]*path=\{paths\.(\w+)\}/g)].map((match) => match[1] as keyof typeof paths);
-    const excluded: ReadonlyArray<keyof typeof paths> = ['login', 'legacyChallenges', 'previewBoard', 'previewDuels', 'previewBadges'];
-    return keys.filter((key) => !excluded.includes(key)).map((key) => String(paths[key]));
+    const [children] = captured.children;
+    return publicPaths(createRoutesFromChildren(children)).filter((path) => !isExcluded(path));
   };
 
   it('sitemap.xml är giltig XML och listar exakt de publika sidorna', () => {
-    const document = new DOMParser().parseFromString(sitemap, 'application/xml');
+    const document = new DOMParser().parseFromString(read('../../public/sitemap.xml'), 'application/xml');
     expect(document.querySelector('parsererror')).toBeNull();
     expect(document.documentElement.localName).toBe('urlset');
     expect(document.documentElement.namespaceURI).toBe('http://www.sitemaps.org/schemas/sitemap/0.9');
