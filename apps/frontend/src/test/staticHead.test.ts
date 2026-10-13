@@ -176,8 +176,46 @@ describe('startsidans head', () => {
     for (const text of texts) expect(text, String(text)).not.toMatch(/\d/);
   });
 
-  it('typsnittslänkarna till Google Fonts står kvar', () => {
-    expect(linkTags.some((tag) => tag.href?.startsWith('https://fonts.googleapis.com/css2?'))).toBe(true);
+  // Integritetstexten (dataPolicy) säger att inga typsnitt hämtas från Google. Länkas Google Fonts åter in blir texten osann.
+  it('index.html hämtar inga typsnitt från Google', () => {
+    expect(html).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com/);
+  });
+
+  it('förladdar exakt ett typsnitt: Bebas Neue, som landningens rubrik använder', () => {
+    const preloads = linkTags.filter((tag) => tag.rel === 'preload' && tag.as === 'font');
+    expect(preloads).toHaveLength(1);
+    const [preload] = preloads;
+    expect(preload.href).toMatch(/^\/fonts\/bebas-neue-400\.v\d+\.woff2$/);
+    expect(preload.type).toBe('font/woff2');
+    // Typsnitt hämtas alltid i CORS-läge: utan crossorigin förladdas filen men används inte, och hämtas två gånger.
+    const rawPreload = [...headSection.matchAll(/<link\b[^>]*>/g)].map((match) => match[0]).find((tag) => /rel="preload"/.test(tag));
+    expect(rawPreload).toMatch(/\scrossorigin(?:[\s=>/]|$)/);
+    expect(existsSync(join(publicDir, preload.href.slice(1)))).toBe(true);
+  });
+});
+
+describe('självhostade typsnitt', () => {
+  const css = readFileSync(join(frontend, 'src', 'index.css'), 'utf8');
+  const faces = [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((match) => match[1]);
+  const fontUrls = faces.map((face) => /url\(\s*['"]?([^'")\s]+)['"]?\s*\)/.exec(face)?.[1]);
+
+  it('varje @font-face pekar på en versionerad woff2-fil i public/fonts och använder font-display swap', () => {
+    expect(faces.length).toBeGreaterThanOrEqual(7);
+    for (const [index, face] of faces.entries()) {
+      const url = fontUrls[index];
+      expect(url, face).toMatch(/^\/fonts\/[a-z0-9-]+\.v\d+\.woff2$/);
+      expect(existsSync(join(publicDir, url!.slice(1))), `${url} finns i public`).toBe(true);
+      expect(face).toMatch(/font-display:\s*swap/);
+    }
+  });
+
+  it('de fyra typsnittsfamiljerna som temat använder finns som @font-face', () => {
+    const families = new Set(faces.map((face) => /font-family:\s*['"]([^'"]+)['"]/.exec(face)?.[1]));
+    expect([...families].sort()).toEqual(['Barlow Condensed', 'Bebas Neue', 'Oswald', 'Share Tech Mono']);
+  });
+
+  it('licensfilen ligger bredvid typsnitten', () => {
+    expect(readFileSync(join(publicDir, 'fonts', 'OFL.txt'), 'utf8')).toMatch(/SIL OPEN FONT LICENSE Version 1\.1/);
   });
 });
 
