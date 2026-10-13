@@ -7,13 +7,14 @@ const BODY = { email: 'anna@example.com', consent: true as const, website: '', e
 
 const reply = (status: number) => ({ ok: status >= 200 && status < 300, status, json: async () => ({}) }) as Response;
 
+const CONSOLE_METHODS = ['log', 'info', 'debug', 'warn', 'error', 'trace'] as const;
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
-  vi.spyOn(console, 'error').mockImplementation(() => {});
+  for (const method of CONSOLE_METHODS) vi.spyOn(console, method).mockImplementation(() => {});
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -43,7 +44,8 @@ describe('joinWaitlist', () => {
   it('returns null on a network error and never logs the email address', async () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
     expect(await backendApi.joinWaitlist(BODY)).toBeNull();
-    const logged = JSON.stringify([...(console.warn as ReturnType<typeof vi.fn>).mock.calls, ...(console.error as ReturnType<typeof vi.fn>).mock.calls]);
+    expect(console.warn).toHaveBeenCalled();
+    const logged = JSON.stringify(CONSOLE_METHODS.flatMap((method) => vi.mocked(console[method]).mock.calls));
     expect(logged).not.toContain('anna@example.com');
   });
 });

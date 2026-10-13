@@ -79,6 +79,14 @@ describe('LandingWaitlist', () => {
     expect(joinWaitlist).toHaveBeenCalledWith({ email: 'Anna@Example.com', consent: true, website: '', elapsedMs: expect.any(Number) });
   });
 
+  it('ett klick på guldknappen skickar formuläret', async () => {
+    renderForm();
+    fillIn('anna@example.com');
+    fireEvent.click(submitButton());
+    await screen.findByText("You're on the list.");
+    expect(joinWaitlist).toHaveBeenCalledTimes(1);
+  });
+
   it('formuläret skickar inte utan samtycke och visar felet vid bocken', () => {
     renderForm();
     fillIn('anna@example.com', false);
