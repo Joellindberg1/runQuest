@@ -150,7 +150,7 @@ describe('auth', () => {
     expect(location()).toBe('/');
   });
 
-  it('Landingens enda guldknapp, Sign in, öppnar inloggningsdialogen: adressen blir /login och Landing består bakom (samma DOM-nod, ingen ommontering)', async () => {
+  it('Sign in på Landing (konturknappen i headern) öppnar inloggningsdialogen: adressen blir /login och Landing består bakom (samma DOM-nod, ingen ommontering)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/', user: null, width: MOBILE });
     const headline = await screen.findByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' });
     expect(screen.queryByRole('dialog')).toBeNull();

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { isInaccessible } from '@testing-library/dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { formatInt } from '@/features/log/logFormat';
 import { LandingStats } from './LandingStats';
@@ -60,6 +61,12 @@ describe('LandingStats', () => {
     const { container } = renderStats(respondWith({ runners: 1, challenges: 0, km: 1_000_000 }));
     await screen.findByText(plain(1_000_000));
     expect(items().map(normalised)).toEqual(['1 000 000 km logged', '1 runner', '0 challenges']);
+    // Tillgänglighetsträdet: varken talet eller etiketten är gömda (aria-hidden), så skärmläsaren läser båda i ordning.
+    for (const item of items()) {
+      expect(item.querySelectorAll('span')).toHaveLength(2);
+      for (const part of item.querySelectorAll('span')) expect(isInaccessible(part)).toBe(false);
+      expect(isInaccessible(item)).toBe(false);
+    }
     expect(container.querySelector('[aria-live]')).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { usePublicStats } from './usePublicStats';
+import { QueryClient, QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
+import { PUBLIC_STATS_QUERY_KEY, usePublicStats } from './usePublicStats';
 
 const wrapperFor = (client: QueryClient) => ({ children }: { children: ReactNode }) => (
   <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -49,6 +49,38 @@ describe('usePublicStats', () => {
     const { result } = renderHook(() => usePublicStats(), { wrapper: wrapperFor(newClient()) });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.data).toBeUndefined();
+  });
+
+  it.each([
+    ['negativt antal löpare', { runners: -1, challenges: 4, km: 4551 }],
+    ['negativa km', { runners: 6, challenges: 4, km: -10 }],
+    ['saknat fält', { runners: 6, challenges: 4 }],
+    ['inte ändligt', { runners: 6, challenges: 4, km: null }],
+  ])('avvisar ogiltiga tal: %s', async (_name, data) => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(okStats(data))));
+    const { result } = renderHook(() => usePublicStats(), { wrapper: wrapperFor(newClient()) });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it('hämtar inte om vid fönsterfokus eller återanslutning, inte ens när svaret har blivit inaktuellt', async () => {
+    const fetchSpy = vi.fn().mockImplementation(() => Promise.resolve(okStats()));
+    vi.stubGlobal('fetch', fetchSpy);
+    const client = newClient();
+    const { result } = renderHook(() => usePublicStats(), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Gör svaret inaktuellt utan att hämta; då är det bara refetchOnWindowFocus/Reconnect som skulle hämta igen.
+    await client.invalidateQueries({ queryKey: PUBLIC_STATS_QUERY_KEY, refetchType: 'none' });
+    expect(client.getQueryState(PUBLIC_STATS_QUERY_KEY)?.isInvalidated).toBe(true);
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+    onlineManager.setOnline(false);
+    onlineManager.setOnline(true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    focusManager.setFocused(undefined);
   });
 
   it('försöker inte igen vid 4xx', async () => {

@@ -8,6 +8,40 @@
 // Stylelint ersätter en regels hela inställning när ett overrides-block sätter samma regel. Därför bygger `designRules()` alltid hela
 // uppsättningen ur en liten beskrivning av vad filen får göra, och varje fil träffas av exakt ett block.
 
+import stylelint from "stylelint";
+
+// Stravas regler för "Compatible with Strava"-loggan (landningens footer): oförändrad, aldrig animerad, inte större än omgivande text och utan
+// hover-effekt på själva bilden. Stylelint har ingen inbyggd regel för "höjd högst 1em" per selektor, så det här är en liten egen regel som bara
+// läser regler som siktar på loggan (eller på en `img` i landningens footer). Den prövas med negativa prov i src/features/landing/stravaLogoLint.test.ts.
+const STRAVA_TARGET = /rq-landing-footer__strava|rq-landing-footer\b[^,{]*\bimg\b/;
+const STRAVA_FORBIDDEN_PROPERTIES = /^(?:-webkit-)?(?:filter|backdrop-filter|opacity|transform|rotate|scale|translate|zoom|mix-blend-mode|mask(?:-.*)?|clip-path|animation(?:-.*)?|transition(?:-.*)?)$/;
+const STRAVA_STATE_SELECTOR = /:(?:hover|active|focus|focus-visible|focus-within)\b/;
+const AT_MOST_ONE_EM = /^(?:0?\.\d+|1)(?:\.0+)?em$/;
+const STRAVA_RULE_NAME = "rq/strava-logo";
+const stravaMessages = stylelint.utils.ruleMessages(STRAVA_RULE_NAME, {
+  property: (property) => `Stravas logga får inte modifieras eller animeras: "${property}" är förbjuden på loggan.`,
+  state: (selector) => `Stravas logga får ingen hover- eller fokuseffekt på bilden: "${selector}".`,
+  height: (value) => `Stravas logga får vara högst lika hög som textens teckenhöjd (höjd högst 1em), inte "${value}".`,
+  width: (value) => `Stravas logga behåller bildens proportion: bredden är auto, inte "${value}".`,
+});
+const stravaLogoRule = stylelint.createPlugin(STRAVA_RULE_NAME, (enabled) => (root, result) => {
+  if (!enabled) return;
+  root.walkRules((rule) => {
+    if (!STRAVA_TARGET.test(rule.selector)) return;
+    if (STRAVA_STATE_SELECTOR.test(rule.selector)) {
+      stylelint.utils.report({ result, ruleName: STRAVA_RULE_NAME, message: stravaMessages.state(rule.selector), node: rule });
+    }
+    rule.walkDecls((decl) => {
+      const prop = decl.prop.toLowerCase();
+      const value = decl.value.trim();
+      const report = (message) => stylelint.utils.report({ result, ruleName: STRAVA_RULE_NAME, message, node: decl, word: decl.prop });
+      if (STRAVA_FORBIDDEN_PROPERTIES.test(prop)) report(stravaMessages.property(prop));
+      else if ((prop === "height" || prop === "max-height") && !AT_MOST_ONE_EM.test(value)) report(stravaMessages.height(value));
+      else if ((prop === "width" || prop === "max-width") && value !== "auto") report(stravaMessages.width(value));
+    });
+  });
+});
+
 /** Värde för `animations` och `zIndex` som betyder "inte begränsat i den här filen". */
 const ANY = "any";
 
@@ -77,6 +111,7 @@ const keyframesBanned = { "at-rule-disallowed-list": [["keyframes"], { message: 
 /** @type {import("stylelint").Config} */
 export default {
   ignoreFiles: ["dist/**"],
+  plugins: [stravaLogoRule],
   // Grundregler för alla feature-CSS som inte har ett eget block nedan: ingen rörelse, inget z-index, inga egna custom properties.
   rules: designRules(),
   overrides: [
@@ -161,7 +196,10 @@ export default {
           "/^rqSweep var\\(--rq-landing-sweep\\) linear infinite$/",
         ],
         bannedProperties: ["animation-duration", "overflow-wrap", "word-break"],
-        extraRules: { "declaration-no-important": [true, { message: "landing.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }] },
+        extraRules: {
+          "declaration-no-important": [true, { message: "landing.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }],
+          [STRAVA_RULE_NAME]: true,
+        },
       }),
     },
     {
