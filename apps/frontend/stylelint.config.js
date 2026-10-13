@@ -149,6 +149,20 @@ export default {
     },
     { files: ["src/shared/components/error-state.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line"] }) },
     {
+      // Bakgrundsbanan (ägarundantag 2026-10-13): bara rutnätet (rqTrackDrift) och de tre löparna (rqTrackLap1–3, bara transform) loopar, och båda stängs av helt med
+      // animation: none under prefers-reduced-motion (prövas i trackBackdrop.guards.test.ts). Inget z-index: lagret ritas under innehållet i trädordning.
+      files: ["src/shared/components/track-backdrop.css"],
+      rules: designRules({
+        animations: [
+          "/^rqTrackDrift var\\(--rq-track-bg-grid-dur\\) linear infinite$/",
+          "/^rqTrackLap([1-3]) var\\(--rq-track-bg-lap-\\1\\) linear infinite$/",
+          "/^none$/",
+        ],
+        locals: ["rq-dot-alpha"],
+        bannedProperties: ["animation-duration"],
+      }),
+    },
+    {
       // Emblemets lokala mappning nivå/storlek → tokens (--rq-emblem-*) och chippets accent. Animationen får vara vilken som helst (andning,
       // tändning, skelettpuls), men ligger i no-preference-blocket (det prövar badges/guards.test.ts), och popupens knappar får aldrig en permanent ring.
       files: ["src/features/badges/badges.css"],

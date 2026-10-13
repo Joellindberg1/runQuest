@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TrackBackdrop } from '@/shared/components/TrackBackdrop';
 import { AppHeader } from './AppHeader';
 import { BottomBar } from './BottomBar';
 import { NewSheet } from './NewSheet';
@@ -15,6 +16,7 @@ export function MobileShell() {
 
   return (
     <div className="rq-shell rq-shell--mobile" data-shell="mobile">
+      <TrackBackdrop />
       <div className="rq-shell__top">
         <AppHeader variant="mobile" user={user} hasOpenEvent={hasOpenEvent} />
         <RightNowPills items={items} />

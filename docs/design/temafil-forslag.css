@@ -692,6 +692,43 @@
   --rq-landing-waitlist-touch:     44px;                              /* minsta träffyta på samtyckesraden */
   --rq-landing-waitlist-check:     22px;                              /* samtyckesrutan */
   --rq-landing-waitlist-offscreen: -10000px;                          /* honeypot-fältet ligger utanför skärmen (inte display:none) */
+  /* ── Spårbakgrund (RUN-144) ──────────────────────────────────────────────────────────────────────────────────────
+     Bakgrunden bakom alla sidor i appen och på /legal (Web Prototypen, showTrackBg): guldrutnät som glider uppåt + en bana nere till höger med
+     tre löpare. Rutnätet glider med rqTrackDrift (fyra rutor, --rq-track-bg-grid-step × 4, per varv) och löparna med rqTrackLap1–3 (längs ovalerna i
+     viewBox 1400 × 760); bara transform, så ingen layout. Ägarundantag 2026-10-13: loopande dekorrörelse även för löparna (som
+     badge-undantaget); allt av under prefers-reduced-motion. Mobil = banan skalad ned (prototypen har ingen liten bana); desktop skriver över i
+     avsnitt 2. Konsument: shared/components/track-backdrop.css. */
+  --rq-track-bg-grid-step:    40px;                                   /* en linje var 40:e px (App- och Web Prototypen) */
+  --rq-track-bg-grid-dur:     9s;                                     /* ett varv (4 rutor) på 9 s */
+  --rq-track-bg-grid-alpha:   .03;                                    /* linjens guldalfa (desktop .035) */
+  --rq-track-bg-vb-w:         1400px;                                 /* banans egen ruta = prototypens viewBox 1400 × 760; keyframesen räknar i den */
+  --rq-track-bg-vb-h:         760px;
+  --rq-track-bg-scale:        .342857;                                /* rutan skalas ned om nedre högra hörnet: 1400 × .342857 = 480 px bred (desktop .585714 = 820 px) */
+  --rq-track-bg-right:        -110px;                                 /* banan skjuter ut över kanten (desktop -190) */
+  --rq-track-bg-bottom:       -50px;                                  /* (desktop -206 = prototypens -210 minus de 4 px som dess inline-SVG:s radavstånd lägger under banan) */
+  --rq-track-bg-opacity:      .5;
+  --rq-track-bg-mask:         radial-gradient(ellipse at 55% 45%, #000 40%, transparent 76%);   /* toning ut mot sidans mitt; bara alfa används */
+  --rq-track-bg-lane-w:       2.4;                                    /* banlinjernas bredd, user units i viewBox 1400 × 760 */
+  --rq-track-bg-finish-w:     2.5;
+  --rq-track-bg-lane-alpha-1: .13;                                    /* guldalfa per bana, innerst först */
+  --rq-track-bg-lane-alpha-2: .10;
+  --rq-track-bg-lane-alpha-3: .08;
+  --rq-track-bg-lane-alpha-4: .06;
+  --rq-track-bg-finish-alpha: .16;
+  --rq-track-bg-dot-alpha-1:  .42;                                    /* löparnas fyllning: guld, silver, brons (rangfärgerna) */
+  --rq-track-bg-dot-alpha-2:  .26;
+  --rq-track-bg-dot-alpha-3:  .30;
+  --rq-track-bg-dot-d-1:      16px;                                   /* löparnas diameter i banans ruta (prototypens r 8 / 7 / 6.5) */
+  --rq-track-bg-dot-d-2:      14px;
+  --rq-track-bg-dot-d-3:      13px;
+  --rq-track-bg-lap-1:        24s;                                    /* varvtid per löpare */
+  --rq-track-bg-lap-2:        31s;
+  --rq-track-bg-lap-3:        39s;
+  --rq-track-bg-lap-offset-2: -8s;                                    /* startfas: löparna börjar spridda */
+  --rq-track-bg-lap-offset-3: -19s;
+  --rq-track-bg-rest-1:      translate(340px, 380px) rotate(0deg) translate(0, -150px);                    /* löparnas vilopositioner (rörelse av): bana n vid startfasen */
+  --rq-track-bg-rest-2:      translate(1009.96px, 380px) rotate(0deg) translate(0, -184px);
+  --rq-track-bg-rest-3:      translate(1060px, 380px) rotate(170.53deg) translate(0, -218px);
 }
 
 
@@ -884,6 +921,10 @@
     --rq-landing-waitlist-row-dir: row;
     --rq-landing-waitlist-row-align: flex-end;
     --rq-landing-waitlist-submit-w: auto;
+    --rq-track-bg-grid-alpha: .035;
+    --rq-track-bg-scale: .585714;
+    --rq-track-bg-right: -190px;
+    --rq-track-bg-bottom: -206px;
   }
 }
 
@@ -1062,6 +1103,28 @@
 @keyframes rqSpin    { to { transform: rotate(360deg); } }                           /* reserv ≤ 20 px; riktiga laddaren = stadion-ovalen */
 @keyframes rqOrbit   { from { offset-distance: 0%; } to { offset-distance: 100%; } } /* stadion-ovalen (Loaders) */
 @keyframes rqGrid    { from { background-position: 0 0; } to { background-position: 0 -160px; } }         /* landing: rutnätet glider fyra rutor (160 px = 4 × --rq-landing-grid-step) per varv */
+@keyframes rqTrackDrift { from { transform: translateY(0); } to { transform: translateY(calc(var(--rq-track-bg-grid-step) * -4)); } }   /* bakgrundsbanan: rutnätet glider fyra rutor uppåt per varv, som rqGrid men med transform (compositor, ingen ommålning/layout); lagret är fyra rutor högre */
+@keyframes rqTrackLap1 {                                                                /* bakgrundsbanan, bana 1 (r = 150): rakt, halvcirkel, rakt, halvcirkel — samma fart överallt, bara transform */
+  0%        { transform: translate(340px, 380px) rotate(0deg) translate(0, -150px); }
+  30.22%    { transform: translate(1060px, 380px) rotate(0deg) translate(0, -150px); }
+  50%       { transform: translate(1060px, 380px) rotate(180deg) translate(0, -150px); }
+  80.22%    { transform: translate(340px, 380px) rotate(180deg) translate(0, -150px); }
+  100%      { transform: translate(340px, 380px) rotate(360deg) translate(0, -150px); }
+}
+@keyframes rqTrackLap2 {                                                                /* bakgrundsbanan, bana 2 (r = 184): rakt, halvcirkel, rakt, halvcirkel — samma fart överallt, bara transform */
+  0%        { transform: translate(340px, 380px) rotate(0deg) translate(0, -184px); }
+  27.73%    { transform: translate(1060px, 380px) rotate(0deg) translate(0, -184px); }
+  50%       { transform: translate(1060px, 380px) rotate(180deg) translate(0, -184px); }
+  77.73%    { transform: translate(340px, 380px) rotate(180deg) translate(0, -184px); }
+  100%      { transform: translate(340px, 380px) rotate(360deg) translate(0, -184px); }
+}
+@keyframes rqTrackLap3 {                                                                /* bakgrundsbanan, bana 3 (r = 218): rakt, halvcirkel, rakt, halvcirkel — samma fart överallt, bara transform */
+  0%        { transform: translate(340px, 380px) rotate(0deg) translate(0, -218px); }
+  25.63%    { transform: translate(1060px, 380px) rotate(0deg) translate(0, -218px); }
+  50%       { transform: translate(1060px, 380px) rotate(180deg) translate(0, -218px); }
+  75.63%    { transform: translate(340px, 380px) rotate(180deg) translate(0, -218px); }
+  100%      { transform: translate(340px, 380px) rotate(360deg) translate(0, -218px); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }

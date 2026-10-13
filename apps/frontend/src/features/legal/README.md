@@ -11,6 +11,7 @@ Integritetstext och villkor på en publik sida, ett dokument ("Privacy & Terms")
 - **hooks/usePageMetadata** — titel, description och canonical medan sidan är monterad; återställs vid avmontering (rör inte element som saknas).
 - **hooks/useScrollToHash** — scrollar till `#privacy`/`#terms` (eller valfritt id) efter rendering; utan animation vid reducerad rörelse.
 - **legalModel.ts** — sidans metadata, rubrik-id:n och `splitOnEmail` (kontaktadressen i en text blir en `mailto:`-länk).
+- **Bakgrunden.** `LegalScreen` monterar den delade `TrackBackdrop` (`shared/components`, fast rutnät + bana med tre löpare, som bakom skalets sidor) först i `.rq-legal`, och `.rq-legal__inner` är `position: relative` så att texten ritas ovanpå. Se `trackBackdrop.guards.test.ts`.
 - `legal.css` — enda stilfilen. Bara befintliga tokens: kolumnen är `--rq-shell-narrow-max`, sidmarginalen `--rq-landing-pad`.
 
 ## Regler värda att komma ihåg

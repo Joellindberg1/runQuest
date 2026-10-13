@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { getDataPolicy, getTerms, type DataController, type LegalSection } from '@runquest/shared';
+import { TrackBackdrop } from '@/shared/components/TrackBackdrop';
 import { LEGAL_PRIVACY_ID, LEGAL_TERMS_ID, paths } from '@/paths';
 import { LEGAL_CANONICAL_URL, LEGAL_PAGE_DESCRIPTION, LEGAL_PAGE_TITLE, legalSectionDomId, splitOnEmail } from '../legalModel';
 import { usePageMetadata } from '../hooks/usePageMetadata';
@@ -50,6 +51,7 @@ export function LegalScreen() {
 
   return (
     <div className="rq-legal">
+      <TrackBackdrop />
       <div className="rq-legal__inner">
         <header className="rq-legal-header">
           <Link to={paths.landing} className="rq-legal-back">
