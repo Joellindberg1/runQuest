@@ -18,6 +18,13 @@ const POSTER_480_WIDTH = 854;
 const POSTER_480_HEIGHT = 480;
 
 const PLAY_LABEL = `Play the RunQuest film, ${FILM_SECONDS} seconds, no sound`;
+// Knapparna på postern har synlig text ("PLAY — 0:49"). Skärmläsarnamnet börjar med exakt den texten (WCAG 2.5.3, Label in Name) och lägger
+// tilläggsinfon efter. Knappar utan synlig text (kontrollraden, mobilknappen mitt i filmen) behåller PLAY_LABEL.
+const POSTER_LABEL_TAIL = 'the RunQuest film, no sound';
+const DESKTOP_POSTER_TEXT = `PLAY — ${formatClock(FILM_SECONDS)}`;
+const MOBILE_POSTER_TEXT = `WATCH THE FILM — ${formatClock(FILM_SECONDS)}`;
+const DESKTOP_POSTER_LABEL = `${DESKTOP_POSTER_TEXT}: ${POSTER_LABEL_TAIL}`;
+const MOBILE_POSTER_LABEL = `${MOBILE_POSTER_TEXT}: ${POSTER_LABEL_TAIL}`;
 const PAUSE_LABEL = 'Pause the film';
 const SEEK_LABEL = 'Seek in the film';
 const ERROR_TEXT = 'The film could not load';
@@ -214,11 +221,11 @@ function DesktopFilm() {
           <FilmVideo player={player} stepsId={stepsId} toggleOnClick />
           {showPoster && <FilmPoster />}
           {showPoster && (
-            <button type="button" className="rq-film__overlay" data-film-play aria-label={PLAY_LABEL} aria-busy={status === 'loading'} onClick={player.play}>
+            <button type="button" className="rq-film__overlay" data-film-play aria-label={DESKTOP_POSTER_LABEL} aria-busy={status === 'loading'} onClick={player.play}>
               <span className="rq-film__play-box" aria-hidden="true">
                 <span className="rq-film__glyph rq-film__glyph--play" />
               </span>
-              <span className="rq-film__play-label" aria-hidden="true">{`PLAY — ${FILM_LENGTH}`}</span>
+              <span className="rq-film__play-label" aria-hidden="true">{DESKTOP_POSTER_TEXT}</span>
             </button>
           )}
           <FilmError failed={player.failed} />
@@ -271,7 +278,7 @@ function MobileFilm() {
           type="button"
           className="rq-film__toggle"
           data-film-play
-          aria-label={playing ? PAUSE_LABEL : PLAY_LABEL}
+          aria-label={playing ? PAUSE_LABEL : showPoster ? MOBILE_POSTER_LABEL : PLAY_LABEL}
           aria-busy={status === 'loading'}
           onClick={player.toggle}
         >
@@ -280,7 +287,7 @@ function MobileFilm() {
               <span className="rq-film__play-box" aria-hidden="true">
                 <span className="rq-film__glyph rq-film__glyph--play" />
               </span>
-              <span className="rq-film__play-label" aria-hidden="true">{`WATCH THE FILM — ${FILM_LENGTH}`}</span>
+              <span className="rq-film__play-label" aria-hidden="true">{MOBILE_POSTER_TEXT}</span>
             </>
           )}
         </button>
