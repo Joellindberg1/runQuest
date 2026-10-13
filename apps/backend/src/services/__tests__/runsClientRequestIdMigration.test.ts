@@ -48,8 +48,8 @@ describe('migration 043_runs_client_request_id.sql', () => {
     ]);
   });
 
-  it('headern anger körordning före deploy, status EJ APPLICERAD och att den är idempotent', () => {
-    expect(sql).toMatch(/EJ APPLICERAD/);
+  it('headern anger körordning före deploy, applikationsstatus och att den är idempotent', () => {
+    expect(sql).toMatch(/APPLICERAD/); // EJ APPLICERAD före prod, APPLICERAD efter
     expect(sql).toMatch(/KÖRORDNING: applicera DENNA migration FÖRE deploy/);
     expect(sql).toMatch(/Idempotent/);
   });

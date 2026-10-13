@@ -1,5 +1,5 @@
 -- 043: runs.client_request_id + partiellt unikt index — idempotensnyckel för POST /api/runs (RUN-225, v0.6.2).
--- Datum: 2026-10-13. EJ APPLICERAD i prod — appliceras av Lead efter ägar-ja (permissions.md: migration mot prod = ask).
+-- Datum: 2026-10-13. APPLICERAD i prod 2026-10-13 (ägar-ja) via Supabase MCP apply_migration (name: 043_runs_client_request_id).
 --
 -- Problem: om svaret på POST /api/runs aldrig når klienten (timeout, nätfel) skickar användaren igen och får en
 -- dubblettrunda. Sedan v0.6.1.1 hanteras "500 efter skrivning" med { error, written: true }, men ett svar som aldrig
