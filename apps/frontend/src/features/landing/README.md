@@ -67,6 +67,12 @@ ffmpeg -ss 20.5 -i "RunQuest Mixed (1).mp4" -frames:v 1 -map_metadata -1 -vf "sc
 ffmpeg -ss 20.5 -i "RunQuest Mixed (1).mp4" -frames:v 1 -map_metadata -1 -vf "scale=854:-2:flags=lanczos" -c:v libwebp -quality 85 -compression_level 6 landing-film-poster-480.v1.webp
 ```
 
+Libx264 skriver strömtaggen `encoder=Lavc libx264` trots bitexact, så båda mp4-filerna remuxades därefter utan omkodning (byte för byte lika stora, ffprobe visar ingen encoder-tagg):
+
+```
+ffmpeg -i landing-film-720.v1.mp4 -map 0:v:0 -c copy -an -map_metadata -1 -metadata:s:v:0 encoder= -fflags +bitexact -movflags +faststart ut.mp4
+```
+
 **Postern** är rutan vid **20,5 s**: ledartavlan "The standings" med appen i bild (inte en svart övergång). Samma ruta i båda storlekarna.
 
 **Spelaren.** Videon har `preload="none"` och inget `autoplay`, `loop` eller `controls`; ingenting av filmen hämtas före play. Källorna står i ordning: 720p med `media="(min-width: 1024px)"`, sedan 480p utan `media` som reserv. Postern är en `<picture>` (720-postern från 1024 px, annars 480-postern). När filmen spelat klart återgår spelaren till postern med play. Ingen ljudknapp och ingen "sound on" (filmen saknar ljud). Webbläsaren skickar `error` på varje `<source>` som inte passar media-frågan (720p på en telefon), så bara `<video>` med ett `MediaError` och den sista källan räknas som fel.
