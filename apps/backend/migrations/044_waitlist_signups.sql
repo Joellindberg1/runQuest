@@ -1,5 +1,5 @@
 -- 044: waitlist_signups — väntelista nivå 1 (RUN-202, v0.6.2).
--- Datum: 2026-10-13. EJ APPLICERAD i prod — appliceras av Lead efter ägar-ja (permissions.md: migration mot prod = ask).
+-- Datum: 2026-10-13. APPLICERAD i prod 2026-10-13 (ägar-ja) via Supabase MCP apply_migration (name: 044_waitlist_signups).
 --
 -- Bakgrund: landningssidan ska kunna samla in e-postadresser till en väntelista. Nivå 1 (ägarbeslut): adressen sparas i
 -- en egen tabell, listan visas i Admin, inget mail skickas och ingen extern tjänst anlitas. Nivå 2 (Resend) kommer

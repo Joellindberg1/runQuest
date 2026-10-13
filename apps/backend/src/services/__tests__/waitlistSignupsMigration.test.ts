@@ -46,7 +46,8 @@ describe('T1 waitlist migration', () => {
     expect(code).not.toMatch(/\b(drop|truncate)\b/i);
     expect(code).not.toMatch(/\b(begin|commit)\b/i); // apply_migration kör filen som en transaktion
     expect(code).not.toMatch(/\bconcurrently\b/i);
-    expect(sql).toMatch(/EJ APPLICERAD/);
+    // Applikationsstatus står i headern (EJ APPLICERAD före prod, APPLICERAD i prod efter).
+    expect(sql).toMatch(/APPLICERAD/);
     expect(sql).toMatch(/KÖRORDNING: applicera DENNA migration FÖRE deploy/);
     expect(sql).toMatch(/Idempotent/);
     const rollback = sql.split('\n').filter((line) => /^--\s+drop\b/i.test(line)).map((line) => normalize(line.replace(/^--\s*/, '')));
