@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Bebas+Neue&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="./runquest-icons.js"></script>
+<style>
+  html { background:#070e09; }
+  body { margin:0; background:#070e09; color:#edeeed; font-family:'Barlow Condensed',sans-serif; }
+  a { color:#ffd700; text-decoration:none; }
+  a:hover { color:#fff2a8; }
+  @keyframes rqBar { from { width:0; } to { width:var(--w); } }
+  @keyframes rqRise { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes rqPulse { 0%,100% { box-shadow:0 0 0 1px rgba(255,215,0,.45), 0 0 26px rgba(255,215,0,.10); } 50% { box-shadow:0 0 0 1px rgba(255,215,0,.8), 0 0 46px rgba(255,215,0,.24); } }
+  @keyframes rqSweep { from { transform:translateX(-120%); } to { transform:translateX(320%); } }
+  @keyframes rqGrid { from { background-position:0 0; } to { background-position:0 -160px; } }
+  @keyframes rqBlink { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+  *::-webkit-scrollbar { width:0; height:0; display:none; }
+  * { scrollbar-width:none; }
+</style>
+</helmet>
+
+<div data-screen-label="Landing page" style="min-height:100vh; display:flex; justify-content:center; background:#070e09;">
+<div style="width:100%; max-width:1440px; background:#070e09; overflow:hidden; position:relative;">
+  <div style="position:absolute; inset:0; pointer-events:none; background-image:linear-gradient(rgba(255,215,0,.045) 1px, transparent 1px); background-size:100% 40px; animation:rqGrid 7s linear infinite; opacity:.7;"></div>
+  <div style="position:absolute; top:-260px; left:50%; width:1100px; height:620px; transform:translateX(-50%); background:radial-gradient(ellipse at center, rgba(255,215,0,.13), transparent 68%); pointer-events:none;"></div>
+
+  <header style="position:relative; display:flex; align-items:center; justify-content:space-between; padding:22px 48px; border-bottom:1px solid rgba(255,255,255,.07);">
+    <div style="display:flex; align-items:center; gap:10px; color:#edeeed;">{{ logoSmall }}</div>
+    <nav style="display:flex; align-items:center; gap:32px; font-size:15px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.55);">
+      <span style-hover="color:#ffd700; cursor:pointer;">The game</span>
+      <span style-hover="color:#ffd700; cursor:pointer;">XP &amp; levels</span>
+      <span style-hover="color:#ffd700; cursor:pointer;">Titles</span>
+      <span style-hover="color:#ffd700; cursor:pointer;">Playbook</span>
+      <span style="padding:8px 18px; border:1px solid rgba(255,215,0,.45); color:#ffd700;" style-hover="background:rgba(255,215,0,.12); cursor:pointer;">Sign in</span>
+      <span style="padding:9px 20px; background:#ffd700; color:#000; font-weight:600; letter-spacing:.12em;" style-hover="background:#fff2a8; cursor:pointer;">Create a pack</span>
+    </nav>
+  </header>
+
+  <div style="position:relative; display:grid; grid-template-columns:minmax(0,1fr) clamp(300px,42%,700px); gap:40px; padding:64px 48px 48px; align-items:center;">
+    <div style="animation:rqRise .7s ease-out both;">
+      <div style="display:inline-flex; align-items:center; gap:9px; padding:6px 12px; border:1px solid rgba(255,215,0,.35); font-size:14px; letter-spacing:.2em; text-transform:uppercase; color:#ffd700; margin-bottom:26px;">
+        <span style="width:7px; height:7px; background:#4ade80; border-radius:50%; animation:rqBlink 1.6s ease-in-out infinite;"></span>
+        14 packs running right now
+      </div>
+      <h2 style="font-family:'Bebas Neue',sans-serif; font-size:clamp(56px,9vw,96px); line-height:.92; letter-spacing:.01em; margin:0 0 24px; color:#fff; text-wrap:balance;">YOUR GROUP CHAT<br>DESERVES A<br><span style="color:#ffd700;">LEADERBOARD</span></h2>
+      <p style="font-size:21px; line-height:1.55; max-width:520px; margin:0 0 36px; color:rgba(255,255,255,.66); text-wrap:pretty;">Every run you log earns XP. XP becomes levels, levels become titles, and titles become an argument that lasts all season. Strava syncs your runs automatically — the rest is between you and your friends.</p>
+      <div style="display:flex; gap:14px; align-items:center; margin-bottom:34px;">
+        <span style="padding:15px 30px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.08em;" style-hover="background:#fff2a8; cursor:pointer;">Create your pack — free</span>
+        <span onClick="{{ scrollToVideo }}" style="padding:15px 26px; border:1px solid rgba(255,255,255,.22); color:#edeeed; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.08em;" style-hover="border-color:#ffd700; color:#ffd700; cursor:pointer;">Watch the film — 0:49</span>
+      </div>
+      <div style="display:flex; gap:40px; border-top:1px solid rgba(255,255,255,.08); padding-top:22px;">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:38px; color:#ffd700; line-height:1;">{{ kmDisplay }}</div>
+          <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.45);">km logged</div>
+        </div>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:38px; color:#edeeed; line-height:1;">{{ runsDisplay }}</div>
+          <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.45);">runs</div>
+        </div>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:38px; color:#edeeed; line-height:1;">{{ xpDisplay }}</div>
+          <div style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:rgba(255,255,255,.45);">xp awarded</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:relative; height:680px; overflow:hidden;">
+      <div style="position:absolute; top:50%; left:50%; width:105%; min-width:420px; max-width:735px; transform:translate(-50%,-50%) rotate(-31deg); pointer-events:none;">
+        <svg viewBox="0 0 1400 760" width="100%" fill="none" stroke="rgba(255,215,0,.34)" stroke-width="2">
+          <path id="rqLane1" d="M340 230 H1060 A150 150 0 0 1 1060 530 H340 A150 150 0 0 1 340 230 Z"></path>
+          <path id="rqLane2" d="M340 204 H1060 A176 176 0 0 1 1060 556 H340 A176 176 0 0 1 340 204 Z" stroke="rgba(255,215,0,.27)"></path>
+          <path id="rqLane3" d="M340 178 H1060 A202 202 0 0 1 1060 582 H340 A202 202 0 0 1 340 178 Z" stroke="rgba(255,215,0,.22)"></path>
+          <path id="rqLane4" d="M340 152 H1060 A228 228 0 0 1 1060 608 H340 A228 228 0 0 1 340 152 Z" stroke="rgba(255,215,0,.18)"></path>
+          <path id="rqLane5" d="M340 126 H1060 A254 254 0 0 1 1060 634 H340 A254 254 0 0 1 340 126 Z" stroke="rgba(255,215,0,.15)"></path>
+          <line x1="700" y1="524" x2="700" y2="640" stroke="rgba(255,215,0,.55)" stroke-width="3"></line>
+          <circle r="9" fill="rgba(255,215,0,.95)" stroke="none">
+            <animateMotion dur="17s" begin="0s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLane1"></mpath></animateMotion>
+          </circle>
+          <text x="716" y="522" fill="rgba(255,215,0,.9)" stroke="none" opacity="0" font-family="'Bebas Neue',sans-serif" font-size="34">+50 XP
+            <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.62;0.66;0.75;0.82;1" dur="17s" begin="0s" repeatCount="indefinite"></animate>
+            <animate attributeName="y" values="522;522;484;484" keyTimes="0;0.64;0.82;1" dur="17s" begin="0s" repeatCount="indefinite"></animate>
+          </text>
+          <circle r="8" fill="rgba(200,200,200,.8)" stroke="none">
+            <animateMotion dur="19s" begin="-4s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLane2"></mpath></animateMotion>
+          </circle>
+          <text x="716" y="548" fill="rgba(255,215,0,.9)" stroke="none" opacity="0" font-family="'Bebas Neue',sans-serif" font-size="34">+35 XP
+            <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.62;0.66;0.75;0.82;1" dur="19s" begin="-4s" repeatCount="indefinite"></animate>
+            <animate attributeName="y" values="548;548;510;510" keyTimes="0;0.64;0.82;1" dur="19s" begin="-4s" repeatCount="indefinite"></animate>
+          </text>
+          <circle r="8" fill="rgba(205,127,50,.85)" stroke="none">
+            <animateMotion dur="22s" begin="-9s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLane3"></mpath></animateMotion>
+          </circle>
+          <text x="716" y="574" fill="rgba(255,215,0,.9)" stroke="none" opacity="0" font-family="'Bebas Neue',sans-serif" font-size="34">+25 XP
+            <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.62;0.66;0.75;0.82;1" dur="22s" begin="-9s" repeatCount="indefinite"></animate>
+            <animate attributeName="y" values="574;574;536;536" keyTimes="0;0.64;0.82;1" dur="22s" begin="-9s" repeatCount="indefinite"></animate>
+          </text>
+          <circle r="7.5" fill="rgba(255,255,255,.5)" stroke="none">
+            <animateMotion dur="25s" begin="-13s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLane4"></mpath></animateMotion>
+          </circle>
+          <text x="716" y="600" fill="rgba(255,215,0,.9)" stroke="none" opacity="0" font-family="'Bebas Neue',sans-serif" font-size="34">+107 XP
+            <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.62;0.66;0.75;0.82;1" dur="25s" begin="-13s" repeatCount="indefinite"></animate>
+            <animate attributeName="y" values="600;600;562;562" keyTimes="0;0.64;0.82;1" dur="25s" begin="-13s" repeatCount="indefinite"></animate>
+          </text>
+          <circle r="7" fill="rgba(255,255,255,.42)" stroke="none">
+            <animateMotion dur="28s" begin="-6s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLane5"></mpath></animateMotion>
+          </circle>
+          <text x="716" y="626" fill="rgba(255,215,0,.9)" stroke="none" opacity="0" font-family="'Bebas Neue',sans-serif" font-size="34">+30 XP
+            <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.62;0.66;0.75;0.82;1" dur="28s" begin="-6s" repeatCount="indefinite"></animate>
+            <animate attributeName="y" values="626;626;588;588" keyTimes="0;0.64;0.82;1" dur="28s" begin="-6s" repeatCount="indefinite"></animate>
+          </text>
+          <circle r="7" fill="rgba(255,215,0,.55)" stroke="none">
+            <animateMotion dur="24s" begin="-17s" repeatCount="indefinite" rotate="auto"><mpath href="#rqLane2"></mpath></animateMotion>
+          </circle>
+          <text x="716" y="548" fill="rgba(255,215,0,.9)" stroke="none" opacity="0" font-family="'Bebas Neue',sans-serif" font-size="34">+19 XP
+            <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.62;0.66;0.75;0.82;1" dur="24s" begin="-17s" repeatCount="indefinite"></animate>
+            <animate attributeName="y" values="548;548;510;510" keyTimes="0;0.64;0.82;1" dur="24s" begin="-17s" repeatCount="indefinite"></animate>
+          </text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div ref="{{ videoSectionRef }}" style="position:relative; border-top:1px solid rgba(255,255,255,.07); background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.1)); padding:64px 48px 72px;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:26px;">
+      <div>
+        <div style="font-size:15px; letter-spacing:.24em; text-transform:uppercase; color:#ffd700; margin-bottom:6px;">Watch the film</div>
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:44px; color:#fff; letter-spacing:.02em; line-height:1;">FROM A RUN TO A RANK</div>
+      </div>
+      <div style="font-size:16px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4); text-align:right;">Strava syncs it — RunQuest scores it<br>0:49 · sound on</div>
+    </div>
+
+    <div style="position:relative; max-width:1120px; margin:0 auto;">
+      <div style="position:absolute; top:-10px; left:-10px; width:34px; height:34px; border-top:2px solid rgba(255,215,0,.6); border-left:2px solid rgba(255,215,0,.6); pointer-events:none;"></div>
+      <div style="position:absolute; top:-10px; right:-10px; width:34px; height:34px; border-top:2px solid rgba(255,215,0,.6); border-right:2px solid rgba(255,215,0,.6); pointer-events:none;"></div>
+      <div style="position:absolute; bottom:-10px; left:-10px; width:34px; height:34px; border-bottom:2px solid rgba(255,215,0,.6); border-left:2px solid rgba(255,215,0,.6); pointer-events:none;"></div>
+      <div style="position:absolute; bottom:-10px; right:-10px; width:34px; height:34px; border-bottom:2px solid rgba(255,215,0,.6); border-right:2px solid rgba(255,215,0,.6); pointer-events:none;"></div>
+
+      <div style="position:relative; background:#000; border:1px solid rgba(255,215,0,.3); overflow:hidden;">
+        <video ref="{{ videoRef }}" src="./uploads/RunQuest%20Mixed.mp4" poster="./assets/landing-video-poster.png" preload="metadata" playsInline="{{ true }}" onClick="{{ togglePlay }}" style="display:block; width:100%; aspect-ratio:16/9; cursor:pointer; background:#000;"></video>
+
+        <sc-if value="{{ overlayVisible }}" hint-placeholder-val="{{ true }}">
+          <div onClick="{{ togglePlay }}" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:linear-gradient(180deg, rgba(7,14,9,.25), rgba(7,14,9,.55)); cursor:pointer;">
+            <div style="width:92px; height:92px; border:2px solid #ffd700; background:rgba(7,14,9,.55); display:flex; align-items:center; justify-content:center; animation:rqPulse 3.4s ease-in-out infinite;" style-hover="background:rgba(255,215,0,.18);">
+              <svg width="30" height="34" viewBox="0 0 30 34"><path d="M2 2 L28 17 L2 32 Z" fill="#ffd700"></path></svg>
+            </div>
+            <div style="font-family:'Bebas Neue',sans-serif; font-size:24px; letter-spacing:.1em; color:#ffd700;">PLAY — 0:49</div>
+          </div>
+        </sc-if>
+
+        <div style="position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:14px; padding:12px 16px; background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); opacity:{{ barOpacity }}; transition:opacity .3s;">
+          <span onClick="{{ togglePlay }}" style="display:flex; align-items:center; justify-content:center; width:34px; height:34px; border:1px solid rgba(255,215,0,.5); color:#ffd700; cursor:pointer; flex-shrink:0;" style-hover="background:rgba(255,215,0,.15);">{{ playPauseIcon }}</span>
+          <span style="font-family:'Share Tech Mono',monospace; font-size:13px; color:rgba(255,255,255,.7); flex-shrink:0;">{{ timeDisplay }}</span>
+          <div onClick="{{ seek }}" style="flex:1; height:18px; display:flex; align-items:center; cursor:pointer;">
+            <div style="position:relative; width:100%; height:4px; background:rgba(255,255,255,.18);">
+              <div style="position:absolute; inset:0 auto 0 0; width:{{ progressPct }}; background:#ffd700;"></div>
+            </div>
+          </div>
+          <span onClick="{{ toggleMute }}" style="display:flex; align-items:center; justify-content:center; width:34px; height:34px; border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.7); cursor:pointer; flex-shrink:0;" style-hover="border-color:#ffd700; color:#ffd700;">{{ muteIcon }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:center; gap:44px; margin-top:30px; font-size:15px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.45);">
+      <span style="display:flex; align-items:center; gap:9px;"><span style="color:#ffd700; font-family:'Share Tech Mono',monospace;">01</span>Run — Strava imports it</span>
+      <span style="display:flex; align-items:center; gap:9px;"><span style="color:#ffd700; font-family:'Share Tech Mono',monospace;">02</span>Score — XP, streaks, bonuses</span>
+      <span style="display:flex; align-items:center; gap:9px;"><span style="color:#ffd700; font-family:'Share Tech Mono',monospace;">03</span>Reign — the standings move</span>
+    </div>
+  </div>
+
+  <div style="position:relative; border-top:1px solid rgba(255,255,255,.07); border-bottom:1px solid rgba(255,255,255,.07); background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.3)); padding:56px 48px 60px;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:26px;">
+      <div>
+        <div style="font-size:15px; letter-spacing:.24em; text-transform:uppercase; color:#ffd700; margin-bottom:6px;">This is what your pack sees</div>
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:44px; color:#fff; letter-spacing:.02em; line-height:1;">THE LEADERBOARD, LIVE</div>
+      </div>
+      <div style="font-size:16px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4); text-align:right;">Season progress toward Göteborgsvarvet<br>21.1 km · 16 may</div>
+    </div>
+    <div style="display:grid; grid-template-columns:clamp(380px,55%,600px) minmax(0,1fr); gap:44px; align-items:center;">
+      <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.30); animation:rqPulse 3.4s ease-in-out infinite; position:relative; overflow:hidden;">
+        <div style="position:absolute; top:0; bottom:0; width:70px; background:linear-gradient(90deg, transparent, rgba(255,215,0,.10), transparent); animation:rqSweep 4.5s linear infinite;"></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.09);">
+          <span style="font-size:14px; letter-spacing:.22em; text-transform:uppercase; color:rgba(255,255,255,.5);">Wolfpack · week 34</span>
+          <span style="font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:#4ade80;">Live</span>
+        </div>
+        <div style="padding:8px 0;">
+          <sc-for list="{{ preview }}" as="row" hint-placeholder-count="5">
+            <div style="display:grid; grid-template-columns:34px 1fr 92px; align-items:center; gap:14px; padding:13px 18px;" style-hover="background:rgba(255,255,255,.035);">
+              <span style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:{{ row.rankColor }}; text-align:center;">{{ row.rank }}</span>
+              <div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:18px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed;">{{ row.name }}</span>
+                  <span style="font-size:13px; letter-spacing:.1em; color:{{ row.deltaColor }};">{{ row.delta }}</span>
+                </div>
+                <div style="height:5px; background:rgba(255,255,255,.07); margin-top:7px;">
+                  <div style="--w:{{ row.pct }}; height:100%; background:{{ row.rankColor }}; animation:rqBar 1.5s cubic-bezier(.2,.8,.2,1) both; animation-delay:{{ row.delay }};"></div>
+                </div>
+              </div>
+              <span style="font-family:'Share Tech Mono',monospace; font-size:17px; color:rgba(255,255,255,.72); text-align:right;">{{ row.xp }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:12px 18px; border-top:1px solid rgba(255,255,255,.09); font-size:15px; color:rgba(255,255,255,.45); display:flex; justify-content:space-between;">
+          <span>Next event · Evening run</span>
+          <span style="color:#ffd700; font-family:'Share Tech Mono',monospace;">{{ countdown }}</span>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:22px;">
+        <sc-for list="{{ displayNotes }}" as="d" hint-placeholder-count="3">
+          <div style="border-left:2px solid rgba(255,215,0,.5); padding-left:18px;">
+            <div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#ffd700; letter-spacing:.03em; line-height:1.1;">{{ d.title }}</div>
+            <p style="font-size:18px; line-height:1.5; margin:5px 0 0; color:rgba(255,255,255,.6);">{{ d.body }}</p>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:relative; padding:76px 48px;">
+    <div style="font-size:15px; letter-spacing:.24em; text-transform:uppercase; color:#ffd700; margin-bottom:10px;">How the game works</div>
+    <h3 style="font-family:'Bebas Neue',sans-serif; font-size:52px; margin:0 0 44px; color:#fff; letter-spacing:.02em;">FOUR THINGS DECIDE YOUR RANK</h3>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;">
+      <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+        <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); border-top:2px solid rgba(255,215,0,.5); padding:26px 22px 28px;" style-hover="border-color:rgba(255,215,0,.45); transform:translateY(-4px);">
+          <div style="font-family:'Share Tech Mono',monospace; font-size:15px; color:rgba(255,215,0,.7); margin-bottom:16px;">{{ s.num }}</div>
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:30px; color:#ffd700; letter-spacing:.03em; margin-bottom:8px;">{{ s.title }}</div>
+          <p style="font-size:17px; line-height:1.5; margin:0; color:rgba(255,255,255,.6);">{{ s.body }}</p>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="margin-top:20px; background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); padding:30px 26px; display:grid; grid-template-columns:1fr auto; gap:40px; align-items:center;">
+      <div>
+        <div style="font-size:15px; letter-spacing:.22em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:14px;">The XP formula, no secrets</div>
+        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; font-family:'Bebas Neue',sans-serif; font-size:30px; letter-spacing:.03em;">
+          <span style="padding:6px 14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);">BASE 15</span>
+          <span style="color:rgba(255,255,255,.35);">+</span>
+          <span style="padding:6px 14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);">KM × 2</span>
+          <span style="color:rgba(255,255,255,.35);">+</span>
+          <span style="padding:6px 14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);">DISTANCE BONUS</span>
+          <span style="color:rgba(255,255,255,.35);">×</span>
+          <span style="padding:6px 14px; background:rgba(255,215,0,.14); border:1px solid rgba(255,215,0,.5); color:#ffd700;">STREAK 1.0–2.0×</span>
+        </div>
+      </div>
+      <div style="text-align:right; border-left:1px solid rgba(255,255,255,.09); padding-left:40px;">
+        <div style="font-size:15px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.45);">A 10 km run today</div>
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:60px; color:#ffd700; line-height:1;">+50 XP</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:relative; padding:0 48px 76px;">
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px;">
+      <sc-for list="{{ features }}" as="f" hint-placeholder-count="6">
+        <div style="background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.08); padding:24px 22px; display:flex; gap:16px; align-items:flex-start;" style-hover="background:rgba(255,215,0,.05); border-color:rgba(255,215,0,.35);">
+          <span style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:#ffd700; min-width:26px;">{{ f.tag }}</span>
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:20px; letter-spacing:.1em; text-transform:uppercase; color:#edeeed; margin-bottom:6px;">{{ f.title }}</div>
+            <p style="font-size:17px; line-height:1.5; margin:0; color:rgba(255,255,255,.58);">{{ f.body }}</p>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="position:relative; padding:0 48px 84px; display:grid; grid-template-columns:minmax(0,1fr) clamp(300px,36%,420px); gap:56px; align-items:start;">
+    <div style="background:linear-gradient(135deg, rgba(255,215,0,.10), rgba(255,215,0,.02) 60%, transparent); border:1px solid rgba(255,215,0,.35); padding:44px 40px;">
+      <h3 style="font-family:'Bebas Neue',sans-serif; font-size:56px; margin:0 0 12px; color:#fff; letter-spacing:.02em;">START A PACK IN A MINUTE</h3>
+      <p style="font-size:19px; line-height:1.55; max-width:520px; margin:0 0 28px; color:rgba(255,255,255,.66);">Name it, set a target race, invite your friends with a link. Everyone connects Strava once and the leaderboard fills itself.</p>
+      <div style="display:flex; gap:10px; max-width:560px;">
+        <input placeholder="Pack name — e.g. Wolfpack" style="flex:1; background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.18); color:#edeeed; font-family:'Barlow Condensed',sans-serif; font-size:19px; padding:14px 16px; outline:none;" style-focus="border-color:#ffd700;">
+        <span style="padding:14px 26px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.08em;" style-hover="background:#fff2a8; cursor:pointer;">Create</span>
+      </div>
+      <div style="margin-top:22px; display:flex; gap:28px; font-size:16px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45);">
+        <span>No app to install</span><span>Free while in beta</span><span>Up to 30 runners</span>
+      </div>
+    </div>
+
+    <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.30); padding:28px 26px;">
+      <div style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:19px; letter-spacing:.22em; text-transform:uppercase; color:#ffd700; margin-bottom:22px;">Sign in</div>
+      <label style="display:block; font-size:16px; letter-spacing:.1em; color:rgba(255,255,255,.6); margin-bottom:6px;">Username</label>
+      <input placeholder="Enter your username" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.18); color:#edeeed; font-family:'Barlow Condensed',sans-serif; font-size:18px; padding:12px 14px; margin-bottom:18px; outline:none;" style-focus="border-color:#ffd700;">
+      <label style="display:block; font-size:16px; letter-spacing:.1em; color:rgba(255,255,255,.6); margin-bottom:6px;">Password</label>
+      <input type="password" placeholder="Enter your password" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.18); color:#edeeed; font-family:'Barlow Condensed',sans-serif; font-size:18px; padding:12px 14px; margin-bottom:22px; outline:none;" style-focus="border-color:#ffd700;">
+      <div style="text-align:center; padding:13px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.08em;" style-hover="background:#fff2a8; cursor:pointer;">Continue your journey</div>
+      <div style="margin-top:16px; text-align:center; font-size:16px; color:rgba(255,255,255,.4);">Invited to a pack? Use the link your captain sent you.</div>
+    </div>
+  </div>
+
+  <div data-screen-label="Landing — mobile" style="position:relative; border-top:1px solid rgba(255,255,255,.07); background:linear-gradient(180deg, rgba(0,0,0,.3), transparent 40%); padding:64px 48px 80px;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:34px;">
+      <div>
+        <div style="font-size:15px; letter-spacing:.24em; text-transform:uppercase; color:#ffd700; margin-bottom:6px;">On your phone</div>
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:44px; color:#fff; letter-spacing:.02em; line-height:1;">THE SAME GAME, POCKET-SIZED</div>
+      </div>
+      <div style="font-size:16px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4); text-align:right;">Nothing to install — it is a web page<br>Film plays inline</div>
+    </div>
+    <div style="display:flex; justify-content:center;">
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+        <div style="box-sizing:border-box; height:100%; display:flex; flex-direction:column; background:#070e09; font-family:'Barlow Condensed',sans-serif; padding-top:54px; overflow:hidden;">
+          <div style="flex:1; overflow:auto; padding:0 20px 20px; position:relative;">
+            <div style="position:absolute; top:-120px; left:50%; width:460px; height:340px; transform:translateX(-50%); background:radial-gradient(ellipse at center, rgba(255,215,0,.16), transparent 70%); pointer-events:none;"></div>
+            <div style="position:relative; display:flex; justify-content:center; padding:14px 0 18px; color:#edeeed;">{{ logoSmall }}</div>
+            <div style="position:relative; display:inline-flex; align-items:center; gap:8px; padding:5px 11px; border:1px solid rgba(255,215,0,.35); font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:#ffd700; margin-bottom:16px;">
+              <span style="width:6px; height:6px; background:#4ade80; border-radius:50%; animation:rqBlink 1.6s ease-in-out infinite;"></span>14 packs running
+            </div>
+            <div style="position:relative; display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+              <h2 style="flex:1; font-family:'Bebas Neue',sans-serif; font-size:46px; line-height:.92; margin:0; color:#fff;">YOUR GROUP CHAT DESERVES A <span style="color:#ffd700;">LEADERBOARD</span></h2>
+              <div style="position:relative; width:118px; height:158px; flex-shrink:0; overflow:hidden;">
+                <div style="position:absolute; top:50%; left:50%; width:172px; transform:translate(-50%,-50%) rotate(-72deg);">
+                  <svg viewBox="0 0 1400 760" width="100%" fill="none" stroke="rgba(255,215,0,.34)" stroke-width="9">
+                    <path id="rqMobLane1" d="M340 230 H1060 A150 150 0 0 1 1060 530 H340 A150 150 0 0 1 340 230 Z"></path>
+                    <path id="rqMobLane2" d="M340 190 H1060 A190 190 0 0 1 1060 570 H340 A190 190 0 0 1 340 190 Z" stroke="rgba(255,215,0,.22)"></path>
+                    <path id="rqMobLane3" d="M340 150 H1060 A230 230 0 0 1 1060 610 H340 A230 230 0 0 1 340 150 Z" stroke="rgba(255,215,0,.16)"></path>
+                    <line x1="700" y1="520" x2="700" y2="620" stroke="rgba(255,215,0,.5)" stroke-width="11"></line>
+                    <circle r="34" fill="rgba(255,215,0,.95)" stroke="none">
+                      <animateMotion dur="15s" repeatCount="indefinite"><mpath href="#rqMobLane1"></mpath></animateMotion>
+                    </circle>
+                    <circle r="30" fill="rgba(200,200,200,.75)" stroke="none">
+                      <animateMotion dur="20s" begin="-6s" repeatCount="indefinite"><mpath href="#rqMobLane2"></mpath></animateMotion>
+                    </circle>
+                    <circle r="27" fill="rgba(205,127,50,.8)" stroke="none">
+                      <animateMotion dur="26s" begin="-12s" repeatCount="indefinite"><mpath href="#rqMobLane3"></mpath></animateMotion>
+                    </circle>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <p style="position:relative; font-size:17px; line-height:1.5; color:rgba(255,255,255,.65); margin:0 0 20px;">Every run earns XP. XP becomes levels, levels become titles. Strava syncs the runs — you bring the arguing.</p>
+            <div style="position:relative; display:flex; flex-direction:column; gap:10px; margin-bottom:22px;">
+              <span style="text-align:center; padding:16px; background:#ffd700; color:#000; font-family:'Bebas Neue',sans-serif; font-size:21px; letter-spacing:.06em;">Create your pack — free</span>
+              <span style="text-align:center; padding:15px; border:1px solid rgba(255,255,255,.22); color:#edeeed; font-family:'Bebas Neue',sans-serif; font-size:21px; letter-spacing:.06em;">Sign in</span>
+            </div>
+            <div style="position:relative; background:#000; border:1px solid rgba(255,215,0,.3); margin-bottom:22px; overflow:hidden;">
+              <video ref="{{ mVideoRef }}" src="./uploads/RunQuest%20Mixed.mp4" poster="./assets/landing-video-poster.png" preload="metadata" playsInline="{{ true }}" onClick="{{ mTogglePlay }}" style="display:block; width:100%; aspect-ratio:16/9; cursor:pointer; background:#000;"></video>
+              <sc-if value="{{ mOverlayVisible }}" hint-placeholder-val="{{ true }}">
+                <div onClick="{{ mTogglePlay }}" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:linear-gradient(180deg, rgba(7,14,9,.2), rgba(7,14,9,.5)); cursor:pointer;">
+                  <div style="width:54px; height:54px; border:2px solid #ffd700; background:rgba(7,14,9,.55); display:flex; align-items:center; justify-content:center;">
+                    <svg width="18" height="20" viewBox="0 0 30 34"><path d="M2 2 L28 17 L2 32 Z" fill="#ffd700"></path></svg>
+                  </div>
+                  <div style="font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:.1em; color:#ffd700;">WATCH THE FILM — 0:49</div>
+                </div>
+              </sc-if>
+              <div style="position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(255,255,255,.14); opacity:{{ mBarOpacity }};">
+                <div style="height:100%; width:{{ mProgressPct }}; background:#ffd700;"></div>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-top:1px solid rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.08); padding:14px 0; margin-bottom:22px;">
+              <div><div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#ffd700; line-height:1;">{{ kmDisplay }}</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4);">km</div></div>
+              <div><div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#edeeed; line-height:1;">{{ runsDisplay }}</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4);">runs</div></div>
+              <div><div style="font-family:'Bebas Neue',sans-serif; font-size:26px; color:#edeeed; line-height:1;">{{ xpDisplay }}</div><div style="font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4);">xp</div></div>
+            </div>
+            <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,215,0,.3); margin-bottom:22px; position:relative; overflow:hidden; animation:rqPulse 3.4s ease-in-out infinite;">
+              <div style="position:absolute; top:0; bottom:0; width:60px; background:linear-gradient(90deg, transparent, rgba(255,215,0,.10), transparent); animation:rqSweep 4.5s linear infinite;"></div>
+              <div style="display:flex; justify-content:space-between; padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.08); font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.5);"><span>Wolfpack · week 34</span><span style="color:#4ade80;">Live</span></div>
+              <sc-for list="{{ preview }}" as="row" hint-placeholder-count="5">
+                <div style="display:grid; grid-template-columns:24px 1fr 68px; align-items:center; gap:10px; padding:10px 14px;">
+                  <span style="font-family:'Bebas Neue',sans-serif; font-size:20px; color:{{ row.rankColor }};">{{ row.rank }}</span>
+                  <div>
+                    <div style="display:flex; align-items:center; gap:7px;"><span style="font-weight:600; font-size:15px; letter-spacing:.06em; text-transform:uppercase; color:#edeeed;">{{ row.name }}</span><span style="font-size:12px; color:{{ row.deltaColor }};">{{ row.delta }}</span></div>
+                    <div style="height:4px; background:rgba(255,255,255,.07); margin-top:5px;"><div style="--w:{{ row.pct }}; height:100%; background:{{ row.rankColor }}; animation:rqBar 1.5s cubic-bezier(.2,.8,.2,1) both; animation-delay:{{ row.delay }};"></div></div>
+                  </div>
+                  <span style="font-family:'Share Tech Mono',monospace; font-size:13px; color:rgba(255,255,255,.7); text-align:right;">{{ row.xp }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:#ffd700; margin-bottom:12px;">How it works</div>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
+              <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+                <div style="background:rgba(33,33,33,.62); border:1px solid rgba(255,255,255,.09); border-left:2px solid rgba(255,215,0,.5); padding:14px 16px;">
+                  <div style="display:flex; gap:10px; align-items:baseline;"><span style="font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,215,0,.7);">{{ s.num }}</span><span style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:#ffd700;">{{ s.title }}</span></div>
+                  <p style="font-size:15px; line-height:1.45; margin:5px 0 0; color:rgba(255,255,255,.6);">{{ s.body }}</p>
+                </div>
+              </sc-for>
+            </div>
+            <div style="text-align:center; font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35); padding-bottom:10px;">Run · Rank · Reign</div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+  </div>
+
+  <footer style="position:relative; border-top:1px solid rgba(255,255,255,.07); padding:26px 48px; display:flex; justify-content:space-between; font-size:15px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.35);">
+    <span>RunQuest · Run · Rank · Reign</span>
+    <span>Playbook · FAQ · Bug report · v0.4.0</span>
+  </footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;autoplayVideo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Film&quot;},&quot;loopVideo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Film&quot;}}">
+class Component extends DCLogic {
+  state = { km: 0, runs: 0, xp: 0, secs: 17 * 3600 + 24 * 60, playing: false, muted: false, cur: 0, dur: 49, started: false, mPlaying: false, mStarted: false, mCur: 0, mDur: 49 };
+  videoRef = React.createRef();
+  mVideoRef = React.createRef();
+  videoSectionRef = React.createRef();
+
+  componentDidMount() {
+    const targets = { km: 128430, runs: 9412, xp: 1284600 };
+    const t0 = performance.now(), dur = 1700;
+    const tick = (t) => {
+      const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      this.setState({ km: Math.round(targets.km * e), runs: Math.round(targets.runs * e), xp: Math.round(targets.xp * e) });
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    this._iv = setInterval(() => this.setState(s => ({ secs: Math.max(0, s.secs - 1) })), 1000);
+    this._bindVideo();
+    if (this.props.autoplayVideo) {
+      const v = this.videoRef.current;
+      if (v) { v.muted = true; v.play().catch(() => {}); this.setState({ muted: true }); }
+    }
+  }
+  componentWillUnmount() { clearInterval(this._iv); clearInterval(this._vbind); }
+
+  _bindVideo() {
+    // Refs can mount after didMount in the DC runtime — poll until the elements exist.
+    this._bound = new Set();
+    const specs = [
+      { ref: this.videoRef, cur: 'cur', dur: 'dur', playing: 'playing', started: 'started' },
+      { ref: this.mVideoRef, cur: 'mCur', dur: 'mDur', playing: 'mPlaying', started: 'mStarted' }
+    ];
+    this._vbind = setInterval(() => {
+      let allBound = true;
+      for (const sp of specs) {
+        const el = sp.ref.current;
+        if (!el) { allBound = false; continue; }
+        if (this._bound.has(el)) continue;
+        this._bound.add(el);
+        el.addEventListener('timeupdate', () => this.setState({ [sp.cur]: el.currentTime }));
+        el.addEventListener('loadedmetadata', () => this.setState({ [sp.dur]: el.duration }));
+        el.addEventListener('play', () => this.setState({ [sp.playing]: true, [sp.started]: true }));
+        el.addEventListener('pause', () => this.setState({ [sp.playing]: false }));
+        el.addEventListener('ended', () => {
+          if (this.props.loopVideo) { el.currentTime = 0; el.play().catch(() => {}); }
+          else this.setState({ [sp.playing]: false, [sp.started]: false, [sp.cur]: 0 });
+        });
+        if (el.duration) this.setState({ [sp.dur]: el.duration });
+      }
+      if (allBound) clearInterval(this._vbind);
+    }, 120);
+  }
+
+  num(n) { return n.toLocaleString('sv-SE').replace(/\u00a0/g, ' '); }
+  fmt(t) { t = Math.max(0, Math.floor(t)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+  rq() { return window.RQIcons(React); }
+
+  renderVals() {
+    const gold = '#ffd700', silver = '#a8a8a8', bronze = '#cd7f32', up = '#4ade80', down = '#f87171', dim = 'rgba(255,255,255,.35)';
+    const s = this.state;
+    const h = Math.floor(s.secs / 3600), m = Math.floor((s.secs % 3600) / 60), sec = s.secs % 60;
+    const v = () => this.videoRef.current;
+
+    const playSvg = React.createElement('svg', { width: 12, height: 14, viewBox: '0 0 12 14' },
+      React.createElement('path', { d: 'M1 1 L11 7 L1 13 Z', fill: 'currentColor' }));
+    const pauseSvg = React.createElement('svg', { width: 12, height: 14, viewBox: '0 0 12 14' },
+      React.createElement('rect', { x: 1, y: 1, width: 3.5, height: 12, fill: 'currentColor' }),
+      React.createElement('rect', { x: 7.5, y: 1, width: 3.5, height: 12, fill: 'currentColor' }));
+    const volSvg = (mutedLine) => React.createElement('svg', { width: 16, height: 14, viewBox: '0 0 16 14' },
+      React.createElement('path', { d: 'M1 5 H4 L8 1.5 V12.5 L4 9 H1 Z', fill: 'currentColor' }),
+      mutedLine
+        ? React.createElement('line', { x1: 10, y1: 2, x2: 15, y2: 12, stroke: 'currentColor', strokeWidth: 1.6 })
+        : React.createElement('path', { d: 'M10.5 4.5 Q13 7 10.5 9.5', stroke: 'currentColor', strokeWidth: 1.6, fill: 'none' }));
+
+    return {
+      logoSmall: this.rq().logo({ taglineFill: gold }),
+      kmDisplay: this.num(s.km),
+      runsDisplay: this.num(s.runs),
+      xpDisplay: this.num(s.xp),
+      countdown: h + 'h ' + String(m).padStart(2, '0') + 'm ' + String(sec).padStart(2, '0') + 's',
+
+      videoRef: this.videoRef,
+      videoSectionRef: this.videoSectionRef,
+      scrollToVideo: () => {
+        const el = this.videoSectionRef.current;
+        if (el) {
+          const doc = el.ownerDocument;
+          (doc.scrollingElement || doc.documentElement).scrollTo({ top: el.offsetTop - 20, behavior: 'smooth' });
+        }
+      },
+      togglePlay: () => {
+        const el = v(); if (!el) return;
+        if (el.paused) el.play().catch(() => {}); else el.pause();
+      },
+      toggleMute: () => {
+        const el = v(); if (!el) return;
+        el.muted = !el.muted;
+        this.setState({ muted: el.muted });
+      },
+      seek: (e) => {
+        const el = v(); if (!el || !el.duration) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        el.currentTime = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * el.duration;
+      },
+      overlayVisible: !s.playing && !s.started,
+      barOpacity: s.started ? 1 : 0,
+      playPauseIcon: s.playing ? pauseSvg : playSvg,
+      muteIcon: volSvg(s.muted),
+      timeDisplay: this.fmt(s.cur) + ' / ' + this.fmt(s.dur),
+      progressPct: (s.dur ? (s.cur / s.dur) * 100 : 0).toFixed(2) + '%',
+
+      mVideoRef: this.mVideoRef,
+      mTogglePlay: () => {
+        const el = this.mVideoRef.current; if (!el) return;
+        if (el.paused) el.play().catch(() => {}); else el.pause();
+      },
+      mOverlayVisible: !s.mPlaying && !s.mStarted,
+      mBarOpacity: s.mStarted ? 1 : 0,
+      mProgressPct: (s.mDur ? (s.mCur / s.mDur) * 100 : 0).toFixed(2) + '%',
+
+      preview: [
+        { rank: 1, name: 'Karl', xp: '5 539', pct: '100%', delay: '.1s', rankColor: gold, delta: '▲ 1', deltaColor: up },
+        { rank: 2, name: 'Joel', xp: '5 243', pct: '94%', delay: '.2s', rankColor: silver, delta: '▼ 1', deltaColor: down },
+        { rank: 3, name: 'Adam', xp: '4 736', pct: '85%', delay: '.3s', rankColor: bronze, delta: '—', deltaColor: dim },
+        { rank: 4, name: 'Nicklas', xp: '4 483', pct: '80%', delay: '.4s', rankColor: 'rgba(255,255,255,.4)', delta: '▲ 2', deltaColor: up },
+        { rank: 5, name: 'Daniel', xp: '2 527', pct: '45%', delay: '.5s', rankColor: 'rgba(255,255,255,.4)', delta: '—', deltaColor: dim }
+      ],
+      displayNotes: [
+        { title: 'RANK CHANGES SHOW UP', body: 'Arrows mark who moved since last week, so a lead never sits quietly.' },
+        { title: 'LEVELS, NOT JUST TOTALS', body: 'The bar is progress into the current level — the newest runner can still level faster than the leader.' },
+        { title: 'THE NEXT EVENT IS ALWAYS THERE', body: 'A countdown sits at the bottom of the board so nobody misses the easy XP.' }
+      ],
+      steps: [
+        { num: '01', title: 'LOG THE RUN', body: 'Connect Strava and runs appear by themselves. No Strava? Type distance and date.' },
+        { num: '02', title: 'EARN XP', body: 'Base 15 plus 2 per km, with bonuses at 5, 10, 15 and 20 km. Same formula for everyone.' },
+        { num: '03', title: 'KEEP THE STREAK', body: 'Consecutive days build a multiplier up to 2×. Miss a day and it resets to 1×.' },
+        { num: '04', title: 'TAKE THE TITLE', body: 'Longest run, longest streak, most km. Titles change hands the moment someone beats you.' }
+      ],
+      features: [
+        { tag: '01', title: 'Leaderboard', body: 'Podium for the top three, ranked list below, live rank changes.' },
+        { tag: '02', title: 'Titles', body: 'Held, not awarded. Every title has a current holder and a challenger.' },
+        { tag: '03', title: 'Challenges', body: '1v1 across three tiers. Spend a token, pick a metric, winner gets an XP boost.' },
+        { tag: '04', title: 'Events', body: 'Recurring challenges that open on a schedule — morning runs, 5K Fridays, hangover runs.' },
+        { tag: '05', title: 'Strava sync', body: 'Runs import automatically every three hours. Nothing to log by hand.' },
+        { tag: '06', title: 'The journey', body: 'Your total distance walked as a route with checkpoints, so the km add up to something.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
