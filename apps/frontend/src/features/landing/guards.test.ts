@@ -118,6 +118,11 @@ describe('Landing — fast header', () => {
     expect(fade).not.toMatch(/z-index/);
   });
 
+  it('innehållets ram är position: relative — det är det som ritar texten ovanför tonen under headern (utan det dämpas rubriken på mobil)', () => {
+    // Tonen (.rq-landing__fade) är absolut placerad och kommer före ramen i trädet. Bara en positionerad ram hamnar över den i ritordningen; en statisk ram ritas under.
+    expect(ruleBody('.rq-landing__inner')).toMatch(/position:\s*relative/);
+  });
+
   it('temafilen deklarerar headerhöjden (desktop minst som mobil, minst en knapphöjd) och ett lager under skalets scrim', () => {
     const [mobileHeight, desktopHeight] = [mobileTheme, desktopTheme].map((block) => pixels(tokenValue(block, '--rq-landing-header-h')));
     expect(mobileHeight).toBeGreaterThanOrEqual(44);

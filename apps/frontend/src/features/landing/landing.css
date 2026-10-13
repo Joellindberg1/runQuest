@@ -23,6 +23,7 @@
 /* Mjuk nedkant på headern: den är ogenomskinlig, så guldglöden som annars låg bakom den får en hård kant. Tonen är dekor i sidan, inte i headern: den ligger efter glöden men FÖRE innehållet
    i trädet, så hjältens rubrik ritas ovanpå den och dämpas aldrig (mobilens hjälte börjar direkt under headern). Den följer sidan och försvinner när man scrollar. Börjar exakt under headern (hårlinjen på desktop ligger inuti headerns höjd). */
 .rq-landing__fade { position: absolute; top: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-h)); left: 0; right: 0; height: var(--rq-sp-24); background: linear-gradient(var(--rq-bg-shell), transparent); pointer-events: none; }
+/* position: relative är bärande: den gör ramen (och därmed innehållet) positionerad och sist i trädet, så den ritas ÖVER .rq-landing__fade. Utan den hamnar tonen ovanpå hjältens rubrik och dämpar den (guards.test.ts). */
 .rq-landing__inner { position: relative; box-sizing: border-box; width: 100%; max-width: var(--rq-landing-max); margin-inline: auto; padding-bottom: var(--rq-sp-24); }
 .rq-landing-main { display: flex; flex-direction: column; }
 /* Mobil: luft mellan sektionerna. De tomma platserna för film och väntelista saknar marginal, så de lägger inte på något. */
