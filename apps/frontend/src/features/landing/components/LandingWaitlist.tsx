@@ -131,7 +131,6 @@ export function LandingWaitlist() {
           </form>
           <ul className="rq-landing-waitlist__facts">
             <li>No app to install</li>
-            <li>Free while in beta</li>
           </ul>
         </>
       )}

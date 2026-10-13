@@ -452,6 +452,8 @@
   --rq-landing-grid-dur: 7s;                                          /* … som glider ett varv (4 rutor) på 7 s (rqGrid) */
   --rq-landing-logo-w: 148px;                                         /* wordmarken */
   --rq-landing-header-pad-y: 14px;                                    /* headerns luft över/under (desktop 22) */
+  --rq-landing-header-h: 76px;                                        /* headerns höjd (14 + 44 + 18); ankarna räknar bort den (desktop 88) */
+  --rq-landing-header-inset: env(safe-area-inset-top, 0px);           /* statusytan/notchen överst: den fasta headern fyller den med sidans bas (padding-top), annars 0 */
   --rq-landing-tap: 44px;                                             /* minsta träffyta för knappar och länkar på mobil (desktop 0) */
   --rq-landing-hero-cols: minmax(0, 1fr) auto;                        /* rubrik | arenabanan; desktop: text | bana (clamp 300–700) */
   --rq-landing-hero-areas: "title arena" "lead lead" "cta cta" "film film" "stats stats";   /* desktop: banan spänner över alla rader */
@@ -665,6 +667,8 @@
   --rq-badge-detail-w:       280px;
   /* Lagret för emblem-popovern när den öppnas inifrån en modal (Runner card som overlay): ett steg över skalets .rq-scrim (65) och .rq-modal/.rq-sheet (66), annars ritas popovern bakom modalen. */
   --rq-z-popover-over-modal: 67;
+  /* Landingens fasta header: ovanför innehållet och dekoren, under skalets lager (.rq-scrim 65, .rq-modal/.rq-sheet 66), så inloggningsdialogen ritas över den. */
+  --rq-z-landing-header: 20;
   /* Väntelistans kort (RUN-211, landingen): mått ur Landing-designens kort "Start a pack in a minute", ombyggt till ett e-postfält. Mobil = standard (en kolumn; designen saknar mobil), desktop skriver över i avsnitt 2. Konsument: features/landing/landingWaitlist.css. */
   --rq-landing-waitlist-pad:       24px 20px;                         /* kortets inre marginal (desktop 44 40) */
   --rq-landing-waitlist-title-size: 34px;                             /* Bebas-rubriken (desktop 56) */
@@ -786,6 +790,7 @@
     --rq-landing-glow-h: 620px;
     --rq-landing-glow-top: -260px;
     --rq-landing-header-pad-y: 22px;
+    --rq-landing-header-h: 88px;
     --rq-landing-tap: 0px;
     --rq-landing-hero-cols: minmax(0, 1fr) clamp(300px, 42%, 700px);
     --rq-landing-hero-areas: ". arena" "title arena" "lead arena" "cta arena" "film arena" "stats arena" ". arena";

@@ -109,7 +109,7 @@ describe('Landing — struktur och tillgänglighet', () => {
     const { container } = renderLanding({ width: DESKTOP });
     await loaded();
     const decor = [...container.querySelectorAll('[data-decor]')];
-    expect(decor.map((node) => node.getAttribute('data-decor')).sort()).toEqual(['arena', 'glow', 'grid']);
+    expect(decor.map((node) => node.getAttribute('data-decor')).sort()).toEqual(['arena', 'fade', 'glow', 'grid']);
     for (const node of decor) expect(node).toHaveAttribute('aria-hidden', 'true');
     expect(within(decor.find((node) => node.getAttribute('data-decor') === 'arena') as HTMLElement).queryByRole('img')).toBeNull();
   });
@@ -238,6 +238,16 @@ describe('Landing — platser för film och väntelista', () => {
 });
 
 describe('Landing — innehåll', () => {
+  // Tonen mellan headern och glöden är dekor under innehållet: ligger den i headern (eller efter innehållet) dämpar den hjältens rubrik.
+  it('tonen under headern ligger före innehållet i trädet, så att texten ritas ovanpå den och aldrig dämpas', async () => {
+    const { container } = renderLanding();
+    await loaded();
+    const fade = container.querySelector('[data-decor="fade"]') as HTMLElement;
+    const inner = container.querySelector('.rq-landing__inner') as HTMLElement;
+    expect(fade.compareDocumentPosition(inner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('banner').contains(fade)).toBe(false);
+  });
+
   it('previewkortet visar fem förnamn med plats, XP och rankpilar som skärmläsare kan läsa', async () => {
     renderLanding();
     await loaded();
@@ -346,5 +356,14 @@ describe('Landing — det enda anropet och siffrorna', () => {
     expect(container.textContent).not.toMatch(/packs? running/i);
     expect(container.textContent).not.toMatch(/128\s?430|9\s?412|1\s?284\s?600|\b14 packs\b/);
     expect(screen.queryByText(/xp awarded/i)).toBeNull();
+  });
+
+  it.each([MOBILE, DESKTOP])('sidan antyder inte att RunQuest är gratis (%i px): ingen text eller etikett nämner "free", men "No app to install" står kvar', async (width) => {
+    const { container } = renderLanding({ width });
+    await loaded();
+    expect(container.textContent).not.toMatch(/free/i);
+    const labelled = [...container.querySelectorAll('[aria-label], [title], [alt]')];
+    expect(labelled.filter((element) => /free/i.test(`${element.getAttribute('aria-label')} ${element.getAttribute('title')} ${element.getAttribute('alt')}`))).toEqual([]);
+    expect(screen.getByText('No app to install')).toBeInTheDocument();
   });
 });

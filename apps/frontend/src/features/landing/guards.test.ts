@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import postcss, { type Declaration } from 'postcss';
 import { describe, expect, it } from 'vitest';
 
 // Designreglerna för Landing (tokens, skarpa hörn, ikoner, inga emojis, rörelse, att CSS-måtten finns i temafilen, en guldknapp i
@@ -40,6 +41,95 @@ describe('Landing — layout som inte får gå sönder', () => {
     // XP-poppen är osynlig (opacity 0), rutnätet börjar på 0 0 och löparna står på sina vilopositioner (testet ovan).
     expect(stripComments(css)).toMatch(/\.rq-landing-xp \{[^}]*opacity: 0;/);
     expect(theme).toMatch(/@keyframes rqGrid\s*\{ from \{ background-position: 0 0; \}/);
+  });
+});
+
+describe('Landing — fast header', () => {
+  // jsdom har ingen layout: att headern sitter kvar, att ankarna landar under den och att safe-area-remsan är fylld är mätt i Chromium (390 och 1440 px).
+  // Här vaktas de regler som får det att fungera och som lätt går sönder tyst: sticky mot fönstret (ingen förfader med egen scrollbehållare),
+  // safe-area, lagret och ankarförskjutningen.
+  const ruleBody = (selector: string) => {
+    const source = stripComments(css);
+    const start = source.indexOf(`\n${selector} {`);
+    return start < 0 ? '' : source.slice(start, source.indexOf('}', start));
+  };
+  const mobileTheme = theme.split('@media (min-width: 1024px)')[0];
+  const desktopTheme = theme.split('@media (min-width: 1024px)')[1] ?? '';
+  const tokenValue = (block: string, name: string) => block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim() ?? '';
+  const pixels = (value: string) => Number(value.match(/^(\d+(?:\.\d+)?)px$/)?.[1]);
+
+  /** Alla overflow-deklarationer som sätts på headerns förfäder (sidan, dess inre ram, html, body, #root), i båda CSS-filerna. */
+  const ANCESTORS = new Set(['.rq-landing', '.rq-landing__inner', 'html', 'body', '#root']);
+  const ancestorOverflows = () => {
+    const found: string[] = [];
+    for (const [file, text] of [['landing.css', css], ['index.css', theme]] as const) {
+      postcss.parse(text).walkRules((rule) => {
+        if (!rule.selectors.some((selector) => ANCESTORS.has(selector.trim()))) return;
+        const declarations = (rule.nodes ?? []).filter((node): node is Declaration => node.type === 'decl');
+        declarations.forEach((decl, index) => {
+          if (!/^overflow(?:-[xy])?$/.test(decl.prop) || !/^(?:hidden|auto|scroll)$/.test(decl.value)) return;
+          // hidden som reserv direkt före clip (äldre Safari) är tillåtet: clip vinner där det stöds.
+          const next = declarations[index + 1];
+          if (decl.value === 'hidden' && next?.prop === decl.prop && next.value === 'clip') return;
+          found.push(`${file}: ${rule.selector} { ${decl.prop}: ${decl.value} }`);
+        });
+      });
+    }
+    return found;
+  };
+
+  it('headern är sticky ända upp till fönstrets kant, på ett eget lager, med sidans mörka bas', () => {
+    const header = ruleBody('.rq-landing-header');
+    expect(header).toMatch(/position:\s*sticky/);
+    expect(header).toMatch(/top:\s*0;/);
+    expect(header).toMatch(/z-index:\s*var\(--rq-z-landing-header\)/);
+    expect(header).toMatch(/background:\s*var\(--rq-bg-shell\)/);
+  });
+
+  it('safe-area-remsan fylls av headern: padding-top är inset plus ordinarie luft (mobil och desktop), minsta höjden är inset plus tokenen', () => {
+    expect(mobileTheme).toMatch(/--rq-landing-header-inset:\s*env\(safe-area-inset-top, 0px\)/);
+    const header = ruleBody('.rq-landing-header');
+    expect(header).toMatch(/min-height:\s*calc\(var\(--rq-landing-header-inset\) \+ var\(--rq-landing-header-h\)\)/);
+    expect(header).toMatch(/padding-block:\s*calc\(var\(--rq-landing-header-inset\) \+ var\(--rq-landing-header-pad-y\)\)/);
+    // Desktop-regeln (i @media) skriver över padding-block och måste behålla insetet.
+    const desktopRule = stripComments(css).match(/@media \(min-width: 1024px\) \{[\s\S]*?\n {2}\.rq-landing-header \{([^}]*)\}/)?.[1] ?? '';
+    expect(desktopRule).toMatch(/padding-block:\s*calc\(var\(--rq-landing-header-inset\) \+ var\(--rq-landing-header-pad-y\)\)/);
+  });
+
+  it('ingen förfader till headern gör sidan till en egen scrollbehållare (hidden/auto/scroll; hidden direkt före clip som reserv är ok)', () => {
+    expect(ancestorOverflows()).toEqual([]);
+    expect(ruleBody('.rq-landing')).toMatch(/overflow:\s*clip/);
+  });
+
+  it('ankarlänkarna landar under headern: dokumentets scroll-padding-top är inset plus headerns höjd, och mobilfilmen (utan rubrik) har egen marginal', () => {
+    expect(ruleBody('html:has(.rq-landing)')).toMatch(/scroll-padding-top:\s*calc\(var\(--rq-landing-header-inset\) \+ var\(--rq-landing-header-h\)\)/);
+    expect(ruleBody('.rq-landing .rq-film--mobile')).toMatch(/scroll-margin-top:\s*var\(--rq-sp-\d+\)/);
+  });
+
+  it('tonen under headern är dekor i sidan (inte i headern): absolut placerad exakt under headerns nederkant, med befintliga tokens, utan klick', () => {
+    // Headern får ingen ::after: den ligger på lagret över innehållet och dämpade hjältens rubrik på mobil, där hjälten börjar direkt under headern.
+    expect(stripComments(css)).not.toMatch(/\.rq-landing-header::(?:after|before)/);
+    const fade = ruleBody('.rq-landing__fade');
+    expect(fade).toMatch(/position:\s*absolute/);
+    // Headerns nederkant är inset + tokenen (hårlinjen på desktop ligger inuti den höjden), så tonen börjar under linjen och täcker den aldrig.
+    expect(fade).toMatch(/top:\s*calc\(var\(--rq-landing-header-inset\) \+ var\(--rq-landing-header-h\)\)/);
+    expect(fade).toMatch(/linear-gradient\(var\(--rq-bg-shell\), transparent\)/);
+    expect(fade).toMatch(/pointer-events:\s*none/);
+    expect(fade).not.toMatch(/z-index/);
+  });
+
+  it('innehållets ram är position: relative — det är det som ritar texten ovanför tonen under headern (utan det dämpas rubriken på mobil)', () => {
+    // Tonen (.rq-landing__fade) är absolut placerad och kommer före ramen i trädet. Bara en positionerad ram hamnar över den i ritordningen; en statisk ram ritas under.
+    expect(ruleBody('.rq-landing__inner')).toMatch(/position:\s*relative/);
+  });
+
+  it('temafilen deklarerar headerhöjden (desktop minst som mobil, minst en knapphöjd) och ett lager under skalets scrim', () => {
+    const [mobileHeight, desktopHeight] = [mobileTheme, desktopTheme].map((block) => pixels(tokenValue(block, '--rq-landing-header-h')));
+    expect(mobileHeight).toBeGreaterThanOrEqual(44);
+    expect(desktopHeight).toBeGreaterThanOrEqual(mobileHeight);
+    const layer = Number(tokenValue(mobileTheme, '--rq-z-landing-header'));
+    expect(layer).toBeGreaterThan(0);
+    expect(layer).toBeLessThan(65); // skalets .rq-scrim; dialogen (66) ritas över headern
   });
 });
 

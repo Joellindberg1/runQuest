@@ -7,7 +7,9 @@
    inte laddningsordningen. */
 
 /* ── Sida: rörligt rutnät och guldglöd bakom allt ─────────────────────────── */
-.rq-landing { position: relative; min-height: 100dvh; overflow: hidden; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+/* overflow: clip, inte hidden: hidden gör sidan till en scrollbehållare och den fasta headern skulle då fastna mot sidan i stället för mot fönstret. hidden står före clip bara som
+   reserv för webbläsare som saknar clip (äldre Safari); där klipps dekoren som förut och headern följer med sidan. Ingen förfader till headern får ha hidden/auto/scroll (guards.test.ts). */
+.rq-landing { position: relative; min-height: 100dvh; overflow: hidden; overflow: clip; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
 .rq-landing__grid {
   position: absolute; inset: 0; pointer-events: none; opacity: .7;
   background-image: linear-gradient(rgb(var(--rq-gold-rgb) / .045) var(--rq-hair), transparent var(--rq-hair));
@@ -18,6 +20,10 @@
   position: absolute; top: var(--rq-landing-glow-top); left: 50%; width: var(--rq-landing-glow-w); height: var(--rq-landing-glow-h);
   transform: translateX(-50%); background: var(--rq-hero-glow); pointer-events: none;
 }
+/* Mjuk nedkant på headern: den är ogenomskinlig, så guldglöden som annars låg bakom den får en hård kant. Tonen är dekor i sidan, inte i headern: den ligger efter glöden men FÖRE innehållet
+   i trädet, så hjältens rubrik ritas ovanpå den och dämpas aldrig (mobilens hjälte börjar direkt under headern). Den följer sidan och försvinner när man scrollar. Börjar exakt under headern (hårlinjen på desktop ligger inuti headerns höjd). */
+.rq-landing__fade { position: absolute; top: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-h)); left: 0; right: 0; height: var(--rq-sp-24); background: linear-gradient(var(--rq-bg-shell), transparent); pointer-events: none; }
+/* position: relative är bärande: den gör ramen (och därmed innehållet) positionerad och sist i trädet, så den ritas ÖVER .rq-landing__fade. Utan den hamnar tonen ovanpå hjältens rubrik och dämpar den (guards.test.ts). */
 .rq-landing__inner { position: relative; box-sizing: border-box; width: 100%; max-width: var(--rq-landing-max); margin-inline: auto; padding-bottom: var(--rq-sp-24); }
 .rq-landing-main { display: flex; flex-direction: column; }
 /* Mobil: luft mellan sektionerna. De tomma platserna för film och väntelista saknar marginal, så de lägger inte på något. */
@@ -28,9 +34,15 @@
 .rq-landing .rq-btn { min-height: var(--rq-landing-tap); text-decoration: none; }
 
 /* ── Header: wordmark · (desktop: ankarlänkar) · Sign in ──────────────────── */
+/* Fast överst vid scroll, hela vägen upp till fönstrets kant (top: 0). Under en notch/statusyta (safe-area-inset-top) fyller headern remsan med sidans bas via sitt padding-top,
+   så innehållet aldrig skymtar ovanför wordmarken. Minsta höjden är inset + en token (mobil 76 · desktop 88) som ankarna räknar bort; naturlig höjd är lika stor eller mindre, så sidan inte hoppar när headern fastnar. */
+html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-h)); }
+/* Mobilens film är själva rutan (ingen rubrik över den) och saknar egen marginal; övriga ankarmål har --rq-sp-24. */
+.rq-landing .rq-film--mobile { scroll-margin-top: var(--rq-sp-24); }
 .rq-landing-header {
+  position: sticky; top: 0; z-index: var(--rq-z-landing-header); min-height: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-h)); background: var(--rq-bg-shell);
   display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-16);
-  padding-block: var(--rq-landing-header-pad-y) var(--rq-sp-18); color: var(--rq-text-2);
+  padding-block: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-pad-y)) var(--rq-sp-18); color: var(--rq-text-2);
 }
 .rq-landing-logo { width: var(--rq-landing-logo-w); height: auto; flex-shrink: 0; }
 .rq-landing-header__actions { display: flex; align-items: center; gap: var(--rq-sp-32); }
@@ -207,7 +219,7 @@
 @media (min-width: 1024px) {
   .rq-landing__inner { padding-bottom: 0; }
   .rq-landing-hero, .rq-landing-showcase, .rq-landing-how, .rq-landing-features { margin-bottom: 0; }
-  .rq-landing-header { border-bottom: var(--rq-hair) solid var(--rq-line-2); padding-block: var(--rq-landing-header-pad-y); }
+  .rq-landing-header { border-bottom: var(--rq-hair) solid var(--rq-line-2); padding-block: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-pad-y)) var(--rq-landing-header-pad-y); }
   .rq-landing-nav a { font-size: var(--rq-fs-tab); }
   .rq-landing-header .rq-btn { padding: var(--rq-btn-pad-md); }
   .rq-landing-break { display: inline; }
