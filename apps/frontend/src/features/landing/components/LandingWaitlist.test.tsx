@@ -47,7 +47,7 @@ describe('LandingWaitlist', () => {
     expect(section!.getAttribute('aria-labelledby')).toBe(heading.id);
     expect(screen.getByText(/RunQuest is invite-only while in beta\. Leave your email and you'll get an invite when a pack can start\./)).toBeInTheDocument();
     expect(screen.getByText('No app to install')).toBeInTheDocument();
-    expect(screen.getByText('Free while in beta')).toBeInTheDocument();
+    expect(screen.queryByText(/free/i)).toBeNull();
     expect(screen.queryByText(/Up to 30 runners/)).toBeNull();
   });
 

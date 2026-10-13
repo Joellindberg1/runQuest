@@ -347,4 +347,13 @@ describe('Landing — det enda anropet och siffrorna', () => {
     expect(container.textContent).not.toMatch(/128\s?430|9\s?412|1\s?284\s?600|\b14 packs\b/);
     expect(screen.queryByText(/xp awarded/i)).toBeNull();
   });
+
+  it.each([MOBILE, DESKTOP])('sidan antyder inte att RunQuest är gratis (%i px): ingen text eller etikett nämner "free", men "No app to install" står kvar', async (width) => {
+    const { container } = renderLanding({ width });
+    await loaded();
+    expect(container.textContent).not.toMatch(/free/i);
+    const labelled = [...container.querySelectorAll('[aria-label], [title], [alt]')];
+    expect(labelled.filter((element) => /free/i.test(`${element.getAttribute('aria-label')} ${element.getAttribute('title')} ${element.getAttribute('alt')}`))).toEqual([]);
+    expect(screen.getByText('No app to install')).toBeInTheDocument();
+  });
 });
