@@ -324,6 +324,34 @@ describe('CLI', () => {
     }
   });
 
+  it('exits 1 in a git repo when a video original is tracked or .gitignore lacks the lines, and 0 once both are fine', () => {
+    const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+    const makeGitRepo = (name, { ignore, trackVideo }) => {
+      const root = makeRepo(name);
+      mkdirSync(join(root, 'apps', 'frontend', 'public', 'media'), { recursive: true });
+      mkdirSync(join(root, 'docs', 'design'), { recursive: true });
+      writeFileSync(join(root, '.gitignore'), ignore);
+      writeFileSync(join(root, 'docs', 'design', 'original.mp4'), 'x');
+      assert.equal(git(root, 'init', '-q').status, 0);
+      assert.equal(git(root, 'add', '-f', '.gitignore', trackVideo ? 'docs/design/original.mp4' : 'package.json').status, 0);
+      return root;
+    };
+    const fullIgnore = 'docs/design/*.mp4\ndocs/design/landing-media/\n';
+
+    const tracked = runCli('media', makeGitRepo('git-tracked', { ignore: fullIgnore, trackVideo: true }));
+    assert.equal(tracked.status, 1);
+    assert.match(tracked.stderr, /docs\/design\/original\.mp4: videofil spårad i git/);
+
+    const noIgnore = runCli('media', makeGitRepo('git-no-ignore', { ignore: 'node_modules/\n', trackVideo: false }));
+    assert.equal(noIgnore.status, 1);
+    assert.match(noIgnore.stderr, /\.gitignore saknar raden "docs\/design\/\*\.mp4"/);
+    assert.match(noIgnore.stderr, /\.gitignore saknar raden "docs\/design\/landing-media\/"/);
+
+    const clean = runCli('media', makeGitRepo('git-clean', { ignore: fullIgnore, trackVideo: false }));
+    assert.equal(clean.status, 0, clean.stderr);
+    assert.match(clean.stdout, /inga videooriginal i git/);
+  });
+
   it('rejects an unknown mode', () => {
     assert.equal(runCli('nope').status, 2);
   });

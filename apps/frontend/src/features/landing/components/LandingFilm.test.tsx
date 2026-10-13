@@ -68,6 +68,8 @@ describe('filmen: innan den startar', () => {
     expect(video).not.toHaveAttribute('autoplay');
     expect(video).not.toHaveAttribute('loop');
     expect(video).not.toHaveAttribute('controls');
+    // Utan playsinline öppnar iOS filmen i helskärm i stället för i spelaren.
+    expect(video).toHaveAttribute('playsinline');
     expect(video).not.toHaveAttribute('poster');
     expect(video).not.toHaveAttribute('src');
     expect(playSpy).not.toHaveBeenCalled();
@@ -180,6 +182,9 @@ describe('filmen: att spela', () => {
     expect(screen.getByRole('button', { name: PLAY_LABEL })).toBeInTheDocument();
 
     const slider = screen.getByRole('slider');
+    // Reglaget nås med Tab: ett tabindex under noll skulle ta det ur tangentbordsordningen.
+    expect(slider.tabIndex).toBeGreaterThanOrEqual(0);
+    expect(screen.getByRole('button', { name: PLAY_LABEL }).tabIndex).toBeGreaterThanOrEqual(0);
     currentTime = 20;
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
     expect(video.currentTime).toBe(25);
