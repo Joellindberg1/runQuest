@@ -1,0 +1,44 @@
+/* Väntelistans kort på landingen (RUN-211): guldtonad gradient, guldkant och Bebas-rubrik, sedan ett e-postfält, en samtyckesbock och EN guldknapp.
+   ENDAST tokens (regel 1). Måtten (--rq-landing-waitlist-*) definieras i temafilen (index.css + docs/design/temafil-forslag.css) — inga egna
+   :root-definitioner här. Ingen rörelse. Mobil = en kolumn (fält och knapp i full bredd); desktop = fältet och knappen på en rad.
+   Fältet, anteckningarna och knappen kommer från de delade primitiverna (.rq-field, .rq-form-*, .rq-btn). Overrides av delade
+   .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
+
+.rq-landing-waitlist {
+  position: relative; box-sizing: border-box; padding: var(--rq-landing-waitlist-pad); scroll-margin-top: var(--rq-sp-24);
+  background: linear-gradient(135deg, rgb(var(--rq-gold-rgb) / var(--rq-tint-status)), rgb(var(--rq-gold-rgb) / .02) 60%, transparent);
+  border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft));
+}
+.rq-landing-waitlist__title {
+  margin: 0 0 var(--rq-sp-12); font-family: var(--rq-font-display); font-size: var(--rq-landing-waitlist-title-size); font-weight: 400;
+  letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1);
+}
+.rq-landing-waitlist .rq-landing-waitlist__lead { max-width: var(--rq-landing-waitlist-lead-max); margin: 0 0 var(--rq-sp-24); }
+
+.rq-landing-waitlist__form { max-width: var(--rq-landing-waitlist-form-max); }
+.rq-landing-waitlist__row { display: flex; flex-direction: var(--rq-landing-waitlist-row-dir); align-items: var(--rq-landing-waitlist-row-align); gap: var(--rq-sp-10); }
+.rq-landing-waitlist__row .rq-form-field { flex: 1; }
+.rq-landing-waitlist .rq-landing-waitlist__submit { width: var(--rq-landing-waitlist-submit-w); box-sizing: border-box; white-space: nowrap; }
+
+.rq-landing-waitlist__error { margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-down); }
+
+/* Samtycke: rutan och texten är EN etikett (hela raden klickbar, minst 44 px hög), länken till integritetstexten står bredvid */
+.rq-landing-waitlist__consent { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--rq-sp-10); margin-top: var(--rq-sp-8); }
+.rq-landing-waitlist__consent-label {
+  display: flex; align-items: center; gap: var(--rq-sp-10); min-height: var(--rq-landing-waitlist-touch); cursor: pointer;
+  font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3);
+}
+.rq-landing-waitlist__check { flex: none; width: var(--rq-landing-waitlist-check); height: var(--rq-landing-waitlist-check); margin: 0; accent-color: var(--rq-gold); cursor: pointer; }
+.rq-landing-waitlist__consent a { display: inline-flex; align-items: center; min-height: var(--rq-landing-waitlist-touch); font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
+
+.rq-landing-waitlist__facts {
+  display: flex; flex-wrap: wrap; gap: var(--rq-sp-8) var(--rq-sp-24); margin: var(--rq-sp-20) 0 0; padding: 0; list-style: none;
+  font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4);
+}
+
+/* Honeypot: utanför skärmen (inte display:none, så enkla botar fyller i det). Dolt för tangentbord och skärmläsare i markupen. */
+.rq-landing-waitlist__trap { position: absolute; left: var(--rq-landing-waitlist-offscreen); top: auto; width: var(--rq-hair); height: var(--rq-hair); overflow: hidden; }
+
+/* Tack: ersätter formuläret och tar emot fokus */
+.rq-landing-waitlist__done-title { margin: 0 0 var(--rq-sp-8); font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+.rq-landing-waitlist__done-text { margin: 0; }

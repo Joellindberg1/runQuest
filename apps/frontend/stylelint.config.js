@@ -174,6 +174,19 @@ export default {
     },
     { files: ["src/features/log/log.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-log-tone", "rq-log-tone-rgb"] }) },
     {
+      // Väntelistans kort (RUN-211): ingen rörelse, inget z-index, inga egna custom properties. Honeypot-fältet ligger utanför skärmen:
+      // det får inte döljas med display eller visibility, annars hoppar enkla botar över det. Testerna kör med css:false och kan inte prova klassen.
+      files: ["src/features/landing/landingWaitlist.css"],
+      rules: designRules({
+        extraRules: {
+          "rule-selector-property-disallowed-list": [
+            { "/rq-landing-waitlist__trap/": ["display", "visibility"] },
+            { message: "Honeypot-fältet ska ligga utanför skärmen (position + left), inte döljas med display eller visibility." },
+          ],
+        },
+      }),
+    },
+    {
       files: ["src/features/profile/profile.css"],
       rules: designRules({
         // Redigeringsrutan ligger i skalets modallager (66). Bara markören och rutnätets veckor animerar, en gång var; inget loopar.
