@@ -125,7 +125,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Purpose: to invite you to RunQuest. Legal basis: your consent, which you give by ticking the box. You can withdraw it at any time.',
       'The entry is kept until the invitation has been sent or until you ask for it to be deleted. Only the administrator can see the waitlist.',
       `To have your entry deleted, email ${CONTACT}.`,
-      'To limit repeated attempts, the server keeps your IP address in memory for 15 minutes. It is not stored with your signup, but it can be written to the server log if you are blocked.',
+      'To limit repeated attempts, the server keeps your IP address in memory for at least 15 minutes, until the server restarts or the entry is replaced. It is not stored with your signup, but it can be written to the server log if you are blocked.',
       'No email is sent to the waitlist at the moment, not even a confirmation.',
     ],
   },

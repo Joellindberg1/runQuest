@@ -16,7 +16,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-13', sha256: 'a32aa42720607a7a33c8ab234c55c84463e3f85c4b8d147e2846e996896de398' };
+const PINNED_POLICY = { version: '2026-10-13', sha256: '15ea950c6e4a0db3cd5c6ad6506dbfe15e3e1adebed9e26e08c3a1b3b6a504d9' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -135,7 +135,7 @@ describe('dataPolicy', () => {
     expect(text).toMatch(/time/i);
     expect(text).toMatch(/version of this text/i);
     expect(text).toMatch(/"landing"/);
-    expect(text).toMatch(/IP address in memory for 15 minutes/i);
+    expect(text).toMatch(/IP address in memory for at least 15 minutes, until the server restarts or the entry is replaced/i);
     expect(text).toMatch(/server log/i);
     expect(text).toMatch(/invit/i);
     expect(text).toMatch(/consent/i);
