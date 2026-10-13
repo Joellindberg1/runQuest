@@ -109,7 +109,7 @@ describe('Landing — struktur och tillgänglighet', () => {
     const { container } = renderLanding({ width: DESKTOP });
     await loaded();
     const decor = [...container.querySelectorAll('[data-decor]')];
-    expect(decor.map((node) => node.getAttribute('data-decor')).sort()).toEqual(['arena', 'glow', 'grid']);
+    expect(decor.map((node) => node.getAttribute('data-decor')).sort()).toEqual(['arena', 'fade', 'glow', 'grid']);
     for (const node of decor) expect(node).toHaveAttribute('aria-hidden', 'true');
     expect(within(decor.find((node) => node.getAttribute('data-decor') === 'arena') as HTMLElement).queryByRole('img')).toBeNull();
   });
@@ -238,6 +238,16 @@ describe('Landing — platser för film och väntelista', () => {
 });
 
 describe('Landing — innehåll', () => {
+  // Tonen mellan headern och glöden är dekor under innehållet: ligger den i headern (eller efter innehållet) dämpar den hjältens rubrik.
+  it('tonen under headern ligger före innehållet i trädet, så att texten ritas ovanpå den och aldrig dämpas', async () => {
+    const { container } = renderLanding();
+    await loaded();
+    const fade = container.querySelector('[data-decor="fade"]') as HTMLElement;
+    const inner = container.querySelector('.rq-landing__inner') as HTMLElement;
+    expect(fade.compareDocumentPosition(inner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('banner').contains(fade)).toBe(false);
+  });
+
   it('previewkortet visar fem förnamn med plats, XP och rankpilar som skärmläsare kan läsa', async () => {
     renderLanding();
     await loaded();

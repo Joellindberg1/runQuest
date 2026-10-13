@@ -20,6 +20,9 @@
   position: absolute; top: var(--rq-landing-glow-top); left: 50%; width: var(--rq-landing-glow-w); height: var(--rq-landing-glow-h);
   transform: translateX(-50%); background: var(--rq-hero-glow); pointer-events: none;
 }
+/* Mjuk nedkant på headern: den är ogenomskinlig, så guldglöden som annars låg bakom den får en hård kant. Tonen är dekor i sidan, inte i headern: den ligger efter glöden men FÖRE innehållet
+   i trädet, så hjältens rubrik ritas ovanpå den och dämpas aldrig (mobilens hjälte börjar direkt under headern). Den följer sidan och försvinner när man scrollar. Börjar exakt under headern (hårlinjen på desktop ligger inuti headerns höjd). */
+.rq-landing__fade { position: absolute; top: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-h)); left: 0; right: 0; height: var(--rq-sp-24); background: linear-gradient(var(--rq-bg-shell), transparent); pointer-events: none; }
 .rq-landing__inner { position: relative; box-sizing: border-box; width: 100%; max-width: var(--rq-landing-max); margin-inline: auto; padding-bottom: var(--rq-sp-24); }
 .rq-landing-main { display: flex; flex-direction: column; }
 /* Mobil: luft mellan sektionerna. De tomma platserna för film och väntelista saknar marginal, så de lägger inte på något. */
@@ -40,8 +43,6 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
   display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-16);
   padding-block: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-pad-y)) var(--rq-sp-18); color: var(--rq-text-2);
 }
-/* Mjuk nedkant: headern är ogenomskinlig, så den guldglöd som annars låg bakom den skulle få en hård kant. Basen tonar ut över de närmaste pixlarna; ren dekor, tar inga klick. */
-.rq-landing-header::after { content: ""; position: absolute; top: 100%; left: 0; right: 0; height: var(--rq-sp-24); background: linear-gradient(var(--rq-bg-shell), transparent); pointer-events: none; }
 .rq-landing-logo { width: var(--rq-landing-logo-w); height: auto; flex-shrink: 0; }
 .rq-landing-header__actions { display: flex; align-items: center; gap: var(--rq-sp-32); }
 .rq-landing-nav { display: flex; align-items: center; gap: var(--rq-sp-32); }
@@ -218,7 +219,6 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
   .rq-landing__inner { padding-bottom: 0; }
   .rq-landing-hero, .rq-landing-showcase, .rq-landing-how, .rq-landing-features { margin-bottom: 0; }
   .rq-landing-header { border-bottom: var(--rq-hair) solid var(--rq-line-2); padding-block: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-pad-y)) var(--rq-landing-header-pad-y); }
-  .rq-landing-header::after { top: calc(100% + var(--rq-hair)); } /* under hårlinjen, så den inte täcks */
   .rq-landing-nav a { font-size: var(--rq-fs-tab); }
   .rq-landing-header .rq-btn { padding: var(--rq-btn-pad-md); }
   .rq-landing-break { display: inline; }

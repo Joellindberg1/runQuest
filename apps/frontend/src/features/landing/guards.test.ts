@@ -106,10 +106,16 @@ describe('Landing — fast header', () => {
     expect(ruleBody('.rq-landing .rq-film--mobile')).toMatch(/scroll-margin-top:\s*var\(--rq-sp-\d+\)/);
   });
 
-  it('nedkanten tonar ut med befintliga tokens (ingen hård kant mot glöden) och tar inga klick', () => {
-    const fade = ruleBody('.rq-landing-header::after');
+  it('tonen under headern är dekor i sidan (inte i headern): absolut placerad exakt under headerns nederkant, med befintliga tokens, utan klick', () => {
+    // Headern får ingen ::after: den ligger på lagret över innehållet och dämpade hjältens rubrik på mobil, där hjälten börjar direkt under headern.
+    expect(stripComments(css)).not.toMatch(/\.rq-landing-header::(?:after|before)/);
+    const fade = ruleBody('.rq-landing__fade');
+    expect(fade).toMatch(/position:\s*absolute/);
+    // Headerns nederkant är inset + tokenen (hårlinjen på desktop ligger inuti den höjden), så tonen börjar under linjen och täcker den aldrig.
+    expect(fade).toMatch(/top:\s*calc\(var\(--rq-landing-header-inset\) \+ var\(--rq-landing-header-h\)\)/);
     expect(fade).toMatch(/linear-gradient\(var\(--rq-bg-shell\), transparent\)/);
     expect(fade).toMatch(/pointer-events:\s*none/);
+    expect(fade).not.toMatch(/z-index/);
   });
 
   it('temafilen deklarerar headerhöjden (desktop minst som mobil, minst en knapphöjd) och ett lager under skalets scrim', () => {

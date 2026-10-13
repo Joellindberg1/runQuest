@@ -25,6 +25,7 @@ export function LandingScreen() {
     <div className="rq-landing">
       <div className="rq-landing__grid" data-decor="grid" aria-hidden="true" />
       <div className="rq-landing__glow" data-decor="glow" aria-hidden="true" />
+      <div className="rq-landing__fade" data-decor="fade" aria-hidden="true" />
       <div className="rq-landing__inner">
         <LandingHeader />
         <main className="rq-landing-main">
