@@ -29,11 +29,16 @@ export function LandingScreen() {
         <LandingHeader />
         <main className="rq-landing-main">
           <LandingHero watchFilm={<WatchFilmButton />} mobileFilm={<LandingFilm variant="mobile" />} />
-          <LandingFilm variant="desktop" />
+          {/* Filmen och väntelistan bär egna ankar-id; ramen ger dem sidans marginal (--rq-landing-pad) som övriga sektioner. */}
+          <div className="rq-landing-slot">
+            <LandingFilm variant="desktop" />
+          </div>
           <PackPreview rows={previewRows} />
           <HowItWorks steps={steps} formula={formula} />
           <LandingFeatures />
-          <LandingWaitlist />
+          <div className="rq-landing-slot">
+            <LandingWaitlist />
+          </div>
         </main>
         <LandingFooter />
       </div>

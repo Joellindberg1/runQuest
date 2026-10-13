@@ -22,7 +22,7 @@
 .rq-landing-main { display: flex; flex-direction: column; }
 /* Mobil: luft mellan sektionerna. De tomma platserna för film och väntelista saknar marginal, så de lägger inte på något. */
 .rq-landing-hero, .rq-landing-showcase, .rq-landing-how, .rq-landing-features { margin-bottom: var(--rq-sp-24); }
-.rq-landing-header, .rq-landing-hero, .rq-landing-showcase, .rq-landing-how, .rq-landing-features, .rq-landing-footer { box-sizing: border-box; padding-inline: var(--rq-landing-pad); }
+.rq-landing-header, .rq-landing-hero, .rq-landing-slot, .rq-landing-showcase, .rq-landing-how, .rq-landing-features, .rq-landing-footer { box-sizing: border-box; padding-inline: var(--rq-landing-pad); }
 
 /* Knappar och länkar på mobil: minst 44 px träffyta (desktop 0) */
 .rq-landing .rq-btn { min-height: var(--rq-landing-tap); text-decoration: none; }
