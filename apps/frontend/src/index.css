@@ -461,7 +461,7 @@
   --rq-landing-title-size: var(--rq-fs-display-xl);                   /* h1: mobil 46 · desktop clamp(56px, 9vw, 96px) */
   --rq-landing-lead-max: none;                                        /* ingressens maxbredd (desktop 520) */
   --rq-landing-stat-size: 26px;                                       /* sifferradens tal, Bebas (desktop 38) */
-  --rq-landing-track-w: 118px;                                        /* banans ruta (desktop: hela kolumnen) */
+  --rq-landing-track-w: 100px;                                        /* banans ruta (desktop: hela kolumnen) */
   --rq-landing-track-h: 158px;                                        /* (desktop 680) */
   --rq-landing-track-svg-w: 172px;                                    /* den roterade SVG:n inuti rutan (desktop clamp 420–735) */
   --rq-landing-lane-w: 9px;                                           /* banlinje, user units (viewBox 1400; desktop 2) */
