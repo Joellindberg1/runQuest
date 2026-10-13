@@ -2,6 +2,7 @@
 
 ## Status
 Godkänd av ägaren 2026-10-04 (redesign-beslut 1–5; beslut 5 = händelseloggen byggs nu, display-only)
+Utökad av ADR 011 (2026-10-13): beslut 8 (oläst-modellen) får per-rad-läst ovanpå vattenmärket (`news_read`), egen-handling-regeln får undantag för asynkrona utmaningsutfall, och notisinställningar tillämpas vid läsning; ingenting i detta dokument ersätts.
 
 ## Kontext
 Pack News (design: klock-popover + skärm `/news`, ADR 006) visar vad som hänt
