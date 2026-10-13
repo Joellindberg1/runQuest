@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
 import { useJoinWaitlist } from './useJoinWaitlist';
@@ -9,12 +9,12 @@ vi.mock('@/shared/services/backendApi', () => ({ backendApi: { joinWaitlist: vi.
 
 const joinWaitlist = vi.mocked(backendApi.joinWaitlist);
 
-const wrapper = ({ children }: { children: ReactNode }) => {
-  const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-};
+// EN klient per test. Skapas den i wrappern får varje omrendering en ny klient, och hookens mutation tappar sitt tillstånd (isPending fastnade).
+let client: QueryClient;
+const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 
 beforeEach(() => {
+  client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   // Bara klockan fejkas: react-querys och testbibliotekets timers går som vanligt.
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-13T08:00:00Z'));
@@ -78,6 +78,6 @@ describe('useJoinWaitlist', () => {
     expect(joinWaitlist).toHaveBeenCalledTimes(1);
 
     await act(async () => { finish({ status: 200 }); await first; });
-    expect(result.current.isPending).toBe(false);
+    await waitFor(() => expect(result.current.isPending).toBe(false));
   });
 });
