@@ -155,11 +155,11 @@ describe('Admin — XP settings', () => {
 });
 
 describe('Admin — flikar', () => {
-  it('fyra flikar över ?view=, XP settings är standard och val av flik byter panel', async () => {
+  it('fem flikar över ?view=, XP settings är standard och val av flik byter panel', async () => {
     renderAdmin();
     await screen.findByLabelText('XP per run');
     const tabs = screen.getByRole('tablist', { name: 'Admin view' });
-    expect(within(tabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['XP settings', 'Users', 'Titles', 'Security']);
+    expect(within(tabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['XP settings', 'Users', 'Titles', 'Security', 'Waitlist']);
     expect(within(tabs).getByRole('tab', { name: 'XP settings' })).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.click(within(tabs).getByRole('tab', { name: 'Users' }));
