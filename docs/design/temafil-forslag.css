@@ -631,7 +631,7 @@
   --rq-badge-popup-w:        340px;
   --rq-badge-popup-target:   44px;
 
-  /* Filmen på landningen (RUN-257): spelarens mått (desktopvärdena i avsnitt 2) — play-rutan och dess triangel, etiketten, mobilens progress, kontrollraden, guldhörnen, sökreglaget och de två toningarna. */
+  /* Filmen på landningen (RUN-257): spelarens mått (desktopvärdena i avsnitt 2) — play-rutan och dess triangel, etiketten, mobilens progress, kontrollraden, guldhörnen, sökreglaget och toningen över postern. */
   --rq-landing-film-play-box: 54px;
   --rq-landing-film-glyph-w: 18px;
   --rq-landing-film-glyph-h: 20px;
@@ -644,9 +644,8 @@
   --rq-landing-film-track-h: 4px;
   --rq-landing-film-thumb: 14px;
   --rq-landing-film-scrim: linear-gradient(180deg, rgba(7, 14, 9, .25), rgba(7, 14, 9, .55));
-  --rq-landing-film-bar-bg: linear-gradient(0deg, rgba(0, 0, 0, .8), transparent);
 
-  /* Badges-sidan och emblem-popovern (RUN-149,spec F9.9, F10.4, F13.4): rutnätets minsta kortbredd och glapp, kortets rutnätsområden och popoverns bredd (desktopvärdena i avsnitt 2; bredden är densamma). */
+  /* Badges-sidan och emblem-popovern (RUN-149, spec F9.9, F10.4, F13.4): rutnätets minsta kortbredd och glapp, kortets rutnätsområden och popoverns bredd (desktopvärdena i avsnitt 2; bredden är densamma). */
   --rq-badge-page-card-min:  300px;
   --rq-badge-page-gap:       var(--rq-sp-8);
   --rq-badge-card-areas:     "emblem who" "emblem body";

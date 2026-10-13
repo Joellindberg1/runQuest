@@ -121,6 +121,7 @@ check_with "favicon.svg serveras med bildtyp"                        "/favicon.s
 check_with "favicon.ico serveras med ikontyp"                        "/favicon.ico" 200 "^content-type: image/(x-icon|vnd\.microsoft\.icon)" "content-type: text/html"
 check_with "apple-touch-icon serveras som PNG"                       "/apple-touch-icon.png" 200 "^content-type: image/png" "content-type: text/html"
 check_with "site.webmanifest har manifesttyp"                        "/site.webmanifest" 200 "^content-type: application/manifest\+json" "content-type: text/html"
+check_with "saknad manifestfil får inte manifesttypen"        "/saknas.webmanifest" 200 "^content-type: text/html" "application/manifest[+]json"
 check_with "delningsbilden serveras som PNG"                         "/og-image.v1.png" 200 "^content-type: image/png" "content-type: text/html"
 
 if (( failures > 0 )); then

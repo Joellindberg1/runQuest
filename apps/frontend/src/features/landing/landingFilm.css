@@ -55,10 +55,12 @@
   font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label);
 }
 
-/* ── Desktopens kontrollrad: play/paus · tid · sökbar progress. Ingen ljudknapp (filmen saknar ljud). ───────────────────────────── */
+/* ── Desktopens kontrollrad under bilden (filmen har inbränd text längst ned): play/paus · tid · sökbar progress. Ingen ljudknapp.
+   Raden finns också innan play (tom) så att höjden inte hoppar. ───────────────────────────────────────────────────────────── */
 .rq-film__bar {
-  position: absolute; right: 0; bottom: 0; left: 0; display: flex; align-items: center; gap: var(--rq-sp-14);
-  padding: var(--rq-sp-12) var(--rq-sp-16); background: var(--rq-landing-film-bar-bg);
+  display: flex; align-items: center; gap: var(--rq-sp-14); box-sizing: border-box;
+  min-height: calc(var(--rq-landing-film-btn) + 2 * var(--rq-sp-12)); padding: var(--rq-sp-12) var(--rq-sp-16);
+  background: var(--rq-bg-page); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-top: 0;
 }
 .rq-film__btn {
   flex: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 0; padding: 0;

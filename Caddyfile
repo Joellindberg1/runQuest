@@ -84,8 +84,11 @@
 	}
 
 	# Go och Caddy saknar .webmanifest i sin inbyggda typtabell, och typtabellen i prodcontainern är okänd: typen sätts explicit.
-	# file_server skriver bara över Content-Type när den saknas, så den här gäller.
-	@webmanifest path *.webmanifest
+	# file_server skriver bara över Content-Type när den saknas, så den här gäller. Bara om filen finns: en saknad manifestfil faller tillbaka på index.html och ska inte få manifesttypen.
+	@webmanifest {
+		path /site.webmanifest
+		file
+	}
 	header @webmanifest Content-Type "application/manifest+json"
 
 	handle {

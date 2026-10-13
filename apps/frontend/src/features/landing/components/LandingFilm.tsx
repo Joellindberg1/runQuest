@@ -222,8 +222,11 @@ function DesktopFilm() {
             </button>
           )}
           <FilmError failed={player.failed} />
+        </div>
+        {/* Kontrollraden ligger under bilden, inte över den: filmen har inbränd text längst ned. Raden finns alltid så att höjden inte hoppar vid play. */}
+        <div className="rq-film__bar">
           {!showPoster && (
-            <div className="rq-film__bar">
+            <>
               <button type="button" className="rq-film__btn" data-film-play aria-label={playing ? PAUSE_LABEL : PLAY_LABEL} onClick={player.toggle}>
                 <span className={`rq-film__glyph rq-film__glyph--${playing ? 'pause' : 'play'}`} aria-hidden="true" />
               </button>
@@ -241,7 +244,7 @@ function DesktopFilm() {
                 onChange={(event: ChangeEvent<HTMLInputElement>) => player.seekTo(Number(event.target.value))}
                 onKeyDown={player.onSliderKeyDown}
               />
-            </div>
+            </>
           )}
         </div>
       </div>
