@@ -205,7 +205,7 @@ describe('checkFontFiles', () => {
   });
 
   it('fails a file that is not woff2 even when its name says so', () => {
-    const errors = checkFontFiles([font('bebas-neue-400.v1.woff2', 20_000, '   '), licence]);
+    const errors = checkFontFiles([font('bebas-neue-400.v1.woff2', 20_000, '\x00\x01\x00\x00'), licence]);
     assert.equal(errors.length, 1);
     assert.match(errors[0], /woff2/);
   });
