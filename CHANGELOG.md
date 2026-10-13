@@ -16,10 +16,10 @@ Användarversion (What's new + Pack News-rad via announce:release). Epic RUN-159
 - Nya lintvakter: Stravas loggregler (`rq/strava-logo`), honeypotens CSS, lazy-gränsen för LegalPage; sitemap-vakten läser routerns faktiska konfiguration. `.gitattributes` låser Strava-loggornas radslut.
 
 ### Prod-steg (kräver ägar-ja)
-1. PR release/v0.6.2 → main, grön CI (inkl. verify-static-serving på Linux), merge (= deploy). Ingen migration.
-2. Röktest: `/` utloggad visar siffrorna från prod, filmen spelar, `/legal` öppnas, väntelistan svarar, `/media/*` och `/site.webmanifest` serveras rätt.
-3. Tagg `v0.6.2` på merge-commiten.
-4. `announce:release --version=0.6.2` (dry-run, sedan `--apply`).
+1. PR release/v0.6.2 → main, grön CI (inkl. verify-static-serving på Linux), merge (= deploy). Ingen migration. KÖRD 2026-10-13 (ägar-ja): PR #37, grön CI inkl. verify-static-serving på Linux.
+2. Röktest: `/` utloggad visar siffrorna från prod, filmen spelar, `/legal` öppnas, väntelistan svarar, `/media/*` och `/site.webmanifest` serveras rätt. KÖRD 2026-10-13: / och /legal 200, siffrorna 4 551 km · 6 runners · 4 challenges renderade i prod (390 och 1440 px, inga konsolfel), film video/mp4 immutable, manifest och delningsbild rätt typ, sitemap / och /legal.
+3. Tagg `v0.6.2` på merge-commiten. KÖRD (c79927c).
+4. `announce:release --version=0.6.2` (dry-run, sedan `--apply`). KÖRD 2026-10-13 (ägar-ja): 1 release_published-rad för Wolfpack.
 
 ### Rollback
 - Kod: redeploya v0.6.1.4 i Railway och revert-PR. Inga dataformat ändrade, ingen migration.
