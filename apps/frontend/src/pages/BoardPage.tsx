@@ -1,5 +1,5 @@
 import React from 'react';
-import { stockholmClock } from '@/app-shell/rightNowItems';
+import { stockholmClock } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';

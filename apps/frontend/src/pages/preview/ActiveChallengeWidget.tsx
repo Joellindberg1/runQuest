@@ -3,7 +3,7 @@ import { TierBadge } from './TierBadge';
 import { Swords, Clock } from 'lucide-react';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import type { Challenge } from '@runquest/types';
-import { MS_DAY } from '@runquest/shared';
+import { daysBetween, stockholmDay, stockholmWallClockToInstant } from '@runquest/shared';
 
 interface ActiveChallengeWidgetProps {
   challenge: Challenge;
@@ -22,22 +22,20 @@ function formatValue(metric: string, value: number): string {
 }
 
 function formatEndDate(endDate: string): string {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(endDate + 'T00:00:00');
-  const diff = Math.round((end.getTime() - today.getTime()) / MS_DAY);
+  const diff = daysBetween(stockholmDay(new Date()), endDate);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
   return endDate;
 }
 
+// En utmaning startar kl 00:00 Stockholm-tid på start_date.
 function isPendingStart(startDate?: string): boolean {
   if (!startDate) return false;
-  return new Date(startDate + 'T00:00:00') > new Date();
+  return stockholmWallClockToInstant(startDate, 0).getTime() > Date.now();
 }
 
 function hoursUntilStart(startDate: string): number {
-  return Math.max(0, Math.ceil((new Date(startDate + 'T00:00:00').getTime() - Date.now()) / 3_600_000));
+  return Math.max(0, Math.ceil((stockholmWallClockToInstant(startDate, 0).getTime() - Date.now()) / 3_600_000));
 }
 
 export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({

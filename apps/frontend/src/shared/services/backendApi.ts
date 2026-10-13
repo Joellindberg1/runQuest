@@ -4,6 +4,7 @@ import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
   NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
+  AdminWaitlistData,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
@@ -331,6 +332,11 @@ class BackendApiService {
   /** GET /leaderboard/rank-delta — rank mot veckostart (ADR 007 B2). */
   async getRankDelta(): Promise<ApiResponse<RankDeltaResponse>> {
     return this.getEnvelope<RankDeltaResponse>('/leaderboard/rank-delta', 'Failed to fetch rank changes');
+  }
+
+  /** GET /admin/waitlist — väntelistans anmälningar, nyast först, och det exakta antalet (bara admin). */
+  async getAdminWaitlist(): Promise<ApiResponse<AdminWaitlistData>> {
+    return this.getEnvelope<AdminWaitlistData>('/admin/waitlist', 'Failed to load the waitlist');
   }
 
   /** GET /config/xp — effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */
@@ -1133,14 +1139,19 @@ class BackendApiService {
 
   // ─── Runs ─────────────────────────────────────────────────────────────────
 
-  /** POST /runs. `isTreadmill` utelämnas → kolumnen förblir NULL (okänt); formuläret skickar alltid en bool. */
-  async createRun(date: string, distance: number, isTreadmill?: boolean): Promise<ApiResponse<Run>> {
+  /**
+   * POST /runs. `isTreadmill` utelämnas → kolumnen förblir NULL (okänt); formuläret skickar alltid en bool.
+   * `idempotencyKey` (uuid v4, en per inskick) skickas som headern Idempotency-Key: servern skapar då aldrig en andra
+   * runda för samma nyckel, så ett omförsök efter ett svar som aldrig kom fram blir ingen dubblett.
+   */
+  async createRun(date: string, distance: number, isTreadmill?: boolean, idempotencyKey?: string): Promise<ApiResponse<Run>> {
     try {
       const response = await fetch(`${API_BASE_URL}/runs`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.getToken()}`,
           'Content-Type': 'application/json',
+          ...(idempotencyKey && { 'Idempotency-Key': idempotencyKey }),
         },
         body: JSON.stringify({ date, distance, ...(isTreadmill !== undefined && { is_treadmill: isTreadmill }) }),
       });
