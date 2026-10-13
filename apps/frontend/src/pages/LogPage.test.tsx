@@ -17,6 +17,7 @@ const SLOW = { timeout: 4000 };
 
 const NOW = '2026-10-04T10:00:00Z'; // 12:00 i Stockholm — idag är 2026-10-04
 const TODAY = '2026-10-04';
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const location = () => screen.getByTestId('location').textContent;
 
@@ -266,7 +267,7 @@ describe('Log — att logga en runda', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Treadmill' }));
     submit();
 
-    await waitFor(() => expect(createRun).toHaveBeenCalledWith(TODAY, 8.4, true));
+    await waitFor(() => expect(createRun).toHaveBeenCalledWith(TODAY, 8.4, true, expect.stringMatching(UUID_V4)));
     expect(await screen.findByText('Run logged: 8.0 km for 44 XP · streak day 5 at 1.1×')).toBeInTheDocument();
     expect(distanceField().value).toBe('');
     expect(screen.getByRole('button', { name: 'Outdoor' })).toHaveAttribute('aria-pressed', 'true');
@@ -277,7 +278,7 @@ describe('Log — att logga en runda', () => {
     await screen.findByText('Enter a distance');
     type('5');
     submit();
-    await waitFor(() => expect(createRun).toHaveBeenCalledWith(TODAY, 5, false));
+    await waitFor(() => expect(createRun).toHaveBeenCalledWith(TODAY, 5, false, expect.stringMatching(UUID_V4)));
   });
 
   it('bekräftelsen och felet ligger i permanenta live-regioner som finns redan före texten', async () => {

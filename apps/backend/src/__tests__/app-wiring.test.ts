@@ -47,6 +47,8 @@ const WIRED: Array<[prefix: string, method: string, path: string]> = [
   ['/api/challenges', 'GET', '/api/challenges/group-history'],
   ['/api/challenges', 'GET', '/api/challenges/head-to-head/00000000-0000-4000-8000-000000000001'],
   ['/api/events', 'GET', '/api/events/history'],
+  // Väntelistan (admin-listan; den publika POST /api/waitlist har ingen token och testas i waitlist.test.ts)
+  ['/api/admin', 'GET', '/api/admin/waitlist'],
 ];
 
 describe('createApp wiring', () => {

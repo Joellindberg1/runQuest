@@ -1,15 +1,14 @@
 import type { Run, User } from '@runquest/types';
+import { addDays, stockholmDay } from '@runquest/shared';
 
 // Påhittade löpare för exempelvyer utan inloggning: /preview (LeaderboardPreviewPage) och Landing (features/landing).
 // EN datamängd, så preview-sidan och landningssidan visar samma "flock". Inga riktiga personer.
 
 const makeRun = (userId: string, daysAgo: number, distance: number, xp: number): Run => {
-  const date = new Date();
-  date.setDate(date.getDate() - daysAgo);
   return {
     id: `run-${userId}-${daysAgo}`,
     user_id: userId,
-    date: date.toISOString().split('T')[0],
+    date: addDays(stockholmDay(new Date()), -daysAgo),
     distance,
     xp_gained: xp,
     multiplier: 1.0,

@@ -47,7 +47,9 @@ describe('Run — minimidistans (routes/runs.ts, routes/strava.ts)', () => {
     expect(sync).toContain('cron.schedule(`*/${SYNC_INTERVAL_MINUTES} * * * *`');
     const strava = backend('src/routes/strava.ts');
     expect(strava).toContain("new Set(['Run', 'TrailRun', 'VirtualRun'])");
-    expect(strava).toMatch(/Find the most recent imported run date[\s\S]{0,500}sevenDaysBeforeMostRecent\.setDate\(sevenDaysBeforeMostRecent\.getDate\(\) - 7\)/);
+    // Fönstret räknas i stravaLookback: sju kalenderdagar före senaste importerade rundan.
+    expect(strava).toContain('stravaLookback(');
+    expect(backend('src/utils/stravaLookback.ts')).toMatch(/const RECENT_RUN_BUFFER_DAYS = 7;[\s\S]*addDays\(mostRecentRunDay, -RECENT_RUN_BUFFER_DAYS\)/);
     expect(text('run')).toContain(`every ${STRAVA_SYNC_MINUTES} minutes`);
     expect(STRAVA_RUN_TYPES_LABEL).toBe('Run, Trail Run and Virtual Run');
     expect(text('run')).toContain(STRAVA_RUN_TYPES_LABEL);

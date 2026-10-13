@@ -6,6 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { logger } from './utils/logger.js';
 
+import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import badgeRoutes from './routes/badges.js';
 import challengeRoutes from './routes/challenges.js';
@@ -15,10 +16,12 @@ import groupRoutes from './routes/groups.js';
 import leaderboardRoutes from './routes/leaderboard.js';
 import newsRoutes from './routes/news.js';
 import onboardingRoutes from './routes/onboarding.js';
+import publicStatsRoutes from './routes/publicStats.js';
 import stravaRoutes from './routes/strava.js';
 import titleRoutes from './routes/titles.js';
 import runRoutes from './routes/runs.js';
 import userRoutes from './routes/users.js';
+import waitlistRoutes from './routes/waitlist.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -44,8 +47,6 @@ export function createApp(): express.Express {
     credentials: true,
   }));
 
-  app.use(express.json());
-
   // Request logging
   app.use((req, res, next) => {
     // Pathen läses nu: sub-routrar skriver om req.path/baseUrl innan svaret är klart.
@@ -54,6 +55,11 @@ export function createApp(): express.Express {
     res.on('finish', () => logger.info(`📨 ${method} ${path} ${res.statusCode}`));
     next();
   });
+
+  // Väntelistan har egen body-gräns (1 kB) och monteras därför FÖRE den globala JSON-parsern.
+  app.use('/api/waitlist', waitlistRoutes);
+
+  app.use(express.json());
 
   // Health check
   app.get('/health', (_req, res) => {
@@ -73,7 +79,9 @@ export function createApp(): express.Express {
         health: '/health',
         api: '/api',
         auth: { login: '/api/auth/login', refresh: '/api/auth/refresh' },
-        strava: { config: '/api/strava/config', status: '/api/strava/status', callback: '/api/strava/callback' }
+        public: { stats: '/api/public/stats' },
+        strava: { config: '/api/strava/config', status: '/api/strava/status', callback: '/api/strava/callback' },
+        waitlist: { join: 'POST /api/waitlist', adminList: 'GET /api/admin/waitlist' }
       },
       version: '1.0.0',
       environment: process.env.NODE_ENV || 'development'
@@ -81,6 +89,7 @@ export function createApp(): express.Express {
   });
 
   // Routes
+  app.use('/api/admin', adminRoutes);
   app.use('/api/auth', authRoutes);
   app.use('/api/badges', badgeRoutes);
   app.use('/api/challenges', challengeRoutes);
@@ -90,6 +99,7 @@ export function createApp(): express.Express {
   app.use('/api/leaderboard', leaderboardRoutes);
   app.use('/api/news', newsRoutes);
   app.use('/api/onboarding', onboardingRoutes);
+  app.use('/api/public', publicStatsRoutes);
   app.use('/api/strava', stravaRoutes);
   app.use('/api/titles', titleRoutes);
   app.use('/api/runs', runRoutes);

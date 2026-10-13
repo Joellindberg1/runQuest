@@ -67,10 +67,6 @@ export function formatRemaining(ms: number): string {
   return `${Math.floor(ms / MS_DAY)} d`;
 }
 
-// Implementationen bor i shared (calendar.ts). Återexporten finns kvar för pages/BoardPage.tsx, som importerar härifrån;
-// features importerar direkt från @runquest/shared.
-export { stockholmClock };
-
 /**
  * Tid kvar tills streaken bryts (Stockholm-dagar, som backend). Senaste rundan idag → deadline
  * är slutet på morgondagen; igår → slutet på idag; äldre → streaken är redan bruten (null).

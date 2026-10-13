@@ -36,8 +36,8 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const logged = () => spies.flatMap((s) => s.mock.calls).map((args: unknown[]) => args.map((a) => (typeof a === 'string' ? a : inspect(a, { depth: 6 }))).join(' ')).join('\n');
 const loggedObjects = () => spies.flatMap((s) => s.mock.calls).flat().filter((a: unknown) => a !== null && typeof a === 'object');
 
-function useDb(data: Parameters<typeof createFakeDb>[0]) {
-  const db = createFakeDb(data);
+function useDb(data: Parameters<typeof createFakeDb>[0], options?: Parameters<typeof createFakeDb>[1]) {
+  const db = createFakeDb(data, options);
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return db;
 }
@@ -64,6 +64,40 @@ describe('auth routes', () => {
     expect(out).not.toContain('new.person@example.com');
     expect(out).not.toContain('login.person@example.com');
     expect(loggedObjects().some((o: any) => 'user_id' in o || 'group_id' in o)).toBe(false);
+  });
+});
+
+describe('waitlist routes', () => {
+  const addresses = ['new.signup@waitlist-private.test', 'rejected.honeypot@waitlist-private.test', 'too.fast@waitlist-private.test', 'stored.earlier@waitlist-private.test', 'broken.db@waitlist-private.test'];
+
+  it('waitlist never logs the email address', async () => {
+    // Alla vägar genom routen: ny, dubblett, honeypot, tidsfälla, ogiltig, 429 och databasfel, plus adminlistan som visar adressen.
+    const data = { users: [{ id: 'admin-1', is_admin: true }], waitlist_signups: [{ id: 'w-1', email: 'stored.earlier@waitlist-private.test', created_at: '2026-10-01T08:00:00.000Z', source: 'landing', consent_version: 'draft' }] };
+    useDb(data);
+    let n = 0;
+    const send = (body: unknown, headers: Record<string, string> = { 'x-forwarded-for': `198.51.100.${++n}` }) => server.request('POST', '/api/waitlist', { body, headers });
+
+    expect((await send({ email: addresses[0], consent: true })).status).toBe(200);
+    expect((await send({ email: addresses[0].toUpperCase(), consent: true })).status).toBe(200); // dubblett
+    expect((await send({ email: addresses[1], consent: true, website: 'spam' })).status).toBe(200);
+    expect((await send({ email: addresses[2], consent: true, elapsedMs: 10 })).status).toBe(200);
+    expect((await send({ email: 'not-valid@@waitlist-private.test', consent: true })).status).toBe(400);
+    const burst = { 'x-forwarded-for': '198.51.100.200' };
+    for (let i = 0; i < 5; i++) expect((await send({ email: addresses[3], consent: true }, burst)).status).toBe(200);
+    expect((await send({ email: addresses[3], consent: true }, burst)).status).toBe(429); // sjätte inom fönstret
+
+    useDb({ ...data, waitlist_signups: [] }, { errors: { waitlist_signups: { message: `duplicate key (email)=(${addresses[4]})` } } });
+    expect((await send({ email: addresses[4], consent: true }, { 'x-forwarded-for': '198.51.100.78' })).status).toBe(500);
+
+    useDb(data);
+    const list = await server.request('GET', '/api/admin/waitlist', { token: mintToken({ user_id: 'admin-1' }) });
+    expect(list.status).toBe(200);
+    expect(JSON.stringify(list.body)).toContain('stored.earlier@waitlist-private.test'); // sanity: adressen fanns i svaret
+
+    const out = logged().toLowerCase();
+    expect(out).not.toContain('waitlist-private.test');
+    for (const address of addresses) expect(out).not.toContain(address.split('@')[0]);
+    expect(loggedObjects().some((o: any) => 'email' in o || 'body' in o)).toBe(false);
   });
 });
 

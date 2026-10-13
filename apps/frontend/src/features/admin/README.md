@@ -1,12 +1,14 @@
 # Admin Feature — `/admin`
 
-XP-inställningar, medlemmar, titlar och säkerhet (`?view=xp|users|titles|security`, `useViewParam`). Bara för administratörer (`AdminRoute` skickar andra till /board).
+XP-inställningar, medlemmar, titlar, säkerhet och väntelista (`?view=xp|users|titles|security|waitlist`, `useViewParam`). Bara för administratörer (`AdminRoute` skickar andra till /board).
 Web Prototypens Admin; mobilprototypen saknar sidan, så mobil är härledd. `pages/AdminPage.tsx` är tunn. Sidan ersätts senare av XP-paket — ingen ny funktion här, bara design.
 
 ## Struktur
 
-- **components/** — `AdminScreen` (flikar + all data via `useAdminData`), `XpSettingsPanel`, `MembersPanel`, `TitlesPanel`, `SecurityPanel`
+- **components/** — `AdminScreen` (flikar + all data via `useAdminData`), `XpSettingsPanel`, `MembersPanel`, `TitlesPanel`, `SecurityPanel`, `WaitlistPanel` (läsvy över GET /api/admin/waitlist: antal, e-post · datum, "Showing the latest N of M" när listan är kapad; ingen åtgärd)
 - **adminModel.ts** — `XP_GROUPS` (fälten och vilka som är redigerbara), `multiplierRows`, `findSettingsProblem`, `memberMeta`
+- **waitlistModel.ts** — texterna: `signupCountText`, `shownLimitText`, `signupDateText` (Stockholm-dag via eventsFormat + logFormat)
+- **hooks/useAdminWaitlist.ts** — React Query över `backendApi.getAdminWaitlist` (fel kastas, så felkortet visas i stället för en tom lista)
 - **hooks/useAdminData.ts** — oförändrad logik (läsning, Save, medlemmar); toasts ersatta av `notices` per del (`settings|users|security`) och läsfel som flaggor
 - `admin.css` — mått (`--rq-admin-*`) i temafilen, sektion 1.31
 
