@@ -195,7 +195,7 @@ describe('checkFontFiles', () => {
   const licence = { name: 'OFL.txt', size: 4_000, magic: 'The' };
 
   it('passes versioned woff2 files at exactly the size limit, next to the licence', () => {
-    assert.deepEqual(checkFontFiles([font('bebas-neue-400.v1.woff2', 61_440), font('oswald-variable.v2.woff2'), licence]), []);
+    assert.deepEqual(checkFontFiles([font('bebas-neue-400.v1.woff2', 61_440), font('oswald-variable.v2.woff2'), font('bebas-neue-400.latin-ext.v1.woff2'), licence]), []);
   });
 
   it('fails a font one byte over the limit and names the file', () => {
@@ -211,7 +211,7 @@ describe('checkFontFiles', () => {
   });
 
   it('fails names without a version or with another extension', () => {
-    for (const name of ['bebas-neue-400.woff2', 'bebas-neue-400.v1.ttf', 'bebas-neue-400.v1.woff', 'Bebas.v1.woff2', 'notes.txt']) {
+    for (const name of ['bebas-neue-400.woff2', 'bebas-neue-400.v1.ttf', 'bebas-neue-400.v1.woff', 'Bebas.v1.woff2', 'bebas-neue-400.latin-ext.woff2', 'bebas-neue-400.cyrillic.v1.woff2', 'notes.txt']) {
       assert.equal(checkFontFiles([font(name), licence]).length, 1, name);
     }
   });

@@ -1,6 +1,6 @@
 The typefaces in this folder (Bebas Neue, Barlow Condensed, Share Tech Mono
 and Oswald) are licensed under the SIL Open Font License, Version 1.1.
-The files are the unmodified Latin subsets that Google Fonts serves
+The files are the unmodified latin and latin-ext subsets that Google Fonts serves
 (fonts.gstatic.com), self-hosted so visitors' browsers do not contact Google.
 
 Copyright notices:

@@ -4,11 +4,45 @@
 
 /* ═════════════════════════════════════════════════════════════════════════════
    0. SJÄLVHOSTADE TYPSNITT — egen block så temafilen går att slå ihop utan konflikt.
-   Latin-delmängden av Google Fonts (OFL 1.1, licens i public/fonts/OFL.txt), serverad från /fonts så besökarens webbläsare inte
+   Latin- och latin-ext-delmängderna av Google Fonts (OFL 1.1, licens i public/fonts/OFL.txt), serverad från /fonts så besökarens webbläsare inte
    kontaktar Google. Filnamnet bär versionen (.v1): Caddy cachar /fonts/* för alltid. Samma family-namn som tidigare, så inga
-   komponenter ändras. Tecken utanför latin faller tillbaka på nästa typsnitt i --rq-font-*. Bara Bebas Neue förladdas (index.html).
+   komponenter ändras. Tecken utanför latin och latin-ext (kyrilliska m.fl.) faller tillbaka på nästa typsnitt i --rq-font-*. Bara Bebas Neue förladdas (index.html).
    Oswald är en variabel fil: en fil täcker 400 och 500.
 ═══════════════════════════════════════════════════════════════════════════════ */
+/* Latin-ext (Ł č š ő m.fl.): samma unicode-range och samma ordning som Google (latin-ext FÖRE latin). Webbläsaren hämtar en fil bara när en
+   sida innehåller ett tecken i intervallet, så svenska besökare (å ä ö ligger i latin) betalar ingenting. Share Tech Mono har ingen latin-ext hos Google. */
+@font-face {
+  font-family: 'Bebas Neue'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/fonts/bebas-neue-400.latin-ext.v1.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Barlow Condensed'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/fonts/barlow-condensed-400.latin-ext.v1.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Barlow Condensed'; font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/fonts/barlow-condensed-500.latin-ext.v1.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Barlow Condensed'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('/fonts/barlow-condensed-600.latin-ext.v1.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Barlow Condensed'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/barlow-condensed-700.latin-ext.v1.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Oswald'; font-style: normal; font-weight: 400 500; font-display: swap;
+  src: url('/fonts/oswald-variable.latin-ext.v1.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Latin. Står efter latin-ext, som hos Google: vid överlappande tecken (U+0304, U+0308, U+0329) och för teckenmått vinner den sist deklarerade. */
 @font-face {
   font-family: 'Bebas Neue'; font-style: normal; font-weight: 400; font-display: swap;
   src: url('/fonts/bebas-neue-400.v1.woff2') format('woff2');

@@ -190,7 +190,8 @@ export function checkGitignoreForVideo(content) {
 
 const FONTS_DIR = 'apps/frontend/public/fonts';
 const FONT_SIZE_LIMIT = 60 * 1024;
-const FONT_NAME = /^[a-z0-9][a-z0-9-]*\.v\d+\.woff2$/;
+// <familj>-<vikt>.v<N>.woff2, eller <familj>-<vikt>.latin-ext.v<N>.woff2 för latin-ext-delmängden.
+const FONT_NAME = /^[a-z0-9][a-z0-9-]*(?:\.latin-ext)?\.v\d+\.woff2$/;
 const FONT_LICENCE = 'OFL.txt';
 const WOFF2_SIGNATURE = 'wOF2';
 
@@ -200,7 +201,7 @@ export function checkFontFiles(files) {
   const fonts = files.filter(({ name }) => name !== FONT_LICENCE);
   for (const { name, size, magic } of fonts) {
     if (!FONT_NAME.test(name)) {
-      errors.push(`${FONTS_DIR}/${name}: namnet följer inte mönstret <namn>.v<N>.woff2 (versionen i namnet håller den immutable-cachade filen sann).`);
+      errors.push(`${FONTS_DIR}/${name}: namnet följer inte mönstret <namn>[.latin-ext].v<N>.woff2 (versionen i namnet håller den immutable-cachade filen sann).`);
     } else if (magic !== WOFF2_SIGNATURE) {
       errors.push(`${FONTS_DIR}/${name}: filen är inte woff2 (saknar signaturen "${WOFF2_SIGNATURE}").`);
     }
