@@ -5,6 +5,7 @@ import type {
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
   NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
   AdminWaitlistData,
+  WaitlistSignupRequest,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
@@ -337,6 +338,24 @@ class BackendApiService {
   /** GET /admin/waitlist — väntelistans anmälningar, nyast först, och det exakta antalet (bara admin). */
   async getAdminWaitlist(): Promise<ApiResponse<AdminWaitlistData>> {
     return this.getEnvelope<AdminWaitlistData>('/admin/waitlist', 'Failed to load the waitlist');
+  }
+
+  /**
+   * POST /waitlist — publik endpoint, därför ingen Authorization-header. Resultatet bär HTTP-statusen (200 också för dubblett och
+   * botfällor, 400, 413, 429, 500) så att formuläret kan skilja på fel; ett nätverksfel blir null. Adressen loggas aldrig.
+   */
+  async joinWaitlist(body: WaitlistSignupRequest): Promise<{ status: number } | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/waitlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { status: response.status };
+    } catch {
+      logger.warn('Waitlist request failed (network error)');
+      return null;
+    }
   }
 
   /** GET /config/xp — effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */

@@ -173,6 +173,8 @@ export default {
       }),
     },
     { files: ["src/features/log/log.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-log-tone", "rq-log-tone-rgb"] }) },
+    // Väntelistans kort (RUN-211): ingen rörelse, inget z-index, inga egna custom properties.
+    { files: ["src/features/landing/landingWaitlist.css"], rules: designRules() },
     {
       files: ["src/features/profile/profile.css"],
       rules: designRules({

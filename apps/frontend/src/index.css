@@ -627,6 +627,17 @@
   --rq-badge-detail-w:       280px;
   /* Lagret för emblem-popovern när den öppnas inifrån en modal (Runner card som overlay): ett steg över skalets .rq-scrim (65) och .rq-modal/.rq-sheet (66), annars ritas popovern bakom modalen. */
   --rq-z-popover-over-modal: 67;
+  /* Väntelistans kort (RUN-211, landingen): mått ur Landing-designens kort "Start a pack in a minute", ombyggt till ett e-postfält. Mobil = standard (en kolumn; designen saknar mobil), desktop skriver över i avsnitt 2. Konsument: features/landing/landingWaitlist.css. */
+  --rq-landing-waitlist-pad:       24px 20px;                         /* kortets inre marginal (desktop 44 40) */
+  --rq-landing-waitlist-title-size: 34px;                             /* Bebas-rubriken (desktop 56) */
+  --rq-landing-waitlist-lead-max:  none;                              /* ingressens maxbredd (desktop 520) */
+  --rq-landing-waitlist-form-max:  none;                              /* fält + knapp-radens maxbredd (desktop 640) */
+  --rq-landing-waitlist-row-dir:   column;                            /* fältet och knappen: mobil staplade, desktop på en rad */
+  --rq-landing-waitlist-row-align: stretch;                           /* desktop: flex-end, så knappen står i linje med fältets underkant */
+  --rq-landing-waitlist-submit-w:  100%;                              /* knappen: full bredd på mobil, egen bredd på desktop */
+  --rq-landing-waitlist-touch:     44px;                              /* minsta träffyta på samtyckesraden */
+  --rq-landing-waitlist-check:     22px;                              /* samtyckesrutan */
+  --rq-landing-waitlist-offscreen: -10000px;                          /* honeypot-fältet ligger utanför skärmen (inte display:none) */
 }
 
 
@@ -781,6 +792,13 @@
     --rq-changelog-change-areas: "icon kind text";
     --rq-changelog-change-align: center;
     --rq-changelog-change-gap: 0 12px;
+    --rq-landing-waitlist-pad: 44px 40px;
+    --rq-landing-waitlist-title-size: 56px;
+    --rq-landing-waitlist-lead-max: 520px;
+    --rq-landing-waitlist-form-max: 640px;
+    --rq-landing-waitlist-row-dir: row;
+    --rq-landing-waitlist-row-align: flex-end;
+    --rq-landing-waitlist-submit-w: auto;
   }
 }
 

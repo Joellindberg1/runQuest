@@ -300,6 +300,21 @@ export default tseslint.config(
     rules: { "no-restricted-syntax": ["error", ...BADGE_SHARED_TYPES] },
   },
 
+  // Väntelistans hook (RUN-211) är landingens enda datahook: den får importera backendApi och react-query och använda useMutation.
+  // Allt annat i landningsblocket gäller kvar för filen (ingen auth, ingen fetch, inga datahooks, inte streakConstants); blocket byggs
+  // ur landningens listor så att en ändring där följer med. Ligger efter landningsblocket, annars skulle det blocket ersätta detta.
+  {
+    files: ["src/features/landing/hooks/useJoinWaitlist.ts"],
+    ignores: NOT_PRODUCTION,
+    rules: {
+      "no-restricted-imports": importRestrictions(...LANDING_IMPORTS.filter((pattern) => !String(pattern.regex).includes("backendApi"))),
+      "no-restricted-syntax": [
+        "error",
+        ...LANDING_SYNTAX.map((rule) => (rule.selector.startsWith("Identifier[") ? { ...rule, selector: rule.selector.replace("|useMutation", "") } : rule)),
+      ],
+    },
+  },
+
   // ─── Designregler (RUN-223) ────────────────────────────────────────────────────────────────────────────────────────────────────────
   // Varje designad vy är en grupp med exakt en lista (en fil ska bara träffas av ETT block för rq/design-syntax). Filerna är de som
   // vakterna tidigare globbade: featuren, dess sida och de delade filer featuren äger.
