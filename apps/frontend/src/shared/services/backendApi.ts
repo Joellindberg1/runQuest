@@ -4,6 +4,7 @@ import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
   NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
+  AdminWaitlistData,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
@@ -333,7 +334,12 @@ class BackendApiService {
     return this.getEnvelope<RankDeltaResponse>('/leaderboard/rank-delta', 'Failed to fetch rank changes');
   }
 
-  /** GET /config/xp — effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */
+  /** GET /admin/waitlist — väntelistans anmälningar, nyast först, och det exakta antalet (bara admin). */
+  async getAdminWaitlist(): Promise<ApiResponse<AdminWaitlistData>> {
+    return this.getEnvelope<AdminWaitlistData>('/admin/waitlist', 'Failed to load the waitlist');
+  }
+
+  /** GET /config/xp— effektiva XP-inställningar + multiplikatortrappan, läsbar för alla inloggade (ADR 007 B4). */
   async getXpConfig(): Promise<ApiResponse<XpConfigResponse>> {
     return this.getEnvelope<XpConfigResponse>('/config/xp', 'Failed to fetch XP config');
   }
