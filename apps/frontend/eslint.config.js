@@ -334,6 +334,7 @@ export default tseslint.config(
   designGroup(["src/features/profile/**/*.{ts,tsx}", "src/features/runs/**/*.{ts,tsx}", "src/pages/ProfilePage.tsx"]),
   designGroup(["src/features/runner/**/*.{ts,tsx}", "src/pages/RunnerPage.tsx"]),
   designGroup(["src/features/titles/**/*.{ts,tsx}", "src/pages/TitlesPage.tsx"], { ignores: ["src/features/titles/titleFormat.ts"] }),
+  designGroup(["src/features/legal/**/*.{ts,tsx}", "src/pages/LegalPage.tsx"]),
   designGroup(
     [
       "src/app-shell/*.{ts,tsx}", "src/paths.ts", "src/routes.tsx", "src/pages/Index.tsx", "src/pages/NotFound.tsx", "src/shared/components/EmptyState.tsx",
