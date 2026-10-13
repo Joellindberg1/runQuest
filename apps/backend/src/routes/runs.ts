@@ -294,7 +294,7 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
 const CREATED_RUN_COLUMNS = 'id, user_id, date, distance, xp_gained, multiplier, streak_day, base_xp, km_xp, distance_bonus, streak_bonus, source, external_id, is_treadmill';
 
 /** Det partiella unika indexet (user_id, client_request_id) från migration 043. */
-const CLIENT_REQUEST_ID_INDEX = 'runs_user_client_request_id_key';
+export const CLIENT_REQUEST_ID_INDEX = 'runs_user_client_request_id_key';
 
 /**
  * Sant om insert-felet är en krock på just idempotensindexet (Postgres 23505). En 23505 på något annat index —
