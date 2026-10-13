@@ -16,9 +16,9 @@ Intern version (ingen versionsbump, ingen What's new, ingen announce). Ägarbesl
 - Prestanda 80 → 82, LCP 4,56 → 4,16 s. Resten av LCP hänger på JS-kedjan (filmens poster laddas först efter JS) och tas i RUN-260 (v0.8.0).
 
 ### Prod-steg (kräver ägar-ja)
-1. PR release/v0.6.2.1 → main, grön CI (inkl. verify-static-serving på Linux), merge (= deploy). Ingen migration.
-2. Röktest: `/` sticky header, inga anrop till Google Fonts, `/fonts/*` rätt typ och cache, `/legal` visar version 2026-10-13.1. Lighthouse mobil mot prod.
-3. Tagg `v0.6.2.1` på merge-commiten.
+1. PR release/v0.6.2.1 → main, grön CI (inkl. verify-static-serving på Linux), merge (= deploy). Ingen migration. KÖRD 2026-10-13 (ägar-ja): PR #39, grön CI.
+2. Röktest: `/` sticky header, inga anrop till Google Fonts, `/fonts/*` rätt typ och cache, `/legal` visar version 2026-10-13.1. Lighthouse mobil mot prod. KÖRD 2026-10-13: / och /legal 200, Bebas Neue förladdas, inga Google Fonts-länkar, `/fonts/*` font/woff2 immutable och 404 för saknad fil. Lighthouse 12.1 mobil mot prod, median av 3: prestanda 81 → 85, FCP 2,9 → 2,6 s, LCP 4,2 → 3,5 s, TBT 0 ms, CLS 0; A11y/BP/SEO 100.
+3. Tagg `v0.6.2.1` på merge-commiten. KÖRD (ca804e2).
 
 ### Rollback
 - Kod: redeploya v0.6.2 i Railway och revert-PR. Inga dataformat ändrade, ingen migration.
