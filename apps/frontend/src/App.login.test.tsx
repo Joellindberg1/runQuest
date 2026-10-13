@@ -133,7 +133,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     render(<App />);
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
     expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/login');
     signIn('anna', 'ratt-losen');
@@ -141,6 +141,19 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     expect(await screen.findByRole('heading', { name: 'Board page' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/board');
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('Sign in öppnar inloggningsdialogen utan att landningen monteras om', async () => {
+    window.history.pushState({}, '', '/');
+    render(<App />);
+    const title = await screen.findByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' });
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
+    await screen.findByRole('dialog', { name: 'Sign in' });
+
+    // Samma rubrikelement ligger kvar under dialogen (dialogen gör resten av sidan aria-hidden, därför hidden: true).
+    expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard', hidden: true })).toBe(title);
+    expect(title.isConnected).toBe(true);
   });
 
   it('/login?next=/titles: lyckad inloggning leder till /titles (djuplänk till dialogen)', async () => {
@@ -197,7 +210,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
   it('Back stänger dialogen: / → Sign in (/login) → Back ger Landing utan dialog', async () => {
     window.history.pushState({}, '', '/');
     render(<App />);
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
     await screen.findByRole('dialog', { name: 'Sign in' });
 
     window.history.back();
@@ -211,7 +224,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     render(<App />);
     const lengthBefore = window.history.length;
     expect(historyIndex()).toBe(0);
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
     await screen.findByRole('dialog', { name: 'Sign in' });
     expect(historyIndex()).toBe(1);
     fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
@@ -222,7 +235,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     expect(historyIndex()).toBe(0);
     expect(window.history.length).toBe(lengthBefore + 1);
 
-    fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
   });
 
@@ -236,7 +249,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     let finish: (value: { success: boolean; token?: string; user?: { id: string; name: string; email: string } }) => void = () => {};
     api.login.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
     render(<App />);
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
     await screen.findByRole('dialog', { name: 'Sign in' });
     signIn('anna', 'ratt-losen');
     await screen.findByRole('button', { name: 'Signing in…' });
@@ -255,7 +268,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
 
     // Och en ny inloggning efteråt fungerar som vanligt.
     api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
-    fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     await screen.findByRole('dialog', { name: 'Sign in' });
     signIn('anna', 'ratt-losen');
     expect(await screen.findByRole('heading', { name: 'Board page' })).toBeInTheDocument();
@@ -266,7 +279,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     let finish: (value: { success: boolean; error?: string }) => void = () => {};
     api.login.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
     render(<App />);
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
     await screen.findByRole('dialog', { name: 'Sign in' });
     signIn('anna', 'fel');
     await screen.findByRole('button', { name: 'Signing in…' });
@@ -274,7 +287,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     await act(async () => { finish({ success: false, error: 'Invalid credentials' }); });
-    fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     await screen.findByRole('dialog', { name: 'Sign in' });
     expect(screen.getByRole('alert')).toBeEmptyDOMElement();
     expect(screen.getByLabelText('Username')).toHaveValue('');

@@ -2,6 +2,7 @@
 import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
+  PublicStatsData, PublicStatsApiResponse,
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
   NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
   AdminWaitlistData,
@@ -333,6 +334,23 @@ class BackendApiService {
   /** GET /leaderboard/rank-delta — rank mot veckostart (ADR 007 B2). */
   async getRankDelta(): Promise<ApiResponse<RankDeltaResponse>> {
     return this.getEnvelope<RankDeltaResponse>('/leaderboard/rank-delta', 'Failed to fetch rank changes');
+  }
+
+  /**
+   * GET /public/stats — landningens tre tal (ingen inloggning, inget Authorization-huvud). Ett svar som inte är tre ändliga
+   * tal ≥ 0 räknas som fel; felet bär HTTP-statusen ("HTTP 404") så att hooken kan låta bli att försöka igen vid 4xx.
+   */
+  async getPublicStats(): Promise<ApiResponse<PublicStatsData>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/public/stats`);
+      if (!response.ok) return { success: false, error: `HTTP ${response.status}` };
+      const body = (await response.json()) as Partial<PublicStatsApiResponse> | null;
+      const data = body?.data;
+      const valid = [data?.runners, data?.challenges, data?.km].every((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0);
+      return valid && data ? { success: true, data } : { success: false, error: 'Invalid public stats response' };
+    } catch {
+      return { success: false, error: 'Network error' };
+    }
   }
 
   /** GET /admin/waitlist — väntelistans anmälningar, nyast först, och det exakta antalet (bara admin). */
