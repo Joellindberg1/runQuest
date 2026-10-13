@@ -83,28 +83,38 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 - Raderna är inte klickbara (prototypens desktop-hover antyder det men anger inget mål).
 - Katastroffall: fler nya rader än fem catch-up-sidor à 100 → flödet ersätts av de nyaste 500 (inget hål i mitten).
 
-## Landing (inkrement 10)
-- **Web Prototype har ingen landing.** Desktop (≥ 1024 px) är samma komposition som mobilens med större yta (text | arena-bana i hjälten,
-  preview | steg bredvid varandra, vänsterjusterad logga, max 1120 px). Måtten är antaganden i temafilens sektion 1.27. Skulle ägaren rita en
-  desktop-landing ersätter den detta.
-- **"Create your pack — free" är borta.** Det väntar på multi-grupp (ägarbeslut 4), så den enda guldknappen är "Sign in to your pack" → /login och
-  sidan säger "Starting your own pack is coming soon." Sekundärknappen "See how it works" hoppar till stegen. Planens rekommendation ("kontakta
-  ägaren") kräver en kontaktväg som inte finns — ingen e-postadress lagd på en publik sida. Ägaren väljer om en riktig kontaktlänk ska dit.
-- **Siffrorna är påhittade:** 14 packs · 128 430 km · 9 412 runs · 1 284 600 XP (prototypens). "14 packs running" är sant bara som exempel — det finns
-  en grupp i dag. Ägaren kan välja bort märket eller byta siffrorna (`features/landing/landingModel.ts`).
-- **Previewn är anonymiserad på ett annat sätt än prototypen:** prototypens namn (Karl, Joel, Adam …) ser ut som den riktiga gruppen, så previewn
-  återanvänder i stället den påhittade flocken från `/preview` (Anna, Erik, Maria …; bara förnamn) och kortet heter "Sample pack" i stället för
-  "Wolfpack · week 34". Kortets "Live"-etikett och pulsen är prototypens liv-signal, inte en påstådd livedata.
-- **How it works följer spelets verkliga regler (ägarbeslut 1), inte prototypens copy:** streak-steget säger "från dag 5 (×1.1) upp till ×2.0 vid dag
-  270, miss a day and it starts over" (prototypen: "up to 2× … resets to 1×"). Siffrorna läses ur shared-standardvärdena
-  (`DEFAULT_ADMIN_SETTINGS`, `DEFAULT_STREAK_MULTIPLIERS`); ändrar admin inställningarna i databasen följer texten inte med (Landing gör inga anrop).
+## Landing (inkrement 10, uppdaterad v0.6.2)
+- **Desktop är nu ritad** (Landing-designen, 1440 px: `docs/design/claude-design/RunQuest Landing.dc.html`, rutan "Landing page"). Mobil = App Prototypens landing
+  (390 px). Måtten ligger i temafilens sektion 1.27 (desktopvärdena är designens). Avvikelser från designen, alla ägarbeslut 2026-10-13: knappar (en guldknapp,
+  "Join the waitlist"), siffror (sanna, se nedan), exempelgruppen ("Sample pack"), footern och funktionsrutnätet (se de följande raderna).
+- **Siffrorna är sanna:** "4 551 km logged · 6 runners · 4 challenges" kommer från `GET /api/public/stats` (landningens enda anrop, ADR 006-addendum 2026-10-13).
+  Ingen uppräkning, inga reservsiffror: laddar visas "—" (aria-busy), vid fel döljs hela raden. "Packs running" visas först när grupperna är fler än en.
+  Svaret cachas i backenden i 5 min (`PUBLIC_STATS_TTL_MS`); klienten speglar tiden i `PUBLIC_STATS_MAX_AGE_MS` (shared) och hämtar en gång per sidvisning.
+- **Exempelgruppen är påhittad och märkt "Example", inte "Live":** kortet heter "Sample pack" och återanvänder den påhittade flocken från `/preview`
+  (Anna, Erik, Maria …; bara förnamn). Designens "Wolfpack · week 34", "Göteborgsvarvet", nedräkningen och foten "Next event" är borta. Guldringen och sweepen
+  behålls som designens uttryck för ett levande kort, inte som påstådd livedata. Den tredje förklaringen ("Events give easy XP — recurring events open on a
+  schedule; join one and the XP lands on the board") ersätter designens nedräkningsförklaring; **ägaren bekräftar copyn i previewn** (liksom ingressen).
+- **Ingressen:** desktop har designens långa text ordagrant, mobil den korta.
+- **How it works följer spelets verkliga regler (ägarbeslut 1), inte designens copy:** streak-steget säger "från dag 5 (×1.1) upp till ×2.0 vid dag 270, miss a day and
+  it starts over" (designen: "up to 2× … resets to 1×"). Siffrorna, och XP-formelns termer ("BASE 15 + KM × 2 + DISTANCE BONUS × STREAK 1.0–2.0×") och exempelrunda
+  (10 km → +50 XP), läses ur shared (`DEFAULT_ADMIN_SETTINGS`, `DEFAULT_STREAK_MULTIPLIERS`, `calculateRunXP`); ändrar admin inställningarna i databasen följer
+  texten inte med (landningen läser inte admin-inställningarna). Formeln finns även på mobil (designens mobilruta saknar den) och har en textversion för skärmläsare.
   "Miss a day and it starts over" är VERIFIERAT mot streak-motorn (critic 2026-10-05): ett glapp som inte är exakt en dag ger streakdag 1, och
   currentStreak (shared/streak.ts) ger 0 när senaste dag varken är idag eller igår — ingen grace-regel finns.
-- **"+50 XP"-poppen ligger i banans mitt (text-anchor middle), inte där prototypen har den** (x 770 → 700): med den ursprungliga platsen klipptes
-  texten av den klippta banrutan på desktop.
-- **Banans löpare går med CSS offset-path på SVG-cirklar** (samma `rqOrbit` som stadion-laddaren) i stället för prototypens SMIL `<animateMotion>`, så
+- **Funktionsrutnätet:** Strava-kortet säger "every 30 minutes" (Playbookens `STRAVA_SYNC_MINUTES`, prövad mot schedulern), inte designens "three hours"; Journey-kortet
+  säger "mapped", inte "walked". Events-kortets exempel (morning runs, 5K Fridays, hangover runs) finns i seedade mallar (migration 017); **Lead kontrollerar mot prod.**
+  Rutnätet finns även på mobil (en kolumn).
+- **Footern:** Privacy och Legal (→ `/legal`), Strava-attribution och versionen (`v` + `version` i `apps/frontend/package.json`). Playbook, FAQ och Bug report är borta
+  (inloggade sidor och ingen FAQ finns). Stravas "Compatible with Strava" visas oförändrad i footern, vit på mörk botten och svart på ljus (`data-theme="light"` kan
+  nås av den som valt ljust tema i appen och sedan loggat ut).
+- **Mobilens header** har Sign in som konturknapp bredvid wordmarken (designens mobil hade den under hjälten). Wordmarken är ingen länk (en tabbstopp till samma sida).
+- **Rutnätet `rqGrid`** ligger över hela sidan även på mobil (designens mobilram har det inte), och reducerad rörelse stoppar det.
+- **Desktopbanans "+XP"-text** följer ovalens lutning (−31°) som i designen; mobilens text (−72°) vrids tillbaka och läses upprätt (som före v0.6.2).
+- **Rubriker på mobil:** h2 för "The leaderboard, live" och "Four things decide your rank" finns men är gömda (`sr-only`); synliga är ögonbrynen. "How the game works" är
+  ögonbrynstexten på både mobil och desktop (mobilens design hade "How it works").
+- **Banans löpare går med CSS offset-path på SVG-cirklar** (samma `rqOrbit` som stadion-laddaren) i stället för designens SMIL `<animateMotion>`, så
   `prefers-reduced-motion` stoppar dem. Silver- och bronsprickarna är heltäckande rankfärger (prototypen hade .75/.8 i alfa).
-- **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade — men utloggad gör den inget nätverksanrop.** Landing-FEATUREN anropar inget själv.
+- **`App.tsx` kör `useAppInit` på alla routes, även `/` för utloggade — men utloggad gör den inget nätverksanrop.** Landningen anropar bara `/api/public/stats`.
   `useAppInit` kör `useLevelRequirements`, som hämtar nivåtabellen via `GET /api/config/levels` (kräver token) först när en användare är inloggad
   (`enabled: !!user`, även efter SPA-inloggning); utloggad och vid fel gäller `FALLBACK_LEVEL_REQUIREMENTS`. Onboarding-prefetchen gör INGET nätverksanrop utan
   token (onboardingApi kastar utan token och prefetchen sväljer felet). [RÄTTAT efter RUN-110/111: tidigare stod här att appskalet gjorde ETT Supabase-anrop för `level_requirements` även för
