@@ -9,6 +9,7 @@ import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   checkEmptySuites,
+  checkFontFiles,
   checkGitignoreForVideo,
   checkMediaFiles,
   checkNoTrackedVideoOriginals,
@@ -189,6 +190,43 @@ describe('checkMediaFiles', () => {
   });
 });
 
+describe('checkFontFiles', () => {
+  const font = (name, size = 20_000, magic = 'wOF2') => ({ name, size, magic });
+  const licence = { name: 'OFL.txt', size: 4_000, magic: 'The' };
+
+  it('passes versioned woff2 files at exactly the size limit, next to the licence', () => {
+    assert.deepEqual(checkFontFiles([font('bebas-neue-400.v1.woff2', 61_440), font('oswald-variable.v2.woff2'), font('bebas-neue-400.latin-ext.v1.woff2'), licence]), []);
+  });
+
+  it('fails a font one byte over the limit and names the file', () => {
+    const errors = checkFontFiles([font('bebas-neue-400.v1.woff2', 61_441), licence]);
+    assert.equal(errors.length, 1);
+    assert.ok(errors[0].includes('bebas-neue-400.v1.woff2'), errors[0]);
+  });
+
+  it('fails a file that is not woff2 even when its name says so', () => {
+    const errors = checkFontFiles([font('bebas-neue-400.v1.woff2', 20_000, '\x00\x01\x00\x00'), licence]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /woff2/);
+  });
+
+  it('fails names without a version or with another extension', () => {
+    for (const name of ['bebas-neue-400.woff2', 'bebas-neue-400.v1.ttf', 'bebas-neue-400.v1.woff', 'Bebas.v1.woff2', 'bebas-neue-400.latin-ext.woff2', 'bebas-neue-400.cyrillic.v1.woff2', 'notes.txt']) {
+      assert.equal(checkFontFiles([font(name), licence]).length, 1, name);
+    }
+  });
+
+  it('fails when fonts are present but the licence file is missing', () => {
+    const errors = checkFontFiles([font('bebas-neue-400.v1.woff2')]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /OFL.txt/);
+  });
+
+  it('passes an empty folder', () => {
+    assert.deepEqual(checkFontFiles([]), []);
+  });
+});
+
 describe('checkNoTrackedVideoOriginals', () => {
   it('passes video only under apps/frontend/public/media/', () => {
     assert.deepEqual(checkNoTrackedVideoOriginals(['apps/frontend/public/media/landing-film-720.v1.mp4', 'apps/frontend/src/a.ts']), []);
@@ -350,6 +388,34 @@ describe('CLI', () => {
     const clean = runCli('media', makeGitRepo('git-clean', { ignore: fullIgnore, trackVideo: false }));
     assert.equal(clean.status, 0, clean.stderr);
     assert.match(clean.stdout, /inga videooriginal i git/);
+  });
+
+  it('exits 0 on the real repo in fonts mode and 1 when a planted font is too big or not woff2', () => {
+    const real = runCli('fonts');
+    assert.equal(real.status, 0, real.stderr);
+    assert.match(real.stdout, /typsnittsfiler/);
+
+    const fontsDir = (name) => {
+      const root = makeRepo(name);
+      const dir = join(root, 'apps', 'frontend', 'public', 'fonts');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'OFL.txt'), 'licence');
+      return { root, dir };
+    };
+    const big = fontsDir('fonts-big');
+    writeFileSync(join(big.dir, 'huge.v1.woff2'), Buffer.concat([Buffer.from('wOF2'), Buffer.alloc(61_440)]));
+    const wrongType = fontsDir('fonts-wrong');
+    writeFileSync(join(wrongType.dir, 'fake.v1.woff2'), Buffer.from('<!doctype html>'));
+    for (const { root, dir } of [big, wrongType]) {
+      for (const mode of ['fonts', 'all']) {
+        const result = runCli(mode, root);
+        assert.equal(result.status, 1, `${mode} ${dir}`);
+        assert.match(result.stderr, /.v1.woff2/);
+      }
+    }
+    const ok = fontsDir('fonts-ok');
+    writeFileSync(join(ok.dir, 'fine.v1.woff2'), Buffer.concat([Buffer.from('wOF2'), Buffer.alloc(100)]));
+    assert.equal(runCli('fonts', ok.root).status, 0);
   });
 
   it('rejects an unknown mode', () => {

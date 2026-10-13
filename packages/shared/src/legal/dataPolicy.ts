@@ -25,7 +25,7 @@ export interface LegalDocument {
 }
 
 /** Version av integritetstexten, 'YYYY-MM-DD[.N]'. Höjs vid varje innehållsändring. Väntelistans samtyckesversion är samma värde. */
-export const DATA_POLICY_VERSION = '2026-10-13';
+export const DATA_POLICY_VERSION = '2026-10-13.1';
 
 /** Personuppgiftsansvarig (ägarbeslut 2026-10-13, publik visning godkänd av ägaren). */
 export const DATA_CONTROLLER: DataController = {
@@ -149,7 +149,6 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Strava is where your runs come from. Strava\'s own terms and privacy policy apply to your data there.',
       'Open-Meteo receives the start coordinates and time of a run and returns the weather.',
       'Vercel provides DNS for runquest.dev, which turns the domain name into an address. It does not host RunQuest.',
-      'Google Fonts: the pages load their typefaces from Google (fonts.googleapis.com and fonts.gstatic.com). Your browser therefore sends your IP address and browser details to Google when a page loads.',
     ],
   },
   {
