@@ -40,3 +40,36 @@ describe('createRun', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ date: '2026-10-11', distance: 5 });
   });
 });
+
+describe('createRun — Idempotency-Key', () => {
+  const KEY = '3f2b8c1e-5d4a-4b7e-9c3a-1a2b3c4d5e6f';
+
+  it('skickar headern Idempotency-Key när en nyckel ges, och rör inte bodyn', async () => {
+    fetchMock.mockResolvedValue(json(200, { run: { id: 'r3' } }));
+
+    await backendApi.createRun('2026-10-11', 8.4, false, KEY);
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers['Idempotency-Key']).toBe(KEY);
+    expect(init.headers['Authorization']).toBe('Bearer tok-123');
+    expect(JSON.parse(init.body)).toEqual({ date: '2026-10-11', distance: 8.4, is_treadmill: false });
+  });
+
+  it('utan nyckel finns ingen Idempotency-Key-header (dagens anrop oförändrat)', async () => {
+    fetchMock.mockResolvedValue(json(200, { run: { id: 'r4' } }));
+
+    await backendApi.createRun('2026-10-11', 8.4, false);
+
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Idempotency-Key');
+  });
+
+  it('bara createRun skickar headern: updateRun och deleteRun gör det inte', async () => {
+    fetchMock.mockResolvedValue(json(200, { run: { id: 'r5' } }));
+
+    await backendApi.updateRun('r5', { distance: 5, date: '2026-10-11' });
+    await backendApi.deleteRun('r5');
+
+    expect(fetchMock.mock.calls).toHaveLength(2);
+    for (const [, init] of fetchMock.mock.calls) expect(init.headers).not.toHaveProperty('Idempotency-Key');
+  });
+});

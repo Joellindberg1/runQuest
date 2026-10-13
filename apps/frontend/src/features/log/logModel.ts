@@ -84,6 +84,8 @@ export interface RunSubmission {
   date: string;
   distance: number;
   isTreadmill: boolean;
+  /** Idempotensnyckel för just det här inskicket (sätts av useLogForm; samma nyckel vid omförsök). */
+  idempotencyKey?: string;
 }
 
 /** Det som skickas till POST /runs, eller felen. Alltid en bool för `is_treadmill`: valet är gjort i formuläret. */
