@@ -83,6 +83,28 @@
 		file_server
 	}
 
+	# Självhostade typsnitt (OFL, se public/fonts/OFL.txt): namnet bär versionen (bebas-neue-400.v1.woff2), så filerna cachas för alltid. Saknade filer ger 404, aldrig index.html (HTML som typsnitt = tyst reservtypsnitt).
+	# Typen sätts explicit eftersom typtabellen i prodcontainern är okänd; file_server skriver bara över Content-Type när den saknas. Ingen CSP begränsar font-src.
+	handle /fonts/* {
+		@exists {
+			file
+			not path */
+		}
+		header @exists Cache-Control "public, max-age=31536000, immutable"
+		@woff2 {
+			file
+			path *.woff2
+		}
+		header @woff2 Content-Type "font/woff2"
+		@missing not {
+			file
+			not path */
+		}
+		header @missing Cache-Control "no-store"
+		respond @missing "Not found" 404
+		file_server
+	}
+
 	# Go och Caddy saknar .webmanifest i sin inbyggda typtabell, och typtabellen i prodcontainern är okänd: typen sätts explicit.
 	# file_server skriver bara över Content-Type när den saknas, så den här gäller. Bara om filen finns: en saknad manifestfil faller tillbaka på index.html och ska inte få manifesttypen.
 	@webmanifest {
