@@ -177,8 +177,18 @@ describe('startsidans head', () => {
   });
 
   // Integritetstexten (dataPolicy) säger att inga typsnitt hämtas från Google. Länkas Google Fonts åter in blir texten osann.
-  it('index.html hämtar inga typsnitt från Google', () => {
-    expect(html).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com/);
+  // Vakten läser index.html och all källkod (css, ts, tsx) utanför testfiler: ett @import i index.css eller en <link> i en komponent är lika
+  // illa som en länk i index.html.
+  it('varken index.html eller källkoden hämtar typsnitt från Google', () => {
+    const srcDir = join(frontend, 'src');
+    const sources = (readdirSync(srcDir, { recursive: true }) as string[])
+      .map((file) => file.replace(/\\/g, '/'))
+      .filter((file) => /\.(?:css|tsx?)$/.test(file) && !/\.test\.tsx?$/.test(file));
+    expect(sources.length).toBeGreaterThan(100);
+    const offenders = [['index.html', html], ...sources.map((file) => [`src/${file}`, readFileSync(join(srcDir, file), 'utf8')])]
+      .filter(([, content]) => /fonts\.(?:googleapis|gstatic)\.com/.test(content))
+      .map(([name]) => name);
+    expect(offenders).toEqual([]);
   });
 
   it('förladdar exakt ett typsnitt: Bebas Neue, som landningens rubrik använder', () => {
@@ -199,19 +209,83 @@ describe('självhostade typsnitt', () => {
   const faces = [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((match) => match[1]);
   const fontUrls = faces.map((face) => /url\(\s*['"]?([^'")\s]+)['"]?\s*\)/.exec(face)?.[1]);
 
+  const parsed = faces.map((face, index) => ({
+    family: /font-family:\s*['"]([^'"]+)['"]/.exec(face)?.[1] ?? '',
+    weight: /font-weight:\s*([\d ]+);/.exec(face)?.[1].trim() ?? '',
+    url: fontUrls[index] ?? '',
+    range: /unicode-range:\s*([^;]+);/.exec(face)?.[1] ?? '',
+    face,
+  }));
+  const isLatinExt = (url: string) => url.includes('.latin-ext.');
+
+  /** "U+0000-00FF, U+0131" -> kodpunkterna som täcks. */
+  const covers = (range: string, codePoint: number) =>
+    range.split(',').some((part) => {
+      const [from, to = from] = part.trim().replace(/^U\+/i, '').split('-').map((hex) => parseInt(hex, 16));
+      return codePoint >= from && codePoint <= to;
+    });
+
   it('varje @font-face pekar på en versionerad woff2-fil i public/fonts och använder font-display swap', () => {
-    expect(faces.length).toBeGreaterThanOrEqual(7);
-    for (const [index, face] of faces.entries()) {
-      const url = fontUrls[index];
-      expect(url, face).toMatch(/^\/fonts\/[a-z0-9-]+\.v\d+\.woff2$/);
-      expect(existsSync(join(publicDir, url!.slice(1))), `${url} finns i public`).toBe(true);
+    expect(faces).toHaveLength(13);
+    for (const { url, face } of parsed) {
+      expect(url, face).toMatch(/^\/fonts\/[a-z0-9-]+(?:\.latin-ext)?\.v\d+\.woff2$/);
+      expect(existsSync(join(publicDir, url.slice(1))), `${url} finns i public`).toBe(true);
       expect(face).toMatch(/font-display:\s*swap/);
     }
   });
 
   it('de fyra typsnittsfamiljerna som temat använder finns som @font-face', () => {
-    const families = new Set(faces.map((face) => /font-family:\s*['"]([^'"]+)['"]/.exec(face)?.[1]));
-    expect([...families].sort()).toEqual(['Barlow Condensed', 'Bebas Neue', 'Oswald', 'Share Tech Mono']);
+    expect([...new Set(parsed.map(({ family }) => family))].sort()).toEqual(['Barlow Condensed', 'Bebas Neue', 'Oswald', 'Share Tech Mono']);
+  });
+
+  // Mutationen 'Bebas Neu' i en roll fäller här: webbläsaren skulle då tyst falla tillbaka på Arial Narrow.
+  it('det första familjenamnet i varje typsnittsroll (--rq-font-*) har ett @font-face', () => {
+    const roles = [...css.matchAll(/--rq-font-(display|ui|mono|logo):\s*'([^']+)'/g)].map((match) => [match[1], match[2]]);
+    expect(roles.map(([role]) => role).sort()).toEqual(['display', 'logo', 'mono', 'ui']);
+    const families = new Set(parsed.map(({ family }) => family));
+    for (const [role, family] of roles) expect(families.has(family), `--rq-font-${role}: '${family}' saknar @font-face`).toBe(true);
+  });
+
+  it('latin-delmängden täcker å, ä, ö, Å, Ä och Ö och latin-ext-delmängden täcker Ł, č, š och ő', () => {
+    const swedish = ['å', 'ä', 'ö', 'Å', 'Ä', 'Ö'].map((letter) => letter.codePointAt(0)!);
+    const extended = ['Ł', 'č', 'š', 'ő'].map((letter) => letter.codePointAt(0)!);
+    expect(parsed.filter(({ url }) => !isLatinExt(url))).toHaveLength(7);
+    for (const { url, range } of parsed) {
+      for (const codePoint of isLatinExt(url) ? extended : swedish) {
+        expect(covers(range, codePoint), `${url} täcker U+${codePoint.toString(16)}`).toBe(true);
+      }
+    }
+  });
+
+  // Chrome läser teckenmåtten (radhöjd, blanksteg) från den sist deklarerade delmängden och hämtar den alltid. Står latin-ext sist laddas den
+  // för varje besökare, även för ren svenska; Google deklarerar latin-ext före latin av samma skäl.
+  it('latin-ext deklareras före latin för varje familj, så att svenska besökare aldrig hämtar latin-ext', () => {
+    for (const family of ['Bebas Neue', 'Barlow Condensed', 'Oswald']) {
+      const ofFamily = parsed.filter((face) => face.family === family);
+      const lastExt = ofFamily.map((face) => isLatinExt(face.url)).lastIndexOf(true);
+      const firstLatin = ofFamily.findIndex((face) => !isLatinExt(face.url));
+      expect(lastExt, `${family} har latin-ext`).toBeGreaterThanOrEqual(0);
+      expect(lastExt, `${family}: latin-ext före latin`).toBeLessThan(firstLatin);
+    }
+  });
+
+  // Filnamnet bär familjen och vikten (barlow-condensed-500.v1.woff2); en @font-face som pekar på fel fil renderar fel vikt utan att något fäller.
+  it('varje @font-face pekar på filen för sin familj och vikt', () => {
+    const slug = (family: string) => family.toLowerCase().replace(/ /g, '-');
+    for (const { family, weight, url } of parsed) {
+      const file = url.replace('/fonts/', '');
+      if (family === 'Oswald') {
+        expect(weight).toBe('400 500');
+        expect(file).toMatch(/^oswald-variable(?:\.latin-ext)?\.v1\.woff2$/);
+        continue;
+      }
+      const expected = `${slug(family)}-${weight}${isLatinExt(url) ? '.latin-ext' : ''}.v1.woff2`;
+      expect(file, `${family} ${weight}`).toBe(expected);
+    }
+    const weights = (family: string, latinExt: boolean) =>
+      parsed.filter((face) => face.family === family && isLatinExt(face.url) === latinExt).map((face) => face.weight).sort();
+    expect(weights('Barlow Condensed', false)).toEqual(['400', '500', '600', '700']);
+    expect(weights('Barlow Condensed', true)).toEqual(['400', '500', '600', '700']);
   });
 
   it('licensfilen ligger bredvid typsnitten', () => {
