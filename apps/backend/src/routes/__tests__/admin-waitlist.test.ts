@@ -66,6 +66,19 @@ describe('GET /api/admin/waitlist', () => {
     });
   });
 
+  it('admin waitlist list reports the exact total even when the list is capped at 1000 entries', async () => {
+    const many = Array.from({ length: 1005 }, (_, i) => ({
+      id: `w-${String(i).padStart(4, '0')}`, email: `user${i}@example.com`, created_at: new Date(Date.UTC(2026, 9, 1) + i * 1000).toISOString(),
+      source: 'landing', consent_version: 'draft-2026-10-13',
+    }));
+    useDb([{ id: 'admin-1', is_admin: true }], many);
+    const res = await server.request('GET', '/api/admin/waitlist', { token: mintToken({ user_id: 'admin-1' }) });
+    expect(res.status).toBe(200);
+    expect(res.body.data.entries).toHaveLength(1000);
+    expect(res.body.data.total).toBe(1005);
+    expect(res.body.data.entries[0].email).toBe('user1004@example.com'); // nyast först
+  });
+
   it('admin waitlist list returns an empty list with total 0 when nobody has signed up', async () => {
     useDb([{ id: 'admin-1', is_admin: true }], []);
     const res = await server.request('GET', '/api/admin/waitlist', { token: mintToken({ user_id: 'admin-1' }) });

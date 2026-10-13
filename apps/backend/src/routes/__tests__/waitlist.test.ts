@@ -2,6 +2,7 @@
  * POST /api/waitlist (publik): validering, normalisering, ingen e-postuppräkning, honeypot, tidsfälla och rate limit.
  * Varje test använder en egen IP (x-forwarded-for; appen litar på en proxy) så att rate limitern inte smittar mellan test.
  */
+import http from 'node:http';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import { WAITLIST_CONSENT_VERSION } from '@runquest/shared';
 
@@ -176,5 +177,69 @@ describe('POST /api/waitlist', () => {
   it('waitlist lists itself in the /api info endpoint', async () => {
     const res = await server.request('GET', '/api');
     expect(JSON.stringify(res.body.endpoints)).toContain('/api/waitlist');
+  });
+});
+
+/** En adress med exakt `length` tecken efter @: etiketter om högst 59 tecken, aldrig punkt först eller sist. */
+const domainOfLength = (length: number): string =>
+  Array.from({ length }, (_, i) => ((i + 1) % 60 === 0 ? '.' : 'd')).join('');
+
+describe('POST /api/waitlist limits and edge cases', () => {
+  it('waitlist accepts an email of exactly 254 characters and rejects one of 255', async () => {
+    useDb();
+    const local = 'abcdefghij';
+    const at254 = `${local}@${domainOfLength(254 - local.length - 1)}`;
+    const at255 = `${local}@${domainOfLength(255 - local.length - 1)}`;
+    expect(at254).toHaveLength(254);
+    expect(at255).toHaveLength(255);
+
+    expect((await post({ email: at255, consent: true })).status).toBe(400);
+    expect(stored()).toEqual([]);
+    expect((await post({ email: at254, consent: true })).status).toBe(200);
+    expect(stored().map((r) => r.email)).toEqual([at254]);
+  });
+
+  it('waitlist accepts a local part of 64 characters and rejects one of 65', async () => {
+    useDb();
+    const ok = `${'l'.repeat(64)}@example.com`;
+    const tooLong = `${'l'.repeat(65)}@example.com`;
+    expect((await post({ email: tooLong, consent: true })).status).toBe(400);
+    expect(stored()).toEqual([]);
+    expect((await post({ email: ok, consent: true })).status).toBe(200);
+    expect(stored().map((r) => r.email)).toEqual([ok]);
+  });
+
+  it('waitlist answers 400 with a JSON error and no stack trace for a broken JSON body', async () => {
+    useDb();
+    const raw = await new Promise<{ status: number; type: string | undefined; text: string }>((resolve, reject) => {
+      const srv = http.createServer(app);
+      srv.listen(0, '127.0.0.1', () => {
+        const { port } = srv.address() as { port: number };
+        const req = http.request(
+          { hostname: '127.0.0.1', port, path: '/api/waitlist', method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': freshIp() } },
+          (res) => {
+            let text = '';
+            res.on('data', (c) => { text += c; });
+            res.on('end', () => { srv.close(); resolve({ status: res.statusCode ?? 0, type: res.headers['content-type'], text }); });
+          },
+        );
+        req.on('error', reject);
+        req.end('{"email":');
+      });
+    });
+    expect(raw.status).toBe(400);
+    expect(raw.type).toMatch(/application\/json/);
+    expect(JSON.parse(raw.text)).toEqual({ error: 'Invalid JSON body' });
+    expect(raw.text).not.toMatch(/\bat\s+\S+\s+\(|node_modules|SyntaxError/);
+    expect(stored()).toEqual([]);
+  });
+
+  it('waitlist leaves an existing row untouched when the same address signs up again', async () => {
+    const existing = { id: 'w-old', email: 'dup@example.com', created_at: '2026-09-01T08:00:00.000Z', source: 'landing', consent_version: 'draft-older' };
+    tables.waitlist_signups.push({ ...existing });
+    useDb();
+    const res = await post({ email: ' DUP@example.com ', consent: true });
+    expect(res).toEqual({ status: 200, body: { success: true } });
+    expect(stored()).toEqual([existing]); // varken consent_version, created_at eller id skrevs över
   });
 });
