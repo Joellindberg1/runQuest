@@ -12,6 +12,7 @@
     { "id": "backend", "type": "backend", "label": "Backend-API", "sublabel": "Express 5 · :3001", "tag": "Railway", "pos": [560, 298], "size": [170, 64] },
     { "id": "storage", "type": "cloud", "label": "Supabase Storage", "sublabel": "bucket: profile-pictures", "pos": [860, 118], "size": [170, 64] },
     { "id": "strava", "type": "external", "label": "Strava API", "sublabel": "OAuth2 · aktiviteter", "pos": [1150, 298], "size": [150, 64] },
+    { "id": "webhook", "type": "backend", "label": "Strava-webhook", "sublabel": "router + worker (i backend)", "tag": "ADR 010", "pos": [1150, 118], "size": [150, 64] },
     { "id": "db", "type": "database", "label": "Supabase Postgres", "sublabel": "24 tabeller · RLS på", "tag": "yrrqaxdngayakcivfrck", "pos": [560, 480], "size": [170, 64] },
     { "id": "sched", "type": "backend", "label": "Schedulers", "sublabel": "node-cron (i backend)", "tag": "bara NODE_ENV=production", "pos": [860, 480], "size": [170, 64] },
     { "id": "meteo", "type": "external", "label": "Open-Meteo", "sublabel": "väder + prognos", "pos": [860, 660], "size": [170, 64] }
@@ -20,7 +21,8 @@
     { "id": "browser-to-frontend", "from": "browser", "to": "frontend", "label": "HTTPS · SPA", "fromSide": "top", "toSide": "left", "via": [[115, 150]] },
     { "id": "browser-to-backend", "from": "browser", "to": "backend", "label": "REST + JWT", "variant": "emphasis", "fromSide": "right", "toSide": "left" },
     { "id": "browser-to-db-anon", "from": "browser", "to": "db", "label": "anon: level_requirements", "variant": "dashed", "fromSide": "bottom", "toSide": "left", "via": [[115, 512]] },
-    { "id": "backend-to-strava", "from": "backend", "to": "strava", "label": "OAuth + manuell sync", "fromSide": "right", "toSide": "left" },
+    { "id": "backend-to-strava", "from": "backend", "to": "strava", "label": "OAuth + sync + återkalla", "fromSide": "right", "toSide": "left" },
+    { "id": "strava-to-webhook", "from": "strava", "to": "webhook", "label": "POST /api/strava/webhook", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
     { "id": "backend-to-storage", "from": "backend", "to": "storage", "label": "profilbilder", "fromSide": "top", "toSide": "left", "via": [[645, 150]] },
     { "id": "backend-to-db", "from": "backend", "to": "db", "label": "service role", "fromSide": "bottom", "toSide": "top" },
     { "id": "sched-to-db", "from": "sched", "to": "db", "label": "cron-jobb", "fromSide": "left", "toSide": "right" },
@@ -44,14 +46,18 @@
         "All skrivning går via backend med service role-nyckel (förbigår RLS)",
         "Frontend läser level_requirements direkt med publishable key (anon)",
         "Profilbilder: backend laddar upp till Storage och skriver users.profile_picture",
-        "Händelselogg (ADR 008, byggd i9; tabellen finns först när migration 034 körts): backend (inkl. schedulers) skriver domänhändelser best-effort till activity_log via services/activityLog.ts (dedupe_key, efter underliggande skrivning); läses endast via GET /api/news, oläst-märket sätts via POST /api/news/seen; ingen anon-åtkomst"
+        "Händelselogg (ADR 008, byggd i9; tabellen finns först när migration 034 körts): backend (inkl. schedulers) skriver domänhändelser best-effort till activity_log via services/activityLog.ts (dedupe_key, efter underliggande skrivning); läses endast via GET /api/news, oläst-märket sätts via POST /api/news/seen; ingen anon-åtkomst",
+        "Notiser (ADR 011): user_settings (sparse, per användare × nyckel) via GET/PUT /api/settings; news_read (per-rad-kvitto ovanför golvet users.news_last_seen_id) via POST /api/news/read; oläst = golv ∧ ej i news_read ∧ slaget påslaget (delad isNotifiable); rank_passed och challenge_accepted loggas best-effort i activity_log (rank-detektion som observatör i calculateUserTotals/eventService/settleChallenge); ingen anon-åtkomst",
+        "Strava-webhooks (ADR 010): Strava POSTar till /api/strava/webhook (ingen signatur: subscription_id måste matcha, aktiviteten hämtas alltid från Strava med användarens token); händelsen sparas i strava_webhook_events (unik dedupe_key, lease-claim per ägare) och en worker i backend infogar, uppdaterar eller raderar rundan via reprocessRunsFromDate → calculateUserTotals → evaluateBadges, inom 48 h; delete verifieras mot Strava (404), privat/typbyte tar bort rundan; strava_tokens bär strava_athlete_id, samtyckesversion och sync_paused",
+        "Disconnect (ADR 010): popup med 'Pausa synk' (flagga strava_tokens.sync_paused: ingen ny import, raderingar gäller ändå, luckan fylls vid återupptagning) eller 'Koppla bort' (återkallar behörigheten hos Strava, raderar användarens Strava-rundor och sedan token-raden; manuella rundor rörs aldrig; event_entries behåller XP med run_id NULL); samma radering vid deauthorize från Strava; ingen anon-åtkomst"
       ]
     },
     {
       "dot": "amber",
       "title": "Schemalagt (cron i UTC)",
       "items": [
-        "Strava-sync var 30:e minut + väder-backfill",
+        "Strava-sync var 30:e minut + väder-backfill (reservpolling; hoppar över pausade användare; 12 h när webhooks är verifierade)",
+        "Strava-webhook-worker: svep varje minut; nattjobb 03:30 Stockholm (retention + kontroll att prenumerationen finns)",
         "Utmaningar: avgör varje timme, auto-start/avböj var 6:e timme",
         "Events: dagliga/veckovisa dragningar, lifecycle var 5:e minut, söndagsavräkning"
       ]
@@ -62,7 +68,9 @@
       "items": [
         "Publishable key är publik: kvarvarande anon-SELECT-policyer är overifierade",
         "Strava-tokens ligger i klartext i strava_tokens (service role-åtkomst)",
-        "JWT (7 dagar) lagras i localStorage; ingen refresh implementerad"
+        "JWT (7 dagar) lagras i localStorage; ingen refresh implementerad",
+        "Strava-webhooks saknar signatur: händelser är bara signaler, tillståndet hämtas alltid från Strava och en radering sker först när Strava bekräftar den",
+        "Strava-läsgränsen (300/15 min, 3 000/dygn) delas av polling och webhooks; polling var 30:e minut slår i den vid cirka 60 löpare"
       ]
     }
   ]

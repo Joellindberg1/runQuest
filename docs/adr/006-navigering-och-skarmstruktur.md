@@ -2,6 +2,7 @@
 
 ## Status
 Godkänd av ägaren 2026-10-04 (redesign-beslut 1–5)
+Addendum 2026-10-13 (RUN-200): renderingsstrategi för den publika `/`, föreslaget, se längst ner.
 
 ## Kontext
 Redesignen (docs/design/redesign-plan.md, designprojektet i
@@ -323,3 +324,73 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
 8. **`next` mot kontrolltecken.** `resolveNextPath` avvisar alla kontrolltecken (U+0000–U+001F, U+007F) och kräver att adressen tolkas till samma origin som sidan (`new URL(next, origin).origin`); fallback `/board`. Webbläsarens URL-tolkning tar bort tab/LF/CR, så `/<tab>/evil.com` blev `//evil.com` och gav SecurityError i `replaceState` (vit skärm). Testat i `legacyRedirects.test.ts` och genom riktig `<App/>` (`App.login.test.tsx`).
 9. **Dialogen går alltid att lämna.** ✕, Esc, scrim och Back fungerar även under pågående inloggning (`backendApi.login` har ingen timeout, så en spärr hade gett en död ✕ utan signal). Försöket avbryts då (`AbortSignal` från `useLoginForm` till `AuthProvider.login`): ett svar som kommer efter att dialogen lämnats kastas — token rensas, ingen användare sätts, ingen cache rensas, inget fel visas — så Landing står kvar och ingen navigering till `/board` sker mot användarens vilja.
 10. **Designspråk.** EN guldknapp per vy: i dialogen är "Sign In" den enda aktiva (Landings knapp ligger bakom scrimmen, mörkad och dold för hjälpmedel). Måttet `--rq-login-w` återanvänds; `--rq-login-logo-w` och `--rq-login-glow-*` är borttagna ur temafilen (logotypen och gloden finns på Landing bakom dialogen).
+
+## Addendum 2026-10-13 (RUN-200): renderingsstrategi för den publika landningen `/`
+Besvarar revisit-triggern "Landing-inkrementet blir publik/SEO-relevant → server-/statisk rendering av `/` omprövas". Beslut 1–12 och addendum 2026-10-11 gäller oförändrade: `/` och `/login` förblir en klientrenderad SPA-route. Status: föreslaget, väntar på ägarens godkännande. Ingen ADR ersätts. Arkitekturdiagrammet ändras inte (inga nya runtime-komponenter eller kopplingar).
+
+### Beslut
+**Alternativ (a): statisk metadata i `apps/frontend/index.html`.** Titel, description, Open Graph, Twitter-kort, canonical, ikoner/manifest-länkar och en kort `<noscript>`-text. Ingen prerender, ingen SSR, ingen ändring i `Caddyfile`, Vite-konfigen, `main.tsx` eller routern. RUN-205 räcker; ingen följdstory föreslås (se "Revisit" för när (b) tas upp igen).
+
+### Underlag: vad en bot utan JS ser på `/` idag
+Verifierat i koden 2026-10-13 (läst: `index.html`, `Caddyfile`, `vite.config.ts`, `main.tsx`, `routes.tsx`, `pages/Index.tsx`, `features/landing`, `scripts/verify-static-serving.sh`; ingen live-förfrågan körd).
+- **Vad Caddy serverar.** `/` löses av `try_files {path} {path}.html {path}/index.html /index.html` till `dist/index.html` med `Cache-Control: no-cache`. Exakt samma fil serveras för varje SPA-adress (`/board`, `/runner/x`, `/login`, okända adresser).
+- **Vad filen innehåller.** `<title>Run Quest</title>`, `description` "Gamification for running", `og:title` "run-rank-reign" (ett gammalt internt namn, inte varumärket), `og:description`, `og:type`. Ingen `og:image`, `og:url`, `og:site_name`, inga `twitter:*`, ingen canonical, inga ikoner, inget manifest, inget `theme-color`, ingen `<noscript>`. Kroppen är ett tomt `<div id="root">` plus modulscriptet.
+- **Följden.** Delningsbotar (Facebook, LinkedIn, Slack, iMessage) läser bara `<head>` och kör inte JS: en delad länk blir "run-rank-reign / Gamification for running" utan bild. Google renderar JS i en andra, fördröjd våg och ser då landningen, men en bot som inte renderar ser ingen text alls.
+- **Saknade filer ger mjuk 404.** Eftersom reservfallet är `index.html` svarar `/favicon.ico`, `/apple-touch-icon.png`, `/sitemap.xml` och `/site.webmanifest` med 200 och HTML tills riktiga filer finns i `apps/frontend/public/`. Idag finns där bara `robots.txt` och `strava-popup.html`.
+- **Appen är tom tills JS laddats även för människor.** `App.tsx` visar `TrackLoader` medan sessionen läses (`loading`), därefter laddas den lazy `Index`-chunken (RUN-219) bakom `RoutePending`.
+- **Landningen gör inget anrop idag** (`guards.test.ts`, `LandingScreen.test.tsx`). RUN-208 lägger ett (de sanna siffrorna), se konsekvenser.
+
+### Bedömning
+| | Vad det ger | Vad det kostar |
+|---|---|---|
+| **(a) Statisk meta + noscript** | Delningsförhandsvisning fungerar överallt (det är head-metadata som läses). Google indexerar ändå den renderade sidan. Nollkostnad, noll nya beroenden, inga nya buildsteg. | Kroppstexten finns inte i rå-HTML för en bot som inte kör JS; `<noscript>` täcker rubrik och ingress men inte hela sidan. |
+| **(b) Prerender vid bygget** | Fullt innehåll i rå-HTML, snabbare första målning. | Se nedan: kräver headless-webbläsare i Railpack-bygget eller ett separat SSR-bygge, en separat HTML-fil plus Caddy-regel, och rör hydrering, RUN-219 och RUN-208. Underhåll utan motsvarande vinst nu. |
+| **(c) Hostingnivå** | Botdetektering i Caddy (`User-Agent` → statisk fil) eller tredjepartstjänst (prerender-tjänst) eller flytt till annan host med edge-rendering. | Botdetektering = dubbelt innehåll att underhålla och "dynamic rendering", som Google avråder från. Tjänst eller flytt = återkommande kostnad eller migrering av hosting och domänoppsättning (apex-redirecten, CORS mot `www`), alltså ägarens ja. Railway/Caddy saknar prerender-stöd. |
+
+Varför (b) inte är värt det nu, konkret:
+1. **`index.html` är gemensam för alla routes.** Prerenderad landning i den filen skulle blinka upp för inloggade som öppnar `/board`. Det kräver en separat fil (till exempel `landing.html`) och en Caddy-regel för `/` och `/login`, och `verify-static-serving.sh` måste utökas.
+2. **Inloggade på `/` skulle se landningen innan `Index` skickar dem vidare** (`Navigate` till `/board`). I dag ser de bara laddaren. Hela gruppens dagliga ingång skulle få en flimmerregress för att tjäna en publik som är en bråkdel av trafiken.
+3. **Hydrering krockar med RUN-219.** `Index` är en lazy chunk bakom Suspense och `App` renderar `TrackLoader` före routerträdet; `hydrateRoot` mot prerenderad landning ger mismatch. Antingen görs landningen eager (inloggade betalar för landningskoden och dess CSS igen) eller så ersätter `createRoot` markupen, vilket ger ett synligt byte.
+4. **Animationer och uppräkning startar om.** `ArenaTrack` (CSS `offset-path`) och `useCountUp` (börjar på 0) skulle byggas om i DOM:en vid ersättning eller hydrering; en server måste dessutom välja ett värde för uppräkningen (0 eller slutvärde).
+5. **De sanna siffrorna går inte att prerendera hederligt.** Antingen fryses byggtidens siffror i HTML (föråldrade tills nästa deploy) eller bygget anropar backenden (byggfel när backenden är nere), eller så prerenderas de påhittade siffrorna, som landningen just ska sluta visa.
+6. **Verktygen.** `react-dom/server` mot landningen kräver en SSR-entry och att alla landningsmoduler är fria från `window`/`matchMedia` på modulnivå; en Puppeteer/Playwright-prerender kräver Chromium i Railpack-bygget. Båda ökar byggtid och sköra punkter för en sida som ändras sällan.
+
+### Konsekvenser
+- **Kostnad, data, känsligt:** ingen kostnadsdrivande tjänst, ingen databas, ingen extern lagring, inga personuppgifter. Ingen avvikelse (15c).
+- **`guards.test.ts`:** oförändrad. Den läser `features/landing/**` och `pages/LandingPage.tsx` som rå text och rör inte `index.html`. Under (b) hade den behövt hantera en SSR-entry.
+- **`LandingScreen.test.tsx`:** oförändrad av detta beslut. (RUN-208 ändrar den av egen anledning: testet bevakar `fetch` och förväntar de hårdskrivna siffrorna.)
+- **Hydrering:** ingen. `main.tsx` behåller `createRoot` och `App.tsx` sin laddare; inget byte av renderingsläge.
+- **Animationer, ArenaTrack, uppräkning:** orörda; de startar när landningen monteras, som idag.
+- **Lazy-laddning (RUN-219):** orörd. Inloggade betalar inte för landningskoden. Kostnaden är att en besökare får en vattenfall (`index.html` → entry-chunkar → `Index`-chunken + `landing.css`/`board.css` + typsnitt från Google). Mät först (Lighthouse mobil på `/`) innan något görs; det är en revisit-trigger, inte ett skäl för (b) nu.
+- **Caddys cachepolicy:** ingen ändring. `index.html` är `no-cache`, så metaändringar når användarna vid nästa omladdning; `/assets/*` är `immutable` och berörs inte. Filer i `public/` (ikoner, OG-bild, manifest, sitemap) går via catch-all-blocket och blir `no-cache` (revalidering med ETag), vilket är rätt eftersom de inte har hashade namn. Plattformarna cachar länkförhandsvisningar per URL: byt filnamn på OG-bilden vid ändring (eller använd plattformarnas debugger) i stället för att skriva över.
+- **RUN-208 (sanna siffror):** hämtningen sker i klienten efter montering och påverkar inte metadata. Därför får `description`, OG-text och `<noscript>` inte innehålla siffror (de skulle bli föråldrade eller falska). RUN-208 äger själv ändringen av ägarbeslut 4 i `guards.test.ts`/ESLint (`LANDING_IMPORTS`).
+
+### Konsekvenser för följdstories
+**RUN-205 (meta, OG, favicon, manifest).** Räcker, med dessa bestämningar:
+- Alla absoluta URL:er pekar på `https://www.runquest.dev` (appens enda adress; apex skickas 308 till `www`). Hårdkoda; inget Vite-plugin eller miljövariabel behövs (Caddyfile hårdkodar redan domänen).
+- `og:title`/`<title>`: ersätt "run-rank-reign"; förslag "RunQuest — Run · Rank · Reign" (copy avgörs i RUN-205). `description` på engelska (sidan är engelsk; `lang="en"` står kvar), ungefär 150 tecken, byggd på h1/ingressen, utan siffror.
+- `og:type`, `og:url`, `og:site_name`, `og:image` (+ `width`/`height`/`alt`), `twitter:card=summary_large_image` med titel/description/image. OG-bilden är en PNG/JPG, 1200×630, absolut URL (plattformarna visar inte SVG).
+- `canonical` = `https://www.runquest.dev/`. Den ligger i den gemensamma `index.html` och gäller därför medvetet alla SPA-adresser, inklusive `/login`; det är rätt eftersom bara `/` är publik och övriga adresser ligger bakom inloggning.
+- Favicon: SVG + `favicon.ico` + `apple-touch-icon` (180 px), `theme-color` från temafilens bakgrund, `site.webmanifest` i `public/`.
+- `<noscript>` före `#root`: samma h1 som `LandingHero` plus ett stycke och en rad om att JavaScript behövs. Inga siffror. Inget stilberoende.
+- **Test:** ett litet test som läser `index.html` från disk (som `guards.test.ts` läser CSS) och kräver title/description/og:*/twitter:*/canonical, att `og:image` är absolut, och att noscript-rubriken är samma text som h1 i `LandingParts` (driftvakt).
+- **Verifiering i `verify-static-serving.sh`:** lägg kontroller för att favicon, manifest och OG-bild svarar 200 med rätt `content-type` (inte HTML). Mjuk 404 är annars osynlig. Kontrollera även `.webmanifest`-typen.
+
+**RUN-206 (robots, sitemap).** Sitemap med en post: `https://www.runquest.dev/`. `robots.txt` finns redan och tillåter allt; lägg till `Sitemap:`-raden (absolut `www`). Överväg `Disallow: /preview` (de publika `/preview*`-sidorna är gamla designskisser med påhittad data och skulle annars hamna i indexet; de delar samma statiska `<head>`, så `noindex` per sida går bara via JS och robots-filen är den enkla vägen tills sidorna raderas). Filerna ska ligga i `public/` (annars mjuk 404, se ovan).
+
+**RUN-207–210 (landningens sektioner).** Eftersom kroppen inte prerenderas:
+- Sökbart innehåll som ska nå en icke-renderande bot hör hemma i head och `<noscript>`; sektionerna får vara fullt interaktiva och animerade utan SEO-hänsyn.
+- Sektionerna får inte kräva byggtidsdata. Allt som hämtas (RUN-208) hämtas i klienten och måste ha ett tydligt laddnings-/felläge som inte visar påhittade siffror som fakta.
+- Rubrikhierarkin (en h1, h2 per sektion) vaktas av `LandingScreen.test.tsx` och ändras inte av detta beslut; ändras h1 eller ingress måste `<noscript>` och `description` uppdateras (testet ovan fångar h1).
+- Bilder och skärmdumpar i sektionerna läggs som Vite-importer (hashade, `immutable`) eller i `public/` (`no-cache`), laddas med `loading="lazy"` under första skärmen och får bredd/höjd för att inte flytta layouten.
+
+### Antaganden (flaggade)
+- Det primära målet är korrekta delningsförhandsvisningar och grundläggande Google-närvaro för en nischad app; landningens innehåll är i huvudsak rubrik, ingress och en förklaring i fyra steg, och förhandsvisningens flock är påhittad exempeldata. Är organisk söktrafik ett uttalat tillväxtmål är det en ägarpreferens som kan flytta beslutet mot (b).
+- Googles andra vågs rendering räcker för landningens indexering. Det följs upp i Search Console efter lansering.
+
+### Revisit
+Ta upp (b) (prerender via separat `landing.html` och Caddy-regel för `/` och `/login`, med egen följdstory som hanterar hydrering mot RUN-219, uppräkningens startvärde och hur de sanna siffrorna visas) om något av detta inträffar:
+- Search Console visar att `/` inte indexeras eller inte renderas korrekt inom några veckor efter lansering.
+- Lighthouse mobil på `/` ger dålig LCP/FCP och vattenfallet inte går att åtgärda billigare.
+- Landningen får fler publika, indexerbara sidor (FAQ, blogg, publika packs).
+- Ägaren sätter organisk sök eller betald trafik som mål.
