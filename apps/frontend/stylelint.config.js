@@ -198,6 +198,7 @@ export default {
       // regel, så landing.css sätter ingen egen animation-duration eller !important. "LEADERBOARD" bryts aldrig mitt i ordet.
       files: ["src/features/landing/landing.css"],
       rules: designRules({
+        zIndex: ["/^var\\(--rq-z-landing-header\\)$/"],
         animations: [
           "/^rqGrid var\\(--rq-landing-grid-dur\\) linear infinite$/",
           "/^rqOrbit var\\(--rq-landing-lap-[1-6]\\) linear infinite$/",

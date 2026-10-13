@@ -7,7 +7,8 @@
    inte laddningsordningen. */
 
 /* ── Sida: rörligt rutnät och guldglöd bakom allt ─────────────────────────── */
-.rq-landing { position: relative; min-height: 100dvh; overflow: hidden; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+/* overflow: clip, inte hidden: hidden gör sidan till en scrollbehållare och den fasta headern skulle då fastna mot sidan i stället för mot fönstret. */
+.rq-landing { position: relative; min-height: 100dvh; overflow: clip; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
 .rq-landing__grid {
   position: absolute; inset: 0; pointer-events: none; opacity: .7;
   background-image: linear-gradient(rgb(var(--rq-gold-rgb) / .045) var(--rq-hair), transparent var(--rq-hair));
@@ -28,7 +29,12 @@
 .rq-landing .rq-btn { min-height: var(--rq-landing-tap); text-decoration: none; }
 
 /* ── Header: wordmark · (desktop: ankarlänkar) · Sign in ──────────────────── */
+/* Fast överst vid scroll. Höjden är en token (samma mått som innan, mobil 76 · desktop 88), så ankarna kan räkna bort den och sidan inte hoppar när headern fastnar. */
+html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-top) + var(--rq-landing-header-h)); }
+/* Mobilens film är själva rutan (ingen rubrik över den) och saknar egen marginal; övriga ankarmål har --rq-sp-24. */
+.rq-landing .rq-film--mobile { scroll-margin-top: var(--rq-sp-24); }
 .rq-landing-header {
+  position: sticky; top: var(--rq-landing-header-top); z-index: var(--rq-z-landing-header); height: var(--rq-landing-header-h); background: var(--rq-bg-shell);
   display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-16);
   padding-block: var(--rq-landing-header-pad-y) var(--rq-sp-18); color: var(--rq-text-2);
 }

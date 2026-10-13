@@ -43,6 +43,44 @@ describe('Landing — layout som inte får gå sönder', () => {
   });
 });
 
+describe('Landing — fast header', () => {
+  // jsdom har ingen layout: att headern sitter kvar och att ankarna landar under den är mätt i Chromium (390 och 1440 px). Här vaktas de regler som får
+  // det att fungera och som lätt går sönder tyst: sticky mot fönstret, safe-area, lagret och ankarförskjutningen.
+  const ruleBody = (selector: string) => {
+    const source = stripComments(css);
+    const start = source.indexOf(`\n${selector} {`);
+    return start < 0 ? '' : source.slice(start, source.indexOf('}', start));
+  };
+  const mobileTheme = theme.split('@media (min-width: 1024px)')[0];
+  const desktopTheme = theme.split('@media (min-width: 1024px)')[1] ?? '';
+
+  it('headern är sticky överst med safe-area-avståndet, på ett eget lager, med sidans glasbakgrund', () => {
+    const header = ruleBody('.rq-landing-header');
+    expect(header).toMatch(/position:\s*sticky/);
+    expect(header).toMatch(/top:\s*var\(--rq-landing-header-top\)/);
+    expect(header).toMatch(/z-index:\s*var\(--rq-z-landing-header\)/);
+    expect(header).toMatch(/background:\s*var\(--rq-bg-shell\)/);
+    expect(mobileTheme).toMatch(/--rq-landing-header-top:\s*env\(safe-area-inset-top, 0px\)/);
+  });
+
+  it('sidan klipper dekoren med overflow: clip — hidden gör den till scrollbehållare och sticky skulle aldrig fastna mot fönstret', () => {
+    const page = ruleBody('.rq-landing');
+    expect(page).toMatch(/overflow:\s*clip/);
+    expect(page).not.toMatch(/overflow(?:-[xy])?:\s*(?:hidden|auto|scroll)/);
+  });
+
+  it('ankarlänkarna landar under headern: dokumentets scroll-padding-top är headerns höjd plus safe-area, och headern har exakt den höjden', () => {
+    expect(ruleBody('html:has(.rq-landing)')).toMatch(/scroll-padding-top:\s*calc\(var\(--rq-landing-header-top\) \+ var\(--rq-landing-header-h\)\)/);
+    expect(ruleBody('.rq-landing-header')).toMatch(/height:\s*var\(--rq-landing-header-h\)/);
+  });
+
+  it('headerhöjden (mobil 76, desktop 88) och lagret är deklarerade i temafilen', () => {
+    expect(mobileTheme).toMatch(/--rq-landing-header-h:\s*76px/);
+    expect(desktopTheme).toMatch(/--rq-landing-header-h:\s*88px/);
+    expect(mobileTheme).toMatch(/--rq-z-landing-header:\s*20;/);
+  });
+});
+
 describe('Landing-FEATUREN delar sina definitioner', () => {
   // Ett enda anrop (GET /public/stats i hooks/usePublicStats.ts), ingen auth och ingen annan data vaktas av ESLint, se eslint.config.js (LANDING_IMPORTS/LANDING_SYNTAX).
 
