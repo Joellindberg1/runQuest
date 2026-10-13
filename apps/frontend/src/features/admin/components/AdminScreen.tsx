@@ -8,6 +8,7 @@ import '../admin.css';
 import { MembersPanel } from './MembersPanel';
 import { SecurityPanel } from './SecurityPanel';
 import { TitlesPanel } from './TitlesPanel';
+import { WaitlistPanel } from './WaitlistPanel';
 import { XpSettingsPanel } from './XpSettingsPanel';
 
 const ID_PREFIX = 'admin';
@@ -17,10 +18,11 @@ const TABS: readonly ViewTab<AdminView>[] = [
   { key: 'users', label: 'Users' },
   { key: 'titles', label: 'Titles' },
   { key: 'security', label: 'Security' },
+  { key: 'waitlist', label: 'Waitlist' },
 ];
 
 /**
- * /admin: XP-inställningar, medlemmar, titlar och säkerhet (`?view=xp|users|titles|security`). Web Prototypens Admin;
+ * /admin: XP-inställningar, medlemmar, titlar, säkerhet och väntelista (`?view=xp|users|titles|security|waitlist`). Web Prototypens Admin;
  * mobilprototypen saknar sidan, så mobil är härledd (en kolumn, flikarna under rubriken). All data bor i `useAdminData` här,
  * så det man skrivit överlever ett flikbyte. Admin ersätts senare av XP-paket — den här skärmen är bara designen.
  */
@@ -87,6 +89,7 @@ export function AdminScreen() {
             notice={admin.notices.security}
           />
         )}
+        {view === 'waitlist' && <WaitlistPanel />}
       </div>
     </div>
   );

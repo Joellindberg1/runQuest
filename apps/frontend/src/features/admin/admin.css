@@ -1,4 +1,4 @@
-/* Admin (inkrement 11): XP-inställningar · medlemmar · titlar · säkerhet. ENDAST tokens (regel 1). Måtten (--rq-admin-*) definieras
+/* Admin (inkrement 11): XP-inställningar · medlemmar · titlar · säkerhet · väntelista. ENDAST tokens (regel 1). Måtten (--rq-admin-*) definieras
    i temafilen, sektion 1.31 (index.css + docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Fält,
    anteckningar och bekräftelse/fel kommer från det delade formulärkitet (shared/components/form).
    Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
@@ -66,6 +66,16 @@
 .rq-admin-title__name { display: flex; align-items: center; gap: var(--rq-sp-8); }
 .rq-admin-title__rule { font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 .rq-admin-title__unlock { font-size: var(--rq-fs-meta); color: var(--rq-up); }
+
+/* Väntelista: e-post · anmälningsdag, en rad per anmälan (datumet under e-posten när bredden tar slut) */
+.rq-admin-signups { margin: 0; padding: 0; list-style: none; }
+.rq-admin-signup {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rq-sp-4) var(--rq-admin-row-gap);
+  background: var(--rq-row); padding: var(--rq-pad-row-y) var(--rq-pad-row-x);
+}
+.rq-admin-signup:hover { background: var(--rq-row-hover); }
+.rq-admin-signup__email { min-width: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-3); overflow-wrap: anywhere; }
+.rq-admin-signup__date { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 
 /* Säkerhet */
 .rq-admin-security { display: flex; flex-direction: column; gap: var(--rq-gap-stack); max-width: var(--rq-shell-narrow-max); }

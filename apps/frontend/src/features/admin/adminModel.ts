@@ -6,7 +6,7 @@ import type { AdminSettings } from './hooks/useAdminData';
 // Ren logik — ingen DOM, ingen datahämtning. Servern validerar allt på riktigt (400 med skäl); kontrollen här fångar bara
 // det som annars blir ett tomt fält som skickas som null.
 
-export const ADMIN_VIEWS = ['xp', 'users', 'titles', 'security'] as const;
+export const ADMIN_VIEWS = ['xp', 'users', 'titles', 'security', 'waitlist'] as const;
 export type AdminView = (typeof ADMIN_VIEWS)[number];
 export const DEFAULT_ADMIN_VIEW: AdminView = 'xp';
 
