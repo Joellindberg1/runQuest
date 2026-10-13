@@ -1,41 +1,143 @@
 import { describe, expect, it } from 'vitest';
 import { PREVIEW_RANK_DELTAS, PREVIEW_USERS } from '@/features/leaderboard/previewUsers';
 import { formatInt } from '@/features/log/logFormat';
+import { calculateRunXP, DEFAULT_ADMIN_SETTINGS } from '@runquest/shared';
 import {
-  ARENA_LANES, COUNT_UP_MS, LANDING_STATS, PREVIEW_SIZE, buildHowItWorks, buildPreviewRows, countUpProgress, countUpValue,
+  ARENA, LANDING_NAV, PREVIEW_NOTES, PREVIEW_SIZE, STAT_PLACEHOLDER,
+  buildFeatures, buildHowItWorks, buildPreviewRows, buildStatViews, buildXpFormula,
 } from './landingModel';
 
-describe('uppräkningen', () => {
-  it('börjar på 0, slutar på exakt 1 och går aldrig utanför 0–1', () => {
-    expect(countUpProgress(0)).toBe(0);
-    expect(countUpProgress(COUNT_UP_MS)).toBe(1);
-    expect(countUpProgress(COUNT_UP_MS * 5)).toBe(1);
-    expect(countUpProgress(-300)).toBe(0);
+describe('sifferraden', () => {
+  const data = { runners: 6, challenges: 4, km: 4551 };
+
+  it('ordningen är km (guld), löpare, utmaningar, med etiketterna km logged, runners och challenges', () => {
+    expect(buildStatViews(data).map(({ key, tone, value, label }) => [key, tone, value, label])).toEqual([
+      ['km', 'gold', formatInt(4551), 'km logged'],
+      ['runners', 'plain', '6', 'runners'],
+      ['challenges', 'plain', '4', 'challenges'],
+    ]);
   });
 
-  it('är ease-out: halva tiden ger mer än halva vägen, och stegen bara växer', () => {
-    expect(countUpProgress(COUNT_UP_MS / 2)).toBeGreaterThan(0.5);
-    let previous = -1;
-    for (let t = 0; t <= COUNT_UP_MS; t += COUNT_UP_MS / 20) {
-      const value = countUpProgress(t);
-      expect(value).toBeGreaterThanOrEqual(previous);
-      previous = value;
+  it('ett tal med värdet 1 får singular', () => {
+    const labels = buildStatViews({ runners: 1, challenges: 1, km: 1 }).map((stat) => stat.label);
+    expect(labels).toEqual(['km logged', 'runner', 'challenge']);
+  });
+
+  it('stora tal får mellanslag som tusentalsavgränsare', () => {
+    const [km] = buildStatViews({ runners: 6, challenges: 4, km: 1_000_000 });
+    expect(km.value).toBe(formatInt(1_000_000));
+    expect(km.value).toMatch(/^1\s000\s000$/);
+    expect(km.value).not.toMatch(/[,.]/);
+  });
+
+  it('noll visas som 0', () => {
+    expect(buildStatViews({ runners: 0, challenges: 0, km: 0 }).map((stat) => stat.value)).toEqual(['0', '0', '0']);
+    expect(buildStatViews({ runners: 0, challenges: 0, km: 0 }).map((stat) => stat.label)).toEqual(['km logged', 'runners', 'challenges']);
+  });
+
+  it('utan svar (laddar) är varje tal ett tankstreck men etiketterna står kvar', () => {
+    const views = buildStatViews(undefined);
+    expect(views.map((stat) => stat.value)).toEqual([STAT_PLACEHOLDER, STAT_PLACEHOLDER, STAT_PLACEHOLDER]);
+    expect(views.map((stat) => stat.label)).toEqual(['km logged', 'runners', 'challenges']);
+  });
+});
+
+describe('XP-formeln', () => {
+  it('läser bas, km-faktor och streakintervall ur shared — ingen egen kopia', () => {
+    const formula = buildXpFormula(
+      { base_xp: 20, xp_per_km: 3, bonus_5km: 0, bonus_10km: 4, bonus_15km: 0, bonus_20km: 0, min_run_distance: 1 },
+      [{ days: 3, multiplier: 1.2 }, { days: 9, multiplier: 1.5 }],
+    );
+    expect(formula.terms).toEqual(['Base 20', 'km × 3', 'Distance bonus', 'Streak 1.0–1.5×']);
+    expect(formula.example).toEqual({ km: 10, xp: 20 + 30 + 4 });
+  });
+
+  it('standardreglerna ger BASE 15, KM × 2 och STREAK 1.0–2.0×', () => {
+    expect(buildXpFormula().terms).toEqual(['Base 15', 'km × 2', 'Distance bonus', 'Streak 1.0–2.0×']);
+  });
+
+  it('formelexemplet 10 km ger +50 XP med standardreglerna', () => {
+    const { example } = buildXpFormula();
+    expect(example).toEqual({ km: 10, xp: 50 });
+    expect(example.xp).toBe(calculateRunXP(example.km, DEFAULT_ADMIN_SETTINGS).totalXP);
+  });
+
+  it('textversionen för skärmläsare säger samma sak i en mening, med talen ur reglerna', () => {
+    expect(buildXpFormula().spoken).toBe('Base 15 plus 2 per km plus distance bonus, times a streak multiplier from 1.0 to 2.0');
+    expect(buildXpFormula({ ...DEFAULT_ADMIN_SETTINGS, base_xp: 25 }, [{ days: 2, multiplier: 1.4 }]).spoken).toContain('Base 25 plus 2 per km');
+  });
+
+  it('en tom streak-trappa ger intervallet 1.0–1.0 i stället för att krascha', () => {
+    expect(buildXpFormula(undefined, []).terms[3]).toBe('Streak 1.0–1.0×');
+  });
+});
+
+describe('funktionsrutnätet', () => {
+  const cards = buildFeatures();
+
+  it('sex kort numrerade 01–06 i den ordning designen har dem', () => {
+    expect(cards).toHaveLength(6);
+    expect(cards.map((card) => [card.tag, card.title])).toEqual([
+      ['01', 'Leaderboard'], ['02', 'Titles'], ['03', 'Challenges'], ['04', 'Events'], ['05', 'Strava sync'], ['06', 'The journey'],
+    ]);
+  });
+
+  it('Strava-kortet säger var 30:e minut och inte tre timmar', () => {
+    const strava = cards[4].body;
+    expect(strava).toBe('Runs import automatically every 30 minutes. Nothing to log by hand.');
+    expect(strava).not.toMatch(/three hours|3 hours/i);
+  });
+
+  it('journey-kortet säger inte walked', () => {
+    expect(cards[5].body).toBe('Your total distance mapped as a route with checkpoints, so the km add up to something.');
+    expect(cards.map((card) => card.body).join(' ')).not.toMatch(/walked/i);
+  });
+});
+
+describe('texterna runt previewkortet', () => {
+  it('tre förklaringar; den tredje handlar om events som ger lätt XP, inte om en nedräkning', () => {
+    expect(PREVIEW_NOTES.map((note) => note.title)).toEqual(['Rank changes show up', 'Levels, not just totals', 'Events give easy XP']);
+    expect(PREVIEW_NOTES[2].body).toBe('Recurring events open on a schedule; join one and the XP lands on the board.');
+    expect(JSON.stringify(PREVIEW_NOTES)).not.toMatch(/countdown|Göteborgsvarvet|Wolfpack/i);
+  });
+
+  it('ankarlänkarna i navigeringen pekar på filmen, How it works och funktionerna', () => {
+    expect(LANDING_NAV).toEqual([
+      { label: 'The game', id: 'film' },
+      { label: 'XP & levels', id: 'how-it-works' },
+      { label: 'Titles', id: 'features' },
+    ]);
+  });
+});
+
+describe('arenabanan', () => {
+  const lanePathShape = /^M340 \d+ H1060 A\d+ \d+ 0 0 1 1060 \d+ H340 A\d+ \d+ 0 0 1 340 \d+ Z$/;
+
+  it('desktop: fem banor, lutning −31° och sex löpare med XP-pop (+50, +35, +25, +107, +30, +19)', () => {
+    expect(ARENA.desktop.lanes).toHaveLength(5);
+    expect(ARENA.desktop.tiltDeg).toBe(-31);
+    expect(ARENA.desktop.runners).toHaveLength(6);
+    expect(ARENA.desktop.runners.map((runner) => runner.pop?.label)).toEqual(['+50 XP', '+35 XP', '+25 XP', '+107 XP', '+30 XP', '+19 XP']);
+    for (const lane of ARENA.desktop.lanes) expect(lane.path).toMatch(lanePathShape);
+    expect(ARENA.desktop.lanes[0].path).toBe('M340 230 H1060 A150 150 0 0 1 1060 530 H340 A150 150 0 0 1 340 230 Z');
+    expect(ARENA.desktop.lanes[4].path).toBe('M340 126 H1060 A254 254 0 0 1 1060 634 H340 A254 254 0 0 1 340 126 Z');
+  });
+
+  it('mobil: tre banor, lutning −72°, tre löpare och en enda pop (+50 XP) för guldlöparen', () => {
+    expect(ARENA.mobile.lanes).toHaveLength(3);
+    expect(ARENA.mobile.tiltDeg).toBe(-72);
+    expect(ARENA.mobile.runners).toHaveLength(3);
+    expect(ARENA.mobile.runners.map((runner) => runner.pop?.label ?? null)).toEqual(['+50 XP', null, null]);
+    expect(ARENA.mobile.lanes[1].path).toBe('M340 190 H1060 A190 190 0 0 1 1060 570 H340 A190 190 0 0 1 340 190 Z');
+  });
+
+  it('varje löpare går på en bana som finns, och banorna blir tydligare ju närmare innerbanan', () => {
+    for (const variant of [ARENA.desktop, ARENA.mobile]) {
+      const laneNumbers = variant.lanes.map((lane) => lane.lane);
+      for (const runner of variant.runners) expect(laneNumbers).toContain(runner.lane);
+      const alphas = variant.lanes.map((lane) => lane.alpha);
+      expect(alphas).toEqual([...alphas].sort((a, b) => b - a));
     }
-  });
-
-  it('längd 0 hoppar direkt till slutet (inget delat med noll)', () => {
-    expect(countUpProgress(0, 0)).toBe(1);
-  });
-
-  it('värdet är ett heltal och sista steget är exakt målet', () => {
-    expect(countUpValue(128_430, 0)).toBe(0);
-    expect(Number.isInteger(countUpValue(9_412, 0.333))).toBe(true);
-    expect(countUpValue(1_284_600, 1)).toBe(1_284_600);
-    expect(countUpValue(100, -1)).toBe(0);
-  });
-
-  it('aggregaten är hårdskrivna exempelsiffror (ägarbeslut 4): km, runs, XP', () => {
-    expect(LANDING_STATS.map((stat) => [stat.label, stat.value])).toEqual([['km', 128_430], ['runs', 9_412], ['XP', 1_284_600]]);
   });
 });
 
@@ -113,12 +215,3 @@ describe('How it works', () => {
   });
 });
 
-describe('arenabanan', () => {
-  it('tre banor — guld (innersta), silver, brons (yttersta) — som stängda ovaler', () => {
-    expect(ARENA_LANES.map((lane) => lane.lane)).toEqual([1, 2, 3]);
-    for (const lane of ARENA_LANES) expect(lane.path).toMatch(/^M340 \d+ H1060 A\d+ \d+ 0 0 1 1060 \d+ H340 A\d+ \d+ 0 0 1 340 \d+ Z$/);
-    expect(ARENA_LANES[0].path).toBe('M340 230 H1060 A150 150 0 0 1 1060 530 H340 A150 150 0 0 1 340 230 Z');
-    const radii = ARENA_LANES.map((lane) => lane.runnerRadius);
-    expect(radii).toEqual([...radii].sort((a, b) => b - a));
-  });
-});

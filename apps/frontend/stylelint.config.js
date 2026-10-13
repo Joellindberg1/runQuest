@@ -149,13 +149,14 @@ export default {
       }),
     },
     {
-      // Bara levande saker loopar: löparna, "+50 XP"-poppen, kortets guldring och sweep. Reducerad rörelse hanteras av temafilens globala regel,
-      // så landing.css sätter ingen egen animation-duration eller !important. "LEADERBOARD" bryts aldrig mitt i ordet.
+      // Bara levande saker loopar: rutnätet, löparna och deras XP-pop, kortets guldring och sweep. Reducerad rörelse hanteras av temafilens globala
+      // regel, så landing.css sätter ingen egen animation-duration eller !important. "LEADERBOARD" bryts aldrig mitt i ordet.
       files: ["src/features/landing/landing.css"],
       rules: designRules({
         animations: [
-          "/^rqOrbit var\\(--rq-landing-lap-[123]\\) linear infinite$/",
-          "/^rqLandingPop var\\(--rq-landing-lap-1\\) linear infinite$/",
+          "/^rqGrid var\\(--rq-landing-grid-dur\\) linear infinite$/",
+          "/^rqOrbit var\\(--rq-landing-lap-[1-6]\\) linear infinite$/",
+          "/^rqLandingPop var\\(--rq-landing-lap-[1-6]\\) linear infinite$/",
           "/^rqRing var\\(--rq-landing-pulse\\) ease-in-out infinite$/",
           "/^rqSweep var\\(--rq-landing-sweep\\) linear infinite$/",
         ],

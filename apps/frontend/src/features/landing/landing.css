@@ -1,74 +1,109 @@
-/* Landing (inkrement 10): publik sida — hjälte med arena-banan, aggregat, previewkort, How it works. ENDAST tokens (regel 1).
-   Måtten (--rq-landing-*) definieras i temafilen, sektion 1.27 (index.css + docs/design/temafil-forslag.css) — inga egna
-   :root-definitioner här. Rörelse: bara det som lever loopar (arenans löpare, kortets guldring och sweep, blink-pricken);
-   staplarna växer en gång. Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
+/* Landing (inkrement 10, RUN-207–210): publik sida — header, hjälte med arena-banan och sifferrad, previewkort, How it works med XP-formel,
+   funktionsrutnät och footer. ENDAST tokens (regel 1). Måtten (--rq-landing-*) definieras i temafilen, sektion 1.27 (index.css +
+   docs/design/temafil-forslag.css) — inga egna :root-definitioner här. Mobil är standard (390 px); allt som skiljer på desktop (1024 px+,
+   Landing-designen på 1440 px) ligger sist i filen eller i token-värdena. Rörelse: bara det som lever loopar (rutnätet, löparna och deras
+   XP-pop, kortets guldring och sweep); staplarna växer en gång. Reducerad rörelse hanteras av temafilens globala regel — ingen egen
+   animation-duration eller !important här. Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör,
+   inte laddningsordningen. */
 
-/* ── Sida ─────────────────────────────────────────────────────────────────── */
+/* ── Sida: rörligt rutnät och guldglöd bakom allt ─────────────────────────── */
 .rq-landing { position: relative; min-height: 100dvh; overflow: hidden; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+.rq-landing__grid {
+  position: absolute; inset: 0; pointer-events: none; opacity: .7;
+  background-image: linear-gradient(rgb(var(--rq-gold-rgb) / .045) var(--rq-hair), transparent var(--rq-hair));
+  background-size: 100% var(--rq-landing-grid-step);
+  animation: rqGrid var(--rq-landing-grid-dur) linear infinite;
+}
 .rq-landing__glow {
   position: absolute; top: var(--rq-landing-glow-top); left: 50%; width: var(--rq-landing-glow-w); height: var(--rq-landing-glow-h);
   transform: translateX(-50%); background: var(--rq-hero-glow); pointer-events: none;
 }
-.rq-landing__inner {
-  position: relative; box-sizing: border-box; width: 100%; max-width: var(--rq-landing-max); margin-inline: auto;
-  padding: 0 var(--rq-landing-pad) var(--rq-sp-24);
-}
-.rq-landing-header { display: flex; justify-content: center; padding: var(--rq-sp-14) 0 var(--rq-sp-18); color: var(--rq-text-2); }
-.rq-landing-logo { width: var(--rq-landing-logo-w); height: auto; }
-.rq-landing-main { display: flex; flex-direction: column; gap: var(--rq-sp-24); }
+.rq-landing__inner { position: relative; box-sizing: border-box; width: 100%; max-width: var(--rq-landing-max); margin-inline: auto; padding-bottom: var(--rq-sp-24); }
+.rq-landing-main { display: flex; flex-direction: column; }
+/* Mobil: luft mellan sektionerna. De tomma platserna för film och väntelista saknar marginal, så de lägger inte på något. */
+.rq-landing-hero, .rq-landing-showcase, .rq-landing-how, .rq-landing-features { margin-bottom: var(--rq-sp-24); }
+.rq-landing-header, .rq-landing-hero, .rq-landing-showcase, .rq-landing-how, .rq-landing-features, .rq-landing-footer { box-sizing: border-box; padding-inline: var(--rq-landing-pad); }
 
-/* ── Hjälte: märke · rubrik · arena-bana · ingress · knappar ───────────────── */
+/* Knappar och länkar på mobil: minst 44 px träffyta (desktop 0) */
+.rq-landing .rq-btn { min-height: var(--rq-landing-tap); text-decoration: none; }
+
+/* ── Header: wordmark · (desktop: ankarlänkar) · Sign in ──────────────────── */
+.rq-landing-header {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-16);
+  padding-block: var(--rq-landing-header-pad-y) var(--rq-sp-18); color: var(--rq-text-2);
+}
+.rq-landing-logo { width: var(--rq-landing-logo-w); height: auto; flex-shrink: 0; }
+.rq-landing-header__actions { display: flex; align-items: center; gap: var(--rq-sp-32); }
+.rq-landing-nav { display: flex; align-items: center; gap: var(--rq-sp-32); }
+.rq-landing-nav a { font-size: var(--rq-fs-tab); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3); }
+.rq-landing-nav a:hover { color: var(--rq-gold-text); }
+
+/* ── Hjälte: rubrik · arena-bana · ingress · knappar · film (mobil) · sifferrad ─ */
 .rq-landing-hero {
   display: grid; grid-template-columns: var(--rq-landing-hero-cols); grid-template-areas: var(--rq-landing-hero-areas);
-  column-gap: var(--rq-sp-10); align-items: center; align-content: center;
+  grid-template-rows: var(--rq-landing-hero-rows); column-gap: var(--rq-landing-hero-gap); align-items: center; align-content: center; padding-block: var(--rq-landing-hero-pad-y);
 }
-.rq-landing-badge { grid-area: badge; justify-self: start; margin: 0 0 var(--rq-sp-16); }
-.rq-display-xl.rq-landing-title { grid-area: title; margin: 0 0 var(--rq-sp-14); font-weight: 400; letter-spacing: 0; }
+.rq-display-xl.rq-landing-title { grid-area: title; margin: 0 0 var(--rq-sp-14); font-size: var(--rq-landing-title-size); font-weight: 400; letter-spacing: 0; }
+.rq-landing-break { display: none; }
 .rq-landing-accent { color: var(--rq-gold-text); }
-.rq-landing-lead { grid-area: lead; margin: 0 0 var(--rq-sp-20); }
-.rq-landing-cta { grid-area: cta; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
-.rq-landing-cta .rq-btn { width: 100%; box-sizing: border-box; text-decoration: none; }
-.rq-landing-note { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); text-align: center; }
+.rq-landing-lead { grid-area: lead; max-width: var(--rq-landing-lead-max); margin: 0 0 var(--rq-sp-20); }
+.rq-landing-cta { grid-area: cta; display: flex; flex-direction: column; gap: var(--rq-sp-10); margin-bottom: var(--rq-sp-24); }
+.rq-landing-cta .rq-btn { width: 100%; box-sizing: border-box; }
+/* Watch the film: neutral kontur (vit kant .22), guld vid hover — guldknappen är Join the waitlist och ingen annan */
+.rq-landing-cta .rq-btn--ghost { border-color: var(--rq-line-6); color: var(--rq-text-2); }
+.rq-landing-cta .rq-btn--ghost:hover { border-color: var(--rq-gold); color: var(--rq-gold-text); }
+.rq-landing-hero__film { grid-area: film; margin-bottom: var(--rq-sp-24); }
+.rq-landing-hero__film:empty { display: none; }
 
-/* Arena-banan: en oval i en klippt ruta, vriden så den står nästan lodrätt. Löparna följer ovalen med offset-path. */
+/* Arena-banan: en oval i en klippt ruta, vriden efter geometrin i landingModel. Löparna följer ovalen med offset-path. */
 .rq-landing-arena { grid-area: arena; position: relative; width: var(--rq-landing-track-w); height: var(--rq-landing-track-h); overflow: hidden; justify-self: end; }
 .rq-landing-arena__svg {
   position: absolute; top: 50%; left: 50%; width: var(--rq-landing-track-svg-w); height: auto; overflow: visible;
   transform: translate(-50%, -50%) rotate(var(--rq-landing-track-rot));
 }
-.rq-landing-lane { fill: none; stroke-width: var(--rq-landing-lane-w); }
-.rq-landing-lane[data-lane="1"] { stroke: rgb(var(--rq-gold-rgb) / .34); }
-.rq-landing-lane[data-lane="2"] { stroke: rgb(var(--rq-gold-rgb) / .22); }
-.rq-landing-lane[data-lane="3"] { stroke: rgb(var(--rq-gold-rgb) / .16); }
+.rq-landing-lane { fill: none; stroke: rgb(var(--rq-gold-rgb) / var(--rq-lane-alpha)); stroke-width: var(--rq-landing-lane-w); }
 .rq-landing-finish { stroke: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); stroke-width: var(--rq-landing-finish-w); }
 .rq-landing-runner { offset-path: var(--rq-lane-path); offset-rotate: 0deg; }
-/* offset-distance = vilopositionen när rörelsen är avstängd (loopen skriver över den): tre löpare spridda, inte i klump */
-.rq-landing-runner[data-lane="1"] { offset-distance: 0%; }
-.rq-landing-runner[data-lane="2"] { offset-distance: 35%; }
-.rq-landing-runner[data-lane="3"] { offset-distance: 70%; }
-.rq-landing-runner[data-lane="1"] { fill: var(--rq-rank-1); animation: rqOrbit var(--rq-landing-lap-1) linear infinite; }
-.rq-landing-runner[data-lane="2"] { fill: var(--rq-rank-2); animation: rqOrbit var(--rq-landing-lap-2) linear infinite; animation-delay: var(--rq-landing-lap-offset-2); }
-.rq-landing-runner[data-lane="3"] { fill: var(--rq-rank-3); animation: rqOrbit var(--rq-landing-lap-3) linear infinite; animation-delay: var(--rq-landing-lap-offset-3); }
-/* "+50 XP" syns en stund när guldlöparen passerar mållinjen (samma varvtid som guldlöparen) */
-.rq-landing-xp { text-anchor: middle; font-family: var(--rq-font-display); font-size: var(--rq-landing-xp-size); fill: var(--rq-rank-1); opacity: 0; animation: rqLandingPop var(--rq-landing-lap-1) linear infinite; }
+/* offset-distance = vilopositionen när rörelsen är avstängd (loopen skriver över den): löparna står spridda, inte i klump */
+.rq-landing-runner[data-runner="1"] { offset-distance: 0%; fill: var(--rq-rank-1); animation: rqOrbit var(--rq-landing-lap-1) linear infinite; }
+.rq-landing-runner[data-runner="2"] { offset-distance: 35%; fill: var(--rq-rank-2); animation: rqOrbit var(--rq-landing-lap-2) linear infinite; animation-delay: var(--rq-landing-lap-offset-2); }
+.rq-landing-runner[data-runner="3"] { offset-distance: 70%; fill: var(--rq-rank-3); animation: rqOrbit var(--rq-landing-lap-3) linear infinite; animation-delay: var(--rq-landing-lap-offset-3); }
+.rq-landing-runner[data-runner="4"] { offset-distance: 15%; fill: rgb(var(--rq-ink-rgb) / .5); animation: rqOrbit var(--rq-landing-lap-4) linear infinite; animation-delay: var(--rq-landing-lap-offset-4); }
+.rq-landing-runner[data-runner="5"] { offset-distance: 50%; fill: rgb(var(--rq-ink-rgb) / .42); animation: rqOrbit var(--rq-landing-lap-5) linear infinite; animation-delay: var(--rq-landing-lap-offset-5); }
+.rq-landing-runner[data-runner="6"] { offset-distance: 85%; fill: rgb(var(--rq-gold-rgb) / .55); animation: rqOrbit var(--rq-landing-lap-6) linear infinite; animation-delay: var(--rq-landing-lap-offset-6); }
+/* XP-poppen syns en stund när löparen passerar mållinjen (samma varvtid och förskjutning som löparen) */
+.rq-landing-xp { font-family: var(--rq-font-display); font-size: var(--rq-landing-xp-size); fill: var(--rq-rank-1); opacity: 0; }
+.rq-landing-xp[data-runner="1"] { animation: rqLandingPop var(--rq-landing-lap-1) linear infinite; }
+.rq-landing-xp[data-runner="2"] { animation: rqLandingPop var(--rq-landing-lap-2) linear infinite; animation-delay: var(--rq-landing-lap-offset-2); }
+.rq-landing-xp[data-runner="3"] { animation: rqLandingPop var(--rq-landing-lap-3) linear infinite; animation-delay: var(--rq-landing-lap-offset-3); }
+.rq-landing-xp[data-runner="4"] { animation: rqLandingPop var(--rq-landing-lap-4) linear infinite; animation-delay: var(--rq-landing-lap-offset-4); }
+.rq-landing-xp[data-runner="5"] { animation: rqLandingPop var(--rq-landing-lap-5) linear infinite; animation-delay: var(--rq-landing-lap-offset-5); }
+.rq-landing-xp[data-runner="6"] { animation: rqLandingPop var(--rq-landing-lap-6) linear infinite; animation-delay: var(--rq-landing-lap-offset-6); }
 @keyframes rqLandingPop {
-  0%, 62% { opacity: 0; }
-  68%, 78% { opacity: 1; }
-  86%, 100% { opacity: 0; }
-  0%, 64% { transform: translateY(0); }
-  86%, 100% { transform: translateY(var(--rq-landing-xp-rise)); }
+  0%   { opacity: 0; transform: translateY(0); }
+  62%  { opacity: 0; }
+  64%  { transform: translateY(0); }
+  66%  { opacity: 1; }
+  75%  { opacity: 1; }
+  82%  { opacity: 0; transform: translateY(var(--rq-landing-xp-rise)); }
+  100% { opacity: 0; transform: translateY(var(--rq-landing-xp-rise)); }
 }
 
-/* ── Aggregat: tre tal mellan två hårlinjer ───────────────────────────────── */
-.rq-landing-stats { border-block: var(--rq-hair) solid var(--rq-line-3); padding: var(--rq-sp-14) 0; }
-.rq-landing-stats__list { display: flex; justify-content: space-between; gap: var(--rq-sp-16); margin: 0; }
-.rq-landing-stat { display: flex; flex-direction: column-reverse; justify-content: flex-end; }
-.rq-landing-stat__value { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+/* ── Sifferrad: tre tal (km i guld) mellan hårlinjer på mobil, under knapparna med en hårlinje ovanför på desktop ─ */
+.rq-landing-stats { grid-area: stats; border-block: var(--rq-hair) solid var(--rq-line-3); padding: var(--rq-sp-14) 0; }
+.rq-landing-stats__list { display: flex; flex-wrap: nowrap; justify-content: space-between; gap: var(--rq-sp-16); margin: 0; padding: 0; list-style: none; }
+.rq-landing-stat { display: flex; flex-direction: column; min-width: 0; white-space: nowrap; }
+.rq-landing-stat__value { font-family: var(--rq-font-display); font-size: var(--rq-landing-stat-size); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
 .rq-landing-stat[data-tone="gold"] .rq-landing-stat__value { color: var(--rq-gold-text); }
 .rq-landing-stat__label { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 
-/* ── Preview + steg ───────────────────────────────────────────────────────── */
-.rq-landing-body { display: grid; grid-template-columns: var(--rq-landing-body-cols); gap: var(--rq-sp-24); align-items: start; }
+/* ── Sektionsrubriker (desktop): ögonbryn + Bebas-rubrik ─────────────────────── */
+.rq-landing-eyebrow { margin: 0 0 var(--rq-sp-12); font-size: var(--rq-fs-label); font-weight: 400; letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-landing-h2 { margin: 0 0 var(--rq-sp-24); font-family: var(--rq-font-display); font-size: var(--rq-fs-number); font-weight: 400; letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+
+/* ── Previewbandet: kortet (och på desktop tre förklaringar) ─────────────────── */
+.rq-landing-showcase { padding-block: var(--rq-landing-showcase-pad-y); }
+.rq-landing-showcase__body { display: grid; grid-template-columns: var(--rq-landing-showcase-cols); gap: var(--rq-sp-24); align-items: center; }
 
 /* Previewkortet: panel med guld-hårlinje; ringen andas och ett ljusband sveper över (live-kort, regel 8) */
 .rq-landing-preview {
@@ -87,13 +122,13 @@
   font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4);
 }
 .rq-landing-preview__title { margin: 0; font-size: inherit; font-weight: 400; letter-spacing: inherit; }
-.rq-landing-preview__live { display: inline-flex; align-items: center; gap: var(--rq-sp-8); color: var(--rq-up); }
+.rq-landing-preview__tag { color: var(--rq-text-4); }
 .rq-landing-preview__rows { position: relative; margin: 0; padding: 0; list-style: none; }
 .rq-landing-row {
   display: grid; grid-template-columns: var(--rq-landing-row-cols); align-items: center; gap: var(--rq-sp-10);
   padding: var(--rq-sp-10) var(--rq-sp-14);
 }
-.rq-landing-row__rank { font-family: var(--rq-font-display); font-size: var(--rq-fs-counter); line-height: var(--rq-lh-tight); color: var(--rq-rank-rest); }
+.rq-landing-row__rank { font-family: var(--rq-font-display); font-size: var(--rq-fs-counter); line-height: var(--rq-lh-tight); color: var(--rq-rank-rest); text-align: center; }
 .rq-landing-row[data-tone="1"] .rq-landing-row__rank { color: var(--rq-rank-1); }
 .rq-landing-row[data-tone="2"] .rq-landing-row__rank { color: var(--rq-rank-2); }
 .rq-landing-row[data-tone="3"] .rq-landing-row__rank { color: var(--rq-rank-3); }
@@ -105,41 +140,110 @@
 .rq-landing-row[data-tone="3"] .rq-track > .rq-fill { background: var(--rq-rank-3); }
 .rq-landing-row__xp { font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-3); text-align: right; }
 
-/* How it works: eyebrow + fyra kort med 2 px guldkant (listor/rader använder den smala kanten) */
-.rq-landing-eyebrow { margin: 0 0 var(--rq-sp-12); font-size: var(--rq-fs-label); font-weight: 400; letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
-.rq-landing-how { scroll-margin-top: var(--rq-sp-24); }
-.rq-landing-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-10); }
+/* Förklaringarna bredvid kortet (desktop): guldkant till vänster, Bebas-titel */
+.rq-landing-notes { display: flex; flex-direction: column; gap: var(--rq-sp-24); }
+.rq-landing-note { border-left: var(--rq-edge-w-thin) solid var(--rq-card-edge-soft); padding-left: var(--rq-sp-18); }
+.rq-landing-note__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); font-weight: 400; letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+.rq-landing-note__body { margin: var(--rq-sp-6) 0 0; }
+
+/* ── How it works: fyra steg (mobil: kort med vänsterkant) och XP-formeln ──────── */
+.rq-landing-how { padding-block: var(--rq-landing-section-pad-y); scroll-margin-top: var(--rq-sp-24); }
+.rq-landing-steps { display: grid; grid-template-columns: var(--rq-landing-steps-cols); gap: var(--rq-sp-10); margin: 0; padding: 0; list-style: none; }
 .rq-landing-step {
   background: var(--rq-panel); padding: var(--rq-sp-14) var(--rq-sp-16);
   border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w-thin) solid var(--rq-card-edge-soft);
 }
+.rq-landing-step:hover { border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); transform: translateY(var(--rq-landing-step-lift)); }
 .rq-landing-step__head { display: flex; align-items: baseline; gap: var(--rq-sp-10); }
 .rq-landing-step__num { font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); color: var(--rq-gold-text); }
-.rq-landing-step__title { margin: 0; font-weight: 400; }
+.rq-landing-step__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); font-weight: 400; letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
 .rq-landing-step__body { margin: var(--rq-sp-6) 0 0; }
 
-/* ── Fot ──────────────────────────────────────────────────────────────────── */
-.rq-landing-footer { margin-top: var(--rq-sp-24); text-align: center; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-landing-formula {
+  display: grid; grid-template-columns: var(--rq-landing-formula-cols); gap: var(--rq-landing-formula-gap); align-items: center;
+  margin-top: var(--rq-sp-20); background: var(--rq-panel); border: var(--rq-hair) solid var(--rq-line-3); padding: var(--rq-sp-16);
+}
+.rq-landing-formula__label { margin: 0 0 var(--rq-sp-10); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-landing-formula__terms { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); }
+.rq-landing-formula__fragment { display: inline-flex; align-items: center; gap: var(--rq-sp-8); }
+.rq-landing-formula__term { padding: var(--rq-sp-6) var(--rq-sp-14); text-transform: uppercase; background: var(--rq-fill-1); border: var(--rq-hair) solid var(--rq-line-4); color: var(--rq-text-2); }
+.rq-landing-formula__term[data-tone="gold"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
+.rq-landing-formula__op { color: var(--rq-text-5); }
+.rq-landing-formula__example { border-top: var(--rq-hair) solid var(--rq-line-3); padding-top: var(--rq-sp-14); }
+.rq-landing-formula__example .rq-landing-formula__label { margin-bottom: var(--rq-sp-4); }
+.rq-landing-formula__value { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-landing-example-size); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+
+/* ── Funktionsrutnätet: sex kort (mobil en kolumn, desktop 3 × 2) ──────────────── */
+.rq-landing-features { padding-block: 0 var(--rq-landing-section-pad-y); scroll-margin-top: var(--rq-sp-24); }
+.rq-landing-features__list { display: grid; grid-template-columns: var(--rq-landing-features-cols); gap: var(--rq-sp-10); margin: 0; padding: 0; list-style: none; }
+.rq-landing-feature { display: flex; align-items: flex-start; gap: var(--rq-sp-16); padding: var(--rq-sp-16); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-landing-feature:hover { background: rgb(var(--rq-gold-rgb) / .05); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); }
+.rq-landing-feature__tag { min-width: var(--rq-sp-24); font-family: var(--rq-font-display); font-size: var(--rq-fs-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
+.rq-landing-feature__title { margin: 0 0 var(--rq-sp-6); }
+.rq-landing-feature__body { margin: 0; }
+
+/* ── Footer: mobil centrerad och radbruten, desktop en rad ───────────────────── */
+.rq-landing-footer {
+  display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-12); margin-top: var(--rq-sp-24);
+  text-align: center; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4);
+}
 .rq-landing-footer p { margin: 0; }
+.rq-landing-footer__name { display: none; }
+.rq-landing-footer__aside { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--rq-sp-8) var(--rq-sp-24); }
+.rq-landing-footer__links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--rq-sp-8) var(--rq-sp-24); }
+.rq-landing-footer__links a { display: inline-flex; align-items: center; min-height: var(--rq-landing-tap); color: inherit; }
+.rq-landing-footer__links a:hover { color: var(--rq-gold-text); }
+/* Stravas logga: oförändrad (ingen filter, ingen hover), högst textens teckenhöjd, bredden följer bildens proportion 437:37 */
+.rq-landing-footer__strava { display: block; height: 1em; width: auto; }
 
 /* ── Smala telefoner: rubrikkolumnen (viewport − marginaler − bana) rymmer inte LEADERBOARD i full storlek (≈ 208 px) under ~380 px.
    Ordet får aldrig brytas, så banan flyttas under rubriken i stället för att dela rad med den. ───────────────────────────── */
 @media (max-width: 379px) {
-  .rq-landing-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "badge" "title" "arena" "lead" "cta"; }
+  .rq-landing-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "arena" "lead" "cta" "film" "stats"; }
   .rq-landing-arena { justify-self: center; margin-bottom: var(--rq-sp-16); }
 }
 
-/* ── Desktop: text vänster, banan höger; vänsterjusterad logga; knappar bredvid varandra ──────── */
+/* ── Desktop (Landing-designen, 1440 px): text vänster, banan höger; band med hårlinjer; fyra stegkolumner; tre kortkolumner ──── */
 @media (min-width: 1024px) {
-  .rq-landing-header { justify-content: flex-start; padding-block: var(--rq-sp-24) var(--rq-sp-32); }
-  .rq-landing-main { gap: var(--rq-sp-40); }
-  .rq-landing-hero { column-gap: var(--rq-sp-48); }
-  .rq-display-xl.rq-landing-title { margin-bottom: var(--rq-sp-20); }
-  .rq-landing-lead { margin-bottom: var(--rq-sp-32); max-width: 36em; }
-  .rq-landing-cta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-14); }
+  .rq-landing__inner { padding-bottom: 0; }
+  .rq-landing-hero, .rq-landing-showcase, .rq-landing-how, .rq-landing-features { margin-bottom: 0; }
+  .rq-landing-header { border-bottom: var(--rq-hair) solid var(--rq-line-2); padding-block: var(--rq-landing-header-pad-y); }
+  .rq-landing-nav a { font-size: var(--rq-fs-tab); }
+  .rq-landing-header .rq-btn { padding: var(--rq-btn-pad-md); }
+  .rq-landing-break { display: inline; }
+  .rq-display-xl.rq-landing-title { margin-bottom: var(--rq-sp-24); }
+  .rq-landing-lead { margin-bottom: var(--rq-sp-32); }
+  .rq-landing-cta { flex-direction: row; align-items: center; gap: var(--rq-sp-14); margin-bottom: var(--rq-sp-32); }
   .rq-landing-cta .rq-btn { width: auto; }
-  .rq-landing-note { flex-basis: 100%; text-align: left; }
-  .rq-landing-body { gap: var(--rq-sp-32); }
-  .rq-landing-stats { padding-block: var(--rq-sp-24); }
-  .rq-landing-stats__list { justify-content: space-around; }
+  .rq-landing-arena { justify-self: stretch; }
+  .rq-landing-stats { border-bottom: 0; padding: var(--rq-sp-24) 0 0; }
+  .rq-landing-stats__list { justify-content: flex-start; gap: var(--rq-sp-40); }
+  .rq-landing-stat__label { font-size: var(--rq-fs-label); }
+
+  .rq-landing-showcase {
+    border-block: var(--rq-hair) solid var(--rq-line-2);
+    background: linear-gradient(180deg, rgb(var(--rq-ink-rgb) / .03), var(--rq-inset));
+  }
+  .rq-landing-showcase__body { gap: var(--rq-sp-40); }
+  .rq-landing-row { padding: var(--rq-sp-12) var(--rq-sp-18); }
+  .rq-landing-preview__head { padding: var(--rq-sp-14) var(--rq-sp-18); }
+  .rq-landing-row__xp { font-size: var(--rq-fs-stat-value); }
+
+  .rq-landing-eyebrow { margin-bottom: var(--rq-sp-8); }
+  .rq-landing-how .rq-landing-h2 { margin-bottom: var(--rq-sp-40); font-size: var(--rq-landing-how-title-size); }
+  .rq-landing-steps { gap: var(--rq-sp-20); }
+  .rq-landing-step { padding: var(--rq-sp-24) var(--rq-sp-20) var(--rq-sp-24); border-left: var(--rq-hair) solid var(--rq-line-3); border-top: var(--rq-edge-w-thin) solid var(--rq-card-edge-soft); }
+  .rq-landing-step__head { flex-direction: column; gap: var(--rq-sp-12); }
+  .rq-landing-step__title { margin-bottom: var(--rq-sp-4); }
+  .rq-landing-step__body { margin-top: 0; }
+  .rq-landing-features__list { gap: var(--rq-sp-20); }
+  .rq-landing-feature { padding: var(--rq-sp-24) var(--rq-sp-20); }
+  .rq-landing-formula { padding: var(--rq-sp-32) var(--rq-sp-24); }
+  .rq-landing-formula__terms, .rq-landing-formula__fragment { gap: var(--rq-sp-14); }
+  .rq-landing-formula__example { text-align: right; border-top: 0; padding-top: 0; border-left: var(--rq-hair) solid var(--rq-line-3); padding-left: var(--rq-sp-40); }
+
+  .rq-landing-footer { flex-direction: row; justify-content: space-between; margin-top: 0; border-top: var(--rq-hair) solid var(--rq-line-2); padding-block: var(--rq-sp-24); text-align: left; }
+  .rq-landing-footer__name { display: inline; }
+  .rq-landing-footer__aside, .rq-landing-footer__links { flex-wrap: nowrap; justify-content: flex-end; }
+  .rq-landing-footer__aside { gap: var(--rq-sp-24); }
 }

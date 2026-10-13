@@ -82,7 +82,7 @@ describe('Log out → Landing', () => {
     render(<App />);
     await screen.findByRole('heading', { name: 'Profile page' });
     await logOut();
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
 
     expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
     expect(url()).toBe('/login');

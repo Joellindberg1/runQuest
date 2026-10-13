@@ -91,14 +91,14 @@ beforeAll(async () => {
 describe('onboarding efter SPA-inloggning', () => {
   it('utloggad: ingen status hämtas och ingenting visas', async () => {
     render(<App />);
-    await screen.findByRole('link', { name: 'Sign in to your pack' });
+    await screen.findByRole('link', { name: 'Sign in' });
     expect(statusCalls()).toHaveLength(0);
     expect(screen.queryByTestId('onboarding-tour')).toBeNull();
   });
 
   it('inloggning utan reload hämtar /onboarding/status och visar INTE touren när allt är sett', async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
     await screen.findByLabelText('Username');
 
     loginAs('token-a');
@@ -113,7 +113,7 @@ describe('onboarding efter SPA-inloggning', () => {
 
   it('logout → inloggning som en annan användare läser om statusen och ärver inte föregående sett-lista', async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Sign in' }));
     await screen.findByLabelText('Username');
     loginAs('token-a');
     fireEvent.click(await screen.findByRole('button', { name: 'Log out' }));

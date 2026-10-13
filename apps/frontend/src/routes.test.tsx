@@ -155,7 +155,7 @@ describe('auth', () => {
     const headline = await screen.findByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' });
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Sign in to your pack' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     await waitFor(() => expect(location()).toBe('/login'));
     expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
     expect(await screen.findByLabelText('Username')).toBeInTheDocument();
