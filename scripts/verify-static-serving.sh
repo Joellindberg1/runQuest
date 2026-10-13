@@ -62,7 +62,8 @@ check "hashad fil har JS-typ"                     "/$asset"                     
 check "saknad hashad fil ger 404, aldrig cachad"  "/assets/index-DOESNOTEXIST.js"  404 "^cache-control: no-store" "immutable|content-type: text/html"
 check "assets-katalogen ger 404, aldrig cachad"   "/assets/"                       404 "^cache-control: no-store" "immutable"
 check "Strava-popupen serveras"                   "/strava-popup.html"             200 "^content-type: text/html"
-check "robots.txt serveras"                       "/robots.txt"                    200 ""
+check "robots.txt serveras"                       "/robots.txt"                    200 "^content-type: text/plain" "content-type: text/html"
+check "sitemap.xml serveras"                      "/sitemap.xml"                   200 "^content-type: (text|application)/xml" "content-type: text/html"
 check "health svarar utan index.html"             "/health"                        200 "" "content-type: text/html"
 if [[ -n "$(curl -s "http://127.0.0.1:$PORT/health")" ]]; then
   echo "FAIL health: kroppen ska vara tom (skuggad av SPA-blocket?)"; failures=$((failures + 1))
