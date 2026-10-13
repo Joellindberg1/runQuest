@@ -41,18 +41,36 @@ const NO_STREAK_DEFAULTS = {
   message: "Multiplikatortrappan kommer ur config-endpointen (useXpConfig), inte ur DEFAULT_STREAK_MULTIPLIERS.",
 };
 
-// Landing är publik och gör inga anrop (ägarbeslut 4) och importerar inget ur auth: dialogen monteras av pages/Index.
+// Landing är publik, importerar inget ur auth (dialogen monteras av pages/Index) och gör ETT anrop vid sidladdning: GET /api/public/stats
+// (ADR 006-addendum 2026-10-13, ändrar ägarbeslut 4). Bara hooks/usePublicStats.ts får importera klienten och react-query.
+const LANDING_AUTH_IMPORT = {
+  // Täcker både alias (@/features/auth, @/providers/auth) och relativa importer (../auth/foo, ../../providers/authContext).
+  regex: "features/auth|providers/auth|(^|/)\\.\\.?/(.*/)?auth/",
+  message: "Landing importerar inget ur features/auth eller providers/auth; dialogen monteras av pages/Index.",
+};
 const LANDING_IMPORTS = [
   STREAK_CONSTANTS,
-  { regex: "backendApi|(^|/)services/|react-query|supabase|axios", message: "Landing-featuren gör inga anrop (ägarbeslut 4): hårdskriven data, ingen backend." },
-  // Täcker både alias (@/features/auth, @/providers/auth) och relativa importer (../auth/foo, ../../providers/authContext).
-  { regex: "features/auth|providers/auth|(^|/)\\.\\.?/(.*/)?auth/", message: "Landing importerar inget ur features/auth eller providers/auth; dialogen monteras av pages/Index." },
+  { regex: "backendApi|(^|/)services/|react-query|supabase|axios", message: "Landings enda anrop (GET /public/stats) ligger i hooks/usePublicStats.ts; övriga landningsfiler importerar varken klienten eller react-query." },
+  LANDING_AUTH_IMPORT,
 ];
 const LANDING_SYNTAX = [
-  { selector: "CallExpression[callee.name='fetch']", message: "Landing-featuren gör inga anrop (ägarbeslut 4)." },
+  { selector: "CallExpression[callee.name='fetch']", message: "Landing gör bara ett anrop (GET /public/stats), och det går via backendApi i hooks/usePublicStats.ts." },
   {
     selector: "Identifier[name=/^(useUsersWithRuns|useXpConfig|useGroupName|useQuery|useMutation|useAuth)$/]",
-    message: "Landing-featuren hämtar ingen data (ägarbeslut 4): inga datahooks och ingen auth.",
+    message: "Landing hämtar ingen data utom /public/stats (hooks/usePublicStats.ts): inga andra datahooks och ingen auth.",
+  },
+];
+// Hookfilen får klienten och useQuery, men fortfarande ingen auth, ingen rå fetch, ingen STREAK_CONSTANTS och inga andra datahooks.
+const LANDING_STATS_HOOK_IMPORTS = [
+  STREAK_CONSTANTS,
+  { regex: "supabase|axios", message: "Landing-hooken går via backendApi, inte supabase eller axios." },
+  LANDING_AUTH_IMPORT,
+];
+const LANDING_STATS_HOOK_SYNTAX = [
+  { selector: "CallExpression[callee.name='fetch']", message: "Anropet går via backendApi.getPublicStats(), inte en egen fetch." },
+  {
+    selector: "Identifier[name=/^(useUsersWithRuns|useXpConfig|useGroupName|useMutation|useAuth)$/]",
+    message: "Landing hämtar ingen data utom /public/stats: inga andra datahooks och ingen auth.",
   },
 ];
 
@@ -275,13 +293,21 @@ export default tseslint.config(
     },
   },
 
-  // Landing: publik, inga anrop, ingen auth, trappan ur shared (DEFAULT_STREAK_MULTIPLIERS är tillåten här men inte streakConstants).
+  // Landing: publik, ingen auth, trappan ur shared (DEFAULT_STREAK_MULTIPLIERS är tillåten här men inte streakConstants). Ett enda anrop, i hookfilen nedan.
   {
     files: ["src/features/landing/**/*.{ts,tsx}", "src/pages/LandingPage.tsx"],
     ignores: NOT_PRODUCTION,
     rules: {
       "no-restricted-imports": importRestrictions(...LANDING_IMPORTS),
       "no-restricted-syntax": ["error", ...LANDING_SYNTAX],
+    },
+  },
+  // Landings enda anrop: GET /api/public/stats. Bara den här filen får importera klienten och react-query (ersätter landningsblocket för filen).
+  {
+    files: ["src/features/landing/hooks/usePublicStats.ts"],
+    rules: {
+      "no-restricted-imports": importRestrictions(...LANDING_STATS_HOOK_IMPORTS),
+      "no-restricted-syntax": ["error", ...LANDING_STATS_HOOK_SYNTAX],
     },
   },
 
