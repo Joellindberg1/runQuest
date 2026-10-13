@@ -16,7 +16,7 @@ const NOT_PRODUCTION = ["**/*.test.{ts,tsx}", "**/*.fixture.ts"];
 // Lazy-gränsen (ADR 006 beslut 11): de här sidorna och onboarding-orkestratorn laddas bara via lazy(() => import(...)).
 // no-restricted-imports granskar statiska importer; dynamisk import() faller utanför, så lazy() i routes.tsx/App.tsx är tillåten.
 const LAZY_ONLY = {
-  regex: "(^@/pages/|^\\.\\.?/(.*/)?pages/|^\\./)(Index|\\w+PreviewPage|AdminPage|PlaybookPage|FeaturesPage|SettingsPage)$|(^|/)OnboardingOrchestrator$",
+  regex: "(^@/pages/|^\\.\\.?/(.*/)?pages/|^\\./)(Index|\\w+PreviewPage|AdminPage|PlaybookPage|FeaturesPage|SettingsPage|LegalPage)$|(^|/)OnboardingOrchestrator$",
   message: "Importeras bara via lazy(() => import(...)) (ADR 006 beslut 11) — en statisk import drar in sidan i huvudbunten.",
 };
 
