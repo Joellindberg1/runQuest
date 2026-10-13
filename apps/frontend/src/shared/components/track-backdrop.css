@@ -37,20 +37,21 @@
 /* Löparna: en prick med mitten i rutans origo (negativ marginal = halva diametern) som rqTrackLap flyttar längs sin oval. transform är
    vilopositionen när rörelsen är avstängd (loopen skriver över den): samma fas som prototypens startförskjutning (−8 s av 31 s, −19 s av 39 s),
    så löparna står spridda, inte i klump. */
-.rq-track-bg__runner { position: absolute; top: 0; left: 0; border-radius: var(--rq-radius-round); }
+/* Prickens genomskinlighet sätts på ETT ställe (opacity här); varje löpare bara pekar ut sin token via --rq-dot-alpha. */
+.rq-track-bg__runner { position: absolute; top: 0; left: 0; border-radius: var(--rq-radius-round); opacity: var(--rq-dot-alpha); }
 .rq-track-bg__runner[data-runner="1"] {
   width: var(--rq-track-bg-dot-d-1); height: var(--rq-track-bg-dot-d-1); margin: calc(var(--rq-track-bg-dot-d-1) / -2);
-  background: var(--rq-rank-1); opacity: var(--rq-track-bg-dot-alpha-1);
+  background: var(--rq-rank-1); --rq-dot-alpha: var(--rq-track-bg-dot-alpha-1);
   transform: var(--rq-track-bg-rest-1); animation: rqTrackLap1 var(--rq-track-bg-lap-1) linear infinite;
 }
 .rq-track-bg__runner[data-runner="2"] {
   width: var(--rq-track-bg-dot-d-2); height: var(--rq-track-bg-dot-d-2); margin: calc(var(--rq-track-bg-dot-d-2) / -2);
-  background: var(--rq-rank-2); opacity: var(--rq-track-bg-dot-alpha-2);
+  background: var(--rq-rank-2); --rq-dot-alpha: var(--rq-track-bg-dot-alpha-2);
   transform: var(--rq-track-bg-rest-2); animation: rqTrackLap2 var(--rq-track-bg-lap-2) linear infinite; animation-delay: var(--rq-track-bg-lap-offset-2);
 }
 .rq-track-bg__runner[data-runner="3"] {
   width: var(--rq-track-bg-dot-d-3); height: var(--rq-track-bg-dot-d-3); margin: calc(var(--rq-track-bg-dot-d-3) / -2);
-  background: var(--rq-rank-3); opacity: var(--rq-track-bg-dot-alpha-3);
+  background: var(--rq-rank-3); --rq-dot-alpha: var(--rq-track-bg-dot-alpha-3);
   transform: var(--rq-track-bg-rest-3); animation: rqTrackLap3 var(--rq-track-bg-lap-3) linear infinite; animation-delay: var(--rq-track-bg-lap-offset-3);
 }
 

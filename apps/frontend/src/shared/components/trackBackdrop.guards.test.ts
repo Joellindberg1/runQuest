@@ -26,20 +26,41 @@ function valueOf(css: postcss.Root, selector: string, prop: string): string | un
 }
 
 describe('bakgrundsbanan — lager', () => {
-  it('ligger som ett fast lager som aldrig tar emot pekare och aldrig har ett eget z-index', () => {
+  it('ligger som ett fast lager som aldrig tar emot pekare (inget z-index: det vaktar Stylelint, filen får inte sätta något)', () => {
     expect(valueOf(backdropCss, '.rq-track-bg', 'position')).toBe('fixed');
     expect(valueOf(backdropCss, '.rq-track-bg', 'pointer-events')).toBe('none');
-    const zIndexed: string[] = [];
-    backdropCss.walkDecls('z-index', (decl) => {
-      zIndexed.push(decl.parent && 'selector' in decl.parent ? String(decl.parent.selector) : '');
-    });
-    expect(zIndexed).toEqual([]);
   });
 
   it('innehållet ritas ovanpå: skalets sida och legal-ramen är positionerade och kommer efter bakgrunden i trädet', () => {
     // Ett positionerat element utan z-index ritas i trädordning, och en icke-positionerad sida ritas UNDER det: därför position: relative.
     expect(valueOf(shellCss, '.rq-shell__main', 'position')).toBe('relative');
     expect(valueOf(legalCss, '.rq-legal__inner', 'position')).toBe('relative');
+  });
+});
+
+describe('bakgrundsbanan — ritning', () => {
+  it('banan tonas ut med masken ur token, både unprefixat och -webkit-, på banans ruta', () => {
+    expect(valueOf(backdropCss, '.rq-track-bg__track', 'mask-image')).toBe('var(--rq-track-bg-mask)');
+    expect(valueOf(backdropCss, '.rq-track-bg__track', '-webkit-mask-image')).toBe('var(--rq-track-bg-mask)');
+  });
+
+  it('på desktop börjar bakgrunden efter sidnavet, så den inte syns genom navets halvgenomskinliga yta', () => {
+    expect(valueOf(shellCss, '.rq-shell--desktop > .rq-track-bg', 'left')).toBe('var(--rq-sidebar-w)');
+    expect(valueOf(shellCss, '.rq-shell--mobile > .rq-track-bg', 'left')).toBeUndefined();
+  });
+
+  it('prickarnas genomskinlighet sätts på ett enda ställe och varje löpare pekar ut sin egen token och rangfärg (guld, silver, brons)', () => {
+    const opacityRules: string[] = [];
+    backdropCss.walkRules((rule) => {
+      if (/runner/.test(rule.selector) && declarations(rule).some((decl) => decl.prop === 'opacity')) opacityRules.push(rule.selector);
+    });
+    expect(opacityRules).toEqual(['.rq-track-bg__runner']);
+    expect(valueOf(backdropCss, '.rq-track-bg__runner', 'opacity')).toBe('var(--rq-dot-alpha)');
+    for (const n of [1, 2, 3]) {
+      const selector = `.rq-track-bg__runner[data-runner="${n}"]`;
+      expect(valueOf(backdropCss, selector, '--rq-dot-alpha')).toBe(`var(--rq-track-bg-dot-alpha-${n})`);
+      expect(valueOf(backdropCss, selector, 'background')).toBe(`var(--rq-rank-${n})`);
+    }
   });
 });
 

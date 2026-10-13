@@ -33,8 +33,8 @@ describe('bakgrundsbanan — var den finns', () => {
     expect(shell.firstElementChild).toBe(container.querySelector(BACKDROP));
   });
 
-  it('/admin (admin) i desktopskalet: en bakgrund, först i skalet', async () => {
-    const { container } = renderWithApp(<AppRoutes />, { entry: '/admin', admin: true, width: DESKTOP });
+  it.each(['/board', '/events', '/profile', '/titles', '/admin'])('%s i desktopskalet: en bakgrund, först i skalet', async (path) => {
+    const { container } = renderWithApp(<AppRoutes />, { entry: path, admin: path === '/admin', width: DESKTOP });
 
     const shell = await waitFor(() => {
       const found = container.querySelector('[data-shell="desktop"]');
@@ -43,6 +43,27 @@ describe('bakgrundsbanan — var den finns', () => {
     });
     expect(container.querySelectorAll(BACKDROP)).toHaveLength(1);
     expect(shell.firstElementChild).toBe(container.querySelector(BACKDROP));
+  });
+
+  it('en okänd adress (NotFound, route *) i skalet: en bakgrund, först i skalet', async () => {
+    const { container } = renderWithApp(<AppRoutes />, { entry: '/finns-inte', width: MOBILE });
+
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
+    const shell = container.querySelector('[data-shell="mobile"]') as HTMLElement;
+    expect(container.querySelectorAll(BACKDROP)).toHaveLength(1);
+    expect(shell.firstElementChild).toBe(container.querySelector(BACKDROP));
+  });
+
+  it.each(['/preview', '/preview/challenges', '/preview/badges'])('%s ligger utanför skalet och har ingen bakgrund', async (path) => {
+    const { container } = renderWithApp(<AppRoutes />, { entry: path, user: null, width: MOBILE });
+
+    // Sidan har laddats (Suspense-fallbacken borta och innehåll finns) innan frånvaron räknas.
+    await waitFor(() => {
+      expect(container.querySelector('.rq-shell__pending')).toBeNull();
+      expect(container.textContent?.length).toBeGreaterThan(path.length + 40);
+    });
+    expect(container.querySelector('[data-shell]')).toBeNull();
+    expect(container.querySelector(BACKDROP)).toBeNull();
   });
 
   it('/legal (publik): en bakgrund, först i sidans ram', async () => {

@@ -158,6 +158,7 @@ export default {
           "/^rqTrackLap([1-3]) var\\(--rq-track-bg-lap-\\1\\) linear infinite$/",
           "/^none$/",
         ],
+        locals: ["rq-dot-alpha"],
         bannedProperties: ["animation-duration"],
       }),
     },
