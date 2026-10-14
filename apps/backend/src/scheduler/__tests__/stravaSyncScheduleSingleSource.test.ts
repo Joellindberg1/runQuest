@@ -6,10 +6,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const h = vi.hoisted(() => ({ schedule: vi.fn() }));
 
-vi.mock('@runquest/shared', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@runquest/shared')>()),
-  STRAVA_POLL_INTERVAL_MINUTES: 20,
-}));
+// The cron helper keeps its own binding to the real constant, so it is replaced too: the real formatting, applied to the swapped value.
+vi.mock('@runquest/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@runquest/shared')>();
+  return { ...actual, STRAVA_POLL_INTERVAL_MINUTES: 20, stravaPollCron: () => actual.stravaPollCron(20) };
+});
 vi.mock('node-cron', () => ({ default: { schedule: (expr: string) => h.schedule(expr) } }));
 vi.mock('../../routes/strava.js', () => ({ syncAllStravaUsers: vi.fn() }));
 vi.mock('../../services/weatherService.js', () => ({ WeatherService: { backfillMissingWeather: vi.fn() } }));

@@ -22,8 +22,20 @@ export const STRAVA_LOOKBACK_BUFFER_DAYS = 7;
 
 /**
  * How often the scheduler syncs Strava, in minutes. The name carries the unit and the scheduler builds its cron expression from it.
- * RUN-265 (S29) moves to hours: rename this to STRAVA_POLL_INTERVAL_HOURS = 12, change the cron expression in
- * scheduler/stravaSync.ts to run at minute 0 of every 12th hour and the next-sync estimate to hours, and update the texts that say
+ * RUN-265 (S29) moves to hours: rename this to STRAVA_POLL_INTERVAL_HOURS = 12, change stravaPollCron below
+ * to run at minute 0 of every 12th hour, redo the next-sync estimate in scheduler/stravaSync.ts, and update the texts that say
  * "every 30 minutes" (the privacy text, which needs a version bump, and playbookFacts.ts).
  */
 export const STRAVA_POLL_INTERVAL_MINUTES = 30;
+
+/**
+ * The cron expression the scheduler runs on: every `minutes` minutes (default STRAVA_POLL_INTERVAL_MINUTES). The scheduler takes its
+ * schedule from here, not from its own string.
+ *
+ * TODO(RUN-265): this, and scheduler/stravaSync.ts computeNextSync (now plus N minutes), only fit an interval in minutes. When the
+ * interval is in hours, redo both: the cron fires at fixed clock times, so the next slot has to be computed from the cron expression,
+ * not as now plus the interval.
+ */
+export function stravaPollCron(minutes: number = STRAVA_POLL_INTERVAL_MINUTES): string {
+  return `*/${minutes} * * * *`;
+}

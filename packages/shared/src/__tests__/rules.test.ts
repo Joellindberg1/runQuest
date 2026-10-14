@@ -8,6 +8,7 @@ import {
   STRAVA_RUN_SPORT_TYPES,
   STRAVA_TREADMILL_FLAG,
   getDataPolicySection,
+  stravaPollCron,
 } from '../index.js';
 
 // Playbook (frontend) and the privacy text state these facts; the backend imports the same constants. Changing a value here is a
@@ -44,6 +45,11 @@ describe('Strava import rules', () => {
 
   it('the sync runs every 30 minutes', () => {
     expect(STRAVA_POLL_INTERVAL_MINUTES).toBe(30);
+  });
+
+  it('the cron expression follows the polling interval', () => {
+    expect(stravaPollCron()).toBe('*/30 * * * *');
+    expect(stravaPollCron(15)).toBe('*/15 * * * *');
   });
 });
 

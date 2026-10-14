@@ -4,7 +4,7 @@ import cron from 'node-cron';
 import { syncAllStravaUsers } from '../routes/strava.js';
 import { WeatherService } from '../services/weatherService.js';
 import { enhancedTitleService } from '../services/enhancedTitleService.js';
-import { STRAVA_POLL_INTERVAL_MINUTES } from '@runquest/shared';
+import { STRAVA_POLL_INTERVAL_MINUTES, stravaPollCron } from '@runquest/shared';
 
 
 interface SyncState {
@@ -55,7 +55,7 @@ export function startStravaScheduler() {
   // Set first estimated next sync time
   syncState.nextSyncEstimated = computeNextSync();
 
-  cron.schedule(`*/${STRAVA_POLL_INTERVAL_MINUTES} * * * *`, async () => {
+  cron.schedule(stravaPollCron(), async () => {
     logger.info(`🔄 Scheduled Strava sync starting (${STRAVA_POLL_INTERVAL_MINUTES}-minute interval)...`);
     syncState.lastSyncAttempt = new Date().toISOString();
     syncState.lastSyncStatus = 'running';
