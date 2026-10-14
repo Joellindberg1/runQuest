@@ -29,6 +29,7 @@ describe('STRAVA_CONSENT_KEY_POINTS', () => {
     const [imported, removed, disconnect, pause] = STRAVA_CONSENT_KEY_POINTS.map((point) => text(point.sentences));
     expect(imported).toMatch(/running activities are imported/i);
     expect(imported).toMatch(/RunQuest stores/i);
+    expect(imported).toMatch(/start coordinates are used only to look up the weather/i);
     expect(removed).toMatch(/delete/i);
     expect(removed).toMatch(/private/i);
     expect(removed).toMatch(/no longer a run/i);
@@ -38,6 +39,7 @@ describe('STRAVA_CONSENT_KEY_POINTS', () => {
     expect(disconnect).toMatch(/deletes all runs that were imported from Strava/i);
     expect(disconnect).toMatch(/cannot be undone/i);
     expect(disconnect).toMatch(/not fetched back/i);
+    expect(disconnect).toMatch(/revoke RunQuest's access on Strava instead[^]*runs imported from Strava and the tokens are deleted/i);
     expect(pause).toMatch(/"Pause sync"/i);
     expect(pause).toMatch(/no new runs are fetched/i);
   });

@@ -81,12 +81,16 @@ const STRAVA_IMPORTED_SENTENCES = [
   'Only running activities are imported (Run, TrailRun and VirtualRun).',
   `From each run RunQuest stores: ${importedFieldLabels}.`,
 ] as const;
+const STRAVA_START_COORDINATES_SENTENCE =
+  'The start coordinates are used only to look up the weather at the start from Open-Meteo (see the Weather section) and are not shown in the app.';
 const STRAVA_REMOVED_SENTENCE =
   'If you delete an activity on Strava, make it private or change it so that it is no longer a run, RunQuest removes it here within 48 hours and recalculates your XP, streaks, titles and badges without it, so they can go down.';
 const STRAVA_DISCONNECT_SENTENCES = [
   `Choosing "Disconnect" in Settings asks Strava to revoke RunQuest's access and deletes all runs that were imported from Strava, together with your stored Strava tokens.`,
   'Disconnecting cannot be undone: if you connect Strava again, your earlier Strava runs are not fetched back and syncing starts from that day.',
 ] as const;
+const STRAVA_REVOKE_ON_STRAVA_SENTENCE =
+  `If you revoke RunQuest's access on Strava instead, in your Strava settings, the result is the same: the runs imported from Strava and the tokens are deleted here.`;
 const STRAVA_PAUSE_SENTENCE =
   'In Settings you can choose "Pause sync": your Strava connection and your runs stay, but no new runs are fetched while sync is paused.';
 
@@ -96,9 +100,9 @@ const STRAVA_PAUSE_SENTENCE =
  * Strava-avsnittet byggs av, så samtyckesblocket och texten kan inte glida isär; shared-testet kräver att varje mening står ordagrant i avsnittet.
  */
 export const STRAVA_CONSENT_KEY_POINTS: readonly StravaConsentPoint[] = [
-  { id: 'imported', sentences: STRAVA_IMPORTED_SENTENCES },
+  { id: 'imported', sentences: [...STRAVA_IMPORTED_SENTENCES, STRAVA_START_COORDINATES_SENTENCE] },
   { id: 'removed', sentences: [STRAVA_REMOVED_SENTENCE] },
-  { id: 'disconnect', sentences: STRAVA_DISCONNECT_SENTENCES },
+  { id: 'disconnect', sentences: [...STRAVA_DISCONNECT_SENTENCES, STRAVA_REVOKE_ON_STRAVA_SENTENCE] },
   { id: 'pause', sentences: [STRAVA_PAUSE_SENTENCE] },
 ];
 
@@ -136,7 +140,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     paragraphs: [
       'Connecting Strava is optional and you do it yourself in Settings. RunQuest asks Strava for read-only access to your activities (the activity:read permission).',
       `${STRAVA_IMPORTED_SENTENCES.join(' ')} The Strava activity ID is kept so that the same run is never imported twice.`,
-      'RunQuest does not store the activity name, description, photos or route. Heart rate and relative effort are stored but are not used or shown anywhere in the app today. The start coordinates are used only to look up the weather at the start from Open-Meteo (see the Weather section) and are not shown in the app.',
+      `RunQuest does not store the activity name, description, photos or route. Heart rate and relative effort are stored but are not used or shown anywhere in the app today. ${STRAVA_START_COORDINATES_SENTENCE}`,
       'RunQuest also stores your Strava access and refresh tokens, which it needs to read your activities. The tokens are also used to ask Strava to revoke RunQuest\'s access when you disconnect, and to check whether you have revoked it on Strava; they are not used for anything else.',
       'Your Strava athlete ID is stored too, to link the events Strava sends to your RunQuest account (one Strava account can be connected to one RunQuest account). When you connect, RunQuest also stores the version of this text you agreed to and the time you agreed.',
       'New runs arrive through Strava webhooks: Strava tells RunQuest when one of your activities is created, updated or deleted, and RunQuest then fetches that activity from Strava. As a backup, RunQuest also checks Strava for new runs at least every 12 hours.',
@@ -145,7 +149,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       `${STRAVA_REMOVED_SENTENCE} Event XP that you have already earned is kept. If the activity later becomes a public run again, it is imported again.`,
       'Strava runs are read-only in the app, so a single run cannot be deleted there; delete the activity on Strava or use "Disconnect".',
       `${STRAVA_DISCONNECT_SENTENCES[0]} The runs and tokens are deleted even if Strava does not answer. Runs you added by hand and event XP you have already earned stay. Your XP, streaks, titles and badges are recalculated. ${STRAVA_DISCONNECT_SENTENCES[1]}`,
-      'If you revoke RunQuest\'s access on Strava instead, in your Strava settings, the result is the same: the runs imported from Strava and the tokens are deleted here.',
+      STRAVA_REVOKE_ON_STRAVA_SENTENCE,
       `${STRAVA_PAUSE_SENTENCE} Runs you delete or make private on Strava are still removed here, and revoking access on Strava still works. When you choose "Turn sync back on", the new runs from the pause are fetched.`,
       `For any other request about your Strava data, email ${CONTACT}.`,
     ],

@@ -94,6 +94,8 @@ describe('StravaCard consent', () => {
     const visibleItem = (pattern: RegExp) => expect(within(pointsList()).getByText(pattern, { selector: 'li' })).toBeVisible();
 
     visibleItem(/running activities are imported/i);
+    visibleItem(/start coordinates are used only to look up the weather/i);
+    visibleItem(/revoke RunQuest's access on Strava instead[^]*tokens are deleted here/i);
     visibleItem(/delete[^]*private[^]*no longer a run[^]*within 48 ?(hours|h)\b/i);
     visibleItem(/"Disconnect"[^]*deletes all runs that were imported from Strava/i);
     visibleItem(/cannot be undone[^]*not fetched back/i);
