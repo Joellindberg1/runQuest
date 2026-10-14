@@ -9,11 +9,13 @@ import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { ADAM, DAN, NOW_ISO, at, challengeWon, eventOpen, levelUp, newsServer, streakBroken, titleTaken } from '@/features/news/news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
-import { POINTER_SETTLE_MS } from '@/features/news/newsModel';
-import { UNREAD_ANNOUNCE_MS } from '@/features/news/hooks/useUnreadAnnouncement';
+import { NewsScreen } from '@/features/news/components/NewsScreen';
+import { POINTER_SETTLE_MS, UNREAD_ANNOUNCE_MS } from '@/features/news/newsModel';
 import '@/test/pointerEvent';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
+// Turen startar driver.js efter en timer och hör inte till det som provas här.
+vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
 
 const MOBILE = 390;
 const DESKTOP = 1280;
@@ -229,9 +231,10 @@ describe('klockans räknare — live region', () => {
   it('räknarens ändring annonseras artigt i en live region', async () => {
     renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
     const popover = await openPopover();
-    // Popovern har en egen status-region (Mark all read); räknarens ligger vid klockan, utanför popovern.
-    const region = screen.getAllByRole('status').find((element) => !popover.contains(element)) as HTMLElement;
-    expect(region).toHaveAttribute('aria-live', 'polite');
+    // Popovern har en egen status-region (Mark all read); räknarens ligger vid klockan, utanför popovern, och är den ENDA artiga regionen där.
+    const bellRegions = screen.getAllByRole('status').filter((element) => !popover.contains(element) && element.getAttribute('aria-live') === 'polite');
+    expect(bellRegions).toHaveLength(1);
+    const [region] = bellRegions;
     expect(region).toBeEmptyDOMElement();
     const spoken: string[] = [];
     new MutationObserver(() => spoken.push(region.textContent ?? '')).observe(region, { childList: true, characterData: true, subtree: true });
@@ -245,5 +248,42 @@ describe('klockans räknare — live region', () => {
     expect(region).toBeEmptyDOMElement();
     await waitFor(() => expect(region).toHaveTextContent('Pack news: 1 unread'), { timeout: UNREAD_ANNOUNCE_MS * 4 });
     expect(spoken.filter(Boolean)).toEqual(['Pack news: 1 unread']);
+  });
+
+  /** Allt som läses upp i någon status-region (utom tomma texter), i ordning. */
+  function listenToAnnouncements() {
+    const spoken: string[] = [];
+    for (const region of screen.getAllByRole('status')) {
+      new MutationObserver(() => {
+        if (region.textContent) spoken.push(region.textContent);
+      }).observe(region, { childList: true, characterData: true, subtree: true });
+    }
+    return spoken;
+  }
+  const settleAnnouncements = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, UNREAD_ANNOUNCE_MS + 300)); });
+
+  it('Mark all read i popovern ger exakt en annonsering ("N marked as read") och klockans region förblir tom', async () => {
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    const popover = await openPopover();
+    const spoken = listenToAnnouncements();
+
+    fireEvent.click(within(popover).getByRole('button', { name: 'Mark all read' }));
+    await waitFor(() => expect(within(popover).getByRole('status')).toHaveTextContent('4 marked as read'));
+    await screen.findByRole('button', { name: 'Pack news' });
+    await settleAnnouncements();
+
+    expect(spoken).toEqual(['4 marked as read']);
+  });
+
+  it('Mark all read på /news ger exakt en annonsering och klockans region förblir tom', async () => {
+    renderWithApp(<><NotificationsPopover variant="desktop" /><NewsScreen /></>, { entry: '/news', width: DESKTOP });
+    const markAll = await screen.findByRole('button', { name: 'Mark all read' });
+    const spoken = listenToAnnouncements();
+
+    fireEvent.click(markAll);
+    await waitFor(() => expect(spoken).toEqual(['4 marked as read']));
+    await settleAnnouncements();
+
+    expect(spoken).toEqual(['4 marked as read']);
   });
 });

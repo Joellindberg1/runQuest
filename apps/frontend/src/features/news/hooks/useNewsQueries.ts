@@ -143,6 +143,14 @@ export function useNewsUnreadCount(enabled = true): number {
 }
 
 /**
+ * Vattenmärket (`last_seen_id`) i samma flöde. Det flyttas bara av "Mark all read" (`markSeenInFeed`), aldrig av en rad-gest (`markReadInFeed`),
+ * så klockans live-region kan se vilken av de två som sänkte räknaren och låta kvitteringens egen bekräftelse vara den enda annonseringen.
+ */
+export function useNewsSeenWatermark(enabled = true): number | null {
+  return useNewsFeed(null, enabled).feed?.meta.last_seen_id ?? null;
+}
+
+/**
  * "Mark all read": kvitterar upp till nyaste kända raden (i flödet med alla typer — oavsett vilket filter som visas). Räknaren
  * nollas optimistiskt i alla flöden; serverns svar (kan vara > 0 om nya rader hann komma) skriver över, ett fel återställer,
  * och flödena invalideras (catch-up hämtar bara det nya).

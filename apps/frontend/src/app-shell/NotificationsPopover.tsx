@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { NewsPopoverPanel } from '@/features/news/components/NewsPopoverPanel';
-import { useNewsUnreadCount } from '@/features/news/hooks/useNewsQueries';
+import { useNewsSeenWatermark, useNewsUnreadCount } from '@/features/news/hooks/useNewsQueries';
 import { useUnreadAnnouncement } from '@/features/news/hooks/useUnreadAnnouncement';
 import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { badgeText } from '@/features/news/newsModel';
@@ -29,7 +29,7 @@ export function NotificationsPopover({ variant }: NotificationsPopoverProps) {
   useUserSettings();
   const unread = useNewsUnreadCount(!!user);
   const badge = badgeText(unread);
-  const announcement = useUnreadAnnouncement(unread);
+  const announcement = useUnreadAnnouncement(unread, useNewsSeenWatermark(!!user));
 
   return (
     <>

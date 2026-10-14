@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { UNREAD_ANNOUNCE_MS, useUnreadAnnouncement } from './useUnreadAnnouncement';
+import { UNREAD_ANNOUNCE_MS } from '../newsModel';
+import { useUnreadAnnouncement } from './useUnreadAnnouncement';
 
 // Regeln för vad som annonseras när oläst-räknaren ändras (ADR 011 addendum: polite, debouncad så att en svepning inte ger en tirad av tal).
 
@@ -46,6 +47,27 @@ describe('useUnreadAnnouncement', () => {
     rerender({ unread: 5 });
     advance(UNREAD_ANNOUNCE_MS * 2);
     expect(result.current).toBe('');
+  });
+
+  it('en minskning som följer med en ny vattenmärkning (Mark all read) annonseras inte, men en rad-gest efteråt gör det', () => {
+    const { result, rerender } = renderHook(({ unread, watermark }) => useUnreadAnnouncement(unread, watermark), { initialProps: { unread: 4, watermark: 10 } });
+    rerender({ unread: 0, watermark: 20 });
+    advance(UNREAD_ANNOUNCE_MS * 2);
+    expect(result.current).toBe('');
+
+    rerender({ unread: 3, watermark: 20 });
+    rerender({ unread: 2, watermark: 20 });
+    advance(UNREAD_ANNOUNCE_MS);
+    expect(result.current).toBe('Pack news: 2 unread');
+  });
+
+  it('en ändrad vattenmärkning ensam avbryter inte en väntande annonsering av en gest', () => {
+    const { result, rerender } = renderHook(({ unread, watermark }) => useUnreadAnnouncement(unread, watermark), { initialProps: { unread: 4, watermark: 10 } });
+    rerender({ unread: 3, watermark: 10 });
+    advance(UNREAD_ANNOUNCE_MS - 1);
+    rerender({ unread: 3, watermark: 11 });
+    advance(1);
+    expect(result.current).toBe('Pack news: 3 unread');
   });
 
   it('en ökning tömmer regionen så att samma värde kan annonseras igen efter nästa minskning', () => {
