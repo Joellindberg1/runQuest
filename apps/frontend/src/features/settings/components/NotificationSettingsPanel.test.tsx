@@ -284,6 +284,22 @@ describe('NotificationSettingsPanel', () => {
     expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument();
   });
 
+  it('showTotal={false} tar bort totalsumman men behåller sektionernas räknare och "Defaults shown"', async () => {
+    const total = new RegExp(`^\\d+ of ${NOTIFICATION_KINDS.length} on$`);
+    const shown = await renderPanel();
+    expect(screen.getByText(total)).toBeInTheDocument();
+    shown.unmount();
+
+    const hidden = await renderPanel({ showTotal: false });
+    expect(screen.queryByText(total)).not.toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Titles' })).getByRole('button', { name: /^Titles/ })).toHaveTextContent(/\d+ of \d+ on/);
+    hidden.unmount();
+
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderWithApp(<NotificationSettingsPanel showTotal={false} />);
+    expect(await screen.findByText('Defaults shown', {}, SLOW)).toBeInTheDocument();
+  });
+
   it('visar en laddningsstatus i stället för reglage medan inställningarna laddas', async () => {
     handlers.getSettings = () => new Promise(() => {});
     renderWithApp(<NotificationSettingsPanel />);
