@@ -9,3 +9,4 @@ export * from './news.js';
 export * from './badges.js';
 export * from './waitlist.js';
 export * from './publicStats.js';
+export * from './settings.js';
