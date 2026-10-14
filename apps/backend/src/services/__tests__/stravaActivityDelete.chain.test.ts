@@ -280,7 +280,7 @@ describe('the logs', () => {
     }
     strava = installFakeStravaFetch({ activities: { 987654321: stravaError(404) } });
     // A database message can carry the values of the row; none of it may reach a log or a stored last_error. (The reprocess's own
-    // log lines are a known gap, see the last test: here the reprocess error carries a code and no values.)
+    // log lines are covered by the last test, with a leaky message there; here the reprocess error carries a code only.)
     const leaky = 'failed for 987654321 at 59.3293,18.0686 hr 171 "My secret morning run" owner 555111';
     let mode: 'delete_fails' | 'reprocess_fails' | 'works' = 'delete_fails';
     const { t, store, worker } = build(
@@ -330,11 +330,10 @@ describe('the logs', () => {
     expect(text).not.toContain('hr 171');
   });
 
-  // KNOWN GAP, not the chain's: reprocessRunsFromDate (routes/runs.ts, shared with the polling) logs the whole database error object
-  // of a failed run update, and a Postgres error can carry the row's values (a CHECK violation prints "Failing row contains (...)" in
-  // `details`). The webhook worker logs only the code of what it catches, but cannot silence a log line inside that function. The fix
-  // is one line there (log the error code, as stravaImport.ts does); then this test fails with "expected to fail" and becomes a plain it().
-  it.fails('a failed reprocess does not log the values of the run row either', async () => {
+  // reprocessRunsFromDate (routes/runs.ts, shared with the polling) used to log the whole database error object of a failed run
+  // update, and a Postgres error can carry the row's values (a CHECK violation prints "Failing row contains (...)" in `details`).
+  // It now logs the user id, the count and the error code only.
+  it('a failed reprocess does not log the values of the run row either', async () => {
     const lines: string[] = [];
     for (const level of ['info', 'warn', 'error', 'debug'] as const) {
       vi.spyOn(logger, level).mockImplementation((...args: unknown[]) => {
