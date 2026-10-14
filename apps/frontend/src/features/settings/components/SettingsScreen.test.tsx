@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import SettingsPage from '@/pages/SettingsPage';
+import { newsServer } from '@/features/news/news.fixture';
 import { backendApiModule, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 
@@ -31,6 +32,9 @@ beforeEach(() => {
   handlers.getStravaStatus = () => CONNECTED;
   handlers.getStravaLastSync = () => SYNC;
   handlers.getStravaConfig = () => ({ success: true, data: { client_id: '12345' } });
+  const news = newsServer([]);
+  handlers.getSettings = news.getSettings;
+  handlers.putSettings = (values) => news.putSettings(values as Parameters<typeof news.putSettings>[0]);
 });
 
 afterEach(() => {
@@ -234,6 +238,34 @@ describe('Settings — Strava', () => {
     await screen.findByRole('button', { name: 'Connect Strava' });
     expect(container.querySelectorAll('.rq-btn--primary')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Change password' })).toHaveClass('rq-btn--primary');
+  });
+});
+
+describe('Settings — notiser', () => {
+  it('visar Notifications-kortet och undertexten "Strava, notifications and password"', async () => {
+    renderSettings();
+    expect(screen.getByText('Strava, notifications and password')).toBeInTheDocument();
+    const card = await screen.findByRole('region', { name: 'Notifications' });
+    expect(within(card).getByText('Everything still lands in Pack News — this decides what reaches you.')).toBeInTheDocument();
+    expect(await within(card).findAllByRole('switch')).not.toHaveLength(0);
+
+    // Mellan Strava-kortet och lösenordskortet, som i designen.
+    const strava = await screen.findByRole('region', { name: 'Strava' });
+    const password = screen.getByRole('form', { name: 'Password' });
+    expect(strava.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Settings fäller upp alla sektioner (här konfigurerar man).
+    for (const toggle of within(card).getAllByRole('button', { expanded: true })) expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(within(card).queryByRole('button', { expanded: false })).not.toBeInTheDocument();
+  });
+
+  it('inställningarna går inte att läsa: kortet visar felet och Retry, och Strava och lösenordet fungerar ändå', async () => {
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderSettings();
+    const card = await screen.findByRole('region', { name: 'Notifications' });
+    expect(await within(card).findByRole('button', { name: 'Retry' }, SLOW)).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Strava' })).toBeInTheDocument();
+    expect(screen.getByRole('form', { name: 'Password' })).toBeInTheDocument();
   });
 });
 

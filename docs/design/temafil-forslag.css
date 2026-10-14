@@ -83,6 +83,7 @@
   --rq-down:        #f87171;
   --rq-down-hover:  #fca5a5;      /* hover på fylld röd knapp */
   --rq-on-down:     #0a0a0a;      /* text på fylld röd knapp */
+  --rq-on-up:       #0a0a0a;      /* text/knopp på grön fyllning (reglaget i på-läge) */
   --rq-duel:        #fdba74;
   --rq-duel-base:   #f97316;
   --rq-strava:      #fc5200;
@@ -661,6 +662,20 @@
   --rq-badge-popup-w:        340px;
   --rq-badge-popup-target:   44px;
 
+  /* ── 1.35 Notiser: reglaget och panelen (RUN-9 S18, ADR 011 beslut 9) ───────────────────────────────────────────────
+     FÄRGUNDANTAG (ägarbeslut 2026-10-14): reglaget är GRÖNT när det är på (regel 3, "grönt = på/aktivt i ett reglage"). Nästan alla reglage är på som
+     standard (idag alla 14); guld skulle göra kortet till en guldvägg och förbruka "guld = belöning" som Change password och rundturen bygger på.
+     Av-läget har en 1 px ram (3:1 mot ytan) och knoppen byter sida, så läget bärs inte av färgen ensam. Header-växlaren för tema (.rq-toggle i
+     app-shell) läser INTE de här två och förblir guld. Konsument: shared/components/form/form.css (Switch) och features/settings/settings.css. */
+  --rq-toggle-on:           var(--rq-up);               /* spårets färg när reglaget är på */
+  --rq-toggle-on-knob:      var(--rq-on-up);
+  --rq-toggle-inset:        3px;                        /* knoppens avstånd till spårets kant (bokstavliga 3px i .rq-toggle) */
+  --rq-focus-inset:         -2px;                       /* fokusringen INOM raden: hårlinjegrid och sheet klipper en ring utanför */
+  --rq-switch-row-min-h:    52px;                       /* hela raden är tryckytan (mobil 52, desktop 46) */
+  --rq-switch-row-pad-y:    10px;                       /* desktop 9 */
+  --rq-switch-row-pad-x:    12px;                       /* desktop 16 */
+  --rq-notify-link-hit:     44px;                       /* länkknappar i panelen (Reset to defaults, Retry): mobil 44, desktop 24 */
+
   /* Filmen på landningen (RUN-257): spelarens mått (desktopvärdena i avsnitt 2) — play-rutan och dess triangel, etiketten, mobilens progress, kontrollraden, guldhörnen, sökreglaget och toningen över postern. */
   --rq-landing-film-play-box: 54px;
   --rq-landing-film-glyph-w: 18px;
@@ -900,6 +915,10 @@
     --rq-badge-card-areas: "emblem who" "body body";
     --rq-settings-split-cols: minmax(0, 1fr) 340px;
     --rq-settings-pw-cols: repeat(3, minmax(0, 1fr));
+    --rq-switch-row-min-h: 46px;
+    --rq-switch-row-pad-y: 9px;
+    --rq-switch-row-pad-x: 16px;
+    --rq-notify-link-hit: 24px;
     --rq-admin-groups-cols: repeat(3, minmax(0, 1fr));
     --rq-admin-member-cols: 220px 220px minmax(0, 1fr) auto;
     --rq-admin-add-cols: repeat(3, minmax(0, 1fr)) auto;
@@ -978,6 +997,7 @@
   --rq-down:        #dc2626;
   --rq-down-hover:  #b91c1c;
   --rq-on-down:     #ffffff;
+  --rq-on-up:       #ffffff;
   --rq-duel:        #b45309;
   --rq-duel-base:   #c2410c;
 

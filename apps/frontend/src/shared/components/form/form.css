@@ -18,3 +18,38 @@
   background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); border-left: var(--rq-edge-w) solid var(--rq-up);
 }
 .rq-form-notice[data-tone="error"] { border-color: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); border-left-color: var(--rq-down); color: var(--rq-down); }
+
+/* ── Switch: hela raden är knappen (role="switch"), spåret är dekor ─────────────────────────────────────────────────
+   På = grönt (--rq-toggle-on, färgundantaget i temafilen 1.35). Av = 1 px ram i text-3 (≥ 3:1 mot ytan) + knoppen till vänster.
+   Inaktiverat är aria-disabled: av = streckad ram, på = grön tint med kant, så de två går att skilja åt. Ingenting animeras (regel 8). */
+.rq-switch-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-16); width: 100%;
+  min-height: var(--rq-switch-row-min-h); padding: var(--rq-switch-row-pad-y) var(--rq-switch-row-pad-x);
+  border: 0; background: none; cursor: pointer; text-align: left;
+}
+.rq-switch-row:hover, .rq-switch-row:active { background: var(--rq-row-hover); }
+.rq-switch-row:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+.rq-switch-row__text { display: flex; flex-direction: column; gap: var(--rq-sp-2); min-width: 0; }
+.rq-switch-row__label { font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-switch-row__note { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-switch-row[data-tone="quiet"] .rq-switch-row__label, .rq-switch-row[aria-checked="false"] .rq-switch-row__label { color: var(--rq-text-3); }
+.rq-switch-row[aria-disabled="true"] { cursor: not-allowed; }
+.rq-switch-row[aria-disabled="true"]:hover { background: none; }
+.rq-switch-row[aria-disabled="true"] .rq-switch-row__label { color: var(--rq-text-4); }
+
+.rq-switch {
+  position: relative; flex: none; width: var(--rq-toggle-w); height: var(--rq-toggle-h); border-radius: var(--rq-radius-pill);
+  border: var(--rq-hair) solid var(--rq-text-3); background: var(--rq-fill-1);
+}
+.rq-switch::after {
+  content: ''; position: absolute; top: calc(var(--rq-toggle-inset) - var(--rq-hair)); left: calc(var(--rq-toggle-inset) - var(--rq-hair));
+  width: var(--rq-toggle-knob); height: var(--rq-toggle-knob); border-radius: var(--rq-radius-round); background: var(--rq-text-3);
+}
+.rq-switch-row[aria-checked="true"] > .rq-switch { background: var(--rq-toggle-on); border-color: var(--rq-toggle-on); }
+.rq-switch-row[aria-checked="true"] > .rq-switch::after { left: auto; right: calc(var(--rq-toggle-inset) - var(--rq-hair)); background: var(--rq-toggle-on-knob); }
+.rq-switch-row[aria-disabled="true"] > .rq-switch { background: none; border-style: dashed; border-color: var(--rq-line-5); }
+.rq-switch-row[aria-disabled="true"] > .rq-switch::after { background: var(--rq-text-5); }
+.rq-switch-row[aria-disabled="true"][aria-checked="true"] > .rq-switch {
+  background: rgb(var(--rq-up-rgb) / var(--rq-tint-selected)); border-style: solid; border-color: rgb(var(--rq-up-rgb) / var(--rq-edge-selected));
+}
+.rq-switch-row[aria-disabled="true"][aria-checked="true"] > .rq-switch::after { background: var(--rq-text-4); }
