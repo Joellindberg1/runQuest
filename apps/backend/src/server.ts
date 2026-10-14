@@ -9,6 +9,7 @@ import { startStravaScheduler } from './scheduler/stravaSync.js';
 import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
 import { startEventScheduler } from './scheduler/eventScheduler.js';
 import { startStreakScheduler } from './scheduler/streakScheduler.js';
+import { registerStravaRateBudget } from './services/stravaRateBudget.js';
 
 // 📋 Step 1: Load Environment Variables
 logger.info('🔧 Step 1: Loading environment variables...');
@@ -43,6 +44,10 @@ if (missingVars.length > 0) {
 }
 
 logger.info('✅ Step 1 Complete: Environment loaded successfully\n');
+
+// Rate budget: counts every Strava call for the whole process (ADR 010 decision 9). Registered here, once, before any
+// request or scheduler can call Strava; in createApp() it would also leak into every test that builds the app.
+registerStravaRateBudget();
 
 // 📋 Step 2: Create app (måste importeras EFTER dotenv.config — dynamisk import)
 logger.info('🔧 Step 2: Creating Express app...');
