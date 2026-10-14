@@ -164,6 +164,27 @@ describe('revokeStravaAuthorization', () => {
     await expect(revokeStravaAuthorization('user-1', { timeoutMs: 30 })).rejects.toMatchObject({ code: 'strava_timeout' });
   });
 
+  it.each([401, 500, 200])('never reads the body of a %i answer, releases it, and reports only the status', async (status) => {
+    useTokens([tokenRow()]);
+    const body = JSON.stringify({ message: 'failed for athlete 424242 token SECRET-ACCESS' });
+    const response = new Response(body, { status, headers: { 'Content-Type': 'application/json' } });
+    const reads = (['text', 'json', 'arrayBuffer', 'blob', 'formData', 'bytes'] as const).map((method) => vi.spyOn(response, method as 'text'));
+    const cancel = vi.spyOn(response.body!, 'cancel');
+    vi.stubGlobal('fetch', async () => response);
+
+    const outcome = await revokeStravaAuthorization('user-1').then(() => null, (e: Error & { code?: string }) => e);
+
+    for (const read of reads) expect(read).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    if (status === 200) {
+      expect(outcome).toBeNull();
+    } else {
+      expect(outcome).toMatchObject({ code: `strava_${status}` });
+      expect(outcome!.message).not.toContain('SECRET-ACCESS');
+      expect(outcome!.message).not.toContain('424242');
+    }
+  });
+
   it('has a default deadline of ten seconds', () => {
     expect(REVOKE_TIMEOUT_MS).toBe(10_000);
   });

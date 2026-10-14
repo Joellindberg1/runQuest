@@ -345,6 +345,38 @@ describe('the other Strava routes', () => {
   });
 });
 
+describe('the two outer catches', () => {
+  it('sync-all logs only the code when one user fails unexpectedly', async () => {
+    setup({ tables: { strava_tokens: [{ ...connected(), users: { name: 'runner' } }] } });
+    const record = vi.mocked(logger.info).getMockImplementation()!;
+    vi.mocked(logger.info).mockImplementation((...args: unknown[]) => {
+      record(...args);
+      if (String(args[0]).includes('Syncing user')) throw leaky('N0001');
+    });
+
+    const res = await server.request('GET', '/api/strava/sync-all', { token: admin() });
+
+    expect(res.status).toBe(200);
+    expect(errorLines.some((line) => line.includes('Error syncing user user-1') && line.includes('N0001'))).toBe(true);
+    expectOnlyTheCode('N0001');
+  });
+
+  it('backfill-extended logs only the code when it fails as a whole', async () => {
+    const db = createFakeDb({ users: [{ id: 'admin-1', is_admin: true, name: 'admin' }] });
+    let calls = 0;
+    vi.mocked(getSupabaseClient).mockImplementation(() => {
+      if (++calls === 1) return db.client as any; // the admin check
+      throw leaky('B1001');
+    });
+
+    const res = await server.request('POST', '/api/strava/backfill-extended', { token: admin() });
+
+    expect(res.status).toBe(500);
+    expect(errorLines.some((line) => line.includes('Backfill error') && line.includes('B1001'))).toBe(true);
+    expectOnlyTheCode('B1001');
+  });
+});
+
 describe('a reprocess error after a run is deleted', () => {
   it('logs only the code when the message carries a Strava id, coordinates and a title', async () => {
     setup({

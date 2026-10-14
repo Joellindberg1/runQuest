@@ -18,6 +18,11 @@ vi.mock('../../config/database.js', () => ({
   supabase: { client: {} },
   getSupabaseClient: vi.fn(),
 }));
+// The 10-per-minute limit on disconnect has its own file (strava-disconnect-rate-limit.test.ts); this file makes more calls than that.
+vi.mock('../../middleware/rateLimit.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../middleware/rateLimit.js')>()),
+  createRateLimiter: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
 vi.mock('../runs.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../runs.js')>()),
   reprocessRunsFromDate: vi.fn().mockResolvedValue(undefined),

@@ -30,6 +30,11 @@ const SYNC_PAUSED_WINDOW_MS = 60 * 1000;
 const SYNC_PAUSED_MAX_PER_WINDOW = 30;
 const syncPausedLimiter = createRateLimiter(SYNC_PAUSED_WINDOW_MS, SYNC_PAUSED_MAX_PER_WINDOW);
 
+/** Disconnect deletes history and calls Strava: a real person presses it once, so 10 per minute and IP only stops a script. It sits after authenticateJWT, so a request without a token never uses the budget. */
+const DISCONNECT_WINDOW_MS = 60 * 1000;
+const DISCONNECT_MAX_PER_WINDOW = 10;
+const disconnectLimiter = createRateLimiter(DISCONNECT_WINDOW_MS, DISCONNECT_MAX_PER_WINDOW);
+
 interface PauseState {
   /** False when the user has no strava_tokens row. */
   connected: boolean;
@@ -345,7 +350,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
 // och låset hindrar en polling eller ett webhook-batch från att lägga in en Stravarunda mellan raderingen och att raden försvinner.
 // Svaret skickas först när allt är klart; ett fel (även ett omräkningsfel efter raderade rundor) ger 500 och samma anrop kan köras om.
 // En användare utan koppling och utan Stravarundor får 200 (idempotent): funktionen gör då ingenting.
-router.delete('/disconnect', authenticateJWT, async (req, res): Promise<void> => {
+router.delete('/disconnect', authenticateJWT, disconnectLimiter, async (req, res): Promise<void> => {
   const userId = req.user!.user_id;
   try {
     logger.info(`🔌 Disconnecting Strava for user ${userId}`);
@@ -504,7 +509,7 @@ export async function syncAllStravaUsers(): Promise<{
       .eq('sync_paused', false);
 
     if (error) {
-      // The database message can carry row values and the callers only log the code, so it carries the code and not the message.
+      // The database message can carry row values and its callers (the sync-all route and the scheduler) log only the code, so it carries the code and not the message.
       throw Object.assign(new Error('Failed to fetch connected users'), { code: errorCode(error) });
     }
 
