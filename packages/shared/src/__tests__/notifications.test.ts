@@ -41,6 +41,13 @@ const WAVE_1_KINDS: NotificationKind[] = [
   'release_published',
 ];
 
+const WAVE_2_KINDS: NotificationKind[] = [
+  'challenge_accepted_me',
+  'rank_passed_xp_me',
+  'rank_passed_challenge_me',
+  'rank_passed_others',
+];
+
 describe('NOTIFICATION_KINDS', () => {
   it('slagnycklarna är unika och varje slag har etikett, sektion, roll och default', () => {
     const kinds = NOTIFICATION_KINDS.map((k) => k.kind);
@@ -65,10 +72,23 @@ describe('NOTIFICATION_KINDS', () => {
       expect(def?.wave).toBe(1);
       expect(def?.default).toBe(true);
     }
-    // Inga reglage utan fakta bakom: bara våg 1 finns registrerad tills våg 2 lägger till sina.
+    // Inga reglage utan fakta bakom: våg 2 får sina slag tillsammans med sina skrivpunkter (event_closed_me hör till RUN-9 S15).
     expect(NOTIFICATION_KINDS.filter((k) => k.wave === 1).map((k) => k.kind).sort()).toEqual(
       [...WAVE_1_KINDS].sort(),
     );
+    expect(NOTIFICATION_KINDS.filter((k) => k.wave === 2).map((k) => k.kind).sort()).toEqual([...WAVE_2_KINDS].sort());
+  });
+
+  it('rank_passed_others är avstängd som default och övriga nya slag är påslagna', () => {
+    for (const kind of WAVE_2_KINDS) {
+      const def = NOTIFICATION_KINDS.find((k) => k.kind === kind);
+      expect(def, kind).toBeDefined();
+      expect(def?.default, kind).toBe(kind !== 'rank_passed_others');
+      expect(isKindEnabled(kind, {}), kind).toBe(kind !== 'rank_passed_others');
+    }
+    // Det enda slaget som startar avstängt (ADR 011 Ö1); ett uttryckligt "på" slår defaulten.
+    expect(NOTIFICATION_KINDS.filter((k) => !k.default).map((k) => k.kind)).toEqual(['rank_passed_others']);
+    expect(isKindEnabled('rank_passed_others', { [notifyKey('rank_passed_others')]: true })).toBe(true);
   });
 
   it('varje slags sektion, roll och etikett är låsta mot ADR 011 beslut 3 och designerns förslag', () => {
@@ -76,10 +96,14 @@ describe('NOTIFICATION_KINDS', () => {
       ['title_taken_from_me', 'Titles', 'you', 'Someone takes a title from you'],
       ['title_others', 'Titles', 'others', 'Other title changes in the pack'],
       ['challenge_received_me', 'Challenges', 'you', 'Someone challenges you'],
+      ['challenge_accepted_me', 'Challenges', 'you', 'Someone accepts your challenge'],
       ['challenge_lost_me', 'Challenges', 'you', 'Someone beats you in a challenge'],
       ['challenge_won_me', 'Challenges', 'you', 'You beat someone in a challenge'],
       ['challenge_draw_me', 'Challenges', 'you', 'Your challenge ends in a draw'],
       ['challenges_others', 'Challenges', 'others', 'Other challenges in the pack'],
+      ['rank_passed_xp_me', 'Ranks', 'you', 'Someone passes you on the leaderboard'],
+      ['rank_passed_challenge_me', 'Ranks', 'you', 'Someone passes you on the challenge standings'],
+      ['rank_passed_others', 'Ranks', 'others', 'Rank changes between others'],
       ['event_open', 'Events', 'everyone', 'A new event opens'],
       ['event_closed_others', 'Events', 'others', 'Other events close'],
       ['level_up_others', 'The pack', 'others', 'Someone levels up'],
@@ -129,6 +153,35 @@ describe('classifyNotification', () => {
     expect(classifyNotification(row('challenge_draw', ME, OTHER), ME)).toBe('challenge_draw_me');
     expect(classifyNotification(row('challenge_draw', OTHER, ME), ME)).toBe('challenge_draw_me');
     expect(classifyNotification(row('challenge_draw', OTHER, THIRD), ME)).toBe('challenges_others');
+  });
+
+  it('classifyNotification: rank_passed med mål jag ger rätt slag per mått', () => {
+    expect(classifyNotification(row('rank_passed', OTHER, ME, { measure: 'xp', passer_rank: 1, passed_rank: 2 }), ME)).toBe('rank_passed_xp_me');
+    expect(classifyNotification(row('rank_passed', OTHER, ME, { measure: 'challenge_points', passer_rank: 1, passed_rank: 2 }), ME)).toBe(
+      'rank_passed_challenge_me',
+    );
+    // Ett okänt, saknat eller trasigt mått ger aldrig fel reglage: raden räknas inte (fail-closed, som en okänd typ).
+    for (const payload of [{}, null, undefined, { measure: 'weekly' }, { measure: 5 }, 'xp']) {
+      expect(classifyNotification(row('rank_passed', OTHER, ME, payload), ME), JSON.stringify(payload)).toBeNull();
+    }
+  });
+
+  it('rank_passed med aktör jag är own, med två andra är rank_passed_others', () => {
+    for (const measure of ['xp', 'challenge_points']) {
+      const payload = { measure, passer_rank: 1, passed_rank: 2 };
+      expect(classifyNotification(row('rank_passed', ME, OTHER, payload), ME), measure).toBe('own');
+      expect(classifyNotification(row('rank_passed', OTHER, THIRD, payload), ME), measure).toBe('rank_passed_others');
+    }
+    // Raderad passerare eller passerad är aldrig jag.
+    expect(classifyNotification(row('rank_passed', null, THIRD, { measure: 'xp' }), ME)).toBe('rank_passed_others');
+    expect(classifyNotification(row('rank_passed', OTHER, null, { measure: 'xp' }), ME)).toBe('rank_passed_others');
+  });
+
+  it('challenge_accepted med mål jag ger challenge_accepted_me, aktör jag är own, annars challenges_others', () => {
+    expect(classifyNotification(row('challenge_accepted', OTHER, ME), ME)).toBe('challenge_accepted_me');
+    expect(classifyNotification(row('challenge_accepted', ME, OTHER), ME)).toBe('own');
+    expect(classifyNotification(row('challenge_accepted', OTHER, THIRD), ME)).toBe('challenges_others');
+    expect(classifyNotification(row('challenge_accepted', null, null), ME)).toBe('challenges_others');
   });
 
   it('event_closed utan entrant_ids är event_closed_others', () => {
@@ -200,16 +253,20 @@ describe('classifyNotification', () => {
     const actorsOf = (type: string): Array<string | null> =>
       actorlessTypes.has(type) ? [null] : [null, ME, OTHER];
     // Bara dessa typer har ett mål i loggen (ADR 011 kontext: aktör/mål per typ); övriga har alltid target null.
-    const targetedTypes = new Set<string>(['title_taken', 'challenge_received', 'challenge_won', 'challenge_draw']);
+    const targetedTypes = new Set<string>([
+      'title_taken', 'challenge_received', 'challenge_won', 'challenge_draw', 'challenge_accepted', 'rank_passed',
+    ]);
     const targetsOf = (type: string): Array<string | null> =>
       targetedTypes.has(type) ? [null, ME, OTHER, THIRD] : [null];
+    // rank_passed har alltid ett mått i loggen; utan det är en rad som rör mig inte klassificerbar (se egen test).
+    const payloadOf = (type: string): unknown => (type === 'rank_passed' ? { measure: 'xp' } : {});
     const roleOf = new Map(NOTIFICATION_KINDS.map((k) => [k.kind, k.role]));
     let checked = 0;
 
     for (const type of ACTIVITY_TYPES) {
       for (const actor of actorsOf(type)) {
         for (const target of targetsOf(type)) {
-          const r = row(type, actor, target);
+          const r = row(type, actor, target, payloadOf(type));
           const result = classifyNotification(r, ME);
           // Exakt ett utfall: ett registrerat slag, own eller (aldrig för kända typer) null.
           expect(result, `${type} ${actor} -> ${target}`).not.toBeNull();
@@ -232,7 +289,7 @@ describe('classifyNotification', () => {
     );
   });
 
-  it('varje ActivityType är klassificerad (kontraktstest: en ny typ utan klassificering fäller testet)', () => {
+  it('varje ActivityType är fortfarande klassificerad (kontraktstest)', () => {
     // Betraktaren är en utomstående: en känd typ får då aldrig ge null. Typsystemet fäller bygget först
     // (Record<ActivityType, …> i notifications.ts); det här testet fäller det om någon kringgår typen.
     for (const type of ACTIVITY_TYPES satisfies readonly ActivityType[]) {

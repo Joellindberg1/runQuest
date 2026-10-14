@@ -5,8 +5,9 @@
 // aldrig kan träffa samma rad. `isNotifiable` är den enda sanningen för "räknas den här raden på klockan?" och
 // används av både servern (räknare, is_unread) och klienten (popover) — inget SQL-predikat dubblerar den.
 //
-// Bara våg 1 är registrerad. Våg 2:s slag läggs till tillsammans med sin skrivpunkt (ADR 011 beslut 1.3: inga
-// reglage utan fakta bakom); en ny ActivityType utan klassificering fäller bygget (Record nedan) och kontraktstestet.
+// Våg 1 är registrerad sedan tidigare; våg 2 läggs till slag för slag tillsammans med sin skrivpunkt (ADR 011 beslut 1.3:
+// inga reglage utan fakta bakom). Hittills: challenge_accepted_me och rank_passed_* (RUN-191); event_closed_me kommer med
+// entrant_ids. En ny ActivityType utan klassificering fäller bygget (Record nedan) och kontraktstestet.
 
 import { isActivityType, type ActivityType } from './activity.js';
 import { readOwn, resolveSettingValue, userBooleanSetting } from './settingsCore.js';
@@ -45,10 +46,15 @@ export const NOTIFICATION_KINDS = [
   defineKind('title_taken_from_me', 'Titles', 'you', 'Someone takes a title from you'),
   defineKind('title_others', 'Titles', 'others', 'Other title changes in the pack'),
   defineKind('challenge_received_me', 'Challenges', 'you', 'Someone challenges you'),
+  defineKind('challenge_accepted_me', 'Challenges', 'you', 'Someone accepts your challenge', 2),
   defineKind('challenge_lost_me', 'Challenges', 'you', 'Someone beats you in a challenge'),
   defineKind('challenge_won_me', 'Challenges', 'you', 'You beat someone in a challenge'),
   defineKind('challenge_draw_me', 'Challenges', 'you', 'Your challenge ends in a draw'),
   defineKind('challenges_others', 'Challenges', 'others', 'Other challenges in the pack'),
+  defineKind('rank_passed_xp_me', 'Ranks', 'you', 'Someone passes you on the leaderboard', 2),
+  defineKind('rank_passed_challenge_me', 'Ranks', 'you', 'Someone passes you on the challenge standings', 2),
+  // Ö1: enda slaget som startar avstängt — passeringar mellan andra är brus tills någon väljer in dem.
+  defineKind('rank_passed_others', 'Ranks', 'others', 'Rank changes between others', 2, false),
   defineKind('event_open', 'Events', 'everyone', 'A new event opens'),
   defineKind('event_closed_others', 'Events', 'others', 'Other events close'),
   defineKind('level_up_others', 'The pack', 'others', 'Someone levels up'),
@@ -87,6 +93,18 @@ function ownOrOthers(others: NotificationKind): Classifier {
   return (row, viewerId) => (isViewer(row.actorId, viewerId) ? 'own' : others);
 }
 
+/** Slaget för "någon gick förbi mig", per mått. Ett mått som inte finns här ger null: aldrig fel reglage. */
+const RANK_ME_KIND: ReadonlyMap<string, NotificationKind> = new Map<string, NotificationKind>([
+  ['xp', 'rank_passed_xp_me'],
+  ['challenge_points', 'rank_passed_challenge_me'],
+]);
+
+function rankMeKind(payload: unknown): NotificationKind | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const measure = (payload as { measure?: unknown }).measure;
+  return typeof measure === 'string' ? (RANK_ME_KIND.get(measure) ?? null) : null;
+}
+
 // Record<ActivityType, …> är kompileringsgrinden: en ny typ i ACTIVITY_TYPES utan post här ger ett typfel.
 const CLASSIFIERS: Record<ActivityType, Classifier> = {
   title_taken: (row, viewerId) => {
@@ -107,6 +125,16 @@ const CLASSIFIERS: Record<ActivityType, Classifier> = {
     if (isViewer(row.targetId, viewerId)) return 'challenge_lost_me';
     if (isViewer(row.actorId, viewerId)) return 'challenge_won_me';
     return 'challenges_others';
+  },
+  challenge_accepted: (row, viewerId) => {
+    if (isViewer(row.targetId, viewerId)) return 'challenge_accepted_me';
+    if (isViewer(row.actorId, viewerId)) return 'own';
+    return 'challenges_others';
+  },
+  rank_passed: (row, viewerId) => {
+    if (isViewer(row.targetId, viewerId)) return rankMeKind(row.payload);
+    if (isViewer(row.actorId, viewerId)) return 'own';
+    return 'rank_passed_others';
   },
   challenge_draw: (row, viewerId) =>
     isViewer(row.actorId, viewerId) || isViewer(row.targetId, viewerId)

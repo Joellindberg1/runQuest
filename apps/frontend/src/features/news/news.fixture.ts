@@ -73,6 +73,14 @@ export const challengeWon = (id: number, over: Partial<Omit<ItemOf<'challenge_wo
     winner_boost: { type: 'multiplier_days', delta: 0.2, duration: 4 }, loser_boost: { type: 'multiplier_days', delta: -0.1, duration: 4 }, ...payload,
   }, { actor: NICK, target: ME, ...over });
 
+/** Karl går förbi mig (aktör = den som passerar, target = den som passeras); rangerna är EFTER passeringen. */
+export const rankPassed = (id: number, over: Partial<Omit<ItemOf<'rank_passed'>, 'type' | 'payload' | 'id'>> = {}, payload: Partial<ItemOf<'rank_passed'>['payload']> = {}) =>
+  item('rank_passed', id, { measure: 'xp', passer_rank: 2, passed_rank: 3, ...payload }, { actor: KARL, target: ME, ...over });
+
+/** Karl (motståndaren) accepterade min utmaning; den börjar dagen efter NOW. */
+export const challengeAccepted = (id: number, over: Partial<Omit<ItemOf<'challenge_accepted'>, 'type' | 'payload' | 'id'>> = {}, payload: Partial<ItemOf<'challenge_accepted'>['payload']> = {}) =>
+  item('challenge_accepted', id, { challenge_id: 'c1', tier: 'major', metric: 'km', duration_days: 7, start_date: '2026-10-09', ...payload }, { actor: KARL, target: ME, ...over });
+
 /** Registreringstiden för betraktaren i newsServer: långt före alla rader (rader före den är aldrig notiser). */
 export const VIEWER_CREATED_AT = '2026-01-01T00:00:00Z';
 /** Samma tak som servern (UNREAD_CAP): klockan visar "99+" över 99. */
