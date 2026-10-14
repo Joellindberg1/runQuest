@@ -13,7 +13,7 @@ härledd (allt i en kolumn). `pages/SettingsPage.tsx` är tunn.
 ## Regler värda att komma ihåg
 
 - **Strava-queries delas** med skalets Right now och Logs Strava-rad (`shared/hooks/useStravaQueries`): en koppling som görs här syns överallt direkt.
-- **Kortet har tre tillstånd** med kantfärg + statuschip: Connected (grön, live-prick), Expired (röd, "Reconnect Strava" rensar de gamla tokens först), Not connected (neutral).
+- **Kortet har tre tillstånd** med kantfärg + statuschip: Connected (grön, live-prick), Expired (röd; "Reconnect Strava" öppnar bara Strava-fönstret, callbackens upsert skriver över tokens och statusen förblir Expired tills kopplingen lyckats), Not connected (neutral).
   Kortet väntar in last-sync-hämtningen så cellerna inte blinkar "Unknown". Statusen går inte att läsa → felkort med Retry; lösenordet fungerar ändå.
 - **OAuth-flödet är oförändrat:** fönstret öppnas mot Strava, `public/strava-popup.html` skickar `{code, error}` med postMessage, bara samma ursprung accepteras.
   Blockerat fönster, avbruten auktorisering och serverfel är text i kortets alert-region.
