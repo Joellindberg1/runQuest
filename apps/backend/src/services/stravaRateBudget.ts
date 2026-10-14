@@ -68,7 +68,8 @@ interface Window {
 }
 
 export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateBudget {
-  const now = options.now ?? Date.now;
+  // Looked up on every call, not bound once, so a faked Date.now (tests) is followed too.
+  const now = options.now ?? (() => Date.now());
 
   // Reads since the process started, for the sliding fallback. Pruned to a day.
   let reads: number[] = [];
@@ -95,6 +96,12 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
     return reads.filter((readAt) => readAt > t - span).length;
   }
 
+  /** When the sliding window (t - span, t] holds fewer than `soft` reads again: the read that has to leave is the (n - soft + 1)-th oldest. */
+  function slidingClearsAt(t: number, span: number, soft: number): number {
+    const inWindow = reads.filter((readAt) => readAt > t - span).sort((a, b) => a - b);
+    return inWindow[inWindow.length - soft]! + span;
+  }
+
   function used(t: number): { quarter: number; day: number } {
     roll(t);
     let usedQuarter = headersSeen ? quarter.reported + quarter.since : slidingCount(t, QUARTER_MS);
@@ -102,6 +109,19 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
     if (limitedQuarterId === quarterId(t)) usedQuarter = Math.max(usedQuarter, limits.quarter);
     if (limitedDayId === dayId(t)) usedDay = Math.max(usedDay, limits.day);
     return { quarter: usedQuarter, day: usedDay };
+  }
+
+  /** Which windows are over the soft limit: by usage, or because Strava answered 429 in the window (whatever limit it reports). */
+  function over(t: number): { quarter: boolean; day: boolean; quarterLimited: boolean; dayLimited: boolean } {
+    const current = used(t);
+    const quarterLimited = limitedQuarterId === quarterId(t);
+    const dayLimited = limitedDayId === dayId(t);
+    return {
+      quarter: current.quarter >= WEBHOOK_SOFT_LIMIT_15_MIN || quarterLimited,
+      day: current.day >= WEBHOOK_SOFT_LIMIT_DAILY || dayLimited,
+      quarterLimited,
+      dayLimited,
+    };
   }
 
   function warnOnChangedLimit(pair: [number, number]): void {
@@ -157,16 +177,38 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
   }
 
   function isOverSoftLimit(): boolean {
-    const current = used(now());
-    return current.quarter >= WEBHOOK_SOFT_LIMIT_15_MIN || current.day >= WEBHOOK_SOFT_LIMIT_DAILY;
+    const state = over(now());
+    return state.quarter || state.day;
   }
 
+  /**
+   * A window that is over opens again at its next boundary + margin. In fallback mode (no header seen yet) the windows slide,
+   * so it opens when enough of the oldest reads have left; a 429 holds the window shut until its boundary in either mode.
+   * With both windows over the later time wins, so isOverSoftLimit() is false at the returned time. Nothing over: the next quarter.
+   */
   function nextResumeAt(): Date {
     const t = now();
+    const state = over(t);
     const current = used(t);
-    // The day is checked first: when both windows are full, waiting for the quarter hour would only end in a second wait.
-    if (current.day >= WEBHOOK_SOFT_LIMIT_DAILY) return new Date((dayId(t) + 1) * DAY_MS + DAY_WAIT_MARGIN_MS);
-    return new Date((quarterId(t) + 1) * QUARTER_MS + QUARTER_WAIT_MARGIN_MS);
+    const quarterBoundary = (quarterId(t) + 1) * QUARTER_MS + QUARTER_WAIT_MARGIN_MS;
+    const dayBoundary = (dayId(t) + 1) * DAY_MS + DAY_WAIT_MARGIN_MS;
+
+    const candidates: number[] = [];
+    if (state.quarterLimited) candidates.push(quarterBoundary);
+    if (state.dayLimited) candidates.push(dayBoundary);
+    if (headersSeen) {
+      if (current.quarter >= WEBHOOK_SOFT_LIMIT_15_MIN) candidates.push(quarterBoundary);
+      if (current.day >= WEBHOOK_SOFT_LIMIT_DAILY) candidates.push(dayBoundary);
+    } else {
+      // The counts here are the real sliding ones; the 429 overlay in used() is covered by the limited cases above.
+      if (slidingCount(t, QUARTER_MS) >= WEBHOOK_SOFT_LIMIT_15_MIN) {
+        candidates.push(slidingClearsAt(t, QUARTER_MS, WEBHOOK_SOFT_LIMIT_15_MIN) + QUARTER_WAIT_MARGIN_MS);
+      }
+      if (slidingCount(t, DAY_MS) >= WEBHOOK_SOFT_LIMIT_DAILY) {
+        candidates.push(slidingClearsAt(t, DAY_MS, WEBHOOK_SOFT_LIMIT_DAILY) + DAY_WAIT_MARGIN_MS);
+      }
+    }
+    return new Date(candidates.length > 0 ? Math.max(...candidates) : quarterBoundary);
   }
 
   return { recordResponse, usage, isOverSoftLimit, nextResumeAt };

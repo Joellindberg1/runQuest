@@ -11,7 +11,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { logger } from '../../utils/logger.js';
-import { createStravaRateBudget, registerStravaRateBudget } from '../stravaRateBudget.js';
+import { createStravaRateBudget, isOverSoftLimit, nextResumeAt, registerStravaRateBudget, stravaRateBudget } from '../stravaRateBudget.js';
 import { stravaFetch } from '../stravaClient.js';
 import { installFakeStravaFetch, stravaActivity, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
 
@@ -233,6 +233,101 @@ describe('Strava rate budget', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it('rate budget reads the 15 minute limit first and the daily limit second', () => {
+    const budget = newBudget();
+
+    budget.recordResponse(ACTIVITIES_URL, response(readHeaders('1,2', '600,6000')));
+    expect(budget.usage()).toMatchObject({ limit15Min: 600, limitDaily: 6000 });
+
+    budget.recordResponse(ACTIVITIES_URL, response(readHeaders('1,2', '400,4000')));
+    expect(budget.usage()).toMatchObject({ limit15Min: 400, limitDaily: 4000 });
+  });
+
+  it('rate budget warns when only one of the two limits differs from the constants', () => {
+    const budget = newBudget();
+
+    budget.recordResponse(ACTIVITIES_URL, response(readHeaders('1,1', '300,6000')));
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    budget.recordResponse(ACTIVITIES_URL, response(readHeaders('2,2', '600,3000')));
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('rate budget never throws when the response cannot be read, and logs it', () => {
+    const budget = newBudget();
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const unreadable = { status: 200, headers: { get: () => { throw new Error('headers broke'); } } } as unknown as Response;
+
+    expect(() => budget.recordResponse(ACTIVITIES_URL, unreadable)).not.toThrow();
+    expect(error).toHaveBeenCalledTimes(1);
+  });
+
+  it('rate budget counts a read for exactly 15 minutes in the sliding window', () => {
+    const budget = newBudget();
+    budget.recordResponse(ACTIVITIES_URL, response());
+
+    now += 15 * MINUTE - 1000;
+    expect(budget.usage().last15Min).toBe(1);
+    now += 1000;
+    expect(budget.usage().last15Min).toBe(0);
+    now += 1000;
+    expect(budget.usage().last15Min).toBe(0);
+  });
+
+  it('rate budget treats a 429 as over the soft limit even when the reported limit is below it', () => {
+    const budget = newBudget();
+
+    budget.recordResponse(ACTIVITIES_URL, response(readHeaders('100,500', '100,1000'), 429));
+
+    expect(budget.isOverSoftLimit()).toBe(true);
+    expect(budget.nextResumeAt().toISOString()).toBe('2026-10-14T10:15:30.000Z');
+  });
+
+  it('rate budget treats a 429 on the daily limit as over the soft limit when the reported daily limit is below it', () => {
+    const budget = newBudget();
+
+    budget.recordResponse(ACTIVITIES_URL, response(readHeaders('5,1000', '100,1000'), 429));
+
+    expect(budget.isOverSoftLimit()).toBe(true);
+    expect(budget.nextResumeAt().toISOString()).toBe('2026-10-15T00:01:00.000Z');
+  });
+
+  it('rate budget in fallback mode resumes when the oldest reads have left the 15 minute window', () => {
+    const budget = newBudget();
+    now = at(10, 1);
+    for (let i = 0; i < 100; i++) budget.recordResponse(ACTIVITIES_URL, response());
+    now = at(10, 5);
+    for (let i = 0; i < 115; i++) budget.recordResponse(ACTIVITIES_URL, response());
+    now = at(10, 7);
+    expect(budget.isOverSoftLimit()).toBe(true);
+
+    // Six reads must leave to get below 210; they are the oldest ones, from 10:01, and leave at 10:16.
+    const resumeAt = budget.nextResumeAt();
+    expect(resumeAt.toISOString()).toBe('2026-10-14T10:16:30.000Z');
+
+    now = at(10, 15, 59);
+    expect(budget.isOverSoftLimit()).toBe(true);
+    now = resumeAt.getTime();
+    expect(budget.isOverSoftLimit()).toBe(false);
+  });
+
+  it('rate budget in fallback mode resumes when the oldest reads have left the day window', () => {
+    const budget = newBudget();
+    now = at(3, 0);
+    for (let i = 0; i < 2101; i++) budget.recordResponse(ACTIVITIES_URL, response());
+    now = at(10, 7);
+    expect(budget.isOverSoftLimit()).toBe(true);
+
+    // Two reads must leave to get below 2 100; both are from 03:00 and leave 24 hours later.
+    const resumeAt = budget.nextResumeAt();
+    expect(resumeAt.toISOString()).toBe('2026-10-15T03:01:00.000Z');
+
+    now = resumeAt.getTime() - 61_000;
+    expect(budget.isOverSoftLimit()).toBe(true);
+    now = resumeAt.getTime();
+    expect(budget.isOverSoftLimit()).toBe(false);
+  });
+
   it('rate budget accepts a usage header whose limit header is missing', () => {
     const budget = newBudget();
 
@@ -281,6 +376,21 @@ describe('Strava rate budget as a hook on the central fetch path', () => {
     await stravaFetch(TOKEN_URL, { method: 'POST' });
 
     expect(budget.usage()).toMatchObject({ last15Min: 0, daily: 0 });
+  });
+
+  it('rate budget of the app follows the real clock, also when timers are faked after it was created', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(at(10, 7));
+      stravaRateBudget.recordResponse(ACTIVITIES_URL, response(readHeaders('215,500')));
+      expect(isOverSoftLimit()).toBe(true);
+      expect(nextResumeAt().toISOString()).toBe('2026-10-14T10:15:30.000Z');
+
+      vi.setSystemTime(at(10, 16));
+      expect(isOverSoftLimit()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rate budget stops reading responses when the hook is unregistered', async () => {
