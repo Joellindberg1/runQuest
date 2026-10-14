@@ -14,7 +14,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaActivity, type FakeStrava } from '../../test-utils/fakeStrava.js';
-import { buildStravaRunRow, exceedsImportDistance, importStravaActivity, isRunningActivity } from '../stravaImport.js';
+import { buildStravaRunRow, exceedsImportDistance, importStravaActivity, insertStravaRun, isRunningActivity } from '../stravaImport.js';
 
 let strava: FakeStrava | undefined;
 
@@ -30,11 +30,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function use(runs: Row[] = [], options: { failInsert?: boolean } = {}) {
+function use(runs: Row[] = [], options: { failInsert?: boolean; extraUniqueIndex?: { table: string; name: string; columns: string[] } } = {}) {
   const t: Record<string, Row[]> = { runs };
   const db = createFakeDb(t, {
     autoIds: true,
-    uniqueIndexes: [{ table: 'runs', name: 'idx_runs_external_id', columns: ['user_id', 'external_id'] }],
+    uniqueIndexes: [{ table: 'runs', name: 'idx_runs_external_id', columns: ['user_id', 'external_id'] }, ...(options.extraUniqueIndex ? [options.extraUniqueIndex] : [])],
     failWhen: (q) => (options.failInsert && q.table === 'runs' && q.mutation === 'insert' ? { message: 'insert failed' } : null),
   });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
@@ -100,6 +100,55 @@ describe('importStravaActivity', () => {
 
     await expect(importStravaActivity('user-1', activity, 'at')).rejects.toMatchObject({ message: 'insert failed' });
     expect(logger.error).toHaveBeenCalled();
+  });
+});
+
+describe('insertStravaRun (the webhook already holds the detailed activity)', () => {
+  it('inserts the row buildStravaRunRow builds from the detailed activity without a second Strava call', async () => {
+    const detailed = stravaActivity({ id: 4101, suffer_score: 11 });
+    strava = installFakeStravaFetch({ activities: { 4101: detailed } });
+    const tables = use();
+
+    const result = await insertStravaRun('user-1', detailed);
+
+    expect(result).toMatchObject({ status: 'imported', run: { external_id: '4101' } });
+    expect(strava.activityCalls(4101)).toBe(0);
+    const { id: _generatedId, ...stored } = tables.runs[0];
+    expect(stored).toEqual({ ...buildStravaRunRow('user-1', detailed, detailed), created_at: expect.any(String) });
+  });
+
+  it('is idempotent on the external id index: the second insert is exists, and no second row appears', async () => {
+    const detailed = stravaActivity({ id: 4102 });
+    strava = installFakeStravaFetch({});
+    const tables = use();
+
+    await insertStravaRun('user-1', detailed);
+    const second = await insertStravaRun('user-1', detailed);
+
+    expect(second).toEqual({ status: 'exists' });
+    expect(tables.runs).toHaveLength(1);
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('treats a unique violation on any other index as a failure, not as exists', async () => {
+    const first = stravaActivity({ id: 4103, start_date_local: '2026-10-12T07:30:00Z' });
+    const other = stravaActivity({ id: 4104, start_date_local: '2026-10-12T07:30:00Z' });
+    strava = installFakeStravaFetch({});
+    use([], { extraUniqueIndex: { table: 'runs', name: 'idx_some_other_index', columns: ['user_id', 'date'] } });
+    await insertStravaRun('user-1', first);
+
+    await expect(insertStravaRun('user-1', other)).rejects.toMatchObject({ code: '23505' });
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  it('importStravaActivity also reports exists only for the external id index', async () => {
+    const first = stravaActivity({ id: 4105, start_date_local: '2026-10-12T07:30:00Z' });
+    const other = stravaActivity({ id: 4106, start_date_local: '2026-10-12T07:30:00Z' });
+    strava = installFakeStravaFetch({ activities: { 4105: first, 4106: other } });
+    use([], { extraUniqueIndex: { table: 'runs', name: 'idx_some_other_index', columns: ['user_id', 'date'] } });
+    await importStravaActivity('user-1', first, 'at');
+
+    await expect(importStravaActivity('user-1', other, 'at')).rejects.toMatchObject({ code: '23505' });
   });
 });
 

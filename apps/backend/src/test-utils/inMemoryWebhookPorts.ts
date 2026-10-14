@@ -20,6 +20,7 @@ import type {
   ReleaseWrite,
   RunStore,
   StravaApi,
+  StravaConnection,
   WebhookEventRow,
   WebhookEventStore,
 } from '../services/stravaWebhook/ports.js';
@@ -188,10 +189,21 @@ export function createInMemoryWebhookStore(options: { now: () => Date }): InMemo
 }
 
 export interface InMemoryRecompute extends Recompute {
-  /** The calls, in order. */
-  calls: Array<{ kind: 'reprocess'; userId: string; fromDate: string } | { kind: 'totals'; userId: string }>;
+  /** The calls, in order. The weather and qualification calls carry the run ids only. */
+  calls: Array<
+    | { kind: 'reprocess'; userId: string; fromDate: string }
+    | { kind: 'weather'; runIds: string[] }
+    | { kind: 'totals'; userId: string }
+    | { kind: 'qualify'; userId: string; runIds: string[] }
+  >;
   reprocessError: Error | null;
   totalsError: Error | null;
+  weatherError: Error | null;
+  qualifyError: Error | null;
+  /** qualifyEvents throws before it returns a promise. */
+  qualifyThrowsSynchronously: boolean;
+  /** qualifyEvents returns a promise that never settles (fire-and-forget must not wait for it). */
+  qualifyNeverSettles: boolean;
 }
 
 export function createInMemoryRecompute(): InMemoryRecompute {
@@ -199,6 +211,10 @@ export function createInMemoryRecompute(): InMemoryRecompute {
     calls: [],
     reprocessError: null,
     totalsError: null,
+    weatherError: null,
+    qualifyError: null,
+    qualifyThrowsSynchronously: false,
+    qualifyNeverSettles: false,
     async reprocessFrom(userId, fromDate) {
       recompute.calls.push({ kind: 'reprocess', userId, fromDate });
       if (recompute.reprocessError) throw recompute.reprocessError;
@@ -206,6 +222,16 @@ export function createInMemoryRecompute(): InMemoryRecompute {
     async recalculateTotals(userId) {
       recompute.calls.push({ kind: 'totals', userId });
       if (recompute.totalsError) throw recompute.totalsError;
+    },
+    async fetchWeather(runs) {
+      recompute.calls.push({ kind: 'weather', runIds: runs.map((run) => run.id) });
+      if (recompute.weatherError) throw recompute.weatherError;
+    },
+    qualifyEvents(userId, runs) {
+      recompute.calls.push({ kind: 'qualify', userId, runIds: runs.map((run) => run.id) });
+      if (recompute.qualifyThrowsSynchronously) throw new Error('qualifyEvents threw at once');
+      if (recompute.qualifyNeverSettles) return new Promise<void>(() => undefined);
+      return recompute.qualifyError ? Promise.reject(recompute.qualifyError) : Promise.resolve();
     },
   };
   return recompute;
@@ -215,6 +241,13 @@ export interface InMemoryRunStore extends RunStore {
   /** Runs by user: date plus whatever else a test wants findRun to return. */
   runs: Array<{ userId: string; externalId: string; date: string; run?: ExistingRun }>;
   earliestError: Error | null;
+  /**
+   * strava_tokens by user. A user that is not listed is connected, not paused and without a connection date; `null` is "no row"
+   * (disconnected).
+   */
+  connections: Record<string, StravaConnection | null>;
+  /** Set to make getConnection fail, as when the database is down. */
+  connectionError: Error | null;
 }
 
 export function createInMemoryRunStore(): InMemoryRunStore {
@@ -222,6 +255,8 @@ export function createInMemoryRunStore(): InMemoryRunStore {
   const store: InMemoryRunStore = {
     runs,
     earliestError: null,
+    connections: {},
+    connectionError: null,
     async findRun(userId, externalId) {
       return runs.find((run) => run.userId === userId && run.externalId === externalId)?.run ?? null;
     },
@@ -229,6 +264,10 @@ export function createInMemoryRunStore(): InMemoryRunStore {
       if (store.earliestError) throw store.earliestError;
       const dates = runs.filter((run) => run.userId === userId).map((run) => run.date).sort();
       return dates[0] ?? null;
+    },
+    async getConnection(userId) {
+      if (store.connectionError) throw store.connectionError;
+      return userId in store.connections ? store.connections[userId] : { syncPaused: false, connectionDate: null };
     },
   };
   return store;
@@ -246,6 +285,7 @@ export function createUnusedStravaApi(): UnusedStravaApi {
     async getAccessToken() { api.calls.push('getAccessToken'); return { ok: false, reason: 'not_connected' }; },
     async fetchActivity() { api.calls.push('fetchActivity'); return { kind: 'network_error' }; },
     async fetchAthlete() { api.calls.push('fetchAthlete'); return { kind: 'network_error' }; },
+    async refreshAccessToken() { api.calls.push('refreshAccessToken'); return { ok: false, reason: 'not_connected' }; },
   };
   return api;
 }
