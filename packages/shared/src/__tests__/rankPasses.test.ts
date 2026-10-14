@@ -146,6 +146,48 @@ describe('rankPasses', () => {
     });
   });
 
+  describe('oförändrad W medan M ändras ger ingenting', () => {
+    it('xp', () => {
+      const members = [xp('w', 'Wilma', 100, 100), xp('m', 'Max', 200, 50)];
+      expect(detectXp('w', members)).toEqual({ passes: [], retractKeys: [] });
+    });
+
+    it('challenge_points', () => {
+      const members = [cp('w', 'Wilma', rec(1, 0, 1)), cp('m', 'Max', rec(2, 0, 0), rec(0, 0, 1))];
+      expect(detectCp('w', members)).toEqual({ passes: [], retractKeys: [] });
+    });
+  });
+
+  describe('M:s egna förändring används rätt', () => {
+    it('motståndaren faller under W:s gamla plats: W förbi M trots att M rör sig', () => {
+      const members = [xp('w', 'Wilma', 100, 300), xp('m', 'Max', 200, 50)];
+      expect(detectXp('w', members).passes).toEqual([
+        { passerId: 'w', passedId: 'm', passerRank: 1, passedRank: 2, dedupeKey: activityKeys.rankPassed('xp', 'w', 'm', TODAY) },
+      ]);
+    });
+
+    it('W som redan låg före och ökar ytterligare ger ingen rad', () => {
+      const members = [xp('w', 'Wilma', 250, 400, { midnight: 100 }), xp('m', 'Max', 200)];
+      expect(detectXp('w', members)).toEqual({ passes: [], retractKeys: [] });
+    });
+
+    describe('retract använder M:s före- och efter-värde', () => {
+      // W 250 → 150. Retract kräver att W låg före M förut (före-värden) och ligger bakom M nu (efter-värden).
+      const cases: Array<{ rad: string; m: [number, number]; retract: boolean }> = [
+        { rad: 'M orörd på 200: W gick från före till bakom', m: [200, 200], retract: true },
+        { rad: 'M steg 100 till 200: W låg före M förut och ligger bakom nu', m: [100, 200], retract: true },
+        { rad: 'M föll 300 till 100: W låg bakom M förut, så inget att återta', m: [300, 100], retract: false },
+        { rad: 'M föll 300 till 200: W låg bakom M förut och ligger bakom nu, så inget att återta', m: [300, 200], retract: false },
+        { rad: 'M föll 200 till 100: W ligger fortfarande före M', m: [200, 100], retract: false },
+      ];
+      it.each(cases)('$rad', ({ m, retract }) => {
+        const result = detectXp('w', [xp('w', 'Wilma', 250, 150), xp('m', 'Max', m[0], m[1])]);
+        expect(result.passes).toEqual([]);
+        expect(result.retractKeys).toEqual(retract ? [activityKeys.rankPassed('xp', 'w', 'm', TODAY)] : []);
+      });
+    });
+  });
+
   describe('en ny medlem skapad efter dygnsskiftet ger ingen rad', () => {
     it('M skapad idag passeras inte, även om dess midnight-värde är 0', () => {
       // Båda har 0 vid dygnsskiftet och namnet skulle placera W bakom M där — men M fanns inte då.
@@ -253,11 +295,42 @@ describe('rankPasses', () => {
       ]);
     });
 
-    it('en första förlust lyfter över medlemmar utan matcher (samma ordning som tabellen)', () => {
-      const members = [cp('w', 'Wilma', rec(0, 0, 0), rec(0, 0, 1)), cp('g', 'Gunn', rec(0, 0, 0))];
-      expect(detectCp('w', members).passes).toEqual([
-        { passerId: 'w', passedId: 'g', passerRank: 1, passedRank: 2, dedupeKey: activityKeys.rankPassed('challenge_points', 'w', 'g', TODAY) },
-      ]);
+    it('en förlorares första match ger ingen rad (0-0-0 till 0-0-1 är oförändrat mått)', () => {
+      // Tabellen lyfter 0-0-1 över 0-0-0, men måttet (poäng, vinster) rörde sig inte, så ingen passering.
+      const members = [cp('w', 'Wilma', rec(0, 0, 0), rec(0, 0, 1)), cp('g', 'Anna', rec(0, 0, 0))];
+      expect(detectCp('w', members)).toEqual({ passes: [], retractKeys: [] });
+    });
+
+    it('tabellen rankar fortfarande 0-0-1 över 0-0-0', () => {
+      const rows: ChallengeStanding[] = [
+        { id: 'g', name: 'Anna', wins: 0, draws: 0, losses: 0 },
+        { id: 'w', name: 'Wilma', wins: 0, draws: 0, losses: 1 },
+      ];
+      expect(rows.sort(compareChallengeStandings).map((r) => r.id)).toEqual(['w', 'g']);
+    });
+
+    describe('rörelse avgörs av (poäng, vinster), korsning av hela tabellordningen', () => {
+      const cases: Array<{ rad: string; w: [ChallengeRecord, ChallengeRecord]; m: ChallengeRecord; mName: string; utfall: 'upp' | 'ned' | 'oförändrat' }> = [
+        { rad: 'en seger är alltid upp', w: [rec(0, 0, 1), rec(1, 0, 1)], m: rec(1, 0, 1), mName: 'Zed', utfall: 'upp' },
+        { rad: 'en första seger från noll matcher är upp', w: [rec(0, 0, 0), rec(1, 0, 0)], m: rec(1, 0, 1), mName: 'Zed', utfall: 'upp' },
+        { rad: 'ett första oavgjort från noll matcher är upp', w: [rec(0, 0, 0), rec(0, 1, 0)], m: rec(0, 0, 1), mName: 'Zed', utfall: 'upp' },
+        { rad: 'ett oavgjort från 1,0 är ned', w: [rec(1, 0, 0), rec(1, 1, 0)], m: rec(9, 0, 1), mName: 'Max', utfall: 'ned' },
+        { rad: 'en förlust från 1,0 är ned', w: [rec(1, 0, 0), rec(1, 0, 1)], m: rec(3, 0, 1), mName: 'Max', utfall: 'ned' },
+        { rad: 'en förlust utan poäng att förlora är oförändrad', w: [rec(0, 0, 1), rec(0, 0, 2)], m: rec(0, 0, 0), mName: 'Anna', utfall: 'oförändrat' },
+        { rad: 'en första förlust från noll matcher är oförändrad', w: [rec(0, 0, 0), rec(0, 0, 1)], m: rec(0, 0, 0), mName: 'Anna', utfall: 'oförändrat' },
+      ];
+      it.each(cases)('$rad', ({ w, m, mName, utfall }) => {
+        const result = detectCp('w', [cp('w', 'Wilma', w[0], w[1], { midnight: w[0] }), cp('m', mName, m)]);
+        if (utfall === 'upp') {
+          expect(result.passes.map((p) => p.passedId)).toEqual(['m']);
+          expect(result.retractKeys).toEqual([]);
+        } else if (utfall === 'ned') {
+          expect(result.passes).toEqual([]);
+          expect(result.retractKeys).toEqual([activityKeys.rankPassed('challenge_points', 'w', 'm', TODAY)]);
+        } else {
+          expect(result).toEqual({ passes: [], retractKeys: [] });
+        }
+      });
     });
 
     it('båda deltagarna kan ändras i samma skrivning: M:s nya värde används för W:s rang efter', () => {
@@ -377,11 +450,12 @@ describe('compareChallengeStandings', () => {
   });
 
   it('jämför poäng utan avrundning', () => {
-    // 2/3 = 0,6667 avrundas till 0,667 och är därmed lika med 667/1000 i den gamla tabellen; här är 667/1000 högre.
-    const a = s('a', 'Ada', 2, 0, 1);
-    const b = s('b', 'Bo', 667, 0, 333);
-    expect(compareChallengeStandings(a, b)).toBeGreaterThan(0);
-    expect(compareChallengeStandings(b, a)).toBeLessThan(0);
+    // 8-9-9 = 0,48077 och 0-26-1 = 0,48148 avrundas båda till 0,481. Avrundat skulle vinsterna avgöra (8 mot 0); oavrundat går 0-26-1 först.
+    const rounded = s('a', 'Ada', 8, 9, 9);
+    const unrounded = s('b', 'Bo', 0, 26, 1);
+    expect(Math.round(challengeScore(8, 9, 9) * 1000)).toBe(Math.round(challengeScore(0, 26, 1) * 1000));
+    expect(compareChallengeStandings(unrounded, rounded)).toBeLessThan(0);
+    expect(compareChallengeStandings(rounded, unrounded)).toBeGreaterThan(0);
   });
 
   it('lika poäng på olika sätt (oavgjorda mot vinster) avgörs av vinster', () => {

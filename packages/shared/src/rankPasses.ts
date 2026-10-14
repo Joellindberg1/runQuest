@@ -121,8 +121,36 @@ const XP_COMPARE: StandingCompare<number> = (a, b) =>
 const CHALLENGE_COMPARE: StandingCompare<ChallengeRecord> = (a, b) =>
   compareChallengeStandings({ id: a.id, name: a.name, ...a.value }, { id: b.id, name: b.name, ...b.value });
 
-/** Ett mått per RankMeasure; `satisfies` gör att ett nytt mått i RANK_MEASURES inte kompilerar förrän det har en komparator här. */
-const COMPARATORS = { xp: XP_COMPARE, challenge_points: CHALLENGE_COMPARE } satisfies Record<RankMeasure, unknown>;
+/** Positivt om `after` är ett sämre värde än `before`, negativt om bättre, 0 om oförändrat. Namn och id ingår aldrig. */
+type MeasureMovement<V> = (after: V, before: V) => number;
+
+const XP_MOVEMENT: MeasureMovement<number> = (after, before) => (after === before ? 0 : after < before ? 1 : -1);
+
+/**
+ * challenge_points rör sig på (oavrundade poäng, vinster) och ingenting annat (ägarbeslut Ö8). Steget "spelat före ej spelat"
+ * ur tabellordningen ingår INTE: 0-0-0 till 0-0-1 flyttar en spelare över dem utan matcher i tabellen, men måttet har inte ökat,
+ * och rank_passed kräver att W:s mått ökat (ADR 011 beslut 6.4).
+ */
+const CHALLENGE_MOVEMENT: MeasureMovement<ChallengeRecord> = (after, before) => {
+  const a = challengeScore(after.wins, after.draws, after.losses);
+  const b = challengeScore(before.wins, before.draws, before.losses);
+  if (a !== b) return a < b ? 1 : -1;
+  if (after.wins !== before.wins) return after.wins < before.wins ? 1 : -1;
+  return 0;
+};
+
+interface MeasureRules<V> {
+  /** Tabellordningen: korsning och rang. */
+  compare: StandingCompare<V>;
+  /** Rörelse: bara värdet, aldrig tabellens spelat/ej-spelat- eller namnsteg. */
+  moved: MeasureMovement<V>;
+}
+
+/** Ett mått per RankMeasure; `satisfies` gör att ett nytt mått i RANK_MEASURES inte kompilerar förrän det har regler här. */
+const MEASURES = {
+  xp: { compare: XP_COMPARE, moved: XP_MOVEMENT } satisfies MeasureRules<number>,
+  challenge_points: { compare: CHALLENGE_COMPARE, moved: CHALLENGE_MOVEMENT } satisfies MeasureRules<ChallengeRecord>,
+} satisfies Record<RankMeasure, unknown>;
 
 /**
  * Vilka passeringar gav W:s skrivning, och vilka av dagens rader ska återtas?
@@ -135,21 +163,28 @@ const COMPARATORS = { xp: XP_COMPARE, challenge_points: CHALLENGE_COMPARE } sati
  * Rang = 1-baserad position när ALLA medlemmar (inklusive W) sorteras med komparatorn på `after`-värdena. Komparatorn är en
  * total ordning (namn/id som sista steg), så två medlemmar delar aldrig rang. Rangerna i utdata är rangerna EFTER passeringen.
  *
- * Bara uppåt: om W:s mått minskat (W:s `after` ligger bakom W:s `before` enligt komparatorn — för challenge_points alltså
- * efter poäng, vinster, spelat/ej spelat, inte ett rått tal) skapas inga rader. `retractKeys` innehåller då dagens nyckel för
- * varje M som W låg före förut men nu åter ligger bakom. Nyckeln återtas även om raden aldrig skrivits (retractActivity är
- * icke-kastande och en retract av en obefintlig rad är harmlös), eftersom dygnsskiftets rangordning kan ha ändrats av
- * minskningen och den skrivna raden då inte går att härleda ur dagens indata. Oförändrat mått ger ingenting.
+ * Bara uppåt. Rörelsen (upp, ned, oförändrat) avgörs av W:s egna `before` och `after`:
+ *  - xp: det råa talet.
+ *  - challenge_points: (oavrundade poäng, vinster) och inget annat. Tabellens steg "spelat före ej spelat" räknas INTE som
+ *    rörelse, så 0-0-0 till 0-0-1 är oförändrat och ger ingen rad, även om tabellen då lyfter spelaren över dem utan matcher.
+ *    En seger är alltid upp, ett oavgjort från 1,0 är ned och en förlust är ned eller oförändrad.
+ * Korsning och rang använder däremot alltid hela tabellordningen.
+ *
+ * Vid en minskning skapas inga rader. `retractKeys` innehåller då dagens nyckel för varje M som W låg före förut men nu åter
+ * ligger bakom. Nyckeln återtas även om raden aldrig skrivits (retractActivity är icke-kastande och en retract av en
+ * obefintlig rad är harmlös), eftersom dygnsskiftets rangordning kan ha ändrats av minskningen och den skrivna raden då inte
+ * går att härleda ur dagens indata. Regeln är smal med flit: en gammal rad kan ligga kvar om M hann gå förbi W igen innan W:s
+ * minskning (W ligger då redan bakom M före minskningen och ingen nyckel returneras). Oförändrat mått ger ingenting.
  *
  * W saknas i `members` => tomt resultat (kastar aldrig).
  */
 export function detectRankPasses(input: DetectRankPassesInput): RankPassResult {
   return input.measure === 'xp'
-    ? detect(input, COMPARATORS.xp)
-    : detect(input, COMPARATORS.challenge_points);
+    ? detect(input, MEASURES.xp)
+    : detect(input, MEASURES.challenge_points);
 }
 
-function detect<V>(input: RankPassInputBase<RankMeasure, V>, compare: StandingCompare<V>): RankPassResult {
+function detect<V>(input: RankPassInputBase<RankMeasure, V>, { compare, moved }: MeasureRules<V>): RankPassResult {
   const empty: RankPassResult = { passes: [], retractKeys: [] };
   const { measure, passerId, today, members } = input;
   const passer = members.find((m) => m.id === passerId);
@@ -159,8 +194,7 @@ function detect<V>(input: RankPassInputBase<RankMeasure, V>, compare: StandingCo
   const before = (m: RankPassMember<V>) => at(m, m.before);
   const after = (m: RankPassMember<V>) => at(m, m.after);
 
-  // "Minskning" via måttets egen ordning: samma id och namn på båda sidor gör att bara värdet kan avgöra.
-  const movement = compare(after(passer), before(passer));
+  const movement = moved(passer.after, passer.before);
   if (movement === 0) return empty;
   const decreased = movement > 0;
 
