@@ -33,11 +33,14 @@ describe('TOUR_NEWS_V2: stegen', () => {
     expect(feed.description).toMatch(/mouse over it/i);
     expect(feed.description).toMatch(/tap it/i);
     expect(feed.description).toMatch(/press Enter/i);
+    expect(feed.description).toContain('Read rows stay in the feed');
     expect(settings.title).toMatch(/settings/i);
     expect(settings.description).toMatch(/bell/i);
+    // Ägarbeslut B2: inställningarna döljer aldrig något på sidan.
+    expect(settings.description).toContain('This page always shows everything');
 
-    // Fokus är ingen läs-gest (ägarbeslut 2): ordet får inte förekomma någonstans i turen.
-    for (const step of TOUR_NEWS_V2) expect(`${step.title} ${step.description}`, step.title).not.toMatch(/\bfocus(es|ed|ing)?\b/i);
+    // Fokus är ingen läs-gest (ägarbeslut 2): ordet får inte förekomma någonstans i turen (varken amerikansk eller brittisk stavning).
+    for (const step of TOUR_NEWS_V2) expect(`${step.title} ${step.description}`, step.title).not.toMatch(/\bfocus(es|ed|ing|ses|sed|sing)?\b/i);
   });
 
   it('filtersteget nämner alla sju slag, Ranks och Involves me', () => {
