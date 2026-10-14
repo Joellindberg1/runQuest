@@ -52,20 +52,9 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-/** Tabellen har user_id som primärnyckel; fakens upsert utan onConflict antar annars kolumnen `id`. */
 function useDb(tables: Record<string, Row[]>) {
-  const db = createFakeDb(tables);
-  const client = {
-    ...db.client,
-    from(table: string) {
-      const builder = db.client.from(table);
-      if (table !== 'strava_tokens') return builder;
-      const upsert = builder.upsert.bind(builder);
-      builder.upsert = (values: Row | Row[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }) => upsert(values, { onConflict: 'user_id', ...opts });
-      return builder;
-    },
-  };
-  vi.mocked(getSupabaseClient).mockReturnValue(client as any);
+  const db = createFakeDb(tables, { primaryKeys: { strava_tokens: ['user_id'] } });
+  vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return db;
 }
 
