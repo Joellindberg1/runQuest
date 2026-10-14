@@ -36,6 +36,12 @@ export interface FakeDbOptions {
    * meddelandet, som PostgREST. `beforeInsert` körs före varje insert i tabellen (t.ex. för att simulera ett samtidigt anrop).
    */
   uniqueIndexes?: Array<{ table: string; name: string; columns: string[] }>;
+  /**
+   * Primärnycklar för tabeller som upsertas utan `onConflict` — som i Postgres, där konflikten då avgörs av PK.
+   * Utan en post här faller fakeDb tillbaka på kolumnen `id`. Unika index (`uniqueIndexes`) gäller även upsert: en krock
+   * med en ANNAN rad än den som upsertas ger 23505, som i Postgres.
+   */
+  primaryKeys?: Record<string, string[]>;
   /** Anropas precis innan en insert i `table` utvärderas — för att simulera att en annan förfrågan hann före. */
   beforeInsert?: (table: string, tables: Record<string, Row[]>) => void;
   /** Svar för supabase.rpc(namn, args). Okänd rpc → { data: null, error: null }. */
@@ -114,11 +120,29 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       if (mutation?.kind === 'upsert') {
         // INSERT … ON CONFLICT (cols) DO NOTHING / DO UPDATE — konfliktkolumnerna är en kommalista.
         const raw = Array.isArray(mutation.values) ? mutation.values : [mutation.values as Row];
-        const cols = (mutation.onConflict ?? 'id').split(',').map((c) => c.trim());
+        const cols = mutation.onConflict ? mutation.onConflict.split(',').map((c) => c.trim()) : options.primaryKeys?.[table] ?? ['id'];
         const sameKey = (a: Row, b: Row) => cols.every((c) => a[c] !== undefined && a[c] === b[c]);
         const inserted: Row[] = [];
         for (const r of raw) {
           const existing = (tables[table] ?? []).find((e) => sameKey(e, r));
+          // Unikt index: en ANNAN rad än den som upsertas med samma icke-null nyckel → 23505, som i Postgres.
+          for (const index of options.uniqueIndexes ?? []) {
+            if (index.table !== table) continue;
+            const merged: Row = { ...existing, ...r };
+            if (!index.columns.every((c) => merged[c] != null)) continue;
+            const clash = (tables[table] ?? []).some((e) => e !== existing && index.columns.every((c) => e[c] != null && e[c] === merged[c]));
+            if (clash) {
+              return {
+                data: null,
+                error: {
+                  code: '23505',
+                  message: `duplicate key value violates unique constraint "${index.name}"`,
+                  details: `Key (${index.columns.join(', ')}) already exists.`,
+                },
+                count: null,
+              };
+            }
+          }
           if (existing) {
             if (!mutation.ignoreDuplicates) Object.assign(existing, r);
             continue;

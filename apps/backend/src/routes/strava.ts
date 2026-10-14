@@ -12,6 +12,7 @@ import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
 import { stravaLookback } from '../utils/stravaLookback.js';
+import { isValidAthleteId } from '../services/stravaAthlete.js';
 
 const router = express.Router();
 
@@ -217,6 +218,17 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       expires_at: tokenData.expires_at
     });
     
+    // Stravas athlete-id kopplar webhook-händelser (owner_id) till användaren. Saknas det sparas kopplingen ändå
+    // (den syns som "unmapped" i hälsokontrollen), men det är ett fel: utan id når inga händelser, inte heller raderingar.
+    const athleteId = tokenData.athlete?.id;
+    const hasAthleteId = isValidAthleteId(athleteId);
+    if (!hasAthleteId) {
+      logger.error('❌ Strava token response has no usable athlete id; connection saved without strava_athlete_id', {
+        user_id: userId,
+        has_athlete_object: Boolean(tokenData.athlete)
+      });
+    }
+
     // Save tokens to database
     const supabase = getSupabaseClient();
     const { error } = await supabase
@@ -226,8 +238,19 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         expires_at: tokenData.expires_at,
-        connection_date: new Date().toISOString()
+        connection_date: new Date().toISOString(),
+        // Utelämnas (inte null) när Strava inte skickade något id, så en återanslutning inte raderar ett känt id.
+        ...(hasAthleteId ? { strava_athlete_id: athleteId } : {}),
+        // En ny anslutning är aldrig pausad.
+        sync_paused: false,
+        paused_at: null
       });
+
+    if (error?.code === '23505' && `${error.message} ${error.details ?? ''}`.includes('strava_tokens_athlete_id_key')) {
+      // Samma Strava-konto är redan kopplat till en annan RunQuest-användare (unikt index, migration 045).
+      logger.warn('⚠️ Strava account already connected to another user', { user_id: userId });
+      res.status(409).json({ error: 'This Strava account is already connected to another RunQuest user' }); return;
+    }
 
     if (error) {
       logger.error('❌ Failed to save Strava tokens:', error);
