@@ -7,6 +7,7 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { ACTIVITY_LOG_TABLE } from './activityLog.js';
+import { readStoredSettings } from './userSettings.js';
 import {
   isNotifiable,
   resolveSettings,
@@ -18,7 +19,6 @@ import {
 export const UNREAD_CAP = 500;
 
 const NEWS_READ_TABLE = 'news_read';
-const USER_SETTINGS_TABLE = 'user_settings';
 
 /** Läsarens golv och registreringstid (users.news_last_seen_id, users.created_at). */
 export interface Reader {
@@ -50,7 +50,8 @@ export function toNotifiableRow(row: CandidateRow): NotifiableRow {
     actorId: row.actor_user_id,
     targetId: row.target_user_id,
     payload: row.payload,
-    isBackfill: row.is_backfill as boolean,
+    // Bara exakt false är "inte backfill"; null (saknad flagga) räknas som backfill, som isNotifiable kräver.
+    isBackfill: row.is_backfill !== false,
     createdAt: row.created_at,
   };
 }
@@ -88,7 +89,11 @@ async function readReadIds(userId: string, reader: Reader): Promise<Set<number>>
     .from(NEWS_READ_TABLE)
     .select('activity_id')
     .eq('user_id', userId)
-    .gt('activity_id', reader.news_last_seen_id ?? 0);
+    .gt('activity_id', reader.news_last_seen_id ?? 0)
+    // Samma fönster som kandidaterna: de senaste raderna. Äldre kvitton hör till rader utanför räknaren, och
+    // PostgREST skulle annars tyst kapa vid sitt eget tak (äldsta först) och släppa just de kvitton som behövs.
+    .order('activity_id', { ascending: false })
+    .limit(UNREAD_CAP + 1);
   if (error) throw error;
   return new Set((data ?? []).map((r: { activity_id: number | string }) => Number(r.activity_id)));
 }
@@ -100,14 +105,10 @@ async function readReadIds(userId: string, reader: Reader): Promise<Set<number>>
  */
 async function readSettings(userId: string): Promise<Record<string, unknown>> {
   let stored: Record<string, unknown> = {};
-  const { data, error } = await getSupabaseClient()
-    .from(USER_SETTINGS_TABLE)
-    .select('key, value')
-    .eq('user_id', userId);
-  if (error) {
+  try {
+    stored = await readStoredSettings(getSupabaseClient(), userId);
+  } catch (error) {
     logger.error('❌ Kunde inte läsa user_settings, använder defaults för oläst-räknaren:', error);
-  } else {
-    stored = Object.fromEntries((data ?? []).map((r: { key: string; value: unknown }) => [r.key, r.value]));
   }
   return resolveSettings(stored, 'user', undefined, ({ key, reason }) =>
     logger.warn(`⚠️ Lagrad inställning ignoreras (${reason}): ${key}`),

@@ -447,6 +447,72 @@ describe('GET /api/news', () => {
       }
     });
 
+    it('kvittona är de senaste 501: äldre kvitton än kandidatfönstret tränger inte ut de som behövs', async () => {
+      // 600 rader, de 550 äldsta kvitterade. Kandidaterna är id 100–600; olästa är 551–600. Utan senaste-först-fönstret
+      // skulle de 501 ÄLDSTA kvittona (1–501) läsas och 502–550 räknas som olästa.
+      const rows = Array.from({ length: 600 }, (_, i) => row(i + 1));
+      const read = Array.from({ length: 550 }, (_, i) => ({ user_id: 'u1', activity_id: i + 1 }));
+      const db = use(withExtra(rows, { news_read: read }));
+      const res = await get('/api/news');
+      expect(res.body.meta.unread_count).toBe(50);
+      const readQuery = db.queries.find((q) => q.table === 'news_read')!;
+      expect(readQuery.limit).toBe(501);
+    });
+
+    it('520 rader där de 100 äldsta är kvitterade ger rätt räknare', async () => {
+      const rows = Array.from({ length: 520 }, (_, i) => row(i + 1));
+      const read = Array.from({ length: 100 }, (_, i) => ({ user_id: 'u1', activity_id: i + 1 }));
+      use(withExtra(rows, { news_read: read }));
+      const res = await get('/api/news');
+      // Kandidaterna är id 20–520 (501 rader); 81 av dem (20–100) är kvitterade
+      expect(res.body.meta.unread_count).toBe(420);
+    });
+
+    it('ett kandidatfönster fullt av backfill-rader tränger inte ut de riktiga olästa', async () => {
+      const rows = Array.from({ length: 600 }, (_, i) => row(i + 1, i + 1 > 50 ? { is_backfill: true } : {}));
+      use(withExtra(rows, {}));
+      const res = await get('/api/news');
+      expect(res.body.meta.unread_count).toBe(50);
+    });
+
+    it('ett kandidatfönster fullt av rader från före registreringen tränger inte ut de riktiga olästa', async () => {
+      const rows = Array.from({ length: 600 }, (_, i) =>
+        row(i + 1, i + 1 > 50 ? { created_at: '2025-06-01T00:00:00.000Z' } : {}));
+      use(withExtra(rows, {}));
+      const res = await get('/api/news');
+      expect(res.body.meta.unread_count).toBe(50);
+    });
+
+    it('en användare utan created_at får räknaren 0 och is_unread false (fail-closed)', async () => {
+      use(withExtra([row(1), row(2)], {}, { created_at: null }));
+      const res = await get('/api/news');
+      expect(res.status).toBe(200);
+      expect(res.body.data.items.map((i: any) => i.is_unread)).toEqual([false, false]);
+      expect(res.body.meta.unread_count).toBe(0);
+    });
+
+    it('en annan användare i en annan grupp räknar med sina egna rader, inställningar och kvitton', async () => {
+      use(withExtra(
+        [
+          row(1), // g1
+          row(2, { group_id: 'g2' }),
+          row(3, { group_id: 'g2', type: 'event_open', actor_user_id: null }),
+          row(4, { group_id: 'g2' }),
+          row(5, { group_id: 'g2' }),
+        ],
+        {
+          user_settings: [
+            setting('notify.level_up_others', false, 'u1'), // u1:s val ska inte påverka u3
+            setting('notify.event_open', false, 'u3'),
+          ],
+          news_read: [{ user_id: 'u1', activity_id: 2 }, { user_id: 'u3', activity_id: 4 }],
+        },
+      ));
+      const res = await get('/api/news', { user_id: 'u3', group_id: 'g2' });
+      expect(res.body.data.items.map((i: any) => [i.id, i.is_unread])).toEqual([[5, true], [4, false], [3, false], [2, true]]);
+      expect(res.body.meta.unread_count).toBe(2);
+    });
+
     it('ett anrop läser news_read och user_settings en gång var, oberoende av antal rader', async () => {
       const db = use(withExtra(Array.from({ length: 40 }, (_, i) => row(i + 1)), {}));
       await get('/api/news');
