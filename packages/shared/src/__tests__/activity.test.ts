@@ -374,6 +374,42 @@ describe('eventbyggare', () => {
     const d = buildEventClosedDraft(participation, { participants: 1, members: 6, top: [{ user_id: 'a', rank: 1, xp: 1 }] }, 'x');
     expect(d.payload).not.toHaveProperty('top');
   });
+
+  it('buildEventClosedDraft sätter entrant_ids när de anges och utelämnar fältet annars', () => {
+    const facts = { participants: 2, members: 6 };
+    const withIds = buildEventClosedDraft(competition, { ...facts, entrantIds: ['b', 'a'] }, 'x');
+    expect(withIds.payload).toMatchObject({ entrant_ids: ['a', 'b'] });
+    expect(buildEventClosedDraft(participation, { ...facts, entrantIds: ['b', 'a'] }, 'x').payload).toMatchObject({ entrant_ids: ['a', 'b'] });
+
+    // Utan entrantIds är payloaden exakt som före fältet (backfill och äldre anropare).
+    const without = buildEventClosedDraft(competition, facts, 'x');
+    expect(without.payload).not.toHaveProperty('entrant_ids');
+    expect(without.payload).toEqual({
+      event_id: 'e2', event_type: 'competition', template_name: 'Weekly Km', participants: 2, members: 6,
+    });
+  });
+
+  it('entrant_ids är unika och sorterade och bär bara användar-id:n', () => {
+    const ids = [
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '',
+    ];
+    const d = buildEventClosedDraft(competition, {
+      participants: 4, members: 6, entrantIds: ids,
+      top: [{ user_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', rank: 1, xp: 75 }],
+    }, 'x');
+    const payload = d.payload as { entrant_ids: string[] };
+    expect(payload.entrant_ids).toEqual([
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    ]);
+    // Något som inte är en sträng (felaktig indata) släpps, och kastar aldrig.
+    const dirty = ['b', null, 7, undefined, {}, 'a'] as unknown as string[];
+    expect((buildEventClosedDraft(competition, { participants: 2, members: 6, entrantIds: dirty }, 'x').payload as { entrant_ids: string[] }).entrant_ids)
+      .toEqual(['a', 'b']);
+    // Lista av strängar på toppnivå: aldrig objekt med namn eller e-post.
+    expect(payload.entrant_ids.every((id) => typeof id === 'string')).toBe(true);
+    expect(Object.keys(payload).sort()).toEqual(['entrant_ids', 'event_id', 'event_type', 'members', 'participants', 'template_name', 'top']);
+  });
 });
 
 describe('buildBadgeEarnedDraft', () => {
