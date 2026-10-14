@@ -4,6 +4,7 @@ import {
   NOTIFICATION_GROUPS,
   NOTIFICATION_KINDS,
   classifyNotification,
+  isKindEnabled,
   isNotifiable,
   notifyKey,
   type ClassifiableRow,
@@ -68,6 +69,26 @@ describe('NOTIFICATION_KINDS', () => {
     expect(NOTIFICATION_KINDS.filter((k) => k.wave === 1).map((k) => k.kind).sort()).toEqual(
       [...WAVE_1_KINDS].sort(),
     );
+  });
+
+  it('varje slags sektion, roll och etikett är låsta mot ADR 011 beslut 3 och designerns förslag', () => {
+    const expected: Array<[NotificationKind, string, string, string]> = [
+      ['title_taken_from_me', 'Titles', 'you', 'Someone takes a title from you'],
+      ['title_others', 'Titles', 'others', 'Other title changes in the pack'],
+      ['challenge_received_me', 'Challenges', 'you', 'Someone challenges you'],
+      ['challenge_lost_me', 'Challenges', 'you', 'Someone beats you in a challenge'],
+      ['challenge_won_me', 'Challenges', 'you', 'You beat someone in a challenge'],
+      ['challenge_draw_me', 'Challenges', 'you', 'Your challenge ends in a draw'],
+      ['challenges_others', 'Challenges', 'others', 'Other challenges in the pack'],
+      ['event_open', 'Events', 'everyone', 'A new event opens'],
+      ['event_closed_others', 'Events', 'others', 'Other events close'],
+      ['level_up_others', 'The pack', 'others', 'Someone levels up'],
+      ['run_milestone_others', 'The pack', 'others', 'Someone passes a distance milestone'],
+      ['badge_earned_others', 'The pack', 'others', 'Someone earns a badge'],
+      ['streak_broken_others', 'The pack', 'others', 'Someone loses a streak'],
+      ['release_published', 'System', 'everyone', 'A new RunQuest version is out'],
+    ];
+    expect(NOTIFICATION_KINDS.map((k) => [k.kind, k.group, k.role, k.label])).toEqual(expected);
   });
 });
 
@@ -152,6 +173,17 @@ describe('classifyNotification', () => {
     expect(classifyNotification(row('challenge_won', OTHER, null), ME)).toBe('challenges_others');
     expect(classifyNotification(row('challenge_won', ME, null), ME)).toBe('challenge_won_me');
     expect(classifyNotification(row('title_taken', OTHER, null), ME)).toBe('title_others');
+  });
+
+  it('challenge_received med mig som både aktör och mål är challenge_received_me', () => {
+    expect(classifyNotification(row('challenge_received', ME, ME), ME)).toBe('challenge_received_me');
+  });
+
+  it('ett tomt id är aldrig betraktaren, inte ens när betraktar-id:t är tomt', () => {
+    expect(classifyNotification(row('level_up', '', null), '')).toBe('level_up_others');
+    expect(classifyNotification(row('challenge_won', '', ''), '')).toBe('challenges_others');
+    expect(classifyNotification(row('challenge_draw', '', ''), '')).toBe('challenges_others');
+    expect(classifyNotification(row('title_taken', '', ''), '')).toBe('title_others');
   });
 
   it('okänd typ ger null', () => {
@@ -289,5 +321,55 @@ describe('isNotifiable', () => {
     expect(isNotifiable(notifiable({ createdAt: '2026-01-01T00:00:00.001Z' }), viewer())).toBe(true);
     // Golv 0 (ingen kvittering ännu) räknar allt ovanför.
     expect(isNotifiable(notifiable({ id: 1 }), viewer({ floor: 0 }))).toBe(true);
+  });
+
+  it('isNotifiable: ett golv eller id som inte är ett ändligt tal är aldrig en notis, null-golv betyder 0', () => {
+    expect(isNotifiable(notifiable({ id: 1 }), viewer({ floor: null }))).toBe(true);
+    for (const bad of [Number.NaN, undefined, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(isNotifiable(notifiable(), viewer({ floor: bad as unknown as number })), String(bad)).toBe(false);
+    }
+    for (const bad of [Number.NaN, undefined, null, Number.POSITIVE_INFINITY]) {
+      expect(isNotifiable(notifiable({ id: bad as unknown as number }), viewer({ floor: null })), String(bad)).toBe(
+        false,
+      );
+    }
+  });
+
+  it('isNotifiable: bara isBackfill === false släpps igenom', () => {
+    expect(isNotifiable(notifiable({ isBackfill: false }), viewer())).toBe(true);
+    for (const bad of [undefined, null, 0, '']) {
+      expect(isNotifiable(notifiable({ isBackfill: bad as unknown as boolean }), viewer()), String(bad)).toBe(false);
+    }
+  });
+
+  it('isNotifiable: ett sträng-id matchas inte mot readIds och är aldrig en notis (anroparen använder Number)', () => {
+    const asString = '150' as unknown as number;
+    expect(isNotifiable(notifiable({ id: asString }), viewer())).toBe(false);
+    expect(isNotifiable(notifiable({ id: asString }), viewer({ readIds: new Set([150]) }))).toBe(false);
+    expect(isNotifiable(notifiable({ id: Number('150') }), viewer())).toBe(true);
+  });
+
+  it('isNotifiable: ett inställningsvärde som inte är boolean faller tillbaka på default', () => {
+    for (const bad of [null, 0, '', 'false', undefined]) {
+      expect(
+        isNotifiable(notifiable(), viewer({ settings: { [notifyKey('level_up_others')]: bad } })),
+        String(bad),
+      ).toBe(true);
+    }
+  });
+});
+
+describe('isKindEnabled', () => {
+  it('isKindEnabled: boolean ur inställningarna, annars slagets default', () => {
+    for (const def of NOTIFICATION_KINDS) {
+      expect(isKindEnabled(def.kind, {}), def.kind).toBe(def.default);
+      expect(isKindEnabled(def.kind, { [def.key]: false }), def.kind).toBe(false);
+      expect(isKindEnabled(def.kind, { [def.key]: true }), def.kind).toBe(true);
+      for (const bad of [null, 0, '', 'false', 'off', undefined, {}]) {
+        expect(isKindEnabled(def.kind, { [def.key]: bad }), `${def.kind} ${String(bad)}`).toBe(def.default);
+      }
+    }
+    // Ett annat slags nyckel påverkar inte.
+    expect(isKindEnabled('level_up_others', { [notifyKey('badge_earned_others')]: false })).toBe(true);
   });
 });

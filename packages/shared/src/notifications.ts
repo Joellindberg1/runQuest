@@ -130,9 +130,14 @@ export function classifyNotification(row: ClassifiableRow, viewerId: string): No
   return CLASSIFIERS[row.type](row, viewerId);
 }
 
-/** En activity_log-rad med det predikatet behöver för att avgöra om den räknas. */
+/**
+ * En activity_log-rad med det predikatet behöver för att avgöra om den räknas.
+ * `id` måste vara ett JS-tal: anroparen konverterar med Number() (bigint-kolumner kan komma som strängar).
+ * En sträng-id matchas aldrig mot readIds och ger false.
+ */
 export interface NotifiableRow extends ClassifiableRow {
   id: number;
+  /** Bara exakt `false` släpps igenom; saknat eller null räknas som backfill. */
   isBackfill: boolean;
   /** ISO-8601 (activity_log.created_at). */
   createdAt: string;
@@ -142,9 +147,9 @@ export interface NotifyViewer {
   id: string;
   /** ISO-8601 (users.created_at): rader före registreringen är aldrig notiser. */
   createdAt: string;
-  /** users.news_last_seen_id: allt med id <= golvet är läst. */
-  floor: number;
-  /** news_read-id:n ovanför golvet. */
+  /** users.news_last_seen_id (nullbar): null = inget kvitterat än = 0. Allt med id <= golvet är läst. */
+  floor: number | null;
+  /** news_read-id:n ovanför golvet, som tal. */
   readIds: ReadonlySet<number>;
   /**
    * Användarens upplösta eller glesa inställningar, nyckel `notify.<slag>`. En saknad nyckel (eller ett värde som
@@ -157,11 +162,25 @@ const KIND_BY_NAME: ReadonlyMap<string, (typeof NOTIFICATION_KINDS)[number]> = n
   NOTIFICATION_KINDS.map((def) => [def.kind, def]),
 );
 
-/** Oläst(U, rad) enligt ADR 011 beslut 4. Ren och fail-closed: tveksamma indata ger false. */
+/** Är slaget påslaget? Boolean ur inställningarna, annars slagets default. EN källa för server och popover. */
+export function isKindEnabled(kind: NotificationKind, settings: Readonly<Record<string, unknown>>): boolean {
+  const def = KIND_BY_NAME.get(kind);
+  if (!def) return false;
+  const stored = settings[def.key];
+  return typeof stored === 'boolean' ? stored : def.default;
+}
+
+/**
+ * Oläst(U, rad) enligt ADR 011 beslut 4. Ren och fail-closed: ett golv eller ett radid som inte är ett ändligt tal,
+ * ett backfill-flagga som inte är exakt false, en okänd tid eller en okänd typ ger false. (Ett null-golv är
+ * giltigt och betyder 0.)
+ */
 export function isNotifiable(row: NotifiableRow, viewer: NotifyViewer): boolean {
-  if (row.id <= viewer.floor) return false;
+  const floor = viewer.floor === null ? 0 : viewer.floor;
+  if (!Number.isFinite(floor) || !Number.isFinite(row.id)) return false;
+  if (row.id <= floor) return false;
   if (viewer.readIds.has(row.id)) return false;
-  if (row.isBackfill) return false;
+  if (row.isBackfill !== false) return false;
 
   const rowTime = Date.parse(row.createdAt);
   const viewerTime = Date.parse(viewer.createdAt);
@@ -169,9 +188,5 @@ export function isNotifiable(row: NotifiableRow, viewer: NotifyViewer): boolean 
 
   const classification = classifyNotification(row, viewer.id);
   if (classification === null || classification === 'own') return false;
-
-  const def = KIND_BY_NAME.get(classification);
-  if (!def) return false;
-  const stored = viewer.settings[def.key];
-  return typeof stored === 'boolean' ? stored : def.default;
+  return isKindEnabled(classification, viewer.settings);
 }
