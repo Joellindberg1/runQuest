@@ -89,6 +89,10 @@ export function NewsScreen() {
     [tourReady],
   );
   const showFilter = selected.length > 0 || loaded > 0;
+  // Kortet monteras först när flödet (eller felet) är känt: filterkortet kommer in ovanför när raderna landar, och ett kort som redan
+  // stod högst upp i kolumnen skulle annars hoppa ner. Ett fel eller tomt flöde ger ändå panelen — inställningarna är inte flödet.
+  const feedSettled = !!all.feed || all.isError;
+  const showSettingsColumn = isDesktop === true && (showFilter || feedSettled);
 
   let feed;
   if (active.feed && hasItems) {
@@ -149,10 +153,10 @@ export function NewsScreen() {
         </header>
 
         <div className="rq-news__split">
-          {(showFilter || isDesktop === true) && (
+          {(showFilter || showSettingsColumn) && (
             <aside className="rq-news__side">
               {showFilter && <NewsFilters selected={selected} counts={counts} loaded={loaded} onToggle={(key) => setFilter(toggleFilter(selected, key))} />}
-              {isDesktop === true && <NewsSettingsColumn />}
+              {showSettingsColumn && <NewsSettingsColumn />}
             </aside>
           )}
           <div className="rq-news__main">{feed}</div>

@@ -229,6 +229,19 @@ describe('NotificationSettingsPanel', () => {
     expect(panel).toContainElement(document.activeElement as HTMLElement);
   });
 
+  it('retryFocus flyttar fokus till det elementet i stället för panelens titel efter Retry', async () => {
+    const user = userEvent.setup();
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderWithApp(
+      <>
+        <h2 tabIndex={-1}>Host heading</h2>
+        <NotificationSettingsPanel retryFocus={() => screen.getByRole('heading', { name: 'Host heading' })} />
+      </>,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Retry' }, SLOW));
+    expect(screen.getByRole('heading', { name: 'Host heading' })).toHaveFocus();
+  });
+
   it('Reset to defaults är en knapp som bara visas när något är anpassat och återställer med null', async () => {
     const user = userEvent.setup();
     const untouched = await renderPanel();

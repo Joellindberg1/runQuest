@@ -107,42 +107,92 @@ describe('NewsScreen — inställningspanelen', () => {
     expect(await within(sheet).findByRole('region', { name: 'Notifications' })).toBeInTheDocument();
     expect(await within(sheet).findByRole('group', { name: 'Titles' })).toBeInTheDocument();
     expect(within(sheet).getByText('This page always shows everything')).toBeInTheDocument();
+    // Sektionerna börjar hopfällda i bladet, som i kolumnen.
+    expect(within(sheet).getByRole('button', { name: /^Titles/ })).toHaveAttribute('aria-expanded', 'false');
 
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(panels()).toHaveLength(0);
   });
 
-  it('bladet fångar fokus och återför det till knappen vid stängning', async () => {
+  it('bladet fångar fokus: Tab och Shift+Tab lämnar det aldrig och bakgrunden är inert', async () => {
     const user = userEvent.setup();
     renderWithApp(<NewsScreen />, { entry: '/news', width: MOBILE });
     await screen.findByText('4 unread');
-    const trigger = await gear();
     const sheet = await openSheet(user);
     await within(sheet).findByRole('group', { name: 'Titles' });
 
+    // Bakgrunden göms för hjälpmedel medan bladet är modalt (kugghjulet ligger bakom bladet).
+    expect(screen.queryByRole('button', { name: 'Notification settings' })).toBeNull();
     expect(sheet).toContainElement(document.activeElement as HTMLElement);
-    for (let step = 0; step < 30; step += 1) {
+    // Ett varv runt alla tabbstopp plus två: fokus har då passerat kanten åt båda håll utan att lämna bladet.
+    const stops = sheet.querySelectorAll('button:not([disabled]), [tabindex]:not([tabindex="-1"])').length;
+    for (let step = 0; step < stops + 2; step += 1) {
       await user.tab();
       expect(sheet).toContainElement(document.activeElement as HTMLElement);
     }
     await user.tab({ shift: true });
     expect(sheet).toContainElement(document.activeElement as HTMLElement);
+  });
 
-    await user.click(within(sheet).getByRole('button', { name: 'Done' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(trigger).toHaveFocus();
+  it.each([
+    ['Done', (user: ReturnType<typeof userEvent.setup>, sheet: HTMLElement) => user.click(within(sheet).getByRole('button', { name: 'Done' }))],
+    ['✕', (user: ReturnType<typeof userEvent.setup>, sheet: HTMLElement) => user.click(within(sheet).getByRole('button', { name: 'Close' }))],
+    ['Esc', (user: ReturnType<typeof userEvent.setup>) => user.keyboard('{Escape}')],
+    ['ett klick utanför', (user: ReturnType<typeof userEvent.setup>) => user.click(document.querySelector('.rq-scrim') as HTMLElement)],
+  ])('bladet stängs med %s och fokus återvänder till knappen', async (_how, close) => {
+    const user = userEvent.setup();
+    renderWithApp(<NewsScreen />, { entry: '/news', width: MOBILE });
+    await screen.findByText('4 unread');
+    const sheet = await openSheet(user);
 
-    // Esc och ett klick utanför återför fokus på samma sätt.
-    await openSheet(user);
-    await user.keyboard('{Escape}');
+    await close(user, sheet);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(trigger).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Notification settings' })).toHaveFocus();
+  });
 
-    await openSheet(user);
-    await user.click(document.querySelector('.rq-scrim') as HTMLElement);
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(trigger).toHaveFocus();
+  it('Retry i bladet flyttar fokus till bladets synliga rubrik', async () => {
+    const user = userEvent.setup();
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderWithApp(<NewsScreen />, { entry: '/news', width: MOBILE });
+    await screen.findByText('4 unread');
+    const sheet = await openSheet(user);
+
+    await user.click(await within(sheet).findByRole('button', { name: 'Retry' }, { timeout: 4000 }));
+    expect(within(sheet).getByRole('heading', { level: 2, name: 'Notifications' })).toHaveFocus();
+  });
+
+  it('desktop: panelen finns även när flödet är tomt', async () => {
+    serve([], null);
+    renderWithApp(<NewsScreen />, { entry: '/news', width: DESKTOP });
+    await screen.findByRole('heading', { name: 'No news yet — go make some' });
+
+    expect(await screen.findAllByRole('region', { name: 'Notifications' })).toHaveLength(1);
+    expect(document.querySelectorAll('[data-tour="news-settings"]')).toHaveLength(1);
+  });
+
+  it('desktop: kortet monteras först när flödet eller felet är känt, så filtret inte skjuts ner', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    handlers.getNews = async (...args: unknown[]) => {
+      await gate;
+      return panelNews.getNews(...(args as [never]));
+    };
+    renderWithApp(<NewsScreen />, { entry: '/news', width: DESKTOP });
+    await screen.findByText('Loading Pack News');
+    expect(panels()).toHaveLength(0);
+
+    release();
+    expect(await screen.findByRole('region', { name: 'Notifications' })).toBeInTheDocument();
+    const column = screen.getByRole('complementary');
+    expect(within(column).getByRole('group', { name: 'Filter' }).compareDocumentPosition(panels()[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('desktop: ett flödesfel ger ändå panelen (inställningarna är inte flödet)', async () => {
+    handlers.getNews = async () => ({ success: false, error: 'down' });
+    renderWithApp(<NewsScreen />, { entry: '/news', width: DESKTOP });
+    expect(await screen.findByText("Couldn't load Pack News", {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(await screen.findAllByRole('region', { name: 'Notifications' })).toHaveLength(1);
   });
 
   it('en växling på /news skriver PUT och räknaren på klockan uppdateras', async () => {

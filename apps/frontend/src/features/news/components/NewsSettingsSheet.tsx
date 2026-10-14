@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { NotificationSettingsPanel } from '@/features/settings/components/NotificationSettingsPanel';
 import { RQIcon } from '@/shared/components/icons';
@@ -11,11 +11,13 @@ const ICON_GEAR = 17;
  * fokusfälla, Esc, klick utanför och fokus tillbaka till knappen). Knappen bär turens ankare `news-settings`.
  *
  * Panelen monteras av Radix först när bladet är öppet och försvinner när det stängs, så det finns aldrig mer än en instans
- * (och kolumnen på desktop monteras inte alls här). Panelens egen titel är dold i bladet — Dialog.Title bär rubriken.
+ * (och kolumnen på desktop monteras inte alls här). Panelens egen titel är dold i bladet — Dialog.Title bär rubriken, och är
+ * också dit fokus går efter Retry (en synlig rubrik, ingen upprepad).
  * Ändringarna sparas direkt, därför ingen guldknapp: "Done" är sekundär.
  */
 export function NewsSettingsSheet() {
   const [open, setOpen] = useState(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -28,11 +30,11 @@ export function NewsSettingsSheet() {
         <Dialog.Overlay className="rq-scrim" />
         <Dialog.Content className="rq-sheet rq-notify-sheet" aria-describedby={undefined}>
           <div className="rq-sheet__head">
-            <Dialog.Title className="rq-sheet__title">Notifications</Dialog.Title>
+            <Dialog.Title ref={titleRef} tabIndex={-1} className="rq-sheet__title">Notifications</Dialog.Title>
             <Dialog.Close className="rq-sheet__close" aria-label="Close">✕</Dialog.Close>
           </div>
           <div className="rq-notify-sheet__body">
-            <NotificationSettingsPanel headingLevel={3} defaultExpanded={false} showTotal={false} className="rq-notify--sheet" />
+            <NotificationSettingsPanel headingLevel={3} defaultExpanded={false} showTotal={false} retryFocus={() => titleRef.current} className="rq-notify--sheet" />
             <NewsSettingsNote />
           </div>
           <Dialog.Close className="rq-btn rq-btn--secondary rq-btn--block">Done</Dialog.Close>
