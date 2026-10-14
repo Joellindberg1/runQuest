@@ -19,6 +19,9 @@ import { withUserLock } from '../utils/keyedMutex.js';
 import { isValidAthleteId } from '../services/stravaAthlete.js';
 import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
+import { removeStravaConnection } from '../services/stravaConnection.js';
+import { revokeStravaAuthorization } from '../services/stravaRevoke.js';
+import { errorCode } from '../services/stravaRemoval.js';
 
 const router = express.Router();
 
@@ -335,32 +338,28 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
   }
 });
 
-// DELETE /api/strava/disconnect - Disconnect Strava account
+// DELETE /api/strava/disconnect - "Koppla bort" (ADR 010 beslut 7.4): återkalla hos Strava, radera Stravarundorna, och sist token-raden.
+// Rör bara anroparens egen rad (userId kommer ur JWT, aldrig ur brödtexten). Hela borttagningen sker inne i ETT användarlås, taget
+// här och ingen annanstans: removeStravaConnection och återkallelsen tar inget eget (låset är inte reentrant, utils/keyedMutex.ts),
+// och låset hindrar en polling eller ett webhook-batch från att lägga in en Stravarunda mellan raderingen och att raden försvinner.
+// Svaret skickas först när allt är klart; ett fel (även ett omräkningsfel efter raderade rundor) ger 500 och samma anrop kan köras om.
+// En användare utan koppling och utan Stravarundor får 200 (idempotent): funktionen gör då ingenting.
 router.delete('/disconnect', authenticateJWT, async (req, res): Promise<void> => {
+  const userId = req.user!.user_id;
   try {
-    const userId = req.user!.user_id;
-    logger.info(`🔌 Disconnecting Strava for user: ${req.user!.name}`);
-    
-    const supabase = getSupabaseClient();
-    const { error } = await supabase
-      .from('strava_tokens')
-      .delete()
-      .eq('user_id', userId);
-    
-    if (error) {
-      logger.error('❌ Failed to delete Strava tokens:', error);
-      res.status(500).json({ error: 'Failed to disconnect Strava' }); return;
-    }
-    
-    logger.info('✅ Strava disconnected successfully');
+    logger.info(`🔌 Disconnecting Strava for user ${userId}`);
+
+    await withUserLock(userId, () => removeStravaConnection(userId, { reason: 'user_disconnect', revoke: revokeStravaAuthorization }));
+
+    logger.info(`✅ Strava disconnected for user ${userId}`);
     res.json({
       success: true,
       message: 'Strava disconnected successfully'
     });
-    
+
   } catch (error) {
-    logger.error('❌ Strava disconnect error:', error);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    logger.error(`❌ Strava disconnect failed for user ${userId} (${errorCode(error)})`);
+    res.status(500).json({ error: 'Failed to disconnect Strava' }); return;
   }
 });
 
