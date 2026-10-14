@@ -17,7 +17,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row, type RecordedQuery } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaActivity, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
-import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, refreshAccessToken, setStravaRequestHooks, stravaFetch } from '../stravaClient.js';
+import { fetchAthleteActivities, fetchDetailedActivity, fetchDetailedActivityResult, getValidAccessToken, refreshAccessToken, setStravaRequestHooks, stravaFetch } from '../stravaClient.js';
 
 let strava: FakeStrava | undefined;
 
@@ -496,5 +496,45 @@ describe('fetchDetailedActivity', () => {
 
     await expect(fetchDetailedActivity(7002, 'the-token')).resolves.toBeNull();
     expect(strava.activityCalls(7002)).toBe(1);
+  });
+});
+
+describe('fetchDetailedActivityResult', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('returns the activity as ok', async () => {
+    strava = installFakeStravaFetch({ activities: { 7101: stravaActivity({ id: 7101, name: 'Detail' }) } });
+
+    await expect(fetchDetailedActivityResult(7101, 'the-token')).resolves.toMatchObject({ kind: 'ok', activity: { id: 7101, name: 'Detail' } });
+  });
+
+  it('says gone for a 404', async () => {
+    strava = installFakeStravaFetch({ activities: {} });
+
+    await expect(fetchDetailedActivityResult(7102, 'the-token')).resolves.toEqual({ kind: 'gone' });
+  });
+
+  it.each([401, 403, 410, 429, 500, 503])('says failed, not gone, for HTTP %i', async (status) => {
+    strava = installFakeStravaFetch({ activities: { 7103: stravaError(status) } });
+
+    await expect(fetchDetailedActivityResult(7103, 'the-token')).resolves.toEqual({ kind: 'failed' });
+  });
+
+  it('says failed for a network error and for an answer that is not an activity', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNRESET'); }));
+    await expect(fetchDetailedActivityResult(7104, 'the-token')).resolves.toEqual({ kind: 'failed' });
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>', { status: 200 })));
+    await expect(fetchDetailedActivityResult(7104, 'the-token')).resolves.toEqual({ kind: 'failed' });
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('null', { status: 200 })));
+    await expect(fetchDetailedActivityResult(7104, 'the-token')).resolves.toEqual({ kind: 'failed' });
+  });
+
+  it('fetchDetailedActivity stays null for gone and failed alike', async () => {
+    strava = installFakeStravaFetch({ activities: { 7105: stravaError(500) } });
+
+    await expect(fetchDetailedActivity(7105, 'the-token')).resolves.toBeNull();
+    await expect(fetchDetailedActivity(7106, 'the-token')).resolves.toBeNull(); // 404
   });
 });

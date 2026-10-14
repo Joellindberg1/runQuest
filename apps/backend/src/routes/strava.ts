@@ -19,6 +19,7 @@ import { withUserLock } from '../utils/keyedMutex.js';
 import { isValidAthleteId } from '../services/stravaAthlete.js';
 import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
+import { getLastWebhookAt } from '../services/stravaLastWebhook.js';
 import { removeStravaConnection } from '../services/stravaConnection.js';
 import { revokeStravaAuthorization } from '../services/stravaRevoke.js';
 import { errorCode } from '../utils/errorCode.js';
@@ -614,6 +615,8 @@ router.get('/last-sync', authenticateJWT, async (_req, res): Promise<void> => {
         users_synced: info.usersSynced,
         total_users: info.totalUsers,
         new_runs: info.newRuns,
+        // Global, a timestamp only; null when no event has been received or the read failed.
+        last_webhook_at: await getLastWebhookAt(),
       }
     });
   } catch (error) {
@@ -860,7 +863,8 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
       validActivities.map((activity: any) => importStravaActivity(userId, activity, accessToken))
     );
 
-    // 'exists' = another import (the webhook worker) got there first: neither new nor a failure.
+    // 'exists' = another import (the webhook worker) got there first; 'skipped_gone' = the detail call said 404 (deleted or private,
+    // a stale list): neither new nor a failure, and nothing to recalculate.
     const importedResults = insertResults.flatMap(r => (r.status === 'fulfilled' && r.value.status === 'imported' ? [r.value.run] : []));
     const importedRuns = importedResults.length;
     const failedCount = insertResults.filter(r => r.status === 'rejected').length;
@@ -872,7 +876,9 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
 
     if (importedRuns > 0) {
       // Reprocess from earliest new run date — one pass fixes streaks + XP for all affected runs
+      const importedIds = new Set(importedResults.map((run) => run.external_id));
       const dates = validActivities
+        .filter((a: any) => importedIds.has(a.id.toString()))
         .map((a: any) => a.start_date_local.split('T')[0])
         .sort();
       // Läkningen (om någon) ingår i samma omräkning: det tidigaste av läkningsdatumet och importdatumet, en gång.

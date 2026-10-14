@@ -60,7 +60,7 @@ const activity = (id: number, date: string) => ({
 function stubStrava(activities: unknown[]) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).includes('/athlete/activities')) return { ok: true, status: 200, json: async () => activities };
-    return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: false, status: 500, json: async () => ({}) }; // not 404: a 404 means gone and the poll skips the activity
   }));
 }
 

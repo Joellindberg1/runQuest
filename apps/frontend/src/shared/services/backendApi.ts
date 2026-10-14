@@ -671,6 +671,8 @@ class BackendApiService {
     users_synced?: number;
     total_users?: number;
     new_runs?: number;
+    /** The newest webhook event received, or null (none yet, or it could not be read). Global, not the user's. */
+    last_webhook_at?: string | null;
   }>> {
     try {
       const response = await fetch(`${this.baseUrl}/strava/last-sync`, {

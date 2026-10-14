@@ -13,7 +13,7 @@ vi.mock('../../config/database.js', () => ({
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
-import { installFakeStravaFetch, stravaActivity, type FakeStrava } from '../../test-utils/fakeStrava.js';
+import { installFakeStravaFetch, stravaActivity, stravaError, type FakeStrava } from '../../test-utils/fakeStrava.js';
 import { buildStravaRunRow, exceedsImportDistance, importStravaActivity, insertStravaRun, isRunningActivity } from '../stravaImport.js';
 
 let strava: FakeStrava | undefined;
@@ -82,15 +82,53 @@ describe('importStravaActivity', () => {
     expect(stored).toEqual({ ...buildStravaRunRow('user-1', summary, detailed), created_at: expect.any(String) });
   });
 
-  it('falls back to the summary when the detail call fails', async () => {
+  // A 404 on the detail is a deleted activity, or one the athlete made private (ADR 010 7.3: with activity:read the two look alike,
+  // and a private activity is not imported). A stale list from Strava must not bring such a run back.
+  it('poll import skips an activity whose detail fetch returns 404', async () => {
     const summary = stravaActivity({ id: 4003, average_heartrate: 144 });
     strava = installFakeStravaFetch({ activities: {} }); // 404 for every id
     const tables = use();
 
     const result = await importStravaActivity('user-1', summary, 'at');
 
-    expect(result).toMatchObject({ status: 'imported' });
-    expect(tables.runs[0]).toMatchObject({ external_id: '4003', avg_heartrate: 144 });
+    expect(result).toEqual({ status: 'skipped_gone' });
+    expect(tables.runs).toEqual([]);
+    expect(strava.activityCalls(4003)).toBe(1);
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('poll import still falls back to the summary on other detail errors', async () => {
+    const summary = stravaActivity({ id: 4006, average_heartrate: 144 });
+    const tables = use();
+
+    for (const status of [401, 403, 410, 429, 500]) {
+      strava = installFakeStravaFetch({ activities: { 4006: stravaError(status) } });
+      tables.runs.length = 0;
+
+      const result = await importStravaActivity('user-1', summary, 'at');
+
+      expect(result, `HTTP ${status}`).toMatchObject({ status: 'imported' });
+      expect(tables.runs[0], `HTTP ${status}`).toMatchObject({ external_id: '4006', avg_heartrate: 144 });
+      strava.restore();
+    }
+
+    // A network error is a failure too, not a deleted activity.
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNRESET'); }));
+    tables.runs.length = 0;
+    expect(await importStravaActivity('user-1', summary, 'at')).toMatchObject({ status: 'imported' });
+    vi.unstubAllGlobals();
+    strava = undefined;
+  });
+
+  it('the skip logs our user id and the status, never the activity id', async () => {
+    strava = installFakeStravaFetch({ activities: {} });
+    use();
+
+    await importStravaActivity('user-1', stravaActivity({ id: 987654321 }), 'at');
+
+    const lines = [...vi.mocked(logger.info).mock.calls, ...vi.mocked(logger.warn).mock.calls].map((call) => String(call[0]));
+    expect(lines.some((line) => line.includes('user-1') && line.includes('404'))).toBe(true);
+    expect(lines.filter((line) => line.includes('987654321'))).toEqual([]);
   });
 
   it('rejects, logging the failed fields, on any other database error', async () => {

@@ -2,7 +2,7 @@
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { isTreadmillActivity } from '../utils/stravaActivity.js';
-import { fetchDetailedActivity } from './stravaClient.js';
+import { fetchDetailedActivityResult } from './stravaClient.js';
 import {
   STRAVA_DISTANCE_MUST_EXCEED_KM,
   STRAVA_LEGACY_RUN_TYPE,
@@ -105,7 +105,14 @@ export interface ImportedRun {
 }
 
 /** `exists` carries no row: a caller that needs it reads (user_id, external_id) again (the webhook handler does, through RunStore.findRun). */
-export type ImportResult = { status: 'imported'; run: ImportedRun } | { status: 'exists' };
+export type InsertResult = { status: 'imported'; run: ImportedRun } | { status: 'exists' };
+
+/**
+ * What the polling's import (importStravaActivity) reports: an InsertResult, or `skipped_gone` when its detail call answered 404 and
+ * nothing was inserted. Neither a new run nor a failure. insertStravaRun never makes that call, so the webhook handlers, which only
+ * insert, get the narrower InsertResult and need no case for it: they treat a 404 themselves, from the fetch they made (decideAction).
+ */
+export type ImportResult = InsertResult | { status: 'skipped_gone' };
 
 /** The unique index on runs (user_id, external_id) (migration 033). Only a violation of this one means "already imported". */
 export const RUNS_EXTERNAL_ID_INDEX = 'idx_runs_external_id';
@@ -122,7 +129,7 @@ function isExternalIdConflict(error: { code?: string; message?: string; details?
  * error (unique index idx_runs_external_id, code 23505): polling and the webhook worker can race on the same activity. Any other
  * database error, a 23505 on another index included, is logged and rethrown.
  */
-export async function insertStravaRun(userId: string, activity: any, detailed?: any): Promise<ImportResult> {
+export async function insertStravaRun(userId: string, activity: any, detailed?: any): Promise<InsertResult> {
   const row = buildStravaRunRow(userId, activity, detailed);
   const { data, error } = await getSupabaseClient()
     .from('runs')
@@ -142,8 +149,16 @@ export async function insertStravaRun(userId: string, activity: any, detailed?: 
 /**
  * Import one Strava activity as a run for the user, with the detail call for splits_metric (the polling's path: it lists summaries).
  * The insert, and what a duplicate means, is insertStravaRun.
+ *
+ * A 404 on the detail call means the activity is deleted or private (ADR 010 7.3): it is skipped, never built from the summary. The
+ * list the polling works from can be stale, and a run the webhook has just deleted must stay deleted; a private activity is not
+ * imported either. Any other failure of the detail call keeps the old fallback: the summary supplies the row.
  */
 export async function importStravaActivity(userId: string, activity: any, accessToken: string): Promise<ImportResult> {
-  const detailed = await fetchDetailedActivity(activity.id, accessToken);
-  return insertStravaRun(userId, activity, detailed);
+  const detail = await fetchDetailedActivityResult(activity.id, accessToken);
+  if (detail.kind === 'gone') {
+    logger.info(`ℹ️ Skipped a Strava activity for user ${userId}: the detail call answered HTTP 404 (deleted or private)`);
+    return { status: 'skipped_gone' };
+  }
+  return insertStravaRun(userId, activity, detail.kind === 'ok' ? detail.activity : null);
 }

@@ -69,7 +69,7 @@ function stubStrava(activities: unknown[]) {
       listUrls.push(String(url));
       return { ok: true, status: 200, json: async () => activities };
     }
-    return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: false, status: 500, json: async () => ({}) }; // not 404: a 404 means gone and the poll skips the activity
   }));
 }
 
