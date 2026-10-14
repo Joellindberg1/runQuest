@@ -421,14 +421,14 @@ describe('after a disconnect', () => {
     await disconnect();
     const writesAfterDisconnect = db.queries.filter((q) => q.mutation !== undefined).length;
 
-    // Strava's `athlete` event, queued for the user before the row went; the worker meets it with today's registry.
+    // Strava's `athlete` event, queued for the user before the row went; the deauthorize handler finds no connection.
     const event = stravaDeauthorizeEvent({ owner_id: 424242 });
     const store = createInMemoryWebhookStore({ now: () => new Date() });
     store.seed({ object_type: 'athlete', aspect_type: 'update', object_id: event.object_id, owner_id: event.owner_id, updates: event.updates, user_id: 'user-1' });
     const recompute = createInMemoryRecompute();
     await createStravaWebhookWorker({ store, strava: createStravaApi(), runs: createRunStore(), recompute, handlers: STRAVA_WEBHOOK_HANDLERS }).drain();
 
-    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'noop' });
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'ignored_unknown_owner' });
     expect(db.queries.filter((q) => q.mutation !== undefined)).toHaveLength(writesAfterDisconnect); // nothing written
     expect(recompute.calls.filter((call) => call.kind === 'reprocess')).toEqual([]);
     expect(tables.runs.map((r) => r.id)).toEqual(['manual']);
