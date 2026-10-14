@@ -167,9 +167,12 @@ describe('NotificationSettingsPanel', () => {
     expect(news.server.settingsCalls).toEqual([]);
 
     // Lösenordskortet påverkas inte.
-    await user.type(screen.getByLabelText('Current password'), 'old-secret');
-    await user.type(screen.getByLabelText('New password'), 'new-secret');
-    await user.type(screen.getByLabelText('Repeat new password'), 'new-secret');
+    await user.click(screen.getByLabelText('Current password'));
+    await user.paste('old-secret');
+    await user.click(screen.getByLabelText('New password'));
+    await user.paste('new-secret');
+    await user.click(screen.getByLabelText('Repeat new password'));
+    await user.paste('new-secret');
     await user.click(screen.getByRole('button', { name: 'Change password' }));
     expect(await screen.findByRole('status', { name: 'Password status' })).toHaveTextContent('Password changed.');
 

@@ -125,14 +125,14 @@ describe('NewsScreen — inställningspanelen', () => {
     // Bakgrunden göms för hjälpmedel medan bladet är modalt (kugghjulet ligger bakom bladet).
     expect(screen.queryByRole('button', { name: 'Notification settings' })).toBeNull();
     expect(sheet).toContainElement(document.activeElement as HTMLElement);
-    // Ett varv runt alla tabbstopp plus två: fokus har då passerat kanten åt båda håll utan att lämna bladet.
-    const stops = sheet.querySelectorAll('button:not([disabled]), [tabindex]:not([tabindex="-1"])').length;
-    for (let step = 0; step < stops + 2; step += 1) {
-      await user.tab();
-      expect(sheet).toContainElement(document.activeElement as HTMLElement);
-    }
+    // Loopen provas vid kanterna, inte genom alla stopp: Shift+Tab från det första elementet landar på det sista, och Tab från det sista på det första.
+    const first = within(sheet).getByRole('button', { name: 'Close' });
+    const last = within(sheet).getByRole('button', { name: 'Done' });
+    first.focus();
     await user.tab({ shift: true });
-    expect(sheet).toContainElement(document.activeElement as HTMLElement);
+    expect(last).toHaveFocus();
+    await user.tab();
+    expect(first).toHaveFocus();
   });
 
   it.each([
