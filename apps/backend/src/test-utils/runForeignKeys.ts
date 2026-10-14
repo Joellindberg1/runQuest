@@ -1,6 +1,6 @@
 /**
  * The referential actions of every foreign key that points at runs(id), for tests that run against createFakeDb (which models no
- * foreign keys at all). Only for tests: server.ts never imports this folder (test-utils isolation test in __tests__/fakeStrava.test.ts).
+ * foreign keys at all). Only for tests: server.ts never imports this folder (test-utils isolation test in test-utils/__tests__/fakeStrava.test.ts).
  *
  * The rules are the ones the migrations define; this file only REPEATS them so that a behaviour test of the deletion chain can
  * show what the chain leaves behind. It is not the proof that the database does it:

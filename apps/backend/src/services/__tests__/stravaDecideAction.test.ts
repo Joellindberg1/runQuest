@@ -659,6 +659,18 @@ describe('decideAction answer without any type field', () => {
     expect(decide({ response: ok(legacyRide), existingRun: runFor(run) })).toMatchObject({ action: 'remove', outcome: 'removed_not_running' });
   });
 
+  it('decide reads a sport field that is not a string as absent, in the guard and in the running test alike', () => {
+    const numeric = { ...run, sport_type: 5, type: undefined } as unknown as Activity;
+    expect(decide({ response: ok(numeric), existingRun: runFor(run) })).toMatchObject({ action: 'retry', reason: 'invalid_response' });
+    expect(decide({ aspect_type: 'create', response: ok(numeric) })).toMatchObject({ action: 'retry', reason: 'invalid_response' });
+
+    // The legacy `type` then decides, as it does for a missing sport_type.
+    const numericWithLegacyRun = { ...run, sport_type: 5, type: 'Run' } as unknown as Activity;
+    const numericWithLegacyRide = { ...run, sport_type: 5, type: 'Ride' } as unknown as Activity;
+    expect(decide({ aspect_type: 'create', response: ok(numericWithLegacyRun) })).toMatchObject({ action: 'insert', outcome: 'imported' });
+    expect(decide({ response: ok(numericWithLegacyRide), existingRun: runFor(run) })).toMatchObject({ action: 'remove', outcome: 'removed_not_running' });
+  });
+
   it('decide counts the retry as a failed attempt with the backoff of the attempts so far', () => {
     expect(decide({ response: ok(untyped), attempts: 2 })).toMatchObject({
       countsAsFailedAttempt: true,

@@ -14,6 +14,8 @@
 //         const dates = await deleteStravaRuns(userId, { all: true });
 //         if (dates.length > 0) await recomputeAfterRemoval(userId, dates[0]);
 //     inside the one outermost withUserLock they already hold (never a second lock from in here).
+//   The two differ on one point on purpose: the worker skips the totals when the reprocess fails, because it retries the event and the
+//   retry recalculates; recomputeAfterRemoval still tries the totals and then rethrows, because S16 has no retry.
 //
 // What the database does with the rest (not done here, see migrations): event_entries.run_id becomes NULL and the entry keeps its XP
 // (047, ON DELETE SET NULL), run_weather goes (000_baseline, ON DELETE CASCADE) and user_badges.source_run_id becomes NULL (035,

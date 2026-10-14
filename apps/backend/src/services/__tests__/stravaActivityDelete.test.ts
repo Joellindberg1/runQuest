@@ -6,6 +6,7 @@
  * are in stravaActivityDelete.chain.test.ts.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MS_DAY } from '@runquest/shared';
 
 process.env.JWT_SECRET = 'test-jwt-secret-for-integration-tests';
 process.env.SUPABASE_URL = 'http://localhost:54321';
@@ -570,21 +571,57 @@ describe('what Strava answers', () => {
     expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 1, last_error: 'network_error' });
   });
 
-  it('a 429 is a wait, not a failed attempt, and deletes nothing', async () => {
-    const budget = createStravaRateBudget({ now: () => START.getTime() });
-    restoreHooks = setStravaRequestHooks({ after: (url, response) => budget.recordResponse(url, response) });
-    strava = installFakeStravaFetch({ activities: { 1001: stravaError(429) }, rateLimit: { read: { usage: [300, 900] } } });
-    const { t, store, worker } = build({
-      tables: { runs: [stravaRun()] },
-      handlers: { [webhookHandlerKey('activity', 'delete')]: createActivityDeleteHandler({ budget }) },
+  describe('429', () => {
+    function withBudget() {
+      const budget = createStravaRateBudget({ now: () => START.getTime() });
+      restoreHooks = setStravaRequestHooks({ after: (url, response) => budget.recordResponse(url, response) });
+      return budget;
+    }
+    const handlersFor = (budget: ReturnType<typeof createStravaRateBudget>): HandlerRegistry => ({
+      [webhookHandlerKey('activity', 'delete')]: createActivityDeleteHandler({ budget }),
     });
-    seedDelete(store, 1001);
 
-    await worker.drain();
+    it('waits for the next quarter hour when the 15-minute limit is hit, without counting a failed attempt and deleting nothing', async () => {
+      const budget = withBudget();
+      strava = installFakeStravaFetch({ activities: { 1001: stravaError(429) }, rateLimit: { read: { usage: [300, 900] } } });
+      const { t, store, worker } = build({ tables: { runs: [stravaRun()] }, handlers: handlersFor(budget) });
+      seedDelete(store, 1001);
 
-    expect(t.runs).toHaveLength(1);
-    expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 0, last_error: 'rate_limit_wait' });
-    expect(calculateUserTotals).not.toHaveBeenCalled();
+      await worker.drain();
+
+      expect(t.runs).toHaveLength(1);
+      const row = store.row(1);
+      expect(row).toMatchObject({ status: 'pending', attempts: 0, last_error: 'rate_limit_wait' });
+      expect(row.next_attempt_at).toBe(new Date(Math.floor(START.getTime() / (15 * MINUTE)) * 15 * MINUTE + 15 * MINUTE + 30_000).toISOString());
+      expect(calculateUserTotals).not.toHaveBeenCalled();
+    });
+
+    it('waits for UTC midnight when the daily limit is hit', async () => {
+      const budget = withBudget();
+      strava = installFakeStravaFetch({ activities: { 1001: stravaError(429) }, rateLimit: { read: { usage: [120, 3000] } } });
+      const { t, store, worker } = build({ tables: { runs: [stravaRun()] }, handlers: handlersFor(budget) });
+      seedDelete(store, 1001);
+
+      await worker.drain();
+
+      expect(t.runs).toHaveLength(1);
+      const row = store.row(1);
+      expect(row).toMatchObject({ status: 'pending', attempts: 0 });
+      expect(row.next_attempt_at).toBe(new Date((Math.floor(START.getTime() / MS_DAY) + 1) * MS_DAY + 60_000).toISOString());
+    });
+
+    it('treats a 429 without rate limit headers as the 15-minute limit', async () => {
+      const budget = withBudget();
+      strava = installFakeStravaFetch({ activities: { 1001: stravaError(429) } });
+      const { store, worker } = build({ tables: { runs: [stravaRun()] }, handlers: handlersFor(budget) });
+      seedDelete(store, 1001);
+
+      await worker.drain();
+
+      const row = store.row(1);
+      expect(row.attempts).toBe(0);
+      expect(Date.parse(row.next_attempt_at) - START.getTime()).toBeLessThanOrEqual(15 * MINUTE + 30_000);
+    });
   });
 
   it('an answer that is not a usable activity is a failed attempt, never a reason to delete', async () => {
