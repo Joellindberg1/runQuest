@@ -1,11 +1,12 @@
 // Spelfakta som Playbook påstår men som ingen endpoint exponerar. Backend äger dem (event_templates i migrationerna,
 // väderregeln i eventService, schemat i eventScheduler) — här är de en kopia, och `playbookFacts.test.ts` läser backendens
 // källfiler och jämför, så texten inte glider ifrån koden i tysthet. Ändra backend → testet faller → uppdatera här.
+// Strava-faktan är undantaget: den bor i packages/shared/src/rules.ts och testet jämför kopiorna nedan med de konstanterna.
 
-/** Hur ofta Strava synkas (scheduler/stravaSync.ts: SYNC_INTERVAL_MINUTES). */
+/** Hur ofta Strava synkas (shared/rules.ts: STRAVA_POLL_INTERVAL_MINUTES). */
 export const STRAVA_SYNC_MINUTES = 30;
 
-/** Vilka Strava-typer som importeras (routes/strava.ts: RUNNING_SPORT_TYPES); löpband följer med och märks via `trainer`. */
+/** Vilka Strava-typer som importeras (shared/rules.ts: STRAVA_RUN_SPORT_TYPES); löpband följer med och märks via `trainer`. */
 export const STRAVA_RUN_TYPES_LABEL = 'Run, Trail Run and Virtual Run';
 
 /**

@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const h = vi.hoisted(() => ({
   schedule: vi.fn(),
   calculateUserTotals: vi.fn(),
+  backfillMissingWeather: vi.fn(),
   processAllUsersTitles: vi.fn(),
   callback: null as null | (() => Promise<void>),
 }));
@@ -17,7 +18,7 @@ vi.mock('node-cron', () => ({
 vi.mock('../../routes/strava.js', () => ({
   syncAllStravaUsers: vi.fn().mockResolvedValue({ success: true, message: 'ok', syncedUsers: 0, totalUsers: 0, totalNewRuns: 0 }),
 }));
-vi.mock('../../services/weatherService.js', () => ({ WeatherService: { backfillMissingWeather: vi.fn().mockResolvedValue(0) } }));
+vi.mock('../../services/weatherService.js', () => ({ WeatherService: { backfillMissingWeather: h.backfillMissingWeather } }));
 vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllUsersTitles: h.processAllUsersTitles } }));
 vi.mock('../../utils/calculateUserTotals.js', () => ({ calculateUserTotals: h.calculateUserTotals }));
 
@@ -26,6 +27,7 @@ import { logger } from '../../utils/logger.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.backfillMissingWeather.mockResolvedValue(0);
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-14T12:00:00Z'));
   vi.spyOn(logger, 'info').mockImplementation(() => {});
@@ -53,5 +55,16 @@ describe('Strava sync schedule', () => {
 
     expect(h.calculateUserTotals).not.toHaveBeenCalled();
     expect(h.processAllUsersTitles).not.toHaveBeenCalled();
+  });
+
+  it('a scheduled tick that saved weather recalculates titles once and never the user totals', async () => {
+    h.backfillMissingWeather.mockResolvedValueOnce(3);
+    h.processAllUsersTitles.mockResolvedValue({ total: 1, processed: 1, failed: 0 });
+    startStravaScheduler();
+
+    await h.callback!();
+
+    expect(h.processAllUsersTitles).toHaveBeenCalledTimes(1);
+    expect(h.calculateUserTotals).not.toHaveBeenCalled();
   });
 });
