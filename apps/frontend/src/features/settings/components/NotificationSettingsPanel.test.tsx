@@ -231,6 +231,19 @@ describe('NotificationSettingsPanel', () => {
     expect(panel).toContainElement(document.activeElement as HTMLElement);
   });
 
+  it('retryFocus flyttar fokus till det elementet i stället för panelens titel efter Retry', async () => {
+    const user = userEvent.setup();
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderWithApp(
+      <>
+        <h2 tabIndex={-1}>Host heading</h2>
+        <NotificationSettingsPanel retryFocus={() => screen.getByRole('heading', { name: 'Host heading' })} />
+      </>,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Retry' }, SLOW));
+    expect(screen.getByRole('heading', { name: 'Host heading' })).toHaveFocus();
+  });
+
   it('Reset to defaults är en knapp som bara visas när något är anpassat och återställer med null', async () => {
     const user = userEvent.setup();
     const untouched = await renderPanel();
@@ -284,6 +297,22 @@ describe('NotificationSettingsPanel', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Notifications' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 4 }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument();
+  });
+
+  it('showTotal={false} tar bort totalsumman men behåller sektionernas räknare och "Defaults shown"', async () => {
+    const total = new RegExp(`^\\d+ of ${NOTIFICATION_KINDS.length} on$`);
+    const shown = await renderPanel();
+    expect(screen.getByText(total)).toBeInTheDocument();
+    shown.unmount();
+
+    const hidden = await renderPanel({ showTotal: false });
+    expect(screen.queryByText(total)).not.toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Titles' })).getByRole('button', { name: /^Titles/ })).toHaveTextContent(/\d+ of \d+ on/);
+    hidden.unmount();
+
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderWithApp(<NotificationSettingsPanel showTotal={false} />);
+    expect(await screen.findByText('Defaults shown', {}, SLOW)).toBeInTheDocument();
   });
 
   it('visar en laddningsstatus i stället för reglage medan inställningarna laddas', async () => {

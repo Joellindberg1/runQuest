@@ -297,7 +297,8 @@ describe('Pack News — filter (?type=)', () => {
   it('desktop: samma knappar (filterkortet) — en DOM, ingen dubblering', async () => {
     renderNews('/news', DESKTOP);
     await screen.findByText('7 unread');
-    expect(screen.getAllByRole('button', { name: /^Titles/ })).toHaveLength(1);
+    // Filterchippet är en tryckknapp; panelens sektionsrubrik "Titles" i kolumnen är en annan knapp (aria-expanded).
+    expect(screen.getAllByRole('button', { name: /^Titles/, pressed: false })).toHaveLength(1);
     expect(screen.getByRole('group', { name: 'Filter' })).toBeInTheDocument();
   });
 });

@@ -25,6 +25,15 @@
 .rq-news__title { margin: 0; font-weight: 400; }
 .rq-news__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-news__mark { flex-shrink: 0; }
+/* Sidhuvudets verktyg: "Mark all read" och (mobil) kugghjulet som öppnar inställningsbladet. Kugghjulet är 44 px (frame N1 ritar 40; mobilens minsta träffyta gäller). */
+.rq-news__tools { display: flex; align-items: center; gap: var(--rq-sp-14); }
+.rq-btn.rq-news__settings { flex-shrink: 0; width: var(--rq-news-settings-hit); height: var(--rq-news-settings-hit); }
+/* Bladet återanvänder .rq-sheet (app-shell.css); kroppen scrollar inuti så att "Done" alltid ligger inom tummens räckvidd. */
+.rq-notify-sheet { max-height: var(--rq-notify-sheet-max-h); }
+.rq-notify-sheet__body { display: flex; flex-direction: column; gap: var(--rq-sp-12); min-height: 0; overflow-y: auto; }
+.rq-notify-sheet .rq-sheet__close { min-width: var(--rq-news-settings-hit); min-height: var(--rq-news-settings-hit); }
+/* Texten under panelen (kolumnen och bladet). text-3, inte text-4: meningen bär information. */
+.rq-news-settings__note { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 
 /* Bekräftelser och fel: permanenta live-regioner (behållaren finns innan texten kommer) */
 .rq-news-notice { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-up); }
