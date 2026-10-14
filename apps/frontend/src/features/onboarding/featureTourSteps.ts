@@ -86,28 +86,39 @@ export const TOUR_TITLES_V2: TourStep[] = [
   },
 ];
 
-// ── /news — tour_news_v1 ──────────────────────────────────────────────────
-// Ny skärm (inkrement 9): det fanns ingen gammal news-tour att bumpa från. Klockan i headern (header-news) har ingen egen tourstep — onboarding_v1
-// nämner den inte. Turen monteras bara när flödet har rader, och news-mark-read-steget bara när något är oläst (NewsScreen).
-export const TOUR_NEWS_V1: TourStep[] = [
-  {
-    title: 'Pack News',
-    description: 'Everything the group does, in one feed: titles changing hands, duels, level ups, events and broken streaks. Your own moves show up too, but only what other people do counts as unread.',
-  },
+// ── /news — tour_news_v2 ──────────────────────────────────────────────────
+// v2: slugen är bumpad så att alla ser turen igen (tour_news_v1 ligger kvar som oanvänd rad i user_seen_items). Fem steg (ägarbeslut 7): flödet och
+// läs-gesten är ett steg, "Involves me" nämns i filtersteget i stället för att få ett eget (det finns inget news-involves-ankare), och turen
+// avslutas med ett flytande steg. Det första "Pack News"-introt är borta; flödet är nu första steget.
+// Läs-gesten (ägarbeslut 2): mus efter rörelse, tryck, eller Enter. FOKUS markerar aldrig läst, så ordet får inte stå i copyn (featureTourSteps.test.ts).
+// Klockan i headern (header-news) har ingen egen tourstep. Turen monteras bara när flödet har rader, och news-mark-read-steget bara när något är
+// oläst (NewsScreen). news-settings är kortet i sidokolumnen på desktop och kugghjulsknappen på mobil (en och samma attribut).
+// Våg 2 (Ranks, RUN-191) ingår i v0.7.0. Bryts den ut: stryk "ranks" ur filtersteget.
+export const TOUR_NEWS_V2: TourStep[] = [
   {
     element: '[data-tour="news-feed"]',
     title: 'The feed',
-    description: 'Newest first, grouped by day. The coloured edge tells the kind apart, and a gold tint means you have not seen it yet. Show more at the bottom goes further back.',
+    description: 'Everything the pack does, newest first and grouped by day. A gold dot and bold type mean you have not read it yet: move your mouse over it, tap it, or press Enter and it counts as read. Read rows stay in the feed; they just stop counting on the bell. Show more at the bottom goes further back.',
   },
   {
     element: '[data-tour="news-filter"]',
     title: 'Filter',
-    description: 'Pick one or more kinds to narrow the feed down to just titles, challenges, events, levels, badges or streaks. The numbers are how many of each are loaded. Pick none to see everything.',
+    description: 'Pick one or more kinds (titles, challenges, ranks, events, levels, badges or streaks) to narrow the feed. Involves me keeps only news about you: your moves, moves against you and events you joined. Pick nothing to see everything.',
+  },
+  {
+    element: '[data-tour="news-settings"]',
+    title: 'Notification settings',
+    description: 'Choose what the bell counts and what its list shows: titles taken from you, challenges, rank changes, events and more. This page always shows everything, whatever you switch off.',
   },
   {
     element: '[data-tour="news-mark-read"]',
     title: 'Mark all read',
-    description: 'Clears the unread count on the bell. The bell in the header opens the five latest from anywhere in the app.',
+    description: 'Clears the unread count on the bell in one go. The bell in the header opens the five latest news that count for you, from anywhere in the app.',
+  },
+  {
+    // No element — floating step, closes the tour.
+    title: 'Your bell, your rules',
+    description: 'The page always shows the whole pack. Switch off what you do not want on the bell and nothing is ever lost; change it again any time, here or in Settings.',
   },
 ];
 

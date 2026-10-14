@@ -46,13 +46,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// Den första renderingen av App väntar ut Suspense-fallbacken: under full sviten kan den ta över findBy-sekunden, så Username-väntorna har lokal timeout.
 beforeAll(warmLanding);
 
 describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () => {
   it('felaktigt lösenord: felet syns (role=alert) och fälten står kvar — dialogen avmonteras inte', async () => {
     api.login.mockResolvedValue({ success: false, error: 'Invalid credentials' });
     render(<App />);
-    const username = await screen.findByLabelText('Username');
+    const username = await screen.findByLabelText('Username', {}, { timeout: 4000 });
     signIn('anna', 'fel-losen');
 
     // Alert-regionen finns permanent (tom) — vänta på texten, inte på elementet.
@@ -68,7 +69,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
   it('två fel i rad: båda visas, och knappen är återställd efter varje försök', async () => {
     api.login.mockResolvedValue({ success: false, error: 'Invalid credentials' });
     render(<App />);
-    await screen.findByLabelText('Username');
+    await screen.findByLabelText('Username', {}, { timeout: 4000 });
 
     signIn('anna', 'fel-1');
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'));
@@ -85,7 +86,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
     let finish: (value: { success: boolean; error?: string }) => void = () => {};
     api.login.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
     render(<App />);
-    const username = await screen.findByLabelText('Username');
+    const username = await screen.findByLabelText('Username', {}, { timeout: 4000 });
     const password = screen.getByLabelText('Password');
     fireEvent.change(username, { target: { value: 'anna' } });
     fireEvent.change(password, { target: { value: 'hemligt' } });
@@ -120,7 +121,7 @@ describe('inloggning (App → AuthProvider → LoginDialog över Landing)', () =
   it('lyckad inloggning leder till /board', async () => {
     api.login.mockResolvedValue({ success: true, user: { id: 'u1', name: 'Anna', email: 'anna@example.com' } });
     render(<App />);
-    await screen.findByLabelText('Username');
+    await screen.findByLabelText('Username', {}, { timeout: 4000 });
     signIn('anna', 'ratt-losen');
 
     expect(await screen.findByRole('heading', { name: 'Board page' })).toBeInTheDocument();

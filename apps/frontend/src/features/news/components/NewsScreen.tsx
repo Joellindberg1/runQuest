@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
-import { TOUR_NEWS_V1 } from '@/features/onboarding/featureTourSteps';
+import { TOUR_NEWS_V2 } from '@/features/onboarding/featureTourSteps';
 import { useAuth } from '@/providers/authContext';
 import { paths } from '@/paths';
 import { ErrorState } from '@/shared/components/ErrorState';
@@ -119,7 +119,7 @@ export function NewsScreen() {
   // Mark all read-steget finns bara när något är oläst (knappen visas då); turen kräver ett flöde med synliga rader.
   const tourReady = loaded > 0;
   const tourSteps = useMemo(
-    () => (tourReady ? TOUR_NEWS_V1.filter((step) => step.element !== MARK_READ_ANCHOR || unread > 0) : null),
+    () => (tourReady ? TOUR_NEWS_V2.filter((step) => step.element !== MARK_READ_ANCHOR || unread > 0) : null),
     // Stegen läses när turen startar; senare ändringar av räknaren ska inte bygga om dem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tourReady],
@@ -178,7 +178,7 @@ export function NewsScreen() {
   return (
     <>
       {/* Bara när det finns något att visa: över ett tomt flöde blir stegen flytande rutor, och turen skulle ändå markeras sedd för alltid. */}
-      {tourSteps && <FeatureTour slug="tour_news_v1" steps={tourSteps} />}
+      {tourSteps && <FeatureTour slug="tour_news_v2" steps={tourSteps} />}
       <div className="rq-news">
         <header className="rq-news__head">
           <div>

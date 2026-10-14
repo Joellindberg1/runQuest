@@ -1,6 +1,8 @@
 import React from 'react';
 import { beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useOnboardingQueue } from '@/features/onboarding/hooks/useOnboardingQueue';
 import { Outlet } from 'react-router-dom';
 import { setViewportWidth } from '@/test/viewport';
 import { useAuth } from '@/providers/authContext';
@@ -49,11 +51,17 @@ import { warmLanding, warmOnboarding } from '@/test/warmLazy';
 const ALL_SLUGS = [
   'onboarding_v1',
   ...announcedNotes(changelog.releases).map((note) => note.slug),
-  'tour_leaderboard_v2', 'tour_titles_v2', 'tour_duels_v2', 'tour_events_v2', 'tour_profile_v2', 'tour_news_v1',
+  'tour_leaderboard_v2', 'tour_titles_v2', 'tour_duels_v2', 'tour_events_v2', 'tour_profile_v2', 'tour_news_v2',
 ];
 
-// Servern svarar per token: användare A har sett allt, användare B är ny.
-const SEEN_BY_TOKEN: Record<string, string[]> = { 'token-a': ALL_SLUGS, 'token-b': [] };
+// Servern svarar per token: användare A har sett allt, användare B är ny. Användare C har sett allt utom /news-turen, men har sett den gamla
+// tour_news_v1 (raden finns kvar i databasen); användare D har sett allt utom den gamla v1.
+const SEEN_BY_TOKEN: Record<string, string[]> = {
+  'token-a': ALL_SLUGS,
+  'token-b': [],
+  'token-c': [...ALL_SLUGS.filter((slug) => slug !== 'tour_news_v2'), 'tour_news_v1'],
+  'token-d': ALL_SLUGS,
+};
 const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
   const token = String((init?.headers as Record<string, string>).Authorization).replace('Bearer ', '');
   return { ok: true, json: async () => ({ seen: SEEN_BY_TOKEN[token] }) } as Response;
@@ -127,5 +135,23 @@ describe('onboarding efter SPA-inloggning', () => {
 
     expect(await screen.findByTestId('onboarding-tour')).toBeInTheDocument();
     expect(statusCalls()).toHaveLength(2);
+  });
+});
+
+describe('onboarding-kön: /news-turen', () => {
+  async function currentItemFor(token: string) {
+    api.state.token = token;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useOnboardingQueue(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    return result.current.currentItem;
+  }
+
+  it('kön innehåller tour_news_v2 och inte tour_news_v1', async () => {
+    // Osedd v2 är nästa post, även för den som redan sett v1 — slugen är bumpad, så alla ser turen igen.
+    expect(await currentItemFor('token-c')).toBe('tour_news_v2');
+    // v1 är ingen kö-post: den som sett allt utom v1 (token-d har aldrig sett den) har inget kvar.
+    expect(await currentItemFor('token-d')).toBeNull();
   });
 });
