@@ -5,7 +5,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import {
-  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns,
+  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, MANUAL_RUN_MIN_DISTANCE_KM,
   type AdminSettings, type StreakMultiplier, type BoostSpec, type PreviousRunDay,
 } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
@@ -275,8 +275,8 @@ const MIN_RUN_DAY = '2025-06-01';
  */
 function validateRunInput(date: string | undefined, distance: unknown): { error: string | null; distanceNum: number } {
   const distanceNum = parseFloat(String(distance));
-  if (isNaN(distanceNum) || distanceNum < 1.0) {
-    return { error: 'Distance must be at least 1.0 km', distanceNum };
+  if (isNaN(distanceNum) || distanceNum < MANUAL_RUN_MIN_DISTANCE_KM) {
+    return { error: `Distance must be at least ${MANUAL_RUN_MIN_DISTANCE_KM.toFixed(1)} km`, distanceNum };
   }
   if (date !== undefined) {
     const runDate = new Date(date);

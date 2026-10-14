@@ -12,6 +12,7 @@
 
 import 'dotenv/config';
 import { getSupabaseClient } from '../config/database.js';
+import { isTreadmillActivity } from '../utils/stravaActivity.js';
 
 // ─── Konstanter ──────────────────────────────────────────────────────────────
 
@@ -79,12 +80,12 @@ async function fetchTrainerField(
     );
     if (!retry.ok) return null;
     const data = await retry.json() as any;
-    return data.trainer === true;
+    return isTreadmillActivity(data);
   }
 
   if (!res.ok) return null;
   const data = await res.json() as any;
-  return data.trainer === true;
+  return isTreadmillActivity(data);
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────

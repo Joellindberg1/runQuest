@@ -196,8 +196,8 @@ export interface FeatureCard {
 }
 
 /**
- * De sex korten. Synkintervallet är Playbookens kopia av backendens SYNC_INTERVAL_MINUTES (playbookFacts, som prövas mot
- * schedulerns källa). Eventexemplen är seedade mallar (migration 017: Morgonrunda, 5K Friday, Hangover Run).
+ * De sex korten. Synkintervallet är Playbookens kopia av STRAVA_POLL_INTERVAL_MINUTES i shared/rules.ts (playbookFacts, som
+ * prövas mot konstanten). Eventexemplen är seedade mallar (migration 017: Morgonrunda, 5K Friday, Hangover Run).
  */
 export function buildFeatures(syncMinutes: number = STRAVA_SYNC_MINUTES): FeatureCard[] {
   return [

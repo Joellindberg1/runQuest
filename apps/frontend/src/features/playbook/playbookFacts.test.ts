@@ -2,7 +2,16 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS } from '@runquest/shared';
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  DEFAULT_STREAK_MULTIPLIERS,
+  MANUAL_RUN_MIN_DISTANCE_KM,
+  STRAVA_DISTANCE_MUST_EXCEED_KM,
+  STRAVA_LOOKBACK_BUFFER_DAYS,
+  STRAVA_POLL_INTERVAL_MINUTES,
+  STRAVA_RUN_SPORT_TYPES,
+  STRAVA_TREADMILL_FLAG,
+} from '@runquest/shared';
 import { MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 import { HOW_IT_WORKS, observedStakes } from '@/features/challenges/rulesModel';
 import type { XpRules } from '@/features/log/xpPreviewModel';
@@ -10,8 +19,9 @@ import { EVENT_FACTS, STRAVA_RUN_TYPES_LABEL, STRAVA_SYNC_MINUTES, WEEKLY_COMPET
 import { buildChapters, type ChapterId } from './playbookModel';
 import { STRAVA_IMPORT_RULES } from '@/features/settings/settingsModel';
 
-// Playbook får bara påstå det koden gör. Faktapunkterna som går att låsa mot backendens källfiler (och frontendens egna
-// konstanter) låses här: ändras backend faller testet och texten måste följa med.
+// Playbook får bara påstå det koden gör. Strava-faktan låses mot konstanterna i packages/shared/src/rules.ts (som backend importerar;
+// backendtesterna visar att den gör det). Övriga faktapunkter låses mot backendens källfiler, migrationerna och frontendens egna
+// konstanter: ändras de faller testet och texten måste följa med.
 
 // resolve() i stället för new URL(`…${x}`, import.meta.url): Vite tolkar det mönstret som en dynamisk asset-import.
 // CRLF i arbetskopian normaliseras så att flerradiga mönster träffar.
@@ -25,15 +35,11 @@ const text = (id: ChapterId): string => {
   return [chapter.lead, ...chapter.paras, ...(chapter.table?.rows.flatMap((row) => [row.label, row.note ?? '', row.value]) ?? [])].join('\n');
 };
 
-describe('Run — minimidistans (routes/runs.ts, routes/strava.ts)', () => {
-  it('manuella rundor kräver minst 1,0 km i backend och i appens konstant; Strava-rundor har ingen distansgräns utöver > 0', () => {
-    expect(backend('src/routes/runs.ts')).toMatch(/distanceNum < 1\.0\b[\s\S]{0,80}Distance must be at least 1\.0 km/);
-    expect(MIN_RUN_DISTANCE_KM).toBe(1);
-    const strava = backend('src/routes/strava.ts');
-    // Importen filtrerar på sport och dubbletter — inte på distans…
-    expect(strava).toMatch(/const runningActivities = activities\.filter\(\(activity: any\) =>\s*isRunningActivity\(activity\) &&\s*!existingIds\.has/);
-    // …men en aktivitet med distans 0 sparas inte.
-    expect(strava).toContain('runningActivities.filter((a: any) => a.distance / 1000 > 0)');
+describe('Run — minimidistans (konstanterna i shared)', () => {
+  it('manuella rundor kräver minst 1,0 km, samma som appens konstant; Strava-rundor har ingen distansgräns utöver > 0', () => {
+    expect(MANUAL_RUN_MIN_DISTANCE_KM).toBe(1);
+    expect(MIN_RUN_DISTANCE_KM).toBe(MANUAL_RUN_MIN_DISTANCE_KM);
+    expect(STRAVA_DISTANCE_MUST_EXCEED_KM).toBe(0);
   });
 
   it('texten säger det som det är och påstår inget om "qualifying run" för streaken', () => {
@@ -41,24 +47,20 @@ describe('Run — minimidistans (routes/runs.ts, routes/strava.ts)', () => {
     expect(text('streaks')).not.toMatch(/qualif/i);
   });
 
-  it('Strava-importen: intervallet är konstanten SYNC_INTERVAL_MINUTES, löpning = Run, TrailRun, VirtualRun, och synken räknar från senast importerade rundan', () => {
-    const sync = backend('src/scheduler/stravaSync.ts');
-    expect(Number(/^const SYNC_INTERVAL_MINUTES = (\d+);/m.exec(sync)?.[1])).toBe(STRAVA_SYNC_MINUTES);
-    expect(sync).toContain('cron.schedule(`*/${SYNC_INTERVAL_MINUTES} * * * *`');
-    const strava = backend('src/routes/strava.ts');
-    expect(strava).toContain("new Set(['Run', 'TrailRun', 'VirtualRun'])");
-    // Fönstret räknas i stravaLookback: sju kalenderdagar före senaste importerade rundan.
-    expect(strava).toContain('stravaLookback(');
-    expect(backend('src/utils/stravaLookback.ts')).toMatch(/const RECENT_RUN_BUFFER_DAYS = 7;[\s\S]*addDays\(mostRecentRunDay, -RECENT_RUN_BUFFER_DAYS\)/);
+  it('Strava-importen: intervallet, löptyperna och fönstret är konstanterna i shared, och texten säger samma sak', () => {
+    expect(STRAVA_SYNC_MINUTES).toBe(STRAVA_POLL_INTERVAL_MINUTES);
     expect(text('run')).toContain(`every ${STRAVA_SYNC_MINUTES} minutes`);
-    expect(STRAVA_RUN_TYPES_LABEL).toBe('Run, Trail Run and Virtual Run');
+    // Etiketten är typnamnen med mellanslag i CamelCase: Run, TrailRun, VirtualRun -> "Run, Trail Run and Virtual Run".
+    const names = STRAVA_RUN_SPORT_TYPES.map((type) => type.replace(/([a-z])([A-Z])/g, '$1 $2'));
+    expect(STRAVA_RUN_TYPES_LABEL).toBe(`${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
     expect(text('run')).toContain(STRAVA_RUN_TYPES_LABEL);
+    // Texten säger "a week"; konstanten är sju dagar.
+    expect(STRAVA_LOOKBACK_BUFFER_DAYS).toBe(7);
     expect(text('run')).toMatch(/a week before your most recent Strava-imported run/);
   });
 
   it('Settings säger samma sak om Strava som Playbook: alla tre löptyperna, löpband importeras (trainer-flaggan)', () => {
-    const strava = backend('src/routes/strava.ts');
-    expect(strava).toMatch(/is_treadmill:\s+activity\.trainer === true/);
+    expect(text('run')).toContain(`${STRAVA_TREADMILL_FLAG} activity`);
     const rules = STRAVA_IMPORT_RULES.join(' ');
     expect(rules).toContain(`every ${STRAVA_SYNC_MINUTES} minutes`);
     expect(rules).toContain(STRAVA_RUN_TYPES_LABEL);
@@ -92,36 +94,22 @@ describe('Titles — säsongstitlar och när titlarna räknas om', () => {
     expect(titles).toMatch(/the one that just ended, so nothing resets on 1 March/);
   });
 
-  it('inget schemalagt jobb räknar om titlar på datum: ingen fil i scheduler/ anropar omräkningen — utom väder-backfill-grenen i stravaSync.ts', () => {
+  it('inget schemalagt jobb räknar om titlar på datum: ingen annan fil i scheduler/ anropar omräkningen (stravaSync.ts prövas som beteende i dess backendtester)', () => {
     const dir = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../backend/src/scheduler');
     const files = readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith('.ts') && !/\.test\.ts$/.test(entry.name)).map((entry) => entry.name);
     expect(files).toEqual(expect.arrayContaining(['eventScheduler.ts', 'streakScheduler.ts', 'challengeScheduler.ts', 'stravaSync.ts']));
     const RECALC = /calculateUserTotals|processAllUsersTitles|EnhancedTitleService|enhancedTitleService|titleLeaderboardService/;
-    const scheduled = files.filter((name) => backend(`src/scheduler/${name}`).includes('cron.schedule'));
-    expect(scheduled).toContain('stravaSync.ts');
-    for (const name of files) {
-      if (name === 'stravaSync.ts') continue;
+    // stravaSync.ts (omräkningen bara efter väder-backfill som sparade rader, aldrig calculateUserTotals) läses inte som text här:
+    // scheduler/__tests__/stravaSync.test.ts och stravaSyncSchedule.test.ts prövar det som beteende.
+    for (const name of files.filter((candidate) => candidate !== 'stravaSync.ts')) {
       expect({ name, recalculates: RECALC.test(backend(`src/scheduler/${name}`)) }).toEqual({ name, recalculates: false });
     }
-    // stravaSync.ts: omräkningen finns på exakt ett ställe, bara nåbar när väder-backfillen sparade rader.
-    const sync = backend('src/scheduler/stravaSync.ts');
-    expect(sync.match(/processAllUsersTitles\(/g)).toHaveLength(1);
-    expect(sync).not.toContain('calculateUserTotals');
-    expect(sync.match(/recalculateTitlesAfterWeather\(/g)).toHaveLength(2); // deklaration + ett anrop
-    expect(sync).toMatch(/const savedWeather = await WeatherService\.backfillMissingWeather\(\);\s*if \(savedWeather > 0\) await recalculateTitlesAfterWeather\(savedWeather\);/);
-    expect(sync).toMatch(/async function recalculateTitlesAfterWeather\([^)]*\): Promise<void> \{\s*try \{[\s\S]{0,200}?processAllUsersTitles\(undefined, \{ allGroups: true \}\);/);
   });
 
   it('omräkningen sker när en runda loggas, redigeras, raderas eller synkas från Strava (väder hämtas före omräkningen) — och använder omräkningens "nu", inte rundans datum', () => {
     const runs = backend('src/routes/runs.ts');
     expect(runs.match(/await calculateUserTotals\(userId\);/g)).toHaveLength(3); // POST, PUT, DELETE
-    const strava = backend('src/routes/strava.ts');
-    // Faktum: väder hämtas före omräkningen (titlarna hänger på väder). Låst som ordning, inte som exakt kodform —
-    // väderanropet får ligga i try/catch (RUN-215: ett väderfel ska inte stoppa totalerna).
-    const weatherAt = strava.indexOf('WeatherService.fetchAndSaveWeatherForRuns(');
-    const firstTotalsAt = strava.indexOf('await calculateUserTotals(userId);');
-    expect(weatherAt).toBeGreaterThan(-1);
-    expect(firstTotalsAt).toBeGreaterThan(weatherAt);
+    // Strava-synken (väder hämtas före omräkningen) läses inte som text här: routes/__tests__/strava-import-rules.test.ts prövar ordningen.
     const service = backend('src/services/enhancedTitleService.ts');
     expect(service).toContain('const ctx: TitleContext = { now: new Date() };');
     expect(backend('src/utils/calculateUserTotals.ts')).toContain('await titleService.processAllUsersTitles(userGroupId);');
@@ -220,13 +208,12 @@ describe('Events — mot migrationerna, eventService och schemat', () => {
     expect(service).toContain(`const qualifies = stormyHours >= ${stormHours} || gustyHours >= ${gustHours};`);
   });
 
-  it('kvalificering: bara redigering (PUT) kräver att rundans datum ligger inom eventets dagar — POST och Strava-importen gör det inte', () => {
+  it('kvalificering: bara redigering (PUT) kräver att rundans datum ligger inom eventets dagar — POST gör det inte (Strava-importen prövas i strava-import-rules.test.ts)', () => {
     const runs = backend('src/routes/runs.ts');
     const put = runs.slice(runs.indexOf("router.put('/:id'"), runs.indexOf("router.delete('/:id'"));
     const post = runs.slice(runs.indexOf("router.post('/'"), runs.indexOf("router.put('/:id'"));
     expect(put).toContain('enforceRunDateWindow: true');
     expect(post).not.toContain('enforceRunDateWindow');
-    expect(backend('src/routes/strava.ts')).not.toContain('enforceRunDateWindow');
     // Utan flaggan räcker det att eventet startat och att rundans datum inte ligger efter slutet.
     expect(service).toMatch(/\.lte\('starts_at', now\)\s*\.gte\('ends_at', `\$\{params\.runDate\}T00:00:00Z`\)/);
     expect(service).toMatch(/if \(params\.enforceRunDateWindow\) \{/);
