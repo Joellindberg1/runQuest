@@ -172,10 +172,66 @@ describe('athlete deauthorize', () => {
     expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
   });
 
-  // The acceptance criterion "confirmed by a failed refresh token removes the connection" cannot be met safely today: stravaClient
-  // reports every refresh failure (a rejected refresh token, a network error, a 5xx, missing credentials, a failed save of the new
-  // tokens) as `refresh_failed`. Deleting on that would let a forged event plus a network fault delete a user's runs. The handler
-  // therefore retries it, and only a 401 from GET /athlete confirms. See the report; the fix belongs in stravaClient.
+  it('deauthorize event confirmed by a rejected refresh token removes the connection', async () => {
+    // The access token has expired and Strava's token endpoint rejects the refresh token: that is Strava saying the authorisation is
+    // gone, so it confirms like a 401 from GET /athlete would. No GET /athlete is needed (there is no token to ask with) and no revoke.
+    const rejection = { message: 'Bad Request', errors: [{ resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' }] };
+    const { tables, store, worker, seedDeauthorize } = build({ tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(400, { body: rejection }) } });
+    seedDeauthorize();
+
+    await worker.drain();
+
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'deauthorized_runs_deleted', attempts: 0 });
+    expect(tables.runs.map((run) => run.id)).toEqual(['manual']); // a manual run is never touched
+    expect(tables.strava_tokens).toEqual([]);
+    expect(strava!.calls.oauthToken).toBe(1);
+    expect(strava!.calls.oauthDeauthorize).toBe(0);
+    expect(strava!.calls.athlete).toBe(0);
+    expect(reprocessRunsFromDate).toHaveBeenCalledTimes(1);
+  });
+
+  it('deauthorize event with a token refresh that failed for another reason, or a token row that could not be read, is retried and deletes nothing', async () => {
+    const clientCredentials = { message: 'Bad Request', errors: [{ resource: 'Application', field: 'client_secret', code: 'invalid' }] };
+    const cases: Array<{ label: string; setup: Setup; lastError: string }> = [
+      { label: '5xx', setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(503) } }, lastError: 'token_refresh_failed' },
+      {
+        label: 'network error',
+        setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: () => { throw new TypeError('fetch failed: ECONNRESET'); } } },
+        lastError: 'token_refresh_failed',
+      },
+      { label: '429', setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(429) } }, lastError: 'token_refresh_failed' },
+      {
+        // A wrong client secret on our side is a 400 too, and a forged event must not be able to turn it into deleted runs.
+        label: '400 about the client credentials',
+        setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(400, { body: clientCredentials }) } },
+        lastError: 'token_refresh_failed',
+      },
+      {
+        label: 'token row that cannot be read',
+        setup: { failWhen: (q) => (q.table === 'strava_tokens' && q.select?.startsWith('access_token') ? ({ message: 'connection reset', code: '57P01' } as never) : null), strava: { athlete: stravaError(401) } },
+        lastError: 'token_read_failed',
+      },
+    ];
+
+    for (const { label, setup, lastError } of cases) {
+      const c = build(setup);
+      c.seedDeauthorize();
+
+      await c.worker.drain();
+
+      expect(c.store.row(1), label).toMatchObject({ status: 'pending', attempts: 1, last_error: lastError });
+      expect(c.tables.runs, label).toHaveLength(3);
+      expect(c.tables.strava_tokens, label).toHaveLength(1);
+      expect(c.writes(), label).toBe(0);
+      expect(strava!.calls.athlete, label).toBe(0);
+      expect(strava!.calls.oauthDeauthorize, label).toBe(0);
+      expect(reprocessRunsFromDate, label).not.toHaveBeenCalled();
+      strava!.restore();
+      vi.clearAllMocks();
+    }
+  });
+
+  // A refresh that failed in a way that does not prove Strava withdrew the authorisation. Only `refresh_rejected` confirms.
   it('deauthorize event with a failed token refresh is retried and deletes nothing', async () => {
     const rejected = build({ tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(400, { body: { message: 'Bad Request', errors: [{ code: 'invalid' }] } }) } });
     rejected.seedDeauthorize();
@@ -459,5 +515,59 @@ describe('athlete deauthorize: the logs', () => {
     const text = lines.join('\n');
     expect(text).toContain('user-1'); // our own user id is logged
     for (const secret of NEVER_LOGGED) expect(text).not.toContain(secret);
+  });
+
+  it('every path of a deauthorize logs no token, athlete id, Strava id or response body', async () => {
+    // The athlete id is also the event's object_id. Strava's answers carry values (a token, the id) in their bodies and messages.
+    const LEAK = 'SECRET-NEW NEWREFRESH 424242 1001';
+    const rejected = { message: LEAK, errors: [{ resource: 'RefreshToken', field: 'refresh_token', code: LEAK }] };
+    const expired = [tokenRow({ expires_at: 1 })];
+    const networkError = () => { throw new TypeError(`fetch failed: ECONNRESET ${LEAK}`); };
+    const paths: Array<{ label: string; setup: Setup; seed?: Parameters<ReturnType<typeof build>['seedDeauthorize']>[0]; outcome: string }> = [
+      { label: 'network error on GET /athlete', setup: { strava: { athlete: networkError } }, outcome: 'network_error' },
+      { label: '429 on GET /athlete', setup: { strava: { athlete: stravaError(429, { body: { message: LEAK } }) } }, outcome: 'rate_limit_wait' },
+      { label: 'refresh_failed (5xx)', setup: { tokens: expired, strava: { oauthToken: stravaError(500, { body: { message: LEAK } }) } }, outcome: 'token_refresh_failed' },
+      { label: 'refresh_failed (network)', setup: { tokens: expired, strava: { oauthToken: networkError } }, outcome: 'token_refresh_failed' },
+      { label: 'refresh_rejected', setup: { tokens: expired, strava: { oauthToken: stravaError(401, { body: rejected }) } }, outcome: 'deauthorized_runs_deleted' },
+      { label: 'no_refresh_token', setup: { tokens: [tokenRow({ expires_at: 1, refresh_token: null })] }, outcome: 'no_refresh_token' },
+      {
+        label: 'token_read_failed',
+        setup: { failWhen: (q) => (q.table === 'strava_tokens' && q.select?.startsWith('access_token') ? ({ message: LEAK, code: '57P01', details: LEAK } as never) : null) },
+        outcome: 'token_read_failed',
+      },
+      {
+        // The row is there for the connection read and gone for the token read: the second read finds it gone.
+        label: 'not_connected, re-read',
+        setup: {
+          failWhen: (q) => {
+            if (q.table === 'strava_tokens' && q.select?.startsWith('access_token')) tablesOf.current.strava_tokens.length = 0;
+            return null;
+          },
+        },
+        outcome: 'ignored_unknown_owner',
+      },
+      { label: 'noop', setup: {}, seed: { updates: { authorized: 'true' } }, outcome: 'noop' },
+    ];
+    const tablesOf: { current: Record<string, Row[]> } = { current: {} };
+
+    const seen: string[] = [];
+    for (const { label, setup, seed, outcome } of paths) {
+      const c = build(setup);
+      tablesOf.current = c.tables;
+      c.seedDeauthorize(seed);
+
+      await c.worker.drain();
+
+      const row = c.store.row(1)!;
+      seen.push(`${label}: ${row.outcome ?? row.last_error}`);
+      expect(row.outcome ?? row.last_error, label).toBe(outcome);
+      strava!.restore();
+      vi.clearAllMocks();
+    }
+
+    expect(seen).toHaveLength(paths.length);
+    const text = lines.join('\n');
+    expect(text).toContain('user-1');
+    for (const secret of [...NEVER_LOGGED, 'SECRET-NEW', 'NEWREFRESH', 'ECONNRESET']) expect(text, secret).not.toContain(secret);
   });
 });

@@ -138,6 +138,8 @@ export type HandlerRegistry = Partial<Record<HandlerKey, WebhookHandler>>;
  * What a handler returns when getValidAccessToken did not give a token. A user without a Strava connection is an unknown owner
  * (done / ignored_unknown_owner, no new outcome: the disconnect already deleted their Strava runs). Every other reason is a failed
  * attempt, a retry with its own error code. The compiler makes each reason be listed here (stravaClient's AccessTokenResult).
+ * The deauthorize handler is the one caller that does not pass `refresh_rejected` on to this function: it reads it as Strava's
+ * refusal and removes the connection. The activity handlers do pass it on, and retry.
  */
 export function resultForTokenFailure(reason: AccessTokenFailureReason): WebhookHandlerResult {
   switch (reason) {
