@@ -4,12 +4,13 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
+import { createRateLimiter } from '../middleware/rateLimit.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { isTreadmillActivity } from '../utils/stravaActivity.js';
 import { calculateCompleteRunXP, STRAVA_CONSENT_VERSION } from '@runquest/shared';
-import type { StravaCallbackRequest, StravaCallbackResponse, StravaStatusResponse } from '@runquest/shared';
+import type { StravaCallbackRequest, StravaCallbackResponse, StravaStatusResponse, StravaSyncPausedResponse } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
@@ -20,6 +21,39 @@ import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, str
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
 
 const router = express.Router();
+
+/** Pause toggles are a button press, never a loop: 30 per minute and IP stops a script without ever being felt by a person. */
+const SYNC_PAUSED_WINDOW_MS = 60 * 1000;
+const SYNC_PAUSED_MAX_PER_WINDOW = 30;
+const syncPausedLimiter = createRateLimiter(SYNC_PAUSED_WINDOW_MS, SYNC_PAUSED_MAX_PER_WINDOW);
+
+interface PauseState {
+  /** False when the user has no strava_tokens row. */
+  connected: boolean;
+  paused: boolean;
+  pausedAt: string | null;
+}
+
+/** The pause state of the caller's own connection. Throws on a database error: callers must not guess "not paused". */
+async function readPauseState(userId: string): Promise<PauseState> {
+  const { data, error } = await getSupabaseClient()
+    .from('strava_tokens')
+    .select('sync_paused, paused_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { connected: false, paused: false, pausedAt: null };
+  return { connected: true, paused: data.sync_paused === true, pausedAt: data.paused_at ?? null };
+}
+
+/** The body must be exactly { paused: boolean }: other keys are refused rather than ignored, so a client that sends e.g. a userId finds out it does nothing. */
+function parseSyncPausedBody(body: unknown): boolean | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const keys = Object.keys(body);
+  if (keys.length !== 1 || keys[0] !== 'paused') return null;
+  const { paused } = body as { paused: unknown };
+  return typeof paused === 'boolean' ? paused : null;
+}
 
 /** The message the sync and the debug endpoint give for a token that could not be had. */
 function tokenFailureMessage(token: Extract<AccessTokenResult, { ok: false }>): string {
@@ -57,6 +91,15 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       res.json(notConnected); return;
     }
 
+    // Pausen ligger i samma rad men utanför token-vägen (stravaClient är delad); varje connected: true-svar bär den.
+    const pause = await readPauseState(userId);
+    if (!pause.connected) {
+      // Kopplingen togs bort mellan de två läsningarna.
+      const disconnected: StravaStatusResponse = { connected: false, expired: false };
+      res.json(disconnected); return;
+    }
+    const pauseFields = { sync_paused: pause.paused, paused_at: pause.pausedAt };
+
     // Om token är expired förnyar getValidAccessToken den (auto-refresh)
     if (token.ok && token.refreshed) {
       logger.info('✅ Token auto-refreshed successfully');
@@ -64,7 +107,8 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
         connected: true,
         expired: false, // No longer expired after refresh
         auto_refreshed: true,
-        consent_version: token.consentVersion
+        consent_version: token.consentVersion,
+        ...pauseFields
       };
       res.json(refreshed);
       return; // utan denna skickades ett andra res.json nedan (ERR_HTTP_HEADERS_SENT)
@@ -75,7 +119,8 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
         connected: true,
         expired: true,
         refresh_failed: true,
-        consent_version: token.consentVersion
+        consent_version: token.consentVersion,
+        ...pauseFields
       };
       res.json(refreshFailed);
       return;
@@ -105,13 +150,82 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       connection_date: token.connectionDate as string | undefined,
       last_sync: lastGlobalStravaRun?.created_at || null,
       // null för kopplingar som gjordes före samtyckesloggen (ADR 010 beslut 12, D4).
-      consent_version: token.consentVersion
+      consent_version: token.consentVersion,
+      ...pauseFields
     };
     res.json(body);
-    
+
   } catch (error) {
     logger.error('❌ Strava status error:', error);
     res.status(500).json({ error: 'Failed to check Strava status' }); return;
+  }
+});
+
+/**
+ * Startar synken efter "Slå på synk igen" utan att någon väntar på den. Kallas först när svaret är skickat, och aldrig från
+ * insidan av en annan withUserLock (låset är inte reentrant, utils/keyedMutex.ts). Ett fel får aldrig bli en ohanterad
+ * rejection: loggen får bara användar-id och felets namn, aldrig token eller felmeddelande.
+ */
+function startSyncInBackground(userId: string): void {
+  void (async () => {
+    try {
+      const result = await syncUserStravaActivities(userId);
+      if (!result.success) logger.warn(`⚠️ Sync after resume did not complete for user ${userId}: ${result.error}`);
+    } catch (error) {
+      logger.error(`❌ Sync after resume failed for user ${userId}: ${error instanceof Error ? error.name : typeof error}`);
+    }
+  })();
+}
+
+// PUT /api/strava/sync-paused - "Pausa synk" / "Slå på synk igen" (ADR 010 beslut 7.5)
+// Rör bara anroparens egen rad (userId kommer ur JWT, aldrig ur brödtexten; ingen adminväg). Pausen tar INTE användarlåset:
+// en synk som redan startat får bli klar och importera (7.5 godtar det), och att vänta på den skulle bara göra knappen seg.
+// Det som håller en pausad användare ifrån nya importer är kontrollerna FÖRE synken (POST /sync, syncAllStravaUsers) och
+// den om-kontroll som runUserStravaSync gör inne i låset, så att en synk som stod i kö bakom en annan inte körs efter pausen.
+router.put('/sync-paused', authenticateJWT, syncPausedLimiter, async (req, res): Promise<void> => {
+  const paused = parseSyncPausedBody(req.body);
+  if (paused === null) {
+    res.status(400).json({ error: 'Body must be exactly { "paused": boolean }' }); return;
+  }
+
+  try {
+    const userId = req.user!.user_id;
+    const supabase = getSupabaseClient();
+
+    // Ett villkorat skrivande: raden ändras bara om tillståndet faktiskt byts. Därför behåller en andra paus det FÖRSTA
+    // paused_at (pausens start), och bara den begäran som verkligen tog bort pausen startar en synk (en dubbelklick ger en).
+    const { data: changed, error } = await supabase
+      .from('strava_tokens')
+      .update(paused ? { sync_paused: true, paused_at: new Date().toISOString() } : { sync_paused: false, paused_at: null })
+      .eq('user_id', userId)
+      .eq('sync_paused', !paused)
+      .select('sync_paused, paused_at');
+    if (error) throw error;
+
+    let state: { sync_paused: boolean; paused_at: string | null };
+    const transitioned = Array.isArray(changed) && changed.length > 0;
+    if (transitioned) {
+      state = { sync_paused: changed[0].sync_paused === true, paused_at: changed[0].paused_at ?? null };
+    } else {
+      // Redan i det begärda läget (idempotent) eller ingen koppling alls.
+      const current = await readPauseState(userId);
+      if (!current.connected) {
+        res.status(400).json({ error: 'User not connected to Strava' }); return;
+      }
+      state = { sync_paused: current.paused, paused_at: current.pausedAt };
+    }
+
+    const body: StravaSyncPausedResponse = { success: true, data: state };
+    res.json(body);
+
+    // Luckan fylls av att pollingens `after` räknas från senaste IMPORTERADE rundan − 7 dagar (stravaLookback).
+    if (transitioned && !paused) {
+      logger.info(`▶️ Strava sync resumed, starting sync for user ${userId}`);
+      startSyncInBackground(userId);
+    }
+  } catch (error) {
+    logger.error('❌ Strava sync-paused error:', error);
+    res.status(500).json({ error: 'Failed to update sync pause' }); return;
   }
 });
 
@@ -255,9 +369,18 @@ router.post('/sync', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user!.user_id;
     logger.info(`🔄 Manual Strava sync requested for user: ${req.user!.name}`);
-    
+
+    // Kontrollen sker FÖRE låset/synken; runUserStravaSync kontrollerar igen inne i låset (kö bakom en annan synk).
+    // Kan pausen inte läsas (kastar) blir svaret 500: en pausad användare får aldrig synkas på ett gissat "inte pausad".
+    if ((await readPauseState(userId)).paused) {
+      res.status(409).json({ error: 'Sync is paused' }); return;
+    }
+
     const result = await syncUserStravaActivities(userId);
-    
+
+    if (result.paused) {
+      res.status(409).json({ error: 'Sync is paused' }); return;
+    }
     if (result.success) {
       res.json({
         success: true,
@@ -377,7 +500,8 @@ export async function syncAllStravaUsers(): Promise<{
         expires_at,
         users!inner(name)
       `)
-      .not('access_token', 'is', null);
+      .not('access_token', 'is', null)
+      .eq('sync_paused', false);
 
     if (error) {
       throw new Error(`Failed to fetch connected users: ${error.message}`);
@@ -398,6 +522,12 @@ export async function syncAllStravaUsers(): Promise<{
       try {
         logger.info(`🔄 Syncing user: ${user.users.name}`);
         const result = await syncUserStravaActivities(user.user_id);
+
+        if (result.paused) {
+          // Pausades medan synken stod i kö bakom låset: hoppas över som om användaren aldrig valts.
+          logger.info(`⏸️ Skipping ${user.users.name}: sync was paused while waiting`);
+          continue;
+        }
 
         if (result.success) {
           totalSyncedUsers++;
@@ -556,6 +686,8 @@ interface UserSyncResult {
   totalActivities?: number;
   message?: string;
   error?: string;
+  /** The user's sync is paused (ADR 010 decision 7.5): nothing was fetched or imported. */
+  paused?: true;
 }
 
 // Helper function to sync activities for a single user. Every caller (manual POST /sync, the scheduled polling) goes through the
@@ -571,6 +703,13 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
   let healConsumed = false;
   try {
     const supabase = getSupabaseClient();
+
+    // Om-kontroll inne i låset: en synk som väntade i kö medan användaren pausade ska inte köra. Ett läsfel faller ut i catch
+    // nedan (misslyckad synk), så en pausad användare aldrig importeras på ett gissat svar.
+    if ((await readPauseState(userId)).paused) {
+      logger.info(`⏸️ Sync skipped for user ${userId}: paused`);
+      return { success: false, error: 'Sync is paused', paused: true };
+    }
 
     const token = await getValidAccessToken(userId);
     if (!token.ok) {
