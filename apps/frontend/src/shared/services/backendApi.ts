@@ -8,7 +8,7 @@ import type {
   SettingsApiResponse, SettingsMeta, SettingsResponse, UpdateSettingsRequest,
   AdminWaitlistData,
   WaitlistSignupRequest,
-  StravaCallbackRequest, StravaStatusResponse,
+  StravaCallbackRequest, StravaStatusResponse, StravaSyncPausedRequest, StravaSyncPausedResponse,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
@@ -639,6 +639,18 @@ class BackendApiService {
     });
   }
 
+  /** PUT /strava/sync-paused: pausar eller slår på synken. Svaret är läget efter anropet (ADR 007-formen packas upp här). */
+  async setStravaSyncPaused(paused: boolean): Promise<ApiResponse<StravaSyncPausedResponse['data']>> {
+    const body: StravaSyncPausedRequest = { paused };
+    const result = await this.authenticatedRequest<StravaSyncPausedResponse>('/strava/sync-paused', { method: 'PUT', body: JSON.stringify(body) });
+    if (!result.success || !result.data) return { success: false, error: result.error || 'Request failed' };
+    return { success: true, data: result.data.data };
+  }
+
+  /**
+   * DELETE /strava/disconnect. Kontraktet är `{ success, message }` och ändras inte av bortkopplingen i backend (ADR 010 beslut 7.4): den
+   * ber Strava återkalla åtkomsten och raderar Stravarundorna. Klienten utgår aldrig från att rundorna är borta förrän den läst om dem.
+   */
   async disconnectStrava(): Promise<ApiResponse> {
     return this.authenticatedRequest('/strava/disconnect', {
       method: 'DELETE',

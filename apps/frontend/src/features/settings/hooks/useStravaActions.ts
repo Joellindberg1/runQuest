@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateAfterRunChange } from '@/features/runs/runEffects';
 import { backendApi } from '@/shared/services/backendApi';
 import { rememberStravaConsent, takeStravaConsent } from '../stravaConsent';
+import { DISCONNECTED_STATUS, DISCONNECT_FAILED, PAUSED_STATUS, PAUSE_FAILED, RESUMED_STATUS, RESUME_FAILED } from '../stravaConnectionCopy';
 
 interface UseStravaActionsInput {
   /** Strava-appens client_id; null medan konfigurationen laddas eller saknas. */
@@ -10,19 +12,31 @@ interface UseStravaActionsInput {
 
 const POPUP_FEATURES = 'width=500,height=700';
 
+/** Servern hämtar luckan efter en paus i bakgrunden när synken slås på igen (svaret kommer först): rundorna läses om en gång till när den hunnit en bit. */
+export const RESUME_FOLLOW_UP_MS = 8_000;
+
+/** Vilken av de tre åtgärderna som pågår. `disconnect` och `pause` körs i dialogen, `resume` på kortet. */
+export type ConnectionAction = 'pause' | 'resume' | 'disconnect';
+
 /** Serverns svar när samtycket saknas eller är för gammalt (en gammal flik): en omladdad sida har den aktuella texten och rutan. */
 const CONSENT_REQUIRED_ERROR = 'Consent required';
 const CONSENT_RELOAD_HINT = 'The privacy text has been updated. Reload the page and approve it again to connect Strava.';
 
 /**
- * Strava-kortets åtgärder: koppla (OAuth i ett fönster som svarar med postMessage), koppla om och synka nu.
- * Bekräftelse och fel är tillstånd (visas i kortets permanenta live-regioner), inte toasts.
+ * Strava-kortets åtgärder: koppla (OAuth i ett fönster som svarar med postMessage), koppla om, synka nu samt pausa, slå på igen och koppla bort.
+ * Bekräftelse och fel är tillstånd (visas i kortets permanenta live-regioner), inte toasts. Pausa och koppla bort körs i en dialog och rapporterar
+ * fel i dialogen (`connectionError`); varje sådan åtgärd svarar med om den lyckades.
  */
 export function useStravaActions({ clientId }: UseStravaActionsInput) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  // Pausa/koppla bort körs i en dialog, och dialogens fel ska stå i dialogen (inte i kortet bakom): egen sträng och egen "upptagen"-flagga.
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionBusy, setConnectionBusy] = useState<ConnectionAction | null>(null);
+  const followUp = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(followUp.current), []);
 
   const refreshStrava = useCallback(() => queryClient.invalidateQueries({ queryKey: ['strava'] }), [queryClient]);
 
@@ -99,5 +113,65 @@ export function useStravaActions({ clientId }: UseStravaActionsInput) {
     }
   };
 
-  return { status, error, syncing, connect, sync };
+  /** Rundorna, XP, nivåerna och rankingen läses om efter allt som ändrar vilka Stravarundor som finns (samma kedja som efter en ny, ändrad eller raderad runda). */
+  const refreshRuns = () => invalidateAfterRunChange(queryClient);
+
+  /**
+   * Kör en åtgärd mot servern och säger om den lyckades. Dialogens åtgärder (pause, disconnect) rapporterar fel i dialogen, som står kvar öppen;
+   * "Turn sync back on" har ingen dialog och rapporterar i kortets felregion. Bekräftelsen (kortets statusregion) sätts först när allt är omläst,
+   * så att den inte annonseras bakom en dialog som ännu är öppen.
+   */
+  const runConnectionAction = async (
+    action: ConnectionAction,
+    request: () => Promise<{ success: boolean }>,
+    failure: string,
+    onSuccess: () => Promise<void>,
+  ): Promise<boolean> => {
+    const inDialog = action !== 'resume';
+    const fail = (text: string) => (inDialog ? setConnectionError(text) : setError(text));
+    setConnectionError(null);
+    if (!inDialog) setError(null);
+    if (!backendApi.isAuthenticated()) { fail('Authentication required'); return false; }
+    setConnectionBusy(action);
+    try {
+      let accepted: boolean;
+      try {
+        accepted = (await request()).success;
+      } catch {
+        accepted = false;
+      }
+      if (!accepted) { fail(failure); return false; }
+      await onSuccess();
+      return true;
+    } finally {
+      setConnectionBusy(null);
+    }
+  };
+
+  const pause = () =>
+    runConnectionAction('pause', () => backendApi.setStravaSyncPaused(true), PAUSE_FAILED, async () => {
+      await refreshStrava();
+      setError(null);
+      setStatus(PAUSED_STATUS);
+    });
+
+  const resume = () =>
+    runConnectionAction('resume', () => backendApi.setStravaSyncPaused(false), RESUME_FAILED, async () => {
+      await Promise.all([refreshStrava(), refreshRuns()]);
+      setStatus(RESUMED_STATUS);
+      clearTimeout(followUp.current);
+      followUp.current = setTimeout(() => { void refreshStrava(); void refreshRuns(); }, RESUME_FOLLOW_UP_MS);
+    });
+
+  const disconnect = () =>
+    runConnectionAction('disconnect', () => backendApi.disconnectStrava(), DISCONNECT_FAILED, async () => {
+      // Klienten antar inte att rundorna är borta: allt som räknas ur dem läses om innan bekräftelsen visas.
+      await Promise.all([refreshStrava(), refreshRuns()]);
+      setError(null);
+      setStatus(DISCONNECTED_STATUS);
+    });
+
+  const clearConnectionError = () => setConnectionError(null);
+
+  return { status, error, syncing, connect, sync, pause, resume, disconnect, connectionError, connectionBusy, clearConnectionError };
 }
