@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  checkConditionalGroupFilter,
   checkEmptySuites,
   checkFontFiles,
   checkGitignoreForVideo,
@@ -142,6 +143,71 @@ describe('checkTestNames', () => {
     const errors = scan("it('a RUN-1', () => {});\r\nit('b', () => {});\r\nit('c RUN-2', () => {});\r\n");
     assert.equal(errors.length, 2);
     assert.match(errors[1], /:3:/);
+  });
+});
+
+describe('checkConditionalGroupFilter', () => {
+  const ROUTE = 'apps/backend/src/routes/x.ts';
+  const scan = (content, path = ROUTE) => checkConditionalGroupFilter([{ path, content }]);
+
+  it('flags the exact pattern that served every group to a token without group_id', () => {
+    const planted = [
+      "    let query = supabase.from('users').select('id');",
+      '',
+      '    if (groupId) {',
+      "      query = query.eq('group_id', groupId);",
+      '    }',
+      '',
+    ].join('\n');
+    const errors = scan(planted);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/routes\/x\.ts:3: villkorligt gruppfilter/);
+  });
+
+  it('flags the variants: brace-less if, CRLF, req.user group, joined column, .in()', () => {
+    for (const code of [
+      "if (groupId) query = query.eq('group_id', groupId);",
+      "if (groupId) {\r\n  query = query.eq('group_id', groupId);\r\n}",
+      "if (req.user!.group_id) { q = q.eq('group_id', req.user!.group_id); }",
+      "if (group_id) { q = q.eq(\"users.group_id\", group_id); }",
+      "if (groupId) { q = q.in('group_id', [groupId]); }",
+      "if (  groupId  )\n  {\n    q = q.eq(`group_id`, groupId);\n  }",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('passes the fail-closed forms used today', () => {
+    for (const code of [
+      "const groupId = groupIdOrRespondEmpty(req, res);\nif (!groupId) return;\nconst r = await supabase.from('users').eq('group_id', groupId);",
+      "if (!groupId) {\n  res.json({ items: [] }); return;\n}\nconst q = supabase.from('x').eq('group_id', groupId);",
+      "if (!groupId) { notFound(); return; }\nawait supabase.from('x').eq('group_id', groupId);",
+      "groupId ? supabase.from('challenges').eq('group_id', groupId) : Promise.resolve({ data: [] })",
+      "if (groupId && opponent.group_id !== groupId) { fail(); }",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('does not match a group check whose block ends before an unrelated, unconditional group filter', () => {
+    const code = "if (groupId) {\n  log(groupId);\n}\nconst q = supabase.from('x').eq('group_id', groupId);";
+    assert.deepEqual(scan(code), []);
+  });
+
+  it('only reads route files, never tests or services', () => {
+    const bad = "if (groupId) { q = q.eq('group_id', groupId); }";
+    assert.equal(scan(bad, 'apps/backend/src/routes/auth.ts').length, 1);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/__tests__/x.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/x.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/services/enhancedTitleService.ts'), []);
+  });
+
+  it('reports every offending block with its own line number', () => {
+    const code = "a;\nif (groupId) { q = q.eq('group_id', groupId); }\nb;\nif (groupId) {\n q = q.eq('group_id', groupId);\n}\n";
+    const errors = scan(code);
+    assert.equal(errors.length, 2);
+    assert.match(errors[0], /:2:/);
+    assert.match(errors[1], /:4:/);
   });
 });
 
@@ -331,6 +397,34 @@ describe('CLI', () => {
 
   it('does not flag a Jira ID in a non-test source file when checking test names', () => {
     assert.equal(runCli('test-names', makeRepo('names-src', { srcContent: "export const t = it('RUN-1');\n" })).status, 0);
+  });
+
+  it('exits 1 on a planted conditional group filter in a route (also under all) and 0 once it is unconditional', () => {
+    const makeRoute = (name, content) => {
+      const root = makeRepo(name);
+      mkdirSync(join(root, 'apps', 'one', 'src', 'routes'), { recursive: true });
+      writeFileSync(join(root, 'apps', 'one', 'src', 'routes', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeRoute('group-bad', "if (groupId) {\n  query = query.eq('group_id', groupId);\n}\n");
+    for (const mode of ['group-filter', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/one\/src\/routes\/planted\.ts:1: villkorligt gruppfilter/);
+    }
+    const good = makeRoute('group-good', "if (!groupId) return;\nquery = query.eq('group_id', groupId);\n");
+    assert.equal(runCli('group-filter', good).status, 0);
+  });
+
+  it('does not flag the same code outside routes/', () => {
+    const root = makeRepo('group-service', { srcContent: "if (groupId) { q = q.eq('group_id', groupId); }\n" });
+    assert.equal(runCli('group-filter', root).status, 0);
+  });
+
+  it('exits 0 on the current repo in group-filter mode', () => {
+    const result = runCli('group-filter');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /gruppfilter/);
   });
 
   it('ignores TODOs in node_modules and dist', () => {
