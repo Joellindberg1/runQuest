@@ -91,6 +91,27 @@ export async function earliestStravaRunDate(userId: string): Promise<string | nu
   return typeof date === 'string' && DATE.test(date) ? date : null;
 }
 
+/**
+ * The date ('YYYY-MM-DD') of the user's oldest run of ANY source (manual included), or null when the user has no run. The safe
+ * starting point for a reprocess when the date of an earlier, unfinished removal is not known.
+ */
+export async function earliestRunDate(userId: string): Promise<string | null> {
+  if (typeof userId !== 'string' || userId === '') throw new TypeError('earliestRunDate needs a user id');
+  const { data, error } = await getSupabaseClient()
+    .from('runs')
+    .select('date')
+    .eq('user_id', userId)
+    .order('date', { ascending: true })
+    .limit(1);
+  if (error) {
+    const code = errorCode(error);
+    logger.error(`❌ Strava removal: could not read the oldest run of any source for user ${userId} (${code})`);
+    throw Object.assign(new Error(`read oldest run failed (${code})`), { code });
+  }
+  const date = (data as Array<{ date: string }> | null)?.[0]?.date;
+  return typeof date === 'string' && DATE.test(date) ? date : null;
+}
+
 /** How many Strava runs the user has. A head count: no rows travel, so no max-rows cap applies. */
 export async function countStravaRuns(userId: string): Promise<number> {
   if (typeof userId !== 'string' || userId === '') throw new TypeError('countStravaRuns needs a user id');

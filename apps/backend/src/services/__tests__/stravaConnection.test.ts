@@ -206,6 +206,63 @@ describe('removeStravaConnection', () => {
     expect(calculateUserTotals).toHaveBeenCalledTimes(1); // the totals were still tried (recomputeAfterRemoval)
   });
 
+  it('a rerun after a failed reprocess recomputes from the earliest run of any source and then deletes the row', async () => {
+    const { tables } = setup({
+      runs: [
+        run({ id: 'a', external_id: '1', date: '2026-10-05' }),
+        run({ id: 'm-late', source: 'manual', external_id: null, date: '2026-10-09' }),
+        run({ id: 'm-early', source: 'manual', external_id: null, date: '2026-09-20' }),
+      ],
+    });
+    vi.mocked(reprocessRunsFromDate).mockRejectedValueOnce(Object.assign(new Error('boom'), { code: 'XX000' }));
+
+    await expect(removeStravaConnection('user-1', { reason: 'deauthorized' })).rejects.toThrow('boom');
+    expect(tables.runs.map((r) => r.id).sort()).toEqual(['m-early', 'm-late']);
+    expect(tables.strava_tokens).toHaveLength(1);
+
+    await removeStravaConnection('user-1', { reason: 'deauthorized' });
+
+    // Nothing was deleted on the second call, but the row says the first attempt never finished: the manual runs' streak and XP are repaired.
+    expect(reprocessRunsFromDate).toHaveBeenCalledTimes(2);
+    expect(reprocessRunsFromDate).toHaveBeenLastCalledWith('user-1', '2026-09-20');
+    expect(calculateUserTotals).toHaveBeenCalledTimes(2);
+    expect(tables.strava_tokens).toEqual([]);
+  });
+
+  it('a rerun that fails the reprocess again throws and keeps the row', async () => {
+    const { tables } = setup({ runs: [run({ id: 'm', source: 'manual', external_id: null, date: '2026-09-20' })] });
+    vi.mocked(reprocessRunsFromDate).mockRejectedValueOnce(Object.assign(new Error('again'), { code: 'XX000' }));
+
+    await expect(removeStravaConnection('user-1', { reason: 'deauthorized' })).rejects.toThrow('again');
+
+    expect(tables.strava_tokens).toHaveLength(1);
+  });
+
+  it('an unfinished earlier attempt with no run left only recalculates the totals', async () => {
+    const { tables } = setup({ runs: [] });
+
+    await removeStravaConnection('user-1', { reason: 'deauthorized' });
+
+    expect(reprocessRunsFromDate).not.toHaveBeenCalled();
+    expect(calculateUserTotals).toHaveBeenCalledTimes(1);
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+    expect(tables.strava_tokens).toEqual([]);
+  });
+
+  it('a rerun after a completed removal does no recompute and makes no write queries', async () => {
+    const { tables, db } = setup({
+      runs: [run({ id: 'manual', source: 'manual', external_id: null, date: '2026-08-01' })],
+      tokens: [],
+    });
+
+    await removeStravaConnection('user-1', { reason: 'deauthorized' });
+
+    expect(reprocessRunsFromDate).not.toHaveBeenCalled();
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+    expect(db.queries.filter((q) => q.mutation !== undefined)).toEqual([]);
+    expect(tables.runs).toHaveLength(1);
+  });
+
   it('deauthorize purge finishes within the 48 h window', async () => {
     // One call deletes everything, with one delete query and no paging. PostgREST max-rows (1000) can cap the rows a delete hands
     // back, and in no particular order: the date to recompute from must still be the true earliest.
