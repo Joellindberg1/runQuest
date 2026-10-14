@@ -29,7 +29,7 @@ export interface LegalDocument {
 }
 
 /** Version av integritetstexten, 'YYYY-MM-DD[.N]'. Höjs vid varje innehållsändring. Väntelistans samtyckesversion är samma värde. */
-export const DATA_POLICY_VERSION = '2026-10-14';
+export const DATA_POLICY_VERSION = '2026-10-14.1';
 
 /** Personuppgiftsansvarig (ägarbeslut 2026-10-13, publik visning godkänd av ägaren). */
 export const DATA_CONTROLLER: DataController = {
@@ -106,16 +106,16 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Connecting Strava is optional and you do it yourself in Settings. RunQuest asks Strava for read-only access to your activities (the activity:read permission).',
       `Only running activities are imported (Run, TrailRun and VirtualRun). From each run RunQuest stores: ${importedFieldLabels}. The Strava activity ID is kept so that the same run is never imported twice.`,
       'RunQuest does not store the activity name, description, photos or route. Heart rate and relative effort are stored but are not used or shown anywhere in the app today. The start coordinates are used only to look up the weather at the start from Open-Meteo (see the Weather section) and are not shown in the app.',
-      'RunQuest also stores your Strava access and refresh tokens, which it needs to read your activities. They are used for nothing else.',
-      'Your Strava athlete ID is stored too, only to link the events Strava sends to your RunQuest account. When you connect, RunQuest also stores the version of this text you agreed to and the time you agreed.',
-      'New runs arrive through Strava webhooks: Strava tells RunQuest when one of your activities is created, changed or deleted, and RunQuest then fetches that activity from Strava. As a backup, RunQuest also checks Strava for new runs at least every 12 hours.',
+      'RunQuest also stores your Strava access and refresh tokens, which it needs to read your activities. The tokens are also used to ask Strava to revoke RunQuest\'s access when you disconnect, and to check whether you have revoked it on Strava; they are not used for anything else.',
+      'Your Strava athlete ID is stored too, to link the events Strava sends to your RunQuest account (one Strava account can be connected to one RunQuest account). When you connect, RunQuest also stores the version of this text you agreed to and the time you agreed.',
+      'New runs arrive through Strava webhooks: Strava tells RunQuest when one of your activities is created, updated or deleted, and RunQuest then fetches that activity from Strava. As a backup, RunQuest also checks Strava for new runs at least every 12 hours.',
       'Strava data is not used for AI. It is not used to train, fine-tune or prompt any AI model, and it is not sent to any AI service.',
       'Who sees your runs: the members of your pack, in the app. Your runs are not public.',
-      'If you delete an activity on Strava, make it private or change it so that it is no longer a run, RunQuest removes it here within 48 hours. Your XP, streaks, titles and badges are then recalculated without it, so they can go down. Event XP that you have already earned is kept. If the activity later becomes a public run again, it is imported again.',
+      'If you delete an activity on Strava, make it private or change it so that it is no longer a run, RunQuest removes it here within 48 hours and recalculates your XP, streaks, titles and badges without it, so they can go down. Event XP that you have already earned is kept. If the activity later becomes a public run again, it is imported again.',
       'Strava runs are read-only in the app, so a single run cannot be deleted there; delete the activity on Strava or use "Disconnect".',
-      'The "Disconnect" button in Settings revokes RunQuest\'s access at Strava and deletes all runs that were imported from Strava, together with your stored Strava tokens. Runs you added by hand and event XP you have already earned stay. Your XP, streaks, titles and badges are recalculated. Disconnecting cannot be undone: if you connect Strava again, your earlier Strava runs are not fetched back and syncing starts from that day.',
+      'Choosing "Disconnect" in Settings asks Strava to revoke RunQuest\'s access and deletes all runs that were imported from Strava, together with your stored Strava tokens. The runs and tokens are deleted even if Strava does not answer. Runs you added by hand and event XP you have already earned stay. Your XP, streaks, titles and badges are recalculated. Disconnecting cannot be undone: if you connect Strava again, your earlier Strava runs are not fetched back and syncing starts from that day.',
       'If you revoke RunQuest\'s access on Strava instead, in your Strava settings, the result is the same: the runs imported from Strava and the tokens are deleted here.',
-      'The "Pause sync" button in Settings keeps your Strava connection and your runs, but no new runs are fetched while sync is paused. Runs you delete or make private on Strava are still removed here, and revoking access on Strava still works. When you choose "Turn sync back on", what happened during the pause is fetched.',
+      'In Settings you can choose "Pause sync": your Strava connection and your runs stay, but no new runs are fetched while sync is paused. Runs you delete or make private on Strava are still removed here, and revoking access on Strava still works. When you choose "Turn sync back on", the new runs from the pause are fetched.',
       `For any other request about your Strava data, email ${CONTACT}.`,
     ],
   },
@@ -154,7 +154,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     paragraphs: [
       'RunQuest uses the services below. They handle data on its behalf or, in the case of Strava, are where the data comes from.',
       "Railway hosts the app and the server. Server logs are kept there. They can contain usernames and IP addresses and, for imported runs, the date, distance, Strava activity ID and type. If an import fails, the logged details can also include the run's start coordinates.",
-      'For the events Strava sends about your activities, the log entry for the event itself holds only your Strava athlete ID and the activity ID, with the type of object and of change (object_type, aspect_type, object_id and owner_id), never a title, coordinates or a token. When you disconnect, the log also gets a line with your user ID and the version and time of your consent.',
+      'For the events Strava sends about your activities, the log entry for the event itself holds only your Strava athlete ID and the activity ID, with the type of object and of change (object_type, aspect_type, object_id and owner_id), never a title, coordinates or a token.',
       'Supabase provides the database and the file storage for profile pictures. All stored data described on this page, including the waitlist, lives there.',
       'Strava is where your runs come from. Strava\'s own terms and privacy policy apply to your data there.',
       'Open-Meteo receives the start coordinates and time of a run and returns the weather.',
@@ -167,7 +167,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     paragraphs: [
       'Account, run and pack data is kept as long as your account exists.',
       'Strava tokens are kept until you disconnect (in the app or on Strava) or ask for them to be deleted. Your Strava athlete ID and the record of your consent are kept with them. Connecting Strava again replaces them.',
-      `RunQuest keeps a journal of the events Strava sends, so that each event is handled once. It holds Strava IDs, the type of event and times, and no title, no coordinates and no token. Events that were handled are kept ${WEBHOOK_RETENTION_DONE_DAYS} days, and events that failed are kept ${WEBHOOK_RETENTION_FAILED_DAYS} days.`,
+      `RunQuest keeps a journal of the events Strava sends, so that each event is handled once. It holds Strava IDs, your RunQuest user ID, the type of event, the outcome of handling it and times, and no title, no coordinates and no token. Events that were handled are kept ${WEBHOOK_RETENTION_DONE_DAYS} days, and events that failed are kept ${WEBHOOK_RETENTION_FAILED_DAYS} days.`,
       'Notification settings are kept as long as your account exists. The read marks for Pack News rows are cleared when you mark all as read.',
       'Waitlist entries are kept as described in the Waitlist section.',
       'Server logs are kept by the hosting provider under its own rules.',
@@ -185,7 +185,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     id: 'deletion',
     title: 'Deleting your data',
     paragraphs: [
-      'The "Disconnect" button in Settings deletes your Strava runs and your Strava tokens directly in the app, and revokes the access at Strava.',
+      'Choosing "Disconnect" in Settings deletes your Strava runs and your Strava tokens directly in the app, and asks Strava to revoke the access.',
       `Everything else is deleted by hand on request. To have your whole account or your waitlist entry deleted, email ${CONTACT}. There is no delete button for accounts in the app yet.`,
       'Runs you added by hand can be deleted in the app. Runs imported from Strava are read-only there: they are removed by "Disconnect", or when you delete the activity on Strava.',
       'Uploading a new profile picture deletes the previous file.',

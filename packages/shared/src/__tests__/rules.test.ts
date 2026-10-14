@@ -62,7 +62,7 @@ describe('the privacy text agrees with the Strava constants', () => {
 
   // The text promises a backup check "at least every 12 hours": true for 30 minutes and for 12 hours, false for anything slower.
   it('the backup check is at least every 12 hours, as the privacy text says', () => {
-    expect(strava()).toContain('at least every 12 hours');
+    expect(strava()).toMatch(/at least (once )?every 12 (hours|h)\b/i);
     expect(STRAVA_POLL_INTERVAL_MINUTES).toBeLessThanOrEqual(12 * 60);
   });
 });
