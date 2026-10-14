@@ -85,6 +85,7 @@ describe('callback url and arguments', () => {
 
   it('parseArgs rejects unknown arguments, a bad id and flags that do not fit the command', () => {
     expect(() => parseArgs(['--bogus'])).toThrow(/unknown argument/i);
+    expect(() => parseArgs(['--client-secret=abc123xyz'])).toThrow(expect.objectContaining({ message: expect.not.stringContaining('abc123xyz') }));
     expect(() => parseArgs(['remove'])).toThrow(/unknown/i);
     expect(() => parseArgs(['delete', '--id', 'abc'])).toThrow(/--id/);
     expect(() => parseArgs(['delete', '--id'])).toThrow(/--id/);
@@ -188,11 +189,58 @@ describe('create', () => {
   });
 
   it('create refuses when the existing subscriptions cannot be listed, so it never creates a second one blindly', async () => {
-    strava = installFakeStravaFetch({ pushSubscriptions: { list: stravaError(500), create: { id: 888 } } });
-    const report = await run('create', { apply: true });
-    expect(strava.calls.pushSubscriptionsCreate).toBe(0);
-    expect(report.outcome).toBe('failed');
-    expect(exitCodeFor(report)).toBe(1);
+    const unreadable: Array<[string, unknown]> = [
+      ['an error answer', stravaError(500)],
+      ['a 200 that is not a list', {}],
+      ['a list with a row without an id', [{ callback_url: STRAVA_WEBHOOK_CALLBACK_URL }]],
+      ['a list with a row whose id is not a positive whole number', [{ id: 'abc', callback_url: STRAVA_WEBHOOK_CALLBACK_URL }]],
+    ];
+    for (const [name, list] of unreadable) {
+      strava = installFakeStravaFetch({ pushSubscriptions: { list: list as never, create: { id: 888 } } });
+      const report = await run('create', { apply: true });
+      expect(strava.calls.pushSubscriptionsCreate, name).toBe(0);
+      expect(report.outcome, name).toBe('failed');
+      expect(exitCodeFor(report), name).toBe(1);
+      strava.restore();
+    }
+  });
+
+  it('create sends the POST as a form body and every call carries a timeout signal', async () => {
+    strava = installFakeStravaFetch({ pushSubscriptions: { list: [], create: { id: 888 } } });
+    const fake = globalThis.fetch;
+    const seen: Array<{ method: string; body: unknown; signal: unknown }> = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      seen.push({ method: init?.method ?? 'GET', body: init?.body, signal: init?.signal });
+      return fake(input, init);
+    }) as typeof fetch;
+    try {
+      await run('create', { apply: true });
+    } finally {
+      globalThis.fetch = fake;
+    }
+    const post = seen.find((s) => s.method === 'POST');
+    expect(post?.body).toBeInstanceOf(URLSearchParams);
+    expect(seen.map((s) => s.method)).toEqual(['GET', 'POST']);
+    expect(seen.every((s) => s.signal instanceof AbortSignal)).toBe(true);
+  });
+
+  it('create that gets no answer says to check with view instead of claiming nothing was created', async () => {
+    const original = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      if (calls === 1) return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    }) as typeof fetch;
+    try {
+      const report = await run('create', { apply: true });
+      expect(report.outcome).toBe('failed');
+      expect(output()).toMatch(/check with view/i);
+      expect(output()).not.toMatch(/nothing was created/i);
+      expect(exitCodeFor(report)).toBe(1);
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 
   it('create refuses a verify token shorter than 32 characters, also as a dry-run, before any request', async () => {
@@ -385,6 +433,51 @@ describe('secrets', () => {
     }
   });
 
+  it('a secret at the length boundary of a message leaves no part of itself in the output', async () => {
+    const secret = 'Zq7!kP2xW9mR4tY8';
+    const token = 'Vt5#nB8wL3jH6dF1cX9sG2aE4yU7iO0p';
+    const env = { ...ENV, STRAVA_CLIENT_SECRET: secret, STRAVA_WEBHOOK_VERIFY_TOKEN: token };
+    // Where the secret starts: just inside and just past the old 300 character cut, and past the cap of a printed line.
+    for (const fill of [280, 296, 299, 300, 301, 590, 597, 600]) {
+      for (const secretValue of [secret, token]) {
+        const message = `${'a'.repeat(fill)}${secretValue}`;
+        const scenarios: Array<() => Promise<SubscriptionReport>> = [
+          async () => {
+            strava = installFakeStravaFetch({ pushSubscriptions: { list: [], create: stravaError(400, { body: { message } }) } });
+            return run('create', { apply: true, env });
+          },
+          async () => {
+            strava = installFakeStravaFetch({ pushSubscriptions: { list: stravaError(500, { body: { message } }) } });
+            return run('view', { env });
+          },
+          async () => {
+            const original = globalThis.fetch;
+            globalThis.fetch = (async () => {
+              throw new Error(message);
+            }) as typeof fetch;
+            try {
+              return await run('view', { env });
+            } finally {
+              globalThis.fetch = original;
+            }
+          },
+        ];
+        for (const scenario of scenarios) {
+          lines = [];
+          const report = await scenario();
+          const everything = [output(), consoleOutput.join('\n'), JSON.stringify(report.lines)].join('\n');
+          for (const value of [secret, token]) {
+            for (let i = 0; i + 4 <= value.length; i++) {
+              expect(everything, `fill ${fill}: leaked "${value.slice(i, i + 4)}"`).not.toContain(value.slice(i, i + 4));
+            }
+          }
+          strava?.restore();
+          strava = undefined;
+        }
+      }
+    }
+  });
+
   it('script output never contains a secret that appears in a network error', async () => {
     const original = globalThis.fetch;
     globalThis.fetch = (async () => {
@@ -425,8 +518,25 @@ describe('running the script', () => {
   it('an unknown argument gives exit code 1 and sends nothing', () => {
     const result = runScript(['--bogus'], { STRAVA_CLIENT_ID: CLIENT_ID, STRAVA_CLIENT_SECRET: CLIENT_SECRET });
     expect(result.stderr).toMatch(/unknown argument/i);
+    expect(result.stderr).not.toContain('--bogus');
     expect(result.status).toBe(1);
     expect(result.stdout).toBe('');
+  });
+
+  it('importing the module does not run main', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'strava-webhook-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        ['--import', tsxLoader, '--input-type=module', '-e', 'await import(process.env.MODULE_URL); console.log(`exitCode=${process.exitCode}`);'],
+        { cwd, env: { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', MODULE_URL: pathToFileURL(scriptPath).href }, encoding: 'utf8', timeout: 60_000 },
+      );
+      expect(result.stderr).toBe('');
+      expect(result.stdout.trim()).toBe('exitCode=undefined');
+      expect(result.status).toBe(0);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it('a missing env variable gives exit code 1 before any request', () => {

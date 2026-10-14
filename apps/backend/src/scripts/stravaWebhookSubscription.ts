@@ -22,6 +22,9 @@ import { stravaFetch } from '../services/stravaClient.js';
 export const STRAVA_WEBHOOK_CALLBACK_URL = 'https://api.runquest.dev/api/strava/webhook';
 const PUSH_SUBSCRIPTIONS_URL = 'https://www.strava.com/api/v3/push_subscriptions';
 const MIN_VERIFY_TOKEN_LENGTH = 32;
+const REQUEST_TIMEOUT_MS = 30_000;
+/** A printed line is cut after scrubbing, never before: a cut before it could leave the first part of a secret behind. */
+const MAX_LINE_LENGTH = 600;
 const SUBSCRIPTION_ID_VARIABLE = 'STRAVA_WEBHOOK_SUBSCRIPTION_ID';
 
 export type SubscriptionCommand = 'view' | 'create' | 'delete';
@@ -96,7 +99,7 @@ export function parseArgs(argv: string[]): SubscriptionOptions {
       if (command !== undefined) throw new Error(`Give one command only. ${usage}`);
       command = arg as SubscriptionCommand;
     } else {
-      throw new Error(`Unknown argument "${arg}". ${usage}`);
+      throw new Error(`Unknown argument (not echoed, it could be a secret typed in the wrong place). ${usage}`);
     }
   }
 
@@ -138,10 +141,11 @@ function describeFailure(status: number, body: unknown): string {
       .filter(Boolean);
     if (details.length > 0) parts.push(`(${details.join('; ')})`);
   }
-  return `HTTP ${status}${parts.length > 0 ? ` ${parts.join(' ').slice(0, 300)}` : ''}`;
+  return `HTTP ${status}${parts.length > 0 ? ` ${parts.join(' ')}` : ''}`;
 }
 
-type Call = { ok: true; status: number; body: unknown } | { ok: false; reason: string };
+/** `unanswered`: the request got no answer (network error or timeout), so what Strava did with it is unknown. */
+type Call = { ok: true; status: number; body: unknown } | { ok: false; reason: string; unanswered?: true };
 
 async function readJson(response: Response): Promise<unknown> {
   try {
@@ -159,7 +163,8 @@ export async function runSubscription({ command, apply, id, env, log }: RunSubsc
   const secrets = [env.STRAVA_CLIENT_SECRET, env.STRAVA_WEBHOOK_VERIFY_TOKEN].filter((s): s is string => typeof s === 'string' && s.length >= 4);
   const scrub = (text: string) => secrets.reduce((acc, secret) => acc.split(secret).join('[hidden]'), text);
   const say = (line = '') => {
-    const clean = scrub(line);
+    const scrubbed = scrub(line);
+    const clean = scrubbed.length > MAX_LINE_LENGTH ? `${scrubbed.slice(0, MAX_LINE_LENGTH)}…` : scrubbed;
     lines.push(clean);
     log(clean);
   };
@@ -180,11 +185,11 @@ export async function runSubscription({ command, apply, id, env, log }: RunSubsc
   const credentialQuery = () => new URLSearchParams({ client_id: clientId, client_secret: clientSecret }).toString();
   const send = async (url: string, init: RequestInit): Promise<Call> => {
     try {
-      const response = await stravaFetch(url, init);
+      const response = await stravaFetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
       const body = await readJson(response);
       return response.ok ? { ok: true, status: response.status, body } : { ok: false, reason: describeFailure(response.status, body) };
     } catch (err) {
-      return { ok: false, reason: `request failed: ${err instanceof Error ? err.message : 'network error'}`.slice(0, 300) };
+      return { ok: false, unanswered: true, reason: `request failed: ${err instanceof Error ? err.message : 'network error'}` };
     }
   };
 
@@ -257,8 +262,13 @@ export async function runSubscription({ command, apply, id, env, log }: RunSubsc
       body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, callback_url: STRAVA_WEBHOOK_CALLBACK_URL, verify_token: verifyToken }),
     });
     if (!created.ok) {
-      say(`Strava refused the subscription: ${created.reason}`);
-      say('Nothing was created. If the reason is the callback, check that GET on the callback url answers the challenge (verify token set in Railway, backend deployed).');
+      if (created.unanswered) {
+        say(`The request got no answer from Strava: ${created.reason}`);
+        say('It is unknown whether the subscription was created: check with view before running create again.');
+      } else {
+        say(`Strava refused the subscription: ${created.reason}`);
+        say('Nothing was created. If the reason is the callback, check that GET on the callback url answers the challenge (verify token set in Railway, backend deployed).');
+      }
       return finish('failed');
     }
     const newId = (created.body as { id?: unknown } | undefined)?.id;
