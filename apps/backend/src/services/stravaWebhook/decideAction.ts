@@ -132,8 +132,14 @@ function sameColumn(column: string, stored: unknown, fresh: unknown): boolean {
   return (stored ?? null) === (fresh ?? null);
 }
 
-/** PostgreSQL numeric(6,2) rounds half away from zero on the decimal value; JS Math.round on the binary double can land the other way. */
-const DISTANCE_COLUMN_TOLERANCE_KM = 0.005 + 1e-9;
+/**
+ * What numeric(6,2) stores for a distance in km. PostgreSQL rounds the decimal value half away from zero, while Math.round on the
+ * binary double can land the other way (8.575 * 100 is 857.4999999999999). toPrecision(12) first drops that float noise; the result
+ * matches PostgreSQL for every distance from 1 to 60,020 m.
+ */
+function storedDistanceKm(km: number): number {
+  return Math.round(Number((km * 100).toPrecision(12))) / 100;
+}
 
 /** The columns where Strava differs from the run, with Strava's values. Empty = nothing to write. */
 function diffRun(existing: ExistingRun, activity: StravaActivityDetail): RunChanges {
@@ -141,9 +147,9 @@ function diffRun(existing: ExistingRun, activity: StravaActivityDetail): RunChan
   const date = activity.start_date_local.split('T')[0];
   const distanceKm = activity.distance / 1000;
   if (existing.date !== date) changes.date = date;
-  // The column keeps two decimals, so a stored 8.58 stands for 8.575 km. Comparing within half a step of the column avoids
-  // re-implementing PostgreSQL's rounding (8575 m -> 8.58 in the database, 8.57 with Math.round) and a perpetual "update".
-  if (Math.abs(existing.distance - distanceKm) > DISTANCE_COLUMN_TOLERANCE_KM) changes.distance = distanceKm;
+  // The column keeps two decimals: compare what it would store, or a run like 5.2345 km would differ forever. A tolerance
+  // would hide real changes that land exactly one step away on a half-step boundary (8575 m -> 8585 m, stored 8.58 -> 8.59).
+  if (!sameNumber(existing.distance, storedDistanceKm(distanceKm))) changes.distance = distanceKm;
 
   const fresh = extractExtendedFields(activity);
   const target = changes as Record<string, unknown>;

@@ -526,6 +526,32 @@ describe('decideAction comparison with the stored run', () => {
     }
   });
 
+  it('decide updates when the new distance lands on the next rounding step of the column', () => {
+    // 8575 m is stored as 8.58 and 8585 m would be stored as 8.59: one step apart, a real change on a half-step boundary.
+    const before = stravaActivity({ distance: 8575 });
+    const after = stravaActivity({ distance: 8585 });
+    expect(decide({ response: ok(after), existingRun: runFor(before, { distance: 8.58 }) })).toMatchObject({
+      action: 'update',
+      changes: { distance: 8.585 },
+    });
+    // 0.01 km stored, 15 m (0.015 km, stored as 0.02) now.
+    const tiny = stravaActivity({ distance: 15 });
+    expect(decide({ response: ok(tiny), existingRun: runFor(tiny, { distance: 0.01 }) })).toMatchObject({
+      action: 'update',
+      changes: { distance: 0.015 },
+    });
+  });
+
+  it('decide returns noop for the stored value of the same distance on a half-step boundary', () => {
+    for (const [metres, stored] of [[8575, 8.58], [1005, 1.01], [8585, 8.59], [15, 0.02]] as const) {
+      const activity = stravaActivity({ distance: metres });
+      expect(decide({ response: ok(activity), existingRun: runFor(activity, { distance: stored }) }), `${metres} m`).toMatchObject({
+        action: 'none',
+        outcome: 'noop',
+      });
+    }
+  });
+
   // One changed field per extended column. The changed activity is spread after the factory, so the splits do not follow
   // moving_time or distance and exactly the named column moves.
   const oneChange: Record<string, { patch: Record<string, unknown>; expectedValue: unknown }> = {
