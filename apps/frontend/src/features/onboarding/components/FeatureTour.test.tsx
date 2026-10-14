@@ -141,50 +141,131 @@ describe('FeatureTour: tangentbord och fokus', () => {
     expect(screen.getByRole('button', { name: 'Late' })).toHaveFocus();
   });
 
-  // /news byter ankaret news-settings vid 1024 px (kortet i kolumnen ↔ kugghjulsknappen). Stegen byggs en gång, men driver.js slår upp
-  // selektorn först när steget visas: bytet mellan stegen ger rätt element, och bytet MEDAN steget visas kraschar inte (markeringen ligger
-  // kvar på det gamla elementet tills man bläddrar vidare).
-  it('turen klarar att ankaret byts ut mitt i turen (brytpunkten korsas)', async () => {
-    const user = userEvent.setup();
+  // /news byter ankaret news-settings vid 1024 px (kortet i kolumnen ↔ kugghjulsknappen). driver.js slår upp selektorn bara när ett steg
+  // börjar, så OnboardingTour visar om steget mot det nya elementet när det gamla har lämnat DOM:en vid en resize.
+  describe('ankarbyte vid brytpunkten', () => {
     const anchor = (tag: 'section' | 'button') => {
       const element = document.createElement(tag);
       element.setAttribute('data-tour', 'swap');
       document.body.appendChild(element);
       return element;
     };
-    const card = anchor('section');
-    render(
-      <QueryClientProvider client={client}>
-        <FeatureTour slug="tour_swap" steps={[{ title: 'Intro', description: 'First' }, { element: '[data-tour="swap"]', title: 'Settings', description: 'Anchored' }, { title: 'End', description: 'Last' }]} delayMs={START_MS} />
-      </QueryClientProvider>,
-    );
+    const swapSteps = [
+      { title: 'Intro', description: 'First' },
+      { element: '[data-tour="swap"]', title: 'Settings', description: 'Anchored' },
+      { title: 'End', description: 'Last' },
+    ];
+    afterEach(() => document.querySelectorAll('[data-tour="swap"]').forEach((element) => element.remove()));
 
+    it('markeringen följer det nya ankaret när det gamla har bytts ut medan steget visas', async () => {
+      const user = userEvent.setup();
+      const card = anchor('section');
+      render(<QueryClientProvider client={client}><FeatureTour slug="tour_swap" steps={swapSteps} delayMs={START_MS} /></QueryClientProvider>);
+
+      await screen.findByRole('dialog', { name: 'Intro' });
+      await user.click(screen.getByRole('button', { name: /Next/ }));
+      await screen.findByRole('dialog', { name: 'Settings' });
+      expect(card).toHaveClass('driver-active-element');
+
+      // Brytpunkten korsas medan steget visas.
+      card.remove();
+      const gear = anchor('button');
+      window.dispatchEvent(new Event('resize'));
+
+      await waitFor(() => expect(gear).toHaveClass('driver-active-element'));
+      expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
+
+      // Och turen går att avsluta som vanligt.
+      await user.click(screen.getByRole('button', { name: /Next/ }));
+      await screen.findByRole('dialog', { name: 'End' });
+      await user.click(screen.getByRole('button', { name: 'Done' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(pending()).toBeNull();
+    });
+
+    it('en resize utan ankarbyte visar inte om steget', async () => {
+      const user = userEvent.setup();
+      const card = anchor('section');
+      render(<QueryClientProvider client={client}><FeatureTour slug="tour_swap" steps={swapSteps} delayMs={START_MS} /></QueryClientProvider>);
+      await screen.findByRole('dialog', { name: 'Intro' });
+      await user.click(screen.getByRole('button', { name: /Next/ }));
+      await screen.findByRole('dialog', { name: 'Settings' });
+
+      const closeButton = screen.getByRole('button', { name: 'Close' });
+      closeButton.focus();
+      window.dispatchEvent(new Event('resize'));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      // Ett omstartat steg hade flyttat fokus in i popovern på nytt; här står det kvar och ankaret är orört.
+      expect(card).toHaveClass('driver-active-element');
+      expect(closeButton).toHaveFocus();
+    });
+  });
+
+  it('avmonteras sidan mitt i turen (Back, route-byte) försvinner dialogen och driver-active', async () => {
+    const { unmount } = renderPage();
     await screen.findByRole('dialog', { name: 'Intro' });
-    await user.click(screen.getByRole('button', { name: /Next/ }));
-    await screen.findByRole('dialog', { name: 'Settings' });
-    expect(card).toHaveClass('driver-active-element');
+    expect(document.body).toHaveClass('driver-active');
 
-    // Brytpunkten korsas medan steget visas.
-    card.remove();
-    const gear = anchor('button');
-    window.dispatchEvent(new Event('resize'));
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
+    unmount();
 
-    // Bläddrar man bort och tillbaka hittar driver.js det nya ankaret.
-    await user.click(screen.getByRole('button', { name: /Back/ }));
-    await screen.findByRole('dialog', { name: 'Intro' });
-    await user.click(screen.getByRole('button', { name: /Next/ }));
-    await screen.findByRole('dialog', { name: 'Settings' });
-    expect(gear).toHaveClass('driver-active-element');
-
-    // Och turen går att avsluta som vanligt.
-    await user.click(screen.getByRole('button', { name: /Next/ }));
-    await screen.findByRole('dialog', { name: 'End' });
-    await user.click(screen.getByRole('button', { name: 'Done' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.body).not.toHaveClass('driver-active');
     expect(pending()).toBeNull();
-    gear.remove();
+  });
+
+  describe('focusin-lyssnaren som minns fokuset före turen', () => {
+    // Antal document-lyssnare på focusin som lagts till respektive tagits bort sedan spionerna sattes.
+    function spyOnFocusin() {
+      const add = vi.spyOn(document, 'addEventListener');
+      const remove = vi.spyOn(document, 'removeEventListener');
+      const count = (spy: typeof add) => spy.mock.calls.filter(([type]) => type === 'focusin').length;
+      return { added: () => count(add), removed: () => count(remove) };
+    }
+
+    it('är balanserad efter Esc', async () => {
+      const user = userEvent.setup();
+      const listeners = spyOnFocusin();
+      renderPage();
+      await screen.findByRole('dialog', { name: 'Intro' });
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(listeners.added()).toBeGreaterThan(0);
+      expect(listeners.removed()).toBe(listeners.added());
+    });
+
+    it('är balanserad efter Done', async () => {
+      const user = userEvent.setup();
+      const listeners = spyOnFocusin();
+      renderPage();
+      await screen.findByRole('dialog', { name: 'Intro' });
+      await user.click(screen.getByRole('button', { name: /Next/ }));
+      await screen.findByRole('dialog', { name: 'Second' });
+      await user.click(screen.getByRole('button', { name: /Next/ }));
+      await screen.findByRole('dialog', { name: 'Last' });
+      await user.click(screen.getByRole('button', { name: 'Done' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(listeners.added()).toBeGreaterThan(0);
+      expect(listeners.removed()).toBe(listeners.added());
+    });
+
+    it('är balanserad när sidan avmonteras innan turen startat', async () => {
+      const listeners = spyOnFocusin();
+      const { unmount } = render(<QueryClientProvider client={client}><FeatureTour slug="tour_keys" steps={tourSteps} delayMs={LONG_DELAY_MS} /></QueryClientProvider>);
+      await waitFor(() => expect(pending()).toBe('1'));
+      unmount();
+      expect(listeners.added()).toBeGreaterThan(0);
+      expect(listeners.removed()).toBe(listeners.added());
+    });
+
+    it('är balanserad när sidan avmonteras mitt i turen', async () => {
+      const listeners = spyOnFocusin();
+      const { unmount } = renderPage();
+      await screen.findByRole('dialog', { name: 'Intro' });
+      unmount();
+      expect(listeners.added()).toBeGreaterThan(0);
+      expect(listeners.removed()).toBe(listeners.added());
+    });
   });
 
   it('en tour utan förhandsfokus (sidan nyladdad) stängs med Esc utan att kasta', async () => {

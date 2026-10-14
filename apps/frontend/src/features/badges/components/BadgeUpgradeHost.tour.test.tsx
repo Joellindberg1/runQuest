@@ -29,6 +29,7 @@ vi.mock('driver.js', () => ({
     tour.finish = () => config.onDestroyStarted();
     return {
       drive: () => { document.body.classList.add('driver-active'); },
+      isActive: () => document.body.classList.contains('driver-active'),
       destroy: () => { document.body.classList.remove('driver-active'); },
     };
   },
