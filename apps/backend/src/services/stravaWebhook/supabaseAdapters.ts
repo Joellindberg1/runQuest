@@ -21,15 +21,15 @@ function databaseError(operation: string, error: { code?: string }): Error {
 }
 
 export function createWebhookEventStore(): WebhookEventStore {
-  // A claimed row leaves the claim whatever the new status; the guard on `processing` keeps a late write (after the lease ran
-  // out and the row was taken back) from landing on a row that is no longer ours.
-  async function writeClaimed(id: number, operation: string, values: Record<string, unknown>): Promise<boolean> {
-    const { data, error } = await getSupabaseClient()
+  // A claimed row leaves the claim whatever the new status. `claimed_at` is the lease token: a claim sets it afresh, so a late write
+  // from an old claim (the lease ran out and the row was claimed again, status processing once more) matches no row.
+  async function writeClaimed(row: WebhookEventRow, operation: string, values: Record<string, unknown>): Promise<boolean> {
+    const query = getSupabaseClient()
       .from(EVENTS)
       .update({ ...values, claimed_at: null, lease_expires_at: null })
-      .eq('id', id)
-      .eq('status', 'processing')
-      .select('id');
+      .eq('id', row.id)
+      .eq('status', 'processing');
+    const { data, error } = await (row.claimed_at === null ? query.is('claimed_at', null) : query.eq('claimed_at', row.claimed_at)).select('id');
     if (error) throw databaseError(operation, error);
     return Array.isArray(data) && data.length > 0;
   }
@@ -51,10 +51,10 @@ export function createWebhookEventStore(): WebhookEventStore {
       if (error) throw databaseError('claim', error);
       return (data ?? []) as WebhookEventRow[];
     },
-    markDone: (id, outcome, processedAt) => writeClaimed(id, 'markDone', { status: 'done', outcome, processed_at: processedAt.toISOString() }),
-    markDead: (id, lastError, processedAt) => writeClaimed(id, 'markDead', { status: 'dead', last_error: lastError, processed_at: processedAt.toISOString() }),
-    release: (id, { attempts, nextAttemptAt, lastError }) =>
-      writeClaimed(id, 'release', { status: 'pending', attempts, next_attempt_at: nextAttemptAt.toISOString(), last_error: lastError }),
+    markDone: (row, outcome, processedAt) => writeClaimed(row, 'markDone', { status: 'done', outcome, processed_at: processedAt.toISOString() }),
+    markDead: (row, lastError, processedAt) => writeClaimed(row, 'markDead', { status: 'dead', last_error: lastError, processed_at: processedAt.toISOString() }),
+    release: (row, { attempts, nextAttemptAt, lastError }) =>
+      writeClaimed(row, 'release', { status: 'pending', attempts, next_attempt_at: nextAttemptAt.toISOString(), last_error: lastError }),
     async purge({ doneBefore, deadBefore }) {
       return { done: await deleteProcessedBefore('done', doneBefore), dead: await deleteProcessedBefore('dead', deadBefore) };
     },

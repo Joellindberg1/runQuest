@@ -11,6 +11,7 @@
  *   step 3  the owner whose oldest due pending row (next_attempt_at <= now, order event_time then id) is the oldest of all,
  *           among owners with no `processing` row; then up to p_max of that owner's due rows, oldest first, become `processing`
  *           with claimed_at = now and lease_expires_at = now + p_lease_seconds. The answer is in the same order.
+ * The status writes mirror the adapter: they apply only to the same claim (status processing and the same claimed_at).
  * What it does not model: the database's own failure modes, and FOR UPDATE SKIP LOCKED (nothing else writes here).
  * The real SQL is checked with PGlite in the critic's run; these in-memory rules are checked in inMemoryWebhookPorts.test.ts.
  */
@@ -79,10 +80,11 @@ export function createInMemoryWebhookStore(options: { now: () => Date }): InMemo
     return claimed.map((row) => ({ ...row }));
   }
 
-  function write(id: number, apply: (row: WebhookEventRow) => void): boolean {
+  function write(claimedRow: WebhookEventRow, apply: (row: WebhookEventRow) => void): boolean {
     if (store.writeError) throw store.writeError;
-    const row = table.find((candidate) => candidate.id === id);
-    if (!row || row.status !== 'processing') return false;
+    const row = table.find((candidate) => candidate.id === claimedRow.id);
+    // The lease token: still processing AND the same claim (claimed_at), as the database adapter requires.
+    if (!row || row.status !== 'processing' || row.claimed_at !== claimedRow.claimed_at) return false;
     apply(row);
     row.claimed_at = null;
     row.lease_expires_at = null;
@@ -140,22 +142,22 @@ export function createInMemoryWebhookStore(options: { now: () => Date }): InMemo
       return run;
     },
 
-    async markDone(id, outcome: WebhookOutcome, processedAt) {
-      return write(id, (row) => {
+    async markDone(claimed, outcome: WebhookOutcome, processedAt) {
+      return write(claimed, (row) => {
         row.status = 'done';
         row.outcome = outcome;
         row.processed_at = iso(processedAt);
       });
     },
-    async markDead(id, lastError, processedAt) {
-      return write(id, (row) => {
+    async markDead(claimed, lastError, processedAt) {
+      return write(claimed, (row) => {
         row.status = 'dead';
         row.last_error = lastError;
         row.processed_at = iso(processedAt);
       });
     },
-    async release(id, { attempts, nextAttemptAt, lastError }: ReleaseWrite) {
-      return write(id, (row) => {
+    async release(claimed, { attempts, nextAttemptAt, lastError }: ReleaseWrite) {
+      return write(claimed, (row) => {
         row.status = 'pending';
         row.attempts = attempts;
         row.next_attempt_at = iso(nextAttemptAt);

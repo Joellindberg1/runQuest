@@ -4,7 +4,7 @@
  * No Supabase and no network: the store mirrors the claim RPC of migration 046 (see test-utils/inMemoryWebhookPorts.ts).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MS_DAY } from '@runquest/shared';
+import { MS_DAY, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '@runquest/shared';
 
 vi.mock('../stravaAthlete.js', () => ({ findUserByAthleteId: vi.fn(), isValidAthleteId: vi.fn() }));
 
@@ -15,8 +15,6 @@ import {
   LEASE_SECONDS,
   WEBHOOK_CLAIM_BATCH,
   WEBHOOK_DEAD_AFTER_HOURS,
-  WEBHOOK_RETENTION_DONE_DAYS,
-  WEBHOOK_RETENTION_FAILED_DAYS,
   type WebhookOutcome,
 } from '../stravaWebhook/constants.js';
 import type { RateBudget, WebhookEventRow } from '../stravaWebhook/ports.js';
@@ -361,6 +359,27 @@ describe('retry and rate-limit waits', () => {
     ]);
   });
 
+  it("a wait in one user's batch releases the rows of every user in the claim and never calls the next user's handler", async () => {
+    const called: string[] = [];
+    const { store, worker, recompute } = setup(async (ctx) => {
+      called.push(ctx.userId);
+      return ctx.userId === 'user-1' ? { status: 'wait', kind: 'rate_limit' } : changed('2026-10-10');
+    });
+    store.seed({ user_id: 'user-1', attempts: 1 });
+    store.seed({ user_id: 'user-2', attempts: 2 });
+    store.seed({ user_id: 'user-1', attempts: 0 });
+
+    await worker.drain();
+
+    expect(called).toEqual(['user-1']);
+    expect(store.rows().map((row) => ({ status: row.status, attempts: row.attempts, next: row.next_attempt_at }))).toEqual([
+      { status: 'pending', attempts: 1, next: '2026-10-14T12:15:30.000Z' },
+      { status: 'pending', attempts: 2, next: '2026-10-14T12:15:30.000Z' },
+      { status: 'pending', attempts: 0, next: '2026-10-14T12:15:30.000Z' },
+    ]);
+    expect(recompute.calls).toEqual([]);
+  });
+
   it('the wait releases the lease before any later time passes: after the batch a second claim finds nothing due', async () => {
     const { store, worker } = setup(async () => ({ status: 'wait', kind: 'rate_limit' }));
     store.seed();
@@ -470,6 +489,38 @@ describe('recalculation', () => {
     expect(store.row(1).status).toBe('done');
   });
 
+  it('a retry after exactly one failed attempt without a date recomputes from the earliest run', async () => {
+    const { store, worker, recompute, runs } = setup(async () => done('noop', null));
+    runs.runs.push({ userId: 'user-1', externalId: 'a', date: '2026-05-05' });
+    store.seed({ attempts: 1 });
+
+    await worker.drain();
+
+    expect(recompute.calls).toEqual([
+      { kind: 'reprocess', userId: 'user-1', fromDate: '2026-05-05' },
+      { kind: 'totals', userId: 'user-1' },
+    ]);
+  });
+
+  it('a first try that is a noop without a date recomputes nothing', async () => {
+    const { store, worker, recompute } = setup(async () => done('noop', null));
+    store.seed({ attempts: 0 });
+
+    await worker.drain();
+
+    expect(recompute.calls).toEqual([]);
+  });
+
+  it('an impossible calendar date such as 2026-02-31 is treated as unknown', async () => {
+    const { store, worker, recompute, runs } = setup(async () => done('updated', '2026-02-31'));
+    runs.runs.push({ userId: 'user-1', externalId: 'a', date: '2026-03-01' });
+    store.seed();
+
+    await worker.drain();
+
+    expect(recompute.calls[0]).toEqual({ kind: 'reprocess', userId: 'user-1', fromDate: '2026-03-01' });
+  });
+
   it('a date that is not a calendar day is treated as unknown instead of reaching the reprocess', async () => {
     const { store, worker, recompute, runs } = setup(async () => done('updated', 'yesterday'));
     runs.runs.push({ userId: 'user-1', externalId: 'a', date: '2026-06-01' });
@@ -541,6 +592,17 @@ describe('48 hours, removed users and unknown types', () => {
     expect(critical[0]).toContain(`object_id=${old.object_id}`);
     expect(critical[0]).toContain(`owner_id=${old.owner_id}`);
     expect(critical[0]).toContain('attempts=7');
+  });
+
+  it('an old event for a removed user ends as ignored_unknown_owner without a deletion alarm', async () => {
+    const logs = captureLogs();
+    const { store, worker } = setup(async () => done('noop'));
+    store.seed({ user_id: null, received_at: overdue(), aspect_type: 'delete' });
+
+    await worker.drain();
+
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'ignored_unknown_owner' });
+    expect(logs.at('error')).toEqual([]);
   });
 
   it('an event exactly 48 hours old is still processed', async () => {
@@ -694,6 +756,16 @@ describe('handler contract', () => {
     expect(store.row(1).last_error).toHaveLength(80);
   });
 
+  it('last_error from a handler is filtered like an error code: no spaces, quotes or braces', async () => {
+    const { store, worker } = setup(async () => failure('Bearer abc {"title": "x"}'));
+    store.seed();
+
+    await worker.drain();
+
+    expect(store.row(1).last_error).toBe('Bearerabctitle:x');
+    expect(store.row(1).last_error).not.toMatch(/[\s"{}]/);
+  });
+
   it('the worker itself makes no Strava calls', async () => {
     const { store, worker, strava } = setup(async () => changed('2026-10-10'));
     store.seed();
@@ -822,6 +894,36 @@ describe('retention', () => {
 });
 
 describe('logging', () => {
+  it('routine log lines carry no Strava id; only the dead alarm names object_id and owner_id', async () => {
+    const logs = captureLogs();
+    const OBJECT_ID = 987654321;
+    const OWNER_ID = 555111;
+    const ids = { object_id: OBJECT_ID, owner_id: OWNER_ID };
+    const { store, worker, recompute } = setup({
+      [webhookHandlerKey('activity', 'create')]: async (ctx) => {
+        if (ctx.event.id === 1) throw new Error('boom');
+        if (ctx.event.id === 2) return changed('2026-10-10');
+        return failure('server_error');
+      },
+    });
+    recompute.reprocessError = new Error('db');
+    store.seed({ ...ids });
+    store.seed({ ...ids });
+    store.seed({ ...ids, aspect_type: 'update' }); // no handler registered
+    store.seed({ ...ids, received_at: new Date(START.getTime() - 3 * 24 * HOUR).toISOString() }); // dead: the alarm
+    store.claimError = null;
+
+    await worker.drain();
+    await worker.runRetention();
+    store.claimError = Object.assign(new Error('x'), { code: 'ECONNREFUSED' });
+    await worker.drain();
+
+    expect(logs.lines.length).toBeGreaterThan(3);
+    const withIds = logs.lines.filter((line) => line.text.includes(String(OBJECT_ID)) || line.text.includes(String(OWNER_ID)));
+    expect(withIds).toHaveLength(1);
+    expect(withIds[0].text).toContain('🚨 KRITISKT: Strava-webhook');
+  });
+
   it('worker never logs tokens, titles or request bodies', async () => {
     const logs = captureLogs();
     const SECRET = 'SECRET-TOKEN-9f3a';

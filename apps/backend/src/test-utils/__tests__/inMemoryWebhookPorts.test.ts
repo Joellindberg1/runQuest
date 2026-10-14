@@ -95,12 +95,26 @@ describe('in-memory status writes', () => {
     const store = make();
     store.seed();
     store.seed();
-    await store.claim(300, 1);
+    const [first] = await store.claim(300, 1);
 
-    expect(await store.markDone(1, 'noop', START)).toBe(true);
-    expect(await store.markDone(1, 'noop', START)).toBe(false);
-    expect(await store.markDone(2, 'noop', START)).toBe(false);
+    expect(await store.markDone(first, 'noop', START)).toBe(true);
+    expect(await store.markDone(first, 'noop', START)).toBe(false);
+    expect(await store.markDone(store.row(2), 'noop', START)).toBe(false);
     expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'noop', claimed_at: null, lease_expires_at: null });
     expect(store.row(2).status).toBe('pending');
+  });
+
+  it('drop a late write from an old claim once the row has been claimed again', async () => {
+    const store = make();
+    store.seed();
+    const [oldClaim] = await store.claim(300, 25);
+    clock = new Date(START.getTime() + 301_000);
+    const [newClaim] = await store.claim(300, 25); // the lease ran out: back to pending, attempts + 1, claimed again
+
+    expect(newClaim.claimed_at).not.toBe(oldClaim.claimed_at);
+    expect(await store.markDone(oldClaim, 'imported', clock)).toBe(false);
+    expect(await store.release(oldClaim, { attempts: 9, nextAttemptAt: clock, lastError: 'late' })).toBe(false);
+    expect(store.row(1)).toMatchObject({ status: 'processing', attempts: 1, claimed_at: newClaim.claimed_at });
+    expect(await store.markDone(newClaim, 'imported', clock)).toBe(true);
   });
 });

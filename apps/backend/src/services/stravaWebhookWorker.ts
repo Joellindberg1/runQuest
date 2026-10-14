@@ -25,8 +25,9 @@
  * while it runs makes it look once more, so an event stored just after the last claim is not left to the next sweep.
  *
  * A claimed batch belongs to one owner. For each event, oldest first:
+ *   - no user_id (the user was deleted)                              -> done / ignored_unknown_owner, no lock, no retry (also
+ *     when it is older than 48 h: nobody is left to delete data for, so no alarm);
  *   - older than WEBHOOK_DEAD_AFTER_HOURS counted from received_at  -> dead, one 🚨 KRITISKT line, no handler;
- *   - no user_id (the user was deleted)                              -> done / ignored_unknown_owner, no lock, no retry;
  *   - otherwise the events of one user run inside ONE withUserLock(userId): handlers, then the recalculation, then the status
  *     writes. The lock is taken once, outermost; nothing inside takes it again, and nothing inside wakes the loop.
  * Recalculation: ONE reprocessRunsFromDate from the earliest affected date and ONE calculateUserTotals per user and batch (a
@@ -49,9 +50,10 @@
  * the row stays `processing`, its lease runs out and the next claim counts that as one attempt (the handlers are idempotent and a
  * retry recalculates). Nothing here throws out of drain() or runRetention().
  *
- * Logging: ids, the object/aspect type and error CODES only. Never a token, a title, a body, an error message or `updates`.
+ * Logging: our own event id, the event type, counts, our user id and error CODES. No Strava id in routine lines (ADR 010 decision
+ * 8.6); only the dead alarm names object_id and owner_id (decision 11). Never a token, a title, a body, an error message or `updates`.
  */
-import { MS_DAY } from '@runquest/shared';
+import { MS_DAY, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '@runquest/shared';
 import { logger } from '../utils/logger.js';
 import { withUserLock } from '../utils/keyedMutex.js';
 import {
@@ -63,8 +65,6 @@ import {
   WEBHOOK_LAST_ERROR_MAX_LENGTH,
   WEBHOOK_OUTCOMES,
   WEBHOOK_QUARTER_WAIT_MARGIN_MS,
-  WEBHOOK_RETENTION_DONE_DAYS,
-  WEBHOOK_RETENTION_FAILED_DAYS,
   type WebhookAspectType,
   type WebhookObjectType,
   type WebhookOutcome,
@@ -149,7 +149,12 @@ interface Finished {
   needsRecompute: boolean;
 }
 
-const isCalendarDay = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+/** A real calendar day: the round trip through Date catches 2026-02-31, which Date.parse accepts and shifts to March. */
+function isCalendarDay(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
 const isOutcome = (value: unknown): value is WebhookOutcome => (WEBHOOK_OUTCOMES as readonly unknown[]).includes(value);
 
 /** A short, safe label for an error: its code or its name, characters limited. Never the message (it can carry values). */
@@ -158,11 +163,13 @@ function errorCode(error: unknown): string {
   return String(raw).replace(/[^\w.:-]/g, '').slice(0, 40) || 'unknown';
 }
 
-const shortError = (value: string): string => value.slice(0, WEBHOOK_LAST_ERROR_MAX_LENGTH);
+/** A handler's error string is stored as last_error: filtered like an error code (no spaces, quotes or braces) and cut. */
+const shortError = (value: string): string => value.replace(/[^\w.:-]/g, '').slice(0, WEBHOOK_LAST_ERROR_MAX_LENGTH) || 'unknown';
 
 const byEventOrder = (a: WebhookEventRow, b: WebhookEventRow): number => Date.parse(a.event_time) - Date.parse(b.event_time) || a.id - b.id;
 
-const label = (row: WebhookEventRow): string => `${row.object_type} ${row.aspect_type} object_id=${row.object_id} owner_id=${row.owner_id}`;
+/** For routine log lines: our own row id and the event type. No Strava id (ADR 010 decision 8.6); only the dead alarm names them. */
+const label = (row: WebhookEventRow): string => `event ${row.id} (${row.object_type} ${row.aspect_type})`;
 
 /** Validates what a handler returned; a handler bug becomes a failed attempt instead of a wrong status. */
 function readResult(result: unknown): WebhookHandlerResult {
@@ -198,20 +205,20 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
   }
 
   const markDone = (row: WebhookEventRow, outcome: WebhookOutcome, settled: Set<number>) =>
-    write(row, settled, 'done', () => store.markDone(row.id, outcome, now()));
+    write(row, settled, 'done', () => store.markDone(row, outcome, now()));
 
   function retryRow(row: WebhookEventRow, error: string, settled: Set<number>): Promise<boolean> {
     const before = Math.max(0, Math.floor(row.attempts));
     const minutes = WEBHOOK_BACKOFF_MINUTES[Math.min(before, WEBHOOK_BACKOFF_MINUTES.length - 1)];
     return write(row, settled, 'retry', () =>
-      store.release(row.id, { attempts: before + 1, nextAttemptAt: new Date(now().getTime() + minutes * MINUTE_MS), lastError: shortError(error) }),
+      store.release(row, { attempts: before + 1, nextAttemptAt: new Date(now().getTime() + minutes * MINUTE_MS), lastError: shortError(error) }),
     );
   }
 
   // A wait: back to pending at `until`, attempts untouched.
   function postpone(rows: WebhookEventRow[], until: Date, settled: Set<number>): Promise<boolean[]> {
     return Promise.all(
-      rows.map((row) => write(row, settled, 'wait', () => store.release(row.id, { attempts: row.attempts, nextAttemptAt: until, lastError: 'rate_limit_wait' }))),
+      rows.map((row) => write(row, settled, 'wait', () => store.release(row, { attempts: row.attempts, nextAttemptAt: until, lastError: 'rate_limit_wait' }))),
     );
   }
 
@@ -231,9 +238,10 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
   async function declareDead(row: WebhookEventRow, settled: Set<number>): Promise<void> {
     const at = now();
     // Written first, alarmed after: the alarm is "once, at the transition", so it is only given when the transition happened.
-    const applied = await write(row, settled, 'dead', () => store.markDead(row.id, `dead_after_${WEBHOOK_DEAD_AFTER_HOURS}h`, at));
+    const applied = await write(row, settled, 'dead', () => store.markDead(row, `dead_after_${WEBHOOK_DEAD_AFTER_HOURS}h`, at));
     if (!applied) return;
-    const subject = `${label(row)} attempts=${row.attempts}`;
+    // The one place a Strava id is logged (ADR 010 decision 11): the alarm must say which deletion is missing.
+    const subject = `${row.object_type} ${row.aspect_type} object_id=${row.object_id} owner_id=${row.owner_id} attempts=${row.attempts}`;
     const isDeletion = row.aspect_type === 'delete' || row.object_type === 'athlete';
     logger.error(
       isDeletion
@@ -330,10 +338,11 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
     const byUser = new Map<string, WebhookEventRow[]>();
 
     for (const row of [...claimed].sort(byEventOrder)) {
-      if (Date.parse(row.received_at) < deadline) {
-        await declareDead(row, settled);
-      } else if (row.user_id === null) {
+      // A removed user first: there is nobody to delete data for, so an old event must not raise the "deletion not completed" alarm.
+      if (row.user_id === null) {
         await markDone(row, 'ignored_unknown_owner', settled);
+      } else if (Date.parse(row.received_at) < deadline) {
+        await declareDead(row, settled);
       } else {
         byUser.set(row.user_id, [...(byUser.get(row.user_id) ?? []), row]);
       }
@@ -360,7 +369,7 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
     for (const row of claimed) {
       if (!settled.has(row.id)) await retryRow(row, 'worker_error', settled);
     }
-    logger.info(`📥 Strava webhook: handled a batch of ${claimed.length} event(s) for owner ${claimed[0]?.owner_id}`);
+    logger.info(`📥 Strava webhook: handled a batch of ${claimed.length} event(s)`);
   }
 
   async function drainOnce(): Promise<void> {

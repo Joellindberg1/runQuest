@@ -44,12 +44,13 @@ export interface WebhookEventStore {
   /** The RPC: expired leases back to pending, then up to `max` due rows of one owner, oldest first, as processing. */
   claim(leaseSeconds: number, max: number): Promise<WebhookEventRow[]>;
   /**
-   * The writes below apply only to a row that is still `processing`, and say whether one was written. A row whose lease ran out
-   * and was taken back is not ours any more: the write is dropped (false), never applied on top of the new owner of the row.
+   * The writes below take the row as claimed and apply only if it is still the same claim: status `processing` AND the same
+   * `claimed_at` (the lease token). They say whether a row was written. A row whose lease ran out and was claimed again has a new
+   * `claimed_at`, so a late write from the old claim is dropped (false) and never lands on the new claim's row.
    */
-  markDone(id: number, outcome: WebhookOutcome, processedAt: Date): Promise<boolean>;
-  markDead(id: number, lastError: string, processedAt: Date): Promise<boolean>;
-  release(id: number, write: ReleaseWrite): Promise<boolean>;
+  markDone(row: WebhookEventRow, outcome: WebhookOutcome, processedAt: Date): Promise<boolean>;
+  markDead(row: WebhookEventRow, lastError: string, processedAt: Date): Promise<boolean>;
+  release(row: WebhookEventRow, write: ReleaseWrite): Promise<boolean>;
   /** Retention: deletes `done` rows processed before `doneBefore` and `dead` rows processed before `deadBefore`. */
   purge(cutoffs: { doneBefore: Date; deadBefore: Date }): Promise<{ done: number; dead: number }>;
 }

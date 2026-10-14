@@ -19,6 +19,7 @@ import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { createFakeDb, type FakeDbOptions, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaActivity, stravaAthlete, stravaError, type FakeStrava } from '../../test-utils/fakeStrava.js';
 import { extractExtendedFields } from '../stravaImport.js';
+import type { WebhookEventRow } from '../stravaWebhook/ports.js';
 import { logger } from '../../utils/logger.js';
 import { createDefaultWebhookWorker } from '../stravaWebhook/defaultWorker.js';
 import {
@@ -45,6 +46,9 @@ afterEach(() => {
   strava?.restore();
   strava = undefined;
 });
+
+/** The row as claim returned it: the id and the lease token (claimed_at) the writes are matched on. */
+const claimed = (id: number, claimedAt: string | null = 'x') => ({ id, claimed_at: claimedAt }) as unknown as WebhookEventRow;
 
 describe('Supabase event store', () => {
   it('claims through the claim RPC with the lease and the batch size and returns the rows', async () => {
@@ -80,10 +84,10 @@ describe('Supabase event store', () => {
     useDb(tables);
     const store = createWebhookEventStore();
 
-    expect(await store.markDone(1, 'imported', AT)).toBe(true);
-    expect(await store.markDone(2, 'imported', AT)).toBe(false);
-    expect(await store.markDead(3, 'dead_after_48h', AT)).toBe(true);
-    expect(await store.release(4, { attempts: 1, nextAttemptAt: new Date('2026-10-14T12:08:00.000Z'), lastError: 'server_error' })).toBe(true);
+    expect(await store.markDone(claimed(1), 'imported', AT)).toBe(true);
+    expect(await store.markDone(claimed(2), 'imported', AT)).toBe(false);
+    expect(await store.markDead(claimed(3), 'dead_after_48h', AT)).toBe(true);
+    expect(await store.release(claimed(4), { attempts: 1, nextAttemptAt: new Date('2026-10-14T12:08:00.000Z'), lastError: 'server_error' })).toBe(true);
 
     expect(tables[EVENTS][0]).toMatchObject({ status: 'done', outcome: 'imported', processed_at: AT.toISOString(), claimed_at: null, lease_expires_at: null });
     expect(tables[EVENTS][1]).toMatchObject({ status: 'pending', attempts: 1 });
@@ -99,9 +103,24 @@ describe('Supabase event store', () => {
     });
   });
 
+  it('a late write from an old claim does not overwrite a row that was claimed again', async () => {
+    const tables: Record<string, Row[]> = {
+      [EVENTS]: [{ id: 1, status: 'processing', attempts: 1, claimed_at: '2026-10-14T12:20:00+00:00', lease_expires_at: 'y' }],
+    };
+    useDb(tables);
+    const store = createWebhookEventStore();
+
+    const stale = await store.markDone(claimed(1, '2026-10-14T12:07:00+00:00'), 'imported', AT);
+    const staleRelease = await store.release(claimed(1, '2026-10-14T12:07:00+00:00'), { attempts: 5, nextAttemptAt: AT, lastError: 'x' });
+    const current = await store.markDone(claimed(1, '2026-10-14T12:20:00+00:00'), 'imported', AT);
+
+    expect([stale, staleRelease, current]).toEqual([false, false, true]);
+    expect(tables[EVENTS][0]).toMatchObject({ status: 'done', attempts: 1 });
+  });
+
   it('a failed write throws, so the worker can log it and leave the row to its lease', async () => {
     useDb({ [EVENTS]: [{ id: 1, status: 'processing' }] }, { errors: { [EVENTS]: { message: 'db down' } } });
-    await expect(createWebhookEventStore().markDone(1, 'noop', AT)).rejects.toThrow();
+    await expect(createWebhookEventStore().markDone(claimed(1), 'noop', AT)).rejects.toThrow();
   });
 
   it('purges done rows processed before the first cut-off and dead rows before the second, and counts them', async () => {

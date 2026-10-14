@@ -59,12 +59,7 @@ export const WEBHOOK_MAX_UNPROCESSED_PER_OWNER = 200;
 /** Sista tillåtna event_time (epoch-sekunder): 9999-12-31T23:59:59Z. Därefter skriver toISOString() ett sexsiffrigt år som Postgres avvisar (22009). */
 export const WEBHOOK_MAX_EVENT_TIME = 253402300799;
 
-// TODO(RUN-261): replace these two with the same-named constants in packages/shared/src/rules.ts once RUN-261 is on the branch.
-// The privacy text is built from the shared ones, so the values must stay identical (ADR 010 decision 11).
-/** `done` events are deleted this many days after they were processed. */
-export const WEBHOOK_RETENTION_DONE_DAYS = 30;
-/** `dead` events are deleted this many days after they were declared dead. */
-export const WEBHOOK_RETENTION_FAILED_DAYS = 90;
+// The retention periods (WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS) live in packages/shared/src/rules.ts: the privacy text is built from them.
 
 /** The worker sweep: every minute (ADR 010 decision 6). The sweep is the guarantee, the wake-up after an insert is only latency. */
 export const WEBHOOK_SWEEP_CRON = '* * * * *';
