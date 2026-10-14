@@ -12,14 +12,18 @@ vi.mock('../../config/database.js', () => ({
 }));
 vi.mock('../../routes/runs.js', () => ({ reprocessRunsFromDate: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../../utils/calculateUserTotals.js', () => ({ calculateUserTotals: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../weatherService.js', () => ({ WeatherService: { fetchAndSaveWeatherForRuns: vi.fn().mockResolvedValue(undefined) } }));
+vi.mock('../eventService.js', () => ({ checkEventQualification: vi.fn().mockResolvedValue(undefined) }));
 
 import { getSupabaseClient } from '../../config/database.js';
 import { reprocessRunsFromDate } from '../../routes/runs.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
+import { WeatherService } from '../weatherService.js';
+import { checkEventQualification } from '../eventService.js';
 import { createFakeDb, type FakeDbOptions, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
-import { installFakeStravaFetch, stravaActivity, stravaAthlete, stravaError, type FakeStrava } from '../../test-utils/fakeStrava.js';
+import { installFakeStravaFetch, stravaActivity, stravaAthlete, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
 import { extractExtendedFields } from '../stravaImport.js';
-import type { WebhookEventRow } from '../stravaWebhook/ports.js';
+import type { WebhookEventRow, WebhookImportedRun } from '../stravaWebhook/ports.js';
 import { logger } from '../../utils/logger.js';
 import { createDefaultWebhookWorker } from '../stravaWebhook/defaultWorker.js';
 import {
@@ -45,6 +49,7 @@ beforeEach(() => {
 afterEach(() => {
   strava?.restore();
   strava = undefined;
+  vi.unstubAllEnvs();
 });
 
 /** The row as claim returned it: the id and the lease token (claimed_at) the writes are matched on. */
@@ -186,6 +191,39 @@ describe('Supabase run store', () => {
   });
 });
 
+describe('Supabase connection read', () => {
+  it('reads sync_paused and connection_date from the strava_tokens row of the user only', async () => {
+    const db = useDb({
+      strava_tokens: [
+        { user_id: 'user-1', sync_paused: true, connection_date: '2026-10-01T09:00:00+00:00' },
+        { user_id: 'user-2', sync_paused: false, connection_date: null },
+      ],
+    });
+
+    const connection = await createRunStore().getConnection('user-1');
+
+    expect(connection).toEqual({ syncPaused: true, connectionDate: '2026-10-01T09:00:00+00:00' });
+    expect(db.queries[0]).toMatchObject({ table: 'strava_tokens', filters: [{ op: 'eq', column: 'user_id', value: 'user-1' }] });
+    expect(db.queries[0].select).not.toMatch(/token/);
+  });
+
+  it('reads a connection without a date and without a pause flag as connected and not paused', async () => {
+    useDb({ strava_tokens: [{ user_id: 'user-1', connection_date: null }] });
+    expect(await createRunStore().getConnection('user-1')).toEqual({ syncPaused: false, connectionDate: null });
+  });
+
+  it('gives null for a user with no row and throws, with the code only, on a database error', async () => {
+    useDb({ strava_tokens: [] });
+    expect(await createRunStore().getConnection('user-1')).toBeNull();
+
+    useDb({ strava_tokens: [] }, { errors: { strava_tokens: { message: 'secret detail', code: '57P01' } as never } });
+    const failure = await createRunStore().getConnection('user-1').catch((error: Error & { code?: string }) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error & { code?: string }).code).toBe('57P01');
+    expect((failure as Error).message).not.toContain('secret detail');
+  });
+});
+
 describe('recalculation', () => {
   it('runs the reprocess from the date and the user totals', async () => {
     const recompute = createRecompute();
@@ -196,9 +234,54 @@ describe('recalculation', () => {
     expect(reprocessRunsFromDate).toHaveBeenCalledWith('user-1', '2026-10-01');
     expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
   });
+
+  const newRun = (over: Partial<WebhookImportedRun> = {}): WebhookImportedRun => ({
+    id: 'run-1', external_id: '9001', date: '2026-10-12', distance_km: 5.2, start_lat: 59.3, start_lng: 18.1,
+    start_time: '2026-10-12T07:30:00Z', moving_time: 1500, is_treadmill: false, ...over,
+  });
+
+  it('fetches weather for the runs through the weather service', async () => {
+    const runs = [newRun(), newRun({ id: 'run-2' })];
+
+    await createRecompute().fetchWeather(runs);
+
+    expect(WeatherService.fetchAndSaveWeatherForRuns).toHaveBeenCalledTimes(1);
+    expect(WeatherService.fetchAndSaveWeatherForRuns).toHaveBeenCalledWith(runs);
+  });
+
+  it('qualifies each new run for events with the polling arguments: id, date, distance in km and treadmill', async () => {
+    await createRecompute().qualifyEvents('user-1', [newRun(), newRun({ id: 'run-2', date: '2026-10-13', distance_km: 10, is_treadmill: true })]);
+
+    expect(checkEventQualification).toHaveBeenCalledTimes(2);
+    expect(checkEventQualification).toHaveBeenNthCalledWith(1, { userId: 'user-1', runId: 'run-1', runDate: '2026-10-12', distanceKm: 5.2, isTreadmill: false });
+    expect(checkEventQualification).toHaveBeenNthCalledWith(2, { userId: 'user-1', runId: 'run-2', runDate: '2026-10-13', distanceKm: 10, isTreadmill: true });
+  });
+
+  it('one run failing event qualification does not stop the others, and the failure is logged', async () => {
+    vi.mocked(checkEventQualification).mockRejectedValueOnce(Object.assign(new Error('db down SECRET'), { code: '57P01' }));
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+
+    await createRecompute().qualifyEvents('user-1', [newRun(), newRun({ id: 'run-2' })]);
+
+    expect(checkEventQualification).toHaveBeenCalledTimes(2);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(error.mock.calls)).not.toContain('SECRET');
+    error.mockRestore();
+  });
 });
 
 describe('Strava API', () => {
+  it('renews the token on request through the central client', async () => {
+    vi.stubEnv('STRAVA_CLIENT_ID', 'client-id');
+    vi.stubEnv('STRAVA_CLIENT_SECRET', 'client-secret');
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'renewed' }) });
+    useDb({ strava_tokens: [{ user_id: 'user-1', access_token: 'old', refresh_token: 'rt', expires_at: 9999999999, connection_date: null }] }, {
+      primaryKeys: { strava_tokens: ['user_id'] },
+    });
+
+    expect(await createStravaApi().refreshAccessToken('user-1')).toMatchObject({ ok: true, accessToken: 'renewed', refreshed: true });
+  });
+
   it('fetches an activity with the bearer token and gives the status and the body', async () => {
     strava = installFakeStravaFetch({ activities: { 9001: stravaActivity({ id: 9001, distance: 5200 }) } });
 
@@ -248,7 +331,7 @@ describe('Strava API', () => {
 describe('default worker', () => {
   it('claims through the RPC and finishes an event whose handler is not registered as done / noop', async () => {
     const event = {
-      id: 1, dedupe_key: 'k', object_type: 'activity', object_id: 9001, aspect_type: 'create', owner_id: 777, subscription_id: 1,
+      id: 1, dedupe_key: 'k', object_type: 'athlete', object_id: 9001, aspect_type: 'create', owner_id: 777, subscription_id: 1,
       event_time: new Date().toISOString(), updates: {}, user_id: 'user-777', status: 'processing', outcome: null, attempts: 0,
       next_attempt_at: new Date().toISOString(), claimed_at: new Date().toISOString(), lease_expires_at: new Date(Date.now() + 300_000).toISOString(),
       last_error: null, received_at: new Date().toISOString(), processed_at: null,

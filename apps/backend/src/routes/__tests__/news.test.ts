@@ -244,6 +244,215 @@ describe('GET /api/news', () => {
     });
   });
 
+  describe('involves=me (ADR 011 beslut 9)', () => {
+    // involves-filtret interpolerar användar-id:t i ett PostgREST-filter, så det kräver riktiga UUID:n (u1/u2 räcker inte här).
+    const ME = '11111111-1111-4111-8111-111111111111';
+    const KARL = '22222222-2222-4222-8222-222222222222';
+    const LISA = '33333333-3333-4333-8333-333333333333';
+    const FOREIGN = '44444444-4444-4444-8444-444444444444';
+
+    const user = (id: string, name: string, group_id: string): Row => ({
+      id, name, profile_picture: null, group_id, created_at: USER_CREATED, news_last_seen_id: null,
+    });
+    const world = (activity: Row[], extraUsers: Row[] = []): Record<string, Row[]> => ({
+      activity_log: activity,
+      users: [user(ME, 'Me', 'g1'), user(KARL, 'Karl', 'g1'), user(LISA, 'Lisa', 'g1'), user(FOREIGN, 'Foreign', 'g2'), ...extraUsers],
+    });
+    const rowOf = (id: number, over: Row = {}): Row => row(id, { actor_user_id: KARL, target_user_id: null, ...over });
+    const getMine = (path: string) => get(path, { user_id: ME });
+    const idsOf = (res: { body: any }): number[] => res.body.data.items.map((i: any) => i.id);
+
+    it('involves=me ger bara rader där jag är aktör eller mål', async () => {
+      use(world([
+        rowOf(1, { actor_user_id: ME }),
+        rowOf(2, { type: 'title_taken', actor_user_id: KARL, target_user_id: ME, payload: { title_name: 'X' } }),
+        rowOf(3, { actor_user_id: KARL, target_user_id: LISA, type: 'title_taken', payload: { title_name: 'Y' } }),
+        rowOf(4, { actor_user_id: LISA }),
+        rowOf(5, { actor_user_id: ME, target_user_id: KARL, type: 'challenge_received', payload: {} }),
+      ]));
+      const res = await getMine('/api/news?involves=me');
+
+      expect(res.status).toBe(200);
+      expect(idsOf(res)).toEqual([5, 2, 1]);
+      expect(res.body.data.items.find((i: any) => i.id === 2).actor).toEqual({ id: KARL, name: 'Karl', profile_picture: null });
+      expect(res.body.meta).toMatchObject({ has_more: false, next_before: null });
+    });
+
+    it('involves=me tar med event_closed där entrant_ids innehåller mig och utelämnar övriga event_closed', async () => {
+      const closed = (id: number, payload: Row) => rowOf(id, { type: 'event_closed', actor_user_id: null, payload });
+      use(world([
+        closed(1, { event_name: 'Spring', entrant_ids: [KARL, ME, LISA] }),
+        closed(2, { event_name: 'Summer', entrant_ids: [KARL, LISA] }),
+        closed(3, { event_name: 'Old', winner: 'Karl' }), // äldre rad utan fältet
+        closed(4, { event_name: 'Empty', entrant_ids: [] }),
+        // Ett citattecken, kommatecken och klammer i payloaden får inte förstöra filtret eller tappa raden
+        closed(5, { event_name: 'The "Big, {Bad}" run \\ 5k', entrant_ids: [ME] }),
+        // Typvakten: entrant_ids på en annan typ räknas inte (semantiken är event_closed OCH entrant_ids)
+        rowOf(6, { type: 'event_open', actor_user_id: null, payload: { entrant_ids: [ME] } }),
+        closed(7, { event_name: 'Nested', details: { entrant_ids: [ME] } }), // fel nivå
+        closed(8, { event_name: 'String', entrant_ids: `${ME}` }), // en sträng är inte en lista
+      ]));
+      const res = await getMine('/api/news?involves=me');
+
+      expect(idsOf(res)).toEqual([5, 1]);
+      expect(res.body.data.items[0].payload.event_name).toBe('The "Big, {Bad}" run \\ 5k');
+    });
+
+    it('involves=me utelämnar rader utan aktör och mål', async () => {
+      use(world([
+        rowOf(1, { type: 'event_open', actor_user_id: null, target_user_id: null }),
+        rowOf(2, { type: 'release_published', actor_user_id: null, target_user_id: null, payload: { version: '0.7.0' } }),
+        rowOf(3, { actor_user_id: null, target_user_id: null }), // aktören raderad (FK satt till null)
+        rowOf(4, { actor_user_id: ME }),
+      ]));
+      const res = await getMine('/api/news?involves=me');
+
+      expect(idsOf(res)).toEqual([4]);
+      expect((await getMine('/api/news')).body.data.items).toHaveLength(4);
+    });
+
+    it('involves=me kombineras med type och keyset-paginering', async () => {
+      // Mina level_up på 8, 6, 4, 2. Emellan ligger rader som filtret måste hoppa över: andras level_up (9, 7, 5, 3, 1)
+      // och mina rader av annan typ (10, 11), så att en sida inte kan fyllas av den ofiltrerade strömmen.
+      use(world([
+        rowOf(1, { actor_user_id: KARL }),
+        rowOf(2, { actor_user_id: ME }),
+        rowOf(3, { actor_user_id: KARL }),
+        rowOf(4, { actor_user_id: ME }),
+        rowOf(5, { actor_user_id: LISA }),
+        rowOf(6, { actor_user_id: ME }),
+        rowOf(7, { actor_user_id: KARL }),
+        rowOf(8, { actor_user_id: ME }),
+        rowOf(9, { actor_user_id: LISA }),
+        rowOf(10, { type: 'title_taken', actor_user_id: KARL, target_user_id: ME, payload: { title_name: 'X' } }),
+        rowOf(11, { type: 'streak_broken', actor_user_id: ME, payload: {} }),
+      ]));
+      const first = await getMine('/api/news?involves=me&type=level_up&limit=2');
+      expect(idsOf(first)).toEqual([8, 6]);
+      expect(first.body.meta).toMatchObject({ has_more: true, next_before: 6 });
+
+      const second = await getMine(`/api/news?involves=me&type=level_up&limit=2&before=${first.body.meta.next_before}`);
+      expect(idsOf(second)).toEqual([4, 2]);
+      expect(second.body.meta).toMatchObject({ has_more: false, next_before: null });
+
+      // has_more beskriver det filtrerade flödet: sista träffen räknas, rader i luckorna gör det inte
+      const exact = await getMine('/api/news?involves=me&type=level_up&limit=4');
+      expect(idsOf(exact)).toEqual([8, 6, 4, 2]);
+      expect(exact.body.meta).toMatchObject({ has_more: false, next_before: null });
+
+      // after tar nyare rader inom samma filtrerade flöde
+      const newer = await getMine('/api/news?involves=me&type=level_up&after=4&limit=1');
+      expect(idsOf(newer)).toEqual([8]);
+      expect(newer.body.meta).toMatchObject({ has_more: true, next_before: 8 });
+
+      // after gäller det filtrerade flödet: bara mina level_up nyare än 6, och ingen äldre sida (8 är enda träffen)
+      const afterSix = await getMine('/api/news?involves=me&type=level_up&after=6&limit=5');
+      expect(idsOf(afterSix)).toEqual([8]);
+      expect(afterSix.body.meta).toMatchObject({ has_more: false, next_before: null });
+
+      // utan type: alla mina rader, type-listan kombineras med AND
+      const both = await getMine('/api/news?involves=me&type=title_taken,streak_broken');
+      expect(idsOf(both)).toEqual([11, 10]);
+    });
+
+    it('unread_count ignorerar involves', async () => {
+      use(world([
+        rowOf(1, { actor_user_id: KARL }),
+        rowOf(2, { actor_user_id: LISA }),
+        rowOf(3, { actor_user_id: KARL }),
+        rowOf(4, { actor_user_id: ME }), // egen handling: aldrig oläst
+        rowOf(5, { type: 'title_taken', actor_user_id: KARL, target_user_id: ME, payload: { title_name: 'X' } }),
+      ]));
+      const all = await getMine('/api/news');
+      const mine = await getMine('/api/news?involves=me');
+
+      expect(idsOf(mine)).toEqual([5, 4]);
+      expect(all.body.meta.unread_count).toBe(4);
+      expect(mine.body.meta.unread_count).toBe(all.body.meta.unread_count);
+      expect(mine.body.meta.last_seen_id).toBe(all.body.meta.last_seen_id);
+    });
+
+    describe('ogiltigt involves-värde ger 400', () => {
+      it.each([
+        ['involves='], ['involves=you'], ['involves=ME'], ['involves=Me'], ['involves=me,me'], ['involves=%20me'], ['involves=me%20'],
+        ['involves=me&involves=me'], ['involves=me&involves=you'], ['involves=1'], ['involves=true'],
+      ])('?%s', async (qs) => {
+        const db = use(world([rowOf(1, { actor_user_id: ME })]));
+        const res = await getMine(`/api/news?${qs}`);
+        expect(res.status).toBe(400);
+        expect(res.body).toEqual({ error: expect.any(String) });
+        expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
+      });
+
+      it('valideringen körs före gruppkontrollen (400 även utan group_id)', async () => {
+        use(world([]));
+        const res = await get('/api/news?involves=you', { user_id: ME, group_id: null });
+        expect(res.status).toBe(400);
+      });
+    });
+
+    it('involves=me visar aldrig en annan grupps rader', async () => {
+      use(world([
+        rowOf(1, { group_id: 'g2', actor_user_id: ME }),
+        rowOf(2, { group_id: 'g2', actor_user_id: KARL, target_user_id: ME, type: 'title_taken', payload: { title_name: 'X' } }),
+        rowOf(3, { group_id: 'g2', type: 'event_closed', actor_user_id: null, payload: { entrant_ids: [ME, FOREIGN] } }),
+        rowOf(4, { group_id: 'g1', actor_user_id: ME }),
+        rowOf(5, { group_id: 'g1', actor_user_id: KARL }),
+      ]));
+      const res = await getMine('/api/news?involves=me');
+      expect(idsOf(res)).toEqual([4]);
+
+      // Och tvärtom: en användare i g2 ser inget av g1 trots att den förekommer i dem
+      use(world([rowOf(1, { actor_user_id: FOREIGN }), rowOf(2, { type: 'event_closed', actor_user_id: null, payload: { entrant_ids: [FOREIGN] } })]));
+      const foreign = await get('/api/news?involves=me', { user_id: FOREIGN, group_id: 'g2' });
+      expect(idsOf(foreign)).toEqual([]);
+      expect(foreign.body.data.items).toEqual([]);
+    });
+
+    it('involves=me utan group_id → tom data utan att läsa nyheter (fail-closed består)', async () => {
+      const db = use(world([rowOf(1, { actor_user_id: ME })]));
+      const res = await get('/api/news?involves=me', { user_id: ME, group_id: null });
+      expect(res.status).toBe(200);
+      expect(res.body.data.items).toEqual([]);
+      expect(db.queries).toHaveLength(0);
+    });
+
+    it('ett användar-id som inte är ett UUID når aldrig filtret: 400 utan nyhetsfråga', async () => {
+      // Tokens id kommer ur JWT men interpoleras i filtersträngen, så en form som kunde lägga till villkor stoppas först.
+      const evil = 'x,type.neq.zz';
+      const db = use(world([rowOf(1, { actor_user_id: KARL })], [user(evil, 'Evil', 'g1')]));
+      const res = await get('/api/news?involves=me', { user_id: evil });
+      expect(res.status).toBe(400);
+      expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
+    });
+
+    it('ett UUID med versaler i token matchar små bokstäver i raderna (jsonb-jämförelsen är skiftlägeskänslig)', async () => {
+      const lowerId = 'abcdef12-abcd-4bcd-8bcd-abcdef123456'; // ME har bara siffror och skulle inte skilja versaler från gemener
+      const upper = lowerId.toUpperCase();
+      use(world([
+        rowOf(1, { actor_user_id: lowerId }),
+        rowOf(2, { type: 'event_closed', actor_user_id: null, payload: { event_name: 'Spring', entrant_ids: [lowerId, KARL] } }),
+        rowOf(3, { actor_user_id: KARL }),
+      ], [user(upper, 'Me upper', 'g1')]));
+      const res = await get('/api/news?involves=me', { user_id: upper });
+      expect(res.status).toBe(200);
+      expect(idsOf(res)).toEqual([2, 1]);
+    });
+
+    it('utan involves påverkas inget av filtret (id:n som inte är UUID fungerar som förut)', async () => {
+      use(tables([row(1), row(2)]));
+      const res = await get('/api/news');
+      expect(idsOf(res)).toEqual([2, 1]);
+    });
+
+    it('ett databasfel i det filtrerade flödet ger 500 utan att läcka felet', async () => {
+      use(world([rowOf(1, { actor_user_id: ME })]), { errors: { activity_log: { message: 'secret db detail' } } });
+      const res = await getMine('/api/news?involves=me');
+      expect(res.status).toBe(500);
+      expect(JSON.stringify(res.body)).not.toContain('secret');
+    });
+  });
+
   describe('oläst-predikatet (ADR 008 beslut 8, kvarstår i ADR 011 beslut 4)', () => {
     it('ovanför vattenmärket = oläst, vid/under = läst', async () => {
       use(tables([row(1), row(2), row(3), row(4)], { news_last_seen_id: 2 }));
@@ -388,12 +597,13 @@ describe('GET /api/news', () => {
       expect(res.body.meta.unread_count).toBe(499);
     });
 
-    it('unread_count är oberoende av type- och involves-filtret', async () => {
+    // involves=me har sitt eget test ovan (kräver UUID-användare); här gäller type-filtret.
+    it('unread_count är oberoende av type-filtret även med påslagna notisslag', async () => {
       use(withExtra([
         row(1, { type: 'level_up' }), row(2, { type: 'title_taken' }), row(3, { type: 'event_open', actor_user_id: null }),
       ], { user_settings: [setting('notify.title_others', false)] }));
       const all = await get('/api/news');
-      const filtered = await get('/api/news?type=level_up&involves=me');
+      const filtered = await get('/api/news?type=level_up');
       expect(filtered.body.data.items).toHaveLength(1);
       expect(filtered.body.meta.unread_count).toBe(2);
       expect(filtered.body.meta.unread_count).toBe(all.body.meta.unread_count);

@@ -56,6 +56,7 @@ function decide(overrides: Partial<DecideInput> & { response: StravaResponse }) 
     existingRun: null,
     attempts: 0,
     tokenRefreshed: false,
+    connectionDate: null, // the connection-day rule has its own tests (stravaConnectionDay.test.ts)
     ...overrides,
   });
 }
@@ -405,6 +406,7 @@ describe('decideAction', () => {
       existingRun: runFor(run),
       attempts: 1,
       tokenRefreshed: false,
+      connectionDate: null,
     };
     expect(decideAction(input)).toEqual(decideAction(structuredClone(input)));
     // The inputs are not changed.

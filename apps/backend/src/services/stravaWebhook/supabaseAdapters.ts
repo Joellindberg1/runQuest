@@ -7,8 +7,11 @@
 import { getSupabaseClient } from '../../config/database.js';
 import { reprocessRunsFromDate } from '../../routes/runs.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
-import { getValidAccessToken, stravaFetch } from '../stravaClient.js';
+import { logger } from '../../utils/logger.js';
+import { checkEventQualification } from '../eventService.js';
+import { getValidAccessToken, refreshAccessToken, stravaFetch } from '../stravaClient.js';
 import { extractExtendedFields } from '../stravaImport.js';
+import { WeatherService } from '../weatherService.js';
 import type { ExistingRun, StravaResponse } from './decideAction.js';
 import type { Recompute, RunStore, StravaApi, WebhookEventRow, WebhookEventStore } from './ports.js';
 
@@ -88,6 +91,18 @@ export function createRunStore(): RunStore {
       if (error) throw databaseError('earliestRunDate', error);
       return (data as Array<{ date: string }> | null)?.[0]?.date ?? null;
     },
+    async getConnection(userId) {
+      // Never the token columns: a handler needs the pause flag and the day, nothing it could log by mistake.
+      const { data, error } = await getSupabaseClient()
+        .from('strava_tokens')
+        .select('sync_paused, connection_date')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (error) throw databaseError('getConnection', error);
+      if (!data) return null;
+      const row = data as { sync_paused?: boolean | null; connection_date?: string | null };
+      return { syncPaused: row.sync_paused === true, connectionDate: row.connection_date ?? null };
+    },
   };
 }
 
@@ -96,6 +111,21 @@ export function createRecompute(): Recompute {
     reprocessFrom: (userId, fromDate) => reprocessRunsFromDate(userId, fromDate),
     recalculateTotals: async (userId) => {
       await calculateUserTotals(userId);
+    },
+    fetchWeather: (runs) => WeatherService.fetchAndSaveWeatherForRuns(runs),
+    async qualifyEvents(userId, runs) {
+      // The polling's arguments (routes/strava.ts): the runs are independent, so one failing does not stop the others.
+      const results = await Promise.allSettled(
+        runs.map((run) =>
+          checkEventQualification({ userId, runId: run.id, runDate: run.date, distanceKm: run.distance_km, isTreadmill: run.is_treadmill }),
+        ),
+      );
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          const code = String((result.reason as { code?: unknown } | null)?.code ?? 'unknown').replace(/[^\w.:-]/g, '').slice(0, 40) || 'unknown';
+          logger.error(`❌ Strava webhook: checkEventQualification failed for user ${userId} (${code})`);
+        }
+      }
     },
   };
 }
@@ -122,6 +152,7 @@ async function getJson(url: string, accessToken: string, readBody: boolean): Pro
 export function createStravaApi(): StravaApi {
   return {
     getAccessToken: getValidAccessToken,
+    refreshAccessToken,
     fetchActivity: (accessToken, activityId) => getJson(`${STRAVA_API}/activities/${activityId}`, accessToken, true),
     fetchAthlete: (accessToken) => getJson(`${STRAVA_API}/athlete`, accessToken, false),
   };
