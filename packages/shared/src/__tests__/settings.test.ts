@@ -4,6 +4,7 @@ import {
   MAX_PATCH_KEYS,
   SETTING_DEFINITIONS,
   customisedKeys,
+  notificationSettingDefinitions,
   resolveSettings,
   sanitizePatch,
   type SettingDefinition,
@@ -19,13 +20,32 @@ const ENUM_KEY: SettingDefinition = {
   default: 'comfortable',
   values: ['comfortable', 'compact'],
 };
-const SYNTHETIC: readonly SettingDefinition[] = [...SETTING_DEFINITIONS, GROUP_KEY, ENUM_KEY];
+// En boolean vars default är false: alla riktiga slag har default true, så utan den här skulle "saknad nyckel ger
+// default" kunna passera även om koden alltid gav true.
+const OFF_BY_DEFAULT: SettingDefinition = { key: 'test.off_by_default', scope: 'user', type: 'boolean', default: false };
+const SYNTHETIC: readonly SettingDefinition[] = [...SETTING_DEFINITIONS, GROUP_KEY, ENUM_KEY, OFF_BY_DEFAULT];
 
 const FIRST_KIND = NOTIFICATION_KINDS[0];
+
+// Sätter en ärvd egenskap på Object.prototype och återställer alltid.
+function withPollutedPrototype(key: string, value: unknown, run: () => void): void {
+  Object.defineProperty(Object.prototype, key, { value, configurable: true, enumerable: false, writable: true });
+  try {
+    run();
+  } finally {
+    delete (Object.prototype as unknown as Record<string, unknown>)[key];
+  }
+}
 
 it('nycklarna är unika och varje default har rätt typ för sin definition', () => {
   const keys = SETTING_DEFINITIONS.map((def) => def.key);
   expect(new Set(keys).size).toBe(keys.length);
+
+  // user_settings.key har check (char_length(key) between 1 and 80).
+  for (const def of SYNTHETIC) {
+    expect(def.key.length, def.key).toBeGreaterThanOrEqual(1);
+    expect(def.key.length, def.key).toBeLessThanOrEqual(80);
+  }
 
   for (const def of SYNTHETIC) {
     if (def.type === 'boolean') {
@@ -46,6 +66,17 @@ it('varje notisslag i NOTIFICATION_KINDS har en definition notify.<slag> med sco
     expect(def?.default).toBe(kind.default);
   }
   expect(SETTING_DEFINITIONS).toHaveLength(NOTIFICATION_KINDS.length);
+
+  // Alla riktiga slag har default true, så härledningen prövas också med ett slag som har default false.
+  expect(
+    notificationSettingDefinitions([
+      { key: 'notify.quiet', default: false },
+      { key: 'notify.loud', default: true },
+    ]),
+  ).toEqual([
+    { key: 'notify.quiet', scope: 'user', type: 'boolean', default: false },
+    { key: 'notify.loud', scope: 'user', type: 'boolean', default: true },
+  ]);
 });
 
 it('resolveSettings: saknad nyckel ger default', () => {
@@ -57,6 +88,10 @@ it('resolveSettings: saknad nyckel ger default', () => {
   const sparse = resolveSettings({ [FIRST_KIND.key]: !FIRST_KIND.default }, 'user');
   expect(sparse[FIRST_KIND.key]).toBe(!FIRST_KIND.default);
   expect(sparse[NOTIFICATION_KINDS[1].key]).toBe(NOTIFICATION_KINDS[1].default);
+
+  // Default false är false, inte true.
+  expect(resolveSettings({}, 'user', SYNTHETIC)[OFF_BY_DEFAULT.key]).toBe(false);
+  expect(resolveSettings({ [OFF_BY_DEFAULT.key]: true }, 'user', SYNTHETIC)[OFF_BY_DEFAULT.key]).toBe(true);
 
   // Trasig inmatning kraschar aldrig.
   expect(resolveSettings(null, 'user')[FIRST_KIND.key]).toBe(FIRST_KIND.default);
@@ -74,7 +109,18 @@ it('resolveSettings: fel typ och okänt enumvärde ger default och en varning', 
   expect(values[FIRST_KIND.key]).toBe(FIRST_KIND.default);
   expect(values[ENUM_KEY.key]).toBe('comfortable');
   expect(onWarn).toHaveBeenCalledTimes(2);
-  expect(onWarn.mock.calls.map(([w]) => w.key).sort()).toEqual([ENUM_KEY.key, FIRST_KIND.key].sort());
+  expect(onWarn).toHaveBeenCalledWith({ key: FIRST_KIND.key, reason: 'wrong_type' });
+  expect(onWarn).toHaveBeenCalledWith({ key: ENUM_KEY.key, reason: 'unknown_enum_value' });
+
+  // Ett enumvärde som inte ens är en sträng är fel typ, inte okänt värde. Ett eget undefined är också fel typ.
+  const typed = vi.fn();
+  resolveSettings({ [ENUM_KEY.key]: 7, [FIRST_KIND.key]: undefined }, 'user', SYNTHETIC, typed);
+  expect(typed).toHaveBeenCalledWith({ key: ENUM_KEY.key, reason: 'wrong_type' });
+  expect(typed).toHaveBeenCalledWith({ key: FIRST_KIND.key, reason: 'wrong_type' });
+
+  // En boolean med default false: ogiltigt värde ger false, inte true.
+  const off = resolveSettings({ [OFF_BY_DEFAULT.key]: 'true' }, 'user', SYNTHETIC);
+  expect(off[OFF_BY_DEFAULT.key]).toBe(false);
 
   // Ett enumvärde av fel typ (inte sträng) är också ogiltigt.
   expect(resolveSettings({ [ENUM_KEY.key]: 1 }, 'user', SYNTHETIC)[ENUM_KEY.key]).toBe('comfortable');
@@ -86,16 +132,33 @@ it('resolveSettings: fel typ och okänt enumvärde ger default och en varning', 
 
 it('resolveSettings: okända och pensionerade lagrade nycklar ignoreras', () => {
   const onWarn = vi.fn();
-  const values = resolveSettings(
-    { 'notify.retired_kind': true, 'something.else': 'x', __proto__: { polluted: true }, constructor: 1 },
-    'user',
-    SETTING_DEFINITIONS,
-    onWarn,
-  );
+  // JSON.parse ger en riktig egen __proto__-nyckel (ett objektliteral sätter i stället prototypen).
+  const stored = JSON.parse(
+    '{"notify.retired_kind":true,"something.else":"x","__proto__":{"polluted":true},"constructor":1}',
+  ) as Record<string, unknown>;
+  expect(Object.keys(stored)).toContain('__proto__');
+  const values = resolveSettings(stored, 'user', SETTING_DEFINITIONS, onWarn);
   expect(Object.keys(values).sort()).toEqual(SETTING_DEFINITIONS.map((d) => d.key).sort());
   expect(values).not.toHaveProperty('notify.retired_kind');
   expect(values).not.toHaveProperty('something.else');
+  expect(Object.getPrototypeOf(values)).toBe(Object.prototype);
   expect(onWarn).not.toHaveBeenCalled();
+});
+
+it('inställningar: en ärvd nyckel räknas aldrig, varken i resolveSettings, customisedKeys eller isKindEnabled', () => {
+  // Ärvd via en prototypkedja (inte egen): ska ignoreras som om den saknades.
+  const inherited = Object.create({ [FIRST_KIND.key]: !FIRST_KIND.default }) as Record<string, unknown>;
+  expect(resolveSettings(inherited, 'user')[FIRST_KIND.key]).toBe(FIRST_KIND.default);
+  expect(customisedKeys(inherited, 'user')).toEqual([]);
+  expect(isKindEnabled(FIRST_KIND.kind, inherited)).toBe(FIRST_KIND.default);
+
+  // Förgiftad Object.prototype ändrar inte heller något.
+  withPollutedPrototype(FIRST_KIND.key, !FIRST_KIND.default, () => {
+    expect(resolveSettings({}, 'user')[FIRST_KIND.key]).toBe(FIRST_KIND.default);
+    expect(customisedKeys({}, 'user')).toEqual([]);
+    expect(isKindEnabled(FIRST_KIND.kind, {})).toBe(FIRST_KIND.default);
+  });
+  expect(Object.prototype).not.toHaveProperty(FIRST_KIND.key);
 });
 
 it('resolveSettings: ett uttryckligt värde som råkar vara lika med defaulten behålls som anpassat', () => {

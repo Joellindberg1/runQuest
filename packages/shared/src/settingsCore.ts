@@ -27,6 +27,22 @@ export interface EnumSettingDefinition extends SettingDefinitionBase {
 
 export type SettingDefinition = BooleanSettingDefinition | EnumSettingDefinition;
 
+/** Användarscope-definitionen för ett boolean-reglage. EN plats, så registret och isKindEnabled bygger den lika. */
+export function userBooleanSetting(key: string, defaultValue: boolean): BooleanSettingDefinition {
+  return { key, scope: 'user', type: 'boolean', default: defaultValue };
+}
+
+/**
+ * Läs en EGEN nyckel ur lagrad data. Ärvda nycklar (Object.prototype) räknas aldrig, så en förgiftad prototyp kan
+ * inte ändra ett värde. (hasOwnProperty.call i stället för Object.hasOwn: frontendens lib är ES2020.)
+ */
+export function readOwn(stored: unknown, key: string): { present: boolean; value?: unknown } {
+  if (typeof stored !== 'object' || stored === null || !Object.prototype.hasOwnProperty.call(stored, key)) {
+    return { present: false };
+  }
+  return { present: true, value: (stored as Record<string, unknown>)[key] };
+}
+
 /** Är värdet giltigt för definitionen (rätt typ, och för enum ett tillåtet värde)? */
 export function isValidSettingValue(def: SettingDefinition, value: unknown): value is SettingsValue {
   return def.type === 'boolean' ? typeof value === 'boolean' : typeof value === 'string' && def.values.includes(value);

@@ -11,7 +11,9 @@ import { NOTIFICATION_KINDS } from './notifications.js';
 import type { SettingsValue } from './contracts/settings.js';
 import {
   isValidSettingValue,
+  readOwn,
   resolveSettingValue,
+  userBooleanSetting,
   type SettingDefinition,
   type SettingScope,
 } from './settingsCore.js';
@@ -26,9 +28,14 @@ export type {
 /** Högst så många nycklar per PUT. */
 export const MAX_PATCH_KEYS = 40;
 
-export const SETTING_DEFINITIONS: readonly SettingDefinition[] = NOTIFICATION_KINDS.map(
-  (kind): SettingDefinition => ({ key: kind.key, scope: 'user', type: 'boolean', default: kind.default }),
-);
+/** En användarinställning per notisslag, med slagets nyckel och default. Parameter så att härledningen kan testas. */
+export function notificationSettingDefinitions(
+  kinds: readonly { key: string; default: boolean }[],
+): SettingDefinition[] {
+  return kinds.map((kind) => userBooleanSetting(kind.key, kind.default));
+}
+
+export const SETTING_DEFINITIONS: readonly SettingDefinition[] = notificationSettingDefinitions(NOTIFICATION_KINDS);
 
 export interface SettingsWarning {
   key: string;
@@ -36,11 +43,6 @@ export interface SettingsWarning {
 }
 
 type StoredSettings = Readonly<Record<string, unknown>> | null | undefined;
-
-function ownValue(stored: StoredSettings, key: string): { present: boolean; value?: unknown } {
-  if (typeof stored !== 'object' || stored === null || !Object.hasOwn(stored, key)) return { present: false };
-  return { present: true, value: stored[key] };
-}
 
 /**
  * Fullt värdeobjekt för scopet. Saknad nyckel = default. Ett lagrat värde med fel typ eller okänt enumvärde ger
@@ -56,7 +58,7 @@ export function resolveSettings(
   const values: Record<string, SettingsValue> = {};
   for (const def of definitions) {
     if (def.scope !== scope) continue;
-    const { present, value } = ownValue(stored, def.key);
+    const { present, value } = readOwn(stored, def.key);
     if (present && !isValidSettingValue(def, value)) {
       const reason = def.type === 'enum' && typeof value === 'string' ? 'unknown_enum_value' : 'wrong_type';
       onWarn?.({ key: def.key, reason });
@@ -79,7 +81,7 @@ export function customisedKeys(
   return definitions
     .filter((def) => {
       if (def.scope !== scope) return false;
-      const { present, value } = ownValue(stored, def.key);
+      const { present, value } = readOwn(stored, def.key);
       return present && isValidSettingValue(def, value);
     })
     .map((def) => def.key);

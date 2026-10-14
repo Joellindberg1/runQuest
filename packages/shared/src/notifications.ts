@@ -9,7 +9,7 @@
 // reglage utan fakta bakom); en ny ActivityType utan klassificering fäller bygget (Record nedan) och kontraktstestet.
 
 import { isActivityType, type ActivityType } from './activity.js';
-import { resolveSettingValue, type SettingDefinition } from './settingsCore.js';
+import { readOwn, resolveSettingValue, userBooleanSetting } from './settingsCore.js';
 
 export const NOTIFICATION_GROUPS = ['Titles', 'Challenges', 'Ranks', 'Events', 'The pack', 'System'] as const;
 export type NotificationGroup = (typeof NOTIFICATION_GROUPS)[number];
@@ -170,8 +170,7 @@ const KIND_BY_NAME: ReadonlyMap<string, (typeof NOTIFICATION_KINDS)[number]> = n
 export function isKindEnabled(kind: NotificationKind, settings: Readonly<Record<string, unknown>>): boolean {
   const def = KIND_BY_NAME.get(kind);
   if (!def) return false;
-  const setting: SettingDefinition = { key: def.key, scope: 'user', type: 'boolean', default: def.default };
-  return resolveSettingValue(setting, settings[def.key]) === true;
+  return resolveSettingValue(userBooleanSetting(def.key, def.default), readOwn(settings, def.key).value) === true;
 }
 
 /**
