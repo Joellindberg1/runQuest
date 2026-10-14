@@ -17,6 +17,7 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
+import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
@@ -59,7 +60,7 @@ function use(strava_tokens: Row[] = []) {
 }
 
 const connect = (user_id = 'user-1') =>
-  server.request('POST', '/api/strava/callback', { token: mintToken({ user_id, group_id: 'group-1' }), body: { code: 'auth-code' } });
+  server.request('POST', '/api/strava/callback', { token: mintToken({ user_id, group_id: 'group-1' }), body: { code: 'auth-code', consent_version: STRAVA_CONSENT_VERSION } });
 
 const existing = (user_id: string, over: Row = {}): Row => ({
   user_id, access_token: 'old-at', refresh_token: 'old-rt', expires_at: 1, connection_date: '2026-09-01', sync_paused: false, ...over,

@@ -17,6 +17,7 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
+import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb } from './helpers/fakeDb.js';
@@ -111,7 +112,7 @@ describe('strava routes', () => {
       json: async () => ({ access_token: access, refresh_token: refresh, expires_at: 1900000000, athlete: { id: 7 } }),
     }));
 
-    const res = await server.request('POST', '/api/strava/callback', { token: mintToken(), body: { code: 'oauth-code' } });
+    const res = await server.request('POST', '/api/strava/callback', { token: mintToken(), body: { code: 'oauth-code', consent_version: STRAVA_CONSENT_VERSION } });
     expect(res.status).toBe(200);
 
     const out = logged();

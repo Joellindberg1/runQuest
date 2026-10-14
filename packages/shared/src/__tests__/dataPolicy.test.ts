@@ -4,6 +4,7 @@ import {
   DATA_CONTROLLER,
   DATA_POLICY_SECTIONS,
   DATA_POLICY_VERSION,
+  STRAVA_CONSENT_VERSION,
   STRAVA_IMPORTED_FIELDS,
   TERMS_SECTION,
   WAITLIST_CONSENT_LABEL,
@@ -169,6 +170,10 @@ describe('dataPolicy', () => {
 
   it('the waitlist consent version is the data policy version', () => {
     expect(WAITLIST_CONSENT_VERSION).toBe(DATA_POLICY_VERSION);
+  });
+
+  it('the strava consent version is the data policy version', () => {
+    expect(STRAVA_CONSENT_VERSION).toBe(DATA_POLICY_VERSION);
   });
 
   it('DATA_POLICY_VERSION has the date format and is never a draft marker', () => {
