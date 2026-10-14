@@ -17,7 +17,8 @@ vi.mock('../../config/database.js', () => ({
 
 import { stravaActivity } from '../../test-utils/fakeStrava.js';
 import { connectionDay, stravaLookback } from '../../utils/stravaLookback.js';
-import { decideAction, isBeforeConnectionDay, type DecideInput, type StravaResponse } from '../stravaWebhook/decideAction.js';
+import { buildStravaRunRow, extractExtendedFields } from '../stravaImport.js';
+import { decideAction, isBeforeConnectionDay, type DecideInput, type ExistingRun, type StravaResponse } from '../stravaWebhook/decideAction.js';
 
 describe('isBeforeConnectionDay', () => {
   // Autumn 2026: Stockholm is UTC+2 until 03:00 on 25 October, then UTC+1.
@@ -89,7 +90,7 @@ describe('isBeforeConnectionDay', () => {
 const ok = (activity: ReturnType<typeof stravaActivity>): StravaResponse => ({ kind: 'http', status: 200, activity });
 
 function decide(overrides: Partial<DecideInput> & { response: StravaResponse }) {
-  return decideAction({ aspect_type: 'create', paused: false, existingRun: null, attempts: 0, tokenRefreshed: false, ...overrides });
+  return decideAction({ aspect_type: 'create', paused: false, existingRun: null, attempts: 0, tokenRefreshed: false, connectionDate: null, ...overrides });
 }
 
 describe('decideAction with a connection date', () => {
@@ -123,7 +124,26 @@ describe('decideAction with a connection date', () => {
   it('imports as before without a connection date', () => {
     const activity = stravaActivity({ start_date_local: '2019-01-01T06:30:00Z' });
     expect(decide({ response: ok(activity), connectionDate: null })).toMatchObject({ action: 'insert' });
-    expect(decide({ response: ok(activity) })).toMatchObject({ action: 'insert' });
+  });
+
+  it('still updates a run that is already stored, however old it is: the rule only keeps new rows out', () => {
+    const stored = stravaActivity({ id: 5001, start_date_local: '2025-06-01T06:30:00Z', distance: 5000 });
+    const row = buildStravaRunRow('user-1', stored);
+    const existingRun: ExistingRun = {
+      ...extractExtendedFields(stored),
+      source: 'strava',
+      date: row.date,
+      distance: row.distance,
+      start_time: '2025-06-01T06:30:00+00:00',
+    };
+    const changed = stravaActivity({ id: 5001, start_date_local: '2025-06-01T06:30:00Z', distance: 6000 });
+
+    expect(decide({ aspect_type: 'update', response: ok(changed), existingRun, connectionDate: connected })).toMatchObject({
+      action: 'update',
+      outcome: 'updated',
+      changes: { distance: 6 },
+      recalculateFrom: '2025-06-01',
+    });
   });
 
   it('an old activity that is not a run is still not_a_run', () => {

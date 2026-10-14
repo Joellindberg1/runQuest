@@ -49,9 +49,10 @@ export interface DecideInput {
   attempts: number;
   /**
    * strava_tokens.connection_date as stored (a timestamp). An activity that started on an earlier calendar day is never imported
-   * (owner decision 2026-10-14). Absent or null (old legacy connections) = no restriction.
+   * (owner decision 2026-10-14). Null (old legacy connections) = no restriction. Mandatory on purpose: a caller that forgets it
+   * would silently switch the owner's promise off, so a missing property is a type error.
    */
-  connectionDate?: string | null;
+  connectionDate: string | null;
   /** True once the handler has refreshed the token for this event and fetched again. */
   tokenRefreshed: boolean;
 }
