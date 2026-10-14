@@ -146,11 +146,11 @@ describe('athlete deauthorize: the token path', () => {
     expect(removeStravaConnection).not.toHaveBeenCalled();
   });
 
-  it('a stored connection with no refresh token cannot be verified with Strava and is removed', async () => {
+  it('a stored connection with no refresh token cannot be verified with Strava, so it is a retry and removes nothing', async () => {
     const { run, calls } = build({ token: { ok: false, reason: 'no_refresh_token', ...state } });
 
-    expect(await run()).toEqual(removedWithoutRevoke);
-    expect(removeStravaConnection).toHaveBeenCalledWith('user-1', { reason: 'deauthorized' });
+    expect(await run()).toEqual({ status: 'retry', error: 'no_refresh_token' });
+    expect(removeStravaConnection).not.toHaveBeenCalled();
     expect(calls.fetchAthlete).toEqual([]);
   });
 

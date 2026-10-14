@@ -191,16 +191,19 @@ describe('athlete deauthorize', () => {
     expect(reprocessRunsFromDate).not.toHaveBeenCalled();
   });
 
-  it('deauthorize event for a connection with no refresh token removes the connection', async () => {
-    const { tables, store, worker, seedDeauthorize } = build({ tokens: [tokenRow({ expires_at: 1, refresh_token: null })] });
+  it('deauthorize event for a connection with no refresh token is retried and deletes nothing', async () => {
+    // Nothing to renew with means nothing to verify against Strava, and an unverified event must never delete.
+    const { tables, store, worker, seedDeauthorize, writes } = build({ tokens: [tokenRow({ expires_at: 1, refresh_token: null })] });
     seedDeauthorize();
 
     await worker.drain();
 
-    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'deauthorized_runs_deleted' });
-    expect(tables.runs.map((run) => run.id)).toEqual(['manual']);
-    expect(tables.strava_tokens).toEqual([]);
-    expect(strava!.requests).toEqual([]); // nothing to renew with and nothing to ask
+    expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 1, last_error: 'no_refresh_token' });
+    expect(tables.runs).toHaveLength(3);
+    expect(tables.strava_tokens).toHaveLength(1);
+    expect(writes()).toBe(0);
+    expect(strava!.requests).toEqual([]);
+    expect(reprocessRunsFromDate).not.toHaveBeenCalled();
   });
 
   it('deauthorize event that Strava does not confirm deletes nothing', async () => {

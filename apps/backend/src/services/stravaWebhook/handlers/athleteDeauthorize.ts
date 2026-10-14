@@ -12,8 +12,7 @@
 //        200                                  -> ignored_not_confirmed (forged or stale), nothing is deleted
 //        429                                  -> wait (the kind comes from the budget)
 //        5xx, network error, any other status -> retry
-//        token path says no_refresh_token     -> confirmed and removed: the stored connection has nothing to renew with, so Strava
-//                                                can only refuse it, and there is nothing to ask
+//        token path says no_refresh_token     -> RETRY: nothing to renew with, so nothing to verify; ends in the worker's 48 h alarm
 //        token path says refresh_failed       -> RETRY, not confirmed (see below)
 //        token path says not_connected        -> ignored_unknown_owner, but only after the connection is read AGAIN and is gone
 //
@@ -21,7 +20,7 @@
 // Strava rejected (400/401), but also a network error, a 5xx, a 429, missing credentials and a failed save of the new tokens. A
 // forged event met by a network fault would then delete a user's runs, and the safe side of that is a delayed deletion: the event
 // is retried until Strava answers, and the worker raises the 48 h alarm if it never does. Once stravaClient says "Strava rejected
-// the refresh token" as its own reason, that reason belongs next to no_refresh_token below.
+// the refresh token" as its own reason (`refresh_rejected`, RUN-268), that reason confirms and removes like a 401 from /athlete.
 // not_connected has the same weakness (a failed database read of the token row gives it too), hence the second getConnection.
 //
 // The handler runs inside the worker's withUserLock and takes no lock itself (the lock is not reentrant). removeStravaConnection
@@ -88,8 +87,9 @@ export function createAthleteDeauthorizeHandler(deps: AthleteDeauthorizeDeps = {
 
     const token = await ctx.strava.getAccessToken(userId);
     if (!token.ok) {
-      if (token.reason === 'no_refresh_token') return remove(userId);
-      if (token.reason === 'refresh_failed') return resultForTokenFailure('refresh_failed');
+      // Neither can be verified against Strava, so neither confirms. Follow-up: stravaClient gets a `refresh_rejected` reason
+      // (the token endpoint rejected the refresh token), and that one confirms and removes, next to the 401 below.
+      if (token.reason === 'no_refresh_token' || token.reason === 'refresh_failed') return resultForTokenFailure(token.reason);
       // not_connected: the row was there a moment ago. Only a second read that finds it gone makes this an unknown owner; a row
       // that is still there (or a read that fails) means the token read failed, and that must not end the event as done.
       try {
