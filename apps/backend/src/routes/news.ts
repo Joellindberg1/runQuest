@@ -66,13 +66,37 @@ async function fetchUserRefs(ids: string[]): Promise<Map<string, NewsUserRef>> {
   return map;
 }
 
-// GET /api/news[?limit=&before=&after=&type=]
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** PostgREST-citering av ett värde i ett filteruttryck: omslutet av " med " och \ escapade (så att kommatecken, klamrar och citat inte delar villkoret). */
+function postgrestQuote(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Villkoret för ?involves=me (ADR 011 beslut 9), ett `.or(...)`-uttryck som läggs som extra AND ovanpå gruppfiltret:
+ *   actor = jag ELLER target = jag ELLER (type = event_closed OCH payload @> {"entrant_ids":["<jag>"]})
+ * `userId` MÅSTE vara ett validerat UUID (anroparen kontrollerar det): id:t interpoleras i filtersträngen. Containment-värdet
+ * citeras dessutom, så att ett id aldrig kan lägga till villkor ens om valideringen skulle glömmas.
+ *
+ * Prestanda: feedet är per grupp (indexet group_id,id desc) och begränsat till högst 100 rader per sida; actor/target har egna
+ * partiella index. Jsonb-containment mot `payload` saknar index. Revisit-trigger: ett GIN-index på `payload` (eller på
+ * `payload->'entrant_ids'`) om en grupps activity_log växer till storleken där detta filter blir märkbart långsamt.
+ */
+function involvesFilter(userId: string): string {
+  const entrants = postgrestQuote(JSON.stringify({ entrant_ids: [userId] }));
+  return `actor_user_id.eq.${userId},target_user_id.eq.${userId},and(type.eq.event_closed,payload.cs.${entrants})`;
+}
+
+// GET /api/news[?limit=&before=&after=&type=&involves=me]
 // Keyset på id (sortering id desc). `before=<id>` ger äldre rader, `after=<id>` rader nyare än id:t
 // (samma sortering; has_more/next_before beskriver alltid äldre rader inom intervallet, så ett glapp
 // mellan klientens kursor och sidans nederkant fylls med ?before=next_before).
+// `involves=me` är ett vyfilter på samma fråga (limit+1 på den filtrerade frågan, så has_more/next_before gäller det filtrerade
+// flödet); det ändrar inte meta.unread_count, som alltid räknas över hela gruppen.
 router.get('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { limit: rawLimit, before: rawBefore, after: rawAfter, type: rawType } = req.query;
+    const { limit: rawLimit, before: rawBefore, after: rawAfter, type: rawType, involves: rawInvolves } = req.query;
 
     let limit = DEFAULT_LIMIT;
     if (rawLimit !== undefined) {
@@ -107,6 +131,12 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       types = [...new Set(parts as ActivityType[])];
     }
 
+    // Exakt "me" (versalkänsligt); tomt, andra värden och upprepade parametrar (array) är 400.
+    if (rawInvolves !== undefined && rawInvolves !== 'me') {
+      res.status(400).json({ error: 'involves must be "me"' }); return;
+    }
+    const involvesMe = rawInvolves === 'me';
+
     const userId = req.user!.user_id;
     const groupId = req.user!.group_id;
     const emptyMeta: NewsMeta = { unread_count: 0, last_seen_id: null, has_more: false, next_before: null };
@@ -115,6 +145,11 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     if (!groupId) {
       const empty: NewsApiResponse = { success: true, data: { items: [] }, meta: emptyMeta };
       res.json(empty); return;
+    }
+
+    // Id:t kommer ur JWT men interpoleras i filtersträngen nedan: bara ett riktigt UUID släpps igenom.
+    if (involvesMe && !UUID.test(userId)) {
+      res.status(400).json({ error: 'involves requires a valid user id' }); return;
     }
 
     const reader = await readReader(userId);
@@ -130,6 +165,8 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     if (before !== null) query = query.lt('id', before);
     if (after !== null) query = query.gt('id', after);
     if (types) query = query.in('type', types);
+    // Ett extra AND ovanpå .eq('group_id', …) ovan: gruppavgränsningen kommer alltid först och gäller alla grenar av or().
+    if (involvesMe) query = query.or(involvesFilter(userId));
 
     const [{ data: rows, error }, { viewer, unreadCount }] = await Promise.all([
       query,
