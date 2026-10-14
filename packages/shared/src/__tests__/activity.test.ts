@@ -402,6 +402,10 @@ describe('eventbyggare', () => {
     expect(payload.entrant_ids).toEqual([
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     ]);
+    // Något som inte är en sträng (felaktig indata) släpps, och kastar aldrig.
+    const dirty = ['b', null, 7, undefined, {}, 'a'] as unknown as string[];
+    expect((buildEventClosedDraft(competition, { participants: 2, members: 6, entrantIds: dirty }, 'x').payload as { entrant_ids: string[] }).entrant_ids)
+      .toEqual(['a', 'b']);
     // Lista av strängar på toppnivå: aldrig objekt med namn eller e-post.
     expect(payload.entrant_ids.every((id) => typeof id === 'string')).toBe(true);
     expect(Object.keys(payload).sort()).toEqual(['entrant_ids', 'event_id', 'event_type', 'members', 'participants', 'template_name', 'top']);

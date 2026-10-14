@@ -108,12 +108,16 @@ function rankMeKind(payload: unknown): NotificationKind | null {
 
 /**
  * Står betraktaren i payload.entrant_ids? Fail-safe: ett saknat, tomt eller felformat fält (äldre rader, backfill)
- * ger false och aldrig ett undantag, så raden faller under "others". Samma exakta id-jämförelse som övriga slag.
+ * ger false och aldrig ett undantag, så raden faller under "others".
+ * Lagrade id:n är gemener (normalizeEntrantIds i activity.ts), så betraktarens id gemeniseras före den exakta jämförelsen:
+ * samma regel som serverns involves-filter och klientens involvesMe. Bara här; aktör och mål jämförs som förut (isViewer).
  */
 function entrantsInclude(payload: unknown, viewerId: string): boolean {
   if (typeof payload !== 'object' || payload === null) return false;
   const ids = (payload as { entrant_ids?: unknown }).entrant_ids;
-  return Array.isArray(ids) && ids.some((id) => isViewer(typeof id === 'string' ? id : null, viewerId));
+  if (!Array.isArray(ids) || viewerId === '') return false;
+  const me = viewerId.toLowerCase();
+  return ids.some((id) => id === me);
 }
 
 // Record<ActivityType, …> är kompileringsgrinden: en ny typ i ACTIVITY_TYPES utan post här ger ett typfel.

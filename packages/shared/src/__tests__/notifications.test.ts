@@ -209,6 +209,11 @@ describe('classifyNotification', () => {
       expect(() => closed(payload), JSON.stringify(payload)).not.toThrow();
       expect(closed(payload), JSON.stringify(payload)).toBe('event_closed_others');
     }
+    // Lagrade id:n är gemener (normalizeEntrantIds): betraktarens id gemeniseras, aldrig det lagrade.
+    const closedFor = (viewer: string, ids: string[]) => classifyNotification(row('event_closed', null, null, { entrant_ids: ids }), viewer);
+    expect(closedFor('U-ME', ['u-me'])).toBe('event_closed_me');
+    expect(closedFor('u-me', ['U-ME'])).toBe('event_closed_others');
+    expect(closedFor('U-ME', ['U-ME'])).toBe('event_closed_others');
     // Ett tomt betraktar-id matchar aldrig ett tomt id i listan.
     expect(classifyNotification(row('event_closed', null, null, { entrant_ids: [''] }), '')).toBe('event_closed_others');
   });

@@ -167,7 +167,10 @@ describe('event_closed — participation', () => {
     expect(byKey('event_closed:e1').payload).toMatchObject({ participants: 2, entrant_ids: ['a', 'b'] });
     expect(byKey('event_closed:e2').payload).toMatchObject({ participants: 1, entrant_ids: ['c'] });
     // Ingen extra fråga per event: ids hämtas i samma event_entries-fråga som antalet.
-    expect(db.queries.filter((q) => q.table === 'event_entries')).toHaveLength(1);
+    const entryQueries = db.queries.filter((q) => q.table === 'event_entries');
+    expect(entryQueries).toHaveLength(1);
+    // fakeDb projicerar inte kolumner, så urvalet måste vi läsa: utan user_id hade entrant_ids blivit tomt i prod.
+    expect(entryQueries[0].select).toMatch(/\buser_id\b/);
     // Bara id:n på toppnivå: ingen användardata (namn, e-post) skrivs bredvid.
     expect(Object.keys(byKey('event_closed:e1').payload).sort()).toEqual(
       ['entrant_ids', 'event_id', 'event_type', 'members', 'participants', 'template_name'],
