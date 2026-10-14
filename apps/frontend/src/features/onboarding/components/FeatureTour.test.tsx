@@ -14,6 +14,7 @@ vi.mock('@/features/onboarding/onboardingApi', () => ({
 vi.mock('@/features/changelog/changelogData', () => ({ changelog: { releases: [] } }));
 
 const ATTR = 'data-rq-tour-pending';
+const SLOW = { timeout: 4000 }; // riktiga driver.js animerar med rAF: under full sviten kan en enskild väntan ta över findBy-sekunden
 const LONG_DELAY_MS = 60_000; // touren hinner aldrig starta: testerna gäller fönstret före driver.js
 const steps = [{ title: 'Page', description: 'A page tour' }];
 const pending = () => document.body.getAttribute(ATTR);
@@ -99,13 +100,13 @@ describe('FeatureTour: tangentbord och fokus', () => {
 
     // Mitt i turen (efter Next) är det svåra fallet: driver.js minns då popoverns egen knapp, som är borta när touren stängs.
     trigger().focus();
-    expect(await screen.findByRole('dialog', { name: 'Intro' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Intro' }, SLOW)).toBeInTheDocument();
     expect(trigger()).not.toHaveFocus();
     await user.click(screen.getByRole('button', { name: /Next/ }));
-    expect(await screen.findByRole('dialog', { name: 'Second' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Second' }, SLOW)).toBeInTheDocument();
     await user.keyboard('{Escape}');
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), SLOW);
     expect(trigger()).toHaveFocus();
     expect(pending()).toBeNull();
   });
@@ -115,10 +116,10 @@ describe('FeatureTour: tangentbord och fokus', () => {
     renderPage();
 
     trigger().focus();
-    await screen.findByRole('dialog', { name: 'Intro' });
+    await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
     await user.keyboard('{Escape}');
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), SLOW);
     expect(trigger()).toHaveFocus();
   });
 
@@ -135,9 +136,9 @@ describe('FeatureTour: tangentbord och fokus', () => {
     await waitFor(() => expect(pending()).toBe('1'));
     screen.getByRole('button', { name: 'Late' }).focus();
 
-    await screen.findByRole('dialog', { name: 'Intro' });
+    await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), SLOW);
     expect(screen.getByRole('button', { name: 'Late' })).toHaveFocus();
   });
 
@@ -162,9 +163,9 @@ describe('FeatureTour: tangentbord och fokus', () => {
       const card = anchor('section');
       render(<QueryClientProvider client={client}><FeatureTour slug="tour_swap" steps={swapSteps} delayMs={START_MS} /></QueryClientProvider>);
 
-      await screen.findByRole('dialog', { name: 'Intro' });
+      await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
       await user.click(screen.getByRole('button', { name: /Next/ }));
-      await screen.findByRole('dialog', { name: 'Settings' });
+      await screen.findByRole('dialog', { name: 'Settings' }, SLOW);
       expect(card).toHaveClass('driver-active-element');
 
       // Brytpunkten korsas medan steget visas.
@@ -172,14 +173,14 @@ describe('FeatureTour: tangentbord och fokus', () => {
       const gear = anchor('button');
       window.dispatchEvent(new Event('resize'));
 
-      await waitFor(() => expect(gear).toHaveClass('driver-active-element'));
+      await waitFor(() => expect(gear).toHaveClass('driver-active-element'), SLOW);
       expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
 
       // Och turen går att avsluta som vanligt.
       await user.click(screen.getByRole('button', { name: /Next/ }));
-      await screen.findByRole('dialog', { name: 'End' });
+      await screen.findByRole('dialog', { name: 'End' }, SLOW);
       await user.click(screen.getByRole('button', { name: 'Done' }));
-      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), SLOW);
       expect(pending()).toBeNull();
     });
 
@@ -187,9 +188,9 @@ describe('FeatureTour: tangentbord och fokus', () => {
       const user = userEvent.setup();
       const card = anchor('section');
       render(<QueryClientProvider client={client}><FeatureTour slug="tour_swap" steps={swapSteps} delayMs={START_MS} /></QueryClientProvider>);
-      await screen.findByRole('dialog', { name: 'Intro' });
+      await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
       await user.click(screen.getByRole('button', { name: /Next/ }));
-      await screen.findByRole('dialog', { name: 'Settings' });
+      await screen.findByRole('dialog', { name: 'Settings' }, SLOW);
 
       const closeButton = screen.getByRole('button', { name: 'Close' });
       closeButton.focus();
@@ -204,7 +205,7 @@ describe('FeatureTour: tangentbord och fokus', () => {
 
   it('avmonteras sidan mitt i turen (Back, route-byte) försvinner dialogen och driver-active', async () => {
     const { unmount } = renderPage();
-    await screen.findByRole('dialog', { name: 'Intro' });
+    await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
     expect(document.body).toHaveClass('driver-active');
 
     unmount();
@@ -227,9 +228,9 @@ describe('FeatureTour: tangentbord och fokus', () => {
       const user = userEvent.setup();
       const listeners = spyOnFocusin();
       renderPage();
-      await screen.findByRole('dialog', { name: 'Intro' });
+      await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
       await user.keyboard('{Escape}');
-      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), SLOW);
       expect(listeners.added()).toBeGreaterThan(0);
       expect(listeners.removed()).toBe(listeners.added());
     });
@@ -238,13 +239,13 @@ describe('FeatureTour: tangentbord och fokus', () => {
       const user = userEvent.setup();
       const listeners = spyOnFocusin();
       renderPage();
-      await screen.findByRole('dialog', { name: 'Intro' });
+      await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
       await user.click(screen.getByRole('button', { name: /Next/ }));
-      await screen.findByRole('dialog', { name: 'Second' });
+      await screen.findByRole('dialog', { name: 'Second' }, SLOW);
       await user.click(screen.getByRole('button', { name: /Next/ }));
-      await screen.findByRole('dialog', { name: 'Last' });
+      await screen.findByRole('dialog', { name: 'Last' }, SLOW);
       await user.click(screen.getByRole('button', { name: 'Done' }));
-      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), SLOW);
       expect(listeners.added()).toBeGreaterThan(0);
       expect(listeners.removed()).toBe(listeners.added());
     });
@@ -261,7 +262,7 @@ describe('FeatureTour: tangentbord och fokus', () => {
     it('är balanserad när sidan avmonteras mitt i turen', async () => {
       const listeners = spyOnFocusin();
       const { unmount } = renderPage();
-      await screen.findByRole('dialog', { name: 'Intro' });
+      await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
       unmount();
       expect(listeners.added()).toBeGreaterThan(0);
       expect(listeners.removed()).toBe(listeners.added());
@@ -271,9 +272,9 @@ describe('FeatureTour: tangentbord och fokus', () => {
   it('en tour utan förhandsfokus (sidan nyladdad) stängs med Esc utan att kasta', async () => {
     const user = userEvent.setup();
     renderPage();
-    await screen.findByRole('dialog', { name: 'Intro' });
+    await screen.findByRole('dialog', { name: 'Intro' }, SLOW);
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), SLOW);
     expect(pending()).toBeNull();
   });
 });
