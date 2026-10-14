@@ -47,6 +47,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { checkEventQualification } from '../../services/eventService.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
@@ -123,13 +124,16 @@ describe('the Strava import takes its rules from shared', () => {
   });
 
   it('reads the treadmill flag named by STRAVA_TREADMILL_FLAG', async () => {
-    stubStrava([activity(1, { trainer: true, indoor: false }), activity(2, { trainer: false, indoor: true })]);
+    stubStrava([activity(1, { trainer: true, indoor: false, distance: 5000 }), activity(2, { trainer: false, indoor: true, distance: 6000 })]);
     const tables = use();
 
     await sync();
 
     expect(tables.runs.find((run) => run.external_id === '1')?.is_treadmill).toBe(false);
     expect(tables.runs.find((run) => run.external_id === '2')?.is_treadmill).toBe(true);
+    // Event qualification gets the same verdict as the saved row.
+    const qualified = vi.mocked(checkEventQualification).mock.calls.map(([args]) => [args.distanceKm, args.isTreadmill]);
+    expect(qualified).toEqual([[5, false], [6, true]]);
   });
 
   it('looks back STRAVA_LOOKBACK_BUFFER_DAYS before the most recent imported run', async () => {

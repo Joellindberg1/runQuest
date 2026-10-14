@@ -7,12 +7,12 @@ import { requireAdmin } from '../middleware/admin.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
 import { getXpConfig } from '../services/xpConfig.js';
+import { isTreadmillActivity } from '../utils/stravaActivity.js';
 import {
   calculateCompleteRunXP,
   STRAVA_DISTANCE_MUST_EXCEED_KM,
   STRAVA_LEGACY_RUN_TYPE,
   STRAVA_RUN_SPORT_TYPES,
-  STRAVA_TREADMILL_FLAG,
 } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
@@ -88,7 +88,7 @@ function extractExtendedFields(activity: any) {
     start_lat:      activity.start_latlng?.[0] ?? null,
     start_lng:      activity.start_latlng?.[1] ?? null,
     pace_std_dev:   computePaceStdDev(activity.splits_metric),
-    is_treadmill:   activity[STRAVA_TREADMILL_FLAG] === true,
+    is_treadmill:   isTreadmillActivity(activity),
   };
 }
 
@@ -870,7 +870,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
           runId: run.id,
           runDate: activity.start_date_local.split('T')[0],
           distanceKm: activity.distance / 1000,
-          isTreadmill: activity[STRAVA_TREADMILL_FLAG] === true,
+          isTreadmill: isTreadmillActivity(activity),
         }).catch((e: unknown) => logger.error('❌ checkEventQualification (strava) error:', e));
       }
 
