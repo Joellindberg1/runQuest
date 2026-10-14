@@ -10,7 +10,9 @@
  * - One process. With more than one backend replica the lock does not hold (ADR 010 revisit trigger: a database lease).
  * - Not reentrant. A task holding a key that awaits another task on the same key would wait for itself forever; such a nested
  *   call is rejected with `ReentrantLockError` instead of deadlocking. Callers must not nest; take the lock at the outermost
- *   entry point and call the unlocked inner functions from there.
+ *   entry point and call the unlocked inner functions from there. The context follows async work started inside the lock, so an
+ *   un-awaited call (or a timer) on the same key that fires while the lock is still held is rejected with `ReentrantLockError`
+ *   rather than queued: the webhook worker must not `setImmediate(wake)` into the same key from inside `withUserLock`.
  * - No timeout. A timeout cannot cancel `fn`, so it would only let a second task run next to one that is still working, which
  *   is exactly the overlap the lock exists to prevent. A task that never settles blocks its key until the process restarts.
  */

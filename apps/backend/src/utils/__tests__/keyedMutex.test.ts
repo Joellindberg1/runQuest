@@ -137,6 +137,65 @@ describe('keyed mutex', () => {
     await expect(detached).resolves.toBe('later');
   });
 
+  it('keyed mutex rejects a nested lock on a key held further up the chain', async () => {
+    // Without the chain walk this is a silent deadlock, so a hang must fail the test instead of the run.
+    const guard = <T>(promise: Promise<T>) =>
+      Promise.race([
+        promise,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('hung: nested lock was not detected')), 500)),
+      ]);
+
+    const chain = withKeyedLock('A', () =>
+      withKeyedLock('B', () => withKeyedLock('A', async () => 'never')),
+    );
+    await expect(guard(chain)).rejects.toBeInstanceOf(ReentrantLockError);
+    expect(activeLockKeyCount()).toBe(0);
+
+    // The same key twice in sequence inside another key's lock is not nesting: the first has been released.
+    const sequence = withKeyedLock('A', async () => {
+      const first = await withKeyedLock('B', async () => 'first');
+      const second = await withKeyedLock('B', async () => 'second');
+      return [first, second];
+    });
+    await expect(guard(sequence)).resolves.toEqual(['first', 'second']);
+    expect(activeLockKeyCount()).toBe(0);
+  });
+
+  it('keyed mutex keeps the queue intact when a new task arrives while a queued task runs', async () => {
+    const log: string[] = [];
+    let running = 0;
+    let maxRunning = 0;
+    const gates = { a: deferred(), b: deferred(), c: deferred() };
+    const task = (name: keyof typeof gates) => async () => {
+      running += 1;
+      maxRunning = Math.max(maxRunning, running);
+      log.push(`${name}:start`);
+      await gates[name].promise;
+      log.push(`${name}:end`);
+      running -= 1;
+    };
+
+    const a = withKeyedLock('k', task('a'));
+    const b = withKeyedLock('k', task('b'));
+    gates.a.resolve();
+    await a;
+    await flush();
+    expect(log).toEqual(['a:start', 'a:end', 'b:start']); // b runs now, and a's cleanup has already happened
+
+    const c = withKeyedLock('k', task('c')); // arrives while b is running
+    await flush();
+    expect(log).toEqual(['a:start', 'a:end', 'b:start']); // c waits for b
+
+    gates.b.resolve();
+    await b;
+    gates.c.resolve();
+    await c;
+
+    expect(log).toEqual(['a:start', 'a:end', 'b:start', 'b:end', 'c:start', 'c:end']);
+    expect(maxRunning).toBe(1);
+    expect(activeLockKeyCount()).toBe(0);
+  });
+
   it('keyed mutex keeps the key blocked while a task is hanging and frees it when the task settles', async () => {
     const hang = deferred<string>();
     const hanging = withKeyedLock('k', () => hang.promise);
