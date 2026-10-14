@@ -39,6 +39,29 @@
 .rq-settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-10) var(--rq-sp-16); }
 .rq-settings-actions__hint { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 
+/* ── Samtycket i Strava-kortet (StravaConsentBlock) ─────────────────────────────────────────────────────────────────
+   Texten kommer från den delade integritetstexten. De första styckena står öppna, resten bakom en hopfällbar rad (sidan scrollar som vanligt, ingen
+   scrollruta). Rutan och dess rad är tryckytan (samma höjd som reglagen); den som är ansluten ser samma text hopfälld, ovanför knapparna. */
+.rq-consent { display: flex; flex-direction: column; gap: var(--rq-sp-8); min-width: 0; padding: var(--rq-sp-12) var(--rq-sp-14); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-consent__title { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-weight: 400; letter-spacing: var(--rq-ls-eyebrow); text-transform: uppercase; color: var(--rq-text-2); }
+.rq-consent__points { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-consent__point { display: flex; align-items: flex-start; gap: var(--rq-sp-10); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); overflow-wrap: anywhere; }
+.rq-consent__dot { flex-shrink: 0; margin-top: var(--rq-sp-8); color: var(--rq-up); }
+.rq-consent__p { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); overflow-wrap: anywhere; }
+/* details lägger inte sina barn i en flex-kolumn (gap gäller inte): avståndet mellan styckena sätts som marginal */
+.rq-consent__more > .rq-consent__p, .rq-consent__more > .rq-consent__link { margin-top: var(--rq-sp-8); }
+summary.rq-consent__summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); min-height: var(--rq-switch-row-min-h); cursor: pointer; font-size: var(--rq-fs-body); color: var(--rq-text-2); }
+.rq-consent__summary::-webkit-details-marker { display: none; }
+.rq-consent__chev { display: inline-flex; flex: none; color: var(--rq-text-3); }
+.rq-consent__more[open] > .rq-consent__summary .rq-consent__chev { transform: rotate(180deg); }
+.rq-consent__summary:hover { background: var(--rq-row-hover); }
+.rq-consent__summary:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+.rq-consent__agree { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--rq-sp-16); border-top: var(--rq-hair) solid var(--rq-line-3); }
+.rq-consent__label { display: flex; align-items: center; gap: var(--rq-sp-10); min-height: var(--rq-switch-row-min-h); cursor: pointer; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-consent__check { flex: none; width: var(--rq-sp-20); height: var(--rq-sp-20); margin: 0; accent-color: var(--rq-gold); cursor: pointer; }
+.rq-consent__check:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+.rq-consent__link { display: inline-flex; align-items: center; min-height: var(--rq-notify-link-hit); font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
+
 /* Lösenord: tre fält bredvid varandra på desktop, staplade på mobil */
 .rq-settings-pw { display: grid; grid-template-columns: var(--rq-settings-pw-cols); gap: var(--rq-gap-stack) var(--rq-sp-14); }
 
