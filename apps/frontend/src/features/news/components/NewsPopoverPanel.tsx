@@ -80,8 +80,11 @@ export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPane
         ))}
       </ul>
     );
+  } else if (news.feed && news.feed.items.length === 0) {
+    // Ett helt tomt flöde har inget att filtrera bort: som innan inställningarna styrde klockan (frame N2 ritar bara det filtrerade fallet).
+    body = <p className="rq-news-pop__note">No news yet — go make some.</p>;
   } else if (news.feed) {
-    // Undantaget från designspråkets regel 9 (RUN-254): tomma fönstret har en rubrik och en förklaring, och bara länken till /news (nedan).
+    // Rader finns men alla är filtrerade. Undantaget från designspråkets regel 9 (RUN-254): rubrik och förklaring, och bara länken till /news (nedan).
     body = (
       <div className="rq-news-pop__empty">
         <h3 className="rq-news-pop__empty-title">Nothing new for you</h3>

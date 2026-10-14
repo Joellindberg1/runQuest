@@ -85,6 +85,15 @@ describe('NewsPopoverPanel — följer inställningarna', () => {
     expect(screen.queryByText('No news yet — go make some.')).toBeNull();
   });
 
+  it('helt tomt flöde visar "No news yet — go make some."', async () => {
+    setup([]);
+    renderWithApp(<NewsPopoverPanel onClose={() => {}} />);
+
+    expect(await screen.findByText('No news yet — go make some.')).toBeInTheDocument();
+    expect(screen.queryByText('Nothing new for you')).toBeNull();
+    expect(screen.getByRole('link', { name: 'See all pack news' })).toHaveAttribute('href', '/news');
+  });
+
   it('visar inte det tomma fönstret medan flödet laddar', async () => {
     handlers.getNews = () => new Promise(() => {});
     renderWithApp(<NewsPopoverPanel onClose={() => {}} />);
@@ -104,6 +113,26 @@ describe('NewsPopoverPanel — följer inställningarna', () => {
     await waitFor(() => expect(news.server.settingsCalls).toEqual([{ 'notify.level_up_others': false }]));
     // Raden är kvar borta när servern svarat: ingen omladdning behövdes.
     expect(screen.queryByText('Karl reached level 25')).toBeNull();
+  });
+
+  it('raden försvinner vid den optimistiska växlingen, innan servern har svarat', async () => {
+    setup([levelUp(2, 25, { occurred_at: at(1) }), titleTaken(1, { occurred_at: at(2) })]);
+    let respond: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { respond = resolve; });
+    handlers.putSettings = async (...args: unknown[]) => {
+      await gate;
+      return news.putSettings(...(args as [never]));
+    };
+    renderWithApp(<><SettingsToggle kind="level_up_others" /><NewsPopoverPanel onClose={() => {}} /></>);
+    expect(await screen.findByText('Karl reached level 25')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle level_up_others' }));
+
+    await waitFor(() => expect(screen.queryByText('Karl reached level 25')).toBeNull());
+    // PUT:en hålls fortfarande: ändringen kom från den optimistiska cachen, inte från serverns svar.
+    expect(news.server.settingsCalls).toEqual([]);
+    respond();
+    await waitFor(() => expect(news.server.settingsCalls).toHaveLength(1));
   });
 
   it('egna handlingar visas inte i popovern men finns på /news', async () => {
@@ -126,7 +155,7 @@ describe('NewsPopoverPanel — följer inställningarna', () => {
   });
 
   it('det tomma fönstret leder bara till /news, inte till inställningarna', async () => {
-    setup([]);
+    setup([levelUp(1, 9, { actor: ME })]);
     renderWithApp(<NewsPopoverPanel onClose={() => {}} />);
     await screen.findByRole('heading', { name: 'Nothing new for you' });
     expect(screen.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/news']);

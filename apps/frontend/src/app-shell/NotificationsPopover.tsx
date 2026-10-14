@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { NewsPopoverPanel } from '@/features/news/components/NewsPopoverPanel';
 import { useNewsUnreadCount } from '@/features/news/hooks/useNewsQueries';
+import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { badgeText } from '@/features/news/newsModel';
 import { useAuth } from '@/providers/authContext';
 import { RQIcon } from '@/shared/components/icons';
@@ -23,6 +24,8 @@ interface NotificationsPopoverProps {
 export function NotificationsPopover({ variant }: NotificationsPopoverProps) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
+  // Värmer inställningarna när klockan monteras, så att popovern vid första öppningen redan filtrerar efter dem (ingen rad av ett avstängt slag hinner blinka förbi).
+  useUserSettings();
   const unread = useNewsUnreadCount(!!user);
   const badge = badgeText(unread);
 

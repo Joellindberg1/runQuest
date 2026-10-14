@@ -157,14 +157,36 @@ describe('popovern', () => {
   });
 
   it('ett laddningsfel i inställningarna använder defaults och popovern öppnas ändå', async () => {
-    handlers.getSettings = async () => ({ success: false, error: 'down' });
+    // Servern har titelbyten avstängda, men inställningarna går inte att läsa: då gäller defaults (allt påslaget) och raden syns.
+    news.server.settings = { 'notify.title_others': false };
+    const getSettings = vi.fn(async () => ({ success: false, error: 'down' }));
+    handlers.getSettings = getSettings;
     renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
     const popover = await openPopover();
 
-    // Defaults har alla slag påslagna, så de fem senaste visas som om inget vore avstängt.
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
     await waitFor(() => expect(within(popover).getAllByRole('listitem')).toHaveLength(5));
+    expect(within(popover).getByText('Daniel took The Consistent King from Adam — 21 days')).toBeInTheDocument();
     expect(within(popover).queryByText('Nothing new for you')).toBeNull();
     expect(within(popover).getByRole('link', { name: 'See all pack news' })).toBeInTheDocument();
+  });
+
+  it('en rad av ett avstängt slag renderas aldrig vid första öppningen när inställningarna svarat före', async () => {
+    news.server.settings = { 'notify.title_others': false };
+    let settled = false;
+    handlers.getSettings = async () => {
+      const response = await news.getSettings();
+      settled = true;
+      return response;
+    };
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    // Klockan har värmt inställningarna redan när den monteras, innan någon öppnat popovern.
+    await waitFor(() => expect(settled).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const popover = await openPopover();
+    expect(within(popover).queryByText('Daniel took The Consistent King from Adam — 21 days')).toBeNull();
+    expect(within(popover).getAllByRole('listitem').length).toBeGreaterThan(0);
   });
 
   it('en avstängd kategori tas bort ur popovern och räknaren sjunker utan omladdning', async () => {
