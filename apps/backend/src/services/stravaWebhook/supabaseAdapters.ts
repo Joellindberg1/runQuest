@@ -11,6 +11,7 @@ import { logger } from '../../utils/logger.js';
 import { checkEventQualification } from '../eventService.js';
 import { getValidAccessToken, refreshAccessToken, stravaFetch } from '../stravaClient.js';
 import { extractExtendedFields } from '../stravaImport.js';
+import { deleteStravaRuns } from '../stravaRemoval.js';
 import { WeatherService } from '../weatherService.js';
 import type { ExistingRun, StravaResponse } from './decideAction.js';
 import type { Recompute, RunStore, StravaApi, WebhookEventRow, WebhookEventStore } from './ports.js';
@@ -102,6 +103,11 @@ export function createRunStore(): RunStore {
       if (!data) return null;
       const row = data as { sync_paused?: boolean | null; connection_date?: string | null };
       return { syncPaused: row.sync_paused === true, connectionDate: row.connection_date ?? null };
+    },
+    async removeStravaRun(userId, externalId) {
+      // The shared deletion path (stravaRemoval.ts): one query for the worker, the disconnect and every later caller.
+      const dates = await deleteStravaRuns(userId, { externalId });
+      return { removed: dates.length > 0, date: dates[0] ?? null };
     },
   };
 }

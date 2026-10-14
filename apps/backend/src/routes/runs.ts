@@ -102,7 +102,8 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     .order('date', { ascending: true });
 
   if (error) {
-    logger.error('❌ Error fetching runs to reprocess:', error);
+    // Kod och användar-id, aldrig felobjektet: ett Postgres-fel kan bära radens värden (Strava-id, koordinater) i message/details (ADR 010 8.6).
+    logger.error(`❌ Error fetching runs to reprocess for user ${userId} (${error.code ?? 'no code'})`);
     throw new Error(`Failed to fetch runs to reprocess (user ${userId}): ${error.message}`);
   }
   if (!runs?.length) return;
@@ -147,9 +148,10 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
       }).eq('id', u.id)
     )
   );
-  const failedUpdates = updateResults.filter((r: { error: { message: string } | null }) => r.error);
+  const failedUpdates = updateResults.filter((r: { error: { message: string; code?: string } | null }) => r.error);
   if (failedUpdates.length > 0) {
-    logger.error(`❌ ${failedUpdates.length} of ${updates.length} run updates failed during reprocess:`, failedUpdates[0].error);
+    // Som ovan: antal, användar-id och felkod, aldrig felobjektet.
+    logger.error(`❌ ${failedUpdates.length} of ${updates.length} run updates failed during reprocess for user ${userId} (${failedUpdates[0].error!.code ?? 'no code'})`);
     throw new Error(`${failedUpdates.length} of ${updates.length} run updates failed during reprocess (user ${userId}): ${failedUpdates[0].error!.message}`);
   }
 
