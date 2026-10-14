@@ -94,6 +94,7 @@ function setup(hold: UserId[] = []) {
       refresh_token: `rt-${userId}`,
       expires_at: 9999999999,
       connection_date: '2026-09-01',
+      sync_paused: false,
       users: { name: userId },
     })),
     runs: [],

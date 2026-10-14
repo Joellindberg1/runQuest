@@ -58,3 +58,18 @@ export const WEBHOOK_MAX_UNPROCESSED_PER_OWNER = 200;
 
 /** Sista tillåtna event_time (epoch-sekunder): 9999-12-31T23:59:59Z. Därefter skriver toISOString() ett sexsiffrigt år som Postgres avvisar (22009). */
 export const WEBHOOK_MAX_EVENT_TIME = 253402300799;
+
+// The retention periods (WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS) live in packages/shared/src/rules.ts: the privacy text is built from them.
+
+/** The worker sweep: every minute (ADR 010 decision 6). The sweep is the guarantee, the wake-up after an insert is only latency. */
+export const WEBHOOK_SWEEP_CRON = '* * * * *';
+/** The retention job: 03:30 every night, Europe/Stockholm (ADR 010 decision 11). */
+export const WEBHOOK_RETENTION_CRON = '30 3 * * *';
+
+/** A wait for the 15-minute rate limit ends at the next whole quarter hour plus this much (ADR 010 decision 9). */
+export const WEBHOOK_QUARTER_WAIT_MARGIN_MS = 30_000;
+/** A wait for the daily rate limit ends at the next UTC midnight plus this much (ADR 010 decision 9). */
+export const WEBHOOK_DAILY_WAIT_MARGIN_MS = 60_000;
+
+/** `last_error` is a short code, never a message: it is cut at this length as a last guard against a token or a body slipping in. */
+export const WEBHOOK_LAST_ERROR_MAX_LENGTH = 80;

@@ -67,7 +67,7 @@ describe('Strava polling and the rate budget', () => {
     const activity = stravaActivity({ id: 8101 });
     strava = installFakeStravaFetch({ athleteActivities: [activity], activities: { 8101: activity } });
     const tables: Record<string, Row[]> = {
-      strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } }],
+      strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01', sync_paused: false, users: { name: 'Test' } }],
       runs: [],
       user_boosts: [],
       users: [{ id: 'user-1', is_admin: false }],
