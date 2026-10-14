@@ -24,7 +24,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { createApp } from '../../app.js';
 import { createStravaWebhookRouter } from '../stravaWebhook.js';
 import { STRAVA_WEBHOOK_CALLBACK_URL } from '../../scripts/stravaWebhookSubscription.js';
-import { STRAVA_WEBHOOK_PATH, WEBHOOK_MAX_UNPROCESSED_PER_OWNER } from '../../services/stravaWebhook/constants.js';
+import { STRAVA_WEBHOOK_PATH, WEBHOOK_MAX_EVENT_TIME, WEBHOOK_MAX_UNPROCESSED_PER_OWNER } from '../../services/stravaWebhook/constants.js';
 import { buildWebhookDedupeKey } from '../../services/stravaWebhook/dedupeKey.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type FakeDbOptions, type Row } from './helpers/fakeDb.js';
@@ -225,6 +225,19 @@ describe('POST webhook', () => {
       expect({ label, status: res.status }).toEqual({ label, status: 400 });
     }
     expect(tables[EVENTS]).toHaveLength(0);
+  });
+
+  it('POST webhook accepts event_time up to the end of year 9999 and rejects the first second after it', async () => {
+    const { tables } = useDb();
+    const server = await serve();
+    expect(WEBHOOK_MAX_EVENT_TIME).toBe(Date.UTC(9999, 11, 31, 23, 59, 59) / 1000);
+    const last = await server.request('POST', STRAVA_WEBHOOK_PATH, { body: validEvent({ event_time: 253402300799 }) });
+    expect(last.status).toBe(200);
+    expect(tables[EVENTS]).toHaveLength(1);
+    expect(tables[EVENTS][0].event_time).toBe('9999-12-31T23:59:59.000Z');
+    const first = await server.request('POST', STRAVA_WEBHOOK_PATH, { body: validEvent({ object_id: 9002, event_time: 253402300800 }) });
+    expect(first.status).toBe(400); // toISOString() skulle ge "+010000-01-01…", som Postgres avvisar med 22009
+    expect(tables[EVENTS]).toHaveLength(1);
   });
 
   it('POST webhook with an unknown object_type or aspect_type returns 200 and stores nothing', async () => {
@@ -443,6 +456,25 @@ describe('onEventStored', () => {
     expect(res.status).toBe(200);
     expect(onEventStored).toHaveBeenCalledTimes(1);
     expect(tables[EVENTS]).toHaveLength(1);
+  });
+
+  it('POST webhook still returns 200 and logs when onEventStored rejects asynchronously', async () => {
+    const { tables } = useDb();
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const unhandled: unknown[] = [];
+    const record = (reason: unknown) => { unhandled.push(reason); };
+    process.on('unhandledRejection', record);
+    try {
+      const server = await serve(() => Promise.reject(new Error('worker failed')));
+      const res = await server.request('POST', STRAVA_WEBHOOK_PATH, { body: validEvent() });
+      await new Promise((resolve) => setTimeout(resolve, 20)); // låt en eventuell obehandlad rejection hinna avslöjas
+      expect(res.status).toBe(200);
+      expect(tables[EVENTS]).toHaveLength(1);
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(unhandled).toEqual([]); // på Node >= 15 stänger en obehandlad rejection processen
+    } finally {
+      process.off('unhandledRejection', record);
+    }
   });
 
   it('POST webhook works without an injected onEventStored', async () => {

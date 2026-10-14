@@ -55,3 +55,6 @@ export const WEBHOOK_BODY_LIMIT = '10kb';
 
 /** Så många obearbetade rader (pending + processing) en ägare får ha i kön; därefter sparas inga fler (ADR 010 beslut 3.4). */
 export const WEBHOOK_MAX_UNPROCESSED_PER_OWNER = 200;
+
+/** Sista tillåtna event_time (epoch-sekunder): 9999-12-31T23:59:59Z. Därefter skriver toISOString() ett sexsiffrigt år som Postgres avvisar (22009). */
+export const WEBHOOK_MAX_EVENT_TIME = 253402300799;

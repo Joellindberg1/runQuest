@@ -31,6 +31,7 @@ import { findUserByAthleteId, isValidAthleteId } from '../services/stravaAthlete
 import {
   WEBHOOK_ASPECT_TYPES,
   WEBHOOK_BODY_LIMIT,
+  WEBHOOK_MAX_EVENT_TIME,
   WEBHOOK_MAX_UNPROCESSED_PER_OWNER,
   WEBHOOK_OBJECT_TYPES,
   type WebhookAspectType,
@@ -80,7 +81,7 @@ function parseEvent(body: Record<string, unknown>, subscriptionId: number): Vali
   const { object_type, aspect_type, object_id, owner_id, event_time } = body;
   if (typeof object_type !== 'string' || typeof aspect_type !== 'string') return null;
   if (!isPositiveInteger(object_id) || !isValidAthleteId(owner_id) || !isPositiveInteger(event_time)) return null;
-  if (Number.isNaN(new Date(event_time * 1000).getTime())) return null; // utanför Date-intervallet
+  if (event_time > WEBHOOK_MAX_EVENT_TIME) return null; // annars ger toISOString() "+010000-…" och Postgres svarar 22009 (500, omleverans för evigt)
   return { object_type, aspect_type, object_id, owner_id, subscription_id: subscriptionId, event_time, updates: body.updates };
 }
 
