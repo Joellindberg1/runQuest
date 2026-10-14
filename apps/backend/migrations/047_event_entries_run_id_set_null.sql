@@ -10,7 +10,13 @@
 -- Vad migrationen gör: släpper FK:n (om den finns) och skapar den på nytt med samma namn, samma kolumn och samma mål men med
 -- ON DELETE SET NULL. Kolumnen run_id är redan nullable (000_baseline), så ingen kolumnändring behövs. xp_awarded,
 -- users.event_xp och entry-raderna rörs inte: ingen data skrivs. Att lägga tillbaka en FK validerar befintliga rader
--- (en kort tabellskanning under lås på en liten tabell).
+-- (en kort tabellskanning på en liten tabell).
+--
+-- Lås: drop constraint och add constraint tar ACCESS EXCLUSIVE på event_entries OCH på runs (den heta tabellen, FK:ns mål) i
+-- resten av transaktionen, i millisekunder. Första satsen, set local lock_timeout = '5s', gör att migrationen misslyckas i
+-- stället för att köa all trafik bakom en lång fråga på runs. set local gäller bara den pågående transaktionen (apply_migration
+-- kör filen i en) och lämnar inget kvar i sessionen, så omkörning ger samma slutläge; kör något filen utanför en transaktion
+-- ger Postgres en varning och inställningen gör ingenting, men inget går sönder. Misslyckas den med lock_timeout: kör om.
 --
 -- Konsekvens att känna till: kodkontrollen i DELETE /api/runs/:id (409 för en manuell runda som kvalificerat ett event, och
 -- för source='strava') är nu det ENDA skyddet för manuella rundor. Före migrationen skyddade FK:n också. Kontrollen är
@@ -32,6 +38,8 @@
 --   alter table public.event_entries drop constraint if exists event_entries_run_id_fkey;
 --   alter table public.event_entries add constraint event_entries_run_id_fkey foreign key (run_id) references public.runs(id);
 -- Statiskt test: eventEntriesRunIdMigration047.test.ts.
+
+set local lock_timeout = '5s';
 
 alter table public.event_entries
   drop constraint if exists event_entries_run_id_fkey;

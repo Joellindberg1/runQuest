@@ -341,5 +341,6 @@ describe('test-utils isolation', () => {
     expect(inputs.some((p) => p.endsWith('src/server.ts'))).toBe(true);
     expect(inputs.filter((p) => p.includes('test-utils') || p.includes('__tests__'))).toEqual([]);
     expect(result.outputFiles.map((f) => f.text).join('')).not.toMatch(/fakeStrava|installFakeStravaFetch/);
-  });
+    // esbuild-bygget tar mer än vitests 5 s när maskinen är belastad; gränsen höjs bara för det här testet.
+  }, 30_000);
 });

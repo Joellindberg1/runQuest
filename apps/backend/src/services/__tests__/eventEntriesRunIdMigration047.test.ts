@@ -27,6 +27,7 @@ const statements = code.split(';').map(normalize).filter(Boolean);
 describe(`migration ${file}`, () => {
   it('migration recreates event_entries_run_id_fkey with ON DELETE SET NULL', () => {
     expect(statements).toEqual([
+      "set local lock_timeout = '5s'",
       'alter table public.event_entries drop constraint if exists event_entries_run_id_fkey',
       'alter table public.event_entries add constraint event_entries_run_id_fkey foreign key (run_id) references public.runs(id) on delete set null',
     ]);
@@ -40,18 +41,25 @@ describe(`migration ${file}`, () => {
 
   it('deleting a run row leaves the event entry with run_id null and xp untouched', () => {
     // set null (inte cascade, inte no action): entry-raden överlever och bara run_id nollas.
-    expect(statements[1]).toMatch(/\bon delete set null$/);
+    expect(statements[2]).toMatch(/\bon delete set null$/);
     expect(code).not.toMatch(/\bon delete cascade\b/i);
     // D2: xp_awarded, users.event_xp och entry-raderna rörs inte, varken som schema eller data.
     expect(code).not.toMatch(/xp_awarded|event_xp/i);
     expect(code).not.toMatch(/\b(insert|update|delete from|truncate|alter column|drop column|drop table|trigger|policy|grant|revoke)\b/i);
-    // Allt migrationen gör är de två satserna på just event_entries.
-    for (const s of statements) expect(s).toMatch(/^alter table public\.event_entries\b/);
+    // Allt migrationen gör är lock_timeout följt av de två satserna på just event_entries.
+    for (const s of statements.slice(1)) expect(s).toMatch(/^alter table public\.event_entries\b/);
   });
 
   it('is idempotent and has no transaction control of its own', () => {
-    expect(statements[0]).toContain('drop constraint if exists');
+    expect(statements[1]).toContain('drop constraint if exists');
     expect(code).not.toMatch(/\b(begin|commit|rollback)\b/i);
+  });
+
+  it('sets a transaction-local lock_timeout before any lock is taken', () => {
+    // set local gäller bara transaktionen (apply_migration kör filen i en) och lämnar inget kvar i sessionen; utan
+    // timeout köar en lång fråga på runs all trafik bakom sig medan drop constraint väntar på ACCESS EXCLUSIVE.
+    expect(statements[0]).toBe("set local lock_timeout = '5s'");
+    expect(code).not.toMatch(/\bset\s+(session\s+)?lock_timeout\b/i);
   });
 
   it('header has a commented rollback that restores the foreign key without ON DELETE', () => {
