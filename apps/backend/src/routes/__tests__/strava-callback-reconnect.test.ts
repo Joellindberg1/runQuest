@@ -19,6 +19,7 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
+import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
@@ -66,7 +67,7 @@ describe('POST /api/strava/callback — omkoppling', () => {
 
     const res = await server.request('POST', '/api/strava/callback', {
       token: mintToken({ user_id: 'user-1' }),
-      body: { code: 'fresh-code' },
+      body: { code: 'fresh-code', consent_version: STRAVA_CONSENT_VERSION },
     });
 
     expect(res.status).toBe(200);

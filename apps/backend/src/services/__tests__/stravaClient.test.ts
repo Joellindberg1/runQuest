@@ -90,9 +90,18 @@ describe('getValidAccessToken', () => {
 
     const result = await getValidAccessToken('user-1');
 
-    expect(result).toEqual({ ok: true, accessToken: 'old-at', refreshed: false, expiresAt: 9999999999, connectionDate: '2026-09-01' });
+    expect(result).toEqual({ ok: true, accessToken: 'old-at', refreshed: false, expiresAt: 9999999999, connectionDate: '2026-09-01', consentVersion: null });
     expect(strava.requests).toHaveLength(0);
     expect(tokenWrites(db)).toHaveLength(0);
+  });
+
+  it('getValidAccessToken carries the stored consent version on success and on a failed refresh', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaError(400, { body: { message: 'Bad Request' } }) });
+    use([{ ...TOKEN_ROW, consent_version: 'v1' }]);
+    await expect(getValidAccessToken('user-1')).resolves.toMatchObject({ ok: true, consentVersion: 'v1' });
+
+    use([{ ...TOKEN_ROW, expires_at: 100, consent_version: 'v1' }]);
+    await expect(getValidAccessToken('user-1')).resolves.toMatchObject({ ok: false, reason: 'refresh_failed', consentVersion: 'v1' });
   });
 
   it('getValidAccessToken does not rotate the stored token when Strava rejects the refresh', async () => {

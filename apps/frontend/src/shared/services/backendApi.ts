@@ -7,6 +7,7 @@ import type {
   NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
   AdminWaitlistData,
   WaitlistSignupRequest,
+  StravaStatusResponse,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
@@ -588,7 +589,7 @@ class BackendApiService {
     }
   }
 
-  async getStravaStatus(): Promise<ApiResponse<{ connected: boolean; expired: boolean; expires_at?: number; auto_refreshed?: boolean; refresh_failed?: boolean; connection_date?: string; last_sync?: string }>> {
+  async getStravaStatus(): Promise<ApiResponse<StravaStatusResponse>> {
     return this.authenticatedRequest('/strava/status');
   }
 

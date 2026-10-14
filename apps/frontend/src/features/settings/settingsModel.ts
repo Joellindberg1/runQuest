@@ -1,17 +1,12 @@
 import { formatAgo, formatIn, formatLongDate } from '@/features/log/logFormat';
+import type { StravaStatusResponse } from '@runquest/shared';
 import { validatePassword } from '@/shared/utils/validation';
 import { STRAVA_RUN_TYPES_LABEL, STRAVA_SYNC_MINUTES } from '@/features/playbook/playbookFacts';
 
 // Settings-skärmens vymodeller: Strava-kortet ur /strava/status + /strava/last-sync, den senaste synken som en rad, och
 // lösenordsbytets validering (samma regler som tidigare: alla fält, lika lösenord, minst 6 tecken). Ren logik — ingen DOM.
 
-export interface StravaStatusInput {
-  connected: boolean;
-  expired: boolean;
-  connection_date?: string;
-  auto_refreshed?: boolean;
-  refresh_failed?: boolean;
-}
+export type StravaStatusInput = StravaStatusResponse;
 
 export interface StravaSyncInput {
   last_sync_attempt: string | null;

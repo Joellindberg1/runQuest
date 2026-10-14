@@ -112,6 +112,8 @@ interface StoredTokenState {
   /** Epoch seconds as stored before any refresh. */
   expiresAt: number | null;
   connectionDate: string | null;
+  /** null for connections made before the consent log (ADR 010 decision 12). */
+  consentVersion: string | null;
 }
 
 export type AccessTokenResult =
@@ -127,13 +129,13 @@ export async function getValidAccessToken(userId: string): Promise<AccessTokenRe
   const supabase = getSupabaseClient();
   const { data: tokens, error } = await supabase
     .from('strava_tokens')
-    .select('access_token, refresh_token, expires_at, connection_date')
+    .select('access_token, refresh_token, expires_at, connection_date, consent_version')
     .eq('user_id', userId)
     .single();
 
   if (error || !tokens) return { ok: false, reason: 'not_connected' };
 
-  const state: StoredTokenState = { expiresAt: tokens.expires_at ?? null, connectionDate: tokens.connection_date ?? null };
+  const state: StoredTokenState = { expiresAt: tokens.expires_at ?? null, connectionDate: tokens.connection_date ?? null, consentVersion: tokens.consent_version ?? null };
   const now = Math.floor(Date.now() / 1000);
   if (!(tokens.expires_at && tokens.expires_at < now)) {
     return { ok: true, accessToken: tokens.access_token, refreshed: false, ...state };
