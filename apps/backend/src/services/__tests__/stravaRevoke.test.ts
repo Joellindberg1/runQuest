@@ -104,6 +104,28 @@ describe('revokeStravaAuthorization', () => {
     expect(strava.calls.oauthDeauthorize).toBe(0);
   });
 
+  it('rejects with strava_refresh_rejected, and does not revoke, when Strava rejects the refresh token', async () => {
+    useTokens([tokenRow({ expires_at: NOW - 60 })]);
+    strava = installFakeStravaFetch({
+      oauthToken: stravaError(401, { body: { message: 'Authorization Error', errors: [{ resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' }] } }),
+      oauthDeauthorize: { access_token: 'x' },
+    });
+
+    await expect(revokeStravaAuthorization('user-1')).rejects.toMatchObject({ code: 'strava_refresh_rejected' });
+
+    expect(strava.calls.oauthDeauthorize).toBe(0);
+  });
+
+  it('rejects with strava_token_read_failed, not silently, when the token row cannot be read', async () => {
+    const db = createFakeDb({ strava_tokens: [tokenRow()] }, { failWhen: (q) => (q.table === 'strava_tokens' ? { message: 'connection reset' } : null) });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    strava = installFakeStravaFetch({ oauthDeauthorize: { access_token: 'x' } });
+
+    await expect(revokeStravaAuthorization('user-1')).rejects.toMatchObject({ code: 'strava_token_read_failed' });
+
+    expect(strava.requests).toEqual([]);
+  });
+
   it('rejects with a code when the token has expired and there is no refresh token', async () => {
     useTokens([tokenRow({ expires_at: NOW - 60, refresh_token: null })]);
     strava = installFakeStravaFetch({ oauthDeauthorize: { access_token: 'x' } });

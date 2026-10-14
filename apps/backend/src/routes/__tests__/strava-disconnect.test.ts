@@ -203,6 +203,39 @@ describe('DELETE /api/strava/disconnect', () => {
     }
   });
 
+  it('disconnect continues and warns with its own code when Strava rejects the refresh token or the token row cannot be read', async () => {
+    const cases: Array<{ expectedCode: string; options: Setup }> = [
+      {
+        expectedCode: 'strava_refresh_rejected',
+        options: {
+          tokens: [tokenRow({ expires_at: 1 })],
+          strava: { oauthToken: stravaError(400, { body: { message: 'Bad Request', errors: [{ resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' }] } }) },
+        },
+      },
+      {
+        expectedCode: 'strava_token_read_failed',
+        // Only the token lookup of the revoke selects the refresh token; the removal reads other columns.
+        options: { failWhen: (q) => (q.table === 'strava_tokens' && q.select?.includes('refresh_token') ? { message: 'connection reset' } : null) },
+      },
+    ];
+
+    for (const { expectedCode, options } of cases) {
+      lines.length = 0;
+      const { tables } = setup(options);
+
+      const res = await disconnect();
+
+      expect(res.status, expectedCode).toBe(200);
+      expect(tables.runs, expectedCode).toEqual([]);
+      expect(tables.strava_tokens, expectedCode).toEqual([]);
+      expect(strava!.calls.oauthDeauthorize, expectedCode).toBe(0);
+      const warning = lines.find((line) => line.includes('revoke at Strava failed'));
+      expect(warning, expectedCode).toContain('user user-1');
+      expect(warning, expectedCode).toContain(expectedCode);
+      expect(lines.filter((line) => line.includes('SECRET'))).toEqual([]);
+    }
+  });
+
   it('disconnect deletes the strava runs first and the token row last', async () => {
     const { tables, db } = setup({ runs: [run(), run({ id: 'r2', external_id: '1002', date: '2026-10-02' })] });
     const rowsDuringRecompute: number[] = [];
@@ -391,6 +424,32 @@ describe('the user lock around a disconnect', () => {
     expect(strava!.calls.oauthDeauthorize).toBe(1);
     expect(tables.runs).toEqual([]);
     expect(tables.strava_tokens).toEqual([]);
+  });
+
+  it('a reconnect waits for an ongoing disconnect and ends connected', async () => {
+    const { tables } = setup({ strava: { oauthToken: stravaTokenResponse({ access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH', athlete: { id: 424242 } }) } });
+    const token = mintToken({ user_id: 'user-1', group_id: 'group-1' });
+    const held = new Promise<void>((resolve) => { releaseLock = resolve; });
+    const holder = withUserLock('user-1', () => held);
+
+    const pendingDisconnect = disconnect();
+    await settle();
+    const pendingReconnect = server.request('POST', '/api/strava/callback', { token, body: { code: 'fresh-code', consent_version: STRAVA_CONSENT_VERSION } });
+    await settle();
+    // Neither has started: not even the code is exchanged, so a new authorisation cannot be revoked by the disconnect in front of it.
+    expect(strava!.calls.oauthToken).toBe(0);
+    expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'SECRET-ACCESS' });
+
+    releaseLock!();
+    await holder;
+    const [disconnected, reconnected] = await Promise.all([pendingDisconnect, pendingReconnect]);
+
+    expect(disconnected.status).toBe(200);
+    expect(reconnected.status).toBe(200);
+    expect(strava!.requests.map((call) => call.route)).toEqual(['oauthDeauthorize', 'oauthToken']);
+    expect(tables.runs).toEqual([]);
+    expect(tables.strava_tokens).toHaveLength(1);
+    expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH' });
   });
 
   it('a sync that queued behind the disconnect answers not connected and never reaches Strava', async () => {

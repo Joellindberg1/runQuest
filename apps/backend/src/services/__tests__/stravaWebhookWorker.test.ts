@@ -782,6 +782,11 @@ describe('handler contract', () => {
     expect(resultForTokenFailure('refresh_failed')).toEqual({ status: 'retry', error: 'token_refresh_failed' });
     expect(resultForTokenFailure('no_refresh_token')).toEqual({ status: 'retry', error: 'no_refresh_token' });
   });
+
+  it('a rejected refresh token or a token row that could not be read is a retry for an activity event, never an unknown owner', () => {
+    expect(resultForTokenFailure('refresh_rejected')).toEqual({ status: 'retry', error: 'token_refresh_rejected' });
+    expect(resultForTokenFailure('token_read_failed')).toEqual({ status: 'retry', error: 'token_read_failed' });
+  });
 });
 
 describe('the loop', () => {
