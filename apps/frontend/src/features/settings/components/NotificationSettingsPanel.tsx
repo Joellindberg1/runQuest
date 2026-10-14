@@ -30,6 +30,10 @@ export interface NotificationSettingsPanelProps {
   defaultExpanded?: boolean;
   /** Kortets ram (t.ex. `rq-card rq-card--edge`) kommer från den som monterar panelen. */
   className?: string;
+  /** Totalsumman ("16 of 19 on") i huvudet. Smala ytor (bladet och sidokolumnen på /news) tar bort den; sektionernas räknare och "Defaults shown" står kvar. */
+  showTotal?: boolean;
+  /** Vart fokus går efter Retry. Standard är panelens egen titel; en värd som döljer den (bladet på /news) pekar på sin synliga rubrik. */
+  retryFocus?: () => HTMLElement | null;
   /** Slagen att visa. Standard är hela registret; en annan lista är till för tester. */
   kinds?: readonly PanelKind[];
 }
@@ -125,7 +129,7 @@ function NotificationSkeleton({ sections }: { sections: Section[] }) {
  *   val som inte gick att läsa vore en gissning.
  * - **Reset to defaults** syns bara när något är anpassat och skickar null för varje anpassad nyckel.
  */
-export function NotificationSettingsPanel({ headingLevel = 2, defaultExpanded = true, className, kinds = NOTIFICATION_KINDS }: NotificationSettingsPanelProps) {
+export function NotificationSettingsPanel({ headingLevel = 2, defaultExpanded = true, className, showTotal = true, retryFocus, kinds = NOTIFICATION_KINDS }: NotificationSettingsPanelProps) {
   const settings = useUserSettings();
   const titleId = useId();
   const sections = useMemo(() => buildSections(kinds), [kinds]);
@@ -133,14 +137,14 @@ export function NotificationSettingsPanel({ headingLevel = 2, defaultExpanded = 
   const titleRef = useRef<HTMLHeadingElement>(null);
   // Retry avmonteras av laddningsläget; fokus flyttas till titeln så att det inte hamnar på body.
   const retry = () => {
-    titleRef.current?.focus();
+    (retryFocus?.() ?? titleRef.current)?.focus();
     settings.reload();
   };
   const sectionLevel: SectionHeadingLevel = headingLevel === 2 ? 3 : 4;
 
   const shown = sections.flatMap((section) => section.kinds);
   const onCount = shown.filter((kind) => isOn(kind, settings.values)).length;
-  let count = `${onCount} of ${shown.length} on`;
+  let count = showTotal ? `${onCount} of ${shown.length} on` : '';
   if (settings.isLoading) count = '';
   else if (settings.loadFailed) count = 'Defaults shown';
 

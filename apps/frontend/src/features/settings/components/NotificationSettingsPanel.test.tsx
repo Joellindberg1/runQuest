@@ -76,7 +76,9 @@ describe('NotificationSettingsPanel', () => {
     expect(screen.getByRole('button', { name: new RegExp(`Challenges.*${challenges.length - 1} of ${challenges.length} on`) })).toBeInTheDocument();
     const titles = kindsIn('Titles');
     expect(screen.getByRole('button', { name: new RegExp(`Titles.*${titles.length - 1} of ${titles.length} on`) })).toBeInTheDocument();
-    expect(screen.getByText(`${NOTIFICATION_KINDS.length - 2} of ${NOTIFICATION_KINDS.length} on`)).toBeInTheDocument();
+    // Räknas ur registret: slag som startar avstängda (default false) och de två avstängda här är inte påslagna.
+    const switchedOn = NOTIFICATION_KINDS.filter((kind) => (kind.key === TITLES_OTHERS || kind.key === CHALLENGE_LOST ? false : kind.default));
+    expect(screen.getByText(`${switchedOn.length} of ${NOTIFICATION_KINDS.length} on`)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Notifications' })).toBeInTheDocument();
   });
 
@@ -165,9 +167,12 @@ describe('NotificationSettingsPanel', () => {
     expect(news.server.settingsCalls).toEqual([]);
 
     // Lösenordskortet påverkas inte.
-    await user.type(screen.getByLabelText('Current password'), 'old-secret');
-    await user.type(screen.getByLabelText('New password'), 'new-secret');
-    await user.type(screen.getByLabelText('Repeat new password'), 'new-secret');
+    await user.click(screen.getByLabelText('Current password'));
+    await user.paste('old-secret');
+    await user.click(screen.getByLabelText('New password'));
+    await user.paste('new-secret');
+    await user.click(screen.getByLabelText('Repeat new password'));
+    await user.paste('new-secret');
     await user.click(screen.getByRole('button', { name: 'Change password' }));
     expect(await screen.findByRole('status', { name: 'Password status' })).toHaveTextContent('Password changed.');
 
@@ -229,6 +234,19 @@ describe('NotificationSettingsPanel', () => {
     expect(panel).toContainElement(document.activeElement as HTMLElement);
   });
 
+  it('retryFocus flyttar fokus till det elementet i stället för panelens titel efter Retry', async () => {
+    const user = userEvent.setup();
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderWithApp(
+      <>
+        <h2 tabIndex={-1}>Host heading</h2>
+        <NotificationSettingsPanel retryFocus={() => screen.getByRole('heading', { name: 'Host heading' })} />
+      </>,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Retry' }, SLOW));
+    expect(screen.getByRole('heading', { name: 'Host heading' })).toHaveFocus();
+  });
+
   it('Reset to defaults är en knapp som bara visas när något är anpassat och återställer med null', async () => {
     const user = userEvent.setup();
     const untouched = await renderPanel();
@@ -282,6 +300,22 @@ describe('NotificationSettingsPanel', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Notifications' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 4 }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument();
+  });
+
+  it('showTotal={false} tar bort totalsumman men behåller sektionernas räknare och "Defaults shown"', async () => {
+    const total = new RegExp(`^\\d+ of ${NOTIFICATION_KINDS.length} on$`);
+    const shown = await renderPanel();
+    expect(screen.getByText(total)).toBeInTheDocument();
+    shown.unmount();
+
+    const hidden = await renderPanel({ showTotal: false });
+    expect(screen.queryByText(total)).not.toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Titles' })).getByRole('button', { name: /^Titles/ })).toHaveTextContent(/\d+ of \d+ on/);
+    hidden.unmount();
+
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderWithApp(<NotificationSettingsPanel showTotal={false} />);
+    expect(await screen.findByText('Defaults shown', {}, SLOW)).toBeInTheDocument();
   });
 
   it('visar en laddningsstatus i stället för reglage medan inställningarna laddas', async () => {

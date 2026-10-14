@@ -3,7 +3,7 @@ import type { ChallengeMetric } from '@runquest/types';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
 import { logger } from '@/shared/utils/logger';
-import { deltaText, durationLongText, firstName, metricLabel } from '@/features/challenges/duelsFormat';
+import { deltaText, durationLongText, firstName, metricLabel, startsInText } from '@/features/challenges/duelsFormat';
 import { formatClock, stockholmDate, weekdayOf } from '@/features/events/eventsFormat';
 import { formatInt } from '@/features/log/logFormat';
 import { SHORT_MONTHS } from '@/features/profile/profileFormat';
@@ -15,12 +15,13 @@ import { resolveGenderedTitle, titleValueText } from '@/features/titles/titleFor
 
 // ─── Kategorier och filter ──────────────────────────────────────────────────
 
-export type NewsCategory = 'title' | 'challenge' | 'level' | 'event' | 'streak' | 'release';
+export type NewsCategory = 'title' | 'challenge' | 'rank' | 'level' | 'event' | 'streak' | 'release';
 
 /**
  * Kategorin styr ikon, färg och kant. run_milestone hör till Levels (ADR 008: Levels = level_up + run_milestone), liksom
  * badge_earned (ADR 009 beslut 5, F7: kanten förblir Levels-grön). release_published (RUN-161) är en systemhändelse med en
- * egen kategori utan filterchip: raden syns när inget filter är valt.
+ * egen kategori utan filterchip: raden syns när inget filter är valt. rank_passed (ADR 011 beslut 6) har kategorin rank och eget chip;
+ * challenge_accepted (beslut 7) är en utmaningshändelse och ligger under Challenges.
  */
 export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   title_unlocked: 'title',
@@ -36,19 +37,22 @@ export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   event_closed: 'event',
   badge_earned: 'level',
   release_published: 'release',
+  rank_passed: 'rank',
+  challenge_accepted: 'challenge',
 };
 
 /** Ikonerna ur runquest-icons (prototypens `kinds`). */
 export const CATEGORY_ICON: Record<NewsCategory, RQIconName> = {
   title: 'crown',
   challenge: 'swords',
+  rank: 'trophy',
   level: 'zap',
   event: 'calendar',
   streak: 'flame',
   release: 'sparkles',
 };
 
-export type NewsFilterKey = 'titles' | 'challenges' | 'events' | 'levels' | 'badges' | 'streaks';
+export type NewsFilterKey = 'titles' | 'challenges' | 'ranks' | 'events' | 'levels' | 'badges' | 'streaks';
 
 export interface NewsFilter {
   key: NewsFilterKey;
@@ -62,7 +66,8 @@ export interface NewsFilter {
 
 export const NEWS_FILTERS: readonly NewsFilter[] = [
   { key: 'titles', label: 'Titles', category: 'title', types: ['title_unlocked', 'title_taken', 'title_revoked'] },
-  { key: 'challenges', label: 'Challenges', category: 'challenge', types: ['challenge_received', 'challenge_won', 'challenge_draw'] },
+  { key: 'challenges', label: 'Challenges', category: 'challenge', types: ['challenge_received', 'challenge_accepted', 'challenge_won', 'challenge_draw'] },
+  { key: 'ranks', label: 'Ranks', category: 'rank', types: ['rank_passed'] },
   { key: 'events', label: 'Events', category: 'event', types: ['event_open', 'event_closed'] },
   { key: 'levels', label: 'Levels', category: 'level', types: ['level_up', 'run_milestone'] },
   { key: 'badges', label: 'Badges', category: 'level', icon: 'shield', types: ['badge_earned'] },
@@ -111,7 +116,7 @@ export const isKnownNewsItem = (item: WireNewsItem): item is NewsItem => isActiv
 
 /** Antal rader per chip i det laddade fönstret (ADR 008: chip-räknare = antal i det laddade fönstret). Okända typer räknas inte. */
 export function countByFilter(items: readonly Pick<WireNewsItem, 'type'>[]): Record<NewsFilterKey, number> {
-  const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, events: 0, levels: 0, badges: 0, streaks: 0 };
+  const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, ranks: 0, events: 0, levels: 0, badges: 0, streaks: 0 };
   for (const item of items) {
     if (!isActivityType(item.type)) continue;
     const type = item.type;
@@ -446,6 +451,26 @@ export function untilText(endsAt: string, now: Date): string {
   return `until ${dateText(endDay, todayKey)}`;
 }
 
+/** "on the leaderboard" (xp) / "on the challenge standings"; ett saknat eller okänt mått läses som leaderboarden. */
+const rankTable = (measure: unknown): string => (measure === 'challenge_points' ? 'on the challenge standings' : 'on the leaderboard');
+/** "— now #2" när rangen finns; saknad eller trasig rang utelämnas hellre än "now #undefined". */
+const nowRank = (rank: unknown): string => (typeof rank === 'number' && Number.isInteger(rank) && rank >= 1 ? ` — now #${rank}` : '');
+
+const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * När en accepterad utmaning börjar, sett från Stockholm-dagen `now`: "it starts tomorrow" · "it starts in 2 d" (samma format som
+ * dueller, startsInText) · "it has started". Saknad eller trasig start_date ger null: texten har då ingen tidsfras.
+ */
+function startsPhrase(startDate: unknown, now: Date): string | null {
+  if (typeof startDate !== 'string' || !CALENDAR_DAY.test(startDate)) return null;
+  const days = daysBetween(stockholmClock(now).date, startDate);
+  if (!Number.isFinite(days)) return null;
+  if (days <= 0) return 'it has started';
+  if (days === 1) return 'it starts tomorrow';
+  const starts = startsInText(startDate, now);
+  return starts === null ? null : `it ${starts}`;
+}
+
 export interface NewsText {
   /** Typraden: "Title taken", "Challenge lost" … (sett från den som tittar). */
   kind: string;
@@ -548,6 +573,21 @@ export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | n
       const hasTitle = typeof title === 'string' && title !== '';
       const lead = hasVersion ? `RunQuest v${version} is out` : 'A new RunQuest version is out';
       return { kind: 'New version', text: hasTitle ? `${lead} — ${title}` : lead };
+    }
+    case 'rank_passed': {
+      // Tåligt mot en payload utan fält: saknat mått = leaderboarden, saknad rang utelämnas.
+      const { measure, passer_rank: passerRank } = item.payload ?? {};
+      const table = rankTable(measure);
+      const now = nowRank(passerRank);
+      if (viewerIsTarget) return { kind: 'Passed you', text: `${subject(actor, ctx)} passed you ${table}${now}` };
+      if (viewerIsActor) return { kind: 'You passed', text: `You passed ${object(target, ctx)} ${table}${now}` };
+      return { kind: 'Rank passed', text: `${subject(actor, ctx)} passed ${object(target, ctx)} ${table}${now}` };
+    }
+    case 'challenge_accepted': {
+      const { start_date: startDate } = item.payload ?? {};
+      const owner = viewerIsTarget ? 'your' : target ? `${firstName(target.name)}'s` : `${FORMER_MEMBER}'s`;
+      const starts = startsPhrase(startDate, ctx.now);
+      return { kind: 'Challenge accepted', text: `${subject(actor, ctx)} accepted ${owner} challenge${starts ? ` — ${starts}` : ''}` };
     }
     default: {
       const unhandled: never = item;

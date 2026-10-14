@@ -675,6 +675,9 @@
   --rq-switch-row-pad-y:    10px;                       /* desktop 9 */
   --rq-switch-row-pad-x:    12px;                       /* desktop 16 */
   --rq-notify-link-hit:     44px;                       /* länkknappar i panelen (Reset to defaults, Retry): mobil 44, desktop 24 */
+  --rq-notify-side-row-min-h: 40px;                     /* /news: panelen i den smala sidokolumnen (desktop) har tätare rader än Settings (46); frame N1 */
+  --rq-notify-sheet-max-h:  88vh;                       /* /news mobil: bladet med panelen scrollar inuti och går aldrig över skärmen; frame N1 */
+  --rq-news-settings-hit:   44px;                       /* /news mobil: kugghjulsknappen i sidhuvudet och bladets ✕ (ikonknappen är 40) */
 
   /* Filmen på landningen (RUN-257): spelarens mått (desktopvärdena i avsnitt 2) — play-rutan och dess triangel, etiketten, mobilens progress, kontrollraden, guldhörnen, sökreglaget och toningen över postern. */
   --rq-landing-film-play-box: 54px;
