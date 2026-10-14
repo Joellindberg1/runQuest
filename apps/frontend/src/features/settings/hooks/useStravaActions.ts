@@ -58,8 +58,12 @@ export function useStravaActions({ clientId }: UseStravaActionsInput) {
     return () => window.removeEventListener('message', onMessage);
   }, [refreshStrava]);
 
-  /** Anropas bara när användaren kryssat i samtyckesrutan (StravaCard låser knappen annars): versionen bärs över OAuth-omdirigeringen i sessionStorage. */
-  const connect = async () => {
+  /**
+   * `agreed` är samtyckesrutans läge. Utan bock görs ingenting: inget fönster öppnas och inget sparas, så kopplingen är aldrig beroende av bara
+   * att knappen är låst. Versionen bärs över OAuth-omdirigeringen i sessionStorage och sparas först när fönstret faktiskt kan öppnas.
+   */
+  const connect = async (agreed: boolean) => {
+    if (!agreed) return;
     setError(null);
     setStatus(null);
     if (!clientId) { setError('Strava is not configured on the server'); return; }

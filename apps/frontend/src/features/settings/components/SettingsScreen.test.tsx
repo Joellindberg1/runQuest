@@ -32,7 +32,7 @@ const CONSENT_KEY = 'rq.strava.consent';
 /** Knappen är låst tills rutan är ikryssad (samtycket före Connect). */
 async function agreeAndClick(name: 'Connect Strava' | 'Reconnect Strava') {
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('checkbox', { name: 'I understand and agree' }));
+  await user.click(await screen.findByRole('checkbox', { name: "I've read this and agree that RunQuest imports my Strava runs as described" }));
   await user.click(screen.getByRole('button', { name }));
 }
 
@@ -120,14 +120,22 @@ describe('Settings — Strava', () => {
       expect(sessionStorage.getItem(CONSENT_KEY)).toBe(STRAVA_CONSENT_VERSION);
     });
 
-    it('it is sent in the callback, and the confirmation stands in the cards status', async () => {
+    it('it is sent in the callback', async () => {
+      renderSettings();
+      await agreeAndClick('Connect Strava');
+
+      await sendMessage({ stravaCode: 'abc' });
+
+      await waitFor(() => expect(connect).toHaveBeenCalledWith('abc', STRAVA_CONSENT_VERSION));
+    });
+
+    it('a successful connect shows the confirmation in the cards status', async () => {
       renderSettings();
       await agreeAndClick('Connect Strava');
 
       handlers.getStravaStatus = () => CONNECTED;
       await sendMessage({ stravaCode: 'abc' });
 
-      await waitFor(() => expect(connect).toHaveBeenCalledWith('abc', STRAVA_CONSENT_VERSION));
       expect(await within(strava()).findByRole('status', { name: 'Strava status' })).toHaveTextContent('Strava connected');
     });
 

@@ -44,6 +44,9 @@
    scrollruta). Rutan och dess rad är tryckytan (samma höjd som reglagen); den som är ansluten ser samma text hopfälld, ovanför knapparna. */
 .rq-consent { display: flex; flex-direction: column; gap: var(--rq-sp-8); min-width: 0; padding: var(--rq-sp-12) var(--rq-sp-14); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
 .rq-consent__title { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-weight: 400; letter-spacing: var(--rq-ls-eyebrow); text-transform: uppercase; color: var(--rq-text-2); }
+.rq-consent__points { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-consent__point { display: flex; align-items: flex-start; gap: var(--rq-sp-10); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); overflow-wrap: anywhere; }
+.rq-consent__dot { flex-shrink: 0; margin-top: var(--rq-sp-8); color: var(--rq-up); }
 .rq-consent__p { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); overflow-wrap: anywhere; }
 /* details lägger inte sina barn i en flex-kolumn (gap gäller inte): avståndet mellan styckena sätts som marginal */
 .rq-consent__more > .rq-consent__p, .rq-consent__more > .rq-consent__link { margin-top: var(--rq-sp-8); }
