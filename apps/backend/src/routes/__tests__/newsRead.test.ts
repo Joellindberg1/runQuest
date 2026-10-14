@@ -67,6 +67,20 @@ function use(t: World, options: Parameters<typeof createFakeDb>[1] = {}) {
   return db;
 }
 
+/** Spelar in raderna i varje upsert på den klient som `use` just gav ut (anropas efter `use`). */
+function recordUpserts(): Array<Row | Row[]> {
+  const rows: Array<Row | Row[]> = [];
+  const client = vi.mocked(getSupabaseClient)() as any;
+  const from = client.from;
+  client.from = (table: string) => {
+    const builder = from(table);
+    const upsert = builder.upsert.bind(builder);
+    builder.upsert = (values: Row | Row[], opts?: Record<string, unknown>) => { rows.push(values); return upsert(values, opts); };
+    return builder;
+  };
+  return rows;
+}
+
 const token = (user_id = ME, group_id: string | null = 'g1') => mintToken({ user_id, group_id });
 const read = (body: unknown, user_id = ME, group_id: string | null = 'g1') =>
   server.request('POST', '/api/news/read', { token: token(user_id, group_id), body });
@@ -111,31 +125,39 @@ it('är idempotent: samma id två gånger ger en rad och oförändrad räknare',
 
 it('ett id i en annan grupp ignoreras tyst (inget fel, ingen rad)', async () => {
   const t = world([row(1), row(2, { group_id: 'g2', actor_user_id: 'u3' }), row(3)]);
-  use(t);
+  const db = use(t);
+  const upsertedRows = recordUpserts();
   const res = await read({ ids: [2, 99] }); // 2 finns i g2, 99 finns inte alls
 
   expect(res.status).toBe(200);
   expect(res.body).toEqual({ success: true, data: { unread_count: 2 } });
   expect(t.news_read).toEqual([]);
+  // Alla id:n filtrerades bort: ingen skrivning alls, inte ens en tom upsert
+  expect(db.queries.filter((q) => q.mutation === 'upsert')).toEqual([]);
 
   // Det fungerar att blanda: det egna gruppens id skrivs, det andra ignoreras
   const mixed = await read({ ids: [2, 3] });
   expect(mixed.status).toBe(200);
   expect(receipts(t)).toEqual([3]);
+  expect(upsertedRows).toEqual([[{ user_id: ME, activity_id: 3 }]]);
 });
 
 it('ett id på eller under golvet ger ingen rad', async () => {
   const t = world([row(1), row(2), row(3), row(4)], { floor: 2 });
-  use(t);
+  const db = use(t);
+  const upsertedRows = recordUpserts();
   const res = await read({ ids: [1, 2] });
 
   expect(res.status).toBe(200);
   expect(res.body.data.unread_count).toBe(2); // 3 och 4
   expect(t.news_read).toEqual([]);
+  // Rensningen under golvet skulle dölja en rad som skrevs av misstag, så beviset är att ingen skrivning sker alls
+  expect(db.queries.filter((q) => q.mutation === 'upsert')).toEqual([]);
 
   const above = await read({ ids: [2, 3] });
   expect(above.status).toBe(200);
   expect(receipts(t)).toEqual([3]);
+  expect(upsertedRows).toEqual([[{ user_id: ME, activity_id: 3 }]]);
 });
 
 it('tom lista, dubblerade id, icke-heltal, noll eller negativa och fler än 50 id ger 400', async () => {
@@ -379,6 +401,53 @@ describe('POST /api/news/read: kvittering och rensning', () => {
     expect(JSON.stringify(res.body)).not.toContain('secret');
     expect(db.queries.filter((q) => q.mutation === 'delete')).toEqual([]);
     expect(error).toHaveBeenCalled();
+  });
+
+  it('en rad som återkallas mellan uppslagning och skrivning (23503) gör om en gång och kvitterar de som finns kvar', async () => {
+    const t = world([row(1), row(2), row(3)]);
+    let upserts = 0;
+    const db = use(t, {
+      failWhen: (q) => {
+        if (q.mutation !== 'upsert' || ++upserts > 1) return null;
+        t.activity_log = t.activity_log.filter((r) => r.id !== 2); // raden 2 återkallas precis före skrivningen
+        return { code: '23503', message: 'violates foreign key constraint "news_read_activity_id_fkey"' } as { message: string };
+      },
+    });
+    const res = await read({ ids: [2, 3] });
+
+    expect(res.status).toBe(200);
+    expect(receipts(t)).toEqual([3]);
+    expect(res.body).toEqual({ success: true, data: { unread_count: 1 } }); // rad 1
+    expect(db.queries.filter((q) => q.mutation === 'upsert')).toHaveLength(2);
+  });
+
+  it('faller omförsöket också (23503) är det ett no-op: 200 med räknaren, inget 500', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const t = world([row(1), row(2)]);
+    const db = use(t, {
+      failWhen: (q) => (q.mutation === 'upsert' ? ({ code: '23503', message: 'fk' } as { message: string }) : null),
+    });
+    const res = await read({ ids: [2] });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true, data: { unread_count: 2 } });
+    expect(t.news_read).toEqual([]);
+    expect(db.queries.filter((q) => q.mutation === 'upsert')).toHaveLength(2); // exakt ett omförsök
+    expect(warn).toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('ett annat fel än 23503 görs inte om', async () => {
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const t = world([row(1)]);
+    const db = use(t, {
+      failWhen: (q) => (q.mutation === 'upsert' ? ({ code: '40001', message: 'serialization failure' } as { message: string }) : null),
+    });
+    const res = await read({ ids: [1] });
+
+    expect(res.status).toBe(500);
+    expect(db.queries.filter((q) => q.mutation === 'upsert')).toHaveLength(1);
   });
 
   it('ett fel i id-uppslagningen ger 500 utan skrivning', async () => {

@@ -9,7 +9,7 @@ import { logger } from '../utils/logger.js';
 import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 import { ACTIVITY_LOG_TABLE } from '../services/activityLog.js';
 import { isRowUnread, loadUnreadState, type Reader } from '../services/newsUnread.js';
-import { idsInGroupAboveFloor, markRowsRead, parseReadIds, pruneReadReceipts } from '../services/newsRead.js';
+import { acknowledgeRows, parseReadIds, pruneReadReceipts } from '../services/newsRead.js';
 import {
   ACTIVITY_TYPES,
   isActivityType,
@@ -246,6 +246,10 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
 // på eller under golvet, (4) räkna om med samma loadUnreadState som GET /news, så att talet är exakt det GET visar direkt
 // efter skrivningen. Ett fel i (1) eller (2) ger 500 utan detaljer. Ett fel i (3) loggas och ger ändå 200.
 //
+// Race mot /seen: höjer /seen golvet mellan vår läsning av golvet och vår skrivning kan ett kvitto hamna på eller under det
+// nya golvet. Det är inert (rader under golvet är redan lästa) och rensas av nästa /read eller /seen. Ett id som
+// återkallas mellan uppslagning och skrivning ger FK-fel (23503); acknowledgeRows gör då om det en gång (se newsRead.ts).
+//
 // Kvittofönstret: oläst-räknaren läser news_read som de senaste 501 raderna ovanför golvet (newsUnread.ts). Golvet är
 // tabellens enda städning (här och i /seen); ADR 011:s revisit-trigger är > 1 000 rader per användare, då ska golvet
 // kompakteras över det sammanhängande lästa prefixet.
@@ -280,8 +284,7 @@ export function createNewsRouter(): express.Router {
       const reader = await readReader(userId);
       if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
 
-      const valid = await idsInGroupAboveFloor(groupId, ids, reader.news_last_seen_id ?? 0);
-      await markRowsRead(userId, valid);
+      await acknowledgeRows(groupId, userId, ids, reader.news_last_seen_id ?? 0);
       await pruneReadReceipts(userId, reader.news_last_seen_id);
 
       const body: NewsReadApiResponse = {

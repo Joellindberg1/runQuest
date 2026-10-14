@@ -3,8 +3,10 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { ACTIVITY_LOG_TABLE } from './activityLog.js';
+import { NEWS_READ_TABLE } from './newsUnread.js';
 
-const NEWS_READ_TABLE = 'news_read';
+/** Postgres foreign_key_violation: raden i activity_log togs bort (retract) mellan uppslagningen och skrivningen. */
+const FOREIGN_KEY_VIOLATION = '23503';
 
 /** Så många id:n får ett anrop innehålla (ADR 011 beslut 4). Klientens buntning (READ_FLUSH_MS) håller sig under det. */
 export const MAX_READ_IDS = 50;
@@ -44,6 +46,24 @@ export async function markRowsRead(userId: string, activityIds: number[]): Promi
       { onConflict: 'user_id,activity_id', ignoreDuplicates: true },
     );
   if (error) throw error;
+}
+
+/**
+ * Slår upp och kvitterar raderna. Om en rad återkallas (retract) mellan uppslagningen och skrivningen fäller FK:n (23503)
+ * hela batchen; då görs uppslagningen och skrivningen om en gång, så att de rader som finns kvar ändå kvitteras. Faller även
+ * andra försöket är det ett no-op (raden försvinner av sig själv): inget fel kastas. Alla andra fel kastas.
+ */
+export async function acknowledgeRows(groupId: string, userId: string, ids: number[], floor: number): Promise<void> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const valid = await idsInGroupAboveFloor(groupId, ids, floor);
+    try {
+      await markRowsRead(userId, valid);
+      return;
+    } catch (error) {
+      if ((error as { code?: string } | null)?.code !== FOREIGN_KEY_VIOLATION) throw error;
+      if (attempt === 2) logger.warn('⚠️ news_read: raden återkallades under skrivningen, ingen kvittering sparades (ofarligt)');
+    }
+  }
 }
 
 /**
