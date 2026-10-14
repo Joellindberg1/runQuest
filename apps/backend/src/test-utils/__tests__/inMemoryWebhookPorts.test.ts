@@ -3,7 +3,7 @@
  * nothing about the database. One test per RPC step; the real SQL is checked against PGlite in the critic's run.
  */
 import { describe, expect, it } from 'vitest';
-import { createInMemoryWebhookStore } from '../inMemoryWebhookPorts.js';
+import { createInMemoryRunStore, createInMemoryWebhookStore } from '../inMemoryWebhookPorts.js';
 
 const START = new Date('2026-10-14T12:00:00.000Z');
 let clock = START;
@@ -116,5 +116,41 @@ describe('in-memory status writes', () => {
     expect(await store.release(oldClaim, { attempts: 9, nextAttemptAt: clock, lastError: 'late' })).toBe(false);
     expect(store.row(1)).toMatchObject({ status: 'processing', attempts: 1, claimed_at: newClaim.claimed_at });
     expect(await store.markDone(newClaim, 'imported', clock)).toBe(true);
+  });
+});
+
+describe('in-memory run store removal mirrors the adapter', () => {
+  const stravaRow = { source: 'strava', date: '2026-10-11', distance: 5 } as never;
+
+  it('removes only the Strava run of that user and activity and reports its date', async () => {
+    const runs = createInMemoryRunStore();
+    runs.runs.push(
+      { userId: 'user-1', externalId: '1', date: '2026-10-11', run: stravaRow },
+      { userId: 'user-1', externalId: '2', date: '2026-10-12', run: stravaRow },
+      { userId: 'user-2', externalId: '1', date: '2026-10-11', run: stravaRow },
+    );
+
+    expect(await runs.removeStravaRun('user-1', '1')).toEqual({ removed: true, date: '2026-10-11' });
+    expect(runs.runs.map((run) => `${run.userId}:${run.externalId}`)).toEqual(['user-1:2', 'user-2:1']);
+    expect(await runs.removeStravaRun('user-1', '1')).toEqual({ removed: false, date: null });
+    expect(runs.removeCalls).toHaveLength(2);
+  });
+
+  it('never removes a manual run, or an entry that is not known to be a Strava run', async () => {
+    const runs = createInMemoryRunStore();
+    runs.runs.push(
+      { userId: 'user-1', externalId: '1', date: '2026-10-11', run: { source: 'manual', date: '2026-10-11', distance: 5 } as never },
+      { userId: 'user-1', externalId: '2', date: '2026-10-12' },
+    );
+
+    expect(await runs.removeStravaRun('user-1', '1')).toEqual({ removed: false, date: null });
+    expect(await runs.removeStravaRun('user-1', '2')).toEqual({ removed: false, date: null });
+    expect(runs.runs).toHaveLength(2);
+  });
+
+  it('fails when told to, like a database that is down', async () => {
+    const runs = createInMemoryRunStore();
+    runs.removeError = new Error('db down');
+    await expect(runs.removeStravaRun('user-1', '1')).rejects.toThrow('db down');
   });
 });

@@ -6,7 +6,7 @@
 //   1. decideBeforeFetch({ aspect_type, paused })  ->  'skip' (finish with the outcome) or 'fetch'
 //   2. decideAction({ ...the Strava answer, the existing run, attempts })  ->  what to do with the database
 import { connectionDay } from '../../utils/stravaLookback.js';
-import { exceedsImportDistance, extractExtendedFields, isRunningActivity } from '../stravaImport.js';
+import { exceedsImportDistance, extractExtendedFields, isNamedSport, isRunningActivity } from '../stravaImport.js';
 import { WEBHOOK_BACKOFF_MINUTES, type WebhookAspectType } from './constants.js';
 
 /** The detail response of GET /activities/:id; only the fields the decision reads are named. */
@@ -217,6 +217,11 @@ export function decideAction(input: DecideInput): ActionDecision {
 
   const activity = response.activity;
   if (!activity || typeof activity !== 'object') return retry('invalid_response', attempts);
+
+  // An answer that names no sport at all (neither sport_type nor type) is malformed, not "not a running activity": treating it as a
+  // non-run would delete a stored run or skip an import on a broken body. Older payloads carry `type` only, which is enough.
+  // "Named" is the same test isRunningActivity uses, so the two can never disagree about which field to read.
+  if (!isNamedSport(activity.sport_type) && !isNamedSport(activity.type)) return retry('invalid_response', attempts);
 
   // A run something will read: parsable date and distance. Anything else is a broken answer, not a reason to delete.
   const isPrivate = activity.private === true;
