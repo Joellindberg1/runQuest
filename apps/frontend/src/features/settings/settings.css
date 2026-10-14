@@ -50,3 +50,46 @@
 .rq-settings-sync__row [data-tone="down"] { color: var(--rq-down); }
 .rq-settings-sync__empty { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-settings-note { margin: 0; padding: var(--rq-pad-card); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+
+/* ── Notisinställningarna (NotificationSettingsPanel) ─────────────────────────────────────────────────────────────────
+   Panelen delas med /news och antar inget om sidan runt den; kortets ram (rq-card--edge) kommer från den som monterar den. På Settings har kortet
+   samma kant som Strava- och lösenordskortet (ingen egen kantfärg). Reglagets egna stilar (Switch) ligger i shared/components/form/form.css. */
+.rq-notify { display: flex; flex-direction: column; gap: var(--rq-sp-12); min-width: 0; }
+.rq-notify__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-notify__title { margin: 0; font-weight: 400; }
+.rq-notify__meta { display: flex; align-items: baseline; min-width: 0; }
+.rq-notify__status, .rq-notify__count { margin: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); white-space: nowrap; }
+.rq-notify__status:not(:empty) { margin-right: var(--rq-sp-10); }
+.rq-notify__count[data-tone="defaults"] { color: var(--rq-text-2); }
+.rq-notify__lead { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+/* Live-regionen finns kvar i trädet när den är tom (display:none skulle tysta den) men tar ingen plats. */
+.rq-notify__alerts { display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-notify__alerts:empty { margin-top: calc(var(--rq-sp-12) * -1); }
+.rq-notify__alerts strong { font-weight: 700; }
+.rq-notify__sections { display: flex; flex-direction: column; gap: var(--rq-sp-14); }
+.rq-notify__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); }
+/* Länkknapp: ser ut som en länk men är en button, med tryckyta från --rq-notify-link-hit (mobil 44, desktop 24). */
+.rq-notify__link.rq-btn--link { min-width: var(--rq-notify-link-hit); min-height: var(--rq-notify-link-hit); border-bottom: 0; text-decoration: underline; }
+
+/* Sektionerna är hopfällbara: rubrikknappen har kant, mörk text och en vinkel som visar att den går att trycka på. */
+.rq-notify-section { display: flex; flex-direction: column; gap: var(--rq-sp-6); }
+.rq-notify-section__title { margin: 0; }
+.rq-notify-section__toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-12); width: 100%; min-height: var(--rq-switch-row-min-h);
+  padding: 0 var(--rq-sp-2); border: 0; border-bottom: var(--rq-hair) solid var(--rq-line-4); background: none; cursor: pointer; text-align: left;
+}
+.rq-notify-section__toggle:hover { background: var(--rq-row-hover); }
+.rq-notify-section__toggle:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+.rq-notify-section__name { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-eyebrow); text-transform: uppercase; color: var(--rq-text-2); }
+.rq-notify-section__meta { display: inline-flex; align-items: center; gap: var(--rq-sp-10); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-notify-section__chev { display: inline-flex; color: var(--rq-text-3); }
+.rq-notify-section__toggle[aria-expanded="true"] .rq-notify-section__chev { transform: rotate(180deg); }
+.rq-hairgrid.rq-notify-list > .rq-cell { padding: 0; }
+.rq-hairgrid.rq-notify-list[hidden] { display: none; }
+
+/* Skelettet (blinkningen kommer från .rq-skel-block; reducerad rörelse kapas globalt i temafilen). */
+.rq-notify-skel__group { display: flex; flex-direction: column; gap: var(--rq-gap-hair); margin-bottom: var(--rq-sp-14); }
+.rq-notify-skel__title { height: var(--rq-skel-h-4); width: 30%; margin-bottom: var(--rq-sp-8); }
+.rq-notify-skel__row { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-16); min-height: var(--rq-switch-row-min-h); padding: 0 var(--rq-switch-row-pad-x); background: var(--rq-cell); }
+.rq-notify-skel__label { height: var(--rq-skel-h-2); width: 62%; }
+.rq-notify-skel__switch { width: var(--rq-toggle-w); height: var(--rq-toggle-h); border-radius: var(--rq-radius-pill); }

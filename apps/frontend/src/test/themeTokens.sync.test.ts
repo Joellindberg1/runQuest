@@ -51,6 +51,20 @@ function tokenReads(css: string): Set<string> {
   return reads;
 }
 
+/** Deklarationerna i den regel vars selektor är exakt `selector` i en feature-CSS (sökväg relativt src). */
+function declarationsOf(file: string, selector: string): Record<string, string> {
+  const css = cssFiles.find((candidate) => candidate.file === file);
+  expect({ file, finns: css !== undefined }).toEqual({ file, finns: true });
+  const found: Record<string, string> = {};
+  postcss.parse(css!.text).walkRules(selector, (rule) => {
+    rule.walkDecls((decl) => {
+      found[decl.prop] = decl.value.replace(/\s+/g, ' ').trim();
+    });
+  });
+  expect({ selector, deklarationer: Object.keys(found).length > 0 }).toEqual({ selector, deklarationer: true });
+  return found;
+}
+
 const indexTokens = tokenDeclarations(indexCss);
 const declaredInIndex = new Set(indexTokens.map(({ name }) => name));
 
@@ -58,6 +72,10 @@ const declaredInIndex = new Set(indexTokens.map(({ name }) => name));
 const FEATURE_TOKEN_PREFIXES = [
   'admin', 'settings', 'playbook', 'login', 'badge', 'duels', 'board', 'changelog', 'whatsnew', 'events', 'landing', 'log', 'news', 'profile', 'runner', 'titles',
 ];
+
+/** Minsta tryckyta: 44 px för tumme (mobil), 24 px för muspekare (desktop). */
+const MIN_TOUCH_TARGET_PX = 44;
+const MIN_POINTER_TARGET_PX = 24;
 
 describe('temafilerna hänger ihop', () => {
   it('src/index.css och docs/design/temafil-forslag.css deklarerar exakt samma tokens med samma värden i samma sammanhang', () => {
@@ -96,6 +114,30 @@ describe('temafilerna hänger ihop', () => {
     const mobile = new Set(indexTokens.filter(({ context }) => !context.includes('@media')).map(({ name }) => name));
     expect(desktop.length).toBeGreaterThan(20);
     expect(desktop.filter(({ name }) => !mobile.has(name)).map(({ name }) => name)).toEqual([]);
+  });
+
+  it('tryckytorna i notispanelen (reglaradens höjd och länkknapparna) är minst 44 px på mobil och minst 24 px på desktop', () => {
+    const px = (name: string, inDesktopBlock: boolean) => {
+      const found = indexTokens.filter((token) => token.name === name && token.context.includes('min-width: 1024px') === inDesktopBlock && !token.context.includes('.light'));
+      expect({ name, antal: found.length }).toEqual({ name, antal: 1 });
+      return Number.parseFloat(found[0].value);
+    };
+    for (const name of ['--rq-switch-row-min-h', '--rq-notify-link-hit']) {
+      expect(px(name, false)).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
+      expect(px(name, true)).toBeGreaterThanOrEqual(MIN_POINTER_TARGET_PX);
+    }
+  });
+
+  it('reglaget: på är grönt (färgundantaget) och av-spåret har en 1 px ram, så läget syns mot ytan', () => {
+    const rootValue = (name: string) => indexTokens.find((token) => token.name === name && !token.context.includes('@media'))?.value;
+    expect(rootValue('--rq-toggle-on')).toBe('var(--rq-up)');
+    expect(rootValue('--rq-toggle-on-knob')).toBe('var(--rq-on-up)');
+    expect(declarationsOf('shared/components/form/form.css', '.rq-switch').border).toBe('var(--rq-hair) solid var(--rq-text-3)');
+  });
+
+  it('länkknapparna i notispanelen (Retry, Reset to defaults) får sin tryckyta ur --rq-notify-link-hit', () => {
+    const link = declarationsOf('features/settings/settings.css', '.rq-notify__link.rq-btn--link');
+    expect({ höjd: link['min-height'], bredd: link['min-width'] }).toEqual({ höjd: 'var(--rq-notify-link-hit)', bredd: 'var(--rq-notify-link-hit)' });
   });
 
   it('reducerad rörelse kapas globalt i temafilen: animationerna spelas en gång och feature-CSS behöver ingen egen regel', () => {

@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BADGE_SERIES, TIER_NAMES, type NewsItem } from '@runquest/shared';
+import { POINTER_SETTLE_MS, READ_FLUSH_MS } from '../newsModel';
 import { KARL, ME, NOW_ISO, at, badgeEarned, levelUp, newsServer, releasePublished, streakBroken, titleTaken } from '../news.fixture';
+import { NotificationsPopover } from '@/app-shell/NotificationsPopover';
 import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import '@/test/pointerEvent';
 import { NewsPopoverPanel } from './NewsPopoverPanel';
 import { NewsScreen } from './NewsScreen';
 
@@ -18,11 +22,13 @@ const milestoner = BADGE_SERIES[0];
 
 let news: ReturnType<typeof newsServer>;
 
-function setup(feed: NewsItem[]) {
-  news = newsServer(feed, null);
+function setup(feed: NewsItem[], lastSeen: number | null = null) {
+  news = newsServer(feed, lastSeen);
   handlers.getNews = (...args: unknown[]) => news.getNews(...(args as [never]));
   handlers.getSettings = () => news.getSettings();
   handlers.putSettings = (...args: unknown[]) => news.putSettings(...(args as [never]));
+  handlers.markNewsRead = (...args: unknown[]) => news.markNewsRead(...(args as [never]));
+  handlers.markNewsSeen = (...args: unknown[]) => news.markNewsSeen(...(args as [never]));
 }
 
 beforeEach(() => {
@@ -174,5 +180,123 @@ describe('NewsPopoverPanel — release_published', () => {
     expect(within(release).getByText('New version')).toBeInTheDocument();
     expect(within(release).getByText('RunQuest v0.6.1 is out — News about releases')).toBeInTheDocument();
     expect(level).toHaveAttribute('data-category', 'level');
+  });
+});
+
+// ─── Läs-gesterna i popovern (ADR 011 addendum 2026-10-14) ───────────────────────────────────────────────
+// Samma gester som /news-raderna; rörelsevakten räknas från att popovern öppnas. Klockan (NotificationsPopover) är med så att räknaren går att läsa av.
+
+// 5, 4 och 3 är olästa nivårader från Karl; 2 är min egen handling och syns inte i popovern.
+const POPOVER_FEED = (): NewsItem[] => [
+  levelUp(5, 25, { occurred_at: at(1) }),
+  levelUp(4, 20, { occurred_at: at(2) }),
+  levelUp(3, 15, { occurred_at: at(3) }),
+  levelUp(2, 9, { actor: ME, occurred_at: at(4) }),
+];
+
+const BELL = /^Pack news/;
+const settle = () => act(() => { vi.advanceTimersByTime(POINTER_SETTLE_MS); });
+const isUnread = (button: HTMLElement) => /\(unread\)/.test(button.textContent ?? '');
+
+async function openBell() {
+  fireEvent.click(await screen.findByRole('button', { name: BELL }));
+  return screen.findByRole('dialog', { name: 'Pack news' });
+}
+/** Ger cachen och React tid att rendera om, så att ett "inget hände" inte godkänns bara för att DOM:en inte hunnit ändras. */
+const rendered = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+const popoverRow = (popover: HTMLElement, text: RegExp) => within(popover).getByRole('button', { name: text });
+
+describe('NewsPopoverPanel — läs-gester', () => {
+  it('hover och Enter/Space markerar popoverns rad läst och räknaren på klockan minskar', async () => {
+    setup(POPOVER_FEED(), 0);
+    renderWithApp(<NotificationsPopover variant="desktop" />);
+    const popover = await openBell();
+    expect(await screen.findByRole('button', { name: 'Pack news, 3 unread' })).toBeInTheDocument();
+    settle();
+
+    // Fokus ensam markerar inte.
+    act(() => popoverRow(popover, /Karl reached level 25$/).focus());
+    await rendered();
+    expect(isUnread(popoverRow(popover, /Karl reached level 25$/))).toBe(true);
+
+    // Hover (efter rörelse): raden är läst och klockan räknar ner.
+    fireEvent.pointerEnter(popoverRow(popover, /Karl reached level 20$/), { pointerType: 'mouse' });
+    await waitFor(() => expect(isUnread(popoverRow(popover, /Karl reached level 20$/))).toBe(false));
+    expect(await screen.findByRole('button', { name: 'Pack news, 2 unread' })).toBeInTheDocument();
+    // Raden blir kvar i listan som läst.
+    expect(within(popover).getAllByRole('listitem')).toHaveLength(3);
+
+    // Enter och Space på raden med fokus (user-event gör som webbläsaren: knappens aktivering).
+    const user = userEvent.setup();
+    act(() => popoverRow(popover, /Karl reached level 25$/).focus());
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('button', { name: 'Pack news, 1 unread' })).toBeInTheDocument();
+    act(() => popoverRow(popover, /Karl reached level 15$/).focus());
+    await user.keyboard(' ');
+    expect(await screen.findByRole('button', { name: 'Pack news' })).toBeInTheDocument();
+    // Alla tre blev lästa; hur de buntas (ett eller flera anrop beroende på takten) provas i useNewsQueries.test.tsx.
+    await waitFor(() => expect(news.server.readCalls.flat().sort()).toEqual([3, 4, 5]), { timeout: READ_FLUSH_MS * 4 });
+  });
+
+  it('rörelsevakten räknas från att popovern öppnas: en vilande pekare markerar inget, och varje öppning ger ett nytt fönster', async () => {
+    setup(POPOVER_FEED(), 0);
+    renderWithApp(<NotificationsPopover variant="desktop" />);
+    let popover = await openBell();
+
+    // Pekaren vilar över raden när popovern öppnas.
+    fireEvent.pointerEnter(popoverRow(popover, /Karl reached level 25$/), { pointerType: 'mouse' });
+    await rendered();
+    expect(isUnread(popoverRow(popover, /Karl reached level 25$/))).toBe(true);
+    settle();
+    fireEvent.pointerMove(popoverRow(popover, /Karl reached level 25$/), { pointerType: 'mouse' });
+    await waitFor(() => expect(isUnread(popoverRow(popover, /Karl reached level 25$/))).toBe(false));
+
+    // Stäng och öppna igen: ett nytt fönster, så en pekare som nu vilar över nästa rad markerar den inte.
+    fireEvent.keyDown(popover, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    popover = await openBell();
+    fireEvent.pointerEnter(popoverRow(popover, /Karl reached level 20$/), { pointerType: 'mouse' });
+    await rendered();
+    expect(isUnread(popoverRow(popover, /Karl reached level 20$/))).toBe(true);
+    settle();
+    fireEvent.pointerEnter(popoverRow(popover, /Karl reached level 20$/), { pointerType: 'mouse' });
+    await waitFor(() => expect(isUnread(popoverRow(popover, /Karl reached level 20$/))).toBe(false));
+  });
+
+  it('touch: en tap markerar raden, en scroll gör det inte', async () => {
+    setup(POPOVER_FEED(), 0);
+    renderWithApp(<NotificationsPopover variant="desktop" />);
+    const popover = await openBell();
+    settle();
+    const row = () => popoverRow(popover, /Karl reached level 25$/);
+
+    fireEvent.pointerEnter(row(), { pointerType: 'touch' });
+    fireEvent.pointerDown(row(), { pointerType: 'touch' });
+    fireEvent.pointerMove(row(), { pointerType: 'touch', clientY: 30 });
+    fireEvent.pointerCancel(row(), { pointerType: 'touch' });
+    await rendered();
+    expect(isUnread(row())).toBe(true);
+
+    fireEvent.pointerDown(row(), { pointerType: 'touch' });
+    fireEvent.pointerUp(row(), { pointerType: 'touch' });
+    fireEvent.click(row());
+    await waitFor(() => expect(isUnread(row())).toBe(false));
+  });
+
+  it('Mark all read fungerar fortfarande', async () => {
+    setup(POPOVER_FEED(), 0);
+    renderWithApp(<NotificationsPopover variant="desktop" />);
+    const popover = await openBell();
+    settle();
+    fireEvent.pointerEnter(popoverRow(popover, /Karl reached level 25$/), { pointerType: 'mouse' });
+    await waitFor(() => expect(isUnread(popoverRow(popover, /Karl reached level 25$/))).toBe(false));
+
+    fireEvent.click(within(popover).getByRole('button', { name: 'Mark all read' }));
+
+    expect(await screen.findByRole('button', { name: 'Pack news' })).toBeInTheDocument();
+    await waitFor(() => expect(news.server.seenCalls).toEqual([5]));
+    await waitFor(() => expect(within(popover).getByRole('status')).toHaveTextContent('2 marked as read'));
+    expect(within(popover).queryByRole('button', { name: 'Mark all read' })).toBeNull();
+    for (const text of [/Karl reached level 25$/, /Karl reached level 20$/, /Karl reached level 15$/]) expect(isUnread(popoverRow(popover, text))).toBe(false);
   });
 });

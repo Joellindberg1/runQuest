@@ -226,6 +226,8 @@ export const POINTER_SETTLE_MS = 150;
 export const READ_FLUSH_MS = 300;
 /** Serverns tak per POST /news/read (1–50 unika id:n). */
 export const READ_BATCH_MAX = 50;
+/** Hur länge klockans räknare ska stå still innan en minskning annonseras: en svepning över flera rader ger ett tal, inte en tirad. */
+export const UNREAD_ANNOUNCE_MS = 500;
 
 /**
  * Kvittera enskilda rader lokalt: bara olästa rader vars id står i `ids` flippas, och räknaren minskar med antalet flippade (aldrig
