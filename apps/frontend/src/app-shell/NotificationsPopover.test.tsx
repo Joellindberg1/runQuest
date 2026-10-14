@@ -4,6 +4,8 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { NewsItem } from '@runquest/shared';
 import { AppShell } from './AppShell';
+import { NotificationsPopover } from './NotificationsPopover';
+import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { ADAM, DAN, NOW_ISO, at, challengeWon, eventOpen, levelUp, newsServer, streakBroken, titleTaken } from '@/features/news/news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
@@ -65,16 +67,15 @@ describe('klockan i headern', () => {
     expect(button).toHaveAttribute('data-tour', 'header-news');
   });
 
-  it('inget oläst: ingen räknare', async () => {
+  it('badgen följer meta.unread_count (dold vid 0, 99+ över 99)', async () => {
     setup(FEED(), 20);
-    renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
+    const none = renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
     const button = await bell();
     await waitFor(() => expect(news.server.calls).toHaveLength(1));
     expect(button).toHaveAccessibleName('Pack news');
     expect(button.querySelector('.rq-news-badge')).toBeNull();
-  });
+    none.unmount();
 
-  it('räknaren cappas vid 99+', async () => {
     setup(Array.from({ length: 120 }, (_, index) => levelUp(index + 1, index + 1, { occurred_at: at(1) })), 0);
     renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
     await screen.findByRole('button', { name: 'Pack news, 120 unread' });
@@ -155,12 +156,57 @@ describe('popovern', () => {
     expect(await screen.findByRole('button', { name: 'Pack news, 4 unread' })).toBeInTheDocument();
   });
 
-  it('tomt: "No news yet — go make some"', async () => {
-    setup([]);
-    renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
-    fireEvent.click(await bell());
-    const popover = await screen.findByRole('dialog', { name: 'Pack news' });
-    expect(await within(popover).findByText('No news yet — go make some.')).toBeInTheDocument();
+  it('ett laddningsfel i inställningarna använder defaults och popovern öppnas ändå', async () => {
+    // Servern har titelbyten avstängda, men inställningarna går inte att läsa: då gäller defaults (allt påslaget) och raden syns.
+    news.server.settings = { 'notify.title_others': false };
+    const getSettings = vi.fn(async () => ({ success: false, error: 'down' }));
+    handlers.getSettings = getSettings;
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    const popover = await openPopover();
+
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
+    await waitFor(() => expect(within(popover).getAllByRole('listitem')).toHaveLength(5));
+    expect(within(popover).getByText('Daniel took The Consistent King from Adam — 21 days')).toBeInTheDocument();
+    expect(within(popover).queryByText('Nothing new for you')).toBeNull();
+    expect(within(popover).getByRole('link', { name: 'See all pack news' })).toBeInTheDocument();
+  });
+
+  it('en rad av ett avstängt slag renderas aldrig vid första öppningen när inställningarna svarat före', async () => {
+    news.server.settings = { 'notify.title_others': false };
+    let settled = false;
+    handlers.getSettings = async () => {
+      const response = await news.getSettings();
+      settled = true;
+      return response;
+    };
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    // Klockan har värmt inställningarna redan när den monteras, innan någon öppnat popovern.
+    await waitFor(() => expect(settled).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const popover = await openPopover();
+    expect(within(popover).queryByText('Daniel took The Consistent King from Adam — 21 days')).toBeNull();
+    expect(within(popover).getAllByRole('listitem').length).toBeGreaterThan(0);
+  });
+
+  it('en avstängd kategori tas bort ur popovern och räknaren sjunker utan omladdning', async () => {
+    // Fyra olästa: Karl-titeln (title_taken_from_me), Daniels titelbyte (title_others), eventet och förlorade utmaningen.
+    setup(FEED(), 16);
+    handlers.getSettings = () => news.getSettings();
+    handlers.putSettings = (...args: unknown[]) => news.putSettings(...(args as [never]));
+    const Switch = () => {
+      const settings = useUserSettings();
+      return <button type="button" onClick={() => settings.toggle('notify.title_others')}>Title changes off</button>;
+    };
+    renderWithApp(<><Switch /><NotificationsPopover variant="desktop" /></>, { entry: '/board', width: DESKTOP });
+    const popover = await openPopover();
+    expect(within(popover).getByText('Daniel took The Consistent King from Adam — 21 days')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Title changes off' }));
+
+    await waitFor(() => expect(within(popover).queryByText('Daniel took The Consistent King from Adam — 21 days')).toBeNull());
+    expect(await screen.findByRole('button', { name: 'Pack news, 3 unread' })).toBeInTheDocument();
+    expect(within(popover).getByText('Karl took The Longest Run from you — 32.8 km')).toBeInTheDocument();
   });
 
   it('fel: felkort med Retry i popovern', async () => {
