@@ -59,6 +59,10 @@ const FEATURE_TOKEN_PREFIXES = [
   'admin', 'settings', 'playbook', 'login', 'badge', 'duels', 'board', 'changelog', 'whatsnew', 'events', 'landing', 'log', 'news', 'profile', 'runner', 'titles',
 ];
 
+/** Minsta tryckyta: 44 px för tumme (mobil), 24 px för muspekare (desktop). */
+const MIN_TOUCH_TARGET_PX = 44;
+const MIN_POINTER_TARGET_PX = 24;
+
 describe('temafilerna hänger ihop', () => {
   it('src/index.css och docs/design/temafil-forslag.css deklarerar exakt samma tokens med samma värden i samma sammanhang', () => {
     const lines = (css: string) => tokenDeclarations(css).map(({ context, name, value }) => `${context} | ${name}: ${value}`);
@@ -96,6 +100,18 @@ describe('temafilerna hänger ihop', () => {
     const mobile = new Set(indexTokens.filter(({ context }) => !context.includes('@media')).map(({ name }) => name));
     expect(desktop.length).toBeGreaterThan(20);
     expect(desktop.filter(({ name }) => !mobile.has(name)).map(({ name }) => name)).toEqual([]);
+  });
+
+  it('tryckytorna i notispanelen (reglaradens höjd och länkknapparna) är minst 44 px på mobil och minst 24 px på desktop', () => {
+    const px = (name: string, inDesktopBlock: boolean) => {
+      const found = indexTokens.filter((token) => token.name === name && token.context.includes('min-width: 1024px') === inDesktopBlock && !token.context.includes('.light'));
+      expect({ name, antal: found.length }).toEqual({ name, antal: 1 });
+      return Number.parseFloat(found[0].value);
+    };
+    for (const name of ['--rq-switch-row-min-h', '--rq-notify-link-hit']) {
+      expect(px(name, false)).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
+      expect(px(name, true)).toBeGreaterThanOrEqual(MIN_POINTER_TARGET_PX);
+    }
   });
 
   it('reducerad rörelse kapas globalt i temafilen: animationerna spelas en gång och feature-CSS behöver ingen egen regel', () => {
