@@ -47,8 +47,10 @@ Verifierat i koden 2026-10-04:
   Fältstil: camelCase i events, snake_case i övrigt. Det finns inga delade
   API-svarstyper (STATE zon 10).
 - Gruppavgränsning sker i handlers via `group_id` ur JWT.
-  `users-with-runs` returnerar ALLA användare om `group_id` saknas (arv,
-  STATE zon 8).
+  Saknas `group_id` ger läsningar tom data (fail-closed, A6). Arvet där
+  `users-with-runs`, `/auth/users` och `/challenges/group-stats` returnerade
+  alla grupper är borttaget i v0.6.2.3 (RUN-258, `utils/groupScope.ts`); en
+  CI-vakt (`ci-guards.mjs`, `group-filter`) fäller villkorliga gruppfilter i routes.
 
 Relaterade ADR:er: **003** (nya routrar monteras i `app.ts`:s routerlista;
 wiring-testet för varje prefix utökas), **004** (beslut 4: läs-endpoint för

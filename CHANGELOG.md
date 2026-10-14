@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.6.2.3 — Gruppfiltret är fail-closed (2026-10-14)
+
+Intern version (ingen versionsbump, ingen What's new, ingen announce). RUN-258. Ägarbeslut 2026-10-14: buggen tas nu som liten intern version vid sidan av v0.7.0 i stället för i v0.8.0.
+
+### Buggfixar
+- En token utan `group_id` får tom data i stället för alla gruppers rader i `GET /auth/users` (admin), `GET /auth/users-with-runs` och `GET /challenges/group-stats`, och kan inte utmana någon via `POST /challenges/send` (400). En gemensam helper (`utils/groupScope.ts`) svarar tomt utan databasanrop (ADR 007 A6). Ingen synlig skillnad i dag: alla konton har en grupp.
+- `group-stats` läser bara den egna gruppens väntande utmaningar.
+
+### Kodhälsa
+- CI-vakt (`ci-guards.mjs`, läget `group-filter`) fäller villkorliga gruppfilter (`if (groupId) … .eq('group_id', …)`) i routes.
+- ADR 007:s rad om arvet i `users-with-runs` är uppdaterad.
+- Svepet hittade två admin-fall som blir egna buggar i säkerhetsgenomgången (RUN-96): lösenordsbyte över gruppgränser (RUN-263) och användare som skapas utan grupp (RUN-264).
+
+### Prod-steg (kräver ägar-ja)
+1. Läskontroll i prod: inga konton (särskilt admins) saknar `group_id` — annars ser de tomma listor efter deploy.
+2. PR release/v0.6.2.3 → main, grön CI, merge (= deploy). Ingen migration.
+3. Röktest: Board, Duels (group-stats) och Admin-användarlistan visar samma innehåll som före deploy.
+4. Tagg `v0.6.2.3` på merge-commiten.
+
+### Rollback
+- Kod: redeploya v0.6.2.2 i Railway och revert-PR. Inga dataformat ändrade, ingen migration.
+
 ## v0.6.2.2 — Bakgrundsbanan på alla sidor (2026-10-14)
 
 Intern version (ingen versionsbump, ingen What's new, ingen announce). RUN-144. Ägarbeslut 2026-10-13: designens bakgrund ska finnas på alla sidor i appen och på /legal; Rörelse-undantaget för bakgrundsbanan godkänt; deploy direkt när allt är godkänt.

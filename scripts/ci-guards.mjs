@@ -22,7 +22,14 @@
 //     styck, och licensfilen OFL.txt ligger bredvid. Integritetstexten lovar att inga typsnitt hämtas från Google; en stor eller felaktig fil
 //     i den mappen är oftast ett tecken på att någon lagt dit fel sak.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|media|fonts|all]   (standard: all)
+//  6. Villkorligt gruppfilter i routes (RUN-258): en route får inte lägga på `.eq('group_id', …)` bara när group_id finns
+//     (`if (groupId) { query = query.eq('group_id', groupId); }`). Då ger en token utan group_id ALLA gruppers rader i stället för tom
+//     data (ADR 007 A6, fail-closed). Använd `groupIdOrRespondEmpty` (apps/backend/src/utils/groupScope.ts) och sätt filtret ovillkorligt.
+//     Vakten är textbaserad och avsiktligt smal: den läser bara routes/*.ts (inte services, där `processAllUsersTitles` har ett uttryckligt
+//     `allGroups`-val) och fångar `if (…groupId) { …eq('…group_id' …`. Fångas INTE: ternärer (`groupId ? q.eq(…) : q`), `&&`
+//     (`groupId && q.eq(…)`), jämförelser som `if (groupId !== undefined)` / `if (groupId != null)`, eller andra former av samma tanke.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -124,6 +131,29 @@ export function checkTestNames(files) {
       if (!JIRA_ID.test(match[2])) continue;
       const line = content.slice(0, match.index).split(/\r?\n/).length;
       errors.push(`${path}:${line}: Jira-ID i testnamn — beskriv beteendet i stället, ID:t hör hemma i commit-meddelandet — "${match[2]}"`);
+    }
+  }
+  return errors;
+}
+
+// `if (groupId) {` / `if (req.user.group_id)` (aldrig `if (!groupId)`) följt, inom samma block, av ett filter på en group_id-kolumn
+// (`.eq('group_id'`, `.eq('users.group_id'`, `.in('group_id'`). [^}] stoppar vid blockets slut, så ett senare, ovillkorligt filter ger inget falskt larm.
+const CONDITIONAL_GROUP_FILTER =
+  /\bif\s*\(\s*(?!!)[\w.!?]*group_?id\s*\)\s*\{?[^}]{0,400}?\.(?:eq|in)\(\s*(['"`])[\w.]*group_id\1/gi;
+const ROUTE_FILE = /^apps\/[^/]+\/src\/routes\/[^/]+\.[cm]?[jt]sx?$/;
+
+/**
+ * Regel 6. `files`: [{ path, content }] (path relativt repo-roten, snedstreck). Bara routes/*.ts (inte testfiler) granskas.
+ * Returnerar felmeddelanden "path:rad: text".
+ */
+export function checkConditionalGroupFilter(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!ROUTE_FILE.test(path) || TEST_FILE.test(path)) continue;
+    for (const match of content.matchAll(CONDITIONAL_GROUP_FILTER)) {
+      const line = content.slice(0, match.index).split(/\r?\n/).length;
+      const header = match[0].split(/\r?\n/)[0].trim();
+      errors.push(`${path}:${line}: villkorligt gruppfilter — en token utan group_id får alla gruppers rader (ADR 007 A6). Svara tom data med groupIdOrRespondEmpty och filtrera ovillkorligt — "${header}"`);
     }
   }
   return errors;
@@ -248,8 +278,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -264,13 +294,17 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter') {
     const files = collectSourceFiles(root, workspaces);
-    if (mode !== 'test-names') {
+    if (mode === 'all' || mode === 'group-filter') {
+      errors.push(...checkConditionalGroupFilter(files));
+      summary.push('inga villkorliga gruppfilter i routes');
+    }
+    if (mode === 'all' || mode === 'todos') {
       errors.push(...checkTodos(files));
       summary.push(`${files.length} källfiler utan otaggade TODO/FIXME`);
     }
-    if (mode !== 'todos') {
+    if (mode === 'all' || mode === 'test-names') {
       const testFiles = files.filter(({ path }) => TEST_FILE.test(path));
       errors.push(...checkTestNames(testFiles));
       summary.push(`${testFiles.length} testfiler utan Jira-ID i testnamn`);
