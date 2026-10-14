@@ -9,9 +9,9 @@ import { errorCode } from './errorCode.js';
 
 export interface CalculateUserTotalsOptions {
   /**
-   * Skriv rank_passed (xp) efter totalskrivningen. Default true. Massvägar (historikimporten vid anslutning, massraderingen vid
-   * bortkoppling) skickar false: de ska varken skriva eller retracta rank_passed och kostar inga extra queries (ADR 011 beslut 6,
-   * "Undertryckning vid massomräkning").
+   * Skriv NYA rank_passed (xp) efter totalskrivningen. Default true. Massvägar (historikimporten vid anslutning, massraderingen vid
+   * bortkoppling) skickar false: en ökning skriver ingenting och kostar inga extra queries. En MINSKNING retractar ändå dagens
+   * egna rader (retract_only), så att en bortkoppling inte lämnar en falsk nyhet kvar (ADR 011 beslut 6.4, 13.4).
    */
   emitRankNews?: boolean;
 }
@@ -97,9 +97,13 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
 
       // rank_passed (xp) är den tredje observatören efter totalskrivningen (ADR 011 beslut 6). Den körs bara när total_xp ändrats, så
       // en vanlig skrivning kostar noll extra queries. En MINSKNING anropar också: dagens rader för de M som W åter ligger bakom retractas.
-      if (emitRankNews && userGroupId && prevTotalXp !== null && totalXP !== prevTotalXp) {
+      // emitRankNews false stänger bara av NYA rader: en MINSKNING retractar ändå dagens rader (retract_only), annars står en falsk
+      // nyhet kvar efter t.ex. en bortkoppling. En ökning med false ger noll anrop och noll extra queries.
+      const retractOnly = !emitRankNews;
+      if (userGroupId && prevTotalXp !== null && totalXP !== prevTotalXp && (emitRankNews || totalXP < prevTotalXp)) {
         try {
-          await recordRankPassesForXp(userId, userGroupId, prevTotalXp);
+          if (retractOnly) await recordRankPassesForXp(userId, userGroupId, prevTotalXp, { mode: 'retract_only' });
+          else await recordRankPassesForXp(userId, userGroupId, prevTotalXp);
         } catch (rankError) {
           logger.error(`❌ Error recording rank passes for user ${userId} (${errorCode(rankError)})`);
         }

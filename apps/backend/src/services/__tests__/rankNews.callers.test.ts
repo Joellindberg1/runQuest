@@ -49,6 +49,7 @@ vi.mock('../rankNews.js', async (importOriginal) => {
   return { ...actual, recordRankPassesForXp: vi.fn(actual.recordRankPassesForXp) };
 });
 
+import { activityKeys } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
@@ -150,15 +151,37 @@ describe('massvägar skriver ingen rank_passed', () => {
 
     expect(t.runs).toEqual([]);
     expect(totalXp(t, 'user-1')).toBe(0); // totalerna räknades om
-    expect(recordRankPassesForXp).not.toHaveBeenCalled();
+    // Nya rader: aldrig. Detektionen får bara köras i retract_only-läget (en minskning retractar, se nästa test).
+    expect(vi.mocked(recordRankPassesForXp).mock.calls.every((call) => call[3]?.mode === 'retract_only')).toBe(true);
     expect(rankRows(t)).toHaveLength(0);
+  });
+
+  it('massraderingen vid bortkoppling (removeStravaConnection) retractar dagens rank_passed-rader men skriver inga nya', async () => {
+    // Anna (20 XP) passerade Bertil (15) idag; bortkopplingen raderar hennes Strava-rundor (hon får 0 XP) så att hon åter ligger under honom.
+    // Dora har också 0 XP, och Anna ligger kvar före henne på namn: den raden stämmer fortfarande och ska stå kvar.
+    const runs = [stravaRun({ id: 'a', external_id: '1', date: OLD, xp_gained: 10 }), stravaRun({ id: 'b', external_id: '2', date: TODAY, xp_gained: 10 })];
+    const key = (passed: string, day: string) => activityKeys.rankPassed('xp', 'user-1', passed, day);
+    const row = (id: number, dedupe_key: string): Row => ({ id, type: 'rank_passed', group_id: G, actor_user_id: 'user-1', dedupe_key });
+    const { t } = use({
+      users: [member('user-1', 'Anna', 20), member('user-2', 'Bertil', 15), member('user-3', 'Cecilia', 5), member('user-4', 'Dora', 0)],
+      runs,
+      activity_log: [
+        row(1, key('user-2', TODAY)),      // Anna ligger åter bakom Bertil: retractas
+        row(2, key('user-2', '2026-10-14')), // äldre dag: historia, rörs inte
+        row(3, key('user-4', TODAY)),      // Anna (0) och Dora (0) har lika XP, Anna före på namn: raden stämmer fortfarande
+      ],
+    });
+
+    await removeStravaConnection('user-1', { reason: 'user_disconnect' });
+
+    expect(t.activity_log.map((r) => r.dedupe_key)).toEqual([key('user-2', '2026-10-14'), key('user-4', TODAY)]); // och inga nya rader
   });
 
   it('avauktoriseringen från Strava (removeStravaConnection, deauthorized) är samma massväg', async () => {
     const runs = [stravaRun({ id: 'a', external_id: '1', date: TODAY, xp_gained: 10 })];
     use({ users: [member('user-1', 'Anna', 10), member('user-2', 'Bertil', 6)], runs });
     await removeStravaConnection('user-1', { reason: 'deauthorized' });
-    expect(recordRankPassesForXp).not.toHaveBeenCalled();
+    expect(vi.mocked(recordRankPassesForXp).mock.calls.every((call) => call[3]?.mode === 'retract_only')).toBe(true);
   });
 });
 

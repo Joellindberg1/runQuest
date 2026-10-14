@@ -33,11 +33,21 @@ import { recordActivities, retractActivity } from './activityLog.js';
  */
 const EVENT_ENTRY_WINDOW_DAYS = 14;
 
+export interface RecordRankPassesOptions {
+  /**
+   * 'full' (default): skriv nya rank_passed-rader vid en ökning och retracta dagens rader vid en minskning.
+   * 'retract_only': massvägarna (emitRankNews false). Skriver ALDRIG nya rader, men retractar dagens rader vid en minskning,
+   * eftersom en bortkoppling som sänker W:s XP annars lämnar en falsk nyhet kvar (ADR 011 beslut 6.4 och 13.4).
+   */
+  mode?: 'full' | 'retract_only';
+}
+
 /** Kastar aldrig: ett läsfel loggas med kod och ger inga rader (hellre utebliven notis än en falsk på halv data). */
 export async function recordRankPassesForXp(
   userId: string,
   groupId: string | null | undefined,
   prevXp: number | null | undefined,
+  options: RecordRankPassesOptions = {},
 ): Promise<void> {
   try {
     if (!groupId || typeof prevXp !== 'number' || !Number.isFinite(prevXp)) return;
@@ -119,10 +129,12 @@ export async function recordRankPassesForXp(
       })),
     });
 
-    const drafts = result.passes
-      .filter((p) => !divergedIds.has(p.passedId))
-      .map((p) => buildRankPassedDraft(groupId, 'xp', p.passerId, p.passedId, p.passerRank, p.passedRank, occurredAt));
-    await recordActivities(drafts);
+    if (options.mode !== 'retract_only') {
+      const drafts = result.passes
+        .filter((p) => !divergedIds.has(p.passedId))
+        .map((p) => buildRankPassedDraft(groupId, 'xp', p.passerId, p.passedId, p.passerRank, p.passedRank, occurredAt));
+      await recordActivities(drafts);
+    }
 
     // Bara dagens rader för de M som W åter ligger bakom (ADR 011 beslut 6.4); äldre dagars rader är historia.
     const skipped = new Set([...divergedIds].map((id) => activityKeys.rankPassed('xp', userId, id, today)));

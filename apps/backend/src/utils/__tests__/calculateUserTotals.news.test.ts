@@ -211,6 +211,19 @@ describe('calculateUserTotals → recordRankPassesForXp', () => {
     expect(db.queries.some((q) => q.table === 'users' && q.filters.some((f) => f.column === 'group_id'))).toBe(false);
   });
 
+  it('emitRankNews false retractar ändå dagens rader vid en minskning, men skriver inga nya', async () => {
+    const t = passTables();
+    t.users[0].total_xp = 130; // lagrat 130, nytt 105: en minskning
+    const db = use(t);
+
+    await calculateUserTotals('u1', { emitRankNews: false });
+
+    expect(recordRankPassesForXp).toHaveBeenCalledTimes(1);
+    expect(recordRankPassesForXp).toHaveBeenCalledWith('u1', 'g1', 130, { mode: 'retract_only' });
+    expect(rankRows(t)).toHaveLength(0);
+    expect(db.queries.filter((q) => q.mutation === undefined && q.table === 'event_entries')).toHaveLength(1); // läsningen för retract
+  });
+
   it('ingen XP-vinst ger inga extra queries', async () => {
     const t = passTables();
     t.users[0].total_xp = 105; // lagrat värde == nytt värde

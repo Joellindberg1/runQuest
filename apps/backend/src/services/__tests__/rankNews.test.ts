@@ -168,6 +168,28 @@ describe('recordRankPassesForXp', () => {
     expect(t.activity_log.map((r) => r.dedupe_key)).toEqual([key('u-m', YESTERDAY), key('u-c', TODAY)]);
   });
 
+  it('retract_only skriver aldrig nya rader, även när W har passerat någon, men retractar vid en minskning', async () => {
+    // Ökning: samma värld som den första testet. 'full' skulle skriva en rad; retract_only skriver ingen.
+    const gain = world(
+      [user('u-w', 'Anna', 130), user('u-m', 'Bertil', 120)],
+      [runOf('r1', 'u-w', TODAY, 30)],
+    );
+    use(gain);
+    await recordRankPassesForXp('u-w', G, 100, { mode: 'retract_only' });
+    expect(rankRows(gain)).toHaveLength(0);
+
+    // Minskning: dagens rad för M som W åter ligger bakom retractas, äldre dagars rad rörs inte.
+    const key = (day: string) => activityKeys.rankPassed('xp', 'u-w', 'u-m', day);
+    const drop = world(
+      [user('u-w', 'Anna', 100), user('u-m', 'Bertil', 120)],
+      [],
+      { activity_log: [{ id: 1, type: 'rank_passed', dedupe_key: key(TODAY) }, { id: 2, type: 'rank_passed', dedupe_key: key(YESTERDAY) }] },
+    );
+    use(drop);
+    await recordRankPassesForXp('u-w', G, 130, { mode: 'retract_only' });
+    expect(drop.activity_log.map((r) => r.dedupe_key)).toEqual([key(YESTERDAY)]);
+  });
+
   it('lika XP avgörs av namn och id', async () => {
     // W går från 90 till 100 (runda idag på 10) och hamnar på lika XP med M (100, ingen runda idag). W låg bakom vid dygnsskiftet (90 mot 100).
     const passes = async (w: [string, string], m: [string, string]) => {
