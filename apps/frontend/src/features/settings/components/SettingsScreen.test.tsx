@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import SettingsPage from '@/pages/SettingsPage';
@@ -116,15 +116,15 @@ describe('Settings — Strava', () => {
   });
 
   describe('utgången koppling', () => {
-    let disconnect: ReturnType<typeof vi.fn>;
-    let open: ReturnType<typeof vi.fn>;
+    let disconnect: Mock;
+    let open: Mock<typeof window.open>;
 
     beforeEach(() => {
       handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: true } });
       // Disconnect raderar alla Stravarundor och kopplar ur hos Strava: Reconnect får aldrig röra den.
       disconnect = vi.fn().mockResolvedValue({ success: true });
       handlers.disconnectStrava = disconnect;
-      open = vi.fn().mockReturnValue({});
+      open = vi.fn<typeof window.open>().mockReturnValue({} as Window);
       window.open = open;
     });
 
