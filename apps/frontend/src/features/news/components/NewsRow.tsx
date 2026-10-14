@@ -2,6 +2,7 @@ import { BadgeEmblem } from '@/features/badges/components/BadgeEmblem';
 import { RQIcon } from '@/shared/components/icons';
 import { useRowReadGestures } from '../hooks/useRowReadGestures';
 import type { NewsRowModel } from '../newsModel';
+import { PlacementBadge } from './PlacementBadge';
 
 /** Ikonstorleken i flödesraden (designen 18 → närmaste ur ikonstegen 15/17/21). */
 const ICON_ROW = 17;
@@ -31,7 +32,10 @@ export function NewsRow({ row }: { row: NewsRowModel }) {
           <span className="rq-news-row__mark" aria-hidden="true">{row.unread && <span className="rq-dot rq-news-unread" aria-hidden="true" />}</span>
           {row.time}
         </time>
-        <span className="rq-news-row__text">{row.text}</span>
+        <span className="rq-news-row__text">
+          {row.text}
+          {row.placement && <PlacementBadge placement={row.placement} />}
+        </span>
       </button>
     </li>
   );

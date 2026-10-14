@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { BADGE_SERIES, TIER_NAMES, type NewsItem } from '@runquest/shared';
 import { POINTER_SETTLE_MS, READ_FLUSH_MS } from '../newsModel';
-import { KARL, ME, NOW_ISO, at, badgeEarned, levelUp, newsServer, releasePublished, streakBroken, titleTaken } from '../news.fixture';
+import { KARL, ME, NOW_ISO, at, badgeEarned, challengeAccepted, levelUp, newsServer, rankPassed, releasePublished, streakBroken, titleTaken } from '../news.fixture';
 import { NotificationsPopover } from '@/app-shell/NotificationsPopover';
 import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
@@ -78,6 +78,28 @@ function SettingsToggle({ kind }: { kind: string }) {
   const settings = useUserSettings();
   return <button type="button" onClick={() => settings.toggle(`notify.${kind}`)}>Toggle {kind}</button>;
 }
+
+describe('NewsPopoverPanel — rank_passed (frame N3)', () => {
+  it('rank_passed-raden får rank-färgad prick', async () => {
+    setup([rankPassed(2, { occurred_at: at(2) }), challengeAccepted(1, { occurred_at: at(3) })]);
+    renderWithApp(<NewsPopoverPanel onClose={() => {}} />);
+    await screen.findByRole('list', { name: 'Latest news' });
+    const [rank, accepted] = rows();
+
+    // Färgen kommer ur kategorin (CSS, se guards.test.ts); här provas att raden och pricken bär rank-kategorin, och att pricken är dekoration.
+    expect(rank).toHaveAttribute('data-category', 'rank');
+    expect(rank).toHaveAttribute('data-tone', 'rank');
+    expect(rank.querySelector('.rq-news-pop__dot')).toHaveAttribute('aria-hidden', 'true');
+    expect(accepted).toHaveAttribute('data-category', 'challenge');
+    expect(accepted.querySelector('.rq-news-pop__dot')).toHaveAttribute('aria-hidden', 'true');
+
+    // Texten är meningen; placeringen är brickan (läsarens egen rang) och läses som en hel mening, en gång.
+    expect(within(rank).getByText('Passed you')).toBeInTheDocument();
+    expect(within(rank).getByText("You're #3")).toBeInTheDocument();
+    expect(within(rank).getByRole('button')).toHaveAccessibleName(/Karl passed you on the leaderboard\s+You are now number 3$/);
+    expect(within(accepted).queryByText(/#/)).toBeNull();
+  });
+});
 
 describe('NewsPopoverPanel — följer inställningarna', () => {
   it('tomt fönster visar "Nothing new for you" och länken till /news', async () => {

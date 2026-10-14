@@ -1,6 +1,7 @@
 import { BadgeEmblem } from '@/features/badges/components/BadgeEmblem';
 import { useRowReadGestures } from '../hooks/useRowReadGestures';
 import type { NewsRowModel } from '../newsModel';
+import { PlacementBadge } from './PlacementBadge';
 
 /**
  * En rad i klock-popovern: samma form och samma läs-gester som /news-raden (`NewsRow`), kompaktare. `li` runt EN knapp som täcker raden;
@@ -27,7 +28,10 @@ export function NewsPopoverRow({ row }: { row: NewsRowModel }) {
               {row.timeLong}
             </time>
           </span>
-          <span className="rq-news-pop__text">{row.text}</span>
+          <span className="rq-news-pop__text">
+            {row.text}
+            {row.placement && <PlacementBadge placement={row.placement} />}
+          </span>
         </span>
       </button>
     </li>

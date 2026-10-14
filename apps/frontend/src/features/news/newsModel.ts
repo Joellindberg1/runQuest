@@ -490,8 +490,24 @@ export function untilText(endsAt: string, now: Date): string {
 
 /** "on the leaderboard" (xp) / "on the challenge standings"; ett saknat eller okänt mått läses som leaderboarden. */
 const rankTable = (measure: unknown): string => (measure === 'challenge_points' ? 'on the challenge standings' : 'on the leaderboard');
-/** "— now #2" när rangen finns; saknad eller trasig rang utelämnas hellre än "now #undefined". */
-const nowRank = (rank: unknown): string => (typeof rank === 'number' && Number.isInteger(rank) && rank >= 1 ? ` — now #${rank}` : '');
+const isRank = (rank: unknown): rank is number => typeof rank === 'number' && Number.isInteger(rank) && rank >= 1;
+
+/**
+ * Placeringsbrickan på en rank_passed-rad (ägarbeslut 3): rangen som är relevant för LÄSAREN, aldrig en rang som läses som min när den är någon annans.
+ * "You're #3" (läsaren, jag) · "Karl #2" (en utomståendes passerare). `spoken` är det skärmläsaren får i stället för den korta formen.
+ * En saknad eller trasig rang (0, decimal, sträng) ger ingen bricka hellre än "#undefined".
+ */
+export interface Placement {
+  label: string;
+  spoken: string;
+}
+function placementOf(rank: unknown, holder: string | null): Placement | undefined {
+  if (!isRank(rank)) return undefined;
+  if (holder === null) return { label: `#${rank}`, spoken: `A former member is now number ${rank}` };
+  return holder === 'You'
+    ? { label: `You're #${rank}`, spoken: `You are now number ${rank}` }
+    : { label: `${holder} #${rank}`, spoken: `${holder} is now number ${rank}` };
+}
 
 const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
 /**
@@ -512,7 +528,11 @@ export interface NewsText {
   /** Typraden: "Title taken", "Challenge lost" … (sett från den som tittar). */
   kind: string;
   text: string;
+  /** Bara rank_passed: placeringen som en bricka efter texten (se `Placement`). Saknas för allt annat och för en trasig rang. */
+  placement?: Placement;
 }
+
+const withPlacement = (text: NewsText, placement: Placement | undefined): NewsText => (placement ? { ...text, placement } : text);
 
 /**
  * Texten för en rad. En okänd typ har ingen text att visa → null (anroparen filtrerar bort raden); en känd typ ger alltid text.
@@ -613,12 +633,15 @@ export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | n
     }
     case 'rank_passed': {
       // Tåligt mot en payload utan fält: saknat mått = leaderboarden, saknad rang utelämnas.
-      const { measure, passer_rank: passerRank } = item.payload ?? {};
+      const { measure, passer_rank: passerRank, passed_rank: passedRank } = item.payload ?? {};
       const table = rankTable(measure);
-      const now = nowRank(passerRank);
-      if (viewerIsTarget) return { kind: 'Passed you', text: `${subject(actor, ctx)} passed you ${table}${now}` };
-      if (viewerIsActor) return { kind: 'You passed', text: `You passed ${object(target, ctx)} ${table}${now}` };
-      return { kind: 'Rank passed', text: `${subject(actor, ctx)} passed ${object(target, ctx)} ${table}${now}` };
+      // Brickan är läsarens rang: den passerade ser sin nya (passed_rank), passeraren sin (passer_rank); en utomstående ser passerarens, med namn.
+      if (viewerIsTarget) return withPlacement({ kind: 'Passed you', text: `${subject(actor, ctx)} passed you ${table}` }, placementOf(passedRank, 'You'));
+      if (viewerIsActor) return withPlacement({ kind: 'You passed', text: `You passed ${object(target, ctx)} ${table}` }, placementOf(passerRank, 'You'));
+      return withPlacement(
+        { kind: 'Rank passed', text: `${subject(actor, ctx)} passed ${object(target, ctx)} ${table}` },
+        placementOf(passerRank, actor ? firstName(actor.name) : null),
+      );
     }
     case 'challenge_accepted': {
       const { start_date: startDate } = item.payload ?? {};
@@ -651,6 +674,8 @@ export interface NewsRowModel {
   emblem: { series: string; tier: number } | null;
   kind: string;
   text: string;
+  /** rank_passed: placeringsbrickan efter texten; null för allt annat. */
+  placement: Placement | null;
   /** Kompakt: "2h". */
   time: string;
   /** Popoverns form: "2h ago". */
@@ -698,7 +723,7 @@ function emblemOf(item: NewsItem): NewsRowModel['emblem'] {
 
 function renderRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
   const category = CATEGORY_OF[item.type];
-  const { kind, text } = describeNews(item, ctx);
+  const { kind, text, placement } = describeNews(item, ctx);
   return {
     id: item.id,
     category,
@@ -707,6 +732,7 @@ function renderRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
     emblem: emblemOf(item),
     kind,
     text,
+    placement: placement ?? null,
     time: formatAgo(item.occurred_at, ctx.now),
     timeLong: formatAgo(item.occurred_at, ctx.now, true),
     timeTitle: fullTime(item.occurred_at, ctx.now),
