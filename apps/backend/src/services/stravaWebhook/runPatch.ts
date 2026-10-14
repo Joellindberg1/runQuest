@@ -17,10 +17,13 @@ const UPDATABLE = new Set(UPDATABLE_RUN_COLUMNS);
  * names the columns, never a value.
  */
 export function assertUpdatableRunPatch(patch: object): Record<string, unknown> {
-  const columns = Object.keys(patch);
+  const source = patch as Record<string, unknown>;
+  // An undefined value is absent (supabase-js would drop it from the JSON body anyway), so it can neither be refused nor written.
+  const columns = Object.keys(source).filter((column) => source[column] !== undefined);
   const forbidden = columns.filter((column) => !UPDATABLE.has(column));
   if (forbidden.length > 0) {
     throw Object.assign(new Error(`a Strava update may not write ${forbidden.join(', ')}`), { code: 'run_patch_forbidden_column' });
   }
-  return { ...(patch as Record<string, unknown>) };
+  // Built from the validated keys: what was checked is exactly what is returned (no symbol keys, no copied accessors).
+  return Object.fromEntries(columns.map((column) => [column, source[column]]));
 }

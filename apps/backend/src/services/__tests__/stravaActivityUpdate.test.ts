@@ -54,7 +54,7 @@ import { createStravaWebhookWorker, webhookHandlerKey, type HandlerRegistry, typ
 import { STRAVA_WEBHOOK_HANDLERS } from '../stravaWebhook/handlers.js';
 import { createActivityUpdateHandler } from '../stravaWebhook/handlers/activityUpdate.js';
 import { createRecompute, createRunStore, createStravaApi } from '../stravaWebhook/supabaseAdapters.js';
-import type { Recompute, StravaApi } from '../stravaWebhook/ports.js';
+import type { Recompute, RunStore, StravaApi } from '../stravaWebhook/ports.js';
 import { createFakeDb, type FakeDbOptions, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { createInMemoryRecompute, createInMemoryRunStore, createInMemoryWebhookStore } from '../../test-utils/inMemoryWebhookPorts.js';
 import { withRunForeignKeys } from '../../test-utils/runForeignKeys.js';
@@ -112,6 +112,10 @@ interface Setup {
   handlers?: HandlerRegistry;
   /** Replaces the real recompute, or wraps it, e.g. to make the reprocess fail. */
   recompute?: (real: Recompute) => Recompute;
+  /** Replaces the run store's findRun. */
+  findRun?: RunStore['findRun'];
+  /** Runs just before an insert is evaluated, to simulate another writer (the polling) getting there first. */
+  beforeInsert?: FakeDbOptions['beforeInsert'];
 }
 
 function build(setup: Setup = {}) {
@@ -128,6 +132,7 @@ function build(setup: Setup = {}) {
   const db = createFakeDb(t, {
     autoIds: true,
     failWhen: setup.failWhen,
+    beforeInsert: setup.beforeInsert,
     uniqueIndexes: [{ table: 'runs', name: 'idx_runs_external_id', columns: ['user_id', 'external_id'] }],
     primaryKeys: { strava_tokens: ['user_id'] },
   });
@@ -163,7 +168,7 @@ function build(setup: Setup = {}) {
   const worker = createStravaWebhookWorker({
     store,
     strava: createStravaApi(),
-    runs: createRunStore(),
+    runs: setup.findRun ? { ...createRunStore(), findRun: setup.findRun } : createRunStore(),
     recompute: setup.recompute ? setup.recompute(counting) : counting,
     handlers: setup.handlers ?? STRAVA_WEBHOOK_HANDLERS,
     now,
@@ -419,6 +424,51 @@ describe('activity update', () => {
     // A new run is imported like by create: weather and event qualification follow.
     expect(WeatherService.fetchAndSaveWeatherForRuns).toHaveBeenCalledWith([expect.objectContaining({ id: imported.id, external_id: '2001' })]);
     expect(checkEventQualification).toHaveBeenCalledWith({ userId: 'user-1', runId: imported.id, runDate: '2026-10-12', distanceKm: 5, isTreadmill: false });
+  });
+
+  it('update that loses the insert race to the polling finishes as noop and leaves the recompute and qualification to the inserter', async () => {
+    const activity = activityOf(2010);
+    strava = installFakeStravaFetch({ activities: { 2010: activity } });
+    const polled = { id: 'run-polled', ...buildStravaRunRow('user-1', activity, activity), xp_gained: 33, streak_day: 1 };
+    let polling = true;
+    // The polling commits its insert just before the handler's insert is evaluated, after the handler looked and found nothing.
+    const { t, store, worker, reprocessCalls } = build({
+      beforeInsert: (table, tables) => {
+        if (table === 'runs' && polling) {
+          polling = false;
+          tables.runs.push({ ...polled });
+        }
+      },
+    });
+    seedUpdate(store, 2010);
+
+    await worker.drain();
+
+    expect(t.runs).toHaveLength(1);
+    expect(t.runs[0].id).toBe('run-polled');
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'noop', attempts: 0 });
+    expect(reprocessCalls).toEqual([]);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+    expect(WeatherService.fetchAndSaveWeatherForRuns).not.toHaveBeenCalled(); // no importedRuns: the row is not ours
+    expect(checkEventQualification).not.toHaveBeenCalled();
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalled();
+  });
+
+  it('update whose duplicate key row is gone by the time it is read again is retried', async () => {
+    strava = installFakeStravaFetch({ activities: { 2011: activityOf(2011) } });
+    const { store, worker } = build({
+      beforeInsert: (table, tables) => {
+        if (table === 'runs') tables.runs.push({ id: 'run-ghost', user_id: 'user-1', external_id: '2011', source: 'strava', date: '2026-10-12', distance: 5 });
+      },
+      findRun: async () => null, // the conflicting row was deleted again before the handler could read it
+    });
+    seedUpdate(store, 2011);
+
+    await worker.drain();
+
+    expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 1, last_error: 'duplicate_row_missing' });
+    expect(WeatherService.fetchAndSaveWeatherForRuns).not.toHaveBeenCalled();
+    expect(checkEventQualification).not.toHaveBeenCalled();
   });
 
   it('update for an activity dated before the connection day imports nothing', async () => {

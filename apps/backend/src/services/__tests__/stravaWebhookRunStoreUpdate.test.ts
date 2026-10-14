@@ -23,6 +23,7 @@ import { createInMemoryRunStore } from '../../test-utils/inMemoryWebhookPorts.js
 import { extractExtendedFields } from '../stravaImport.js';
 import { assertUpdatableRunPatch, UPDATABLE_RUN_COLUMNS } from '../stravaWebhook/runPatch.js';
 import { createRunStore } from '../stravaWebhook/supabaseAdapters.js';
+import { stravaActivity } from '../../test-utils/fakeStrava.js';
 
 const XP_COLUMNS = ['xp_gained', 'base_xp', 'km_xp', 'distance_bonus', 'streak_bonus', 'multiplier', 'streak_day'];
 const run = (over: Row = {}): Row => ({
@@ -104,6 +105,61 @@ describe('Supabase run store update', () => {
     const everything = { date: '2026-10-10', distance: 5, ...extractExtendedFields({}) };
     expect(Object.keys(assertUpdatableRunPatch(everything)).sort()).toEqual([...UPDATABLE_RUN_COLUMNS].sort());
     expect([...UPDATABLE_RUN_COLUMNS].sort()).toEqual(['date', 'distance', ...Object.keys(extractExtendedFields({}))].sort());
+  });
+
+  it('accepts every column extractExtendedFields returns for a rich activity, not only for an empty one', () => {
+    const rich = stravaActivity({ id: 9001, average_heartrate: 150, max_heartrate: 180, suffer_score: 40, trainer: true, start_latlng: [59.3, 18.0] });
+    const columns = Object.keys(extractExtendedFields(rich));
+    expect(columns.sort()).toEqual(Object.keys(extractExtendedFields({})).sort()); // the shape does not depend on what the activity carries
+    expect(() => assertUpdatableRunPatch({ date: '2026-10-10', distance: 5, ...extractExtendedFields(rich) })).not.toThrow();
+    for (const column of columns) expect(UPDATABLE_RUN_COLUMNS).toContain(column);
+  });
+
+  it('builds the patch from the validated columns only and treats undefined as absent', () => {
+    const hidden = Symbol('hidden');
+    const patch = { distance: 8, moving_time: undefined, [hidden]: 'x' } as never;
+    const checked = assertUpdatableRunPatch(patch);
+    expect(checked).toEqual({ distance: 8 });
+    expect(Object.getOwnPropertySymbols(checked)).toEqual([]);
+    expect(checked).not.toBe(patch);
+    expect(assertUpdatableRunPatch({ xp_gained: undefined } as never)).toEqual({}); // absent, not a write of the XP column
+  });
+
+  it('writes nothing for a patch whose values are all undefined', async () => {
+    const db = useDb({ runs: [run()] });
+    await expect(createRunStore().updateStravaRun('user-1', '9001', { distance: undefined }, { clearWeather: true })).resolves.toEqual({ updated: false, previousDate: null });
+    expect(db.queries).toEqual([]);
+    const memory = createInMemoryRunStore();
+    await expect(memory.updateStravaRun('user-1', '9001', { distance: undefined })).resolves.toEqual({ updated: false, previousDate: null });
+    expect(memory.updateCalls).toEqual([]);
+  });
+
+  it('only looks at the run of the given user, even when another user has the same external id', async () => {
+    // The other user's row comes FIRST: a select without the user filter would find it (or, as PostgREST does, fail on two matches).
+    const tables = { runs: [run({ id: 'other-user', user_id: 'user-2', date: '2026-01-01' }), run()] };
+    useDb(tables);
+
+    const result = await createRunStore().updateStravaRun('user-1', '9001', { distance: 8 });
+
+    expect(result).toEqual({ updated: true, previousDate: '2026-10-10' });
+    expect(tables.runs.find((r) => r.id === 'other-user')!.distance).toBe(5);
+    expect(tables.runs.find((r) => r.id === 'r')!.distance).toBe(8);
+  });
+
+  it('reports updated:false when the run disappears between the read and the update', async () => {
+    const tables: Record<string, Row[]> = { runs: [run()], run_weather: [] };
+    const db = useDb(tables, {
+      // Evaluated when the update runs, i.e. after the select found the row: another writer deleted it in between.
+      failWhen: (q) => {
+        if (q.table === 'runs' && q.mutation === 'update') tables.runs.splice(0);
+        return null;
+      },
+    });
+
+    const result = await createRunStore().updateStravaRun('user-1', '9001', { distance: 8 });
+
+    expect(result).toEqual({ updated: false, previousDate: '2026-10-10' });
+    expect(db.queries.filter((q) => q.mutation === 'update')).toHaveLength(1);
   });
 
   it('deletes the weather row of the run before the update, when asked', async () => {
