@@ -3,6 +3,8 @@
 ## Status
 Godkänd av ägaren 2026-10-13, med alla rekommendationer (B1, B3, B7, B8, B9, B10 och Ö1–Ö10, se "Avgjorda frågor"). Ägarbeslut 2026-10-12 (B2, B4, B5 utökat, B6) är bindande och inbakade. Våg 2 (beslut 12) ingår i v0.7.0; försenas den kan den brytas ut till v0.7.1. Migrationerna i beslut 10 kräver ägarens uttryckliga godkännande per migration (docs/permissions.md, ADR 002). Ingen ADR ersätts; ADR 008 beslut 8 och dess oläst-predikat UTÖKAS (se Kontext, sista stycket) och ADR 008:s statusrad har fått "Utökad av ADR 011 (2026-10-13)".
 
+Addendum 2026-10-14 (ägarbeslut efter Design Council): läs-gesten i beslut 4 (B4) ändras, se längst ner.
+
 ## Kontext
 Epic RUN-9 (fixVersion v0.7.0), story RUN-183 (ADR-steget). Klockan i headern är sedan v0.5.0 en oläst-räknare plus en popover över Pack News (ADR 008), men den har inga inställningar: alla icke-egna rader i gruppen räknas, och det enda sättet att bli "läst" är "Mark all read". ADR 008 och ADR 006 sköt uttryckligen notisinställningar och per-händelse-kvitto till en senare notis-ADR. Det här är den ADR:n. "Notis" betyder i hela dokumentet en rad i appens egen klocka och popover — ingen push, ingen e-post, ingen realtidskanal (se beslut 11 och Revisit-triggers).
 
@@ -303,3 +305,40 @@ Motivering i omfång och risk. v0.7.0 är redan stor (51 stories, Strava-webhook
 ```
   011 · Godkänd · Personliga notiser: in-app (klocka + popover), pull; inställningar i typat register (packages/shared/settings.ts, saknad nyckel = default) lagrade sparse i tabell user_settings (GET/PUT /api/settings); notisslag = exklusiv klassificering per rad ur betraktarens perspektiv (classifyNotification/isNotifiable i shared), inställningarna tillämpas vid läsning och styr KLOCKAN (räknare + popover; inga egna rader i popovern) medan /news visar allt (bara valda slag lyser); läst per rad: golvet users.news_last_seen_id + tabell news_read (hover/fokus/touch = läst direkt, Mark all read kvar, pruning); ny typ rank_passed (mått xp + challenge_points; max en rad per par/mått/Stockholm-dygn, bara om passeraren låg bakom vid dygnsskiftet, bara uppåt, dagens rader retractas vid minskning, emitRankNews:false vid massomräkning) och challenge_accepted, event_closed.entrant_ids, chip Ranks, "Involves me" (inkl. events); v0.7.0 = våg 1+2, "låg tvåa" (title_taken.runner_up_user_id, tvåan bevarad ur före-bilden) = våg 3; migrationer user_settings + news_read FÖRE deploy, CHECK-migration EFTER deploy (nummer vid bygget, ask); best-effort består, outbox först med push; gruppscope (RUN-94) återanvänder registret
 ```
+
+---
+
+## Addendum 2026-10-14 (ägarbeslut efter Design Council): läs-gesten i beslut 4 (B4) ändras
+Ändrar bara **läs-gesterna** i beslut 4 ("Läs-gester i UI (ägarbeslut B4)"). Allt annat i beslut 4 (golv + `news_read`, `POST /news/read`, optimistisk uppdatering, buntning med `READ_FLUSH_MS`, "Mark all read") och resten av ADR:n gäller oförändrat. Ingen ADR ersätts; detta är en ändring av ADR 011:s eget beslut, med ägaren som beslutsfattare. Arkitekturdiagrammet ändras inte (inga nya runtime-komponenter eller kopplingar). Ingen kostnad, ingen ny datalagring, ingen migration.
+
+### Beslut B4, ny lydelse
+En rad blir läst **direkt** (ingen väntetid) av följande, och av inget annat:
+- **Mus (och penna som hovrar):** hover (`pointerenter`, `pointerType ≠ touch`) räknas som läst direkt, men **först efter verklig pekarrörelse**. `pointerenter` ignoreras under ca 150 ms efter montering av listan (namngiven konstant i samma modul som `READ_DWELL_MS`, förslagsvis `POINTER_SETTLE_MS = 150`), så att en pekare som råkar vila över raden när popovern eller listan öppnas inte markerar den läst.
+- **Touch:** en **tap**, alltså `pointerup` utan rörelse på raden, markerar läst. `pointerdown` markerar inte längre (en scroll som börjar på en rad ska inte tömma den).
+- **Tangentbord och hjälpmedel:** **fokus markerar inte läst** (`focusin` som läs-gest utgår). **Enter eller Space** på raden markerar läst (rad-elementets aktivering, `click`, så att samma väg tas av tangentbord och av skärmläsare som aktiverar utan att flytta fokus).
+- **"Mark all read"** finns kvar i popovern och på `/news`, oförändrat.
+
+Att raden rullar in i bild räknas fortfarande INTE. Gäller både `/news` och popovern. `READ_DWELL_MS = 0` gäller **oförändrat för hover efter rörelsevakten**: när 150 ms-fönstret passerat och pekaren rört sig markeras raden utan ytterligare dröjsmål. De två konstanterna är olika saker: `READ_DWELL_MS` är väntetiden *efter* en giltig hover, den nya konstanten är fönstret *efter montering* där hover ignoreras.
+
+### Raden som element och tillgänglighet
+- Raden är inte längre `li tabIndex=0` utan en **`button`/grupp med ett tydligt tillgängligt namn** (händelsetexten och läst-/oläst-läget). Tab-stoppet och aktiveringen kommer från elementet självt, inte från ett påtvingat `tabIndex`. Detta ersätter "raderna blir fokuserbara, `tabIndex=0`" i beslut 4 (Designer/a11y-granskningen som beslutet väntade på är gjord).
+- **Polite live-uppdatering av oläst-räknaren** (`role="status"`/`aria-live="polite"`, inte `assertive`). Annonseringen bör debouncas så att en svepning över flera rader inte ger en tirad av tal; formen avgör implementatören.
+
+### Skäl (Design Councils tillgänglighetsroll)
+1. **Ett Tab-svep skulle nollställa alla olästa.** Med fokus = läst går en enda svepning genom listan förbi varje rad och markerar alla, utan att användaren läst något.
+2. **Skärmläsare med virtuell markör flyttar aldrig fokus** och skulle därför aldrig markera något läst. Aktivering (Enter/Space/`click`) är gesten som fungerar för dem.
+3. **En pekare som vilar över en rad när popovern öppnas** markerade raden läst utan att användaren rört sig. Rörelsevakten (ca 150 ms) åtgärdar det.
+Touch ändras till tap av samma grundsats: gesten ska vara en avsiktlig handling, inte en bieffekt av att fingret landar.
+
+### Följder för berörda stories (Jira, epic RUN-9)
+Storynumren är stämda mot Jira 2026-10-14 (Lead).
+- **S21 (RUN-197), läs-gesterna på rad och popover-rad:** implementerar de fyra reglerna ovan. Nytt i acceptansen: `pointerenter` inom ca 150 ms efter montering markerar inte; `pointerdown` ensam markerar inte, `pointerup` utan rörelse gör det; `focusin` markerar inte; Enter och Space markerar; rad-elementet är `button`/grupp med tillgängligt namn (inte `li tabIndex=0`); oläst-räknaren har polite live-region. Testerna i beslut 15 ("hover/focus/touch ... markerar läst direkt") byts mot: hover efter rörelse, tap, Enter/Space markerar; fokus ensam och ett Tab-svep markerar ingen rad; hover inom vakt-fönstret markerar inte; redan lästa rader ger fortfarande inget nätverksanrop. Fördröjd tidtagning testas med fejkade timers. Playwright-kandidaten "hover-läst med riktig pekare" (beslut 15, E2E) behålls och gäller nu även den vilande pekaren vid öppning.
+- **S20 (RUN-250), klockan och popovern:** popover-raderna följer samma läs-gester som /news-raderna (hover efter rörelse, tap, Enter/Space; fokus ensam markerar inte), rörelsevakten gäller från att popovern monteras, och räknarens polite live-region gäller även klockans badge. Popoverns sidhuvud får inget kugghjul (ägarbeslut 6, 2026-10-14).
+- **S23 (RUN-251), onboardingen/touren:** touren `tour_news_v2` (beslut 9) beskriver gesten, så texten "Hover, focus or tap to read" är inte längre sann. Stegets copy ska säga hover (efter rörelse) eller tap, och tangentbord via Enter/Space; fokus får inte nämnas som läs-gest. Ägarens beslut 7 (2026-10-14) slår dessutom ihop stegen "newest first" och "gold dot = unread, hover/tap marks it read" till ett och sätter turen till fem steg; slutlig copy skrivs av Lead/Designern vid bygget. Release-notisen "What's new" (beslut 9) och beteendeförändring (1) i Konsekvenser ska använda samma formulering.
+- **Övriga ställen i ADR:n som nämner gamla gesten** (beslut 9 tour-steget, beslut 15 frontend-RTL-raden, Konsekvenser "Beteendeförändringar" punkt 1 och "Negativt/risker" punkt 1, Avvisade alternativ "Dröjsmål innan hover...", Avvisade alternativ "Läst vid scroll-in", Revisit-triggern om hover-läst, indexraden) står kvar i originaltext och ska läsas enligt detta addendum; texten ovan gäller där de skiljer sig.
+
+### Konsekvenser
+- **Mindre risk för misstag:** den vilande pekaren och Tab-svepet är borta som felkällor. Kvarstår medvetet (ägarens val B4): en snabb musrörelse över listan markerar passerade rader som lästa, styrt av `READ_DWELL_MS`.
+- **Mer ansträngning för tangentbord:** läst-markering kräver ett aktivt tryck per rad (eller "Mark all read"). Det är avsikten.
+- **Antaganden (flaggade):** (a) rörelsevaktens exakta form är implementatörens: semantiken som är låst är att ingen rad blir läst av en pekare som inte rört sig efter fönstret; om en `pointermove` på en rad som pekaren redan vilade över ska räknas (rekommenderas, annars måste pekaren lämna och återinträda) avgör S21 med test. (b) Penna som hovrar behandlas som mus, penna i kontakt som touch. (c) Raden har ingen annan primär åtgärd än att markera läst; får den en (länk, expandera) krävs ett nytt beslut för hur aktiveringen delas.
+- **Revisit:** triggern "Misstag i hover-läst rapporteras" gäller som förut (`READ_DWELL_MS > 0`); "kräv fokus/klick på touch" är nu delvis uppfylld (tap).
