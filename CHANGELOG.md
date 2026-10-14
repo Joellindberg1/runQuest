@@ -14,10 +14,10 @@ Intern version (ingen versionsbump, ingen What's new, ingen announce). RUN-258. 
 - Svepet hittade två admin-fall som blir egna buggar i säkerhetsgenomgången (RUN-96): lösenordsbyte över gruppgränser (RUN-263) och användare som skapas utan grupp (RUN-264).
 
 ### Prod-steg (kräver ägar-ja)
-1. Läskontroll i prod: inga konton (särskilt admins) saknar `group_id` — annars ser de tomma listor efter deploy.
-2. PR release/v0.6.2.3 → main, grön CI, merge (= deploy). Ingen migration.
-3. Röktest: Board, Duels (group-stats) och Admin-användarlistan visar samma innehåll som före deploy.
-4. Tagg `v0.6.2.3` på merge-commiten.
+1. Läskontroll i prod: inga konton (särskilt admins) saknar `group_id` — annars ser de tomma listor efter deploy. KÖRD 2026-10-14 (ägar-ja): 6 konton, alla med grupp; 1 admin, med grupp.
+2. PR release/v0.6.2.3 → main, grön CI, merge (= deploy). Ingen migration. KÖRD 2026-10-14 (ägar-ja): PR #43, backend-deploy SUCCESS.
+3. Röktest: Board, Duels (group-stats) och Admin-användarlistan visar samma innehåll som före deploy. KÖRD 2026-10-14 (oinloggat): backend startade utan fel, /health 200, /api/public/stats svarar, users-with-runs utan token 401. Inloggad kontroll av Board/Duels/Admin görs av ägaren (inga lösenord i sessionen).
+4. Tagg `v0.6.2.3` på merge-commiten. KÖRD (cef81f4).
 
 ### Rollback
 - Kod: redeploya v0.6.2.2 i Railway och revert-PR. Inga dataformat ändrade, ingen migration.
