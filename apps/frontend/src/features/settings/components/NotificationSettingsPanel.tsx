@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { NOTIFICATION_GROUPS, NOTIFICATION_KINDS, type NotificationGroup, type NotificationRole } from '@runquest/shared';
 import { RQIcon } from '@/shared/components/icons';
 import { Switch } from '@/shared/components/form/Switch';
@@ -19,7 +19,9 @@ export interface PanelKind {
   default: boolean;
 }
 
-type HeadingLevel = 2 | 3 | 4;
+/** Titeln på h2 eller h3; sektionerna ligger en nivå under (h3 eller h4), så det finns inget h5. */
+type HeadingLevel = 2 | 3;
+type SectionHeadingLevel = 3 | 4;
 
 export interface NotificationSettingsPanelProps {
   /** Nivån på panelens titel; sektionsrubrikerna ligger en nivå under. Panelen vet inget om sidan runt den. */
@@ -49,7 +51,7 @@ interface NotificationSectionProps {
   values: Record<string, unknown>;
   disabled: boolean;
   defaultExpanded: boolean;
-  level: HeadingLevel;
+  level: SectionHeadingLevel;
   onToggle: (key: string) => void;
 }
 
@@ -119,7 +121,7 @@ function NotificationSkeleton({ sections }: { sections: Section[] }) {
  *
  * - **Optimistiskt:** reglaget byter läge direkt (useUserSettings); ett fel återställer det och står i den enda `role="alert"`-regionen.
  *   Den enda `role="status"`-regionen säger "Loading…" / "Saving…"; inget annat annonseras per reglage.
- * - **Laddningsfel:** standardvärdena visas, tydligt märkta, med Retry. Reglagen är låsta (`aria-disabled`): en skrivning ovanpå sparade
+ * - **Laddningsfel (inget data alls, `loadFailed`):** standardvärdena visas, tydligt märkta, med Retry. Reglagen är låsta (`aria-disabled`): en skrivning ovanpå sparade
  *   val som inte gick att läsa vore en gissning.
  * - **Reset to defaults** syns bara när något är anpassat och skickar null för varje anpassad nyckel.
  */
@@ -128,13 +130,19 @@ export function NotificationSettingsPanel({ headingLevel = 2, defaultExpanded = 
   const titleId = useId();
   const sections = useMemo(() => buildSections(kinds), [kinds]);
   const Title = `h${headingLevel}` as const;
-  const sectionLevel = (headingLevel + 1) as HeadingLevel;
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  // Retry avmonteras av laddningsläget; fokus flyttas till titeln så att det inte hamnar på body.
+  const retry = () => {
+    titleRef.current?.focus();
+    settings.reload();
+  };
+  const sectionLevel: SectionHeadingLevel = headingLevel === 2 ? 3 : 4;
 
   const shown = sections.flatMap((section) => section.kinds);
   const onCount = shown.filter((kind) => isOn(kind, settings.values)).length;
   let count = `${onCount} of ${shown.length} on`;
   if (settings.isLoading) count = '';
-  else if (settings.isError) count = 'Defaults shown';
+  else if (settings.loadFailed) count = 'Defaults shown';
 
   let status = '';
   if (settings.isLoading) status = 'Loading…';
@@ -143,14 +151,14 @@ export function NotificationSettingsPanel({ headingLevel = 2, defaultExpanded = 
   return (
     <section className={className ? `rq-notify ${className}` : 'rq-notify'} aria-labelledby={titleId}>
       <header className="rq-notify__head">
-        <Title id={titleId} className="rq-heading rq-notify__title">
+        <Title id={titleId} ref={titleRef} tabIndex={-1} className="rq-heading rq-notify__title">
           Notifications
         </Title>
         <div className="rq-notify__meta">
           <p role="status" aria-label="Notification settings status" className="rq-notify__status">
             {status}
           </p>
-          <p className="rq-notify__count" data-tone={settings.isError ? 'defaults' : undefined}>
+          <p className="rq-notify__count" data-tone={settings.loadFailed ? 'defaults' : undefined}>
             {count}
           </p>
         </div>
@@ -163,10 +171,10 @@ export function NotificationSettingsPanel({ headingLevel = 2, defaultExpanded = 
             {SAVE_FAILED}
           </p>
         )}
-        {settings.isError && (
+        {settings.loadFailed && (
           <p className="rq-form-notice" data-tone="error">
             <strong>Couldn’t load your notification settings.</strong> Your saved choices are safe; showing the defaults until we can read them.{' '}
-            <button type="button" className="rq-btn rq-btn--link rq-notify__link" onClick={settings.reload}>
+            <button type="button" className="rq-btn rq-btn--link rq-notify__link" onClick={retry}>
               Retry
             </button>
           </p>
@@ -182,7 +190,7 @@ export function NotificationSettingsPanel({ headingLevel = 2, defaultExpanded = 
               key={section.name}
               section={section}
               values={settings.values}
-              disabled={settings.isError}
+              disabled={settings.loadFailed}
               defaultExpanded={defaultExpanded}
               level={sectionLevel}
               onToggle={settings.toggle}

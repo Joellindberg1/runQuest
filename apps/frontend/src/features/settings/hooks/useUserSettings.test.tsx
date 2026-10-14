@@ -159,6 +159,7 @@ describe('useUserSettings', () => {
     const { result } = renderHook(() => useUserSettings(), { wrapper });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.loadFailed).toBe(true);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.values).toEqual(DEFAULTS);
     expect(result.current.customised).toEqual([]);
@@ -401,6 +402,21 @@ describe('useUserSettings — återställ till standard och ladda om', () => {
     act(() => result.current.reset([]));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(api.putSettings).not.toHaveBeenCalled();
+  });
+
+  it('en misslyckad omläsning med värden i cachen är ett bakgrundsfel: isError men inte loadFailed', async () => {
+    const news = serve();
+    news.server.settings = { [OTHERS]: false };
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.values[OTHERS]).toBe(false));
+    expect(result.current.loadFailed).toBe(false);
+
+    api.getSettings.mockResolvedValue({ success: false, error: 'down' });
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.loadFailed).toBe(false);
+    expect(result.current.values[OTHERS]).toBe(false);
+    expect(result.current.customised).toEqual([OTHERS]);
   });
 
   it('reload läser om inställningarna efter ett laddningsfel', async () => {

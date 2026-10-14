@@ -79,6 +79,9 @@ function withSnapshot(state: UserSettingsState, key: string, before: Snapshot): 
  * - **Känd begränsning:** en hämtning som STARTAR efter den optimistiska ändringen (t.ex. en omhämtning) men läser innan servern tagit emot skrivningen kan
  *   kort visa det gamla värdet. Hämtningar som redan pågår när reglaget byts avbryts (onMutate); den sista skrivningens svar skriver in serverns tillstånd och rättar resten.
  * - **Laddningsfel blockerar inte:** `values` är då defaults och `isError` är sann; reglagen fungerar och en lyckad skrivning ger serverns tillstånd.
+ * - **Laddningsfel eller bakgrundsfel:** `isError` är sann även när en OMHÄMTNING misslyckas medan värden finns i cachen (t.ex. omläsningen efter ett misslyckat PUT).
+ *   `loadFailed` är sann bara när det inte finns något data alls (första hämtningen föll): då är `values` gissade defaults. Vyer som varnar eller låser
+ *   reglagen ska titta på `loadFailed`, inte `isError`; vid ett bakgrundsfel är värdena de senast kända och reglagen fortsätter fungera.
  */
 export function useUserSettings() {
   const { user } = useAuth();
@@ -172,6 +175,8 @@ export function useUserSettings() {
     /** Första hämtningen pågår (aldrig sann för en utloggad). */
     isLoading: query.isLoading,
     isError: query.isError,
+    /** Inget data alls: `values` är defaults, inte serverns tillstånd. Falskt vid ett bakgrundsfel med värden i cachen. */
+    loadFailed: query.isError && query.data === undefined,
     isSaving: write.isPending,
     /** Texten för `role="alert"`, eller null. */
     error,

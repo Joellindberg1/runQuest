@@ -51,6 +51,20 @@ function tokenReads(css: string): Set<string> {
   return reads;
 }
 
+/** Deklarationerna i den regel vars selektor är exakt `selector` i en feature-CSS (sökväg relativt src). */
+function declarationsOf(file: string, selector: string): Record<string, string> {
+  const css = cssFiles.find((candidate) => candidate.file === file);
+  expect({ file, finns: css !== undefined }).toEqual({ file, finns: true });
+  const found: Record<string, string> = {};
+  postcss.parse(css!.text).walkRules(selector, (rule) => {
+    rule.walkDecls((decl) => {
+      found[decl.prop] = decl.value.replace(/\s+/g, ' ').trim();
+    });
+  });
+  expect({ selector, deklarationer: Object.keys(found).length > 0 }).toEqual({ selector, deklarationer: true });
+  return found;
+}
+
 const indexTokens = tokenDeclarations(indexCss);
 const declaredInIndex = new Set(indexTokens.map(({ name }) => name));
 
@@ -112,6 +126,18 @@ describe('temafilerna hänger ihop', () => {
       expect(px(name, false)).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
       expect(px(name, true)).toBeGreaterThanOrEqual(MIN_POINTER_TARGET_PX);
     }
+  });
+
+  it('reglaget: på är grönt (färgundantaget) och av-spåret har en 1 px ram, så läget syns mot ytan', () => {
+    const rootValue = (name: string) => indexTokens.find((token) => token.name === name && !token.context.includes('@media'))?.value;
+    expect(rootValue('--rq-toggle-on')).toBe('var(--rq-up)');
+    expect(rootValue('--rq-toggle-on-knob')).toBe('var(--rq-on-up)');
+    expect(declarationsOf('shared/components/form/form.css', '.rq-switch').border).toBe('var(--rq-hair) solid var(--rq-text-3)');
+  });
+
+  it('länkknapparna i notispanelen (Retry, Reset to defaults) får sin tryckyta ur --rq-notify-link-hit', () => {
+    const link = declarationsOf('features/settings/settings.css', '.rq-notify__link.rq-btn--link');
+    expect({ höjd: link['min-height'], bredd: link['min-width'] }).toEqual({ höjd: 'var(--rq-notify-link-hit)', bredd: 'var(--rq-notify-link-hit)' });
   });
 
   it('reducerad rörelse kapas globalt i temafilen: animationerna spelas en gång och feature-CSS behöver ingen egen regel', () => {

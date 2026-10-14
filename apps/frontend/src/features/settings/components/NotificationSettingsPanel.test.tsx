@@ -14,6 +14,7 @@ const fake = backendApiModule.backendApi as Record<string, unknown>;
 
 const TITLES_OTHERS = 'notify.title_others';
 const EVENT_OPEN = 'notify.event_open';
+const CHALLENGE_LOST = 'notify.challenge_lost_me';
 const SLOW = { timeout: 4000 };
 
 const kindsIn = (group: string) => NOTIFICATION_KINDS.filter((kind) => kind.group === group);
@@ -55,7 +56,7 @@ afterEach(() => {
 
 describe('NotificationSettingsPanel', () => {
   it('renderar en switch per slag i NOTIFICATION_KINDS grupperade per sektion med serverns värden', async () => {
-    news.server.settings = { [TITLES_OTHERS]: false };
+    news.server.settings = { [TITLES_OTHERS]: false, [CHALLENGE_LOST]: false };
     await renderPanel();
 
     expect(screen.getAllByRole('switch')).toHaveLength(NOTIFICATION_KINDS.length);
@@ -65,13 +66,17 @@ describe('NotificationSettingsPanel', () => {
       const kinds = kindsIn(group);
       expect(within(section).getAllByRole('switch')).toHaveLength(kinds.length);
       for (const kind of kinds) {
-        const expected = kind.key === TITLES_OTHERS ? false : kind.default;
+        const expected = kind.key === TITLES_OTHERS || kind.key === CHALLENGE_LOST ? false : kind.default;
         expect(within(section).getByRole('switch', { name: kind.label })).toHaveAttribute('aria-checked', String(expected));
       }
     }
-    // Sektionsrubriken bär antalet på, så en hopfälld sektion ändå visar sitt läge.
+    // Sektionsrubriken bär antalet på, så en hopfälld sektion ändå visar sitt läge. Datat är medvetet osymmetriskt (4 av 5 på) så att på och av inte kan förväxlas.
+    const challenges = kindsIn('Challenges');
+    expect(challenges.length).toBeGreaterThan(2);
+    expect(screen.getByRole('button', { name: new RegExp(`Challenges.*${challenges.length - 1} of ${challenges.length} on`) })).toBeInTheDocument();
     const titles = kindsIn('Titles');
     expect(screen.getByRole('button', { name: new RegExp(`Titles.*${titles.length - 1} of ${titles.length} on`) })).toBeInTheDocument();
+    expect(screen.getByText(`${NOTIFICATION_KINDS.length - 2} of ${NOTIFICATION_KINDS.length} on`)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Notifications' })).toBeInTheDocument();
   });
 
@@ -166,6 +171,9 @@ describe('NotificationSettingsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Change password' }));
     expect(await screen.findByRole('status', { name: 'Password status' })).toHaveTextContent('Password changed.');
 
+    // Retry och Reset är länkknappar med den delade tryckytan (44 px mobil, 24 desktop).
+    expect(screen.getByRole('button', { name: 'Retry' })).toHaveClass('rq-notify__link');
+
     // Retry läser om; när servern svarar tar de riktiga värdena över och reglagen låses upp.
     news.server.settings = { [EVENT_OPEN]: false };
     handlers.getSettings = news.getSettings;
@@ -174,6 +182,51 @@ describe('NotificationSettingsPanel', () => {
     expect(switchFor(labelOf(EVENT_OPEN))).not.toHaveAttribute('aria-disabled');
     expect(screen.queryByText('Defaults shown')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  it('ett bakgrundsfel med cachade värden låser inte reglagen och säger inte Defaults shown', async () => {
+    const user = userEvent.setup();
+    news.server.settings = { [EVENT_OPEN]: false };
+    let readsFail = false;
+    let reads = 0;
+    handlers.getSettings = () => {
+      reads += 1;
+      return readsFail ? { success: false, error: 'down' } : news.getSettings();
+    };
+    handlers.putSettings = () => ({ success: false, error: 'Failed to save settings' });
+    await renderPanel();
+    expect(switchFor(labelOf(EVENT_OPEN))).not.toBeChecked();
+
+    // PUT:en misslyckas och omläsningen efter den misslyckas också, men värdena finns kvar i cachen.
+    readsFail = true;
+    const readsBefore = reads;
+    await user.click(switchFor(labelOf(TITLES_OTHERS)));
+    expect(await screen.findByText(/Couldn.t save that change/)).toBeInTheDocument();
+    await waitFor(() => expect(reads).toBeGreaterThan(readsBefore + 1), SLOW);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(screen.queryByText('Defaults shown')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Couldn.t load/)).not.toBeInTheDocument();
+    for (const toggle of screen.getAllByRole('switch')) expect(toggle).not.toHaveAttribute('aria-disabled');
+    expect(switchFor(labelOf(EVENT_OPEN))).not.toBeChecked();
+    expect(switchFor(labelOf(TITLES_OTHERS))).toBeChecked();
+    const alerts = screen.getAllByRole('alert');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent(/Couldn.t save that change/);
+  });
+
+  it('fokus hamnar inte på body efter Retry', async () => {
+    const user = userEvent.setup();
+    handlers.getSettings = () => ({ success: false, error: 'down' });
+    renderWithApp(<NotificationSettingsPanel />);
+    const retry = await screen.findByRole('button', { name: 'Retry' }, SLOW);
+    retry.focus();
+
+    await user.click(retry);
+    await screen.findByRole('button', { name: 'Retry' }, SLOW);
+    const panel = screen.getByRole('region', { name: 'Notifications' });
+    expect(document.body).not.toHaveFocus();
+    expect(panel).toContainElement(document.activeElement as HTMLElement);
   });
 
   it('Reset to defaults är en knapp som bara visas när något är anpassat och återställer med null', async () => {
@@ -186,6 +239,7 @@ describe('NotificationSettingsPanel', () => {
     await renderPanel();
     const reset = await screen.findByRole('button', { name: 'Reset to defaults' });
     expect(switchFor(labelOf(EVENT_OPEN))).not.toBeChecked();
+    expect(reset).toHaveClass('rq-notify__link');
 
     await user.click(reset);
     await waitFor(() => expect(news.server.settingsCalls).toEqual([{ [TITLES_OTHERS]: null, [EVENT_OPEN]: null }]));
