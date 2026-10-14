@@ -608,9 +608,11 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     const deletedDate = existingRun.date;
 
-    // event_entries.run_id → runs(id) är NO ACTION: en runda som kvalificerat ett event kan inte raderas
-    // (FK-fel). Förkontroll → 409 med klartext i stället för 500. Ingen null-out: den bevarar dagens
-    // de facto-regel (kvalificerande runda står kvar) och öppnar inte för XP-farmning (radera efter utdelad XP).
+    // En manuell runda som kvalificerat ett event får inte raderas: 409 med klartext. Detta är en regel i koden och
+    // ENDA skyddet: sedan migration 047 är event_entries.run_id → runs(id) ON DELETE SET NULL (ADR 010 D2, så att Strava-
+    // raderingar via webhooks inte kraschar), så FK:n stoppar ingenting längre. Skillnaden: webhook-vägen raderar en
+    // Strava-runda och behåller entry + XP med run_id NULL; den här vägen får aldrig radera efter utdelad XP
+    // (XP-farmning: radera efter utdelad XP), så den spärras här, före raderingen.
     const { data: qualifiedEntries, error: entriesError } = await supabase
       .from('event_entries')
       .select('id')

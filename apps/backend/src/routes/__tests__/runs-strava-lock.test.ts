@@ -148,7 +148,7 @@ describe('PUT /api/runs/:id — Strava-rundor är skrivskyddade', () => {
 const del = (id: string) => server.request('DELETE', `/api/runs/${id}`, { token });
 
 describe('DELETE /api/runs/:id — Strava-rundor är skrivskyddade', () => {
-  it('Strava-runda: radering → 409, inget skrivs (delete ej anropad), ingen omräkning', async () => {
+  it('DELETE of a strava run still returns 409', async () => {
     const { tables, db } = use([stravaRun(), run({ id: 'run-2', date: '2026-10-02', streak_day: 2 })]);
     const res = await del('run-1');
     expect(res.status).toBe(409);
@@ -192,12 +192,16 @@ describe('DELETE /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
   });
 
-  it('manuell runda som kvalificerat ett event: event-409 som förut', async () => {
-    const { tables } = use([run()]);
+  it('manual DELETE of a run that qualified an event still returns 409', async () => {
+    // Efter migration 047 (FK = ON DELETE SET NULL) är den här kodkontrollen det enda som skyddar en manuell runda.
+    const { tables, db } = use([run()]);
     tables.event_entries.push({ id: 'e1', run_id: 'run-1' });
     const res = await del('run-1');
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/qualified an event/);
     expect(tables.runs).toHaveLength(1);
+    expect(tables.event_entries).toEqual([{ id: 'e1', run_id: 'run-1' }]);
+    expect(writes(db)).toEqual([]);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
   });
 });
