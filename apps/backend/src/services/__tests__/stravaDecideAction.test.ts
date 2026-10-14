@@ -91,7 +91,8 @@ describe('decideAction', () => {
       recalculateFrom: '2026-10-12',
       changes: { distance: 8 },
     });
-    expect(Object.keys((sameDay as { changes: object }).changes)).toEqual(['distance']);
+    // Only the columns that differ are written; the fake splits follow the distance, so the pace spread moves with it.
+    expect(Object.keys((sameDay as { changes: object }).changes).sort()).toEqual(['distance', 'pace_std_dev']);
 
     // Date moved later: the old date is the earliest. Date moved earlier: the new date is.
     const movedLater = stravaActivity({ start_date_local: '2026-10-14T07:30:00Z' });
