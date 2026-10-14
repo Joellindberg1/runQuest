@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ME, item, levelUp, newsServer, titleTaken } from '../news.fixture';
-import { NEWS_QUERY_KEYS, useMarkNewsSeen, useNewsFeed } from './useNewsQueries';
-import type { NewsFeed } from '../newsModel';
+import { NEWS_QUERY_KEYS, useMarkNewsRead, useMarkNewsSeen, useNewsFeed } from './useNewsQueries';
+import { READ_FLUSH_MS, type NewsFeed } from '../newsModel';
 
-const api = vi.hoisted(() => ({ getNews: vi.fn(), markNewsSeen: vi.fn() }));
+const api = vi.hoisted(() => ({ getNews: vi.fn(), markNewsSeen: vi.fn(), markNewsRead: vi.fn() }));
 vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 
 const rows = (count: number, from = 1) => Array.from({ length: count }, (_, index) => levelUp(from + index, from + index));
@@ -20,6 +20,7 @@ beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: Infinity } } });
   api.getNews.mockReset();
   api.markNewsSeen.mockReset();
+  api.markNewsRead.mockReset();
 });
 
 // Observern meddelar i en egen tick efter act(): vänta in den innan resultatet läses.
@@ -31,6 +32,7 @@ async function refetch(result: { current: { refetch: () => Promise<unknown> } })
 function serve(server: ReturnType<typeof newsServer>) {
   api.getNews.mockImplementation(server.getNews);
   api.markNewsSeen.mockImplementation(server.markNewsSeen);
+  api.markNewsRead.mockImplementation(server.markNewsRead);
 }
 
 describe('useNewsFeed — första hämtning, Show more och catch-up (ADR 008 addendum 4)', () => {
@@ -388,5 +390,176 @@ describe('useMarkNewsSeen — Mark all read', () => {
     const seen = renderHook(() => useMarkNewsSeen(), { wrapper });
     act(() => seen.result.current.markAllRead());
     expect(api.markNewsSeen).not.toHaveBeenCalled();
+  });
+});
+
+describe('useNewsFeed — involves', () => {
+  it('involves=me skickas på varje hämtning och flödet får en egen cache vid sidan av det vanliga', async () => {
+    const news = newsServer(rows(3));
+    serve(news);
+    const { result } = renderHook(() => useNewsFeed(null, true, 'me'), { wrapper });
+    await waitFor(() => expect(result.current.feed).toBeDefined());
+
+    expect(news.server.calls).toEqual([{ limit: 30, type: undefined, involves: 'me' }]);
+    expect(NEWS_QUERY_KEYS.feed(undefined, 'me')).not.toEqual(NEWS_QUERY_KEYS.feed(undefined));
+    expect(queryClient.getQueryData(NEWS_QUERY_KEYS.feed(undefined, 'me'))).toBeDefined();
+    expect(cached()).toBeUndefined();
+
+    // Catch-up bär samma filter.
+    news.server.rows.unshift(levelUp(4, 4));
+    await refetch(result);
+    expect(news.server.calls.at(-1)).toEqual({ after: 3, limit: 100, type: undefined, involves: 'me' });
+  });
+
+  it('utan involves ser frågorna ut som förut', async () => {
+    const news = newsServer(rows(3));
+    serve(news);
+    const { result } = renderHook(() => useNewsFeed(null), { wrapper });
+    await waitFor(() => expect(result.current.feed).toBeDefined());
+    expect(news.server.calls).toEqual([{ limit: 30, type: undefined }]);
+    expect(NEWS_QUERY_KEYS.feed(undefined)).toEqual(['news', 'feed', 'all']);
+  });
+});
+
+describe('useMarkNewsRead — läst per rad', () => {
+  const FILTER = ['level_up', 'run_milestone'] as const;
+  const LEVELS_KEY = 'level_up,run_milestone';
+  const wait = (ms: number) => act(async () => { await new Promise((resolve) => setTimeout(resolve, ms)); });
+  const unreadIds = (feed?: NewsFeed) => feed?.items.filter((row) => row.is_unread).map((row) => row.id);
+
+  // 5, 4, 3 är olästa level_up från Karl, 2 en oläst titelrad, 1 är egen (aldrig oläst).
+  const unreadFeed = () => [levelUp(5, 5), levelUp(4, 4), levelUp(3, 3), titleTaken(2), item('level_up', 1, { level: 9 }, { actor: ME })];
+
+  async function setup() {
+    const news = newsServer(unreadFeed(), 0);
+    serve(news);
+    const all = renderHook(() => useNewsFeed(null), { wrapper });
+    const levels = renderHook(() => useNewsFeed(FILTER), { wrapper });
+    const titles = renderHook(() => useNewsFeed(['title_taken']), { wrapper });
+    await waitFor(() => expect(all.result.current.feed && levels.result.current.feed && titles.result.current.feed).toBeTruthy());
+    const read = renderHook(() => useMarkNewsRead(), { wrapper });
+    return { news, all, levels, titles, read };
+  }
+
+  it('markRead uppdaterar alla flödescacher direkt och buntar anropen', async () => {
+    const { news, all, levels, titles, read } = await setup();
+    expect(all.result.current.feed?.meta.unread_count).toBe(4);
+
+    act(() => read.result.current.markRead(5));
+    act(() => read.result.current.markRead(4));
+    act(() => read.result.current.markRead(5));
+
+    // Direkt (i cachen, innan observatörerna hunnit rendera): raderna är lästa och räknaren lägre i ALLA cachar, även den filtrerade som
+    // inte innehåller raderna. Inget anrop har gått än.
+    expect(unreadIds(cached())).toEqual([3, 2]);
+    expect(unreadIds(cached(LEVELS_KEY))).toEqual([3]);
+    expect(unreadIds(cached('title_taken'))).toEqual([2]);
+    for (const typeParam of [undefined, LEVELS_KEY, 'title_taken']) expect(cached(typeParam)?.meta.unread_count).toBe(2);
+    expect(api.markNewsRead).not.toHaveBeenCalled();
+    await waitFor(() => expect(levels.result.current.feed?.meta.unread_count).toBe(2));
+    expect(unreadIds(titles.result.current.feed)).toEqual([2]);
+
+    // Ett enda anrop efter READ_FLUSH_MS med båda id:n (dubbletten är bortslagen).
+    await waitFor(() => expect(news.server.readCalls).toEqual([[5, 4]]), { timeout: READ_FLUSH_MS * 4 });
+    await wait(10);
+    expect(cached()?.meta.unread_count).toBe(2);
+  });
+
+  it('serverns unread_count skriver över den lokala räknaren i alla cachar', async () => {
+    const { news, read } = await setup();
+    act(() => read.result.current.markRead(5));
+    expect(cached()?.meta.unread_count).toBe(3);
+
+    // En ny rad hann komma innan anropet nådde servern: 4, 3, 2 och 6 är olästa.
+    news.server.rows.unshift(levelUp(6, 6));
+    await waitFor(() => expect(cached()?.meta.unread_count).toBe(4), { timeout: READ_FLUSH_MS * 4 });
+    expect(cached(LEVELS_KEY)?.meta.unread_count).toBe(4);
+    // Raden den kvitterade är fortsatt läst.
+    expect(unreadIds(cached())).toEqual([4, 3, 2]);
+  });
+
+  it('avmontering tömmer bunten', async () => {
+    const { news, read } = await setup();
+    act(() => read.result.current.markRead(5));
+    act(() => read.result.current.markRead(3));
+    expect(api.markNewsRead).not.toHaveBeenCalled();
+
+    read.unmount();
+    // Direkt, utan att vänta ut READ_FLUSH_MS.
+    expect(news.server.readCalls).toEqual([[5, 3]]);
+    await waitFor(() => expect(news.server.readIds).toEqual(new Set([5, 3])));
+    expect(unreadIds(cached())).toEqual([4, 2]);
+  });
+
+  it('ett misslyckat anrop återställer raderna och räknaren tyst, och nästa gest försöker igen', async () => {
+    const { news, read } = await setup();
+    news.server.failNext = 'Failed to update news state';
+    act(() => read.result.current.markRead(5));
+    act(() => read.result.current.markRead(4));
+    expect(unreadIds(cached())).toEqual([3, 2]);
+
+    // Cachen är sanningen; hookarnas resultat hinner efter en tick.
+    await waitFor(() => expect(unreadIds(cached())).toEqual([5, 4, 3, 2]), { timeout: READ_FLUSH_MS * 4 });
+    expect(cached()?.meta.unread_count).toBe(4);
+    expect(unreadIds(cached(LEVELS_KEY))).toEqual([5, 4, 3]);
+    expect(cached(LEVELS_KEY)?.meta.unread_count).toBe(4);
+    expect(cached('title_taken')?.meta.unread_count).toBe(4);
+    // Tyst: hooken har inget fel att visa.
+    expect(Object.keys(read.result.current)).toEqual(['markRead']);
+
+    act(() => read.result.current.markRead(5));
+    await waitFor(() => expect(news.server.readCalls).toEqual([[5, 4], [5]]), { timeout: READ_FLUSH_MS * 4 });
+    expect(unreadIds(cached())).toEqual([4, 3, 2]);
+  });
+
+  it('rader som inte är olästa ger inget anrop (egna, okända id:n och redan lästa)', async () => {
+    const { news, all, read } = await setup();
+    act(() => read.result.current.markRead(1)); // egen handling: aldrig oläst
+    act(() => read.result.current.markRead(999)); // finns inte i något flöde
+    await wait(READ_FLUSH_MS + 50);
+    expect(api.markNewsRead).not.toHaveBeenCalled();
+    expect(all.result.current.feed?.meta.unread_count).toBe(4);
+
+    act(() => read.result.current.markRead(5));
+    await waitFor(() => expect(news.server.readCalls).toEqual([[5]]), { timeout: READ_FLUSH_MS * 4 });
+    // Nu är raden läst: en ny gest på den gör inget.
+    act(() => read.result.current.markRead(5));
+    await wait(READ_FLUSH_MS + 50);
+    expect(news.server.readCalls).toEqual([[5]]);
+  });
+
+  it('mer än 50 olästa i ett svep går i flera anrop med högst 50 id vardera', async () => {
+    const news = newsServer(rows(120), 0);
+    serve(news);
+    const all = renderHook(() => useNewsFeed(null), { wrapper });
+    await waitFor(() => expect(all.result.current.feed).toBeDefined());
+    act(() => all.result.current.loadMore());
+    await waitFor(() => expect(all.result.current.feed?.items.length).toBe(60));
+    const read = renderHook(() => useMarkNewsRead(), { wrapper });
+
+    const loaded = all.result.current.feed?.items.map((row) => row.id) ?? [];
+    act(() => loaded.forEach((id) => read.result.current.markRead(id)));
+    read.unmount();
+    expect(news.server.readCalls.map((ids) => ids.length)).toEqual([50, 10]);
+  });
+
+  it('en poll i flykt när en rad kvitteras skriver inte tillbaka den gamla räknaren', async () => {
+    const { news, all, read } = await setup();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    // Svaret är räknat INNAN kvitteringen (4 olästa) men levereras efter den.
+    api.getNews.mockImplementationOnce(async (query: never) => {
+      const stale = await news.getNews(query);
+      await gate;
+      return stale;
+    });
+
+    let poll: Promise<unknown> = Promise.resolve();
+    act(() => { poll = all.result.current.refetch(); });
+    act(() => read.result.current.markRead(5));
+    await act(async () => { release(); await poll.catch(() => {}); });
+    await wait(30);
+    expect(unreadIds(cached())).toEqual([4, 3, 2]);
+    expect(cached()?.meta.unread_count).toBe(3);
   });
 });

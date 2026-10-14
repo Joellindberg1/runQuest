@@ -19,9 +19,9 @@ till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = W
   - `NewsPopoverPanel` — innehållet i klock-popovern (Radix-skalet och bell-knappen bor i `app-shell/NotificationsPopover`)
 - **newsModel.ts** — ren logik: kategorier/ikoner/filterkarta, adressparametern, kursor/dedupe/sammanslagning, oläst, tider, dag-gruppering, texterna
   (`describeNews`), vymodeller. `now` skickas alltid in.
-- **hooks/** — `useNewsQueries` (`useNewsFeed`, `useNewsUnreadCount`, `useMarkNewsSeen`) — den ENDA query-definitionen; `useNewsContext` (vem som tittar, klockan, namn-/könsuppslag)
+- **hooks/** — `useNewsQueries` (`useNewsFeed`, `useNewsUnreadCount`, `useMarkNewsSeen`, `useMarkNewsRead`) — den ENDA query-definitionen; `useNewsContext` (vem som tittar, klockan, namn-/könsuppslag)
 - `news.css` — enda stilfilen; mått (`--rq-news-*`) i temafilen, sektion 1.28 (index.css + docs/design/temafil-forslag.css)
-- `news.fixture.ts` — testdata + `newsServer` (en liten fake av GET /news + POST /news/seen med serverns keyset-/oläst-semantik)
+- `news.fixture.ts` — testdata + `newsServer` (en liten fake av GET /news, POST /news/seen, POST /news/read och GET/PUT /settings; oläst avgörs av samma `isNotifiable` som servern)
 
 ## Regler värda att komma ihåg
 
@@ -48,6 +48,11 @@ till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = W
   markeras ändå aldrig som oläst. Badgen på klockan är dold vid 0 och "99+" över hundra; knappens namn bär siffran ("Pack news, 4 unread").
 - **"Mark all read" är den enda kvitteringen** (prototypen har knappen i popover och skärm; inget kvitterar vid besök). `POST /news/seen { up_to_id }` med högsta id i flödet för alla typer, oavsett vilket filter
   som visas. Optimistiskt: räknaren och raderna är lästa direkt i alla flöden; serverns svar (kan vara > 0 om nya rader hann komma) skriver över, ett fel återställer, och flödena invalideras (catch-up).
+- **Läst per rad (ADR 011 beslut 4, datalagret utan vyer):** `useMarkNewsRead().markRead(id)` är hela ytan; gesterna (hover efter rörelse, tap, Enter/Space) bor i vyerna och använder `READ_DWELL_MS`
+  (0), `POINTER_SETTLE_MS` (150) och `READ_FLUSH_MS` (300) ur newsModel. Raden och räknaren är lästa i ALLA flödescacher direkt (`markReadInFeed`; räknaren minskar i varje cache, även där raden inte är
+  laddad). Anropen buntas av `createReadBatcher` (högst 50 id per `POST /news/read`, dubbletter slås ihop) och töms vid avmontering. Ett fel återställer exakt de flippade raderna (`markUnreadInFeed`)
+  och räknaren tyst. Serverns `unread_count` skriver över den lokala först när inget annat anrop väntar. En pågående hämtning avbryts innan uppdateringen (som "Mark all read"). Rader som inte är olästa ger inget anrop.
+  `?involves=me` finns i `getNews` och i nyckeln (`NEWS_QUERY_KEYS.feed(typeParam, 'me')`); servern tar parametern i en senare story.
 - **Live regions:** bekräftelsen ("N marked as read") står i en permanent `role="status"` som får fokus (knappen försvinner när inget är oläst), fel i `role="alert"` — inga toasts.
   Tomma behållare är kvar i tillgänglighetsträdet (ingen display:none).
 - **Filtret** mappas i klienten (`NEWS_FILTERS`; Levels = level_up + run_milestone, Badges = badge_earned) till serverns `type=`; `?type=` bär chip-nycklar (`titles,levels`). Flera kan vara valda, alla sex = inget.
