@@ -19,7 +19,8 @@ import onboardingRoutes from './routes/onboarding.js';
 import publicStatsRoutes from './routes/publicStats.js';
 import settingsRoutes from './routes/settings.js';
 import stravaRoutes from './routes/strava.js';
-import stravaWebhookRoutes from './routes/stravaWebhook.js';
+import { createStravaWebhookRouter } from './routes/stravaWebhook.js';
+import { wakeStravaWebhookWorker } from './scheduler/stravaWebhookScheduler.js';
 import { STRAVA_WEBHOOK_PATH } from './services/stravaWebhook/constants.js';
 import titleRoutes from './routes/titles.js';
 import runRoutes from './routes/runs.js';
@@ -64,7 +65,7 @@ export function createApp(): express.Express {
 
   // Stravas webhook är publik (ingen JWT) och har likaså egen body-gräns (10 kB), så den också FÖRE den globala parsern.
   // Den ligger även före /api/strava-routern nedan, vars JWT-skydd annars skulle ta emot anropet.
-  app.use(STRAVA_WEBHOOK_PATH, stravaWebhookRoutes);
+  app.use(STRAVA_WEBHOOK_PATH, createStravaWebhookRouter({ onEventStored: wakeStravaWebhookWorker }));
 
   app.use(express.json());
 
