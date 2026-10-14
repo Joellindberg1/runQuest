@@ -106,6 +106,8 @@
   font-family: var(--rq-font-ui); font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3);
 }
 .rq-news-filter__item:hover { color: var(--rq-c-solid); }
+/* Raden scrollar sidledes och klipper därmed en ring utanför chipet (överkant, underkant och kanten mot skärmen): ringen ritas innanför, som i raderna. */
+.rq-news-filter__item:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
 .rq-news-filter__icon { display: inline-flex; color: var(--rq-c-solid); }
 .rq-news-filter__name { display: inline-flex; align-items: center; gap: var(--rq-sp-6); }
 .rq-news-filter__count { font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); letter-spacing: 0; color: var(--rq-text-4); }
