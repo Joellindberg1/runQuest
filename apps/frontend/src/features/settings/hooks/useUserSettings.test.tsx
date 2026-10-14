@@ -179,3 +179,166 @@ describe('useUserSettings', () => {
     expect(result.current.isLoading).toBe(false);
   });
 });
+
+describe('useUserSettings — samtidiga skrivningar, återställning och omläsning', () => {
+  const tick = (ms = 15) => act(async () => { await new Promise((resolve) => setTimeout(resolve, ms)); });
+  const cacheState = () => queryClient.getQueryData<{ values: Record<string, unknown>; customised: string[] }>(USER_SETTINGS_QUERY_KEY);
+
+  /** Varje PUT blir ett väntande svar som testet släpper själv, i den ordning anropen kom. */
+  function queuePuts() {
+    const pending: Array<{ values: Record<string, never>; resolve: (response: unknown) => void }> = [];
+    api.putSettings.mockImplementation((values: Record<string, never>) => new Promise((resolve) => { pending.push({ values, resolve }); }));
+    return pending;
+  }
+
+  async function loaded(server = newsServer([])) {
+    api.getSettings.mockImplementation(server.getSettings);
+    const hook = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+    return { news: server, ...hook };
+  }
+
+  it('på, av, på i snabb följd: skrivningarna går en i taget och mellansvaren skriver inte över det sista valet', async () => {
+    const { news, result } = await loaded();
+    news.server.settings = { [OTHERS]: false };
+    await act(async () => { await queryClient.refetchQueries({ queryKey: USER_SETTINGS_QUERY_KEY }); });
+    const pending = queuePuts();
+    const answer = async (index: number) => {
+      const response = await news.putSettings(pending[index].values);
+      await act(async () => { pending[index].resolve(response); });
+      await tick();
+    };
+
+    await act(async () => result.current.toggle(OTHERS)); // på
+    await act(async () => result.current.toggle(OTHERS)); // av
+    await act(async () => result.current.toggle(OTHERS)); // på
+    await tick();
+    expect(cacheState()?.values[OTHERS]).toBe(true);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].values).toEqual({ [OTHERS]: true });
+
+    // Första svaret (servern: på) och andra svaret (servern: av) är inte sista skrivningen och får inte ge reglaget ett mellanläge.
+    await answer(0);
+    expect(pending).toHaveLength(2);
+    expect(pending[1].values).toEqual({ [OTHERS]: false });
+    expect(cacheState()?.values[OTHERS]).toBe(true);
+    await answer(1);
+    expect(pending).toHaveLength(3);
+    expect(cacheState()?.values[OTHERS]).toBe(true);
+
+    await answer(2);
+    expect(news.server.settings[OTHERS]).toBe(true);
+    expect(cacheState()?.values[OTHERS]).toBe(true);
+  });
+
+  it('svaret på en skrivning som inte är den sista skriver inte över en annan nyckels optimistiska värde', async () => {
+    const { news, result } = await loaded();
+    const pending = queuePuts();
+    await act(async () => result.current.toggle(OTHERS));
+    await act(async () => result.current.toggle(EVENTS));
+    await tick();
+
+    // Servern har bara OTHERS ändrad och EVENTS på default; cachen ska behålla det optimistiska EVENTS=av.
+    await act(async () => { pending[0].resolve(await news.putSettings({ [OTHERS]: false })); });
+    await tick();
+    expect(cacheState()?.values[OTHERS]).toBe(false);
+    expect(cacheState()?.values[EVENTS]).toBe(false);
+  });
+
+  it('ett fel återställer bara den felande nyckeln: en tidigare sparad nyckel och dess anpassning ligger kvar', async () => {
+    const { news, result } = await loaded();
+    api.putSettings.mockImplementation(news.putSettings);
+    await act(async () => result.current.toggle(EVENTS));
+    await waitFor(() => expect(news.server.settings[EVENTS]).toBe(false));
+    await waitFor(() => expect(result.current.isSaving).toBe(false));
+
+    news.server.failNext = 'boom';
+    await act(async () => result.current.toggle(OTHERS));
+    await waitFor(() => expect(result.current.error).toBe('boom'));
+    expect(cacheState()?.values[OTHERS]).toBe(true);
+    expect(cacheState()?.values[EVENTS]).toBe(false);
+    expect(result.current.customised).toEqual([EVENTS]);
+  });
+
+  it('A misslyckas medan B väntar: bara A återställs och B behåller sitt optimistiska värde tills serverns svar', async () => {
+    const { news, result } = await loaded();
+    const pending = queuePuts();
+    await act(async () => result.current.toggle(OTHERS));
+    await act(async () => result.current.toggle(EVENTS));
+    await tick();
+    expect(pending).toHaveLength(1);
+
+    await act(async () => { pending[0].resolve({ success: false, error: 'nope' }); });
+    await tick();
+    expect(cacheState()?.values[OTHERS]).toBe(true);
+    expect(cacheState()?.values[EVENTS]).toBe(false);
+    expect(pending).toHaveLength(2);
+
+    await act(async () => { pending[1].resolve(await news.putSettings({ [EVENTS]: false })); });
+    await tick();
+    expect(cacheState()?.values[EVENTS]).toBe(false);
+    expect(cacheState()?.values[OTHERS]).toBe(true);
+    expect(result.current.error).toBe('nope');
+  });
+
+  it('återställningen syns direkt, innan omläsningen är klar, både värdet och anpassningen', async () => {
+    const { result } = await loaded();
+    // Omläsningen efter felet hänger, så det som syns är enbart återställningen.
+    api.getSettings.mockImplementation(() => new Promise(() => {}));
+    api.putSettings.mockResolvedValue({ success: false, error: 'nope' });
+    await act(async () => result.current.toggle(OTHERS));
+    await tick();
+
+    expect(result.current.error).toBe('nope');
+    expect(cacheState()?.values[OTHERS]).toBe(true);
+    expect(cacheState()?.customised).toEqual([]);
+  });
+
+  it('ett fel efter en skrivning invaliderar nyhetsflödet och läser om inställningarna', async () => {
+    const { news, result } = await loaded();
+    api.putSettings.mockImplementation(news.putSettings);
+    queryClient.setQueryData(NEWS_QUERY_KEYS.feed(undefined), { items: [levelUp(1, 1)], meta: meta() });
+    news.server.failPutAfterWrite = true;
+
+    await act(async () => result.current.toggle(OTHERS));
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    await waitFor(() => expect(queryClient.getQueryState(NEWS_QUERY_KEYS.feed(undefined))?.isInvalidated).toBe(true));
+  });
+
+  it('ingen omläsning medan en annan skrivning väntar efter ett tidigare fel; den sista skrivningen läser om', async () => {
+    const { news, result } = await loaded();
+    const getsBefore = api.getSettings.mock.calls.length;
+    const pending = queuePuts();
+    await act(async () => result.current.toggle(OTHERS));
+    await act(async () => result.current.toggle(EVENTS));
+    await tick();
+
+    await act(async () => { pending[0].resolve({ success: false, error: 'x' }); });
+    await tick();
+    expect(api.getSettings.mock.calls.length).toBe(getsBefore);
+
+    await act(async () => { pending[1].resolve(await news.putSettings({ [EVENTS]: false })); });
+    await waitFor(() => expect(api.getSettings.mock.calls.length).toBe(getsBefore + 1));
+  });
+
+  it('en hämtning i flykt när reglaget byts skriver inte tillbaka det gamla värdet', async () => {
+    const { news, result } = await loaded();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    api.getSettings.mockImplementation(async () => {
+      const response = await news.getSettings();
+      await gate;
+      return response;
+    });
+    queuePuts();
+    let refetching: Promise<unknown> = Promise.resolve();
+    act(() => { refetching = queryClient.refetchQueries({ queryKey: USER_SETTINGS_QUERY_KEY }); });
+    await tick(5);
+    await act(async () => result.current.toggle(OTHERS));
+    await tick(5);
+    release();
+    await act(async () => { await refetching.catch(() => undefined); });
+    await tick();
+    expect(result.current.values[OTHERS]).toBe(false);
+  });
+});

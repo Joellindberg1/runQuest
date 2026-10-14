@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { hashKey, useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { hashKey, useMutation, useQuery, useQueryClient, type Query, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import type { ActivityType, NewsQuery } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
 import {
@@ -195,6 +195,10 @@ export function useMarkNewsSeen() {
  * Läs-tillståndet för EN hook-instans (ADR 011 beslut 4): optimistisk uppdatering, buntade anrop och exakt återställning. Det är vanlig kod
  * runt `queryClient` och inte `useMutation`: en kvittering ska aldrig vänta på nätverket, buntar flera id:n per anrop och ska överleva att
  * komponenten avmonteras (ett mutate-anrop per gest skulle varken bunta eller kunna tömmas vid avmontering).
+ *
+ * Känd begränsning (läker sig själv): en poll som STARTAR efter den lokala kvitteringen men innan servern tagit emot den ger tillbaka serverns gamla
+ * `unread_count` (raderna förblir lästa, catch-up rör inte befintliga rader). Räknaren rättas av nästa svar på POST:en eller nästa poll. Ett misslyckat
+ * anrop efter en sådan poll kan på samma sätt höja räknaren för mycket tills nästa poll.
  */
 function createNewsReader(queryClient: QueryClient) {
   /** id → cachenycklar (hashade) där raden vändes lokalt, så att ett misslyckande återställer exakt de raderna. */
@@ -251,8 +255,10 @@ function createNewsReader(queryClient: QueryClient) {
   const markRead = (id: number) => {
     // Utan hämtning i flykt sker uppdateringen i samma ögonblick. En poll som startade före gesten har läst innan den och får inte skriva
     // tillbaka raden eller den gamla räknaren: den avbryts (react-query återställer då till läget före hämtningen) och uppdateringen läggs efter.
-    if (queryClient.isFetching({ queryKey: NEWS_QUERY_KEYS.feedRoot }) === 0) apply(id);
-    else void queryClient.cancelQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot }).then(() => apply(id));
+    // Bara flöden som redan har data: en första laddning (ingen data än) har inget gammalt att skriva tillbaka och blir kvar i laddningsläget om den avbryts.
+    const filters = { queryKey: NEWS_QUERY_KEYS.feedRoot, predicate: (query: Query) => query.state.data !== undefined };
+    if (queryClient.isFetching(filters) === 0) apply(id);
+    else void queryClient.cancelQueries(filters).then(() => apply(id));
   };
 
   return { markRead, flush: batcher.flush };

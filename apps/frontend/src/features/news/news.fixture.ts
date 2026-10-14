@@ -164,6 +164,9 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null) 
     server.readCalls.push(ids);
     const error = takeFailure();
     if (error) return { success: false as const, error };
+    // Som backendens parseReadIds: 1-50 unika positiva heltal, annars 400 (ett för stort eller dubblerat anrop får inte slinka igenom i testerna).
+    const valid = ids.length >= 1 && ids.length <= 50 && ids.every((id) => Number.isSafeInteger(id) && id > 0) && new Set(ids).size === ids.length;
+    if (!valid) return { success: false as const, error: 'ids must be 1 to 50 unique positive integers' };
     for (const id of ids) {
       if (id > (server.lastSeen ?? 0) && server.rows.some((row) => row.id === id)) server.readIds.add(id);
     }

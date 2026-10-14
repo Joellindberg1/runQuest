@@ -226,6 +226,27 @@ describe('läst per rad', () => {
     expect(markUnreadInFeed(read, [999], 1).items).toEqual(read.items);
   });
 
+  it('markReadInFeed och markUnreadInFeed lämnar backfill-rader orörda, även när flaggan säger oläst', () => {
+    const backfill = { ...levelUp(3, 3), is_unread: true, is_backfill: true };
+    const feed = { items: [backfill], meta: meta({ unread_count: 1 }) };
+    expect(markReadInFeed(feed, [3])).toBe(feed);
+    expect(markUnreadInFeed({ items: [{ ...backfill, is_unread: false }], meta: meta({ unread_count: 0 }) }, [3], 0).items[0].is_unread).toBe(false);
+  });
+
+  it('bunten: efter flush() får den gamla timern inte skicka ett senare id för tidigt', () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const batcher = createReadBatcher(send);
+    batcher.add(7);
+    batcher.flush();
+    vi.advanceTimersByTime(100);
+    batcher.add(8);
+    vi.advanceTimersByTime(READ_FLUSH_MS - 50);
+    expect(send).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(50);
+    expect(send).toHaveBeenLastCalledWith([8]);
+  });
+
   it('READ_DWELL_MS är 0 och READ_FLUSH_MS är 300', () => {
     expect(READ_DWELL_MS).toBe(0);
     expect(READ_FLUSH_MS).toBe(300);

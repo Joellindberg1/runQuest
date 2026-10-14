@@ -59,6 +59,8 @@ function withSnapshot(state: UserSettingsState, key: string, before: Snapshot): 
  *   läses därför tillståndet om (och nyhetsflödet, vars räknare beror på inställningarna) när sista skrivningen är klar, i stället för att
  *   bara lita på den lokala återställningen.
  * - **Nyhetsflödet invalideras efter lyckad skrivning:** räknaren ändras serverside när ett slag slås av eller på.
+ * - **Känd begränsning:** en hämtning som STARTAR efter den optimistiska ändringen (t.ex. en omhämtning) men läser innan servern tagit emot skrivningen kan
+ *   kort visa det gamla värdet. Hämtningar som redan pågår när reglaget byts avbryts (onMutate); den sista skrivningens svar skriver in serverns tillstånd och rättar resten.
  * - **Laddningsfel blockerar inte:** `values` är då defaults och `isError` är sann; reglagen fungerar och en lyckad skrivning ger serverns tillstånd.
  */
 export function useUserSettings() {
