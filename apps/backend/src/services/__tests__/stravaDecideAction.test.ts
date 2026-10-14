@@ -629,6 +629,44 @@ describe('decideAction input edges', () => {
   });
 });
 
+describe('decideAction answer without any type field', () => {
+  // A 200 that names neither sport_type nor type is a malformed answer, not "not a running activity": it must never delete or insert.
+  const untyped = { ...run, sport_type: undefined, type: undefined } as unknown as Activity;
+  const emptyTyped = { ...run, sport_type: '', type: null } as unknown as Activity;
+
+  it('decide retries with invalid_response and does not remove a stored strava run', () => {
+    for (const aspect_type of ['create', 'update', 'delete'] as const) {
+      for (const response of [ok(untyped), ok(emptyTyped)]) {
+        expect(decide({ aspect_type, response, existingRun: runFor(run) }), aspect_type).toMatchObject({ action: 'retry', reason: 'invalid_response', outcome: null });
+      }
+    }
+  });
+
+  it('decide retries with invalid_response and does not insert when no run is stored', () => {
+    for (const aspect_type of ['create', 'update', 'delete'] as const) {
+      expect(decide({ aspect_type, response: ok(untyped) }), aspect_type).toMatchObject({ action: 'retry', reason: 'invalid_response', outcome: null });
+    }
+  });
+
+  it('decide treats a private activity without a type the same way: nothing is removed on a malformed answer', () => {
+    expect(decide({ response: ok({ ...untyped, private: true } as Activity), existingRun: runFor(run) })).toMatchObject({ action: 'retry', reason: 'invalid_response' });
+  });
+
+  it('decide still handles a type without sport_type as before', () => {
+    const legacyRun = { ...run, sport_type: undefined, type: 'Run' } as unknown as Activity;
+    const legacyRide = { ...run, sport_type: undefined, type: 'Ride' } as unknown as Activity;
+    expect(decide({ aspect_type: 'create', response: ok(legacyRun) })).toMatchObject({ action: 'insert', outcome: 'imported' });
+    expect(decide({ response: ok(legacyRide), existingRun: runFor(run) })).toMatchObject({ action: 'remove', outcome: 'removed_not_running' });
+  });
+
+  it('decide counts the retry as a failed attempt with the backoff of the attempts so far', () => {
+    expect(decide({ response: ok(untyped), attempts: 2 })).toMatchObject({
+      countsAsFailedAttempt: true,
+      retryAfterMinutes: WEBHOOK_BACKOFF_MINUTES[2],
+    });
+  });
+});
+
 describe('decideAction recalculation after a failed attempt', () => {
   it('decide flags an unknown recalculation date on a retry that gets 404 and finds no run', () => {
     // The earlier attempt may have deleted the run and died before the recalculation; the date went with the run.

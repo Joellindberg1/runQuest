@@ -218,6 +218,11 @@ export function decideAction(input: DecideInput): ActionDecision {
   const activity = response.activity;
   if (!activity || typeof activity !== 'object') return retry('invalid_response', attempts);
 
+  // An answer that names no sport at all (neither sport_type nor type) is malformed, not "not a running activity": treating it as a
+  // non-run would delete a stored run or skip an import on a broken body. Older payloads carry `type` only, which is enough.
+  const hasSport = (value: unknown): boolean => typeof value === 'string' && value !== '';
+  if (!hasSport(activity.sport_type) && !hasSport(activity.type)) return retry('invalid_response', attempts);
+
   // A run something will read: parsable date and distance. Anything else is a broken answer, not a reason to delete.
   const isPrivate = activity.private === true;
   const hasStartDate = typeof activity.start_date_local === 'string' && activity.start_date_local.length >= 10;
