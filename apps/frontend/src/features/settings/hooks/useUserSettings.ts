@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { resolveSettings, type SettingsValue } from '@runquest/shared';
+import { MAX_PATCH_KEYS, resolveSettings, type SettingsValue } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
 import { useAuth } from '@/providers/authContext';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
@@ -22,10 +22,8 @@ export interface UserSettingsState {
 /** Defaults för användarscopet. Modulkonstant så att referensen är stabil medan inget är laddat. */
 const DEFAULT_STATE: UserSettingsState = { values: resolveSettings({}, 'user'), customised: [] };
 
-interface Change {
-  key: string;
-  value: SettingsValue;
-}
+/** En skrivning: nyckel → nytt värde, eller `null` = återställ nyckeln till standard (raden raderas, som i PUT /settings). */
+type Patch = Record<string, SettingsValue | null>;
 
 interface Snapshot {
   value: SettingsValue | undefined;
@@ -37,6 +35,25 @@ function withValue(state: UserSettingsState, key: string, value: SettingsValue):
     values: { ...state.values, [key]: value },
     customised: state.customised.includes(key) ? state.customised : [...state.customised, key],
   };
+}
+
+function withDefault(state: UserSettingsState, key: string): UserSettingsState {
+  const values = { ...state.values };
+  const fallback = DEFAULT_STATE.values[key];
+  if (fallback === undefined) delete values[key];
+  else values[key] = fallback;
+  return { values, customised: state.customised.filter((existing) => existing !== key) };
+}
+
+function withPatch(state: UserSettingsState, patch: Patch): UserSettingsState {
+  return Object.entries(patch).reduce((next, [key, value]) => (value === null ? withDefault(next, key) : withValue(next, key, value)), state);
+}
+
+/** Delar nycklarna i PUT-bitar om högst MAX_PATCH_KEYS (servern avvisar fler). */
+function chunked(keys: readonly string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let start = 0; start < keys.length; start += MAX_PATCH_KEYS) chunks.push(keys.slice(start, start + MAX_PATCH_KEYS));
+  return chunks;
 }
 
 function withSnapshot(state: UserSettingsState, key: string, before: Snapshot): UserSettingsState {
@@ -95,22 +112,24 @@ export function useUserSettings() {
   const write = useMutation({
     mutationKey: WRITE_KEY,
     scope: { id: 'user-settings-write' },
-    mutationFn: async ({ key, value }: Change): Promise<UserSettingsState> => {
-      const res = await backendApi.putSettings({ [key]: value });
+    mutationFn: async (patch: Patch): Promise<UserSettingsState> => {
+      const res = await backendApi.putSettings(patch);
       if (!res.success || !res.data) throw new Error(res.error || SAVE_FAILED);
       return { values: res.data.values, customised: res.meta?.customised ?? [] };
     },
-    onMutate: async ({ key, value }): Promise<Snapshot> => {
+    onMutate: async (patch): Promise<Record<string, Snapshot>> => {
       setError(null);
       // En hämtning i flykt har läst innan ändringen och får inte skriva tillbaka det gamla värdet över den.
       await queryClient.cancelQueries({ queryKey: USER_SETTINGS_QUERY_KEY });
       const before = current() ?? DEFAULT_STATE;
-      queryClient.setQueryData<UserSettingsState>(USER_SETTINGS_QUERY_KEY, withValue(before, key, value));
-      return { value: before.values[key], wasCustomised: before.customised.includes(key) };
+      queryClient.setQueryData<UserSettingsState>(USER_SETTINGS_QUERY_KEY, withPatch(before, patch));
+      return Object.fromEntries(Object.keys(patch).map((key) => [key, { value: before.values[key], wasCustomised: before.customised.includes(key) }]));
     },
-    onError: (failure, { key }, snapshot) => {
-      if (snapshot) {
-        queryClient.setQueryData<UserSettingsState>(USER_SETTINGS_QUERY_KEY, (state) => (state ? withSnapshot(state, key, snapshot) : state));
+    onError: (failure, patch, snapshots) => {
+      if (snapshots) {
+        queryClient.setQueryData<UserSettingsState>(USER_SETTINGS_QUERY_KEY, (state) =>
+          state ? Object.keys(patch).reduce((next, key) => withSnapshot(next, key, snapshots[key]), state) : state,
+        );
       }
       setError(failure instanceof Error && failure.message ? failure.message : SAVE_FAILED);
       needsRefresh.current = true;
@@ -128,14 +147,23 @@ export function useUserSettings() {
   });
 
   const { mutate } = write;
-  const setValue = useCallback((key: string, value: SettingsValue) => mutate({ key, value }), [mutate]);
+  const setValue = useCallback((key: string, value: SettingsValue) => mutate({ [key]: value }), [mutate]);
   const toggle = useCallback(
     (key: string) => {
       const value = (queryClient.getQueryData<UserSettingsState>(USER_SETTINGS_QUERY_KEY) ?? DEFAULT_STATE).values[key];
-      if (typeof value === 'boolean') mutate({ key, value: !value });
+      if (typeof value === 'boolean') mutate({ [key]: !value });
     },
     [mutate, queryClient],
   );
+  // Ett PUT per MAX_PATCH_KEYS nycklar; skrivningarna går ändå i ordning (scope).
+  const reset = useCallback(
+    (keys: readonly string[]) => {
+      for (const chunk of chunked(keys)) mutate(Object.fromEntries(chunk.map((key) => [key, null])));
+    },
+    [mutate],
+  );
+  const { refetch } = query;
+  const reload = useCallback(() => void refetch(), [refetch]);
 
   const state = query.data ?? DEFAULT_STATE;
   return {
@@ -149,5 +177,9 @@ export function useUserSettings() {
     error,
     setValue,
     toggle,
+    /** Återställ nycklarna till standard (PUT med null). Den optimistiska ändringen och felhanteringen är samma som för en växling. */
+    reset,
+    /** Läs om inställningarna (Retry efter ett laddningsfel). */
+    reload,
   };
 }

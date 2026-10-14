@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { resolveSettings } from '@runquest/shared';
+import { MAX_PATCH_KEYS, resolveSettings } from '@runquest/shared';
 import { AuthContext, type AuthContextType } from '@/providers/authContext';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 import { ME, levelUp, meta, newsServer } from '@/features/news/news.fixture';
@@ -339,6 +339,81 @@ describe('useUserSettings — samtidiga skrivningar, återställning och omläsn
     release();
     await act(async () => { await refetching.catch(() => undefined); });
     await tick();
+    expect(result.current.values[OTHERS]).toBe(false);
+  });
+});
+
+describe('useUserSettings — återställ till standard och ladda om', () => {
+  const cacheState = () => queryClient.getQueryData<{ values: Record<string, unknown>; customised: string[] }>(USER_SETTINGS_QUERY_KEY);
+
+  it('reset skickar null för nycklarna i ett enda PUT och visar standardvärdena direkt', async () => {
+    const news = serve();
+    news.server.settings = { [OTHERS]: false, [EVENTS]: false };
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.customised).toHaveLength(2));
+
+    const release = holdPut(news);
+    act(() => result.current.reset([OTHERS, EVENTS]));
+    await waitFor(() => expect(result.current.values[OTHERS]).toBe(true));
+    expect(result.current.values[EVENTS]).toBe(true);
+    expect(result.current.customised).toEqual([]);
+
+    await act(async () => { release(); });
+    await waitFor(() => expect(result.current.isSaving).toBe(false));
+    expect(news.server.settingsCalls).toEqual([{ [OTHERS]: null, [EVENTS]: null }]);
+    expect(news.server.settings).toEqual({});
+  });
+
+  it('ett misslyckat reset återställer varje nyckels tidigare värde och anpassning', async () => {
+    const news = serve();
+    news.server.settings = { [OTHERS]: false, [EVENTS]: false };
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.customised).toHaveLength(2));
+
+    // Omläsningen efter felet hänger, så det som syns är enbart återställningen.
+    api.getSettings.mockImplementation(() => new Promise(() => {}));
+    news.server.failNext = 'Failed to save settings';
+    act(() => result.current.reset([OTHERS, EVENTS]));
+    await waitFor(() => expect(result.current.error).toBe('Failed to save settings'));
+    expect(cacheState()?.values[OTHERS]).toBe(false);
+    expect(cacheState()?.values[EVENTS]).toBe(false);
+    expect([...(cacheState()?.customised ?? [])].sort()).toEqual([EVENTS, OTHERS]);
+  });
+
+  it('reset delar fler nycklar än MAX_PATCH_KEYS i flera PUT, i ordning', async () => {
+    serve();
+    api.putSettings.mockResolvedValue({ success: true, data: { values: DEFAULTS }, meta: { customised: [] } });
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const keys = Array.from({ length: MAX_PATCH_KEYS + 5 }, (_, index) => `notify.fake_${index}`);
+    act(() => result.current.reset(keys));
+    await waitFor(() => expect(api.putSettings).toHaveBeenCalledTimes(2));
+    const sent = api.putSettings.mock.calls.map(([values]) => Object.keys(values as object));
+    expect(sent.map((chunk) => chunk.length)).toEqual([MAX_PATCH_KEYS, 5]);
+    expect(sent.flat()).toEqual(keys);
+  });
+
+  it('reset utan nycklar skickar ingenting', async () => {
+    serve();
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => result.current.reset([]));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(api.putSettings).not.toHaveBeenCalled();
+  });
+
+  it('reload läser om inställningarna efter ett laddningsfel', async () => {
+    const news = serve();
+    // Hämtningen får ett omförsök, så felet måste gälla båda anropen.
+    api.getSettings.mockResolvedValue({ success: false, error: 'down' });
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    api.getSettings.mockImplementation(news.getSettings);
+    news.server.settings = { [OTHERS]: false };
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.isError).toBe(false));
     expect(result.current.values[OTHERS]).toBe(false);
   });
 });
