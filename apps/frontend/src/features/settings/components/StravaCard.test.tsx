@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { STRAVA_CONSENT_KEY_POINTS, getDataPolicySection } from '@runquest/shared';
 import { renderWithApp } from '@/test/renderApp';
@@ -192,13 +192,16 @@ describe('StravaCard pause or disconnect while sync runs', () => {
     }
   });
 
-  it('the pause choice states that runs removed or made private on Strava are still removed here', async () => {
+  it('the pause choice or the paused card states that runs removed or made private on Strava are still removed here', async () => {
     const user = userEvent.setup();
-    renderCard(CONNECTED);
-
+    const running = renderCard(CONNECTED);
     await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
-
     expect(within(screen.getByRole('region', { name: 'Pause sync' })).getByText(PAUSE_CHOICE.text)).toHaveTextContent(/still removed here/);
+    running.unmount();
+
+    renderCard(PAUSED);
+    expect(screen.getByRole('region', { name: 'Strava' })).toHaveTextContent(STILL_REMOVED_SENTENCE);
+    expect(screen.getByRole('region', { name: 'Strava' })).toHaveTextContent('Paused since 12 October 2026.');
   });
 
   it('offers it to every connected user, not only the ones who can sync now', () => {
@@ -238,6 +241,8 @@ describe('StravaCard pause or disconnect while sync runs', () => {
     await user.click(screen.getByRole('button', { name: 'Pause sync' }));
 
     expect(screen.getByRole('dialog', { name: 'Pause or disconnect' })).toBeInTheDocument();
+    // Knappen är aldrig natively disabled (en disabled knapp som har fokus tappar det i webbläsaren), så fokus står kvar på den.
+    expect(screen.getByRole('button', { name: 'Pause sync' })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: 'Pause sync' })).toHaveFocus();
     expect(within(screen.getByRole('dialog')).getByRole('alert', { name: 'Strava connection error' })).toHaveTextContent("Couldn't pause sync. Try again.");
   });
@@ -333,13 +338,6 @@ describe('StravaCard when sync is paused', () => {
     expect(within(card).queryByRole('button', { name: 'Sync now' })).not.toBeInTheDocument();
   });
 
-  it('the paused card states that runs removed or made private on Strava are still removed here', () => {
-    renderCard(PAUSED);
-
-    expect(screen.getByRole('region', { name: 'Strava' })).toHaveTextContent(STILL_REMOVED_SENTENCE);
-    expect(screen.getByRole('region', { name: 'Strava' })).toHaveTextContent('Paused since 12 October 2026.');
-  });
-
   it('Disconnect on the paused card goes straight to the confirmation', async () => {
     const user = userEvent.setup();
     const connection = controls();
@@ -385,11 +383,44 @@ describe('StravaCard when sync is paused', () => {
     expect(button).toHaveFocus();
   });
 
-  it('says Turning sync on and locks the buttons while the resume request runs', () => {
+  it('says Turning sync on and locks the buttons while the resume request runs', async () => {
     renderCard(PAUSED, { connection: controls({ busy: 'resume' }) });
 
-    expect(screen.getByRole('button', { name: 'Turning sync on…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeDisabled();
+    const resume = screen.getByRole('button', { name: 'Turning sync on…' });
+    const disconnect = screen.getByRole('button', { name: 'Disconnect' });
+    // aria-disabled i stället för disabled: knappen som har fokus får inte tappa det när anropet startar.
+    for (const button of [resume, disconnect]) {
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expect(button).not.toBeDisabled();
+    }
+    const user = userEvent.setup();
+    const connection = controls({ busy: 'resume' });
+    cleanup();
+    renderCard(PAUSED, { connection });
+    await user.click(screen.getByRole('button', { name: 'Turning sync on…' }));
+    await user.click(screen.getByRole('button', { name: 'Disconnect' }));
+    expect(connection.onResume).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('shows a static dot on the Paused chip, while the Connected chip has the blinking live dot', () => {
+    const paused = renderCard(PAUSED);
+    expect(paused.container.querySelector('.rq-dot--live')).toBeNull();
+    expect(paused.container.querySelector('.rq-chip .rq-dot')).not.toBeNull();
+    paused.unmount();
+
+    const running = renderCard(CONNECTED);
+    expect(running.container.querySelector('.rq-chip .rq-dot--live')).not.toBeNull();
+  });
+
+  it('has no Connect or Reconnect button, and no consent checkbox, on the paused card', () => {
+    renderCard(PAUSED);
+
+    // Exakt de två knapparna, inga fler (en Connect-knapp utan etikett skulle annars slinka förbi en namnsökning).
+    const card = screen.getByRole('region', { name: 'Strava' });
+    expect(within(card).getAllByRole('button').map((button) => button.textContent?.trim())).toEqual(['Turn sync back on', 'Disconnect']);
+    expect(screen.queryByRole('button', { name: /connect strava/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
   it('an expired connection is expired even if the pause flag is still set', () => {

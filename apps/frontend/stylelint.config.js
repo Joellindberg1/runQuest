@@ -42,6 +42,23 @@ const stravaLogoRule = stylelint.createPlugin(STRAVA_RULE_NAME, (enabled) => (ro
   });
 });
 
+// Dialogen med röd Disconnect måste ha en egen, icke-guld fokusring. Stylelint har ingen regel för "måste finnas", så det här är en liten egen regel som kräver
+// en :focus-visible-regel med en explicit outline/outline-color ur textnivåerna (--rq-text-1..3 eller bläcket). Tas deklarationen bort faller filen här.
+const FOCUS_RING_RULE_NAME = "rq/neutral-focus-ring";
+const focusRingMessages = stylelint.utils.ruleMessages(FOCUS_RING_RULE_NAME, {
+  missing: () => "Filen måste deklarera en neutral fokusring: en :focus-visible-regel med outline-color ur --rq-text-1..3 (den globala ringen är guld och får inte stå bredvid röd).",
+});
+const NEUTRAL_RING_VALUE = /var\(--rq-(?:text-[1-3]|ink)/;
+const neutralFocusRingRule = stylelint.createPlugin(FOCUS_RING_RULE_NAME, (enabled) => (root, result) => {
+  if (!enabled) return;
+  let found = false;
+  root.walkRules((rule) => {
+    if (!/:focus-visible/.test(rule.selector)) return;
+    rule.walkDecls(/^outline(-color)?$/, (decl) => { if (NEUTRAL_RING_VALUE.test(decl.value)) found = true; });
+  });
+  if (!found) stylelint.utils.report({ result, ruleName: FOCUS_RING_RULE_NAME, message: focusRingMessages.missing(), node: root });
+});
+
 /** Värde för `animations` och `zIndex` som betyder "inte begränsat i den här filen". */
 const ANY = "any";
 
@@ -111,7 +128,7 @@ const keyframesBanned = { "at-rule-disallowed-list": [["keyframes"], { message: 
 /** @type {import("stylelint").Config} */
 export default {
   ignoreFiles: ["dist/**"],
-  plugins: [stravaLogoRule],
+  plugins: [stravaLogoRule, neutralFocusRingRule],
   // Grundregler för alla feature-CSS som inte har ett eget block nedan: ingen rörelse, inget z-index, inga egna custom properties.
   rules: designRules(),
   overrides: [
@@ -135,13 +152,24 @@ export default {
     },
     { files: ["src/features/admin/admin.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-form-gap"] }) },
     {
-      // Pause or disconnect (RUN-241): dialogen ligger i skalets modallager (66, som profilens redigeringsruta). Chippet "Paused" är neutral bläck och aldrig
-      // silver (silver = placering 2), och inget i den här filen läser rangfärgerna. rq-c/rq-c-solid är chippets färgvariabler.
+      // Chippet "Paused" (RUN-241) är neutral bläck och aldrig silver (silver = placering 2): inget i den här filen läser rangfärgerna.
+      // rq-c/rq-c-solid är chippets färgvariabler.
       files: ["src/features/settings/settings.css"],
       rules: designRules({
         locals: ["rq-edge", "rq-edge-line", "rq-form-gap", "rq-c", "rq-c-solid"],
-        zIndex: ["66"],
         bannedValues: ["/--rq-silver/", "/--rq-rank-/"],
+      }),
+    },
+    {
+      // Pause or disconnect-dialogen (RUN-241): röd (Disconnect, bekräftelsen) står aldrig bredvid guld, så ingen guld- eller rangfärg läses här. Dialogen
+      // ligger i skalets modallager (66, som profilens redigeringsruta). Fokusringen är neutral: den globala är guld, så filen MÅSTE deklarera en egen
+      // (rq/neutral-focus-ring), annars hamnar en guldring bredvid den röda knappen.
+      files: ["src/features/settings/strava-connection-dialog.css"],
+      rules: designRules({
+        locals: ["rq-edge", "rq-edge-line"],
+        zIndex: ["66"],
+        bannedValues: ["/--rq-gold/", "/--rq-silver/", "/--rq-rank-/"],
+        extraRules: { [FOCUS_RING_RULE_NAME]: true },
       }),
     },
     { files: ["src/shared/components/form/form.css"], rules: designRules({ locals: ["rq-form-gap"] }) },

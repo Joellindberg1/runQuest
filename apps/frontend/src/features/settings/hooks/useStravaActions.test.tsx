@@ -207,6 +207,57 @@ describe('useStravaActions pause, resume and disconnect', () => {
     expect(result.current.connectionBusy).toBeNull();
   });
 
+  it('without a session it asks for one in the dialog and sends nothing', async () => {
+    api.isAuthenticated.mockReturnValue(false);
+    const { result } = mount();
+
+    await act(async () => { expect(await result.current.pause()).toBe(false); });
+    expect(result.current.connectionError).toBe('Authentication required');
+    await act(async () => { expect(await result.current.disconnect()).toBe(false); });
+
+    expect(api.setStravaSyncPaused).not.toHaveBeenCalled();
+    expect(api.disconnectStrava).not.toHaveBeenCalled();
+    expect(result.current.connectionBusy).toBeNull();
+  });
+
+  it('without a session a resume asks for one in the card, not in a dialog', async () => {
+    api.isAuthenticated.mockReturnValue(false);
+    const { result } = mount();
+
+    await act(async () => { await result.current.resume(); });
+
+    expect(result.current.error).toBe('Authentication required');
+    expect(result.current.connectionError).toBeNull();
+    expect(api.setStravaSyncPaused).not.toHaveBeenCalled();
+  });
+
+  it('a successful pause clears an older error in the card', async () => {
+    api.syncStrava.mockResolvedValue({ success: false, error: 'Strava rate limit' });
+    const { result } = mount();
+    await act(async () => { await result.current.sync(); });
+    expect(result.current.error).toBe('Strava rate limit');
+
+    await act(async () => { await result.current.pause(); });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.status).toMatch(/^Sync paused/);
+  });
+
+  it('unmounting before the follow-up cancels it', async () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result, unmount } = mount();
+    await act(async () => { await result.current.resume(); });
+    // Run-kedjan har en egen fördröjd händelseomhämtning (runEffects); det är hookens EGEN uppföljning av strava och rundor som ska avbrytas.
+    const followUps = () => spy.mock.calls.filter(([filters]) => filters?.queryKey === USERS_WITH_RUNS_QUERY_KEY || (filters?.queryKey as string[])?.[0] === 'strava').length;
+    const atUnmount = followUps();
+
+    unmount();
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(followUps()).toBe(atUnmount);
+  });
+
   it('clearing the dialog error removes it', async () => {
     api.setStravaSyncPaused.mockResolvedValue({ success: false });
     const { result } = mount();

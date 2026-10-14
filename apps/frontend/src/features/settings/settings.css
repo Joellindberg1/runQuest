@@ -66,55 +66,6 @@ summary.rq-consent__summary { list-style: none; display: flex; align-items: cent
 .rq-consent__check:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
 .rq-consent__link { display: inline-flex; align-items: center; min-height: var(--rq-notify-link-hit); font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
 
-/* ── Pause or disconnect (StravaConnectionDialog, frame P1) ─────────────────────────────────────────────────────────────
-   Bottenblad på mobil, centrerad dialog på desktop via --rq-settings-dialog-*. Inget guld i dialogen: röd (Disconnect, bekräftelsen) står aldrig
-   bredvid guld, så kanten är neutral och bekräftelsen röd. Knappar i dialogen är ghost (neutral), danger (röd hårlinje) eller danger-fill (bara
-   den oåterkalleliga). Text på röd fyllning är --rq-on-down på --rq-down (≥ 4.5:1). Trycktyta: --rq-settings-dialog-hit (mobil 44). */
-.rq-settings-dialog {
-  position: fixed; z-index: 66; left: 50%; top: var(--rq-settings-dialog-top); bottom: var(--rq-settings-dialog-bottom);
-  transform: translate(-50%, var(--rq-settings-dialog-shift)); width: var(--rq-settings-dialog-w); max-height: var(--rq-settings-dialog-max-h);
-  overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--rq-sp-14);
-  padding: var(--rq-sp-16) var(--rq-sp-16) calc(var(--rq-sp-8) + var(--rq-tabbar-pb));
-  background: var(--rq-modal); box-shadow: var(--rq-shadow-modal);
-  border: var(--rq-hair) solid var(--rq-line-5); border-top: var(--rq-settings-dialog-edge-w) solid var(--rq-line-hover);
-}
-/* Fokusringen i dialogen är neutral (den globala är guld): fokus på "Keep my connection" står bredvid den röda knappen. */
-.rq-settings-dialog :focus-visible { outline-color: var(--rq-text-1); }
-.rq-settings-dialog[data-tone="down"] { border-color: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); border-top-color: var(--rq-down); }
-.rq-settings-dialog__head { display: flex; align-items: center; gap: var(--rq-sp-12); }
-.rq-settings-dialog__title { margin: 0; flex: 1 1 auto; font-weight: 400; }
-.rq-settings-dialog__close {
-  display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: var(--rq-settings-dialog-hit); min-height: var(--rq-settings-dialog-hit);
-  border: 0; background: none; cursor: pointer; font-size: var(--rq-fs-lead); color: var(--rq-text-4);
-}
-.rq-settings-dialog__close:hover { color: var(--rq-text-2); }
-.rq-settings-dialog__close:disabled { cursor: not-allowed; }
-.rq-settings-dialog__lead { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
-.rq-settings-dialog__body { display: flex; flex-direction: column; gap: var(--rq-sp-14); }
-.rq-settings-dialog__actions { display: flex; flex-direction: var(--rq-settings-dialog-actions-dir); gap: var(--rq-sp-10); justify-content: flex-end; }
-.rq-settings-dialog__actions .rq-btn { min-height: var(--rq-settings-dialog-hit); }
-/* Felregionen finns kvar i trädet när den är tom (annars annonseras den inte) men tar ingen plats. */
-.rq-settings-dialog__alert:empty { margin-top: calc(var(--rq-sp-14) * -1); }
-
-.rq-settings-choice { display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-10); --rq-edge: var(--rq-line-6); }
-.rq-settings-choice[data-tone="down"] { --rq-edge: var(--rq-down); --rq-edge-line: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); }
-/* Egen rubrikstil i stället för .rq-title (guldtext): röd står aldrig bredvid guld. */
-.rq-settings-choice__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-title); font-weight: 400; letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
-.rq-settings-choice__text { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
-.rq-settings-choice__action { width: var(--rq-settings-dialog-action-w); min-height: var(--rq-settings-dialog-hit); }
-.rq-settings-choice .rq-btn--ghost { border-color: var(--rq-line-hover); color: var(--rq-text-2); }
-
-.rq-settings-effects { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-6); }
-.rq-settings-effects + .rq-settings-effects { margin-top: var(--rq-sp-4); }
-.rq-settings-effect { display: flex; align-items: flex-start; gap: var(--rq-sp-10); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); overflow-wrap: anywhere; }
-.rq-settings-effect .rq-dot { flex-shrink: 0; margin-top: var(--rq-sp-8); }
-.rq-settings-effect[data-tone="down"] .rq-dot { color: var(--rq-down); }
-.rq-settings-effect[data-tone="up"] .rq-dot { color: var(--rq-up); }
-.rq-settings-warning {
-  margin: 0; padding: var(--rq-sp-10) var(--rq-sp-12); font-size: var(--rq-fs-body); font-weight: 600; line-height: var(--rq-lh-body); color: var(--rq-down);
-  background: rgb(var(--rq-down-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-down-rgb) / var(--rq-edge-status));
-}
-
 /* Lösenord: tre fält bredvid varandra på desktop, staplade på mobil */
 .rq-settings-pw { display: grid; grid-template-columns: var(--rq-settings-pw-cols); gap: var(--rq-gap-stack) var(--rq-sp-14); }
 

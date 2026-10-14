@@ -38,16 +38,39 @@ describe('StravaConnectionDialog choice step', () => {
     expect(handlers.onConfirmDisconnect).not.toHaveBeenCalled();
   });
 
-  it('disables every action while a request runs, says what is running and ignores Escape', async () => {
+  it('locks every action while a request runs, says what is running and ignores Escape', async () => {
     const user = userEvent.setup();
     const handlers = renderDialog('choose', { busy: 'pause' });
 
-    expect(screen.getByRole('button', { name: 'Pausing…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Disconnect…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+    // aria-disabled, inte disabled: en disabled knapp som har fokus tappar det i webbläsaren.
+    const locked = ['Pausing…', 'Disconnect…', 'Cancel', 'Close'].map((name) => screen.getByRole('button', { name }));
+    for (const button of locked) {
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expect(button).not.toBeDisabled();
+    }
+    for (const button of locked) await user.click(button);
+    expect(handlers.onPause).not.toHaveBeenCalled();
+    expect(handlers.onChooseDisconnect).not.toHaveBeenCalled();
+    expect(handlers.onCancel).not.toHaveBeenCalled();
     await user.keyboard('{Escape}');
     expect(handlers.onCancel).not.toHaveBeenCalled();
+  });
+
+  it('closes on a click outside, but not while a request runs', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const idle = renderDialog('choose');
+    await user.click(screen.getByRole('dialog').previousElementSibling as HTMLElement);
+    expect(idle.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a click outside while a request runs', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const handlers = renderDialog('choose', { busy: 'pause' });
+
+    await user.click(screen.getByRole('dialog').previousElementSibling as HTMLElement);
+
+    expect(handlers.onCancel).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('shows a failure in its own alert region inside the dialog', () => {
@@ -134,30 +157,61 @@ describe('StravaConnectionDialog confirmation step', () => {
     expect(within(screen.getByRole('alertdialog')).getByRole('alert', { name: 'Strava connection error' })).toHaveTextContent("Couldn't disconnect. Try again.");
   });
 
-  it('says Disconnecting while the request runs and locks both buttons', () => {
-    renderDialog('confirm', { busy: 'disconnect' });
+  it('says Disconnecting while the request runs and locks both buttons, without ever disabling the focused one', async () => {
+    const user = userEvent.setup();
+    const handlers = renderDialog('confirm', { busy: 'disconnect' });
 
-    expect(screen.getByRole('button', { name: 'Disconnecting…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Keep my connection' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Disconnecting…' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Keep my connection' })).toHaveAttribute('aria-disabled', 'true');
+    await user.click(screen.getByRole('button', { name: 'Keep my connection' }));
+    await user.click(screen.getByRole('button', { name: 'Disconnecting…' }));
+    expect(handlers.onCancel).not.toHaveBeenCalled();
+    expect(handlers.onConfirmDisconnect).not.toHaveBeenCalled();
+  });
+
+  it('ignores Escape and a click outside while the disconnect request runs', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const handlers = renderDialog('confirm', { busy: 'disconnect' });
+
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('alertdialog').previousElementSibling as HTMLElement);
+
+    expect(handlers.onCancel).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });
 });
 
 describe('StravaConnectionDialog focus and keyboard', () => {
   it('the dialog traps focus and closes on Escape', async () => {
     const user = userEvent.setup();
-    const handlers = renderDialog('confirm');
+    const onCancel = vi.fn();
+    render(
+      <>
+        <button type="button">Before the dialog</button>
+        <StravaConnectionDialog step="confirm" stravaRuns={128} busy={null} error={null} onPause={vi.fn()} onChooseDisconnect={vi.fn()} onConfirmDisconnect={vi.fn()} onCancel={onCancel} onCloseAutoFocus={vi.fn()} />
+        <button type="button">After the dialog</button>
+      </>,
+    );
     const dialog = screen.getByRole('alertdialog');
+    const before = screen.getByRole('button', { name: 'Before the dialog', hidden: true });
+    const after = screen.getByRole('button', { name: 'After the dialog', hidden: true });
 
-    // Fokus börjar på Keep my connection; Tab går vidare i dialogen och vänder vid kanten i stället för att lämna den.
-    for (let presses = 0; presses < 6; presses += 1) {
+    // Bakgrunden är inert för hjälpmedel (Radix döljer allt utanför dialogen) och fokus kan aldrig lämna dialogen, framåt som bakåt.
+    expect(screen.queryByRole('button', { name: 'Before the dialog' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'After the dialog' })).not.toBeInTheDocument();
+    for (let presses = 0; presses < 8; presses += 1) {
       await user.tab();
       expect(dialog).toContainElement(document.activeElement as HTMLElement);
+      expect([before, after]).not.toContain(document.activeElement);
     }
-    await user.tab({ shift: true });
-    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    for (let presses = 0; presses < 8; presses += 1) {
+      await user.tab({ shift: true });
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+      expect([before, after]).not.toContain(document.activeElement);
+    }
 
     await user.keyboard('{Escape}');
-    expect(handlers.onCancel).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it('closes the choice step on Escape too', async () => {

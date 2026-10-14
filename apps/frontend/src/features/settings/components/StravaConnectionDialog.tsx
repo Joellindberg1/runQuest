@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ConnectionAction } from '../hooks/useStravaActions';
+import '../strava-connection-dialog.css';
 import {
   CHOOSE_LEAD,
   CHOOSE_TITLE,
@@ -39,7 +40,7 @@ function DialogHead({ title, disabled }: { title: string; disabled: boolean }) {
     <div className="rq-settings-dialog__head">
       <span className="rq-chip rq-chip--strava">Strava</span>
       <Dialog.Title className="rq-heading rq-settings-dialog__title">{title}</Dialog.Title>
-      <Dialog.Close className="rq-settings-dialog__close" aria-label="Close" disabled={disabled}>✕</Dialog.Close>
+      <Dialog.Close className="rq-settings-dialog__close" aria-label="Close" aria-disabled={disabled || undefined} onClick={(event) => { if (disabled) event.preventDefault(); }}>✕</Dialog.Close>
     </div>
   );
 }
@@ -66,7 +67,8 @@ export function StravaConnectionDialog({ step, stravaRuns, busy, error, onPause,
   const keepRef = useRef<HTMLButtonElement>(null);
   const confirmation = buildDisconnectConfirmation(stravaRuns);
   const working = busy === 'pause' || busy === 'disconnect';
-  // Ett pågående anrop avbryts inte av Esc, ✕ eller klick utanför: dialogen stängs när svaret kommit.
+  // Ett pågående anrop avbryts inte av Esc, ✕ eller klick utanför: ALLA vägar som stänger dialogen (Radix onOpenChange) går hit, och den stängs när svaret kommit. Knapparna är aria-disabled (inte disabled) med
+  // vakt i hanterarna: en disabled knapp som har fokus tappar det i webbläsaren, och fokus ska stå kvar på knappen när anropet är klart.
   const closeUnlessBusy = (open: boolean) => { if (!open && !working) onCancel(); };
 
   return (
@@ -77,28 +79,26 @@ export function StravaConnectionDialog({ step, stravaRuns, busy, error, onPause,
           <Dialog.Content
             className="rq-settings-dialog"
             onCloseAutoFocus={onCloseAutoFocus}
-            onEscapeKeyDown={(event) => { if (working) event.preventDefault(); }}
-            onInteractOutside={(event) => { if (working) event.preventDefault(); }}
           >
             <DialogHead title={CHOOSE_TITLE} disabled={working} />
             <Dialog.Description className="rq-settings-dialog__lead">{CHOOSE_LEAD}</Dialog.Description>
             <section className="rq-card rq-card--edge rq-settings-choice" aria-labelledby={PAUSE_TITLE_ID}>
               <h3 id={PAUSE_TITLE_ID} className="rq-settings-choice__title">{PAUSE_CHOICE.title}</h3>
               <p className="rq-settings-choice__text">{PAUSE_CHOICE.text}</p>
-              <button type="button" className="rq-btn rq-btn--ghost rq-settings-choice__action" disabled={working} onClick={onPause}>
+              <button type="button" className="rq-btn rq-btn--ghost rq-settings-choice__action" aria-disabled={working || undefined} onClick={() => { if (!working) onPause(); }}>
                 {busy === 'pause' ? 'Pausing…' : PAUSE_CHOICE.action}
               </button>
             </section>
             <section className="rq-card rq-card--edge rq-settings-choice" data-tone="down" aria-labelledby={DISCONNECT_TITLE_ID}>
               <h3 id={DISCONNECT_TITLE_ID} className="rq-settings-choice__title">{DISCONNECT_CHOICE.title}</h3>
               <p className="rq-settings-choice__text">{DISCONNECT_CHOICE.text}</p>
-              <button type="button" className="rq-btn rq-btn--danger rq-settings-choice__action" disabled={working} onClick={onChooseDisconnect}>
+              <button type="button" className="rq-btn rq-btn--danger rq-settings-choice__action" aria-disabled={working || undefined} onClick={() => { if (!working) onChooseDisconnect(); }}>
                 {DISCONNECT_CHOICE.action}
               </button>
             </section>
             <DialogAlert error={step === 'choose' ? error : null} />
             <div className="rq-settings-dialog__actions">
-              <button type="button" className="rq-btn rq-btn--ghost" disabled={working} onClick={onCancel}>Cancel</button>
+              <button type="button" className="rq-btn rq-btn--ghost" aria-disabled={working || undefined} onClick={() => { if (!working) onCancel(); }}>Cancel</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -113,7 +113,6 @@ export function StravaConnectionDialog({ step, stravaRuns, busy, error, onPause,
             data-tone="down"
             onOpenAutoFocus={(event) => { event.preventDefault(); keepRef.current?.focus(); }}
             onCloseAutoFocus={onCloseAutoFocus}
-            onEscapeKeyDown={(event) => { if (working) event.preventDefault(); }}
             // En destruktiv bekräftelse stängs inte av ett klick bredvid (som en AlertDialog): bara av ett uttryckligt val eller Esc.
             onInteractOutside={(event) => event.preventDefault()}
           >
@@ -141,8 +140,8 @@ export function StravaConnectionDialog({ step, stravaRuns, busy, error, onPause,
             </Dialog.Description>
             <DialogAlert error={step === 'confirm' ? error : null} />
             <div className="rq-settings-dialog__actions">
-              <button ref={keepRef} type="button" className="rq-btn rq-btn--ghost" disabled={working} onClick={onCancel}>{KEEP_CONNECTION_ACTION}</button>
-              <button type="button" className="rq-btn rq-btn--danger-fill" disabled={working} onClick={onConfirmDisconnect}>
+              <button ref={keepRef} type="button" className="rq-btn rq-btn--ghost" aria-disabled={working || undefined} onClick={() => { if (!working) onCancel(); }}>{KEEP_CONNECTION_ACTION}</button>
+              <button type="button" className="rq-btn rq-btn--danger-fill" aria-disabled={working || undefined} onClick={() => { if (!working) onConfirmDisconnect(); }}>
                 {busy === 'disconnect' ? 'Disconnecting…' : confirmation.action}
               </button>
             </div>

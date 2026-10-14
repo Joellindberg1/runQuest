@@ -158,11 +158,11 @@ export function StravaCard({ view, canSyncNow, syncing, status, error, connectio
         )}
         {paused && (
           <>
-            <button type="button" className="rq-btn rq-btn--secondary" disabled={busy} onClick={() => void run(connection.onResume)}>
+            <button type="button" className="rq-btn rq-btn--secondary" aria-disabled={busy || undefined} onClick={() => { if (!busy) void run(connection.onResume); }}>
               <RQIcon name="sync" size={ICON_SIZE} />
               {connection.busy === 'resume' ? 'Turning sync on…' : 'Turn sync back on'}
             </button>
-            <button type="button" className="rq-btn rq-btn--secondary" disabled={busy} onClick={(event) => open('confirm', event.currentTarget)}>
+            <button type="button" className="rq-btn rq-btn--secondary" aria-disabled={busy || undefined} onClick={(event) => { if (!busy) open('confirm', event.currentTarget); }}>
               Disconnect
             </button>
           </>
