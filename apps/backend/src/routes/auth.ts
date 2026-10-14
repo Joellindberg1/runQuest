@@ -8,6 +8,7 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { loginRateLimiter } from '../middleware/rateLimit.js';
 import { invalidateXpConfigCache } from '../services/xpConfig.js';
+import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -189,21 +190,19 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
   try {
     logger.info('👥 Admin request to fetch all users');
 
+    // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
+    const groupId = groupIdOrRespondEmpty(req, res);
+    if (!groupId) return;
+
     const supabase = getSupabaseClient();
-    const groupId = req.user!.group_id;
 
     // runs(count) ger total_runs — admin-UI:t visade tidigare ett tomt fält
     // eftersom kolumnen aldrig selectades (bugg #12)
-    let query = supabase
+    const { data: users, error } = await supabase
       .from('users')
       .select('id, name, email, total_xp, current_level, total_km, current_streak, longest_streak, created_at, runs(count)')
+      .eq('group_id', groupId)
       .order('created_at', { ascending: true });
-
-    if (groupId) {
-      query = query.eq('group_id', groupId);
-    }
-
-    const { data: users, error } = await query;
 
     if (error) {
       logger.info('❌ Error fetching users:', error.message);
@@ -627,10 +626,13 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
   try {
     logger.info('👥 Fetching users with runs');
 
-    const supabase = getSupabaseClient();
-    const groupId = req.user!.group_id;
+    // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
+    const groupId = groupIdOrRespondEmpty(req, res);
+    if (!groupId) return;
 
-    let query = supabase
+    const supabase = getSupabaseClient();
+
+    const { data: usersWithRuns, error } = await supabase
       .from('users')
       .select(`
         id, name, total_xp, current_level, total_km,
@@ -640,13 +642,8 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
              streak_day, base_xp, km_xp, distance_bonus, streak_bonus, is_treadmill,
              start_time, created_at, source)
       `)
+      .eq('group_id', groupId)
       .order('total_xp', { ascending: false });
-
-    if (groupId) {
-      query = query.eq('group_id', groupId);
-    }
-
-    const { data: usersWithRuns, error } = await query;
 
     if (error) {
       logger.error('❌ Error fetching users with runs:', error.message);

@@ -10,6 +10,7 @@ import {
 import { addDays } from '@runquest/shared';
 import { tomorrowStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
+import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 import { recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
 import {
   CHALLENGE_HISTORY_COLUMNS,
@@ -206,7 +207,8 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     if (!opponent) {
       res.status(404).json({ error: 'Opponent not found' }); return;
     }
-    if (groupId && opponent.group_id !== groupId) {
+    // Fail-closed (ADR 007 A6): en token utan group_id får inte utmana någon över gruppgränsen.
+    if (!groupId || opponent.group_id !== groupId) {
       res.status(400).json({ error: 'Opponent is not in your group' }); return;
     }
 
@@ -251,7 +253,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     const { data: challenge, error: challengeError } = await supabase
       .from('challenges')
       .insert({
-        group_id: groupId ?? opponent.group_id,
+        group_id: groupId,
         tier: token.tier,
         challenger_id: userId,
         opponent_id,
@@ -293,7 +295,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     await recordChallengeReceived(
       {
         id: challenge.id,
-        group_id: groupId ?? opponent.group_id,
+        group_id: groupId,
         tier: token.tier,
         metric: token.metric,
         duration_days: token.duration_days,
@@ -625,19 +627,18 @@ router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => 
 // W/D/L leaderboard for all users in the group
 router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const groupId = req.user!.group_id;
+    // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
+    const groupId = groupIdOrRespondEmpty(req, res);
+    if (!groupId) return;
+
     const supabase = getSupabaseClient();
 
-    let query = supabase
-      .from('users')
-      .select('id, name, wins, draws, losses, challenge_active, current_level, profile_picture');
-
-    if (groupId) {
-      query = query.eq('group_id', groupId);
-    }
-
     const [{ data: users, error }, { data: pendingChallenges }] = await Promise.all([
-      query.order('wins', { ascending: false }),
+      supabase
+        .from('users')
+        .select('id, name, wins, draws, losses, challenge_active, current_level, profile_picture')
+        .eq('group_id', groupId)
+        .order('wins', { ascending: false }),
       supabase
         .from('challenges')
         .select('challenger_id, opponent_id')
