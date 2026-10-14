@@ -8,6 +8,7 @@
  * The state is in memory, per process. The backend runs as one Railway instance, so that is the whole app. A restart
  * empties it; until the first response with headers arrives, a local sliding counter stands in.
  */
+import { MS_DAY } from '@runquest/shared';
 import { logger } from '../utils/logger.js';
 import {
   STRAVA_READ_LIMIT_15_MIN,
@@ -20,7 +21,6 @@ import { setStravaRequestHooks } from './stravaClient.js';
 // Strava's windows are UTC: the 15-minute one turns over on the quarter hour, the daily one at UTC midnight.
 // (The calendar helpers in utils/dateUtils.ts are Europe/Stockholm, so they do not fit here.)
 const QUARTER_MS = 15 * 60_000;
-const DAY_MS = 24 * 60 * 60_000;
 const QUARTER_WAIT_MARGIN_MS = 30_000;
 const DAY_WAIT_MARGIN_MS = 60_000;
 
@@ -85,7 +85,7 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
   let limitedDayId: number | null = null;
 
   const quarterId = (t: number) => Math.floor(t / QUARTER_MS);
-  const dayId = (t: number) => Math.floor(t / DAY_MS);
+  const dayId = (t: number) => Math.floor(t / MS_DAY);
 
   function roll(t: number): void {
     if (quarter.id !== quarterId(t)) quarter = { id: quarterId(t), reported: 0, since: 0 };
@@ -105,7 +105,7 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
   function used(t: number): { quarter: number; day: number } {
     roll(t);
     let usedQuarter = headersSeen ? quarter.reported + quarter.since : slidingCount(t, QUARTER_MS);
-    let usedDay = headersSeen ? day.reported + day.since : slidingCount(t, DAY_MS);
+    let usedDay = headersSeen ? day.reported + day.since : slidingCount(t, MS_DAY);
     if (limitedQuarterId === quarterId(t)) usedQuarter = Math.max(usedQuarter, limits.quarter);
     if (limitedDayId === dayId(t)) usedDay = Math.max(usedDay, limits.day);
     return { quarter: usedQuarter, day: usedDay };
@@ -142,7 +142,7 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
 
       if (isRead(url)) {
         reads.push(t);
-        reads = reads.filter((readAt) => readAt > t - DAY_MS);
+        reads = reads.filter((readAt) => readAt > t - MS_DAY);
         quarter.since += 1;
         day.since += 1;
       }
@@ -191,7 +191,7 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
     const state = over(t);
     const current = used(t);
     const quarterBoundary = (quarterId(t) + 1) * QUARTER_MS + QUARTER_WAIT_MARGIN_MS;
-    const dayBoundary = (dayId(t) + 1) * DAY_MS + DAY_WAIT_MARGIN_MS;
+    const dayBoundary = (dayId(t) + 1) * MS_DAY + DAY_WAIT_MARGIN_MS;
 
     const candidates: number[] = [];
     if (state.quarterLimited) candidates.push(quarterBoundary);
@@ -204,8 +204,8 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
       if (slidingCount(t, QUARTER_MS) >= WEBHOOK_SOFT_LIMIT_15_MIN) {
         candidates.push(slidingClearsAt(t, QUARTER_MS, WEBHOOK_SOFT_LIMIT_15_MIN) + QUARTER_WAIT_MARGIN_MS);
       }
-      if (slidingCount(t, DAY_MS) >= WEBHOOK_SOFT_LIMIT_DAILY) {
-        candidates.push(slidingClearsAt(t, DAY_MS, WEBHOOK_SOFT_LIMIT_DAILY) + DAY_WAIT_MARGIN_MS);
+      if (slidingCount(t, MS_DAY) >= WEBHOOK_SOFT_LIMIT_DAILY) {
+        candidates.push(slidingClearsAt(t, MS_DAY, WEBHOOK_SOFT_LIMIT_DAILY) + DAY_WAIT_MARGIN_MS);
       }
     }
     return new Date(candidates.length > 0 ? Math.max(...candidates) : quarterBoundary);
