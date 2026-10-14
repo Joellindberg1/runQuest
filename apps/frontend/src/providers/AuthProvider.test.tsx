@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, useQuery, type QueryKey } from '@tanstack/react-query';
 import { AuthProvider } from './AuthProvider';
 import { AuthContext, type AuthContextType } from './authContext';
@@ -9,6 +9,7 @@ import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { ONBOARDING_QUERY_KEY } from '@/features/onboarding/hooks/useOnboarding';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 import { LEVELS_QUERY_KEY } from '@/shared/hooks/useLevelRequirements';
+import { USER_SETTINGS_QUERY_KEY } from '@/features/settings/hooks/useUserSettings';
 
 // Förra användarens data (badges, grupp, users-with-runs, ...) får aldrig synas för nästa inloggning på samma flik:
 // logout och 401 rensar HELA query-cachen, inte en lista av kända nycklar (en ny feature kan annars glömmas bort).
@@ -106,6 +107,29 @@ describe('AuthProvider rensar hela query-cachen', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(queryFn).toHaveBeenCalledTimes(calls);
     expect(client.getQueryCache().findAll()).toHaveLength(0);
+  });
+
+  it('login, logout och 401 rensar inställningscachen', async () => {
+    // Inställningarna (och vad som är avstängt) tillhör en användare: nästa inloggning på samma flik får aldrig se dem.
+    const settings = { values: { 'notify.title_others': false }, customised: ['notify.title_others'] };
+    const scenarios: Array<[string, (ctx: { current: AuthContextType | null }) => Promise<void>]> = [
+      ['login', async (ctx) => {
+        api.login.mockResolvedValue({ success: true, user: { id: 'u2', name: 'Karl', email: 'k@x.se' } });
+        await act(async () => { await ctx.current?.login('Karl', 'pw'); });
+      }],
+      ['logout', async (ctx) => { await act(async () => { await ctx.current?.logout(); }); }],
+      ['401', async () => { act(() => api.onUnauthorized?.()); }],
+    ];
+    for (const [name, trigger] of scenarios) {
+      const { client, ctx } = setup();
+      await waitFor(() => expect(ctx.current).not.toBeNull());
+      await waitFor(() => expect(api.onUnauthorized).toBeTypeOf('function'));
+      client.setQueryData(USER_SETTINGS_QUERY_KEY, settings);
+      expect({ name, before: client.getQueryData(USER_SETTINGS_QUERY_KEY) }).toEqual({ name, before: settings });
+      await trigger(ctx);
+      expect({ name, after: client.getQueryData(USER_SETTINGS_QUERY_KEY) }).toEqual({ name, after: undefined });
+      cleanup();
+    }
   });
 
   it('misslyckad inloggning rör inte cachen', async () => {
