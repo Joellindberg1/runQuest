@@ -8,6 +8,7 @@ import { useStravaActions } from '../hooks/useStravaActions';
 import { useStravaData } from '../hooks/useStravaData';
 import '../settings.css';
 import { buildStravaCard, buildSyncRow } from '../settingsModel';
+import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { PasswordCard } from './PasswordCard';
 import { StravaCard } from './StravaCard';
 import { SyncCard } from './SyncCard';
@@ -17,8 +18,9 @@ const LOADER_SIZE = 64;
 const SYNC_NOW_USER = 'Joel Lindberg';
 
 /**
- * /settings: Strava-koppling, lösenordsbyte och senaste synk. Web Prototypens Settings; mobilprototypen saknar sidan, så
- * mobil är härledd (en kolumn). Notifieringsinställningarna ur prototypen är inte byggda — backend saknar dem.
+ * /settings: Strava-koppling, notisinställningar, lösenordsbyte och senaste synk. Web Prototypens Settings; mobilprototypen saknar sidan,
+ * så mobil är härledd (en kolumn). Notiskortet ligger mellan Strava och lösenordet och laddar sina inställningar själv: ett fel där stoppar
+ * inte de andra korten.
  */
 export function SettingsScreen() {
   const { user } = useAuth();
@@ -64,11 +66,12 @@ export function SettingsScreen() {
     <div className="rq-settings">
       <header className="rq-settings__head">
         <h1 className="rq-display rq-settings__title">Settings</h1>
-        <p className="rq-settings__sub">Strava and password</p>
+        <p className="rq-settings__sub">Strava, notifications and password</p>
       </header>
       <div className="rq-settings__split">
         <div className="rq-settings__main">
           {strava}
+          <NotificationSettingsPanel className="rq-card rq-card--edge rq-settings-card" />
           <PasswordCard />
         </div>
         <div className="rq-settings__side">
