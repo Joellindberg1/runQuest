@@ -143,9 +143,10 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null) 
     }
     if (query.before !== undefined && query.after !== undefined) return { success: false as const, error: 'before and after cannot be combined' };
     const types = query.type ? query.type.split(',') : null;
-    const involvesViewer = (row: NewsItem) =>
-      row.actor?.id === ME.id || row.target?.id === ME.id ||
-      (row.type === 'event_closed' && Array.isArray((row.payload as { entrant_ids?: unknown }).entrant_ids) && ((row.payload as { entrant_ids: unknown[] }).entrant_ids).includes(ME.id));
+    const involvesViewer = (row: NewsItem) => {
+      const entrants = (row.payload as { entrant_ids?: unknown }).entrant_ids;
+      return row.actor?.id === ME.id || row.target?.id === ME.id || (row.type === 'event_closed' && Array.isArray(entrants) && entrants.includes(ME.id));
+    };
     const matching = server.rows.filter(
       (row) =>
         (!types || types.includes(row.type)) &&
