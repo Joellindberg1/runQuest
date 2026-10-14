@@ -15,7 +15,7 @@ import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
 import { stravaLookback } from '../utils/stravaLookback.js';
 import { isValidAthleteId } from '../services/stravaAthlete.js';
-import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, type AccessTokenResult } from '../services/stravaClient.js';
+import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
 
 const router = express.Router();
@@ -141,7 +141,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Strava credentials not configured' }); return;
     }
     
-    const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
+    const tokenResponse = await stravaFetch('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -464,7 +464,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
     const supabase = getSupabaseClient();
     const { data: connectedUsers, error } = await supabase
       .from('strava_tokens')
-      .select('user_id, access_token, refresh_token, expires_at, connection_date, users!inner(name)')
+      .select('user_id, users!inner(name)')
       .not('access_token', 'is', null);
 
     if (error || !connectedUsers?.length) {

@@ -5,16 +5,31 @@ import { getSupabaseClient } from '../config/database.js';
 const STRAVA_API = 'https://www.strava.com/api/v3';
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 
-// Hooks for the rate-budget module (RUN-234). Deliberately empty: every Strava call already passes stravaFetch,
+export interface StravaRequestHooks {
+  /** Runs before the request is sent; awaiting it lets a later rate budget hold the request back. */
+  before(url: string): void | Promise<void>;
+  /** Runs with every response, also error responses, so a later rate budget can read the rate limit headers. */
+  after(url: string, response: Response): void;
+}
+
+// Hooks for the rate-budget module (RUN-234). Empty on purpose: every Strava call already passes stravaFetch,
 // so the budget can later gate the request and read the rate limit headers here without touching any caller.
-async function beforeStravaRequest(_url: string): Promise<void> {}
-function afterStravaResponse(_url: string, _response: Response): void {}
+let hooks: StravaRequestHooks = { before: () => {}, after: () => {} };
+
+/** Replaces the hooks (the ones not given keep their current value). Returns a function that puts the previous hooks back. */
+export function setStravaRequestHooks(next: Partial<StravaRequestHooks>): () => void {
+  const previous = hooks;
+  hooks = { ...hooks, ...next };
+  return () => {
+    hooks = previous;
+  };
+}
 
 /** The only place that calls Strava over the network. */
 export async function stravaFetch(url: string, init?: RequestInit): Promise<Response> {
-  await beforeStravaRequest(url);
+  await hooks.before(url);
   const response = await fetch(url, init);
-  afterStravaResponse(url, response);
+  hooks.after(url, response);
   return response;
 }
 

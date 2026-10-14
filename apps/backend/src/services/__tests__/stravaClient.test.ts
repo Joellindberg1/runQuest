@@ -17,7 +17,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row, type RecordedQuery } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaActivity, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
-import { fetchDetailedActivity, getValidAccessToken } from '../stravaClient.js';
+import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, setStravaRequestHooks, stravaFetch } from '../stravaClient.js';
 
 let strava: FakeStrava | undefined;
 
@@ -53,7 +53,7 @@ describe('getValidAccessToken', () => {
 
     expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
     expect(strava.calls.oauthToken).toBe(1);
-    expect(strava.requests[0].body).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'old-rt', client_id: 'client-id' });
+    expect(strava.requests[0].body).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'old-rt', client_id: 'client-id', client_secret: 'client-secret' });
     expect(tokenWrites(db)).toHaveLength(1);
     expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 });
   });
@@ -123,6 +123,75 @@ describe('getValidAccessToken', () => {
 
     expect(result).toMatchObject({ ok: false, reason: 'no_refresh_token', expiresAt: 100 });
     expect(strava.requests).toHaveLength(0);
+  });
+});
+
+describe('the central fetch path', () => {
+  let restoreHooks: (() => void) | undefined;
+  afterEach(() => restoreHooks?.());
+
+  it('runs the before hook ahead of the request, waits for it, and runs the after hook with the response', async () => {
+    strava = installFakeStravaFetch({ activities: { 7010: stravaActivity({ id: 7010 }) } });
+    const events: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    restoreHooks = setStravaRequestHooks({
+      before: async (url) => { events.push(`before ${url}`); await gate; events.push('released'); },
+      after: (url, response) => { events.push(`after ${response.status} ${url}`); },
+    });
+    const url = 'https://www.strava.com/api/v3/activities/7010';
+
+    const pending = stravaFetch(url);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(strava.requests).toHaveLength(0); // the request is held back while the before hook is pending
+    release();
+    await pending;
+
+    expect(events).toEqual([`before ${url}`, 'released', `after 200 ${url}`]);
+    expect(strava.requests).toHaveLength(1);
+  });
+
+  it('shows the after hook error responses too', async () => {
+    strava = installFakeStravaFetch({ activities: {} });
+    const seen: number[] = [];
+    restoreHooks = setStravaRequestHooks({ after: (_url, response) => { seen.push(response.status); } });
+
+    await stravaFetch('https://www.strava.com/api/v3/activities/7011');
+
+    expect(seen).toEqual([404]);
+  });
+
+  it('puts the previous hooks back when the returned function is called', async () => {
+    strava = installFakeStravaFetch({ activities: { 7012: stravaActivity({ id: 7012 }) } });
+    const seen: string[] = [];
+    const restore = setStravaRequestHooks({ before: (url) => { seen.push(url); } });
+    restore();
+
+    await stravaFetch('https://www.strava.com/api/v3/activities/7012');
+
+    expect(seen).toEqual([]);
+  });
+
+  it('sends the detail call, the activity list and the token refresh through the hooks', async () => {
+    strava = installFakeStravaFetch({
+      activities: { 7013: stravaActivity({ id: 7013 }) },
+      athleteActivities: [],
+      oauthToken: stravaTokenResponse(),
+    });
+    use([{ ...TOKEN_ROW, expires_at: 100 }]);
+    const seen: string[] = [];
+    restoreHooks = setStravaRequestHooks({ before: (url) => { seen.push(url); } });
+
+    await fetchDetailedActivity(7013, 'at');
+    await fetchAthleteActivities('at', 1_700_000_000);
+    await getValidAccessToken('user-1');
+
+    expect(seen).toEqual(strava.requests.map((request) => request.url));
+    expect(seen).toEqual([
+      'https://www.strava.com/api/v3/activities/7013',
+      'https://www.strava.com/api/v3/athlete/activities?after=1700000000&per_page=200',
+      'https://www.strava.com/oauth/token',
+    ]);
   });
 });
 

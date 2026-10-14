@@ -29,7 +29,12 @@
 //     `allGroups`-val) och fångar `if (…groupId) { …eq('…group_id' …`. Fångas INTE: ternärer (`groupId ? q.eq(…) : q`), `&&`
 //     (`groupId && q.eq(…)`), jämförelser som `if (groupId !== undefined)` / `if (groupId != null)`, eller andra former av samma tanke.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|media|fonts|all]   (standard: all)
+//  7. Strava-anrop går via stravaFetch (RUN-167): all trafik mot Strava passerar `stravaFetch` i services/stravaClient.ts, den enda platsen
+//     som får anropa `fetch` mot strava.com. Där sitter kroken för ratebudgeten (RUN-234); ett råttanrop någon annanstans går förbi den.
+//     Vakten är textbaserad: en källfil under apps/backend/src (utom stravaClient.ts, tester och test-utils) som både nämner `strava.com`
+//     och anropar `fetch(` fäller. Fångas INTE: en URL byggd utan texten strava.com i samma fil, eller en fetch-liknande funktion med annat namn.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -159,6 +164,29 @@ export function checkConditionalGroupFilter(files) {
   return errors;
 }
 
+const STRAVA_CLIENT_FILE = 'apps/backend/src/services/stravaClient.ts';
+const BACKEND_SOURCE = /^apps\/backend\/src\//;
+const TEST_SUPPORT_DIR = /\/(?:__tests__|test-utils)\//;
+// Ett anrop av `fetch(` (även `globalThis.fetch(`), men inte `stravaFetch(` eller `fetchDetailedActivity(`.
+const FETCH_CALL = /(?<![\w$])fetch\s*\(/g;
+
+/**
+ * Regel 7. `files`: [{ path, content }]. Returnerar felmeddelanden "path:rad: text" för varje `fetch(` i en backendfil som nämner strava.com
+ * och inte är stravaClient.ts.
+ */
+export function checkRawStravaFetch(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!BACKEND_SOURCE.test(path) || path === STRAVA_CLIENT_FILE || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
+    if (!/strava\.com/i.test(content)) continue;
+    for (const match of content.matchAll(FETCH_CALL)) {
+      const line = content.slice(0, match.index).split(/\r?\n/).length;
+      errors.push(`${path}:${line}: anrop mot Strava utanför stravaClient — använd stravaFetch (services/stravaClient.ts) så kroken för ratebudgeten ser anropet`);
+    }
+  }
+  return errors;
+}
+
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -278,8 +306,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -294,8 +322,12 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch') {
     const files = collectSourceFiles(root, workspaces);
+    if (mode === 'all' || mode === 'strava-fetch') {
+      errors.push(...checkRawStravaFetch(files));
+      summary.push('inga Strava-anrop förbi stravaFetch');
+    }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));
       summary.push('inga villkorliga gruppfilter i routes');

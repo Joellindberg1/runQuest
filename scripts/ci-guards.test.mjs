@@ -14,6 +14,7 @@ import {
   checkGitignoreForVideo,
   checkMediaFiles,
   checkNoTrackedVideoOriginals,
+  checkRawStravaFetch,
   checkTestNames,
   checkTodos,
   isEntryPoint,
@@ -208,6 +209,50 @@ describe('checkConditionalGroupFilter', () => {
     assert.equal(errors.length, 2);
     assert.match(errors[0], /:2:/);
     assert.match(errors[1], /:4:/);
+  });
+});
+
+describe('checkRawStravaFetch', () => {
+  const scan = (content, path = 'apps/backend/src/routes/x.ts') => checkRawStravaFetch([{ path, content }]);
+
+  it('flags a raw fetch against strava.com outside stravaClient and reports file:line', () => {
+    const errors = scan("a;\nconst res = await fetch('https://www.strava.com/oauth/token', { method: 'POST' });\n");
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/routes\/x\.ts:2: anrop mot Strava utanför stravaClient/);
+  });
+
+  it('flags the variants: globalThis.fetch, a space before the parenthesis, a URL held in a constant, every call', () => {
+    for (const code of [
+      "await globalThis.fetch('https://www.strava.com/api/v3/athlete');",
+      "await fetch ('https://www.strava.com/api/v3/athlete');",
+      "const URL = 'https://www.strava.com/api/v3';\nawait fetch(`${URL}/athlete`);",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+    assert.equal(scan("fetch('https://www.strava.com/a');\nfetch('https://www.strava.com/b');").length, 2);
+  });
+
+  it('passes stravaFetch, other fetch-like names and fetches in files that do not mention strava.com', () => {
+    for (const code of [
+      "await stravaFetch('https://www.strava.com/oauth/token');",
+      "await fetchDetailedActivity(id, token);",
+      "await fetchAthleteActivities(token, after);",
+      "await fetch('https://api.open-meteo.com/v1/forecast');",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('lets stravaClient.ts, tests and test-utils call fetch', () => {
+    const raw = "await fetch('https://www.strava.com/oauth/token');";
+    assert.deepEqual(scan(raw, 'apps/backend/src/services/stravaClient.ts'), []);
+    assert.deepEqual(scan(raw, 'apps/backend/src/services/__tests__/stravaClient.test.ts'), []);
+    assert.deepEqual(scan(raw, 'apps/backend/src/test-utils/fakeStrava.ts'), []);
+    assert.deepEqual(scan(raw, 'apps/backend/src/routes/x.test.ts'), []);
+  });
+
+  it('only reads the backend', () => {
+    assert.deepEqual(scan("await fetch('https://www.strava.com/oauth/token');", 'apps/frontend/src/x.ts'), []);
   });
 });
 
@@ -414,6 +459,32 @@ describe('CLI', () => {
     }
     const good = makeRoute('group-good', "if (!groupId) return;\nquery = query.eq('group_id', groupId);\n");
     assert.equal(runCli('group-filter', good).status, 0);
+  });
+
+  it('exits 1 on a planted raw Strava fetch in the backend (also under all) and 0 once it uses stravaFetch', () => {
+    const makeBackend = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'routes'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'routes', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeBackend('fetch-bad', "await fetch('https://www.strava.com/oauth/token');\n");
+    for (const mode of ['strava-fetch', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/planted\.ts:1: anrop mot Strava/);
+    }
+    assert.equal(runCli('strava-fetch', makeBackend('fetch-good', "await stravaFetch('https://www.strava.com/oauth/token');\n")).status, 0);
+  });
+
+  it('exits 0 on the current repo in strava-fetch mode', () => {
+    const result = runCli('strava-fetch');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /stravaFetch/);
   });
 
   it('does not flag the same code outside routes/', () => {
