@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BADGE_SERIES, TIER_NAMES, type NewsItem } from '@runquest/shared';
 import { POINTER_SETTLE_MS, READ_FLUSH_MS } from '../newsModel';
 import { KARL, ME, NOW_ISO, at, badgeEarned, levelUp, newsServer, releasePublished, streakBroken, titleTaken } from '../news.fixture';
@@ -225,10 +226,16 @@ describe('NewsPopoverPanel — läs-gester', () => {
     // Raden blir kvar i listan som läst.
     expect(within(popover).getAllByRole('listitem')).toHaveLength(3);
 
-    // Enter/Space = knappens aktivering (click).
-    fireEvent.click(popoverRow(popover, /Karl reached level 25$/));
+    // Enter och Space på raden med fokus (user-event gör som webbläsaren: knappens aktivering).
+    const user = userEvent.setup();
+    act(() => popoverRow(popover, /Karl reached level 25$/).focus());
+    await user.keyboard('{Enter}');
     expect(await screen.findByRole('button', { name: 'Pack news, 1 unread' })).toBeInTheDocument();
-    await waitFor(() => expect(news.server.readCalls).toEqual([[4, 5]]), { timeout: READ_FLUSH_MS * 4 });
+    act(() => popoverRow(popover, /Karl reached level 15$/).focus());
+    await user.keyboard(' ');
+    expect(await screen.findByRole('button', { name: 'Pack news' })).toBeInTheDocument();
+    // Alla tre blev lästa; hur de buntas (ett eller flera anrop beroende på takten) provas i useNewsQueries.test.tsx.
+    await waitFor(() => expect(news.server.readCalls.flat().sort()).toEqual([3, 4, 5]), { timeout: READ_FLUSH_MS * 4 });
   });
 
   it('rörelsevakten räknas från att popovern öppnas: en vilande pekare markerar inget, och varje öppning ger ett nytt fönster', async () => {

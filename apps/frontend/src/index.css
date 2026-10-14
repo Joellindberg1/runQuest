@@ -735,7 +735,7 @@
   --rq-toggle-on:           var(--rq-up);               /* spårets färg när reglaget är på */
   --rq-toggle-on-knob:      var(--rq-on-up);
   --rq-toggle-inset:        3px;                        /* knoppens avstånd till spårets kant (bokstavliga 3px i .rq-toggle) */
-  --rq-focus-inset:         -2px;                       /* fokusringen INOM raden: hårlinjegrid och sheet klipper en ring utanför */
+  /* --rq-focus-inset definieras i nyhetsavsnittet ovan (delas med .rq-switch-row och sektionsrubrikerna) */
   --rq-switch-row-min-h:    52px;                       /* hela raden är tryckytan (mobil 52, desktop 46) */
   --rq-switch-row-pad-y:    10px;                       /* desktop 9 */
   --rq-switch-row-pad-x:    12px;                       /* desktop 16 */

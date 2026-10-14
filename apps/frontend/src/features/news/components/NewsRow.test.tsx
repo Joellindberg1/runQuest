@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BADGE_SERIES, TIER_NAMES, type NewsItem } from '@runquest/shared';
 import { POINTER_SETTLE_MS, READ_FLUSH_MS, buildNewsRow, type NewsContext } from '../newsModel';
 import { KARL, ME, NOW, NOW_ISO, at, badgeEarned, item, levelUp, newsServer, releasePublished, titleTaken } from '../news.fixture';
@@ -199,23 +200,29 @@ describe('NewsRow — läs-gester', () => {
     const first = rowButton(/Karl reached level 25$/);
     const second = rowButton(/Karl reached level 20$/);
 
+    const user = userEvent.setup();
+
     // Ett Tab-svep genom listan: fokus (focusin) ensam markerar ingenting.
     act(() => first.focus());
-    act(() => second.focus());
-    fireEvent.focusIn(first);
-    await flushWait();
+    await user.tab();
     expect(second).toHaveFocus();
+    await flushWait();
     expect(isUnread(first)).toBe(true);
     expect(isUnread(second)).toBe(true);
     expect(news.server.readCalls).toEqual([]);
 
-    // Enter och Space är knappens aktivering: webbläsaren gör dem till ett click (Enter vid keydown, Space vid keyup), och det är den vägen
-    // skärmläsare som aktiverar utan att flytta fokus också tar. Raden hanterar därför click, inte tangenterna själv.
-    fireEvent.click(first);
+    // Enter och Space på raden med fokus: user-event gör som webbläsaren (Enter vid keydown, Space vid keyup blir ett click på knappen), och det är
+    // samma väg som en skärmläsare som aktiverar utan att flytta fokus tar. Raden hanterar click, inte tangenterna själv.
+    await user.tab({ shift: true });
+    expect(first).toHaveFocus();
+    await user.keyboard('{Enter}');
     await waitFor(() => expect(isUnread(rowButton(/Karl reached level 25$/))).toBe(false));
-    fireEvent.click(second);
+    expect(isUnread(rowButton(/Karl reached level 20$/))).toBe(true);
+    await user.tab();
+    await user.keyboard(' ');
     await waitFor(() => expect(isUnread(rowButton(/Karl reached level 20$/))).toBe(false));
-    await waitFor(() => expect(news.server.readCalls).toEqual([[5, 4]]), { timeout: READ_FLUSH_MS * 4 });
+    // Att båda blev lästa är det som gäller här; hur de buntas (ett eller flera anrop beroende på takten) provas i useNewsQueries.test.tsx.
+    await waitFor(() => expect(news.server.readCalls.flat().sort()).toEqual([4, 5]), { timeout: READ_FLUSH_MS * 4 });
   });
 
   it('touch (tap) på en oläst rad markerar den läst, och pointerenter med touch gör inget', async () => {
