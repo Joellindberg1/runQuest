@@ -26,7 +26,8 @@
 //     (`if (groupId) { query = query.eq('group_id', groupId); }`). Då ger en token utan group_id ALLA gruppers rader i stället för tom
 //     data (ADR 007 A6, fail-closed). Använd `groupIdOrRespondEmpty` (apps/backend/src/utils/groupScope.ts) och sätt filtret ovillkorligt.
 //     Vakten är textbaserad och avsiktligt smal: den läser bara routes/*.ts (inte services, där `processAllUsersTitles` har ett uttryckligt
-//     `allGroups`-val) och fångar `if (…groupId) { …eq('…group_id' …`, inte ternärer eller andra former av samma tanke.
+//     `allGroups`-val) och fångar `if (…groupId) { …eq('…group_id' …`. Fångas INTE: ternärer (`groupId ? q.eq(…) : q`), `&&`
+//     (`groupId && q.eq(…)`), jämförelser som `if (groupId !== undefined)` / `if (groupId != null)`, eller andra former av samma tanke.
 //
 // Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.

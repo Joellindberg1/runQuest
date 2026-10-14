@@ -68,10 +68,12 @@ const statsTables = (): Record<string, Row[]> => ({
 
 describe('GET /api/auth/users (admin)', () => {
   it('token utan group_id ger tom lista, aldrig andra gruppers användare', async () => {
-    use(usersTables());
+    const db = use(usersTables());
     const res = await server.request('GET', '/api/auth/users', { token: adminToken(null) });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, data: [] });
+    // requireAdmin slår upp is_admin i users; ingen annan fråga mot users (listan) får nå databasen
+    expect(db.queries.filter((q) => q.table === 'users' && q.select !== 'is_admin')).toEqual([]);
   });
 
   it('token med group_id ger bara den egna gruppens användare, oförändrat', async () => {
@@ -107,10 +109,11 @@ describe('GET /api/auth/users-with-runs', () => {
 
 describe('GET /api/challenges/group-stats', () => {
   it('token utan group_id ger tom lista, aldrig andra gruppers användare', async () => {
-    use(statsTables());
+    const db = use(statsTables());
     const res = await server.request('GET', '/api/challenges/group-stats', { token: mintToken({ group_id: null }) });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, data: [] });
+    expect(db.queries.some((q) => q.table === 'users')).toBe(false);
   });
 
   it('token med group_id ger bara den egna gruppens statistik, sorterad som förut', async () => {
@@ -119,6 +122,21 @@ describe('GET /api/challenges/group-stats', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.map((s: any) => s.user_id)).toEqual(['u1', 'u2']);
     expect(res.body.data[0]).toMatchObject({ user_id: 'u1', wins: 2, losses: 1, total: 3, points: 0.667 });
+  });
+
+  it('läser bara den egna gruppens väntande utmaningar: en annan grupps rad flaggar ingen', async () => {
+    const tables = statsTables();
+    tables.challenges.push(
+      { id: 'c-mine', status: 'pending', challenger_id: 'u2', opponent_id: 'u1', group_id: G1 },
+      // Rad i grupp 2 med en grupp-1-användare som avsändare: får inte räknas
+      { id: 'c-foreign', status: 'pending', challenger_id: 'u1', opponent_id: 'u9', group_id: G2 },
+    );
+    const db = use(tables);
+    const res = await server.request('GET', '/api/challenges/group-stats', { token: mintToken({ group_id: G1 }) });
+    const flags = Object.fromEntries(res.body.data.map((s: any) => [s.user_id, s.has_pending_challenge]));
+    expect(flags).toEqual({ u1: false, u2: true });
+    const pendingQuery = db.queries.find((q) => q.table === 'challenges')!;
+    expect(pendingQuery.filters).toContainEqual({ op: 'eq', column: 'group_id', value: G1 });
   });
 });
 

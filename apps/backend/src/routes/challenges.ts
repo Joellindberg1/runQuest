@@ -642,6 +642,7 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
       supabase
         .from('challenges')
         .select('challenger_id, opponent_id')
+        .eq('group_id', groupId)
         .eq('status', 'pending'),
     ]);
 
