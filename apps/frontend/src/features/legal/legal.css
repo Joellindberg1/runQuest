@@ -3,8 +3,9 @@
    Fokusringen kommer från temafilens globala :focus-visible. */
 
 .rq-legal { min-height: 100dvh; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+/* position: relative är bärande: bakgrunden (TrackBackdrop) ligger först i .rq-legal och ritas före texten i trädordning (trackBackdrop.guards.test.ts). */
 .rq-legal__inner {
-  box-sizing: border-box; width: 100%; max-width: var(--rq-shell-narrow-max); margin-inline: auto;
+  position: relative; box-sizing: border-box; width: 100%; max-width: var(--rq-shell-narrow-max); margin-inline: auto;
   padding: 0 var(--rq-landing-pad) var(--rq-sp-40);
 }
 

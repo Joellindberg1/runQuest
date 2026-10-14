@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.6.2.2 — Bakgrundsbanan på alla sidor (2026-10-14)
+
+Intern version (ingen versionsbump, ingen What's new, ingen announce). RUN-144. Ägarbeslut 2026-10-13: designens bakgrund ska finnas på alla sidor i appen och på /legal; Rörelse-undantaget för bakgrundsbanan godkänt; deploy direkt när allt är godkänt.
+
+### Nytt
+- Bakgrunden från Claude Designs Web Prototype bakom alla inloggade sidor och /legal: guldrutnätet glider uppåt (40 px, 9 s per varv) och en oval bana nere till höger där tre löpare (guld, silver, brons) går varv (24/31/39 s), maskad och tonad som i designen. Mobilen får en mindre bana (480 px) i hörnet. Landningen är orörd.
+- Bakgrunden står still mot fönstret (fixed), ligger under innehållet (`aria-hidden`, `pointer-events: none`, inget z-index) och monteras en gång i skalet, så den hoppar inte vid sidbyte.
+- Minskad rörelse: allt står still, löparna utspridda på sina startplatser.
+- Prestanda: löparna är transform-animationer och rutnätet en translateY-keyframe (`rqTrackDrift`, `rqTrackLap1–3`) — noll layout per bildruta, inga extra ommålningar (CDP-mätt).
+
+### Kodhälsa
+- Vakttester låser geometrin och designvärdena mot designfilerna, lagerordningen (`position: relative` på `.rq-shell__main` och `.rq-legal__inner`), reducerad rörelse och placeringen per route.
+
+### Prod-steg
+1. PR release/v0.6.2.2 → main, grön CI, merge (= deploy). Ingen migration.
+2. Röktest: bakgrunden på /legal i prod, inga konsolfel.
+3. Tagg `v0.6.2.2` på merge-commiten.
+
+### Rollback
+- Kod: redeploya v0.6.2.1 i Railway och revert-PR. Inga dataformat ändrade, ingen migration.
+
 ## v0.6.2.1 — Fast header på landningen, typsnitten från egen server (2026-10-13)
 
 Intern version (ingen versionsbump, ingen What's new, ingen announce). Ägarbeslut 2026-10-13: headern följer med vid scroll, "Free while in beta" bort (inget prisbeslut finns), "snabba vinster" efter Lighthouse-mätningen. RUN-212.
