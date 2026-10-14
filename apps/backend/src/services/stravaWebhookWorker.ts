@@ -7,12 +7,15 @@
  * A handler is registered in stravaWebhook/handlers.ts under webhookHandlerKey(object_type, aspect_type) and is
  *   (ctx: WebhookHandlerContext) => Promise<WebhookHandlerResult>
  * It gets the event row, the user id stored at receipt (never look the athlete up again), `attempts` (failed attempts BEFORE this
- * try, an expired lease counted as one: pass it to decideAction), and the ports it may use: `strava` (token, activity, athlete)
- * and `runs` (findRun, earliestRunDate). It does its writes to `runs` itself. It gets NO event store: it never sets a status.
+ * try, an expired lease counted as one: pass it to decideAction), and the ports it may use: `strava` (token, a forced token renewal
+ * for a 401, activity, athlete) and `runs` (findRun, earliestRunDate, getConnection: the pause flag and the connection day, read
+ * before any Strava call; it throws on a database error and gives null for a user without a strava_tokens row). It does its
+ * writes to `runs` itself. It gets NO event store: it never sets a status.
  * It returns one of
- *   { status: 'done',  outcome, recalculateFrom, recalculateUnknown? }  the event is finished with this outcome (WEBHOOK_OUTCOMES);
- *        `recalculateFrom` is the earliest date ('YYYY-MM-DD') whose runs changed, or null; `recalculateUnknown` is decideAction's
- *        flag for "a run may have changed but I cannot tell the date".
+ *   { status: 'done',  outcome, recalculateFrom, recalculateUnknown?, importedRuns? }  the event is finished with this outcome
+ *        (WEBHOOK_OUTCOMES); `recalculateFrom` is the earliest date ('YYYY-MM-DD') whose runs changed, or null; `recalculateUnknown`
+ *        is decideAction's flag for "a run may have changed but I cannot tell the date"; `importedRuns` are the rows it inserted
+ *        (weather and event qualification, see "After an import" below).
  *   { status: 'retry', error }  a failed attempt; `error` is a short CODE (never a token, a body or a message).
  *   { status: 'wait', kind: 'rate_limit' | 'daily_limit' }  Strava said wait (429, or the budget): not a failure.
  * A handler that throws is a failed attempt with the error's code (never its message). Handlers must not call
