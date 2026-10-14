@@ -34,7 +34,12 @@
 //     Vakten är textbaserad: en källfil under apps/backend/src (utom stravaClient.ts, tester och test-utils) som både nämner `strava.com`
 //     och anropar `fetch(` fäller. Fångas INTE: en URL byggd utan texten strava.com i samma fil, eller en fetch-liknande funktion med annat namn.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|media|fonts|all]   (standard: all)
+//  8. Ratebudgetens krok är registrerad (RUN-234): `apps/backend/src/server.ts` måste anropa `registerStravaRateBudget()` på översta nivån.
+//     Utan anropet räknar ingen Strava-anrop och mjukgränsen slår aldrig till, och inget test märker det (server.ts går inte att importera i ett test).
+//     Vakten är textbaserad: raden måste börja i kolumn 0, så ett anrop inuti en callback (indenterat) räknas inte. Fångas INTE: ett anrop
+//     i ett blockkommentarsblock som råkar börja i kolumn 0, eller ett anrop som aldrig nås.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|rate-budget-hook|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -187,6 +192,25 @@ export function checkRawStravaFetch(files) {
   return errors;
 }
 
+const SERVER_FILE = 'apps/backend/src/server.ts';
+const RATE_BUDGET_HOOK_CALL = /^registerStravaRateBudget\s*\(\s*\)/m;
+
+/**
+ * Regel 8. `files`: [{ path, content }]. Backendens server.ts måste anropa registerStravaRateBudget() på översta nivån.
+ * Ett repo utan någon backendkälla (t.ex. ett provrepo) har inget att kontrollera.
+ */
+export function checkRateBudgetHook(files) {
+  const server = files.find(({ path }) => path === SERVER_FILE);
+  if (!server) {
+    return files.some(({ path }) => BACKEND_SOURCE.test(path))
+      ? [`${SERVER_FILE}: filen saknas, så ratebudgetens krok registreras aldrig`]
+      : [];
+  }
+  return RATE_BUDGET_HOOK_CALL.test(server.content)
+    ? []
+    : [`${SERVER_FILE}: saknar ett anrop av registerStravaRateBudget() på översta nivån — utan det räknas inga Strava-anrop och mjukgränsen slår aldrig till (ADR 010 beslut 9)`];
+}
+
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -306,8 +330,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'rate-budget-hook', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | rate-budget-hook | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -322,11 +346,15 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'rate-budget-hook') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
       summary.push('inga Strava-anrop förbi stravaFetch');
+    }
+    if (mode === 'all' || mode === 'rate-budget-hook') {
+      errors.push(...checkRateBudgetHook(files));
+      summary.push('ratebudgetens krok registreras i server.ts');
     }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));
