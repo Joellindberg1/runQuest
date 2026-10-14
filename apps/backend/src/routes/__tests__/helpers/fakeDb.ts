@@ -123,6 +123,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
         const cols = mutation.onConflict ? mutation.onConflict.split(',').map((c) => c.trim()) : options.primaryKeys?.[table] ?? ['id'];
         const sameKey = (a: Row, b: Row) => cols.every((c) => a[c] !== undefined && a[c] === b[c]);
         const inserted: Row[] = [];
+        const written: Row[] = []; // insatta + uppdaterade, i ordning
         for (const r of raw) {
           const existing = (tables[table] ?? []).find((e) => sameKey(e, r));
           // Unikt index: en ANNAN rad än den som upsertas med samma icke-null nyckel → 23505, som i Postgres.
@@ -144,14 +145,19 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
             }
           }
           if (existing) {
-            if (!mutation.ignoreDuplicates) Object.assign(existing, r);
+            if (!mutation.ignoreDuplicates) { Object.assign(existing, r); written.push(existing); }
             continue;
           }
           const row = options.numericIds?.includes(table) && r.id === undefined ? { ...r, id: nextNumericId(table) } : r;
           tables[table] = [...(tables[table] ?? []), row];
           inserted.push(row);
+          written.push(row);
         }
-        return { data: single ? inserted[0] ?? null : inserted, error: null, count: null };
+        // PostgREST: utan .select() svarar en upsert return=minimal (data null). Med .select() kommer bara de rader som
+        // skrevs: med ignoreDuplicates de nyinsatta (ON CONFLICT DO NOTHING RETURNING), annars även de uppdaterade.
+        if (q.select === null) return { data: null, error: null, count: null };
+        const returned = mutation.ignoreDuplicates ? inserted : written;
+        return { data: single ? returned[0] ?? null : returned, error: null, count: null };
       }
 
       if (mutation?.kind === 'insert') {

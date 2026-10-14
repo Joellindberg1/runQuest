@@ -24,9 +24,18 @@ export const STRAVA_LOOKBACK_BUFFER_DAYS = 7;
  * How often the scheduler syncs Strava, in minutes. The name carries the unit and the scheduler builds its cron expression from it.
  * RUN-265 (S29) moves to hours: rename this to STRAVA_POLL_INTERVAL_HOURS = 12, change stravaPollCron below
  * to run at minute 0 of every 12th hour, redo the next-sync estimate in scheduler/stravaSync.ts, and update the texts that say
- * "every 30 minutes" (the privacy text, which needs a version bump, and playbookFacts.ts).
+ * "every 30 minutes" (playbookFacts.ts and the landing text). The privacy text already says "at least every 12 hours" (true before and
+ * after) and is checked against this constant in rules.test.ts.
  */
 export const STRAVA_POLL_INTERVAL_MINUTES = 30;
+
+/**
+ * How long the journal of Strava webhook events (strava_webhook_events) keeps a row, in days (ADR 010 decision 11): handled events
+ * (`done`) and events that failed (`dead`). The privacy text (retention section) is built from these, and the nightly retention job
+ * for the journal must use the same values.
+ */
+export const WEBHOOK_RETENTION_DONE_DAYS = 30;
+export const WEBHOOK_RETENTION_FAILED_DAYS = 90;
 
 /**
  * The cron expression the scheduler runs on: every `minutes` minutes (default STRAVA_POLL_INTERVAL_MINUTES). The scheduler takes its

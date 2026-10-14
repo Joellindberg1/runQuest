@@ -46,3 +46,15 @@ export const LEASE_SECONDS = 300;
 
 /** Så många händelser (för en ägare) tar ett claim åt gången (p_max). */
 export const WEBHOOK_CLAIM_BATCH = 25;
+
+/** Routens sökväg: ENDA platsen. app.ts monterar på den, prenumerationsskriptets callback-url slutar på den (testat), och loggen visar bara den (aldrig query-strängen). */
+export const STRAVA_WEBHOOK_PATH = '/api/strava/webhook';
+
+/** Brödtextens gräns på webhook-rutten (ADR 010 beslut 3.2). Strava skickar några hundra byte; resten är inte Strava. */
+export const WEBHOOK_BODY_LIMIT = '10kb';
+
+/** Så många obearbetade rader (pending + processing) en ägare får ha i kön; därefter sparas inga fler (ADR 010 beslut 3.4). */
+export const WEBHOOK_MAX_UNPROCESSED_PER_OWNER = 200;
+
+/** Sista tillåtna event_time (epoch-sekunder): 9999-12-31T23:59:59Z. Därefter skriver toISOString() ett sexsiffrigt år som Postgres avvisar (22009). */
+export const WEBHOOK_MAX_EVENT_TIME = 253402300799;

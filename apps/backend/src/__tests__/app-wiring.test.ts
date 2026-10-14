@@ -3,7 +3,7 @@
  * oautentiserad förfrågan med 401/400/403 — aldrig appens 404 "Route not found".
  * Utökas varje gång en router läggs i app.ts (ADR 007: /api/leaderboard, /api/config; nya paths under challenges/events/runs; ADR 008: /api/news; ADR 009: /api/badges).
  */
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 
 process.env.JWT_SECRET = 'test-jwt-secret-for-integration-tests';
 process.env.SUPABASE_URL = 'http://localhost:54321';
@@ -68,6 +68,46 @@ describe('createApp wiring', () => {
       expect(res.body).toEqual({ error: expect.any(String) });
       expect(res.body.error).not.toBe('Route not found');
     }
+  });
+
+  // ADR 010 beslut 2: Stravas webhook är publik och monterad före /api/strava
+  describe('strava webhook', () => {
+    const webhookEnv = () => {
+      process.env.STRAVA_WEBHOOK_VERIFY_TOKEN = 'wiring-verify-token-0123456789abcdef';
+      delete process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
+    };
+    afterEach(() => { delete process.env.STRAVA_WEBHOOK_VERIFY_TOKEN; });
+
+    it('webhook route needs no JWT', async () => {
+      webhookEnv();
+      const verify = await server.request('GET', '/api/strava/webhook?hub.mode=subscribe&hub.verify_token=wiring-verify-token-0123456789abcdef&hub.challenge=wired');
+      expect(verify.status).toBe(200);
+      expect(verify.body).toEqual({ 'hub.challenge': 'wired' });
+      // POST utan token når handlern (prenumerations-id:t är inte satt: 200 och släpps), inte JWT-skyddet
+      const event = await server.request('POST', '/api/strava/webhook', { body: { object_type: 'activity' } });
+      expect(event.status).toBe(200);
+    });
+
+    it('webhook route is mounted before the global json parser with its own 10 kB limit', async () => {
+      webhookEnv();
+      // 11 kB passerar den globala parserns 100 kB-gräns: bara routerns egen gräns kan ge 413
+      const res = await server.request('POST', '/api/strava/webhook', { body: { object_type: 'activity', filler: 'x'.repeat(11 * 1024) } });
+      expect(res.status).toBe(413);
+      expect(res.body).toEqual({ error: expect.any(String) });
+    });
+
+    it('jwt-protected strava routes still require a token', async () => {
+      for (const [method, path] of [['GET', '/api/strava/status'], ['POST', '/api/strava/callback'], ['POST', '/api/strava/sync']] as const) {
+        const res = await server.request(method, path);
+        expect({ path, status: res.status }).toEqual({ path, status: 401 });
+      }
+    });
+
+    it('api info lists the webhook route', async () => {
+      const res = await server.request('GET', '/api');
+      expect(res.status).toBe(200);
+      expect(res.body.endpoints.strava.webhook).toBe('/api/strava/webhook');
+    });
   });
 
   it('okänd route ger appens 404', async () => {

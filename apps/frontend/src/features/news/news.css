@@ -138,4 +138,8 @@
 .rq-news-pop__foot { display: block; padding: var(--rq-sp-10) var(--rq-sp-14); text-align: center; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3); }
 .rq-news-pop__foot:hover { color: var(--rq-gold-text); }
 .rq-news-pop__note { margin: 0; padding: var(--rq-sp-16) var(--rq-sp-14); text-align: center; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+/* Filtrerat tomt fönster (frame N2): rubrik + en rad förklaring, centrerat; undantag från regel 9. Bara befintliga tokens. */
+.rq-news-pop__empty { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-8); padding: var(--rq-sp-24) var(--rq-sp-16) var(--rq-sp-16); text-align: center; }
+.rq-news-pop__empty-title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+.rq-news-pop__empty-text { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 .rq-news-pop__state { padding: var(--rq-sp-8) var(--rq-sp-14) var(--rq-sp-12); }
