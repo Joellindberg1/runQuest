@@ -514,26 +514,43 @@ describe('texterna ur typ + payload + vem som tittar', () => {
   });
 
   describe('rank_passed och challenge_accepted (frame N3)', () => {
-    it('describeNews: rank_passed ur passerarens, den passerades och en utomståendes perspektiv, per mått', () => {
-      // Den passerade (jag): "Passed you".
-      expect(describeNews(rankPassed(1), ctx())).toEqual({ kind: 'Passed you', text: 'Karl passed you on the leaderboard — now #2' });
-      expect(describeNews(rankPassed(1, {}, { measure: 'challenge_points', passer_rank: 1 }), ctx())).toEqual({
-        kind: 'Passed you', text: 'Karl passed you on the challenge standings — now #1',
+    it('describeNews: rank_passed ur den passerades, passerarens och en utomståendes perspektiv, per mått — placeringen ligger i brickan, inte i texten', () => {
+      // Den passerade (jag): brickan visar MIN nya rang (passed_rank), aldrig passerarens.
+      expect(describeNews(rankPassed(1), ctx())).toEqual({
+        kind: 'Passed you', text: 'Karl passed you on the leaderboard', placement: { label: "You're #3", spoken: 'You are now number 3' },
       });
-      // Passeraren (jag): "You passed".
-      expect(describeNews(rankPassed(2, { actor: ME, target: KARL }), ctx())).toEqual({ kind: 'You passed', text: 'You passed Karl on the leaderboard — now #2' });
+      expect(describeNews(rankPassed(1, {}, { measure: 'challenge_points', passer_rank: 1, passed_rank: 2 }), ctx())).toEqual({
+        kind: 'Passed you', text: 'Karl passed you on the challenge standings', placement: { label: "You're #2", spoken: 'You are now number 2' },
+      });
+      // Passeraren (jag): brickan visar min rang efter passeringen (passer_rank).
+      expect(describeNews(rankPassed(2, { actor: ME, target: KARL }), ctx())).toEqual({
+        kind: 'You passed', text: 'You passed Karl on the leaderboard', placement: { label: "You're #2", spoken: 'You are now number 2' },
+      });
       expect(describeNews(rankPassed(2, { actor: ME, target: NICK }, { measure: 'challenge_points', passer_rank: 3 }), ctx())).toEqual({
-        kind: 'You passed', text: 'You passed Nicklas on the challenge standings — now #3',
+        kind: 'You passed', text: 'You passed Nicklas on the challenge standings', placement: { label: "You're #3", spoken: 'You are now number 3' },
       });
-      // En utomstående: "Rank passed".
+      // En utomstående: "Rank passed", brickan bär passerarens namn och rang.
       expect(describeNews(rankPassed(3, { actor: ADAM, target: NICK }, { passer_rank: 4 }), ctx())).toEqual({
-        kind: 'Rank passed', text: 'Adam passed Nicklas on the leaderboard — now #4',
+        kind: 'Rank passed', text: 'Adam passed Nicklas on the leaderboard', placement: { label: 'Adam #4', spoken: 'Adam is now number 4' },
       });
       expect(describeNews(rankPassed(3, { actor: ADAM, target: NICK }, { measure: 'challenge_points', passer_rank: 4 }), ctx()).text)
-        .toBe('Adam passed Nicklas on the challenge standings — now #4');
-      // En raderad användare är "a former member".
-      expect(describeNews(rankPassed(4, { actor: null }), ctx()).text).toBe('A former member passed you on the leaderboard — now #2');
-      expect(describeNews(rankPassed(4, { actor: ADAM, target: null }), ctx()).text).toBe('Adam passed a former member on the leaderboard — now #2');
+        .toBe('Adam passed Nicklas on the challenge standings');
+      // En raderad användare är "a former member"; en raderad passerare bland utomstående ger en bricka utan namn.
+      expect(describeNews(rankPassed(4, { actor: null }), ctx()).text).toBe('A former member passed you on the leaderboard');
+      expect(describeNews(rankPassed(4, { actor: ADAM, target: null }), ctx()).text).toBe('Adam passed a former member on the leaderboard');
+      expect(describeNews(rankPassed(4, { actor: null, target: NICK }, { passer_rank: 5 }), ctx())).toEqual({
+        kind: 'Rank passed', text: 'A former member passed Nicklas on the leaderboard', placement: { label: '#5', spoken: 'A former member is now number 5' },
+      });
+    });
+
+    it('placeringsbrickan utelämnas när rangen saknas eller är ogiltig (0, negativ, decimal, sträng, NaN)', () => {
+      expect(describeNews(rankPassed(1), ctx()).placement).toBeDefined();
+      for (const invalid of [0, -1, 2.5, '2', Number.NaN, null, undefined]) {
+        // Läsaren är den passerade: passed_rank räknas. Läsaren är passeraren eller utomstående: passer_rank räknas.
+        expect(describeNews(rankPassed(1, {}, { passed_rank: invalid as never }), ctx()).placement, `target ${String(invalid)}`).toBeUndefined();
+        expect(describeNews(rankPassed(2, { actor: ME, target: KARL }, { passer_rank: invalid as never }), ctx()).placement, `actor ${String(invalid)}`).toBeUndefined();
+        expect(describeNews(rankPassed(3, { actor: ADAM, target: NICK }, { passer_rank: invalid as never }), ctx()).placement, `other ${String(invalid)}`).toBeUndefined();
+      }
     });
 
     it('describeNews: challenge_accepted för utmanaren och för andra', () => {
@@ -560,8 +577,10 @@ describe('texterna ur typ + payload + vem som tittar', () => {
     });
 
     it('raden: kategori rank med trophy, challenge_accepted behåller Challenges (swords)', () => {
-      expect(buildNewsRow(rankPassed(1), ctx())).toMatchObject({ category: 'rank', tone: 'rank', icon: 'trophy', emblem: null, kind: 'Passed you' });
-      expect(buildNewsRow(challengeAccepted(2), ctx())).toMatchObject({ category: 'challenge', tone: 'challenge', icon: 'swords', kind: 'Challenge accepted' });
+      expect(buildNewsRow(rankPassed(1), ctx())).toMatchObject({
+        category: 'rank', tone: 'rank', icon: 'trophy', emblem: null, kind: 'Passed you', placement: { label: "You're #3", spoken: 'You are now number 3' },
+      });
+      expect(buildNewsRow(challengeAccepted(2), ctx())).toMatchObject({ category: 'challenge', tone: 'challenge', icon: 'swords', kind: 'Challenge accepted', placement: null });
       expect(CATEGORY_ICON.rank).toBe('trophy');
     });
 
