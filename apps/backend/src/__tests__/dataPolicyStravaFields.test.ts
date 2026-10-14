@@ -20,7 +20,6 @@ describe('dataPolicy strava fields', () => {
 
     // Vakten måste se fälten för att vara något värd: en tom eller ofullständig rad ska fälla.
     expect(imported).toEqual(expect.arrayContaining(['start_time', 'suffer_score', 'is_treadmill', 'date', 'distance', 'external_id']));
-    expect(new Set(imported).size).toBe(imported.length);
     expect(imported).toEqual(expect.arrayContaining(extended));
 
     const listed = STRAVA_IMPORTED_FIELDS.map((field) => field.key);

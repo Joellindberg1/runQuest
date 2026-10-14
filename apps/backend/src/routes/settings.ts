@@ -13,6 +13,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logger } from '../utils/logger.js';
+import { USER_SETTINGS_TABLE, readStoredSettings } from '../services/userSettings.js';
 import {
   SETTING_DEFINITIONS,
   customisedKeys,
@@ -22,7 +23,7 @@ import {
   type SettingsApiResponse,
 } from '@runquest/shared';
 
-const TABLE = 'user_settings';
+const TABLE = USER_SETTINGS_TABLE;
 
 /**
  * Reglage trycks i följd, så gränsen ska aldrig märkas vid riktig användning: 60 skrivningar per minut och IP
@@ -31,17 +32,7 @@ const TABLE = 'user_settings';
 const PUT_WINDOW_MS = 60 * 1000;
 const PUT_MAX_PER_WINDOW = 60;
 
-type StoredRow = { key: string; value: unknown };
-
-/** Anroparens egna rader som `{ nyckel: värde }`. fromEntries definierar egna fält, så en nyckel som `__proto__` ändrar aldrig prototypen. */
-async function readStored(userId: string): Promise<Record<string, unknown>> {
-  const { data, error } = await getSupabaseClient()
-    .from(TABLE)
-    .select('key, value')
-    .eq('user_id', userId);
-  if (error) throw error;
-  return Object.fromEntries(((data ?? []) as StoredRow[]).map((row) => [row.key, row.value]));
-}
+const readStored = (userId: string): Promise<Record<string, unknown>> => readStoredSettings(getSupabaseClient(), userId);
 
 /**
  * Routern byggs av en fabrik så att ett test kan ge den ett annat register (en gruppnyckel finns inte i det riktiga).

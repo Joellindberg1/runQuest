@@ -6,6 +6,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { ACTIVITY_LOG_TABLE } from '../services/activityLog.js';
+import { isRowUnread, loadUnreadState, type Reader } from '../services/newsUnread.js';
 import {
   ACTIVITY_TYPES,
   isActivityType,
@@ -31,8 +32,6 @@ function parsePositiveInt(raw: unknown): number | null {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
-type Reader = { news_last_seen_id: number | null; created_at: string | null };
-
 async function readReader(userId: string): Promise<Reader | null> {
   const { data, error } = await getSupabaseClient()
     .from('users')
@@ -49,44 +48,6 @@ async function readReader(userId: string): Promise<Reader | null> {
     news_last_seen_id: data.news_last_seen_id == null ? null : Number(data.news_last_seen_id),
     created_at: data.created_at ?? null,
   };
-}
-
-/**
- * Oläst-predikatet (ADR 008 beslut 8) i en rad: id över vattenmärket, ej backfill, skapad efter
- * användaren (nya medlemmar ärver inte gamla nyheter) och inte användarens egen handling.
- */
-function isUnread(
-  row: { id: number; is_backfill: boolean; created_at: string; actor_user_id: string | null },
-  userId: string,
-  reader: Reader,
-): boolean {
-  if (row.is_backfill) return false;
-  if (row.id <= (reader.news_last_seen_id ?? 0)) return false;
-  if (row.actor_user_id === userId) return false;
-  if (reader.created_at && !(Date.parse(row.created_at) > Date.parse(reader.created_at))) return false;
-  return true;
-}
-
-/**
- * Antal olästa i gruppen över ALLA typer — samma predikat som isUnread, räknat i databasen:
- * kandidater minus användarens egna handlingar (actor = U; rader utan aktör räknas alltså som olästa).
- */
-async function countUnread(groupId: string, userId: string, reader: Reader): Promise<number> {
-  const supabase = getSupabaseClient();
-  const candidates = () => {
-    let q = supabase
-      .from(ACTIVITY_LOG_TABLE)
-      .select('id', { count: 'exact', head: true })
-      .eq('group_id', groupId)
-      .eq('is_backfill', false)
-      .gt('id', reader.news_last_seen_id ?? 0);
-    if (reader.created_at) q = q.gt('created_at', reader.created_at);
-    return q;
-  };
-  const [all, own] = await Promise.all([candidates(), candidates().eq('actor_user_id', userId)]);
-  if (all.error) throw all.error;
-  if (own.error) throw own.error;
-  return Math.max(0, (all.count ?? 0) - (own.count ?? 0));
 }
 
 async function fetchUserRefs(ids: string[]): Promise<Map<string, NewsUserRef>> {
@@ -166,7 +127,10 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     if (after !== null) query = query.gt('id', after);
     if (types) query = query.in('type', types);
 
-    const [{ data: rows, error }, unreadCount] = await Promise.all([query, countUnread(groupId, userId, reader)]);
+    const [{ data: rows, error }, { viewer, unreadCount }] = await Promise.all([
+      query,
+      loadUnreadState(groupId, userId, reader),
+    ]);
     if (error) throw error;
 
     const all = rows ?? [];
@@ -185,7 +149,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       target: r.target_user_id ? (refs.get(r.target_user_id) ?? null) : null,
       payload: r.payload,
       is_backfill: r.is_backfill,
-      is_unread: isUnread({ ...r, id: Number(r.id) }, userId, reader),
+      is_unread: isRowUnread(r, viewer),
     })) as NewsItem[];
 
     const body: NewsApiResponse = {
@@ -257,7 +221,7 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     const refreshed: Reader = { ...reader, news_last_seen_id: current };
     const result: NewsSeenApiResponse = {
       success: true,
-      data: { last_seen_id: current, unread_count: await countUnread(groupId, userId, refreshed) },
+      data: { last_seen_id: current, unread_count: (await loadUnreadState(groupId, userId, refreshed)).unreadCount },
     };
     res.json(result);
   } catch (error) {
