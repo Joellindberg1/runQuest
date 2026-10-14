@@ -259,7 +259,7 @@ describe('Pack News — filter (?type=)', () => {
     expect(filterButton("Levels")).toHaveAttribute("aria-pressed", "false");
     expect(filterButton("Badges").querySelector("svg path")?.getAttribute("d")).toBe(RQ_ICON_PATHS.shield[0]);
     const labels = [...screen.getByRole("group", { name: "Filter" }).querySelectorAll(".rq-news-filter__name")].map((el) => el.textContent);
-    expect(labels).toEqual(NEWS_FILTERS.map((filter) => filter.label));
+    expect(labels).toEqual(['Titles', 'Challenges', 'Ranks', 'Events', 'Levels', 'Badges', 'Streaks']);
     expect(filterButton("Badges").querySelector(".rq-news-filter__count")?.firstChild?.textContent).toBe("1");
 
     fireEvent.click(filterButton("Levels"));

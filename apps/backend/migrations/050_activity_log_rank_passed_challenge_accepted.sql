@@ -32,7 +32,7 @@
 -- de nya typerna måste bort först, annars avvisar den gamla constrainten dem (destruktivt, ask):
 --   delete from public.activity_log where type in ('rank_passed', 'challenge_accepted');
 --   alter table public.activity_log drop constraint if exists activity_log_type_check;
---   alter table public.activity_log add constraint activity_log_type_check check (type in (<041:s 13 värden>));
+--   alter table public.activity_log add constraint activity_log_type_check check (type in ('title_unlocked','title_taken','title_revoked','challenge_received','challenge_won','challenge_draw','level_up','run_milestone','streak_broken','event_open','event_closed','badge_earned','release_published'));
 
 set local lock_timeout = '5s';
 

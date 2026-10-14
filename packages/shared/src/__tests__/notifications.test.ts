@@ -289,7 +289,7 @@ describe('classifyNotification', () => {
     );
   });
 
-  it('varje ActivityType är klassificerad (kontraktstest: en ny typ utan klassificering fäller testet)', () => {
+  it('varje ActivityType är fortfarande klassificerad (kontraktstest)', () => {
     // Betraktaren är en utomstående: en känd typ får då aldrig ge null. Typsystemet fäller bygget först
     // (Record<ActivityType, …> i notifications.ts); det här testet fäller det om någon kringgår typen.
     for (const type of ACTIVITY_TYPES satisfies readonly ActivityType[]) {

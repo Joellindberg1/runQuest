@@ -522,7 +522,7 @@ describe('challenge_accepted', () => {
 });
 
 describe('payloadbyggarna läcker ingen PII (e-post, hashar, tokens, Strava-id)', () => {
-  it('byggarnas payload bär varken e-post, hash, token eller Strava-id (extra kolumner når aldrig payloaden)', () => {
+  it('byggarnas payload bär varken e-post, hash, token eller Strava-id', () => {
     const dirtyChallenge = {
       id: 'c1', group_id: 'g1', tier: 'minor', metric: 'km', duration_days: 3, challenger_id: 'a', opponent_id: 'b',
       outcome: 'challenger_wins', challenger_final_value: 1, opponent_final_value: 0,
