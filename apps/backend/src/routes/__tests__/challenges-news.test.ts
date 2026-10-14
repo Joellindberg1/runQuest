@@ -2,8 +2,10 @@
  * Pack News-skrivpunkter i routes/challenges.ts (ADR 008 beslut 5):
  *  - POST /send → challenge_received
  *  - PUT /:id/respond (decline) och PUT /:id/withdraw → raden återkallas (retract)
+ *  - PUT /:id/respond (accept) → challenge_accepted (ADR 011 beslut 7)
  */
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import { inspect } from 'node:util';
 
 process.env.JWT_SECRET = 'test-jwt-secret-for-integration-tests';
 process.env.SUPABASE_URL = 'http://localhost:54321';
@@ -147,5 +149,135 @@ describe('återkallad/avböjd utmaning → challenge_received återkallas', () =
     });
     expect(res.status).toBe(200);
     expect(tables.activity_log).toHaveLength(2);
+  });
+});
+
+// ─── accept → challenge_accepted ─────────────────────────────────────────────
+
+const acceptTables = (): Record<string, Row[]> => ({
+  activity_log: [{ id: 1, dedupe_key: 'challenge_received:c1', type: 'challenge_received' }],
+  challenges: [{
+    id: 'c1', status: 'pending', group_id: 'g1', tier: 'major', metric: 'km', duration_days: 5,
+    challenger_id: 'a', opponent_id: 'b',
+  }],
+  users: [{ id: 'a', challenge_active: true }, { id: 'b', challenge_active: true }],
+});
+
+const respond = (action: 'accept' | 'decline', userId = 'b') =>
+  server.request('PUT', '/api/challenges/c1/respond', { token: mintToken({ user_id: userId, group_id: 'g1' }), body: { action } });
+
+const acceptedRows = (tables: Record<string, Row[]>) => tables.activity_log.filter((r) => r.type === 'challenge_accepted');
+
+describe('PUT /api/challenges/:id/respond (accept) → challenge_accepted', () => {
+  it('accept skriver exakt en challenge_accepted med utmanaren som mål och motståndaren som aktör', async () => {
+    const tables = acceptTables();
+    use(tables);
+    const res = await respond('accept');
+
+    expect(res.status).toBe(200);
+    const rows = acceptedRows(tables);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      group_id: 'g1', type: 'challenge_accepted', actor_user_id: 'b', target_user_id: 'a',
+      is_backfill: false, dedupe_key: 'challenge_accepted:c1',
+    });
+    // Utmaningens egen challenge_received lämnas orörd.
+    expect(tables.activity_log.some((r) => r.dedupe_key === 'challenge_received:c1')).toBe(true);
+  });
+
+  it('payloaden bär challenge_id, tier, metric, duration_days och start_date', async () => {
+    const tables = acceptTables();
+    use(tables);
+    const res = await respond('accept');
+
+    const storedStart = tables.challenges[0].start_date;
+    expect(storedStart).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    // Samma värde som routen lagrar på utmaningen och svarar med — aldrig ett separat uträknat datum.
+    expect(res.body.data.start_date).toBe(storedStart);
+    expect(acceptedRows(tables)[0].payload).toEqual({
+      challenge_id: 'c1', tier: 'major', metric: 'km', duration_days: 5, start_date: storedStart,
+    });
+  });
+
+  it('accept två gånger ger en rad (dedupe)', async () => {
+    const tables = acceptTables();
+    use(tables);
+    expect((await respond('accept')).status).toBe(200);
+
+    // Väg 1: den andra accepten når aldrig loggningen — utmaningen är redan active, så uppslaget (status = pending) ger 404.
+    const again = await respond('accept');
+    expect(again.status).toBe(404);
+    expect(acceptedRows(tables)).toHaveLength(1);
+
+    // Väg 2: når en accept loggningen igen (utmaningen åter pending, t.ex. en omkörning efter ett race) ger
+    // dedupe_key challenge_accepted:<id> fortfarande bara en rad.
+    tables.challenges[0].status = 'pending';
+    expect((await respond('accept')).status).toBe(200);
+    expect(acceptedRows(tables)).toHaveLength(1);
+  });
+
+  it('decline skriver ingen challenge_accepted', async () => {
+    const tables = acceptTables();
+    use(tables);
+    const res = await respond('decline');
+    expect(res.status).toBe(200);
+    expect(acceptedRows(tables)).toHaveLength(0);
+  });
+
+  it('reverterad aktivering (flaggfel) skriver ingen rad', async () => {
+    const tables = acceptTables();
+    const db = createFakeDb(tables, {
+      numericIds: ['activity_log'],
+      failWhen: (q) => (q.table === 'users' && q.mutation === 'update' ? { message: 'flag update failed' } : null),
+    });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    const res = await respond('accept');
+
+    expect(res.status).toBe(500);
+    expect(tables.challenges[0].status).toBe('pending');
+    expect(acceptedRows(tables)).toHaveLength(0);
+  });
+
+  it('ett fel i loggningen får inte fälla accept', async () => {
+    const tables = acceptTables();
+    const db = createFakeDb(tables, {
+      numericIds: ['activity_log'],
+      errors: {
+        activity_log: {
+          code: '23514',
+          message: 'violates check constraint "activity_log_type_check"',
+          details: 'Failing row contains (c1, major, km, 5, SECRET-PAYLOAD-VALUE)',
+        } as { message: string },
+      },
+    });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    const spies = (['log', 'info', 'warn', 'error'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    try {
+      const res = await respond('accept');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(tables.challenges[0].status).toBe('active');
+      expect(tables.users.every((u) => u.challenge_active === true)).toBe(true);
+
+      const logged = spies.flatMap((s) => s.mock.calls)
+        .map((args: unknown[]) => args.map((a) => (typeof a === 'string' ? a : inspect(a, { depth: 6 }))).join(' '))
+        .join('\n');
+      expect(logged).toContain('23514');
+      expect(logged).not.toContain('SECRET-PAYLOAD-VALUE');
+      expect(logged).not.toContain('activity_log_type_check');
+    } finally {
+      spies.forEach((s) => s.mockRestore());
+    }
+  });
+
+  it('utmaning utan group_id hoppar över loggningen utan att fälla accept', async () => {
+    const tables = acceptTables();
+    delete tables.challenges[0].group_id;
+    use(tables);
+    const res = await respond('accept');
+
+    expect(res.status).toBe(200);
+    expect(tables.challenges[0].status).toBe('active');
+    expect(acceptedRows(tables)).toHaveLength(0);
   });
 });

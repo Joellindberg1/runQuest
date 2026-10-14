@@ -11,7 +11,7 @@ import { addDays } from '@runquest/shared';
 import { tomorrowStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
-import { recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
+import { recordChallengeAccepted, recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
 import {
   CHALLENGE_HISTORY_COLUMNS,
   computeRecord,
@@ -390,6 +390,9 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       if (revertError) logger.error(`❌ Could not revert activation of challenge ${id}:`, revertError);
       res.status(500).json({ error: 'Failed to accept challenge' }); return;
     }
+
+    // Efter lyckad aktivering + flagga (aldrig på revert-grenen). Icke-kastande: ett loggfel fäller aldrig accepten.
+    await recordChallengeAccepted(challenge, startDate);
 
     logger.info(`✅ Challenge ${id} accepted. Runs ${startDate} → ${endDate}`);
 

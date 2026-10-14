@@ -13,6 +13,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import {
   activityKeys,
+  buildChallengeAcceptedDraft,
   buildChallengeReceivedDraft,
   buildChallengeSettledDraft,
   buildLevelUpDrafts,
@@ -46,7 +47,8 @@ export async function recordActivities(entries: ReadonlyArray<ActivityDraft>): P
       .from(ACTIVITY_LOG_TABLE)
       .upsert(entries.map(toActivityRow), { onConflict: 'dedupe_key', ignoreDuplicates: true });
     if (error) {
-      logger.error('❌ [ActivityLog] Failed to write activity rows:', { error, types: entries.map((e) => e.type) });
+      // Bara koden: PostgREST-felets details/message kan innehålla hela den felande raden (payload).
+      logger.error('❌ [ActivityLog] Failed to write activity rows:', { code: error.code ?? null, types: entries.map((e) => e.type) });
     }
   } catch (e) {
     logger.error('❌ [ActivityLog] Unexpected error writing activity rows:', e);
@@ -75,6 +77,24 @@ export async function recordChallengeReceived(challenge: ChallengeActivityRow, o
     await recordActivity(buildChallengeReceivedDraft(challenge, occurredAt));
   } catch (e) {
     logger.error('❌ [ActivityLog] recordChallengeReceived failed:', e);
+  }
+}
+
+/**
+ * challenge_accepted — anropas efter att aktiveringen lyckats OCH challenge_active satts i PUT /:id/respond.
+ * `startDate` är exakt det värde routen lagrade på utmaningen. Saknas group_id hoppas raden över (ingen rad utan grupp).
+ */
+export async function recordChallengeAccepted(
+  challenge: ChallengeActivityRow, startDate: string, occurredAt: string = new Date().toISOString(),
+): Promise<void> {
+  try {
+    if (!challenge.group_id) {
+      logger.error('❌ [ActivityLog] recordChallengeAccepted skipped:', { code: 'missing_group_id', challengeId: challenge.id });
+      return;
+    }
+    await recordActivity(buildChallengeAcceptedDraft({ ...challenge, start_date: startDate }, occurredAt));
+  } catch (e) {
+    logger.error('❌ [ActivityLog] recordChallengeAccepted failed:', { code: (e as { code?: string } | null)?.code ?? null, challengeId: challenge.id });
   }
 }
 
