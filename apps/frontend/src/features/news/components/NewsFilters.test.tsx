@@ -43,7 +43,7 @@ function renderFilters(counts = countByFilter(FEED())) {
 const chipRow = () => screen.getByRole('group', { name: 'Filter' });
 
 describe('NewsFilters — Ranks', () => {
-  it('renderar sju chips med Ranks efter Events och räknare per chip', () => {
+  it('renderar sju chips med Ranks efter Challenges och räknare per chip', () => {
     // Ordningen är modellens (NEWS_FILTERS): Ranks ligger efter Challenges och före Events, som frame N3 ritar den. Ingen egen lista i komponenten.
     renderFilters();
     const chips = within(chipRow()).getAllByRole('button');

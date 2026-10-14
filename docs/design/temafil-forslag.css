@@ -1048,7 +1048,7 @@
 
   --rq-tier-minor-fg:     #1d4ed8;
   --rq-tier-minor-stroke: rgb(29 78 216 / .80);
-  --rq-news-rank-rgb:     3 105 161;                    /* Ranks (1.28): mörkare blått, ink 5.9:1 mot vitt kort; ljust läge är ännu inte granskat */
+  --rq-news-rank-rgb:     3 70 107;                     /* Ranks (1.28): kanten med alfa .6 ≥ 3:1 mot vitt kort (3.43) och valt chip (3.09), samma nyans som ink; ljust läge är ännu inte granskat */
   --rq-news-rank-ink:     #0369a1;
   --rq-tier-major-fg:     #c2410c;
   --rq-tier-major-stroke: rgb(194 65 12 / .85);
