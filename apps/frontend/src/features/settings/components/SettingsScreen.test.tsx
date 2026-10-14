@@ -115,17 +115,49 @@ describe('Settings — Strava', () => {
     expect(await within(strava()).findByRole('alert', { name: 'Strava error' })).toHaveTextContent('Strava authorisation failed');
   });
 
-  it('utgången koppling: "Reconnect Strava" rensar de gamla tokens innan ett nytt fönster öppnas', async () => {
-    handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: true } });
-    const disconnect = vi.fn().mockResolvedValue({ success: true });
-    handlers.disconnectStrava = disconnect;
-    const open = vi.fn().mockReturnValue({});
-    window.open = open;
-    renderSettings();
-    expect(await screen.findByText('Expired')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
-    await waitFor(() => expect(open).toHaveBeenCalled());
-    expect(disconnect).toHaveBeenCalledTimes(1);
+  describe('utgången koppling', () => {
+    let disconnect: ReturnType<typeof vi.fn>;
+    let open: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: true } });
+      // Disconnect raderar alla Stravarundor och kopplar ur hos Strava: Reconnect får aldrig röra den.
+      disconnect = vi.fn().mockResolvedValue({ success: true });
+      handlers.disconnectStrava = disconnect;
+      open = vi.fn().mockReturnValue({});
+      window.open = open;
+    });
+
+    it('reconnect on an expired connection opens the Strava window without calling disconnect', async () => {
+      renderSettings();
+      expect(await screen.findByText('Expired')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
+
+      await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+      const [url] = open.mock.calls[0] as [string];
+      expect(url).toContain('https://www.strava.com/oauth/authorize?client_id=12345');
+      expect(disconnect).not.toHaveBeenCalled();
+    });
+
+    it('reconnect on an expired connection keeps the status as expired until the new connection succeeds', async () => {
+      renderSettings();
+      expect(await screen.findByText('Expired')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
+      await waitFor(() => expect(open).toHaveBeenCalled());
+
+      expect(within(strava()).getByText('Expired')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reconnect Strava' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Connect Strava' })).not.toBeInTheDocument();
+
+      // Den nya kopplingen lyckas: först då byter kortet till kopplad.
+      handlers.connectStrava = vi.fn().mockResolvedValue({ success: true });
+      handlers.getStravaStatus = () => CONNECTED;
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent('message', { data: { stravaCode: 'fresh' }, origin: window.location.origin }));
+      });
+      expect(await within(strava()).findByText('Connected', { selector: 'p' })).toBeInTheDocument();
+      expect(within(strava()).queryByText('Expired')).not.toBeInTheDocument();
+    });
   });
 
   it('"Sync now" finns för ägaren, synkar och bekräftar med antalet nya rundor', async () => {
