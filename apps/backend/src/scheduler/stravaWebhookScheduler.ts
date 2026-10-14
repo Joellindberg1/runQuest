@@ -1,0 +1,58 @@
+// Schedules the Strava webhook worker (ADR 010 decisions 6 and 11): a sweep every minute (the guarantee), the retention job at
+// 03:30 Stockholm time, and the wake-up after an insert (only latency). Everything the worker does lives in
+// services/stravaWebhookWorker.ts; this file only starts it.
+//
+// Started by server.ts in production only. The wake-up is a no-op until then (and after stop), so tests and dev store events
+// without processing them. The start function checks NODE_ENV itself as well, so a stray call elsewhere cannot start it.
+import cron from 'node-cron';
+import { STOCKHOLM_TZ } from '@runquest/shared';
+import { logger } from '../utils/logger.js';
+import { WEBHOOK_RETENTION_CRON, WEBHOOK_SWEEP_CRON } from '../services/stravaWebhook/constants.js';
+import { createDefaultWebhookWorker } from '../services/stravaWebhook/defaultWorker.js';
+import type { StravaWebhookWorker } from '../services/stravaWebhookWorker.js';
+
+// Set by startStravaWebhookScheduler(), cleared by its stop function.
+let activeWorker: StravaWebhookWorker | null = null;
+
+/**
+ * The route calls this after it has stored an event (createStravaWebhookRouter({ onEventStored })). The loop starts on the next
+ * turn of the event loop, so the call never runs inside the caller's work; the worker's own "already running" flag makes
+ * several wake-ups one loop. It must never be called from inside the user lock.
+ */
+export function wakeStravaWebhookWorker(): void {
+  const worker = activeWorker;
+  if (!worker) return;
+  setImmediate(() => {
+    void worker.drain();
+  });
+}
+
+/** Starts the sweep and the retention job. Returns a function that stops them. Does nothing outside production. */
+export function startStravaWebhookScheduler(options: { worker?: StravaWebhookWorker } = {}): () => void {
+  if (process.env.NODE_ENV !== 'production') {
+    logger.info('ℹ️ Strava webhook worker is not started outside production (events are stored, not processed)');
+    return () => {};
+  }
+  if (activeWorker) return () => {};
+
+  const worker = options.worker ?? createDefaultWebhookWorker();
+  activeWorker = worker;
+  logger.info('🕐 Starting Strava webhook worker (sweep every minute, retention 03:30 Europe/Stockholm)...');
+
+  const sweep = cron.schedule(WEBHOOK_SWEEP_CRON, () => {
+    void worker.drain();
+  });
+  const retention = cron.schedule(
+    WEBHOOK_RETENTION_CRON,
+    () => {
+      void worker.runRetention();
+    },
+    { timezone: STOCKHOLM_TZ },
+  );
+
+  return () => {
+    sweep.stop();
+    retention.stop();
+    if (activeWorker === worker) activeWorker = null;
+  };
+}
