@@ -1,5 +1,6 @@
 // 🕐 Strava Sync Scheduler
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 import cron from 'node-cron';
 import { syncAllStravaUsers } from '../routes/strava.js';
 import { WeatherService } from '../services/weatherService.js';
@@ -44,7 +45,7 @@ async function recalculateTitlesAfterWeather(savedRows: number): Promise<void> {
       logger.warn(`⚠️ Title recalculation after weather: ${result.failed} of ${result.total} users failed`);
     }
   } catch (error) {
-    logger.error('❌ Title recalculation after weather backfill failed:', error);
+    logger.error(`❌ Title recalculation after weather backfill failed (${errorCode(error)})`);
   }
 }
 
@@ -74,7 +75,7 @@ export function startStravaScheduler() {
     } catch (error) {
       syncState.lastSyncStatus = 'error';
       syncState.nextSyncEstimated = computeNextSync();
-      logger.error('❌ Scheduled sync error:', error);
+      logger.error(`❌ Scheduled sync error (${errorCode(error)})`);
     }
   });
 

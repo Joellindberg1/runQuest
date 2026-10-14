@@ -46,3 +46,23 @@ describe('connectStrava', () => {
     expect(result).toMatchObject({ success: false, error: 'Consent required' });
   });
 });
+
+describe('setStravaSyncPaused', () => {
+  it('puts exactly the paused flag and returns the state the server reports', async () => {
+    fetchMock.mockResolvedValue(reply(200, { success: true, data: { sync_paused: true, paused_at: '2026-10-12T08:30:00+00:00' } }));
+
+    const result = await backendApi.setStravaSyncPaused(true);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url).endsWith('/strava/sync-paused')).toBe(true);
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body)).toEqual({ paused: true });
+    expect(result).toEqual({ success: true, data: { sync_paused: true, paused_at: '2026-10-12T08:30:00+00:00' } });
+  });
+
+  it('surfaces the servers error text', async () => {
+    fetchMock.mockResolvedValue(reply(400, { error: 'User not connected to Strava' }));
+
+    expect(await backendApi.setStravaSyncPaused(false)).toMatchObject({ success: false, error: 'User not connected to Strava' });
+  });
+});

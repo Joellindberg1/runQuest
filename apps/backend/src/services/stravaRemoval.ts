@@ -25,6 +25,7 @@
 import { getSupabaseClient } from '../config/database.js';
 import { reprocessRunsFromDate } from '../routes/runs.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
+import { errorCode } from '../utils/errorCode.js';
 import { logger } from '../utils/logger.js';
 
 /** One activity of the user (a delete event), or all of the user's Strava runs (a disconnect). */
@@ -32,11 +33,8 @@ export type RemovalScope = { externalId: string } | { all: true };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** A short label for an error: its code only. The message of a database error can carry the values of the row. */
-export function errorCode(error: unknown): string {
-  const raw = (error as { code?: unknown } | null)?.code ?? (error as { name?: unknown } | null)?.name ?? 'unknown';
-  return String(raw).replace(/[^\w.:-]/g, '').slice(0, 40) || 'unknown';
-}
+// The helper moved to utils/errorCode.ts so that routes/runs.ts can use it without importing this module (which imports runs.ts).
+export { errorCode };
 
 /**
  * Deletes the user's Strava runs in the scope and returns the dates ('YYYY-MM-DD') of the rows that went, oldest first; [] when none.

@@ -117,7 +117,7 @@ export const serializeInvolvesParam = (on: boolean): string | null => (on ? INVO
 /**
  * Speglar serverns villkor (ADR 011 beslut 9): jag är aktör eller target, eller deltar i ett event (`event_closed` med mig i `payload.entrant_ids`).
  * Används bara för siffran på knappen (rader i det laddade fönstret, som chip-räknarna); raderna som visas kommer alltid ur serverns filter.
- * Fältet skrivs av en senare story och kan saknas eller vara trasigt — då är raden inte "min".
+ * Fältet skrivs av event-avräkningen (settle) men saknas på äldre rader och backfill, och kan vara trasigt — då är raden inte "min".
  */
 export function involvesMe(item: Pick<WireNewsItem, 'type' | 'actor' | 'target' | 'payload'>, viewerId: string | null): boolean {
   if (!viewerId) return false;

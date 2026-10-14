@@ -480,6 +480,8 @@ export async function settleCompetitionEvents(): Promise<void> {
           {
             participants: scored.length,
             members: members ?? scored.length,
+            // Alla med en entry, även de utan XP (participants är samma lista: scored byggs av entries).
+            entrantIds: participants.map((p: any) => p.user_id as string),
             top: scored.slice(0, 3).map((s, i) => ({ user_id: s.userId, rank: i + 1, xp: xpPerRank[i] ?? 0 })),
           },
           now,
@@ -595,14 +597,14 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
     const closedIds = (closed ?? []).map((e: any) => e.id);
     if (closedIds.length === 0) return;
 
-    // participants = antal event_entries per event; members = gruppstorlek (en count per grupp)
+    // participants = antal event_entries per event och entrant_ids = deras user_id, i samma fråga; members = gruppstorlek (en count per grupp)
     const { data: entries, error: entriesErr } = await supabase
       .from('event_entries')
-      .select('event_id')
+      .select('event_id, user_id')
       .in('event_id', closedIds);
     if (entriesErr) throw entriesErr;
-    const participantsByEvent = new Map<string, number>();
-    for (const en of entries ?? []) participantsByEvent.set(en.event_id, (participantsByEvent.get(en.event_id) ?? 0) + 1);
+    const entrantsByEvent = new Map<string, string[]>();
+    for (const en of entries ?? []) entrantsByEvent.set(en.event_id, [...(entrantsByEvent.get(en.event_id) ?? []), en.user_id as string]);
 
     const membersByGroup = new Map<string, number | null>();
     for (const groupId of new Set<string>((closed ?? []).map((e: any) => e.group_id as string))) {
@@ -613,11 +615,12 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
     for (const e of closed ?? []) {
       const row = toActivityEvent(e, asTemplate(e.event_templates));
       if (!row) continue;
-      const participants = participantsByEvent.get(e.id) ?? 0;
+      const entrantIds = entrantsByEvent.get(e.id) ?? [];
+      const participants = entrantIds.length;
       if (participants === 0) continue; // inga deltagare → ingen nyhet (Lead-beslut)
       drafts.push(buildEventClosedDraft(
         row,
-        { participants, members: membersByGroup.get(e.group_id) ?? participants },
+        { participants, members: membersByGroup.get(e.group_id) ?? participants, entrantIds },
         row.ends_at, // participation avslutas av klockan; settled_at sätts inte här
       ));
     }

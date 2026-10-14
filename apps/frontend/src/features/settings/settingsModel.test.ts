@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_PASSWORD_FORM, buildStravaCard, buildSyncRow, validatePasswordChange } from './settingsModel';
+import { EMPTY_PASSWORD_FORM, buildStravaCard, buildSyncRow, countStravaRuns, validatePasswordChange } from './settingsModel';
 
 const NOW = new Date('2026-10-05T12:00:00Z');
 const minutes = (n: number) => new Date(NOW.getTime() + n * 60_000).toISOString();
@@ -53,6 +53,57 @@ describe('buildStravaCard', () => {
     expect(failed?.tone).toBe('down');
     expect(failed?.text).toMatch(/Reconnect/);
     expect(buildStravaCard({ connected: true, expired: false }, SYNC, NOW).renewal).toBeNull();
+  });
+});
+
+describe('buildStravaCard when sync is paused', () => {
+  // paused_at kommer som +00:00 (PostgREST), inte Z: den tolkas med new Date, aldrig som sträng.
+  const PAUSED = { connected: true, expired: false, connection_date: '2026-08-25T09:31:00Z', sync_paused: true, paused_at: '2026-10-12T08:30:00+00:00' };
+
+  it('is a neutral Paused card: not the green live state and not the red alarm state', () => {
+    const card = buildStravaCard(PAUSED, SYNC, NOW);
+    expect(card).toMatchObject({ state: 'paused', tone: 'paused', chip: 'Paused' });
+    expect(card.lead).toMatch(/paused/i);
+  });
+
+  it('shows Paused as the next sync, keeps the last sync and drops the import rules for one sentence about removals', () => {
+    const card = buildStravaCard(PAUSED, SYNC, NOW);
+    expect(card.meta.map((cell) => [cell.label, cell.value])).toEqual([
+      ['Connected', '25 August 2026'],
+      ['Last sync', '32 min ago'],
+      ['Next sync', 'Paused'],
+    ]);
+    expect(card.rules).toEqual([]);
+    expect(card.note).toBe('Paused since 12 October 2026. Runs you delete or make private on Strava are still removed here.');
+  });
+
+  it('leaves out the date when paused_at is missing or unreadable, and keeps the removal sentence', () => {
+    for (const paused_at of [undefined, null, 'not a date']) {
+      expect(buildStravaCard({ ...PAUSED, paused_at }, SYNC, NOW).note).toBe('Runs you delete or make private on Strava are still removed here.');
+    }
+  });
+
+  it('an expired connection is expired even if the pause flag is still set', () => {
+    expect(buildStravaCard({ ...PAUSED, expired: true }, SYNC, NOW)).toMatchObject({ state: 'expired', note: null });
+  });
+
+  it('a running connection has no note', () => {
+    expect(buildStravaCard({ connected: true, expired: false, sync_paused: false, paused_at: null }, SYNC, NOW)).toMatchObject({ state: 'connected', note: null });
+  });
+});
+
+describe('countStravaRuns', () => {
+  it('counts only runs that came from strava', () => {
+    expect(countStravaRuns([{ source: 'strava' }, { source: 'manual' }, { source: null }, { source: 'strava' }, {}])).toBe(2);
+  });
+
+  it('is null while the runs are not known, never 0', () => {
+    expect(countStravaRuns(undefined)).toBeNull();
+  });
+
+  it('is 0 once the runs are known and none came from strava', () => {
+    expect(countStravaRuns([{ source: 'manual' }])).toBe(0);
+    expect(countStravaRuns([])).toBe(0);
   });
 });
 
