@@ -5,6 +5,9 @@
 // group_id. En token utan group_id (inaktuell efter groups/join) har alltså fortfarande sina inställningar, och
 // groupIdOrRespondEmpty (ADR 007 A6) ska INTE användas här. Det är inte ett fail-closed-hål: det finns inget gruppfilter
 // som kan falla bort, och ingen annan användares rad kan nås eftersom varje fråga bär `.eq('user_id', …)`.
+//
+// PUT svarar med nuläget efter skrivningen, läst på nytt. Lyckas skrivningen men läsningen efter den misslyckas blir
+// svaret 500 trots att ändringen är sparad; klienten ska då läsa om med GET i stället för att anta att inget hände.
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
@@ -43,7 +46,8 @@ async function readStored(userId: string): Promise<Record<string, unknown>> {
 /**
  * Routern byggs av en fabrik så att ett test kan ge den ett annat register (en gruppnyckel finns inte i det riktiga).
  * `app.ts` monterar default-exporten, som alltid använder det riktiga registret; ingen request kan välja register.
- * Registret slås upp vid anrop, inte vid import: flera route-tester ersätter @runquest/shared med en partiell mock.
+ * Registret slås upp vid anrop, inte vid import, så att routern inte binder sig till värdet förrän det behövs
+ * (modulen skapas som en sidoeffekt av att app.ts importeras). Det är en vana, inget prod-krav.
  */
 export function createSettingsRouter(definitions?: readonly SettingDefinition[]): express.Router {
   const router = express.Router();

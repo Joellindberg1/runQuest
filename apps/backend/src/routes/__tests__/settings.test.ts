@@ -174,6 +174,46 @@ describe('PUT /api/settings', () => {
     expect(tables.user_settings.map((r) => r.key).sort()).toEqual([KEY_A, KEY_B].sort());
   });
 
+  it('PUT svarar med customised i registrets ordning, inte i body-ordningen', async () => {
+    use();
+    // KEY_B står före KEY_A i body men efter i registret.
+    const res = await put({ values: { [KEY_B]: false, [KEY_A]: false } });
+    expect(ALL_KEYS.indexOf(KEY_A)).toBeLessThan(ALL_KEYS.indexOf(KEY_B));
+    expect(res.body.meta.customised).toEqual([KEY_A, KEY_B]);
+    expect((await get()).body.meta.customised).toEqual([KEY_A, KEY_B]);
+  });
+
+  it('PUT skriver alltid token-användarens rader, aldrig ett user_id ur body', async () => {
+    const { tables } = use([stored(OTHER, KEY_A, true), stored(OTHER, KEY_B, true)]);
+    const res = await put({ user_id: OTHER, values: { [KEY_A]: false, [KEY_B]: null } }, ME);
+    expect(res.status).toBe(200);
+    expect(tables.user_settings).toContainEqual(stored(OTHER, KEY_A, true));
+    expect(tables.user_settings).toContainEqual(stored(OTHER, KEY_B, true));
+    expect(tables.user_settings.filter((r) => r.user_id === ME)).toEqual([
+      expect.objectContaining({ user_id: ME, key: KEY_A, value: false }),
+    ]);
+    expect(tables.user_settings).toHaveLength(3);
+  });
+
+  it('PUT med user_id som inställningsnyckel ger 400 och skriver ingenting', async () => {
+    const { db } = use();
+    const res = await put({ values: { user_id: OTHER, [KEY_A]: false } });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(mutations(db)).toEqual([]);
+  });
+
+  it('PUT med två null-nycklar återställer båda', async () => {
+    const { db, tables } = use([stored(ME, KEY_A, false), stored(ME, KEY_B, false), stored(OTHER, KEY_A, false)]);
+    const res = await put({ values: { [KEY_A]: null, [KEY_B]: null } });
+    expect(res.status).toBe(200);
+    expect(tables.user_settings).toEqual([stored(OTHER, KEY_A, false)]);
+    expect(res.body.meta.customised).toEqual([]);
+    const deletes = mutations(db).filter((q) => q.mutation === 'delete');
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0].filters).toContainEqual({ op: 'in', column: 'key', value: [KEY_A, KEY_B] });
+  });
+
   it('PUT med null återställer till default och raderar raden', async () => {
     const { db, tables } = use([stored(ME, KEY_A, false), stored(ME, KEY_B, false)]);
     const res = await put({ values: { [KEY_A]: null } });
@@ -245,6 +285,9 @@ describe('PUT /api/settings', () => {
     expect(mutations(db)).toEqual([]);
   });
 
+  // fakeDb är synkron och interfolierar inte anropen, så testet kan inte bevisa en kapplöpning. Atomiciteten bärs av
+  // att varje PUT gör EN upsert på (user_id, key) utan läs-och-skriv-steg; det låser testet "med flera nycklar skriver
+  // med EN upsert" ovan. Här visas bara att två PUT i följd/parallellt inte skriver över varandras nycklar.
   it('två samtidiga PUT med olika nycklar behåller båda', async () => {
     const { tables } = use();
     const [first, second] = await Promise.all([
@@ -285,12 +328,24 @@ describe('PUT /api/settings', () => {
   });
 
   it('PUT ger 500 och loggar felet när skrivningen misslyckas', async () => {
-    use([], { failWhen: (q) => (q.mutation === 'upsert' ? { message: 'boom' } : null) });
+    const secret = 'duplicate key value violates constraint "user_settings_pkey" secret-detail-42';
+    use([], { failWhen: (q) => (q.mutation === 'upsert' ? { message: secret } : null) });
     const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
     const res = await put({ values: { [KEY_A]: false } });
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: expect.any(String) });
+    expect(JSON.stringify(res.body)).not.toContain('secret-detail-42');
     expect(error).toHaveBeenCalled();
+  });
+
+  it('PUT ger 500 utan läckor när läsningen efter en lyckad skrivning misslyckas', async () => {
+    const { tables } = use([], { failWhen: (q) => (!q.mutation && q.table === 'user_settings' ? { message: 'secret-read-77' } : null) });
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const res = await put({ values: { [KEY_A]: false } });
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(res.body)).not.toContain('secret-read-77');
+    // Skrivningen hann gå igenom; svaret är 500 eftersom nuläget inte kunde läsas tillbaka.
+    expect(tables.user_settings).toEqual([expect.objectContaining({ user_id: ME, key: KEY_A, value: false })]);
   });
 
   it('PUT ger 500 och raderar inget när upserten misslyckas', async () => {
@@ -333,6 +388,25 @@ describe('PUT /api/settings med ett annat register än det riktiga', () => {
 });
 
 describe('rate limit på PUT /api/settings', () => {
+  it('anrop utan token räknas inte: limitern sitter efter auth', async () => {
+    const { tables } = use();
+    const app = express();
+    app.use(express.json());
+    app.use('/api/settings', createSettingsRouter());
+    const limited = await startServer(app);
+    try {
+      for (let i = 0; i < 61; i++) {
+        const res = await limited.request('PUT', '/api/settings', { body: { values: {} } });
+        expect(res.status).toBe(401);
+      }
+      const authed = await limited.request('PUT', '/api/settings', { token: token(), body: { values: { [KEY_A]: false } } });
+      expect(authed.status).toBe(200);
+      expect(tables.user_settings).toHaveLength(1);
+    } finally {
+      await limited.close();
+    }
+  });
+
   it('PUT stoppas med 429 efter 60 anrop per minut, GET påverkas inte', async () => {
     use();
     const app = express();
