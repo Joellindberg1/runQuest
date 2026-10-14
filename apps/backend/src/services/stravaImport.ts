@@ -17,10 +17,15 @@ export function normalizeSportType(sportType?: string): string | null {
   return null;
 }
 
+/** A sport field Strava really named: a non-empty string. Anything else (missing, null, '', a number) counts as absent. */
+export function isNamedSport(value: unknown): value is string {
+  return typeof value === 'string' && value !== '';
+}
+
 /** Returns true for any Strava activity we want to import as a run. */
 export function isRunningActivity(activity: any): boolean {
   // Prefer sport_type (newer field); fall back to type for older data
-  if (activity.sport_type) return RUNNING_SPORT_TYPES.has(activity.sport_type);
+  if (isNamedSport(activity.sport_type)) return RUNNING_SPORT_TYPES.has(activity.sport_type);
   return activity.type === STRAVA_LEGACY_RUN_TYPE;
 }
 

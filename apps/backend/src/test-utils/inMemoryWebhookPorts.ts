@@ -248,6 +248,10 @@ export interface InMemoryRunStore extends RunStore {
   connections: Record<string, StravaConnection | null>;
   /** Set to make getConnection fail, as when the database is down. */
   connectionError: Error | null;
+  /** Set to make removeStravaRun fail, as when the database is down. */
+  removeError: Error | null;
+  /** Every removeStravaRun call, as (userId, externalId). */
+  removeCalls: Array<{ userId: string; externalId: string }>;
 }
 
 export function createInMemoryRunStore(): InMemoryRunStore {
@@ -257,6 +261,8 @@ export function createInMemoryRunStore(): InMemoryRunStore {
     earliestError: null,
     connections: {},
     connectionError: null,
+    removeError: null,
+    removeCalls: [],
     async findRun(userId, externalId) {
       return runs.find((run) => run.userId === userId && run.externalId === externalId)?.run ?? null;
     },
@@ -268,6 +274,15 @@ export function createInMemoryRunStore(): InMemoryRunStore {
     async getConnection(userId) {
       if (store.connectionError) throw store.connectionError;
       return userId in store.connections ? store.connections[userId] : { syncPaused: false, connectionDate: null };
+    },
+    async removeStravaRun(userId, externalId) {
+      store.removeCalls.push({ userId, externalId });
+      if (store.removeError) throw store.removeError;
+      // Only a run known to be source 'strava' goes (as the adapter's query); an entry without a run description is not one.
+      const index = runs.findIndex((run) => run.userId === userId && run.externalId === externalId && run.run?.source === 'strava');
+      if (index === -1) return { removed: false, date: null };
+      const [removed] = runs.splice(index, 1);
+      return { removed: true, date: removed.date };
     },
   };
   return store;
