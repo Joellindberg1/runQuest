@@ -1,4 +1,4 @@
-// GET /api/news och POST /api/news/seen (ADR 008 beslut 9). Fältstil snake_case.
+// GET /api/news, POST /api/news/seen och POST /api/news/read (ADR 008 beslut 9, ADR 011 beslut 4). Fältstil snake_case.
 // Raden är ett FAKTUM (typ + payload), ingen renderad text: klienten renderar ur type + payload
 // + vem som tittar ("took … from you" när target är den som tittar). Namn/bild hämtas live via actor/target.
 import type { ApiSuccess } from './common.js';
@@ -75,3 +75,19 @@ export interface NewsSeenResponse {
 }
 
 export type NewsSeenApiResponse = ApiSuccess<NewsSeenResponse>;
+
+/**
+ * POST /api/news/read (ADR 011 beslut 4): kvittera enskilda rader. Kontraktet är generiskt, en lista id:n, så att klientens
+ * buntade läs-gester (högst var 300 ms) går i ett anrop.
+ */
+export interface NewsReadRequest {
+  /** 1–50 unika positiva heltal, annars 400. Id:n utanför anroparens grupp eller på/under golvet ignoreras tyst. */
+  ids: number[];
+}
+
+export interface NewsReadResponse {
+  /** Olästa efter kvitteringen, samma räkning som `NewsMeta.unread_count` i `GET /api/news` direkt efter skrivningen (mättad vid 500). */
+  unread_count: number;
+}
+
+export type NewsReadApiResponse = ApiSuccess<NewsReadResponse>;

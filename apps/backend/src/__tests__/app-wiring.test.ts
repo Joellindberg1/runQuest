@@ -40,6 +40,7 @@ const WIRED: Array<[prefix: string, method: string, path: string]> = [
   // ADR 008: Pack News
   ['/api/news', 'GET', '/api/news'],
   ['/api/news', 'POST', '/api/news/seen'],
+  ['/api/news', 'POST', '/api/news/read'],
   // ADR 009: badges (läs-API, RUN-120)
   ['/api/badges', 'GET', '/api/badges/user/00000000-0000-4000-8000-000000000001'],
   ['/api/badges', 'GET', '/api/badges/group'],

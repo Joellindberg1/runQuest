@@ -18,7 +18,7 @@ import {
 /** `unread_count` mättas här (klockan visar "99+" över 99). Kandidatläsningen hämtar ett steg mer för att kunna avgöra taket. */
 export const UNREAD_CAP = 500;
 
-const NEWS_READ_TABLE = 'news_read';
+export const NEWS_READ_TABLE = 'news_read';
 
 /** Läsarens golv och registreringstid (users.news_last_seen_id, users.created_at). */
 export interface Reader {

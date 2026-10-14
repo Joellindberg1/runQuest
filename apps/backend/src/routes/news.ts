@@ -4,9 +4,12 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logger } from '../utils/logger.js';
+import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 import { ACTIVITY_LOG_TABLE } from '../services/activityLog.js';
 import { isRowUnread, loadUnreadState, type Reader } from '../services/newsUnread.js';
+import { acknowledgeRows, parseReadIds, pruneReadReceipts } from '../services/newsRead.js';
 import {
   ACTIVITY_TYPES,
   isActivityType,
@@ -14,6 +17,7 @@ import {
   type NewsApiResponse,
   type NewsItem,
   type NewsMeta,
+  type NewsReadApiResponse,
   type NewsSeenApiResponse,
   type NewsUserRef,
 } from '@runquest/shared';
@@ -218,6 +222,10 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
       current = fresh ? fresh.news_last_seen_id : target;
     }
 
+    // Rader under golvet är redan lästa, så deras kvitton är inerta. Pruningen sker efter höjningen och med det FAKTISKA
+    // golvet (aldrig lägre än det lagrade); den är best-effort och loggar själv, så ett fel här ändrar inte svaret.
+    await pruneReadReceipts(userId, current);
+
     const refreshed: Reader = { ...reader, news_last_seen_id: current };
     const result: NewsSeenApiResponse = {
       success: true,
@@ -230,4 +238,68 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
   }
 });
 
-export default router;
+// POST /api/news/read  body { ids: number[] }  (ADR 011 beslut 4, läs-gesterna)
+// Kvitterar enskilda rader i news_read. Läst-status är privat: skrivningen bär alltid token-användarens user_id, id:n
+// utanför anroparens grupp eller på/under golvet ignoreras tyst, och svaret innehåller bara anroparens egen räknare.
+//
+// Ordning: (1) slå upp vilka id:n som gäller, (2) upsert med ignoreDuplicates (idempotent), (3) rensa anroparens kvitton
+// på eller under golvet, (4) räkna om med samma loadUnreadState som GET /news, så att talet är exakt det GET visar direkt
+// efter skrivningen. Ett fel i (1) eller (2) ger 500 utan detaljer. Ett fel i (3) loggas och ger ändå 200.
+//
+// Race mot /seen: höjer /seen golvet mellan vår läsning av golvet och vår skrivning kan ett kvitto hamna på eller under det
+// nya golvet. Det är inert (rader under golvet är redan lästa) och rensas av nästa /read eller /seen. Ett id som
+// återkallas mellan uppslagning och skrivning ger FK-fel (23503); acknowledgeRows gör då om det en gång (se newsRead.ts).
+//
+// Kvittofönstret: oläst-räknaren läser news_read som de senaste 501 raderna ovanför golvet (newsUnread.ts). Golvet är
+// tabellens enda städning (här och i /seen); ADR 011:s revisit-trigger är > 1 000 rader per användare, då ska golvet
+// kompakteras över det sammanhängande lästa prefixet.
+//
+// Rate limit: klientens gester buntas med READ_FLUSH_MS = 300 ms, alltså som mest ca 200 anrop per minut från en
+// användare och bara om varje flush bär en ny oläst rad. 240 per minut och IP ligger över det taket (och ger marginal
+// för några som delar IP), så vanlig hover-skrollning aldrig märker gränsen; den stoppar bara ett skript.
+const READ_WINDOW_MS = 60 * 1000;
+const READ_MAX_PER_WINDOW = 240;
+
+/**
+ * Routern byggs av en fabrik så att varje instans får en EGEN limiter-karta (ett test kan bygga en ny app utan att ärva
+ * räknare). `app.ts` monterar default-exporten. /read ligger före flödesrutterna och sitter efter auth: anrop utan
+ * token räknas aldrig mot gränsen.
+ */
+export function createNewsRouter(): express.Router {
+  const root = express.Router();
+  const readLimiter = createRateLimiter(READ_WINDOW_MS, READ_MAX_PER_WINDOW);
+
+  root.post('/read', authenticateJWT, readLimiter, async (req, res): Promise<void> => {
+    try {
+      const ids = parseReadIds(req.body);
+      if (!ids) {
+        res.status(400).json({ error: 'ids must be 1 to 50 unique positive integers' }); return;
+      }
+
+      const empty: NewsReadApiResponse = { success: true, data: { unread_count: 0 } };
+      const groupId = groupIdOrRespondEmpty(req, res, empty);
+      if (!groupId) return;
+
+      const userId = req.user!.user_id;
+      const reader = await readReader(userId);
+      if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
+
+      await acknowledgeRows(groupId, userId, ids, reader.news_last_seen_id ?? 0);
+      await pruneReadReceipts(userId, reader.news_last_seen_id);
+
+      const body: NewsReadApiResponse = {
+        success: true,
+        data: { unread_count: (await loadUnreadState(groupId, userId, reader)).unreadCount },
+      };
+      res.json(body);
+    } catch (error) {
+      logger.error('❌ Error marking news rows as read:', error);
+      res.status(500).json({ error: 'Failed to update news state' });
+    }
+  });
+
+  root.use(router);
+  return root;
+}
+
+export default createNewsRouter();
