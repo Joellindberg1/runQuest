@@ -17,7 +17,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row, type RecordedQuery } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaActivity, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
-import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, setStravaRequestHooks, stravaFetch } from '../stravaClient.js';
+import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, refreshAccessToken, setStravaRequestHooks, stravaFetch } from '../stravaClient.js';
 
 let strava: FakeStrava | undefined;
 
@@ -123,6 +123,38 @@ describe('getValidAccessToken', () => {
 
     expect(result).toMatchObject({ ok: false, reason: 'no_refresh_token', expiresAt: 100 });
     expect(strava.requests).toHaveLength(0);
+  });
+});
+
+describe('refreshAccessToken', () => {
+  it('refreshAccessToken renews a token that has not expired and saves the new tokens', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }) });
+    const { t } = use([{ ...TOKEN_ROW }]);
+
+    const result = await refreshAccessToken('user-1');
+
+    expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true, connectionDate: '2026-09-01' });
+    expect(strava.calls.oauthToken).toBe(1);
+    expect(strava.requests[0].body).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'old-rt' });
+    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+  });
+
+  it('refreshAccessToken reports a user without a connection, and a connection without a refresh token, without calling Strava', async () => {
+    strava = installFakeStravaFetch({});
+    use([]);
+    expect(await refreshAccessToken('user-1')).toEqual({ ok: false, reason: 'not_connected' });
+
+    use([{ ...TOKEN_ROW, refresh_token: null }]);
+    expect(await refreshAccessToken('user-1')).toMatchObject({ ok: false, reason: 'no_refresh_token' });
+    expect(strava.calls.oauthToken).toBe(0);
+  });
+
+  it('refreshAccessToken reports a refresh Strava rejects and leaves the stored token alone', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaError(400) });
+    const { t } = use([{ ...TOKEN_ROW }]);
+
+    expect(await refreshAccessToken('user-1')).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
   });
 });
 

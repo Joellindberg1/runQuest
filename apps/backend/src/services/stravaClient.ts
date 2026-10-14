@@ -141,6 +141,18 @@ export type AccessTokenResult =
  * retry and a KRITISKT alarm when saving keeps failing). Never throws for an unconnected user or a failed renewal; says why instead.
  */
 export async function getValidAccessToken(userId: string): Promise<AccessTokenResult> {
+  return accessToken(userId, false);
+}
+
+/**
+ * A freshly renewed token, even when the stored one has not expired: the answer to a 401 from Strava (ADR 010 7.1, renew once).
+ * Same result and same saving as getValidAccessToken; it never reuses the stored access token.
+ */
+export async function refreshAccessToken(userId: string): Promise<AccessTokenResult> {
+  return accessToken(userId, true);
+}
+
+async function accessToken(userId: string, forceRefresh: boolean): Promise<AccessTokenResult> {
   const supabase = getSupabaseClient();
   const { data: tokens, error } = await supabase
     .from('strava_tokens')
@@ -152,14 +164,14 @@ export async function getValidAccessToken(userId: string): Promise<AccessTokenRe
 
   const state: StoredTokenState = { expiresAt: tokens.expires_at ?? null, connectionDate: tokens.connection_date ?? null, consentVersion: tokens.consent_version ?? null };
   const now = Math.floor(Date.now() / 1000);
-  if (!(tokens.expires_at && tokens.expires_at < now)) {
+  if (!forceRefresh && !(tokens.expires_at && tokens.expires_at < now)) {
     return { ok: true, accessToken: tokens.access_token, refreshed: false, ...state };
   }
 
   // Without a refresh token Strava could only refuse, so do not ask.
   if (!tokens.refresh_token) return { ok: false, reason: 'no_refresh_token', ...state };
 
-  logger.info('🔄 Access token expired, refreshing...');
+  logger.info(forceRefresh ? '🔄 Strava rejected the access token, refreshing...' : '🔄 Access token expired, refreshing...');
   const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
   if (!refreshResult.success) return { ok: false, reason: 'refresh_failed', ...state };
   return { ok: true, accessToken: refreshResult.access_token!, refreshed: true, ...state };

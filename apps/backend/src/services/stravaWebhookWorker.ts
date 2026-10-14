@@ -7,12 +7,15 @@
  * A handler is registered in stravaWebhook/handlers.ts under webhookHandlerKey(object_type, aspect_type) and is
  *   (ctx: WebhookHandlerContext) => Promise<WebhookHandlerResult>
  * It gets the event row, the user id stored at receipt (never look the athlete up again), `attempts` (failed attempts BEFORE this
- * try, an expired lease counted as one: pass it to decideAction), and the ports it may use: `strava` (token, activity, athlete)
- * and `runs` (findRun, earliestRunDate). It does its writes to `runs` itself. It gets NO event store: it never sets a status.
+ * try, an expired lease counted as one: pass it to decideAction), and the ports it may use: `strava` (token, a forced token renewal
+ * for a 401, activity, athlete) and `runs` (findRun, earliestRunDate, getConnection: the pause flag and the connection day, read
+ * before any Strava call; it throws on a database error and gives null for a user without a strava_tokens row). It does its
+ * writes to `runs` itself. It gets NO event store: it never sets a status.
  * It returns one of
- *   { status: 'done',  outcome, recalculateFrom, recalculateUnknown? }  the event is finished with this outcome (WEBHOOK_OUTCOMES);
- *        `recalculateFrom` is the earliest date ('YYYY-MM-DD') whose runs changed, or null; `recalculateUnknown` is decideAction's
- *        flag for "a run may have changed but I cannot tell the date".
+ *   { status: 'done',  outcome, recalculateFrom, recalculateUnknown?, importedRuns? }  the event is finished with this outcome
+ *        (WEBHOOK_OUTCOMES); `recalculateFrom` is the earliest date ('YYYY-MM-DD') whose runs changed, or null; `recalculateUnknown`
+ *        is decideAction's flag for "a run may have changed but I cannot tell the date"; `importedRuns` are the rows it inserted
+ *        (weather and event qualification, see "After an import" below).
  *   { status: 'retry', error }  a failed attempt; `error` is a short CODE (never a token, a body or a message).
  *   { status: 'wait', kind: 'rate_limit' | 'daily_limit' }  Strava said wait (429, or the budget): not a failure.
  * A handler that throws is a failed attempt with the error's code (never its message). Handlers must not call
@@ -38,6 +41,15 @@
  * because reprocessing is idempotent and a deleted run can be older than any lookback window. A user with no runs gets
  * only calculateUserTotals (totals must still be zeroed). An event is `done` only after the recalculation ran; if it throws,
  * the events that needed it are retried and the others still finish.
+ * After an import (ADR 010 7.1): a `done` result may carry `importedRuns`, the rows it INSERTED. The recalculation of the batch is
+ * then, in the polling's order: (1) the one reprocess, (2) weather for ALL runs imported in the batch (one call, best-effort: an
+ * error is logged, never a retry), (3) the one calculateUserTotals, (4) event qualification for the same runs, fire-and-forget
+ * (started, not awaited, errors logged; it never fails an event or the batch). A run is carried once, by the try that inserted it:
+ * a retry meets the row as existing. If the reprocess fails, steps 2 and 4 still run for the new rows (a retry would not carry them
+ * again), step 3 does not, and the events are retried.
+ * KNOWN GAP (not fixed): a crash between the insert and the recalculation (the lease expires) loses weather and event qualification
+ * for that run for good, because the retry meets the row as existing and carries no `importedRuns`; weather has a backfill,
+ * qualification has none, and the polling has the same weakness.
  *
  * Retry: attempts + 1, last_error = a short code, pending, next_attempt_at = now + WEBHOOK_BACKOFF_MINUTES[min(attempts, 3)] min.
  * A wait is not a failure: attempts is untouched, next_attempt_at is the next whole quarter hour + 30 s (rate_limit) or the next
@@ -69,7 +81,15 @@ import {
   type WebhookObjectType,
   type WebhookOutcome,
 } from './stravaWebhook/constants.js';
-import type { RateBudget, Recompute, RunStore, StravaApi, WebhookEventRow, WebhookEventStore } from './stravaWebhook/ports.js';
+import type {
+  RateBudget,
+  Recompute,
+  RunStore,
+  StravaApi,
+  WebhookEventRow,
+  WebhookEventStore,
+  WebhookImportedRun,
+} from './stravaWebhook/ports.js';
 
 const QUARTER_HOUR_MS = 15 * 60_000;
 const HOUR_MS = 3_600_000;
@@ -100,6 +120,11 @@ export type WebhookHandlerResult =
       recalculateFrom: string | null;
       /** decideAction's flag: a run may have changed but its date is unknown. The worker falls back to the user's earliest run. */
       recalculateUnknown?: boolean;
+      /**
+       * The runs this event INSERTED (only new rows, never an updated or already existing one). The worker fetches their weather and
+       * qualifies events for them after the recalculation (see the header). Entries that are not runs are dropped.
+       */
+      importedRuns?: WebhookImportedRun[];
     }
   | { status: 'retry'; error: string }
   | { status: 'wait'; kind: 'rate_limit' | 'daily_limit' };
@@ -147,6 +172,8 @@ interface Finished {
   from: string | null;
   unknown: boolean;
   needsRecompute: boolean;
+  /** The runs the handler inserted for this event. */
+  imported: WebhookImportedRun[];
 }
 
 /** A real calendar day: the round trip through Date catches 2026-02-31, which Date.parse accepts and shifts to March. */
@@ -171,6 +198,13 @@ const byEventOrder = (a: WebhookEventRow, b: WebhookEventRow): number => Date.pa
 /** For routine log lines: our own row id and the event type. No Strava id (ADR 010 decision 8.6); only the dead alarm names them. */
 const label = (row: WebhookEventRow): string => `event ${row.id} (${row.object_type} ${row.aspect_type})`;
 
+/** A run the weather and event qualification steps can use: an id, a real calendar day and a finite distance. */
+function isImportedRun(value: unknown): value is WebhookImportedRun {
+  if (typeof value !== 'object' || value === null) return false;
+  const run = value as Record<string, unknown>;
+  return typeof run.id === 'string' && run.id !== '' && isCalendarDay(run.date) && typeof run.distance_km === 'number' && Number.isFinite(run.distance_km);
+}
+
 /** Validates what a handler returned; a handler bug becomes a failed attempt instead of a wrong status. */
 function readResult(result: unknown): WebhookHandlerResult {
   const invalid: WebhookHandlerResult = { status: 'retry', error: 'invalid_handler_result' };
@@ -180,7 +214,9 @@ function readResult(result: unknown): WebhookHandlerResult {
     if (!isOutcome(value.outcome)) return invalid;
     const from = value.recalculateFrom ?? null;
     if (from !== null && typeof from !== 'string') return invalid;
-    return { status: 'done', outcome: value.outcome, recalculateFrom: from, recalculateUnknown: value.recalculateUnknown === true };
+    if (value.importedRuns !== undefined && !Array.isArray(value.importedRuns)) return invalid;
+    const importedRuns = (value.importedRuns as unknown[] | undefined)?.filter(isImportedRun) ?? [];
+    return { status: 'done', outcome: value.outcome, recalculateFrom: from, recalculateUnknown: value.recalculateUnknown === true, importedRuns };
   }
   if (value.status === 'retry' && typeof value.error === 'string') return { status: 'retry', error: shortError(value.error) };
   if (value.status === 'wait' && (value.kind === 'rate_limit' || value.kind === 'daily_limit')) return { status: 'wait', kind: value.kind };
@@ -262,20 +298,62 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
   function toFinished(row: WebhookEventRow, result: Extract<WebhookHandlerResult, { status: 'done' }>): Finished {
     const from = isCalendarDay(result.recalculateFrom) ? result.recalculateFrom : null;
     // A date the reprocess could not use is the same as no date. An earlier try (attempts >= 1) may have changed data on its own.
-    const unknown = result.recalculateUnknown === true || (result.recalculateFrom != null && from === null) || (from === null && row.attempts >= 1);
-    return { row, outcome: result.outcome, from, unknown, needsRecompute: from !== null || unknown };
+    const imported = result.importedRuns ?? [];
+    // A run that was inserted always needs the recalculation, also when its handler gave no usable date.
+    const unknown =
+      result.recalculateUnknown === true || (result.recalculateFrom != null && from === null) || (from === null && (row.attempts >= 1 || imported.length > 0));
+    return { row, outcome: result.outcome, from, unknown, needsRecompute: from !== null || unknown, imported };
   }
 
-  /** One reprocess from the earliest affected date and one totals run for the user. Throws if either does. */
-  async function recalculate(userId: string, needing: Finished[]): Promise<void> {
-    let from: string | null;
-    if (needing.some((item) => item.unknown)) {
-      from = await runs.earliestRunDate(userId);
-    } else {
-      from = needing.map((item) => item.from!).reduce((earliest, date) => (date < earliest ? date : earliest));
+  /** Event qualification is fire-and-forget (as in the polling): started, never awaited, and whatever it does never fails an event. */
+  function startQualification(userId: string, newRuns: WebhookImportedRun[]): void {
+    if (newRuns.length === 0) return;
+    const failed = (error: unknown) => logger.error(`❌ Strava webhook: event qualification failed for user ${userId} (${errorCode(error)})`);
+    try {
+      void Promise.resolve(recompute.qualifyEvents(userId, newRuns)).catch(failed);
+    } catch (error) {
+      failed(error);
     }
-    if (from !== null) await recompute.reprocessFrom(userId, from);
-    await recompute.recalculateTotals(userId);
+  }
+
+  /**
+   * The recalculation of one user's batch, in the polling's order (routes/strava.ts): ONE reprocess from the earliest date, weather
+   * for the runs imported in the batch, ONE totals run, then event qualification for those runs. Throws the reprocess or totals
+   * error AFTER the best-effort steps: a failed reprocess leaves the new rows in the table, and a retry meets them as existing, so
+   * their weather and qualification must not wait for it.
+   */
+  async function recalculate(userId: string, needing: Finished[], newRuns: WebhookImportedRun[]): Promise<void> {
+    let failure: { error: unknown } | null = null;
+    try {
+      let from: string | null;
+      if (needing.some((item) => item.unknown)) {
+        from = await runs.earliestRunDate(userId);
+      } else {
+        from = needing.map((item) => item.from!).reduce((earliest, date) => (date < earliest ? date : earliest));
+      }
+      if (from !== null) await recompute.reprocessFrom(userId, from);
+    } catch (error) {
+      failure = { error };
+    }
+
+    if (newRuns.length > 0) {
+      try {
+        await recompute.fetchWeather(newRuns);
+      } catch (error) {
+        logger.warn(`⚠️ Strava webhook: weather could not be fetched for user ${userId} (${errorCode(error)}); the backfill takes it later`);
+      }
+    }
+
+    if (!failure) {
+      try {
+        await recompute.recalculateTotals(userId);
+      } catch (error) {
+        failure = { error };
+      }
+    }
+
+    startQualification(userId, newRuns);
+    if (failure) throw failure.error;
   }
 
   /** All of one user's events in the batch, inside the user lock. Returns the time a wait ends, or null. */
@@ -293,7 +371,7 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
       const handler = handlers[webhookHandlerKey(row.object_type, row.aspect_type)];
       if (!handler) {
         logger.warn(`⚠️ Strava webhook: no handler for ${label(row)}, finished as noop`);
-        finished.push({ row, outcome: 'noop', from: null, unknown: false, needsRecompute: false });
+        finished.push({ row, outcome: 'noop', from: null, unknown: false, needsRecompute: false, imported: [] });
         continue;
       }
       if (budget?.isOverSoftLimit()) {
@@ -318,7 +396,7 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
     let recomputeFailed = false;
     if (needing.length > 0) {
       try {
-        await recalculate(userId, needing);
+        await recalculate(userId, needing, finished.flatMap((item) => item.imported));
       } catch (error) {
         recomputeFailed = true;
         logger.error(`❌ Strava webhook: the recalculation for user ${userId} failed (${errorCode(error)}); its events are retried`);

@@ -99,25 +99,46 @@ export interface ImportedRun {
   is_treadmill: boolean;
 }
 
+/** `exists` carries no row: a caller that needs it reads (user_id, external_id) again (the webhook handler does, through RunStore.findRun). */
 export type ImportResult = { status: 'imported'; run: ImportedRun } | { status: 'exists' };
 
+/** The unique index on runs (user_id, external_id) (migration 033). Only a violation of this one means "already imported". */
+export const RUNS_EXTERNAL_ID_INDEX = 'idx_runs_external_id';
+
+/** True when the insert failed because the run is already there: 23505 on the external id index, not on any other unique index. */
+function isExternalIdConflict(error: { code?: string; message?: string; details?: string | null } | null): boolean {
+  return error?.code === '23505' && `${error.message ?? ''} ${error.details ?? ''}`.includes(RUNS_EXTERNAL_ID_INDEX);
+}
+
 /**
- * Import one Strava activity as a run for the user, with the detail call for splits_metric. A run that already exists for
- * (user_id, external_id) is not an error (unique index, code 23505): polling and the webhook worker can race on the same activity.
- * Any other database error is logged and rethrown.
+ * Insert one Strava run for the user from an activity the caller already has. `detailed` is the detail response, when there is one
+ * (null/undefined = the summary alone supplies the extended fields). Makes NO Strava call: the webhook handler has fetched the
+ * detail itself, and the polling goes through importStravaActivity. A run that already exists for (user_id, external_id) is not an
+ * error (unique index idx_runs_external_id, code 23505): polling and the webhook worker can race on the same activity. Any other
+ * database error, a 23505 on another index included, is logged and rethrown.
  */
-export async function importStravaActivity(userId: string, activity: any, accessToken: string): Promise<ImportResult> {
-  const detailed = await fetchDetailedActivity(activity.id, accessToken);
+export async function insertStravaRun(userId: string, activity: any, detailed?: any): Promise<ImportResult> {
   const row = buildStravaRunRow(userId, activity, detailed);
   const { data, error } = await getSupabaseClient()
     .from('runs')
     .insert(row)
     .select('id, external_id, start_lat, start_lng, start_time, moving_time, is_treadmill')
     .single();
-  if (error?.code === '23505') return { status: 'exists' };
+  if (isExternalIdConflict(error)) return { status: 'exists' };
   if (error) {
-    logger.error(`❌ Failed to insert run (activity ${activity.id}): ${error.message}`, { fields: extractExtendedFields(detailed ?? activity) });
+    // Our user id and the error code only (ADR 010 8.6): no Strava id, no coordinates or heart rate, and not the message, which
+    // can carry the values of the row (a unique violation prints its key).
+    logger.error(`❌ Failed to insert a Strava run for user ${userId} (${error.code ?? 'no code'})`);
     throw error;
   }
   return { status: 'imported', run: data as ImportedRun };
+}
+
+/**
+ * Import one Strava activity as a run for the user, with the detail call for splits_metric (the polling's path: it lists summaries).
+ * The insert, and what a duplicate means, is insertStravaRun.
+ */
+export async function importStravaActivity(userId: string, activity: any, accessToken: string): Promise<ImportResult> {
+  const detailed = await fetchDetailedActivity(activity.id, accessToken);
+  return insertStravaRun(userId, activity, detailed);
 }

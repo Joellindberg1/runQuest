@@ -17,7 +17,7 @@ import {
   WEBHOOK_DEAD_AFTER_HOURS,
   type WebhookOutcome,
 } from '../stravaWebhook/constants.js';
-import type { RateBudget, WebhookEventRow } from '../stravaWebhook/ports.js';
+import type { RateBudget, WebhookEventRow, WebhookImportedRun } from '../stravaWebhook/ports.js';
 import {
   createStravaWebhookWorker,
   resultForTokenFailure,
@@ -949,5 +949,191 @@ describe('logging', () => {
     expect(everything).not.toContain(SECRET);
     expect(everything).not.toContain(TITLE);
     expect(everything).not.toMatch(/Bearer/);
+  });
+});
+
+describe('after an import', () => {
+  const imported = (id: string, date = '2026-10-12'): WebhookImportedRun => ({
+    id,
+    external_id: `ext-${id}`,
+    date,
+    distance_km: 5,
+    start_lat: 59.3,
+    start_lng: 18.1,
+    start_time: `${date}T07:30:00Z`,
+    moving_time: 1500,
+    is_treadmill: false,
+  });
+  const importedDone = (...runs: WebhookImportedRun[]): WebhookHandlerResult => ({
+    status: 'done',
+    outcome: 'imported',
+    recalculateFrom: runs.map((run) => run.date).sort()[0],
+    importedRuns: runs,
+  });
+  const kinds = (recompute: ReturnType<typeof setup>['recompute']) => recompute.calls.map((call) => call.kind);
+
+  it('runs reprocess, weather, totals and event qualification in that order', async () => {
+    const { store, worker, recompute } = setup(async () => importedDone(imported('run-1')));
+    store.seed();
+
+    await worker.drain();
+
+    expect(kinds(recompute)).toEqual(['reprocess', 'weather', 'totals', 'qualify']);
+    expect(recompute.calls[0]).toEqual({ kind: 'reprocess', userId: 'user-1', fromDate: '2026-10-12' });
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'imported' });
+  });
+
+  it('fetches weather and qualifies events once for all new runs of a batch, and reprocesses once from the oldest date', async () => {
+    const runs = [imported('run-a', '2026-10-12'), imported('run-b', '2026-10-10')];
+    const { store, worker, recompute } = setup(async (ctx) => importedDone(runs[ctx.event.id - 1]));
+    store.seed();
+    store.seed();
+
+    await worker.drain();
+
+    expect(recompute.calls).toEqual([
+      { kind: 'reprocess', userId: 'user-1', fromDate: '2026-10-10' },
+      { kind: 'weather', runIds: ['run-a', 'run-b'] },
+      { kind: 'totals', userId: 'user-1' },
+      { kind: 'qualify', userId: 'user-1', runIds: ['run-a', 'run-b'] },
+    ]);
+  });
+
+  it('only runs the new runs through weather and event qualification, not the other events of the batch', async () => {
+    const { store, worker, recompute } = setup(async (ctx) => (ctx.event.id === 1 ? importedDone(imported('run-new')) : changed('2026-10-11')));
+    store.seed();
+    store.seed();
+
+    await worker.drain();
+
+    expect(recompute.calls.filter((call) => call.kind === 'weather' || call.kind === 'qualify')).toEqual([
+      { kind: 'weather', runIds: ['run-new'] },
+      { kind: 'qualify', userId: 'user-1', runIds: ['run-new'] },
+    ]);
+  });
+
+  it('does neither weather nor event qualification when nothing was imported', async () => {
+    const { store, worker, recompute } = setup(async () => changed('2026-10-12'));
+    store.seed();
+
+    await worker.drain();
+
+    expect(kinds(recompute)).toEqual(['reprocess', 'totals']);
+  });
+
+  it('a weather failure is logged and changes nothing: totals and qualification still run and the event is done', async () => {
+    const logs = captureLogs();
+    const { store, worker, recompute } = setup(async () => importedDone(imported('run-1')));
+    recompute.weatherError = Object.assign(new Error('weather down SECRET'), { code: 'ETIMEDOUT' });
+    store.seed();
+
+    await worker.drain();
+
+    expect(kinds(recompute)).toEqual(['reprocess', 'weather', 'totals', 'qualify']);
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'imported', attempts: 0 });
+    expect(logs.all()).toContain('ETIMEDOUT');
+    expect(logs.all()).not.toContain('SECRET');
+  });
+
+  it('an event qualification failure never fails the batch', async () => {
+    const logs = captureLogs();
+    const { store, worker, recompute } = setup(async () => importedDone(imported('run-1')));
+    recompute.qualifyError = Object.assign(new Error('qualify down SECRET'), { code: 'XX000' });
+    store.seed();
+
+    await worker.drain();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'imported', attempts: 0 });
+    expect(logs.at('error').join('\n')).toContain('XX000');
+    expect(logs.all()).not.toContain('SECRET');
+  });
+
+  it('event qualification that throws at once, before returning a promise, never fails the batch', async () => {
+    const { store, worker, recompute } = setup(async () => importedDone(imported('run-1')));
+    recompute.qualifyThrowsSynchronously = true;
+    store.seed();
+
+    await worker.drain();
+
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'imported' });
+  });
+
+  it('event qualification is fire-and-forget: the batch does not wait for it', async () => {
+    const { store, worker, recompute } = setup(async () => importedDone(imported('run-1')));
+    recompute.qualifyNeverSettles = true;
+    store.seed();
+
+    await worker.drain();
+
+    expect(kinds(recompute)).toEqual(['reprocess', 'weather', 'totals', 'qualify']);
+    expect(store.row(1).status).toBe('done');
+  });
+
+  it('when the reprocess fails the event is retried, but weather and event qualification still run for the new run and totals do not', async () => {
+    const { store, worker, recompute } = setup(async () => importedDone(imported('run-1')));
+    recompute.reprocessError = new Error('boom');
+    store.seed();
+
+    await worker.drain();
+
+    expect(kinds(recompute)).toEqual(['reprocess', 'weather', 'qualify']);
+    expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 1, last_error: 'recompute_failed' });
+  });
+
+  it('a retried event does not qualify the same run twice: only the try that imported it carries the run', async () => {
+    let tries = 0;
+    const { store, worker, recompute } = setup(async () => {
+      tries += 1;
+      return tries === 1 ? importedDone(imported('run-1')) : done('noop', '2026-10-12');
+    });
+    recompute.reprocessError = new Error('boom');
+    store.seed();
+    await worker.drain();
+    recompute.reprocessError = null;
+    clock = new Date(START.getTime() + 2 * MINUTE);
+
+    await worker.drain();
+
+    expect(recompute.calls.filter((call) => call.kind === 'qualify')).toHaveLength(1);
+    expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'noop' });
+  });
+
+  it('an imported run without a usable date makes the recalculation start from the earliest run', async () => {
+    const { store, worker, recompute, runs } = setup(async () => ({ status: 'done', outcome: 'imported', recalculateFrom: null, importedRuns: [imported('run-1')] }));
+    runs.runs.push({ userId: 'user-1', externalId: '1', date: '2026-09-01' });
+    store.seed();
+
+    await worker.drain();
+
+    expect(recompute.calls[0]).toEqual({ kind: 'reprocess', userId: 'user-1', fromDate: '2026-09-01' });
+    expect(kinds(recompute)).toContain('qualify');
+  });
+
+  it('entries of importedRuns that are not runs are dropped before weather and qualification', async () => {
+    const { store, worker, recompute } = setup(
+      (async () => ({
+        status: 'done',
+        outcome: 'imported',
+        recalculateFrom: '2026-10-12',
+        importedRuns: [imported('run-1'), null, 'x', { id: 7 }, { id: 'run-2', date: 'not a date', distance_km: 5 }],
+      })) as unknown as WebhookHandler,
+    );
+    store.seed();
+
+    await worker.drain();
+
+    expect(recompute.calls.filter((call) => call.kind === 'weather')).toEqual([{ kind: 'weather', runIds: ['run-1'] }]);
+  });
+
+  it('a handler that returns importedRuns that is not a list is a failed attempt', async () => {
+    const { store, worker } = setup(
+      (async () => ({ status: 'done', outcome: 'imported', recalculateFrom: '2026-10-12', importedRuns: 'run-1' })) as unknown as WebhookHandler,
+    );
+    store.seed();
+
+    await worker.drain();
+
+    expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 1, last_error: 'invalid_handler_result' });
   });
 });
