@@ -209,7 +209,7 @@ export async function runBackfill({ db, apply, host, log }: RunBackfillInput): P
   } else {
     for (const { userId, athleteId } of report.wouldWrite) log(`would write: ${who(userId)} -> ${athleteId}`);
   }
-  for (const { userId, reason } of report.failed) log(`not written: ${who(userId)} (${reason})`);
+  for (const { userId, reason } of report.failed) log(`failed: ${who(userId)} (${reason})`);
   for (const { userId } of report.mustReconnect) log(`must reconnect: ${who(userId)}`);
 
   const missing = connections.length - report.alreadySet.length - report.written.length;
