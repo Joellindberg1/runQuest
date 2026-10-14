@@ -24,9 +24,19 @@ function install(...args: Parameters<typeof installFakeStravaFetch>): FakeStrava
   installed.push(fake);
   return fake;
 }
-afterEach(() => {
-  while (installed.length) installed.pop()!.restore();
-});
+// Återställer allt även om en restore() kastar (omockat anrop) och kastar först därefter det första felet.
+function restoreAll(): void {
+  const errors: unknown[] = [];
+  while (installed.length) {
+    try {
+      installed.pop()!.restore();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0) throw errors[0];
+}
+afterEach(restoreAll);
 
 describe('fakeStrava', () => {
   it('fakeStrava serves a configured activity and counts calls', async () => {
@@ -190,6 +200,61 @@ describe('fakeStrava', () => {
 
     expect(fake.calls).toMatchObject({ pushSubscriptionsList: 1, pushSubscriptionsCreate: 1, pushSubscriptionsDelete: 1, oauthToken: 1 });
     expect(fake.requests[1].body).toEqual({ callback_url: 'https://x.test/hook' });
+  });
+});
+
+describe('fakeStrava fetch lifecycle', () => {
+  it('replaces fetch on install and puts the original back on restore', () => {
+    const before = globalThis.fetch;
+    const fake = install({ athlete: stravaAthlete() });
+
+    expect(globalThis.fetch).not.toBe(before);
+    fake.restore();
+    expect(globalThis.fetch).toBe(before);
+  });
+
+  it('puts the original fetch back after a test body that throws', () => {
+    const before = globalThis.fetch;
+    install({ athlete: stravaAthlete() });
+
+    expect(() => {
+      throw new Error('test body failed');
+    }).toThrow('test body failed');
+    expect(globalThis.fetch).not.toBe(before);
+    restoreAll();
+    expect(globalThis.fetch).toBe(before);
+  });
+
+  it('puts the original fetch back even when restore itself throws on an unmocked call', async () => {
+    const before = globalThis.fetch;
+    const fake = install({ athlete: stravaAthlete() });
+    await expect(fetch('https://example.com/x')).rejects.toThrow(/unmocked/i);
+
+    expect(() => fake.restore()).toThrow(/unmocked/i);
+    expect(globalThis.fetch).toBe(before);
+  });
+
+  it('restores every fake before rethrowing the first restore error', async () => {
+    const before = globalThis.fetch;
+    install({ athlete: stravaAthlete() });
+    const second = install({ athlete: stravaAthlete() });
+    await expect(fetch('https://example.com/x')).rejects.toThrow(/unmocked/i);
+
+    expect(() => restoreAll()).toThrow(/unmocked/i);
+    expect(globalThis.fetch).toBe(before);
+    expect(() => second.restore()).not.toThrow();
+  });
+
+  it('refuses non-https and foreign hosts even for strava-shaped paths', async () => {
+    const fake = install({ activities: { 111: stravaActivity({ id: 111 }) } });
+
+    await expect(fetch('https://example.com/api/v3/activities/111')).rejects.toThrow(/unmocked/i);
+    await expect(fetch('http://www.strava.com/api/v3/activities/111')).rejects.toThrow(/unmocked/i);
+    await expect(fetch('https://strava.com/api/v3/activities/111')).rejects.toThrow(/unmocked/i);
+
+    expect(fake.calls.activity).toBe(0);
+    expect(fake.unmockedRequests).toHaveLength(3);
+    expect(() => fake.restore()).toThrow(/unmocked/i);
   });
 });
 

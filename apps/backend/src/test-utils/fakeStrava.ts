@@ -7,6 +7,9 @@
  *
  * Inget test når nätet: en URL (eller metod) som inte är konfigurerad kastar och listas i `unmockedRequests`,
  * och `restore()` kastar om något sådant anrop skett, även om anropskoden svalde felet.
+ *
+ * Skyddet gäller bara tester som installerar fejken, och bara om `restore()` körs i `afterEach` (annars ligger stubben kvar
+ * för nästa test och omockade anrop upptäcks aldrig). Endast https://www.strava.com matchas; allt annat är omockat.
  */
 
 // ─── Payloads ───────────────────────────────────────────────────────────────
@@ -333,7 +336,7 @@ interface Matched {
 }
 
 function match(routes: FakeStravaRoutes, method: string, url: URL): Matched | 'unconfigured' | null {
-  if (url.hostname !== 'www.strava.com' && url.hostname !== 'strava.com') return null;
+  if (url.protocol !== 'https:' || url.hostname !== 'www.strava.com') return null;
   const pathname = url.pathname.replace(/\/+$/, '');
   const found = (route: FakeStravaRouteName, value: unknown, successStatus = 200, activityId?: number): Matched | 'unconfigured' =>
     value === undefined ? 'unconfigured' : { route, value: value as FakeStravaRouteValue<unknown>, successStatus, activityId };
