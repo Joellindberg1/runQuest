@@ -452,6 +452,34 @@ describe('the user lock around a disconnect', () => {
     expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH' });
   });
 
+  it('a reconnect whose token exchange hangs is cut off after the time limit, releases the user lock and ends as a failed exchange', async () => {
+    const { tables } = setup();
+    const before = JSON.parse(JSON.stringify(tables.strava_tokens));
+    // The limit is 15 s; the test makes that one signal 30 ms long instead of waiting for it.
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => realTimeout(ms === 15_000 ? 30 : ms));
+    // A Strava that never answers and only gives up when the request is aborted.
+    vi.stubGlobal('fetch', (_url: unknown, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+    }));
+    try {
+      const res = await server.request('POST', '/api/strava/callback', {
+        token: mintToken({ user_id: 'user-1', group_id: 'group-1' }),
+        body: { code: 'SECRET-CODE', consent_version: STRAVA_CONSENT_VERSION },
+      });
+
+      expect(res.status).toBe(500);
+      expect(timeout).toHaveBeenCalledWith(15_000);
+      expect(tables.strava_tokens).toEqual(before); // no row written
+      // The lock is free again: a waiting user is not held up.
+      await expect(withUserLock('user-1', async () => 'free')).resolves.toBe('free');
+      expect(lines.some((line) => line.includes('user-1') && line.includes('timed out'))).toBe(true);
+      expect(lines.filter((line) => line.includes('SECRET'))).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('a sync that queued behind the disconnect answers not connected and never reaches Strava', async () => {
     const { tables } = setup({ strava: { athleteActivities: [stravaActivity({ id: 5001 })] } });
     const held = new Promise<void>((resolve) => { releaseLock = resolve; });

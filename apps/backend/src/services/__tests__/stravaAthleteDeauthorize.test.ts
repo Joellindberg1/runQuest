@@ -191,7 +191,14 @@ describe('athlete deauthorize', () => {
   });
 
   it('deauthorize event with a token refresh that failed for another reason, or a token row that could not be read, is retried and deletes nothing', async () => {
-    const clientCredentials = { message: 'Bad Request', errors: [{ resource: 'Application', field: 'client_secret', code: 'invalid' }] };
+    // A wrong client secret on our side. The body also names the refresh token, and the application entry has an empty field: only
+    // the resource tells it apart, and a forged event must never be able to turn this into deleted runs.
+    const clientCredentials = {
+      message: 'Authorization Error',
+      errors: [{ resource: 'Application', field: '' }, { resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' }],
+    };
+    // Strava uses "Authorization Error" for every 401; with nothing naming the refresh token it proves nothing.
+    const messageOnly = { message: 'Authorization Error' };
     const cases: Array<{ label: string; setup: Setup; lastError: string }> = [
       { label: '5xx', setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(503) } }, lastError: 'token_refresh_failed' },
       {
@@ -202,8 +209,13 @@ describe('athlete deauthorize', () => {
       { label: '429', setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(429) } }, lastError: 'token_refresh_failed' },
       {
         // A wrong client secret on our side is a 400 too, and a forged event must not be able to turn it into deleted runs.
-        label: '400 about the client credentials',
-        setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(400, { body: clientCredentials }) } },
+        label: '401 about the client credentials',
+        setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(401, { body: clientCredentials }) } },
+        lastError: 'token_refresh_failed',
+      },
+      {
+        label: '401 Authorization Error with nothing naming the refresh token',
+        setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(401, { body: messageOnly }) } },
         lastError: 'token_refresh_failed',
       },
       {

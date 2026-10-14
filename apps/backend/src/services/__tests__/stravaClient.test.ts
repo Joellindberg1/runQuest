@@ -173,7 +173,6 @@ describe('why a token refresh failed', () => {
       ['400 naming only the field', 400, { message: 'Bad Request', errors: [{ field: 'refresh_token', code: 'invalid' }] }],
       ['400 naming only the resource', 400, { message: 'Bad Request', errors: [{ resource: 'RefreshToken' }] }],
       ['401 Authorization Error naming the refresh token', 401, { message: 'Authorization Error', errors: [REFRESH_TOKEN_INVALID] }],
-      ['401 Authorization Error alone', 401, { message: 'Authorization Error' }],
       ['400 invalid_grant', 400, { error: 'invalid_grant' }],
     ];
     for (const [label, status, body] of rejections) {
@@ -223,7 +222,11 @@ describe('why a token refresh failed', () => {
       ['401 with another message', 401, { message: 'Something else' }],
       ['400 about the client id', 400, { message: 'Bad Request', errors: [{ resource: 'Application', field: 'client_id', code: 'invalid' }] }],
       ['401 Authorization Error about the client secret', 401, { message: 'Authorization Error', errors: [{ resource: 'Application', field: 'client_secret', code: 'invalid' }] }],
+      // Strava uses "Authorization Error" for every 401, a wrong client secret included, so the message alone proves nothing.
+      ['401 Authorization Error alone', 401, { message: 'Authorization Error' }],
+      ['401 Authorization Error about the athlete token', 401, { message: 'Authorization Error', errors: [{ resource: 'Athlete', field: 'access_token', code: 'invalid' }] }],
       ['401 Authorization Error naming both the application and the refresh token', 401, { message: 'Authorization Error', errors: [{ resource: 'Application', field: 'client_id' }, REFRESH_TOKEN_INVALID] }],
+      ['401 naming the application by resource only, with an empty field, and the refresh token', 401, { message: 'Authorization Error', errors: [{ resource: 'Application', field: '' }, REFRESH_TOKEN_INVALID] }],
       ['403 naming the refresh token', 403, { message: 'Forbidden', errors: [REFRESH_TOKEN_INVALID] }],
       ['404 naming the refresh token', 404, { message: 'Not Found', errors: [REFRESH_TOKEN_INVALID] }],
     ];
@@ -336,6 +339,44 @@ describe('why a token refresh failed', () => {
     use([{ ...EXPIRED }], (q) => (q.table === 'strava_tokens' && q.select !== null && ++reads === 2 ? { message: 'connection reset' } : null));
 
     expect(await getValidAccessToken('user-1')).toMatchObject({ ok: false, reason: 'refresh_failed' });
+  });
+
+  it('a rejection that arrives after the user was disconnected is not a rejected refresh token', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaError(401, { body: { message: 'Authorization Error', errors: [REFRESH_TOKEN_INVALID] } }) });
+    const { t } = use([{ ...EXPIRED }]);
+    const hold = holdTheTokenRequest();
+    try {
+      const pending = getValidAccessToken('user-1');
+      await hold.reached;
+      t.strava_tokens.splice(0, 1);
+      hold.release();
+
+      expect(await pending).toMatchObject({ ok: false, reason: 'refresh_failed' });
+      expect(t.strava_tokens).toEqual([]);
+    } finally {
+      hold.restore();
+    }
+  });
+
+  it('a save lost after it was applied, followed by a reconnect, is a failed refresh that leaves the new connection alone', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'late-at', refresh_token: 'late-rt', expires_at: 9999999990 }) });
+    const reconnected: Row = { user_id: 'user-1', access_token: 'reconnect-at', refresh_token: 'reconnect-rt', expires_at: 9999999000, connection_date: '2026-10-15' };
+    const rows: Row[] = [{ ...EXPIRED }];
+    let first = true;
+    use(rows, (q) => {
+      if (q.table !== 'strava_tokens' || q.mutation !== 'update' || !first) return null;
+      first = false;
+      // The first save is applied, its answer is lost, and the user reconnects before the retry.
+      Object.assign(rows[0], { access_token: 'late-at', refresh_token: 'late-rt', expires_at: 9999999990 });
+      rows.splice(0, 1, { ...reconnected });
+      return { message: 'connection lost' };
+    });
+
+    const result = await getValidAccessToken('user-1');
+
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(JSON.stringify(result)).not.toContain('late-at');
+    expect(rows).toEqual([reconnected]);
   });
 
   it('a late token refresh does not bring a disconnected user back', async () => {

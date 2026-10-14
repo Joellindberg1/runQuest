@@ -86,22 +86,23 @@ async function readJson(response: Response): Promise<unknown> {
  * refresh token counts, and an error about our own client credentials never does.
  *
  * ASSUMED shapes, not yet seen from real Strava (to be checked in the release preview against real Strava, RUN-182):
- *   400 {"message":"Bad Request","errors":[{"resource":"RefreshToken","field":"refresh_token","code":"invalid"}]}
- *   401 {"message":"Authorization Error", ...}                  (with or without the errors list above)
- *   400 {"error":"invalid_grant"}                                (the OAuth 2 wording, in case Strava uses it)
+ *   400 or 401 {"message":"Bad Request" | "Authorization Error","errors":[{"resource":"RefreshToken","field":"refresh_token","code":"invalid"}]}
+ *   400 or 401 {"error":"invalid_grant"}                         (the OAuth 2 wording, in case Strava uses it)
+ * The message alone ("Authorization Error" without such an entry) is NOT enough: Strava uses it for every 401, a wrong client secret
+ * included, so a body that lacks the Application entry could still be our own fault. If the preview shows that a revoked token
+ * answers with the message only, adding that case back is a decision of its own (Lead).
  */
 function isRefreshTokenRejection(status: number, body: unknown): boolean {
   if (status !== 400 && status !== 401) return false;
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return false;
-  const { message, error, errors } = body as { message?: unknown; error?: unknown; errors?: unknown };
+  const { error, errors } = body as { error?: unknown; errors?: unknown };
 
   const details = Array.isArray(errors) ? errors.filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null) : [];
   const aboutOurApplication = details.some((entry) => entry.resource === 'Application' || entry.field === 'client_id' || entry.field === 'client_secret');
   if (aboutOurApplication) return false;
 
   const namesRefreshToken = details.some((entry) => entry.resource === 'RefreshToken' || entry.field === 'refresh_token');
-  const authorizationError = typeof message === 'string' && message.includes('Authorization Error');
-  return namesRefreshToken || authorizationError || error === 'invalid_grant';
+  return namesRefreshToken || error === 'invalid_grant';
 }
 
 type RefreshOutcome =

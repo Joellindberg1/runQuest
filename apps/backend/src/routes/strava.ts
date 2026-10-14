@@ -251,6 +251,9 @@ router.put('/sync-paused', authenticateJWT, syncPausedLimiter, async (req, res):
   }
 });
 
+/** How long the code exchange of the callback may take; it runs under the user's lock (same pattern as REVOKE_TIMEOUT_MS). */
+const STRAVA_EXCHANGE_TIMEOUT_MS = 15_000;
+
 // POST /api/strava/callback - Handle Strava OAuth callback
 router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
   try {
@@ -282,8 +285,11 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     // the middle of a disconnect waits for it, so the disconnect's delete can never remove the connection that was just made, and a
     // code is never exchanged just before the disconnect revokes the authorisation it creates.
     await withUserLock(userId, async () => {
+      // Bounded: the lock is held while this runs and has no timeout of its own (utils/keyedMutex.ts), so a Strava that never answers
+      // would hold up the worker's batch and every other request of this user. A timeout fails like a network error does.
       const tokenResponse = await stravaFetch('https://www.strava.com/oauth/token', {
         method: 'POST',
+        signal: AbortSignal.timeout(STRAVA_EXCHANGE_TIMEOUT_MS),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           client_id: clientId,
@@ -358,7 +364,9 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     });
     
   } catch (error) {
-    logger.error(`❌ Strava callback error for user ${req.user!.user_id} (${errorCode(error)})`);
+    // A timeout is a DOMException whose numeric code (23) says nothing in a log; its name does.
+    const reason = error instanceof Error && error.name === 'TimeoutError' ? 'token exchange timed out' : errorCode(error);
+    logger.error(`❌ Strava callback error for user ${req.user!.user_id} (${reason})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });

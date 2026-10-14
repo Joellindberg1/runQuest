@@ -259,6 +259,24 @@ describe('backfill idempotence and failures', () => {
     expect(report.mustReconnect).toEqual([{ userId: 'u1', reason: 'Strava rejected the token (HTTP 401)' }]);
   });
 
+  it('backfill lists a user whose token row could not be read as failed, not as must reconnect, and a rejected refresh token as must reconnect', async () => {
+    strava = installFakeStravaFetch({
+      oauthToken: stravaError(400, { body: { message: 'Bad Request', errors: [{ resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' }] } }),
+      athlete: athleteByToken({ 'access-u3': 5003 }),
+    });
+    const { db } = world(
+      [token('u1'), token('u2', { expires_at: 100 }), token('u3')],
+      // The connection list and the names are read first; only the token path selects the access token, one read per user.
+      (q) => (q.table === 'strava_tokens' && q.select?.startsWith('access_token') && q.filters.some((f) => f.column === 'user_id' && f.value === 'u1') ? { message: 'connection reset' } : null),
+    );
+
+    const report = await runBackfill({ db: db.client as any, apply: false, host: HOST, log });
+
+    expect(report.failed).toEqual([{ userId: 'u1', reason: 'the stored token could not be read (a database error)' }]);
+    expect(report.mustReconnect).toEqual([{ userId: 'u2', reason: 'Strava rejected the refresh token' }]);
+    expect(report.wouldWrite).toEqual([{ userId: 'u3', athleteId: 5003 }]);
+  });
+
   it('backfill reports a user whose id could not be fetched without stopping', async () => {
     strava = installFakeStravaFetch({
       athlete: athleteByToken({ 'access-u1': stravaError(500), 'access-u2': 5002 }),
