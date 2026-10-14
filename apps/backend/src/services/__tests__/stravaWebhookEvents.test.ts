@@ -13,6 +13,7 @@ import {
   WEBHOOK_BACKOFF_MINUTES,
   WEBHOOK_DEAD_AFTER_HOURS,
   LEASE_SECONDS,
+  WEBHOOK_CLAIM_BATCH,
 } from '../stravaWebhook/constants.js';
 import { buildWebhookDedupeKey, pickWhitelistedUpdates, type WebhookEventKeyInput } from '../stravaWebhook/dedupeKey.js';
 
@@ -32,6 +33,7 @@ describe('webhook constants', () => {
     expect([...WEBHOOK_BACKOFF_MINUTES]).toEqual([1, 5, 15, 60]);
     expect(WEBHOOK_DEAD_AFTER_HOURS).toBe(48);
     expect(LEASE_SECONDS).toBe(300);
+    expect(WEBHOOK_CLAIM_BATCH).toBe(25); // p_max, ADR 010 beslut 6.3
   });
 });
 
@@ -57,7 +59,8 @@ describe('webhook outcomes', () => {
     for (const outcome of named) expect(WEBHOOK_OUTCOMES, `utfallet ${outcome} saknas i koden`).toContain(outcome);
 
     // Och ADR:ns egen uppräkning ("`outcome` (enum i kod): ...") är exakt listan i koden, varken fler eller färre.
-    const enumLine = adr.split('\n').find((line) => line.includes('(enum i kod):'))!;
+    const enumLine = adr.split('\n').find((line) => line.includes('(enum i kod):'));
+    if (!enumLine) throw new Error('ADR 010 beslut 5 saknar uppräkningen "(enum i kod):" av utfall; testet kan inte jämföra listan i koden');
     const listed = [...enumLine.slice(enumLine.indexOf('(enum i kod):')).matchAll(/`([a-z_]+)`/g)].map((m) => m[1]);
     expect([...WEBHOOK_OUTCOMES].sort()).toEqual([...listed].sort());
   });
@@ -68,6 +71,14 @@ describe('buildWebhookDedupeKey', () => {
     const redelivery: WebhookEventKeyInput = { ...base, updates: { private: 'true' } };
     expect(buildWebhookDedupeKey(redelivery)).toBe(buildWebhookDedupeKey(base));
     expect(buildWebhookDedupeKey(base)).toMatch(/^strava:activity:1234567890:update:1672790400:[0-9a-f]{12}$/);
+  });
+
+  it('dedupe key has fixed golden values: sha256 over canonical JSON, first 12 hex characters', () => {
+    // sha256sum över {"private":"true"} resp. {"authorized":"false","private":"true","type":"Ride"} (nycklarna sorterade).
+    expect(buildWebhookDedupeKey(base)).toBe('strava:activity:1234567890:update:1672790400:321a6af0e428');
+    expect(buildWebhookDedupeKey({ ...base, updates: { type: 'Ride', private: 'true', authorized: 'false' } })).toBe(
+      'strava:activity:1234567890:update:1672790400:4ed63caf7cbf',
+    );
   });
 
   it('dedupe key differs for a different aspect_type, event_time or updates', () => {

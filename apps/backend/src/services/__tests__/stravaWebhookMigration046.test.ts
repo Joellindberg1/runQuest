@@ -44,6 +44,11 @@ describe(`migration ${file}`, () => {
     expect(code).not.toMatch(/\bgrant\b[^;]*\bstrava_webhook_events\b/i);
   });
 
+  it('claim function runs as the caller, never security definer', () => {
+    // En definer-funktion skulle köra med ägarens rättigheter och förbigå RLS och revoke för den som lyckas anropa den.
+    expect(code).not.toMatch(/\bsecurity\s+definer\b/i);
+  });
+
   it('claim function sets an empty search_path and revokes execute from public, anon and authenticated', () => {
     expect(fn).not.toBe('');
     expect(fn).toMatch(/\bset search_path to ''/i);
