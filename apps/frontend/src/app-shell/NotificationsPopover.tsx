@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { NewsPopoverPanel } from '@/features/news/components/NewsPopoverPanel';
 import { useNewsUnreadCount } from '@/features/news/hooks/useNewsQueries';
+import { useUnreadAnnouncement } from '@/features/news/hooks/useUnreadAnnouncement';
 import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { badgeText } from '@/features/news/newsModel';
 import { useAuth } from '@/providers/authContext';
@@ -28,31 +29,37 @@ export function NotificationsPopover({ variant }: NotificationsPopoverProps) {
   useUserSettings();
   const unread = useNewsUnreadCount(!!user);
   const badge = badgeText(unread);
+  const announcement = useUnreadAnnouncement(unread);
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          className="rq-header__action"
-          aria-label={unread > 0 ? `Pack news, ${unread} unread` : 'Pack news'}
-          data-tour="header-news"
-        >
-          <RQIcon name="bell" size={variant === 'desktop' ? ICON_BELL : ICON_HEADER} />
-          {badge && <span className="rq-news-badge rq-header__badge" aria-hidden="true">{badge}</span>}
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          align="end"
-          sideOffset={8}
-          collisionPadding={COLLISION_PADDING}
-          aria-label="Pack news"
-          className="rq-popover rq-popover--gold rq-news-pop"
-        >
-          <NewsPopoverPanel onClose={() => setOpen(false)} showClose={variant === 'mobile'} />
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+    <>
+      {/* EN polite live-region för räknaren (klockan finns alltid i headern; /news och popovern har ingen egen): permanent i trädet så att nästa
+          text annonseras, tom tills räknaren minskat. Knappens namn bär siffran för den som navigerar dit; regionen är för den som läser en rad. */}
+      <span role="status" aria-live="polite" className="sr-only">{announcement}</span>
+      <Popover.Root open={open} onOpenChange={setOpen}>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className="rq-header__action"
+            aria-label={unread > 0 ? `Pack news, ${unread} unread` : 'Pack news'}
+            data-tour="header-news"
+          >
+            <RQIcon name="bell" size={variant === 'desktop' ? ICON_BELL : ICON_HEADER} />
+            {badge && <span className="rq-news-badge rq-header__badge" aria-hidden="true">{badge}</span>}
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            align="end"
+            sideOffset={8}
+            collisionPadding={COLLISION_PADDING}
+            aria-label="Pack news"
+            className="rq-popover rq-popover--gold rq-news-pop"
+          >
+            <NewsPopoverPanel onClose={() => setOpen(false)} showClose={variant === 'mobile'} />
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </>
   );
 }

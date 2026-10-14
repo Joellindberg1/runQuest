@@ -4,7 +4,7 @@ Pack News (ADR 008): vad gruppen gjort — titelbyten, utmaningsutfall, level up
 Klockan i headern (`app-shell/NotificationsPopover`) öppnar en popover med de fem senaste och en oläst-räknare ur SAMMA flöde; "See all pack news" går
 till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = Web Prototypens (flöde | 300 px filterkort). `pages/NewsPage.tsx` är tunn.
 `badge_earned` (ADR 009, spec F7) har eget filterchip Badges sedan v0.6.1; raderna behåller kategorin Levels (grön kant) och ritar ett `sm`-emblem i ikonkolumnen (RUN-128); se nedan.
-`release_published` (RUN-161) är en systemrad ("New version", `RunQuest vX is out — titel`, ikon `sparkles`) i kategorin `release` med samma ink-token som events och UTAN filterchip — den syns när inget filter är valt. Raden har ingen länk (nyhetsrader har inget klickmönster). Den skrivs aldrig av appen/servern, bara av `npm run announce:release` (backend).
+`release_published` (RUN-161) är en systemrad ("New version", `RunQuest vX is out — titel`, ikon `sparkles`) i kategorin `release` med samma ink-token som events och UTAN filterchip — den syns när inget filter är valt. Raden har ingen länk (bara läs-knappen som täcker raden). Den skrivs aldrig av appen/servern, bara av `npm run announce:release` (backend).
 
 ## Struktur
 
@@ -48,7 +48,11 @@ till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = W
   markeras ändå aldrig som oläst. Badgen på klockan är dold vid 0 och "99+" över hundra; knappens namn bär siffran ("Pack news, 4 unread").
 - **"Mark all read" är den enda kvitteringen** (prototypen har knappen i popover och skärm; inget kvitterar vid besök). `POST /news/seen { up_to_id }` med högsta id i flödet för alla typer, oavsett vilket filter
   som visas. Optimistiskt: räknaren och raderna är lästa direkt i alla flöden; serverns svar (kan vara > 0 om nya rader hann komma) skriver över, ett fel återställer, och flödena invalideras (catch-up).
-- **Läst per rad (ADR 011 beslut 4, datalagret utan vyer):** `useMarkNewsRead().markRead(id)` är hela ytan; gesterna (hover efter rörelse, tap, Enter/Space) bor i vyerna och använder `READ_DWELL_MS`
+- **Läs-gesterna (ADR 011 addendum 2026-10-14, RUN-197):** raden (`NewsRow`, `NewsPopoverRow`) är ett `li` med EN `button` som täcker raden (inga länkar i raden, så ingen interaktiv ruta ligger i en annan; namnet är radens text inkl. "(unread)").
+  Gesterna bor i `useRowReadGestures`: mus/penna som rör sig in över raden (`pointerenter`/`pointermove`, `pointerType ≠ touch`, inte under `POINTER_SETTLE_MS`) och `click` (Enter/Space, skärmläsare, touch-tap — en scroll ger pointercancel, aldrig click).
+  Fokus markerar inte. Rörelsevakten är per LISTA, inte per rad: `ReadGestureScope` (dag-listan, popovern runt sin lista) räknar från monteringen, så Show more/poll-rader inte får eget fönster och varje öppning av popovern ger ett nytt.
+  Klockans räknare har EN polite live-region (`NotificationsPopover`, `useUnreadAnnouncement`): bara minskningar, debouncade (`UNREAD_ANNOUNCE_MS`). jsdom saknar PointerEvent: tester importerar `@/test/pointerEvent`.
+- **Läst per rad (ADR 011 beslut 4, datalagret):** `useMarkNewsRead().markRead(id)` är hela ytan; gesterna ovan använder `READ_DWELL_MS`
   (0), `POINTER_SETTLE_MS` (150) och `READ_FLUSH_MS` (300) ur newsModel. Raden och räknaren är lästa i ALLA flödescacher direkt (`markReadInFeed`; räknaren minskar i varje cache, även där raden inte är
   laddad). Anropen buntas av `createReadBatcher` (högst 50 id per `POST /news/read`, dubbletter slås ihop) och töms vid avmontering. Ett fel återställer exakt de flippade raderna (`markUnreadInFeed`)
   och räknaren tyst. Serverns `unread_count` skriver över den lokala först när inget annat anrop väntar. En pågående hämtning avbryts innan uppdateringen (som "Mark all read"). Rader som inte är olästa ger inget anrop.

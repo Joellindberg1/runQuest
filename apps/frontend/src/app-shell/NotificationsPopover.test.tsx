@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { NewsItem } from '@runquest/shared';
 import { AppShell } from './AppShell';
@@ -9,6 +9,9 @@ import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { ADAM, DAN, NOW_ISO, at, challengeWon, eventOpen, levelUp, newsServer, streakBroken, titleTaken } from '@/features/news/news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { POINTER_SETTLE_MS } from '@/features/news/newsModel';
+import { UNREAD_ANNOUNCE_MS } from '@/features/news/hooks/useUnreadAnnouncement';
+import '@/test/pointerEvent';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 
@@ -42,6 +45,7 @@ function setup(feed: NewsItem[] = FEED(), lastSeen: number | null = 16) {
   news = newsServer(feed, lastSeen);
   handlers.getNews = (...args: unknown[]) => news.getNews(...(args as [never]));
   handlers.markNewsSeen = (...args: unknown[]) => news.markNewsSeen(...(args as [never]));
+  handlers.markNewsRead = (...args: unknown[]) => news.markNewsRead(...(args as [never]));
 }
 
 const bell = () => screen.findByRole('button', { name: /^Pack news/ });
@@ -218,5 +222,28 @@ describe('popovern', () => {
     setup();
     fireEvent.click(within(popover).getByRole('button', { name: 'Retry' }));
     expect(await within(popover).findByText('Karl reached level 25')).toBeInTheDocument();
+  });
+});
+
+describe('klockans räknare — live region', () => {
+  it('räknarens ändring annonseras artigt i en live region', async () => {
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    const popover = await openPopover();
+    // Popovern har en egen status-region (Mark all read); räknarens ligger vid klockan, utanför popovern.
+    const region = screen.getAllByRole('status').find((element) => !popover.contains(element)) as HTMLElement;
+    expect(region).toHaveAttribute('aria-live', 'polite');
+    expect(region).toBeEmptyDOMElement();
+    const spoken: string[] = [];
+    new MutationObserver(() => spoken.push(region.textContent ?? '')).observe(region, { childList: true, characterData: true, subtree: true });
+    act(() => { vi.advanceTimersByTime(POINTER_SETTLE_MS); });
+
+    // En svepning över tre olästa rader: klockan visar 1 direkt, men regionen säger ett enda tal, när räknaren stått still.
+    for (const name of [/Karl took The Longest Run/, /Daniel took The Consistent King/, /5K Friday is open/]) {
+      fireEvent.pointerEnter(within(popover).getByRole('button', { name }), { pointerType: 'mouse' });
+    }
+    expect(await screen.findByRole('button', { name: 'Pack news, 1 unread' })).toBeInTheDocument();
+    expect(region).toBeEmptyDOMElement();
+    await waitFor(() => expect(region).toHaveTextContent('Pack news: 1 unread'), { timeout: UNREAD_ANNOUNCE_MS * 4 });
+    expect(spoken.filter(Boolean)).toEqual(['Pack news: 1 unread']);
   });
 });

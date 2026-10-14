@@ -593,6 +593,9 @@
   --rq-news-row-pad-y: 10px;                                          /* desktop 12 */
   --rq-news-row-pad-x: 12px;                                          /* desktop 16 */
   --rq-news-row-icon-badge-w: 30px;                                   /* ikonkolumnen när raden bär ett sm-emblem (badge_earned, RUN-128; desktop 34 = som övriga rader) */
+  --rq-news-row-min-h: 44px;                                          /* flödesraden och popoverns rad är knappar: minsta träffyta (frame N2) */
+  --rq-news-dot-slot: 12px;                                           /* reserverad plats för olästpricken (6 px prick + 6 px luft): läst/oläst flyttar aldrig tiden */
+  --rq-focus-inset: -2px;                                             /* fokusringen INNANFÖR raden (hårlinjegriden och popoverns scroll klipper en yttre ring) */
   --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
   --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
   --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
