@@ -768,6 +768,8 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
     
     const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
     
+    const isFirstImport = existingIds.size === 0;
+
     // Calculate smart 'after' timestamp based on most recent imported run
     // Window start is a Stockholm calendar day (stravaLookback), not the server process's local midnight
     const lookback = stravaLookback((existingRuns ?? []).map((run: any) => run.date), token.connectionDate, new Date());
@@ -871,7 +873,11 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
         logger.error(`❌ Weather fetch failed after failed reprocess for user ${userId} (${errorCode(weatherError)})`);
       }
 
-      await calculateUserTotals(userId);
+      // The first import after connecting (the user has no Strava run yet) is the history import: it can lift XP over several members
+      // at once, and no single run caused it, so it writes no rank_passed. Every later sync imports single new activities as usual.
+      // A missed notification for a first run found by a poll is the accepted price (never a false one); the webhook path is unaffected.
+      if (isFirstImport) await calculateUserTotals(userId, { emitRankNews: false });
+      else await calculateUserTotals(userId);
 
       // Check event qualification for each new run (fire-and-forget)
       for (const run of newRunData) {

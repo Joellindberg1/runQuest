@@ -98,7 +98,7 @@ export async function removeStravaConnection(userId: string, options: RemoveConn
       logger.info(`🔁 Strava disconnect: finishing an earlier attempt for user ${userId}, reprocessing from the earliest run`);
       await recomputeAfterRemoval(userId, from);
     } else {
-      await calculateUserTotals(userId);
+      await calculateUserTotals(userId, { emitRankNews: false }); // the bulk deletion: no rank_passed (ADR 011 decision 6)
     }
   }
 
