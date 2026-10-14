@@ -4,8 +4,8 @@ import cron from 'node-cron';
 import { syncAllStravaUsers } from '../routes/strava.js';
 import { WeatherService } from '../services/weatherService.js';
 import { enhancedTitleService } from '../services/enhancedTitleService.js';
+import { STRAVA_POLL_INTERVAL_MINUTES } from '@runquest/shared';
 
-const SYNC_INTERVAL_MINUTES = 30;
 
 interface SyncState {
   lastSyncAttempt: string | null;
@@ -26,7 +26,7 @@ const syncState: SyncState = {
 };
 
 function computeNextSync(): string {
-  return new Date(Date.now() + SYNC_INTERVAL_MINUTES * 60 * 1000).toISOString();
+  return new Date(Date.now() + STRAVA_POLL_INTERVAL_MINUTES * 60 * 1000).toISOString();
 }
 
 export function getSyncInfo(): SyncState {
@@ -50,13 +50,13 @@ async function recalculateTitlesAfterWeather(savedRows: number): Promise<void> {
 
 // PRODUCTION: Run every 30 minutes
 export function startStravaScheduler() {
-  logger.info(`🕐 Starting Strava sync scheduler for production (every ${SYNC_INTERVAL_MINUTES} minutes)...`);
+  logger.info(`🕐 Starting Strava sync scheduler for production (every ${STRAVA_POLL_INTERVAL_MINUTES} minutes)...`);
 
   // Set first estimated next sync time
   syncState.nextSyncEstimated = computeNextSync();
 
-  cron.schedule(`*/${SYNC_INTERVAL_MINUTES} * * * *`, async () => {
-    logger.info(`🔄 Scheduled Strava sync starting (${SYNC_INTERVAL_MINUTES}-minute interval)...`);
+  cron.schedule(`*/${STRAVA_POLL_INTERVAL_MINUTES} * * * *`, async () => {
+    logger.info(`🔄 Scheduled Strava sync starting (${STRAVA_POLL_INTERVAL_MINUTES}-minute interval)...`);
     syncState.lastSyncAttempt = new Date().toISOString();
     syncState.lastSyncStatus = 'running';
     try {

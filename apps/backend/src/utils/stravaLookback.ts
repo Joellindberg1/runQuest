@@ -1,4 +1,4 @@
-import { addDays, stockholmDay, stockholmMidnightIso } from '@runquest/shared';
+import { addDays, stockholmDay, stockholmMidnightIso, STRAVA_LOOKBACK_BUFFER_DAYS } from '@runquest/shared';
 
 export type LookbackMethod = 'recent-run' | 'connection-date' | 'fallback-30-days';
 
@@ -12,7 +12,6 @@ export interface StravaLookback {
   mostRecentRunDay?: string;
 }
 
-const RECENT_RUN_BUFFER_DAYS = 7;
 const FALLBACK_DAYS = 30;
 const DAY_PREFIX = /^\d{4}-\d{2}-\d{2}/;
 
@@ -31,7 +30,7 @@ export function stravaLookback(
   const days = runDates.filter(d => typeof d === 'string' && DAY_PREFIX.test(d)).map(d => d.slice(0, 10));
   if (days.length > 0) {
     const mostRecentRunDay = days.reduce((latest, d) => (d > latest ? d : latest));
-    const anchorDay = addDays(mostRecentRunDay, -RECENT_RUN_BUFFER_DAYS);
+    const anchorDay = addDays(mostRecentRunDay, -STRAVA_LOOKBACK_BUFFER_DAYS);
     return { after: midnightSeconds(anchorDay), anchorDay, method: 'recent-run', mostRecentRunDay };
   }
 

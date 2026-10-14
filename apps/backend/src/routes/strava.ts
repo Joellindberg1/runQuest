@@ -7,7 +7,13 @@ import { requireAdmin } from '../middleware/admin.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
 import { getXpConfig } from '../services/xpConfig.js';
-import { calculateCompleteRunXP } from '@runquest/shared';
+import {
+  calculateCompleteRunXP,
+  STRAVA_DISTANCE_MUST_EXCEED_KM,
+  STRAVA_LEGACY_RUN_TYPE,
+  STRAVA_RUN_SPORT_TYPES,
+  STRAVA_TREADMILL_FLAG,
+} from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
@@ -18,7 +24,7 @@ const router = express.Router();
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const RUNNING_SPORT_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun']);
+const RUNNING_SPORT_TYPES = new Set<string>(STRAVA_RUN_SPORT_TYPES);
 
 /** Returns the sport_type if it's a valid running type, otherwise null. */
 function normalizeSportType(sportType?: string): string | null {
@@ -30,7 +36,7 @@ function normalizeSportType(sportType?: string): string | null {
 function isRunningActivity(activity: any): boolean {
   // Prefer sport_type (newer field); fall back to type for older data
   if (activity.sport_type) return RUNNING_SPORT_TYPES.has(activity.sport_type);
-  return activity.type === 'Run';
+  return activity.type === STRAVA_LEGACY_RUN_TYPE;
 }
 
 /**
@@ -82,7 +88,7 @@ function extractExtendedFields(activity: any) {
     start_lat:      activity.start_latlng?.[0] ?? null,
     start_lng:      activity.start_latlng?.[1] ?? null,
     pace_std_dev:   computePaceStdDev(activity.splits_metric),
-    is_treadmill:   activity.trainer === true,
+    is_treadmill:   activity[STRAVA_TREADMILL_FLAG] === true,
   };
 }
 
@@ -782,7 +788,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
     // Insert all new runs in parallel (placeholder XP — reprocessRunsFromDate will recalculate)
     logger.info(`🔄 Inserting ${runningActivities.length} new runs in parallel...`);
 
-    const validActivities = runningActivities.filter((a: any) => a.distance / 1000 > 0);
+    const validActivities = runningActivities.filter((a: any) => a.distance / 1000 > STRAVA_DISTANCE_MUST_EXCEED_KM);
 
     const insertResults = await Promise.allSettled(
       validActivities.map(async (activity: any) => {
@@ -864,7 +870,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
           runId: run.id,
           runDate: activity.start_date_local.split('T')[0],
           distanceKm: activity.distance / 1000,
-          isTreadmill: activity.trainer === true,
+          isTreadmill: activity[STRAVA_TREADMILL_FLAG] === true,
         }).catch((e: unknown) => logger.error('❌ checkEventQualification (strava) error:', e));
       }
 

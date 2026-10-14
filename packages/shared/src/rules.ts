@@ -1,0 +1,29 @@
+// Game rules that several places state or enforce. One definition here: the backend imports the values, Playbook and the privacy text
+// are tested against them (packages/shared/src/__tests__/rules.test.ts, apps/frontend/src/features/playbook/playbookFacts.test.ts).
+// Change a value here and the tests name the texts that have to follow.
+
+/** Strava sport types that are imported as runs. Treadmill runs are among them and are marked via STRAVA_TREADMILL_FLAG. */
+export const STRAVA_RUN_SPORT_TYPES = ['Run', 'TrailRun', 'VirtualRun'] as const;
+
+/** Old Strava activities have no sport_type; they count as runs only when their `type` is this. */
+export const STRAVA_LEGACY_RUN_TYPE = 'Run';
+
+/** A Strava activity is imported only when its distance in km is greater than this. There is no other distance limit on Strava runs. */
+export const STRAVA_DISTANCE_MUST_EXCEED_KM = 0;
+
+/** Minimum distance in km for a run logged by hand (inclusive). Strava runs are not held to it. */
+export const MANUAL_RUN_MIN_DISTANCE_KM = 1.0;
+
+/** The Strava activity field that is `true` for a treadmill run. */
+export const STRAVA_TREADMILL_FLAG = 'trainer';
+
+/** Each sync looks back this many calendar days before the most recent imported run, so a missed activity is picked up. */
+export const STRAVA_LOOKBACK_BUFFER_DAYS = 7;
+
+/**
+ * How often the scheduler syncs Strava, in minutes. The name carries the unit and the scheduler builds its cron expression from it.
+ * RUN-265 (S29) moves to hours: rename this to STRAVA_POLL_INTERVAL_HOURS = 12, change the cron expression in
+ * scheduler/stravaSync.ts to run at minute 0 of every 12th hour and the next-sync estimate to hours, and update the texts that say
+ * "every 30 minutes" (the privacy text, which needs a version bump, and playbookFacts.ts).
+ */
+export const STRAVA_POLL_INTERVAL_MINUTES = 30;
