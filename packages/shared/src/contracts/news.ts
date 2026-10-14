@@ -23,7 +23,12 @@ export type NewsItem = {
     target: NewsUserRef | null;
     payload: ActivityPayloadMap[T];
     is_backfill: boolean;
-    /** Oläst för den som frågar: id över vattenmärket, ej backfill, nyare än användaren, ej egen handling. */
+    /**
+     * Oläst för den som frågar (ADR 011 beslut 4, `isNotifiable` i shared): id över golvet och inte kvitterad i
+     * news_read, ej backfill, nyare än användaren, ett notisslag (inte egen handling, inte okänd typ) och slaget är
+     * påslaget. En vunnen eller oavgjord utmaning är oläst även när betraktaren är aktör. Raden returneras alltid,
+     * även när slaget är avstängt; då är bara flaggan false.
+     */
     is_unread: boolean;
   };
 }[ActivityType];
@@ -34,7 +39,10 @@ export interface NewsResponse {
 }
 
 export interface NewsMeta {
-  /** Räknas över ALLA typer (oberoende av ?type=-filtret). */
+  /**
+   * Antal olästa notiser i gruppen enligt samma predikat som `is_unread`, mätt vid 500 (klockan visar "99+" över 99).
+   * Räknas över ALLA typer, oberoende av ?type=-filtret, men bara slag som är påslagna för användaren.
+   */
   unread_count: number;
   last_seen_id: number | null;
   /** Finns det äldre rader (inom ?before/?after-intervallet) bortom den här sidan? */
@@ -62,6 +70,7 @@ export interface NewsSeenRequest {
 
 export interface NewsSeenResponse {
   last_seen_id: number | null;
+  /** Kvarvarande olästa efter höjningen, samma räkning som `NewsMeta.unread_count` (mättad vid 500). */
   unread_count: number;
 }
 
