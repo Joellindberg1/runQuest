@@ -5,10 +5,10 @@ import {
   CATEGORY_ICON, CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, classifiableRowOf, countByFilter, dedupeById, describeNews,
   POINTER_SETTLE_MS, READ_DWELL_MS, READ_FLUSH_MS, createReadBatcher, markReadInFeed, markUnreadInFeed,
   feedFromPage, formatAgo, fullTime, gapCursor, groupByDay, isUnread, markSeenInFeed, mergeNewer, parseFilterParam, serializeFilterParam,
-  replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
+  replaceNewest, parseInvolvesParam, serializeInvolvesParam, involvesMe, involvesAnnouncement, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
 } from './newsModel';
 import { formatInt } from '@/features/log/logFormat';
-import { ADAM, DAN, ME, NICK, NOW, KARL, at, badgeEarned, challengeAccepted, challengeWon, eventOpen, item, levelUp, meta, rankPassed, releasePublished, streakBroken, titleTaken } from './news.fixture';
+import { ADAM, DAN, ME, NICK, NOW, KARL, at, ref, badgeEarned, challengeAccepted, challengeWon, eventOpen, item, levelUp, meta, rankPassed, releasePublished, streakBroken, titleTaken } from './news.fixture';
 
 const ctx = (over: Partial<NewsContext> = {}): NewsContext => ({ viewerId: ME.id, now: NOW, ...over });
 const DEFAULT_SETTINGS = resolveSettings({}, 'user');
@@ -921,5 +921,57 @@ describe('okända händelsetyper och trasiga rader', () => {
       expect(describeNews(samples[type], ctx())?.text, type).toBeTruthy();
       expect(buildNewsRow(samples[type], ctx()), type).not.toBeNull();
     }
+  });
+});
+
+describe('Involves me (vyfilter vid sidan av typchipsen)', () => {
+  it('parseInvolvesParam och serializeInvolvesParam: me är på, allt annat är av', () => {
+    expect(parseInvolvesParam('me')).toBe(true);
+    for (const other of [null, undefined, '', 'ME', 'Me', 'true', '1', 'yes', ' me', 'me,me', 'all']) expect(parseInvolvesParam(other), String(other)).toBe(false);
+    expect(serializeInvolvesParam(true)).toBe('me');
+    expect(serializeInvolvesParam(false)).toBeNull();
+    expect(parseInvolvesParam(serializeInvolvesParam(true))).toBe(true);
+  });
+
+  it('involvesMe: aktör, target och deltagare i ett event räknas; en rad utan mig gör det inte', () => {
+    const closed = (entrants: unknown) => item('event_closed', 9, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: entrants } as never);
+    expect(involvesMe(levelUp(1, 5, { actor: ME }), ME.id)).toBe(true);
+    expect(involvesMe(titleTaken(2, { actor: KARL, target: ME }), ME.id)).toBe(true);
+    expect(involvesMe(levelUp(3, 5, { actor: KARL }), ME.id)).toBe(false);
+    expect(involvesMe(eventOpen(4), ME.id)).toBe(false);
+    expect(involvesMe(closed([KARL.id, ME.id]), ME.id)).toBe(true);
+    expect(involvesMe(closed([KARL.id]), ME.id)).toBe(false);
+    // Fältet kan saknas (äldre rader) eller vara trasigt: aldrig ett kast, bara "inte jag".
+    expect(involvesMe(closed(undefined), ME.id)).toBe(false);
+    expect(involvesMe(closed('u-me'), ME.id)).toBe(false);
+    // Bara event_closed bär deltagarlistan, och utan betraktare är inget "mitt".
+    expect(involvesMe({ ...eventOpen(5), payload: { entrant_ids: [ME.id] } } as never, ME.id)).toBe(false);
+    expect(involvesMe(levelUp(6, 5, { actor: ME }), null)).toBe(false);
+  });
+
+  it('involvesMe matchar som servern: betraktarens id i gemener mot det lagrade, exakt', () => {
+    const closed = (entrants: string[]) => item('event_closed', 9, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: entrants } as never);
+    // Ett lagrat id med versaler matchar aldrig (servern jämför jsonb exakt mot gemener) ...
+    expect(involvesMe(closed(['U-ME']), 'u-me')).toBe(false);
+    // ... men en betraktare med versaler gemeniseras, precis som serverns filter gör.
+    expect(involvesMe(closed(['u-me']), 'U-ME')).toBe(true);
+    expect(involvesMe(levelUp(1, 5, { actor: ref('u-me', 'Me') }), 'U-ME')).toBe(true);
+  });
+
+  it('involvesMe utan betraktare är false även för event_closed med deltagare, och kastar inte', () => {
+    const closed = item('event_closed', 9, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: [ME.id] } as never);
+    expect(() => involvesMe(closed, null)).not.toThrow();
+    expect(involvesMe(closed, null)).toBe(false);
+    expect(involvesMe(closed, '')).toBe(false);
+  });
+
+  it('involvesAnnouncement säger vad filtret visar', () => {
+    expect(involvesAnnouncement(true, 4, false)).toBe('Showing 4 rows that involve you');
+    expect(involvesAnnouncement(true, 1, false)).toBe('Showing 1 row that involves you');
+    expect(involvesAnnouncement(true, 0, false)).toBe('Nothing involves you yet');
+    expect(involvesAnnouncement(false, 7, false)).toBe('Showing all pack news');
+    // Med ett typfilter vid sidan av beskriver texten raderna, inte hela flödet.
+    expect(involvesAnnouncement(false, 3, true)).toBe('Showing 3 rows');
+    expect(involvesAnnouncement(true, 2, true)).toBe('Showing 2 rows that involve you');
   });
 });

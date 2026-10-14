@@ -56,7 +56,14 @@ till `/news`. Mobil = App Prototypens skärm (filtret som chip-rad), desktop = W
   `READ_DWELL_MS` (0) är en namngiven krok för en framtida dröjsmålsregel (ADR 011 addendum) och används inte av någon gest idag: hover efter rörelse markerar direkt. Raden och räknaren är lästa i ALLA flödescacher direkt (`markReadInFeed`; räknaren minskar i varje cache, även där raden inte är
   laddad). Anropen buntas av `createReadBatcher` (högst 50 id per `POST /news/read`, dubbletter slås ihop) och töms vid avmontering. Ett fel återställer exakt de flippade raderna (`markUnreadInFeed`)
   och räknaren tyst. Serverns `unread_count` skriver över den lokala först när inget annat anrop väntar. En pågående hämtning avbryts innan uppdateringen (som "Mark all read"). Rader som inte är olästa ger inget anrop.
-  `?involves=me` finns i `getNews` och i nyckeln (`NEWS_QUERY_KEYS.feed(typeParam, 'me')`); servern tar parametern i en senare story.
+  `?involves=me` finns i `getNews` och i nyckeln (`NEWS_QUERY_KEYS.feed(typeParam, 'me')`); servern tar den sedan RUN-188 (se "Involves me" nedan).
+- **Involves me (ADR 011 beslut 9, frame N5):** ett vyfilter vid sidan av typchipsen, inte ett av dem och helt skilt från notisslagen. Adressen `?involves=me` (`parseInvolvesParam`/`serializeInvolvesParam`: bara exakt `me` är på, allt annat av),
+  kombinerat (AND) med `?type=`. `NewsScreen` anropar `useNewsFeed(types, enabled, 'me')` för det aktiva flödet (egen cache; catch-up, fokusläkning och Show more bär samma parameter); chip-räknarna, oläst-siffran och "Mark all read"
+  läser fortfarande det ofiltrerade flödet (`feed(undefined)`), och klockan/popovern rörs inte. Knappen (`NewsFilters`) ligger först i filterkortet på desktop (med en beskrivningsrad) och på en egen rad ovanför den scrollande chip-raden på mobil
+  (44 px, `--rq-news-involves-hit`); den bär `aria-pressed` och siffran = rader i det laddade fönstret som rör mig (`involvesMe`, samma fönster som chip-räknarna — servern skickar ingen siffra).
+  **Annonsering:** en egen permanent, visuellt dold `role="status"` ("Filter result") som får text först när det nya flödet har landat ("Showing 4 rows that involve you" / "Showing all pack news", `involvesAnnouncement`);
+  typchipsen annonserar ingenting idag och rör inte regionen. Tomläget "Nothing involves you yet" gäller toggeln ensam; med ett typfilter ovanpå är det vanliga "Nothing here", och båda har "Show all news" som rensar allt i ett steg.
+  Ingen `data-tour`-ankare för knappen (varken N4 eller ADR 011 beslut 9 nämner ett); `news-settings` ligger orört.
 - **Live regions:** bekräftelsen ("N marked as read") står i en permanent `role="status"` som får fokus (knappen försvinner när inget är oläst), fel i `role="alert"` — inga toasts.
   Tomma behållare är kvar i tillgänglighetsträdet (ingen display:none).
 - **Filtret** mappas i klienten (`NEWS_FILTERS`; Levels = level_up + run_milestone, Badges = badge_earned) till serverns `type=`; `?type=` bär chip-nycklar (`titles,levels`). Flera kan vara valda, alla sex = inget.
