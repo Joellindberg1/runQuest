@@ -6,6 +6,7 @@ export * from './leaderboard.js';
 export * from './xpLedger.js';
 export * from './activity.js';
 export * from './activityBackfill.js';
+export * from './rankPasses.js';
 export * from './streak.js';
 export * from './calendar.js';
 export * from './contracts/index.js';

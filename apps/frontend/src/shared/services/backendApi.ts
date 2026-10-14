@@ -8,7 +8,7 @@ import type {
   SettingsApiResponse, SettingsMeta, SettingsResponse, UpdateSettingsRequest,
   AdminWaitlistData,
   WaitlistSignupRequest,
-  StravaStatusResponse,
+  StravaCallbackRequest, StravaStatusResponse,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
@@ -594,10 +594,12 @@ class BackendApiService {
     return this.authenticatedRequest('/strava/status');
   }
 
-  async connectStrava(code: string): Promise<ApiResponse> {
+  /** `consentVersion` är versionen användaren godkände före OAuth-omdirigeringen; saknas den utelämnas nyckeln och servern svarar 400 "Consent required". */
+  async connectStrava(code: string, consentVersion?: StravaCallbackRequest['consent_version']): Promise<ApiResponse> {
+    const body: Pick<StravaCallbackRequest, 'code'> & Partial<StravaCallbackRequest> = { code, consent_version: consentVersion };
     return this.authenticatedRequest('/strava/callback', {
       method: 'POST',
-      body: JSON.stringify({ code }),
+      body: JSON.stringify(body),
     });
   }
 

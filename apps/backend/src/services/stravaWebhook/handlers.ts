@@ -10,7 +10,11 @@
 // drains the queue.
 import { webhookHandlerKey, type HandlerRegistry } from '../stravaWebhookWorker.js';
 import { createActivityCreateHandler } from './handlers/activityCreate.js';
+import { createActivityDeleteHandler } from './handlers/activityDelete.js';
+import { createActivityUpdateHandler } from './handlers/activityUpdate.js';
 
 export const STRAVA_WEBHOOK_HANDLERS: HandlerRegistry = {
   [webhookHandlerKey('activity', 'create')]: createActivityCreateHandler(),
+  [webhookHandlerKey('activity', 'update')]: createActivityUpdateHandler(),
+  [webhookHandlerKey('activity', 'delete')]: createActivityDeleteHandler(),
 };

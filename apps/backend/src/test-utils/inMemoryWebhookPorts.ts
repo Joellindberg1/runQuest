@@ -24,7 +24,8 @@ import type {
   WebhookEventRow,
   WebhookEventStore,
 } from '../services/stravaWebhook/ports.js';
-import type { ExistingRun } from '../services/stravaWebhook/decideAction.js';
+import type { ExistingRun, RunChanges } from '../services/stravaWebhook/decideAction.js';
+import { assertUpdatableRunPatch } from '../services/stravaWebhook/runPatch.js';
 import type { WebhookOutcome } from '../services/stravaWebhook/constants.js';
 
 const iso = (at: Date): string => at.toISOString();
@@ -248,6 +249,14 @@ export interface InMemoryRunStore extends RunStore {
   connections: Record<string, StravaConnection | null>;
   /** Set to make getConnection fail, as when the database is down. */
   connectionError: Error | null;
+  /** Set to make removeStravaRun fail, as when the database is down. */
+  removeError: Error | null;
+  /** Every removeStravaRun call, as (userId, externalId). */
+  removeCalls: Array<{ userId: string; externalId: string }>;
+  /** Set to make updateStravaRun fail, as when the database is down. */
+  updateError: Error | null;
+  /** Every updateStravaRun call that passed the column guard, as the handler made it (the weather clearing is only recorded here). */
+  updateCalls: Array<{ userId: string; externalId: string; patch: RunChanges; clearWeather: boolean }>;
 }
 
 export function createInMemoryRunStore(): InMemoryRunStore {
@@ -257,6 +266,10 @@ export function createInMemoryRunStore(): InMemoryRunStore {
     earliestError: null,
     connections: {},
     connectionError: null,
+    removeError: null,
+    removeCalls: [],
+    updateError: null,
+    updateCalls: [],
     async findRun(userId, externalId) {
       return runs.find((run) => run.userId === userId && run.externalId === externalId)?.run ?? null;
     },
@@ -268,6 +281,28 @@ export function createInMemoryRunStore(): InMemoryRunStore {
     async getConnection(userId) {
       if (store.connectionError) throw store.connectionError;
       return userId in store.connections ? store.connections[userId] : { syncPaused: false, connectionDate: null };
+    },
+    async removeStravaRun(userId, externalId) {
+      store.removeCalls.push({ userId, externalId });
+      if (store.removeError) throw store.removeError;
+      // Only a run known to be source 'strava' goes (as the adapter's query); an entry without a run description is not one.
+      const index = runs.findIndex((run) => run.userId === userId && run.externalId === externalId && run.run?.source === 'strava');
+      if (index === -1) return { removed: false, date: null };
+      const [removed] = runs.splice(index, 1);
+      return { removed: true, date: removed.date };
+    },
+    async updateStravaRun(userId, externalId, patch, options) {
+      // The same column guard as the Supabase store: a patch with an XP column is refused whatever the caller meant.
+      const values = assertUpdatableRunPatch(patch);
+      if (Object.keys(values).length === 0) return { updated: false, previousDate: null };
+      store.updateCalls.push({ userId, externalId, patch, clearWeather: options?.clearWeather === true });
+      if (store.updateError) throw store.updateError;
+      const entry = runs.find((run) => run.userId === userId && run.externalId === externalId && run.run?.source === 'strava');
+      if (!entry) return { updated: false, previousDate: null };
+      const previousDate = entry.date;
+      Object.assign(entry.run as object, values);
+      if (typeof values.date === 'string') entry.date = values.date;
+      return { updated: true, previousDate };
     },
   };
   return store;
