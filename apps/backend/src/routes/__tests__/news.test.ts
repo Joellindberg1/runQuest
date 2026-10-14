@@ -15,6 +15,7 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
+import { buildEventClosedDraft, type EventActivityRow } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { logger } from '../../utils/logger.js';
@@ -296,6 +297,31 @@ describe('GET /api/news', () => {
 
       expect(idsOf(res)).toEqual([5, 1]);
       expect(res.body.data.items[0].payload.event_name).toBe('The "Big, {Bad}" run \\ 5k');
+    });
+
+    it('involves=me tar med event_closed där jag är deltagare', async () => {
+      // Raderna skrivs av den riktiga byggaren, så skrivaren och filtret är bundna till samma format.
+      const event = (id: string): EventActivityRow => ({
+        id, group_id: 'g1', type: 'competition', starts_at: AFTER_USER, ends_at: AFTER_USER,
+        template: { name: 'Weekly Km', icon: 'trophy', reward_xp: null, reward_xp_1st: 75 },
+      });
+      const written = (id: number, eventId: string, entrantIds?: string[]): Row => {
+        const draft = buildEventClosedDraft(event(eventId), { participants: 3, members: 4, entrantIds }, AFTER_USER);
+        return rowOf(id, {
+          type: draft.type, actor_user_id: draft.actor_user_id, target_user_id: draft.target_user_id,
+          payload: draft.payload, dedupe_key: draft.dedupe_key,
+        });
+      };
+      use(world([
+        written(1, 'e1', [LISA, ME, KARL]),
+        written(2, 'e2', [KARL, LISA]),
+        written(3, 'e3'), // utan entrant_ids, som backfill och rader från före fältet
+        written(4, 'e4', [ME]),
+      ]));
+      const res = await getMine('/api/news?involves=me');
+
+      expect(res.status).toBe(200);
+      expect(idsOf(res)).toEqual([4, 1]);
     });
 
     it('involves=me utelämnar rader utan aktör och mål', async () => {
