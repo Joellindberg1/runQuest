@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BadgeEmblem } from '@/features/badges/components/BadgeEmblem';
+import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { paths } from '@/paths';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
@@ -19,18 +20,25 @@ interface NewsPopoverPanelProps {
 }
 
 /**
- * Innehållet i klock-popovern: "The Pack News", de fem senaste raderna ur samma flöde som /news (EN query-definition, ingen egen
- * hämtning), "Mark all read" och länken "See all pack news". Rutan öppnas av skalets klockknapp (app-shell/NotificationsPopover).
+ * Innehållet i klock-popovern: "The Pack News", de fem senaste raderna vars slag användaren har påslaget (lästa som olästa, inga egna
+ * handlingar) ur samma flöde som /news (EN query-definition, ingen egen hämtning), "Mark all read" och länken "See all pack news".
+ * Filtreringen sker här på de 30 inladdade raderna med samma `classifyNotification` som servern; inställningarna kommer ur `useUserSettings`
+ * och är defaults medan de laddar eller om de inte gick att läsa, så popovern blockeras aldrig. Rutan öppnas av skalets klockknapp
+ * (app-shell/NotificationsPopover). Inget kugghjul här: inställningarna nås från Settings och /news.
  */
 export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPanelProps) {
   const ctx = useNewsContext();
   const news = useNewsFeed(null);
+  const { values: settings } = useUserSettings();
   const seen = useMarkNewsSeen();
   const [notice, setNotice] = useState<string | null>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
   const markRef = useRef<HTMLButtonElement>(null);
 
-  const rows = useMemo(() => buildPopoverRows(news.feed?.items ?? [], ctx), [news.feed, ctx]);
+  const rows = useMemo(
+    () => buildPopoverRows(news.feed?.items ?? [], ctx, { settings, viewerId: ctx.viewerId }),
+    [news.feed, ctx, settings],
+  );
   const unread = news.feed?.meta.unread_count ?? 0;
 
   const markAllRead = () => {
@@ -73,7 +81,13 @@ export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPane
       </ul>
     );
   } else if (news.feed) {
-    body = <p className="rq-news-pop__note">No news yet — go make some.</p>;
+    // Undantaget från designspråkets regel 9 (RUN-254): tomma fönstret har en rubrik och en förklaring, och bara länken till /news (nedan).
+    body = (
+      <div className="rq-news-pop__empty">
+        <h3 className="rq-news-pop__empty-title">Nothing new for you</h3>
+        <p className="rq-news-pop__empty-text">The pack has been quiet, or you have switched the rest off.</p>
+      </div>
+    );
   } else if (news.isError) {
     body = (
       <div className="rq-news-pop__state">

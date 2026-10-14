@@ -15,8 +15,9 @@ interface NotificationsPopoverProps {
 }
 
 /**
- * Klockan i headern (ADR 006 beslut 4): öppnar en popover med de fem senaste ur Pack News och en oläst-räknare ur samma flöde
- * (EN query-definition i features/news — skärmen och popovern delar cache och hämtintervall). "See all pack news" går till /news.
+ * Klockan i headern (ADR 006 beslut 4): öppnar en popover med de fem senaste ur Pack News vars slag är påslagna, och en oläst-räknare ur
+ * samma flöde (EN query-definition i features/news — skärmen och popovern delar cache och hämtintervall). Räknaren är serverns
+ * `meta.unread_count`; popovern filtrerar de inladdade raderna efter användarens inställningar (se NewsPopoverPanel). "See all pack news" går till /news.
  * Mobil har en ✕ (prototypen), desktop stänger med Esc eller klick utanför.
  */
 export function NotificationsPopover({ variant }: NotificationsPopoverProps) {
