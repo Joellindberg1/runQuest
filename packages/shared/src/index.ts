@@ -14,3 +14,5 @@ export * from './badgeDiff.js';
 export * from './badgeNews.js';
 export * from './legal/index.js';
 export * from './rules.js';
+export * from './notifications.js';
+export * from './settings.js';
