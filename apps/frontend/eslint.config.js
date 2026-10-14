@@ -237,8 +237,8 @@ const CHANGELOG_EXTRA = [
   ...syntaxRule("Datumen står som text i changelog.json: inget new Date().", "NewExpression[callee.name='Date']"),
 ];
 const NO_GOLD_IN_DANGER_DIALOG = syntaxRule(
-  "Dialogen med röd Disconnect har inget guld och ingen silver: använd ghost, danger eller danger-fill (röd står aldrig bredvid guld).",
-  inClassName("gold|silver|rq-btn--(primary|secondary)\\b"),
+  "Dialogen med röd Disconnect har inget guld och ingen silver (inte heller .rq-title, som är guldtext): använd ghost, danger eller danger-fill (röd står aldrig bredvid guld).",
+  inClassName("gold|silver|rq-title\\b|rq-btn--(primary|secondary)\\b"),
 );
 const NO_NUMBER_FORMAT =syntaxRule("Landing formaterar inte tal med Intl (texten är hårdskriven).", "MemberExpression[object.name='Intl'][property.name='NumberFormat']");
 const NO_NAMEROW = textRule("Den gamla namnraden för tabellen (.rq-board-namerow) är borta.", "rq-board-namerow");

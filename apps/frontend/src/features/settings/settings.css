@@ -78,6 +78,8 @@ summary.rq-consent__summary { list-style: none; display: flex; align-items: cent
   background: var(--rq-modal); box-shadow: var(--rq-shadow-modal);
   border: var(--rq-hair) solid var(--rq-line-5); border-top: var(--rq-settings-dialog-edge-w) solid var(--rq-line-hover);
 }
+/* Fokusringen i dialogen är neutral (den globala är guld): fokus på "Keep my connection" står bredvid den röda knappen. */
+.rq-settings-dialog :focus-visible { outline-color: var(--rq-text-1); }
 .rq-settings-dialog[data-tone="down"] { border-color: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); border-top-color: var(--rq-down); }
 .rq-settings-dialog__head { display: flex; align-items: center; gap: var(--rq-sp-12); }
 .rq-settings-dialog__title { margin: 0; flex: 1 1 auto; font-weight: 400; }
@@ -96,7 +98,8 @@ summary.rq-consent__summary { list-style: none; display: flex; align-items: cent
 
 .rq-settings-choice { display: flex; flex-direction: column; align-items: flex-start; gap: var(--rq-sp-10); --rq-edge: var(--rq-line-6); }
 .rq-settings-choice[data-tone="down"] { --rq-edge: var(--rq-down); --rq-edge-line: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); }
-.rq-settings-choice__title { margin: 0; }
+/* Egen rubrikstil i stället för .rq-title (guldtext): röd står aldrig bredvid guld. */
+.rq-settings-choice__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-title); font-weight: 400; letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
 .rq-settings-choice__text { margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 .rq-settings-choice__action { width: var(--rq-settings-dialog-action-w); min-height: var(--rq-settings-dialog-hit); }
 .rq-settings-choice .rq-btn--ghost { border-color: var(--rq-line-hover); color: var(--rq-text-2); }

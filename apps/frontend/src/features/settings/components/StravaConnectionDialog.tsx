@@ -83,14 +83,14 @@ export function StravaConnectionDialog({ step, stravaRuns, busy, error, onPause,
             <DialogHead title={CHOOSE_TITLE} disabled={working} />
             <Dialog.Description className="rq-settings-dialog__lead">{CHOOSE_LEAD}</Dialog.Description>
             <section className="rq-card rq-card--edge rq-settings-choice" aria-labelledby={PAUSE_TITLE_ID}>
-              <h3 id={PAUSE_TITLE_ID} className="rq-title rq-settings-choice__title">{PAUSE_CHOICE.title}</h3>
+              <h3 id={PAUSE_TITLE_ID} className="rq-settings-choice__title">{PAUSE_CHOICE.title}</h3>
               <p className="rq-settings-choice__text">{PAUSE_CHOICE.text}</p>
               <button type="button" className="rq-btn rq-btn--ghost rq-settings-choice__action" disabled={working} onClick={onPause}>
                 {busy === 'pause' ? 'Pausing…' : PAUSE_CHOICE.action}
               </button>
             </section>
             <section className="rq-card rq-card--edge rq-settings-choice" data-tone="down" aria-labelledby={DISCONNECT_TITLE_ID}>
-              <h3 id={DISCONNECT_TITLE_ID} className="rq-title rq-settings-choice__title">{DISCONNECT_CHOICE.title}</h3>
+              <h3 id={DISCONNECT_TITLE_ID} className="rq-settings-choice__title">{DISCONNECT_CHOICE.title}</h3>
               <p className="rq-settings-choice__text">{DISCONNECT_CHOICE.text}</p>
               <button type="button" className="rq-btn rq-btn--danger rq-settings-choice__action" disabled={working} onClick={onChooseDisconnect}>
                 {DISCONNECT_CHOICE.action}
