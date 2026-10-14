@@ -7,7 +7,9 @@ härledd (allt i en kolumn). `pages/SettingsPage.tsx` är tunn.
 
 - **components/** — `SettingsScreen` (datakoppling, laddning/fel), `StravaCard`, `PasswordCard`, `SyncCard`
 - **settingsModel.ts** — `buildStravaCard` (tillstånd, chip, tre celler, regler, token-förnyelse), `buildSyncRow`, `validatePasswordChange` (ren logik, testad)
-- **hooks/** — `useStravaData` (shared Strava-queries + `useStravaConfig`), `useStravaActions` (koppla via OAuth-fönster, koppla om, synka nu), `usePasswordChange`
+- **hooks/** — `useStravaData` (shared Strava-queries + `useStravaConfig`), `useStravaActions` (koppla via OAuth-fönster, koppla om, synka nu), `usePasswordChange`,
+  `useUserSettings` (ADR 011: query `['settings','user']` bara inloggad; optimistisk växling per nyckel, skrivningarna går i ordning; ett fel återställer nyckeln, visas som `error` för `role="alert"` och läser om tillståndet
+  eftersom ett 500 kan ha skrivit ändå; serverns hela tillstånd skrivs in efter svaret; nyhetsflödet invalideras efter lyckad skrivning; ett laddningsfel ger defaults + `isError`)
 - `settings.css` — mått (`--rq-settings-*`) i temafilen, sektion 1.30
 
 ## Regler värda att komma ihåg

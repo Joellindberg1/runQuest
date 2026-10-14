@@ -4,7 +4,8 @@ import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
   PublicStatsData, PublicStatsApiResponse,
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
-  NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
+  NewsApiResponse, NewsMeta, NewsQuery, NewsReadApiResponse, NewsReadRequest, NewsReadResponse, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
+  SettingsApiResponse, SettingsMeta, SettingsResponse, UpdateSettingsRequest,
   AdminWaitlistData,
   WaitlistSignupRequest,
   StravaStatusResponse,
@@ -1129,13 +1130,16 @@ class BackendApiService {
   /**
    * GET /news — händelseloggen, nyast först (keyset: `before` XOR `after`, aldrig båda; `type` = kommaseparerade ActivityType).
    * `meta` bär unread_count (alla typer), last_seen_id och has_more/next_before; `after`-lägets semantik står i ADR 008 addendum 4.
+   * `involves: 'me'` (ADR 011 beslut 9) begränsar till rader där betraktaren är aktör/target (eller deltar i ett event). Servern tar parametern i en
+   * senare story; `NewsQuery` ur shared har den inte än, därför utvidgningen här.
    */
-  async getNews(query: NewsQuery = {}): Promise<ApiResponse<NewsResponse> & { meta?: NewsMeta }> {
+  async getNews(query: NewsQuery & { involves?: 'me' } = {}): Promise<ApiResponse<NewsResponse> & { meta?: NewsMeta }> {
     const params = new URLSearchParams();
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     if (query.before !== undefined) params.set('before', String(query.before));
     if (query.after !== undefined) params.set('after', String(query.after));
     if (query.type) params.set('type', query.type);
+    if (query.involves) params.set('involves', query.involves);
     const qs = params.toString();
     const result = await this.newsRequest<NewsApiResponse>('GET', `/news${qs ? `?${qs}` : ''}`, undefined, 'Failed to fetch news');
     if (!result.ok) return { success: false, error: result.error };
@@ -1149,8 +1153,37 @@ class BackendApiService {
     return { success: true, data: result.body.data };
   }
 
+  /** POST /news/read — kvittera enskilda rader (1–50 unika id:n). Svaret är olästa efter kvitteringen (mättad vid 500). */
+  async markNewsRead(ids: number[]): Promise<ApiResponse<NewsReadResponse>> {
+    const body: NewsReadRequest = { ids };
+    const result = await this.newsRequest<NewsReadApiResponse>('POST', '/news/read', body, 'Failed to mark the rows as read');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data };
+  }
+
+  // ─── Användarinställningar (ADR 011 beslut 2) ─────────────────────────────
+
+  /** GET /settings — alla nycklar i användarens scope, upplösta (saknad nyckel = default), och `meta.customised`. */
+  async getSettings(): Promise<ApiResponse<SettingsResponse> & { meta?: SettingsMeta }> {
+    const result = await this.newsRequest<SettingsApiResponse>('GET', '/settings', undefined, 'Failed to fetch settings');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data, meta: result.body.meta };
+  }
+
+  /**
+   * PUT /settings — patch av enskilda nycklar (`null` = återställ till default). Servern svarar med HELA tillståndet, så svaret kan skrivas rakt in
+   * i cachen. Ett 500 kan betyda att skrivningen lyckades men återläsningen föll: anroparen litar därför inte på ett fel som sanning om lagringen.
+   */
+  async putSettings(values: UpdateSettingsRequest['values']): Promise<ApiResponse<SettingsResponse> & { meta?: SettingsMeta }> {
+    const body: UpdateSettingsRequest = { values };
+    const result = await this.newsRequest<SettingsApiResponse>('PUT', '/settings', body, 'Failed to save settings');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data, meta: result.body.meta };
+  }
+
+  // Delad hjälpare för de personliga anropen (nyheter och inställningar): token, 401-hantering och ApiResponse-formen.
   private async newsRequest<T>(
-    method: 'GET' | 'POST', path: string, body: unknown, failure: string,
+    method: 'GET' | 'POST' | 'PUT', path: string, body: unknown, failure: string,
   ): Promise<{ ok: true; body: T } | { ok: false; error: string }> {
     try {
       const token = this.getToken();
