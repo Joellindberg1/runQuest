@@ -24,7 +24,8 @@ export interface StravaCallbackResponse {
  * Svar från GET /api/strava/status. Fälten utöver connected/expired finns bara när kopplingen finns.
  * consent_version är null för kopplingar som gjordes före samtyckesloggen (ADR 010 beslut 12, D4).
  * sync_paused/paused_at ("Pausa synk", ADR 010 beslut 7.5) finns i varje svar med connected: true; paused_at är ISO-tid
- * när pausen började och null när synken är på.
+ * när pausen började och null när synken är på. PostgREST ger tiden som `…+00:00`, inte `…Z`: tolka den med `new Date(...)`
+ * och jämför aldrig strängar.
  */
 export interface StravaStatusResponse {
   connected: boolean;

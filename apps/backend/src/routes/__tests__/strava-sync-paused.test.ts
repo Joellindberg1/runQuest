@@ -151,6 +151,23 @@ function setup(options: SetupOptions = {}) {
   return { tables, listCalls, fake, tokenRow, release: (userId: UserId) => gates.get(userId)?.resolve() };
 }
 
+/**
+ * Replaces the database with one whose reads of the pause state (a select of sync_paused on strava_tokens) fail while
+ * `on` is true. Every other query, including the token read and the pause writes, works as before.
+ */
+function failPauseReads(tables: Record<string, Row[]>) {
+  const failing = { on: true };
+  vi.mocked(getSupabaseClient).mockReturnValue(
+    createFakeDb(tables, {
+      autoIds: true,
+      uniqueIndexes: [{ table: 'runs', name: 'idx_runs_external_id', columns: ['user_id', 'external_id'] }],
+      primaryKeys: { strava_tokens: ['user_id'] },
+      failWhen: (q) => (failing.on && q.table === 'strava_tokens' && !q.mutation && q.select?.includes('sync_paused') ? { message: 'boom' } : null),
+    }).client as any,
+  );
+  return failing;
+}
+
 const as = (userId: UserId) => mintToken({ user_id: userId, group_id: 'group-1' });
 const putPaused = (userId: UserId, body: unknown) => server.request('PUT', '/api/strava/sync-paused', { token: as(userId), body });
 const manualSync = (userId: UserId) => server.request('POST', '/api/strava/sync', { token: as(userId) });
@@ -309,6 +326,16 @@ describe('GET /api/strava/status', () => {
     expect(failed.body).toMatchObject({ connected: true, refresh_failed: true, sync_paused: true, paused_at: '2026-10-01T08:00:00.000Z' });
   });
 
+  it('status answers 500, not sync_paused false, when the pause state cannot be read', async () => {
+    const { tables } = setup();
+    failPauseReads(tables);
+
+    const res = await statusOf('user-1');
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to check Strava status' });
+  });
+
   it('status for a user without a connection does not mention the pause', async () => {
     setup({ unconnected: ['user-1'] });
 
@@ -325,6 +352,8 @@ describe('polling and manual sync respect the pause', () => {
     const result = await syncAllStravaUsers();
 
     expect(listCalls.order).toEqual(['user-2']); // the paused user never reached Strava
+    // The paused user is left out by the selection itself, so it never reaches the lock or the token path.
+    expect(result.totalUsers).toBe(1);
     expect(result.results.map((r) => r.userId)).toEqual(['user-2']);
     expect(tables.runs.map((run) => run.user_id)).toEqual(['user-2']);
   });
@@ -387,6 +416,26 @@ describe('polling and manual sync respect the pause', () => {
     expect(queuedResult.status).toBe(409);
     expect(queuedResult.body).toEqual({ error: 'Sync is paused' });
     expect(listCalls.order).toEqual(['user-1']);
+    expect(tables.runs).toHaveLength(1);
+  });
+
+  it('a manual sync queued behind the lock does not import when the pause state cannot be read inside the lock', async () => {
+    const { tables, listCalls, release } = setup({ hold: ['user-1'] });
+    const failing = failPauseReads(tables);
+    failing.on = false;
+
+    const first = manualSync('user-1');
+    await vi.waitFor(() => expect(listCalls.order).toEqual(['user-1']));
+    const queued = manualSync('user-1'); // its pause check before the lock passed; the read inside the lock fails
+    await settle();
+    failing.on = true;
+    release('user-1');
+
+    expect((await first).body).toMatchObject({ success: true, newRuns: 1 });
+    const queuedResult = await queued;
+    expect(queuedResult.status).toBe(400);
+    expect(queuedResult.body).toEqual({ error: 'Failed to sync activities' });
+    expect(listCalls.order).toEqual(['user-1']); // the queued sync never reached Strava
     expect(tables.runs).toHaveLength(1);
   });
 
