@@ -10,10 +10,12 @@ import { getXpConfig } from '../services/xpConfig.js';
 import { isTreadmillActivity } from '../utils/stravaActivity.js';
 import {
   calculateCompleteRunXP,
+  STRAVA_CONSENT_VERSION,
   STRAVA_DISTANCE_MUST_EXCEED_KM,
   STRAVA_LEGACY_RUN_TYPE,
   STRAVA_RUN_SPORT_TYPES,
 } from '@runquest/shared';
+import type { StravaCallbackRequest, StravaCallbackResponse, StravaStatusResponse } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
@@ -118,17 +120,20 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     const supabase = getSupabaseClient();
     const { data: tokens, error } = await supabase
       .from('strava_tokens')
-      .select('expires_at, refresh_token, connection_date')
+      .select('expires_at, refresh_token, connection_date, consent_version')
       .eq('user_id', userId)
       .single();
     
     if (error || !tokens) {
       logger.info('❌ No Strava tokens found for user');
-      res.json({ connected: false, expired: false }); return;
+      const notConnected: StravaStatusResponse = { connected: false, expired: false };
+      res.json(notConnected); return;
     }
     
     const now = Math.floor(Date.now() / 1000);
     const expired = tokens.expires_at ? tokens.expires_at < now : false;
+    // null för kopplingar som gjordes före samtyckesloggen (ADR 010 beslut 12, D4).
+    const consentVersion: string | null = tokens.consent_version ?? null;
     
     // Om token är expired, försök auto-refresh
     if (expired && tokens.refresh_token) {
@@ -137,18 +142,22 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
       if (refreshResult.success) {
         logger.info('✅ Token auto-refreshed successfully');
-        res.json({
+        const refreshed: StravaStatusResponse = {
           connected: true,
           expired: false, // No longer expired after refresh
-          auto_refreshed: true
-        });
+          auto_refreshed: true,
+          consent_version: consentVersion
+        };
+        res.json(refreshed);
       } else {
         logger.info('❌ Auto-refresh failed, connection truly expired');
-        res.json({
+        const refreshFailed: StravaStatusResponse = {
           connected: true,
           expired: true,
-          refresh_failed: true
-        });
+          refresh_failed: true,
+          consent_version: consentVersion
+        };
+        res.json(refreshFailed);
       }
       return; // utan denna skickades ett andra res.json nedan (ERR_HTTP_HEADERS_SENT)
     }
@@ -166,13 +175,15 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info('✅ Strava status:', { connected: true, expired, expires_at: tokens.expires_at });
     
-    res.json({
+    const body: StravaStatusResponse = {
       connected: true,
       expired,
       expires_at: tokens.expires_at,
       connection_date: tokens.connection_date,
-      last_sync: lastGlobalStravaRun?.created_at || null
-    });
+      last_sync: lastGlobalStravaRun?.created_at || null,
+      consent_version: consentVersion
+    };
+    res.json(body);
     
   } catch (error) {
     logger.error('❌ Strava status error:', error);
@@ -183,11 +194,18 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
 // POST /api/strava/callback - Handle Strava OAuth callback
 router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { code } = req.body;
+    // Opålitlig indata: fälten kan saknas eller ha fel typ, därför Partial och en strikt jämförelse nedan.
+    const { code, consent_version: consentVersion }: Partial<StravaCallbackRequest> = req.body;
     const userId = req.user!.user_id;
     
     if (!code) {
       res.status(400).json({ error: 'Authorization code required' }); return;
+    }
+
+    // Samtycket krävs innan koden byts mot token hos Strava (ADR 010 beslut 12). consented_at skickas aldrig av klienten.
+    if (consentVersion !== STRAVA_CONSENT_VERSION) {
+      logger.warn('⚠️ Strava callback without current consent_version', { user_id: userId, has_consent_version: consentVersion !== undefined && consentVersion !== null });
+      res.status(400).json({ error: 'Consent required' }); return;
     }
     
     logger.info(`🔗 Processing Strava callback for user: ${req.user!.name}`);
@@ -237,6 +255,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
 
     // Save tokens to database
     const supabase = getSupabaseClient();
+    const connectedAt = new Date().toISOString();
     const { error } = await supabase
       .from('strava_tokens')
       .upsert({
@@ -244,7 +263,10 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         expires_at: tokenData.expires_at,
-        connection_date: new Date().toISOString(),
+        connection_date: connectedAt,
+        // Samtyckesloggen: versionen är kontrollerad ovan, tidpunkten sätts av servern. En återanslutning skriver nya värden.
+        consent_version: STRAVA_CONSENT_VERSION,
+        consented_at: connectedAt,
         // Utelämnas (inte null) när Strava inte skickade något id, så en återanslutning inte raderar ett känt id.
         ...(hasAthleteId ? { strava_athlete_id: athleteId } : {}),
         // En ny anslutning är aldrig pausad.
@@ -265,11 +287,9 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     
     logger.info('✅ Strava tokens saved successfully');
     
-    res.json({
-      success: true,
-      message: 'Strava connected successfully',
-      athlete: tokenData.athlete
-    });
+    // Klienten läser bara om anropet lyckades; Stravas athlete-objekt (profildata) skickas inte vidare.
+    const body: StravaCallbackResponse = { success: true, message: 'Strava connected successfully' };
+    res.json(body);
     
   } catch (error) {
     logger.error('❌ Strava callback error:', error);
