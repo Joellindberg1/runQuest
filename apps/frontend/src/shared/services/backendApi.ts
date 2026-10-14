@@ -1130,10 +1130,10 @@ class BackendApiService {
   /**
    * GET /news — händelseloggen, nyast först (keyset: `before` XOR `after`, aldrig båda; `type` = kommaseparerade ActivityType).
    * `meta` bär unread_count (alla typer), last_seen_id och has_more/next_before; `after`-lägets semantik står i ADR 008 addendum 4.
-   * `involves: 'me'` (ADR 011 beslut 9) begränsar till rader där betraktaren är aktör/target (eller deltar i ett event). Servern tar parametern i en
-   * senare story; `NewsQuery` ur shared har den inte än, därför utvidgningen här.
+   * `involves: 'me'` (ADR 011 beslut 9, servern sedan RUN-188) begränsar till rader där betraktaren är aktör/target (eller deltar i ett event). Exakt `me`
+   * skickas (allt annat ger 400); `meta.unread_count` följer inte filtret, och `has_more`/`next_before` gäller det filtrerade flödet.
    */
-  async getNews(query: NewsQuery & { involves?: 'me' } = {}): Promise<ApiResponse<NewsResponse> & { meta?: NewsMeta }> {
+  async getNews(query: NewsQuery = {}): Promise<ApiResponse<NewsResponse> & { meta?: NewsMeta }> {
     const params = new URLSearchParams();
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     if (query.before !== undefined) params.set('before', String(query.before));

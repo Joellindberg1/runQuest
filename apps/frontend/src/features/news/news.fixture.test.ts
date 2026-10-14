@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ME, NICK, challengeWon, levelUp, newsServer } from './news.fixture';
+import { ME, NICK, challengeWon, item, levelUp, newsServer } from './news.fixture';
 
 // Fixturen ska bete sig som servern, annars bevisar hooktesterna fel sak: oläst avgörs av isNotifiable ur shared
 // och POST /news/read avvisar det parseReadIds avvisar.
@@ -9,6 +9,26 @@ describe('newsServer', () => {
     const news = newsServer([challengeWon(7, { actor: ME, target: NICK }), challengeWon(6), levelUp(5, 5, { actor: ME }), levelUp(4, 4)], 0);
     const res = await news.getNews({});
     expect(res.success && res.data.items.map((row) => [row.id, row.is_unread])).toEqual([[7, true], [6, true], [5, false], [4, true]]);
+  });
+
+  it('involves=me som servern: aktör, target eller deltagare; AND med type; oläst-räknaren och paginering följer filtret', async () => {
+    const closedWithMe = item('event_closed', 6, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: [ME.id] } as never);
+    const closedWithout = item('event_closed', 5, { event_id: 'e2', event_type: 'participation', template_name: '10K', participants: 2, members: 5, entrant_ids: [NICK.id] } as never);
+    const news = newsServer([closedWithMe, closedWithout, challengeWon(4), levelUp(3, 3), levelUp(2, 2, { actor: ME }), levelUp(1, 1)], 0);
+    const ids = async (query: Parameters<typeof news.getNews>[0]) => {
+      const res = await news.getNews(query);
+      return res.success ? res.data.items.map((row) => row.id) : res.error;
+    };
+
+    expect(await ids({ involves: 'me' })).toEqual([6, 4, 2]);
+    expect(await ids({ involves: 'me', type: 'level_up' })).toEqual([2]);
+    expect(await ids({})).toEqual([6, 5, 4, 3, 2, 1]);
+    const paged = await news.getNews({ involves: 'me', limit: 2 });
+    expect(paged.success && paged.meta).toMatchObject({ has_more: true, next_before: 4 });
+    // Serverns kontrakt: unread_count gäller hela flödet och rör sig inte med filtret.
+    const unfiltered = await news.getNews({});
+    const filtered = await news.getNews({ involves: 'me' });
+    expect(filtered.success && unfiltered.success && filtered.meta.unread_count === unfiltered.meta.unread_count).toBe(true);
   });
 
   it('POST /news/read kvitterar kända id:n över golvet och räknar om', async () => {

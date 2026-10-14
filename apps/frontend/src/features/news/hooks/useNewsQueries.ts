@@ -8,9 +8,9 @@ import {
   type NewsFeed, type NewsPage,
 } from '../newsModel';
 
-/** Filtret "Involves me" (ADR 011 beslut 9): `?involves=me`. Servern tar parametern i en senare story. */
-export type NewsInvolves = 'me';
-type FeedQuery = NewsQuery & { involves?: NewsInvolves };
+/** Filtret "Involves me" (ADR 011 beslut 9): `?involves=me`, ett vyfilter som servern tar sedan v0.7.0 (ändrar inte unread_count). */
+export type NewsInvolves = NonNullable<NewsQuery['involves']>;
+type FeedQuery = NewsQuery;
 
 const STALE_MS = 60_000;
 /** Klockans räknare och flödet hålls färska med samma takt (och vid fönsterfokus när datan är äldre än STALE_MS). */
