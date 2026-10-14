@@ -36,7 +36,7 @@ const sql041 = readMigration('041_activity_log_release_published.sql');
 const code = sql034;
 
 describe('activity_log_type_check — senaste migrationen som definierar CHECK:en', () => {
-  it('CHECK-listan i senaste migrationen som definierar activity_log_type_check == ACTIVITY_TYPES (samma värden, samma antal)', () => {
+  it('senaste CHECK-migrationens lista är identisk med ACTIVITY_TYPES', () => {
     expect(latestFile, 'ingen migration definierar activity_log_type_check').toBeDefined();
     const values = checkValues(readMigration(latestFile));
     expect(values, `type-CHECK hittades inte i ${latestFile}`).not.toBeNull();
@@ -48,14 +48,44 @@ describe('activity_log_type_check — senaste migrationen som definierar CHECK:e
     const values = checkValues(sql034)!;
     expect(values).toHaveLength(11);
     expect(values).not.toContain('badge_earned');
-    expect([...ACTIVITY_TYPES].filter((type) => !values.includes(type))).toEqual(['badge_earned', 'release_published']);
+    expect([...ACTIVITY_TYPES].filter((type) => !values.includes(type))).toEqual(['badge_earned', 'release_published', 'rank_passed', 'challenge_accepted']);
   });
 
   it('036 behåller sin lista: 034 + badge_earned, utan release_published (historik skrivs inte om)', () => {
     const values = checkValues(sql036)!;
     expect(values).toContain('badge_earned');
     expect(values).not.toContain('release_published');
-    expect([...ACTIVITY_TYPES].filter((type) => !values.includes(type))).toEqual(['release_published']);
+    expect([...ACTIVITY_TYPES].filter((type) => !values.includes(type))).toEqual(['release_published', 'rank_passed', 'challenge_accepted']);
+  });
+});
+
+describe('migration 050_activity_log_rank_passed_challenge_accepted.sql', () => {
+  const sql050 = readMigration('050_activity_log_rank_passed_challenge_accepted.sql');
+  const statements = sql050
+    .split(';')
+    .map((statement) => statement.replace(/\s+/g, ' ').trim())
+    .filter((statement) => statement !== '');
+
+  it('CHECK-migrationen har 15 värden och är additiv och idempotent (som 036 och 041)', () => {
+    const values050 = checkValues(sql050)!;
+    expect(values050).toHaveLength(15);
+    expect(new Set(values050).size).toBe(15);
+    expect(values050).toContain('rank_passed');
+    expect(values050).toContain('challenge_accepted');
+    // Additivt: allt i 041 finns kvar och det enda nya är de två typerna.
+    for (const type of checkValues(sql041)!) expect(values050).toContain(type);
+    expect(values050).toHaveLength(checkValues(sql041)!.length + 2);
+
+    // Bara ett constraint-byte (släpp + lägg om), efter lock_timeout; ingen kolumn, index, policy eller data rörs.
+    expect(statements).toHaveLength(3);
+    expect(statements[0]).toMatch(/^set local lock_timeout = '5s'$/i);
+    expect(statements[1]).toMatch(/^alter table public\.activity_log drop constraint if exists activity_log_type_check$/i);
+    expect(statements[2]).toMatch(/^alter table public\.activity_log add constraint activity_log_type_check check \(type in \(/i);
+    expect(sql050).not.toMatch(/\b(create|insert|update|delete|truncate|rename|grant|revoke|policy)\b/i);
+    expect(sql050).not.toMatch(/\bdrop\s+(table|column|index)\b/i);
+
+    // Ingen egen transaktionsram (apply_migration äger den); drop ... if exists före add gör omkörning ofarlig.
+    expect(sql050).not.toMatch(/\b(begin|commit|rollback|start\s+transaction)\b/i);
   });
 });
 
