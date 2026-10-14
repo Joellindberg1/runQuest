@@ -83,7 +83,9 @@ function postgrestQuote(value: string): string {
  * partiella index. Jsonb-containment mot `payload` saknar index. Revisit-trigger: ett GIN-index på `payload` (eller på
  * `payload->'entrant_ids'`) om en grupps activity_log växer till storleken där detta filter blir märkbart långsamt.
  */
-function involvesFilter(userId: string): string {
+function involvesFilter(rawUserId: string): string {
+  // Små bokstäver: UUID-regexen är skiftlägesokänslig, men jsonb-containment jämför strängar exakt och entrant_ids skrivs med små.
+  const userId = rawUserId.toLowerCase();
   const entrants = postgrestQuote(JSON.stringify({ entrant_ids: [userId] }));
   return `actor_user_id.eq.${userId},target_user_id.eq.${userId},and(type.eq.event_closed,payload.cs.${entrants})`;
 }

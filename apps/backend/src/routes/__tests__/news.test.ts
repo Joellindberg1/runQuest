@@ -345,6 +345,11 @@ describe('GET /api/news', () => {
       expect(idsOf(newer)).toEqual([8]);
       expect(newer.body.meta).toMatchObject({ has_more: true, next_before: 8 });
 
+      // after gäller det filtrerade flödet: bara mina level_up nyare än 6, och ingen äldre sida (8 är enda träffen)
+      const afterSix = await getMine('/api/news?involves=me&type=level_up&after=6&limit=5');
+      expect(idsOf(afterSix)).toEqual([8]);
+      expect(afterSix.body.meta).toMatchObject({ has_more: false, next_before: null });
+
       // utan type: alla mina rader, type-listan kombineras med AND
       const both = await getMine('/api/news?involves=me&type=title_taken,streak_broken');
       expect(idsOf(both)).toEqual([11, 10]);
@@ -419,6 +424,19 @@ describe('GET /api/news', () => {
       const res = await get('/api/news?involves=me', { user_id: evil });
       expect(res.status).toBe(400);
       expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
+    });
+
+    it('ett UUID med versaler i token matchar små bokstäver i raderna (jsonb-jämförelsen är skiftlägeskänslig)', async () => {
+      const lowerId = 'abcdef12-abcd-4bcd-8bcd-abcdef123456'; // ME har bara siffror och skulle inte skilja versaler från gemener
+      const upper = lowerId.toUpperCase();
+      use(world([
+        rowOf(1, { actor_user_id: lowerId }),
+        rowOf(2, { type: 'event_closed', actor_user_id: null, payload: { event_name: 'Spring', entrant_ids: [lowerId, KARL] } }),
+        rowOf(3, { actor_user_id: KARL }),
+      ], [user(upper, 'Me upper', 'g1')]));
+      const res = await get('/api/news?involves=me', { user_id: upper });
+      expect(res.status).toBe(200);
+      expect(idsOf(res)).toEqual([2, 1]);
     });
 
     it('utan involves påverkas inget av filtret (id:n som inte är UUID fungerar som förut)', async () => {

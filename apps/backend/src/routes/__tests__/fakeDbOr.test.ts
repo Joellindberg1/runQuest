@@ -51,6 +51,18 @@ describe('fakeDb or(): PostgREST-tolkning', () => {
     expect(await ids(`owner.eq.z,and(type.eq.b,payload.cs.${quoted('{"ids":["u1"]}')})`)).toEqual([3]);
   });
 
+  it('ett kommatecken inuti ett citerat värde utanför klamrar delar inte villkoret', async () => {
+    const { client } = createFakeDb({ t: [{ id: 1, owner: 'a,b' }, { id: 2, owner: 'a' }, { id: 3, owner: 'b' }] });
+    const res: any = await client.from('t').select('*').or('owner.eq."a,b"');
+    expect(res.data.map((r: Row) => r.id)).toEqual([1]);
+  });
+
+  it('en nästlad or(...) inuti and(...) är en or, inte en and', async () => {
+    // type a: rad 1 (x), 3 (z), 4 (w), 5 (v). x eller y bland dem: bara rad 1. Som and skulle ingen rad matcha.
+    expect(await ids('and(type.eq.a,or(owner.eq.x,owner.eq.y))')).toEqual([1]);
+    expect(await ids('and(type.eq.a,or(owner.eq.x,owner.eq.z))')).toEqual([1, 3]);
+  });
+
   it('and(...) respekterar parenteser och citat i värden (kommatecken inuti and delar inte yttre or)', async () => {
     expect(await ids(`and(type.eq.a,payload.cs.${quoted('{"note":"say \\"hi\\", ok"}')}),owner.eq.y`)).toEqual([2, 3]);
   });
