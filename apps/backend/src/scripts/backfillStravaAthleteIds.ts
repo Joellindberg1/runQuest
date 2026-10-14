@@ -44,6 +44,8 @@ export interface BackfillReport {
   mustReconnect: Array<{ userId: string; reason: string }>;
   /** No id could be fetched or written for another reason. */
   failed: Array<{ userId: string; reason: string }>;
+  /** Number of strava_tokens rows (connections) found. */
+  connections: number;
   /** True when every connection has an id once the run is over, i.e. the subscription may be created. */
   complete: boolean;
 }
@@ -74,6 +76,7 @@ async function resolveAthleteId(userId: string): Promise<Resolved & { refreshed?
     const reason = {
       not_connected: 'no stored Strava connection',
       no_refresh_token: 'the token has expired and no refresh token is stored',
+      // refresh_failed also covers a 5xx or a network error from Strava, not only a refused refresh token: a rerun may succeed.
       refresh_failed: 'the token has expired and Strava would not renew it',
     }[token.reason];
     return { kind: 'reconnect', reason };
@@ -124,6 +127,7 @@ export async function runBackfill({ db, apply, host, log }: RunBackfillInput): P
     duplicates: [],
     mustReconnect: [],
     failed: [],
+    connections: 0,
     complete: false,
   };
 
@@ -198,7 +202,9 @@ export async function runBackfill({ db, apply, host, log }: RunBackfillInput): P
     }
   }
 
-  report.complete = report.alreadySet.length + report.written.length === connections.length;
+  // No connections at all is not "complete": it means the wrong database, or an empty one, and must not clear the way for a subscription.
+  report.connections = connections.length;
+  report.complete = connections.length > 0 && report.alreadySet.length + report.written.length === connections.length;
 
   log('');
   for (const { athleteId, userIds } of report.duplicates) {
@@ -217,20 +223,38 @@ export async function runBackfill({ db, apply, host, log }: RunBackfillInput): P
     `Summary: ${report.alreadySet.length} already set, ${apply ? `${report.written.length} written` : `${report.wouldWrite.length} would be written`}, ` +
       `${report.duplicates.length} duplicate id(s), ${report.mustReconnect.length} must reconnect, ${report.failed.length} failed`,
   );
+  if (connections.length === 0) log('No connections found: check that the target database is the right one.');
+  if (!apply) log('Re-run with --apply to write (production needs the owner\'s yes).');
+  // The gate is the LAST line, so it is what the owner reads last (ADR 010 decision 4: no subscription before every connection has an id).
   log(
     report.complete
       ? 'Every connection has an athlete id: the webhook subscription may be created.'
-      : `${missing} connection(s) still without an athlete id${apply ? '' : ' after a run with --apply'}: do NOT create the webhook subscription yet.`,
+      : `${apply ? `${missing} connection(s) still without an athlete id` : 'No athlete id has been written yet'}: do NOT create the webhook subscription yet.`,
   );
-  if (!apply) log('Re-run with --apply to write (production needs the owner\'s yes).');
   return report;
+}
+
+/** 0 = nothing to act on. A dry-run is 1 for a problem it found (not for something it merely would write); --apply is 1 until every connection has an id. */
+export function exitCodeFor(report: BackfillReport, apply: boolean): 0 | 1 {
+  if (report.connections === 0) return 1;
+  if (apply) return report.complete ? 0 : 1;
+  return report.duplicates.length > 0 || report.mustReconnect.length > 0 || report.failed.length > 0 ? 1 : 0;
+}
+
+/** Names of the Strava credentials that are missing. Without them every expired token would look like "must reconnect". */
+export function missingStravaCredentials(env: NodeJS.ProcessEnv): string[] {
+  return ['STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET'].filter((name) => !env[name]);
 }
 
 async function main() {
   await import('dotenv/config'); // only here: importing the module (tests) must not read .env
   const options = parseArgs(process.argv.slice(2));
+  const missing = missingStravaCredentials(process.env);
+  if (missing.length > 0) {
+    throw new Error(`${missing.join(' and ')} must be set: without them a token that has expired cannot be renewed and every such user would be reported as "must reconnect"`);
+  }
   const report = await runBackfill({ db: getSupabaseClient(), apply: options.apply, host: supabaseHost(), log: (line) => console.log(line) });
-  if (options.apply && !report.complete) process.exitCode = 1;
+  process.exitCode = exitCodeFor(report, options.apply);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

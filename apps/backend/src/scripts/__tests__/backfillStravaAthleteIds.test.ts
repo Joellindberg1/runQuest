@@ -25,7 +25,7 @@ import {
   type FakeStrava,
   type FakeStravaCall,
 } from '../../test-utils/fakeStrava.js';
-import { parseArgs, runBackfill } from '../backfillStravaAthleteIds.js';
+import { exitCodeFor, missingStravaCredentials, parseArgs, runBackfill, type BackfillReport } from '../backfillStravaAthleteIds.js';
 
 const HOST = 'abcdef.supabase.co';
 const FAR_FUTURE = 9_999_999_999;
@@ -279,6 +279,155 @@ describe('backfill idempotence and failures', () => {
 
     expect(report.failed).toEqual([{ userId: 'u1', reason: 'GET /athlete returned no valid athlete id' }]);
     expect(writes(db)).toEqual([]);
+  });
+});
+
+describe('backfill write guard', () => {
+  it('backfill --apply leaves an id that was set between the read and the write, and reports the user as failed', async () => {
+    const { tables, db } = world([token('u1'), token('u2')]);
+    // Another process sets u1's id while the script is asking Strava about u1.
+    strava = installFakeStravaFetch({
+      athlete: (call) => {
+        if (call.headers.authorization === 'Bearer access-u1') tables.strava_tokens.find((r) => r.user_id === 'u1')!.strava_athlete_id = 9999;
+        return stravaAthlete({ id: call.headers.authorization === 'Bearer access-u1' ? 5001 : 5002 });
+      },
+    });
+
+    const report = await runBackfill({ db: db.client as any, apply: true, host: HOST, log });
+
+    expect(idOf(tables, 'u1')).toBe(9999);
+    expect(idOf(tables, 'u2')).toBe(5002);
+    expect(report.written).toEqual([{ userId: 'u2', athleteId: 5002 }]);
+    expect(report.failed.map((f) => f.userId)).toEqual(['u1']);
+    expect(report.complete).toBe(false);
+    expect(output()).toMatch(/failed: Alice/);
+  });
+
+  it('backfill --apply reports a connection that was removed between the read and the write as failed', async () => {
+    const { tables, db } = world([token('u1')]);
+    strava = installFakeStravaFetch({
+      athlete: () => {
+        tables.strava_tokens.length = 0;
+        return stravaAthlete({ id: 5001 });
+      },
+    });
+
+    const report = await runBackfill({ db: db.client as any, apply: true, host: HOST, log });
+
+    expect(report.written).toEqual([]);
+    expect(report.failed.map((f) => f.userId)).toEqual(['u1']);
+  });
+});
+
+describe('backfill dry-run with an expired token', () => {
+  it('backfill dry-run saves only the rotated tokens for an expired token, never an athlete id', async () => {
+    strava = installFakeStravaFetch({
+      athlete: athleteByToken({ 'fresh-access': 5001 }),
+      oauthToken: stravaTokenResponse({ access_token: 'fresh-access', refresh_token: 'fresh-refresh', expires_at: FAR_FUTURE - 5 }),
+    });
+    const { tables, db } = world([token('u1', { expires_at: 100 })]);
+    const before = { ...tables.strava_tokens[0] };
+
+    const report = await runBackfill({ db: db.client as any, apply: false, host: HOST, log });
+
+    expect(tables.strava_tokens[0]).toEqual({ ...before, access_token: 'fresh-access', refresh_token: 'fresh-refresh', expires_at: FAR_FUTURE - 5 });
+    expect(tables.strava_tokens[0].strava_athlete_id).toBeNull();
+    expect(report.wouldWrite).toEqual([{ userId: 'u1', athleteId: 5001 }]);
+    expect(output()).toMatch(/token was renewed and saved/);
+  });
+});
+
+describe('backfill gate against an early subscription', () => {
+  const lastLine = () => lines[lines.length - 1];
+
+  it('backfill ends with "do NOT create the webhook subscription" while a connection lacks an athlete id', async () => {
+    strava = installFakeStravaFetch({ athlete: athleteByToken({ 'access-u1': 5001 }), oauthToken: stravaError(400, { body: {} }) });
+    const { db } = world([token('u1'), token('u2', { strava_athlete_id: 5002 }), token('u3', { expires_at: 100 })]);
+
+    const apply = await runBackfill({ db: db.client as any, apply: true, host: HOST, log });
+
+    expect(apply.complete).toBe(false);
+    expect(lastLine()).toMatch(/do NOT create the webhook subscription/);
+    expect(lastLine()).toMatch(/1 connection\(s\) still without an athlete id/);
+    expect(output()).not.toMatch(/may be created/);
+  });
+
+  it('backfill dry-run ends with "No athlete id has been written yet: do NOT create the webhook subscription yet" after the re-run hint', async () => {
+    strava = installFakeStravaFetch({ athlete: athleteByToken({ 'access-u1': 5001 }) });
+    const { db } = world([token('u1')]);
+
+    await runBackfill({ db: db.client as any, apply: false, host: HOST, log });
+
+    expect(lastLine()).toBe('No athlete id has been written yet: do NOT create the webhook subscription yet.');
+    expect(lines[lines.length - 2]).toMatch(/Re-run with --apply/);
+  });
+
+  it('backfill says the subscription may be created, and never "do NOT", once every connection has an id', async () => {
+    strava = installFakeStravaFetch({ athlete: athleteByToken({ 'access-u1': 5001 }) });
+    const { db } = world([token('u1'), token('u2', { strava_athlete_id: 5002 })]);
+
+    const report = await runBackfill({ db: db.client as any, apply: true, host: HOST, log });
+
+    expect(report.complete).toBe(true);
+    expect(lastLine()).toBe('Every connection has an athlete id: the webhook subscription may be created.');
+    expect(output()).not.toMatch(/do NOT/);
+  });
+
+  it('backfill treats zero connections as not complete and tells the owner to check the target database', async () => {
+    strava = installFakeStravaFetch({ athlete: athleteByToken({}) });
+    const { db } = world([]);
+
+    const report = await runBackfill({ db: db.client as any, apply: true, host: HOST, log });
+
+    expect(report.connections).toBe(0);
+    expect(report.complete).toBe(false);
+    expect(output()).toMatch(/No connections found: check that the target database is the right one/);
+    expect(lastLine()).toMatch(/do NOT create the webhook subscription/);
+    expect(output()).not.toMatch(/may be created/);
+  });
+});
+
+describe('exitCodeFor', () => {
+  const base: BackfillReport = {
+    host: HOST,
+    apply: false,
+    alreadySet: [],
+    wouldWrite: [],
+    written: [],
+    duplicates: [],
+    mustReconnect: [],
+    failed: [],
+    connections: 3,
+    complete: false,
+  };
+
+  it('exitCodeFor is 1 for --apply until every connection has an id, and 0 when it does', () => {
+    expect(exitCodeFor({ ...base, apply: true, complete: false }, true)).toBe(1);
+    expect(exitCodeFor({ ...base, apply: true, complete: true }, true)).toBe(0);
+  });
+
+  it('exitCodeFor is 1 for a dry-run that found duplicates, users to reconnect or failures', () => {
+    expect(exitCodeFor({ ...base, duplicates: [{ athleteId: 1, userIds: ['a', 'b'] }] }, false)).toBe(1);
+    expect(exitCodeFor({ ...base, mustReconnect: [{ userId: 'a', reason: 'x' }] }, false)).toBe(1);
+    expect(exitCodeFor({ ...base, failed: [{ userId: 'a', reason: 'x' }] }, false)).toBe(1);
+  });
+
+  it('exitCodeFor is 0 for a dry-run that merely would write ids', () => {
+    expect(exitCodeFor({ ...base, wouldWrite: [{ userId: 'a', athleteId: 1 }, { userId: 'b', athleteId: 2 }], complete: false }, false)).toBe(0);
+  });
+
+  it('exitCodeFor is 1 when there are no connections at all, in both modes', () => {
+    expect(exitCodeFor({ ...base, connections: 0 }, false)).toBe(1);
+    expect(exitCodeFor({ ...base, connections: 0, apply: true }, true)).toBe(1);
+  });
+});
+
+describe('missingStravaCredentials', () => {
+  it('names each Strava credential that is not set, so main can stop before the first call', () => {
+    expect(missingStravaCredentials({})).toEqual(['STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET']);
+    expect(missingStravaCredentials({ STRAVA_CLIENT_ID: 'x' })).toEqual(['STRAVA_CLIENT_SECRET']);
+    expect(missingStravaCredentials({ STRAVA_CLIENT_ID: 'x', STRAVA_CLIENT_SECRET: 'y' })).toEqual([]);
+    expect(missingStravaCredentials({ STRAVA_CLIENT_ID: '', STRAVA_CLIENT_SECRET: 'y' })).toEqual(['STRAVA_CLIENT_ID']);
   });
 });
 
