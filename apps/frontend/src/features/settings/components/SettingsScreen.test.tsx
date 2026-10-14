@@ -157,6 +157,42 @@ describe('Settings — Strava', () => {
       });
       expect(await within(strava()).findByText('Connected', { selector: 'p' })).toBeInTheDocument();
       expect(within(strava()).queryByText('Expired')).not.toBeInTheDocument();
+      expect(disconnect).not.toHaveBeenCalled();
+    });
+
+    it('denied authorisation in the Strava window leaves the card expired with the Reconnect button and an error', async () => {
+      renderSettings();
+      expect(await screen.findByText('Expired')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
+      await waitFor(() => expect(open).toHaveBeenCalled());
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent('message', { data: { error: 'access_denied' }, origin: window.location.origin }));
+      });
+
+      expect(await within(strava()).findByRole('alert', { name: 'Strava error' })).toHaveTextContent('Strava authorisation failed');
+      expect(within(strava()).getByText('Expired')).toBeInTheDocument();
+      expect(within(strava()).getByRole('button', { name: 'Reconnect Strava' })).toBeInTheDocument();
+      expect(disconnect).not.toHaveBeenCalled();
+    });
+
+    it('a failed connect after the Strava window leaves the card expired with the Reconnect button and an error', async () => {
+      const connect = vi.fn().mockResolvedValue({ success: false });
+      handlers.connectStrava = connect;
+      renderSettings();
+      expect(await screen.findByText('Expired')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
+      await waitFor(() => expect(open).toHaveBeenCalled());
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent('message', { data: { stravaCode: 'bad' }, origin: window.location.origin }));
+      });
+
+      await waitFor(() => expect(connect).toHaveBeenCalledWith('bad'));
+      expect(await within(strava()).findByRole('alert', { name: 'Strava error' })).toHaveTextContent('Could not connect Strava');
+      expect(within(strava()).getByText('Expired')).toBeInTheDocument();
+      expect(within(strava()).getByRole('button', { name: 'Reconnect Strava' })).toBeInTheDocument();
+      expect(disconnect).not.toHaveBeenCalled();
     });
   });
 
