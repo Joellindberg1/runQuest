@@ -14,6 +14,7 @@ import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
 import { stravaLookback } from '../utils/stravaLookback.js';
+import { withUserLock } from '../utils/keyedMutex.js';
 import { isValidAthleteId } from '../services/stravaAthlete.js';
 import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
@@ -549,14 +550,22 @@ router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promis
   }
 });
 
-// Helper function to sync activities for a single user
-async function syncUserStravaActivities(userId: string): Promise<{
+interface UserSyncResult {
   success: boolean;
   newRuns?: number;
   totalActivities?: number;
   message?: string;
   error?: string;
-}> {
+}
+
+// Helper function to sync activities for a single user. Every caller (manual POST /sync, the scheduled polling) goes through the
+// per-user lock (ADR 010 decision 6): a poll that listed Strava before a deletion must not insert after it. The lock is not
+// reentrant, so code that already holds it for this user must not call this function (see utils/keyedMutex.ts).
+function syncUserStravaActivities(userId: string): Promise<UserSyncResult> {
+  return withUserLock(userId, () => runUserStravaSync(userId));
+}
+
+async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
   // Äldsta datum bland importerade rundor som aldrig fick sin XP (se självläkningen nedan); consumed = den nya importens omräkning tog över.
   let healFrom: string | null = null;
   let healConsumed = false;
