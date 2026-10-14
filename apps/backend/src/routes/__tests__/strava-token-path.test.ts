@@ -100,7 +100,7 @@ describe('GET /api/strava/status', () => {
     const res = await get('/api/strava/status');
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ connected: true, expired: true, expires_at: 100, connection_date: '2026-09-01', last_sync: null, consent_version: null });
+    expect(res.body).toEqual({ connected: true, expired: true, expires_at: 100, connection_date: '2026-09-01', last_sync: null, consent_version: null, sync_paused: false, paused_at: null });
     expect(strava.requests).toHaveLength(0);
   });
 });

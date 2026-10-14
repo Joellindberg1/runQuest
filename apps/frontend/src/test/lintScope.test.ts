@@ -73,6 +73,15 @@ describe('omfånget för lint-reglerna', () => {
     expect(empty).toEqual([]);
   });
 
+  it('den nya komponentytan ligger i en registrerad designGroup', () => {
+    const surface = ['src/features/settings/components/NotificationSettingsPanel.tsx', 'src/shared/components/form/Switch.tsx'];
+    for (const file of surface) {
+      expect({ file, finns: sourceFiles.includes(file) }).toEqual({ file, finns: true });
+      const groups = eslintConfig.DESIGN_GROUPS.filter(({ files, ignores }) => matches(files, file) && !matches(ignores ?? [], file));
+      expect({ file, grupper: groups.length > 0 }).toEqual({ file, grupper: true });
+    }
+  });
+
   it('varje feature under src/features täcks av minst en ESLint-designgrupp (en ny feature kräver en ny designGroup i eslint.config.js)', () => {
     const features = readdirSync(join(frontendDir, 'src/features'), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
     expect(features.length).toBeGreaterThan(10);

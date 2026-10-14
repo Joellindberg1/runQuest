@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeEmblem } from '@/features/badges/components/BadgeEmblem';
 import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { paths } from '@/paths';
 import { ErrorState } from '@/shared/components/ErrorState';
@@ -9,6 +8,8 @@ import { useNewsContext } from '../hooks/useNewsContext';
 import { useMarkNewsSeen, useNewsFeed } from '../hooks/useNewsQueries';
 import { buildPopoverRows } from '../newsModel';
 import '../news.css';
+import { NewsPopoverRow } from './NewsPopoverRow';
+import { ReadGestureScope } from './ReadGestureScope';
 
 const LOADING_ROWS = 3;
 
@@ -56,29 +57,12 @@ export function NewsPopoverPanel({ onClose, showClose = false }: NewsPopoverPane
   let body;
   if (news.feed && rows.length > 0) {
     body = (
-      <ul className="rq-news-pop__list" aria-label="Latest news">
-        {rows.map((row) => (
-          <li key={row.id} className="rq-news-pop__row" data-category={row.category} data-tone={row.tone} data-unread={row.unread || undefined} data-emblem={row.emblem ? '' : undefined}>
-            {/* badge_earned (F7): sm-emblemet i stället för pricken, aria-hidden (typraden och texten bär betydelsen, Council 23). */}
-            {row.emblem
-              ? <span className="rq-news-pop__emblem"><BadgeEmblem series={row.emblem.series} tier={row.emblem.tier} size="sm" decorative /></span>
-              : <span className="rq-dot rq-news-pop__dot" aria-hidden="true" />}
-            <div>
-              <div className="rq-news-pop__meta">
-                <span>
-                  {row.kind}
-                  {row.unread && <span className="sr-only"> (unread)</span>}
-                </span>
-                <time className="rq-news-pop__time" dateTime={row.iso} title={row.timeTitle}>
-                  {row.unread && <span className="rq-dot rq-news-unread" aria-hidden="true" />}
-                  {row.timeLong}
-                </time>
-              </div>
-              <p className="rq-news-pop__text">{row.text}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
+      // Listan äger läs-gesternas rörelsevakt: den räknas från att listan monteras, och popovern monteras om vid varje öppning (nytt fönster).
+      <ReadGestureScope>
+        <ul className="rq-news-pop__list" aria-label="Latest news">
+          {rows.map((row) => <NewsPopoverRow key={row.id} row={row} />)}
+        </ul>
+      </ReadGestureScope>
     );
   } else if (news.feed && news.feed.items.length === 0) {
     // Ett helt tomt flöde har inget att filtrera bort: som innan inställningarna styrde klockan (frame N2 ritar bara det filtrerade fallet).

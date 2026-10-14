@@ -52,6 +52,74 @@ function pick(row: Row, path: string): unknown {
   return path.split('.').reduce<any>((acc, key) => (acc == null ? undefined : acc[key]), row);
 }
 
+/** Delar ett PostgREST-logikuttryck vid kommatecken på toppnivå: inte inuti "citat" (med \-escape), (parenteser) eller {klamrar}. */
+function splitTopLevel(expr: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (quoted) {
+      if (ch === '\\') i++;
+      else if (ch === '"') quoted = false;
+    } else if (ch === '"') quoted = true;
+    else if (ch === '(' || ch === '{') depth++;
+    else if (ch === ')' || ch === '}') depth--;
+    else if (ch === ',' && depth === 0) { parts.push(expr.slice(start, i)); start = i + 1; }
+  }
+  parts.push(expr.slice(start));
+  return parts;
+}
+
+/** Ett citerat PostgREST-värde ("...", med \" och \\ som escape) avcitas; ett oquotat värde används som det är. */
+function unquote(value: string): string {
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) return value.slice(1, -1).replace(/\\(.)/g, '$1');
+  return value;
+}
+
+/** Postgres jsonb `@>`: objekt innehåller nycklar rekursivt, en lista innehåller varje element i någon av sina egna, skalärer är lika. */
+function jsonContains(container: unknown, contained: unknown): boolean {
+  const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+  if (Array.isArray(container) && Array.isArray(contained)) {
+    return contained.every((e) => container.some((c) => jsonContains(c, e)));
+  }
+  if (isObject(container) && isObject(contained)) {
+    return Object.entries(contained).every(([k, v]) => k in container && jsonContains(container[k], v));
+  }
+  if (Array.isArray(container) || Array.isArray(contained) || isObject(container) || isObject(contained)) return false;
+  return container === contained;
+}
+
+/** Ett enskilt `kolumn.operator.värde` eller en nästlad `and(...)`/`or(...)` i ett or()-uttryck. */
+function matchesTerm(row: Row, term: string): boolean {
+  const nested = /^(and|or)\((.*)\)$/s.exec(term);
+  if (nested) return matchesLogic(row, nested[2], nested[1] as 'and' | 'or');
+  const [col, op, ...rest] = term.split('.');
+  const val = unquote(rest.join('.'));
+  const cv = pick(row, col) as any;
+  switch (op) {
+    case 'eq': return String(cv) === val;
+    case 'neq': return String(cv) !== val;
+    case 'lt': return cv != null && Number(cv) < Number(val);
+    case 'gt': return cv != null && Number(cv) > Number(val);
+    case 'is': return val === 'null' ? cv == null : String(cv) === val;
+    case 'cs': {
+      let wanted: unknown;
+      try { wanted = JSON.parse(val); } catch { throw new Error(`fakeDb: cs stöder bara en jsonb-literal, fick "${val}"`); }
+      return cv != null && jsonContains(cv, wanted);
+    }
+    default:
+      // PostgREST svarar 400 på en okänd operator; ett test får aldrig tyst gå mot en falsk modell.
+      throw new Error(`fakeDb: operatorn "${op}" i or()-uttrycket stöds inte (${term})`);
+  }
+}
+
+function matchesLogic(row: Row, expr: string, mode: 'and' | 'or'): boolean {
+  const terms = splitTopLevel(expr);
+  return mode === 'and' ? terms.every((t) => matchesTerm(row, t)) : terms.some((t) => matchesTerm(row, t));
+}
+
 export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptions = {}) {
   const queries: RecordedQuery[] = [];
   let nextId = 1;
@@ -205,18 +273,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
               return !list.includes(String(v));
             }
             case 'not.is': return f.value === null ? v != null : v !== f.value;
-            case 'or':
-              return String(f.value).split(',').some((part) => {
-                const [col, op, ...rest] = part.split('.');
-                const val = rest.join('.');
-                const cv = pick(r, col) as any;
-                if (op === 'eq') return String(cv) === val;
-                if (op === 'neq') return String(cv) !== val;
-                if (op === 'lt') return cv != null && Number(cv) < Number(val);
-                if (op === 'gt') return cv != null && Number(cv) > Number(val);
-                if (op === 'is') return val === 'null' ? cv == null : String(cv) === val;
-                return false;
-              });
+            case 'or': return matchesLogic(r, String(f.value), 'or');
             default:
               // En okänd not-operator får aldrig tyst matcha alla rader (en delete skulle då tömma tabellen).
               if (f.op.startsWith('not.')) throw new Error(`fakeDb: ${f.op} stöds inte`);
