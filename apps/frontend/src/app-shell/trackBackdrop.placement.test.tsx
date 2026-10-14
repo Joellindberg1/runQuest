@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { AppRoutes } from '@/routes';
 import { resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
-import { warmLanding } from '@/test/warmLazy';
+import { warmLanding, warmLazyPages } from '@/test/warmLazy';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
@@ -11,6 +11,9 @@ vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: ()
 const MOBILE = 390;
 const DESKTOP = 1280;
 const BACKDROP = '[data-decor="track-backdrop"]';
+
+// Preview- och legal-sidorna är lazy-chunkar: den kalla importen kan ta längre än findBy/waitFor-sekunden när sviten körs parallellt.
+beforeAll(warmLazyPages);
 
 beforeEach(() => {
   resetFakeBackend();
