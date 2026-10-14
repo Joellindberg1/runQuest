@@ -9,7 +9,10 @@ import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { useMarkNewsSeen, useNewsFeed } from '../hooks/useNewsQueries';
 import { useNewsContext } from '../hooks/useNewsContext';
-import { FILTER_PARAM, buildNewsGroups, countByFilter, parseFilterParam, serializeFilterParam, toggleFilter, typesForFilters, unreadSummary, type NewsFilterKey } from '../newsModel';
+import {
+  FILTER_PARAM, INVOLVES_PARAM, buildNewsGroups, countByFilter, involvesAnnouncement, involvesMe, isKnownNewsItem, parseFilterParam, parseInvolvesParam, serializeFilterParam, serializeInvolvesParam,
+  toggleFilter, typesForFilters, unreadSummary, type NewsFilterKey,
+} from '../newsModel';
 import '../news.css';
 import { NewsDayList } from './NewsDayList';
 import { NewsFilters } from './NewsFilters';
@@ -37,10 +40,12 @@ export function NewsScreen() {
 
   const selected = parseFilterParam(params.get(FILTER_PARAM));
   const types = typesForFilters(selected);
+  // "Involves me" är ett vyfilter vid sidan av typerna (inte ett av dem): ett eget flöde hos servern, kombinerat med typerna (AND).
+  const involves = parseInvolvesParam(params.get(INVOLVES_PARAM));
 
-  // Flödet med alla typer ger chip-räknarna, oläst-siffran och "Mark all read"; det valda filtret har en egen cache.
+  // Flödet med alla typer ger chip-räknarna, oläst-siffran och "Mark all read" (oberoende av båda filtren); det valda filtret har en egen cache.
   const all = useNewsFeed(null, enabled);
-  const active = useNewsFeed(types, enabled);
+  const active = useNewsFeed(types, enabled, involves ? 'me' : undefined);
   const seen = useMarkNewsSeen();
   const [notice, setNotice] = useState<string | null>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
@@ -48,23 +53,54 @@ export function NewsScreen() {
 
   const unread = all.feed?.meta.unread_count ?? 0;
   const counts = useMemo(() => countByFilter(all.feed?.items ?? []), [all.feed]);
+  const involvesCount = useMemo(() => (all.feed?.items ?? []).filter((row) => isKnownNewsItem(row) && involvesMe(row, ctx.viewerId)).length, [all.feed, ctx.viewerId]);
   // Synligheten (tomtillstånd, filter, tur) följer de RENDERADE raderna: okända/oläsliga rader ligger kvar i flödet men visas inte.
-  const unfiltered = selected.length === 0;
+  const unfiltered = selected.length === 0 && !involves;
   const allGroups = useMemo(() => buildNewsGroups(all.feed?.items ?? [], ctx), [all.feed, ctx]);
   const groups = useMemo(() => (unfiltered ? allGroups : buildNewsGroups(active.feed?.items ?? [], ctx)), [unfiltered, allGroups, active.feed, ctx]);
   const loaded = useMemo(() => allGroups.reduce((sum, group) => sum + group.rows.length, 0), [allGroups]);
+  const shown = useMemo(() => groups.reduce((sum, group) => sum + group.rows.length, 0), [groups]);
 
-  const setFilter = (next: readonly NewsFilterKey[]) =>
+  const updateParams = (change: (next: URLSearchParams) => void) =>
     setParams(
       (previous) => {
         const updated = new URLSearchParams(previous);
-        const serialized = serializeFilterParam(next);
-        if (serialized) updated.set(FILTER_PARAM, serialized);
-        else updated.delete(FILTER_PARAM);
+        change(updated);
         return updated;
       },
       { replace: true, state },
     );
+  const writeParam = (name: string, value: string | null) => (next: URLSearchParams) => {
+    if (value) next.set(name, value);
+    else next.delete(name);
+  };
+  const setFilter = (next: readonly NewsFilterKey[]) => updateParams(writeParam(FILTER_PARAM, serializeFilterParam(next)));
+
+  // Växlingen annonseras EN gång i en egen polite-region, när raderna har landat (inte när knappen trycks): `announceFor` är värdet användaren bad om,
+  // och annonseringen sker först när flödet för det värdet finns. Typchipsen annonserar ingenting idag och rör inte regionen.
+  const [announceFor, setAnnounceFor] = useState<boolean | null>(null);
+  const [filterResult, setFilterResult] = useState('');
+  const expectAnnouncement = (next: boolean) => {
+    setFilterResult('');
+    setAnnounceFor(next);
+  };
+  const setInvolves = (next: boolean) => {
+    expectAnnouncement(next);
+    updateParams(writeParam(INVOLVES_PARAM, serializeInvolvesParam(next)));
+  };
+  // Tomlägets "Show all news": rensar typerna OCH "Involves me" i ett steg (två separata adressskrivningar skriver över varandra).
+  const showAll = () => {
+    if (involves) expectAnnouncement(false);
+    updateParams((updated) => {
+      updated.delete(FILTER_PARAM);
+      updated.delete(INVOLVES_PARAM);
+    });
+  };
+  useEffect(() => {
+    if (announceFor === null || announceFor !== involves || !active.feed) return;
+    setFilterResult(involvesAnnouncement(involves, shown, selected.length > 0));
+    setAnnounceFor(null);
+  }, [announceFor, involves, active.feed, shown, selected.length]);
 
   const markAllRead = () => {
     setNotice(null);
@@ -88,7 +124,7 @@ export function NewsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tourReady],
   );
-  const showFilter = selected.length > 0 || loaded > 0;
+  const showFilter = selected.length > 0 || involves || loaded > 0;
   // Kortet monteras först när flödet (eller felet) är känt: filterkortet kommer in ovanför när raderna landar, och ett kort som redan
   // stod högst upp i kolumnen skulle annars hoppa ner. Ett fel eller tomt flöde ger ändå panelen — inställningarna är inte flödet.
   const feedSettled = !!all.feed || all.isError;
@@ -110,11 +146,21 @@ export function NewsScreen() {
       </>
     );
   } else if (active.feed) {
+    // Ett typfilter (med eller utan "Involves me") ger det vanliga "Nothing here"; bara toggeln ensam ger N5:s eget tomläge.
     feed = selected.length > 0 ? (
       <section className="rq-news-empty">
         <h2 className="rq-news-empty__title">Nothing here</h2>
         <p className="rq-news-empty__text">No {selected.length > 1 ? 'news of these kinds' : 'news of this kind'} yet. The filter only hides what the pack did — everything is still in the feed.</p>
-        <button type="button" className="rq-btn rq-btn--secondary" onClick={() => setFilter([])}>Show all news</button>
+        <button type="button" className="rq-btn rq-btn--secondary" onClick={showAll}>Show all news</button>
+      </section>
+    ) : involves ? (
+      <section className="rq-news-empty">
+        <h2 className="rq-news-empty__title">Nothing involves you yet</h2>
+        <p className="rq-news-empty__text">
+          Titles taken from you, challenges, rank changes and events you join will show up here.
+          {isDesktop === false ? '' : ' Everything else the pack did is still in the full feed.'}
+        </p>
+        <button type="button" className="rq-btn rq-btn--secondary" onClick={showAll}>Show all news</button>
       </section>
     ) : (
       <section className="rq-news-empty">
@@ -141,6 +187,8 @@ export function NewsScreen() {
             {/* Live regions måste finnas innan texten kommer för att annonseras: behållarna är permanenta, bara texten monteras. */}
             <div ref={noticeRef} role="status" tabIndex={-1} className="rq-news-notice">{notice && <p>{notice}</p>}</div>
             <p role="alert" className="rq-news-error">{seen.error ? `Couldn't mark the news as read — ${seen.error}` : ''}</p>
+            {/* Filterväxlingen ("Involves me"): EN permanent polite-region, visuellt dold — raderna är det synliga svaret. Skild från bekräftelsen ovan. */}
+            <div role="status" aria-label="Filter result" className="sr-only">{filterResult}</div>
           </div>
           <div className="rq-news__tools">
             {unread > 0 && (
@@ -155,7 +203,17 @@ export function NewsScreen() {
         <div className="rq-news__split">
           {(showFilter || showSettingsColumn) && (
             <aside className="rq-news__side">
-              {showFilter && <NewsFilters selected={selected} counts={counts} loaded={loaded} onToggle={(key) => setFilter(toggleFilter(selected, key))} />}
+              {showFilter && (
+                <NewsFilters
+                  selected={selected}
+                  counts={counts}
+                  loaded={loaded}
+                  onToggle={(key) => setFilter(toggleFilter(selected, key))}
+                  involves={involves}
+                  involvesCount={involvesCount}
+                  onToggleInvolves={() => setInvolves(!involves)}
+                />
+              )}
               {showSettingsColumn && <NewsSettingsColumn />}
             </aside>
           )}

@@ -304,6 +304,8 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       if (q.limit != null) rows = rows.slice(0, q.limit);
       // Kopior, som PostgREST: en rad som lästs ändras inte av en senare update (annars ser koden "nya" värden som "föregående").
       rows = rows.map((r) => ({ ...r }));
+      // PostgREST: single() och maybeSingle() svarar PGRST116 när mer än en rad matchar (och single() även när ingen gör det).
+      if (single && rows.length > 1) return { data: null, error: { message: 'JSON object requested, multiple (or no) rows returned', code: 'PGRST116' } };
       if (single) return { data: rows[0] ?? null, error: rows[0] || maybe ? null : { message: 'not found', code: 'PGRST116' } };
       return { data: rows, error: null, count: wantCount ? total : null };
     }

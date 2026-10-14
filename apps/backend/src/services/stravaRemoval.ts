@@ -25,6 +25,7 @@
 import { getSupabaseClient } from '../config/database.js';
 import { reprocessRunsFromDate } from '../routes/runs.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
+import { errorCode } from '../utils/errorCode.js';
 import { logger } from '../utils/logger.js';
 
 /** One activity of the user (a delete event), or all of the user's Strava runs (a disconnect). */
@@ -32,11 +33,8 @@ export type RemovalScope = { externalId: string } | { all: true };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** A short label for an error: its code only. The message of a database error can carry the values of the row. */
-function errorCode(error: unknown): string {
-  const raw = (error as { code?: unknown } | null)?.code ?? (error as { name?: unknown } | null)?.name ?? 'unknown';
-  return String(raw).replace(/[^\w.:-]/g, '').slice(0, 40) || 'unknown';
-}
+// The helper moved to utils/errorCode.ts so that routes/runs.ts can use it without importing this module (which imports runs.ts).
+export { errorCode };
 
 /**
  * Deletes the user's Strava runs in the scope and returns the dates ('YYYY-MM-DD') of the rows that went, oldest first; [] when none.
@@ -66,6 +64,66 @@ export async function deleteStravaRuns(userId: string, scope: RemovalScope): Pro
   const dates = ((data as Array<{ date: string }> | null) ?? []).map((row) => row.date).sort();
   logger.info(`🗑️ Strava removal: deleted ${dates.length} run(s) for user ${userId}`);
   return dates;
+}
+
+/**
+ * The date ('YYYY-MM-DD') of the user's oldest Strava run, or null when there is none. A single-row query on purpose: the rows a
+ * delete hands back are capped by PostgREST max-rows (1000 by default) and come back in no guaranteed order, so the oldest date
+ * of a large purge cannot be read from them. Read it BEFORE the delete.
+ */
+export async function earliestStravaRunDate(userId: string): Promise<string | null> {
+  if (typeof userId !== 'string' || userId === '') throw new TypeError('earliestStravaRunDate needs a user id');
+  const { data, error } = await getSupabaseClient()
+    .from('runs')
+    .select('date')
+    .eq('user_id', userId)
+    .eq('source', 'strava')
+    .order('date', { ascending: true })
+    .limit(1);
+  if (error) {
+    const code = errorCode(error);
+    logger.error(`❌ Strava removal: could not read the oldest run for user ${userId} (${code})`);
+    throw Object.assign(new Error(`read oldest strava run failed (${code})`), { code });
+  }
+  const date = (data as Array<{ date: string }> | null)?.[0]?.date;
+  return typeof date === 'string' && DATE.test(date) ? date : null;
+}
+
+/**
+ * The date ('YYYY-MM-DD') of the user's oldest run of ANY source (manual included), or null when the user has no run. The safe
+ * starting point for a reprocess when the date of an earlier, unfinished removal is not known.
+ */
+export async function earliestRunDate(userId: string): Promise<string | null> {
+  if (typeof userId !== 'string' || userId === '') throw new TypeError('earliestRunDate needs a user id');
+  const { data, error } = await getSupabaseClient()
+    .from('runs')
+    .select('date')
+    .eq('user_id', userId)
+    .order('date', { ascending: true })
+    .limit(1);
+  if (error) {
+    const code = errorCode(error);
+    logger.error(`❌ Strava removal: could not read the oldest run of any source for user ${userId} (${code})`);
+    throw Object.assign(new Error(`read oldest run failed (${code})`), { code });
+  }
+  const date = (data as Array<{ date: string }> | null)?.[0]?.date;
+  return typeof date === 'string' && DATE.test(date) ? date : null;
+}
+
+/** How many Strava runs the user has. A head count: no rows travel, so no max-rows cap applies. */
+export async function countStravaRuns(userId: string): Promise<number> {
+  if (typeof userId !== 'string' || userId === '') throw new TypeError('countStravaRuns needs a user id');
+  const { count, error } = await getSupabaseClient()
+    .from('runs')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('source', 'strava');
+  if (error) {
+    const code = errorCode(error);
+    logger.error(`❌ Strava removal: could not count runs for user ${userId} (${code})`);
+    throw Object.assign(new Error(`count strava runs failed (${code})`), { code });
+  }
+  return count ?? 0;
 }
 
 /**

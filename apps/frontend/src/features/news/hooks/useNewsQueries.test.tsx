@@ -10,6 +10,8 @@ const api = vi.hoisted(() => ({ getNews: vi.fn(), markNewsSeen: vi.fn(), markNew
 vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 
 const rows = (count: number, from = 1) => Array.from({ length: count }, (_, index) => levelUp(from + index, from + index));
+/** Rader som rör mig (target = jag): det är dem fixturen släpper igenom när klienten ber om involves=me, som servern. */
+const mine = (count: number, from = 1) => Array.from({ length: count }, (_, index) => levelUp(from + index, from + index, { target: ME }));
 
 let queryClient: QueryClient;
 const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
@@ -395,7 +397,7 @@ describe('useMarkNewsSeen — Mark all read', () => {
 
 describe('useNewsFeed — involves', () => {
   it('involves=me skickas på varje hämtning och flödet får en egen cache vid sidan av det vanliga', async () => {
-    const news = newsServer(rows(3));
+    const news = newsServer(mine(3));
     serve(news);
     const { result } = renderHook(() => useNewsFeed(null, true, 'me'), { wrapper });
     await waitFor(() => expect(result.current.feed).toBeDefined());
@@ -406,9 +408,50 @@ describe('useNewsFeed — involves', () => {
     expect(cached()).toBeUndefined();
 
     // Catch-up bär samma filter.
-    news.server.rows.unshift(levelUp(4, 4));
+    news.server.rows.unshift(levelUp(4, 4, { target: ME }));
     await refetch(result);
     expect(news.server.calls.at(-1)).toEqual({ after: 3, limit: 100, type: undefined, involves: 'me' });
+  });
+
+  it('filtret har egen cache-nyckel och catch-up behåller parametern', async () => {
+    const news = newsServer([levelUp(3, 3, { target: ME }), levelUp(2, 2), levelUp(1, 1, { target: ME })]);
+    serve(news);
+    const plain = renderHook(() => useNewsFeed(['level_up']), { wrapper });
+    const mineOnly = renderHook(() => useNewsFeed(['level_up'], true, 'me'), { wrapper });
+    await waitFor(() => expect(plain.result.current.feed && mineOnly.result.current.feed).toBeTruthy());
+
+    // Samma typfilter, två flöden: nyckeln skiljer dem åt och varje cache bär sina egna rader.
+    expect(NEWS_QUERY_KEYS.feed('level_up', 'me')).toEqual(['news', 'feed', 'level_up', 'me']);
+    expect(NEWS_QUERY_KEYS.feed('level_up')).toEqual(['news', 'feed', 'level_up']);
+    expect(ids(cached('level_up'))).toEqual([3, 2, 1]);
+    expect(ids(queryClient.getQueryData<NewsFeed>(NEWS_QUERY_KEYS.feed('level_up', 'me')))).toEqual([3, 1]);
+
+    // Catch-up i det filtrerade flödet frågar efter samma typ OCH involves, och bara det flödet får raden.
+    news.server.rows.unshift(levelUp(5, 5, { target: ME }), levelUp(4, 4));
+    await refetch(mineOnly.result);
+    expect(news.server.calls.at(-1)).toEqual({ after: 3, limit: 100, type: 'level_up', involves: 'me' });
+    expect(ids(queryClient.getQueryData<NewsFeed>(NEWS_QUERY_KEYS.feed('level_up', 'me')))).toEqual([5, 3, 1]);
+    expect(ids(cached('level_up'))).toEqual([3, 2, 1]);
+  });
+
+  it('en lucka större än en sida fylls med before-sidor som också bär involves, och inga ofiltrerade rader kommer in', async () => {
+    const news = newsServer(mine(10));
+    serve(news);
+    const { result } = renderHook(() => useNewsFeed(null, true, 'me'), { wrapper });
+    await waitFor(() => expect(result.current.feed).toBeDefined());
+
+    // 250 nya rader, varannan rör mig: servern ger 125 till filtret, mer än catch-upens 100 → before-sidor behövs.
+    const fresh = Array.from({ length: 250 }, (_, index) => levelUp(260 - index, 260 - index, index % 2 === 0 ? { target: ME } : {}));
+    news.server.rows.unshift(...fresh);
+    await refetch(result);
+
+    const calls = news.server.calls.slice(1);
+    expect(calls[0]).toEqual({ after: 10, limit: 100, type: undefined, involves: 'me' });
+    expect(calls.length).toBeGreaterThan(1);
+    expect(calls.slice(1).every((call) => call.before !== undefined && call.involves === 'me')).toBe(true);
+    expect(result.current.feed?.items).toHaveLength(10 + 125);
+    expect(new Set(ids(result.current.feed)).size).toBe(10 + 125);
+    expect(result.current.feed?.items.every((row) => row.target?.id === ME.id)).toBe(true);
   });
 
   it('utan involves ser frågorna ut som förut', async () => {
@@ -569,7 +612,7 @@ describe('useMarkNewsRead — läst per rad', () => {
 
 describe('useNewsFeed — involves i Show more och fokusuppdatering', () => {
   it('Show more bär involves', async () => {
-    const news = newsServer(rows(80), 0);
+    const news = newsServer(mine(80), 0);
     serve(news);
     const { result } = renderHook(() => useNewsFeed(null, true, 'me'), { wrapper });
     await waitFor(() => expect(result.current.feed).toBeDefined());
@@ -580,7 +623,7 @@ describe('useNewsFeed — involves i Show more och fokusuppdatering', () => {
   });
 
   it('fokusuppdateringen bär involves', async () => {
-    const news = newsServer(rows(2), 0);
+    const news = newsServer(mine(2), 0);
     serve(news);
     const { result } = renderHook(() => useNewsFeed(null, true, 'me'), { wrapper });
     await waitFor(() => expect(result.current.feed).toBeDefined());
@@ -616,7 +659,7 @@ describe('useMarkNewsRead — kantfall', () => {
   }
 
   it('flödet för "Involves me" uppdateras som de andra', async () => {
-    const { read } = await setup();
+    const { read } = await setup(base().map((row) => ({ ...row, target: ME })));
     act(() => read.result.current.markRead(5));
     expect(unreadIds(cached(undefined))).toEqual([4, 3, 2]);
     expect(unreadIds(queryClient.getQueryData<NewsFeed>(NEWS_QUERY_KEYS.feed(undefined, 'me')))).toEqual([4, 3, 2]);

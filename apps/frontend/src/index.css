@@ -743,6 +743,7 @@
   --rq-notify-side-row-min-h: 40px;                     /* /news: panelen i den smala sidokolumnen (desktop) har tätare rader än Settings (46); frame N1 */
   --rq-notify-sheet-max-h:  88vh;                       /* /news mobil: bladet med panelen scrollar inuti och går aldrig över skärmen; frame N1 */
   --rq-news-settings-hit:   44px;                       /* /news mobil: kugghjulsknappen i sidhuvudet och bladets ✕ (ikonknappen är 40) */
+  --rq-news-involves-hit:   44px;                       /* /news mobil: "Involves me"-knappen (frame N5) är en egen rad med minst 44 px träffyta; desktop 0 (raden är 8 px luft + text) */
 
   /* ── 1.36 Strava: Pause or disconnect (RUN-241, frame P1) ────────────────────────────────────────────────────────────
      Bottenblad på mobil, centrerad dialog på desktop (samma recept som --rq-profile-sheet-*). Endast mått. Avvikelse från ramen: toppkanten är neutral
@@ -1008,6 +1009,7 @@
     --rq-switch-row-pad-y: 9px;
     --rq-switch-row-pad-x: 16px;
     --rq-notify-link-hit: 24px;
+    --rq-news-involves-hit: 0px;
     --rq-admin-groups-cols: repeat(3, minmax(0, 1fr));
     --rq-admin-member-cols: 220px 220px minmax(0, 1fr) auto;
     --rq-admin-add-cols: repeat(3, minmax(0, 1fr)) auto;

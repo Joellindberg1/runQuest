@@ -4,7 +4,7 @@
 import type { AccessTokenResult } from '../stravaClient.js';
 import type { ImportedRun } from '../stravaImport.js';
 import type { WebhookAspectType, WebhookObjectType, WebhookOutcome, WebhookStatus } from './constants.js';
-import type { ExistingRun, StravaResponse } from './decideAction.js';
+import type { ExistingRun, RunChanges, StravaResponse } from './decideAction.js';
 
 /** One row of strava_webhook_events, as claim_strava_webhook_events returns it (migration 046). Timestamps are ISO strings. */
 export interface WebhookEventRow {
@@ -95,6 +95,23 @@ export interface RunStore {
    * returns (see stravaRemoval.ts). `removed` is false and `date` null when there was no such run. THROWS on a database error.
    */
   removeStravaRun(userId: string, externalId: string): Promise<{ removed: boolean; date: string | null }>;
+  /**
+   * Writes the columns an update changed (decideAction's RunChanges) to the user's Strava run for this activity. ONLY `source =
+   * 'strava'` (a manual run is never touched) and ONLY Strava's own columns: the date, the distance and the extended fields. A patch
+   * with any other column, the XP and streak columns above all, is REFUSED as a whole with code `run_patch_forbidden_column`
+   * (stravaWebhook/runPatch.ts) before anything is read or written: the recalculation is the only writer of those. It does no
+   * recalculation itself: the worker does it from `recalculateFrom`.
+   * `clearWeather` deletes the run's run_weather row FIRST, so that a failed update is retried with the row still to clear;
+   * WeatherService.backfillMissingWeather (the scheduler, after the backup sync) fetches it again from the new time and place.
+   * `updated` is false (and nothing is written) for an empty patch or when there is no such Strava run; `previousDate` is the date
+   * the run had before the update. THROWS on a database error.
+   */
+  updateStravaRun(
+    userId: string,
+    externalId: string,
+    patch: RunChanges,
+    options?: { clearWeather?: boolean },
+  ): Promise<{ updated: boolean; previousDate: string | null }>;
 }
 
 /** A run a handler inserted, with what the steps after the import need: weather (the ImportedRun columns) and event qualification. */

@@ -105,6 +105,43 @@ export function typesForFilters(keys: readonly NewsFilterKey[]): ActivityType[] 
 export const typeParamOf = (types: readonly ActivityType[] | null): string | undefined => (types && types.length > 0 ? types.join(',') : undefined);
 
 /**
+ * "Involves me" (ADR 011 beslut 9) är ett vyfilter vid sidan av typchipsen, inte ett av dem: adressen bär `?involves=me`, och bara exakt `me` är på.
+ * Allt annat (saknas, tomt, annat skiftläge, listor) är av — samma värde som servern tar; servern svarar 400 på allt annat, så klienten skickar aldrig något annat.
+ */
+export const INVOLVES_PARAM = 'involves';
+export const INVOLVES_VALUE = 'me';
+
+export const parseInvolvesParam = (raw: string | null | undefined): boolean => raw === INVOLVES_VALUE;
+export const serializeInvolvesParam = (on: boolean): string | null => (on ? INVOLVES_VALUE : null);
+
+/**
+ * Speglar serverns villkor (ADR 011 beslut 9): jag är aktör eller target, eller deltar i ett event (`event_closed` med mig i `payload.entrant_ids`).
+ * Används bara för siffran på knappen (rader i det laddade fönstret, som chip-räknarna); raderna som visas kommer alltid ur serverns filter.
+ * Fältet skrivs av en senare story och kan saknas eller vara trasigt — då är raden inte "min".
+ */
+export function involvesMe(item: Pick<WireNewsItem, 'type' | 'actor' | 'target' | 'payload'>, viewerId: string | null): boolean {
+  if (!viewerId) return false;
+  // Som servern: betraktarens id i gemener mot det som ligger lagrat, utan att gemenisera det lagrade (jsonb-containment är exakt).
+  const me = viewerId.toLowerCase();
+  if (item.actor?.id === me || item.target?.id === me) return true;
+  if (item.type !== 'event_closed') return false;
+  const entrants = (item.payload as { entrant_ids?: unknown } | null)?.entrant_ids;
+  return Array.isArray(entrants) && entrants.includes(me);
+}
+
+/**
+ * Texten som annonseras när "Involves me" slås på eller av och raderna har landat: vad filtret visar, inte att det ändrades.
+ * `withTypes` = ett typfilter ligger vid sidan av (då beskriver "av" raderna i stället för hela flödet).
+ */
+export function involvesAnnouncement(on: boolean, rows: number, withTypes: boolean): string {
+  if (on) {
+    if (rows === 0) return 'Nothing involves you yet';
+    return rows === 1 ? 'Showing 1 row that involves you' : `Showing ${rows} rows that involve you`;
+  }
+  return withTypes ? `Showing ${rows} ${rows === 1 ? 'row' : 'rows'}` : 'Showing all pack news';
+}
+
+/**
  * En rad med en händelsetyp den här klienten inte känner (backend nyare än fliken). Typen kommer som string från API:t —
  * `NewsItem` lovar bara de kända — så anropare som tar emot svaret rått typar mot `WireNewsItem`.
  */
