@@ -13,6 +13,7 @@
     "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts",
     "backfill:activity-log": "tsx src/scripts/backfillActivityLog.ts",
     "convert:wind-ms": "tsx src/scripts/convertWindToMs.ts",
+    "backfill:strava-athlete": "tsx src/scripts/backfillStravaAthleteIds.ts",
     "backfill:badges": "tsx src/scripts/backfillBadges.ts",
     "reveal:badges": "tsx src/scripts/revealBadges.ts",
     "announce:release": "tsx src/scripts/announceRelease.ts"
