@@ -12,6 +12,7 @@ import { checkEventQualification } from '../eventService.js';
 import { getValidAccessToken, refreshAccessToken, stravaFetch } from '../stravaClient.js';
 import { extractExtendedFields } from '../stravaImport.js';
 import { deleteStravaRuns } from '../stravaRemoval.js';
+import { assertUpdatableRunPatch } from './runPatch.js';
 import { WeatherService } from '../weatherService.js';
 import type { ExistingRun, StravaResponse } from './decideAction.js';
 import type { Recompute, RunStore, StravaApi, WebhookEventRow, WebhookEventStore } from './ports.js';
@@ -108,6 +109,36 @@ export function createRunStore(): RunStore {
       // The shared deletion path (stravaRemoval.ts): one query for the worker, the disconnect and every later caller.
       const dates = await deleteStravaRuns(userId, { externalId });
       return { removed: dates.length > 0, date: dates[0] ?? null };
+    },
+    async updateStravaRun(userId, externalId, patch, options) {
+      // The guard comes first: a forbidden column (XP, streak, identity) refuses the whole patch before any query is made.
+      const values = assertUpdatableRunPatch(patch);
+      if (Object.keys(values).length === 0) return { updated: false, previousDate: null };
+
+      const supabase = getSupabaseClient();
+      const { data: found, error: findError } = await supabase
+        .from('runs')
+        .select('id, date')
+        .eq('user_id', userId)
+        .eq('external_id', externalId)
+        .eq('source', 'strava')
+        .maybeSingle();
+      if (findError) throw databaseError('updateStravaRun', findError);
+      if (!found) return { updated: false, previousDate: null };
+      const run = found as { id: string; date: string };
+
+      if (options?.clearWeather) {
+        const { error } = await supabase.from('run_weather').delete().eq('run_id', run.id);
+        if (error) throw databaseError('clearWeather', error);
+      }
+      const { data: written, error } = await supabase
+        .from('runs')
+        .update(values)
+        .eq('id', run.id)
+        .eq('source', 'strava')
+        .select('id');
+      if (error) throw databaseError('updateStravaRun', error);
+      return { updated: Array.isArray(written) && written.length > 0, previousDate: run.date };
     },
   };
 }
