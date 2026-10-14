@@ -7,6 +7,8 @@ import {
   STRAVA_POLL_INTERVAL_MINUTES,
   STRAVA_RUN_SPORT_TYPES,
   STRAVA_TREADMILL_FLAG,
+  WEBHOOK_RETENTION_DONE_DAYS,
+  WEBHOOK_RETENTION_FAILED_DAYS,
   getDataPolicySection,
   stravaPollCron,
 } from '../index.js';
@@ -54,8 +56,24 @@ describe('Strava import rules', () => {
 });
 
 describe('the privacy text agrees with the Strava constants', () => {
-  it('names the same running types and the same polling interval', () => {
+  it('names the same running types', () => {
     expect(strava()).toContain(`(${listOf(STRAVA_RUN_SPORT_TYPES)})`);
-    expect(strava()).toContain(`imported automatically every ${STRAVA_POLL_INTERVAL_MINUTES} minutes`);
+  });
+
+  // The text promises a backup check "at least every 12 hours": true for 30 minutes and for 12 hours, false for anything slower.
+  it('the backup check is at least every 12 hours, as the privacy text says', () => {
+    expect(strava()).toContain('at least every 12 hours');
+    expect(STRAVA_POLL_INTERVAL_MINUTES).toBeLessThanOrEqual(12 * 60);
+  });
+});
+
+describe('Strava webhook journal retention', () => {
+  it('handled events are kept 30 days and failed events 90 days, and the privacy text says so', () => {
+    expect(WEBHOOK_RETENTION_DONE_DAYS).toBe(30);
+    expect(WEBHOOK_RETENTION_FAILED_DAYS).toBe(90);
+    expect(WEBHOOK_RETENTION_FAILED_DAYS).toBeGreaterThan(WEBHOOK_RETENTION_DONE_DAYS);
+    const retention = getDataPolicySection('retention')!.paragraphs.join('\n');
+    expect(retention).toContain(`${WEBHOOK_RETENTION_DONE_DAYS} days`);
+    expect(retention).toContain(`${WEBHOOK_RETENTION_FAILED_DAYS} days`);
   });
 });
