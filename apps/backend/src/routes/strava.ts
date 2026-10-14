@@ -65,7 +65,15 @@ function parseSyncPausedBody(body: unknown): boolean | null {
 
 /** The message the sync and the debug endpoint give for a token that could not be had. */
 function tokenFailureMessage(token: Extract<AccessTokenResult, { ok: false }>): string {
-  return token.reason === 'not_connected' ? 'User not connected to Strava' : 'Failed to refresh Strava token';
+  switch (token.reason) {
+    case 'not_connected': return 'User not connected to Strava';
+    // The row could not be read: that says nothing about the connection, so it is not "not connected".
+    case 'token_read_failed': return 'Failed to read Strava connection';
+    // A rejected refresh token is reported like any failed refresh: the sync deletes nothing (only the deauthorize event does).
+    case 'refresh_failed':
+    case 'refresh_rejected':
+    case 'no_refresh_token': return 'Failed to refresh Strava token';
+  }
 }
 
 // GET /api/strava/config - Get Strava client ID
@@ -92,6 +100,11 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     logger.info('🔍 Checking Strava status for user:', req.user!.name);
     
     const token = await getValidAccessToken(userId);
+
+    // A row that could not be read says nothing about the connection: an error, never "not connected" (which the client acts on).
+    if (!token.ok && token.reason === 'token_read_failed') {
+      res.status(500).json({ error: 'Failed to check Strava status' }); return;
+    }
 
     if (!token.ok && token.reason === 'not_connected') {
       logger.info('❌ No Strava tokens found for user');
@@ -121,7 +134,8 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       res.json(refreshed);
       return; // utan denna skickades ett andra res.json nedan (ERR_HTTP_HEADERS_SENT)
     }
-    if (!token.ok && token.reason === 'refresh_failed') {
+    // A refresh token Strava rejected is shown the same way: the connection needs to be made again.
+    if (!token.ok && (token.reason === 'refresh_failed' || token.reason === 'refresh_rejected')) {
       logger.info('❌ Auto-refresh failed, connection truly expired');
       const refreshFailed: StravaStatusResponse = {
         connected: true,
@@ -237,6 +251,9 @@ router.put('/sync-paused', authenticateJWT, syncPausedLimiter, async (req, res):
   }
 });
 
+/** How long the code exchange of the callback may take; it runs under the user's lock (same pattern as REVOKE_TIMEOUT_MS). */
+const STRAVA_EXCHANGE_TIMEOUT_MS = 15_000;
+
 // POST /api/strava/callback - Handle Strava OAuth callback
 router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
   try {
@@ -264,82 +281,92 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Strava credentials not configured' }); return;
     }
     
-    const tokenResponse = await stravaFetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        grant_type: 'authorization_code'
-      })
-    });
-    
-    const tokenData = await tokenResponse.json();
-    
-    if (!tokenResponse.ok) {
-      // Stravas felsvar kan bära värden (och vid ett lyckat svar tokens): bara statusen loggas.
-      logger.error(`❌ Strava token exchange failed for user ${userId} (HTTP ${tokenResponse.status})`);
-      res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
-    }
-    
-    // Aldrig någon del av token-värdet i loggen — bara om den finns.
-    logger.info('✅ Strava tokens received:', {
-      has_access_token: Boolean(tokenData.access_token),
-      expires_at: tokenData.expires_at
-    });
-    
-    // Stravas athlete-id kopplar webhook-händelser (owner_id) till användaren. Saknas det sparas kopplingen ändå
-    // (den syns som "unmapped" i hälsokontrollen), men det är ett fel: utan id når inga händelser, inte heller raderingar.
-    const athleteId = tokenData.athlete?.id;
-    const hasAthleteId = isValidAthleteId(athleteId);
-    if (!hasAthleteId) {
-      logger.error('❌ Strava token response has no usable athlete id; connection saved without strava_athlete_id', {
-        user_id: userId,
-        has_athlete_object: Boolean(tokenData.athlete)
+    // The exchange and the save are ONE step under the user's lock, like the disconnect (ADR 010 decision 6): a reconnect that starts in
+    // the middle of a disconnect waits for it, so the disconnect's delete can never remove the connection that was just made, and a
+    // code is never exchanged just before the disconnect revokes the authorisation it creates.
+    await withUserLock(userId, async () => {
+      // Bounded: the lock is held while this runs and has no timeout of its own (utils/keyedMutex.ts), so a Strava that never answers
+      // would hold up the worker's batch and every other request of this user. A timeout fails like a network error does.
+      const tokenResponse = await stravaFetch('https://www.strava.com/oauth/token', {
+        method: 'POST',
+        signal: AbortSignal.timeout(STRAVA_EXCHANGE_TIMEOUT_MS),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          grant_type: 'authorization_code'
+        })
       });
-    }
-
-    // Save tokens to database
-    const supabase = getSupabaseClient();
-    const connectedAt = new Date().toISOString();
-    const { error } = await supabase
-      .from('strava_tokens')
-      .upsert({
-        user_id: userId,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        expires_at: tokenData.expires_at,
-        connection_date: connectedAt,
-        // Samtyckesloggen: versionen är kontrollerad ovan, tidpunkten sätts av servern. En återanslutning skriver nya värden.
-        consent_version: STRAVA_CONSENT_VERSION,
-        consented_at: connectedAt,
-        // Utelämnas (inte null) när Strava inte skickade något id, så en återanslutning inte raderar ett känt id.
-        ...(hasAthleteId ? { strava_athlete_id: athleteId } : {}),
-        // En ny anslutning är aldrig pausad.
-        sync_paused: false,
-        paused_at: null
+    
+      const tokenData = await tokenResponse.json();
+    
+      if (!tokenResponse.ok) {
+        // Stravas felsvar kan bära värden (och vid ett lyckat svar tokens): bara statusen loggas.
+        logger.error(`❌ Strava token exchange failed for user ${userId} (HTTP ${tokenResponse.status})`);
+        res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
+      }
+    
+      // Aldrig någon del av token-värdet i loggen — bara om den finns.
+      logger.info('✅ Strava tokens received:', {
+        has_access_token: Boolean(tokenData.access_token),
+        expires_at: tokenData.expires_at
       });
-
-    if (error?.code === '23505' && `${error.message} ${error.details ?? ''}`.includes('strava_tokens_athlete_id_key')) {
-      // Samma Strava-konto är redan kopplat till en annan RunQuest-användare (unikt index, migration 045).
-      logger.warn('⚠️ Strava account already connected to another user', { user_id: userId });
-      res.status(409).json({ error: 'This Strava account is already connected to another RunQuest user' }); return;
-    }
-
-    if (error) {
-      logger.error(`❌ Failed to save Strava tokens for user ${userId} (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to save Strava connection' }); return;
-    }
     
-    logger.info('✅ Strava tokens saved successfully');
+      // Stravas athlete-id kopplar webhook-händelser (owner_id) till användaren. Saknas det sparas kopplingen ändå
+      // (den syns som "unmapped" i hälsokontrollen), men det är ett fel: utan id når inga händelser, inte heller raderingar.
+      const athleteId = tokenData.athlete?.id;
+      const hasAthleteId = isValidAthleteId(athleteId);
+      if (!hasAthleteId) {
+        logger.error('❌ Strava token response has no usable athlete id; connection saved without strava_athlete_id', {
+          user_id: userId,
+          has_athlete_object: Boolean(tokenData.athlete)
+        });
+      }
+
+      // Save tokens to database
+      const supabase = getSupabaseClient();
+      const connectedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from('strava_tokens')
+        .upsert({
+          user_id: userId,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          expires_at: tokenData.expires_at,
+          connection_date: connectedAt,
+          // Samtyckesloggen: versionen är kontrollerad ovan, tidpunkten sätts av servern. En återanslutning skriver nya värden.
+          consent_version: STRAVA_CONSENT_VERSION,
+          consented_at: connectedAt,
+          // Utelämnas (inte null) när Strava inte skickade något id, så en återanslutning inte raderar ett känt id.
+          ...(hasAthleteId ? { strava_athlete_id: athleteId } : {}),
+          // En ny anslutning är aldrig pausad.
+          sync_paused: false,
+          paused_at: null
+        });
+
+      if (error?.code === '23505' && `${error.message} ${error.details ?? ''}`.includes('strava_tokens_athlete_id_key')) {
+        // Samma Strava-konto är redan kopplat till en annan RunQuest-användare (unikt index, migration 045).
+        logger.warn('⚠️ Strava account already connected to another user', { user_id: userId });
+        res.status(409).json({ error: 'This Strava account is already connected to another RunQuest user' }); return;
+      }
+
+      if (error) {
+        logger.error(`❌ Failed to save Strava tokens for user ${userId} (${errorCode(error)})`);
+        res.status(500).json({ error: 'Failed to save Strava connection' }); return;
+      }
     
-    // Klienten läser bara om anropet lyckades; Stravas athlete-objekt (profildata) skickas inte vidare.
-    const body: StravaCallbackResponse = { success: true, message: 'Strava connected successfully' };
-    res.json(body);
+      logger.info('✅ Strava tokens saved successfully');
+    
+      // Klienten läser bara om anropet lyckades; Stravas athlete-objekt (profildata) skickas inte vidare.
+      const body: StravaCallbackResponse = { success: true, message: 'Strava connected successfully' };
+      res.json(body);
+    });
     
   } catch (error) {
-    logger.error(`❌ Strava callback error for user ${req.user!.user_id} (${errorCode(error)})`);
+    // A timeout is a DOMException whose numeric code (23) says nothing in a log; its name does.
+    const reason = error instanceof Error && error.name === 'TimeoutError' ? 'token exchange timed out' : errorCode(error);
+    logger.error(`❌ Strava callback error for user ${req.user!.user_id} (${reason})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -762,7 +789,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
     logger.info(`💾 Found ${existingRuns?.length || 0} existing Strava runs in database`);
     if (existingRuns && existingRuns.length > 0) {
       existingRuns.forEach((run: any) => {
-        logger.info(`  - External ID: ${run.external_id}, Date: ${run.date}, Distance: ${run.distance}km`);
+        logger.info(`  - Date: ${run.date}, Distance: ${run.distance}km`); // never the Strava id (ADR 010 decision 8.6)
       });
     }
     
@@ -802,7 +829,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
       activities.forEach((activity: any, index: number) => {
         const distance = (activity.distance / 1000).toFixed(2);
         const date = activity.start_date_local.split('T')[0];
-        logger.info(`  ${index + 1}. ${date}: ${distance}km, Type: ${activity.type}, ID: ${activity.id}`);
+        logger.info(`  ${index + 1}. ${date}: ${distance}km, Type: ${activity.type}`); // never the Strava id (ADR 010 decision 8.6)
       });
     }
     
@@ -813,7 +840,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
     );
     
     logger.info(`🏃‍♂️ Found ${runningActivities.length} new running activities`);
-    logger.info(`🚫 Existing activity IDs in database: [${Array.from(existingIds).join(', ')}]`);
+    logger.info(`🚫 Activities already in the database: ${existingIds.size}`);
     
     if (runningActivities.length === 0) {
       return { 

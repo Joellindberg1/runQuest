@@ -15,8 +15,8 @@
 //     before the first delete.
 //
 // Error codes (never a message, a body or a token): strava_<status> for a non-2xx answer, strava_timeout, strava_network,
-// strava_refresh_failed, strava_no_refresh_token.
-import { getValidAccessToken, stravaFetch } from './stravaClient.js';
+// strava_refresh_failed, strava_refresh_rejected, strava_no_refresh_token, strava_token_read_failed.
+import { getValidAccessToken, stravaFetch, type AccessTokenFailureReason } from './stravaClient.js';
 
 const STRAVA_DEAUTHORIZE_URL = 'https://www.strava.com/oauth/deauthorize';
 
@@ -30,6 +30,19 @@ export interface RevokeOptions {
 
 function revokeError(code: string): Error {
   return Object.assign(new Error(`strava revoke failed (${code})`), { code });
+}
+
+/** Why no token was had, as one of our codes. `not_connected` is handled by the caller (there is nothing to revoke), so it has no code. */
+function revokeCodeForTokenFailure(reason: Exclude<AccessTokenFailureReason, 'not_connected'>): string {
+  switch (reason) {
+    case 'refresh_failed': return 'strava_refresh_failed';
+    // Strava already refused the refresh token, so the authorisation is gone or invalid: nothing to revoke. Still a warning, the
+    // disconnect carries on.
+    case 'refresh_rejected': return 'strava_refresh_rejected';
+    case 'no_refresh_token': return 'strava_no_refresh_token';
+    // The row could not be read, so the revoke could not even be tried. It must not look like "nothing to revoke".
+    case 'token_read_failed': return 'strava_token_read_failed';
+  }
 }
 
 /** Settles with `work`, or rejects with strava_timeout when the deadline passes first. `work` is left to finish on its own. */
@@ -66,7 +79,7 @@ export async function revokeStravaAuthorization(userId: string, options: RevokeO
     const token = await beforeDeadline(getValidAccessToken(userId), deadline);
     if (!token.ok) {
       if (token.reason === 'not_connected') return; // nothing to revoke: a rerun after a completed removal
-      throw revokeError(token.reason === 'refresh_failed' ? 'strava_refresh_failed' : 'strava_no_refresh_token');
+      throw revokeError(revokeCodeForTokenFailure(token.reason));
     }
 
     const response = await beforeDeadline(

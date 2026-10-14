@@ -138,10 +138,34 @@ describe('athlete deauthorize: what Strava says', () => {
 });
 
 describe('athlete deauthorize: the token path', () => {
-  it('a failed token refresh is a retry and never a confirmation, because a rejected refresh token cannot be told from a network error', async () => {
+  it('a failed token refresh (network, 5xx, 429) is a retry and never a confirmation', async () => {
     const { run, calls } = build({ token: { ok: false, reason: 'refresh_failed', ...state } });
 
     expect(await run()).toEqual({ status: 'retry', error: 'token_refresh_failed' });
+    expect(calls.fetchAthlete).toEqual([]);
+    expect(removeStravaConnection).not.toHaveBeenCalled();
+  });
+
+  it('a refresh token that Strava rejected confirms and removes the connection, without a revoke and without asking Strava again', async () => {
+    const { run, calls } = build({ token: { ok: false, reason: 'refresh_rejected', ...state } });
+
+    expect(await run()).toEqual(removedWithoutRevoke);
+    expect(removeStravaConnection).toHaveBeenCalledTimes(1);
+    expect(removeStravaConnection).toHaveBeenCalledWith('user-1', { reason: 'deauthorized' });
+    expect(calls.fetchAthlete).toEqual([]);
+  });
+
+  it('a rejected refresh token whose removal throws is a retry with its code', async () => {
+    vi.mocked(removeStravaConnection).mockRejectedValue(Object.assign(new Error('secret'), { code: '57P01' }));
+    const { run } = build({ token: { ok: false, reason: 'refresh_rejected', ...state } });
+
+    expect(await run()).toEqual({ status: 'retry', error: 'removal_failed:57P01' });
+  });
+
+  it('a token row that could not be read is a retry and removes nothing', async () => {
+    const { run, calls } = build({ token: { ok: false, reason: 'token_read_failed' } });
+
+    expect(await run()).toEqual({ status: 'retry', error: 'token_read_failed' });
     expect(calls.fetchAthlete).toEqual([]);
     expect(removeStravaConnection).not.toHaveBeenCalled();
   });

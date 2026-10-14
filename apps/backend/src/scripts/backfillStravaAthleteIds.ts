@@ -73,11 +73,14 @@ type Resolved = { kind: 'id'; athleteId: number } | { kind: 'reconnect'; reason:
 async function resolveAthleteId(userId: string): Promise<Resolved & { refreshed?: boolean }> {
   const token = await getValidAccessToken(userId);
   if (!token.ok) {
+    // Not a connection that needs to be made again: the row could not be read, and a rerun may well work.
+    if (token.reason === 'token_read_failed') return { kind: 'failed', reason: 'the stored token could not be read (a database error)' };
     const reason = {
       not_connected: 'no stored Strava connection',
       no_refresh_token: 'the token has expired and no refresh token is stored',
       // refresh_failed also covers a 5xx or a network error from Strava, not only a refused refresh token: a rerun may succeed.
       refresh_failed: 'the token has expired and Strava would not renew it',
+      refresh_rejected: 'Strava rejected the refresh token',
     }[token.reason];
     return { kind: 'reconnect', reason };
   }

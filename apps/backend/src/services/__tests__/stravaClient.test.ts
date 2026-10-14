@@ -158,6 +158,260 @@ describe('refreshAccessToken', () => {
   });
 });
 
+// What Strava's token endpoint answers for an invalid or revoked refresh token. ASSUMED shapes, to be checked against real Strava in the
+// release preview: 400 {"message":"Bad Request","errors":[{"resource":"RefreshToken","field":"refresh_token","code":"invalid"}]} and
+// 401 {"message":"Authorization Error", ...}. See isRefreshTokenRejection in stravaClient.ts.
+const REFRESH_TOKEN_INVALID = { resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' };
+
+describe('why a token refresh failed', () => {
+  const EXPIRED = { ...TOKEN_ROW, expires_at: 100, consent_version: 'v1' };
+  const STATE = { expiresAt: 100, connectionDate: '2026-09-01', consentVersion: 'v1' };
+
+  it('token refresh rejected by Strava is reported as refresh_rejected, not refresh_failed', async () => {
+    const rejections: Array<[string, number, unknown]> = [
+      ['400 naming the refresh token', 400, { message: 'Bad Request', errors: [REFRESH_TOKEN_INVALID] }],
+      ['400 naming only the field', 400, { message: 'Bad Request', errors: [{ field: 'refresh_token', code: 'invalid' }] }],
+      ['400 naming only the resource', 400, { message: 'Bad Request', errors: [{ resource: 'RefreshToken' }] }],
+      ['401 Authorization Error naming the refresh token', 401, { message: 'Authorization Error', errors: [REFRESH_TOKEN_INVALID] }],
+      ['400 invalid_grant', 400, { error: 'invalid_grant' }],
+    ];
+    for (const [label, status, body] of rejections) {
+      strava = installFakeStravaFetch({ oauthToken: stravaError(status, { body }) });
+      const { t, db } = use([{ ...EXPIRED }]);
+
+      expect(await getValidAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_rejected', ...STATE });
+      expect(await refreshAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_rejected', ...STATE });
+      expect(tokenWrites(db), label).toHaveLength(0);
+      expect(t.strava_tokens[0], label).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
+
+      strava.restore();
+      strava = undefined;
+    }
+  });
+
+  it('a network error, 5xx or 429 on token refresh stays refresh_failed', async () => {
+    const answers: Array<[string, () => ReturnType<typeof stravaError> | never]> = [
+      ['network error', () => { throw new Error('connect ECONNRESET'); }],
+      ['500', () => stravaError(500)],
+      ['502', () => stravaError(502, { body: { message: 'Bad Gateway' } })],
+      ['503 naming the refresh token', () => stravaError(503, { body: { message: 'Unavailable', errors: [REFRESH_TOKEN_INVALID] } })],
+      ['429', () => stravaError(429)],
+    ];
+    for (const [label, answer] of answers) {
+      strava = installFakeStravaFetch({ oauthToken: answer });
+      const { t, db } = use([{ ...EXPIRED }]);
+
+      expect(await getValidAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...STATE });
+      expect(await refreshAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...STATE });
+      expect(tokenWrites(db), label).toHaveLength(0);
+      expect(t.strava_tokens[0].refresh_token, label).toBe('old-rt');
+
+      strava.restore();
+      strava = undefined;
+    }
+  });
+
+  it('an answer that does not clearly name the refresh token stays refresh_failed', async () => {
+    // A wrong "rejected" would let a forged deauthorize event delete a user's runs, so only a recognisable refresh-token error counts.
+    const answers: Array<[string, number, unknown]> = [
+      ['400 without detail', 400, { message: 'Bad Request' }],
+      ['400 with an empty error list', 400, { message: 'Bad Request', errors: [] }],
+      ['400 with errors that is not a list', 400, { message: 'Bad Request', errors: 'refresh_token' }],
+      ['401 without a body', 401, null],
+      ['401 with a text body', 401, 'Authorization Error'],
+      ['401 with another message', 401, { message: 'Something else' }],
+      ['400 about the client id', 400, { message: 'Bad Request', errors: [{ resource: 'Application', field: 'client_id', code: 'invalid' }] }],
+      ['401 Authorization Error about the client secret', 401, { message: 'Authorization Error', errors: [{ resource: 'Application', field: 'client_secret', code: 'invalid' }] }],
+      // Strava uses "Authorization Error" for every 401, a wrong client secret included, so the message alone proves nothing.
+      ['401 Authorization Error alone', 401, { message: 'Authorization Error' }],
+      ['401 Authorization Error about the athlete token', 401, { message: 'Authorization Error', errors: [{ resource: 'Athlete', field: 'access_token', code: 'invalid' }] }],
+      ['401 Authorization Error naming both the application and the refresh token', 401, { message: 'Authorization Error', errors: [{ resource: 'Application', field: 'client_id' }, REFRESH_TOKEN_INVALID] }],
+      ['401 naming the application by resource only, with an empty field, and the refresh token', 401, { message: 'Authorization Error', errors: [{ resource: 'Application', field: '' }, REFRESH_TOKEN_INVALID] }],
+      ['403 naming the refresh token', 403, { message: 'Forbidden', errors: [REFRESH_TOKEN_INVALID] }],
+      ['404 naming the refresh token', 404, { message: 'Not Found', errors: [REFRESH_TOKEN_INVALID] }],
+    ];
+    for (const [label, status, body] of answers) {
+      strava = installFakeStravaFetch({ oauthToken: stravaError(status, { body }) });
+      use([{ ...EXPIRED }]);
+
+      expect(await getValidAccessToken('user-1'), label).toMatchObject({ ok: false, reason: 'refresh_failed' });
+
+      strava.restore();
+      strava = undefined;
+    }
+  });
+
+  it('missing Strava credentials stay refresh_failed without calling Strava', async () => {
+    strava = installFakeStravaFetch({});
+    use([{ ...EXPIRED }]);
+    const id = process.env.STRAVA_CLIENT_ID;
+    delete process.env.STRAVA_CLIENT_ID;
+    try {
+      expect(await getValidAccessToken('user-1')).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    } finally {
+      process.env.STRAVA_CLIENT_ID = id;
+    }
+    expect(strava.requests).toHaveLength(0);
+  });
+
+  it('a token answer without the new tokens is a failed refresh and nothing is saved', async () => {
+    strava = installFakeStravaFetch({ oauthToken: { token_type: 'Bearer', access_token: 'new-at' } as never });
+    const { t, db } = use([{ ...EXPIRED }]);
+
+    expect(await getValidAccessToken('user-1')).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(tokenWrites(db)).toHaveLength(0);
+    expect(t.strava_tokens[0].refresh_token).toBe('old-rt');
+  });
+
+  it('a database error while reading the token row is not reported as not connected', async () => {
+    strava = installFakeStravaFetch({});
+    const readFails = (q: RecordedQuery) => (q.table === 'strava_tokens' && q.select !== null ? { message: 'connection reset' } : null);
+    use([{ ...TOKEN_ROW }], readFails);
+
+    expect(await getValidAccessToken('user-1')).toEqual({ ok: false, reason: 'token_read_failed' });
+    expect(await refreshAccessToken('user-1')).toEqual({ ok: false, reason: 'token_read_failed' });
+
+    // A client that cannot even be created is a failed read too.
+    vi.mocked(getSupabaseClient).mockImplementation(() => { throw new Error('no database configured'); });
+    expect(await getValidAccessToken('user-1')).toEqual({ ok: false, reason: 'token_read_failed' });
+
+    // Only a row that is really missing is "not connected".
+    use([]);
+    expect(await getValidAccessToken('user-1')).toEqual({ ok: false, reason: 'not_connected' });
+    expect(strava.requests).toHaveLength(0);
+  });
+
+  /** Holds the token request at Strava until `release` is called; `reached` resolves once the request is waiting. */
+  function holdTheTokenRequest() {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let signal!: () => void;
+    const reached = new Promise<void>((resolve) => { signal = resolve; });
+    const restore = setStravaRequestHooks({ before: async () => { signal(); await gate; } });
+    return { release, reached, restore };
+  }
+
+  it('a late token refresh never overwrites a newer connection', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'late-at', refresh_token: 'late-rt', expires_at: 9999999990 }) });
+    const { t } = use([{ ...EXPIRED }]);
+    const reconnected: Row = { user_id: 'user-1', access_token: 'reconnect-at', refresh_token: 'reconnect-rt', expires_at: 9999999000, connection_date: '2026-10-15' };
+    const hold = holdTheTokenRequest();
+    try {
+      // The refresh hangs at Strava while the user reconnects.
+      const late = getValidAccessToken('user-1');
+      await hold.reached;
+      t.strava_tokens.splice(0, 1, { ...reconnected });
+      hold.release();
+
+      const result = await late;
+
+      // The late answer is not trusted: it belongs to the old connection.
+      expect(result).toMatchObject({ ok: false, reason: 'refresh_failed' });
+      expect(JSON.stringify(result)).not.toContain('late-at');
+      expect(t.strava_tokens).toEqual([reconnected]);
+    } finally {
+      hold.restore();
+    }
+  });
+
+  it('a rejection that arrives after the stored refresh token was replaced is not a rejected refresh token', async () => {
+    // Two callers refresh at once with the same token; the second one's answer can be a rejection only because the first one's
+    // refresh already replaced it. That says nothing about the authorisation, and must not confirm a deauthorize.
+    strava = installFakeStravaFetch({ oauthToken: stravaError(400, { body: { message: 'Bad Request', errors: [REFRESH_TOKEN_INVALID] } }) });
+    const { t } = use([{ ...EXPIRED }]);
+    const hold = holdTheTokenRequest();
+    try {
+      const second = getValidAccessToken('user-1');
+      await hold.reached;
+      Object.assign(t.strava_tokens[0], { access_token: 'first-at', refresh_token: 'first-rt', expires_at: 9999999990 });
+      hold.release();
+
+      expect(await second).toMatchObject({ ok: false, reason: 'refresh_failed' });
+      expect(t.strava_tokens[0]).toMatchObject({ access_token: 'first-at', refresh_token: 'first-rt' });
+    } finally {
+      hold.restore();
+    }
+  });
+
+  it('a rejection is not trusted when the stored refresh token cannot be checked again', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaError(401, { body: { message: 'Authorization Error', errors: [REFRESH_TOKEN_INVALID] } }) });
+    let reads = 0;
+    use([{ ...EXPIRED }], (q) => (q.table === 'strava_tokens' && q.select !== null && ++reads === 2 ? { message: 'connection reset' } : null));
+
+    expect(await getValidAccessToken('user-1')).toMatchObject({ ok: false, reason: 'refresh_failed' });
+  });
+
+  it('a rejection that arrives after the user was disconnected is not a rejected refresh token', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaError(401, { body: { message: 'Authorization Error', errors: [REFRESH_TOKEN_INVALID] } }) });
+    const { t } = use([{ ...EXPIRED }]);
+    const hold = holdTheTokenRequest();
+    try {
+      const pending = getValidAccessToken('user-1');
+      await hold.reached;
+      t.strava_tokens.splice(0, 1);
+      hold.release();
+
+      expect(await pending).toMatchObject({ ok: false, reason: 'refresh_failed' });
+      expect(t.strava_tokens).toEqual([]);
+    } finally {
+      hold.restore();
+    }
+  });
+
+  it('a save lost after it was applied, followed by a reconnect, is a failed refresh that leaves the new connection alone', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'late-at', refresh_token: 'late-rt', expires_at: 9999999990 }) });
+    const reconnected: Row = { user_id: 'user-1', access_token: 'reconnect-at', refresh_token: 'reconnect-rt', expires_at: 9999999000, connection_date: '2026-10-15' };
+    const rows: Row[] = [{ ...EXPIRED }];
+    let first = true;
+    use(rows, (q) => {
+      if (q.table !== 'strava_tokens' || q.mutation !== 'update' || !first) return null;
+      first = false;
+      // The first save is applied, its answer is lost, and the user reconnects before the retry.
+      Object.assign(rows[0], { access_token: 'late-at', refresh_token: 'late-rt', expires_at: 9999999990 });
+      rows.splice(0, 1, { ...reconnected });
+      return { message: 'connection lost' };
+    });
+
+    const result = await getValidAccessToken('user-1');
+
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(JSON.stringify(result)).not.toContain('late-at');
+    expect(rows).toEqual([reconnected]);
+  });
+
+  it('a late token refresh does not bring a disconnected user back', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'late-at', refresh_token: 'late-rt' }) });
+    const { t } = use([{ ...EXPIRED }]);
+    const hold = holdTheTokenRequest();
+    try {
+      const late = getValidAccessToken('user-1');
+      await hold.reached;
+      t.strava_tokens.splice(0, 1);
+      hold.release();
+
+      expect(await late).toMatchObject({ ok: false, reason: 'refresh_failed' });
+      expect(t.strava_tokens).toEqual([]);
+    } finally {
+      hold.restore();
+    }
+  });
+
+  it('a token save that reported an error after it was applied is recognised as saved', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }) });
+    const rows: Row[] = [{ ...EXPIRED }];
+    let first = true;
+    use(rows, (q) => {
+      if (q.table !== 'strava_tokens' || q.mutation !== 'update' || !first) return null;
+      first = false;
+      Object.assign(rows[0], { access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }); // committed, then the answer was lost
+      return { message: 'connection lost' };
+    });
+
+    expect(await getValidAccessToken('user-1')).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
+    expect(rows[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+  });
+});
+
 describe('the central fetch path', () => {
   let restoreHooks: (() => void) | undefined;
   afterEach(() => restoreHooks?.());

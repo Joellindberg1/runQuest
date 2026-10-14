@@ -203,6 +203,39 @@ describe('DELETE /api/strava/disconnect', () => {
     }
   });
 
+  it('disconnect continues and warns with its own code when Strava rejects the refresh token or the token row cannot be read', async () => {
+    const cases: Array<{ expectedCode: string; options: Setup }> = [
+      {
+        expectedCode: 'strava_refresh_rejected',
+        options: {
+          tokens: [tokenRow({ expires_at: 1 })],
+          strava: { oauthToken: stravaError(400, { body: { message: 'Bad Request', errors: [{ resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' }] } }) },
+        },
+      },
+      {
+        expectedCode: 'strava_token_read_failed',
+        // Only the token lookup of the revoke selects the refresh token; the removal reads other columns.
+        options: { failWhen: (q) => (q.table === 'strava_tokens' && q.select?.includes('refresh_token') ? { message: 'connection reset' } : null) },
+      },
+    ];
+
+    for (const { expectedCode, options } of cases) {
+      lines.length = 0;
+      const { tables } = setup(options);
+
+      const res = await disconnect();
+
+      expect(res.status, expectedCode).toBe(200);
+      expect(tables.runs, expectedCode).toEqual([]);
+      expect(tables.strava_tokens, expectedCode).toEqual([]);
+      expect(strava!.calls.oauthDeauthorize, expectedCode).toBe(0);
+      const warning = lines.find((line) => line.includes('revoke at Strava failed'));
+      expect(warning, expectedCode).toContain('user user-1');
+      expect(warning, expectedCode).toContain(expectedCode);
+      expect(lines.filter((line) => line.includes('SECRET'))).toEqual([]);
+    }
+  });
+
   it('disconnect deletes the strava runs first and the token row last', async () => {
     const { tables, db } = setup({ runs: [run(), run({ id: 'r2', external_id: '1002', date: '2026-10-02' })] });
     const rowsDuringRecompute: number[] = [];
@@ -391,6 +424,60 @@ describe('the user lock around a disconnect', () => {
     expect(strava!.calls.oauthDeauthorize).toBe(1);
     expect(tables.runs).toEqual([]);
     expect(tables.strava_tokens).toEqual([]);
+  });
+
+  it('a reconnect waits for an ongoing disconnect and ends connected', async () => {
+    const { tables } = setup({ strava: { oauthToken: stravaTokenResponse({ access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH', athlete: { id: 424242 } }) } });
+    const token = mintToken({ user_id: 'user-1', group_id: 'group-1' });
+    const held = new Promise<void>((resolve) => { releaseLock = resolve; });
+    const holder = withUserLock('user-1', () => held);
+
+    const pendingDisconnect = disconnect();
+    await settle();
+    const pendingReconnect = server.request('POST', '/api/strava/callback', { token, body: { code: 'fresh-code', consent_version: STRAVA_CONSENT_VERSION } });
+    await settle();
+    // Neither has started: not even the code is exchanged, so a new authorisation cannot be revoked by the disconnect in front of it.
+    expect(strava!.calls.oauthToken).toBe(0);
+    expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'SECRET-ACCESS' });
+
+    releaseLock!();
+    await holder;
+    const [disconnected, reconnected] = await Promise.all([pendingDisconnect, pendingReconnect]);
+
+    expect(disconnected.status).toBe(200);
+    expect(reconnected.status).toBe(200);
+    expect(strava!.requests.map((call) => call.route)).toEqual(['oauthDeauthorize', 'oauthToken']);
+    expect(tables.runs).toEqual([]);
+    expect(tables.strava_tokens).toHaveLength(1);
+    expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH' });
+  });
+
+  it('a reconnect whose token exchange hangs is cut off after the time limit, releases the user lock and ends as a failed exchange', async () => {
+    const { tables } = setup();
+    const before = JSON.parse(JSON.stringify(tables.strava_tokens));
+    // The limit is 15 s; the test makes that one signal 30 ms long instead of waiting for it.
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => realTimeout(ms === 15_000 ? 30 : ms));
+    // A Strava that never answers and only gives up when the request is aborted.
+    vi.stubGlobal('fetch', (_url: unknown, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+    }));
+    try {
+      const res = await server.request('POST', '/api/strava/callback', {
+        token: mintToken({ user_id: 'user-1', group_id: 'group-1' }),
+        body: { code: 'SECRET-CODE', consent_version: STRAVA_CONSENT_VERSION },
+      });
+
+      expect(res.status).toBe(500);
+      expect(timeout).toHaveBeenCalledWith(15_000);
+      expect(tables.strava_tokens).toEqual(before); // no row written
+      // The lock is free again: a waiting user is not held up.
+      await expect(withUserLock('user-1', async () => 'free')).resolves.toBe('free');
+      expect(lines.some((line) => line.includes('user-1') && line.includes('timed out'))).toBe(true);
+      expect(lines.filter((line) => line.includes('SECRET'))).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('a sync that queued behind the disconnect answers not connected and never reaches Strava', async () => {
