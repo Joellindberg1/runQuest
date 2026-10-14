@@ -39,7 +39,11 @@
 //     Vakten är textbaserad: raden måste börja i kolumn 0, så ett anrop inuti en callback (indenterat) räknas inte. Fångas INTE: ett anrop
 //     i ett blockkommentarsblock som råkar börja i kolumn 0, eller ett anrop som aldrig nås.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|rate-budget-hook|media|fonts|all]   (standard: all)
+//  9. Webhook-workern startas i produktionsblocket: `apps/backend/src/server.ts` måste anropa `startStravaWebhookScheduler()` direkt i
+//     `if (process.env.NODE_ENV === 'production') { … }`. Utan anropet bearbetas aldrig en lagrad händelse (raderingar uteblir); utanför
+//     blocket startar workern i dev och tester. Vakten är textbaserad (kommentarer och strängar hoppas över, underblock räknas inte).
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|rate-budget-hook|webhook-scheduler-start|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -211,6 +215,57 @@ export function checkRateBudgetHook(files) {
     : [`${SERVER_FILE}: saknar ett anrop av registerStravaRateBudget() på översta nivån — utan det räknas inga Strava-anrop och mjukgränsen slår aldrig till (ADR 010 beslut 9)`];
 }
 
+const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
+const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
+
+/**
+ * Texten direkt i första `if (process.env.NODE_ENV === 'production') { … }`-blocket: utan kommentarer och utan innehållet i
+ * underblock (en callback, en inre if). Null om blocket saknas. Strängar och mallsträngar hoppas över, så klamrar i dem räknas inte.
+ */
+function productionBlockTopLevelText(code) {
+  const match = PRODUCTION_BLOCK_START.exec(code);
+  if (!match) return null;
+  let depth = 1;
+  let text = '';
+  for (let i = match.index + match[0].length; i < code.length; i += 1) {
+    const char = code[i];
+    const next = code[i + 1];
+    if (char === '/' && next === '/') { while (i < code.length && code[i] !== '\n') i += 1; continue; }
+    if (char === '/' && next === '*') { i = code.indexOf('*/', i + 2); if (i === -1) return text; i += 1; continue; }
+    if (char === "'" || char === '"' || char === '`') {
+      const quote = char;
+      i += 1;
+      while (i < code.length && code[i] !== quote) { if (code[i] === '\\') i += 1; i += 1; }
+      if (depth === 1) text += `${quote}${quote}`;
+      continue;
+    }
+    if (char === '{') depth += 1;
+    else if (char === '}') { depth -= 1; if (depth === 0) return text; }
+    else if (depth === 1) text += char;
+  }
+  return text;
+}
+
+/**
+ * Regel 9. `files`: [{ path, content }]. Backendens server.ts måste starta webhook-workern, och bara i produktionsblocket:
+ * `startStravaWebhookScheduler();` direkt i `if (process.env.NODE_ENV === 'production') { … }`. Utan anropet bearbetas aldrig en
+ * lagrad händelse (raderingar uteblir); utanför blocket startar workern i dev och i tester. Ingen test kan importera server.ts.
+ * Fångas INTE: ett anrop som aldrig nås (efter en return) eller en variabel som heter likadant.
+ */
+export function checkWebhookSchedulerStart(files) {
+  const server = files.find(({ path }) => path === SERVER_FILE);
+  if (!server) {
+    return files.some(({ path }) => BACKEND_SOURCE.test(path))
+      ? [`${SERVER_FILE}: filen saknas, så webhook-workern startas aldrig`]
+      : [];
+  }
+  const block = productionBlockTopLevelText(server.content);
+  if (block === null) return [`${SERVER_FILE}: saknar produktionsblocket if (process.env.NODE_ENV === 'production') { … } där schedulers startas`];
+  return WEBHOOK_SCHEDULER_CALL.test(block)
+    ? []
+    : [`${SERVER_FILE}: startStravaWebhookScheduler() måste anropas direkt i produktionsblocket — annars bearbetas aldrig lagrade webhook-händelser, eller så startar workern i dev och tester (ADR 010 beslut 6)`];
+}
+
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -330,8 +385,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'rate-budget-hook', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | rate-budget-hook | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'rate-budget-hook', 'webhook-scheduler-start', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | rate-budget-hook | webhook-scheduler-start | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -346,7 +401,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'rate-budget-hook') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'rate-budget-hook' || mode === 'webhook-scheduler-start') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -355,6 +410,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'rate-budget-hook') {
       errors.push(...checkRateBudgetHook(files));
       summary.push('ratebudgetens krok registreras i server.ts');
+    }
+    if (mode === 'all' || mode === 'webhook-scheduler-start') {
+      errors.push(...checkWebhookSchedulerStart(files));
+      summary.push('webhook-workern startas i produktionsblocket i server.ts');
     }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));
