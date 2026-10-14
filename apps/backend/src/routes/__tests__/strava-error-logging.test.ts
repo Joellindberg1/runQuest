@@ -218,6 +218,22 @@ describe('a reprocess error after a Strava import', () => {
   });
 });
 
+describe('a sync that goes well', () => {
+  it('logs no Strava activity id, not those Strava lists and not those already stored', async () => {
+    const listed = stravaActivity({ id: 987654321, name: 'Secret morning run', start_date_local: '2026-10-12T07:30:00Z' });
+    setup({
+      tables: { runs: [{ id: 'r1', user_id: 'user-1', source: 'strava', external_id: '123456789', date: '2026-10-05', distance: 5, xp_gained: 50 }] },
+      strava: { athleteActivities: [listed, stravaActivity({ id: 123456789, start_date_local: '2026-10-05T07:30:00Z' })], activities: { 987654321: listed } },
+    });
+
+    const res = await sync();
+
+    expect(res.status).toBe(200);
+    expect(allLines.length).toBeGreaterThan(0);
+    expect(allLines.filter((line) => ['987654321', '123456789', 'Secret morning', '59.3293'].some((value) => line.includes(value)))).toEqual([]);
+  });
+});
+
 describe('the other Strava routes', () => {
   it('config logs only the code', async () => {
     vi.spyOn(logger, 'info').mockImplementationOnce(() => { throw leaky('K0001'); });

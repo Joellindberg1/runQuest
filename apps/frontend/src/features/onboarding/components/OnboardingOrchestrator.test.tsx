@@ -26,7 +26,7 @@ vi.mock('./OnboardingTour', () => ({
 }));
 
 const SLUG = 'patch_v9.1.0';
-const ALL_TOURS = ['tour_leaderboard_v2', 'tour_titles_v2', 'tour_duels_v2', 'tour_events_v2', 'tour_profile_v2', 'tour_news_v1'];
+const ALL_TOURS = ['tour_leaderboard_v2', 'tour_titles_v2', 'tour_duels_v2', 'tour_events_v2', 'tour_profile_v2', 'tour_news_v2'];
 const PAGE_TOUR_STEPS = [{ title: 'Page tour', description: 'Page tour step' }];
 const WAIT = { timeout: 3000 };
 
@@ -47,7 +47,7 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
 const renderQueue = (withPageTour = false) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } })}>
     <OnboardingOrchestrator />
-    {withPageTour && <FeatureTour slug="tour_news_v1" steps={PAGE_TOUR_STEPS} />}
+    {withPageTour && <FeatureTour slug="tour_news_v2" steps={PAGE_TOUR_STEPS} />}
   </QueryClientProvider>,
 );
 const pageTour = () => screen.queryAllByTestId('onboarding-tour').find((tour) => tour.getAttribute('data-steps') === String(PAGE_TOUR_STEPS.length));
@@ -139,5 +139,16 @@ describe('sidornas feature tours väntar på annonserade poster', () => {
     renderQueue(true);
     await waitFor(() => expect(pageTour()).toBeDefined());
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('en användare som sett tour_news_v1 får tour_news_v2', async () => {
+    // Allt sett, inklusive den gamla /news-turen; bara den bumpade slugen saknas.
+    seen = ['onboarding_v1', SLUG, ...ALL_TOURS.filter((slug) => slug !== 'tour_news_v2'), 'tour_news_v1'];
+    renderQueue(true);
+    await waitFor(() => expect(pageTour()).toBeDefined());
+
+    fireEvent.click(within(pageTour()!).getByRole('button', { name: 'Finish tour' }));
+    await waitFor(() => expect(markSeenCalls).toEqual(['tour_news_v2']));
+    await waitFor(() => expect(pageTour()).toBeUndefined());
   });
 });

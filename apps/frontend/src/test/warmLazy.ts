@@ -7,3 +7,18 @@ export const warmLanding = async (): Promise<void> => {
 export const warmOnboarding = async (): Promise<void> => {
   await import('@/features/onboarding/components/OnboardingOrchestrator');
 };
+
+// Sidorna utanför huvudskalet (preview, legal, admin, playbook, features, settings) är lazy-chunkar i routes.tsx: rutt-testerna värmer dem
+// i en beforeAll i stället för att höja timeouts.
+export const warmLazyPages = async (): Promise<void> => {
+  await Promise.all([
+    import('@/pages/LeaderboardPreviewPage'),
+    import('@/pages/ChallengesPreviewPage'),
+    import('@/pages/BadgesPreviewPage'),
+    import('@/pages/LegalPage'),
+    import('@/pages/AdminPage'),
+    import('@/pages/PlaybookPage'),
+    import('@/pages/FeaturesPage'),
+    import('@/pages/SettingsPage'),
+  ]);
+};

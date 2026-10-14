@@ -58,7 +58,7 @@ export interface WebhookEventStore {
 
 /** What the handlers need from Strava. Real version: supabaseAdapters.ts (createStravaApi). The worker itself never calls it. */
 export interface StravaApi {
-  /** getValidAccessToken: ok | not_connected | refresh_failed | no_refresh_token. */
+  /** getValidAccessToken: ok | not_connected | token_read_failed | refresh_failed | refresh_rejected | no_refresh_token. */
   getAccessToken(userId: string): Promise<AccessTokenResult>;
   /** One GET /activities/:id; the status and, on 200, the body. */
   fetchActivity(accessToken: string, activityId: number): Promise<StravaResponse>;

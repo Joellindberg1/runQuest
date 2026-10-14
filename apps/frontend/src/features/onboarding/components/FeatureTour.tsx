@@ -2,7 +2,7 @@
 // Fires once when user first visits a page, as soon as global queue
 // (onboarding_v1, patch notes) has cleared. Feature tours are independent
 // of each other — they don't wait for other page tours to complete.
-import { useState, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useOnboardingQueue } from '../hooks/useOnboardingQueue';
 import { OnboardingTour } from './OnboardingTour';
@@ -52,6 +52,29 @@ export function FeatureTour({ slug, steps, delayMs = 600 }: FeatureTourProps) {
     return () => adjustPendingTours(-1);
   }, [active]);
 
+  // Elementet som hade fokus innan touren tog över. driver.js minns bara fokuset vid början av det SENASTE steget (efter första Next är det
+  // popoverns egen knapp, som är borta när touren stängs), så Esc mitt i turen släppte fokuset till <body>. Vi spårar det själva: senaste
+  // fokuserade element utanför touren, så även ett klick under startfördröjningen räknas.
+  const focusBeforeTour = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    const remember = (target: EventTarget | null) => {
+      if (target instanceof HTMLElement && !document.body.classList.contains('driver-active')) focusBeforeTour.current = target;
+    };
+    remember(document.activeElement);
+    const onFocusIn = (event: FocusEvent) => remember(event.target);
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, [active]);
+
+  // Efter driver.js:s egen destroy (som körs direkt efter onDone): tillbaka till elementet från före touren. Fanns inget (sidan var nyladdad,
+  // fokus låg på <body>) eller är det borta, lämnas fokuset där driver.js la det, i stället för att rama in hela <main> med fokusringen.
+  const restoreFocus = () =>
+    queueMicrotask(() => {
+      const target = focusBeforeTour.current;
+      if (target && target !== document.body && target.isConnected) target.focus({ preventScroll: true });
+    });
+
   if (!active) return null;
 
   return (
@@ -60,6 +83,7 @@ export function FeatureTour({ slug, steps, delayMs = 600 }: FeatureTourProps) {
       onDone={() => {
         setActive(false);
         markSeen();
+        restoreFocus();
       }}
       delayMs={delayMs}
     />

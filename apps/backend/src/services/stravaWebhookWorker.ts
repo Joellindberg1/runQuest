@@ -68,6 +68,7 @@
 import { MS_DAY, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '@runquest/shared';
 import { logger } from '../utils/logger.js';
 import { withUserLock } from '../utils/keyedMutex.js';
+import type { AccessTokenFailureReason } from './stravaClient.js';
 import {
   LEASE_SECONDS,
   WEBHOOK_BACKOFF_MINUTES,
@@ -135,12 +136,27 @@ export type HandlerRegistry = Partial<Record<HandlerKey, WebhookHandler>>;
 
 /**
  * What a handler returns when getValidAccessToken did not give a token. A user without a Strava connection is an unknown owner
- * (done / ignored_unknown_owner, no new outcome: the disconnect already deleted their Strava runs). A refresh that failed, or a
- * stored connection without a refresh token, is a failed attempt; the deauthorize handler reads these two as "Strava refused".
+ * (done / ignored_unknown_owner, no new outcome: the disconnect already deleted their Strava runs). Every other reason is a failed
+ * attempt, a retry with its own error code. The compiler makes each reason be listed here (stravaClient's AccessTokenResult).
+ * The deauthorize handler is the one caller that does not pass `refresh_rejected` on to this function: it reads it as Strava's
+ * refusal and removes the connection. The activity handlers do pass it on, and retry.
  */
-export function resultForTokenFailure(reason: 'not_connected' | 'refresh_failed' | 'no_refresh_token'): WebhookHandlerResult {
-  if (reason === 'not_connected') return { status: 'done', outcome: 'ignored_unknown_owner', recalculateFrom: null };
-  return { status: 'retry', error: reason === 'refresh_failed' ? 'token_refresh_failed' : 'no_refresh_token' };
+export function resultForTokenFailure(reason: AccessTokenFailureReason): WebhookHandlerResult {
+  switch (reason) {
+    case 'not_connected':
+      return { status: 'done', outcome: 'ignored_unknown_owner', recalculateFrom: null };
+    case 'refresh_failed':
+      return { status: 'retry', error: 'token_refresh_failed' };
+    case 'no_refresh_token':
+      return { status: 'retry', error: 'no_refresh_token' };
+    // The activity handlers retry on both. A rejected refresh token also means Strava withdrew the authorisation, but only the
+    // athlete:update deauthorize event may act on that (it verifies, then removes); an activity event never deletes a connection.
+    case 'refresh_rejected':
+      return { status: 'retry', error: 'token_refresh_rejected' };
+    // The row could not be read: nothing is known about the connection, so it is never an unknown owner.
+    case 'token_read_failed':
+      return { status: 'retry', error: 'token_read_failed' };
+  }
 }
 
 // ─── The worker ────────────────────────────────────────────────────────────────
