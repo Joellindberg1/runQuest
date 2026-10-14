@@ -59,6 +59,16 @@ describe('createApp wiring', () => {
     expect(res.body.error).not.toBe('Route not found');
   });
 
+  // ADR 011: användarinställningar, båda metoderna
+  it('monterar /api/settings', async () => {
+    for (const method of ['GET', 'PUT']) {
+      const res = await server.request(method, '/api/settings');
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body.error).not.toBe('Route not found');
+    }
+  });
+
   it('okänd route ger appens 404', async () => {
     const res = await server.request('GET', '/api/does-not-exist');
     expect(res.status).toBe(404);
