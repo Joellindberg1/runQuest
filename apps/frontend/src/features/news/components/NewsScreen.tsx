@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_NEWS_V1 } from '@/features/onboarding/featureTourSteps';
 import { useAuth } from '@/providers/authContext';
@@ -12,6 +13,8 @@ import { FILTER_PARAM, buildNewsGroups, countByFilter, parseFilterParam, seriali
 import '../news.css';
 import { NewsDayList } from './NewsDayList';
 import { NewsFilters } from './NewsFilters';
+import { NewsSettingsColumn } from './NewsSettingsColumn';
+import { NewsSettingsSheet } from './NewsSettingsSheet';
 
 const LOADING_ROWS = 5;
 const MARK_READ_ANCHOR = '[data-tour="news-mark-read"]';
@@ -20,8 +23,12 @@ const MARK_READ_ANCHOR = '[data-tour="news-mark-read"]';
  * /news: dag-grupperade rader per typ, filter (`?type=`), "Show more" och "Mark all read". All datahämtning bor här (flödet delas med
  * skalets klock-popover: samma hook, samma cache); raderna är rena vymodeller ur newsModel.
  * Mobil = App Prototypens skärm (filtret som chip-rad — prototypen har inget filter där), desktop = Web Prototypens (flöde | filterkort).
+ * Notisinställningarna (samma panel som på Settings) bor i sidokolumnen under filtret på desktop och i ett blad bakom en knapp i sidhuvudet
+ * på mobil. Brytpunkten läses i JS (`useIsDesktop`) så att exakt EN av dem finns i DOM: en panel = en live-region av varje slag,
+ * ett ankare `news-settings` och inga dubbla annonseringar. Inställningarna döljer aldrig rader här; det är klockan som följer dem (B2).
  */
 export function NewsScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const ctx = useNewsContext();
   const { state } = useLocation();
@@ -131,17 +138,21 @@ export function NewsScreen() {
             <div ref={noticeRef} role="status" tabIndex={-1} className="rq-news-notice">{notice && <p>{notice}</p>}</div>
             <p role="alert" className="rq-news-error">{seen.error ? `Couldn't mark the news as read — ${seen.error}` : ''}</p>
           </div>
-          {unread > 0 && (
-            <button ref={markRef} type="button" className="rq-btn rq-btn--link rq-news__mark" data-tour="news-mark-read" disabled={seen.isPending} onClick={markAllRead}>
-              Mark all read
-            </button>
-          )}
+          <div className="rq-news__tools">
+            {unread > 0 && (
+              <button ref={markRef} type="button" className="rq-btn rq-btn--link rq-news__mark" data-tour="news-mark-read" disabled={seen.isPending} onClick={markAllRead}>
+                Mark all read
+              </button>
+            )}
+            {isDesktop === false && <NewsSettingsSheet />}
+          </div>
         </header>
 
         <div className="rq-news__split">
-          {showFilter && (
+          {(showFilter || isDesktop === true) && (
             <aside className="rq-news__side">
-              <NewsFilters selected={selected} counts={counts} loaded={loaded} onToggle={(key) => setFilter(toggleFilter(selected, key))} />
+              {showFilter && <NewsFilters selected={selected} counts={counts} loaded={loaded} onToggle={(key) => setFilter(toggleFilter(selected, key))} />}
+              {isDesktop === true && <NewsSettingsColumn />}
             </aside>
           )}
           <div className="rq-news__main">{feed}</div>

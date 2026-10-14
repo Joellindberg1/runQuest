@@ -93,3 +93,14 @@
 .rq-notify-skel__row { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-16); min-height: var(--rq-switch-row-min-h); padding: 0 var(--rq-switch-row-pad-x); background: var(--rq-cell); }
 .rq-notify-skel__label { height: var(--rq-skel-h-2); width: 62%; }
 .rq-notify-skel__switch { width: var(--rq-toggle-w); height: var(--rq-toggle-h); border-radius: var(--rq-radius-pill); }
+
+/* ── /news: panelens två värdar (RUN-249) ─────────────────────────────────────────────────────────────────────────────
+   Egna modifierare i stället för data-host (frame N1): den som monterar panelen skickar klassen. Sammansatta selektorer, eftersom
+   feature-CSS hamnar före index.css i kaskaden (.rq-heading och .rq-switch-row skulle annars vinna på samma specificitet). */
+.rq-card.rq-notify--side { gap: var(--rq-sp-10); }
+.rq-notify--side .rq-notify__title { font-family: var(--rq-font-ui); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-notify--side .rq-notify__lead, .rq-notify--side .rq-switch-row__label { font-size: var(--rq-fs-meta); }
+.rq-notify--side .rq-switch-row { min-height: var(--rq-notify-side-row-min-h); padding-inline: var(--rq-sp-12); }
+.rq-notify--side .rq-notify-section__toggle { min-height: var(--rq-notify-side-row-min-h); }
+/* Bladet har Dialog.Title som rubrik: panelens egen titel finns kvar för regionens namn men ritas inte (1 px, inte display:none, så Retry kan flytta fokus dit). */
+.rq-notify--sheet .rq-notify__title { position: absolute; width: var(--rq-hair); height: var(--rq-hair); margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
