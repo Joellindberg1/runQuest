@@ -8,7 +8,7 @@ import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { calculateCompleteRunXP, STRAVA_CONSENT_VERSION } from '@runquest/shared';
-import type { StravaCallbackResponse, StravaStatusResponse } from '@runquest/shared';
+import type { StravaCallbackRequest, StravaCallbackResponse, StravaStatusResponse } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
@@ -187,7 +187,8 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
 // POST /api/strava/callback - Handle Strava OAuth callback
 router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { code, consent_version: consentVersion } = req.body;
+    // Opålitlig indata: fälten kan saknas eller ha fel typ, därför Partial och en strikt jämförelse nedan.
+    const { code, consent_version: consentVersion }: Partial<StravaCallbackRequest> = req.body;
     const userId = req.user!.user_id;
     
     if (!code) {
