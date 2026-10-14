@@ -61,6 +61,13 @@ export interface NewsQuery {
   after?: number;
   /** Kommaseparerad lista av ActivityType. */
   type?: string;
+  /**
+   * Vyfilter "Involves me" (ADR 011 beslut 9), skilt från notisslagen: bara rader där anroparen är `actor` eller `target`,
+   * samt `event_closed` där `payload.entrant_ids` innehåller anroparen. Kombineras (AND) med type/before/after/limit och gäller
+   * serverns paginering (`has_more`/`next_before` beskriver det filtrerade flödet). `meta.unread_count` påverkas inte.
+   * Enda giltiga värdet är `me`; allt annat (även tomt) ger 400.
+   */
+  involves?: 'me';
 }
 
 export interface NewsSeenRequest {

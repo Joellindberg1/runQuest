@@ -3,10 +3,10 @@
 // Loggen OBSERVERAR spelet: ingenting här ändrar XP-/titel-/utmaningsregler.
 //
 // Typlistan har EN källa — ACTIVITY_TYPES. CHECK-listan i den senaste migrationen som definierar
-// activity_log_type_check (034, utökad av 036 och 041) måste vara identisk
+// activity_log_type_check (034, utökad av 036, 041 och 050) måste vara identisk
 // (statiskt test i backend: activityLogMigration.test.ts).
 
-import { addDays, stockholmMidnightIso } from './calendar.js';
+import { addDays, stockholmDay, stockholmMidnightIso } from './calendar.js';
 
 export const ACTIVITY_TYPES = [
   'title_unlocked',
@@ -22,6 +22,8 @@ export const ACTIVITY_TYPES = [
   'event_closed',
   'badge_earned',
   'release_published',
+  'rank_passed',
+  'challenge_accepted',
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -147,6 +149,26 @@ export interface ReleasePublishedPayload {
   title: string;
 }
 
+/** Rankningsmått som en passering gäller (ADR 011 beslut 6). Fler mått är additivt och kräver ingen ny typ. */
+export const RANK_MEASURES = ['xp', 'challenge_points'] as const;
+export type RankMeasure = (typeof RANK_MEASURES)[number];
+
+/** ADR 011 beslut 6: rangerna EFTER passeringen. Namn och bild hämtas live via actor/target; ingen XP-siffra i payloaden. */
+export interface RankPassedPayload {
+  measure: RankMeasure;
+  passer_rank: number;
+  passed_rank: number;
+}
+
+/** ADR 011 beslut 7: utmanaren får veta att motståndaren accepterade. `start_date` = kalenderdagen (Stockholm) utmaningen börjar räknas. */
+export interface ChallengeAcceptedPayload {
+  challenge_id: string;
+  tier: string;
+  metric: string;
+  duration_days: number;
+  start_date: string;
+}
+
 export interface ActivityPayloadMap {
   title_unlocked: TitleUnlockedPayload;
   title_taken: TitleTakenPayload;
@@ -161,6 +183,8 @@ export interface ActivityPayloadMap {
   event_closed: EventClosedPayload;
   badge_earned: BadgeEarnedPayload;
   release_published: ReleasePublishedPayload;
+  rank_passed: RankPassedPayload;
+  challenge_accepted: ChallengeAcceptedPayload;
 }
 
 export type ActivityPayload<T extends ActivityType = ActivityType> = ActivityPayloadMap[T];
@@ -214,6 +238,14 @@ export const activityKeys = {
   titleTaken: (titleId: string, newHolderId: string, oldHolderId: string, value: number | string, day: string) =>
     `title_taken:${titleId}:${newHolderId}:${oldHolderId}:${keyNumber(value)}:${day}`,
   titleRevoked: (titleId: string, userId: string, day: string) => `title_revoked:${titleId}:${userId}:${day}`,
+  /**
+   * Max en rad per ORDNAT par (passerare, passerad), mått och Stockholm-dygn (ADR 011 beslut 6.3). A förbi B och B förbi A
+   * samma dag är två olika nycklar. `day` = Stockholm-kalenderdag (YYYY-MM-DD).
+   */
+  rankPassed: (measure: RankMeasure, passerId: string, passedId: string, day: string) =>
+    `rank_passed:${measure}:${passerId}:${passedId}:${day}`,
+  /** En utmaning accepteras en gång: en reverterad aktivering som accepteras om ger samma nyckel och därmed ingen dubblett. */
+  challengeAccepted: (challengeId: string) => `challenge_accepted:${challengeId}`,
 } as const;
 
 // ─── Detektion: nivåer, milstolpar, streak ───────────────────────────────────────────────────────
@@ -432,6 +464,25 @@ export function buildReleasePublishedDraft(groupId: string, version: string, tit
   };
 }
 
+// ─── Byggare: rankpassering ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Användare W (`passerId`) gick förbi M (`passedId`) på `measure` (ADR 011 beslut 6). Aktör = W, target = M; gruppen anges av
+ * anroparen (users.group_id). Rangerna är EFTER passeringen. Dagen i dedupe-nyckeln är Stockholm-dagen för `occurredAt`, så
+ * nyckeln byter vid Stockholms midnatt och inte UTC:s. Aldrig backfill (loggen kan inte rekonstruera historiska rankingar).
+ */
+export function buildRankPassedDraft(
+  groupId: string, measure: RankMeasure, passerId: string, passedId: string,
+  passerRank: number, passedRank: number, occurredAt: string,
+): ActivityDraft {
+  return {
+    type: 'rank_passed', group_id: groupId, actor_user_id: passerId, target_user_id: passedId,
+    payload: { measure, passer_rank: passerRank, passed_rank: passedRank }, payload_version: ACTIVITY_PAYLOAD_VERSION,
+    dedupe_key: activityKeys.rankPassed(measure, passerId, passedId, stockholmDay(new Date(occurredAt))),
+    occurred_at: occurredAt, is_backfill: false,
+  };
+}
+
 // ─── Byggare: utmaningar ─────────────────────────────────────────────────────────────────────────
 
 /** De fält ur challenges-raden som loggen behöver. Extra kolumner (t.ex. token_id) ignoreras. */
@@ -466,6 +517,22 @@ export function buildChallengeReceivedDraft(c: ChallengeActivityRow, occurredAt:
     payload: { challenge_id: c.id, tier: c.tier, metric: c.metric, duration_days: c.duration_days },
     payload_version: ACTIVITY_PAYLOAD_VERSION,
     dedupe_key: activityKeys.challengeReceived(c.id), occurred_at: occurredAt, is_backfill: isBackfill,
+  };
+}
+
+/** Den accepterade utmaningen: raden som den aktiverades till, med `start_date` satt (tomorrowStockholm vid accept). */
+export type ChallengeAcceptedRow = ChallengeActivityRow & { start_date: string };
+
+/**
+ * Motståndaren accepterade (ADR 011 beslut 7). Aktör = motståndaren som accepterar, target = utmanaren. Nyckeln är per
+ * utmaning, så en reverterad aktivering som accepteras om inte ger en andra rad. Aldrig backfill.
+ */
+export function buildChallengeAcceptedDraft(c: ChallengeAcceptedRow, occurredAt: string): ActivityDraft {
+  return {
+    type: 'challenge_accepted', group_id: c.group_id, actor_user_id: c.opponent_id, target_user_id: c.challenger_id,
+    payload: { challenge_id: c.id, tier: c.tier, metric: c.metric, duration_days: c.duration_days, start_date: c.start_date },
+    payload_version: ACTIVITY_PAYLOAD_VERSION,
+    dedupe_key: activityKeys.challengeAccepted(c.id), occurred_at: occurredAt, is_backfill: false,
   };
 }
 

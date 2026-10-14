@@ -441,7 +441,7 @@ describe('useMarkNewsRead — läst per rad', () => {
     return { news, all, levels, titles, read };
   }
 
-  it('markRead uppdaterar alla flödescacher direkt och buntar anropen', async () => {
+  it('flera gester inom 300 ms ger ett enda POST /news/read', async () => {
     const { news, all, levels, titles, read } = await setup();
     expect(all.result.current.feed?.meta.unread_count).toBe(4);
 
@@ -491,12 +491,15 @@ describe('useMarkNewsRead — läst per rad', () => {
     expect(unreadIds(cached())).toEqual([4, 2]);
   });
 
-  it('ett misslyckat anrop återställer raderna och räknaren tyst, och nästa gest försöker igen', async () => {
+  it('räknaren minskar direkt och ett fel återställer tyst', async () => {
     const { news, read } = await setup();
     news.server.failNext = 'Failed to update news state';
     act(() => read.result.current.markRead(5));
     act(() => read.result.current.markRead(4));
+    // Direkt, innan anropet gått: raderna är lästa och räknaren lägre i alla cachar.
     expect(unreadIds(cached())).toEqual([3, 2]);
+    for (const typeParam of [undefined, LEVELS_KEY, 'title_taken']) expect(cached(typeParam)?.meta.unread_count).toBe(2);
+    expect(api.markNewsRead).not.toHaveBeenCalled();
 
     // Cachen är sanningen; hookarnas resultat hinner efter en tick.
     await waitFor(() => expect(unreadIds(cached())).toEqual([5, 4, 3, 2]), { timeout: READ_FLUSH_MS * 4 });

@@ -76,7 +76,9 @@ describe('NotificationSettingsPanel', () => {
     expect(screen.getByRole('button', { name: new RegExp(`Challenges.*${challenges.length - 1} of ${challenges.length} on`) })).toBeInTheDocument();
     const titles = kindsIn('Titles');
     expect(screen.getByRole('button', { name: new RegExp(`Titles.*${titles.length - 1} of ${titles.length} on`) })).toBeInTheDocument();
-    expect(screen.getByText(`${NOTIFICATION_KINDS.length - 2} of ${NOTIFICATION_KINDS.length} on`)).toBeInTheDocument();
+    // Räknas ur registret: slag som startar avstängda (default false) och de två avstängda här är inte påslagna.
+    const switchedOn = NOTIFICATION_KINDS.filter((kind) => (kind.key === TITLES_OTHERS || kind.key === CHALLENGE_LOST ? false : kind.default));
+    expect(screen.getByText(`${switchedOn.length} of ${NOTIFICATION_KINDS.length} on`)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Notifications' })).toBeInTheDocument();
   });
 

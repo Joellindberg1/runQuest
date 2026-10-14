@@ -39,24 +39,38 @@
 .rq-news-days { display: flex; flex-direction: column; gap: var(--rq-sp-14); }
 .rq-news-list { margin: 0; padding: 0; list-style: none; }
 
+/* Raden är ett li med EN knapp som täcker hela raden (frame N2, läs-gesterna): li:t bär bakgrund och kategorikant, knappen rutnätet. */
 .rq-news-row {
-  display: grid; grid-template-columns: var(--rq-news-row-cols); grid-template-areas: var(--rq-news-row-areas);
-  align-items: var(--rq-news-row-align); column-gap: var(--rq-news-row-gap);
-  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x);
   background: var(--rq-read-bg);
   border-left: var(--rq-edge-w) solid rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha));
 }
-.rq-news-row:hover { background: var(--rq-row-hover); }
-.rq-news-row[data-unread] { background: var(--rq-unread-bg); }
-/* Olästmarkören: tinten ensam (4 %) syns knappt (ägarbeslut 2026-10-05). Statisk — inget loopar. */
-.rq-dot.rq-news-unread { color: var(--rq-gold); margin-right: var(--rq-sp-6); vertical-align: middle; }
+.rq-news-row__hit {
+  display: grid; grid-template-columns: var(--rq-news-row-cols); grid-template-areas: var(--rq-news-row-areas);
+  align-items: var(--rq-news-row-align); column-gap: var(--rq-news-row-gap);
+  box-sizing: border-box; width: 100%; min-height: var(--rq-news-row-min-h); margin: 0;
+  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x);
+  border: 0; background: none; text-align: left; font: inherit; color: inherit;
+  cursor: default;  /* raden är ingen länk: en handpekare skulle utlova en navigering (frame N2) */
+}
+.rq-news-row:hover, .rq-news-row:active { background: var(--rq-row-hover); }
+/* Ringen ligger INNANFÖR raden, över kategorikanten, så att hårlinjegriden inte klipper den (frame N2). */
+.rq-news-row__hit:focus-visible, .rq-news-pop__hit:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+/* Raden blir läst på samma händelse, så tinten på hover är bara ett skyddsnät. */
+.rq-news-row[data-unread], .rq-news-row[data-unread]:hover, .rq-news-row[data-unread]:active { background: var(--rq-unread-bg); }
+/* Olästmarkören: tinten ensam (4 %) syns knappt (ägarbeslut 2026-10-05). Statisk — inget loopar. Pricken ligger i en reserverad plats så att tiden aldrig hoppar. */
+.rq-dot.rq-news-unread { color: var(--rq-gold); vertical-align: middle; }
+.rq-news-row__mark { display: inline-block; width: var(--rq-news-dot-slot); text-align: left; vertical-align: middle; }
 .rq-news-row[data-category="event"], .rq-news-row[data-category="release"] { border-left-color: rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha-quiet)); }
 .rq-news-row__icon { grid-area: icon; display: inline-flex; align-self: center; color: var(--rq-c-solid); }
 /* badge_earned: ikonkolumnen rymmer ett sm-emblem (RUN-128, F7). Kanten, typraden och texten är oförändrade Levels-grönt. */
-.rq-news-row[data-emblem] { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr) auto; }
+.rq-news-row[data-emblem] .rq-news-row__hit { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr) auto; }
 .rq-news-row__kind { grid-area: kind; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-c-solid); }
 .rq-news-row__time { grid-area: time; justify-self: end; font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); letter-spacing: 0; text-transform: none; color: var(--rq-text-4); }
 .rq-news-row__text { grid-area: text; margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+/* Oläst bärs inte av färgen ensam: prick (form), fetare typrad och text, och tiden i starkare ton (frame N2). Läst = normal vikt. */
+.rq-news-row[data-unread] .rq-news-row__kind { font-weight: 700; }
+.rq-news-row[data-unread] .rq-news-row__time { color: var(--rq-text-2); }
+.rq-news-row[data-unread] .rq-news-row__text { font-weight: 500; }
 
 .rq-news-more { display: flex; justify-content: center; padding-top: var(--rq-sp-4); }
 
@@ -123,18 +137,28 @@
 .rq-news-pop__close { border: 0; background: none; cursor: pointer; padding: 0; font-size: var(--rq-fs-lead); line-height: var(--rq-lh-tight); color: var(--rq-text-4); }
 .rq-news-pop__close:hover { color: var(--rq-text-2); }
 .rq-news-pop__list { margin: 0; padding: 0; list-style: none; }
-.rq-news-pop__row {
+/* Som flödesraden: li med EN knapp som täcker raden. Ringen ritas innanför (popovern klipper en yttre ring, se .rq-news-row__hit:focus-visible). */
+.rq-news-pop__row { border-bottom: var(--rq-hair) solid var(--rq-line-1); }
+.rq-news-pop__hit {
   display: grid; grid-template-columns: var(--rq-sp-6) minmax(0, 1fr); column-gap: var(--rq-sp-10);
-  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x); border-bottom: var(--rq-hair) solid var(--rq-line-1);
+  box-sizing: border-box; width: 100%; min-height: var(--rq-news-row-min-h); margin: 0;
+  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x);
+  border: 0; background: none; text-align: left; font: inherit; color: inherit;
+  cursor: default;
 }
-.rq-news-pop__row[data-unread] { background: var(--rq-unread-bg); }
+.rq-news-pop__row:hover, .rq-news-pop__row:active { background: var(--rq-row-hover); }
+.rq-news-pop__row[data-unread], .rq-news-pop__row[data-unread]:hover, .rq-news-pop__row[data-unread]:active { background: var(--rq-unread-bg); }
 .rq-news-pop__dot { margin-top: var(--rq-sp-6); color: var(--rq-c-solid); }
 /* badge_earned: ett sm-emblem i stället för pricken; samma kolumnbredd som flödesraden (--rq-news-row-icon-badge-w). Övriga rader är oförändrade. */
-.rq-news-pop__row[data-emblem] { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr); }
+.rq-news-pop__row[data-emblem] .rq-news-pop__hit { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr); }
 .rq-news-pop__emblem { display: inline-flex; align-self: start; }
+.rq-news-pop__body { display: block; min-width: 0; }
 .rq-news-pop__meta { display: flex; justify-content: space-between; gap: var(--rq-sp-10); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-c-solid); }
 .rq-news-pop__time { color: var(--rq-text-4); white-space: nowrap; }
-.rq-news-pop__text { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-news-pop__text { display: block; margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-news-pop__row[data-unread] .rq-news-pop__meta > :first-child { font-weight: 700; }
+.rq-news-pop__row[data-unread] .rq-news-pop__time { color: var(--rq-text-2); }
+.rq-news-pop__row[data-unread] .rq-news-pop__text { font-weight: 500; }
 .rq-news-pop__foot { display: block; padding: var(--rq-sp-10) var(--rq-sp-14); text-align: center; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3); }
 .rq-news-pop__foot:hover { color: var(--rq-gold-text); }
 .rq-news-pop__note { margin: 0; padding: var(--rq-sp-16) var(--rq-sp-14); text-align: center; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
