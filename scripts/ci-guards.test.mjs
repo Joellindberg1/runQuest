@@ -14,6 +14,7 @@ import {
   checkGitignoreForVideo,
   checkMediaFiles,
   checkNoTrackedVideoOriginals,
+  checkRateBudgetHook,
   checkRawStravaFetch,
   checkTestNames,
   checkTodos,
@@ -209,6 +210,36 @@ describe('checkConditionalGroupFilter', () => {
     assert.equal(errors.length, 2);
     assert.match(errors[0], /:2:/);
     assert.match(errors[1], /:4:/);
+  });
+});
+
+describe('checkRateBudgetHook', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+
+  it('passes when server.ts calls registerStravaRateBudget() at the top level', () => {
+    assert.deepEqual(checkRateBudgetHook(server("import { x } from './x.js';\nregisterStravaRateBudget();\nconst app = 1;\n")), []);
+    assert.deepEqual(checkRateBudgetHook(server('registerStravaRateBudget()\r\n')), []);
+  });
+
+  it('flags a server.ts without the call', () => {
+    const errors = checkRateBudgetHook(server("import { registerStravaRateBudget } from './services/stravaRateBudget.js';\nconst app = 1;\n"));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: saknar ett anrop av registerStravaRateBudget\(\)/);
+  });
+
+  it('flags a call that is only in a comment, indented inside a callback, or a different function', () => {
+    for (const code of [
+      '// registerStravaRateBudget();\n',
+      "server.on('listening', () => {\n  registerStravaRateBudget();\n});\n",
+      'registerStravaRateBudgetLater();\n',
+    ]) {
+      assert.equal(checkRateBudgetHook(server(code)).length, 1, code);
+    }
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkRateBudgetHook([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkRateBudgetHook([{ path: 'apps/one/src/a.ts', content: '' }]), []);
   });
 });
 
@@ -479,6 +510,32 @@ describe('CLI', () => {
       assert.match(result.stderr, /apps\/backend\/src\/routes\/planted\.ts:1: anrop mot Strava/);
     }
     assert.equal(runCli('strava-fetch', makeBackend('fetch-good', "await stravaFetch('https://www.strava.com/oauth/token');\n")).status, 0);
+  });
+
+  it('exits 1 when server.ts lacks the rate budget call (also under all) and 0 once it is planted', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('hook-bad', 'const app = 1;\n');
+    for (const mode of ['rate-budget-hook', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av registerStravaRateBudget/);
+    }
+    assert.equal(runCli('rate-budget-hook', makeBackend('hook-good', 'registerStravaRateBudget();\n')).status, 0);
+  });
+
+  it('exits 0 on the current repo in rate-budget-hook mode', () => {
+    const result = runCli('rate-budget-hook');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /server\.ts/);
   });
 
   it('exits 0 on the current repo in strava-fetch mode', () => {
