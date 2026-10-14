@@ -406,3 +406,112 @@ describe('checkEventQualification — enforceRunDateWindow (PUT /runs, open-assu
     expect(tables.event_entries.map((e) => e.event_id).sort()).toEqual(['c1', 'p1']);
   });
 });
+
+// ─── rank_passed (xp) från event-XP-skrivningarna ────────────────────────────────────────────────
+
+describe('event-XP → rank_passed', () => {
+  const NAMES = { a: 'Anna', b: 'Bertil', c: 'Cecilia', d: 'Dora' } as const;
+  const member = (id: keyof typeof NAMES, total_xp: number): Row => (
+    { id, name: NAMES[id], group_id: 'g1', total_xp, event_xp: 0, current_level: 1, created_at: '2026-01-01T08:00:00.000Z' }
+  );
+  const rankRows = (t: Record<string, Row[]>) => t.activity_log.filter((r) => r.type === 'rank_passed');
+
+  /**
+   * fakeDb har inga joins: event_entries får en levande referens till sin events-rad (som PostgREST:s `events!inner(...)`),
+   * så att settled_at som avräkningen sätter syns i liggaren precis som i databasen.
+   */
+  function useJoined(tables: Record<string, Row[]>) {
+    const joined = (v: Row): Row => ({ ...v, events: tables.events.find((e) => e.id === v.event_id) });
+    tables.event_entries = tables.event_entries.map(joined);
+    const db = use(tables);
+    const from = db.client.from;
+    db.client.from = (table: string) => {
+      const builder = from(table);
+      if (table === 'event_entries') {
+        const insert = builder.insert;
+        builder.insert = (values: Row | Row[]) => insert.call(builder, Array.isArray(values) ? values.map(joined) : joined(values));
+      }
+      return builder;
+    };
+    return db;
+  }
+
+  const participationTables = (aXp: number, runXpToday = 0): Record<string, Row[]> => ({
+    activity_log: [],
+    events: [{
+      id: 'e1', group_id: 'g1', type: 'participation', metric: null, status: 'active',
+      starts_at: '2026-10-05T06:00:00.000Z', ends_at: '2026-10-05T16:00:00.000Z', settled_at: null,
+      event_templates: { min_km: 3, reward_xp: 25 },
+    }],
+    event_entries: [],
+    runs: runXpToday > 0 ? [{ id: 'r0', user_id: 'a', date: '2026-10-05', xp_gained: runXpToday }] : [],
+    users: [member('a', aXp), member('b', 50)],
+  });
+  const qualify = () => checkEventQualification({ userId: 'a', runId: 'r1', runDate: '2026-10-05', distanceKm: 5, groupId: 'g1' });
+
+  it('participation-XP som tar någon förbi skriver rank_passed med prevXp = total_xp − belöning', async () => {
+    // Anna har redan 8 XP från en runda idag (total 48 < Bertils 50); belöningen +25 ger 73. prevXp måste bli 48 (inte 73 och inte 0).
+    const t = participationTables(48, 8);
+    useJoined(t);
+
+    await qualify();
+
+    expect(t.users[0].total_xp).toBe(73);
+    expect(rankRows(t)).toHaveLength(1);
+    expect(rankRows(t)[0]).toMatchObject({
+      group_id: 'g1', actor_user_id: 'a', target_user_id: 'b', dedupe_key: 'rank_passed:xp:a:b:2026-10-05',
+      payload: { measure: 'xp', passer_rank: 1, passed_rank: 2 },
+    });
+  });
+
+  it('participation-XP för någon som redan ligger före ger ingen rad', async () => {
+    const t = participationTables(60); // 60 > 50 redan före belöningen
+    useJoined(t);
+    await qualify();
+    expect(rankRows(t)).toHaveLength(0);
+  });
+
+  it('en participation utan belöning kostar inga extra läsningar', async () => {
+    const t = participationTables(48);
+    (t.events[0].event_templates as Row).reward_xp = 0;
+    const db = useJoined(t);
+    await qualify();
+    expect(db.queries.some((q) => q.table === 'users' && q.select !== null && /total_xp, created_at/.test(q.select))).toBe(false);
+  });
+
+  it('tävlingsavräkningens utbetalning anropar detektionen per mottagare', async () => {
+    // Anna 40 +75 = 115 passerar Cecilia (50) som låg före vid dygnsskiftet. Bertil 10 +45 = 55 passerar också Cecilia.
+    // Dora kommer 4:a, får 0 XP och ska inte utlösa något.
+    const t: Record<string, Row[]> = {
+      activity_log: [],
+      events: [{
+        id: 'e9', group_id: 'g1', type: 'competition', metric: 'km', status: 'active',
+        starts_at: '2026-10-04T00:00:00.000Z', ends_at: '2026-10-05T10:00:00.000Z', settled_at: null,
+        event_templates: { name: 'Weekend Km', icon: 'trophy', reward_xp: null, reward_xp_1st: 75, reward_xp_2nd: 45, reward_xp_3rd: 30 },
+      }],
+      event_entries: [
+        { id: 'n1', event_id: 'e9', user_id: 'a' }, { id: 'n2', event_id: 'e9', user_id: 'b' },
+        { id: 'n3', event_id: 'e9', user_id: 'c' }, { id: 'n4', event_id: 'e9', user_id: 'd' },
+      ],
+      users: [member('a', 40), member('b', 10), member('c', 50), member('d', 0)],
+      runs: [
+        { id: 'r1', user_id: 'a', date: '2026-10-04', distance: 12, is_treadmill: false },
+        { id: 'r2', user_id: 'b', date: '2026-10-05', distance: 8, is_treadmill: false },
+        { id: 'r3', user_id: 'c', date: '2026-10-05', distance: 5, is_treadmill: false },
+        { id: 'r4', user_id: 'd', date: '2026-10-05', distance: 1, is_treadmill: false },
+      ],
+    };
+    const db = useJoined(t);
+
+    await settleCompetitionEvents();
+
+    expect(rankRows(t).map((r) => [r.actor_user_id, r.target_user_id, r.payload.passer_rank, r.payload.passed_rank])).toEqual([
+      ['a', 'c', 1, 2],  // när Annas utbetalning görs: Anna 115, Cecilia 50, Bertil 10
+      ['b', 'c', 2, 3],  // när Bertils görs: Anna 115, Bertil 55, Cecilia 50
+    ]);
+    // Cecilia (30 XP, 3:a) har 80 efter utbetalningen och passerar Bertil... men låg före honom vid dygnsskiftet: ingen rad för henne.
+    // En läsning av medlemmarna per mottagare med XP: Dora (0 XP) utlöser ingen.
+    const memberReads = db.queries.filter((q) => q.table === 'users' && q.select !== null && /total_xp, created_at/.test(q.select));
+    expect(memberReads).toHaveLength(3);
+  });
+});
