@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
+import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import SettingsPage from '@/pages/SettingsPage';
 import { newsServer } from '@/features/news/news.fixture';
 import { backendApiModule, handlers, resetFakeBackend } from '@/test/fakeBackend';
@@ -25,8 +27,22 @@ function renderSettings(options: Parameters<typeof renderWithApp>[1] = {}) {
 
 const SLOW = { timeout: 4000 };
 const strava = () => screen.getByRole('region', { name: 'Strava' });
+const CONSENT_KEY = 'rq.strava.consent';
+
+/** Knappen är låst tills rutan är ikryssad (samtycket före Connect). */
+async function agreeAndClick(name: 'Connect Strava' | 'Reconnect Strava') {
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('checkbox', { name: 'I understand and agree' }));
+  await user.click(screen.getByRole('button', { name }));
+}
+
+const sendMessage = (data: Record<string, unknown>) =>
+  act(async () => {
+    window.dispatchEvent(new MessageEvent('message', { data, origin: window.location.origin }));
+  });
 
 beforeEach(() => {
+  sessionStorage.clear();
   resetFakeBackend();
   fake.isAuthenticated = () => true;
   handlers.getStravaStatus = () => CONNECTED;
@@ -66,7 +82,7 @@ describe('Settings — Strava', () => {
     vi.stubGlobal('open', open);
     window.open = open;
     renderSettings();
-    fireEvent.click(await screen.findByRole('button', { name: 'Connect Strava' }));
+    await agreeAndClick('Connect Strava');
 
     await waitFor(() => expect(open).toHaveBeenCalled());
     const [url] = open.mock.calls[0] as [string];
@@ -80,23 +96,97 @@ describe('Settings — Strava', () => {
     const open = vi.fn().mockReturnValue(null);
     window.open = open;
     renderSettings();
-    fireEvent.click(await screen.findByRole('button', { name: 'Connect Strava' }));
+    await agreeAndClick('Connect Strava');
     expect(await within(strava()).findByRole('alert', { name: 'Strava error' })).toHaveTextContent('Allow pop-ups to connect Strava');
+    expect(sessionStorage.getItem(CONSENT_KEY)).toBeNull();
   });
 
-  it('koden från OAuth-fönstret skickas till backend och bekräftelsen står i kortets status', async () => {
-    handlers.getStravaStatus = () => ({ success: true, data: { connected: false, expired: false } });
-    const connect = vi.fn().mockResolvedValue({ success: true });
-    handlers.connectStrava = connect;
-    renderSettings();
-    await screen.findByRole('button', { name: 'Connect Strava' });
+  describe('samtycket följer med genom OAuth-omdirigeringen', () => {
+    let connect: Mock;
 
-    handlers.getStravaStatus = () => CONNECTED;
-    await act(async () => {
-      window.dispatchEvent(new MessageEvent('message', { data: { stravaCode: 'abc' }, origin: window.location.origin }));
+    beforeEach(() => {
+      handlers.getStravaStatus = () => ({ success: true, data: { connected: false, expired: false } });
+      connect = vi.fn().mockResolvedValue({ success: true });
+      handlers.connectStrava = connect;
+      window.open = vi.fn().mockReturnValue({});
     });
-    await waitFor(() => expect(connect).toHaveBeenCalledWith('abc'));
-    expect(await within(strava()).findByRole('status', { name: 'Strava status' })).toHaveTextContent('Strava connected');
+
+    it('consent is stored on click', async () => {
+      renderSettings();
+      expect(sessionStorage.getItem(CONSENT_KEY)).toBeNull();
+
+      await agreeAndClick('Connect Strava');
+
+      expect(sessionStorage.getItem(CONSENT_KEY)).toBe(STRAVA_CONSENT_VERSION);
+    });
+
+    it('it is sent in the callback, and the confirmation stands in the cards status', async () => {
+      renderSettings();
+      await agreeAndClick('Connect Strava');
+
+      handlers.getStravaStatus = () => CONNECTED;
+      await sendMessage({ stravaCode: 'abc' });
+
+      await waitFor(() => expect(connect).toHaveBeenCalledWith('abc', STRAVA_CONSENT_VERSION));
+      expect(await within(strava()).findByRole('status', { name: 'Strava status' })).toHaveTextContent('Strava connected');
+    });
+
+    it('it is removed after use', async () => {
+      renderSettings();
+      await agreeAndClick('Connect Strava');
+
+      await sendMessage({ stravaCode: 'abc' });
+
+      await waitFor(() => expect(connect).toHaveBeenCalledTimes(1));
+      expect(sessionStorage.getItem(CONSENT_KEY)).toBeNull();
+      await sendMessage({ stravaCode: 'again' });
+      await waitFor(() => expect(connect).toHaveBeenCalledTimes(2));
+      expect(connect.mock.calls[1][1]).toBeUndefined();
+    });
+
+    it('when it is missing, consent_version is not sent', async () => {
+      renderSettings();
+      await screen.findByRole('button', { name: 'Connect Strava' });
+
+      await sendMessage({ stravaCode: 'abc' });
+
+      await waitFor(() => expect(connect).toHaveBeenCalledTimes(1));
+      expect(connect.mock.calls[0][0]).toBe('abc');
+      expect(connect.mock.calls[0][1]).toBeUndefined();
+    });
+
+    it('a cancelled authorisation forgets the remembered consent', async () => {
+      renderSettings();
+      await agreeAndClick('Connect Strava');
+
+      await sendMessage({ error: 'access_denied' });
+
+      expect(await within(strava()).findByRole('alert', { name: 'Strava error' })).toHaveTextContent('Strava authorisation failed');
+      expect(sessionStorage.getItem(CONSENT_KEY)).toBeNull();
+    });
+
+    it('a consent required response from the API shows an error and a reload hint', async () => {
+      connect.mockResolvedValue({ success: false, error: 'Consent required' });
+      renderSettings();
+      await agreeAndClick('Connect Strava');
+
+      await sendMessage({ stravaCode: 'abc' });
+
+      const alert = await within(strava()).findByRole('alert', { name: 'Strava error' });
+      expect(alert).toHaveTextContent(/privacy text has been updated/i);
+      expect(alert).toHaveTextContent(/reload the page/i);
+      expect(within(strava()).getByRole('button', { name: 'Connect Strava' })).toBeInTheDocument();
+    });
+
+    it('other connect errors keep the generic message', async () => {
+      connect.mockResolvedValue({ success: false, error: 'Strava rate limit' });
+      renderSettings();
+      await agreeAndClick('Connect Strava');
+
+      await sendMessage({ stravaCode: 'abc' });
+
+      expect(await within(strava()).findByRole('alert', { name: 'Strava error' })).toHaveTextContent('Could not connect Strava');
+    });
   });
 
   it('meddelanden från andra ursprung ignoreras', async () => {
@@ -135,7 +225,7 @@ describe('Settings — Strava', () => {
     it('reconnect on an expired connection opens the Strava window without calling disconnect', async () => {
       renderSettings();
       expect(await screen.findByText('Expired')).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
+      await agreeAndClick('Reconnect Strava');
 
       await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
       const [url] = open.mock.calls[0] as [string];
@@ -146,7 +236,7 @@ describe('Settings — Strava', () => {
     it('reconnect on an expired connection keeps the status as expired until the new connection succeeds', async () => {
       renderSettings();
       expect(await screen.findByText('Expired')).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
+      await agreeAndClick('Reconnect Strava');
       await waitFor(() => expect(open).toHaveBeenCalled());
 
       expect(within(strava()).getByText('Expired')).toBeInTheDocument();
@@ -167,7 +257,7 @@ describe('Settings — Strava', () => {
     it('denied authorisation in the Strava window leaves the card expired with the Reconnect button and an error', async () => {
       renderSettings();
       expect(await screen.findByText('Expired')).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
+      await agreeAndClick('Reconnect Strava');
       await waitFor(() => expect(open).toHaveBeenCalled());
 
       await act(async () => {
@@ -185,14 +275,15 @@ describe('Settings — Strava', () => {
       handlers.connectStrava = connect;
       renderSettings();
       expect(await screen.findByText('Expired')).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Reconnect Strava' }));
+      await agreeAndClick('Reconnect Strava');
       await waitFor(() => expect(open).toHaveBeenCalled());
 
       await act(async () => {
         window.dispatchEvent(new MessageEvent('message', { data: { stravaCode: 'bad' }, origin: window.location.origin }));
       });
 
-      await waitFor(() => expect(connect).toHaveBeenCalledWith('bad'));
+      await waitFor(() => expect(connect).toHaveBeenCalledTimes(1));
+      expect(connect.mock.calls[0][0]).toBe('bad');
       expect(await within(strava()).findByRole('alert', { name: 'Strava error' })).toHaveTextContent('Could not connect Strava');
       expect(within(strava()).getByText('Expired')).toBeInTheDocument();
       expect(within(strava()).getByRole('button', { name: 'Reconnect Strava' })).toBeInTheDocument();

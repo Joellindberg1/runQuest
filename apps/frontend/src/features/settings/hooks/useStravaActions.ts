@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
+import { rememberStravaConsent, takeStravaConsent } from '../stravaConsent';
 
 interface UseStravaActionsInput {
   /** Strava-appens client_id; null medan konfigurationen laddas eller saknas. */
@@ -8,6 +9,10 @@ interface UseStravaActionsInput {
 }
 
 const POPUP_FEATURES = 'width=500,height=700';
+
+/** Serverns svar när samtycket saknas eller är för gammalt (en gammal flik): en omladdad sida har den aktuella texten och rutan. */
+const CONSENT_REQUIRED_ERROR = 'Consent required';
+const CONSENT_RELOAD_HINT = 'The privacy text has been updated. Reload the page and approve it again to connect Strava.';
 
 /**
  * Strava-kortets åtgärder: koppla (OAuth i ett fönster som svarar med postMessage), koppla om och synka nu.
@@ -28,29 +33,32 @@ export function useStravaActions({ clientId }: UseStravaActionsInput) {
 
       const code: string | null = event.data?.stravaCode || event.data?.code || null;
       if (code) {
+        // Samtycket togs bort här även om anropet inte görs: ett godkännande gäller en koppling.
+        const consentVersion = takeStravaConsent();
         if (!backendApi.isAuthenticated()) { setError('Authentication required'); return; }
         try {
-          const result = await backendApi.connectStrava(code);
+          const result = await backendApi.connectStrava(code, consentVersion);
           if (result.success) {
             setError(null);
             setStatus('Strava connected. Your runs will start syncing.');
             void refreshStrava();
           } else {
             setStatus(null);
-            setError('Could not connect Strava');
+            setError(result.error === CONSENT_REQUIRED_ERROR ? CONSENT_RELOAD_HINT : 'Could not connect Strava');
           }
         } catch {
           setStatus(null);
           setError('Something went wrong while connecting to Strava');
         }
       }
-      if (event.data?.error) { setStatus(null); setError('Strava authorisation failed'); }
+      if (event.data?.error) { takeStravaConsent(); setStatus(null); setError('Strava authorisation failed'); }
     };
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [refreshStrava]);
 
+  /** Anropas bara när användaren kryssat i samtyckesrutan (StravaCard låser knappen annars): versionen bärs över OAuth-omdirigeringen i sessionStorage. */
   const connect = async () => {
     setError(null);
     setStatus(null);
@@ -60,8 +68,9 @@ export function useStravaActions({ clientId }: UseStravaActionsInput) {
     // disconnect raderar användarens Stravarundor. Statusen förblir "utgången" tills den nya kopplingen lyckats.
     const redirectUri = encodeURIComponent(`${window.location.origin}/strava-popup.html`);
     const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&approval_prompt=force&scope=activity:read`;
+    rememberStravaConsent();
     const popup = window.open(authUrl, '_blank', POPUP_FEATURES);
-    if (!popup) setError('Allow pop-ups to connect Strava');
+    if (!popup) { takeStravaConsent(); setError('Allow pop-ups to connect Strava'); }
   };
 
   const sync = async () => {

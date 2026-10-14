@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { FormNotices } from '@/shared/components/form/FormNotices';
 import { RQIcon } from '@/shared/components/icons';
 import type { StravaCardView } from '../settingsModel';
+import { StravaConsentBlock, StravaConsentInfo } from './StravaConsentBlock';
 
 const ICON_SIZE = 15;
 
@@ -19,10 +21,12 @@ const CONNECT_LABEL = { disconnected: 'Connect Strava', expired: 'Reconnect Stra
 
 /**
  * Strava-kortet: tillståndet som kantfärg (grön lever · röd utgången · neutral inte kopplad) och statuschip, tre celler
- * (Connected · Last sync · Next sync), vad som importeras och åtgärderna. Alla knappar är sekundära — Settings guldknapp
- * är "Change password".
+ * (Connected · Last sync · Next sync), vad som importeras, samtycket och åtgärderna. Alla knappar är sekundära — Settings
+ * guldknapp är "Change password". Utan koppling (och vid utgången koppling) låser rutan "I understand and agree" upp knappen; den som är ansluten
+ * ser samma text som information, ovanför åtgärderna.
  */
 export function StravaCard({ view, canSyncNow, syncing, status, error, onConnect, onSync }: StravaCardProps) {
+  const [agreed, setAgreed] = useState(false);
   return (
     <section className="rq-card rq-card--edge rq-settings-card" data-tone={view.tone} aria-labelledby="settings-strava-title">
       <div className="rq-settings-card__head">
@@ -64,9 +68,11 @@ export function StravaCard({ view, canSyncNow, syncing, status, error, onConnect
         </p>
       )}
 
+      {view.state === 'connected' ? <StravaConsentInfo /> : <StravaConsentBlock agreed={agreed} onAgreedChange={setAgreed} />}
+
       <div className="rq-settings-actions">
         {view.state !== 'connected' && (
-          <button type="button" className="rq-btn rq-btn--secondary" onClick={onConnect}>
+          <button type="button" className="rq-btn rq-btn--secondary" onClick={onConnect} disabled={!agreed}>
             {CONNECT_LABEL[view.state]}
           </button>
         )}

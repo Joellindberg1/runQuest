@@ -5,7 +5,8 @@ härledd (allt i en kolumn). `pages/SettingsPage.tsx` är tunn.
 
 ## Struktur
 
-- **components/** — `SettingsScreen` (datakoppling, laddning/fel), `StravaCard`, `PasswordCard`, `SyncCard`
+- **components/** — `SettingsScreen` (datakoppling, laddning/fel), `StravaCard`, `StravaConsentBlock` (samtycket i Strava-kortet), `PasswordCard`, `SyncCard`
+- **stravaConsent.ts** — bär den godkända samtyckesversionen över OAuth-omdirigeringen (sessionStorage, `rq.strava.consent`)
 - **settingsModel.ts** — `buildStravaCard` (tillstånd, chip, tre celler, regler, token-förnyelse), `buildSyncRow`, `validatePasswordChange` (ren logik, testad)
 - **hooks/** — `useStravaData` (shared Strava-queries + `useStravaConfig`), `useStravaActions` (koppla via OAuth-fönster, koppla om, synka nu), `usePasswordChange`,
   `useUserSettings` (ADR 011: query `['settings','user']` bara inloggad; optimistisk växling per nyckel, skrivningarna går i ordning; ett fel återställer nyckeln, visas som `error` för `role="alert"` och läser om tillståndet
@@ -19,8 +20,9 @@ härledd (allt i en kolumn). `pages/SettingsPage.tsx` är tunn.
   Kortet väntar in last-sync-hämtningen så cellerna inte blinkar "Unknown". Statusen går inte att läsa → felkort med Retry; lösenordet fungerar ändå.
 - **OAuth-flödet är oförändrat:** fönstret öppnas mot Strava, `public/strava-popup.html` skickar `{code, error}` med postMessage, bara samma ursprung accepteras.
   Blockerat fönster, avbruten auktorisering och serverfel är text i kortets alert-region.
+- **Samtycket (ADR 010 beslut 12, D4):** utan koppling och vid utgången koppling visar kortet Strava-avsnittet ur den delade integritetstexten (`getDataPolicySection('strava')`, aldrig en kopia) med de två första styckena öppna och resten bakom "Read the full text" (`details`, ingen scrollruta). Rutan "I understand and agree" och länken till /legal#privacy står direkt efter; Connect/Reconnect är `disabled` tills rutan är ikryssad. Klicket sparar `STRAVA_CONSENT_VERSION` i sessionStorage, callbacken läser och tar bort den och skickar den som `consent_version` (saknas den skickas ingen nyckel och servern svarar 400 "Consent required", som visas med uppmaning att ladda om sidan). Appen använder inget OAuth-`state`, därför sessionStorage. Den som redan är ansluten ser samma text hopfälld som information (ingen ruta, D4), placerad ovanför åtgärderna så att fler knappar i kortet inte flyttar den.
 - **"Sync now"** syns bara för "Joel Lindberg" (som före omritningen); efter en synk hämtas alla aktiva queries om.
 - **Lösenord:** valideringen körs vid inlämning, felet står bredvid fältet (`aria-invalid` + `aria-describedby`), fokus går till första felet, inget anrop görs. Bekräftelse och
   serverfel i `Password`-regionerna; att skriva efter en bekräftelse tar bort den.
 - **Statusregioner, inga toasts:** `shared/components/form/FormNotices` (permanenta `role=status`/`role=alert`, namngivna per formulär).
-- **En guldknapp:** Change password. Strava-knapparna är sekundära.
+- **En guldknapp:** Change password. Strava-knapparna (även Connect) är sekundära; sidan har en guldknapp i taget, testat i `SettingsScreen.test.tsx`.
