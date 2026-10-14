@@ -70,6 +70,18 @@ describe('importStravaActivity', () => {
     });
   });
 
+  it('inserts exactly the row buildStravaRunRow builds, with no column of its own', async () => {
+    const summary = stravaActivity({ id: 4005, splits_metric: [] });
+    const detailed = stravaActivity({ id: 4005, average_heartrate: 151, suffer_score: 9 });
+    strava = installFakeStravaFetch({ activities: { 4005: detailed } });
+    const tables = use();
+
+    await importStravaActivity('user-1', summary, 'at');
+
+    const { id: _generatedId, ...stored } = tables.runs[0];
+    expect(stored).toEqual({ ...buildStravaRunRow('user-1', summary, detailed), created_at: expect.any(String) });
+  });
+
   it('falls back to the summary when the detail call fails', async () => {
     const summary = stravaActivity({ id: 4003, average_heartrate: 144 });
     strava = installFakeStravaFetch({ activities: {} }); // 404 for every id
