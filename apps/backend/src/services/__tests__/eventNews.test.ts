@@ -150,6 +150,30 @@ describe('event_closed — participation', () => {
     expect(tables.activity_log[0].payload).not.toHaveProperty('top');
   });
 
+  it('avslutad participation skriver event_closed med entrant_ids', async () => {
+    const tables: Record<string, Row[]> = {
+      activity_log: [],
+      events: [participationEvent('e1'), participationEvent('e2')],
+      event_entries: [
+        { id: 'n1', event_id: 'e1', user_id: 'b' }, { id: 'n2', event_id: 'e1', user_id: 'a' },
+        { id: 'n3', event_id: 'e2', user_id: 'c' }, { id: 'n4', event_id: 'other', user_id: 'd' },
+      ],
+      users: [{ id: 'a', group_id: 'g1' }, { id: 'b', group_id: 'g1' }, { id: 'c', group_id: 'g1' }],
+    };
+    const db = use(tables);
+    await settleExpiredParticipationEvents();
+
+    const byKey = (key: string) => tables.activity_log.find((r) => r.dedupe_key === key)!;
+    expect(byKey('event_closed:e1').payload).toMatchObject({ participants: 2, entrant_ids: ['a', 'b'] });
+    expect(byKey('event_closed:e2').payload).toMatchObject({ participants: 1, entrant_ids: ['c'] });
+    // Ingen extra fråga per event: ids hämtas i samma event_entries-fråga som antalet.
+    expect(db.queries.filter((q) => q.table === 'event_entries')).toHaveLength(1);
+    // Bara id:n på toppnivå: ingen användardata (namn, e-post) skrivs bredvid.
+    expect(Object.keys(byKey('event_closed:e1').payload).sort()).toEqual(
+      ['entrant_ids', 'event_id', 'event_type', 'members', 'participants', 'template_name'],
+    );
+  });
+
   it('participation-event utan deltagare avslutas men loggas inte; ett med deltagare loggas', async () => {
     const tables: Record<string, Row[]> = {
       activity_log: [],
@@ -218,6 +242,28 @@ describe('competition-avräkning', () => {
     });
     // XP delades ut exakt en gång (claim-vakten) — loggen ändrar inget
     expect(tables.users.find((u) => u.id === 'a')!.event_xp).toBe(75);
+  });
+
+  it('avräknad competition skriver event_closed med alla deltagare i entrant_ids (även de utan XP)', async () => {
+    const tables = competitionTables();
+    // Fyra deltagare men bara tre priser: d får rank 4 och 0 XP och ska ändå stå med. c har inget lopp alls.
+    tables.event_entries = [
+      { id: 'n1', event_id: 'e9', user_id: 'd' }, { id: 'n2', event_id: 'e9', user_id: 'b' },
+      { id: 'n3', event_id: 'e9', user_id: 'a' }, { id: 'n4', event_id: 'e9', user_id: 'c' },
+      { id: 'n5', event_id: 'annat', user_id: 'z' },
+    ];
+    tables.users.push({ id: 'd', group_id: 'g1', total_xp: 0, event_xp: 0, current_level: 1 });
+    tables.runs.push({ id: 'r3', user_id: 'd', date: '2026-10-04', distance: 1, is_treadmill: false });
+    use(tables);
+    await settleCompetitionEvents();
+
+    const [closed] = tables.activity_log.filter((r) => r.type === 'event_closed');
+    expect(closed.payload).toMatchObject({
+      participants: 4,
+      entrant_ids: ['a', 'b', 'c', 'd'],
+      top: [{ user_id: 'a', rank: 1, xp: 75 }, { user_id: 'b', rank: 2, xp: 45 }, { user_id: 'd', rank: 3, xp: 30 }],
+    });
+    expect(tables.event_entries.find((e) => e.id === 'n4')).toMatchObject({ rank: 4, xp_awarded: 0 });
   });
 
   it('level-up via utbetalningen loggas: en rad per nivå, föregående nivå ur samma select', async () => {

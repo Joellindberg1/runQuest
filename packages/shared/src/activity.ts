@@ -131,6 +131,12 @@ export interface EventClosedPayload {
   members: number;
   /** Bara competition: topp 3. */
   top?: Array<{ user_id: string; rank: number; xp: number }>;
+  /**
+   * Alla som deltog (event_entries.user_id, även de utan XP): users.id som gemener, unika och sorterade, på toppnivå.
+   * Additivt i payload v1. Servern matchar med jsonb @> (involves=me) och klassificeringen läser fältet exakt, så
+   * formatet får inte ändras utan att båda följer med. Saknas hos rader från före fältet och hos backfill.
+   */
+  entrant_ids?: string[];
 }
 
 /** ADR 009 beslut 5. `series` = nyckel ur BADGE_SERIES; `previous_tier` null = första tiern i serien ("earned"), annars "evolved". */
@@ -609,6 +615,13 @@ export interface EventClosedFacts {
   members: number;
   /** Bara competition; sorteras och kapas till topp 3 här. */
   top?: Array<{ user_id: string; rank: number; xp: number }>;
+  /** Deltagarnas users.id; utelämnas av backfill (historiken vet inte vilka som var med). Normaliseras här. */
+  entrantIds?: readonly string[];
+}
+
+/** Gemener, unika och sorterade (samma form som users.id i jsonb-matchningen); tomma värden släpps. */
+function normalizeEntrantIds(ids: readonly string[]): string[] {
+  return [...new Set(ids.filter((id) => typeof id === 'string' && id !== '').map((id) => id.toLowerCase()))].sort();
 }
 
 export function buildEventClosedDraft(
@@ -622,6 +635,7 @@ export function buildEventClosedDraft(
     payload.top = [...facts.top].sort((a, b) => a.rank - b.rank).slice(0, 3)
       .map((t) => ({ user_id: t.user_id, rank: t.rank, xp: t.xp }));
   }
+  if (facts.entrantIds) payload.entrant_ids = normalizeEntrantIds(facts.entrantIds);
   return {
     type: 'event_closed', group_id: e.group_id, actor_user_id: null, target_user_id: null,
     payload, payload_version: ACTIVITY_PAYLOAD_VERSION,

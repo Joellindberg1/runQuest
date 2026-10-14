@@ -88,6 +88,20 @@ describe('backfillEvents', () => {
     });
   });
 
+  it('backfillad event_closed saknar entrant_ids', () => {
+    // Historiska rader klassas event_closed_others: deltagarlistan skrivs bara av live-avräkningen.
+    const entries = [
+      { event_id: 'e1', user_id: 'a', rank: 1, xp_awarded: 75 },
+      { event_id: 'e1', user_id: 'b', rank: null, xp_awarded: null },
+    ];
+    for (const type of ['competition', 'participation'] as const) {
+      const [d] = backfillEvents([ev({ status: 'settled', type })], entries, { g1: 6 });
+      expect(d.type).toBe('event_closed');
+      expect(d.payload).toMatchObject({ participants: 2 });
+      expect(d.payload).not.toHaveProperty('entrant_ids');
+    }
+  });
+
   it('settled event utan deltagare ger ingen event_closed (samma regel som live)', () => {
     expect(backfillEvents([ev({ status: 'settled' })], [], { g1: 6 })).toEqual([]);
     expect(backfillEvents([ev({ status: 'settled' })], [{ event_id: 'annat', user_id: 'a', rank: 1, xp_awarded: 5 }], { g1: 6 })).toEqual([]);

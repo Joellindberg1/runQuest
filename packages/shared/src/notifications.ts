@@ -6,8 +6,8 @@
 // används av både servern (räknare, is_unread) och klienten (popover) — inget SQL-predikat dubblerar den.
 //
 // Våg 1 är registrerad sedan tidigare; våg 2 läggs till slag för slag tillsammans med sin skrivpunkt (ADR 011 beslut 1.3:
-// inga reglage utan fakta bakom). Hittills: challenge_accepted_me och rank_passed_* (RUN-191); event_closed_me kommer med
-// entrant_ids. En ny ActivityType utan klassificering fäller bygget (Record nedan) och kontraktstestet.
+// inga reglage utan fakta bakom). Hittills: challenge_accepted_me och rank_passed_* (RUN-191) samt event_closed_me (med entrant_ids).
+// En ny ActivityType utan klassificering fäller bygget (Record nedan) och kontraktstestet.
 
 import { isActivityType, type ActivityType } from './activity.js';
 import { readOwn, resolveSettingValue, userBooleanSetting } from './settingsCore.js';
@@ -56,6 +56,7 @@ export const NOTIFICATION_KINDS = [
   // Ö1: enda slaget som startar avstängt — passeringar mellan andra är brus tills någon väljer in dem.
   defineKind('rank_passed_others', 'Ranks', 'others', 'Rank changes between others', 2, false),
   defineKind('event_open', 'Events', 'everyone', 'A new event opens'),
+  defineKind('event_closed_me', 'Events', 'you', 'An event you took part in closes', 2),
   defineKind('event_closed_others', 'Events', 'others', 'Other events close'),
   defineKind('level_up_others', 'The pack', 'others', 'Someone levels up'),
   defineKind('run_milestone_others', 'The pack', 'others', 'Someone passes a distance milestone'),
@@ -105,6 +106,16 @@ function rankMeKind(payload: unknown): NotificationKind | null {
   return typeof measure === 'string' ? (RANK_ME_KIND.get(measure) ?? null) : null;
 }
 
+/**
+ * Står betraktaren i payload.entrant_ids? Fail-safe: ett saknat, tomt eller felformat fält (äldre rader, backfill)
+ * ger false och aldrig ett undantag, så raden faller under "others". Samma exakta id-jämförelse som övriga slag.
+ */
+function entrantsInclude(payload: unknown, viewerId: string): boolean {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const ids = (payload as { entrant_ids?: unknown }).entrant_ids;
+  return Array.isArray(ids) && ids.some((id) => isViewer(typeof id === 'string' ? id : null, viewerId));
+}
+
 // Record<ActivityType, …> är kompileringsgrinden: en ny typ i ACTIVITY_TYPES utan post här ger ett typfel.
 const CLASSIFIERS: Record<ActivityType, Classifier> = {
   title_taken: (row, viewerId) => {
@@ -141,8 +152,7 @@ const CLASSIFIERS: Record<ActivityType, Classifier> = {
       ? 'challenge_draw_me'
       : 'challenges_others',
   event_open: () => 'event_open',
-  // entrant_ids finns inte än: event_closed_me kommer i våg 2 tillsammans med fältet.
-  event_closed: () => 'event_closed_others',
+  event_closed: (row, viewerId) => (entrantsInclude(row.payload, viewerId) ? 'event_closed_me' : 'event_closed_others'),
   level_up: ownOrOthers('level_up_others'),
   run_milestone: ownOrOthers('run_milestone_others'),
   badge_earned: ownOrOthers('badge_earned_others'),

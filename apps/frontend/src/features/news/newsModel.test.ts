@@ -802,6 +802,18 @@ describe('klockans popover följer inställningarna', () => {
     expect(rows.map((row) => [row.id, row.unread])).toEqual([[3, true], [2, false], [1, false]]);
   });
 
+  it('buildPopoverRows: ett event där jag deltog styrs av event_closed_me, övriga av event_closed_others', () => {
+    const closed = (id: number, entrants: string[]) =>
+      item('event_closed', id, { event_id: `e${id}`, event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: entrants });
+    const items = [closed(2, [ME.id, KARL.id]), closed(1, [KARL.id])];
+
+    expect(buildPopoverRows(items, ctx(), popover()).map((row) => row.id)).toEqual([2, 1]);
+    const meOff = resolveSettings({ 'notify.event_closed_me': false }, 'user');
+    expect(buildPopoverRows(items, ctx(), popover({ settings: meOff })).map((row) => row.id)).toEqual([1]);
+    const othersOff = resolveSettings({ 'notify.event_closed_others': false }, 'user');
+    expect(buildPopoverRows(items, ctx(), popover({ settings: othersOff })).map((row) => row.id)).toEqual([2]);
+  });
+
   it('buildPopoverRows ger tom lista när allt filtreras bort', () => {
     const items: WireNewsItem[] = [levelUp(3, 3, { actor: ME }), unknown(2, 2), streakBroken(1)];
     const settings = resolveSettings({ 'notify.streak_broken_others': false }, 'user');

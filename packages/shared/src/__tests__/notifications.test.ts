@@ -46,6 +46,7 @@ const WAVE_2_KINDS: NotificationKind[] = [
   'rank_passed_xp_me',
   'rank_passed_challenge_me',
   'rank_passed_others',
+  'event_closed_me',
 ];
 
 describe('NOTIFICATION_KINDS', () => {
@@ -72,7 +73,7 @@ describe('NOTIFICATION_KINDS', () => {
       expect(def?.wave).toBe(1);
       expect(def?.default).toBe(true);
     }
-    // Inga reglage utan fakta bakom: våg 2 får sina slag tillsammans med sina skrivpunkter (event_closed_me hör till RUN-9 S15).
+    // Inga reglage utan fakta bakom: våg 2 får sina slag tillsammans med sina skrivpunkter (event_closed_me kom med entrant_ids).
     expect(NOTIFICATION_KINDS.filter((k) => k.wave === 1).map((k) => k.kind).sort()).toEqual(
       [...WAVE_1_KINDS].sort(),
     );
@@ -91,6 +92,13 @@ describe('NOTIFICATION_KINDS', () => {
     expect(isKindEnabled('rank_passed_others', { [notifyKey('rank_passed_others')]: true })).toBe(true);
   });
 
+  it('event_closed_me är påslagen som default', () => {
+    const def = NOTIFICATION_KINDS.find((k) => k.kind === 'event_closed_me');
+    expect(def?.default).toBe(true);
+    expect(isKindEnabled('event_closed_me', {})).toBe(true);
+    expect(isKindEnabled('event_closed_me', { [notifyKey('event_closed_me')]: false })).toBe(false);
+  });
+
   it('varje slags sektion, roll och etikett är låsta mot ADR 011 beslut 3 och designerns förslag', () => {
     const expected: Array<[NotificationKind, string, string, string]> = [
       ['title_taken_from_me', 'Titles', 'you', 'Someone takes a title from you'],
@@ -105,6 +113,7 @@ describe('NOTIFICATION_KINDS', () => {
       ['rank_passed_challenge_me', 'Ranks', 'you', 'Someone passes you on the challenge standings'],
       ['rank_passed_others', 'Ranks', 'others', 'Rank changes between others'],
       ['event_open', 'Events', 'everyone', 'A new event opens'],
+      ['event_closed_me', 'Events', 'you', 'An event you took part in closes'],
       ['event_closed_others', 'Events', 'others', 'Other events close'],
       ['level_up_others', 'The pack', 'others', 'Someone levels up'],
       ['run_milestone_others', 'The pack', 'others', 'Someone passes a distance milestone'],
@@ -182,6 +191,26 @@ describe('classifyNotification', () => {
     expect(classifyNotification(row('challenge_accepted', ME, OTHER), ME)).toBe('own');
     expect(classifyNotification(row('challenge_accepted', OTHER, THIRD), ME)).toBe('challenges_others');
     expect(classifyNotification(row('challenge_accepted', null, null), ME)).toBe('challenges_others');
+  });
+
+  it('event_closed med mig i entrant_ids är event_closed_me, annars event_closed_others', () => {
+    const closed = (payload: unknown) => classifyNotification(row('event_closed', null, null, payload), ME);
+    expect(closed({ entrant_ids: [OTHER, ME, THIRD] })).toBe('event_closed_me');
+    expect(closed({ entrant_ids: [ME] })).toBe('event_closed_me');
+    expect(closed({ entrant_ids: [OTHER, THIRD] })).toBe('event_closed_others');
+    // Exakt id-jämförelse som övriga slag: ett annat skiftläge eller en delsträng är inte jag.
+    expect(closed({ entrant_ids: [ME.toUpperCase(), `${ME}x`, ME.slice(1)] })).toBe('event_closed_others');
+
+    // Fail-safe: saknat, tomt eller felformat fält ger others och aldrig ett undantag.
+    for (const payload of [
+      undefined, null, 'text', 7, [], {}, { entrant_ids: [] }, { entrant_ids: null }, { entrant_ids: ME },
+      { entrant_ids: { 0: ME } }, { entrant_ids: [null, 5, {}, [ME]] }, { top: [{ user_id: ME }] }, { details: { entrant_ids: [ME] } },
+    ]) {
+      expect(() => closed(payload), JSON.stringify(payload)).not.toThrow();
+      expect(closed(payload), JSON.stringify(payload)).toBe('event_closed_others');
+    }
+    // Ett tomt betraktar-id matchar aldrig ett tomt id i listan.
+    expect(classifyNotification(row('event_closed', null, null, { entrant_ids: [''] }), '')).toBe('event_closed_others');
   });
 
   it('event_closed utan entrant_ids är event_closed_others', () => {
@@ -333,6 +362,17 @@ describe('isNotifiable', () => {
     expect(isNotifiable(notifiable(), viewer({ settings: { [notifyKey('level_up_others')]: true } }))).toBe(true);
     // Ett värde av fel typ faller tillbaka på defaulten (på) i stället för att tysta raden.
     expect(isNotifiable(notifiable(), viewer({ settings: { [notifyKey('level_up_others')]: 'off' } }))).toBe(true);
+  });
+
+  it('isNotifiable: event_closed där jag deltog styrs av event_closed_me, övriga av event_closed_others', () => {
+    const mine = notifiable({ type: 'event_closed', actorId: null, payload: { entrant_ids: [OTHER, ME] } });
+    const theirs = notifiable({ type: 'event_closed', actorId: null, payload: { entrant_ids: [OTHER] } });
+    expect(isNotifiable(mine, viewer())).toBe(true);
+    expect(isNotifiable(mine, viewer({ settings: { [notifyKey('event_closed_me')]: false } }))).toBe(false);
+    // De två reglagen delar aldrig en rad.
+    expect(isNotifiable(mine, viewer({ settings: { [notifyKey('event_closed_others')]: false } }))).toBe(true);
+    expect(isNotifiable(theirs, viewer({ settings: { [notifyKey('event_closed_me')]: false } }))).toBe(true);
+    expect(isNotifiable(theirs, viewer({ settings: { [notifyKey('event_closed_others')]: false } }))).toBe(false);
   });
 
   it('isNotifiable: backfill, rad före betraktarens created_at, id på eller under golvet och rad i readIds är inte notiser', () => {
