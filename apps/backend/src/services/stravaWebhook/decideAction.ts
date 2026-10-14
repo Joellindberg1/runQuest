@@ -24,28 +24,17 @@ export type StravaResponse =
   | { kind: 'http'; status: number; activity?: StravaActivityDetail | null }
   | { kind: 'network_error' };
 
+type ExtendedFields = ReturnType<typeof extractExtendedFields>;
+
 /**
- * The run row as the database returns it for (user_id, external_id). Only the columns the comparison reads.
+ * The run row as the database returns it for (user_id, external_id). Only the columns the comparison reads: date, distance and
+ * every column extractExtendedFields returns (the type follows that function, so a new column must be supplied by the caller).
  * `distance` is numeric(6,2), so it comes back rounded to two decimals; `start_time` is a timestamptz string.
  */
-export interface ExistingRun {
-  source: string;
-  date: string;
-  distance: number;
-  start_time: string | null;
-  moving_time: number | null;
-  total_elevation_gain: number | null;
-  sport_type: string | null;
-  avg_heartrate: number | null;
-  max_heartrate: number | null;
-  suffer_score: number | null;
-  start_lat: number | null;
-  start_lng: number | null;
-  pace_std_dev: number | null;
-  is_treadmill: boolean | null;
-}
+export type ExistingRun = { source: string; date: string; distance: number } & {
+  [Column in keyof ExtendedFields]: ExtendedFields[Column] | null;
+};
 
-type ExtendedFields = ReturnType<typeof extractExtendedFields>;
 /** Columns an update writes: only the ones that differ. Never the XP columns. */
 export type RunChanges = Partial<{ date: string; distance: number } & ExtendedFields>;
 
@@ -55,7 +44,7 @@ export interface DecideInput {
   response: StravaResponse;
   /** The run with this (user_id, external_id), whatever its source; null when there is none. */
   existingRun: ExistingRun | null;
-  /** Failed attempts so far (the event's `attempts` column, before this try). */
+  /** Failed attempts so far (the event's `attempts` column, before this try). NaN or negative counts as 0. */
   attempts: number;
   /** True once the handler has refreshed the token for this event and fetched again. */
   tokenRefreshed: boolean;
@@ -64,10 +53,15 @@ export interface DecideInput {
 export type RetryReason = 'unauthorized' | 'server_error' | 'network_error' | 'unexpected_status' | 'invalid_response';
 
 interface Effects {
-  /** The earliest date reprocessRunsFromDate must start from; null = no recalculation. */
+  /** The earliest date reprocessRunsFromDate must start from; null = no recalculation (or see recalculateUnknown). */
   recalculateFrom: string | null;
   /** Delete the run's run_weather row so backfillMissingWeather fetches it again. */
   clearWeather: boolean;
+  /**
+   * True only when this is a retry (attempts >= 1) that found no run and has no date either: the earlier attempt may have
+   * deleted the run and died before the recalculation, and the date went with the run. The handler decides the fallback.
+   */
+  recalculateUnknown: boolean;
 }
 
 export type ActionDecision =
@@ -76,9 +70,9 @@ export type ActionDecision =
   | ({ action: 'remove'; outcome: 'deleted' | 'removed_private' | 'removed_not_running' } & Effects)
   | ({ action: 'none'; outcome: 'noop' | 'not_a_run' | 'ignored_paused' | 'ignored_not_confirmed' } & Effects)
   // The Strava answer says nothing about the database yet: the handler acts and the event is not finished.
-  | { action: 'refresh_token'; outcome: null; countsAsFailedAttempt: false }
-  | { action: 'wait'; outcome: null; countsAsFailedAttempt: false }
-  | { action: 'retry'; outcome: null; countsAsFailedAttempt: true; reason: RetryReason; retryAfterMinutes: number };
+  | ({ action: 'refresh_token'; outcome: null; countsAsFailedAttempt: false } & Effects)
+  | ({ action: 'wait'; outcome: null; countsAsFailedAttempt: false } & Effects)
+  | ({ action: 'retry'; outcome: null; countsAsFailedAttempt: true; reason: RetryReason; retryAfterMinutes: number } & Effects);
 
 export type FetchPlan = { action: 'skip'; outcome: 'ignored_paused' } | { action: 'fetch' };
 
@@ -88,6 +82,8 @@ export function decideBeforeFetch(input: { aspect_type: WebhookAspectType; pause
   return { action: 'fetch' };
 }
 
+const NO_EFFECTS: Effects = { recalculateFrom: null, clearWeather: false, recalculateUnknown: false };
+
 /** Dates are 'YYYY-MM-DD', so the string order is the date order. */
 function earliest(a: string | null, b: string | null): string | null {
   if (a === null) return b;
@@ -95,14 +91,24 @@ function earliest(a: string | null, b: string | null): string | null {
   return a < b ? a : b;
 }
 
-function none(outcome: Extract<ActionDecision, { action: 'none' }>['outcome'], recalculateFrom: string | null = null): ActionDecision {
-  return { action: 'none', outcome, recalculateFrom, clearWeather: false };
+function none(
+  outcome: Extract<ActionDecision, { action: 'none' }>['outcome'],
+  effects: Partial<Effects> = {},
+): ActionDecision {
+  return { action: 'none', outcome, ...NO_EFFECTS, ...effects };
 }
 
 function retry(reason: RetryReason, attempts: number): ActionDecision {
   // `attempts` counts the failures before this one; ADR 010 decision 6 indexes the list with min(attempts_after - 1, 3).
-  const index = Math.min(Math.max(attempts, 0), WEBHOOK_BACKOFF_MINUTES.length - 1);
-  return { action: 'retry', outcome: null, countsAsFailedAttempt: true, reason, retryAfterMinutes: WEBHOOK_BACKOFF_MINUTES[index] };
+  const index = Math.min(attempts, WEBHOOK_BACKOFF_MINUTES.length - 1);
+  return {
+    action: 'retry',
+    outcome: null,
+    countsAsFailedAttempt: true,
+    reason,
+    retryAfterMinutes: WEBHOOK_BACKOFF_MINUTES[index],
+    ...NO_EFFECTS,
+  };
 }
 
 function sameNumber(a: number | null | undefined, b: number | null | undefined): boolean {
@@ -111,12 +117,23 @@ function sameNumber(a: number | null | undefined, b: number | null | undefined):
 }
 
 /** Timestamps compare as instants: the database writes `+00:00` where Strava writes `Z`. */
-function sameInstant(a: string | null, b: string | null): boolean {
-  if (a === null || b === null) return a === b;
+function sameInstant(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (a == null || b == null) return (a ?? null) === (b ?? null);
   const timeA = Date.parse(a);
   const timeB = Date.parse(b);
   return Number.isNaN(timeA) || Number.isNaN(timeB) ? a === b : timeA === timeB;
 }
+
+/** One extended column, stored against Strava's value. Typed by the value, so a new column is compared without an edit here. */
+function sameColumn(column: string, stored: unknown, fresh: unknown): boolean {
+  if (column === 'start_time') return sameInstant(stored as string | null | undefined, fresh as string | null | undefined);
+  if (typeof fresh === 'number' || typeof stored === 'number') return sameNumber(stored as number | null | undefined, fresh as number | null | undefined);
+  if (typeof fresh === 'boolean') return (stored ?? false) === fresh; // a null flag in an old row means false
+  return (stored ?? null) === (fresh ?? null);
+}
+
+/** PostgreSQL numeric(6,2) rounds half away from zero on the decimal value; JS Math.round on the binary double can land the other way. */
+const DISTANCE_COLUMN_TOLERANCE_KM = 0.005 + 1e-9;
 
 /** The columns where Strava differs from the run, with Strava's values. Empty = nothing to write. */
 function diffRun(existing: ExistingRun, activity: StravaActivityDetail): RunChanges {
@@ -124,27 +141,23 @@ function diffRun(existing: ExistingRun, activity: StravaActivityDetail): RunChan
   const date = activity.start_date_local.split('T')[0];
   const distanceKm = activity.distance / 1000;
   if (existing.date !== date) changes.date = date;
-  // numeric(6,2) rounds on write: compare the rounded value or a run like 5.2345 km would differ forever.
-  if (!sameNumber(existing.distance, Math.round(distanceKm * 100) / 100)) changes.distance = distanceKm;
+  // The column keeps two decimals, so a stored 8.58 stands for 8.575 km. Comparing within half a step of the column avoids
+  // re-implementing PostgreSQL's rounding (8575 m -> 8.58 in the database, 8.57 with Math.round) and a perpetual "update".
+  if (Math.abs(existing.distance - distanceKm) > DISTANCE_COLUMN_TOLERANCE_KM) changes.distance = distanceKm;
 
   const fresh = extractExtendedFields(activity);
-  if (!sameInstant(existing.start_time, fresh.start_time)) changes.start_time = fresh.start_time;
-  if (!sameNumber(existing.moving_time, fresh.moving_time)) changes.moving_time = fresh.moving_time;
-  if (!sameNumber(existing.total_elevation_gain, fresh.total_elevation_gain)) changes.total_elevation_gain = fresh.total_elevation_gain;
-  if ((existing.sport_type ?? null) !== fresh.sport_type) changes.sport_type = fresh.sport_type;
-  if (!sameNumber(existing.avg_heartrate, fresh.avg_heartrate)) changes.avg_heartrate = fresh.avg_heartrate;
-  if (!sameNumber(existing.max_heartrate, fresh.max_heartrate)) changes.max_heartrate = fresh.max_heartrate;
-  if (!sameNumber(existing.suffer_score, fresh.suffer_score)) changes.suffer_score = fresh.suffer_score;
-  if (!sameNumber(existing.start_lat, fresh.start_lat)) changes.start_lat = fresh.start_lat;
-  if (!sameNumber(existing.start_lng, fresh.start_lng)) changes.start_lng = fresh.start_lng;
-  if (!sameNumber(existing.pace_std_dev, fresh.pace_std_dev)) changes.pace_std_dev = fresh.pace_std_dev;
-  if ((existing.is_treadmill ?? false) !== fresh.is_treadmill) changes.is_treadmill = fresh.is_treadmill;
+  const target = changes as Record<string, unknown>;
+  const stored = existing as unknown as Record<string, unknown>;
+  for (const column of Object.keys(fresh) as Array<keyof ExtendedFields>) {
+    if (!sameColumn(column, stored[column], fresh[column])) target[column] = fresh[column];
+  }
   return changes;
 }
 
 /** Step 2: the table in ADR 010 7.1, with the paused-user changes from 7.5.3. */
 export function decideAction(input: DecideInput): ActionDecision {
-  const { aspect_type, paused, response, existingRun, attempts, tokenRefreshed } = input;
+  const { aspect_type, paused, response, existingRun, tokenRefreshed } = input;
+  const attempts = Number.isFinite(input.attempts) && input.attempts > 0 ? Math.floor(input.attempts) : 0;
 
   // Normally stopped by decideBeforeFetch; kept so the table holds even if a caller skips step 1.
   if (paused && aspect_type === 'create') return none('ignored_paused');
@@ -152,20 +165,30 @@ export function decideAction(input: DecideInput): ActionDecision {
   if (response.kind === 'network_error') return retry('network_error', attempts);
 
   const { status } = response;
-  if (status === 429) return { action: 'wait', outcome: null, countsAsFailedAttempt: false };
+  if (status === 429) return { action: 'wait', outcome: null, countsAsFailedAttempt: false, ...NO_EFFECTS };
   if (status === 401) {
     // The function cannot refresh a token. First 401: ask the handler to; the second means the connection is not usable.
-    return tokenRefreshed ? retry('unauthorized', attempts) : { action: 'refresh_token', outcome: null, countsAsFailedAttempt: false };
+    return tokenRefreshed
+      ? retry('unauthorized', attempts)
+      : { action: 'refresh_token', outcome: null, countsAsFailedAttempt: false, ...NO_EFFECTS };
   }
   if (status >= 500) return retry('server_error', attempts);
 
   // `remove` is produced only for a run whose source is 'strava' (ADR 010 decision 8). A manual run is never touched.
   const stravaRun = existingRun?.source === 'strava' ? existingRun : null;
 
+  // After a failed attempt the run may already match Strava (or be gone) because that attempt wrote it and died before the
+  // recalculation (ADR 010 decision 6). With no run to take a date from, only the handler can pick a fallback.
+  const afterFailedAttempt = (...dates: Array<string | null>): Partial<Effects> => {
+    if (attempts < 1) return {};
+    const recalculateFrom = dates.reduce<string | null>(earliest, null);
+    return recalculateFrom === null && existingRun === null ? { recalculateUnknown: true } : { recalculateFrom };
+  };
+
   if (status === 404) {
     // Deleted, or private under activity:read: Strava does not tell the two apart (ADR 010 7.3).
-    if (stravaRun) return { action: 'remove', outcome: 'deleted', recalculateFrom: stravaRun.date, clearWeather: false };
-    return none('not_a_run');
+    if (stravaRun) return { action: 'remove', outcome: 'deleted', ...NO_EFFECTS, recalculateFrom: stravaRun.date };
+    return none('not_a_run', afterFailedAttempt());
   }
   if (status !== 200) return retry('unexpected_status', attempts);
 
@@ -179,21 +202,20 @@ export function decideAction(input: DecideInput): ActionDecision {
   if (!isPrivate && isRunningActivity(activity) && (!hasStartDate || !hasDistance)) return retry('invalid_response', attempts);
 
   const activityDate = hasStartDate ? activity.start_date_local.split('T')[0] : null;
-  // After a failed attempt the run may already match Strava because that attempt wrote it and died before the recalculation (ADR 010 decision 6).
-  const retryRecalc = (date: string | null) => (attempts >= 1 ? date : null);
-
   const visibleRun = !isPrivate && isRunningActivity(activity) && hasDistance && exceedsImportDistance(activity);
 
   if (!visibleRun) {
+    // Zero distance lands here on purpose: the import rule is that a Strava run needs distance > 0 (shared/rules.ts), so a
+    // strava run whose activity now has none no longer qualifies and goes, like a type change, instead of lingering as a 0 km run.
     if (stravaRun) {
       return {
         action: 'remove',
         outcome: isPrivate ? 'removed_private' : 'removed_not_running',
+        ...NO_EFFECTS,
         recalculateFrom: stravaRun.date,
-        clearWeather: false,
       };
     }
-    return none('not_a_run', retryRecalc(earliest(existingRun?.date ?? null, activityDate)));
+    return none('not_a_run', afterFailedAttempt(existingRun?.date ?? null, activityDate));
   }
 
   // From here: Strava shows a visible running activity.
@@ -201,20 +223,20 @@ export function decideAction(input: DecideInput): ActionDecision {
   if (paused) return none('ignored_paused');
 
   if (!existingRun) {
-    return { action: 'insert', outcome: 'imported', recalculateFrom: activityDate, clearWeather: false };
+    return { action: 'insert', outcome: 'imported', ...NO_EFFECTS, recalculateFrom: activityDate };
   }
   if (!stravaRun) return none('noop'); // a manual run on the same id: leave it alone
 
   const changes = diffRun(stravaRun, activity);
   if (Object.keys(changes).length === 0) {
-    return none('noop', retryRecalc(earliest(stravaRun.date, activityDate)));
+    return none('noop', afterFailedAttempt(stravaRun.date, activityDate));
   }
   return {
     action: 'update',
     outcome: 'updated',
     changes,
+    ...NO_EFFECTS,
     recalculateFrom: earliest(stravaRun.date, activityDate),
     clearWeather: 'start_time' in changes || 'start_lat' in changes || 'start_lng' in changes,
   };
 }
-
