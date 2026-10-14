@@ -1,5 +1,6 @@
 // 🏃 Run Management Routes
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
@@ -168,7 +169,7 @@ async function tryReprocessRunsFromDate(userId: string, fromDate: string): Promi
     await reprocessRunsFromDate(userId, fromDate);
     return true;
   } catch (e) {
-    logger.error(`❌ Reprocess from ${fromDate} failed for user ${userId}:`, e);
+    logger.error(`❌ Reprocess from ${fromDate} failed for user ${userId} (${errorCode(e)})`);
     return false;
   }
 }
