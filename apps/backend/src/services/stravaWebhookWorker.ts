@@ -47,6 +47,9 @@
  * (started, not awaited, errors logged; it never fails an event or the batch). A run is carried once, by the try that inserted it:
  * a retry meets the row as existing. If the reprocess fails, steps 2 and 4 still run for the new rows (a retry would not carry them
  * again), step 3 does not, and the events are retried.
+ * KNOWN GAP (not fixed): a crash between the insert and the recalculation (the lease expires) loses weather and event qualification
+ * for that run for good, because the retry meets the row as existing and carries no `importedRuns`; weather has a backfill,
+ * qualification has none, and the polling has the same weakness.
  *
  * Retry: attempts + 1, last_error = a short code, pending, next_attempt_at = now + WEBHOOK_BACKOFF_MINUTES[min(attempts, 3)] min.
  * A wait is not a failure: attempts is untouched, next_attempt_at is the next whole quarter hour + 30 s (rate_limit) or the next

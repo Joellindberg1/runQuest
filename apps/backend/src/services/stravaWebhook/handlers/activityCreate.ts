@@ -78,6 +78,7 @@ export function createActivityCreateHandler(deps: ActivityCreateDeps = {}): Webh
     const existingRun = await ctx.runs.findRun(userId, String(event.object_id));
 
     let tokenRefreshed = false;
+    let renewals = 0;
     for (;;) {
       const response = await ctx.strava.fetchActivity(accessToken, event.object_id);
       const decision = decideAction({
@@ -92,7 +93,10 @@ export function createActivityCreateHandler(deps: ActivityCreateDeps = {}): Webh
 
       switch (decision.action) {
         case 'refresh_token': {
-          // 401: renew once and fetch again (ADR 010 7.1). A second 401 comes back from decideAction as a retry.
+          // 401: renew once and fetch again (ADR 010 7.1). A second 401 comes back from decideAction as a retry; the handler holds
+          // its own limit too (one renewal per event), so a decision that kept asking could never loop or burn Strava calls.
+          if (renewals >= 1) return retry('unauthorized');
+          renewals += 1;
           const renewed = await ctx.strava.refreshAccessToken(userId);
           if (!renewed.ok) return resultForTokenFailure(renewed.reason);
           accessToken = renewed.accessToken;

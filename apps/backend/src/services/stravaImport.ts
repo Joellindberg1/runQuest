@@ -126,7 +126,9 @@ export async function insertStravaRun(userId: string, activity: any, detailed?: 
     .single();
   if (isExternalIdConflict(error)) return { status: 'exists' };
   if (error) {
-    logger.error(`❌ Failed to insert run (activity ${activity.id}): ${error.message}`, { fields: extractExtendedFields(detailed ?? activity) });
+    // Our user id and the error code only (ADR 010 8.6): no Strava id, no coordinates or heart rate, and not the message, which
+    // can carry the values of the row (a unique violation prints its key).
+    logger.error(`❌ Failed to insert a Strava run for user ${userId} (${error.code ?? 'no code'})`);
     throw error;
   }
   return { status: 'imported', run: data as ImportedRun };

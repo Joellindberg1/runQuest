@@ -179,6 +179,19 @@ describe('activity create', () => {
     expect(strava.requests).toHaveLength(1);
   });
 
+  it('the reprocess starts from the date of the new run and leaves earlier runs untouched', async () => {
+    strava = installFakeStravaFetch({ activities: { 2020: lateNight(2020) } });
+    // An earlier run whose stored XP is deliberately not what a reprocess would compute: any rewrite of it shows.
+    const earlier = stravaRun({ id: 'run-earlier', external_id: '1000', date: '2026-09-01', xp_gained: 7, base_xp: 7, streak_day: 1 });
+    const { t, store, worker } = build({ tables: { runs: [earlier] } });
+    seedCreate(store, 2020);
+
+    await worker.drain();
+
+    expect(t.runs.find((run) => run.id === 'run-earlier')).toMatchObject({ xp_gained: 7, base_xp: 7, streak_day: 1 });
+    expect(t.runs.find((run) => run.external_id === '2020')!.xp_gained).toBeGreaterThan(0);
+  });
+
   it('create event delivered twice yields exactly one run', async () => {
     strava = installFakeStravaFetch({ activities: { 2002: lateNight(2002) } });
     const { t, store, worker } = build();
@@ -634,6 +647,33 @@ describe('the handler and the logs', () => {
     expect(text).not.toContain('555111');
     expect(text).not.toContain('secret morning');
     expect(text).not.toContain('old-at');
+  });
+
+  it('logs no Strava id, coordinate, heart rate or title when the insert fails', async () => {
+    const lines: string[] = [];
+    for (const level of ['info', 'warn', 'error', 'debug'] as const) {
+      vi.spyOn(logger, level).mockImplementation((...args: unknown[]) => {
+        lines.push(args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg, Object.getOwnPropertyNames(Object(arg))))).join(' '));
+      });
+    }
+    strava = installFakeStravaFetch({
+      activities: { 987654321: lateNight(987654321, { name: 'My secret morning run', start_latlng: [59.3293, 18.0686], average_heartrate: 171, max_heartrate: 188 }) },
+    });
+    const { t, store, worker } = build({
+      // A database message can carry the values of the row; none of it may reach the log.
+      failWhen: (q) =>
+        q.table === 'runs' && q.mutation === 'insert' ? { message: 'insert failed for 987654321 at 59.3293,18.0686 hr 171 "My secret morning run"' } : null,
+    });
+    seedCreate(store, 987654321, { owner_id: 555111 });
+
+    await worker.drain();
+
+    expect(t.runs).toHaveLength(0);
+    expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 1 });
+    expect(lines.some((line) => line.includes('Failed to insert a Strava run for user user-1'))).toBe(true); // the failure is logged, with our user id
+    const text = lines.join('\n') + store.row(1).last_error;
+    for (const secret of ['987654321', '555111', '59.3293', '18.0686', '171', '188', 'secret morning']) expect(text).not.toContain(secret);
+    expect(text).toContain('user-1');
   });
 
   it('is registered for activity:create in the default registry', () => {
