@@ -23,8 +23,9 @@ const CONSENT_REQUIRED_ERROR = 'Consent required';
 const CONSENT_RELOAD_HINT = 'The privacy text has been updated. Reload the page and approve it again to connect Strava.';
 
 /**
- * Strava-kortets åtgärder: koppla (OAuth i ett fönster som svarar med postMessage), koppla om och synka nu.
- * Bekräftelse och fel är tillstånd (visas i kortets permanenta live-regioner), inte toasts.
+ * Strava-kortets åtgärder: koppla (OAuth i ett fönster som svarar med postMessage), koppla om, synka nu samt pausa, slå på igen och koppla bort.
+ * Bekräftelse och fel är tillstånd (visas i kortets permanenta live-regioner), inte toasts. Pausa och koppla bort körs i en dialog och rapporterar
+ * fel i dialogen (`connectionError`); varje sådan åtgärd svarar med om den lyckades.
  */
 export function useStravaActions({ clientId }: UseStravaActionsInput) {
   const queryClient = useQueryClient();

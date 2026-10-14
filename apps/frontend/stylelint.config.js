@@ -133,7 +133,17 @@ export default {
         extraRules: { "declaration-no-important": [true, { message: "landingFilm.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }] },
       }),
     },
-    { files: ["src/features/admin/admin.css", "src/features/settings/settings.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-form-gap"] }) },
+    { files: ["src/features/admin/admin.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-form-gap"] }) },
+    {
+      // Pause or disconnect (RUN-241): dialogen ligger i skalets modallager (66, som profilens redigeringsruta). Chippet "Paused" är neutral bläck och aldrig
+      // silver (silver = placering 2), och inget i den här filen läser rangfärgerna. rq-c/rq-c-solid är chippets färgvariabler.
+      files: ["src/features/settings/settings.css"],
+      rules: designRules({
+        locals: ["rq-edge", "rq-edge-line", "rq-form-gap", "rq-c", "rq-c-solid"],
+        zIndex: ["66"],
+        bannedValues: ["/--rq-silver/", "/--rq-rank-/"],
+      }),
+    },
     { files: ["src/shared/components/form/form.css"], rules: designRules({ locals: ["rq-form-gap"] }) },
     // Titles och Runner card hade ingen vakt för line-height/rörelse; deras enhetslösa radhöjder (.9, 1.15) och Runner cards ensamma knopp-animation
     // är kända luckor som inte ändras här (CSS-ändring = visuell ändring), men de får inte växa.

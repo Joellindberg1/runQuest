@@ -236,7 +236,11 @@ const CHANGELOG_EXTRA = [
   // Datumen står som text i changelog.json; inget Date-objekt formaterar dem.
   ...syntaxRule("Datumen står som text i changelog.json: inget new Date().", "NewExpression[callee.name='Date']"),
 ];
-const NO_NUMBER_FORMAT = syntaxRule("Landing formaterar inte tal med Intl (texten är hårdskriven).", "MemberExpression[object.name='Intl'][property.name='NumberFormat']");
+const NO_GOLD_IN_DANGER_DIALOG = syntaxRule(
+  "Dialogen med röd Disconnect har inget guld och ingen silver: använd ghost, danger eller danger-fill (röd står aldrig bredvid guld).",
+  inClassName("gold|silver|rq-btn--(primary|secondary)\\b"),
+);
+const NO_NUMBER_FORMAT =syntaxRule("Landing formaterar inte tal med Intl (texten är hårdskriven).", "MemberExpression[object.name='Intl'][property.name='NumberFormat']");
 const NO_NAMEROW = textRule("Den gamla namnraden för tabellen (.rq-board-namerow) är borta.", "rq-board-namerow");
 const NO_RQ_DOT = textRule("Olästpricken är statisk: de delade prick-varianterna .rq-dot--live/--alarm blinkar.", "rq-dot--");
 
@@ -350,7 +354,10 @@ export default tseslint.config(
 
   designGroup(["src/features/admin/**/*.{ts,tsx}", "src/pages/AdminPage.tsx"], { style: "none" }),
   designGroup(["src/features/auth/**/*.{ts,tsx}"], { style: "none" }),
-  designGroup(["src/features/settings/**/*.{ts,tsx}", "src/pages/SettingsPage.tsx"], { style: "none" }),
+  designGroup(["src/features/settings/**/*.{ts,tsx}", "src/pages/SettingsPage.tsx"], { style: "none", ignores: ["src/features/settings/components/StravaConnectionDialog.tsx"] }),
+  // Pause or disconnect (RUN-241, ADR 010 beslut 7.6): dialogen har röd (Disconnect, bekräftelsen) och röd står aldrig bredvid guld. Inga guld- eller
+  // silverklasser och ingen guldknapp (Settings guldknapp är Change password); sekundärknappen är guldfärgad text och hör inte hemma här.
+  designGroup(["src/features/settings/components/StravaConnectionDialog.tsx"], { style: "none", extra: NO_GOLD_IN_DANGER_DIALOG }),
   designGroup(["src/shared/components/form/**/*.{ts,tsx}"], { style: "none" }),
   // Playbook: siffrorna är inte hårdkodade i komponenterna och sidan; modellen får formulera dem ur config.
   designGroup(["src/features/playbook/**/*.{ts,tsx}"], { style: "none", ignores: ["src/features/playbook/components/**"] }),

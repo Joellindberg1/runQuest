@@ -679,6 +679,19 @@
   --rq-notify-sheet-max-h:  88vh;                       /* /news mobil: bladet med panelen scrollar inuti och går aldrig över skärmen; frame N1 */
   --rq-news-settings-hit:   44px;                       /* /news mobil: kugghjulsknappen i sidhuvudet och bladets ✕ (ikonknappen är 40) */
 
+  /* ── 1.36 Strava: Pause or disconnect (RUN-241, frame P1) ────────────────────────────────────────────────────────────
+     Bottenblad på mobil, centrerad dialog på desktop (samma recept som --rq-profile-sheet-*). Endast mått. Avvikelse från ramen: toppkanten är neutral
+     (inte guld), eftersom röd aldrig står bredvid guld (ägarbeslut 2026-10-14). Konsument: features/settings/settings.css. */
+  --rq-settings-dialog-w:           min(100%, var(--rq-shell-narrow-max));
+  --rq-settings-dialog-top:         auto;
+  --rq-settings-dialog-bottom:      0;
+  --rq-settings-dialog-shift:       0;
+  --rq-settings-dialog-max-h:       88vh;
+  --rq-settings-dialog-edge-w:      2px;                /* toppkanten på bladet (desktop 1 px runtom) */
+  --rq-settings-dialog-actions-dir: column;             /* desktop: row */
+  --rq-settings-dialog-hit:         44px;               /* ✕ och knapparna: tumme 44 (desktop 36) */
+  --rq-settings-dialog-action-w:    100%;               /* valkortens knappar: helbredd på mobil (desktop auto) */
+
   /* Filmen på landningen (RUN-257): spelarens mått (desktopvärdena i avsnitt 2) — play-rutan och dess triangel, etiketten, mobilens progress, kontrollraden, guldhörnen, sökreglaget och toningen över postern. */
   --rq-landing-film-play-box: 54px;
   --rq-landing-film-glyph-w: 18px;
@@ -854,6 +867,14 @@
     --rq-profile-sheet-edge-w: 1px;
     --rq-profile-sheet-actions-dir: row;
     --rq-profile-sheet-fields-cols: repeat(2, minmax(0, 1fr));
+    --rq-settings-dialog-w: min(560px, 95vw);
+    --rq-settings-dialog-top: 50%;
+    --rq-settings-dialog-bottom: auto;
+    --rq-settings-dialog-shift: -50%;
+    --rq-settings-dialog-edge-w: 1px;
+    --rq-settings-dialog-actions-dir: row;
+    --rq-settings-dialog-hit: 36px;
+    --rq-settings-dialog-action-w: auto;
     --rq-landing-max: 1440px;
     --rq-landing-pad: 48px;
     --rq-landing-glow-w: 1100px;

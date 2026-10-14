@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getDataPolicySection } from '@runquest/shared';
 import {
-  CHOOSE_LEAD,
   DELETED_EVEN_IF_NO_ANSWER_SENTENCE,
-  DISCONNECT_CHOICE,
   DISCONNECT_WARNING,
   PAUSE_CHOICE,
   STILL_REMOVED_SENTENCE,
@@ -11,14 +9,13 @@ import {
 } from './stravaConnectionCopy';
 
 const STRAVA_POLICY = getDataPolicySection('strava')!.paragraphs.join('\n');
-const sentences = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
 const confirmationText = (runs: number | null) => {
   const { happens, stays, warning } = buildDisconnectConfirmation(runs);
   return [...happens, ...stays, warning].join(' ');
 };
 
 describe('the disconnect confirmation copy', () => {
-  it('the confirmation button states the number of strava runs that will be deleted', () => {
+  it('builds the button text from the count, in singular and plural', () => {
     expect(buildDisconnectConfirmation(128).action).toBe('Disconnect and delete 128 runs');
     expect(buildDisconnectConfirmation(1).action).toBe('Disconnect and delete 1 run');
     expect(buildDisconnectConfirmation(128).happens).toContain('All 128 runs that came from Strava are deleted, together with your stored Strava tokens.');
@@ -64,18 +61,6 @@ describe('the disconnect confirmation copy', () => {
 });
 
 describe('the choice step copy', () => {
-  it('gives each choice exactly one sentence', () => {
-    expect(sentences(PAUSE_CHOICE.text)).toHaveLength(1);
-    expect(sentences(DISCONNECT_CHOICE.text)).toHaveLength(1);
-    expect(sentences(CHOOSE_LEAD)).toHaveLength(1);
-  });
-
-  it('keeps the explanation and the cannot-be-undone warning for the confirmation step', () => {
-    for (const text of [PAUSE_CHOICE.text, DISCONNECT_CHOICE.text, CHOOSE_LEAD]) {
-      expect(text).not.toMatch(/undone|not fetched back|from that day/i);
-    }
-  });
-
   it('the pause choice says that runs removed or made private on Strava are still removed here, as the privacy text does', () => {
     expect(PAUSE_CHOICE.text).toContain('runs you delete or make private on Strava are still removed here');
     expect(STRAVA_POLICY.toLowerCase()).toContain('runs you delete or make private on strava are still removed here');

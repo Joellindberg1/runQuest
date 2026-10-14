@@ -82,6 +82,15 @@ describe('omfånget för lint-reglerna', () => {
     }
   });
 
+  it('the strava connection dialog design group is registered in the lint', () => {
+    const file = 'src/features/settings/components/StravaConnectionDialog.tsx';
+    expect({ file, finns: sourceFiles.includes(file) }).toEqual({ file, finns: true });
+    // En fil ska träffas av exakt ETT block för rq/design-syntax (ESLint ersätter en regels hela inställning): dialogens egen grupp, inte settings-gruppen.
+    const groups = eslintConfig.DESIGN_GROUPS.filter(({ files, ignores }) => matches(files, file) && !matches(ignores ?? [], file));
+    expect(groups).toHaveLength(1);
+    expect(groups[0].files).toEqual([file]);
+  });
+
   it('varje feature under src/features täcks av minst en ESLint-designgrupp (en ny feature kräver en ny designGroup i eslint.config.js)', () => {
     const features = readdirSync(join(frontendDir, 'src/features'), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
     expect(features.length).toBeGreaterThan(10);
