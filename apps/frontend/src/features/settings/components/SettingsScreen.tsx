@@ -41,7 +41,7 @@ export function SettingsScreen() {
         syncing={actions.syncing}
         status={actions.status}
         error={actions.error}
-        onConnect={() => void actions.connect()}
+        onConnect={(agreed) => void actions.connect(agreed)}
         onSync={() => void actions.sync()}
       />
     );

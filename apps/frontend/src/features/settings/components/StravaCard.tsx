@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { FormNotices } from '@/shared/components/form/FormNotices';
 import { RQIcon } from '@/shared/components/icons';
 import type { StravaCardView } from '../settingsModel';
+import { StravaConsentBlock, StravaConsentInfo } from './StravaConsentBlock';
 
 const ICON_SIZE = 15;
 
@@ -11,7 +13,8 @@ interface StravaCardProps {
   syncing: boolean;
   status: string | null;
   error: string | null;
-  onConnect: () => void;
+  /** Anropas med rutans läge; knappen är dessutom låst utan bock, och kopplingen görs aldrig utan bock. */
+  onConnect: (agreed: boolean) => void;
   onSync: () => void;
 }
 
@@ -19,10 +22,15 @@ const CONNECT_LABEL = { disconnected: 'Connect Strava', expired: 'Reconnect Stra
 
 /**
  * Strava-kortet: tillståndet som kantfärg (grön lever · röd utgången · neutral inte kopplad) och statuschip, tre celler
- * (Connected · Last sync · Next sync), vad som importeras och åtgärderna. Alla knappar är sekundära — Settings guldknapp
- * är "Change password".
+ * (Connected · Last sync · Next sync), vad som importeras, samtycket och åtgärderna. Alla knappar är sekundära — Settings
+ * guldknapp är "Change password". Utan koppling (och vid utgången koppling) låser samtyckesrutan upp knappen; den som är ansluten
+ * ser samma text som information, ovanför åtgärderna.
  */
 export function StravaCard({ view, canSyncNow, syncing, status, error, onConnect, onSync }: StravaCardProps) {
+  // Bocken nollas när tillståndet byter: efter en senare bortkoppling (eller en koppling som löpt ut) börjar rutan om som obockad.
+  const [agreed, setAgreed] = useState(false);
+  const [seenState, setSeenState] = useState(view.state);
+  if (seenState !== view.state) { setSeenState(view.state); setAgreed(false); }
   return (
     <section className="rq-card rq-card--edge rq-settings-card" data-tone={view.tone} aria-labelledby="settings-strava-title">
       <div className="rq-settings-card__head">
@@ -64,9 +72,11 @@ export function StravaCard({ view, canSyncNow, syncing, status, error, onConnect
         </p>
       )}
 
+      {view.state === 'connected' ? <StravaConsentInfo /> : <StravaConsentBlock agreed={agreed} onAgreedChange={setAgreed} />}
+
       <div className="rq-settings-actions">
         {view.state !== 'connected' && (
-          <button type="button" className="rq-btn rq-btn--secondary" onClick={onConnect}>
+          <button type="button" className="rq-btn rq-btn--secondary" onClick={() => onConnect(agreed)} disabled={!agreed}>
             {CONNECT_LABEL[view.state]}
           </button>
         )}

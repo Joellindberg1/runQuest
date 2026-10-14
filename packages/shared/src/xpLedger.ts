@@ -3,7 +3,7 @@
 // ingen ny lagring. Återanvänds av ADR 008:s backfill.
 import type { RankDeltaUser as RankDeltaResultUser } from './contracts/leaderboard.js';
 import { stockholmDay } from './calendar.js';
-import { compareByNameThenId } from './leaderboard.js';
+import { compareXpStandings } from './rankPasses.js';
 
 export interface LedgerRun {
   id: string;
@@ -91,8 +91,9 @@ export function buildRankDelta(
     return { id: u.id, name: u.name, xp: u.total_xp, previous_xp: Math.max(0, raw), created_date: u.created_date };
   });
 
+  // Samma komparator som rank_passed-detektionen (rankPasses.ts), så att tabellen och detektionen inte kan glida isär.
   const byXp = (key: 'xp' | 'previous_xp') => (a: typeof rows[number], b: typeof rows[number]) =>
-    b[key] - a[key] || compareByNameThenId(a, b);
+    compareXpStandings({ id: a.id, name: a.name, xp: a[key] }, { id: b.id, name: b.name, xp: b[key] });
 
   const rank = new Map<string, number>();
   [...rows].sort(byXp('xp')).forEach((r, i) => rank.set(r.id, i + 1));
