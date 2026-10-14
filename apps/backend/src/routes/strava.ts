@@ -21,7 +21,7 @@ import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, str
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
 import { removeStravaConnection } from '../services/stravaConnection.js';
 import { revokeStravaAuthorization } from '../services/stravaRevoke.js';
-import { errorCode } from '../services/stravaRemoval.js';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -75,7 +75,7 @@ router.get('/config', async (_req, res): Promise<void> => {
     
     res.json({ client_id: clientId }); return;
   } catch (error) {
-    logger.error('❌ Strava config error:', error);
+    logger.error(`❌ Strava config error (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to get Strava config' }); return;
   }
 });
@@ -141,7 +141,7 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       .limit(1)
       .single();
 
-    logger.info('🔍 Last global sync query result:', { lastGlobalStravaRun, syncError });
+    logger.info('🔍 Last global sync query result:', { found: Boolean(lastGlobalStravaRun), error_code: syncError ? errorCode(syncError) : null });
 
     logger.info('✅ Strava status:', { connected: true, expired, expires_at: token.expiresAt });
     
@@ -159,7 +159,7 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     res.json(body);
 
   } catch (error) {
-    logger.error('❌ Strava status error:', error);
+    logger.error(`❌ Strava status error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to check Strava status' }); return;
   }
 });
@@ -227,7 +227,7 @@ router.put('/sync-paused', authenticateJWT, syncPausedLimiter, async (req, res):
       startSyncInBackground(userId);
     }
   } catch (error) {
-    logger.error('❌ Strava sync-paused error:', error);
+    logger.error(`❌ Strava sync-paused error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to update sync pause' }); return;
   }
 });
@@ -273,7 +273,8 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     const tokenData = await tokenResponse.json();
     
     if (!tokenResponse.ok) {
-      logger.error('❌ Strava token exchange failed:', tokenData);
+      // Stravas felsvar kan bära värden (och vid ett lyckat svar tokens): bara statusen loggas.
+      logger.error(`❌ Strava token exchange failed for user ${userId} (HTTP ${tokenResponse.status})`);
       res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
     }
     
@@ -322,7 +323,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     if (error) {
-      logger.error('❌ Failed to save Strava tokens:', error);
+      logger.error(`❌ Failed to save Strava tokens for user ${userId} (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to save Strava connection' }); return;
     }
     
@@ -333,7 +334,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     res.json(body);
     
   } catch (error) {
-    logger.error('❌ Strava callback error:', error);
+    logger.error(`❌ Strava callback error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -392,7 +393,7 @@ router.post('/sync', authenticateJWT, async (req, res) => {
     }
     
   } catch (error) {
-    logger.error('❌ Manual Strava sync error:', error);
+    logger.error(`❌ Manual Strava sync error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to sync Strava activities' }); return;
   }
 });
@@ -468,7 +469,7 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     });
     
   } catch (error) {
-    logger.error('❌ Debug activities error:', error);
+    logger.error(`❌ Debug activities error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to debug activities' }); return;
   }
 });
@@ -503,7 +504,8 @@ export async function syncAllStravaUsers(): Promise<{
       .eq('sync_paused', false);
 
     if (error) {
-      throw new Error(`Failed to fetch connected users: ${error.message}`);
+      // The database message can carry row values and the callers only log the code, so it carries the code and not the message.
+      throw Object.assign(new Error('Failed to fetch connected users'), { code: errorCode(error) });
     }
 
     if (!connectedUsers || connectedUsers.length === 0) {
@@ -539,14 +541,14 @@ export async function syncAllStravaUsers(): Promise<{
           });
           logger.info(`✅ Synced ${result.newRuns} new runs for ${user.users.name}`);
         } else {
-          logger.error(`❌ Failed to sync ${user.users.name}:`, result.error);
+          logger.error(`❌ Failed to sync user ${user.user_id}: ${result.error}`);
           results.push({ userId: user.user_id, userName: user.users.name, error: result.error });
         }
 
         // Small delay between users to stay within Strava rate limits
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (userError) {
-        logger.error(`❌ Error syncing user ${user.users.name}:`, userError);
+        logger.error(`❌ Error syncing user ${user.user_id} (${errorCode(userError)})`);
         results.push({ userId: user.user_id, userName: user.users.name, error: 'Sync failed' });
       }
     }
@@ -563,7 +565,7 @@ export async function syncAllStravaUsers(): Promise<{
     };
 
   } catch (error) {
-    logger.error('❌ Strava sync-all error:', error);
+    logger.error(`❌ Strava sync-all error (${errorCode(error)})`);
     throw error;
   }
 }
@@ -583,7 +585,7 @@ router.get('/last-sync', authenticateJWT, async (_req, res): Promise<void> => {
       }
     });
   } catch (error) {
-    logger.error('❌ Error fetching sync info:', error);
+    logger.error(`❌ Error fetching sync info (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to get sync info' });
   }
 });
@@ -638,7 +640,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
             const runId = externalIdToRunId.get(externalId);
             const { error } = await supabase.from('runs').update(fields).eq('id', runId);
             if (error) {
-              logger.error(`❌ Failed to update run ${runId} (activity ${externalId}): ${error.message}`, { fields });
+              logger.error(`❌ Failed to update run ${runId} for user ${user.user_id} (${errorCode(error)})`);
               throw error;
             }
           }));
@@ -653,7 +655,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
         summary.push({ user: (user.users as any).name, updated: userUpdated });
         logger.info(`✅ Backfilled ${userUpdated} runs for ${(user.users as any).name}`);
       } catch (userErr) {
-        logger.error(`❌ Backfill failed for user:`, userErr);
+        logger.error(`❌ Backfill failed for user ${user.user_id} (${errorCode(userErr)})`);
         summary.push({ user: (user.users as any).name, updated: 0, error: 'Failed' });
       }
 
@@ -663,7 +665,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
     logger.info(`🎯 Backfill complete: ${totalUpdated} runs updated across ${connectedUsers.length} users`);
     res.json({ success: true, totalUpdated, summary });
   } catch (error) {
-    logger.error('❌ Backfill error:', error);
+    logger.error(`❌ Backfill error (${errorCode(error)})`);
     res.status(500).json({ error: 'Backfill failed' }); return;
   }
 });
@@ -674,7 +676,7 @@ router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promis
     const result = await syncAllStravaUsers();
     res.json(result);
   } catch (error) {
-    logger.error('❌ API Error in /strava/sync-all:', error);
+    logger.error(`❌ API Error in /strava/sync-all (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to sync Strava activities' });
   }
 });
@@ -748,7 +750,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
           logger.warn(`⚠️ ${unprocessed.length} imported Strava run(s) have placeholder XP 0 — will reprocess from ${healFrom}`);
         }
       } catch (configError) {
-        logger.error(`❌ Could not evaluate Strava runs for self-heal (user ${userId}):`, configError);
+        logger.error(`❌ Could not evaluate Strava runs for self-heal (user ${userId}, ${errorCode(configError)})`);
       }
     }
     
@@ -781,8 +783,8 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
     const stravaResponse = await fetchAthleteActivities(accessToken, after);
 
     if (!stravaResponse.ok) {
-      const errorData = await stravaResponse.json();
-      logger.error('❌ Strava API error:', errorData);
+      // Stravas felkropp läses inte och loggas aldrig: bara statusen.
+      logger.error(`❌ Strava API error for user ${userId} (HTTP ${stravaResponse.status})`);
       return { success: false, error: 'Failed to fetch Strava activities' };
     }
     
@@ -852,7 +854,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
         await reprocessRunsFromDate(userId, earliestDate);
       } catch (e) {
         reprocessError = e;
-        logger.error(`❌ Reprocess after Strava import failed for user ${userId}:`, e);
+        logger.error(`❌ Reprocess after Strava import failed for user ${userId} (${errorCode(e)})`);
       }
 
       // Fetch weather before title calculation so all data is available
@@ -861,7 +863,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
         await WeatherService.fetchAndSaveWeatherForRuns(newRunData);
       } catch (weatherError) {
         if (!reprocessError) throw weatherError;
-        logger.error(`❌ Weather fetch failed after failed reprocess for user ${userId}:`, weatherError);
+        logger.error(`❌ Weather fetch failed after failed reprocess for user ${userId} (${errorCode(weatherError)})`);
       }
 
       await calculateUserTotals(userId);
@@ -876,7 +878,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
           runDate: activity.start_date_local.split('T')[0],
           distanceKm: activity.distance / 1000,
           isTreadmill: isTreadmillActivity(activity),
-        }).catch((e: unknown) => logger.error('❌ checkEventQualification (strava) error:', e));
+        }).catch((e: unknown) => logger.error(`❌ checkEventQualification (strava) error for user ${userId} (${errorCode(e)})`));
       }
 
       if (reprocessError) {
@@ -897,7 +899,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
     };
 
   } catch (error) {
-    logger.error('❌ Error syncing Strava activities:', error);
+    logger.error(`❌ Error syncing Strava activities for user ${userId} (${errorCode(error)})`);
     return { success: false, error: 'Failed to sync activities' };
   } finally {
     // Ingen ny import tog över läkningen (inga nya rundor, Strava-API-fel, alla inserts föll): läk här, best-effort.
@@ -907,7 +909,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
         await reprocessRunsFromDate(userId, healFrom);
         await calculateUserTotals(userId);
       } catch (healError) {
-        logger.error(`❌ Self-heal reprocess from ${healFrom} failed for user ${userId}:`, healError);
+        logger.error(`❌ Self-heal reprocess from ${healFrom} failed for user ${userId} (${errorCode(healError)})`);
       }
     }
   }
