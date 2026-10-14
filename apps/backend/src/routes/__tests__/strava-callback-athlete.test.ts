@@ -136,11 +136,36 @@ describe('POST /api/strava/callback — athlete identity', () => {
     expect(res.status).toBe(200);
     expect(t.strava_tokens).toHaveLength(1);
     expect(t.strava_tokens[0].sync_paused).toBe(false);
+    expect(t.strava_tokens[0].paused_at).toBeNull();
+  });
+
+  it('callback keeps the stored athlete id when a reconnect response has no athlete object', async () => {
+    stubTokenExchange(undefined);
+    const t = use([existing('user-1', { strava_athlete_id: 4711 })]);
+
+    const res = await connect('user-1');
+
+    expect(res.status).toBe(200);
+    expect(t.strava_tokens).toHaveLength(1);
+    expect(t.strava_tokens[0]).toMatchObject({ strava_athlete_id: 4711, access_token: 'new-at' });
   });
 
   it('callback does not report a 409 for other database failures', async () => {
     stubTokenExchange({ id: 4711 });
     const db = createFakeDb({ strava_tokens: [] }, { errors: { strava_tokens: { message: 'connection lost' } } });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+
+    const res = await connect('user-1');
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to save Strava connection' });
+  });
+
+  it('callback answers 500, not 409, for a unique violation on another constraint', async () => {
+    stubTokenExchange({ id: 4711 });
+    const db = createFakeDb({ strava_tokens: [] }, {
+      errors: { strava_tokens: { code: '23505', message: 'duplicate key value violates unique constraint "strava_tokens_pkey"' } as any },
+    });
     vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
 
     const res = await connect('user-1');

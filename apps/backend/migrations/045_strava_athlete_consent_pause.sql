@@ -35,7 +35,7 @@
 -- begin/commit: apply_migration kör filen som en transaktion (som övriga migrationer). Ingen data ändras.
 --
 -- Rollback (kommentar, körs manuellt och bara efter ägar-ja; tar bort sparade athlete-id, samtycken och pausflaggor, inga
--- rundor). Samma SQL finns som körbar fil i migrations/rollback/045_strava_athlete_consent_pause.rollback.sql:
+-- rundor). Migrationerna är framåtriktade (ADR 002 beslut 3); rollbacken finns bara här:
 --   drop index if exists public.strava_tokens_athlete_id_key;
 --   alter table public.strava_tokens drop column if exists paused_at;
 --   alter table public.strava_tokens drop column if exists sync_paused;
