@@ -1,6 +1,7 @@
 /**
- * GET /api/news och POST /api/news/seen (ADR 008 beslut 8–9): auth-guard, gruppavgränsning, keyset-
- * paginering (inkl. tom sida), valideringsfel, oläst-predikatet och vattenmärkets monotoni.
+ * GET /api/news och POST /api/news/seen (ADR 008 beslut 8–9, utökat av ADR 011 beslut 4): auth-guard,
+ * gruppavgränsning, keyset-paginering (inkl. tom sida), valideringsfel, oläst-predikatet (golv, news_read,
+ * påslagna notisslag) och vattenmärkets monotoni.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 
@@ -16,6 +17,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
+import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
@@ -242,7 +244,7 @@ describe('GET /api/news', () => {
     });
   });
 
-  describe('oläst-predikatet (ADR 008 beslut 8)', () => {
+  describe('oläst-predikatet (ADR 008 beslut 8, kvarstår i ADR 011 beslut 4)', () => {
     it('ovanför vattenmärket = oläst, vid/under = läst', async () => {
       use(tables([row(1), row(2), row(3), row(4)], { news_last_seen_id: 2 }));
       const res = await get('/api/news');
@@ -280,6 +282,186 @@ describe('GET /api/news', () => {
       const unreadRows = res.body.data.items.filter((i: any) => i.is_unread).map((i: any) => i.id);
       expect(unreadRows).toEqual([7, 6, 5]);
       expect(res.body.meta.unread_count).toBe(unreadRows.length);
+    });
+  });
+
+  describe('oläst per notisslag, golv och news_read (ADR 011 beslut 4)', () => {
+    const setting = (key: string, value: unknown, user_id = 'u1'): Row => ({ user_id, key, value });
+    const withExtra = (activity: Row[], extra: Record<string, Row[]>, userOver: Row = {}) => ({
+      ...tables(activity, userOver),
+      ...extra,
+    });
+
+    it('räknaren följer påslagna slag: ett avstängt slag räknas aldrig och ger is_unread false', async () => {
+      use(withExtra(
+        [row(1), row(2), row(3, { type: 'event_open', actor_user_id: null })],
+        // u2:s val gäller bara u2: event_open avstängt hos någon annan ändrar inget för u1
+        { user_settings: [setting('notify.level_up_others', false), setting('notify.event_open', false, 'u2')] },
+      ));
+      const res = await get('/api/news');
+      expect(res.body.data.items.map((i: any) => [i.id, i.is_unread])).toEqual([[3, true], [2, false], [1, false]]);
+      expect(res.body.meta.unread_count).toBe(1);
+    });
+
+    it('GET returnerar fortfarande rader av avstängda slag (bara oläst-flaggan ändras)', async () => {
+      use(withExtra([row(1), row(2)], { user_settings: [setting('notify.level_up_others', false)] }));
+      const res = await get('/api/news');
+      expect(res.body.data.items.map((i: any) => i.id)).toEqual([2, 1]);
+      expect(res.body.data.items.every((i: any) => i.is_unread === false)).toBe(true);
+      expect(res.body.meta.unread_count).toBe(0);
+    });
+
+    it('en rad i news_read ovanför golvet är inte oläst och räknas inte', async () => {
+      use(withExtra(
+        [row(1), row(2), row(3), row(4)],
+        // 3 är kvitterad av u1; u2:s kvitto på 4 gäller inte u1
+        { news_read: [{ user_id: 'u1', activity_id: 3 }, { user_id: 'u2', activity_id: 4 }] },
+        { news_last_seen_id: 1 },
+      ));
+      const res = await get('/api/news');
+      expect(res.body.data.items.map((i: any) => [i.id, i.is_unread])).toEqual([[4, true], [3, false], [2, true], [1, false]]);
+      expect(res.body.meta.unread_count).toBe(2);
+    });
+
+    it('rader under eller på golvet är lästa', async () => {
+      use(withExtra([row(1), row(2), row(3), row(4)], {}, { news_last_seen_id: 3 }));
+      const res = await get('/api/news');
+      expect(res.body.data.items.map((i: any) => [i.id, i.is_unread])).toEqual([[4, true], [3, false], [2, false], [1, false]]);
+      expect(res.body.meta.unread_count).toBe(1);
+    });
+
+    it('backfill och rader före användarens created_at är aldrig olästa', async () => {
+      use(withExtra([
+        row(1, { is_backfill: true }),
+        row(2, { created_at: '2025-12-31T23:59:59.000Z' }),
+        row(3, { created_at: USER_CREATED }), // exakt vid registreringen är inte efter den
+        row(4),
+      ], {}));
+      const res = await get('/api/news');
+      expect(res.body.data.items.map((i: any) => [i.id, i.is_unread])).toEqual([[4, true], [3, false], [2, false], [1, false]]);
+      expect(res.body.meta.unread_count).toBe(1);
+    });
+
+    it('egen handling är aldrig oläst, men en vunnen eller oavgjord utmaning där jag är aktör är det', async () => {
+      use(withExtra([
+        row(1, { type: 'level_up', actor_user_id: 'u1' }),
+        row(2, { type: 'challenge_received', actor_user_id: 'u1', target_user_id: 'u2', payload: {} }),
+        row(3, { type: 'challenge_won', actor_user_id: 'u1', target_user_id: 'u2', payload: {} }),
+        row(4, { type: 'challenge_draw', actor_user_id: 'u1', target_user_id: 'u2', payload: {} }),
+        row(5, { type: 'challenge_won', actor_user_id: 'u2', target_user_id: 'u1', payload: {} }),
+      ], {}));
+      const res = await get('/api/news');
+      expect(res.body.data.items.map((i: any) => [i.id, i.is_unread])).toEqual([[5, true], [4, true], [3, true], [2, false], [1, false]]);
+      expect(res.body.meta.unread_count).toBe(3);
+    });
+
+    it('en vunnen utmaning där jag är aktör följer reglaget för just det slaget', async () => {
+      use(withExtra(
+        [row(1, { type: 'challenge_won', actor_user_id: 'u1', target_user_id: 'u2', payload: {} })],
+        { user_settings: [setting('notify.challenge_won_me', false)] },
+      ));
+      const res = await get('/api/news');
+      expect(res.body.data.items[0].is_unread).toBe(false);
+      expect(res.body.meta.unread_count).toBe(0);
+    });
+
+    it('okänd framtida typ räknas aldrig', async () => {
+      use(withExtra([row(1), row(2, { type: 'some_future_kind' })], {}));
+      const res = await get('/api/news');
+      expect(res.status).toBe(200);
+      expect(res.body.data.items.map((i: any) => [i.id, i.is_unread])).toEqual([[2, false], [1, true]]);
+      expect(res.body.meta.unread_count).toBe(1);
+    });
+
+    it('unread_count mättas vid 500 (520 olästa kandidater ger 500)', async () => {
+      const db = use(withExtra(Array.from({ length: 520 }, (_, i) => row(i + 1)), {}));
+      const res = await get('/api/news');
+      expect(res.body.meta.unread_count).toBe(500);
+      // Kandidatläsningen är avgränsad (501 rader), inte en olimiterad läsning av hela loggen
+      const activityReads = db.queries.filter((q) => q.table === 'activity_log');
+      expect(activityReads.every((q) => q.limit !== null && q.limit <= 501)).toBe(true);
+    });
+
+    it('under taket räknas exakt: 499 olästa ger 499', async () => {
+      use(withExtra(Array.from({ length: 499 }, (_, i) => row(i + 1)), {}));
+      const res = await get('/api/news');
+      expect(res.body.meta.unread_count).toBe(499);
+    });
+
+    it('unread_count är oberoende av type- och involves-filtret', async () => {
+      use(withExtra([
+        row(1, { type: 'level_up' }), row(2, { type: 'title_taken' }), row(3, { type: 'event_open', actor_user_id: null }),
+      ], { user_settings: [setting('notify.title_others', false)] }));
+      const all = await get('/api/news');
+      const filtered = await get('/api/news?type=level_up&involves=me');
+      expect(filtered.body.data.items).toHaveLength(1);
+      expect(filtered.body.meta.unread_count).toBe(2);
+      expect(filtered.body.meta.unread_count).toBe(all.body.meta.unread_count);
+    });
+
+    it('en användare utan inställningar ger samma räknare som före ändringen (defaults)', async () => {
+      // Rader av flera roller; ingen user_settings-rad finns för u1, så varje slag är på. Före ändringen räknades allt
+      // utom egna handlingar, och de här raderna räknas fortfarande på samma sätt.
+      use(withExtra([
+        row(1, { type: 'level_up', actor_user_id: 'u1' }),
+        row(2, { type: 'level_up' }),
+        row(3, { type: 'title_taken', target_user_id: 'u1', payload: { title_name: 'X' } }),
+        row(4, { type: 'title_unlocked', actor_user_id: null }),
+        row(5, { type: 'event_open', actor_user_id: null }),
+        row(6, { type: 'release_published', actor_user_id: null }),
+      ], { user_settings: [setting('notify.level_up_others', false, 'u2')] }));
+      const res = await get('/api/news');
+      expect(res.body.data.items.map((i: any) => [i.id, i.is_unread])).toEqual([
+        [6, true], [5, true], [4, true], [3, true], [2, true], [1, false],
+      ]);
+      expect(res.body.meta.unread_count).toBe(5);
+    });
+
+    it('ett läsfel i user_settings faller tillbaka på defaults', async () => {
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+      try {
+        use(
+          withExtra([row(1), row(2)], { user_settings: [setting('notify.level_up_others', false)] }),
+          { errors: { user_settings: { message: 'connection reset' } } },
+        );
+        const res = await get('/api/news');
+        expect(res.status).toBe(200);
+        // Det avstängda slaget kunde inte läsas, så defaulten (på) gäller
+        expect(res.body.meta.unread_count).toBe(2);
+        expect(res.body.data.items.map((i: any) => i.is_unread)).toEqual([true, true]);
+        expect(error).toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+      }
+    });
+
+    it('ett läsfel i news_read ger 500', async () => {
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+      try {
+        use(withExtra([row(1)], { news_read: [] }), { errors: { news_read: { message: 'connection reset' } } });
+        const res = await get('/api/news');
+        expect(res.status).toBe(500);
+        expect(res.body).toEqual({ error: 'Failed to fetch news' });
+      } finally {
+        error.mockRestore();
+      }
+    });
+
+    it('ett anrop läser news_read och user_settings en gång var, oberoende av antal rader', async () => {
+      const db = use(withExtra(Array.from({ length: 40 }, (_, i) => row(i + 1)), {}));
+      await get('/api/news');
+      expect(db.queries.filter((q) => q.table === 'news_read')).toHaveLength(1);
+      expect(db.queries.filter((q) => q.table === 'user_settings')).toHaveLength(1);
+      expect(db.queries.filter((q) => q.table === 'activity_log')).toHaveLength(2); // sidan + kandidaterna
+    });
+
+    it('user_settings och news_read läses bara för anroparen', async () => {
+      const db = use(withExtra([row(1)], {}));
+      await get('/api/news');
+      for (const table of ['news_read', 'user_settings']) {
+        const q = db.queries.find((x) => x.table === table)!;
+        expect(q.filters).toContainEqual({ op: 'eq', column: 'user_id', value: 'u1' });
+      }
     });
   });
 
@@ -343,6 +525,31 @@ describe('POST /api/news/seen', () => {
     use(t);
     const res = await post({ up_to_id: 3 });
     expect(res.body).toEqual({ success: true, data: { last_seen_id: 3, unread_count: 2 } });
+  });
+
+  it('kvarvarande oläst följer påslagna slag och news_read, som GET', async () => {
+    const t = {
+      ...feed(),
+      // 3 är avstängt slag, 4 är kvitterad: bara 5 återstår efter up_to_id 2
+      user_settings: [{ user_id: 'u1', key: 'notify.title_others', value: false }],
+      news_read: [{ user_id: 'u1', activity_id: 4 }],
+    };
+    t.activity_log[2] = row(3, { type: 'title_unlocked', payload: { title_name: 'X' } });
+    use(t);
+    const res = await post({ up_to_id: 2 });
+    expect(res.body).toEqual({ success: true, data: { last_seen_id: 2, unread_count: 1 } });
+  });
+
+  it('ett läsfel i news_read ger 500 även här', async () => {
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    try {
+      use({ ...feed(), news_read: [] }, { errors: { news_read: { message: 'connection reset' } } });
+      const res = await post({});
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ error: 'Failed to update news state' });
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it('monotont: ett lägre up_to_id sänker aldrig märket', async () => {
