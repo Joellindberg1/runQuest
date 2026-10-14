@@ -8,6 +8,9 @@
 //   webhookHandlerKey('athlete', 'update')   - deauthorize
 // An event whose handler is not registered finishes as done / noop with a warning, so until an entry exists the worker only
 // drains the queue.
-import type { HandlerRegistry } from '../stravaWebhookWorker.js';
+import { webhookHandlerKey, type HandlerRegistry } from '../stravaWebhookWorker.js';
+import { createActivityCreateHandler } from './handlers/activityCreate.js';
 
-export const STRAVA_WEBHOOK_HANDLERS: HandlerRegistry = {};
+export const STRAVA_WEBHOOK_HANDLERS: HandlerRegistry = {
+  [webhookHandlerKey('activity', 'create')]: createActivityCreateHandler(),
+};
