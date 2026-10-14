@@ -434,6 +434,26 @@ describe('useNewsFeed — involves', () => {
     expect(ids(cached('level_up'))).toEqual([3, 2, 1]);
   });
 
+  it('en lucka större än en sida fylls med before-sidor som också bär involves, och inga ofiltrerade rader kommer in', async () => {
+    const news = newsServer(mine(10));
+    serve(news);
+    const { result } = renderHook(() => useNewsFeed(null, true, 'me'), { wrapper });
+    await waitFor(() => expect(result.current.feed).toBeDefined());
+
+    // 250 nya rader, varannan rör mig: servern ger 125 till filtret, mer än catch-upens 100 → before-sidor behövs.
+    const fresh = Array.from({ length: 250 }, (_, index) => levelUp(260 - index, 260 - index, index % 2 === 0 ? { target: ME } : {}));
+    news.server.rows.unshift(...fresh);
+    await refetch(result);
+
+    const calls = news.server.calls.slice(1);
+    expect(calls[0]).toEqual({ after: 10, limit: 100, type: undefined, involves: 'me' });
+    expect(calls.length).toBeGreaterThan(1);
+    expect(calls.slice(1).every((call) => call.before !== undefined && call.involves === 'me')).toBe(true);
+    expect(result.current.feed?.items).toHaveLength(10 + 125);
+    expect(new Set(ids(result.current.feed)).size).toBe(10 + 125);
+    expect(result.current.feed?.items.every((row) => row.target?.id === ME.id)).toBe(true);
+  });
+
   it('utan involves ser frågorna ut som förut', async () => {
     const news = newsServer(rows(3));
     serve(news);

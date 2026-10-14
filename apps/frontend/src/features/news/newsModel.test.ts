@@ -8,7 +8,7 @@ import {
   replaceNewest, parseInvolvesParam, serializeInvolvesParam, involvesMe, involvesAnnouncement, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
 } from './newsModel';
 import { formatInt } from '@/features/log/logFormat';
-import { ADAM, DAN, ME, NICK, NOW, KARL, at, badgeEarned, challengeAccepted, challengeWon, eventOpen, item, levelUp, meta, rankPassed, releasePublished, streakBroken, titleTaken } from './news.fixture';
+import { ADAM, DAN, ME, NICK, NOW, KARL, at, ref, badgeEarned, challengeAccepted, challengeWon, eventOpen, item, levelUp, meta, rankPassed, releasePublished, streakBroken, titleTaken } from './news.fixture';
 
 const ctx = (over: Partial<NewsContext> = {}): NewsContext => ({ viewerId: ME.id, now: NOW, ...over });
 const DEFAULT_SETTINGS = resolveSettings({}, 'user');
@@ -947,6 +947,22 @@ describe('Involves me (vyfilter vid sidan av typchipsen)', () => {
     // Bara event_closed bär deltagarlistan, och utan betraktare är inget "mitt".
     expect(involvesMe({ ...eventOpen(5), payload: { entrant_ids: [ME.id] } } as never, ME.id)).toBe(false);
     expect(involvesMe(levelUp(6, 5, { actor: ME }), null)).toBe(false);
+  });
+
+  it('involvesMe matchar som servern: betraktarens id i gemener mot det lagrade, exakt', () => {
+    const closed = (entrants: string[]) => item('event_closed', 9, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: entrants } as never);
+    // Ett lagrat id med versaler matchar aldrig (servern jämför jsonb exakt mot gemener) ...
+    expect(involvesMe(closed(['U-ME']), 'u-me')).toBe(false);
+    // ... men en betraktare med versaler gemeniseras, precis som serverns filter gör.
+    expect(involvesMe(closed(['u-me']), 'U-ME')).toBe(true);
+    expect(involvesMe(levelUp(1, 5, { actor: ref('u-me', 'Me') }), 'U-ME')).toBe(true);
+  });
+
+  it('involvesMe utan betraktare är false även för event_closed med deltagare, och kastar inte', () => {
+    const closed = item('event_closed', 9, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: [ME.id] } as never);
+    expect(() => involvesMe(closed, null)).not.toThrow();
+    expect(involvesMe(closed, null)).toBe(false);
+    expect(involvesMe(closed, '')).toBe(false);
   });
 
   it('involvesAnnouncement säger vad filtret visar', () => {

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { NOTIFICATION_KINDS } from '@runquest/shared';
 import { NotificationsPopover } from '@/app-shell/NotificationsPopover';
 import { POINTER_SETTLE_MS } from '../newsModel';
-import { ADAM, DAN, NOW_ISO, at, challengeWon, eventOpen, levelUp, newsServer, titleTaken } from '../news.fixture';
+import { ADAM, DAN, ME, NOW_ISO, at, challengeWon, eventOpen, levelUp, newsServer, titleTaken } from '../news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import '@/test/pointerEvent';
@@ -437,6 +437,47 @@ describe('NewsScreen — Involves me', () => {
     // Exakt en annonsering per växling, och inget annat i sidan sa något.
     expect(announced).toEqual(['Showing 2 rows that involve you', 'Showing all pack news']);
     expect(others().every((text) => text === '')).toBe(true);
+  });
+
+  it('senare liständringar (Show more, fokusläkning, catch-up) annonserar inte filtret en gång till', async () => {
+    const user = userEvent.setup();
+    serve(Array.from({ length: 40 }, (_, index) => levelUp(index + 1, index + 1, { target: ME, occurred_at: at(2 + index / 10) })), 0);
+    renderWithApp(<NewsScreen />, { entry: '/news', width: MOBILE });
+    await waitFor(() => expect(rowCount()).toBe(30));
+    const region = screen.getByRole('status', { name: 'Filter result' });
+
+    await user.click(await involvesToggle());
+    await waitFor(() => expect(region).toHaveTextContent('Showing 30 rows that involve you'));
+    const later: string[] = [];
+    const observer = new MutationObserver(() => { if (region.textContent) later.push(region.textContent); });
+    observer.observe(region, { childList: true, characterData: true, subtree: true });
+
+    // Show more: raderna blir fler men det är inte en filterväxling.
+    await user.click(screen.getByRole('button', { name: 'Show more' }));
+    await waitFor(() => expect(rowCount()).toBe(40));
+    // Fokusläkning (samma hämtning som pollen): en ny rad på servern landar i listan.
+    panelNews.server.rows.unshift(levelUp(41, 41, { target: ME }));
+    vi.setSystemTime(new Date(NOW_ISO).getTime() + 60_000);
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    await waitFor(() => expect(rowCount()).toBe(41));
+    // Catch-up: Mark all read invaliderar flödena och hämtar bara det nya.
+    panelNews.server.rows.unshift(levelUp(42, 42, { target: ME }));
+    await user.click(screen.getByRole('button', { name: 'Mark all read' }));
+    await waitFor(() => expect(rowCount()).toBe(42));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    observer.disconnect();
+
+    expect(later).toEqual([]);
+    expect(region).toHaveTextContent('Showing 30 rows that involve you');
+  });
+
+  it('toggelns siffra räknar inte rader med en okänd typ', async () => {
+    const unknownMine = { ...levelUp(2, 5, { actor: ME }), type: 'mystery_event' } as never;
+    serve([levelUp(3, 5, { target: ME }), unknownMine, levelUp(1, 5)], 0);
+    renderWithApp(<NewsScreen />, { entry: '/news', width: MOBILE });
+    const toggle = await involvesToggle();
+    await waitFor(() => expect(toggle).toHaveTextContent(/1\s*loaded/));
+    expect(toggle).not.toHaveTextContent(/2\s*loaded/);
   });
 
   it('en ändring av typfiltret ensam annonserar inget', async () => {

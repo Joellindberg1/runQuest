@@ -121,11 +121,12 @@ export const serializeInvolvesParam = (on: boolean): string | null => (on ? INVO
  */
 export function involvesMe(item: Pick<WireNewsItem, 'type' | 'actor' | 'target' | 'payload'>, viewerId: string | null): boolean {
   if (!viewerId) return false;
-  if (item.actor?.id === viewerId || item.target?.id === viewerId) return true;
+  // Som servern: betraktarens id i gemener mot det som ligger lagrat, utan att gemenisera det lagrade (jsonb-containment är exakt).
+  const me = viewerId.toLowerCase();
+  if (item.actor?.id === me || item.target?.id === me) return true;
   if (item.type !== 'event_closed') return false;
   const entrants = (item.payload as { entrant_ids?: unknown } | null)?.entrant_ids;
-  const me = viewerId.toLowerCase();
-  return Array.isArray(entrants) && entrants.some((id) => typeof id === 'string' && id.toLowerCase() === me);
+  return Array.isArray(entrants) && entrants.includes(me);
 }
 
 /**

@@ -11,7 +11,7 @@ describe('newsServer', () => {
     expect(res.success && res.data.items.map((row) => [row.id, row.is_unread])).toEqual([[7, true], [6, true], [5, false], [4, true]]);
   });
 
-  it('involves=me som servern: aktör, target eller deltagare; AND med type; oläst-räknaren och paginering följer filtret', async () => {
+  it('involves=me som servern: aktör, target eller deltagare; AND med type; paginering följer filtret medan unread_count förblir flödets', async () => {
     const closedWithMe = item('event_closed', 6, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: [ME.id] } as never);
     const closedWithout = item('event_closed', 5, { event_id: 'e2', event_type: 'participation', template_name: '10K', participants: 2, members: 5, entrant_ids: [NICK.id] } as never);
     const news = newsServer([closedWithMe, closedWithout, challengeWon(4), levelUp(3, 3), levelUp(2, 2, { actor: ME }), levelUp(1, 1)], 0);
