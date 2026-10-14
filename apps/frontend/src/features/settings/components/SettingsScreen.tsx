@@ -28,7 +28,7 @@ export function SettingsScreen() {
   // Kortet väntar in synkinformationen (parallell hämtning): annars blinkar cellerna "Unknown" innan de får sitt värde.
   const card = useMemo(() => (status.data && !sync.isPending ? buildStravaCard(status.data, sync.data, now) : null), [status.data, sync.data, sync.isPending, now]);
   const syncRow = useMemo(() => buildSyncRow(sync.data), [sync.data]);
-  const actions = useStravaActions({ clientId: config.data, expired: card?.state === 'expired' });
+  const actions = useStravaActions({ clientId: config.data });
 
   let strava;
   if (card) {
