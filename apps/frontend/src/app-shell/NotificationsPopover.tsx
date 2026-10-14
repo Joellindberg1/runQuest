@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { NewsPopoverPanel } from '@/features/news/components/NewsPopoverPanel';
 import { useNewsUnreadCount } from '@/features/news/hooks/useNewsQueries';
+import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { badgeText } from '@/features/news/newsModel';
 import { useAuth } from '@/providers/authContext';
 import { RQIcon } from '@/shared/components/icons';
@@ -15,13 +16,16 @@ interface NotificationsPopoverProps {
 }
 
 /**
- * Klockan i headern (ADR 006 beslut 4): öppnar en popover med de fem senaste ur Pack News och en oläst-räknare ur samma flöde
- * (EN query-definition i features/news — skärmen och popovern delar cache och hämtintervall). "See all pack news" går till /news.
+ * Klockan i headern (ADR 006 beslut 4): öppnar en popover med de fem senaste ur Pack News vars slag är påslagna, och en oläst-räknare ur
+ * samma flöde (EN query-definition i features/news — skärmen och popovern delar cache och hämtintervall). Räknaren är serverns
+ * `meta.unread_count`; popovern filtrerar de inladdade raderna efter användarens inställningar (se NewsPopoverPanel). "See all pack news" går till /news.
  * Mobil har en ✕ (prototypen), desktop stänger med Esc eller klick utanför.
  */
 export function NotificationsPopover({ variant }: NotificationsPopoverProps) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
+  // Värmer inställningarna när klockan monteras, så att popovern vid första öppningen redan filtrerar efter dem (ingen rad av ett avstängt slag hinner blinka förbi).
+  useUserSettings();
   const unread = useNewsUnreadCount(!!user);
   const badge = badgeText(unread);
 

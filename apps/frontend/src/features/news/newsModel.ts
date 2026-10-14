@@ -1,4 +1,4 @@
-import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, TIER_NAMES, daysBetween, isActivityType, mondayOf, stockholmClock, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, TIER_NAMES, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/types';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
@@ -650,13 +650,36 @@ export function buildNewsGroups(items: readonly WireNewsItem[], ctx: NewsContext
 
 export const POPOVER_ROWS = 5;
 
-/** Popovern: de senaste fem i visningsordning (samma ordning som skärmens översta rader). */
-export function buildPopoverRows(items: readonly WireNewsItem[], ctx: NewsContext, limit = POPOVER_ROWS): NewsRowModel[] {
+/**
+ * Klientens rad som delad klassificering (`classifyNotification`) förstår: id:n i stället för användarreferenser.
+ * En raderad användare är `null` i flödet och blir `null` här — aldrig betraktaren.
+ */
+export function classifiableRowOf(item: WireNewsItem): ClassifiableRow {
+  return { type: item.type, actorId: item.actor?.id ?? null, targetId: item.target?.id ?? null, payload: item.payload };
+}
+
+export interface PopoverOptions {
+  /** Användarens upplösta inställningar (`notify.<slag>`); `useUserSettings().values`, defaults om de inte kunnat läsas. */
+  settings: Readonly<Record<string, unknown>>;
+  /** Den som tittar. `null` (ingen inloggad) ger en tom lista: egna handlingar går då inte att skilja ut. */
+  viewerId: string | null;
+  limit?: number;
+}
+
+/**
+ * Klockans popover (ADR 011 beslut 3): de senaste raderna vars slag är påslaget, lästa som olästa, i visningsordning (samma som
+ * skärmens översta rader). Egna handlingar (`own`) hör hemma på /news, inte här. Oläst-avgörandet är serverns (`is_unread`) —
+ * `isNotifiable` används inte på klienten, bara samma `classifyNotification` och `isKindEnabled` som servern.
+ */
+export function buildPopoverRows(items: readonly WireNewsItem[], ctx: NewsContext, { settings, viewerId, limit = POPOVER_ROWS }: PopoverOptions): NewsRowModel[] {
+  if (viewerId === null) return [];
   const ordered = [...items].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at) || b.id - a.id);
   const rows: NewsRowModel[] = [];
-  // Filtreringen sker före gränsen så att en okänd rad inte tar en av de fem platserna.
+  // Filtreringen sker före gränsen så att en okänd, egen eller avstängd rad inte tar en av platserna.
   for (const item of ordered) {
     if (rows.length >= limit) break;
+    const kind = classifyNotification(classifiableRowOf(item), viewerId);
+    if (kind === null || kind === 'own' || !isKindEnabled(kind, settings)) continue;
     const row = buildNewsRow(item, ctx);
     if (row) rows.push(row);
   }

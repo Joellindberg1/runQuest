@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { logger } from '@/shared/utils/logger';
-import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, type ActivityType, type NewsItem } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, resolveSettings, type ActivityType, type NewsItem } from '@runquest/shared';
 import {
-  CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, countByFilter, dedupeById, describeNews,
+  CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, classifiableRowOf, countByFilter, dedupeById, describeNews,
   POINTER_SETTLE_MS, READ_DWELL_MS, READ_FLUSH_MS, createReadBatcher, markReadInFeed, markUnreadInFeed,
   feedFromPage, formatAgo, fullTime, gapCursor, groupByDay, isUnread, markSeenInFeed, mergeNewer, parseFilterParam, serializeFilterParam,
   replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
@@ -11,6 +11,10 @@ import { formatInt } from '@/features/log/logFormat';
 import { ADAM, DAN, ME, NICK, NOW, KARL, at, badgeEarned, challengeWon, eventOpen, item, levelUp, meta, releasePublished, streakBroken, titleTaken } from './news.fixture';
 
 const ctx = (over: Partial<NewsContext> = {}): NewsContext => ({ viewerId: ME.id, now: NOW, ...over });
+const DEFAULT_SETTINGS = resolveSettings({}, 'user');
+/** Popoverns alternativ: defaults och ME som betraktare — tester skriver bara över det de provar. */
+type PopoverOptions = Parameters<typeof buildPopoverRows>[2];
+const popover = (over: Partial<PopoverOptions> = {}): PopoverOptions => ({ settings: DEFAULT_SETTINGS, viewerId: ME.id, ...over });
 
 describe('kategorier och filter', () => {
   // release_published (RUN-161) är medvetet utan filterchip: systemraden syns när inget filter är valt.
@@ -603,7 +607,7 @@ describe('texterna ur typ + payload + vem som tittar', () => {
       const items: WireNewsItem[] = [releasePublished(2), levelUp(1, 4), unknownFuture];
       const rows = buildNewsGroups(items, ctx()).flatMap((group) => group.rows.map((row) => row.id));
       expect(rows.sort()).toEqual([1, 2]);
-      expect(buildPopoverRows(items, ctx()).map((row) => row.kind).sort()).toEqual(['Level up', 'New version']);
+      expect(buildPopoverRows(items, ctx(), popover()).map((row) => row.kind).sort()).toEqual(['Level up', 'New version']);
     });
   });
 
@@ -676,9 +680,54 @@ describe('vymodeller', () => {
 
   it('popovern: de fem senaste i visningsordning', () => {
     const items = Array.from({ length: 8 }, (_, index) => levelUp(index + 1, index + 1, { occurred_at: at(8 - index) }));
-    const rows = buildPopoverRows(items, ctx());
+    const rows = buildPopoverRows(items, ctx(), popover());
     expect(rows).toHaveLength(5);
     expect(rows.map((row) => row.id)).toEqual([8, 7, 6, 5, 4]);
+  });
+});
+
+describe('klockans popover följer inställningarna', () => {
+  const others = (id: number, hoursAgo: number) => levelUp(id, id, { occurred_at: at(hoursAgo) });
+  const unknown = (id: number, hoursAgo: number): UnknownNewsItem => ({ ...levelUp(id, 1, { occurred_at: at(hoursAgo) }), type: 'quest_completed', payload: { quest: 'x' } });
+
+  it('buildPopoverRows utesluter egna rader, avstängda slag och okända typer före gränsen på fem', () => {
+    const items: WireNewsItem[] = [
+      levelUp(30, 3, { actor: ME, occurred_at: at(0.5) }), // egen handling
+      streakBroken(29, { occurred_at: at(1) }), // slaget är avstängt
+      unknown(28, 1.5),
+      ...Array.from({ length: 6 }, (_, index) => others(index + 1, 10 - index)), // sex som släpps igenom, id 6 nyast
+    ];
+    const rows = buildPopoverRows(items, ctx(), popover({ settings: resolveSettings({ 'notify.streak_broken_others': false }, 'user') }));
+    expect(rows.map((row) => row.id)).toEqual([6, 5, 4, 3, 2]);
+  });
+
+  it('buildPopoverRows tar med lästa rader av påslagna slag', () => {
+    const items = [{ ...others(3, 1), is_unread: true }, { ...others(2, 2), is_unread: false }, { ...streakBroken(1, { occurred_at: at(3) }), is_unread: false }];
+    const rows = buildPopoverRows(items, ctx(), popover());
+    expect(rows.map((row) => [row.id, row.unread])).toEqual([[3, true], [2, false], [1, false]]);
+  });
+
+  it('buildPopoverRows ger tom lista när allt filtreras bort', () => {
+    const items: WireNewsItem[] = [levelUp(3, 3, { actor: ME }), unknown(2, 2), streakBroken(1)];
+    const settings = resolveSettings({ 'notify.streak_broken_others': false }, 'user');
+    expect(buildPopoverRows(items, ctx(), popover({ settings }))).toEqual([]);
+    expect(buildPopoverRows([], ctx(), popover())).toEqual([]);
+  });
+
+  it('buildPopoverRows ger tom lista utan betraktare (egna rader går inte att avgöra)', () => {
+    expect(buildPopoverRows([others(1, 1)], ctx({ viewerId: null }), popover({ viewerId: null }))).toEqual([]);
+  });
+
+  it('buildPopoverRows håller gränsen och ordningen när limit anges', () => {
+    const items = Array.from({ length: 4 }, (_, index) => others(index + 1, 8 - index));
+    expect(buildPopoverRows(items, ctx(), popover({ limit: 2 })).map((row) => row.id)).toEqual([4, 3]);
+  });
+
+  it('classifiableRowOf mappar aktör och mål till id:n (null för en raderad användare) och bär typ och payload', () => {
+    const won = challengeWon(1);
+    expect(classifiableRowOf(won)).toEqual({ type: 'challenge_won', actorId: won.actor?.id, targetId: ME.id, payload: won.payload });
+    expect(classifiableRowOf(titleTaken(2, { actor: null, target: null }))).toMatchObject({ actorId: null, targetId: null });
+    expect(classifiableRowOf(unknown(3, 1))).toMatchObject({ type: 'quest_completed' });
   });
 });
 
@@ -728,7 +777,7 @@ describe('okända händelsetyper och trasiga rader', () => {
 
   it('popovern: okända rader tar ingen av de fem platserna', () => {
     const known = Array.from({ length: 6 }, (_, index) => levelUp(index + 1, index + 1, { occurred_at: at(10 - index) }));
-    const rows = buildPopoverRows([unknownItem(99, { occurred_at: at(0) }), ...known], ctx());
+    const rows = buildPopoverRows([unknownItem(99, { occurred_at: at(0) }), ...known], ctx(), popover());
     expect(rows.map((row) => row.id)).toEqual([6, 5, 4, 3, 2]);
   });
 
