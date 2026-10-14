@@ -15,6 +15,7 @@ import {
   checkMediaFiles,
   checkNoTrackedVideoOriginals,
   checkRateBudgetHook,
+  checkWebhookSchedulerStart,
   checkRawStravaFetch,
   checkTestNames,
   checkTodos,
@@ -210,6 +211,45 @@ describe('checkConditionalGroupFilter', () => {
     assert.equal(errors.length, 2);
     assert.match(errors[0], /:2:/);
     assert.match(errors[1], /:4:/);
+  });
+});
+
+describe('checkWebhookSchedulerStart', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+  const prod = (inside) => `import x from 'x';\nserver.on('listening', () => {\n  if (process.env.NODE_ENV === 'production') {\n${inside}\n  } else {\n    logger.info('dev');\n  }\n});\n`;
+
+  it('passes when the call is directly in the production block', () => {
+    assert.deepEqual(checkWebhookSchedulerStart(server(prod('    startStravaScheduler();\n    startStravaWebhookScheduler();'))), []);
+    assert.deepEqual(checkWebhookSchedulerStart(server(prod("    logger.info('a { b');\n    startStravaWebhookScheduler()"))), []);
+  });
+
+  it('flags a server.ts where the start line is removed', () => {
+    const errors = checkWebhookSchedulerStart(server(prod('    startStravaScheduler();')));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: startStravaWebhookScheduler\(\) måste anropas direkt i produktionsblocket/);
+  });
+
+  it('flags a call outside the production block, in its else branch, in a nested callback, or only in a comment or string', () => {
+    const cases = [
+      "startStravaWebhookScheduler();\nif (process.env.NODE_ENV === 'production') {\n  startStravaScheduler();\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  startStravaScheduler();\n} else {\n  startStravaWebhookScheduler();\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  setTimeout(() => {\n    startStravaWebhookScheduler();\n  }, 1);\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  // startStravaWebhookScheduler();\n  /* startStravaWebhookScheduler(); */\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  logger.info('startStravaWebhookScheduler()');\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  startStravaWebhookSchedulerLater();\n  other.startStravaWebhookScheduler();\n}\n",
+    ];
+    for (const code of cases) assert.equal(checkWebhookSchedulerStart(server(code)).length, 1, code);
+  });
+
+  it('flags a server.ts without a production block', () => {
+    const errors = checkWebhookSchedulerStart(server('startStravaWebhookScheduler();\n'));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /saknar produktionsblocket/);
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkWebhookSchedulerStart([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkWebhookSchedulerStart([{ path: 'apps/one/src/a.ts', content: '' }]), []);
   });
 });
 
@@ -530,6 +570,33 @@ describe('CLI', () => {
       assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av registerStravaRateBudget/);
     }
     assert.equal(runCli('rate-budget-hook', makeBackend('hook-good', 'registerStravaRateBudget();\n')).status, 0);
+  });
+
+  it('exits 1 when server.ts does not start the webhook worker in the production block (also under all) and 0 once it does', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('webhook-bad', "registerStravaRateBudget();\nstartStravaWebhookScheduler();\nif (process.env.NODE_ENV === 'production') {\n  startStravaScheduler();\n}\n");
+    for (const mode of ['webhook-scheduler-start', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /startStravaWebhookScheduler\(\) måste anropas direkt i produktionsblocket/);
+    }
+    const good = makeBackend('webhook-good', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  startStravaWebhookScheduler();\n}\n");
+    assert.equal(runCli('webhook-scheduler-start', good).status, 0);
+  });
+
+  it('exits 0 on the current repo in webhook-scheduler-start mode', () => {
+    const result = runCli('webhook-scheduler-start');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /webhook-workern/);
   });
 
   it('exits 0 on the current repo in rate-budget-hook mode', () => {
