@@ -89,6 +89,12 @@ export interface RunStore {
    * can never be taken for "not paused".
    */
   getConnection(userId: string): Promise<StravaConnection | null>;
+  /**
+   * Deletes the user's Strava run for this activity (services/stravaRemoval.ts deleteStravaRuns: the ONE deletion query, always
+   * `source = 'strava'`, so a manual run is never touched). Only the delete: the recalculation is the worker's, from the date this
+   * returns (see stravaRemoval.ts). `removed` is false and `date` null when there was no such run. THROWS on a database error.
+   */
+  removeStravaRun(userId: string, externalId: string): Promise<{ removed: boolean; date: string | null }>;
 }
 
 /** A run a handler inserted, with what the steps after the import need: weather (the ImportedRun columns) and event qualification. */
