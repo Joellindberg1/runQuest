@@ -122,7 +122,7 @@ describe('temafilerna hänger ihop', () => {
       expect({ name, antal: found.length }).toEqual({ name, antal: 1 });
       return Number.parseFloat(found[0].value);
     };
-    for (const name of ['--rq-switch-row-min-h', '--rq-notify-link-hit']) {
+    for (const name of ['--rq-switch-row-min-h', '--rq-notify-link-hit', '--rq-settings-dialog-hit']) {
       expect(px(name, false)).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
       expect(px(name, true)).toBeGreaterThanOrEqual(MIN_POINTER_TARGET_PX);
     }

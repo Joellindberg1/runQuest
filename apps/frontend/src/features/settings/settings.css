@@ -15,6 +15,9 @@
 .rq-settings-card { display: flex; flex-direction: column; gap: var(--rq-sp-14); min-width: 0; --rq-form-gap: var(--rq-sp-14); }
 .rq-settings-card[data-tone="up"] { --rq-edge: var(--rq-up); --rq-edge-line: rgb(var(--rq-up-rgb) / var(--rq-edge-status)); }
 .rq-settings-card[data-tone="down"] { --rq-edge: var(--rq-down); --rq-edge-line: rgb(var(--rq-down-rgb) / var(--rq-edge-status)); }
+/* Pausad synk: neutral bläcktoning, aldrig silver (silver = placering 2; Stylelint förbjuder silvertokens i den här filen), aldrig grön eller röd. */
+.rq-settings-card[data-tone="paused"] { --rq-edge: var(--rq-line-6); --rq-edge-line: rgb(var(--rq-ink-rgb) / var(--rq-edge-status)); }
+.rq-chip--paused { --rq-c: var(--rq-ink-rgb); --rq-c-solid: var(--rq-text-2); }
 .rq-settings-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--rq-sp-16); flex-wrap: wrap; }
 .rq-settings-card__intro { min-width: 0; flex: 1 1 auto; }
 .rq-settings-card__title { margin: 0; font-weight: 400; }
@@ -28,6 +31,7 @@
 .rq-settings-meta__value { margin: var(--rq-sp-2) 0 0; font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); }
 .rq-settings-meta__value[data-tone="up"] { color: var(--rq-up); }
 .rq-settings-meta__value[data-tone="muted"] { color: var(--rq-text-3); }
+.rq-settings-meta__value[data-tone="paused"] { color: var(--rq-text-2); }
 
 .rq-settings-rules { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-6); }
 .rq-settings-rule { display: flex; align-items: flex-start; gap: var(--rq-sp-10); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }

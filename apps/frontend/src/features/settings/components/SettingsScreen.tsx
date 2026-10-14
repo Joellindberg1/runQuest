@@ -4,10 +4,11 @@ import { useAuth } from '@/providers/authContext';
 import { STRAVA_RUN_TYPES_LABEL } from '@/features/playbook/playbookFacts';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
+import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useStravaActions } from '../hooks/useStravaActions';
 import { useStravaData } from '../hooks/useStravaData';
 import '../settings.css';
-import { buildStravaCard, buildSyncRow } from '../settingsModel';
+import { buildStravaCard, buildSyncRow, countStravaRuns, isLiveConnection } from '../settingsModel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { PasswordCard } from './PasswordCard';
 import { StravaCard } from './StravaCard';
@@ -32,6 +33,12 @@ export function SettingsScreen() {
   const syncRow = useMemo(() => buildSyncRow(sync.data), [sync.data]);
   const actions = useStravaActions({ clientId: config.data });
 
+  // Bortkopplingens bekräftelse säger hur många Stravarundor som raderas. Siffran räknas ur appens egna rundor (samma `users-with-runs` som
+  // skalet och Profile delar) och hämtas bara för en levande koppling. Är rundorna inte lästa (laddar eller felade) är antalet null och knappen
+  // lovar "all Strava runs" i stället för en siffra, aldrig 0.
+  const usersQuery = useUsersWithRuns(!!user && card !== null && isLiveConnection(card.state));
+  const stravaRuns = countStravaRuns(usersQuery.data?.find((candidate) => candidate.id === user?.id)?.runs);
+
   let strava;
   if (card) {
     strava = (
@@ -41,6 +48,15 @@ export function SettingsScreen() {
         syncing={actions.syncing}
         status={actions.status}
         error={actions.error}
+        connection={{
+          stravaRuns,
+          busy: actions.connectionBusy,
+          error: actions.connectionError,
+          onPause: actions.pause,
+          onResume: actions.resume,
+          onDisconnect: actions.disconnect,
+          onClearError: actions.clearConnectionError,
+        }}
         onConnect={(agreed) => void actions.connect(agreed)}
         onSync={() => void actions.sync()}
       />
