@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import postcss, { type Rule } from 'postcss';
 import { describe, expect, it } from 'vitest';
 
 // Designreglerna för Pack News (tokens, skarpa hörn, ikoner, inga emojis, rörelse, aldrig --rq-text-5, att CSS-måtten finns i temafilen)
@@ -29,10 +30,59 @@ describe('Pack News — läsbar text och scrollcontainer', () => {
     expect(code.match(/\.rq-news-day__label\s*\{([^}]*)\}/)?.[1]).toMatch(/color:\s*var\(--rq-text-eyebrow\)/);
   });
 
-  it('chip-radens scrollcontainer är positionerad: sr-only-spans (position:absolute) annars läcker ut och ger sidled scroll på mobil', () => {
+  it('chip-raden behåller position relative (sju chips scrollar inte sidan)', () => {
+    // Chip-radens scrollcontainer är positionerad: sr-only-spans (position:absolute) läcker annars ut och ger sidled scroll på mobil.
     const rule = stripComments(css).match(/\.rq-news-filter__list\s*\{([^}]*)\}/)?.[1] ?? '';
     expect(rule).toMatch(/position:\s*relative/);
     expect(rule).toMatch(/overflow-x:\s*auto/);
+  });
+});
+
+// Ranks är en egen blå kategori (ägarbeslut 3, undantag från designregel 10): tokens ur temafilen, strikt skilda från minor-nivåns blå och badge-serierna.
+// Temafilen finns i två exemplar; synktestet kräver identiska rader, den här vakten kräver att rank-tokenarna finns och är egna värden.
+const THEME_PATHS = { 'index.css': '../../index.css', 'temafil-forslag.css': '../../../../../docs/design/temafil-forslag.css' };
+
+/** Färgen som "r g b" så att en hex, en triplett och rgb(r g b / a) kan jämföras: samma blå under två namn är det vakten förbjuder. */
+function colorKey(value: string): string | null {
+  const hex = value.trim().match(/^#([0-9a-f]{6})$/i)?.[1];
+  if (hex) return [0, 2, 4].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)).join(' ');
+  const triplet = value.trim().match(/^(?:rgb\()?(\d{1,3}) (\d{1,3}) (\d{1,3})(?:\s*\/[^)]*)?\)?$/);
+  return triplet ? `${triplet[1]} ${triplet[2]} ${triplet[3]}` : null;
+}
+
+function darkTokens(theme: string): Map<string, string> {
+  const found = new Map<string, string>();
+  postcss.parse(theme).walkDecls((decl) => {
+    const inLight = decl.parent?.type === 'rule' && (decl.parent as Rule).selector.includes('light');
+    const inMedia = decl.parent?.parent?.type === 'atrule';
+    if (decl.prop.startsWith('--rq-') && !inLight && !inMedia) found.set(decl.prop, decl.value.replace(/\s+/g, ' ').trim());
+  });
+  return found;
+}
+
+describe('Pack News — Ranks-färgen', () => {
+  it('rank-tokenarna (--rq-news-rank*) finns i både index.css och temafil-forslag.css och återanvänder inte tier- eller badge-tokens', () => {
+    const perFile = Object.entries(THEME_PATHS).map(([file, path]) => ({ file, tokens: darkTokens(readFromDisk(path)) }));
+    for (const { file, tokens } of perFile) {
+      const rank = [...tokens].filter(([name]) => name.startsWith('--rq-news-rank'));
+      expect({ file, names: rank.map(([name]) => name).sort() }).toEqual({ file, names: ['--rq-news-rank-ink', '--rq-news-rank-rgb'] });
+
+      // Ingen alias (var(--rq-tier-…), var(--rq-badge-…)) och inget värde som minor-nivåns eller en badge-serie har: egna värden, egen roll.
+      const reserved = new Set([...tokens].filter(([name]) => /^--rq-(tier-minor|badge-)/.test(name)).flatMap(([, value]) => colorKey(value) ?? []));
+      expect(reserved.size).toBeGreaterThan(3); // en tom jämförelse vore ett tyst godkännande
+      for (const [name, value] of rank) {
+        expect({ file, name, alias: /var\(\s*--rq-(tier|badge)/.test(value) }).toEqual({ file, name, alias: false });
+        expect({ file, name, key: colorKey(value) }).toEqual({ file, name, key: expect.any(String) });
+        expect({ file, name, delasMedTierEllerBadge: reserved.has(colorKey(value) ?? '') }).toEqual({ file, name, delasMedTierEllerBadge: false });
+      }
+    }
+  });
+
+  it('kategorin rank i news.css läser rank-tokenarna: kanten och tinten ur -rgb, texten, ikonen och pricken ur -ink', () => {
+    const rule = stripComments(css).match(/\[data-category="rank"\]\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(rule).toMatch(/--rq-c:\s*var\(--rq-news-rank-rgb\)/);
+    expect(rule).toMatch(/--rq-c-edge:\s*var\(--rq-news-rank-rgb\)/);
+    expect(rule).toMatch(/--rq-c-solid:\s*var\(--rq-news-rank-ink\)/);
   });
 });
 

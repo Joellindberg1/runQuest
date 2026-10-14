@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BADGE_SERIES, TIER_NAMES, type NewsItem } from '@runquest/shared';
 import { POINTER_SETTLE_MS, READ_FLUSH_MS, buildNewsRow, type NewsContext } from '../newsModel';
-import { KARL, ME, NOW, NOW_ISO, at, badgeEarned, item, levelUp, newsServer, releasePublished, titleTaken } from '../news.fixture';
+import { ADAM, KARL, ME, NICK, NOW, NOW_ISO, at, badgeEarned, challengeAccepted, item, levelUp, newsServer, rankPassed, releasePublished, titleTaken } from '../news.fixture';
+import { RQIcon } from '@/shared/components/icons';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import '@/test/pointerEvent';
@@ -95,6 +96,82 @@ describe('NewsRow — release_published', () => {
     renderRow(buildNewsRow(releasePublished(1), ctx));
     expect(screen.queryByRole('link')).toBeNull();
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+});
+
+// ─── rank_passed och challenge_accepted (frame N3) ───────────────────────────────────────────────────────
+
+const iconMarkup = (name: 'trophy' | 'swords') => render(<RQIcon name={name} size={17} />).container.innerHTML;
+const iconCellOf = (li: HTMLElement) => li.querySelector('.rq-news-row__icon') as HTMLElement;
+
+describe('NewsRow — rank_passed och challenge_accepted', () => {
+  it('rank_passed ritas med rank-kategorins ikon och kant och rätt text för passerad, passerare och utomstående', () => {
+    const trophy = iconMarkup('trophy');
+    cleanup();
+    const cases = [
+      { label: 'passerad', row: rankPassed(1), kind: 'Passed you', text: 'Karl passed you on the leaderboard', place: "You're #3", spoken: 'You are now number 3' },
+      { label: 'passerare', row: rankPassed(2, { actor: ME, target: KARL }), kind: 'You passed', text: 'You passed Karl on the leaderboard', place: "You're #2", spoken: 'You are now number 2' },
+      { label: 'utomstående', row: rankPassed(3, { actor: ADAM, target: NICK }, { passer_rank: 4 }), kind: 'Rank passed', text: 'Adam passed Nicklas on the leaderboard', place: 'Adam #4', spoken: 'Adam is now number 4' },
+      {
+        label: 'poängtabellen', row: rankPassed(4, {}, { measure: 'challenge_points', passer_rank: 1, passed_rank: 2 }), kind: 'Passed you',
+        text: 'Karl passed you on the challenge standings', place: "You're #2", spoken: 'You are now number 2',
+      },
+    ];
+    for (const { label, row, kind, text, place, spoken } of cases) {
+      const { container, unmount } = renderRow(buildNewsRow(row, ctx));
+      const li = container.querySelector('.rq-news-row') as HTMLElement;
+      // Kategorins kant och ikon: raden bär kategorin rank och ritar pokalen, inte utmaningarnas svärd.
+      expect({ label, category: li.getAttribute('data-category') }).toEqual({ label, category: 'rank' });
+      expect({ label, icon: iconCellOf(li).innerHTML }).toEqual({ label, icon: trophy });
+      expect({ label, kind: within(li).getByText(kind).textContent }).toEqual({ label, kind });
+      // Texten är meningen utan placering; placeringen står i brickan och läses som en hel mening i radens namn.
+      const button = within(li).getByRole('button');
+      expect(button).toHaveAccessibleName(new RegExp(`${text}\\s+${spoken}$`));
+      expect(within(li).getByText(place)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('rank_passed visar placeringen som en bricka och pokalikonen är aria-hidden', () => {
+    const { container } = renderRow(buildNewsRow(rankPassed(1), ctx));
+    const li = container.querySelector('.rq-news-row') as HTMLElement;
+    const button = within(li).getByRole('button');
+
+    // Pokalen är dekoration: aria-hidden och utan namn.
+    const icon = iconCellOf(li).querySelector('svg') as SVGElement;
+    expect(icon).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('img')).toBeNull();
+
+    // Brickan: den korta formen ritas men läses inte (aria-hidden), en tydlig mening läses i stället, och bara en gång.
+    const badge = within(li).getByText("You're #3");
+    expect(badge.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(button).not.toHaveAccessibleName(/You're #3/);
+    expect(button.textContent?.match(/You are now number 3/g)).toHaveLength(1);
+    // Ingen "— now #N" kvar i meningen.
+    expect(button).not.toHaveAccessibleName(/now #/);
+    expect(within(li).getByText('Karl passed you on the leaderboard', { exact: false }).textContent).not.toMatch(/—/);
+  });
+
+  it('en rank_passed-rad utan giltig rang ritas utan bricka och utan att kvarlämna några ord', () => {
+    for (const passed_rank of [0, 2.5, '3']) {
+      const { container, unmount } = renderRow(buildNewsRow(rankPassed(1, {}, { passed_rank: passed_rank as never }), ctx));
+      const button = within(container).getByRole('button');
+      expect({ passed_rank, name: button.textContent }).toEqual({ passed_rank, name: expect.not.stringMatching(/#|number|undefined|NaN/) });
+      unmount();
+    }
+  });
+
+  it('challenge_accepted ritas under Challenges-kategorin', () => {
+    const swords = iconMarkup('swords');
+    cleanup();
+    const { container } = renderRow(buildNewsRow(challengeAccepted(1), ctx));
+    const li = container.querySelector('.rq-news-row') as HTMLElement;
+    expect(li).toHaveAttribute('data-category', 'challenge');
+    expect(iconCellOf(li).innerHTML).toBe(swords);
+    expect(within(li).getByText('Challenge accepted')).toBeInTheDocument();
+    expect(within(li).getByRole('button')).toHaveAccessibleName(/Karl accepted your challenge — it starts tomorrow$/);
+    // Ingen placeringsbricka på en utmaningsrad.
+    expect(li.textContent).not.toMatch(/#|number/);
   });
 });
 

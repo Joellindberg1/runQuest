@@ -9,7 +9,9 @@
 [data-category="title"]     { --rq-c: var(--rq-gold-rgb);      --rq-c-edge: var(--rq-gold-rgb); --rq-c-solid: var(--rq-gold-text); }
 [data-category="challenge"] { --rq-c: var(--rq-duel-base-rgb); --rq-c-edge: var(--rq-duel-rgb); --rq-c-solid: var(--rq-duel); }  /* tint/kant på base (#f97316), text på duel (#fdba74) */
 [data-category="level"]     { --rq-c: var(--rq-up-rgb);        --rq-c-edge: var(--rq-up-rgb);   --rq-c-solid: var(--rq-up); }
-[data-category="event"]     { --rq-c: var(--rq-ink-rgb);       --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }
+/* Ranks (frame N3): blå, egna tokens (--rq-news-rank*, temafilen 1.28), inte minor-nivåns blå. "Passed you" är samma blå, inte röd: en förlorad utmaning är en förlust, en passering är en nyhet. */
+[data-category="rank"]      { --rq-c: var(--rq-news-rank-rgb); --rq-c-edge: var(--rq-news-rank-rgb); --rq-c-solid: var(--rq-news-rank-ink); }
+[data-category="event"]     { --rq-c: var(--rq-ink-rgb);      --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }
 [data-category="release"]   { --rq-c: var(--rq-ink-rgb);       --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }  /* som event: ink, inga nya färger (RUN-161) */
 [data-category="streak"]    { --rq-c: var(--rq-down-rgb);      --rq-c-edge: var(--rq-down-rgb); --rq-c-solid: var(--rq-down); }
 /* Popoverns prick och typrad: en förlorad utmaning är röd (Web Prototypens popover), annars kategorins färg */
@@ -81,6 +83,14 @@
 .rq-news-row[data-unread] .rq-news-row__time { color: var(--rq-text-2); }
 .rq-news-row[data-unread] .rq-news-row__text { font-weight: 500; }
 
+/* Placeringsbrickan på en rank_passed-rad ("You're #3", "Karl #2"; ägarbeslut 3): mono, hårlinje, ingen egen färg. Samma vikt läst och oläst:
+   en oläst passering ska inte väga tyngre än andra olästa rader (texten runt får 500 när den är oläst, brickan behåller 400). Skarpa hörn. */
+.rq-news-place {
+  display: inline-block; margin-left: var(--rq-sp-8); padding: 0 var(--rq-sp-6); white-space: nowrap;
+  border: var(--rq-hair) solid var(--rq-line-4);
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); font-weight: 400; letter-spacing: 0; line-height: var(--rq-lh-body); color: var(--rq-text-2);
+}
+
 .rq-news-more { display: flex; justify-content: center; padding-top: var(--rq-sp-4); }
 
 /* ── Filter: chip-rad (mobil) · kort med lodrät lista (desktop, Web Prototype) ── */
@@ -91,6 +101,7 @@
 .rq-news-filter__list { position: relative; display: flex; flex-direction: var(--rq-news-filter-dir); gap: var(--rq-news-filter-gap); overflow-x: auto; scroll-snap-type: x proximity; }
 .rq-news-filter__item {
   display: inline-flex; align-items: center; gap: var(--rq-sp-8); flex: 0 0 auto; scroll-snap-align: start; white-space: nowrap; cursor: pointer;
+  box-sizing: border-box; min-height: var(--rq-news-filter-hit);  /* mobil 44 px (sju chips); desktop 0 */
   background: none; border: var(--rq-hair) solid var(--rq-line-4); padding: var(--rq-sp-6) var(--rq-sp-12);
   font-family: var(--rq-font-ui); font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3);
 }

@@ -599,7 +599,14 @@
   --rq-focus-inset: -2px;                                             /* fokusringen INNANFÖR raden (hårlinjegriden och popoverns scroll klipper en yttre ring) */
   --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
   --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
-  --rq-news-badge: 14px;                                              /* oläst-räknaren på klockan (desktop 15) */
+  /* Kategorin Ranks (RUN-195, ägarbeslut 3): blå. ÄGARUNDANTAG från designregel 10 (färg = betydelse, dokumenteras i designsprak-forslag.md av RUN-254): sex kategorier
+     bär redan guld, orange, grönt, rött och två neutrala; silver är rang 2 och guld är rang 1 och belöning. Egna värden, STRIKT skilda från
+     --rq-tier-minor* och --rq-badge-* (inga alias, inga delade värden; vakt i features/news/guards.test.ts), så att minor-nivån och badge-serierna kan ändras utan att Ranks följer med.
+     -rgb = tint och kant (med alfa), -ink = text, ikon och prick. Kontrast mot kort och rad (≈ #181818/#0f0f0f): ink ≥ 10:1, kanten (alfa .6) ≥ 3.7:1. Ljust läge: samma roller i mörkare blått. */
+  --rq-news-rank-rgb: 56 189 248;
+  --rq-news-rank-ink: #7dd3fc;
+  --rq-news-filter-hit: 44px;                                         /* /news mobil: chipen är knappar med minst 44 px träffyta (sju i en scrollande rad); desktop 0 (raderna är redan 8 px luft + text) */
+  --rq-news-badge: 14px;                                             /* oläst-räknaren på klockan (desktop 15) */
   /* ── 1.29 Login-mått (inkrement 11) ────────────────────────────────────────
      Inloggningen är en popup (.rq-modal) ovanpå Landing (RUN-145) — Landingens glöd och logotyp ligger bakom scrimmen. Endast mått:
      dialogens bredd (krymper till 95 % av skärmen). Samma mått på alla bredder.
@@ -972,6 +979,7 @@
     --rq-news-row-pad-x: 16px;
     --rq-news-row-icon-badge-w: 34px;
     --rq-news-badge: 15px;
+    --rq-news-filter-hit: 0px;
     --rq-landing-film-play-box: 92px;
     --rq-landing-film-glyph-w: 30px;
     --rq-landing-film-glyph-h: 34px;
@@ -1084,6 +1092,8 @@
 
   --rq-tier-minor-fg:     #1d4ed8;
   --rq-tier-minor-stroke: rgb(29 78 216 / .80);
+  --rq-news-rank-rgb:     3 105 161;                    /* Ranks (1.28): mörkare blått, ink 5.9:1 mot vitt kort; ljust läge är ännu inte granskat */
+  --rq-news-rank-ink:     #0369a1;
   --rq-tier-major-fg:     #c2410c;
   --rq-tier-major-stroke: rgb(194 65 12 / .85);
   --rq-tier-legendary-rgb: 205 127 50;

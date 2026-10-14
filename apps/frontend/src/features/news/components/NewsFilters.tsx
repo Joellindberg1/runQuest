@@ -1,3 +1,4 @@
+import type { FocusEvent } from 'react';
 import { RQIcon } from '@/shared/components/icons';
 import { NEWS_FILTERS, CATEGORY_ICON, type NewsFilterKey } from '../newsModel';
 
@@ -17,7 +18,16 @@ interface NewsFiltersProps {
 }
 
 /**
- * Filtret över `?type=`: Titles · Challenges · Ranks · Events · Levels · Badges · Streaks, flera kan vara valda (inget valt = allt). Samma knappar är
+ * Ett fokuserat chip hamnar helt i bild i den scrollande raden (mobil): sju chips är bredare än skärmen, så ett chip som nås med tangentbordet
+ * eller skärmläsaren kan annars stå utanför. `nearest` rör ingenting när chipet redan syns, och inget `behavior` anges: webbläsaren följer då
+ * sidans `scroll-behavior` och användarens reducerade rörelse i stället för att tvinga fram en mjuk scroll.
+ */
+const scrollChipIntoView = (event: FocusEvent<HTMLButtonElement>) => {
+  event.currentTarget.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+};
+
+/**
+ * Filtret över `?type=`: Titles · Challenges · Ranks · Events · Levels · Badges · Streaks (sju chips ur `NEWS_FILTERS`), flera kan vara valda (inget valt = allt). Samma knappar är
  * en chip-rad på mobil och ett kort med lodrät lista på desktop (Web Prototypen) — bara CSS skiljer. Räknaren är antal rader i det
  * laddade fönstret (ADR 008). Valt = `aria-pressed`, med kategorins färg.
  * "Involves me" (frame N5) är en egen knapp ovanför listan: första raden i kortet på desktop, en egen rad ovanför den scrollande chip-raden på mobil,
@@ -57,6 +67,7 @@ export function NewsFilters({ selected, counts, loaded, onToggle, involves, invo
             title={`${counts[filter.key]} in the latest ${loaded}`}
             aria-pressed={selected.includes(filter.key)}
             onClick={() => onToggle(filter.key)}
+            onFocus={scrollChipIntoView}
           >
             <span className="rq-news-filter__name">
               <span className="rq-news-filter__icon"><RQIcon name={filter.icon ?? CATEGORY_ICON[filter.category]} size={ICON_FILTER} /></span>
