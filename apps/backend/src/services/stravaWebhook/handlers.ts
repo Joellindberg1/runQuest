@@ -12,9 +12,11 @@ import { webhookHandlerKey, type HandlerRegistry } from '../stravaWebhookWorker.
 import { createActivityCreateHandler } from './handlers/activityCreate.js';
 import { createActivityDeleteHandler } from './handlers/activityDelete.js';
 import { createActivityUpdateHandler } from './handlers/activityUpdate.js';
+import { createAthleteDeauthorizeHandler } from './handlers/athleteDeauthorize.js';
 
 export const STRAVA_WEBHOOK_HANDLERS: HandlerRegistry = {
   [webhookHandlerKey('activity', 'create')]: createActivityCreateHandler(),
   [webhookHandlerKey('activity', 'update')]: createActivityUpdateHandler(),
   [webhookHandlerKey('activity', 'delete')]: createActivityDeleteHandler(),
+  [webhookHandlerKey('athlete', 'update')]: createAthleteDeauthorizeHandler(),
 };
