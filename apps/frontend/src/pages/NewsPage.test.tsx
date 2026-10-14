@@ -4,7 +4,7 @@ import { Route, Routes } from 'react-router-dom';
 import type { NewsItem } from '@runquest/shared';
 import NewsPage from './NewsPage';
 import { RQ_ICON_PATHS } from '@/shared/components/icons';
-import { TOUR_NEWS_V1 } from '@/features/onboarding/featureTourSteps';
+import { TOUR_NEWS_V2 } from '@/features/onboarding/featureTourSteps';
 import { NEWS_FILTERS } from '@/features/news/newsModel';
 import { ADAM, DAN, ME, NICK, NOW_ISO, at, badgeEarned, challengeWon, eventOpen, item, levelUp, newsServer, streakBroken, titleTaken } from '@/features/news/news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
@@ -13,7 +13,9 @@ import { renderWithApp } from '@/test/renderApp';
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turen startar driver.js efter en timer; ankar-vakten nedan kollar DOM:en i stället.
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({
-  FeatureTour: ({ slug, steps }: { slug: string; steps: unknown[] }) => <div data-testid="feature-tour" data-slug={slug} data-steps={steps.length} />,
+  FeatureTour: ({ slug, steps }: { slug: string; steps: { element?: string }[] }) => (
+    <div data-testid="feature-tour" data-slug={slug} data-steps={steps.length} data-anchors={steps.map((step) => step.element ?? '').join('|')} />
+  ),
 }));
 
 const MOBILE = 390;
@@ -364,39 +366,41 @@ describe('Pack News — laddning, tomt och fel', () => {
 });
 
 describe('Pack News — tour', () => {
-  it('tomt flöde (prod före backfill): ingen tour monteras — den skulle bli flytande rutor över en tom skärm och ändå markeras sedd', async () => {
+  // Tomt flöde (prod före backfill): stegen skulle bli flytande rutor över en tom skärm, och slugen markeras ändå sedd för alltid.
+  it('turen startar inte när flödet är tomt', async () => {
     setup([]);
     renderNews();
     await screen.findByRole('heading', { name: 'No news yet — go make some' });
     expect(screen.queryByTestId('feature-tour')).toBeNull();
   });
 
-  it('mark-read-steget finns bara när något är oläst (4 steg med oläst, 3 utan)', async () => {
-    renderNews();
-    await screen.findByText('7 unread');
-    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', '4');
-  });
+  it('mark-read-steget visas bara när något är oläst', async () => {
+    const markReadStep = '[data-tour="news-mark-read"]';
+    const anchors = () => screen.getByTestId('feature-tour').getAttribute('data-anchors')?.split('|') ?? [];
 
-  it('inget oläst: turen har tre steg', async () => {
+    const withUnread = renderNews();
+    await screen.findByText('7 unread');
+    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', String(TOUR_NEWS_V2.length));
+    expect(anchors()).toContain(markReadStep);
+    withUnread.unmount();
+
     setup(FEED(), 20);
     renderNews();
     await screen.findByText('All caught up');
-    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', '3');
+    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', String(TOUR_NEWS_V2.length - 1));
+    expect(anchors()).not.toContain(markReadStep);
   });
 
-  it("filtersteget nämner alla sex slag, inklusive badges", () => {
-    const step = TOUR_NEWS_V1.find((candidate) => candidate.element === '[data-tour="news-filter"]');
-    expect(step?.description).toContain("titles, challenges, events, levels, badges or streaks");
-  });
-
-  it('turen är tour_news_v1 och ankarna finns i sidan (mobil och desktop)', async () => {
+  it('turen är tour_news_v2 och ankarna news-feed, news-filter, news-settings och news-mark-read finns i sidan (mobil och desktop)', async () => {
     for (const width of [MOBILE, DESKTOP]) {
       const view = renderNews('/news', width);
       await screen.findByText('7 unread');
-      expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-slug', 'tour_news_v1');
-      const anchors = TOUR_NEWS_V1.flatMap((step) => (step.element ? [step.element] : []));
-      expect(anchors.length).toBe(3);
+      expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-slug', 'tour_news_v2');
+      const anchors = TOUR_NEWS_V2.flatMap((step) => (step.element ? [step.element] : []));
+      expect(anchors).toEqual(['[data-tour="news-feed"]', '[data-tour="news-filter"]', '[data-tour="news-settings"]', '[data-tour="news-mark-read"]']);
       for (const selector of anchors) expect(document.querySelector(selector), selector).not.toBeNull();
+      // Exakt ett inställningsankare: kortet i kolumnen på desktop, kugghjulsknappen på mobil — aldrig båda.
+      expect(document.querySelectorAll('[data-tour="news-settings"]')).toHaveLength(1);
       view.unmount();
     }
   });
