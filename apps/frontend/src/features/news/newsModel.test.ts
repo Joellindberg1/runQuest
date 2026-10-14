@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { logger } from '@/shared/utils/logger';
 import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, type ActivityType, type NewsItem } from '@runquest/shared';
 import {
   CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, countByFilter, dedupeById, describeNews,
+  POINTER_SETTLE_MS, READ_DWELL_MS, READ_FLUSH_MS, createReadBatcher, markReadInFeed, markUnreadInFeed,
   feedFromPage, formatAgo, fullTime, gapCursor, groupByDay, isUnread, markSeenInFeed, mergeNewer, parseFilterParam, serializeFilterParam,
   replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
 } from './newsModel';
@@ -179,6 +180,99 @@ describe('flödet: dedupe, kursor och sammanslagning', () => {
     expect(next.items.map((row) => row.is_unread)).toEqual([true, false, false]);
     expect(next.meta).toMatchObject({ unread_count: 1, last_seen_id: 10 });
     expect(markSeenInFeed(feed, 5, 2).meta.last_seen_id).toBe(8);
+  });
+});
+
+describe('läst per rad', () => {
+  const unread = (id: number) => ({ ...levelUp(id, id), is_unread: true });
+  const unreadFeed = () => ({ items: [unread(12), unread(11), levelUp(10, 10), unread(9)], meta: meta({ unread_count: 3, last_seen_id: 4 }) });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('markReadInFeed flippar bara olästa rader i ids och minskar räknaren med antalet flippade', () => {
+    const feed = unreadFeed();
+    // 10 är redan läst och 99 finns inte i flödet: ingen av dem räknas som flippad.
+    const next = markReadInFeed(feed, [11, 10, 99]);
+    expect(next.items.map((row) => row.is_unread)).toEqual([true, false, false, true]);
+    expect(next.meta.unread_count).toBe(2);
+    // Vattenmärket rörs aldrig av en enskild kvittering.
+    expect(next.meta.last_seen_id).toBe(4);
+    // Indata muteras inte.
+    expect(feed.items[1].is_unread).toBe(true);
+    expect(feed.meta.unread_count).toBe(3);
+  });
+
+  it('markReadInFeed sänker aldrig räknaren under noll och rör inte andra rader', () => {
+    const drained = { items: unreadFeed().items, meta: meta({ unread_count: 1 }) };
+    const next = markReadInFeed(drained, [12, 11, 9]);
+    expect(next.meta.unread_count).toBe(0);
+    expect(next.items[2]).toBe(drained.items[2]);
+    // Ingen flippad rad: samma flöde tillbaka, räknaren orörd.
+    expect(markReadInFeed(drained, [10])).toBe(drained);
+    // Serverns räknare skriver över den lokala (och en tom id-lista flippar inget).
+    const overwritten = markReadInFeed(unreadFeed(), [12], 7);
+    expect(overwritten.meta.unread_count).toBe(7);
+    expect(overwritten.items.map((row) => row.is_unread)).toEqual([false, true, false, true]);
+    expect(markReadInFeed(unreadFeed(), [], 5).meta.unread_count).toBe(5);
+  });
+
+  it('markUnreadInFeed återställer bara de givna lästa raderna och sätter räknaren till det angivna värdet', () => {
+    const read = markReadInFeed(unreadFeed(), [12, 9]);
+    const restored = markUnreadInFeed(read, [12], 2);
+    expect(restored.items.map((row) => row.is_unread)).toEqual([true, true, false, false]);
+    expect(restored.meta.unread_count).toBe(2);
+    expect(markUnreadInFeed(read, [999], 1).items).toEqual(read.items);
+  });
+
+  it('READ_DWELL_MS är 0 och READ_FLUSH_MS är 300', () => {
+    expect(READ_DWELL_MS).toBe(0);
+    expect(READ_FLUSH_MS).toBe(300);
+    // Rörelsevakten efter montering är en egen sak (ADR 011 addendum 2026-10-14), inte väntetiden efter en giltig hover.
+    expect(POINTER_SETTLE_MS).toBe(150);
+  });
+
+  it('läs-bunten tömmer efter READ_FLUSH_MS, vid flush och delar upp mer än 50 id', () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const batcher = createReadBatcher(send);
+
+    // Tidsfönstret: id:n buntas, dubbletter slås ihop, och inget skickas före READ_FLUSH_MS.
+    batcher.add(3);
+    batcher.add(4);
+    batcher.add(3);
+    vi.advanceTimersByTime(READ_FLUSH_MS - 1);
+    expect(send).not.toHaveBeenCalled();
+    expect(batcher.hasPending()).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenLastCalledWith([3, 4]);
+    expect(batcher.hasPending()).toBe(false);
+
+    // Fönstret startar vid första id:t och förlängs inte av fler (högst var 300 ms).
+    batcher.add(5);
+    vi.advanceTimersByTime(200);
+    batcher.add(6);
+    vi.advanceTimersByTime(100);
+    expect(send).toHaveBeenLastCalledWith([5, 6]);
+
+    // flush() skickar direkt och avbryter timern (inget andra anrop senare); en tom flush skickar ingenting.
+    send.mockClear();
+    batcher.add(7);
+    batcher.flush();
+    expect(send).toHaveBeenCalledWith([7]);
+    batcher.flush();
+    vi.advanceTimersByTime(READ_FLUSH_MS * 2);
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // Högst 50 id per anrop, i insättningsordning.
+    send.mockClear();
+    for (let id = 1; id <= 120; id += 1) batcher.add(id);
+    batcher.flush();
+    expect(send.mock.calls.map(([ids]) => ids.length)).toEqual([50, 50, 20]);
+    expect(send.mock.calls[0][0][0]).toBe(1);
+    expect(send.mock.calls[2][0].at(-1)).toBe(120);
   });
 });
 

@@ -214,6 +214,82 @@ export function markSeenInFeed(feed: NewsFeed, upToId: number, unreadCount: numb
   };
 }
 
+// ─── Läst per rad (ADR 011 beslut 4 och addendum 2026-10-14) ────────────────
+// Datalagret exponerar bara `markRead(id)`. Gesterna (hover efter rörelse, tap, Enter/Space) hör till vyerna och använder
+// konstanterna härifrån i stället för egna siffror.
+
+/** Väntetiden EFTER en giltig hover innan raden räknas som läst. 0 = direkt; en dröjsmålsregel kan införas utan omdesign. */
+export const READ_DWELL_MS = 0;
+/** Fönstret efter att listan monterats där `pointerenter` ignoreras, så att en vilande pekare inte markerar raden (något annat än READ_DWELL_MS). */
+export const POINTER_SETTLE_MS = 150;
+/** Kvitteringarna buntas: högst så här länge väntar nätverksanropet efter det första id:t. UI:t väntar aldrig. */
+export const READ_FLUSH_MS = 300;
+/** Serverns tak per POST /news/read (1–50 unika id:n). */
+export const READ_BATCH_MAX = 50;
+
+/**
+ * Kvittera enskilda rader lokalt: bara olästa rader vars id står i `ids` flippas, och räknaren minskar med antalet flippade (aldrig
+ * under noll). `unreadCount` (serverns svar) skriver i stället över räknaren. Ingen flippad rad och ingen ny räknare → samma flöde tillbaka.
+ * Vattenmärket (`last_seen_id`) rörs inte: det är "Mark all read":s.
+ */
+export function markReadInFeed(feed: NewsFeed, ids: readonly number[], unreadCount?: number): NewsFeed {
+  return setReadInFeed(feed, ids, true, unreadCount);
+}
+
+/** Omvändningen av markReadInFeed, för att återställa ett misslyckat anrop: lästa rader i `ids` blir olästa, räknaren sätts till `unreadCount`. */
+export function markUnreadInFeed(feed: NewsFeed, ids: readonly number[], unreadCount: number): NewsFeed {
+  return setReadInFeed(feed, ids, false, unreadCount);
+}
+
+function setReadInFeed(feed: NewsFeed, ids: readonly number[], read: boolean, unreadCount: number | undefined): NewsFeed {
+  const wanted = new Set(ids);
+  let flipped = 0;
+  const items = feed.items.map((row) => {
+    if (!wanted.has(row.id) || row.is_unread === !read || row.is_backfill) return row;
+    flipped += 1;
+    return { ...row, is_unread: !read };
+  });
+  const count = unreadCount ?? Math.max(0, feed.meta.unread_count - flipped);
+  if (flipped === 0 && count === feed.meta.unread_count) return feed;
+  return { items: flipped === 0 ? feed.items : items, meta: { ...feed.meta, unread_count: count } };
+}
+
+export interface ReadBatcher {
+  /** Köa ett id (dubbletter slås ihop). Det första id:t startar fönstret; fler förlänger det inte. */
+  add: (id: number) => void;
+  /** Skicka allt köat direkt (avmontering) och avbryt timern. */
+  flush: () => void;
+  hasPending: () => boolean;
+}
+
+/**
+ * Ren buntning av läs-id:n (ingen React): `send` anropas efter READ_FLUSH_MS eller vid `flush()`, med högst READ_BATCH_MAX id per anrop
+ * (fler delas upp i flera anrop, i insättningsordning). Feltolkning av svaren är anroparens sak.
+ */
+export function createReadBatcher(send: (ids: number[]) => void, flushMs: number = READ_FLUSH_MS): ReadBatcher {
+  const queued = new Set<number>();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const flush = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    const all = [...queued];
+    queued.clear();
+    for (let start = 0; start < all.length; start += READ_BATCH_MAX) send(all.slice(start, start + READ_BATCH_MAX));
+  };
+
+  return {
+    add: (id) => {
+      queued.add(id);
+      if (timer === null) timer = setTimeout(flush, flushMs);
+    },
+    flush,
+    hasPending: () => queued.size > 0,
+  };
+}
+
 // ─── Oläst ──────────────────────────────────────────────────────────────────
 
 /** Backfill-rader är aldrig olästa (ADR 008 beslut 8); backend räknar redan så, men raden ska aldrig markeras ändå. */
