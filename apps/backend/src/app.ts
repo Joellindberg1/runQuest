@@ -17,6 +17,7 @@ import leaderboardRoutes from './routes/leaderboard.js';
 import newsRoutes from './routes/news.js';
 import onboardingRoutes from './routes/onboarding.js';
 import publicStatsRoutes from './routes/publicStats.js';
+import settingsRoutes from './routes/settings.js';
 import stravaRoutes from './routes/strava.js';
 import titleRoutes from './routes/titles.js';
 import runRoutes from './routes/runs.js';
@@ -100,6 +101,7 @@ export function createApp(): express.Express {
   app.use('/api/news', newsRoutes);
   app.use('/api/onboarding', onboardingRoutes);
   app.use('/api/public', publicStatsRoutes);
+  app.use('/api/settings', settingsRoutes);
   app.use('/api/strava', stravaRoutes);
   app.use('/api/titles', titleRoutes);
   app.use('/api/runs', runRoutes);
