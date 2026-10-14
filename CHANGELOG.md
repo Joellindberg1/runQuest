@@ -14,9 +14,9 @@ Intern version (ingen versionsbump, ingen What's new, ingen announce). RUN-144. 
 - Vakttester låser geometrin och designvärdena mot designfilerna, lagerordningen (`position: relative` på `.rq-shell__main` och `.rq-legal__inner`), reducerad rörelse och placeringen per route.
 
 ### Prod-steg
-1. PR release/v0.6.2.2 → main, grön CI, merge (= deploy). Ingen migration.
-2. Röktest: bakgrunden på /legal i prod, inga konsolfel.
-3. Tagg `v0.6.2.2` på merge-commiten.
+1. PR release/v0.6.2.2 → main, grön CI, merge (= deploy). Ingen migration. KÖRD 2026-10-14 (ägarens förhandsja): PR #41, grön CI.
+2. Röktest: bakgrunden på /legal i prod, inga konsolfel. KÖRD 2026-10-14: /legal har en bakgrund (aria-hidden, 4 körande animationer) vid 390 och 1440 px, landningen ingen, inga konsolfel.
+3. Tagg `v0.6.2.2` på merge-commiten. KÖRD (e03b19e).
 
 ### Rollback
 - Kod: redeploya v0.6.2.1 i Railway och revert-PR. Inga dataformat ändrade, ingen migration.
