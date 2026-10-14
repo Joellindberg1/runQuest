@@ -5,6 +5,7 @@
 // Two steps, because a paused user's `create` must not cost a Strava call (ADR 010 7.5.3):
 //   1. decideBeforeFetch({ aspect_type, paused })  ->  'skip' (finish with the outcome) or 'fetch'
 //   2. decideAction({ ...the Strava answer, the existing run, attempts })  ->  what to do with the database
+import { connectionDay } from '../../utils/stravaLookback.js';
 import { exceedsImportDistance, extractExtendedFields, isRunningActivity } from '../stravaImport.js';
 import { WEBHOOK_BACKOFF_MINUTES, type WebhookAspectType } from './constants.js';
 
@@ -46,6 +47,11 @@ export interface DecideInput {
   existingRun: ExistingRun | null;
   /** Failed attempts so far (the event's `attempts` column, before this try). NaN or negative counts as 0. */
   attempts: number;
+  /**
+   * strava_tokens.connection_date as stored (a timestamp). An activity that started on an earlier calendar day is never imported
+   * (owner decision 2026-10-14). Absent or null (old legacy connections) = no restriction.
+   */
+  connectionDate?: string | null;
   /** True once the handler has refreshed the token for this event and fetched again. */
   tokenRefreshed: boolean;
 }
@@ -80,6 +86,16 @@ export type FetchPlan = { action: 'skip'; outcome: 'ignored_paused' } | { action
 export function decideBeforeFetch(input: { aspect_type: WebhookAspectType; paused: boolean }): FetchPlan {
   if (input.paused && input.aspect_type === 'create') return { action: 'skip', outcome: 'ignored_paused' };
   return { action: 'fetch' };
+}
+
+/**
+ * The connection-day rule: does the activity's local start day fall before the day the user connected? Both are Stockholm calendar
+ * days ('YYYY-MM-DD'; a timestamp is cut to its date). Nothing to compare (no connection date, an unreadable date) = not before.
+ */
+export function isBeforeConnectionDay(activityLocalDate: string, connectionDate: string | null | undefined): boolean {
+  const activityDay = /^\d{4}-\d{2}-\d{2}/.test(activityLocalDate) ? activityLocalDate.slice(0, 10) : null;
+  const connectedOn = connectionDay(connectionDate);
+  return activityDay !== null && connectedOn !== null && activityDay < connectedOn;
 }
 
 const NO_EFFECTS: Effects = { recalculateFrom: null, clearWeather: false, recalculateUnknown: false };
@@ -229,6 +245,8 @@ export function decideAction(input: DecideInput): ActionDecision {
   if (paused) return none('ignored_paused');
 
   if (!existingRun) {
+    // Never fetched back from before the connection (the privacy text's promise). A run, just outside the window: noop, not not_a_run.
+    if (activityDate !== null && isBeforeConnectionDay(activityDate, input.connectionDate)) return none('noop');
     return { action: 'insert', outcome: 'imported', ...NO_EFFECTS, recalculateFrom: activityDate };
   }
   if (!stravaRun) return none('noop'); // a manual run on the same id: leave it alone
