@@ -3,9 +3,10 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
+import type { Run } from '@runquest/types';
 import SettingsPage from '@/pages/SettingsPage';
 import { newsServer } from '@/features/news/news.fixture';
-import { backendApiModule, handlers, resetFakeBackend } from '@/test/fakeBackend';
+import { ME, OTHER, backendApiModule, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -337,6 +338,225 @@ describe('Settings — Strava', () => {
     await screen.findByRole('button', { name: 'Connect Strava' });
     expect(container.querySelectorAll('.rq-btn--primary')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Change password' })).toHaveClass('rq-btn--primary');
+  });
+});
+
+describe('Settings — pausa och koppla bort', () => {
+  const PAUSED_AT = '2026-10-12T08:30:00+00:00';
+  const stravaRun = (id: string, userId: string, source: 'strava' | 'manual' | null): Run => ({
+    id, user_id: userId, date: '2026-10-10', distance: 5, xp_gained: 40, multiplier: 1, streak_day: 1, base_xp: 15, km_xp: 10, distance_bonus: 5, streak_bonus: 0,
+    is_treadmill: false, source, start_time: null, created_at: null,
+  });
+  // Joels egna rundor: tre från Strava, två manuella och en äldre rad utan ursprung (räknas som manuell). Karl har fyra från Strava som aldrig ska räknas.
+  const FIXTURE_USERS = [
+    { ...ME, runs: [stravaRun('r1', ME.id, 'strava'), stravaRun('r2', ME.id, 'strava'), stravaRun('r3', ME.id, 'strava'), stravaRun('r4', ME.id, 'manual'), stravaRun('r5', ME.id, 'manual'), stravaRun('r6', ME.id, null)] },
+    { ...OTHER, runs: [1, 2, 3, 4].map((n) => stravaRun(`k${n}`, OTHER.id, 'strava')) },
+  ];
+
+  let paused: boolean;
+  let connected: boolean;
+  let statusCalls: Mock;
+  let usersCalls: Mock;
+  let setPaused: Mock;
+  let disconnect: Mock;
+
+  beforeEach(() => {
+    paused = false;
+    connected = true;
+    statusCalls = vi.fn(() => (connected
+      ? { success: true, data: { connected: true, expired: false, connection_date: '2026-08-25T09:31:00Z', sync_paused: paused, paused_at: paused ? PAUSED_AT : null } }
+      : { success: true, data: { connected: false, expired: false } }));
+    usersCalls = vi.fn(() => ({ success: true, data: FIXTURE_USERS }));
+    setPaused = vi.fn(async (next: unknown) => { paused = next === true; return { success: true, data: { sync_paused: paused, paused_at: paused ? PAUSED_AT : null } }; });
+    disconnect = vi.fn(async () => { connected = false; return { success: true, message: 'Strava disconnected successfully' }; });
+    handlers.getStravaStatus = statusCalls;
+    handlers.getUsersWithRuns = usersCalls;
+    handlers.setStravaSyncPaused = setPaused;
+    handlers.disconnectStrava = disconnect;
+  });
+
+  const openChoice = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(await screen.findByRole('button', { name: 'Pause or disconnect' }));
+    return screen.getByRole('dialog', { name: 'Pause or disconnect' });
+  };
+  const openConfirmation = async (user: ReturnType<typeof userEvent.setup>) => {
+    await openChoice(user);
+    await user.click(screen.getByRole('button', { name: 'Disconnect…' }));
+    return screen.getByRole('alertdialog', { name: 'Disconnect Strava?' });
+  };
+
+  it('pause sync calls the pause endpoint and the card shows the paused state', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    await openChoice(user);
+
+    await user.click(screen.getByRole('button', { name: 'Pause sync' }));
+
+    await waitFor(() => expect(setPaused).toHaveBeenCalledWith(true));
+    expect(await within(strava()).findByText('Paused', { selector: 'p' })).toBeInTheDocument();
+    expect(within(strava()).getByRole('button', { name: 'Turn sync back on' })).toBeInTheDocument();
+    expect(within(strava()).queryByRole('button', { name: 'Pause or disconnect' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('turning sync back on calls the pause endpoint with false and refreshes the status', async () => {
+    paused = true;
+    const user = userEvent.setup();
+    renderSettings();
+    const before = statusCalls.mock.calls.length;
+
+    await user.click(await screen.findByRole('button', { name: 'Turn sync back on' }));
+
+    await waitFor(() => expect(setPaused).toHaveBeenCalledWith(false));
+    expect(await within(strava()).findByText('Connected', { selector: 'p' })).toBeInTheDocument();
+    expect(statusCalls.mock.calls.length).toBeGreaterThan(before);
+    expect(within(strava()).getByRole('button', { name: 'Pause or disconnect' })).toBeInTheDocument();
+    expect(within(strava()).getByRole('status', { name: 'Strava status' })).toHaveTextContent('Sync is back on');
+  });
+
+  it('disconnect requires a separate confirmation before any request is sent', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await openChoice(user);
+    await user.click(screen.getByRole('button', { name: 'Disconnect…' }));
+
+    expect(screen.getByRole('alertdialog', { name: 'Disconnect Strava?' })).toBeInTheDocument();
+    expect(disconnect).not.toHaveBeenCalled();
+    expect(setPaused).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /^Disconnect and delete/ }));
+    await waitFor(() => expect(disconnect).toHaveBeenCalledTimes(1));
+  });
+
+  it('the confirmation button states the number of strava runs that will be deleted', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await screen.findByRole('button', { name: 'Pause or disconnect' });
+    // Rundorna hämtas bredvid kortet; först när de är lästa står en siffra på knappen.
+    await waitFor(() => expect(usersCalls).toHaveBeenCalled());
+    await openConfirmation(user);
+
+    expect(await screen.findByRole('button', { name: 'Disconnect and delete 3 runs' })).toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('All 3 runs that came from Strava are deleted');
+  });
+
+  it('shows no number while the runs are loading, and never zero', async () => {
+    usersCalls.mockImplementation(() => new Promise(() => {}));
+    const user = userEvent.setup();
+    renderSettings();
+
+    const dialog = await openConfirmation(user);
+
+    expect(within(dialog).getByRole('button', { name: 'Disconnect and delete all Strava runs' })).toBeEnabled();
+    expect(dialog).not.toHaveTextContent(/\b0\b/);
+  });
+
+  it('shows no number when the runs could not be read either', async () => {
+    usersCalls.mockImplementation(() => ({ success: false, error: 'down' }));
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByRole('button', { name: 'Pause or disconnect' });
+    await waitFor(() => expect(usersCalls).toHaveBeenCalled());
+
+    const dialog = await openConfirmation(user);
+
+    expect(within(dialog).getByRole('button', { name: 'Disconnect and delete all Strava runs' })).toBeInTheDocument();
+  });
+
+  it('cancelling the disconnect confirmation sends no request', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    await openConfirmation(user);
+
+    await user.click(screen.getByRole('button', { name: 'Keep my connection' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(disconnect).not.toHaveBeenCalled();
+    expect(setPaused).not.toHaveBeenCalled();
+    expect(within(strava()).getByText('Connected', { selector: 'p' })).toBeInTheDocument();
+  });
+
+  it('confirmed disconnect calls the disconnect endpoint and refreshes status, runs and xp', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    const confirmation = await openConfirmation(user);
+    await waitFor(() => expect(usersCalls).toHaveBeenCalled());
+    const statusBefore = statusCalls.mock.calls.length;
+    const usersBefore = usersCalls.mock.calls.length;
+
+    await user.click(within(confirmation).getByRole('button', { name: /^Disconnect and delete/ }));
+
+    await waitFor(() => expect(disconnect).toHaveBeenCalledTimes(1));
+    // Klienten antar inte att rundorna är borta: status och användarna (rundor, XP, nivåer) läses om, och kortet visar det servern nu säger.
+    expect(await within(strava()).findByText('Not connected', { selector: 'p' })).toBeInTheDocument();
+    expect(statusCalls.mock.calls.length).toBeGreaterThan(statusBefore);
+    expect(usersCalls.mock.calls.length).toBeGreaterThan(usersBefore);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('after disconnect focus moves to the card heading or Connect and the status message stays in a persistent region', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    const statusRegion = within(await screen.findByRole('region', { name: 'Strava' })).getByRole('status', { name: 'Strava status' });
+    expect(statusRegion).toBeEmptyDOMElement();
+    const confirmation = await openConfirmation(user);
+
+    await user.click(within(confirmation).getByRole('button', { name: /^Disconnect and delete/ }));
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    // Samma region före och efter: den fanns i DOM:en innan texten kom, så texten annonseras och står kvar efter att dialogen stängts.
+    expect(within(strava()).getByRole('status', { name: 'Strava status' })).toBe(statusRegion);
+    await waitFor(() => expect(statusRegion).toHaveTextContent('Strava disconnected'));
+    expect(statusRegion).toHaveTextContent(/asked Strava to revoke/);
+    expect(screen.getByRole('heading', { level: 2, name: 'Strava' })).toHaveFocus();
+  });
+
+  it('starts the consent checkbox unticked after a disconnect, so reconnecting needs a new agreement', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    const confirmation = await openConfirmation(user);
+
+    await user.click(within(confirmation).getByRole('button', { name: /^Disconnect and delete/ }));
+
+    const box = await screen.findByRole('checkbox', { name: "I've read this and agree that RunQuest imports my Strava runs as described" });
+    expect(box).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Connect Strava' })).toBeDisabled();
+  });
+
+  it('a failed pause or disconnect shows an error and keeps the dialog open', async () => {
+    setPaused.mockImplementation(async () => ({ success: false, error: 'Too many requests' }));
+    disconnect.mockImplementation(async () => ({ success: false, error: 'Failed to disconnect Strava' }));
+    const user = userEvent.setup();
+    renderSettings();
+    // Medan en modal är öppen döljer Radix kortet bakom den för hjälpmedel: kortet hämtas före dialogen.
+    const card = await screen.findByRole('region', { name: 'Strava' });
+
+    const choice = await openChoice(user);
+    await user.click(screen.getByRole('button', { name: 'Pause sync' }));
+    expect(await within(choice).findByRole('alert', { name: 'Strava connection error' })).toHaveTextContent("Couldn't pause sync. Try again.");
+    expect(screen.getByRole('dialog', { name: 'Pause or disconnect' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Disconnect…' }));
+    const confirmation = screen.getByRole('alertdialog');
+    expect(within(confirmation).getByRole('alert', { name: 'Strava connection error' })).toBeEmptyDOMElement();
+    await user.click(within(confirmation).getByRole('button', { name: /^Disconnect and delete/ }));
+
+    expect(await within(confirmation).findByRole('alert', { name: 'Strava connection error' })).toHaveTextContent("Couldn't disconnect. Try again.");
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    // Felet står i dialogen, inte i kortet bakom den, och kortet ändras inte.
+    expect(within(card).getByRole('alert', { name: 'Strava error', hidden: true })).toBeEmptyDOMElement();
+    expect(within(card).getByText('Connected', { selector: 'p' })).toBeInTheDocument();
+  });
+
+  it('does not fetch every pack member’s runs for a connection that is not live', async () => {
+    connected = false;
+    renderSettings();
+
+    await screen.findByRole('button', { name: 'Connect Strava' });
+
+    expect(usersCalls).not.toHaveBeenCalled();
   });
 });
 
