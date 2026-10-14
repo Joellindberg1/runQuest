@@ -5,7 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { STRAVA_CONSENT_KEY_POINTS, getDataPolicySection } from '@runquest/shared';
 import { renderWithApp } from '@/test/renderApp';
 import { buildStravaCard, type StravaStatusInput } from '../settingsModel';
-import { StravaCard } from './StravaCard';
+import { PAUSE_CHOICE, STILL_REMOVED_SENTENCE } from '../stravaConnectionCopy';
+import { StravaCard, type StravaConnectionControls } from './StravaCard';
 
 const NOW = new Date('2026-10-14T12:00:00Z');
 const NOT_CONNECTED: StravaStatusInput = { connected: false, expired: false };
@@ -16,7 +17,18 @@ const STRAVA_SECTION = getDataPolicySection('strava')!;
 const CONSENT_REGION = 'What happens to your Strava data';
 const AGREE_LABEL = "I've read this and agree that RunQuest imports my Strava runs as described";
 
-function renderCard(status: StravaStatusInput, props: { canSyncNow?: boolean; onConnect?: (agreed: boolean) => void } = {}) {
+const PAUSED: StravaStatusInput = { ...CONNECTED, sync_paused: true, paused_at: '2026-10-12T08:30:00+00:00' };
+
+/** Kortets åtgärder som den som monterar det ger dem; varje åtgärd lyckas om inget annat sägs. */
+function controls(over: Partial<StravaConnectionControls> = {}): StravaConnectionControls {
+  return {
+    stravaRuns: 128, busy: null, error: null,
+    onPause: vi.fn().mockResolvedValue(true), onResume: vi.fn().mockResolvedValue(true), onDisconnect: vi.fn().mockResolvedValue(true), onClearError: vi.fn(),
+    ...over,
+  };
+}
+
+function renderCard(status: StravaStatusInput, props: { canSyncNow?: boolean; onConnect?: (agreed: boolean) => void; connection?: StravaConnectionControls } = {}) {
   return renderWithApp(
     <StravaCard
       view={buildStravaCard(status, undefined, NOW)}
@@ -25,6 +37,7 @@ function renderCard(status: StravaStatusInput, props: { canSyncNow?: boolean; on
       status={null}
       error={null}
       onConnect={props.onConnect ?? vi.fn()}
+      connection={props.connection ?? controls()}
       onSync={vi.fn()}
     />,
   );
@@ -142,7 +155,7 @@ describe('StravaCard consent', () => {
         <>
           <button type="button" onClick={() => setStatus(CONNECTED)}>go connected</button>
           <button type="button" onClick={() => setStatus(NOT_CONNECTED)}>go disconnected</button>
-          <StravaCard view={buildStravaCard(status, undefined, NOW)} canSyncNow={false} syncing={false} status={null} error={null} onConnect={vi.fn()} onSync={vi.fn()} />
+          <StravaCard view={buildStravaCard(status, undefined, NOW)} canSyncNow={false} syncing={false} status={null} error={null} connection={controls()} onConnect={vi.fn()} onSync={vi.fn()} />
         </>
       );
     }
@@ -155,5 +168,242 @@ describe('StravaCard consent', () => {
 
     expect(agreeBox()).not.toBeChecked();
     expect(screen.getByRole('button', { name: 'Connect Strava' })).toBeDisabled();
+  });
+});
+
+const heading = () => screen.getByRole('heading', { level: 2, name: 'Strava' });
+const sentences = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
+
+describe('StravaCard pause or disconnect while sync runs', () => {
+  it('while sync runs the pause or disconnect button opens a dialog with both choices and one sentence per choice', async () => {
+    const user = userEvent.setup();
+    renderCard(CONNECTED, { canSyncNow: true });
+
+    await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Pause or disconnect' });
+    const pause = within(dialog).getByRole('region', { name: 'Pause sync' });
+    const disconnect = within(dialog).getByRole('region', { name: 'Disconnect' });
+    expect(within(pause).getByRole('button', { name: 'Pause sync' })).toBeInTheDocument();
+    expect(within(disconnect).getByRole('button', { name: 'Disconnect…' })).toBeInTheDocument();
+    for (const choice of [pause, disconnect]) {
+      const text = choice.querySelector('p')?.textContent ?? '';
+      expect(sentences(text)).toHaveLength(1);
+    }
+  });
+
+  it('the pause choice states that runs removed or made private on Strava are still removed here', async () => {
+    const user = userEvent.setup();
+    renderCard(CONNECTED);
+
+    await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
+
+    expect(within(screen.getByRole('region', { name: 'Pause sync' })).getByText(PAUSE_CHOICE.text)).toHaveTextContent(/still removed here/);
+  });
+
+  it('offers it to every connected user, not only the ones who can sync now', () => {
+    renderCard(CONNECTED, { canSyncNow: false });
+
+    expect(screen.getByRole('button', { name: 'Pause or disconnect' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sync now' })).not.toBeInTheDocument();
+  });
+
+  it('has no pause or disconnect without a live connection', () => {
+    for (const status of [NOT_CONNECTED, EXPIRED]) {
+      const { unmount } = renderCard(status);
+      expect(screen.queryByRole('button', { name: /pause|disconnect/i })).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('pause sync asks the owner of the card to pause, then closes the dialog and moves focus to the card heading', async () => {
+    const user = userEvent.setup();
+    const connection = controls();
+    renderCard(CONNECTED, { connection });
+    await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
+
+    await user.click(screen.getByRole('button', { name: 'Pause sync' }));
+
+    expect(connection.onPause).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(heading()).toHaveFocus();
+    expect(heading()).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('a failed pause keeps the dialog open and leaves focus where it was', async () => {
+    const user = userEvent.setup();
+    renderCard(CONNECTED, { connection: controls({ onPause: vi.fn().mockResolvedValue(false), error: "Couldn't pause sync. Try again." }) });
+    await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
+
+    await user.click(screen.getByRole('button', { name: 'Pause sync' }));
+
+    expect(screen.getByRole('dialog', { name: 'Pause or disconnect' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause sync' })).toHaveFocus();
+    expect(within(screen.getByRole('dialog')).getByRole('alert', { name: 'Strava connection error' })).toHaveTextContent("Couldn't pause sync. Try again.");
+  });
+
+  it('moving from the choice to the confirmation puts focus on Keep my connection', async () => {
+    const user = userEvent.setup();
+    renderCard(CONNECTED);
+    await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
+
+    await user.click(screen.getByRole('button', { name: 'Disconnect…' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Pause or disconnect' })).not.toBeInTheDocument();
+    expect(screen.getByRole('alertdialog', { name: 'Disconnect Strava?' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep my connection' })).toHaveFocus();
+  });
+
+  it('cancelling returns focus to the button that opened the dialog', async () => {
+    const user = userEvent.setup();
+    const connection = controls();
+    renderCard(CONNECTED, { connection });
+    const opener = screen.getByRole('button', { name: 'Pause or disconnect' });
+
+    await user.click(opener);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(opener).toHaveFocus();
+
+    await user.click(opener);
+    await user.click(screen.getByRole('button', { name: 'Disconnect…' }));
+    await user.click(screen.getByRole('button', { name: 'Keep my connection' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+    expect(connection.onDisconnect).not.toHaveBeenCalled();
+    expect(connection.onPause).not.toHaveBeenCalled();
+  });
+
+  it('a confirmed disconnect closes the dialog and moves focus to the card heading', async () => {
+    const user = userEvent.setup();
+    const connection = controls();
+    renderCard(CONNECTED, { connection });
+    await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
+    await user.click(screen.getByRole('button', { name: 'Disconnect…' }));
+
+    await user.click(screen.getByRole('button', { name: 'Disconnect and delete 128 runs' }));
+
+    expect(connection.onDisconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(heading()).toHaveFocus();
+  });
+
+  it('a failed disconnect keeps the confirmation open', async () => {
+    const user = userEvent.setup();
+    const connection = controls({ onDisconnect: vi.fn().mockResolvedValue(false), error: "Couldn't disconnect. Try again." });
+    renderCard(CONNECTED, { connection });
+    await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
+    await user.click(screen.getByRole('button', { name: 'Disconnect…' }));
+
+    await user.click(screen.getByRole('button', { name: 'Disconnect and delete 128 runs' }));
+
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(within(screen.getByRole('alertdialog')).getByRole('alert', { name: 'Strava connection error' })).toHaveTextContent("Couldn't disconnect. Try again.");
+  });
+
+  it('starts every opening without the previous error', async () => {
+    const user = userEvent.setup();
+    const connection = controls({ error: "Couldn't pause sync. Try again." });
+    renderCard(CONNECTED, { connection });
+
+    await user.click(screen.getByRole('button', { name: 'Pause or disconnect' }));
+
+    expect(connection.onClearError).toHaveBeenCalled();
+  });
+});
+
+describe('StravaCard when sync is paused', () => {
+  it('a paused user sees a neutral Paused chip on the Strava card, not silver', () => {
+    renderCard(PAUSED);
+
+    const card = screen.getByRole('region', { name: 'Strava' });
+    expect(within(card).getByText('Paused', { selector: 'p' })).toBeInTheDocument();
+    // Tonen är en neutral bläcktoning; att den inte är silver (placering 2) vaktas av Stylelint (settings.css får inte läsa silvertokens).
+    expect(card).toHaveAttribute('data-tone', 'paused');
+    expect(within(card).queryByText('Connected', { selector: 'p' })).not.toBeInTheDocument();
+    expect(within(card).getByText('Next sync').nextElementSibling).toHaveTextContent('Paused');
+  });
+
+  it('the paused card shows Turn sync back on and Disconnect and no Pause or disconnect button', () => {
+    renderCard(PAUSED, { canSyncNow: true });
+
+    const card = screen.getByRole('region', { name: 'Strava' });
+    expect(within(card).getByRole('button', { name: 'Turn sync back on' })).toBeEnabled();
+    expect(within(card).getByRole('button', { name: 'Disconnect' })).toBeEnabled();
+    expect(within(card).queryByRole('button', { name: 'Pause or disconnect' })).not.toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Sync now' })).not.toBeInTheDocument();
+  });
+
+  it('the paused card states that runs removed or made private on Strava are still removed here', () => {
+    renderCard(PAUSED);
+
+    expect(screen.getByRole('region', { name: 'Strava' })).toHaveTextContent(STILL_REMOVED_SENTENCE);
+    expect(screen.getByRole('region', { name: 'Strava' })).toHaveTextContent('Paused since 12 October 2026.');
+  });
+
+  it('Disconnect on the paused card goes straight to the confirmation', async () => {
+    const user = userEvent.setup();
+    const connection = controls();
+    renderCard(PAUSED, { connection });
+
+    await user.click(screen.getByRole('button', { name: 'Disconnect' }));
+
+    expect(screen.getByRole('alertdialog', { name: 'Disconnect Strava?' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Pause or disconnect' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep my connection' })).toHaveFocus();
+    expect(connection.onDisconnect).not.toHaveBeenCalled();
+  });
+
+  it('cancelling that confirmation returns focus to the Disconnect button on the card', async () => {
+    const user = userEvent.setup();
+    renderCard(PAUSED);
+    const opener = screen.getByRole('button', { name: 'Disconnect' });
+
+    await user.click(opener);
+    await user.click(screen.getByRole('button', { name: 'Keep my connection' }));
+
+    expect(opener).toHaveFocus();
+  });
+
+  it('Turn sync back on resumes and moves focus to the card heading, since the button is replaced', async () => {
+    const user = userEvent.setup();
+    const connection = controls();
+    renderCard(PAUSED, { connection });
+
+    await user.click(screen.getByRole('button', { name: 'Turn sync back on' }));
+
+    expect(connection.onResume).toHaveBeenCalledTimes(1);
+    expect(heading()).toHaveFocus();
+  });
+
+  it('a failed resume leaves focus on its button', async () => {
+    const user = userEvent.setup();
+    renderCard(PAUSED, { connection: controls({ onResume: vi.fn().mockResolvedValue(false) }) });
+    const button = screen.getByRole('button', { name: 'Turn sync back on' });
+
+    await user.click(button);
+
+    expect(button).toHaveFocus();
+  });
+
+  it('says Turning sync on and locks the buttons while the resume request runs', () => {
+    renderCard(PAUSED, { connection: controls({ busy: 'resume' }) });
+
+    expect(screen.getByRole('button', { name: 'Turning sync on…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeDisabled();
+  });
+
+  it('an expired connection is expired even if the pause flag is still set', () => {
+    renderCard({ ...EXPIRED, sync_paused: true });
+
+    expect(screen.getByText('Expired')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Turn sync back on' })).not.toBeInTheDocument();
+  });
+
+  it('shows the consent text as information on the paused card too, above the actions', () => {
+    renderCard(PAUSED);
+
+    const consent = screen.getByRole('region', { name: CONSENT_REGION });
+    expect(consent.compareDocumentPosition(screen.getByRole('button', { name: 'Turn sync back on' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 });
