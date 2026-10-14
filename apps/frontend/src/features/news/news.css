@@ -103,7 +103,30 @@
   background: rgb(var(--rq-c) / var(--rq-tint-selected)); border-color: rgb(var(--rq-c-edge) / var(--rq-edge-selected)); color: var(--rq-c-solid);
 }
 
+/* ── "Involves me" (frame N5): en knapp vid sidan av typchipsen, med egen form (ring + ikon) så den aldrig läses som ett åttonde chip ───────
+   Av = hårlinje (--rq-line-4, som chipsen) och ihålig ring; på = guld (regel 4: ett filter utan egen kategorifärg tar guld), fylld ring och guldsiffra,
+   alltså inte färg ensam. Mobil: egen rad ovanför chip-raden med 44 px träffyta. Texterna i text-3/text-4 klarar 4.5:1 (index.css); beskrivningen bär ingen siffra. */
+.rq-news-involves-wrap { margin-bottom: var(--rq-sp-8); }
+.rq-news-involves {
+  display: inline-flex; align-items: center; gap: var(--rq-sp-8); flex: none; white-space: nowrap; cursor: pointer;
+  box-sizing: border-box; min-height: var(--rq-news-involves-hit); background: none; border: var(--rq-hair) solid var(--rq-line-4); padding: var(--rq-sp-6) var(--rq-sp-12);
+  font-family: var(--rq-font-ui); font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3);
+}
+.rq-news-involves:hover { color: var(--rq-gold-text); }
+.rq-news-involves__mark { width: var(--rq-sp-8); height: var(--rq-sp-8); border-radius: var(--rq-radius-round); border: var(--rq-hair) solid var(--rq-text-4); }
+.rq-news-involves__icon { display: inline-flex; }
+.rq-news-involves .rq-news-filter__count { margin-left: var(--rq-sp-4); }
+.rq-news-involves[aria-pressed="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
+.rq-news-involves[aria-pressed="true"] .rq-news-involves__mark { background: var(--rq-gold); border-color: var(--rq-gold); }
+.rq-news-involves[aria-pressed="true"] .rq-news-filter__count { color: var(--rq-gold-text); }
+/* Beskrivningen finns bara på desktop (mobilens rad är en enda knapp); den är fortfarande knappens aria-describedby. */
+.rq-news-involves__hint { display: none; margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+
 @media (min-width: 1024px) {
+  .rq-news-involves-wrap { margin-bottom: var(--rq-sp-12); padding-bottom: var(--rq-sp-12); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
+  .rq-news-involves { width: 100%; justify-content: flex-start; padding: var(--rq-sp-8); font-size: var(--rq-fs-lead); letter-spacing: 0; text-transform: none; }
+  .rq-news-involves .rq-news-filter__count { margin-left: auto; }
+  .rq-news-involves__hint { display: block; }
   .rq-news__main { grid-column: 1; grid-row: 1; }
   .rq-news__side { grid-column: 2; grid-row: 1; }
   .rq-news-filter { padding: var(--rq-sp-16) var(--rq-sp-18); background: var(--rq-card-bg); border: var(--rq-hair) solid var(--rq-panel-border); }

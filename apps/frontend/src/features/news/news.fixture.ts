@@ -91,13 +91,13 @@ const UNREAD_CAP = 500;
  * keyset `before`/`after` (båda → fel), `type`-filter, has_more/next_before. Oläst avgörs av samma `isNotifiable` som servern (golv, kvitterade
  * rader, backfill, egna handlingar, påslaget slag), mättat vid 500. Inställningarna lagras glest (`server.settings`) och löses upp med shared.
  * `calls` loggar frågorna så att tester kan se vilken sida klienten bad om; `readCalls` och `settingsCalls` loggar skrivningarna.
- * `involves` filtreras inte här: servern tar parametern i en senare story, så testerna bevisar bara att klienten skickar den.
+ * `involves=me` filtreras som servern (RUN-188): aktör, target eller deltagare i ett event (payload.entrant_ids); unread_count gäller hela flödet och rör sig inte med filtret.
  */
 export function newsServer(initial: NewsItem[], lastSeen: number | null = null) {
   const server = {
     rows: [...initial].sort((a, b) => b.id - a.id),
     lastSeen,
-    calls: [] as Array<NewsQuery & { involves?: 'me' }>,
+    calls: [] as Array<NewsQuery>,
     seenCalls: [] as Array<number | undefined>,
     readCalls: [] as number[][],
     /** news_read(U) ovanför golvet. */
@@ -134,7 +134,7 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null) 
     return error;
   };
 
-  const getNews = async (query: NewsQuery & { involves?: 'me' } = {}) => {
+  const getNews = async (query: NewsQuery = {}) => {
     server.calls.push(query);
     if (server.failNext) {
       const error = server.failNext;
@@ -143,8 +143,16 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null) 
     }
     if (query.before !== undefined && query.after !== undefined) return { success: false as const, error: 'before and after cannot be combined' };
     const types = query.type ? query.type.split(',') : null;
+    const involvesViewer = (row: NewsItem) => {
+      const entrants = (row.payload as { entrant_ids?: unknown }).entrant_ids;
+      return row.actor?.id === ME.id || row.target?.id === ME.id || (row.type === 'event_closed' && Array.isArray(entrants) && entrants.includes(ME.id));
+    };
     const matching = server.rows.filter(
-      (row) => (!types || types.includes(row.type)) && (query.before === undefined || row.id < query.before) && (query.after === undefined || row.id > query.after),
+      (row) =>
+        (!types || types.includes(row.type)) &&
+        (query.involves !== 'me' || involvesViewer(row)) &&
+        (query.before === undefined || row.id < query.before) &&
+        (query.after === undefined || row.id > query.after),
     );
     const limit = query.limit ?? 30;
     const page = matching.slice(0, limit);

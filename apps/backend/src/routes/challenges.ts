@@ -11,7 +11,7 @@ import { addDays } from '@runquest/shared';
 import { tomorrowStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
-import { recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
+import { recordChallengeAccepted, recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
 import {
   CHALLENGE_HISTORY_COLUMNS,
   computeRecord,
@@ -368,13 +368,21 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
 
     // Sekventiellt: utmaningen aktiveras först, spelarnas flagga efteråt. Misslyckas flaggan släpps aktiveringen
     // (tillbaka till pending), så utmaningen aldrig lämnas aktiv medan spelarna inte räknas som upptagna.
-    const { error: activateError } = await supabase
+    // Villkorad på status = pending + radräkning: raderar en decline/withdraw/auto-decline utmaningen mellan läsningen
+    // ovan och denna skrivning träffar updaten 0 rader utan fel — då får varken flaggor eller loggrad sättas.
+    const { data: activated, error: activateError } = await supabase
       .from('challenges')
       .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('status', 'pending')
+      .select('id');
     if (activateError) {
       logger.error(`❌ Failed to activate challenge ${id}:`, activateError);
       res.status(500).json({ error: 'Failed to accept challenge' }); return;
+    }
+    // supabase-js ger alltid en array efter .select() utan fel; en tom array = ingen rad aktiverades.
+    if (Array.isArray(activated) && activated.length === 0) {
+      res.status(404).json({ error: 'Challenge not found or already responded' }); return;
     }
 
     const { error: flagError } = await supabase
@@ -390,6 +398,9 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       if (revertError) logger.error(`❌ Could not revert activation of challenge ${id}:`, revertError);
       res.status(500).json({ error: 'Failed to accept challenge' }); return;
     }
+
+    // Efter lyckad aktivering + flagga (aldrig på revert-grenen). Icke-kastande: ett loggfel fäller aldrig accepten.
+    await recordChallengeAccepted(challenge, startDate);
 
     logger.info(`✅ Challenge ${id} accepted. Runs ${startDate} → ${endDate}`);
 

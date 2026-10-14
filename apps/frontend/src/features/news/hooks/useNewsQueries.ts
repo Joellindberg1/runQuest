@@ -8,9 +8,8 @@ import {
   type NewsFeed, type NewsPage,
 } from '../newsModel';
 
-/** Filtret "Involves me" (ADR 011 beslut 9): `?involves=me`. Servern tar parametern i en senare story. */
-export type NewsInvolves = 'me';
-type FeedQuery = NewsQuery & { involves?: NewsInvolves };
+/** Filtret "Involves me" (ADR 011 beslut 9): `?involves=me`, ett vyfilter som servern tar sedan v0.7.0 (ändrar inte unread_count). */
+export type NewsInvolves = NonNullable<NewsQuery['involves']>;
 
 const STALE_MS = 60_000;
 /** Klockans räknare och flödet hålls färska med samma takt (och vid fönsterfokus när datan är äldre än STALE_MS). */
@@ -33,7 +32,7 @@ export const NEWS_QUERY_KEYS = {
     (involves ? (['news', 'feed', typeParam ?? 'all', involves] as const) : (['news', 'feed', typeParam ?? 'all'] as const)),
 };
 
-async function fetchPage(query: FeedQuery): Promise<NewsPage> {
+async function fetchPage(query: NewsQuery): Promise<NewsPage> {
   const res = await backendApi.getNews(query);
   if (!res.success || !res.data || !res.meta) throw new Error(res.error || 'Failed to load Pack News');
   return { items: res.data.items, meta: res.meta };
