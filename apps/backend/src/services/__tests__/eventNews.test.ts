@@ -505,13 +505,38 @@ describe('event-XP → rank_passed', () => {
 
     await settleCompetitionEvents();
 
+    // Detektionen körs EFTER att alla fått sin XP, mot slutställningen (Anna 115, Cecilia 80, Bertil 55, Dora 0). Bertil passerar
+    // inte Cecilia: hon låg före honom vid dygnsskiftet och ligger fortfarande före honom. Cecilia passerar inte Bertil: hon låg före honom.
     expect(rankRows(t).map((r) => [r.actor_user_id, r.target_user_id, r.payload.passer_rank, r.payload.passed_rank])).toEqual([
-      ['a', 'c', 1, 2],  // när Annas utbetalning görs: Anna 115, Cecilia 50, Bertil 10
-      ['b', 'c', 2, 3],  // när Bertils görs: Anna 115, Bertil 55, Cecilia 50
+      ['a', 'c', 1, 2],
     ]);
-    // Cecilia (30 XP, 3:a) har 80 efter utbetalningen och passerar Bertil... men låg före honom vid dygnsskiftet: ingen rad för henne.
     // En läsning av medlemmarna per mottagare med XP: Dora (0 XP) utlöser ingen.
     const memberReads = db.queries.filter((q) => q.table === 'users' && q.select !== null && /total_xp, created_at/.test(q.select));
     expect(memberReads).toHaveLength(3);
+  });
+
+  it('en mottagare som utbetalas tidigt passerar inte en som utbetalas senare och slutar före', async () => {
+    // Anna (0 XP) får 75 och Bertil (70 XP) får 45. Mitt i loopen har Anna 75 mot Bertils 70, men Bertil slutar på 115.
+    // Anna passerade aldrig Bertil i slutställningen, så ingen rad får skrivas.
+    const t: Record<string, Row[]> = {
+      activity_log: [],
+      events: [{
+        id: 'e9', group_id: 'g1', type: 'competition', metric: 'km', status: 'active',
+        starts_at: '2026-10-04T00:00:00.000Z', ends_at: '2026-10-05T10:00:00.000Z', settled_at: null,
+        event_templates: { name: 'Weekend Km', icon: 'trophy', reward_xp: null, reward_xp_1st: 75, reward_xp_2nd: 45, reward_xp_3rd: 30 },
+      }],
+      event_entries: [{ id: 'n1', event_id: 'e9', user_id: 'a' }, { id: 'n2', event_id: 'e9', user_id: 'b' }],
+      users: [member('a', 0), member('b', 70)],
+      runs: [
+        { id: 'r1', user_id: 'a', date: '2026-10-04', distance: 12, is_treadmill: false },
+        { id: 'r2', user_id: 'b', date: '2026-10-05', distance: 8, is_treadmill: false },
+      ],
+    };
+    useJoined(t);
+
+    await settleCompetitionEvents();
+
+    expect(t.users.map((u) => [u.id, u.total_xp])).toEqual([['a', 75], ['b', 115]]);
+    expect(rankRows(t)).toHaveLength(0);
   });
 });

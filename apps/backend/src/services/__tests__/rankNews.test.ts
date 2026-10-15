@@ -190,6 +190,22 @@ describe('recordRankPassesForXp', () => {
     expect(drop.activity_log.map((r) => r.dedupe_key)).toEqual([key(YESTERDAY)]);
   });
 
+  it('en minskning retractar dagens rad även när M:s liggare är diverged', async () => {
+    // M:s liggare (200 idag) överstiger hans total_xp 120: paret hoppas över för NYA rader, men retract bygger på före/efter, inte på
+    // dygnsskiftet, så raden som W:s minskning gjort felaktig ska bort ändå.
+    const key = (day: string) => activityKeys.rankPassed('xp', 'u-w', 'u-m', day);
+    const t = world(
+      [user('u-w', 'Anna', 100), user('u-m', 'Bertil', 120)],
+      [runOf('rm', 'u-m', TODAY, 200)],
+      { activity_log: [{ id: 1, type: 'rank_passed', dedupe_key: key(TODAY) }, { id: 2, type: 'rank_passed', dedupe_key: key(YESTERDAY) }] },
+    );
+    use(t);
+
+    await recordRankPassesForXp('u-w', G, 130);
+
+    expect(t.activity_log.map((r) => r.dedupe_key)).toEqual([key(YESTERDAY)]);
+  });
+
   it('lika XP avgörs av namn och id', async () => {
     // W går från 90 till 100 (runda idag på 10) och hamnar på lika XP med M (100, ingen runda idag). W låg bakom vid dygnsskiftet (90 mot 100).
     const passes = async (w: [string, string], m: [string, string]) => {
@@ -283,6 +299,19 @@ describe('recordRankPassesForXp', () => {
     expect(logger.error).toHaveBeenCalled();
     const logged = JSON.stringify(vi.mocked(logger.error).mock.calls);
     expect(logged).not.toContain('secret');
+  });
+
+  it('ett läsfel på medlemmarna loggar bara koden, aldrig felobjektet eller dess meddelande', async () => {
+    const t = world([user('u-w', 'Anna', 130), user('u-m', 'Bertil', 120)], [runOf('r1', 'u-w', TODAY, 30)]);
+    use(t, { failWhen: (q) => (q.table === 'users' ? { message: 'secret member row values', code: 'XX001' } as any : null) });
+
+    await expect(recordRankPassesForXp('u-w', G, 100)).resolves.toBeUndefined();
+
+    expect(rankRows(t)).toHaveLength(0);
+    const lines = vi.mocked(logger.error).mock.calls;
+    expect(lines).toHaveLength(1);
+    expect(JSON.stringify(lines)).not.toContain('secret');
+    expect(JSON.stringify(lines)).toContain('XX001');
   });
 });
 

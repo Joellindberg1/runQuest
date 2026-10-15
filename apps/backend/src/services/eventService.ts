@@ -439,6 +439,7 @@ export async function settleCompetitionEvents(): Promise<void> {
 
       // Dela ut XP per placering
       const payoutFailures: string[] = [];
+      const paidOut: Array<{ userId: string; groupId: string | null; prevXp: number }> = [];
       for (let i = 0; i < scored.length; i++) {
         const { entryId, userId, totalValue } = scored[i];
         const xp = i < xpPerRank.length ? xpPerRank[i] : 0;
@@ -470,11 +471,17 @@ export async function settleCompetitionEvents(): Promise<void> {
             const newLevel = await getLevelFromXP(userData.total_xp);
             await supabase.from('users').update({ current_level: newLevel }).eq('id', userId);
             await recordLevelUps(userId, prevLevel, newLevel, userData.group_id ?? null);
-            // rank_passed (xp), per mottagare med utdelad XP: increment_event_xp har redan höjt total_xp (som ovan).
-            await recordRankPassesForXp(userId, userData.group_id ?? null, userData.total_xp - xp);
+            // increment_event_xp har redan höjt total_xp: föregående värde för rank_passed är total_xp minus utbetalningen.
+            paidOut.push({ userId, groupId: userData.group_id ?? null, prevXp: userData.total_xp - xp });
           }
           logger.info(`✅ [Settlement] User ${userId} rank ${rank} for event ${event.id} (+${xp} XP, ${totalValue.toFixed(1)} ${event.metric})`);
         }
+      }
+
+      // rank_passed (xp) först NÄR ALLA har fått sin XP, mot slutställningen. Mitt i loopen har senare mottagare ingen XP än, och en
+      // tidig mottagare kunde då "passera" någon som sedan går förbi hen igen: en falsk nyhet. Varje mottagare med utdelad XP, en gång.
+      for (const payout of paidOut) {
+        await recordRankPassesForXp(payout.userId, payout.groupId, payout.prevXp);
       }
 
       // Pack News: efter utbetalningen. Topp 3 med faktiskt utdelad XP; event_closed:<id> ger exakt en rad.

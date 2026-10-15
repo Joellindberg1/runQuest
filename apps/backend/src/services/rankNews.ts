@@ -11,7 +11,6 @@
 //
 // Inget lås här: anroparna kan hålla withUserLock för W (ett eget lås ger ReentrantLockError), och övriga medlemmar läses utan lås.
 import {
-  activityKeys,
   addDays,
   buildRankDelta,
   buildRankPassedDraft,
@@ -136,9 +135,10 @@ export async function recordRankPassesForXp(
       await recordActivities(drafts);
     }
 
-    // Bara dagens rader för de M som W åter ligger bakom (ADR 011 beslut 6.4); äldre dagars rader är historia.
-    const skipped = new Set([...divergedIds].map((id) => activityKeys.rankPassed('xp', userId, id, today)));
-    for (const key of result.retractKeys.filter((k) => !skipped.has(k))) await retractActivity(key);
+    // Bara dagens rader för de M som W åter ligger bakom (ADR 011 beslut 6.4); äldre dagars rader är historia. Ett diverged M hoppas
+    // INTE över här: retractKeys bygger på före/efter, inte på dygnsskiftet, så retract är säkert även när M:s liggare inte går att lita
+    // på, och att hoppa över kunde lämna en inaktuell rad kvar.
+    for (const key of result.retractKeys) await retractActivity(key);
   } catch (e) {
     logger.error(`❌ [RankNews] recordRankPassesForXp failed for user ${userId} (${errorCode(e)})`);
   }

@@ -169,7 +169,7 @@ describe('calculateUserTotals → recordRankPassesForXp', () => {
 
   it('rank-detektionen anropas efter totalskrivningen och med föregående total_xp', async () => {
     const t = passTables();
-    use(t);
+    const db = use(t);
     const seen: Array<{ args: unknown[]; storedXp: number; loggedTypes: string[] }> = [];
     vi.mocked(recordRankPassesForXp).mockImplementationOnce(async (...args) => {
       seen.push({ args, storedXp: t.users[0].total_xp, loggedTypes: t.activity_log.map((r) => r.type) });
@@ -181,6 +181,9 @@ describe('calculateUserTotals → recordRankPassesForXp', () => {
     expect(seen[0].args).toEqual(['u1', 'g1', 0]); // föregående total_xp ur samma select som current_level/total_km/group_id
     expect(seen[0].storedXp).toBe(105); // totalerna var redan sparade
     expect(seen[0].loggedTypes).toContain('run_milestone'); // och level_up/run_milestone redan skrivna
+    // fakeDb returnerar hela raden oavsett urval, så urvalet måste läsas: utan total_xp i selecten vore föregående värde alltid null i prod.
+    const previousValues = db.queries.find((q) => q.table === 'users' && q.select !== null && q.select.includes('event_xp'))!;
+    expect(previousValues.select).toContain('total_xp');
   });
 
   it('en XP-vinst skriver rank_passed och kostar högst tre extra läsningar', async () => {
