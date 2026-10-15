@@ -101,7 +101,8 @@ const totalXp = (t: Record<string, Row[]>, id: string) => t.users.find((u) => u.
 function stubStrava(activities: unknown[]) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).includes('/athlete/activities')) return { ok: true, status: 200, json: async () => activities };
-    return { ok: false, status: 404, json: async () => ({}) };
+    // 500, inte 404: detaljanropet faller och importen använder sammanfattningen. Ett 404 betyder "aktiviteten är borta" och hoppas över.
+    return { ok: false, status: 500, json: async () => ({}) };
   }));
 }
 const activityToday = (id: number) => ({
