@@ -52,7 +52,7 @@
     },
     {
       "title": "Strava",
-      "body": "Strava tells RunQuest about new, changed and deleted runs, and RunQuest also checks Strava for new runs at least every 12 hours. Pause sync in Settings, or Disconnect to delete the runs imported from Strava",
+      "body": "Strava tells RunQuest about new and deleted runs and about runs you make private, and RunQuest also checks Strava for new runs at least every 12 hours. Pause sync in Settings, or Disconnect to delete the runs imported from Strava",
       "icon": "sync"
     },
     {
@@ -109,11 +109,11 @@
         },
         {
           "type": "improvement",
-          "description": "Strava now tells RunQuest when you log, change or delete a run, and RunQuest also checks Strava for new runs at least every 12 hours."
+          "description": "Strava now tells RunQuest when you log or delete a run, or change its title, type or visibility, and RunQuest also checks Strava for new runs at least every 12 hours."
         },
         {
           "type": "improvement",
-          "description": "Changes and deletions on Strava follow within 48 hours. A run you delete, make private or change so it is no longer a run is removed here, and your XP, streaks, titles and badges are recalculated, so they can go down."
+          "description": "Deletions and privacy changes on Strava follow within 48 hours. A run you delete, make private or change so it is no longer a run is removed here, and your XP, streaks, titles and badges are recalculated, so they can go down."
         },
         {
           "type": "feature",

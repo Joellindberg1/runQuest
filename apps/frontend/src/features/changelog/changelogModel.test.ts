@@ -194,9 +194,10 @@ describe('changelog: v0.7.0', () => {
   // Prenumerationen finns och är verifierad mot riktig Strava: posten säger att Strava berättar för RunQuest, att reservkontrollen går minst var 12:e
   // timme och att ändringar och raderingar slår igenom inom 48 timmar. Den lovar inget om ändrad distans eller datum: Strava skickar ingen händelse då.
   it('Strava-texten säger vad som gäller: Strava berättar, reservkontroll minst var 12:e timme, 48 timmar, pausen stoppar nya hämtningar, Disconnect raderar och inte går att ångra', () => {
-    expect(text).toContain('Strava now tells RunQuest when you log, change or delete a run');
+    expect(text).toContain('Strava now tells RunQuest when you log or delete a run, or change its title, type or visibility');
+    expect(text).not.toContain('change or delete a run');
     expect(text).toContain('also checks Strava for new runs at least every 12 hours');
-    expect(text).toContain('Changes and deletions on Strava follow within 48 hours');
+    expect(text).toContain('Deletions and privacy changes on Strava follow within 48 hours');
     expect(text).toContain('so they can go down');
     expect(text).toContain('the 48 hours');
     expect(text).toContain('and runs you delete or make private on Strava are still removed here');
@@ -217,7 +218,7 @@ describe('changelog: v0.7.0', () => {
   it('Strava-kortet under Features säger att Strava berättar för RunQuest, med en reservkontroll minst var 12:e timme', () => {
     const strava = changelog.features.find((feature) => feature.title === 'Strava');
     expect(strava?.body).toBe(
-      'Strava tells RunQuest about new, changed and deleted runs, and RunQuest also checks Strava for new runs at least every 12 hours. Pause sync in Settings, or Disconnect to delete the runs imported from Strava',
+      'Strava tells RunQuest about new and deleted runs and about runs you make private, and RunQuest also checks Strava for new runs at least every 12 hours. Pause sync in Settings, or Disconnect to delete the runs imported from Strava',
     );
   });
 
@@ -225,7 +226,7 @@ describe('changelog: v0.7.0', () => {
     const descriptions = v070?.changes.map((change) => change.description) ?? [];
     const involves = descriptions.findIndex((description) => description.includes('Involves me'));
     const tells = descriptions.findIndex((description) => description.startsWith('Strava now tells RunQuest'));
-    const deletions = descriptions.findIndex((description) => description.startsWith('Changes and deletions on Strava'));
+    const deletions = descriptions.findIndex((description) => description.startsWith('Deletions and privacy changes on Strava'));
     const consent = descriptions.findIndex((description) => description.startsWith('Connecting Strava now starts'));
     expect([tells, deletions]).toEqual([involves + 1, involves + 2]);
     expect(consent).toBe(deletions + 1);
