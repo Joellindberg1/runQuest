@@ -69,7 +69,6 @@ function lastSyncText(sync: StravaSyncInput | undefined, now: Date): string {
   return ms === null ? 'No server sync yet' : formatAgo(Math.max(0, -ms));
 }
 
-
 /** Pausens början som kalenderdag i Stockholm (paused_at är en ISO-tid med +00:00); saknas eller är den oläsbar utelämnas datumet. */
 function pausedNote(pausedAt: string | null | undefined): string {
   const at = pausedAt ? new Date(pausedAt) : null;

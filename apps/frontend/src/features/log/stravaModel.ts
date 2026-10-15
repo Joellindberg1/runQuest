@@ -1,6 +1,6 @@
 import { formatAgo } from './logFormat';
 
-// Strava-banderollen överst på mobilens formulär: kopplad/inte kopplad + senaste och nästa synk. Ren logik.
+// Strava-banderollen överst på mobilens formulär: kopplad/inte kopplad + senaste synk (ingen nästa synk). Ren logik.
 
 export interface StravaStatusInput {
   connected: boolean;

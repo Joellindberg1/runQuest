@@ -30,10 +30,10 @@ const syncState: SyncState = {
 // not wait for the next backup check. It reads the same tables the poll's backfill always did, so the load is unchanged.
 const WEATHER_BACKFILL_CRON = '*/30 * * * *';
 
-// node-cron 3 now and then skips a whole second window (about 0.8 % of the ticks measured), and a redeploy in the minute of a slot
-// misses it. With a 12-hour interval that would leave half a day without the backup check, so the 30-minute tick runs the poll
-// once if the estimated slot is this much overdue. A poll that is due is not "late" until this has passed: the slot's own tick may
-// still be about to run.
+// node-cron 3 now and then skips a whole second window (about 0.8 % of the ticks measured). With a 12-hour interval that would leave half
+// a day without the backup check, so the 30-minute tick runs the poll once if the estimated slot is this much overdue. A poll that is
+// due is not "late" until this has passed: the slot's own tick may still be about to run. This covers a skipped cron second while the
+// process lives. A restart estimates the NEXT slot, so a slot missed during a deploy is not caught up; webhooks carry that time.
 const CATCH_UP_GRACE_MS = 10 * 60 * 1000;
 
 // The cron fires at fixed Stockholm clock times, so the next sync is the next slot, not the attempt plus the interval. A tick that
@@ -66,7 +66,11 @@ let weatherBackfillRunning = false;
 
 // Backfill weather for any runs still missing it (new imports, webhook-moved runs and retries from earlier failures).
 async function runWeatherBackfill(): Promise<void> {
-  if (weatherBackfillRunning) return;
+  if (weatherBackfillRunning) {
+    // The only sign of a hanging backfill.
+    logger.warn('⏭️ Weather backfill skipped: the previous one is still running');
+    return;
+  }
   weatherBackfillRunning = true;
   try {
     const savedWeather = await WeatherService.backfillMissingWeather();
@@ -83,7 +87,8 @@ let pollRunning = false;
 
 async function runPoll(): Promise<void> {
   if (pollRunning) {
-    logger.info('⏭️ Strava sync skipped: the previous one is still running');
+    // A warning, not info: this is the only sign of a hanging poll.
+    logger.warn('⏭️ Strava sync skipped: the previous one is still running');
     return;
   }
   pollRunning = true;

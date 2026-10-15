@@ -19,7 +19,7 @@ export function useStravaConfig() {
 }
 
 /**
- * Det Settings visar om Strava: kopplingen och senaste/nästa synk. Samma queries som skalets Right now och Logs Strava-rad
+ * Det Settings visar om Strava: kopplingen och senaste synken. Samma queries som skalets Right now och Logs Strava-rad
  * (`shared/hooks/useStravaQueries`) — en hämtning delas, och en koppling som görs här syns överallt direkt.
  */
 export function useStravaData() {

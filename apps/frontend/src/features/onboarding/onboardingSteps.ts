@@ -44,3 +44,12 @@ export const ONBOARDING_V1_STEPS: TourStep[] = [
     description: 'Link Strava once and all your runs sync automatically — no manual logging needed. Settings → Strava to connect.',
   },
 ];
+
+/**
+ * Stegen för en användare. "Connect Strava" pekar på Connect-pillen i Right now, som bara finns för den som inte kopplat Strava;
+ * för en kopplad användare skulle steget visas som en centrerad popover med fel uppmaning, så det tas bort. Okänd status
+ * (hämtningen föll) behåller steget som förut.
+ */
+export function onboardingStepsFor(stravaConnected: boolean | undefined): TourStep[] {
+  return stravaConnected === true ? ONBOARDING_V1_STEPS.filter((step) => step.title !== 'Connect Strava') : ONBOARDING_V1_STEPS;
+}

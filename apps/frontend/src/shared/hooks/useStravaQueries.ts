@@ -28,7 +28,7 @@ export function useStravaStatus(enabled = true) {
   });
 }
 
-/** Senaste och nästa synk (GET /strava/last-sync). */
+/** Senaste synken (GET /strava/last-sync; svaret har även en uppskattad nästa körning, som inte visas). */
 export function useStravaLastSync(enabled = true) {
   return useQuery({
     queryKey: STRAVA_QUERY_KEYS.lastSync,

@@ -7,7 +7,16 @@ import { PatchNotesModal } from './PatchNotesModal';
 import { OnboardingTour } from './OnboardingTour';
 import { changelog } from '@/features/changelog/changelogData';
 import { announcedNotes } from '@/features/changelog/changelogModel';
-import { ONBOARDING_V1_STEPS } from '../onboardingSteps';
+import { onboardingStepsFor } from '../onboardingSteps';
+import { useStravaStatus } from '@/shared/hooks/useStravaQueries';
+
+// Förstagångsturen väntar in Strava-statusen (skalet hämtar den redan, så den är oftast cachad): OnboardingTour läser sina steg bara
+// vid montering, och "Connect Strava"-steget ska bort för den som redan kopplat. Faller hämtningen startar turen ändå, med alla steg.
+function FirstLoginTour({ onDone }: { onDone: () => void }) {
+  const status = useStravaStatus();
+  if (status.isPending) return null;
+  return <OnboardingTour steps={onboardingStepsFor(status.data?.connected)} onDone={onDone} />;
+}
 
 // Inner component: knows which slug to show, handles markSeen
 function OnboardingItem({ slug }: { slug: string }) {
@@ -33,9 +42,7 @@ function OnboardingItem({ slug }: { slug: string }) {
 
   // First-login tour — ankarna ägs av app-skalet (ADR 006 beslut 8)
   if (slug === 'onboarding_v1') {
-    return (
-      <OnboardingTour steps={ONBOARDING_V1_STEPS} onDone={() => markSeen()} />
-    );
+    return <FirstLoginTour onDone={() => markSeen()} />;
   }
 
   // Feature tour slug — handled by page-level FeatureTour, not by the orchestrator

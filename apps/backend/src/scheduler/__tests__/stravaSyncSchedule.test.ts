@@ -100,12 +100,15 @@ describe('Strava sync schedule', () => {
 
   it('a weather backfill that is still running is not started again by the next tick', async () => {
     let finish: (saved: number) => void = () => {};
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
     h.backfillMissingWeather.mockImplementationOnce(() => new Promise<number>((resolve) => { finish = resolve; }));
     startStravaScheduler();
 
     const first = weatherJob().run();
     await weatherJob().run();
     expect(h.backfillMissingWeather).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toMatch(/Weather backfill skipped/);
 
     finish(0);
     await first;
@@ -254,8 +257,9 @@ describe('next_sync_estimated', () => {
   });
 });
 
-// node-cron sometimes skips a whole second window, and a redeploy in the 00:00 or 12:00 minute misses the slot. The 30-minute tick then
-// notices that the estimated slot is long past and runs the poll once.
+// node-cron sometimes skips a whole second window while the process lives. The 30-minute tick then notices that the estimated slot is
+// long past and runs the poll once. A restart is different: it estimates the next slot, and a slot missed during a deploy is carried by
+// the webhooks.
 describe('catching up a missed poll slot', () => {
   const at = (iso: string) => vi.setSystemTime(new Date(iso));
   const OK = { success: true, message: 'ok', syncedUsers: 0, totalUsers: 0, totalNewRuns: 0 };
@@ -316,9 +320,26 @@ describe('catching up a missed poll slot', () => {
     // The scheduled tick for that slot does not start a second poll either.
     await pollJob().run();
     expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1); // the skipped scheduled tick is a warning: the only sign of a hanging poll
+    expect(String(warn.mock.calls[0][0])).toMatch(/still running/);
 
     finish(OK);
     await running;
+  });
+
+  it('a hanging weather backfill does not delay the catch-up', async () => {
+    let release: (saved: number) => void = () => {};
+    h.backfillMissingWeather.mockImplementationOnce(() => new Promise<number>((resolve) => { release = resolve; }));
+    at('2026-10-14T05:00:00.000Z');
+    startStravaScheduler();
+    at('2026-10-14T10:30:00.000Z');
+
+    const tick = weatherJob().run(); // does not settle while the backfill hangs
+
+    await vi.waitFor(() => expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(getSyncInfo()).toMatchObject({ lastSyncStatus: 'success', nextSyncEstimated: '2026-10-14T22:00:00.000Z' }));
+    release(0);
+    await tick;
   });
 
   it('a failure inside the catch-up check does not stop the weather backfill', async () => {
@@ -350,7 +371,7 @@ describe('catching up a missed poll slot', () => {
   });
 
   it('catch-up does not trigger after a restart before the first slot', async () => {
-    at('2026-10-14T10:00:30.000Z'); // a redeploy in the middle of the 12:00 CEST minute: the slot was missed
+    at('2026-10-14T10:00:30.000Z'); // a deploy in the middle of the 12:00 CEST minute: the slot is missed, and that is accepted
     vi.resetModules();
     const fresh = await import('../stravaSync.js');
     fresh.startStravaScheduler();
