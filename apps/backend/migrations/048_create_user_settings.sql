@@ -1,5 +1,5 @@
 -- 048: user_settings — gles lagring av användarinställningar, en rad per (användare, nyckel). ADR 011 beslut 2 (B1, tabell) (RUN-184, v0.7.0).
--- Datum: 2026-10-14. EJ APPLICERAD i prod (kräver ägarens uttryckliga ja; Lead applicerar via Supabase MCP apply_migration,
+-- Datum: 2026-10-14. APPLICERAD i prod 2026-10-15 (ägar-ja i chatten; Lead via Supabase MCP apply_migration,
 -- name: 048_create_user_settings, och uppdaterar den här raden till APPLICERAD med datum).
 --
 -- Bakgrund: inställningarna (notify.<slag> med flera) lagras glest: bara uttryckligen satta värden finns som rader, saknad nyckel
