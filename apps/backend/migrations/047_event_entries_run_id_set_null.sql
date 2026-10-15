@@ -1,5 +1,5 @@
 -- 047: event_entries.run_id -> runs(id) blir ON DELETE SET NULL — "Migration C" i ADR 010 (RUN-172, v0.7.0).
--- Datum: 2026-10-14. EJ APPLICERAD i prod (kräver ägarens uttryckliga ja; Lead applicerar via Supabase MCP apply_migration,
+-- Datum: 2026-10-14. APPLICERAD i prod 2026-10-15 (ägar-ja i chatten; Lead via Supabase MCP apply_migration,
 -- name: 047_event_entries_run_id_set_null, och uppdaterar den här raden till APPLICERAD med datum).
 --
 -- Bakgrund: FK:n event_entries_run_id_fkey (000_baseline) är NO ACTION. När en Strava-runda som kvalificerat ett event
