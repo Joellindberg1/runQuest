@@ -102,7 +102,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   texten inte med (landningen läser inte admin-inställningarna). Formeln finns även på mobil (designens mobilruta saknar den) och har en textversion för skärmläsare.
   "Miss a day and it starts over" är VERIFIERAT mot streak-motorn (critic 2026-10-05): ett glapp som inte är exakt en dag ger streakdag 1, och
   currentStreak (shared/streak.ts) ger 0 när senaste dag varken är idag eller igår — ingen grace-regel finns.
-- **Funktionsrutnätet:** Strava-kortet säger "every 30 minutes" (Playbookens `STRAVA_SYNC_MINUTES`, prövad mot schedulern), inte designens "three hours"; Journey-kortet
+- **Funktionsrutnätet:** Strava-kortet säger att rundor kommer när de sparas, med en reservkontroll var 12:e timme (`stravaPollIntervalLabel()` i shared, prövad mot konstanten), inte designens "three hours"; Journey-kortet
   säger "mapped", inte "walked". Events-kortets exempel (morning runs, 5K Fridays, hangover runs) finns i seedade mallar (migration 017); **Lead kontrollerar mot prod.**
   Rutnätet finns även på mobil (en kolumn).
 - **Footern:** Privacy och Legal (→ `/legal`), Strava-attribution och versionen (`v` + `version` i `apps/frontend/package.json`). Playbook, FAQ och Bug report är borta
@@ -155,7 +155,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   jämfördes i km/h (≈ 4 m/s). Nu skickas `&wind_speed_unit=ms` (ägarbeslut 15 m/s 2026-10-06); Playbook säger "gusts of 15 m/s (about 54 km/h)", och `stormChaserForecast.test.ts` + fakta-testet kräver parametern.
   Regeln i sin helhet: ≥ 3 stormiga timmar (väderkod duggregn/regn/snö/skurar/åska) ELLER ≥ 4 timmar med byar ≥ 15 m/s, dagtimmar 06–21 imorgon. `run_weather` hämtas också i m/s från v0.5.3; äldre rader räknas om av `scripts/convertWindToMs.ts` (gräns = deploytiden, via `fetched_at`).
 - **Kvalificering:** ett deltagarevent kräver att eventet är öppet när rundan loggas/synkas och att rundans datum inte ligger efter eventets slut (inte rundans starttid); bara REDIGERING (PUT, `enforceRunDateWindow`) kräver datum inom eventets dagar — Playbook säger "log or sync a run while the event is open (the run’s date can’t be after the event ends)".
-- **Strava:** synken räknar från en vecka före senast Strava-importerade rundan; en aktivitet med distans 0 sparas inte ("any distance above zero"). Intervallet är `SYNC_INTERVAL_MINUTES` (30) i stravaSync.ts.
+- **Strava:** synken räknar från en vecka före senast Strava-importerade rundan; en aktivitet med distans 0 sparas inte ("any distance above zero"). Intervallet är `STRAVA_POLL_INTERVAL_HOURS` (12) i `packages/shared/src/rules.ts`; väderbackfillen har eget 30-minutersschema i stravaSync.ts.
 - **Utmaningstokens:** enligt seeden (006) delas token ut vid nivå 3, 5, 8, 10, 12, 14, 15 och sedan vid varje nivå från 16 (major var 5:e, legendary vid 15/30/45) — inga tokens vid 2, 4, 6, 7, 9, 11, 13. Playbook säger "many level-ups at first and, from level 16, at every level-up".
 - **Insatserna per utmaningsnivå är observerade, som Rules-vyn:** verkliga tokens/aktiva/inkomna/historiska utmaningar ur `GET /challenges/my` först (hämtas när
   utmaningskapitlet visas), `DEFAULT_STAKES` (seed, migration 006) bara för nivåer utan exempel. Har man inga tokens eller historik visas alltså seed-värdena.

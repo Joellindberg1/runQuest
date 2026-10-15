@@ -40,8 +40,8 @@ const CONNECT_LABEL = { disconnected: 'Connect Strava', expired: 'Reconnect Stra
 type FocusTarget = 'opener' | 'heading' | 'none';
 
 /**
- * Strava-kortet: tillståndet som kantfärg (grön lever · neutral pausad · röd utgången · neutral inte kopplad) och statuschip, tre celler
- * (Connected · Last sync · Next sync), vad som importeras, samtycket och åtgärderna. Alla knappar är sekundära — Settings guldknapp är
+ * Strava-kortet: tillståndet som kantfärg (grön lever · neutral pausad · röd utgången · neutral inte kopplad) och statuschip, två celler
+ * (Connected · Last import), vad som importeras, samtycket och åtgärderna. Alla knappar är sekundära — Settings guldknapp är
  * "Change password". Utan koppling (och vid utgången koppling) låser samtyckesrutan upp knappen; den som är ansluten ser samma text som
  * information, ovanför åtgärderna.
  *

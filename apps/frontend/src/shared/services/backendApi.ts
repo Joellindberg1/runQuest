@@ -664,39 +664,6 @@ class BackendApiService {
     return this.authenticatedRequest('/strava/backfill-extended', { method: 'POST' });
   }
 
-  async getStravaLastSync(): Promise<ApiResponse<{
-    last_sync_attempt: string | null;
-    last_sync_status: string;
-    next_sync_estimated: string | null;
-    users_synced?: number;
-    total_users?: number;
-    new_runs?: number;
-    /** The newest webhook event received, or null (none yet, or it could not be read). Global, not the user's. */
-    last_webhook_at?: string | null;
-  }>> {
-    try {
-      const response = await fetch(`${this.baseUrl}/strava/last-sync`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.getToken()}`
-        }
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        return { success: false, error: result.error || 'Failed to get sync info' };
-      }
-
-      return { success: true, data: result.data };
-
-    } catch (error) {
-      logger.error('Get last sync error:', error);
-      return { success: false, error: 'Failed to get sync info' };
-    }
-  }
-
   // 👤 User Methods
   async uploadProfilePicture(file: File): Promise<ApiResponse<{ profile_picture: string }>> {
     try {

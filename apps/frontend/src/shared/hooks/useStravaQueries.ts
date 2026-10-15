@@ -6,7 +6,6 @@ import { backendApi } from '@/shared/services/backendApi';
 
 export const STRAVA_QUERY_KEYS = {
   status: ['strava', 'status'] as const,
-  lastSync: ['strava', 'last-sync'] as const,
 };
 
 const STALE_MS = 60_000;
@@ -24,22 +23,6 @@ export function useStravaStatus(enabled = true) {
     },
     enabled,
     staleTime: 5 * STALE_MS,
-    retry: RETRIES,
-  });
-}
-
-/** Senaste och nästa synk (GET /strava/last-sync). */
-export function useStravaLastSync(enabled = true) {
-  return useQuery({
-    queryKey: STRAVA_QUERY_KEYS.lastSync,
-    queryFn: async () => {
-      const res = await backendApi.getStravaLastSync();
-      if (!res.success) throw new Error(res.error);
-      return res.data;
-    },
-    enabled,
-    staleTime: STALE_MS,
-    refetchInterval: 5 * STALE_MS,
     retry: RETRIES,
   });
 }

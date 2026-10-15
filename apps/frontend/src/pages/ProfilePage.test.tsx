@@ -576,8 +576,8 @@ describe('Profile — Strava-rundor och spärrad radering', () => {
     const sheet = await openEdit('2026-10-02', 'Run details');
     const del = within(sheet).getByRole('button', { name: /Delete run/ });
     expect(del).toBeDisabled();
-    expect(del).toHaveAttribute('title', 'Strava runs come back on next sync — delete it in Strava instead');
-    expect(del).toHaveAccessibleName('Delete run — Strava runs come back on next sync — delete it in Strava instead');
+    expect(del).toHaveAttribute('title', 'Strava runs come back from Strava — delete it in Strava instead');
+    expect(del).toHaveAccessibleName('Delete run — Strava runs come back from Strava — delete it in Strava instead');
 
     fireEvent.click(del);
     expect(screen.getByRole('dialog', { name: 'Run details' })).toBeInTheDocument();

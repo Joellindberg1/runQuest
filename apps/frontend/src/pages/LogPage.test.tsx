@@ -50,11 +50,7 @@ function setup({ history = [] as GroupRunHistoryItem[] } = {}) {
     const slice = history.slice(offset as number, (offset as number) + (limit as number));
     return { success: true, data: historyPage(slice, history.length, offset as number, limit as number) };
   };
-  handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: false } });
-  handlers.getStravaLastSync = () => ({
-    success: true,
-    data: { last_sync_attempt: '2026-10-04T09:28:00Z', last_sync_status: 'ok', next_sync_estimated: '2026-10-04T10:28:00Z' },
-  });
+  handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: false, last_import_at: '2026-10-04T09:28:00Z' } });
 }
 
 /** Håller events-listan monterad, som skalets "Right now" gör, så att invalideringen efter en runda har något att träffa. */
@@ -112,10 +108,19 @@ describe('Log — formuläret (mobil)', () => {
     expect(screen.getByRole('button', { name: 'Treadmill' })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('Strava-raden visar senaste och nästa synk', async () => {
+  it('Strava-raden visar när senaste rundan kom in, och ingen nästa synk', async () => {
     renderLog();
     expect(await screen.findByText('Strava connected')).toBeInTheDocument();
-    expect(await screen.findByText('Last sync 32 min ago · next in 28 min')).toBeInTheDocument();
+    expect(await screen.findByText('Last import 32 min ago')).toBeInTheDocument();
+    expect(screen.queryByText(/next|last sync/i)).not.toBeInTheDocument();
+  });
+
+  it('Strava-raden utan någon importerad runda: den neutrala raden', async () => {
+    handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: false, last_import_at: null } });
+    renderLog();
+    expect(await screen.findByText('Strava connected')).toBeInTheDocument();
+    expect(await screen.findByText('Your runs sync automatically')).toBeInTheDocument();
+    expect(screen.queryByText(/last import/i)).not.toBeInTheDocument();
   });
 
   it('inte kopplad: raden pekar på Settings', async () => {

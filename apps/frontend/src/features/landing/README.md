@@ -42,7 +42,7 @@ geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten 
   standardregler, ägarbeslut 1). Landing hämtar inte admin-inställningarna, så en ändring där syns inte i texten. Formeln finns på mobil och desktop och har en textversion för skärmläsare.
 - **EN guldknapp: Join the waitlist** (`rq-btn--primary`, `href="#waitlist"`). Formulärets skickaknapp har samma namn och mål men syns aldrig samtidigt; inga andra element har `rq-btn--primary`.
   "Sign in" är guldkontur (`rq-btn--secondary`), "Watch the film — 0:49" en neutral konturknapp (`rq-btn--ghost`, guld vid hover). Inga "Create a pack"-knappar.
-- **Funktionsrutnätet** har sex kort (01–06): Strava-kortet säger "every 30 minutes" (`STRAVA_SYNC_MINUTES` i Playbookens fakta), Journey-kortet "mapped". Det finns på mobil och desktop.
+- **Funktionsrutnätet** har sex kort (01–06): Strava-kortet säger att rundor kommer när de sparas, med en reservkontroll (intervallet ur `stravaPollIntervalLabel()` i shared), Journey-kortet "mapped". Det finns på mobil och desktop.
 - **Footern:** Privacy och Legal (→ `legalPrivacyPath` / `legalTermsPath`), Stravas "Compatible with Strava" (oförändrad: ingen filter, ingen hover, högst textens teckenhöjd, skild från
   RunQuests wordmark; svart variant på ljus botten via `next-themes`; vaktas av Stylelint-regeln `rq/strava-logo` i `stylelint.config.js`: ingen filter, opacity, transform, animation eller hover, höjd högst 1em) och versionen (`v` + `version` ur `apps/frontend/package.json`, som `scripts/check-versions.mjs` vaktar). Inga länkar till inloggade sidor.
 - **Rörelse.** Bara det som lever loopar: rutnätet (`rqGrid`), löparna (`rqOrbit`, offset-path på SVG-cirklar) och deras XP-pop, previewkortets guldring (`rqRing`) och sweep (`rqSweep`).

@@ -48,7 +48,7 @@ describe('Strava-rundor kan inte raderas', () => {
   });
 
   it('förklaringen säger vad som händer och vad man gör i stället', () => {
-    expect(STRAVA_DELETE_HINT).toBe('Strava runs come back on next sync — delete it in Strava instead');
+    expect(STRAVA_DELETE_HINT).toBe('Strava runs come back from Strava — delete it in Strava instead');
   });
 });
 

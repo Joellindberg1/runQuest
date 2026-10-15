@@ -93,7 +93,6 @@ function defaultHandlers(): Record<string, Handler> {
     getEventHistoryPage: () => ({ success: true, data: { events: [], meta: { total: 0, limit: 6, offset: 0, has_more: false } } }),
     getMyChallenges: () => ({ success: true, data: EMPTY_CHALLENGES }),
     getStravaStatus: () => ({ success: true, data: { connected: false, expired: false } }),
-    getStravaLastSync: () => ({ success: true, data: { last_sync_attempt: null, last_sync_status: 'none', next_sync_estimated: null } }),
   };
 }
 

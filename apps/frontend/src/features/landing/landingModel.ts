@@ -1,11 +1,10 @@
 import {
-  DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS, calculateRunXP, calculateStreakMultiplier,
+  DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS, calculateRunXP, calculateStreakMultiplier, stravaPollIntervalLabel,
   type AdminSettings, type PublicStatsData, type StreakMultiplier,
 } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { deltaView, type DeltaView } from '@/features/leaderboard/boardFormat';
 import { formatInt } from '@/features/log/logFormat';
-import { STRAVA_SYNC_MINUTES } from '@/features/playbook/playbookFacts';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
 // Landingens vymodell. Exempelflocken är påhittad (features/leaderboard/previewUsers) och spelreglerna läses ur shared; de enda
@@ -196,16 +195,16 @@ export interface FeatureCard {
 }
 
 /**
- * De sex korten. Synkintervallet är Playbookens kopia av STRAVA_POLL_INTERVAL_MINUTES i shared/rules.ts (playbookFacts, som
- * prövas mot konstanten). Eventexemplen är seedade mallar (migration 017: Morgonrunda, 5K Friday, Hangover Run).
+ * De sex korten. Synkintervallet kommer ur shared/rules.ts (STRAVA_POLL_INTERVAL_HOURS via stravaPollIntervalLabel); Playbook och
+ * Settings läser samma etikett. Eventexemplen är seedade mallar (migration 017: Morgonrunda, 5K Friday, Hangover Run).
  */
-export function buildFeatures(syncMinutes: number = STRAVA_SYNC_MINUTES): FeatureCard[] {
+export function buildFeatures(): FeatureCard[] {
   return [
     { tag: '01', title: 'Leaderboard', body: 'Podium for the top three, ranked list below, live rank changes.' },
     { tag: '02', title: 'Titles', body: 'Held, not awarded. Every title has a current holder and a challenger.' },
     { tag: '03', title: 'Challenges', body: '1v1 across three tiers. Spend a token, pick a metric, winner gets an XP boost.' },
     { tag: '04', title: 'Events', body: 'Recurring challenges that open on a schedule — morning runs, 5K Fridays, hangover runs.' },
-    { tag: '05', title: 'Strava sync', body: `Runs import automatically every ${syncMinutes} minutes. Nothing to log by hand.` },
+    { tag: '05', title: 'Strava sync', body: `Runs arrive from Strava as you save them, with a backup check every ${stravaPollIntervalLabel()}. Nothing to log by hand.` },
     { tag: '06', title: 'The journey', body: 'Your total distance mapped as a route with checkpoints, so the km add up to something.' },
   ];
 }

@@ -156,14 +156,13 @@ describe('changelog: v0.6.0', () => {
 });
 
 describe('announcedNotes', () => {
-  // Popupen och Features-kortet kommer med frontend-deployen, men Stravas prenumeration skapas först efter den. Därför har posten ingen announce
-  // (guarden kräver true eller utelämnat, så nyckeln utelämnas) tills webhooks är verifierade. RUN-265 sätter announce: true och vänder det
-  // här testet tillbaka till originalnamnet 'v0.7.0-posten med announce är med och slugen är unik' (posten ska då finnas i announcedNotes, en gång).
-  it('v0.7.0-posten finns men annonseras inte förrän webhooks är verifierade', () => {
+  it('v0.7.0-posten med announce är med och slugen är unik', () => {
     const posts = changelog.releases.filter((entry) => entry.version === '0.7.0');
     expect(posts).toHaveLength(1);
-    expect(Boolean(posts[0].announce)).toBe(false);
-    expect(announcedNotes(changelog.releases).map((note) => note.slug)).not.toContain(slugForVersion('0.7.0'));
+    expect(posts[0].announce).toBe(true);
+    const slugs = announcedNotes(changelog.releases).map((note) => note.slug);
+    expect(slugs.filter((slug) => slug === slugForVersion('0.7.0'))).toHaveLength(1);
+    expect(new Set(slugs).size).toBe(slugs.length);
   });
 });
 
@@ -192,15 +191,19 @@ describe('changelog: v0.7.0', () => {
     expect(changelog.workingOn.map((item) => item.title)).toEqual(['Seasons and trophies', 'Group settings']);
   });
 
-  // Före webhook-prenumerationen får posten (som syns i Releases-fliken) inte säga något som kräver verifierade webhooks: inget "tells RunQuest",
-  // inga 48 timmar, ingen reservkontroll och ingen borttagning på Strava under paus. RUN-265 sätter in de texterna och vänder det här testet till att kräva dem.
-  it('Strava-texten är ärlig före prenumerationen: pausen stoppar nya hämtningar, Disconnect raderar och inte går att ångra, och inget kräver verifierade webhooks', () => {
-    expect(text).not.toContain('tells RunQuest');
-    expect(text).not.toContain('48 hours');
-    expect(text).not.toContain('at least every 12 hours');
-    expect(text).not.toContain('still removed here');
+  // Prenumerationen finns och är verifierad mot riktig Strava: posten säger att Strava berättar för RunQuest, att reservkontrollen går minst var 12:e
+  // timme och att ändringar och raderingar slår igenom inom 48 timmar. Den lovar inget om ändrad distans eller datum: Strava skickar ingen händelse då.
+  it('Strava-texten säger vad som gäller: Strava berättar, reservkontroll minst var 12:e timme, 48 timmar, pausen stoppar nya hämtningar, Disconnect raderar och inte går att ångra', () => {
+    expect(text).toContain('Strava now tells RunQuest when you log or delete a run, or change its title, type or visibility');
+    expect(text).not.toContain('change or delete a run');
+    expect(text).toContain('also checks Strava for new runs at least every 12 hours');
+    expect(text).toContain('Deletions and privacy changes on Strava follow within 48 hours');
+    expect(text).toContain('so they can go down');
+    expect(text).toContain('the 48 hours');
+    expect(text).toContain('and runs you delete or make private on Strava are still removed here');
+    expect(text).not.toContain("Edits to a run's date or distance");
     expect(text).toContain('Pause sync');
-    expect(text).toContain('no new runs are fetched until you turn sync back on; the new runs from the pause are fetched when you turn it back on');
+    expect(text).toContain('no new runs are fetched until you turn sync back on, and runs you delete or make private on Strava are still removed here; the new runs from the pause are fetched when you turn it back on');
     expect(text).toMatch(/Disconnect asks Strava to revoke RunQuest's access and deletes the runs imported from Strava, and it cannot be undone/);
   });
 
@@ -212,9 +215,23 @@ describe('changelog: v0.7.0', () => {
     expect(stravaTexts).not.toMatch(/instant|within minutes|right away|immediately|real[- ]time/i);
   });
 
-  it('Strava-kortet under Features lovar inga webhooks förrän webhooks är verifierade', () => {
+  it('Strava-kortet under Features säger att Strava berättar för RunQuest, med en reservkontroll minst var 12:e timme', () => {
     const strava = changelog.features.find((feature) => feature.title === 'Strava');
-    expect(strava?.body).toBe('Your runs are imported automatically');
+    expect(strava?.body).toBe(
+      'Strava tells RunQuest about new and deleted runs and about runs you make private, and RunQuest also checks Strava for new runs at least every 12 hours. Pause sync in Settings, or Disconnect to delete the runs imported from Strava',
+    );
+  });
+
+  it('nya Strava-punkterna ligger efter Involves me och Ranks och före samtyckespunkten', () => {
+    const descriptions = v070?.changes.map((change) => change.description) ?? [];
+    const involves = descriptions.findIndex((description) => description.includes('Involves me'));
+    const tells = descriptions.findIndex((description) => description.startsWith('Strava now tells RunQuest'));
+    const deletions = descriptions.findIndex((description) => description.startsWith('Deletions and privacy changes on Strava'));
+    const consent = descriptions.findIndex((description) => description.startsWith('Connecting Strava now starts'));
+    expect([tells, deletions]).toEqual([involves + 1, involves + 2]);
+    expect(consent).toBe(deletions + 1);
+    expect(v070?.changes[tells].type).toBe('improvement');
+    expect(v070?.changes[deletions].type).toBe('improvement');
   });
 });
 

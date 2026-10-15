@@ -1,3 +1,5 @@
+import { addDays, stockholmClock, stockholmWallClockToInstant } from './calendar.js';
+
 // Game rules that several places state or enforce. One definition here: the backend imports the values, Playbook and the privacy text
 // are tested against them (packages/shared/src/__tests__/rules.test.ts, apps/frontend/src/features/playbook/playbookFacts.test.ts).
 // Change a value here and the tests name the texts that have to follow.
@@ -21,13 +23,12 @@ export const STRAVA_TREADMILL_FLAG = 'trainer';
 export const STRAVA_LOOKBACK_BUFFER_DAYS = 7;
 
 /**
- * How often the scheduler syncs Strava, in minutes. The name carries the unit and the scheduler builds its cron expression from it.
- * RUN-265 (S29) moves to hours: rename this to STRAVA_POLL_INTERVAL_HOURS = 12, change stravaPollCron below
- * to run at minute 0 of every 12th hour, redo the next-sync estimate in scheduler/stravaSync.ts, and update the texts that say
- * "every 30 minutes" (playbookFacts.ts and the landing text). The privacy text already says "at least every 12 hours" (true before and
- * after) and is checked against this constant in rules.test.ts.
+ * How often the scheduler checks Strava as a backup to the webhooks, in hours (ADR 010 decision 6). The name carries the unit. It has to
+ * divide 24 evenly: the cron fires at fixed clock times (minute 0 of every Nth hour, Europe/Stockholm), so any other value would
+ * give slots that differ from day to day. The scheduler, the next-sync estimate, Playbook, Settings and the landing text are all
+ * built from this constant; the privacy text says "at least every 12 hours" and is checked against it in rules.test.ts.
  */
-export const STRAVA_POLL_INTERVAL_MINUTES = 30;
+export const STRAVA_POLL_INTERVAL_HOURS = 12;
 
 /**
  * How long the journal of Strava webhook events (strava_webhook_events) keeps a row, in days (ADR 010 decision 11): handled events
@@ -37,14 +38,44 @@ export const STRAVA_POLL_INTERVAL_MINUTES = 30;
 export const WEBHOOK_RETENTION_DONE_DAYS = 30;
 export const WEBHOOK_RETENTION_FAILED_DAYS = 90;
 
+const HOURS_PER_DAY = 24;
+const MS_PER_HOUR = 3_600_000;
+
+// Below three hours the cron and the slot computation disagree on the daylight saving night (a 02:00 slot that does not exist in
+// spring, or exists twice in autumn), so only intervals that are verified against both are accepted.
+const MIN_POLL_INTERVAL_HOURS = 3;
+
+function assertDividesDay(hours: number): void {
+  if (!Number.isInteger(hours) || hours < MIN_POLL_INTERVAL_HOURS || hours > HOURS_PER_DAY || HOURS_PER_DAY % hours !== 0) {
+    throw new RangeError(`The Strava poll interval must be 3, 4, 6, 8, 12 or 24 hours (a whole number from 3 that divides 24 evenly), got ${hours}`);
+  }
+}
+
+/** "12 hours": the interval as the texts name it. RangeError for a value that is not 3, 4, 6, 8, 12 or 24. */
+export function stravaPollIntervalLabel(hours: number = STRAVA_POLL_INTERVAL_HOURS): string {
+  assertDividesDay(hours);
+  return `${hours} hours`;
+}
+
 /**
- * The cron expression the scheduler runs on: every `minutes` minutes (default STRAVA_POLL_INTERVAL_MINUTES). The scheduler takes its
- * schedule from here, not from its own string.
- *
- * TODO(RUN-265): this, and scheduler/stravaSync.ts computeNextSync (now plus N minutes), only fit an interval in minutes. When the
- * interval is in hours, redo both: the cron fires at fixed clock times, so the next slot has to be computed from the cron expression,
- * not as now plus the interval.
+ * The cron expression the scheduler runs on: minute 0 of every `hours`th hour. The scheduler runs it with timezone Europe/Stockholm,
+ * so the slots are wall-clock times (00:00 and 12:00 for 12 hours). RangeError for a value that is not 3, 4, 6, 8, 12 or 24.
  */
-export function stravaPollCron(minutes: number = STRAVA_POLL_INTERVAL_MINUTES): string {
-  return `*/${minutes} * * * *`;
+export function stravaPollCron(hours: number = STRAVA_POLL_INTERVAL_HOURS): string {
+  assertDividesDay(hours);
+  return hours === HOURS_PER_DAY ? '0 0 * * *' : `0 */${hours} * * *`;
+}
+
+/**
+ * The next moment the poll cron fires, strictly after `from`. The slots are Stockholm wall-clock times (stravaPollCron), so this is
+ * not `from` plus the interval: after a restart at 14:37 the next slot is 00:00. A moment exactly on a slot gives the slot one
+ * interval later. Daylight saving nights keep the wall-clock time (13 h or 11 h between 00:00 and 12:00).
+ */
+export function nextStravaPollSlot(from: Date, hours: number = STRAVA_POLL_INTERVAL_HOURS): Date {
+  assertDividesDay(hours);
+  const { date, msIntoDay } = stockholmClock(from);
+  const nextSlotHour = (Math.floor(msIntoDay / (hours * MS_PER_HOUR)) + 1) * hours;
+  return nextSlotHour < HOURS_PER_DAY
+    ? stockholmWallClockToInstant(date, nextSlotHour)
+    : stockholmWallClockToInstant(addDays(date, 1), 0);
 }

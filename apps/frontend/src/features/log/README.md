@@ -16,7 +16,7 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
 - **logModel.ts** — formulärtillstånd, validering (backendens regler), `buildSubmission`, `streakOutlook` (streakdagen en ny runda får), bekräftelsetext
 - **xpPreviewModel.ts** — `buildXpPreview`: uppställning via `calculateCompleteRunXP` (shared) + effekterna streak/nivå/Frodo/ranking
 - **historyModel.ts** — `buildHistoryRow` (kort: initialer, underlag, väder, källa, fem celler), sidstorlek
-- **stravaModel.ts** — banderollens text ur `/strava/status` + `/strava/last-sync`
+- **stravaModel.ts** — banderollens text ur `/strava/status` (`last_import_at`: Last import, ingen nästa synk)
 - **logFormat.ts** — en-GB-tal, egna månadsnamn, "32 min ago"/"in 28 min", WMO-väderkod → etikett
 - **hooks/** — `useLogForm` (formulärets tillstånd, överlever flikbyte), `useCreateRun` (mutation + invalideringar), `useLogQueries` (`useGroupHistory`; Strava-hookarna bor i `shared/hooks/useStravaQueries`)
 - `log.css` — enda stilfilen; mått (`--rq-log-*`) i temafilen, sektion 1.25 (index.css + docs/design/temafil-forslag.css)
@@ -52,8 +52,8 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
   av det som hämtats). `staleTime: 0` — en runda som ändrats/raderats i Profile ska inte stå kvar. Fel på första sidan = felkort med Retry; fel på nästa sida
   lämnar raderna kvar och visar ett felkort under dem. Min egen runda har guldkant (samma "jag"-markering som Events/Duels). Namn och avatar öppnar Runner card.
 - **Väder utan emojis** (regel 10): sol- och snöikon ur ikonsetet där de finns, annars temperatur + etikett ("14 °C · Rain").
-- **Strava-raden (bara mobil)** läser `shared/hooks/useStravaQueries` (`useStravaStatus`, `useStravaLastSync`) — samma hooks som skalets `useRightNow`, EN definition med
-  gemensam retry, så en hämtning delas (`pages/LogShellSeam.test.tsx`). Ej kopplad / utgången → raden pekar på Settings. Ett fel döljer raden (sidoinformation, inget felkort).
+- **Strava-raden (bara mobil)** läser `shared/hooks/useStravaQueries` (`useStravaStatus`) — EN definition med
+  gemensam retry; statusen delas med skalet (`pages/LogShellSeam.test.tsx`); last-sync hämtas inte alls i frontend. Raden visar "Last import 3 h ago" (`last_import_at`), ingen nästa synk. Ej kopplad / utgången → raden pekar på Settings. Ett fel döljer raden (sidoinformation, inget felkort).
 - **Ingen guldknapp utöver submit** (Group history har ingen alls). "Show more" är ghost, Retry sekundär.
 - **Ingen tour:** det fanns ingen `tour_log_*` att bumpa — skärmen har inga `data-tour`-ankare.
 - **Löpbandets blå** = minor-nivåns blå (`--rq-tier-minor-*`) under rollnamnet `--rq-log-treadmill*` (prototypens Treadmill-chip).

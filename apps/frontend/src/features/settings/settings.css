@@ -24,8 +24,8 @@
 .rq-settings-card__lead { margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 .rq-settings-card__head > .rq-chip { margin: 0; white-space: nowrap; }
 
-/* Tre celler: Connected · Last sync · Next sync */
-.rq-settings-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+/* Två celler: Connected · Last import */
+.rq-settings-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
 .rq-settings-meta__cell { padding: var(--rq-sp-10) var(--rq-sp-12); }
 .rq-settings-meta__label { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-settings-meta__value { margin: var(--rq-sp-2) 0 0; font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); }
@@ -70,12 +70,6 @@ summary.rq-consent__summary { list-style: none; display: flex; align-items: cent
 .rq-settings-pw { display: grid; grid-template-columns: var(--rq-settings-pw-cols); gap: var(--rq-gap-stack) var(--rq-sp-14); }
 
 /* ── Sidokolumnen ─────────────────────────────────────────────────────────── */
-.rq-settings-sync__title { margin: 0 0 var(--rq-sp-10); font-weight: 400; }
-.rq-settings-sync__row { display: flex; justify-content: space-between; gap: var(--rq-sp-12); margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
-.rq-settings-sync__time { font-family: var(--rq-font-mono); color: var(--rq-text-4); }
-.rq-settings-sync__row [data-tone="up"] { color: var(--rq-up); }
-.rq-settings-sync__row [data-tone="down"] { color: var(--rq-down); }
-.rq-settings-sync__empty { margin: 0; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-settings-note { margin: 0; padding: var(--rq-pad-card); border: var(--rq-hair) dashed var(--rq-line-5); font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
 
 /* ── Notisinställningarna (NotificationSettingsPanel) ─────────────────────────────────────────────────────────────────

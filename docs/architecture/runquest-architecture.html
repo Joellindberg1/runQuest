@@ -84,7 +84,7 @@
     { "id": "backend-to-storage", "from": "backend", "to": "storage", "label": "profilbilder", "fromSide": "top", "toSide": "left", "via": [[645, 150]] },
     { "id": "backend-to-db", "from": "backend", "to": "db", "label": "service role", "fromSide": "bottom", "toSide": "top" },
     { "id": "sched-to-db", "from": "sched", "to": "db", "label": "cron-jobb", "fromSide": "left", "toSide": "right" },
-    { "id": "sched-to-strava", "from": "sched", "to": "strava", "label": "cron-sync 30 min", "fromSide": "right", "toSide": "bottom", "via": [[1225, 512]] },
+    { "id": "sched-to-strava", "from": "sched", "to": "strava", "label": "cron-sync 12 h", "fromSide": "right", "toSide": "bottom", "via": [[1225, 512]] },
     { "id": "sched-to-meteo", "from": "sched", "to": "meteo", "label": "väder", "fromSide": "bottom", "toSide": "top" }
   ],
   "cards": [
@@ -117,8 +117,8 @@
       "dot": "amber",
       "title": "Schemalagt (cron, UTC om inget annat anges)",
       "items": [
-        "Strava-polling (reserv): var 30:e minut, hoppar över pausade användare; går till 12 h när RUN-265 mergas, som sista steg i RUN-182, direkt efter godkänd rök (ägarbeslut 2026-10-14)",
-        "Väder-backfill: efter varje pollning idag; eget 30-min-schema från RUN-265 (som också tar igen en missad poll-slot)",
+        "Strava-polling (reserv): var 12:e timme, 00:00 och 12:00 Europe/Stockholm, hoppar över pausade användare; 30-minuterstickens körning tar igen en missad slot (RUN-265, 30 min före)",
+        "Väder-backfill: eget schema var 30:e minut, skilt från pollen (RUN-265)",
         "Strava-webhook-worker: svep varje minut (plus väckning efter insert)",
         "Webhook-nattjobb 03:30 Europe/Stockholm: retention (done 30 dygn, dead 90 dygn) och kontroll att prenumerationen finns",
         "Streak: nattlig omräkning av alla användare kl. 03:00 Europe/Stockholm",
@@ -135,7 +135,7 @@
         "JWT (30 dagar i prod via JWT_EXPIRES_IN; kodens default är 7d) lagras i localStorage; ingen refresh implementerad",
         "POST /api/strava/webhook är oautentiserad (ingen JWT, Strava signerar inte) men skyddad enligt ADR 010 beslut 1 och 3: händelser är bara signaler, tillståndet hämtas alltid från Strava och en radering sker först när Strava bekräftar den; subscription_id måste matcha, formen kontrolleras, okänd ägare släpps och det finns ett tak per ägare",
         "GET /api/strava/webhook/health kräver admin (requireAdmin; globala räknare, ingen gruppdata) och flyttas till supportrollen med RUN-267",
-        "Strava-läsgränsen (300/15 min, 3 000/dygn) delas av polling och webhooks; polling var 30:e minut slår i den vid cirka 60 löpare"
+        "Strava-läsgränsen (300/15 min, 3 000/dygn) delas av polling och webhooks; polling var 12:e timme är 2 listanrop per löpare och dygn (var 30:e minut slog i gränsen vid cirka 60 löpare)"
       ]
     }
   ]

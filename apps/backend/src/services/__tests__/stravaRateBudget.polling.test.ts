@@ -1,5 +1,5 @@
 /**
- * The polling (syncAllStravaUsers, the 30-minute cron) is counted by the rate budget through the hook on stravaFetch,
+ * The polling (syncAllStravaUsers, the backup poll cron) is counted by the rate budget through the hook on stravaFetch,
  * without the polling code knowing about the budget (ADR 010 decision 9). Database: createFakeDb. Network: installFakeStravaFetch.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

@@ -95,7 +95,7 @@ describe('useStravaActions pause, resume and disconnect', () => {
   afterEach(() => vi.useRealTimers());
 
   it('pause puts paused true, confirms in the card status and refreshes the strava status', async () => {
-    seed(STRAVA_QUERY_KEYS.status, STRAVA_QUERY_KEYS.lastSync);
+    seed(STRAVA_QUERY_KEYS.status);
     const { result } = mount();
 
     let done = false;

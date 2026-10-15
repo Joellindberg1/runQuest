@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS } from '@runquest/shared';
+import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS, stravaPollIntervalLabel } from '@runquest/shared';
 import type { XpRules } from '@/features/log/xpPreviewModel';
 import { CHAPTER_IDS, LEVEL_MILESTONES, buildChapters, neighbours, type Chapter, type ChapterId } from './playbookModel';
 
@@ -37,6 +37,13 @@ describe('XP & running — siffrorna kommer ur konfigurationen', () => {
     expect(chapter('run').lead).toBe('Manual runs need at least 1.0 km; runs synced from Strava count at any distance above zero.');
     expect(rowsOf('run').slice(0, 2)).toEqual([['Manual run, minimum', '1.0 km'], ['Base XP from', '1.5 km']]);
     expect(chapter('xp').paras.join(' ')).toContain('The base is paid from 1.5 km.');
+  });
+
+  it('kapitel 1: Strava-rundor kommer när de sparas, med en reservkontroll, och tabellraden säger samma sak kort', () => {
+    const interval = stravaPollIntervalLabel();
+    expect(chapter('run').paras[0]).toMatch(new RegExp(`^Strava runs arrive as you save them, with a backup check every ${interval} — running activities only`));
+    expect(chapter('run').paras[0]).toContain('Each backup check looks back to a week before your most recent Strava-imported run');
+    expect(rowsOf('run')).toContainEqual(['Strava import', `As you save, backup every ${interval}`]);
   });
 
   it('formeln: ingress och tabell följer base, XP/km och distansbonusarna', () => {

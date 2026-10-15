@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ChangelogData } from '@/features/changelog/changelogTypes';
 import { FeatureTour } from './FeatureTour';
 import { OnboardingOrchestrator } from './OnboardingOrchestrator';
+import { ONBOARDING_V1_STEPS } from '../onboardingSteps';
 
 // Egen fixtur i stället för den riktiga changelog.json: testerna ska inte gå sönder när nästa release läggs in.
 const FIXTURE = vi.hoisted((): ChangelogData => ({
@@ -18,7 +19,18 @@ const FIXTURE = vi.hoisted((): ChangelogData => ({
   ],
 }));
 vi.mock('@/features/changelog/changelogData', () => ({ changelog: FIXTURE }));
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: { getToken: () => 'token', onUnauthorized: undefined } }));
+const strava = vi.hoisted(() => ({ connected: false, mode: 'ok' as 'ok' | 'fail' | 'hang' }));
+vi.mock('@/shared/services/backendApi', () => ({
+  backendApi: {
+    getToken: () => 'token',
+    onUnauthorized: undefined,
+    getStravaStatus: async () => {
+      if (strava.mode === 'hang') return new Promise(() => {});
+      if (strava.mode === 'fail') return { success: false, error: 'down' };
+      return { success: true, data: { connected: strava.connected, expired: false } };
+    },
+  },
+}));
 vi.mock('./OnboardingTour', () => ({
   OnboardingTour: ({ steps, onDone }: { steps: unknown[]; onDone: () => void }) => (
     <div data-testid="onboarding-tour" data-steps={steps.length}><button onClick={onDone}>Finish tour</button></div>
@@ -57,6 +69,8 @@ beforeEach(() => {
   fetchMock.mockClear();
   markSeenCalls.length = 0;
   failMarkSeen = false;
+  strava.connected = false;
+  strava.mode = 'ok';
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -120,6 +134,52 @@ describe('onboarding-kön läser annonserade poster ur changelog.json', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Finish tour' }));
     expect(await screen.findByRole('dialog', { name: 'Big news' }, WAIT)).toBeInTheDocument();
     expect(screen.queryByTestId('onboarding-tour')).toBeNull();
+  });
+});
+
+describe('förstagångsturen och Strava', () => {
+  it('en kopplad användare får turen utan Connect Strava-steget, en ej kopplad får alla steg', async () => {
+    seen = [];
+    strava.connected = true;
+    const connected = renderQueue();
+    const tour = await screen.findByTestId('onboarding-tour');
+    expect(tour.getAttribute('data-steps')).toBe(String(ONBOARDING_V1_STEPS.length - 1));
+    connected.unmount();
+
+    strava.connected = false;
+    renderQueue();
+    expect((await screen.findByTestId('onboarding-tour')).getAttribute('data-steps')).toBe(String(ONBOARDING_V1_STEPS.length));
+  });
+
+  describe('when the status cannot be read in time', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('a failing status starts the tour with every step, after the one retry and well before the time limit', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      seen = [];
+      strava.mode = 'fail';
+      renderQueue();
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(screen.queryByTestId('onboarding-tour')).toBeNull(); // still retrying
+      await vi.advanceTimersByTimeAsync(1500); // the retry has failed; the limit (3 s) has not been reached
+
+      expect(screen.getByTestId('onboarding-tour').getAttribute('data-steps')).toBe(String(ONBOARDING_V1_STEPS.length));
+    });
+
+    it('a status that hangs starts the tour with every step after 3 seconds, not before and not never', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      seen = [];
+      strava.mode = 'hang';
+      strava.connected = true; // would drop a step, but the status never arrives
+      renderQueue();
+
+      await vi.advanceTimersByTimeAsync(2900);
+      expect(screen.queryByTestId('onboarding-tour')).toBeNull();
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(screen.getByTestId('onboarding-tour').getAttribute('data-steps')).toBe(String(ONBOARDING_V1_STEPS.length));
+    });
   });
 });
 

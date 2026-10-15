@@ -20,6 +20,7 @@ import { isValidAthleteId } from '../services/stravaAthlete.js';
 import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
 import { getLastWebhookAt } from '../services/stravaLastWebhook.js';
+import { getLastStravaImportAt } from '../services/stravaLastImport.js';
 import { removeStravaConnection } from '../services/stravaConnection.js';
 import { revokeStravaAuthorization } from '../services/stravaRevoke.js';
 import { errorCode } from '../utils/errorCode.js';
@@ -120,7 +121,8 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       const disconnected: StravaStatusResponse = { connected: false, expired: false };
       res.json(disconnected); return;
     }
-    const pauseFields = { sync_paused: pause.paused, paused_at: pause.pausedAt };
+    // Per användare och alltid sann: läses ur rundorna (created_at), inte ur schemalaggarens minne. Ett läsfel ger null, inte ett fel.
+    const pauseFields = { sync_paused: pause.paused, paused_at: pause.pausedAt, last_import_at: await getLastStravaImportAt(userId) };
 
     // Om token är expired förnyar getValidAccessToken den (auto-refresh)
     if (token.ok && token.refreshed) {
@@ -150,19 +152,6 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     const expired = !token.ok; // kvar här: antingen giltig, eller utgången utan refresh-token
-    const supabase = getSupabaseClient();
-
-    // Get last global sync time (based on most recent Strava run imported by anyone)
-    const { data: lastGlobalStravaRun, error: syncError } = await supabase
-      .from('runs')
-      .select('created_at')
-      .eq('source', 'strava')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    logger.info('🔍 Last global sync query result:', { found: Boolean(lastGlobalStravaRun), error_code: syncError ? errorCode(syncError) : null });
-
     logger.info('✅ Strava status:', { connected: true, expired, expires_at: token.expiresAt });
     
     const body: StravaStatusResponse = {
@@ -171,7 +160,6 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       // Raderna lagrar null när Strava inte gav något värde; svaret är som före utbrytningen (typen säger undefined).
       expires_at: token.expiresAt as number | undefined,
       connection_date: token.connectionDate as string | undefined,
-      last_sync: lastGlobalStravaRun?.created_at || null,
       // null för kopplingar som gjordes före samtyckesloggen (ADR 010 beslut 12, D4).
       consent_version: token.consentVersion,
       ...pauseFields

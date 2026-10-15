@@ -179,7 +179,7 @@ describe('Right now', () => {
     expect(container.querySelector('[data-tour="right-now-strava"]')).toBe(pill);
   });
 
-  it('visar event- och Strava-piller ur befintliga endpoints, med Strava som tour-ankare', async () => {
+  it('visar event-pillen ur befintliga endpoints; en kopplad Strava ger ingen pill (ingen nästa synk)', async () => {
     handlers.getEventList = () => ({
       success: true,
       data: {
@@ -192,28 +192,18 @@ describe('Right now', () => {
       },
     });
     handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: false } });
-    handlers.getStravaLastSync = () => ({
-      success: true,
-      data: { last_sync_attempt: null, last_sync_status: 'ok', next_sync_estimated: new Date(Date.now() + 28 * 60_000 + 30_000).toISOString() },
-    });
 
     const { container } = renderWithApp(<Tree />, { entry: '/board', width: MOBILE_WIDTH });
     const list = await screen.findByRole('list', { name: 'Right now' });
 
-    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(2));
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(1));
     expect(within(list).getByText('Evening run')).toBeInTheDocument();
     expect(within(list).getByText('3h')).toBeInTheDocument();
-    expect(within(list).getByText('28 m')).toBeInTheDocument();
-    expect(container.querySelector('[data-tour="right-now-strava"]')).toHaveTextContent('Strava');
+    expect(within(list).queryByText('Strava')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-tour="right-now-strava"]')).toBeNull();
   });
 
   it('desktop visar samma data som panel i sidnavens botten', async () => {
-    handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: false } });
-    handlers.getStravaLastSync = () => ({
-      success: true,
-      data: { last_sync_attempt: null, last_sync_status: 'ok', next_sync_estimated: new Date(Date.now() + 28 * 60_000 + 30_000).toISOString() },
-    });
-
     renderWithApp(<Tree />, { entry: '/board', width: DESKTOP_WIDTH });
     const panel = await screen.findByRole('region', { name: 'Right now' });
     expect(within(panel).getByText('Strava')).toBeInTheDocument();

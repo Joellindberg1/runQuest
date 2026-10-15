@@ -8,7 +8,7 @@ import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
-import { useStravaLastSync, useStravaStatus } from '@/shared/hooks/useStravaQueries';
+import { useStravaStatus } from '@/shared/hooks/useStravaQueries';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useXpConfig } from '@/shared/hooks/useXpConfig';
@@ -55,7 +55,6 @@ export function LogScreen() {
   const historyQuery = useGroupHistory(enabled && view === 'group');
   const showStrava = enabled && view === 'form' && isDesktop === false;
   const stravaStatus = useStravaStatus(showStrava);
-  const stravaSync = useStravaLastSync(showStrava);
 
   const me = usersQuery.data?.find((candidate) => candidate.id === user?.id);
   const usingDefaults = !configQuery.data && configQuery.isError;
@@ -65,7 +64,7 @@ export function LogScreen() {
     () => (me && rules ? buildXpPreview({ km: parseKm(log.form.distance), date: log.form.date, today, me, users: usersQuery.data ?? [], rules }) : null),
     [me, rules, log.form.distance, log.form.date, today, usersQuery.data],
   );
-  const banner = useMemo(() => buildStravaBanner(stravaStatus.data, stravaSync.data, now), [stravaStatus.data, stravaSync.data, now]);
+  const banner = useMemo(() => buildStravaBanner(stravaStatus.data, now), [stravaStatus.data, now]);
 
   const historyRows = useMemo(
     () => buildHistoryRows(historyQuery.data?.pages.flatMap((page) => page.runs) ?? [], user?.id),

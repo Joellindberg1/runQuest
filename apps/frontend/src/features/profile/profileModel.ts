@@ -137,7 +137,7 @@ export function isDirty(form: EditForm, run: Pick<Run, 'date' | 'distance'>): bo
  */
 export const isStravaRun = (run: Pick<Run, 'source'>): boolean => run.source === 'strava';
 
-export const STRAVA_DELETE_HINT = 'Strava runs come back on next sync — delete it in Strava instead';
+export const STRAVA_DELETE_HINT = 'Strava runs come back from Strava — delete it in Strava instead';
 
 /** Bekräftelsen efter en sparad ändring — siffrorna är serverns (rundan efter omräkningen). */
 export function updateNotice(run: Pick<Run, 'date' | 'distance' | 'xp_gained'>): string {

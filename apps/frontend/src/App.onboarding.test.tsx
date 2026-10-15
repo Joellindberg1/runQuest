@@ -22,6 +22,7 @@ const api = vi.hoisted(() => {
     login: vi.fn(),
     logout: vi.fn(() => { state.token = null; }),
     onUnauthorized: undefined as undefined | (() => void),
+    getStravaStatus: async () => ({ success: true, data: { connected: false, expired: false } }),
   };
 });
 

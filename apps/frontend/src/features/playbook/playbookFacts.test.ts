@@ -8,14 +8,15 @@ import {
   MANUAL_RUN_MIN_DISTANCE_KM,
   STRAVA_DISTANCE_MUST_EXCEED_KM,
   STRAVA_LOOKBACK_BUFFER_DAYS,
-  STRAVA_POLL_INTERVAL_MINUTES,
   STRAVA_RUN_SPORT_TYPES,
   STRAVA_TREADMILL_FLAG,
+  stravaPollIntervalLabel,
 } from '@runquest/shared';
 import { MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 import { HOW_IT_WORKS, observedStakes } from '@/features/challenges/rulesModel';
 import type { XpRules } from '@/features/log/xpPreviewModel';
-import { EVENT_FACTS, STRAVA_RUN_TYPES_LABEL, STRAVA_SYNC_MINUTES, WEEKLY_COMPETITIONS, WEEKLY_XP } from './playbookFacts';
+import { EVENT_FACTS, STRAVA_RUN_TYPES_LABEL, WEEKLY_COMPETITIONS, WEEKLY_XP } from './playbookFacts';
+import { buildFeatures } from '@/features/landing/landingModel';
 import { buildChapters, type ChapterId } from './playbookModel';
 import { STRAVA_IMPORT_RULES } from '@/features/settings/settingsModel';
 
@@ -48,8 +49,6 @@ describe('Run — minimidistans (konstanterna i shared)', () => {
   });
 
   it('Strava-importen: intervallet, löptyperna och fönstret är konstanterna i shared, och texten säger samma sak', () => {
-    expect(STRAVA_SYNC_MINUTES).toBe(STRAVA_POLL_INTERVAL_MINUTES);
-    expect(text('run')).toContain(`every ${STRAVA_SYNC_MINUTES} minutes`);
     // Etiketten är typnamnen med mellanslag i CamelCase: Run, TrailRun, VirtualRun -> "Run, Trail Run and Virtual Run".
     const names = STRAVA_RUN_SPORT_TYPES.map((type) => type.replace(/([a-z])([A-Z])/g, '$1 $2'));
     expect(STRAVA_RUN_TYPES_LABEL).toBe(`${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
@@ -59,10 +58,31 @@ describe('Run — minimidistans (konstanterna i shared)', () => {
     expect(text('run')).toMatch(/a week before your most recent Strava-imported run/);
   });
 
+  it('playbook, settings rules and the landing feature card state the shared poll interval as a backup to webhooks', () => {
+    const interval = stravaPollIntervalLabel();
+    const importRow = chapters.find((chapter) => chapter.id === 'run')?.table?.rows.find((row) => row.label === 'Strava import')?.value;
+    const landing = buildFeatures().find((card) => card.title === 'Strava sync')?.body;
+    const statements = {
+      'playbook chapter': text('run'),
+      'playbook table row': importRow,
+      'settings rules': STRAVA_IMPORT_RULES.join(' '),
+      'landing card': landing,
+    };
+
+    for (const [place, statement] of Object.entries(statements)) {
+      expect({ place, interval: statement?.includes(interval) }).toEqual({ place, interval: true });
+    }
+    // The prose places name the backup role; the table row is a value cell and only carries the interval.
+    for (const place of ['playbook chapter', 'settings rules', 'landing card'] as const) {
+      expect({ place, backup: statements[place]?.includes(`backup check every ${interval}`) }).toEqual({ place, backup: true });
+    }
+    // Webhooks are a signal, not a promise of time: nothing says instant or within minutes, and nothing still names the old half-hour interval.
+    expect(Object.values(statements).join('\n')).not.toMatch(/instant|within (a few )?minutes|real[- ]time|\b30[ -]?min/i);
+  });
+
   it('Settings säger samma sak om Strava som Playbook: alla tre löptyperna, löpband importeras (trainer-flaggan)', () => {
     expect(text('run')).toContain(`${STRAVA_TREADMILL_FLAG} activity`);
     const rules = STRAVA_IMPORT_RULES.join(' ');
-    expect(rules).toContain(`every ${STRAVA_SYNC_MINUTES} minutes`);
     expect(rules).toContain(STRAVA_RUN_TYPES_LABEL);
     expect(rules).toMatch(/treadmill runs included/);
     const screen = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../settings/components/SettingsScreen.tsx'), 'utf8');

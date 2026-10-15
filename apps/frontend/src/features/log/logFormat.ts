@@ -45,14 +45,6 @@ export function formatAgo(ms: number): string {
   return `${Math.floor(ms / MS_DAY)} d ago`;
 }
 
-/** "in 28 min" · "in 2 h" · "any moment" när tidpunkten redan passerats (nästa synk är inte körd än). */
-export function formatIn(ms: number): string {
-  if (ms < MS_MINUTE) return 'any moment';
-  if (ms < MS_HOUR) return `in ${Math.floor(ms / MS_MINUTE)} min`;
-  if (ms < MS_DAY) return `in ${Math.floor(ms / MS_HOUR)} h`;
-  return `in ${Math.floor(ms / MS_DAY)} d`;
-}
-
 export interface WeatherLabel {
   label: string;
   /** Ikonen som finns i ikonsetet för vädret (sol, snö). Övriga väder visas som text. */

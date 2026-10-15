@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LogPage from './LogPage';
@@ -11,8 +11,8 @@ import { setViewportWidth } from '@/test/viewport';
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
 
-// Skarven skalets "Right now" ↔ Log-skärmens Strava-rad med EN delad QueryClient: båda läser ['strava','status'] och
-// ['strava','last-sync'] genom samma hooks (shared/hooks/useStravaQueries) — en hämtning var, samma dataform.
+// Skarven skalets "Right now" ↔ Log-skärmens Strava-rad med EN delad QueryClient: båda läser ['strava','status'] genom samma hook; synken
+// ['strava','last-sync'] läses bara av Log-raden (skalet visar ingen nästa synk). Hooks i shared/hooks/useStravaQueries.
 
 const MS_MINUTE = 60_000;
 const at = (ms: number) => new Date(Date.now() + ms).toISOString();
@@ -40,32 +40,24 @@ function renderShell(entry: string) {
 }
 
 let statusCalls = 0;
-let syncCalls = 0;
 
 beforeEach(() => {
   resetFakeBackend();
   statusCalls = 0;
-  syncCalls = 0;
   handlers.getStravaStatus = () => {
     statusCalls += 1;
-    return { success: true, data: { connected: true, expired: false } };
-  };
-  handlers.getStravaLastSync = () => {
-    syncCalls += 1;
-    return { success: true, data: { last_sync_attempt: at(-32 * MS_MINUTE), last_sync_status: 'ok', next_sync_estimated: at(28 * MS_MINUTE) } };
+    return { success: true, data: { connected: true, expired: false, last_import_at: at(-32 * MS_MINUTE) } };
   };
 });
 
 describe('Skalets Right now ↔ Log delar Strava-cachen', () => {
-  it('skalet och Log-raden ritar ur samma queries: status och synk hämtas en gång var', async () => {
+  it('skalet och Log-raden delar status-queryn (en hämtning) och ingen nästa synk visas', async () => {
     const { container } = renderShell('/log');
 
     expect(await screen.findByText('Strava connected')).toBeInTheDocument();
-    expect(await screen.findByText(/^Last sync (31|32|33) min ago · next in (26|27|28) min$/)).toBeInTheDocument();
-    // Skalets pill läser samma cache.
-    await waitFor(() => expect(container.querySelector('[data-tour="right-now-strava"]')).toHaveTextContent(/Strava2\d m/));
-    await waitFor(() => expect(syncCalls).toBeGreaterThan(0));
+    expect(await screen.findByText(/^Last import (31|32|33) min ago$/)).toBeInTheDocument();
+    // En kopplad Strava ger ingen pill i skalet.
+    expect(container.querySelector('[data-tour="right-now-strava"]')).toBeNull();
     expect(statusCalls).toBe(1);
-    expect(syncCalls).toBe(1);
   });
 });

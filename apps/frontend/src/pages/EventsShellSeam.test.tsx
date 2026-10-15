@@ -59,10 +59,6 @@ const rightNow = async () => within(await screen.findByRole('list', { name: 'Rig
 beforeEach(() => {
   resetFakeBackend();
   handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: false } });
-  handlers.getStravaLastSync = () => ({
-    success: true,
-    data: { last_sync_attempt: null, last_sync_status: 'ok', next_sync_estimated: at(20 * MS_MINUTE) },
-  });
 });
 
 describe('Skalets Right now ↔ Events delar events-cachen', () => {

@@ -1,11 +1,13 @@
 /**
  * RUN-99 T5 — efter väder-backfillen räknas titlarna om (alla grupper, RUN-104:s explicita allGroups) men bara när
  * backfillen faktiskt sparade rader. Titlarna hänger på väder (Stormborn/Iceborn) som kommer efter importen.
+ * Backfillen har ett eget schema (var 30:e minut) skilt från Strava-pollingen; stravaSyncSchedule.test.ts prövar schemaläggningen.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const h = vi.hoisted(() => ({
-  cronCallback: null as null | (() => Promise<void>),
+  weatherCallback: null as null | (() => Promise<void>),
+  pollCallback: null as null | (() => Promise<void>),
   syncAllStravaUsers: vi.fn(),
   backfillMissingWeather: vi.fn(),
   processAllUsersTitles: vi.fn(),
@@ -13,7 +15,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('node-cron', () => ({
-  default: { schedule: (_expr: string, cb: () => Promise<void>) => { h.cronCallback = cb; } },
+  // Väderjobbet är det som går var 30:e minut; det andra är Strava-pollingen.
+  default: { schedule: (expr: string, cb: () => Promise<void>) => { if (expr === '*/30 * * * *') h.weatherCallback = cb; else h.pollCallback = cb; } },
 }));
 vi.mock('../../routes/strava.js', () => ({ syncAllStravaUsers: h.syncAllStravaUsers }));
 vi.mock('../../services/weatherService.js', () => ({ WeatherService: { backfillMissingWeather: h.backfillMissingWeather } }));
@@ -23,8 +26,8 @@ import { startStravaScheduler, getSyncInfo } from '../stravaSync.js';
 import { logger } from '../../utils/logger.js';
 
 async function runTick(): Promise<void> {
-  expect(h.cronCallback).not.toBeNull();
-  await h.cronCallback!();
+  expect(h.weatherCallback).not.toBeNull();
+  await h.weatherCallback!();
 }
 
 beforeEach(() => {
@@ -57,6 +60,7 @@ describe('stravaSync — titelomräkning efter väder-backfill', () => {
   it('ett fel i omräkningen fäller inte synkstatusen (synken lyckades)', async () => {
     h.backfillMissingWeather.mockResolvedValue(2);
     h.processAllUsersTitles.mockRejectedValue(new Error('boom'));
+    await h.pollCallback!();
     await expect(runTick()).resolves.toBeUndefined();
 
     expect(getSyncInfo().lastSyncStatus).toBe('success');

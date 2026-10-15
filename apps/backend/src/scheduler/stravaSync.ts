@@ -5,7 +5,7 @@ import cron from 'node-cron';
 import { syncAllStravaUsers } from '../routes/strava.js';
 import { WeatherService } from '../services/weatherService.js';
 import { enhancedTitleService } from '../services/enhancedTitleService.js';
-import { STRAVA_POLL_INTERVAL_MINUTES, stravaPollCron } from '@runquest/shared';
+import { STOCKHOLM_TZ, nextStravaPollSlot, stravaPollCron, stravaPollIntervalLabel } from '@runquest/shared';
 
 
 interface SyncState {
@@ -26,8 +26,20 @@ const syncState: SyncState = {
   newRuns: 0,
 };
 
-function computeNextSync(): string {
-  return new Date(Date.now() + STRAVA_POLL_INTERVAL_MINUTES * 60 * 1000).toISOString();
+// The weather backfill is not tied to the poll: webhooks import runs between polls, and their weather (and the weather titles) should
+// not wait for the next backup check. It reads the same tables the poll's backfill always did, so the load is unchanged.
+const WEATHER_BACKFILL_CRON = '*/30 * * * *';
+
+// node-cron 3 now and then skips a whole second window (about 0.8 % of the ticks measured). With a 12-hour interval that would leave half
+// a day without the backup check, so the 30-minute tick runs the poll once if the estimated slot is this much overdue. A poll that is
+// due is not "late" until this has passed: the slot's own tick may still be about to run. This covers a skipped cron second while the
+// process lives. A restart estimates the NEXT slot, so a slot missed during a deploy is not caught up; webhooks carry that time.
+const CATCH_UP_GRACE_MS = 10 * 60 * 1000;
+
+// The cron fires at fixed Stockholm clock times, so the next sync is the next slot, not the attempt plus the interval. A tick that
+// runs exactly on a slot estimates the one after it.
+function nextSyncAfterAttempt(attempt: Date): string {
+  return nextStravaPollSlot(attempt).toISOString();
 }
 
 export function getSyncInfo(): SyncState {
@@ -49,35 +61,84 @@ async function recalculateTitlesAfterWeather(savedRows: number): Promise<void> {
   }
 }
 
-// PRODUCTION: Run every 30 minutes
+// A long backfill (200 ms between runs) must not be started a second time by the next tick.
+let weatherBackfillRunning = false;
+
+// Backfill weather for any runs still missing it (new imports, webhook-moved runs and retries from earlier failures).
+async function runWeatherBackfill(): Promise<void> {
+  if (weatherBackfillRunning) {
+    // The only sign of a hanging backfill.
+    logger.warn('⏭️ Weather backfill skipped: the previous one is still running');
+    return;
+  }
+  weatherBackfillRunning = true;
+  try {
+    const savedWeather = await WeatherService.backfillMissingWeather();
+    if (savedWeather > 0) await recalculateTitlesAfterWeather(savedWeather);
+  } catch (error) {
+    logger.error(`❌ Weather backfill failed (${errorCode(error)})`);
+  } finally {
+    weatherBackfillRunning = false;
+  }
+}
+
+// One poll at a time: the scheduled tick and the catch-up share this guard.
+let pollRunning = false;
+
+async function runPoll(): Promise<void> {
+  if (pollRunning) {
+    // A warning, not info: this is the only sign of a hanging poll.
+    logger.warn('⏭️ Strava sync skipped: the previous one is still running');
+    return;
+  }
+  pollRunning = true;
+  const attempt = new Date();
+  syncState.lastSyncAttempt = attempt.toISOString();
+  syncState.lastSyncStatus = 'running';
+  // Set when the poll starts, not when it ends, so the estimate never lags behind a slot that is running.
+  syncState.nextSyncEstimated = nextSyncAfterAttempt(attempt);
+  try {
+    logger.info(`🔄 Strava sync starting (${stravaPollIntervalLabel()} interval)...`);
+    const result = await syncAllStravaUsers();
+    syncState.lastSyncStatus = result.success ? 'success' : 'error';
+    syncState.usersSynced = result.syncedUsers;
+    syncState.totalUsers = result.totalUsers;
+    syncState.newRuns = result.totalNewRuns;
+    logger.info(`✅ Scheduled sync completed: ${result.message}`);
+  } catch (error) {
+    syncState.lastSyncStatus = 'error';
+    logger.error(`❌ Scheduled sync error (${errorCode(error)})`);
+  } finally {
+    pollRunning = false;
+  }
+}
+
+// Runs the poll when its slot has been missed. After a restart the estimate is the next slot, so a restart never triggers it
+// (webhooks carry the time in between); a failed poll has already moved the estimate on, so it is not retried every half hour.
+async function catchUpMissedPoll(): Promise<void> {
+  try {
+    if (pollRunning || !syncState.nextSyncEstimated) return;
+    if (Date.now() <= Date.parse(syncState.nextSyncEstimated) + CATCH_UP_GRACE_MS) return;
+    logger.warn(`⚠️ The Strava sync slot ${syncState.nextSyncEstimated} was missed, catching up...`);
+    await runPoll();
+  } catch (error) {
+    logger.error(`❌ Strava sync catch-up failed (${errorCode(error)})`);
+  }
+}
+
+// PRODUCTION: the backup poll runs every STRAVA_POLL_INTERVAL_HOURS hours, the weather backfill every 30 minutes.
 export function startStravaScheduler() {
-  logger.info(`🕐 Starting Strava sync scheduler for production (every ${STRAVA_POLL_INTERVAL_MINUTES} minutes)...`);
+  logger.info(`🕐 Starting Strava sync scheduler for production (backup check every ${stravaPollIntervalLabel()}, weather every 30 minutes)...`);
 
-  // Set first estimated next sync time
-  syncState.nextSyncEstimated = computeNextSync();
+  // After a restart there is no attempt yet; the next sync is still the next slot, so the status never says "unknown".
+  syncState.nextSyncEstimated = nextStravaPollSlot(new Date()).toISOString();
 
-  cron.schedule(stravaPollCron(), async () => {
-    logger.info(`🔄 Scheduled Strava sync starting (${STRAVA_POLL_INTERVAL_MINUTES}-minute interval)...`);
-    syncState.lastSyncAttempt = new Date().toISOString();
-    syncState.lastSyncStatus = 'running';
-    try {
-      const result = await syncAllStravaUsers();
-      syncState.lastSyncStatus = result.success ? 'success' : 'error';
-      syncState.usersSynced = result.syncedUsers;
-      syncState.totalUsers = result.totalUsers;
-      syncState.newRuns = result.totalNewRuns;
-      syncState.nextSyncEstimated = computeNextSync();
-      logger.info(`✅ Scheduled sync completed: ${result.message}`);
+  cron.schedule(stravaPollCron(), runPoll, { timezone: STOCKHOLM_TZ });
 
-      // Backfill weather for any runs still missing it (new + retries from previous failures)
-      const savedWeather = await WeatherService.backfillMissingWeather();
-      if (savedWeather > 0) await recalculateTitlesAfterWeather(savedWeather);
-    } catch (error) {
-      syncState.lastSyncStatus = 'error';
-      syncState.nextSyncEstimated = computeNextSync();
-      logger.error(`❌ Scheduled sync error (${errorCode(error)})`);
-    }
-  });
+  // The 30-minute tick does two independent jobs, each with its own error handling.
+  cron.schedule(WEATHER_BACKFILL_CRON, async () => {
+    await Promise.all([catchUpMissedPoll(), runWeatherBackfill()]);
+  }, { timezone: STOCKHOLM_TZ });
 
   logger.info('✅ Strava sync scheduler started');
 }

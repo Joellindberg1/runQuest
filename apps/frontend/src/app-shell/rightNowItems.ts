@@ -47,7 +47,7 @@ export interface RightNowInput {
   streak: { current: number; lastRunDate: string | null } | null;
   events: ShellEvent[];
   duel: ShellDuel | null;
-  strava: { connected: boolean; nextSyncAt: string | null } | null;
+  strava: { connected: boolean } | null;
 }
 
 const MS_MINUTE = 60_000;
@@ -156,7 +156,7 @@ function duelItem(input: RightNowInput): RightNowItem | null {
 }
 
 function stravaItem(input: RightNowInput): RightNowItem | null {
-  const { strava, now } = input;
+  const { strava } = input;
   if (!strava) return null;
   if (!strava.connected) {
     // Ej kopplat: en väg in för nya användare, och ankare för tour-steget.
@@ -165,20 +165,8 @@ function stravaItem(input: RightNowInput): RightNowItem | null {
       tone: 'up', icon: 'sync', to: paths.settings, tourAnchor: 'right-now-strava',
     };
   }
-  if (!strava.nextSyncAt) return null;
-  const msLeft = new Date(strava.nextSyncAt).getTime() - now.getTime();
-  if (Number.isNaN(msLeft)) return null;
-  return {
-    id: 'strava',
-    kind: 'strava',
-    label: 'Strava',
-    note: 'Next sync',
-    value: msLeft > 0 ? formatRemaining(msLeft) : 'Overdue',
-    tone: 'up',
-    icon: 'sync',
-    to: paths.settings,
-    tourAnchor: 'right-now-strava',
-  };
+  // Kopplad: ingen pill. Nästa reservkontroll säger inget om när rundor kommer (de kommer via webhooks).
+  return null;
 }
 
 /** Brådskande först: streak → event → duell → Strava. Saknas data för en typ visas den inte. */
