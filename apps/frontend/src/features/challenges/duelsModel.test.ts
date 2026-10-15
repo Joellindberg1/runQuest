@@ -179,38 +179,41 @@ describe('buildStandings', () => {
     expect(likaNamn.map((row) => row.rank)).toEqual([1, 2, 3]);
   });
 
-  describe('mot group-stats ordning', () => {
-    afterEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
 
-    const stats = [
+  it('tabellens ordning är densamma som group-stats för samma ställning, oberoende av webbläsarens språk', () => {
+    const groupStats = [
       tied('u4', 'Östen'), tied('u3', 'åsa'), tied('u2', 'Zlatan'), tied('u1', 'Per'),
       tied('u6', 'anna'), tied('u5', 'Anna'), tied('u8', 'Sam'), tied('u7', 'Sam'),
       stat('u9', { name: 'Ä-spelare', wins: 2, losses: 1 }),
       stat('u10', { name: 'Bertil', wins: 2, draws: 1 }),
       stat('u11', { name: 'Ödla' }),
       stat('u12', { name: 'Cia', losses: 3 }),
+      // Råpoäng 9/29 = 0,3103 och 13/42 = 0,3095 visas båda som 0.310; råpoängen avgör (inte vinsterna, som talar för u14).
+      stat('u14', { name: 'Dora', wins: 13, losses: 29 }),
+      stat('u13', { name: 'Ceasar', wins: 9, losses: 20 }),
     ];
     // Backendens mappning och sortering i GET /challenges/group-stats.
-    const backendOrder = (): string[] => [...stats]
+    const expected = [...groupStats]
       .map((s) => ({ id: s.user_id, name: s.name, wins: s.wins, draws: s.draws, losses: s.losses }))
       .sort(compareChallengeStandings)
       .map((s) => s.id);
+    const tableOrder = () => buildStandings(groupStats, ME).map((row) => row.userId);
 
-    it('tabellens ordning är densamma som group-stats för samma ställning, oberoende av webbläsarens språk', () => {
-      const expected = backendOrder();
-      const tableOrder = () => buildStandings(stats, ME).map((row) => row.userId);
+    expect(tableOrder()).toEqual(expected);
+    const rows = buildStandings(groupStats, ME);
+    expect(rows.find((row) => row.userId === 'u13')?.pct).toBe('0.310');
+    expect(rows.find((row) => row.userId === 'u14')?.pct).toBe('0.310');
+    expect(tableOrder().indexOf('u13')).toBeLessThan(tableOrder().indexOf('u14'));
 
-      expect(tableOrder()).toEqual(expected);
-
-      for (const locale of ['en-US', 'sv-SE']) {
-        const collator = new Intl.Collator(locale);
-        vi.spyOn(String.prototype, 'localeCompare').mockImplementation(function (this: string, that: string) {
-          return collator.compare(this, that);
-        });
-        expect(tableOrder(), locale).toEqual(expected);
-        vi.restoreAllMocks();
-      }
-    });
+    for (const locale of ['en-US', 'sv-SE']) {
+      const collator = new Intl.Collator(locale);
+      vi.spyOn(String.prototype, 'localeCompare').mockImplementation(function (this: string, that: string) {
+        return collator.compare(this, that);
+      });
+      expect(tableOrder(), locale).toEqual(expected);
+      vi.restoreAllMocks();
+    }
   });
 });
 
