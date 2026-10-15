@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NOTIFICATION_KINDS } from '@runquest/shared';
+import { NOTIFICATION_KINDS, type NewsItem } from '@runquest/shared';
 import { NotificationsPopover } from '@/app-shell/NotificationsPopover';
 import { POINTER_SETTLE_MS } from '../newsModel';
 import { ADAM, DAN, ME, NOW_ISO, at, challengeAccepted, challengeWon, eventOpen, levelUp, newsServer, rankPassed, titleTaken } from '../news.fixture';
@@ -63,7 +63,7 @@ const FEED = () => [
 ];
 
 let panelNews: ReturnType<typeof newsServer>;
-function serve(feed = FEED(), lastSeen: number | null = 16) {
+function serve(feed: NewsItem[] = FEED(), lastSeen: number | null = 16) {
   panelNews = newsServer(feed, lastSeen);
   handlers.getNews = (...args: unknown[]) => panelNews.getNews(...(args as [never]));
   handlers.markNewsSeen = (...args: unknown[]) => panelNews.markNewsSeen(...(args as [never]));
