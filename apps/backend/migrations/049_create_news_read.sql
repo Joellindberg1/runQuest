@@ -1,5 +1,5 @@
 -- 049: news_read — läst per rad ovanför golvet users.news_last_seen_id. ADR 011 beslut 4 (B3, ny tabell) (RUN-185, v0.7.0).
--- Datum: 2026-10-14. EJ APPLICERAD i prod (kräver ägarens uttryckliga ja; Lead applicerar via Supabase MCP apply_migration,
+-- Datum: 2026-10-14. APPLICERAD i prod 2026-10-15 (ägar-ja i chatten; Lead via Supabase MCP apply_migration,
 -- name: 049_create_news_read, och uppdaterar den här raden till APPLICERAD med datum).
 --
 -- Bakgrund: läst-läget är per rad. Golvet users.news_last_seen_id (ADR 008, migration 034) behålls oförändrat: allt med
