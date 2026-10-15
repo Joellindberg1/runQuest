@@ -21,9 +21,11 @@ vi.mock('node-cron', () => ({
   },
 }));
 vi.mock('../../services/stravaWebhook/defaultWorker.js', () => ({ createDefaultWebhookWorker: vi.fn() }));
+vi.mock('../../services/stravaWebhook/subscriptionCheck.js', () => ({ runStravaSubscriptionCheck: vi.fn() }));
 
 import { logger } from '../../utils/logger.js';
 import { createDefaultWebhookWorker } from '../../services/stravaWebhook/defaultWorker.js';
+import { runStravaSubscriptionCheck } from '../../services/stravaWebhook/subscriptionCheck.js';
 import type { StravaWebhookWorker } from '../../services/stravaWebhookWorker.js';
 import { startStravaWebhookScheduler, wakeStravaWebhookWorker } from '../stravaWebhookScheduler.js';
 
@@ -39,6 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.callbacks.clear();
   vi.spyOn(logger, 'info').mockImplementation(() => {});
+  vi.mocked(runStravaSubscriptionCheck).mockResolvedValue('ok');
 });
 afterEach(() => {
   stopScheduler?.();
@@ -122,5 +125,83 @@ describe('webhook scheduler', () => {
     wakeStravaWebhookWorker();
     await flushImmediates();
     expect(worker.drain).not.toHaveBeenCalled();
+  });
+
+  describe('the nightly subscription check', () => {
+    it('runs in the 03:30 job, once per run, and not in the sweep', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      const worker = fakeWorker();
+      stopScheduler = startStravaWebhookScheduler({ worker });
+
+      h.callbacks.get('* * * * *')!();
+      await flushImmediates();
+      expect(runStravaSubscriptionCheck).not.toHaveBeenCalled();
+
+      h.callbacks.get('30 3 * * *')!();
+      await flushImmediates();
+      expect(runStravaSubscriptionCheck).toHaveBeenCalledTimes(1);
+      expect(worker.runRetention).toHaveBeenCalledTimes(1);
+    });
+
+    it('a failing retention does not stop the check', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+      const worker = fakeWorker();
+      worker.runRetention.mockRejectedValue(new Error('database is down'));
+      stopScheduler = startStravaWebhookScheduler({ worker });
+
+      expect(() => h.callbacks.get('30 3 * * *')!()).not.toThrow();
+      await flushImmediates();
+
+      expect(runStravaSubscriptionCheck).toHaveBeenCalledTimes(1);
+      expect(error).toHaveBeenCalledTimes(1);
+    });
+
+    it('a retention that throws at once does not stop the check', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      vi.spyOn(logger, 'error').mockImplementation(() => {});
+      const worker = fakeWorker();
+      worker.runRetention.mockImplementation(() => {
+        throw new Error('broken before the first await');
+      });
+      stopScheduler = startStravaWebhookScheduler({ worker });
+
+      expect(() => h.callbacks.get('30 3 * * *')!()).not.toThrow();
+      await flushImmediates();
+
+      expect(runStravaSubscriptionCheck).toHaveBeenCalledTimes(1);
+    });
+
+    it('a failing check does not stop the retention and never throws out of the cron callback', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+      vi.mocked(runStravaSubscriptionCheck).mockRejectedValue(new Error('https://www.strava.com/api/v3/push_subscriptions?client_secret=hunter2hunter2'));
+      const worker = fakeWorker();
+      stopScheduler = startStravaWebhookScheduler({ worker });
+
+      expect(() => h.callbacks.get('30 3 * * *')!()).not.toThrow();
+      await flushImmediates();
+
+      expect(worker.runRetention).toHaveBeenCalledTimes(1);
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(String(error.mock.calls[0][0])).not.toContain('hunter2hunter2');
+      expect(JSON.stringify(error.mock.calls)).not.toContain('hunter2hunter2');
+    });
+
+    it('a check that throws at once is caught as well', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+      vi.mocked(runStravaSubscriptionCheck).mockImplementation(() => {
+        throw new Error('broken before the first await');
+      });
+      const worker = fakeWorker();
+      stopScheduler = startStravaWebhookScheduler({ worker });
+
+      expect(() => h.callbacks.get('30 3 * * *')!()).not.toThrow();
+      await flushImmediates();
+
+      expect(worker.runRetention).toHaveBeenCalledTimes(1);
+      expect(error).toHaveBeenCalledTimes(1);
+    });
   });
 });
