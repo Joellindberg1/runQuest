@@ -17,20 +17,21 @@ vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBa
 
 const SLOW = { timeout: 4000 };
 
-// Sett från ME (u-me), golv 0. Fem rader är notiser (olästa), den sjätte är min egen handling och räknas aldrig:
+// Sett från ME (u-me), golv 0. Fem rader är notiser (olästa). Den sjätte, min egen handling, är NYAST med flit: popovern kapar vid fem rader, så en egen
+// rad som låg sist skulle kapas bort oavsett om filtret fungerar. Ligger den först syns den i popovern bara om egna rader inte filtreras bort.
+//   7 level_up (jag själv)                   -> egen rad, räknas aldrig och visas inte i popovern
 //   6 title_taken (Karl tar från mig)        -> title_taken_from_me
 //   5 title_taken (Daniel tar från Adam)     -> title_others
 //   4 event_open                             -> event_open
 //   3 challenge_won (Nicklas slår mig)       -> challenge_lost_me
 //   2 level_up (Karl)                        -> level_up_others
-//   1 level_up (jag själv)                   -> egen rad
 const FEED = (): NewsItem[] => [
+  levelUp(7, 9, { actor: ME, occurred_at: at(1) }),
   titleTaken(6, { occurred_at: at(2) }),
   titleTaken(5, { occurred_at: at(3), actor: DAN, target: ADAM }, { title_name: 'The Consistent King', metric_key: 'longestStreak', value: 21 }),
   eventOpen(4, { occurred_at: at(4) }),
   challengeWon(3, { occurred_at: at(5) }),
   levelUp(2, 25, { occurred_at: at(6) }),
-  levelUp(1, 9, { actor: ME, occurred_at: at(7) }),
 ];
 
 const FEED_UNREAD = 5;
@@ -103,8 +104,10 @@ it('hover på en oläst rad minskar badgen direkt och skickar ett buntat anrop',
   const titleRow = await within(popover).findByRole('button', { name: /Karl took The Longest Run from you/ });
   const eventRow = rowIn(popover, /5K Friday is open/);
   const lostRow = rowIn(popover, /Nicklas beat you in Most km/);
-  // Popovern visar notiserna, inte min egen rad 1: fem rader, alla olästa.
+  // Popovern visar notiserna, inte min egen (nyaste) rad 7: fem rader, alla olästa, och den äldsta notisen kom med eftersom den egna inte tog en plats.
   expect(within(popover).getAllByRole('listitem')).toHaveLength(FEED_UNREAD);
+  expect(within(popover).queryByRole('button', { name: /You reached level 9/ })).toBeNull();
+  expect(within(popover).getByRole('button', { name: /Karl reached level 25/ })).toBeInTheDocument();
 
   // Rörelsevakten: en pekare som rör sig in i samma stund som popovern öppnas markerar ingenting.
   await user.hover(titleRow);
