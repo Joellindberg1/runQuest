@@ -188,6 +188,28 @@ describe('changelog: v0.7.0', () => {
   it('Working on har ägarens två kort, och inget annat', () => {
     expect(changelog.workingOn.map((item) => item.title)).toEqual(['Seasons and trophies', 'Group settings']);
   });
+
+  it('Strava-texten är ärlig: reservkontroll minst var 12:e timme, 48 timmar för ändringar och raderingar, och att Disconnect raderar och inte går att ångra', () => {
+    expect(text).toContain('at least every 12 hours');
+    expect(text).toContain('within 48 hours');
+    expect(text).toContain('Pause sync');
+    expect(text).toMatch(/Disconnect asks Strava to revoke RunQuest's access and deletes the runs imported from Strava, and it cannot be undone/);
+  });
+
+  it('inget Strava-påstående lovar att runda kommer direkt', () => {
+    const stravaTexts = [
+      text,
+      ...changelog.features.filter((feature) => feature.title === 'Strava').map((feature) => feature.body),
+    ].join(' ');
+    expect(stravaTexts).not.toMatch(/instant|within minutes|right away|immediately|real[- ]time/i);
+  });
+
+  it('Strava-kortet under Features stämmer med versionen: reservkontroll, Pause sync och Disconnect', () => {
+    const strava = changelog.features.find((feature) => feature.title === 'Strava');
+    expect(strava?.body).toContain('at least every 12 hours');
+    expect(strava?.body).toContain('Pause sync');
+    expect(strava?.body).toContain('Disconnect');
+  });
 });
 
 describe('flikarna', () => {

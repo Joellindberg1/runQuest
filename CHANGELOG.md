@@ -1,8 +1,8 @@
 # Changelog
 
-## v0.7.0 — Notiser du styr, Ranks och Involves me (2026-10-15)
+## v0.7.0 — Notiser du styr, Ranks, Involves me och Strava-webhooks (2026-10-15)
 
-Användarversion (What's new + Pack News-rad via announce:release). Epic RUN-9 (notiser, ADR 011). Utkast skrivet i release-förberedelsen: Lead fyller i datum och utfall (KÖRD) när stegen körs.
+Användarversion (What's new + Pack News-rad via announce:release). Epic RUN-9 (notiser, ADR 011) och RUN-93 (Strava-webhooks, ADR 010). Utkast skrivet i release-förberedelsen: Lead fyller i datum och utfall (KÖRD) när stegen körs.
 
 ### Nytt — notiser (ADR 011)
 - Inställningar per användare (RUN-184, RUN-186, RUN-187, RUN-244): ett typat register i `packages/shared` (`NOTIFICATION_KINDS`, 19 notisslag i sex sektioner: Titles, Challenges, Ranks, Events, The pack, System) och en gles tabell `user_settings` (migration 048; saknad nyckel = slagets standard). `GET /api/settings` och `PUT /api/settings` (skriver bara anroparens egna rader, högst 40 nycklar per anrop, `null` återställer). Enda slaget som startar avstängt: Rank changes between others.
@@ -14,25 +14,49 @@ Användarversion (What's new + Pack News-rad via announce:release). Epic RUN-9 (
 - Touren `tour_news_v2` (RUN-251): fem steg om flödet och läs-gesten, filtret, notisinställningarna, Mark all read och ett avslut. Alla ser den en gång till (ny slug).
 - What's new-popupen (RUN-254) pekar på Settings → Notifications för den som inte besöker /news och beskriver läs-gesten, Involves me och Ranks. Notifications flyttar från Working on till Features, och Working on får ägarens två kort: Seasons and trophies och Group settings.
 
+### Nytt — Strava-webhooks (ADR 010)
+- Webhook-rutten (RUN-168, RUN-169, RUN-170, RUN-171, RUN-173, RUN-174): `GET /api/strava/webhook` (prenumerationens verifiering med `hub.verify_token`; 403 vid fel, 503 om `STRAVA_WEBHOOK_VERIFY_TOKEN` saknas) och `POST /api/strava/webhook` (publik, utan JWT; kontrollerar `subscription_id`, formen, ägaren och ett tak per ägare, sparar bara vitlistade `updates` och svarar 200 innan något bearbetas; ingen IP-gräns, Lead-beslut 2026-10-14). En händelse är bara en signal: workern hämtar alltid aktiviteten från Strava med användarens egen token. Handlers för `activity` create, update och delete samt `athlete` deauthorize; ett test (`webhookHandlersRegistered`) kräver att varje händelsetyp har en handler.
+- Kön och workern (migration 046): tabellen `strava_webhook_events` och RPC:n `claim_strava_webhook_events` (bara `service_role`); claim med lease, batch per ägare, omförsök efter 1, 5, 15 och 60 minuter och sedan varje timme; en händelse som inte avslutats efter 48 timmar blir `dead` och larmar (`🚨 KRITISKT: Strava-webhook`). Städning 03:30 Europe/Stockholm: `done`-rader efter 30 dygn, `dead`-rader efter 90.
+- Raderingar slår igenom (RUN-173, RUN-175, RUN-172): en aktivitet som raderas, görs privat eller slutar vara löpning på Strava tas bort här inom 48 timmar, och XP, streaks, titlar, badges och Pack News räknas om via `calculateUserTotals` (`emitRankNews: false`). Event-XP som redan är intjänad behålls: `event_entries.run_id` blir `NULL` när rundan raderas (migration 047).
+- Identitet och samtycke (RUN-164, RUN-165, RUN-179, RUN-180): `strava_tokens` får `strava_athlete_id` (kopplar händelsernas `owner_id` till användaren; ett Strava-konto kan bara höra till en RunQuest-användare), `consent_version`, `consented_at`, `sync_paused` och `paused_at` (migration 045). De sex befintliga kopplingarna får sitt athlete-id med `npm run backfill:strava-athlete` (dry-run som standard, `--apply` skriver). Före "Connect Strava" visar kortet fyra punkter ur integritetstexten och en ruta som måste kryssas; Connect är låst tills den är ikryssad.
+- Pausa eller koppla bort (RUN-237, RUN-238, RUN-241): "Pause or disconnect" på Strava-kortet öppnar ett val, "Pause sync" eller "Disconnect…", och Disconnect har en separat bekräftelse som säger hur många rundor som raderas och att det inte går att ångra. En pausad koppling har "Turn sync back on" och "Disconnect"; när synken slås på igen hämtas luckan i bakgrunden. Reconnect anropar inte längre disconnect (RUN-236).
+- Integritetstexten och samtyckesversionen (RUN-261): `DATA_POLICY_VERSION` (och därmed `STRAVA_CONSENT_VERSION`) är `2026-10-14.1` och beskriver webhooks, "at least every 12 hours" som reservkontroll, borttagning inom 48 timmar, Disconnect och Pause sync.
+- Dygnskontroll av prenumerationen (RUN-240): nattjobbet 03:30 gör ett anrop till Stravas `push_subscriptions` och larmar (samma `🚨 KRITISKT`-prefix) om prenumerationen saknas eller har ett annat id eller en annan callback än `STRAVA_WEBHOOK_SUBSCRIPTION_ID`.
+- Hälsa (RUN-239, RUN-266): `GET /api/strava/webhook/health` (admin; `requireAdmin`, flyttas till supportrollen när RUN-267 landar) ger köns räknare och tidsstämplar; `GET /api/strava/last-sync` får `last_webhook_at`. Pollingen hoppar över aktiviteter vars detaljanrop ger 404.
+- Skript: `npm run strava:webhook --workspace=@runquest/backend -- [view|create|delete] [--apply]` (prenumerationen; `create` och `delete` är dry-run utan `--apply`) och `backfill:strava-athlete`.
+- Pollingen 30 min → 12 h (RUN-182, S29) är ett EGET release-steg efter att webhooks är verifierade i prod och efter annonseringen; i v0.7.0 står pollingen kvar på 30 minuter. Texten säger därför "minst var 12:e timme", vilket stämmer både före och efter omkopplingen.
+
 ### Ändrat
 - `GET /api/news`: `is_unread` och `meta.unread_count` följer golvet, `news_read` och påslagna slag i stället för de två count-frågorna (kontraktstexten i `contracts/news.ts` uppdaterad). `POST /api/news/seen` rensar också `news_read` under det nya golvet.
 - Utmaningstabellen (`GET /api/challenges/group-stats` och Duels-tabellen, RUN-246, RUN-248, RUN-269) sorterar med en delad komparator (poäng, vinster, namn, id), så lika poäng får en bestämd ordning och Rank-detektionen aldrig kan skilja sig från tabellen.
+- `POST /api/strava/callback` (ändrad): kräver `consent_version` lika med den aktuella (annars 400 `Consent required`, innan koden byts mot token), byter och sparar under användarlåset, skriver Stravas athlete-id, samtyckesversion och samtyckestid, sätter `sync_paused = false`, och svarar 409 om Strava-kontot redan är kopplat till en annan RunQuest-användare.
+- `DELETE /api/strava/disconnect` (ändrad, RUN-237): försöker återkalla åtkomsten hos Strava (misslyckas det fortsätter bortkopplingen), raderar de importerade Stravarundorna och sist token-raden i ett användarlås och räknar om XP, streaks, titlar och badges; begränsad av en rate limit. Manuellt loggade rundor och intjänad event-XP rörs inte.
+- `PUT /api/strava/sync-paused` (ny, RUN-238): `{ "paused": boolean }`, bara anroparens egen rad; `POST /api/strava/sync` svarar 409 för en pausad användare, och pollingen hoppar över pausade. Raderingsreglerna gäller även en pausad användare.
+- Strava-klienten bröts ut ur `routes/strava.ts` (RUN-167); en avvisad refresh-token skiljs från ett nätverksfel och loggar bara felkod (RUN-268); en per-användar-mutex håller synk, webhook-batch, callback och disconnect isär (RUN-233).
 
 ### Kodhälsa
-- Designundantagen (grönt reglage, Ranks-blå, turens guldknappar, popoverns tomtläge) är dokumenterade i `docs/design/designsprak-forslag.md` och i temafilens kommentarer; ADR 008 och 011 har fått addendum 2026-10-15; README för news och settings och `docs/open-assumptions.md` är rättade mot koden.
+- Designundantagen (grönt reglage, Ranks-blå, turens guldknappar, popoverns tomtläge) är dokumenterade i `docs/design/designsprak-forslag.md` och i temafilens kommentarer; ADR 008 och 011 har fått addendum 2026-10-15; README för news och settings och `docs/open-assumptions.md` är rättade mot koden; `docs/release.md` har en releasegrind för webhook-handlers.
 - Flödestest för klockan, panelen och läs-gesten (RUN-252).
+- Ny miljö: `STRAVA_WEBHOOK_VERIFY_TOKEN` (hemlig slumpsträng, minst 32 tecken) och `STRAVA_WEBHOOK_SUBSCRIPTION_ID` (id som Strava ger när prenumerationen skapats; inte hemlig).
 
 ### Prod-steg (kräver ägar-ja)
-1. Migration 048 (`048_create_user_settings`) FÖRE deploy: ny tabell, RLS på och inga policyer, `revoke all` från anon och authenticated. `list_migrations` och `get_advisors security` efteråt.
-2. Migration 049 (`049_create_news_read`) FÖRE deploy: ny tabell med två främmande nycklar, samma RLS-baslinje. Utan 048 fungerar inte inställningarna (`GET/PUT /api/settings`); utan 049 ger `GET /api/news` och `POST /api/news/read` 500 i den nya backenden (ADR 011 beslut 10).
-3. PR release/v0.7.0 → main, grön CI, merge (= deploy). Vänta tills båda tjänsterna är klara.
-4. Röktest: klockan och /news laddar, Settings visar kortet Notifications, ett slag av/på ändrar räknaren, hovra en oläst rad markerar den läst, `GET /api/settings` och `POST /api/news/read` ger 401 utan token.
-5. Migration 050 (`050_activity_log_rank_passed_challenge_accepted`) EFTER deploy och röktest: byter CHECK-listan (15 typer). Mellan deploy och 050 saknas bara `rank_passed`- och `challenge_accepted`-raderna (skrivningen misslyckas tyst, best-effort). Bevis: `pg_get_constraintdef` för `activity_log_type_check` innehåller de två typerna.
-6. Tagg `v0.7.0` på merge-commiten.
-7. `announce:release --version=0.7.0` (dry-run, sedan `--apply`).
+Ett ägar-ja per migration, per skrivande skript och per Railway-variabel (`docs/permissions.md`). Hemliga värden klistras aldrig i chatten; ägaren lägger in dem i Railway-UI:t.
+1. Migrationerna FÖRE deploy, i ordning: 045 (`045_strava_athlete_consent_pause`), 046 (`046_strava_webhook_events`), 047 (`047_event_entries_run_id_set_null`), 048 (`048_create_user_settings`), 049 (`049_create_news_read`). Alla är additiva och bakåtkompatibla med dagens kod. 045 är obligatorisk före deploy (den nya callbacken skriver kolumnerna), 046 krävs innan någon händelse tas emot, 047 innan någon radering bearbetas, 048 och 049 för inställningarna och oläst-räkningen. 047 tar ett kort ACCESS EXCLUSIVE-lås på `event_entries` och `runs` (`lock_timeout` 5 s; kör om vid timeout). `list_migrations` och `get_advisors security` efter varje.
+2. PR release/v0.7.0 → main, grön CI (inkl. releasegrinden `webhookHandlersRegistered`), merge (= deploy). Vänta tills båda tjänsterna är klara. Verify-variabeln är inte satt än: `GET /api/strava/webhook` svarar 503 och `POST` svarar 200 och kastar händelsen. Frontendens samtyckesflöde och Pause or disconnect-dialogen deployas samtidigt; en gammal frontend mot den nya backenden kan inte ansluta Strava (saknar `consent_version`).
+3. Röktest: klockan och /news laddar, Settings visar Notifications, ett slag av/på ändrar räknaren, hovra en oläst rad markerar den läst; `GET /api/settings`, `POST /api/news/read`, `PUT /api/strava/sync-paused` och `GET /api/strava/webhook/health` ger 401 utan token; Strava-kortet visar Pause or disconnect för den som är kopplad.
+4. Migration 050 (`050_activity_log_rank_passed_challenge_accepted`) EFTER deploy och röktest: byter CHECK-listan (15 typer). Mellan deploy och 050 saknas bara `rank_passed`- och `challenge_accepted`-raderna (skrivningen misslyckas tyst, best-effort). Bevis: `pg_get_constraintdef` för `activity_log_type_check` innehåller de två typerna.
+5. `backfill:strava-athlete`: dry-run (fritt) → ägaren ser rapporten → `--apply` (ask). Kontrollera att alla aktiva kopplingar har athlete-id och att inga dubbletter finns. Prenumerationen får inte skapas förrän alla har ett id.
+6. Ägaren sätter `STRAVA_WEBHOOK_VERIFY_TOKEN` i Railway (redeploy).
+7. `strava:webhook create`: dry-run → `--apply` (ask; Stravas prenumeration är en per Strava-app och gemensam för alla miljöer). Strava anropar `GET` direkt. Ägaren sätter `STRAVA_WEBHOOK_SUBSCRIPTION_ID` (redeploy). Gluggen däremellan täcks av pollingen för nya rundor; en radering som kommer då kan missas (ADR 010 beslut 2).
+8. Röktest av webhooken enligt ADR 010 beslut 17 och `GET /api/strava/webhook/health` (inga `dead`, inga `unmapped_tokens`).
+9. Tagg `v0.7.0` på merge-commiten.
+10. `announce:release --version=0.7.0` (dry-run, sedan `--apply`) EFTER steg 7–8: What's new säger att Strava skickar händelser, så annonsen ska inte gå ut före prenumerationen.
+11. Sju dygn utan `dead`-rader eller larm → RUN-182 (S29): pollingen 30 min → 12 h, som ett eget release-steg och en egen PR.
 
 ### Rollback
-- Kod: redeploya v0.6.2.3 i Railway och revert-PR. Tabellerna `user_settings` och `news_read` är additiva och ignoreras av den gamla koden; de släpps först i en senare städning efter ägar-ja.
+- Kod: redeploya v0.6.2.3 i Railway och revert-PR. Tabellerna och kolumnerna är additiva och ignoreras av den gamla koden; de släpps först i en senare städning efter ägar-ja.
+- Webhooks: `strava:webhook delete --apply` (ask) stoppar nya händelser; workern är då tom och pollingen bär hela synken som förut (men raderingar på Strava slår då inte längre igenom). Rundor som redan raderats kommer inte tillbaka.
+- Migration 045: släpp indexet `strava_tokens_athlete_id_key` och kolumnerna `paused_at`, `sync_paused`, `consented_at`, `consent_version`, `strava_athlete_id` (raderar athlete-id, samtycken och pausflaggor). Migration 046: `drop function if exists public.claim_strava_webhook_events(integer, integer); drop table if exists public.strava_webhook_events;` (raderar kön och journalen). Migration 047: lägg tillbaka FK:n utan `ON DELETE` (SQL i filhuvudet).
 - Migration 048: `drop table if exists public.user_settings;` (raderar alla sparade inställningar). Migration 049: `drop table if exists public.news_read;` (läst-kvitton ovanför golvet försvinner).
 - Migration 050 ångras bara efter att raderna med de nya typerna tagits bort: `delete from public.activity_log where type in ('rank_passed','challenge_accepted');` (ask), därefter den gamla CHECK-listan ur filhuvudet.
 
