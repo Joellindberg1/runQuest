@@ -1,5 +1,5 @@
 -- 046: strava_webhook_events och claim_strava_webhook_events — "Migration B" i ADR 010 (RUN-166, v0.7.0).
--- Datum: 2026-10-14. EJ APPLICERAD i prod (kräver ägarens uttryckliga ja; Lead applicerar via Supabase MCP apply_migration,
+-- Datum: 2026-10-14. APPLICERAD i prod 2026-10-15 (ägar-ja i chatten; Lead via Supabase MCP apply_migration,
 -- name: 046_strava_webhook_events, och uppdaterar den här raden till APPLICERAD med datum).
 --
 -- Bakgrund: webhook-rutten ska svara inom 2 s och får inte tappa händelser. Händelsen lagras först och bearbetas efteråt,
