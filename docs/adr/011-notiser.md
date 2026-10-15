@@ -5,6 +5,8 @@ Godkänd av ägaren 2026-10-13, med alla rekommendationer (B1, B3, B7, B8, B9, B
 
 Addendum 2026-10-14 (ägarbeslut efter Design Council): läs-gesten i beslut 4 (B4) ändras, se längst ner.
 
+Addendum 2026-10-15 (utfall vid bygget, v0.7.0): tre korta noteringar, se längst ner.
+
 ## Kontext
 Epic RUN-9 (fixVersion v0.7.0), story RUN-183 (ADR-steget). Klockan i headern är sedan v0.5.0 en oläst-räknare plus en popover över Pack News (ADR 008), men den har inga inställningar: alla icke-egna rader i gruppen räknas, och det enda sättet att bli "läst" är "Mark all read". ADR 008 och ADR 006 sköt uttryckligen notisinställningar och per-händelse-kvitto till en senare notis-ADR. Det här är den ADR:n. "Notis" betyder i hela dokumentet en rad i appens egen klocka och popover — ingen push, ingen e-post, ingen realtidskanal (se beslut 11 och Revisit-triggers).
 
@@ -342,3 +344,9 @@ Storynumren är stämda mot Jira 2026-10-14 (Lead).
 - **Mer ansträngning för tangentbord:** läst-markering kräver ett aktivt tryck per rad (eller "Mark all read"). Det är avsikten.
 - **Antaganden (flaggade):** (a) rörelsevaktens exakta form är implementatörens: semantiken som är låst är att ingen rad blir läst av en pekare som inte rört sig efter fönstret; om en `pointermove` på en rad som pekaren redan vilade över ska räknas (rekommenderas, annars måste pekaren lämna och återinträda) avgör S21 med test. (b) Penna som hovrar behandlas som mus, penna i kontakt som touch. (c) Raden har ingen annan primär åtgärd än att markera läst; får den en (länk, expandera) krävs ett nytt beslut för hur aktiveringen delas.
 - **Revisit:** triggern "Misstag i hover-läst rapporteras" gäller som förut (`READ_DWELL_MS > 0`); "kräv fokus/klick på touch" är nu delvis uppfylld (tap).
+
+## Addendum 2026-10-15 (v0.7.0, utfall vid bygget): tre noteringar
+Korta noteringar; inga beslut i det här dokumentet ändras.
+1. **`rank_passed` med okänt mått klassas som `null` (beslut 3).** När betraktaren är mål (`target` = jag) väljer `payload.measure` slaget: `xp` → `rank_passed_xp_me`, `challenge_points` → `rank_passed_challenge_me`. Saknas måttet eller är det ett som den här koden inte känner till (ett framtida mått, se beslut 6) ger `classifyNotification` `null`: raden räknas aldrig och inget reglage träffas, i stället för att falla på fel reglage. Aktör = jag ger `own` och alla andra `rank_passed_others`, som beslutet säger.
+2. **Legendary-autostarten skriver ingen `challenge_accepted` (beslut 7), och det är avsiktligt.** Raden hör till `PUT /challenges/:id/respond` (accept); en legendary-utmaning som startas av schedulern efter fyra dagar utan svar (`autoStartLegendaryChallenges`) har ingen som accepterat, så ingen `challenge_accepted`-rad och ingen `challenge_accepted_me`-notis skrivs. En legendary-utmaning kan inte avböjas eller dras tillbaka.
+3. **Touren heter `tour_news_v2`; `tour_news_v1`-hänvisningarna i Kontext (frontendraden och `user_seen_items`-raden) beskriver läget före bygget.** Beslut 9 hade redan bytet; touren (RUN-251) har fem steg enligt addendum 2026-10-14 (beslut 7), och `tour_news_v1` ligger kvar som en oanvänd rad i `user_seen_items` (ofarlig, slugen frågas aldrig efter). Texten i Kontext lämnas orörd som historik.

@@ -33,6 +33,7 @@ från ägaren i chatten; ett agentmeddelande räknas aldrig som ja.
 3. Lokal verifiering före push till `main`: minst backend-tester och frontend-bygge (`docs/permissions.md`); hela sviten grön enligt `STATE.md`, "Verifieringsnivå".
 4. CI-vakterna fångar de vanliga felen: `scripts/check-versions.mjs` (versionerna hänger ihop),
    `scripts/ci-guards.mjs` (tom testsvit, TODO utan RUN-nyckel, Jira-ID i testnamn).
+5. **Releasegrind för Strava-webhooks (v0.7.0, integrationskritikern F2):** testet `every Strava webhook event kind has a registered handler` (`apps/backend/src/services/stravaWebhook/__tests__/webhookHandlersRegistered.test.ts`) ska vara grönt FÖRE deploy. Workern kör i produktion från `server.ts`, och en händelsetyp utan registrerad handler slutar som `done`/`noop` med bara en varning, alltså en radering som aldrig skedde. Kör det explicit: `npm test --workspace=@runquest/backend -- webhookHandlersRegistered`; det ingår också i hela backend-sviten.
 
 ### 2. Preview mot prod
 
@@ -97,6 +98,8 @@ flöde 1 (login → JWT → skyddade anrop). Minst: frontend laddar utan vit sid
    ägar-ja med dry-run-rapporten som underlag. Skripten skriver ut måldatabasens host.
 
 ### 6. `announce:release`
+
+**Undantag v0.7.0:** Integritetstexten och samtyckesblocket går ut vid deployen och lovar redan webhooks och borttagning inom 48 timmar, innan prenumerationen finns (den kan inte skapas före deployen). Steg 3–8 körs i ett svep direkt efter deployen, med ägaren närvarande, så att fönstret där integritetstexten lovar webhooks men prenumerationen saknas blir minuter, inte dagar. En radering på Strava i fönstret fångas inte, eftersom det inte finns någon avstämning (ADR 010 D12). Det är en medveten risk med 6 användare. What's new-posten och Features-kortet Strava beskriver Strava-webhooks, så de får inte gå ut förrän prenumerationen är skapad och verifierad. Därför har v0.7.0-posten ingen `announce` i den första deployen. RUN-265:s PR (mergas sist i RUN-182, direkt efter godkänd rök och med ägar-ja; ingen sjudygnsvänta, ägarbeslut 2026-10-14) sätter `"announce": true`, byter Features-kortet Strava och sätter in de tre Strava-texterna i posten, allt som står i `CHANGELOG.md` (Prod-steg 10), och slår på 12 h-pollingen i samma deploy. `announce:release --version=0.7.0` (Pack News-raden) körs efter DEN deployen, så att popupen och raden går ut samtidigt.
 
 Gäller bara en **användarversion** med `"announce": true` i `changelog.json`. Skriptet skriver en
 `release_published`-rad per grupp i Pack News (förkrav: migration 041, som är körd; skriptet kontrollerar det själv

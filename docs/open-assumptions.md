@@ -64,14 +64,15 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   Lead bad om. Ägaren kan ta bort raden. `source` null/saknas behandlas som manuell.
 
 ## Pack News (inkrement 9)
-- **"Mark all read" är den enda kvitteringen** (prototypen: knappen finns i både popover och skärm, inget i designen kvitterar vid
-  besök/öppning). Att öppna popovern eller besöka /news markerar alltså INTE som läst — olästa rader förblir tintade tills knappen
-  trycks. Vill ägaren ha "besök = läst" är det en rad i NewsScreen (kvittera vid mount/unmount).
+- **Att öppna popovern eller besöka /news kvitterar ingenting** (prototypen: knappen finns i både popover och skärm, inget i designen kvitterar vid
+  besök/öppning). Sedan v0.7.0 finns två kvitteringar: "Mark all read" (allt på en gång) och läs-gesten per rad (mus över raden efter verklig rörelse, tryck, eller Enter/Space; fokus ensam räknas inte, ADR 011 addendum 2026-10-14).
+  Olästa rader förblir tintade tills någon av dem används. Vill ägaren ha "besök = läst" är det en rad i NewsScreen (kvittera vid mount/unmount).
 - **Filtret:** `?type=` bär chip-nycklar (`titles,levels`), inte rå `ActivityType` — ADR 006 säger bara "kommaseparerat". Flera chips
-  kan vara valda; alla sex (Badges eget chip sedan v0.6.1) = inget filter. Mobil har en chip-rad (App Prototype saknar filter; Web Prototype har ett statiskt kort
+  kan vara valda; alla sju (Badges eget chip sedan v0.6.1, Ranks sedan v0.7.0) = inget filter. Mobil har en chip-rad (App Prototype saknar filter; Web Prototype har ett statiskt kort
   med räknare — gjort klickbart). Chip-räknaren är antal i det laddade, ofiltrerade fönstret (ADR 008), inte serverns totaler.
-- **Popover = samma flöde som skärmen** (en query-definition, 30 rader initialt i stället för `limit=5`; popovern visar de fem
-  översta). Poll 2 min + fönsterfokus (ADR 008 nämner 60 s). Oläst-badgen cappas vid "99+".
+- **Popover = samma flöde som skärmen** (en query-definition, 30 rader initialt i stället för `limit=5`). Sedan v0.7.0 visar popovern de fem senaste raderna vars
+  slag är påslaget, utan egna handlingar (ADR 011 beslut 3), filtrerade i klienten ur de 30 inladdade; är alla filtrerade bort visas "Nothing new for you" + länken till /news.
+  Poll 2 min + fönsterfokus (ADR 008 nämner 60 s). Oläst-badgen cappas vid "99+".
 - **Dag-grupperna:** Today · Yesterday · Earlier this week (mån–sön, Stockholm) · därefter en grupp per dag ("Fri 2 Oct").
   Raderna ordnas på `occurred_at`, inte id (en backfillad rad kan ha högt id men gammal dag).
 - **Texterna** använder förnamn (som prototypen) — två medlemmar med samma förnamn skulle bli tvetydiga. "You"/"you" när den som tittar
@@ -80,7 +81,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   "multiplier back to 1.0×" är prototypens. Titelvärden formateras med Titles-skärmens `titleValueText`.
 - Popoverns prick/typrad är röd för en förlorad utmaning (Web Prototypens popover), orange på skärmen (båda prototyperna).
   Olästa rader har guldtint i popovern också (prototypens data har `unread` men markupen använder den inte).
-- Raderna är inte klickbara (prototypens desktop-hover antyder det men anger inget mål).
+- Raderna har inget länkmål (prototypens desktop-hover antyder det men anger inget mål). Sedan v0.7.0 är en rad en knapp som markerar den läst (ADR 011 addendum 2026-10-14); får raden en annan primär åtgärd krävs ett nytt beslut om hur aktiveringen delas.
 - Katastroffall: fler nya rader än fem catch-up-sidor à 100 → flödet ersätts av de nyaste 500 (inget hål i mitten).
 
 ## Landing (inkrement 10, uppdaterad v0.6.2)
@@ -160,8 +161,8 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   utmaningskapitlet visas), `DEFAULT_STAKES` (seed, migration 006) bara för nivåer utan exempel. Har man inga tokens eller historik visas alltså seed-värdena.
 - **Titellistan i Playbook och Admin är `GET /titles/leaderboard`** (samma rader som Titles, delad cache) — namn, regel och låsgräns ordagrant ur databasen,
   sorterade som Titles-skärmens kategorier. Admins gamla fyra hårdkodade titlar (och texten "hardcoded") är borta.
-- **Settings: Notifications-kortet ur Web Prototypen är inte byggt** (backend saknar notisinställningar; "ingen ny funktion"). **Disconnect** finns i
-  prototypen men inte i dagens UI (endpointen finns) — inte tillagd; en destruktiv knapp kräver ett ägarbeslut om bekräftelse. **Sync log** blir "Latest sync":
+- **Settings: Notifications-kortet ur Web Prototypen är byggt i v0.7.0** (ADR 011 beslut 9; reglagen lagras i `user_settings`, kortet och panelen på /news är samma komponent). Därmed är anmärkningen i ADR 006 beslut 4 ("byggs INTE nu", tidsbegränsad till den framtida notis-ADR:n) uppfylld.
+  Prototypens tre uppskjutna inställningar ("Streak at risk", "Title you can claim", "Strava sync results") är medvetet inte med (ADR 011 B9). **Disconnect** är tillagd i v0.7.0 (ADR 010 beslut 7.4–7.6, ägarbeslut 2026-10-13/14): kortet har "Pause or disconnect" med valen "Pause sync" och "Disconnect…" och därefter en SEPARAT bekräftelse (`alertdialog`) som säger att Disconnect raderar de importerade Stravarundorna (och hur många), att det inte går att ångra och att återkallandet hos Strava är ett försök, inte en garanti; en pausad koppling har "Turn sync back on" och "Disconnect". Därmed finns det ägarbeslut om bekräftelse som saknades. **Sync log** blir "Latest sync":
   backend har ingen historik, bara senaste försöket (`/strava/last-sync`). Mobilprototypen saknar Settings och Admin — mobil är härledd (en kolumn).
 - **Settings: "Sync now" syns fortfarande bara för "Joel Lindberg"** (namnjämförelse, som före omritningen). Efter en synk hämtas alla aktiva queries om
   (`invalidateQueries()`) i stället för den gamla hårda omladdningen efter 2 s.
@@ -220,7 +221,7 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
   (0.5.0.1) och finns bara i CHANGELOG.md/git-taggar; package.json håller de tre första delarna av översta rubriken (docs/dokumentation.md).
 - **Datumformatet behålls** ("5 October 2026", som "2 April 2026") — prototypen har "24 aug 2026", men befintliga poster väger tyngre; vakten kräver formen.
 - **Features-listan är kuraterad mot dagens app**: "Dark mode" och "Onboarding" från prototypens exempeldata är borta (ljust tema är förberett men inte designat; touren är
-  inte ett säljargument), och nya funktioner (Duels, Runner card, Pack News, Log runs) tillagda. Working on = Notifications (Badges flyttades till Features när de släpptes i v0.6.0).
+  inte ett säljargument), och nya funktioner (Duels, Runner card, Pack News, Log runs) tillagda. Working on = Seasons and trophies och Group settings sedan v0.7.0 (ägarbeslut 2026-10-15); Badges flyttades till Features när de släpptes i v0.6.0 och Notifications när de släpptes i v0.7.0.
 - **Popupen har ingen prototyp** — härledd ur skalets delade modal (`.rq-modal`/`.rq-scrim`), Bebas-rubrik, hårlinjegrid för punkterna, en guldknapp. Fokus startar på "Got it".
 - **Prototypens textsteg snappade till tokens**: kortrubrik 18 px → `--rq-fs-name` (20 på desktop), beskrivningar 16 px → `--rq-fs-body` (17 på desktop), release-datum 15 → `--rq-fs-meta`.
 - **Alla som redan sett de gamla patchnotes (`patch_2026_04_02_*`) får 0.5.0-popupen en gång** — slugen `patch_v0.5.0` är ny. De gamla slugarna ligger kvar i tabellen, ofarliga.

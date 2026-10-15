@@ -465,3 +465,8 @@ reparation, inte rutin. Migrationen måste ligga före kod som skriver
   `season_*`) → additiv migration (ny `CHECK`) + rad i `ACTIVITY_TYPES`.
 - Oläst-semantiken ska bli per-händelse ("mark as read" på enskild rad) →
   byt vattenmärket mot per-rad-kvittens.
+
+## Addendum 2026-10-15 (v0.7.0, ADR 011): två ytor i beslut 4 och 9 som ADR 011 utökat
+Korta noteringar; inga beslut i det här dokumentet ändras.
+1. **`event_closed` bär `entrant_ids`** (additivt fält i payload v1, ADR 011 beslut 7): alla `event_entries.user_id` för eventet, i gemener, skrivna av `settleCompetitionEvents` och `settleExpiredParticipationEvents`. Payload-raden i beslut 4 ("`event_id, event_type, template_name, participants, members, top?`") ska läsas med fältet tillagt. Rader skrivna före v0.7.0, och backfillens, saknar fältet och klassas som `event_closed_others`.
+2. **`GET /api/news` har en parameter till: `involves=me`** (ADR 011 beslut 9). Parameterlistan i beslut 9 ("`limit`, `before` XOR `after`, `type`") ska läsas med den: bara det exakta värdet `me` är giltigt (annat värde eller upprepad parameter ger 400), och den läggs som ett extra villkor ovanpå gruppfiltret och `type=`: actor = jag, target = jag, eller `event_closed` vars `entrant_ids` innehåller mig. `has_more`/`next_before` gäller det filtrerade resultatet.
