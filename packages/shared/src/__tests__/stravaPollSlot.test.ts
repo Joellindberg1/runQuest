@@ -59,7 +59,8 @@ describe('the next strava poll slot', () => {
     expect(next('2026-10-14T16:00:00.000Z', 6)).toBe('2026-10-14T22:00:00.000Z'); // 18:00 CEST -> 00:00 CEST
   });
 
-  it('an interval that does not divide 24 is rejected', () => {
+  it('an interval that does not divide 24, or is shorter than three hours, is rejected', () => {
     expect(() => nextStravaPollSlot(new Date('2026-10-14T10:00:00.000Z'), 5)).toThrow(RangeError);
+    expect(() => nextStravaPollSlot(new Date('2026-10-14T10:00:00.000Z'), 2)).toThrow(RangeError);
   });
 });

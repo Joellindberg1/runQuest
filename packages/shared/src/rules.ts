@@ -41,21 +41,25 @@ export const WEBHOOK_RETENTION_FAILED_DAYS = 90;
 const HOURS_PER_DAY = 24;
 const MS_PER_HOUR = 3_600_000;
 
+// Below three hours the cron and the slot computation disagree on the daylight saving night (a 02:00 slot that does not exist in
+// spring, or exists twice in autumn), so only intervals that are verified against both are accepted.
+const MIN_POLL_INTERVAL_HOURS = 3;
+
 function assertDividesDay(hours: number): void {
-  if (!Number.isInteger(hours) || hours < 1 || hours > HOURS_PER_DAY || HOURS_PER_DAY % hours !== 0) {
-    throw new RangeError(`The Strava poll interval must be a whole number of hours that divides 24 evenly, got ${hours}`);
+  if (!Number.isInteger(hours) || hours < MIN_POLL_INTERVAL_HOURS || hours > HOURS_PER_DAY || HOURS_PER_DAY % hours !== 0) {
+    throw new RangeError(`The Strava poll interval must be 3, 4, 6, 8, 12 or 24 hours (a whole number from 3 that divides 24 evenly), got ${hours}`);
   }
 }
 
-/** "12 hours" (or "1 hour"): the interval as the texts name it. RangeError for a value that does not divide 24. */
+/** "12 hours": the interval as the texts name it. RangeError for a value that is not 3, 4, 6, 8, 12 or 24. */
 export function stravaPollIntervalLabel(hours: number = STRAVA_POLL_INTERVAL_HOURS): string {
   assertDividesDay(hours);
-  return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  return `${hours} hours`;
 }
 
 /**
  * The cron expression the scheduler runs on: minute 0 of every `hours`th hour. The scheduler runs it with timezone Europe/Stockholm,
- * so the slots are wall-clock times (00:00 and 12:00 for 12 hours). RangeError for a value that does not divide 24.
+ * so the slots are wall-clock times (00:00 and 12:00 for 12 hours). RangeError for a value that is not 3, 4, 6, 8, 12 or 24.
  */
 export function stravaPollCron(hours: number = STRAVA_POLL_INTERVAL_HOURS): string {
   assertDividesDay(hours);

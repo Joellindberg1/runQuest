@@ -45,6 +45,9 @@ const OPEN_METEO_HOURLY_FIELDS = [
 // nyare hämtas från forecast-API:et med past_hours.
 const FORECAST_CUTOFF_HOURS = 72;
 
+/** How long one Open-Meteo request may take before it is aborted. */
+const OPEN_METEO_TIMEOUT_MS = 15_000;
+
 export class WeatherService {
   static async fetchAndSaveWeatherForRuns(runs: RunForWeather[]): Promise<void> {
     const eligible = runs.filter(run => this.isEligible(run));
@@ -139,6 +142,8 @@ export class WeatherService {
 
     const res = await fetch(url, {
       headers: { 'User-Agent': 'RunQuest/1.0 (weather data for running app)' },
+      // A hanging answer must not hold the weather backfill's in-flight guard for good (the scheduler skips a tick while one runs).
+      signal: AbortSignal.timeout(OPEN_METEO_TIMEOUT_MS),
     });
 
     if (!res.ok) {

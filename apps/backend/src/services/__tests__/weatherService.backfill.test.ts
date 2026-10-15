@@ -121,3 +121,23 @@ describe('backfillMissingWeather — returnerar antal sparade rader', () => {
     expect(await WeatherService.backfillMissingWeather()).toBe(0);
   });
 });
+
+describe('Open-Meteo calls have a time limit', () => {
+  it('a hanging weather fetch is aborted after 15 seconds and the backfill moves on', async () => {
+    const controller = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    stubClient([runRow('r1', '2026-09-01T07:00:00.000Z')], []);
+    // A fetch that never answers and only ends when its signal is aborted.
+    fetchMock.mockImplementation((_url: string, init?: { signal?: AbortSignal }) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+    }));
+
+    const backfill = WeatherService.backfillMissingWeather();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(timeout).toHaveBeenCalledWith(15_000);
+    controller.abort(new DOMException('timed out', 'TimeoutError'));
+
+    await expect(backfill).resolves.toBe(0);
+    timeout.mockRestore();
+  });
+});

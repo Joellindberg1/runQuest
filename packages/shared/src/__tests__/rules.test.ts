@@ -66,9 +66,15 @@ describe('Strava import rules', () => {
     }
   });
 
-  it('the label is singular for one hour', () => {
-    expect(stravaPollIntervalLabel(1)).toBe('1 hour');
-    expect(stravaPollIntervalLabel(8)).toBe('8 hours');
+  it('an interval shorter than three hours is rejected, because the cron and the slot computation differ on daylight saving nights', () => {
+    for (const hours of [1, 2]) {
+      expect(() => stravaPollCron(hours), `stravaPollCron(${hours})`).toThrow(RangeError);
+      expect(() => stravaPollIntervalLabel(hours), `stravaPollIntervalLabel(${hours})`).toThrow(RangeError);
+    }
+  });
+
+  it('every accepted interval has a label with its hours', () => {
+    expect([3, 4, 6, 8, 12, 24].map((hours) => stravaPollIntervalLabel(hours))).toEqual(['3 hours', '4 hours', '6 hours', '8 hours', '12 hours', '24 hours']);
   });
 });
 

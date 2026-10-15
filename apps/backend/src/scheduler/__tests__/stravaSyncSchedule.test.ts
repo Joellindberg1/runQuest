@@ -184,24 +184,41 @@ describe('next_sync_estimated', () => {
     expect(getSyncInfo().nextSyncEstimated).toBe('2026-10-14T22:00:00.000Z');
   });
 
-  it('a tick that fires a few milliseconds early still estimates the slot after it, not the slot it belongs to', async () => {
+  it('a poll that starts shortly before a slot estimates that slot, not the one after it', async () => {
     startStravaScheduler();
-    vi.setSystemTime(new Date('2026-10-14T09:59:59.950Z')); // 11:59:59.950 CEST, the 12:00 slot fired early
+    vi.setSystemTime(new Date('2026-10-14T09:30:00.000Z')); // 11:30 CEST
 
     await pollJob().run();
 
-    expect(getSyncInfo().nextSyncEstimated).toBe('2026-10-14T22:00:00.000Z');
+    expect(getSyncInfo().nextSyncEstimated).toBe('2026-10-14T10:00:00.000Z');
   });
 
   it('a failed sync still estimates the next slot', async () => {
     vi.spyOn(logger, 'error').mockImplementation(() => {});
     h.syncAllStravaUsers.mockRejectedValueOnce(new Error('strava down'));
-    vi.setSystemTime(new Date('2026-10-14T10:00:00.000Z'));
+    vi.setSystemTime(new Date('2026-10-14T05:00:00.000Z')); // 07:00 CEST: the scheduler's first estimate is 12:00 CEST (10:00Z)
     startStravaScheduler();
+    expect(getSyncInfo().nextSyncEstimated).toBe('2026-10-14T10:00:00.000Z');
+    vi.setSystemTime(new Date('2026-10-14T10:00:00.000Z'));
 
     await pollJob().run();
 
+    // Had the failed tick left the estimate alone it would still say 10:00Z, a slot that has just run.
     expect(getSyncInfo()).toMatchObject({ lastSyncStatus: 'error', nextSyncEstimated: '2026-10-14T22:00:00.000Z' });
+  });
+
+  it('the estimate moves on when the poll starts, so Settings does not say overdue while it runs', async () => {
+    let finish: (value: unknown) => void = () => {};
+    h.syncAllStravaUsers.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    vi.setSystemTime(new Date('2026-10-14T05:00:00.000Z'));
+    startStravaScheduler();
+    vi.setSystemTime(new Date('2026-10-14T10:00:00.000Z'));
+
+    const running = pollJob().run();
+
+    expect(getSyncInfo()).toMatchObject({ lastSyncStatus: 'running', lastSyncAttempt: '2026-10-14T10:00:00.000Z', nextSyncEstimated: '2026-10-14T22:00:00.000Z' });
+    finish({ success: true, message: 'ok', syncedUsers: 0, totalUsers: 0, totalNewRuns: 0 });
+    await running;
   });
 
   it('the night clocks go back (2026-10-25) the estimate keeps the wall-clock time: 00:00 CEST is followed by 12:00 CET, 13 hours later', async () => {
@@ -234,5 +251,116 @@ describe('next_sync_estimated', () => {
     startStravaScheduler();
 
     expect(getSyncInfo().nextSyncEstimated).toBe('2026-10-25T11:00:00.000Z');
+  });
+});
+
+// node-cron sometimes skips a whole second window, and a redeploy in the 00:00 or 12:00 minute misses the slot. The 30-minute tick then
+// notices that the estimated slot is long past and runs the poll once.
+describe('catching up a missed poll slot', () => {
+  const at = (iso: string) => vi.setSystemTime(new Date(iso));
+  const OK = { success: true, message: 'ok', syncedUsers: 0, totalUsers: 0, totalNewRuns: 0 };
+
+  it('a missed poll slot is caught up within half an hour', async () => {
+    at('2026-10-14T05:00:00.000Z');
+    startStravaScheduler(); // estimate 10:00Z (12:00 CEST); the slot itself never fires
+    at('2026-10-14T10:00:00.000Z');
+    await weatherJob().run();
+    expect(h.syncAllStravaUsers).not.toHaveBeenCalled(); // the slot may still be running on its own
+
+    at('2026-10-14T10:30:00.000Z');
+    await weatherJob().run();
+
+    expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1);
+    expect(getSyncInfo()).toMatchObject({ lastSyncAttempt: '2026-10-14T10:30:00.000Z', lastSyncStatus: 'success', nextSyncEstimated: '2026-10-14T22:00:00.000Z' });
+
+    // The catch-up is done: the next ticks do not poll again.
+    at('2026-10-14T11:00:00.000Z');
+    await weatherJob().run();
+    expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1);
+  });
+
+  it('a catch-up poll that fails is not repeated every half hour, and does not stop the weather backfill', async () => {
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    h.syncAllStravaUsers.mockRejectedValue(new Error('strava down'));
+    at('2026-10-14T05:00:00.000Z');
+    startStravaScheduler();
+    at('2026-10-14T10:30:00.000Z');
+    await weatherJob().run();
+    at('2026-10-14T11:00:00.000Z');
+    await weatherJob().run();
+
+    expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1);
+    expect(h.backfillMissingWeather).toHaveBeenCalledTimes(2);
+  });
+
+  it('catch-up never runs while a poll is in progress or before the grace period', async () => {
+    let finish: (value: unknown) => void = () => {};
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    at('2026-10-14T05:00:00.000Z');
+    startStravaScheduler(); // estimate 10:00Z
+
+    // Before the grace period: five minutes after the slot, the slot's own tick may still be about to run.
+    at('2026-10-14T10:05:00.000Z');
+    await weatherJob().run();
+    expect(h.syncAllStravaUsers).not.toHaveBeenCalled();
+
+    // In progress: a poll that started on the slot and is still running more than twelve hours later.
+    h.syncAllStravaUsers.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    at('2026-10-14T10:00:00.000Z');
+    const running = pollJob().run();
+    at('2026-10-14T22:20:00.000Z'); // the next slot (22:00Z) is past the grace period, the poll has not finished
+    await weatherJob().run();
+    expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalled(); // not even the "missed slot" warning: the poll is not missed, it is slow
+
+    // The scheduled tick for that slot does not start a second poll either.
+    await pollJob().run();
+    expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1);
+
+    finish(OK);
+    await running;
+  });
+
+  it('a failure inside the catch-up check does not stop the weather backfill', async () => {
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    vi.spyOn(logger, 'warn').mockImplementation(() => { throw new Error('logger down'); });
+    at('2026-10-14T05:00:00.000Z');
+    startStravaScheduler();
+    at('2026-10-14T10:30:00.000Z');
+
+    await expect(weatherJob().run()).resolves.toBeUndefined();
+
+    expect(h.backfillMissingWeather).toHaveBeenCalledTimes(1);
+  });
+
+  it('the scheduled tick does not start a poll while a catch-up poll is in progress', async () => {
+    let finish: (value: unknown) => void = () => {};
+    h.syncAllStravaUsers.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    at('2026-10-14T05:00:00.000Z');
+    startStravaScheduler();
+    at('2026-10-14T10:30:00.000Z');
+    const catchingUp = weatherJob().run();
+    await vi.waitFor(() => expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1));
+
+    await pollJob().run();
+
+    expect(h.syncAllStravaUsers).toHaveBeenCalledTimes(1);
+    finish(OK);
+    await catchingUp;
+  });
+
+  it('catch-up does not trigger after a restart before the first slot', async () => {
+    at('2026-10-14T10:00:30.000Z'); // a redeploy in the middle of the 12:00 CEST minute: the slot was missed
+    vi.resetModules();
+    const fresh = await import('../stravaSync.js');
+    fresh.startStravaScheduler();
+    expect(fresh.getSyncInfo()).toMatchObject({ lastSyncAttempt: null, nextSyncEstimated: '2026-10-14T22:00:00.000Z' });
+
+    for (const tick of ['2026-10-14T10:30:00.000Z', '2026-10-14T16:00:00.000Z', '2026-10-14T22:00:00.000Z']) {
+      at(tick);
+      await weatherJob().run();
+    }
+
+    expect(h.syncAllStravaUsers).not.toHaveBeenCalled();
   });
 });
