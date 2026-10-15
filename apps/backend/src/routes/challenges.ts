@@ -7,7 +7,7 @@ import {
   getProgressForChallenge,
   settleChallenge,
 } from '../services/challengeService.js';
-import { addDays } from '@runquest/shared';
+import { addDays, challengeScore, compareChallengeStandings } from '@runquest/shared';
 import { tomorrowStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
@@ -648,8 +648,7 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
       supabase
         .from('users')
         .select('id, name, wins, draws, losses, challenge_active, current_level, profile_picture')
-        .eq('group_id', groupId)
-        .order('wins', { ascending: false }),
+        .eq('group_id', groupId),
       supabase
         .from('challenges')
         .select('challenger_id, opponent_id')
@@ -668,9 +667,16 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
       pendingChallengerIds.add(c.challenger_id);
     });
 
-    const stats = (users ?? []).map((u: any) => {
+    // Samma komparator som rank_passed (ADR 011 beslut 6, Ö8): tabellen och notiserna kan aldrig skilja sig åt. Sorteringen sker på
+    // råa W/D/L (oavrundade poäng); den avrundade `points` i svaret är bara visning.
+    const ordered = [...(users ?? [])].sort((a: any, b: any) =>
+      compareChallengeStandings(
+        { id: a.id, name: a.name, wins: a.wins, draws: a.draws, losses: a.losses },
+        { id: b.id, name: b.name, wins: b.wins, draws: b.draws, losses: b.losses },
+      ));
+
+    const stats = ordered.map((u: any) => {
       const total = u.wins + u.draws + u.losses;
-      const points = total > 0 ? (u.wins + u.draws * 0.5) / total : 0;
       return {
         user_id: u.id,
         name: u.name,
@@ -678,16 +684,13 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
         draws: u.draws,
         losses: u.losses,
         total,
-        points: Math.round(points * 1000) / 1000,
+        points: Math.round(challengeScore(u.wins, u.draws, u.losses) * 1000) / 1000,
         challenge_active: u.challenge_active,
         has_pending_challenge: pendingChallengerIds.has(u.id),
         current_level: u.current_level,
         profile_picture: u.profile_picture ?? null,
       };
     });
-
-    // Sort by points desc, then wins desc
-    stats.sort((a: any, b: any) => b.points - a.points || b.wins - a.wins);
 
     res.json({ success: true, data: stats });
   } catch (err) {
