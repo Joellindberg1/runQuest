@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { NOTIFICATION_KINDS } from '@runquest/shared';
 import { NotificationsPopover } from '@/app-shell/NotificationsPopover';
 import { POINTER_SETTLE_MS } from '../newsModel';
-import { ADAM, DAN, ME, NOW_ISO, at, challengeWon, eventOpen, levelUp, newsServer, titleTaken } from '../news.fixture';
+import { ADAM, DAN, ME, NOW_ISO, at, challengeAccepted, challengeWon, eventOpen, levelUp, newsServer, rankPassed, titleTaken } from '../news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import '@/test/pointerEvent';
@@ -527,5 +527,47 @@ describe('NewsScreen — Involves me', () => {
     await user.hover(row);
     await waitFor(() => expect(screen.getByRole('button', { name: /took The Longest Run from you/ })).not.toHaveAccessibleName(/unread/));
     await waitFor(() => expect(panelNews.server.readCalls).toEqual([[20]]));
+  });
+});
+
+describe('NewsScreen — Ranks-chipet', () => {
+  it('Ranks-chipet visar bara rank_passed i flödet', async () => {
+    const user = userEvent.setup();
+    // Tre passeringar sedda från tre håll (Karl förbi mig, jag förbi Adam, Daniel förbi Adam), en accepterad och en vunnen utmaning,
+    // en nivå och en titel. Utmaningsraderna är de som lätt hamnar under fel chip.
+    serve([
+      rankPassed(8, { occurred_at: at(1) }),
+      challengeAccepted(7, { occurred_at: at(2) }),
+      rankPassed(6, { occurred_at: at(3), actor: ME, target: ADAM }, { measure: 'challenge_points', passer_rank: 1, passed_rank: 2 }),
+      challengeWon(5, { occurred_at: at(4) }),
+      rankPassed(4, { occurred_at: at(5), actor: DAN, target: ADAM }),
+      levelUp(3, 25, { occurred_at: at(6) }),
+      titleTaken(2, { occurred_at: at(7) }),
+    ], 0);
+    renderWithApp(<NewsScreen />, { entry: '/news', width: MOBILE });
+    await waitFor(() => expect(rowCount()).toBe(7));
+
+    await user.click(chip(/^Ranks/));
+
+    await waitFor(() => expect(rowCount()).toBe(3));
+    expect(searchOf().get('type')).toBe('ranks');
+    expect(lastCall()).toMatchObject({ type: 'rank_passed' });
+    expect(chip(/^Ranks/)).toHaveAttribute('aria-pressed', 'true');
+    // Exakt de tre passeringarna, varje i sin vinkel, och ingen utmaningsrad.
+    expect(screen.getByRole('button', { name: /Karl passed you on the leaderboard/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /You passed Adam on the challenge standings/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Daniel passed Adam on the leaderboard/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /accepted/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /beat|won/i })).toBeNull();
+    // Chip-räknarna läser det ofiltrerade fönstret: accepten och vinsten är Challenges-rader, inte Ranks-rader.
+    expect(chip(/^Ranks/)).toHaveAccessibleName('Ranks 3 loaded');
+    expect(chip(/^Challenges/)).toHaveAccessibleName('Challenges 2 loaded');
+
+    // Byter man chip försvinner passeringarna och utmaningsraderna kommer: accepten ligger under Challenges.
+    await user.click(chip(/^Ranks/));
+    await user.click(chip(/^Challenges/));
+    await waitFor(() => expect(rowCount()).toBe(2));
+    expect(screen.getByRole('button', { name: /accepted your challenge/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /passed/ })).toBeNull();
   });
 });
