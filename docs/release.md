@@ -99,7 +99,7 @@ flöde 1 (login → JWT → skyddade anrop). Minst: frontend laddar utan vit sid
 
 ### 6. `announce:release`
 
-**Undantag v0.7.0:** What's new-posten och Features-kortet Strava beskriver Strava-webhooks, så de får inte gå ut förrän prenumerationen är skapad och verifierad. Därför har v0.7.0-posten ingen `announce` i den första deployen. RUN-265:s PR (mergas sist i RUN-182, efter röken och med ägar-ja) sätter `"announce": true`, byter Features-kortet Strava till den text som står i `CHANGELOG.md` (Prod-steg 11) och slår på 12 h-pollingen i samma deploy. `announce:release --version=0.7.0` (Pack News-raden) körs efter DEN deployen, så att popupen och raden går ut samtidigt.
+**Undantag v0.7.0:** What's new-posten och Features-kortet Strava beskriver Strava-webhooks, så de får inte gå ut förrän prenumerationen är skapad och verifierad. Därför har v0.7.0-posten ingen `announce` i den första deployen. RUN-265:s PR (mergas sist i RUN-182, direkt efter godkänd rök och med ägar-ja; ingen sjudygnsvänta, ägarbeslut 2026-10-14) sätter `"announce": true`, byter Features-kortet Strava och sätter in de tre Strava-texterna i posten, allt som står i `CHANGELOG.md` (Prod-steg 10), och slår på 12 h-pollingen i samma deploy. `announce:release --version=0.7.0` (Pack News-raden) körs efter DEN deployen, så att popupen och raden går ut samtidigt.
 
 Gäller bara en **användarversion** med `"announce": true` i `changelog.json`. Skriptet skriver en
 `release_published`-rad per grupp i Pack News (förkrav: migration 041, som är körd; skriptet kontrollerar det själv

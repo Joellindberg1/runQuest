@@ -192,11 +192,15 @@ describe('changelog: v0.7.0', () => {
     expect(changelog.workingOn.map((item) => item.title)).toEqual(['Seasons and trophies', 'Group settings']);
   });
 
-  it('Strava-texten är ärlig: reservkontroll minst var 12:e timme, 48 timmar för ändringar och raderingar, och att Disconnect raderar och inte går att ångra', () => {
-    expect(text).toContain('checks Strava for new runs at least every 12 hours');
-    expect(text).toContain('runs you delete or make private on Strava are still removed here');
-    expect(text).toContain('within 48 hours');
+  // Före webhook-prenumerationen får posten (som syns i Releases-fliken) inte säga något som kräver verifierade webhooks: inget "tells RunQuest",
+  // inga 48 timmar, ingen reservkontroll och ingen borttagning på Strava under paus. RUN-265 sätter in de texterna och vänder det här testet till att kräva dem.
+  it('Strava-texten är ärlig före prenumerationen: pausen stoppar nya hämtningar, Disconnect raderar och inte går att ångra, och inget kräver verifierade webhooks', () => {
+    expect(text).not.toContain('tells RunQuest');
+    expect(text).not.toContain('48 hours');
+    expect(text).not.toContain('at least every 12 hours');
+    expect(text).not.toContain('still removed here');
     expect(text).toContain('Pause sync');
+    expect(text).toContain('no new runs are fetched until you turn sync back on; the new runs from the pause are fetched when you turn it back on');
     expect(text).toMatch(/Disconnect asks Strava to revoke RunQuest's access and deletes the runs imported from Strava, and it cannot be undone/);
   });
 

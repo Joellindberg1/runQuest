@@ -107,20 +107,12 @@
           "description": "Pack News has an Involves me button that keeps only news about you: your moves, moves against you and events you joined. The new Ranks filter shows when someone passes you on the leaderboard or the challenge standings, and you get a note when someone accepts your challenge."
         },
         {
-          "type": "improvement",
-          "description": "Strava now tells RunQuest when you log, change or delete a run, and RunQuest also checks Strava for new runs at least every 12 hours."
-        },
-        {
-          "type": "improvement",
-          "description": "Changes and deletions on Strava follow within 48 hours. A run you delete, make private or change so it is no longer a run is removed here, and your XP, streaks, titles and badges are recalculated, so they can go down. Edits to a run's date or distance are picked up the same way, except while sync is paused."
+          "type": "feature",
+          "description": "Connecting Strava now starts with a short summary you tick to agree to: what is imported, what happens when you delete a run on Strava, that Disconnect deletes your Strava runs, and that you can pause sync. The full text is in Privacy & Terms."
         },
         {
           "type": "feature",
-          "description": "Connecting Strava now starts with a short summary you tick to agree to: what is imported, the 48 hours, that Disconnect deletes your Strava runs, and that you can pause sync. The full text is in Privacy & Terms."
-        },
-        {
-          "type": "feature",
-          "description": "In Settings you can Pause sync (your connection and runs stay, but no new runs are fetched until you turn sync back on, and runs you delete or make private on Strava are still removed here; the new runs from the pause are fetched when you turn it back on) or Disconnect. Disconnect asks Strava to revoke RunQuest's access and deletes the runs imported from Strava, and it cannot be undone. Runs you added by hand stay."
+          "description": "In Settings you can Pause sync (your connection and runs stay, but no new runs are fetched until you turn sync back on; the new runs from the pause are fetched when you turn it back on) or Disconnect. Disconnect asks Strava to revoke RunQuest's access and deletes the runs imported from Strava, and it cannot be undone. Runs you added by hand stay."
         }
       ]
     },
