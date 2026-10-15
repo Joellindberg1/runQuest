@@ -136,7 +136,7 @@ describe('removeStravaConnection', () => {
     expect(reprocessRunsFromDate).toHaveBeenCalledTimes(1);
     expect(reprocessRunsFromDate).toHaveBeenCalledWith('user-1', '2026-09-01');
     expect(calculateUserTotals).toHaveBeenCalledTimes(1);
-    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1', { emitRankNews: false });
     // The token row is still there while the runs are recomputed: a crash in between leaves it for the rerun.
     expect(rowDuringRecompute).toEqual([1]);
     expect(tables.strava_tokens).toEqual([]);
@@ -245,7 +245,7 @@ describe('removeStravaConnection', () => {
 
     expect(reprocessRunsFromDate).not.toHaveBeenCalled();
     expect(calculateUserTotals).toHaveBeenCalledTimes(1);
-    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1', { emitRankNews: false });
     expect(tables.strava_tokens).toEqual([]);
   });
 

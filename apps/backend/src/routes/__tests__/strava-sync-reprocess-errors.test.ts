@@ -101,7 +101,7 @@ describe('syncUserStravaActivities — reprocess-fel vid import', () => {
     expect(res.status).toBe(400); // misslyckat synkresultat (routen svarar 400 + { error } vid success:false)
     expect(res.body.error).toMatch(/recalculate|XP/i);
     expect(t.runs).toHaveLength(1); // importen själv lyckades
-    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1', { emitRankNews: false });
     expect(WeatherService.fetchAndSaveWeatherForRuns).toHaveBeenCalledTimes(1);
     expect(checkEventQualification).toHaveBeenCalledTimes(1);
   });
@@ -114,7 +114,7 @@ describe('syncUserStravaActivities — reprocess-fel vid import', () => {
     const res = await sync();
 
     expect(res.status).toBe(400);
-    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1', { emitRankNews: false });
     expect(checkEventQualification).toHaveBeenCalledTimes(1);
   });
 

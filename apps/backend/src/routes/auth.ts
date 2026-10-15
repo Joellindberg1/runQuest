@@ -9,6 +9,7 @@ import { requireAdmin } from '../middleware/admin.js';
 import { loginRateLimiter } from '../middleware/rateLimit.js';
 import { invalidateXpConfigCache } from '../services/xpConfig.js';
 import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
+import { compareXpStandings } from '@runquest/shared';
 
 const router = express.Router();
 
@@ -642,13 +643,17 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
              streak_day, base_xp, km_xp, distance_bonus, streak_bonus, is_treadmill,
              start_time, created_at, source)
       `)
-      .eq('group_id', groupId)
-      .order('total_xp', { ascending: false });
+      .eq('group_id', groupId);
 
     if (error) {
       logger.error('❌ Error fetching users with runs:', error.message);
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
+
+    // Boardens All-time-ordning = rank_passed-komparatorn (ADR 011 beslut 6): xp fallande, namn (skiftlägesokänsligt), id. Sorteras i TS
+    // med den delade komparatorn: PostgREST:s order på name är skiftlägeskänsligt och en ensam total_xp-sortering ger lika XP i godtycklig ordning.
+    usersWithRuns?.sort((a: any, b: any) =>
+      compareXpStandings({ id: a.id, name: a.name, xp: a.total_xp ?? 0 }, { id: b.id, name: b.name, xp: b.total_xp ?? 0 }));
 
     // Count unsent tokens per tier per user (= challenges available to send)
     const userIds = (usersWithRuns ?? []).map((u: any) => u.id);

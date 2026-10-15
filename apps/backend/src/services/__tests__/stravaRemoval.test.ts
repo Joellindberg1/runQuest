@@ -160,7 +160,7 @@ describe('recomputeAfterRemoval', () => {
     expect(reprocessRunsFromDate).toHaveBeenCalledTimes(1);
     expect(reprocessRunsFromDate).toHaveBeenCalledWith('user-1', '2026-09-01');
     expect(calculateUserTotals).toHaveBeenCalledTimes(1);
-    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1', { emitRankNews: false });
     expect(vi.mocked(reprocessRunsFromDate).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(calculateUserTotals).mock.invocationCallOrder[0]);
   });
 

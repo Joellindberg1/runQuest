@@ -169,7 +169,7 @@ describe('athlete deauthorize', () => {
     expect(reprocessRunsFromDate).toHaveBeenCalledTimes(1);
     expect(reprocessRunsFromDate).toHaveBeenCalledWith('user-1', '2026-10-01'); // from the oldest deleted Strava run
     expect(calculateUserTotals).toHaveBeenCalledTimes(1);
-    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1', { emitRankNews: false });
   });
 
   it('deauthorize event confirmed by a rejected refresh token removes the connection', async () => {
