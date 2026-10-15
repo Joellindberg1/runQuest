@@ -1,5 +1,5 @@
 import type { Challenge, ChallengeMetric, ChallengeTier, ChallengeToken, Run, UserBoost } from '@runquest/types';
-import { MS_DAY, stockholmClock, type ChallengeHistoryItem } from '@runquest/shared';
+import { MS_DAY, compareChallengeStandings, stockholmClock, type ChallengeHistoryItem, type ChallengeStanding } from '@runquest/shared';
 import {
   TIERS, durationLongText, durationText, firstName, formatDayMonth, formatMetricValue, metricLabel, metricUnit,
   startsInText, stakeOf, tierLabel, timeLeft, type Stake, type StakeSource, type TimeLeft,
@@ -281,11 +281,18 @@ const points = (stat: Pick<GroupStat, 'wins' | 'draws' | 'losses'>): number | nu
   return total === 0 ? null : (stat.wins + stat.draws * 0.5) / total;
 };
 
-/** Poäng (vinst 1, oavgjort ½) per spelad match; ospelade sist. Lika poäng → flest vinster → namn. */
+const toStanding = (stat: GroupStat): ChallengeStanding => ({
+  id: stat.user_id, name: stat.name, wins: stat.wins, draws: stat.draws, losses: stat.losses,
+});
+
+/**
+ * Ordningen är den delade komparatorn `compareChallengeStandings` — samma som GET /challenges/group-stats och nyhetens rank_passed
+ * (ADR 011 beslut 6), så tabellen och nyhetens rang aldrig skiljer sig åt. Spelade före ospelade, oavrundade poäng (vinst 1, oavgjort ½),
+ * flest vinster, sedan namn utan locale och id. Ingen localeCompare här: den ger olika ordning per webbläsarspråk.
+ * `pct` är bara visning (avrundad) och påverkar aldrig ordningen.
+ */
 export function buildStandings(stats: readonly GroupStat[], meId: string): StandingRow[] {
-  const sorted = [...stats].sort(
-    (a, b) => (points(b) ?? -1) - (points(a) ?? -1) || b.wins - a.wins || a.name.localeCompare(b.name),
-  );
+  const sorted = [...stats].sort((a, b) => compareChallengeStandings(toStanding(a), toStanding(b)));
   return sorted.map((stat, index) => {
     const pts = points(stat);
     return {
