@@ -62,6 +62,7 @@ beforeEach(() => {
 afterEach(() => {
   strava?.restore();
   strava = undefined;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -100,6 +101,70 @@ describe('subscription check', () => {
     expect(critical()).toHaveLength(1);
     expect(critical()[0]).toContain('https://old.example.test/hook');
     expect(critical()[0]).toContain(STRAVA_WEBHOOK_CALLBACK_URL);
+  });
+
+  it('nightly check logs a critical error when the callback url only nearly equals the expected one', async () => {
+    const lookalikes = [
+      `${STRAVA_WEBHOOK_CALLBACK_URL}/`,
+      `${STRAVA_WEBHOOK_CALLBACK_URL}/extra`,
+      `${STRAVA_WEBHOOK_CALLBACK_URL}?x=1`,
+      STRAVA_WEBHOOK_CALLBACK_URL.replace('https://', 'http://'),
+      STRAVA_WEBHOOK_CALLBACK_URL.replace('api.runquest.dev', 'API.runquest.dev'),
+      STRAVA_WEBHOOK_CALLBACK_URL.replace('/api/strava/webhook', '/API/strava/webhook'),
+      ` ${STRAVA_WEBHOOK_CALLBACK_URL}`,
+      '',
+    ];
+
+    for (const callbackUrl of lookalikes) {
+      logged = [];
+      strava = installFakeStravaFetch({ pushSubscriptions: { list: [stravaSubscription({ id: 777, callback_url: callbackUrl })] } });
+
+      const outcome = await runStravaSubscriptionCheck(ENV);
+
+      expect(outcome, JSON.stringify(callbackUrl)).toBe('callback_differs');
+      expect(critical(), JSON.stringify(callbackUrl)).toHaveLength(1);
+      strava.restore();
+    }
+  });
+
+  it('nightly check finds our subscription when another one is listed before it', async () => {
+    strava = installFakeStravaFetch({
+      pushSubscriptions: { list: [stravaSubscription({ id: 1, callback_url: 'https://old.example.test/hook' }), OURS] },
+    });
+
+    const outcome = await runStravaSubscriptionCheck(ENV);
+
+    expect(outcome).toBe('ok');
+    expect(critical()).toEqual([]);
+    expect(strava.requests).toHaveLength(1);
+  });
+
+  it('nightly check logs a critical error once when several subscriptions are listed and none is ours', async () => {
+    strava = installFakeStravaFetch({
+      pushSubscriptions: {
+        list: [stravaSubscription({ id: 1, callback_url: STRAVA_WEBHOOK_CALLBACK_URL }), stravaSubscription({ id: 2, callback_url: STRAVA_WEBHOOK_CALLBACK_URL })],
+      },
+    });
+
+    const outcome = await runStravaSubscriptionCheck(ENV);
+
+    expect(outcome).toBe('id_differs');
+    expect(critical()).toHaveLength(1);
+    expect(critical()[0]).toMatch(/\b1\b.*\b2\b/);
+    expect(strava.requests).toHaveLength(1);
+  });
+
+  it('nightly check reads its configuration from process.env when no env is given', async () => {
+    vi.stubEnv('STRAVA_WEBHOOK_SUBSCRIPTION_ID', '777');
+    vi.stubEnv('STRAVA_CLIENT_ID', CLIENT_ID);
+    vi.stubEnv('STRAVA_CLIENT_SECRET', CLIENT_SECRET);
+    strava = installFakeStravaFetch({ pushSubscriptions: { list: [] } });
+
+    const outcome = await runStravaSubscriptionCheck();
+
+    expect(outcome).toBe('missing');
+    expect(strava.requests).toHaveLength(1);
+    expect(critical()).toHaveLength(1);
   });
 
   it('nightly check logs no critical error when the subscription matches', async () => {

@@ -30,8 +30,8 @@ export type ListStravaSubscriptionsResult =
   | { ok: true; rows: StravaSubscriptionRow[] }
   | { ok: false; reason: string; status?: number; unanswered?: true };
 
-/** The name of a caught error, nothing else: not the message, not the cause, not the stack. */
-function errorName(error: unknown): string {
+/** The name of a caught error, nothing else: not the message, not the cause, not the stack. Shared with the script, whose own requests fail the same way. */
+export function errorName(error: unknown): string {
   return error instanceof Error ? error.name.replace(/[^\w.:-]/g, '').slice(0, 40) || 'Error' : typeof error;
 }
 

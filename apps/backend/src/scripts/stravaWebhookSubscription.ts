@@ -18,7 +18,7 @@
 import { pathToFileURL } from 'node:url';
 import { stravaFetch } from '../services/stravaClient.js';
 import { STRAVA_WEBHOOK_CALLBACK_URL } from '../services/stravaWebhook/constants.js';
-import { PUSH_SUBSCRIPTIONS_URL, listStravaSubscriptions, type StravaSubscriptionRow } from '../services/stravaWebhook/subscriptions.js';
+import { PUSH_SUBSCRIPTIONS_URL, errorName, listStravaSubscriptions, type StravaSubscriptionRow } from '../services/stravaWebhook/subscriptions.js';
 
 // The constant lives in services/stravaWebhook/constants.ts (the nightly check needs it too); the script keeps exporting it.
 export { STRAVA_WEBHOOK_CALLBACK_URL };
@@ -183,7 +183,7 @@ export async function runSubscription({ command, apply, id, env, log }: RunSubsc
       const body = await readJson(response);
       return response.ok ? { ok: true, status: response.status, body } : { ok: false, reason: describeFailure(response.status, body) };
     } catch (err) {
-      return { ok: false, unanswered: true, reason: `request failed: ${err instanceof Error ? err.message : 'network error'}` };
+      return { ok: false, unanswered: true, reason: `request failed: ${errorName(err)}` };
     }
   };
 
