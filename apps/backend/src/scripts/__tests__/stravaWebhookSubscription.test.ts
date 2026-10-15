@@ -496,6 +496,31 @@ describe('secrets', () => {
   });
 });
 
+describe('a request that fails before any answer', () => {
+  it('delete --id shows only the error name when the fetch error message holds the url with a secret that needs url-encoding', async () => {
+    // The url of a request carries client_secret in its query string, URL-encoded. The scrub replaces the raw value only, so the
+    // encoded form must never reach the output in the first place.
+    const secret = 'S3cr+et/va=lue+Zq9';
+    const encodings = [secret, new URLSearchParams({ s: secret }).get('s') as string, new URLSearchParams({ s: secret }).toString().slice(2), encodeURIComponent(secret)];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (target: string | URL | Request) => {
+      const url = typeof target === 'string' ? target : target instanceof URL ? target.href : target.url;
+      throw Object.assign(new TypeError(`Failed to parse URL from ${url}`), { cause: new Error(`connect ECONNREFUSED ${url}`) });
+    }) as typeof fetch;
+    try {
+      const report = await run('delete', { id: 777, apply: true, env: { ...ENV, STRAVA_CLIENT_SECRET: secret } });
+
+      const everything = [output(), consoleOutput.join('\n'), loggerOutput.join('\n'), JSON.stringify(report)].join('\n');
+      expect(report.outcome).toBe('failed');
+      for (const form of encodings) expect(everything, `leaked ${form}`).not.toContain(form);
+      expect(everything.toLowerCase()).not.toContain('%2b');
+      expect(output()).toContain('TypeError');
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
 describe('running the script', () => {
   const scriptPath = fileURLToPath(new URL('../stravaWebhookSubscription.ts', import.meta.url));
   const tsxLoader = pathToFileURL(createRequire(import.meta.url).resolve('tsx')).href;

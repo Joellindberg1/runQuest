@@ -66,6 +66,9 @@ export const WEBHOOK_SWEEP_CRON = '* * * * *';
 /** The retention job: 03:30 every night, Europe/Stockholm (ADR 010 decision 11). */
 export const WEBHOOK_RETENTION_CRON = '30 3 * * *';
 
+/** The public url Strava calls. The route of the webhook (ADR 010 decision 2) must be mounted on exactly this path. The subscription script creates the subscription with it and the nightly check compares against it. */
+export const STRAVA_WEBHOOK_CALLBACK_URL = 'https://api.runquest.dev/api/strava/webhook';
+
 /** A wait for the 15-minute rate limit ends at the next whole quarter hour plus this much (ADR 010 decision 9). */
 export const WEBHOOK_QUARTER_WAIT_MARGIN_MS = 30_000;
 /** A wait for the daily rate limit ends at the next UTC midnight plus this much (ADR 010 decision 9). */

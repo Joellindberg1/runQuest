@@ -1,5 +1,6 @@
 // Schedules the Strava webhook worker (ADR 010 decisions 6 and 11): a sweep every minute (the guarantee), the retention job at
-// 03:30 Stockholm time, and the wake-up after an insert (only latency). Everything the worker does lives in
+// 03:30 Stockholm time with the daily check of the subscription beside it (services/stravaWebhook/subscriptionCheck.ts, independent
+// of the retention), and the wake-up after an insert (only latency). Everything the worker does lives in
 // services/stravaWebhookWorker.ts; this file only starts it.
 //
 // Started by server.ts in production only. The wake-up is a no-op until then (and after stop), so tests and dev store events
@@ -9,7 +10,9 @@ import { STOCKHOLM_TZ } from '@runquest/shared';
 import { logger } from '../utils/logger.js';
 import { WEBHOOK_RETENTION_CRON, WEBHOOK_SWEEP_CRON } from '../services/stravaWebhook/constants.js';
 import { createDefaultWebhookWorker } from '../services/stravaWebhook/defaultWorker.js';
+import { runStravaSubscriptionCheck } from '../services/stravaWebhook/subscriptionCheck.js';
 import type { StravaWebhookWorker } from '../services/stravaWebhookWorker.js';
+import { errorCode } from '../utils/errorCode.js';
 
 // Set by startStravaWebhookScheduler(), cleared by its stop function.
 let activeWorker: StravaWebhookWorker | null = null;
@@ -27,6 +30,19 @@ export function wakeStravaWebhookWorker(): void {
   });
 }
 
+/**
+ * One job of the night run on its own: whatever it does, throws or rejects, is logged by error code (never the message, which may
+ * hold a url with a secret) and stays inside it. The jobs of the 03:30 run are started side by side through this, so a failing
+ * retention cannot stop the subscription check, and the other way round.
+ */
+async function runNightlyJob(label: string, job: () => Promise<unknown>): Promise<void> {
+  try {
+    await job();
+  } catch (err) {
+    logger.error(`❌ Nightly Strava webhook job failed: ${label} (${errorCode(err)})`);
+  }
+}
+
 /** Starts the sweep and the retention job. Returns a function that stops them. Does nothing outside production. */
 export function startStravaWebhookScheduler(options: { worker?: StravaWebhookWorker } = {}): () => void {
   if (process.env.NODE_ENV !== 'production') {
@@ -37,7 +53,7 @@ export function startStravaWebhookScheduler(options: { worker?: StravaWebhookWor
 
   const worker = options.worker ?? createDefaultWebhookWorker();
   activeWorker = worker;
-  logger.info('🕐 Starting Strava webhook worker (sweep every minute, retention 03:30 Europe/Stockholm)...');
+  logger.info('🕐 Starting Strava webhook worker (sweep every minute, retention and subscription check 03:30 Europe/Stockholm)...');
 
   const sweep = cron.schedule(WEBHOOK_SWEEP_CRON, () => {
     void worker.drain();
@@ -45,7 +61,8 @@ export function startStravaWebhookScheduler(options: { worker?: StravaWebhookWor
   const retention = cron.schedule(
     WEBHOOK_RETENTION_CRON,
     () => {
-      void worker.runRetention();
+      void runNightlyJob('retention', () => worker.runRetention());
+      void runNightlyJob('subscription check', () => runStravaSubscriptionCheck());
     },
     { timezone: STOCKHOLM_TZ },
   );

@@ -17,10 +17,12 @@
  */
 import { pathToFileURL } from 'node:url';
 import { stravaFetch } from '../services/stravaClient.js';
+import { STRAVA_WEBHOOK_CALLBACK_URL } from '../services/stravaWebhook/constants.js';
+import { PUSH_SUBSCRIPTIONS_URL, errorName, listStravaSubscriptions, type StravaSubscriptionRow } from '../services/stravaWebhook/subscriptions.js';
 
-/** The public url Strava calls. The route of the webhook (ADR 010 decision 2) must be mounted on exactly this path. */
-export const STRAVA_WEBHOOK_CALLBACK_URL = 'https://api.runquest.dev/api/strava/webhook';
-const PUSH_SUBSCRIPTIONS_URL = 'https://www.strava.com/api/v3/push_subscriptions';
+// The constant lives in services/stravaWebhook/constants.ts (the nightly check needs it too); the script keeps exporting it.
+export { STRAVA_WEBHOOK_CALLBACK_URL };
+export type { StravaSubscriptionRow };
 const MIN_VERIFY_TOKEN_LENGTH = 32;
 const REQUEST_TIMEOUT_MS = 30_000;
 /** A printed line is cut after scrubbing, never before: a cut before it could leave the first part of a secret behind. */
@@ -48,14 +50,6 @@ export type SubscriptionOutcome =
   | 'ambiguous'
   | 'missing_env'
   | 'failed';
-
-/** The fields of a Strava push subscription that the script reads and shows. */
-export interface StravaSubscriptionRow {
-  id: number;
-  callback_url: string;
-  created_at?: string;
-  updated_at?: string;
-}
 
 export interface SubscriptionReport {
   command: SubscriptionCommand;
@@ -189,25 +183,12 @@ export async function runSubscription({ command, apply, id, env, log }: RunSubsc
       const body = await readJson(response);
       return response.ok ? { ok: true, status: response.status, body } : { ok: false, reason: describeFailure(response.status, body) };
     } catch (err) {
-      return { ok: false, unanswered: true, reason: `request failed: ${err instanceof Error ? err.message : 'network error'}` };
+      return { ok: false, unanswered: true, reason: `request failed: ${errorName(err)}` };
     }
   };
 
   /** GET /push_subscriptions: the subscriptions of this app. Fail-closed: an unreadable answer is a failure, never "none". */
-  const listSubscriptions = async (): Promise<{ ok: true; rows: StravaSubscriptionRow[] } | { ok: false; reason: string }> => {
-    const call = await send(`${PUSH_SUBSCRIPTIONS_URL}?${credentialQuery()}`, { method: 'GET' });
-    if (!call.ok) return call;
-    if (!Array.isArray(call.body)) return { ok: false, reason: 'Strava answered with something other than a list of subscriptions' };
-    const rows: StravaSubscriptionRow[] = [];
-    for (const item of call.body) {
-      const row = item as Partial<StravaSubscriptionRow> | null;
-      if (!row || !Number.isSafeInteger(row.id) || (row.id as number) <= 0) {
-        return { ok: false, reason: 'Strava listed a subscription without a valid id' };
-      }
-      rows.push({ id: row.id as number, callback_url: String(row.callback_url ?? ''), created_at: row.created_at, updated_at: row.updated_at });
-    }
-    return { ok: true, rows };
-  };
+  const listSubscriptions = () => listStravaSubscriptions({ clientId, clientSecret, timeoutMs: REQUEST_TIMEOUT_MS });
 
   const describeRow = (row: StravaSubscriptionRow) => {
     say(`  subscription ${row.id}: ${row.callback_url}${row.created_at ? ` (created ${row.created_at})` : ''}`);
