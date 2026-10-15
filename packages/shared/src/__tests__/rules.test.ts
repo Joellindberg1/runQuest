@@ -4,13 +4,14 @@ import {
   STRAVA_DISTANCE_MUST_EXCEED_KM,
   STRAVA_LEGACY_RUN_TYPE,
   STRAVA_LOOKBACK_BUFFER_DAYS,
-  STRAVA_POLL_INTERVAL_MINUTES,
+  STRAVA_POLL_INTERVAL_HOURS,
   STRAVA_RUN_SPORT_TYPES,
   STRAVA_TREADMILL_FLAG,
   WEBHOOK_RETENTION_DONE_DAYS,
   WEBHOOK_RETENTION_FAILED_DAYS,
   getDataPolicySection,
   stravaPollCron,
+  stravaPollIntervalLabel,
 } from '../index.js';
 
 // Playbook (frontend) and the privacy text state these facts; the backend imports the same constants. Changing a value here is a
@@ -45,13 +46,29 @@ describe('Strava import rules', () => {
     expect(STRAVA_LOOKBACK_BUFFER_DAYS).toBe(7);
   });
 
-  it('the sync runs every 30 minutes', () => {
-    expect(STRAVA_POLL_INTERVAL_MINUTES).toBe(30);
+  it('strava poll interval is one shared constant and divides 24 hours', () => {
+    expect(STRAVA_POLL_INTERVAL_HOURS).toBe(12);
+    expect(Number.isInteger(STRAVA_POLL_INTERVAL_HOURS)).toBe(true);
+    expect(24 % STRAVA_POLL_INTERVAL_HOURS).toBe(0);
+    expect(stravaPollIntervalLabel()).toBe('12 hours');
   });
 
-  it('the cron expression follows the polling interval', () => {
-    expect(stravaPollCron()).toBe('*/30 * * * *');
-    expect(stravaPollCron(15)).toBe('*/15 * * * *');
+  it('the cron expression fires at minute 0 of every polling interval', () => {
+    expect(stravaPollCron()).toBe('0 */12 * * *');
+    expect(stravaPollCron(6)).toBe('0 */6 * * *');
+    expect(stravaPollCron(24)).toBe('0 0 * * *');
+  });
+
+  it('an interval that does not divide 24 hours evenly is rejected, because the cron slots would drift between days', () => {
+    for (const hours of [0, -12, 5, 7, 13, 25, 1.5, NaN]) {
+      expect(() => stravaPollCron(hours), `stravaPollCron(${hours})`).toThrow(RangeError);
+      expect(() => stravaPollIntervalLabel(hours), `stravaPollIntervalLabel(${hours})`).toThrow(RangeError);
+    }
+  });
+
+  it('the label is singular for one hour', () => {
+    expect(stravaPollIntervalLabel(1)).toBe('1 hour');
+    expect(stravaPollIntervalLabel(8)).toBe('8 hours');
   });
 });
 
@@ -60,10 +77,8 @@ describe('the privacy text agrees with the Strava constants', () => {
     expect(strava()).toContain(`(${listOf(STRAVA_RUN_SPORT_TYPES)})`);
   });
 
-  // The text promises a backup check "at least every 12 hours": true for 30 minutes and for 12 hours, false for anything slower.
-  it('the backup check is at least every 12 hours, as the privacy text says', () => {
-    expect(strava()).toMatch(/at least (once )?every 12 (hours|h)\b/i);
-    expect(STRAVA_POLL_INTERVAL_MINUTES).toBeLessThanOrEqual(12 * 60);
+  it('the strava section of the privacy text states the same poll interval as the shared constant', () => {
+    expect(strava()).toContain(`at least every ${stravaPollIntervalLabel()}`);
   });
 });
 
