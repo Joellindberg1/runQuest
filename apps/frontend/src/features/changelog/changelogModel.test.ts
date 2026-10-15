@@ -156,10 +156,14 @@ describe('changelog: v0.6.0', () => {
 });
 
 describe('announcedNotes', () => {
-  it('v0.7.0-posten med announce är med och slugen är unik', () => {
-    const slugs = announcedNotes(changelog.releases).map((note) => note.slug);
-    expect(slugs).toContain(slugForVersion('0.7.0'));
-    expect(slugs.filter((slug) => slug === slugForVersion('0.7.0'))).toHaveLength(1);
+  // Popupen och Features-kortet kommer med frontend-deployen, men Stravas prenumeration skapas först efter den. Därför har posten ingen announce
+  // (guarden kräver true eller utelämnat, så nyckeln utelämnas) tills webhooks är verifierade. RUN-265 sätter announce: true och vänder det
+  // här testet tillbaka till originalnamnet 'v0.7.0-posten med announce är med och slugen är unik' (posten ska då finnas i announcedNotes, en gång).
+  it('v0.7.0-posten finns men annonseras inte förrän webhooks är verifierade', () => {
+    const posts = changelog.releases.filter((entry) => entry.version === '0.7.0');
+    expect(posts).toHaveLength(1);
+    expect(Boolean(posts[0].announce)).toBe(false);
+    expect(announcedNotes(changelog.releases).map((note) => note.slug)).not.toContain(slugForVersion('0.7.0'));
   });
 });
 
@@ -167,9 +171,8 @@ describe('changelog: v0.7.0', () => {
   const v070 = changelog.releases.find((entry) => entry.version === '0.7.0');
   const text = v070?.changes.map((change) => change.description).join(' ') ?? '';
 
-  it('är en annonserad minor-post som pekar på Settings → Notifications för den som inte besöker Pack News', () => {
+  it('är en minor-post som pekar på Settings → Notifications för den som inte besöker Pack News', () => {
     expect(v070?.type).toBe('minor');
-    expect(v070?.announce).toBe(true);
     expect(text).toContain('Settings → Notifications');
   });
 
@@ -190,7 +193,8 @@ describe('changelog: v0.7.0', () => {
   });
 
   it('Strava-texten är ärlig: reservkontroll minst var 12:e timme, 48 timmar för ändringar och raderingar, och att Disconnect raderar och inte går att ångra', () => {
-    expect(text).toContain('at least every 12 hours');
+    expect(text).toContain('checks Strava for new runs at least every 12 hours');
+    expect(text).toContain('runs you delete or make private on Strava are still removed here');
     expect(text).toContain('within 48 hours');
     expect(text).toContain('Pause sync');
     expect(text).toMatch(/Disconnect asks Strava to revoke RunQuest's access and deletes the runs imported from Strava, and it cannot be undone/);
@@ -204,11 +208,9 @@ describe('changelog: v0.7.0', () => {
     expect(stravaTexts).not.toMatch(/instant|within minutes|right away|immediately|real[- ]time/i);
   });
 
-  it('Strava-kortet under Features stämmer med versionen: reservkontroll, Pause sync och Disconnect', () => {
+  it('Strava-kortet under Features lovar inga webhooks förrän webhooks är verifierade', () => {
     const strava = changelog.features.find((feature) => feature.title === 'Strava');
-    expect(strava?.body).toContain('at least every 12 hours');
-    expect(strava?.body).toContain('Pause sync');
-    expect(strava?.body).toContain('Disconnect');
+    expect(strava?.body).toBe('Your runs are imported automatically');
   });
 });
 
