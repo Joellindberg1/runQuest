@@ -1,6 +1,6 @@
 // Strava-webhookens publika rutt (ADR 010 beslut 2, 3 och 5): GET /api/strava/webhook (prenumerationens verifiering) och
-// POST /api/strava/webhook (händelserna). Ingen JWT: Strava har ingen token. Strava signerar inte händelserna, så skyddet är
-// lager på lager, och det som bär är ADR 010 beslut 1: händelsen är bara en signal, handlern bygger aldrig på dess innehåll.
+// POST /api/strava/webhook (händelserna). Ingen JWT: Strava har ingen token (undantaget är GET /health för admin, se nedan).
+// Strava signerar inte händelserna, så skyddet är lager på lager, och det som bär är ADR 010 beslut 1: händelsen är bara en signal, handlern bygger aldrig på dess innehåll.
 //
 // Svarsformen dikteras av Strava ({"hub.challenge": …} och ett tomt 200), så ADR 007:s `{ success, data }` gäller INTE här.
 // Felsvar använder ändå `{ error }` utan detaljer.
@@ -27,6 +27,8 @@
 import crypto from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { getSupabaseClient } from '../config/database.js';
+import { authenticateJWT } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/admin.js';
 import { findUserByAthleteId, isValidAthleteId } from '../services/stravaAthlete.js';
 import {
   WEBHOOK_ASPECT_TYPES,
@@ -38,6 +40,8 @@ import {
   type WebhookObjectType,
 } from '../services/stravaWebhook/constants.js';
 import { buildWebhookDedupeKey, pickWhitelistedUpdates } from '../services/stravaWebhook/dedupeKey.js';
+import { readWebhookHealth } from '../services/stravaWebhook/health.js';
+import { errorCode } from '../utils/errorCode.js';
 import { logger } from '../utils/logger.js';
 
 const EVENTS_TABLE = 'strava_webhook_events';
@@ -102,6 +106,20 @@ export function createStravaWebhookRouter({ onEventStored }: StravaWebhookOption
       return;
     }
     res.status(200).json({ 'hub.challenge': challenge });
+  });
+
+  // ─── GET /health: kön i siffror (ADR 010 beslut 11), den enda rutten här med JWT ──────────────────────────────
+  // authenticateJWT läser bara Authorization-headern, så den behöver ingen parser före sig. Strava når aldrig den här rutten.
+  // requireAdmin betyder i v0.7.0 "vilken gruppadmin som helst", och det finns exakt en (ägaren). Endpointen visar globala
+  // räknare, inte gruppdata: flytta den till supportrollen när RUN-267 landar.
+  router.get('/health', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
+    try {
+      res.json({ success: true, data: await readWebhookHealth(configuredSubscriptionId() !== null) });
+    } catch (error) {
+      // Synligt fel i stället för nollor: en hälsokontroll som säger 0 vid databasfel ljuger. Bara felkoden loggas.
+      logger.error(`❌ Strava webhook health: could not read the queue (${errorCode(error)})`);
+      res.status(500).json({ success: false, error: 'Failed to read webhook health' });
+    }
   });
 
   // ─── POST: händelserna ────────────────────────────────────────────────────────
