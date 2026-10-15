@@ -1,5 +1,5 @@
 -- 045: strava_tokens får Strava-identitet, samtyckeslogg och pausflagga — "Migration A" i ADR 010 (RUN-164, v0.7.0).
--- Datum: 2026-10-14. EJ APPLICERAD i prod (kräver ägarens uttryckliga ja; Lead applicerar via Supabase MCP apply_migration,
+-- Datum: 2026-10-14. APPLICERAD i prod 2026-10-15 (ägar-ja i chatten; Lead via Supabase MCP apply_migration,
 -- name: 045_strava_athlete_consent_pause, och uppdaterar den här raden till APPLICERAD med datum).
 --
 -- Bakgrund: en Strava-webhook-händelse bär bara owner_id (Stravas athlete-id). strava_tokens saknar den identiteten, så
