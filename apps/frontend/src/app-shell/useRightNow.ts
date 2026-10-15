@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/providers/authContext';
 import { backendApi } from '@/shared/services/backendApi';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
-import { useStravaLastSync, useStravaStatus } from '@/shared/hooks/useStravaQueries';
+import { useStravaStatus } from '@/shared/hooks/useStravaQueries';
 import { eventPhase } from '@/features/events/eventsModel';
 import { useOpenEvents } from '@/features/events/hooks/useEventsQueries';
 import { buildRightNow, type RightNowItem, type ShellDuel, type ShellEvent } from './rightNowItems';
@@ -44,7 +44,6 @@ export function useRightNow(): RightNowState {
 
   // EN definition för Strava-queries: Log-skärmens Strava-rad delar nycklar, form och inställningar.
   const stravaStatus = useStravaStatus(enabled);
-  const stravaSync = useStravaLastSync(enabled);
 
   const shellEvents = useMemo<ShellEvent[]>(() => {
     const list = events.data?.events ?? [];
@@ -102,11 +101,9 @@ export function useRightNow(): RightNowState {
         streak,
         events: shellEvents,
         duel,
-        strava: stravaStatus.data
-          ? { connected: stravaStatus.data.connected, nextSyncAt: stravaSync.data?.next_sync_estimated ?? null }
-          : null,
+        strava: stravaStatus.data ? { connected: stravaStatus.data.connected } : null,
       }),
-    [now, streak, shellEvents, duel, stravaStatus.data, stravaSync.data],
+    [now, streak, shellEvents, duel, stravaStatus.data],
   );
 
   const hasOpenEvent = shellEvents.some((e) => e.status === 'active' && Date.parse(e.endsAt) > now.getTime());

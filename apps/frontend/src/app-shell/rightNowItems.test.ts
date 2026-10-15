@@ -94,18 +94,12 @@ describe('buildRightNow', () => {
     expect(items[0].value).toMatch(/^(\d+h|\d+ m|1 d)$/);
   });
 
-  it('Strava: ej kopplat ger Connect-pill (länk till /settings, tour-ankare); kopplad utan känd sync ger ingen; förfallen sync visas som Overdue', () => {
-    const connect = buildRightNow({ ...baseInput, strava: { connected: false, nextSyncAt: null } });
+  it('Strava: ej kopplat ger Connect-pill (länk till /settings, tour-ankare); kopplad ger ingen pill, och ingen nästa-synk-tid', () => {
+    const connect = buildRightNow({ ...baseInput, strava: { connected: false } });
     expect(connect).toHaveLength(1);
     expect(connect[0]).toMatchObject({ kind: 'strava', value: 'Connect', tone: 'up', to: '/settings', tourAnchor: 'right-now-strava' });
     expect(buildRightNow({ ...baseInput, strava: null })).toEqual([]);
-    expect(buildRightNow({ ...baseInput, strava: { connected: true, nextSyncAt: null } })).toEqual([]);
-
-    const soon = buildRightNow({ ...baseInput, strava: { connected: true, nextSyncAt: '2026-10-04T18:28:00Z' } });
-    expect(soon[0]).toMatchObject({ kind: 'strava', value: '28 m', tourAnchor: 'right-now-strava' });
-
-    const late = buildRightNow({ ...baseInput, strava: { connected: true, nextSyncAt: '2026-10-04T17:00:00Z' } });
-    expect(late[0].value).toBe('Overdue');
+    expect(buildRightNow({ ...baseInput, strava: { connected: true } })).toEqual([]);
   });
 
   it('en tävling efter slutdatum står som Settling, inte som noll tid kvar', () => {
@@ -123,13 +117,13 @@ describe('buildRightNow', () => {
     expect(note({ rank: null, entered: false })).toBe('Not entered');
   });
 
-  it('ordning: streak → event → duell → Strava', () => {
+  it('ordning: streak → event → duell → Strava (Connect-pillen)', () => {
     const items = buildRightNow({
       now: NOW,
       streak: { current: 2, lastRunDate: '2026-10-03' },
       events: [event()],
       duel: { id: 'd1', opponentName: 'Adam', metric: 'km', endDate: '2026-10-06' },
-      strava: { connected: true, nextSyncAt: '2026-10-04T18:20:00Z' },
+      strava: { connected: false },
     });
     expect(items.map((i) => i.kind)).toEqual(['streak', 'event', 'duel', 'strava']);
   });

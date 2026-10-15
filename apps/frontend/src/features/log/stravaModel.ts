@@ -1,4 +1,4 @@
-import { formatAgo, formatIn } from './logFormat';
+import { formatAgo } from './logFormat';
 
 // Strava-banderollen överst på mobilens formulär: kopplad/inte kopplad + senaste och nästa synk. Ren logik.
 
@@ -25,14 +25,13 @@ const msBetween = (iso: string, now: Date): number | null => {
   return Number.isNaN(ms) ? null : ms;
 };
 
-/** "Last sync 32 min ago · next in 28 min". Saknas båda: en neutral rad, aldrig en tom. */
+/**
+ * "Last sync 32 min ago". Ingen "next": rundor kommer via webhooks, så reservkontrollens nästa tid säger inget om när de kommer.
+ * Saknas senaste synken: en neutral rad, aldrig en tom.
+ */
 export function syncLine(sync: StravaSyncInput | undefined, now: Date): string {
-  const parts: string[] = [];
   const lastMs = sync?.last_sync_attempt ? msBetween(sync.last_sync_attempt, now) : null;
-  const nextMs = sync?.next_sync_estimated ? msBetween(sync.next_sync_estimated, now) : null;
-  if (lastMs !== null) parts.push(`Last sync ${formatAgo(Math.max(0, -lastMs))}`);
-  if (nextMs !== null) parts.push(`next ${formatIn(nextMs)}`);
-  return parts.length > 0 ? parts.join(' · ') : 'Your runs sync automatically';
+  return lastMs !== null ? `Last sync ${formatAgo(Math.max(0, -lastMs))}` : 'Your runs sync automatically';
 }
 
 /** null medan statusen laddas eller inte gick att läsa — banderollen är sidoinformation och får inte ta plats som fel. */

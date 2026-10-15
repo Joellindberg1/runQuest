@@ -1,4 +1,4 @@
-import { formatAgo, formatIn, formatLongDate } from '@/features/log/logFormat';
+import { formatAgo, formatLongDate } from '@/features/log/logFormat';
 import { stockholmDay, stravaPollIntervalLabel, type StravaStatusResponse } from '@runquest/shared';
 import type { Run } from '@runquest/types';
 import { validatePassword } from '@/shared/utils/validation';
@@ -13,6 +13,7 @@ export type StravaStatusInput = StravaStatusResponse;
 export interface StravaSyncInput {
   last_sync_attempt: string | null;
   last_sync_status: string;
+  /** Kommer från servern men visas inte: reservkontrollens tid säger inget om när rundor kommer (de kommer via webhooks). */
   next_sync_estimated: string | null;
   new_runs?: number;
 }
@@ -22,7 +23,7 @@ export type StravaCardState = 'connected' | 'paused' | 'expired' | 'disconnected
 export type Tone = 'up' | 'down' | 'muted' | 'paused';
 
 export interface StravaMetaCell {
-  key: 'connected' | 'last' | 'next';
+  key: 'connected' | 'last';
   label: string;
   value: string;
   tone: Tone;
@@ -34,7 +35,7 @@ export interface StravaCardView {
   /** Statuschipet: "Connected" / "Paused" / "Expired" / "Not connected". */
   chip: string;
   lead: string;
-  /** Tre celler (Connected · Last sync · Next sync) — bara när kopplingen lever. */
+  /** Två celler (Connected · Last sync) — bara när kopplingen lever. Ingen "Next sync": rundor kommer via webhooks, och reservkontrollens tid säger inget om när de kommer. */
   meta: StravaMetaCell[];
   /** Det som importeras — bara när kopplingen lever. */
   rules: string[];
@@ -68,11 +69,6 @@ function lastSyncText(sync: StravaSyncInput | undefined, now: Date): string {
   return ms === null ? 'No server sync yet' : formatAgo(Math.max(0, -ms));
 }
 
-function nextSyncText(sync: StravaSyncInput | undefined, now: Date): string {
-  const ms = sync?.next_sync_estimated ? msUntil(sync.next_sync_estimated, now) : null;
-  if (ms === null) return 'Unknown';
-  return ms < 0 ? 'Overdue' : formatIn(ms);
-}
 
 /** Pausens början som kalenderdag i Stockholm (paused_at är en ISO-tid med +00:00); saknas eller är den oläsbar utelämnas datumet. */
 function pausedNote(pausedAt: string | null | undefined): string {
@@ -107,7 +103,6 @@ export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput
       meta: [
         { key: 'connected', label: 'Connected', value: connectedOn(status.connection_date), tone: 'up' },
         { key: 'last', label: 'Last sync', value: lastSyncText(sync, now), tone: 'muted' },
-        { key: 'next', label: 'Next sync', value: 'Paused', tone: 'paused' },
       ],
     };
   }
@@ -117,7 +112,6 @@ export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput
     meta: [
       { key: 'connected', label: 'Connected', value: connectedOn(status.connection_date), tone: 'up' },
       { key: 'last', label: 'Last sync', value: lastSyncText(sync, now), tone: lastTone },
-      { key: 'next', label: 'Next sync', value: nextSyncText(sync, now), tone: 'muted' },
     ],
   };
 }

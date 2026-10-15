@@ -8,7 +8,7 @@ const minutes = (n: number) => new Date(NOW.getTime() + n * 60_000).toISOString(
 const SYNC = { last_sync_attempt: minutes(-32), last_sync_status: 'success', next_sync_estimated: minutes(28), new_runs: 2 };
 
 describe('buildStravaCard', () => {
-  it('kopplad: grönt chip, tre celler och reglerna om vad som importeras', () => {
+  it('kopplad: grönt chip, två celler (ingen nästa synk) och reglerna om vad som importeras', () => {
     const card = buildStravaCard({ connected: true, expired: false, connection_date: '2026-08-25T09:31:00Z' }, SYNC, NOW);
     expect(card.state).toBe('connected');
     expect(card.tone).toBe('up');
@@ -16,7 +16,6 @@ describe('buildStravaCard', () => {
     expect(card.meta.map((cell) => [cell.label, cell.value])).toEqual([
       ['Connected', '25 August 2026'],
       ['Last sync', '32 min ago'],
-      ['Next sync', 'in 28 min'],
     ]);
     expect(card.rules).toHaveLength(3);
   });
@@ -25,25 +24,23 @@ describe('buildStravaCard', () => {
     expect(STRAVA_IMPORT_RULES[0]).toBe(`Your Strava runs are imported as you save them, with a backup check every ${stravaPollIntervalLabel()}.`);
   });
 
-  it('nästa synk är ofta timmar bort (reservkontrollen går två gånger per dygn) och visas i timmar', () => {
-    const card = buildStravaCard({ connected: true, expired: false }, { ...SYNC, next_sync_estimated: minutes(5 * 60 + 30) }, NOW);
-    expect(card.meta.find((cell) => cell.key === 'next')?.value).toBe('in 5 h');
+  it('the Strava card has no Next sync row, whatever the server estimates', () => {
+    for (const next of [minutes(5 * 60 + 30), minutes(-5), null]) {
+      const card = buildStravaCard({ connected: true, expired: false }, { ...SYNC, next_sync_estimated: next }, NOW);
+      expect(card.meta.map((cell) => cell.label)).toEqual(['Connected', 'Last sync']);
+      expect(JSON.stringify(card)).not.toMatch(/next sync|overdue/i);
+    }
   });
 
-  it('ingen synk har körts: sägs rakt ut, aldrig en tom cell', () => {
-    const card = buildStravaCard({ connected: true, expired: false }, { last_sync_attempt: null, last_sync_status: 'none', next_sync_estimated: null }, NOW);
-    expect(card.meta.map((cell) => cell.value)).toEqual(['Unknown', 'No server sync yet', 'Unknown']);
-  });
-
-  it('nästa synk i det förflutna heter Overdue', () => {
-    const card = buildStravaCard({ connected: true, expired: false }, { ...SYNC, next_sync_estimated: minutes(-5) }, NOW);
-    expect(card.meta.find((cell) => cell.key === 'next')?.value).toBe('Overdue');
+  it('ingen synk har körts efter en omstart: "No server sync yet" och ingen rad om nästa synk, även när servern känner nästa slot', () => {
+    const card = buildStravaCard({ connected: true, expired: false }, { last_sync_attempt: null, last_sync_status: 'pending', next_sync_estimated: minutes(5 * 60) }, NOW);
+    expect(card.meta.map((cell) => [cell.label, cell.value])).toEqual([['Connected', 'Unknown'], ['Last sync', 'No server sync yet']]);
   });
 
   it('synkinfo saknas (hämtningen föll): kortet visas ändå, med ärliga celler', () => {
     const card = buildStravaCard({ connected: true, expired: false }, undefined, NOW);
     expect(card.state).toBe('connected');
-    expect(card.meta.map((cell) => cell.value)).toEqual(['Unknown', 'No server sync yet', 'Unknown']);
+    expect(card.meta.map((cell) => cell.value)).toEqual(['Unknown', 'No server sync yet']);
   });
 
   it('utgången koppling: rött chip, uppmaning att koppla om, inga celler', () => {
@@ -76,12 +73,11 @@ describe('buildStravaCard when sync is paused', () => {
     expect(card.lead).toMatch(/paused/i);
   });
 
-  it('shows Paused as the next sync, keeps the last sync and drops the import rules for one sentence about removals', () => {
+  it('keeps the last sync, shows no next sync and drops the import rules for one sentence about removals', () => {
     const card = buildStravaCard(PAUSED, SYNC, NOW);
     expect(card.meta.map((cell) => [cell.label, cell.value])).toEqual([
       ['Connected', '25 August 2026'],
       ['Last sync', '32 min ago'],
-      ['Next sync', 'Paused'],
     ]);
     expect(card.rules).toEqual([]);
     expect(card.note).toBe('Paused since 12 October 2026. Runs you delete or make private on Strava are still removed here.');

@@ -325,7 +325,7 @@ describe('StravaCard when sync is paused', () => {
     // Tonen är en neutral bläcktoning; att den inte är silver (placering 2) vaktas av Stylelint (settings.css får inte läsa silvertokens).
     expect(card).toHaveAttribute('data-tone', 'paused');
     expect(within(card).queryByText('Connected', { selector: 'p' })).not.toBeInTheDocument();
-    expect(within(card).getByText('Next sync').nextElementSibling).toHaveTextContent('Paused');
+    expect(within(card).queryByText('Next sync')).not.toBeInTheDocument();
   });
 
   it('the paused card shows Turn sync back on and Disconnect and no Pause or disconnect button', () => {

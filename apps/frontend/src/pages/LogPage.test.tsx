@@ -112,10 +112,11 @@ describe('Log — formuläret (mobil)', () => {
     expect(screen.getByRole('button', { name: 'Treadmill' })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('Strava-raden visar senaste och nästa synk', async () => {
+  it('Strava-raden visar senaste synken och ingen nästa synk', async () => {
     renderLog();
     expect(await screen.findByText('Strava connected')).toBeInTheDocument();
-    expect(await screen.findByText('Last sync 32 min ago · next in 28 min')).toBeInTheDocument();
+    expect(await screen.findByText('Last sync 32 min ago')).toBeInTheDocument();
+    expect(screen.queryByText(/next/i)).not.toBeInTheDocument();
   });
 
   it('inte kopplad: raden pekar på Settings', async () => {

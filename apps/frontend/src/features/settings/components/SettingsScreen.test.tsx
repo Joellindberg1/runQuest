@@ -60,13 +60,14 @@ afterEach(() => {
 });
 
 describe('Settings — Strava', () => {
-  it('kopplad: grönt chip, de tre cellerna och reglerna om vad som importeras', async () => {
+  it('kopplad: grönt chip, de två cellerna (ingen Next sync-rad) och reglerna om vad som importeras', async () => {
     renderSettings();
     const card = await screen.findByRole('region', { name: 'Strava' });
     expect(within(card).getByText('Connected', { selector: 'p' })).toBeInTheDocument();
     expect(within(card).getByText('25 August 2026')).toBeInTheDocument();
     expect(within(card).getByText('32 min ago')).toBeInTheDocument();
-    expect(within(card).getByText('in 28 min')).toBeInTheDocument();
+    expect(within(card).queryByText('Next sync')).not.toBeInTheDocument();
+    expect(within(card).queryByText(/^in \d+ (min|h)$|overdue/i)).not.toBeInTheDocument();
     expect(within(card).getByRole('list', { name: 'What gets imported' }).children).toHaveLength(3);
     expect(within(card).queryByRole('button', { name: /Connect Strava/ })).not.toBeInTheDocument();
   });

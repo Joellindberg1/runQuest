@@ -5,16 +5,13 @@ const NOW = new Date('2026-10-04T12:00:00Z');
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString();
 
 describe('syncLine', () => {
-  it('senaste och nästa synk', () => {
-    expect(syncLine({ last_sync_attempt: at(-32), next_sync_estimated: at(28) }, NOW)).toBe('Last sync 32 min ago · next in 28 min');
+  it('senaste synken, utan någon rad om nästa (servern kan uppskatta en, men den visas inte)', () => {
+    expect(syncLine({ last_sync_attempt: at(-32), next_sync_estimated: at(28) }, NOW)).toBe('Last sync 32 min ago');
+    expect(syncLine({ last_sync_attempt: at(-95), next_sync_estimated: at(-3) }, NOW)).toBe('Last sync 1 h ago');
   });
 
-  it('en synk som ligger efter sin tid (nästa körning har inte hänt) säger "any moment"', () => {
-    expect(syncLine({ last_sync_attempt: at(-95), next_sync_estimated: at(-3) }, NOW)).toBe('Last sync 1 h ago · next any moment');
-  });
-
-  it('bara en av dem, eller ingen', () => {
-    expect(syncLine({ last_sync_attempt: at(-5), next_sync_estimated: null }, NOW)).toBe('Last sync 5 min ago');
+  it('ingen senaste synk (efter en omstart): en neutral rad, även när servern känner nästa slot', () => {
+    expect(syncLine({ last_sync_attempt: null, next_sync_estimated: at(5 * 60) }, NOW)).toBe('Your runs sync automatically');
     expect(syncLine({ last_sync_attempt: null, next_sync_estimated: null }, NOW)).toBe('Your runs sync automatically');
     expect(syncLine(undefined, NOW)).toBe('Your runs sync automatically');
   });
@@ -27,7 +24,7 @@ describe('buildStravaBanner', () => {
 
   it('kopplad: grön med synkraden', () => {
     expect(buildStravaBanner({ connected: true, expired: false }, { last_sync_attempt: at(-32), next_sync_estimated: at(28) }, NOW)).toEqual({
-      tone: 'up', title: 'Strava connected', text: 'Last sync 32 min ago · next in 28 min', needsSettings: false,
+      tone: 'up', title: 'Strava connected', text: 'Last sync 32 min ago', needsSettings: false,
     });
   });
 
