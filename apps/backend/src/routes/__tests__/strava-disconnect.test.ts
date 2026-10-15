@@ -545,7 +545,7 @@ describe('after a disconnect', () => {
       strava: {
         oauthToken: stravaTokenResponse({ access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH', athlete: { id: 424242 } }),
         athleteActivities: [oldActivity, todaysActivity],
-        activities: { 1001: oldActivity },
+        activities: { 1001: oldActivity, 7001: todaysActivity },
       },
     });
     const token = mintToken({ user_id: 'user-1', group_id: 'group-1' });

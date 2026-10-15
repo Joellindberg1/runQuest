@@ -43,22 +43,43 @@ function errorName(error: unknown): string {
 }
 
 /**
- * Fetch the detailed Strava activity (includes splits_metric).
- * Returns null on any failure so callers can fall back to the summary object.
- * The log lines carry a status or an error name, never the activity id (ADR 010 decision 8.6).
+ * The answer of the detail call, with "Strava no longer has it" told apart from "we could not find out":
+ *   - ok: the detailed activity (includes splits_metric).
+ *   - gone: HTTP 404, and only that. The activity is deleted, or (with our activity:read scope) private: Strava does not tell the two
+ *     apart (ADR 010 7.3). Nothing may be built from a summary of such an activity.
+ *   - failed: everything else (401, 403, 429, 5xx, a status Strava does not use such as 410, a network error, an answer that is not
+ *     JSON or not an object). Says nothing about the activity; a caller may fall back to the summary it holds.
  */
-export async function fetchDetailedActivity(activityId: string | number, accessToken: string): Promise<any> {
+export type DetailedActivityResult = { kind: 'ok'; activity: any } | { kind: 'gone' } | { kind: 'failed' };
+
+/** The log lines carry a status or an error name, never the activity id (ADR 010 decision 8.6). */
+export async function fetchDetailedActivityResult(activityId: string | number, accessToken: string): Promise<DetailedActivityResult> {
   try {
     const res = await stravaFetch(`${STRAVA_API}/activities/${activityId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!res.ok) {
       logger.warn(`⚠️ Could not fetch a detailed activity: HTTP ${res.status}`);
-      return null;
+      return res.status === 404 ? { kind: 'gone' } : { kind: 'failed' };
     }
-    return await res.json();
+    const activity: unknown = await res.json();
+    if (typeof activity !== 'object' || activity === null || Array.isArray(activity)) {
+      logger.warn('⚠️ A detailed activity came back as something other than an activity');
+      return { kind: 'failed' };
+    }
+    return { kind: 'ok', activity };
   } catch (err) {
     logger.warn(`⚠️ Error fetching a detailed activity (${errorName(err)})`);
-    return null;
+    return { kind: 'failed' };
   }
+}
+
+/**
+ * Fetch the detailed Strava activity (includes splits_metric), or null when there is none to have, for whatever reason (gone or
+ * failed alike). For callers that only want the detail when it exists, such as the extended-fields backfill. A caller that must not
+ * fall back to a summary when the activity is gone uses fetchDetailedActivityResult.
+ */
+export async function fetchDetailedActivity(activityId: string | number, accessToken: string): Promise<any> {
+  const result = await fetchDetailedActivityResult(activityId, accessToken);
+  return result.kind === 'ok' ? result.activity : null;
 }
 
 /** The raw response of the athlete's activity list from `after` (epoch seconds), 200 per page (Strava's maximum). */
