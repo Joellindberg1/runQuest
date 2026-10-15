@@ -35,6 +35,8 @@ export interface StravaStatusResponse {
   refresh_failed?: boolean;
   connection_date?: string;
   last_sync?: string | null;
+  /** När användarens senaste Strava-runda kom in (runs.created_at, webhook eller polling), per användare. null = ingen än eller läsfel. */
+  last_import_at?: string | null;
   consent_version?: string | null;
   sync_paused?: boolean;
   paused_at?: string | null;

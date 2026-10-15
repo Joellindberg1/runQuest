@@ -20,6 +20,7 @@ import { isValidAthleteId } from '../services/stravaAthlete.js';
 import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
 import { getLastWebhookAt } from '../services/stravaLastWebhook.js';
+import { getLastStravaImportAt } from '../services/stravaLastImport.js';
 import { removeStravaConnection } from '../services/stravaConnection.js';
 import { revokeStravaAuthorization } from '../services/stravaRevoke.js';
 import { errorCode } from '../utils/errorCode.js';
@@ -120,7 +121,8 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       const disconnected: StravaStatusResponse = { connected: false, expired: false };
       res.json(disconnected); return;
     }
-    const pauseFields = { sync_paused: pause.paused, paused_at: pause.pausedAt };
+    // Per användare och alltid sann: läses ur rundorna (created_at), inte ur schemalaggarens minne. Ett läsfel ger null, inte ett fel.
+    const pauseFields = { sync_paused: pause.paused, paused_at: pause.pausedAt, last_import_at: await getLastStravaImportAt(userId) };
 
     // Om token är expired förnyar getValidAccessToken den (auto-refresh)
     if (token.ok && token.refreshed) {

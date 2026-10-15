@@ -31,7 +31,7 @@ function controls(over: Partial<StravaConnectionControls> = {}): StravaConnectio
 function renderCard(status: StravaStatusInput, props: { canSyncNow?: boolean; onConnect?: (agreed: boolean) => void; connection?: StravaConnectionControls } = {}) {
   return renderWithApp(
     <StravaCard
-      view={buildStravaCard(status, undefined, NOW)}
+      view={buildStravaCard(status, NOW)}
       canSyncNow={props.canSyncNow ?? false}
       syncing={false}
       status={null}
@@ -155,7 +155,7 @@ describe('StravaCard consent', () => {
         <>
           <button type="button" onClick={() => setStatus(CONNECTED)}>go connected</button>
           <button type="button" onClick={() => setStatus(NOT_CONNECTED)}>go disconnected</button>
-          <StravaCard view={buildStravaCard(status, undefined, NOW)} canSyncNow={false} syncing={false} status={null} error={null} connection={controls()} onConnect={vi.fn()} onSync={vi.fn()} />
+          <StravaCard view={buildStravaCard(status, NOW)} canSyncNow={false} syncing={false} status={null} error={null} connection={controls()} onConnect={vi.fn()} onSync={vi.fn()} />
         </>
       );
     }

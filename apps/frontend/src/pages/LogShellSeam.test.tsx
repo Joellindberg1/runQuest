@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LogPage from './LogPage';
@@ -48,7 +48,7 @@ beforeEach(() => {
   syncCalls = 0;
   handlers.getStravaStatus = () => {
     statusCalls += 1;
-    return { success: true, data: { connected: true, expired: false } };
+    return { success: true, data: { connected: true, expired: false, last_import_at: at(-32 * MS_MINUTE) } };
   };
   handlers.getStravaLastSync = () => {
     syncCalls += 1;
@@ -57,15 +57,14 @@ beforeEach(() => {
 });
 
 describe('Skalets Right now ↔ Log delar Strava-cachen', () => {
-  it('skalet och Log-raden delar status-queryn (en hämtning), synken hämtas bara av Log-raden, och ingen nästa synk visas', async () => {
+  it('skalet och Log-raden delar status-queryn (en hämtning), Log-raden hämtar inte last-sync, och ingen nästa synk visas', async () => {
     const { container } = renderShell('/log');
 
     expect(await screen.findByText('Strava connected')).toBeInTheDocument();
-    expect(await screen.findByText(/^Last sync (31|32|33) min ago$/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Last import (31|32|33) min ago$/)).toBeInTheDocument();
     // En kopplad Strava ger ingen pill i skalet.
     expect(container.querySelector('[data-tour="right-now-strava"]')).toBeNull();
-    await waitFor(() => expect(syncCalls).toBeGreaterThan(0));
     expect(statusCalls).toBe(1);
-    expect(syncCalls).toBe(1);
+    expect(syncCalls).toBe(0);
   });
 });

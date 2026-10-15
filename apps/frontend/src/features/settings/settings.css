@@ -24,7 +24,7 @@
 .rq-settings-card__lead { margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 .rq-settings-card__head > .rq-chip { margin: 0; white-space: nowrap; }
 
-/* Två celler: Connected · Last sync */
+/* Två celler: Connected · Last import */
 .rq-settings-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
 .rq-settings-meta__cell { padding: var(--rq-sp-10) var(--rq-sp-12); }
 .rq-settings-meta__label { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }

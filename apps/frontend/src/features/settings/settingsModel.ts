@@ -35,7 +35,7 @@ export interface StravaCardView {
   /** Statuschipet: "Connected" / "Paused" / "Expired" / "Not connected". */
   chip: string;
   lead: string;
-  /** Två celler (Connected · Last sync) — bara när kopplingen lever. Ingen "Next sync": rundor kommer via webhooks, och reservkontrollens tid säger inget om när de kommer. */
+  /** Två celler (Connected · Last import) — bara när kopplingen lever. Ingen "Next sync": rundor kommer via webhooks, och reservkontrollens tid säger inget om när de kommer. */
   meta: StravaMetaCell[];
   /** Det som importeras — bara när kopplingen lever. */
   rules: string[];
@@ -64,9 +64,10 @@ function connectedOn(date: string | undefined): string {
   return day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? formatLongDate(day) : 'Unknown';
 }
 
-function lastSyncText(sync: StravaSyncInput | undefined, now: Date): string {
-  const ms = sync?.last_sync_attempt ? msUntil(sync.last_sync_attempt, now) : null;
-  return ms === null ? 'No server sync yet' : formatAgo(Math.max(0, -ms));
+/** När användarens senaste Strava-runda kom in (webhook eller polling), ur GET /strava/status. Aldrig en gissning om servern. */
+function lastImportText(status: StravaStatusInput, now: Date): string {
+  const ms = status.last_import_at ? msUntil(status.last_import_at, now) : null;
+  return ms === null ? 'No runs imported yet' : formatAgo(Math.max(0, -ms));
 }
 
 /** Pausens början som kalenderdag i Stockholm (paused_at är en ISO-tid med +00:00); saknas eller är den oläsbar utelämnas datumet. */
@@ -75,7 +76,7 @@ function pausedNote(pausedAt: string | null | undefined): string {
   return at && !Number.isNaN(at.getTime()) ? `Paused since ${formatLongDate(stockholmDay(at))}. ${STILL_REMOVED_SENTENCE}` : STILL_REMOVED_SENTENCE;
 }
 
-export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput | undefined, now: Date): StravaCardView {
+export function buildStravaCard(status: StravaStatusInput, now: Date): StravaCardView {
   const renewal = status.auto_refreshed
     ? { tone: 'up' as const, text: 'Your Strava connection was renewed automatically.' }
     : status.refresh_failed
@@ -94,14 +95,14 @@ export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput
       lead: 'The connection expired, so new runs are not syncing. Reconnect to pick up where you left off.',
     };
   }
-  const lastTone: Tone = sync?.last_sync_attempt ? 'up' : 'muted';
+  const lastTone: Tone = status.last_import_at ? 'up' : 'muted';
   if (status.sync_paused === true) {
     return {
       state: 'paused', tone: 'paused', chip: 'Paused', renewal, rules: [], note: pausedNote(status.paused_at),
       lead: 'Sync is paused. Your connection and runs are still here, but no new runs are fetched until you turn sync back on.',
       meta: [
         { key: 'connected', label: 'Connected', value: connectedOn(status.connection_date), tone: 'up' },
-        { key: 'last', label: 'Last sync', value: lastSyncText(sync, now), tone: 'muted' },
+        { key: 'last', label: 'Last import', value: lastImportText(status, now), tone: 'muted' },
       ],
     };
   }
@@ -110,7 +111,7 @@ export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput
     lead: 'Your Strava connection is active and tokens are renewed as needed.',
     meta: [
       { key: 'connected', label: 'Connected', value: connectedOn(status.connection_date), tone: 'up' },
-      { key: 'last', label: 'Last sync', value: lastSyncText(sync, now), tone: lastTone },
+      { key: 'last', label: 'Last import', value: lastImportText(status, now), tone: lastTone },
     ],
   };
 }

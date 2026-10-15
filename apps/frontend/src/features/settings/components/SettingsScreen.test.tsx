@@ -14,7 +14,7 @@ vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBa
 const fake = backendApiModule.backendApi as Record<string, unknown>;
 
 const minutes = (n: number) => new Date(Date.now() + n * 60_000).toISOString();
-const CONNECTED = { success: true, data: { connected: true, expired: false, connection_date: '2026-08-25T09:31:00Z' } };
+const CONNECTED = { success: true, data: { connected: true, expired: false, connection_date: '2026-08-25T09:31:00Z', last_import_at: minutes(-180) } };
 const SYNC = { success: true, data: { last_sync_attempt: minutes(-32), last_sync_status: 'success', next_sync_estimated: minutes(28.5), new_runs: 2 } };
 
 function renderSettings(options: Parameters<typeof renderWithApp>[1] = {}) {
@@ -65,11 +65,22 @@ describe('Settings — Strava', () => {
     const card = await screen.findByRole('region', { name: 'Strava' });
     expect(within(card).getByText('Connected', { selector: 'p' })).toBeInTheDocument();
     expect(within(card).getByText('25 August 2026')).toBeInTheDocument();
-    expect(within(card).getByText('32 min ago')).toBeInTheDocument();
+    expect(within(card).getByText('Last import')).toBeInTheDocument();
+    expect(within(card).getByText('3 h ago')).toBeInTheDocument();
     expect(within(card).queryByText('Next sync')).not.toBeInTheDocument();
+    expect(within(card).queryByText('Last sync')).not.toBeInTheDocument();
     expect(within(card).queryByText(/^in \d+ (min|h)$|overdue/i)).not.toBeInTheDocument();
     expect(within(card).getByRole('list', { name: 'What gets imported' }).children).toHaveLength(3);
     expect(within(card).queryByRole('button', { name: /Connect Strava/ })).not.toBeInTheDocument();
+  });
+
+  it('kopplad utan någon importerad runda: Last import säger No runs imported yet', async () => {
+    handlers.getStravaStatus = () => ({ success: true, data: { ...CONNECTED.data, last_import_at: null } });
+    renderSettings();
+    const card = await screen.findByRole('region', { name: 'Strava' });
+    expect(within(card).getByText('Last import')).toBeInTheDocument();
+    expect(within(card).getByText('No runs imported yet')).toBeInTheDocument();
+    expect(within(card).queryByText('Next sync')).not.toBeInTheDocument();
   });
 
   it('senaste synken står i sidokortet', async () => {
