@@ -19,9 +19,17 @@ const FIXTURE = vi.hoisted((): ChangelogData => ({
   ],
 }));
 vi.mock('@/features/changelog/changelogData', () => ({ changelog: FIXTURE }));
-const strava = vi.hoisted(() => ({ connected: false }));
+const strava = vi.hoisted(() => ({ connected: false, mode: 'ok' as 'ok' | 'fail' | 'hang' }));
 vi.mock('@/shared/services/backendApi', () => ({
-  backendApi: { getToken: () => 'token', onUnauthorized: undefined, getStravaStatus: async () => ({ success: true, data: { connected: strava.connected, expired: false } }) },
+  backendApi: {
+    getToken: () => 'token',
+    onUnauthorized: undefined,
+    getStravaStatus: async () => {
+      if (strava.mode === 'hang') return new Promise(() => {});
+      if (strava.mode === 'fail') return { success: false, error: 'down' };
+      return { success: true, data: { connected: strava.connected, expired: false } };
+    },
+  },
 }));
 vi.mock('./OnboardingTour', () => ({
   OnboardingTour: ({ steps, onDone }: { steps: unknown[]; onDone: () => void }) => (
@@ -62,6 +70,7 @@ beforeEach(() => {
   markSeenCalls.length = 0;
   failMarkSeen = false;
   strava.connected = false;
+  strava.mode = 'ok';
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -140,6 +149,37 @@ describe('förstagångsturen och Strava', () => {
     strava.connected = false;
     renderQueue();
     expect((await screen.findByTestId('onboarding-tour')).getAttribute('data-steps')).toBe(String(ONBOARDING_V1_STEPS.length));
+  });
+
+  describe('when the status cannot be read in time', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('a failing status starts the tour with every step, after the one retry and well before the time limit', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      seen = [];
+      strava.mode = 'fail';
+      renderQueue();
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(screen.queryByTestId('onboarding-tour')).toBeNull(); // still retrying
+      await vi.advanceTimersByTimeAsync(1500); // the retry has failed; the limit (3 s) has not been reached
+
+      expect(screen.getByTestId('onboarding-tour').getAttribute('data-steps')).toBe(String(ONBOARDING_V1_STEPS.length));
+    });
+
+    it('a status that hangs starts the tour with every step after 3 seconds, not before and not never', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      seen = [];
+      strava.mode = 'hang';
+      strava.connected = true; // would drop a step, but the status never arrives
+      renderQueue();
+
+      await vi.advanceTimersByTimeAsync(2900);
+      expect(screen.queryByTestId('onboarding-tour')).toBeNull();
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(screen.getByTestId('onboarding-tour').getAttribute('data-steps')).toBe(String(ONBOARDING_V1_STEPS.length));
+    });
   });
 });
 

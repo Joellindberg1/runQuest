@@ -49,6 +49,7 @@ function use(runs: Row[], failWhen?: (q: RecordedQuery) => { message: string; co
     { autoIds: true, primaryKeys: { strava_tokens: ['user_id'] }, failWhen },
   );
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+  return db;
 }
 
 const status = () => server.request('GET', '/api/strava/status', { token: mintToken({ user_id: 'user-1', group_id: 'group-1' }) });
@@ -75,6 +76,22 @@ describe('GET /api/strava/status last_import_at', () => {
     const res = await status();
 
     expect(res.body.last_import_at).toBe('2026-10-12T07:30:00.000Z');
+  });
+
+  it('reads only the import time of the user\'s own Strava runs, never the activity date', async () => {
+    const db = use([run('r1')]);
+
+    await status();
+
+    const reads = db.queries.filter((q) => q.table === 'runs');
+    expect(reads).toHaveLength(1); // no other read of the runs table (the old global one is gone)
+    expect(reads[0].select).toBe('created_at');
+    expect(reads[0].select).not.toMatch(/\bdate\b/);
+    expect(reads[0].filters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ column: 'user_id', value: 'user-1' }),
+      expect.objectContaining({ column: 'source', value: 'strava' }),
+    ]));
+    expect(reads[0].limit).toBe(1);
   });
 
   it('a manual run is not an import', async () => {
@@ -116,14 +133,9 @@ describe('GET /api/strava/status last_import_at', () => {
     const db = createFakeDb({ strava_tokens: [{ ...TOKEN_ROW }], runs: [], users: [{ id: 'user-1' }] }, { autoIds: true, primaryKeys: { strava_tokens: ['user_id'] } });
     vi.mocked(getSupabaseClient).mockReturnValue({
       from: (table: string) => {
-        const builder = db.client.from(table);
-        if (table !== 'runs') return builder;
-        // Only the per-user read throws (the unrelated global read in the same route keeps working).
-        return new Proxy(builder, {
-          get: (target, prop) => (prop === 'eq'
-            ? (column: string, value: unknown) => { if (column === 'user_id') throw Object.assign(new Error('boom'), { code: 'T0001' }); return target.eq(column, value); }
-            : Reflect.get(target, prop)),
-        });
+        // The only read of the runs table is the one for last_import_at: it throws before a query builder exists.
+        if (table === 'runs') throw Object.assign(new Error('boom for user-1'), { code: 'T0001' });
+        return db.client.from(table);
       },
     } as any);
 
@@ -131,6 +143,8 @@ describe('GET /api/strava/status last_import_at', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.last_import_at).toBeNull();
+    expect(warnings.some((line) => line.includes('T0001'))).toBe(true);
+    expect(warnings.filter((line) => line.includes('boom for user-1'))).toEqual([]);
   });
 
   it('status exposes no global or other user timestamp: the only time in it is this user\'s own last_import_at', async () => {

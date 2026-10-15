@@ -10,11 +10,20 @@ import { announcedNotes } from '@/features/changelog/changelogModel';
 import { onboardingStepsFor } from '../onboardingSteps';
 import { useStravaStatus } from '@/shared/hooks/useStravaQueries';
 
+// Så länge väntar turen på Strava-statusen innan den startar ändå, med alla steg.
+const STATUS_WAIT_MS = 3000;
+
 // Förstagångsturen väntar in Strava-statusen (skalet hämtar den redan, så den är oftast cachad): OnboardingTour läser sina steg bara
-// vid montering, och "Connect Strava"-steget ska bort för den som redan kopplat. Faller hämtningen startar turen ändå, med alla steg.
+// vid montering, och "Connect Strava"-steget ska bort för den som redan kopplat. Faller hämtningen, eller är statusen inte klar inom
+// STATUS_WAIT_MS, startar turen ändå, med alla steg.
 function FirstLoginTour({ onDone }: { onDone: () => void }) {
   const status = useStravaStatus();
-  if (status.isPending) return null;
+  const [gaveUp, setGaveUp] = React.useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => setGaveUp(true), STATUS_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  if (status.isPending && !gaveUp) return null;
   return <OnboardingTour steps={onboardingStepsFor(status.data?.connected)} onDone={onDone} />;
 }
 
