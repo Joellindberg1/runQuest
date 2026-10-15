@@ -93,7 +93,7 @@ describe('GET /api/strava/webhook/health', () => {
 
   it('health returns the age of the oldest pending event and the last processed time', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW);
-    useDb({
+    const { queries } = useDb({
       [EVENTS]: [
         event('pending', { received_at: ago(30) }),
         event('pending', { received_at: ago(90.9) }), // oldest pending: 90 whole seconds
@@ -106,6 +106,17 @@ describe('GET /api/strava/webhook/health', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.oldest_pending_age_seconds).toBe(90);
     expect(res.body.data.last_processed_at).toBe(ago(120));
+    // Postgres puts null first in a descending order, so rows without a processed_at must be filtered out; the fake sorts nulls
+    // arbitrarily and cannot prove that by data alone.
+    const lastQuery = queries.find((q) => q.table === EVENTS && q.select === 'processed_at');
+    expect(lastQuery?.filters).toContainEqual({ op: 'not.is', column: 'processed_at', value: null });
+  });
+
+  it('health counts an event received ahead of the clock as age 0', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    useDb({ [EVENTS]: [event('pending', { received_at: ago(-45) })] });
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+    expect(res.body.data.oldest_pending_age_seconds).toBe(0);
   });
 
   it('health gives null for the age and the last processed time when there is nothing to report', async () => {
@@ -199,6 +210,14 @@ describe('GET /api/strava/webhook/health', () => {
     const logged = errorLog.mock.calls.flat().map(String).join(' ');
     expect(logged).toContain('XX001');
     expect(logged).not.toContain('918273645');
+  });
+
+  it('health answers a thrown database error with the fixed message and a log without its text', async () => {
+    useDb({}, { failWhen: (q) => { if (q.table === EVENTS) throw new Error('db exploded for owner 918273645'); return null; } });
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+    expect(errorLog.mock.calls.flat().map(String).join(' ')).not.toContain('918273645');
   });
 
   it('health fails with 500 when the connection table cannot be read', async () => {
