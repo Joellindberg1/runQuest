@@ -334,15 +334,18 @@ describe('rank_passed i flödet: challenge_points', () => {
     );
     vi.setSystemTime(new Date('2026-10-18T10:00:00.000Z'));
 
-    // Det riktiga avgörandet: progress-routen avgör en utmaning som passerat determine_at. Två samtidiga anrop, som två instanser.
+    // Två instanser avgör samtidigt (schedulerns ingång, utan HTTP emellan): båda läser "active", och bara den som vinner claimen
+    // (`update … where status = 'active'`) får dela ut boostar, W/D/L och rader. Det är claim-guarden som provas här.
+    await Promise.all([settleChallenge('ch-1'), settleChallenge('ch-1')]);
+    // Progress-routen avgör en utmaning som passerat determine_at; den är den riktiga HTTP-vägen. Efter avgörandet ser den en
+    // avgjord utmaning och avgör inte om, vilket proves av att inget nedan ändras. Anropen över HTTP serialiseras, så de säger
+    // ingenting om samtidighet.
     const [first, second] = await Promise.all([
       request('GET', '/api/challenges/ch-1/progress', W),
       request('GET', '/api/challenges/ch-1/progress', C),
     ]);
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    // Och schedulerns väg, en tredje gång: ett avgjort avgörande avgörs inte om.
-    await settleChallenge('ch-1');
 
     expect(t.challenges[0]).toMatchObject({ status: 'completed', winner_id: W, outcome: 'opponent_wins' });
     expect(userRow(t, W)).toMatchObject({ wins: 1, draws: 0, losses: 0 });
@@ -368,6 +371,40 @@ describe('rank_passed i flödet: challenge_points', () => {
     // Cecilia: accepten av hennes utmaning och förlusten räknas; passeringen mellan andra är avstängd som standard.
     expect(await unreadCount(C)).toBe(2);
     expect(await rankItem(C)).toEqual([expect.objectContaining({ is_unread: false })]);
+
+    // Reglaget för challenge_points-passeringar är rank_passed_challenge_me, inte xp-reglaget. Bertil stänger av det rätta: 3 -> 2,
+    // och raden finns kvar på /news.
+    const challengeKey = notifyKey('rank_passed_challenge_me');
+    const xpKey = notifyKey('rank_passed_xp_me');
+    expect((await request('PUT', '/api/settings', M, { values: { [challengeKey]: false } })).status).toBe(200);
+    expect(await unreadCount(M)).toBe(2);
+    expect(await rankItem(M)).toEqual([expect.objectContaining({ is_unread: false })]);
+    // xp-reglaget av och på rör inte utmaningsraden: räknaren står kvar på 2, och efter att challenge-reglaget slagits på igen är den 3 även med xp av.
+    await request('PUT', '/api/settings', M, { values: { [xpKey]: false } });
+    expect(await unreadCount(M)).toBe(2);
+    await request('PUT', '/api/settings', M, { values: { [xpKey]: true } });
+    expect(await unreadCount(M)).toBe(2);
+    await request('PUT', '/api/settings', M, { values: { [xpKey]: false, [challengeKey]: true } });
+    expect(await unreadCount(M)).toBe(3);
+  });
+
+  it('W förbi M, M förbi W, W förbi M igen samma dag ger en rank_passed: dedupe_key håller i flödet', async () => {
+    const t = world();
+    use(t);
+    await annaPassesBertil(t); // Anna 140 förbi Bertil 135
+    expect(rankRows(t)).toHaveLength(1);
+
+    // Bertil tar tillbaka platsen med en egen runda (165): han låg före Anna vid dygnsskiftet, så ingen rad för honom.
+    expect((await postRun(M)).status).toBe(200);
+    expect(totalXp(t, M)).toBe(165);
+    expect(rankRows(t)).toHaveLength(1);
+
+    // Anna går förbi honom igen (172): samma ordnade par, mått och dag, alltså samma dedupe_key, och upserten ger ingen andra rad.
+    expect((await postRun(W, 6)).status).toBe(200);
+    expect(totalXp(t, W)).toBe(172);
+    expect(rankRows(t)).toEqual([
+      expect.objectContaining({ actor_user_id: W, target_user_id: M, dedupe_key: `rank_passed:xp:${W}:${M}:${TODAY}`, payload: { measure: 'xp', passer_rank: 1, passed_rank: 2 } }),
+    ]);
   });
 });
 
