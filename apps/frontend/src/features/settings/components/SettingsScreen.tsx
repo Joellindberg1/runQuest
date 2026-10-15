@@ -8,28 +8,26 @@ import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useStravaActions } from '../hooks/useStravaActions';
 import { useStravaData } from '../hooks/useStravaData';
 import '../settings.css';
-import { buildStravaCard, buildSyncRow, countStravaRuns, isLiveConnection } from '../settingsModel';
+import { buildStravaCard, countStravaRuns, isLiveConnection } from '../settingsModel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { PasswordCard } from './PasswordCard';
 import { StravaCard } from './StravaCard';
-import { SyncCard } from './SyncCard';
 
 const LOADER_SIZE = 64;
 /** Ägaren har "Sync now" (som tidigare); för andra är den automatiska synken allt som behövs. */
 const SYNC_NOW_USER = 'Joel Lindberg';
 
 /**
- * /settings: Strava-koppling, notisinställningar, lösenordsbyte och senaste synk. Web Prototypens Settings; mobilprototypen saknar sidan,
+ * /settings: Strava-koppling, notisinställningar och lösenordsbyte. Web Prototypens Settings; mobilprototypen saknar sidan,
  * så mobil är härledd (en kolumn). Notiskortet ligger mellan Strava och lösenordet och laddar sina inställningar själv: ett fel där stoppar
  * inte de andra korten.
  */
 export function SettingsScreen() {
   const { user } = useAuth();
   const now = useNow();
-  const { status, sync, config } = useStravaData();
+  const { status, config } = useStravaData();
 
   const card = useMemo(() => (status.data ? buildStravaCard(status.data, now) : null), [status.data, now]);
-  const syncRow = useMemo(() => buildSyncRow(sync.data), [sync.data]);
   const actions = useStravaActions({ clientId: config.data });
 
   // Bortkopplingens bekräftelse säger hur många Stravarundor som raderas. Siffran räknas ur appens egna rundor (samma `users-with-runs` som
@@ -90,7 +88,6 @@ export function SettingsScreen() {
           <PasswordCard />
         </div>
         <div className="rq-settings__side">
-          <SyncCard row={syncRow} failed={sync.isError && !sync.data} loading={sync.isPending} />
           <p className="rq-settings-note">
             Running activities ({STRAVA_RUN_TYPES_LABEL}) are imported, treadmill runs included, and duplicates are filtered.
           </p>

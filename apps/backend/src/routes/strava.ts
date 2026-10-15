@@ -152,19 +152,6 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     const expired = !token.ok; // kvar här: antingen giltig, eller utgången utan refresh-token
-    const supabase = getSupabaseClient();
-
-    // Get last global sync time (based on most recent Strava run imported by anyone)
-    const { data: lastGlobalStravaRun, error: syncError } = await supabase
-      .from('runs')
-      .select('created_at')
-      .eq('source', 'strava')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    logger.info('🔍 Last global sync query result:', { found: Boolean(lastGlobalStravaRun), error_code: syncError ? errorCode(syncError) : null });
-
     logger.info('✅ Strava status:', { connected: true, expired, expires_at: token.expiresAt });
     
     const body: StravaStatusResponse = {
@@ -173,7 +160,6 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       // Raderna lagrar null när Strava inte gav något värde; svaret är som före utbrytningen (typen säger undefined).
       expires_at: token.expiresAt as number | undefined,
       connection_date: token.connectionDate as string | undefined,
-      last_sync: lastGlobalStravaRun?.created_at || null,
       // null för kopplingar som gjordes före samtyckesloggen (ADR 010 beslut 12, D4).
       consent_version: token.consentVersion,
       ...pauseFields

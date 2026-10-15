@@ -133,6 +133,29 @@ describe('GET /api/strava/status last_import_at', () => {
     expect(res.body.last_import_at).toBeNull();
   });
 
+  it('status exposes no global or other user timestamp: the only time in it is this user\'s own last_import_at', async () => {
+    use([
+      run('r1', { created_at: '2026-10-02T08:00:00.000Z' }),
+      run('r2', { user_id: 'user-2', created_at: '2026-10-14T23:59:00.000Z' }),
+      run('r3', { user_id: 'user-3', source: 'manual', created_at: '2026-10-15T01:00:00.000Z' }),
+    ]);
+
+    const res = await status();
+
+    expect(res.body).not.toHaveProperty('last_sync');
+    expect(Object.keys(res.body).sort()).toEqual(
+      ['connected', 'connection_date', 'consent_version', 'expired', 'expires_at', 'last_import_at', 'paused_at', 'sync_paused'],
+    );
+    expect(JSON.stringify(res.body)).not.toMatch(/2026-10-14T23:59|2026-10-15T01:00/);
+    expect(res.body.last_import_at).toBe('2026-10-02T08:00:00.000Z');
+
+    // A user who has no Strava run of their own sees no time at all, however recent the others' runs are.
+    use([run('r2', { user_id: 'user-2', created_at: '2026-10-14T23:59:00.000Z' })]);
+    const none = await status();
+    expect(none.body.last_import_at).toBeNull();
+    expect(JSON.stringify(none.body)).not.toMatch(/2026-10-14T23:59/);
+  });
+
   it('a paused user gets it too', async () => {
     use([run('r1', { created_at: '2026-10-02T08:00:00.000Z' })], undefined, { sync_paused: true, paused_at: '2026-10-10T09:00:00+00:00' });
 

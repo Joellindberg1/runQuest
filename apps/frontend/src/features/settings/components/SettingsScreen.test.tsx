@@ -15,7 +15,6 @@ const fake = backendApiModule.backendApi as Record<string, unknown>;
 
 const minutes = (n: number) => new Date(Date.now() + n * 60_000).toISOString();
 const CONNECTED = { success: true, data: { connected: true, expired: false, connection_date: '2026-08-25T09:31:00Z', last_import_at: minutes(-180) } };
-const SYNC = { success: true, data: { last_sync_attempt: minutes(-32), last_sync_status: 'success', next_sync_estimated: minutes(28.5), new_runs: 2 } };
 
 function renderSettings(options: Parameters<typeof renderWithApp>[1] = {}) {
   return renderWithApp(
@@ -47,7 +46,6 @@ beforeEach(() => {
   resetFakeBackend();
   fake.isAuthenticated = () => true;
   handlers.getStravaStatus = () => CONNECTED;
-  handlers.getStravaLastSync = () => SYNC;
   handlers.getStravaConfig = () => ({ success: true, data: { client_id: '12345' } });
   const news = newsServer([]);
   handlers.getSettings = news.getSettings;
@@ -83,10 +81,15 @@ describe('Settings — Strava', () => {
     expect(within(card).queryByText('Next sync')).not.toBeInTheDocument();
   });
 
-  it('senaste synken står i sidokortet', async () => {
+  it('there is no Latest sync card: only the Strava card, the notes and the password card are shown', async () => {
     renderSettings();
-    const latest = await screen.findByRole('region', { name: 'Latest sync' });
-    expect(await within(latest).findByText('2 new runs')).toBeInTheDocument();
+    await screen.findByRole('region', { name: 'Strava' });
+
+    expect(screen.queryByRole('region', { name: 'Latest sync' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Latest sync' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/new runs?$|no new activities|sync failed|No server sync yet/)).not.toBeInTheDocument();
+    // The side column keeps the import note, so it is not an empty column.
+    expect(screen.getByText(/duplicates are filtered/)).toBeVisible();
   });
 
   it('inte kopplad: "Connect Strava" öppnar Stravas auktorisering med klient-id:t och redirect till popup-sidan', async () => {

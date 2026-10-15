@@ -192,10 +192,6 @@ describe('Right now', () => {
       },
     });
     handlers.getStravaStatus = () => ({ success: true, data: { connected: true, expired: false } });
-    handlers.getStravaLastSync = () => ({
-      success: true,
-      data: { last_sync_attempt: null, last_sync_status: 'ok', next_sync_estimated: new Date(Date.now() + 28 * 60_000 + 30_000).toISOString() },
-    });
 
     const { container } = renderWithApp(<Tree />, { entry: '/board', width: MOBILE_WIDTH });
     const list = await screen.findByRole('list', { name: 'Right now' });

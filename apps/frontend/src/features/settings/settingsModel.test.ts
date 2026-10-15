@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { stravaPollIntervalLabel } from '@runquest/shared';
-import { EMPTY_PASSWORD_FORM, STRAVA_IMPORT_RULES, buildStravaCard, buildSyncRow, countStravaRuns, validatePasswordChange } from './settingsModel';
+import { EMPTY_PASSWORD_FORM, STRAVA_IMPORT_RULES, buildStravaCard, countStravaRuns, validatePasswordChange } from './settingsModel';
 
 const NOW = new Date('2026-10-05T12:00:00Z');
 const minutes = (n: number) => new Date(NOW.getTime() + n * 60_000).toISOString();
 
-const SYNC = { last_sync_attempt: minutes(-32), last_sync_status: 'success', next_sync_estimated: minutes(28), new_runs: 2 };
 const IMPORTED = minutes(-3 * 60);
 
 describe('buildStravaCard', () => {
@@ -117,24 +116,6 @@ describe('countStravaRuns', () => {
   it('is 0 once the runs are known and none came from strava', () => {
     expect(countStravaRuns([{ source: 'manual' }])).toBe(0);
     expect(countStravaRuns([])).toBe(0);
-  });
-});
-
-describe('buildSyncRow', () => {
-  it('ingen synk än: ingen rad', () => {
-    expect(buildSyncRow(undefined)).toBeNull();
-    expect(buildSyncRow({ ...SYNC, last_sync_attempt: null })).toBeNull();
-  });
-
-  it('nya rundor, inga nya rundor och misslyckad synk', () => {
-    expect(buildSyncRow(SYNC)).toMatchObject({ result: '2 new runs', tone: 'up' });
-    expect(buildSyncRow({ ...SYNC, new_runs: 1 })?.result).toBe('1 new run');
-    expect(buildSyncRow({ ...SYNC, new_runs: 0 })).toMatchObject({ result: 'no new activities', tone: 'muted' });
-    expect(buildSyncRow({ ...SYNC, last_sync_status: 'error' })).toMatchObject({ result: 'sync failed', tone: 'down' });
-  });
-
-  it('klockslaget är HH:MM', () => {
-    expect(buildSyncRow(SYNC)?.time).toMatch(/^\d{2}:\d{2}$/);
   });
 });
 

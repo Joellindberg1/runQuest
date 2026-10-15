@@ -10,14 +10,6 @@ import { STILL_REMOVED_SENTENCE } from './stravaConnectionCopy';
 
 export type StravaStatusInput = StravaStatusResponse;
 
-export interface StravaSyncInput {
-  last_sync_attempt: string | null;
-  last_sync_status: string;
-  /** Kommer från servern men visas inte: reservkontrollens tid säger inget om när rundor kommer (de kommer via webhooks). */
-  next_sync_estimated: string | null;
-  new_runs?: number;
-}
-
 export type StravaCardState = 'connected' | 'paused' | 'expired' | 'disconnected';
 /** `paused` är en neutral bläcktoning (inte silver: silver är placering 2) för en pausad synk. */
 export type Tone = 'up' | 'down' | 'muted' | 'paused';
@@ -122,28 +114,6 @@ export function buildStravaCard(status: StravaStatusInput, now: Date): StravaCar
  */
 export function countStravaRuns(runs: readonly Pick<Run, 'source'>[] | undefined): number | null {
   return runs ? runs.filter((run) => run.source === 'strava').length : null;
-}
-
-export interface SyncRow {
-  /** "09:31" i webbläsarens tid (samma som skalets klockor). */
-  time: string;
-  result: string;
-  tone: Tone;
-}
-
-const FAILED = /fail|error/i;
-
-/** Den senaste serversynken som en rad; null när ingen körts sedan servern startade. */
-export function buildSyncRow(sync: StravaSyncInput | undefined): SyncRow | null {
-  if (!sync?.last_sync_attempt) return null;
-  const at = new Date(sync.last_sync_attempt);
-  if (Number.isNaN(at.getTime())) return null;
-  const time = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
-  if (FAILED.test(sync.last_sync_status)) return { time, result: 'sync failed', tone: 'down' };
-  const added = sync.new_runs ?? 0;
-  return added > 0
-    ? { time, result: `${added} new ${added === 1 ? 'run' : 'runs'}`, tone: 'up' }
-    : { time, result: 'no new activities', tone: 'muted' };
 }
 
 // ─── Lösenordsbyte ────────────────────────────────────────────────────────────

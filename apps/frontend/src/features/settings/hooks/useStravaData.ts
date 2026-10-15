@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
-import { useStravaLastSync, useStravaStatus } from '@/shared/hooks/useStravaQueries';
+import { useStravaStatus } from '@/shared/hooks/useStravaQueries';
 
 export const STRAVA_CONFIG_QUERY_KEY = ['strava', 'config'] as const;
 
@@ -19,9 +19,9 @@ export function useStravaConfig() {
 }
 
 /**
- * Det Settings visar om Strava: kopplingen (inkl. Last import) och, för sidokortet "Latest sync", senaste synken. Samma queries som skalets Right now och Logs Strava-rad
+ * Det Settings visar om Strava: kopplingen (inkl. Last import). Samma queries som skalets Right now och Logs Strava-rad
  * (`shared/hooks/useStravaQueries`) — en hämtning delas, och en koppling som görs här syns överallt direkt.
  */
 export function useStravaData() {
-  return { status: useStravaStatus(), sync: useStravaLastSync(), config: useStravaConfig() };
+  return { status: useStravaStatus(), config: useStravaConfig() };
 }

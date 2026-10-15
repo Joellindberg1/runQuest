@@ -40,24 +40,18 @@ function renderShell(entry: string) {
 }
 
 let statusCalls = 0;
-let syncCalls = 0;
 
 beforeEach(() => {
   resetFakeBackend();
   statusCalls = 0;
-  syncCalls = 0;
   handlers.getStravaStatus = () => {
     statusCalls += 1;
     return { success: true, data: { connected: true, expired: false, last_import_at: at(-32 * MS_MINUTE) } };
   };
-  handlers.getStravaLastSync = () => {
-    syncCalls += 1;
-    return { success: true, data: { last_sync_attempt: at(-32 * MS_MINUTE), last_sync_status: 'ok', next_sync_estimated: at(28 * MS_MINUTE) } };
-  };
 });
 
 describe('Skalets Right now ↔ Log delar Strava-cachen', () => {
-  it('skalet och Log-raden delar status-queryn (en hämtning), Log-raden hämtar inte last-sync, och ingen nästa synk visas', async () => {
+  it('skalet och Log-raden delar status-queryn (en hämtning) och ingen nästa synk visas', async () => {
     const { container } = renderShell('/log');
 
     expect(await screen.findByText('Strava connected')).toBeInTheDocument();
@@ -65,6 +59,5 @@ describe('Skalets Right now ↔ Log delar Strava-cachen', () => {
     // En kopplad Strava ger ingen pill i skalet.
     expect(container.querySelector('[data-tour="right-now-strava"]')).toBeNull();
     expect(statusCalls).toBe(1);
-    expect(syncCalls).toBe(0);
   });
 });
