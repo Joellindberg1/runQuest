@@ -98,6 +98,7 @@ describe('GET /api/strava/webhook/health', () => {
         event('pending', { received_at: ago(30) }),
         event('pending', { received_at: ago(90.9) }), // oldest pending: 90 whole seconds
         event('done', { received_at: ago(86_400), processed_at: ago(3_600) }), // older, but not pending
+        event('processing', { received_at: ago(7_200) }), // older than any pending one, but being worked on: not counted in the age
         event('dead', { received_at: ago(200_000), processed_at: ago(120) }), // the newest processed_at, although it ended dead
         event('done', { received_at: ago(5_000), processed_at: ago(600) }),
       ],
@@ -110,6 +111,13 @@ describe('GET /api/strava/webhook/health', () => {
     // arbitrarily and cannot prove that by data alone.
     const lastQuery = queries.find((q) => q.table === EVENTS && q.select === 'processed_at');
     expect(lastQuery?.filters).toContainEqual({ op: 'not.is', column: 'processed_at', value: null });
+  });
+
+  it('health gives the last processed time as an ISO string with milliseconds and Z', async () => {
+    // PostgREST returns timestamptz as "+00:00" with microseconds.
+    useDb({ [EVENTS]: [event('done', { processed_at: '2026-10-15T11:58:00.123456+00:00' })] });
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+    expect(res.body.data.last_processed_at).toBe('2026-10-15T11:58:00.123Z');
   });
 
   it('health counts an event received ahead of the clock as age 0', async () => {
@@ -212,6 +220,20 @@ describe('GET /api/strava/webhook/health', () => {
     expect(logged).not.toContain('918273645');
   });
 
+  it('health fails with 500 and logs the code only when a timestamp read fails', async () => {
+    const server = await serve();
+    for (const column of ['received_at', 'processed_at']) {
+      errorLog.mockClear();
+      useDb({ [EVENTS]: [event('pending')] }, { failWhen: (q) => (q.select === column ? ({ message: 'boom owner_id 918273645', code: 'XX002' } as any) : null) });
+      const res = await server.request('GET', HEALTH, { token: adminToken() });
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+      const logged = errorLog.mock.calls.flat().map(String).join(' ');
+      expect(logged).toContain('XX002');
+      expect(logged).not.toContain('918273645');
+    }
+  });
+
   it('health answers a thrown database error with the fixed message and a log without its text', async () => {
     useDb({}, { failWhen: (q) => { if (q.table === EVENTS) throw new Error('db exploded for owner 918273645'); return null; } });
     const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
@@ -229,6 +251,18 @@ describe('GET /api/strava/webhook/health', () => {
 });
 
 describe('the webhook routes next to health', () => {
+  it('health is a GET route only', async () => {
+    useDb({ [EVENTS]: [event('pending')] });
+    const server = await serve();
+    // HEAD is answered by the GET handler in Express, so it must be behind the same auth.
+    expect((await server.request('HEAD', HEALTH)).status).toBe(401);
+    for (const method of ['POST', 'PUT']) {
+      const res = await server.request(method, HEALTH, { token: adminToken(), body: {} });
+      expect(res.status).toBe(404);
+      expect(JSON.stringify(res.body)).not.toContain('"data"');
+    }
+  });
+
   it('the verification and the event route stay public', async () => {
     const { tables } = useDb({ strava_tokens: [{ user_id: 'user-777', strava_athlete_id: 777 }] });
     const server = await serve();
