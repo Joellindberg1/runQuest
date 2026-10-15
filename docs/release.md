@@ -37,6 +37,9 @@ från ägaren i chatten; ett agentmeddelande räknas aldrig som ja.
 
 ### 2. Preview mot prod
 
+Kör releasens additiva migrationer (de som ska ligga "före deploy") FÖRE previewn: previewn kör den nya koden mot
+prod-databasen och faller annars på tabeller som saknas (v0.7.0: 045–049; utan 048/049 svarar `/news` 500).
+
 Previewn kör lokal backend och frontend mot produktionsdatabasen. Ingen `.env` finns lokalt; Railway-CLI:n
 injicerar tjänstens miljö, så nyckeln passerar aldrig chatten:
 

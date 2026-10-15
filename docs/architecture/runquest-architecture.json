@@ -22,6 +22,7 @@
     { "id": "browser-to-backend", "from": "browser", "to": "backend", "label": "REST + JWT", "variant": "emphasis", "fromSide": "right", "toSide": "left" },
     { "id": "backend-to-strava", "from": "backend", "to": "strava", "label": "OAuth + sync + återkalla", "fromSide": "right", "toSide": "left" },
     { "id": "strava-to-webhook", "from": "strava", "to": "webhook", "label": "POST /api/strava/webhook", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
+    { "id": "webhook-to-backend", "from": "webhook", "to": "backend", "label": "kö strava_webhook_events → worker", "fromSide": "left", "toSide": "top", "via": [[1110, 150], [1110, 240], [700, 240]] },
     { "id": "backend-to-storage", "from": "backend", "to": "storage", "label": "profilbilder", "fromSide": "top", "toSide": "left", "via": [[645, 150]] },
     { "id": "backend-to-db", "from": "backend", "to": "db", "label": "service role", "fromSide": "bottom", "toSide": "top" },
     { "id": "sched-to-db", "from": "sched", "to": "db", "label": "cron-jobb", "fromSide": "left", "toSide": "right" },
