@@ -588,6 +588,19 @@ describe('recordRankPassesForChallenge', () => {
     expect(rankRows(t)).toHaveLength(0);
   });
 
+  it('ingen rad om loggraden pekar på andra än utmaningens deltagare', async () => {
+    const t = duel(
+      [player('u-w', 'Anna', 1, 0, 0), player('u-l', 'Bertil', 0, 0, 1), player('u-c', 'Cecilia', 1, 1, 1)],
+      [settled('c1', 'challenge_won', 'u-w', 'u-c', NOW.toISOString())], // utmaningen gäller u-w mot u-l
+    );
+    use(t);
+
+    await recordRankPassesForChallenge('c1');
+
+    expect(detectRankPasses).not.toHaveBeenCalled();
+    expect(rankRows(t)).toHaveLength(0);
+  });
+
   it('en avräkning från före dygnsskiftet räknas inte som sin egen rad', async () => {
     const t = duel(
       [player('u-w', 'Anna', 1, 0, 0), player('u-l', 'Bertil', 0, 0, 1), player('u-c', 'Cecilia', 1, 1, 0)],
@@ -641,11 +654,12 @@ describe('recordRankPassesForChallenge', () => {
       [player('u-w', 'Anna', 1, 0, 0), player('u-l', 'Bertil', 0, 0, 1), player('u-c', 'Cecilia', 1, 1, 0)],
       [settled('c1', 'challenge_won', 'u-w', 'u-l', before.toISOString())],
     );
-    use(t);
-    const actual = (await vi.importActual<typeof import('@runquest/shared')>('@runquest/shared')).detectRankPasses;
-    vi.mocked(detectRankPasses).mockImplementationOnce((input) => {
-      vi.setSystemTime(new Date('2026-10-14T22:00:00.001Z')); // nu är det den 15:e i Stockholm
-      return actual(input);
+    // Klockan passerar midnatt mitt i läsningarna: allt som läser klockan efter det skulle se den 15:e.
+    use(t, {
+      failWhen: (q) => {
+        if (q.table === 'activity_log' && q.select) vi.setSystemTime(new Date('2026-10-14T22:00:00.001Z'));
+        return null;
+      },
     });
 
     await recordRankPassesForChallenge('c1');
