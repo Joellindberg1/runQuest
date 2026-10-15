@@ -2,6 +2,7 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { recordChallengeSettled } from './activityLog.js';
+import { recordRankPassesForChallenge } from './rankNews.js';
 import { MS_DAY } from '@runquest/shared';
 import { todayStockholm } from '../utils/dateUtils.js';
 
@@ -355,6 +356,8 @@ export async function settleChallenge(challengeId: string): Promise<void> {
   }
 
   // 4. Update W/D/L
+  // Sant först när båda deltagarnas räknare är skrivna: rank_passed (challenge_points) läser slutläget och hoppas annars över.
+  let wdlWritten = false;
   const { data: users, error: usersError } = await supabase
     .from('users')
     .select('id, wins, draws, losses')
@@ -383,6 +386,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
         postClaimErrors.push(`W/D/L update failed: ${res.error.message}`);
       }
     }
+    wdlWritten = users.length === 2 && wdlResults.every((res) => !res.error);
   }
 
   // Pack News (ADR 008): loggas EFTER claim + boostar + W/D/L, icke-kastande. dedupe_key challenge_settled:<id>
@@ -393,6 +397,10 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     challenger_final_value: c.value,
     opponent_final_value: o.value,
   });
+
+  // rank_passed (challenge_points, ADR 011 beslut 6): efter BÅDA W/D/L-skrivningarna och loggraden, före felkastet nedan. Kastar aldrig;
+  // den hoppar själv över om avgörandets loggrad saknas. Ett delfel ovan stoppar den inte, och den stoppar aldrig kastet.
+  if (wdlWritten) await recordRankPassesForChallenge(challengeId);
 
   if (postClaimErrors.length > 0) {
     throw new Error(`Challenge ${challengeId} settled with errors: ${postClaimErrors.join('; ')}`);

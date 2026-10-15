@@ -4,11 +4,14 @@ import {
   DATA_CONTROLLER,
   DATA_POLICY_SECTIONS,
   DATA_POLICY_VERSION,
+  STRAVA_CONSENT_VERSION,
   STRAVA_IMPORTED_FIELDS,
   TERMS_SECTION,
   WAITLIST_CONSENT_LABEL,
   WAITLIST_CONSENT_LINK_TEXT,
   WAITLIST_CONSENT_VERSION,
+  WEBHOOK_RETENTION_DONE_DAYS,
+  WEBHOOK_RETENTION_FAILED_DAYS,
   getDataPolicy,
   getDataPolicySection,
   getTerms,
@@ -16,16 +19,29 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-13.1', sha256: '2488ea4e3337bde7a196a93c97e4d74849c390614a7cd214ca772c8e5b9443a3' };
+const PINNED_POLICY = { version: '2026-10-14.1', sha256: '4ce90e0d69e15e3018de0518bedb15ab7b817efb019720f37183699ca8abad6b' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
+// Typografiska citattecken och apostrofer jämnas ut, så att ägaren kan putsa med dem utan att testerna brister.
+const straighten = (text: string): string => text.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
 const textOf = (section: LegalSection | undefined): string => {
   expect(section, 'the section exists').toBeDefined();
-  return section!.paragraphs.join('\n');
+  return straighten(section!.paragraphs.join('\n'));
 };
-const policyText = (): string => DATA_POLICY_SECTIONS.map((section) => `${section.title}\n${section.paragraphs.join('\n')}`).join('\n');
+const policyText = (): string => straighten(DATA_POLICY_SECTIONS.map((section) => `${section.title}\n${section.paragraphs.join('\n')}`).join('\n'));
+const expectParagraph = (section: LegalSection | undefined, ...patterns: RegExp[]): void => {
+  expect(section, 'the section exists').toBeDefined();
+  const found = section!.paragraphs.map(straighten).some((paragraph) => patterns.every((pattern) => pattern.test(paragraph)));
+  expect(found, `a paragraph matching ${patterns.map(String).join(' and ')}`).toBe(true);
+};
 const sentencesOf = (text: string): string[] => text.split(/(?<=[.!?])\s+|\n/).map((s) => s.trim()).filter(Boolean);
+// Texten får putsas av ägaren i förhandsvisningen: kraven testas som mönster per mening, inte som hela meningar.
+const sentencesMatching = (text: string, pattern: RegExp): string[] => sentencesOf(text).filter((sentence) => pattern.test(sentence));
+const expectSentence = (text: string, ...patterns: RegExp[]): void => {
+  const found = sentencesOf(text).some((sentence) => patterns.every((pattern) => pattern.test(sentence)));
+  expect(found, `a sentence matching ${patterns.map(String).join(' and ')}`).toBe(true);
+};
 
 describe('dataPolicy', () => {
   it('exposes a strava section, a deletion section and a waitlist section', () => {
@@ -55,50 +71,160 @@ describe('dataPolicy', () => {
     }
   });
 
-  it('strava section states no AI, group-only visibility and removal on request via the contact address', () => {
+  it('strava section states no AI, group-only visibility and keeps the contact address for other requests', () => {
     const text = textOf(getDataPolicySection('strava'));
     expect(text).toMatch(/Strava data is not used for AI/);
     expect(text).toMatch(/members of your pack/i);
     expect(text).toMatch(/not public/i);
     expect(text).toContain(CONTACT);
-    expect(text).toMatch(/(delete|make) .*private/i);
-    expect(text).toMatch(/removed|deleted/i);
-    // Ingen frånkopplingsknapp finns i UI:t: tokens raderas på begäran och importerade rundor ligger kvar.
-    expect(text).toMatch(/no disconnect button/i);
-    expect(text).toMatch(/Strava tokens deleted/i);
-    expect(text).not.toMatch(/Disconnecting Strava in Settings/);
-    expect(text).toMatch(/already imported (runs )?stay/i);
   });
 
-  it('strava section states what is imported, the 30-minute sync and that automatic deletion via Strava is coming', () => {
+  it('strava section states what is imported and that the start coordinates only look up the weather', () => {
     const text = textOf(getDataPolicySection('strava'));
     for (const field of STRAVA_IMPORTED_FIELDS) expect(text, field.key).toContain(field.label);
     expect(text).toMatch(/Run, TrailRun and VirtualRun/);
-    expect(text).toMatch(/every 30 minutes/);
-    expect(text).toMatch(/automatically every 30 minutes/);
     // Knappen Sync now visas bara för en användare: texten lovar ingen manuell synk.
-    expect(text).not.toMatch(/by hand|manually|Sync now/i);
+    expect(text).not.toMatch(/sync (by hand|manually)|manual sync|Sync now/i);
     expect(text).toMatch(/Open-Meteo/);
-    const automatic = sentencesOf(text).filter((sentence) => /automatic (removal|deletion)/i.test(sentence));
-    expect(automatic.length).toBeGreaterThan(0);
-    for (const sentence of automatic) expect(sentence).toMatch(/not (available )?yet|coming/i);
   });
 
-  it('strava section does not promise 48 h deletion, automatic removal or a pause button', () => {
+  it('strava section says new runs arrive via Strava webhooks with a backup check at least every 12 hours', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expectSentence(text, /webhooks?/i, /new runs/i);
+    expectSentence(text, /backup/i, /at least (once )?every 12 (hours|h)\b/i);
+    // Ingen överdrift: webhooks är en signal, inte ett löfte om tid.
+    expect(text).not.toMatch(/instant|immediate|within (a few )?(minutes|seconds)|real[- ]time/i);
+  });
+
+  it('strava section states that runs deleted, made private or no longer a run on Strava are removed within 48 hours and that XP, streaks, titles and badges are recalculated', () => {
+    const strava = getDataPolicySection('strava');
+    const text = textOf(strava);
+    expectSentence(text, /delete/i, /private/i, /no longer a run|stops? being a run|not a run/i, /within 48 ?(hours|h)\b/i, /removes? it|removed/i);
+    // Omräkningen ska stå i samma stycke som 48 h-löftet, inte bara i Disconnect-stycket.
+    expectParagraph(strava, /within 48 ?(hours|h)\b/i, /XP/i, /streaks/i, /titles/i, /badges/i, /recalculat/i);
+  });
+
+  it('strava section says event XP that was already awarded is kept', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expectSentence(text, /event XP/i, /already (earned|awarded)/i, /kept|stays?|remains?/i);
+  });
+
+  it('strava section says an activity that becomes a public run again is imported again', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expectSentence(text, /later/i, /(public|visible)/i, /run again|again a run/i, /imported again|re-?imported/i);
+  });
+
+  it('strava section describes pause sync: connection and runs stay, no new runs, removals still apply and the gap is filled on resume', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expect(text).toMatch(/"pause sync"/i);
+    expect(text).toMatch(/"turn sync back on"/i);
+    expectSentence(text, /pause sync/i, /connection/i, /runs/i, /stay|keeps|kept|remain/i);
+    expectSentence(text, /no new runs/i, /(fetched|imported)/i);
+    expectSentence(text, /(delete|remove)/i, /private/i, /still/i, /(removed|apply|applies)/i);
+    // Bara de nya rundorna hämtas: ändringar av gamla rundor under pausen följer inte med (ADR 010 beslut 7.5.5).
+    expectSentence(text, /turn sync back on/i, /new runs/i, /(during|from) the pause/i, /fetched/i);
+  });
+
+  it('strava section names Pause sync and Disconnect as choices and Turn sync back on as the button for a paused sync', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expectSentence(text, /choose/i, /"pause sync"/i);
+    expectSentence(text, /choos/i, /"disconnect"/i);
+    expectSentence(text, /choose/i, /"turn sync back on"/i);
+    // "Pause sync" är ett val i dialogen, inte en knapp på kortet.
+    expect(text).not.toMatch(/"pause sync" button/i);
+  });
+
+  it('strava section describes disconnect: access is revoked at Strava, imported runs are deleted, manual runs and event XP stay, it cannot be undone and reconnecting starts from that day', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expect(text).toMatch(/"disconnect"/i);
+    // Återkallandet hos Strava är best effort: texten får inte garantera det ("asks Strava to revoke"), men ska nämna det.
+    expectSentence(text, /disconnect/i, /asks? Strava to revoke|revokes?/i, /access/i);
+    expect(text).not.toMatch(/disconnect[^.]*\brevokes\b[^.]*access at Strava/i);
+    expectSentence(text, /disconnect/i, /deletes? all (the )?runs/i, /imported from Strava/i);
+    expectSentence(text, /(runs you added by hand|manual runs)/i, /event XP/i, /stay|kept|remain/i);
+    expectSentence(text, /(cannot|can't|can not) be undone/i);
+    expectSentence(text, /connect Strava again/i, /not fetched back|does not (fetch|bring)/i, /from that day/i);
+    expectSentence(text, /(revoke|revoking)/i, /on Strava/i, /same/i);
+  });
+
+  it('strava section says Disconnect deletes the stored Strava tokens', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expectSentence(text, /disconnect/i, /delete/i, /(stored )?Strava tokens/i);
+  });
+
+  it('strava section says the tokens are also used to ask Strava to revoke access and to check a revocation', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expectSentence(text, /tokens/i, /ask Strava to revoke/i);
+    expectSentence(text, /tokens/i, /revoked on Strava|revoked it on Strava|check/i);
+  });
+
+  it('strava section says the Strava athlete ID and the consent version and time are stored', () => {
+    const text = textOf(getDataPolicySection('strava'));
+    expectSentence(text, /Strava athlete ID/i, /(stored|stores)/i, /(link|match|connect)/i);
+    expectSentence(text, /one Strava account/i, /one RunQuest account/i);
+    expectSentence(text, /(version)/i, /(time)/i, /(consent|agreed)/i, /(stored|stores)/i);
+  });
+
+  it('dataPolicy no longer says there is no disconnect button, that automatic removal is coming or that runs are imported every 30 minutes', () => {
     const everything = `${policyText()}\n${textOf(TERMS_SECTION)}`;
-    expect(everything).not.toMatch(/48\s*(h\b|hours?)/i);
-    expect(everything).not.toMatch(/pause/i);
-    expect(everything).not.toMatch(/within (a )?(day|two days|24)/i);
-    // Allt som nämner automatisk borttagning ska säga att den inte finns än.
-    for (const sentence of sentencesOf(everything).filter((s) => /automatic (removal|deletion)/i.test(s))) {
-      expect(sentence).toMatch(/not (available )?yet|coming/i);
-    }
+    expect(everything).not.toMatch(/no disconnect button/i);
+    expect(everything).not.toMatch(/coming in a later version|not available yet|is coming/i);
+    expect(everything).not.toMatch(/every 30 minutes/i);
+    expect(everything).not.toMatch(/Disconnecting Strava|Sync now|sync by hand/i);
+    // E-post är inte längre enda raderingsvägen för Strava-data.
+    expect(everything).not.toMatch(/To have your Strava tokens deleted, email/i);
+    expect(everything).not.toMatch(/ask for those to be removed too/i);
   });
 
-  it('dataPolicy never mentions a disconnect button or a manual sync, and keeps tokens until deletion is requested', () => {
-    expect(policyText()).not.toMatch(/Disconnecting Strava|disconnect Strava|Sync now|sync by hand/i);
-    expect(textOf(getDataPolicySection('retention'))).toMatch(/Strava tokens are kept until you ask for them to be deleted/);
-    expect(textOf(getDataPolicySection('deletion'))).toMatch(/Strava tokens/);
+  it('strava section uses the names of the buttons in the app and never the heading of the popup as a button', () => {
+    const everything = policyText();
+    expect(everything).not.toMatch(/Pause or disconnect"? (button|deletes|pauses|revokes)/i);
+    expect(everything).not.toMatch(/"Pause or disconnect"/i);
+    expect(everything).not.toMatch(/Slå på|Koppla bort|Pausa/);
+  });
+
+  it('data section mentions notification settings and read marks and that no one else can see them', () => {
+    const text = textOf(getDataPolicySection('data'));
+    expectSentence(text, /notification settings/i, /read/i, /per user|your own|you/i);
+    expectSentence(text, /read/i, /Pack News/i);
+    expectSentence(text, /(other users|no one else|nobody else|only you)/i, /(cannot|can't|can not|not) see|only you|private/i);
+  });
+
+  it('processors section says server logs can contain the Strava athlete ID and activity ID of webhook events but never a title, coordinates or a token', () => {
+    const text = textOf(getDataPolicySection('processors'));
+    expectSentence(text, /log/i, /Strava athlete ID/i, /activity ID/i, /(event|webhook)/i);
+    expectSentence(text, /never/i, /title/i, /coordinates/i, /token/i);
+  });
+
+  it('processors section no longer promises a log line at disconnect', () => {
+    expect(textOf(getDataPolicySection('processors'))).not.toMatch(/when you disconnect/i);
+  });
+
+  it('retention section keeps handled webhook events 30 days and failed ones 90 days and drops tokens on disconnect', () => {
+    const text = textOf(getDataPolicySection('retention'));
+    expect(WEBHOOK_RETENTION_DONE_DAYS).toBe(30);
+    expect(WEBHOOK_RETENTION_FAILED_DAYS).toBe(90);
+    expectSentence(text, /handled/i, new RegExp(`${WEBHOOK_RETENTION_DONE_DAYS} days`));
+    expectSentence(text, /failed/i, new RegExp(`${WEBHOOK_RETENTION_FAILED_DAYS} days`));
+    expectSentence(text, /Strava ids/i, /(no|never) .*title/i, /token/i);
+    expectParagraph(getDataPolicySection('retention'), /journal/i, /(RunQuest )?user ID/i, /outcome/i);
+    expectSentence(text, /Strava tokens/i, /until you disconnect/i, /(in the app or on Strava)/i);
+    expectSentence(text, /read marks/i, /(mark all as read|Mark all read)/i, /cleared/i);
+  });
+
+  it('deletion section says Disconnect deletes the Strava runs and tokens in the app and everything else still goes via email', () => {
+    const text = textOf(getDataPolicySection('deletion'));
+    expectSentence(text, /disconnect/i, /deletes?/i, /Strava runs/i, /tokens/i, /in the app/i);
+    expectSentence(text, /disconnect/i, /asks? Strava to revoke/i);
+    expectSentence(text, /account/i, /waitlist/i, /email/i);
+    expect(text).toContain(CONTACT);
+    expect(text).not.toMatch(/no delete button for accounts, Strava tokens or Strava runs/i);
+  });
+
+  it('no sentence in the policy still says that Strava data can be removed only by email', () => {
+    for (const sentence of sentencesMatching(policyText(), /Strava/)) {
+      expect(sentence, sentence).not.toMatch(/(only|must|have to) .*email/i);
+    }
   });
 
   it('every imported field is listed once with a plain label', () => {
@@ -169,6 +295,10 @@ describe('dataPolicy', () => {
 
   it('the waitlist consent version is the data policy version', () => {
     expect(WAITLIST_CONSENT_VERSION).toBe(DATA_POLICY_VERSION);
+  });
+
+  it('the strava consent version is the data policy version', () => {
+    expect(STRAVA_CONSENT_VERSION).toBe(DATA_POLICY_VERSION);
   });
 
   it('DATA_POLICY_VERSION has the date format and is never a draft marker', () => {

@@ -4,85 +4,77 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
+import { createRateLimiter } from '../middleware/rateLimit.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
 import { getXpConfig } from '../services/xpConfig.js';
-import { calculateCompleteRunXP } from '@runquest/shared';
+import { isTreadmillActivity } from '../utils/stravaActivity.js';
+import { calculateCompleteRunXP, STRAVA_CONSENT_VERSION } from '@runquest/shared';
+import type { StravaCallbackRequest, StravaCallbackResponse, StravaStatusResponse, StravaSyncPausedResponse } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
 import { stravaLookback } from '../utils/stravaLookback.js';
+import { withUserLock } from '../utils/keyedMutex.js';
+import { isValidAthleteId } from '../services/stravaAthlete.js';
+import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
+import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
+import { getLastWebhookAt } from '../services/stravaLastWebhook.js';
+import { removeStravaConnection } from '../services/stravaConnection.js';
+import { revokeStravaAuthorization } from '../services/stravaRevoke.js';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+/** Pause toggles are a button press, never a loop: 30 per minute and IP stops a script without ever being felt by a person. */
+const SYNC_PAUSED_WINDOW_MS = 60 * 1000;
+const SYNC_PAUSED_MAX_PER_WINDOW = 30;
+const syncPausedLimiter = createRateLimiter(SYNC_PAUSED_WINDOW_MS, SYNC_PAUSED_MAX_PER_WINDOW);
 
-const RUNNING_SPORT_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun']);
+/** Disconnect deletes history and calls Strava: a real person presses it once, so 10 per minute and IP only stops a script. It sits after authenticateJWT, so a request without a token never uses the budget. */
+const DISCONNECT_WINDOW_MS = 60 * 1000;
+const DISCONNECT_MAX_PER_WINDOW = 10;
+const disconnectLimiter = createRateLimiter(DISCONNECT_WINDOW_MS, DISCONNECT_MAX_PER_WINDOW);
 
-/** Returns the sport_type if it's a valid running type, otherwise null. */
-function normalizeSportType(sportType?: string): string | null {
-  if (sportType && RUNNING_SPORT_TYPES.has(sportType)) return sportType;
-  return null;
+interface PauseState {
+  /** False when the user has no strava_tokens row. */
+  connected: boolean;
+  paused: boolean;
+  pausedAt: string | null;
 }
 
-/** Returns true for any Strava activity we want to import as a run. */
-function isRunningActivity(activity: any): boolean {
-  // Prefer sport_type (newer field); fall back to type for older data
-  if (activity.sport_type) return RUNNING_SPORT_TYPES.has(activity.sport_type);
-  return activity.type === 'Run';
+/** The pause state of the caller's own connection. Throws on a database error: callers must not guess "not paused". */
+async function readPauseState(userId: string): Promise<PauseState> {
+  const { data, error } = await getSupabaseClient()
+    .from('strava_tokens')
+    .select('sync_paused, paused_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { connected: false, paused: false, pausedAt: null };
+  return { connected: true, paused: data.sync_paused === true, pausedAt: data.paused_at ?? null };
 }
 
-/**
- * Compute pace standard deviation (sec/km) from Strava splits_metric.
- * Returns null if there are fewer than 2 complete splits.
- */
-function computePaceStdDev(splits?: Array<{ distance: number; moving_time: number }>): number | null {
-  if (!splits || splits.length < 2) return null;
-  const paces = splits
-    .filter(s => s.distance > 0)
-    .map(s => s.moving_time / (s.distance / 1000));
-  if (paces.length < 2) return null;
-  const mean = paces.reduce((a, b) => a + b, 0) / paces.length;
-  const variance = paces.reduce((sum, p) => sum + (p - mean) ** 2, 0) / paces.length;
-  return Math.sqrt(variance);
+/** The body must be exactly { paused: boolean }: other keys are refused rather than ignored, so a client that sends e.g. a userId finds out it does nothing. */
+function parseSyncPausedBody(body: unknown): boolean | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const keys = Object.keys(body);
+  if (keys.length !== 1 || keys[0] !== 'paused') return null;
+  const { paused } = body as { paused: unknown };
+  return typeof paused === 'boolean' ? paused : null;
 }
 
-/**
- * Fetch the detailed Strava activity (includes splits_metric).
- * Falls back to the summary object on error.
- */
-async function fetchDetailedActivity(activityId: string | number, accessToken: string): Promise<any> {
-  try {
-    const res = await fetch(
-      `https://www.strava.com/api/v3/activities/${activityId}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (!res.ok) {
-      logger.warn(`⚠️ Could not fetch detailed activity ${activityId}: HTTP ${res.status}`);
-      return null;
-    }
-    return await res.json();
-  } catch (err) {
-    logger.warn(`⚠️ Error fetching detailed activity ${activityId}:`, err);
-    return null;
+/** The message the sync and the debug endpoint give for a token that could not be had. */
+function tokenFailureMessage(token: Extract<AccessTokenResult, { ok: false }>): string {
+  switch (token.reason) {
+    case 'not_connected': return 'User not connected to Strava';
+    // The row could not be read: that says nothing about the connection, so it is not "not connected".
+    case 'token_read_failed': return 'Failed to read Strava connection';
+    // A rejected refresh token is reported like any failed refresh: the sync deletes nothing (only the deauthorize event does).
+    case 'refresh_failed':
+    case 'refresh_rejected':
+    case 'no_refresh_token': return 'Failed to refresh Strava token';
   }
-}
-
-/** Build the extended-data fields from a Strava activity object. */
-function extractExtendedFields(activity: any) {
-  return {
-    start_time:     activity.start_date_local ?? null,
-    moving_time:    activity.moving_time       ?? null,
-    total_elevation_gain: activity.total_elevation_gain ?? null,
-    sport_type:     normalizeSportType(activity.sport_type),
-    avg_heartrate:  activity.average_heartrate ?? null,
-    max_heartrate:  activity.max_heartrate     ?? null,
-    suffer_score:   activity.suffer_score      ?? null,
-    start_lat:      activity.start_latlng?.[0] ?? null,
-    start_lng:      activity.start_latlng?.[1] ?? null,
-    pace_std_dev:   computePaceStdDev(activity.splits_metric),
-    is_treadmill:   activity.trainer === true,
-  };
 }
 
 // GET /api/strava/config - Get Strava client ID
@@ -97,7 +89,7 @@ router.get('/config', async (_req, res): Promise<void> => {
     
     res.json({ client_id: clientId }); return;
   } catch (error) {
-    logger.error('❌ Strava config error:', error);
+    logger.error(`❌ Strava config error (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to get Strava config' }); return;
   }
 });
@@ -108,44 +100,58 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     const userId = req.user!.user_id;
     logger.info('🔍 Checking Strava status for user:', req.user!.name);
     
-    const supabase = getSupabaseClient();
-    const { data: tokens, error } = await supabase
-      .from('strava_tokens')
-      .select('expires_at, refresh_token, connection_date')
-      .eq('user_id', userId)
-      .single();
-    
-    if (error || !tokens) {
-      logger.info('❌ No Strava tokens found for user');
-      res.json({ connected: false, expired: false }); return;
+    const token = await getValidAccessToken(userId);
+
+    // A row that could not be read says nothing about the connection: an error, never "not connected" (which the client acts on).
+    if (!token.ok && token.reason === 'token_read_failed') {
+      res.status(500).json({ error: 'Failed to check Strava status' }); return;
     }
-    
-    const now = Math.floor(Date.now() / 1000);
-    const expired = tokens.expires_at ? tokens.expires_at < now : false;
-    
-    // Om token är expired, försök auto-refresh
-    if (expired && tokens.refresh_token) {
-      logger.info('🔄 Token expired, attempting auto-refresh...');
-      
-      const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
-      if (refreshResult.success) {
-        logger.info('✅ Token auto-refreshed successfully');
-        res.json({
-          connected: true,
-          expired: false, // No longer expired after refresh
-          auto_refreshed: true
-        });
-      } else {
-        logger.info('❌ Auto-refresh failed, connection truly expired');
-        res.json({
-          connected: true,
-          expired: true,
-          refresh_failed: true
-        });
-      }
+
+    if (!token.ok && token.reason === 'not_connected') {
+      logger.info('❌ No Strava tokens found for user');
+      const notConnected: StravaStatusResponse = { connected: false, expired: false };
+      res.json(notConnected); return;
+    }
+
+    // Pausen ligger i samma rad men utanför token-vägen (stravaClient är delad); varje connected: true-svar bär den.
+    const pause = await readPauseState(userId);
+    if (!pause.connected) {
+      // Kopplingen togs bort mellan de två läsningarna.
+      const disconnected: StravaStatusResponse = { connected: false, expired: false };
+      res.json(disconnected); return;
+    }
+    const pauseFields = { sync_paused: pause.paused, paused_at: pause.pausedAt };
+
+    // Om token är expired förnyar getValidAccessToken den (auto-refresh)
+    if (token.ok && token.refreshed) {
+      logger.info('✅ Token auto-refreshed successfully');
+      const refreshed: StravaStatusResponse = {
+        connected: true,
+        expired: false, // No longer expired after refresh
+        auto_refreshed: true,
+        consent_version: token.consentVersion,
+        ...pauseFields
+      };
+      res.json(refreshed);
       return; // utan denna skickades ett andra res.json nedan (ERR_HTTP_HEADERS_SENT)
     }
-    
+    // A refresh token Strava rejected is shown the same way: the connection needs to be made again.
+    if (!token.ok && (token.reason === 'refresh_failed' || token.reason === 'refresh_rejected')) {
+      logger.info('❌ Auto-refresh failed, connection truly expired');
+      const refreshFailed: StravaStatusResponse = {
+        connected: true,
+        expired: true,
+        refresh_failed: true,
+        consent_version: token.consentVersion,
+        ...pauseFields
+      };
+      res.json(refreshFailed);
+      return;
+    }
+
+    const expired = !token.ok; // kvar här: antingen giltig, eller utgången utan refresh-token
+    const supabase = getSupabaseClient();
+
     // Get last global sync time (based on most recent Strava run imported by anyone)
     const { data: lastGlobalStravaRun, error: syncError } = await supabase
       .from('runs')
@@ -155,32 +161,115 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
       .limit(1)
       .single();
 
-    logger.info('🔍 Last global sync query result:', { lastGlobalStravaRun, syncError });
+    logger.info('🔍 Last global sync query result:', { found: Boolean(lastGlobalStravaRun), error_code: syncError ? errorCode(syncError) : null });
 
-    logger.info('✅ Strava status:', { connected: true, expired, expires_at: tokens.expires_at });
+    logger.info('✅ Strava status:', { connected: true, expired, expires_at: token.expiresAt });
     
-    res.json({
+    const body: StravaStatusResponse = {
       connected: true,
       expired,
-      expires_at: tokens.expires_at,
-      connection_date: tokens.connection_date,
-      last_sync: lastGlobalStravaRun?.created_at || null
-    });
-    
+      // Raderna lagrar null när Strava inte gav något värde; svaret är som före utbrytningen (typen säger undefined).
+      expires_at: token.expiresAt as number | undefined,
+      connection_date: token.connectionDate as string | undefined,
+      last_sync: lastGlobalStravaRun?.created_at || null,
+      // null för kopplingar som gjordes före samtyckesloggen (ADR 010 beslut 12, D4).
+      consent_version: token.consentVersion,
+      ...pauseFields
+    };
+    res.json(body);
+
   } catch (error) {
-    logger.error('❌ Strava status error:', error);
+    logger.error(`❌ Strava status error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to check Strava status' }); return;
   }
 });
 
+/**
+ * Startar synken efter "Slå på synk igen" utan att någon väntar på den. Kallas först när svaret är skickat, och aldrig från
+ * insidan av en annan withUserLock (låset är inte reentrant, utils/keyedMutex.ts). Ett fel får aldrig bli en ohanterad
+ * rejection: loggen får bara användar-id och felets namn, aldrig token eller felmeddelande.
+ */
+function startSyncInBackground(userId: string): void {
+  void (async () => {
+    try {
+      const result = await syncUserStravaActivities(userId);
+      if (!result.success) logger.warn(`⚠️ Sync after resume did not complete for user ${userId}: ${result.error}`);
+    } catch (error) {
+      logger.error(`❌ Sync after resume failed for user ${userId}: ${error instanceof Error ? error.name : typeof error}`);
+    }
+  })();
+}
+
+// PUT /api/strava/sync-paused - "Pausa synk" / "Slå på synk igen" (ADR 010 beslut 7.5)
+// Rör bara anroparens egen rad (userId kommer ur JWT, aldrig ur brödtexten; ingen adminväg). Pausen tar INTE användarlåset:
+// en synk som redan startat får bli klar och importera (7.5 godtar det), och att vänta på den skulle bara göra knappen seg.
+// Det som håller en pausad användare ifrån nya importer är kontrollerna FÖRE synken (POST /sync, syncAllStravaUsers) och
+// den om-kontroll som runUserStravaSync gör inne i låset, så att en synk som stod i kö bakom en annan inte körs efter pausen.
+router.put('/sync-paused', authenticateJWT, syncPausedLimiter, async (req, res): Promise<void> => {
+  const paused = parseSyncPausedBody(req.body);
+  if (paused === null) {
+    res.status(400).json({ error: 'Body must be exactly { "paused": boolean }' }); return;
+  }
+
+  try {
+    const userId = req.user!.user_id;
+    const supabase = getSupabaseClient();
+
+    // Ett villkorat skrivande: raden ändras bara om tillståndet faktiskt byts. Därför behåller en andra paus det FÖRSTA
+    // paused_at (pausens start), och bara den begäran som verkligen tog bort pausen startar en synk (en dubbelklick ger en).
+    const { data: changed, error } = await supabase
+      .from('strava_tokens')
+      .update(paused ? { sync_paused: true, paused_at: new Date().toISOString() } : { sync_paused: false, paused_at: null })
+      .eq('user_id', userId)
+      .eq('sync_paused', !paused)
+      .select('sync_paused, paused_at');
+    if (error) throw error;
+
+    let state: { sync_paused: boolean; paused_at: string | null };
+    const transitioned = Array.isArray(changed) && changed.length > 0;
+    if (transitioned) {
+      state = { sync_paused: changed[0].sync_paused === true, paused_at: changed[0].paused_at ?? null };
+    } else {
+      // Redan i det begärda läget (idempotent) eller ingen koppling alls.
+      const current = await readPauseState(userId);
+      if (!current.connected) {
+        res.status(400).json({ error: 'User not connected to Strava' }); return;
+      }
+      state = { sync_paused: current.paused, paused_at: current.pausedAt };
+    }
+
+    const body: StravaSyncPausedResponse = { success: true, data: state };
+    res.json(body);
+
+    // Luckan fylls av att pollingens `after` räknas från senaste IMPORTERADE rundan − 7 dagar (stravaLookback).
+    if (transitioned && !paused) {
+      logger.info(`▶️ Strava sync resumed, starting sync for user ${userId}`);
+      startSyncInBackground(userId);
+    }
+  } catch (error) {
+    logger.error(`❌ Strava sync-paused error for user ${req.user!.user_id} (${errorCode(error)})`);
+    res.status(500).json({ error: 'Failed to update sync pause' }); return;
+  }
+});
+
+/** How long the code exchange of the callback may take; it runs under the user's lock (same pattern as REVOKE_TIMEOUT_MS). */
+const STRAVA_EXCHANGE_TIMEOUT_MS = 15_000;
+
 // POST /api/strava/callback - Handle Strava OAuth callback
 router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { code } = req.body;
+    // Opålitlig indata: fälten kan saknas eller ha fel typ, därför Partial och en strikt jämförelse nedan.
+    const { code, consent_version: consentVersion }: Partial<StravaCallbackRequest> = req.body;
     const userId = req.user!.user_id;
-    
+
     if (!code) {
       res.status(400).json({ error: 'Authorization code required' }); return;
+    }
+
+    // Samtycket krävs innan koden byts mot token hos Strava (ADR 010 beslut 12). consented_at skickas aldrig av klienten.
+    if (consentVersion !== STRAVA_CONSENT_VERSION) {
+      logger.warn('⚠️ Strava callback without current consent_version', { user_id: userId, has_consent_version: consentVersion !== undefined && consentVersion !== null });
+      res.status(400).json({ error: 'Consent required' }); return;
     }
     
     logger.info(`🔗 Processing Strava callback for user: ${req.user!.name}`);
@@ -193,87 +282,118 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Strava credentials not configured' }); return;
     }
     
-    const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        grant_type: 'authorization_code'
-      })
-    });
-    
-    const tokenData = await tokenResponse.json();
-    
-    if (!tokenResponse.ok) {
-      logger.error('❌ Strava token exchange failed:', tokenData);
-      res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
-    }
-    
-    // Aldrig någon del av token-värdet i loggen — bara om den finns.
-    logger.info('✅ Strava tokens received:', {
-      has_access_token: Boolean(tokenData.access_token),
-      expires_at: tokenData.expires_at
-    });
-    
-    // Save tokens to database
-    const supabase = getSupabaseClient();
-    const { error } = await supabase
-      .from('strava_tokens')
-      .upsert({
-        user_id: userId,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        expires_at: tokenData.expires_at,
-        connection_date: new Date().toISOString()
+    // The exchange and the save are ONE step under the user's lock, like the disconnect (ADR 010 decision 6): a reconnect that starts in
+    // the middle of a disconnect waits for it, so the disconnect's delete can never remove the connection that was just made, and a
+    // code is never exchanged just before the disconnect revokes the authorisation it creates.
+    await withUserLock(userId, async () => {
+      // Bounded: the lock is held while this runs and has no timeout of its own (utils/keyedMutex.ts), so a Strava that never answers
+      // would hold up the worker's batch and every other request of this user. A timeout fails like a network error does.
+      const tokenResponse = await stravaFetch('https://www.strava.com/oauth/token', {
+        method: 'POST',
+        signal: AbortSignal.timeout(STRAVA_EXCHANGE_TIMEOUT_MS),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          grant_type: 'authorization_code'
+        })
       });
+    
+      const tokenData = await tokenResponse.json();
+    
+      if (!tokenResponse.ok) {
+        // Stravas felsvar kan bära värden (och vid ett lyckat svar tokens): bara statusen loggas.
+        logger.error(`❌ Strava token exchange failed for user ${userId} (HTTP ${tokenResponse.status})`);
+        res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
+      }
+    
+      // Aldrig någon del av token-värdet i loggen — bara om den finns.
+      logger.info('✅ Strava tokens received:', {
+        has_access_token: Boolean(tokenData.access_token),
+        expires_at: tokenData.expires_at
+      });
+    
+      // Stravas athlete-id kopplar webhook-händelser (owner_id) till användaren. Saknas det sparas kopplingen ändå
+      // (den syns som "unmapped" i hälsokontrollen), men det är ett fel: utan id når inga händelser, inte heller raderingar.
+      const athleteId = tokenData.athlete?.id;
+      const hasAthleteId = isValidAthleteId(athleteId);
+      if (!hasAthleteId) {
+        logger.error('❌ Strava token response has no usable athlete id; connection saved without strava_athlete_id', {
+          user_id: userId,
+          has_athlete_object: Boolean(tokenData.athlete)
+        });
+      }
 
-    if (error) {
-      logger.error('❌ Failed to save Strava tokens:', error);
-      res.status(500).json({ error: 'Failed to save Strava connection' }); return;
-    }
+      // Save tokens to database
+      const supabase = getSupabaseClient();
+      const connectedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from('strava_tokens')
+        .upsert({
+          user_id: userId,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          expires_at: tokenData.expires_at,
+          connection_date: connectedAt,
+          // Samtyckesloggen: versionen är kontrollerad ovan, tidpunkten sätts av servern. En återanslutning skriver nya värden.
+          consent_version: STRAVA_CONSENT_VERSION,
+          consented_at: connectedAt,
+          // Utelämnas (inte null) när Strava inte skickade något id, så en återanslutning inte raderar ett känt id.
+          ...(hasAthleteId ? { strava_athlete_id: athleteId } : {}),
+          // En ny anslutning är aldrig pausad.
+          sync_paused: false,
+          paused_at: null
+        });
+
+      if (error?.code === '23505' && `${error.message} ${error.details ?? ''}`.includes('strava_tokens_athlete_id_key')) {
+        // Samma Strava-konto är redan kopplat till en annan RunQuest-användare (unikt index, migration 045).
+        logger.warn('⚠️ Strava account already connected to another user', { user_id: userId });
+        res.status(409).json({ error: 'This Strava account is already connected to another RunQuest user' }); return;
+      }
+
+      if (error) {
+        logger.error(`❌ Failed to save Strava tokens for user ${userId} (${errorCode(error)})`);
+        res.status(500).json({ error: 'Failed to save Strava connection' }); return;
+      }
     
-    logger.info('✅ Strava tokens saved successfully');
+      logger.info('✅ Strava tokens saved successfully');
     
-    res.json({
-      success: true,
-      message: 'Strava connected successfully',
-      athlete: tokenData.athlete
+      // Klienten läser bara om anropet lyckades; Stravas athlete-objekt (profildata) skickas inte vidare.
+      const body: StravaCallbackResponse = { success: true, message: 'Strava connected successfully' };
+      res.json(body);
     });
     
   } catch (error) {
-    logger.error('❌ Strava callback error:', error);
+    // A timeout is a DOMException whose numeric code (23) says nothing in a log; its name does.
+    const reason = error instanceof Error && error.name === 'TimeoutError' ? 'token exchange timed out' : errorCode(error);
+    logger.error(`❌ Strava callback error for user ${req.user!.user_id} (${reason})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
 
-// DELETE /api/strava/disconnect - Disconnect Strava account
-router.delete('/disconnect', authenticateJWT, async (req, res): Promise<void> => {
+// DELETE /api/strava/disconnect - "Koppla bort" (ADR 010 beslut 7.4): återkalla hos Strava, radera Stravarundorna, och sist token-raden.
+// Rör bara anroparens egen rad (userId kommer ur JWT, aldrig ur brödtexten). Hela borttagningen sker inne i ETT användarlås, taget
+// här och ingen annanstans: removeStravaConnection och återkallelsen tar inget eget (låset är inte reentrant, utils/keyedMutex.ts),
+// och låset hindrar en polling eller ett webhook-batch från att lägga in en Stravarunda mellan raderingen och att raden försvinner.
+// Svaret skickas först när allt är klart; ett fel (även ett omräkningsfel efter raderade rundor) ger 500 och samma anrop kan köras om.
+// En användare utan koppling och utan Stravarundor får 200 (idempotent): funktionen gör då ingenting.
+router.delete('/disconnect', authenticateJWT, disconnectLimiter, async (req, res): Promise<void> => {
+  const userId = req.user!.user_id;
   try {
-    const userId = req.user!.user_id;
-    logger.info(`🔌 Disconnecting Strava for user: ${req.user!.name}`);
-    
-    const supabase = getSupabaseClient();
-    const { error } = await supabase
-      .from('strava_tokens')
-      .delete()
-      .eq('user_id', userId);
-    
-    if (error) {
-      logger.error('❌ Failed to delete Strava tokens:', error);
-      res.status(500).json({ error: 'Failed to disconnect Strava' }); return;
-    }
-    
-    logger.info('✅ Strava disconnected successfully');
+    logger.info(`🔌 Disconnecting Strava for user ${userId}`);
+
+    await withUserLock(userId, () => removeStravaConnection(userId, { reason: 'user_disconnect', revoke: revokeStravaAuthorization }));
+
+    logger.info(`✅ Strava disconnected for user ${userId}`);
     res.json({
       success: true,
       message: 'Strava disconnected successfully'
     });
-    
+
   } catch (error) {
-    logger.error('❌ Strava disconnect error:', error);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    logger.error(`❌ Strava disconnect failed for user ${userId} (${errorCode(error)})`);
+    res.status(500).json({ error: 'Failed to disconnect Strava' }); return;
   }
 });
 
@@ -282,9 +402,18 @@ router.post('/sync', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user!.user_id;
     logger.info(`🔄 Manual Strava sync requested for user: ${req.user!.name}`);
-    
+
+    // Kontrollen sker FÖRE låset/synken; runUserStravaSync kontrollerar igen inne i låset (kö bakom en annan synk).
+    // Kan pausen inte läsas (kastar) blir svaret 500: en pausad användare får aldrig synkas på ett gissat "inte pausad".
+    if ((await readPauseState(userId)).paused) {
+      res.status(409).json({ error: 'Sync is paused' }); return;
+    }
+
     const result = await syncUserStravaActivities(userId);
-    
+
+    if (result.paused) {
+      res.status(409).json({ error: 'Sync is paused' }); return;
+    }
     if (result.success) {
       res.json({
         success: true,
@@ -297,7 +426,7 @@ router.post('/sync', authenticateJWT, async (req, res) => {
     }
     
   } catch (error) {
-    logger.error('❌ Manual Strava sync error:', error);
+    logger.error(`❌ Manual Strava sync error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to sync Strava activities' }); return;
   }
 });
@@ -308,30 +437,12 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     const userId = req.user!.user_id;
     const supabase = getSupabaseClient();
     
-    // Get user's Strava tokens
-    const { data: tokens, error: tokenError } = await supabase
-      .from('strava_tokens')
-      .select('access_token, refresh_token, expires_at, connection_date')
-      .eq('user_id', userId)
-      .single();
-    
-    if (tokenError || !tokens) {
-      res.status(400).json({ error: 'User not connected to Strava' }); return;
+    const token = await getValidAccessToken(userId);
+    if (!token.ok) {
+      res.status(400).json({ error: tokenFailureMessage(token) }); return;
     }
-    
-    // Check if token is expired and refresh if needed
-    const now = Math.floor(Date.now() / 1000);
-    let accessToken = tokens.access_token;
-    
-    if (tokens.expires_at && tokens.expires_at < now) {
-      logger.info('🔄 Access token expired, refreshing...');
-      const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
-      if (!refreshResult.success) {
-        res.status(400).json({ error: 'Failed to refresh Strava token' }); return;
-      }
-      accessToken = refreshResult.access_token;
-    }
-    
+    const accessToken = token.accessToken;
+
     // Get existing runs from database
     const { data: existingRuns } = await supabase
       .from('runs')
@@ -343,7 +454,7 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
     
     // Calculate smart 'after' timestamp (same logic as sync)
-    const lookback = stravaLookback((existingRuns ?? []).map((run: any) => run.date), tokens.connection_date, new Date());
+    const lookback = stravaLookback((existingRuns ?? []).map((run: any) => run.date), token.connectionDate, new Date());
     const after = lookback.after;
     const afterCalculationMethod =
       lookback.method === 'recent-run' ? `Most recent run (${lookback.mostRecentRunDay}) minus 7 days`
@@ -351,16 +462,8 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
       : '30 days ago (fallback)';
 
     // Fetch from Strava with increased limit
-    const stravaResponse = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    
+    const stravaResponse = await fetchAthleteActivities(accessToken, after);
+
     if (!stravaResponse.ok) {
       const errorData = await stravaResponse.json();
       res.status(500).json({ error: 'Strava API error', details: errorData }); return;
@@ -373,7 +476,7 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     const newRuns = runningActivities.filter((a: any) => !existingIds.has(a.id.toString()));
     
     res.json({
-      connection_date: tokens.connection_date,
+      connection_date: token.connectionDate,
       after_timestamp: after,
       after_date: new Date(after * 1000).toISOString(),
       after_calculation_method: afterCalculationMethod,
@@ -399,7 +502,7 @@ router.get('/debug-activities', authenticateJWT, async (req, res): Promise<void>
     });
     
   } catch (error) {
-    logger.error('❌ Debug activities error:', error);
+    logger.error(`❌ Debug activities error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to debug activities' }); return;
   }
 });
@@ -430,10 +533,12 @@ export async function syncAllStravaUsers(): Promise<{
         expires_at,
         users!inner(name)
       `)
-      .not('access_token', 'is', null);
+      .not('access_token', 'is', null)
+      .eq('sync_paused', false);
 
     if (error) {
-      throw new Error(`Failed to fetch connected users: ${error.message}`);
+      // The database message can carry row values and its callers (the sync-all route and the scheduler) log only the code, so it carries the code and not the message.
+      throw Object.assign(new Error('Failed to fetch connected users'), { code: errorCode(error) });
     }
 
     if (!connectedUsers || connectedUsers.length === 0) {
@@ -452,6 +557,12 @@ export async function syncAllStravaUsers(): Promise<{
         logger.info(`🔄 Syncing user: ${user.users.name}`);
         const result = await syncUserStravaActivities(user.user_id);
 
+        if (result.paused) {
+          // Pausades medan synken stod i kö bakom låset: hoppas över som om användaren aldrig valts.
+          logger.info(`⏸️ Skipping ${user.users.name}: sync was paused while waiting`);
+          continue;
+        }
+
         if (result.success) {
           totalSyncedUsers++;
           totalNewRuns += result.newRuns || 0;
@@ -463,14 +574,14 @@ export async function syncAllStravaUsers(): Promise<{
           });
           logger.info(`✅ Synced ${result.newRuns} new runs for ${user.users.name}`);
         } else {
-          logger.error(`❌ Failed to sync ${user.users.name}:`, result.error);
+          logger.error(`❌ Failed to sync user ${user.user_id}: ${result.error}`);
           results.push({ userId: user.user_id, userName: user.users.name, error: result.error });
         }
 
         // Small delay between users to stay within Strava rate limits
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (userError) {
-        logger.error(`❌ Error syncing user ${user.users.name}:`, userError);
+        logger.error(`❌ Error syncing user ${user.user_id} (${errorCode(userError)})`);
         results.push({ userId: user.user_id, userName: user.users.name, error: 'Sync failed' });
       }
     }
@@ -487,7 +598,7 @@ export async function syncAllStravaUsers(): Promise<{
     };
 
   } catch (error) {
-    logger.error('❌ Strava sync-all error:', error);
+    logger.error(`❌ Strava sync-all error (${errorCode(error)})`);
     throw error;
   }
 }
@@ -504,10 +615,12 @@ router.get('/last-sync', authenticateJWT, async (_req, res): Promise<void> => {
         users_synced: info.usersSynced,
         total_users: info.totalUsers,
         new_runs: info.newRuns,
+        // Global, a timestamp only; null when no event has been received or the read failed.
+        last_webhook_at: await getLastWebhookAt(),
       }
     });
   } catch (error) {
-    logger.error('❌ Error fetching sync info:', error);
+    logger.error(`❌ Error fetching sync info (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to get sync info' });
   }
 });
@@ -518,7 +631,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
     const supabase = getSupabaseClient();
     const { data: connectedUsers, error } = await supabase
       .from('strava_tokens')
-      .select('user_id, access_token, refresh_token, expires_at, connection_date, users!inner(name)')
+      .select('user_id, users!inner(name)')
       .not('access_token', 'is', null);
 
     if (error || !connectedUsers?.length) {
@@ -530,14 +643,9 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
 
     for (const user of connectedUsers) {
       try {
-        // Refresh token if expired
-        const now = Math.floor(Date.now() / 1000);
-        let accessToken = user.access_token;
-        if (user.expires_at && user.expires_at < now) {
-          const refreshed = await refreshStravaToken(user.refresh_token, user.user_id);
-          if (!refreshed.success) throw new Error('Token refresh failed');
-          accessToken = refreshed.access_token!;
-        }
+        const token = await getValidAccessToken(user.user_id);
+        if (!token.ok) throw new Error('Token refresh failed');
+        const accessToken = token.accessToken;
 
         // Get all existing Strava runs for this user
         const { data: existingRuns } = await supabase
@@ -567,7 +675,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
             const runId = externalIdToRunId.get(externalId);
             const { error } = await supabase.from('runs').update(fields).eq('id', runId);
             if (error) {
-              logger.error(`❌ Failed to update run ${runId} (activity ${externalId}): ${error.message}`, { fields });
+              logger.error(`❌ Failed to update run ${runId} for user ${user.user_id} (${errorCode(error)})`);
               throw error;
             }
           }));
@@ -582,7 +690,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
         summary.push({ user: (user.users as any).name, updated: userUpdated });
         logger.info(`✅ Backfilled ${userUpdated} runs for ${(user.users as any).name}`);
       } catch (userErr) {
-        logger.error(`❌ Backfill failed for user:`, userErr);
+        logger.error(`❌ Backfill failed for user ${user.user_id} (${errorCode(userErr)})`);
         summary.push({ user: (user.users as any).name, updated: 0, error: 'Failed' });
       }
 
@@ -592,7 +700,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
     logger.info(`🎯 Backfill complete: ${totalUpdated} runs updated across ${connectedUsers.length} users`);
     res.json({ success: true, totalUpdated, summary });
   } catch (error) {
-    logger.error('❌ Backfill error:', error);
+    logger.error(`❌ Backfill error (${errorCode(error)})`);
     res.status(500).json({ error: 'Backfill failed' }); return;
   }
 });
@@ -603,50 +711,48 @@ router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promis
     const result = await syncAllStravaUsers();
     res.json(result);
   } catch (error) {
-    logger.error('❌ API Error in /strava/sync-all:', error);
+    logger.error(`❌ API Error in /strava/sync-all (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to sync Strava activities' });
   }
 });
 
-// Helper function to sync activities for a single user
-async function syncUserStravaActivities(userId: string): Promise<{
+interface UserSyncResult {
   success: boolean;
   newRuns?: number;
   totalActivities?: number;
   message?: string;
   error?: string;
-}> {
+  /** The user's sync is paused (ADR 010 decision 7.5): nothing was fetched or imported. */
+  paused?: true;
+}
+
+// Helper function to sync activities for a single user. Every caller (manual POST /sync, the scheduled polling) goes through the
+// per-user lock (ADR 010 decision 6): a poll that listed Strava before a deletion must not insert after it. The lock is not
+// reentrant, so code that already holds it for this user must not call this function (see utils/keyedMutex.ts).
+function syncUserStravaActivities(userId: string): Promise<UserSyncResult> {
+  return withUserLock(userId, () => runUserStravaSync(userId));
+}
+
+async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
   // Äldsta datum bland importerade rundor som aldrig fick sin XP (se självläkningen nedan); consumed = den nya importens omräkning tog över.
   let healFrom: string | null = null;
   let healConsumed = false;
   try {
     const supabase = getSupabaseClient();
 
-    // Get user's Strava tokens (including connection_date)
-    const { data: tokens, error: tokenError } = await supabase
-      .from('strava_tokens')
-      .select('access_token, refresh_token, expires_at, connection_date')
-      .eq('user_id', userId)
-      .single();
-    
-    if (tokenError || !tokens) {
-      return { success: false, error: 'User not connected to Strava' };
+    // Om-kontroll inne i låset: en synk som väntade i kö medan användaren pausade ska inte köra. Ett läsfel faller ut i catch
+    // nedan (misslyckad synk), så en pausad användare aldrig importeras på ett gissat svar.
+    if ((await readPauseState(userId)).paused) {
+      logger.info(`⏸️ Sync skipped for user ${userId}: paused`);
+      return { success: false, error: 'Sync is paused', paused: true };
     }
-    
-    // Check if token is expired and refresh if needed
-    const now = Math.floor(Date.now() / 1000);
-    let accessToken = tokens.access_token;
-    
-    if (tokens.expires_at && tokens.expires_at < now) {
-      logger.info('🔄 Access token expired, refreshing...');
-      
-      const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
-      if (!refreshResult.success) {
-        return { success: false, error: 'Failed to refresh Strava token' };
-      }
-      accessToken = refreshResult.access_token;
+
+    const token = await getValidAccessToken(userId);
+    if (!token.ok) {
+      return { success: false, error: tokenFailureMessage(token) };
     }
-    
+    const accessToken = token.accessToken;
+
     // Get existing runs to avoid duplicates
     const { data: existingRuns, error: runsError } = await supabase
       .from('runs')
@@ -679,22 +785,24 @@ async function syncUserStravaActivities(userId: string): Promise<{
           logger.warn(`⚠️ ${unprocessed.length} imported Strava run(s) have placeholder XP 0 — will reprocess from ${healFrom}`);
         }
       } catch (configError) {
-        logger.error(`❌ Could not evaluate Strava runs for self-heal (user ${userId}):`, configError);
+        logger.error(`❌ Could not evaluate Strava runs for self-heal (user ${userId}, ${errorCode(configError)})`);
       }
     }
     
     logger.info(`💾 Found ${existingRuns?.length || 0} existing Strava runs in database`);
     if (existingRuns && existingRuns.length > 0) {
       existingRuns.forEach((run: any) => {
-        logger.info(`  - External ID: ${run.external_id}, Date: ${run.date}, Distance: ${run.distance}km`);
+        logger.info(`  - Date: ${run.date}, Distance: ${run.distance}km`); // never the Strava id (ADR 010 decision 8.6)
       });
     }
     
     const existingIds = new Set(existingRuns?.map((run: any) => run.external_id) || []);
     
+    const isFirstImport = existingIds.size === 0;
+
     // Calculate smart 'after' timestamp based on most recent imported run
     // Window start is a Stockholm calendar day (stravaLookback), not the server process's local midnight
-    const lookback = stravaLookback((existingRuns ?? []).map((run: any) => run.date), tokens.connection_date, new Date());
+    const lookback = stravaLookback((existingRuns ?? []).map((run: any) => run.date), token.connectionDate, new Date());
     const after = lookback.after;
 
     if (lookback.method === 'recent-run') {
@@ -708,20 +816,12 @@ async function syncUserStravaActivities(userId: string): Promise<{
 
     logger.info(`📅 Final 'after' timestamp: ${new Date(after * 1000).toISOString()}`);
     
-    // Increase per_page to 200 (Strava API max) to catch more activities
-    const stravaResponse = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    
+    // per_page 200 (Strava API max) to catch more activities
+    const stravaResponse = await fetchAthleteActivities(accessToken, after);
+
     if (!stravaResponse.ok) {
-      const errorData = await stravaResponse.json();
-      logger.error('❌ Strava API error:', errorData);
+      // Stravas felkropp läses inte och loggas aldrig: bara statusen.
+      logger.error(`❌ Strava API error for user ${userId} (HTTP ${stravaResponse.status})`);
       return { success: false, error: 'Failed to fetch Strava activities' };
     }
     
@@ -734,7 +834,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
       activities.forEach((activity: any, index: number) => {
         const distance = (activity.distance / 1000).toFixed(2);
         const date = activity.start_date_local.split('T')[0];
-        logger.info(`  ${index + 1}. ${date}: ${distance}km, Type: ${activity.type}, ID: ${activity.id}`);
+        logger.info(`  ${index + 1}. ${date}: ${distance}km, Type: ${activity.type}`); // never the Strava id (ADR 010 decision 8.6)
       });
     }
     
@@ -745,7 +845,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
     );
     
     logger.info(`🏃‍♂️ Found ${runningActivities.length} new running activities`);
-    logger.info(`🚫 Existing activity IDs in database: [${Array.from(existingIds).join(', ')}]`);
+    logger.info(`🚫 Activities already in the database: ${existingIds.size}`);
     
     if (runningActivities.length === 0) {
       return { 
@@ -759,42 +859,16 @@ async function syncUserStravaActivities(userId: string): Promise<{
     // Insert all new runs in parallel (placeholder XP — reprocessRunsFromDate will recalculate)
     logger.info(`🔄 Inserting ${runningActivities.length} new runs in parallel...`);
 
-    const validActivities = runningActivities.filter((a: any) => a.distance / 1000 > 0);
+    const validActivities = runningActivities.filter(exceedsImportDistance);
 
     const insertResults = await Promise.allSettled(
-      validActivities.map(async (activity: any) => {
-        const distance = activity.distance / 1000;
-        const date = activity.start_date_local.split('T')[0];
-        // Fetch detailed activity to get splits_metric for pace_std_dev
-        const detailed = await fetchDetailedActivity(activity.id, accessToken);
-        const fields = extractExtendedFields(detailed ?? activity);
-        const { data: insertedRun, error } = await supabase.from('runs').insert({
-          user_id: userId,
-          date,
-          distance,
-          source: 'strava',
-          external_id: activity.id.toString(),
-          ...fields,
-          // XP placeholders — recalculated by reprocessRunsFromDate
-          base_xp: 0,
-          km_xp: 0,
-          distance_bonus: 0,
-          streak_bonus: 0,
-          multiplier: 1.0,
-          streak_day: 1,
-          xp_gained: 0,
-          created_at: new Date().toISOString()
-        }).select('id, external_id, start_lat, start_lng, start_time, moving_time, is_treadmill').single();
-        if (error) {
-          logger.error(`❌ Failed to insert run (activity ${activity.id}): ${error.message}`, { fields });
-          throw error;
-        }
-        return insertedRun;
-      })
+      validActivities.map((activity: any) => importStravaActivity(userId, activity, accessToken))
     );
 
-    const fulfilledResults = insertResults.filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled');
-    const importedRuns = fulfilledResults.length;
+    // 'exists' = another import (the webhook worker) got there first; 'skipped_gone' = the detail call said 404 (deleted or private,
+    // a stale list): neither new nor a failure, and nothing to recalculate.
+    const importedResults = insertResults.flatMap(r => (r.status === 'fulfilled' && r.value.status === 'imported' ? [r.value.run] : []));
+    const importedRuns = importedResults.length;
     const failedCount = insertResults.filter(r => r.status === 'rejected').length;
     if (failedCount > 0) {
       logger.error(`❌ ${failedCount} runs failed to insert`);
@@ -804,7 +878,13 @@ async function syncUserStravaActivities(userId: string): Promise<{
 
     if (importedRuns > 0) {
       // Reprocess from earliest new run date — one pass fixes streaks + XP for all affected runs
+      // All listed activities count as before (an 'exists' one too), except those the import skipped as gone: nothing was written
+      // for them, so they must not pull the recalculation further back. insertResults is in the order of validActivities.
       const dates = validActivities
+        .filter((_: any, index: number) => {
+          const result = insertResults[index];
+          return !(result.status === 'fulfilled' && result.value.status === 'skipped_gone');
+        })
         .map((a: any) => a.start_date_local.split('T')[0])
         .sort();
       // Läkningen (om någon) ingår i samma omräkning: det tidigaste av läkningsdatumet och importdatumet, en gång.
@@ -818,19 +898,23 @@ async function syncUserStravaActivities(userId: string): Promise<{
         await reprocessRunsFromDate(userId, earliestDate);
       } catch (e) {
         reprocessError = e;
-        logger.error(`❌ Reprocess after Strava import failed for user ${userId}:`, e);
+        logger.error(`❌ Reprocess after Strava import failed for user ${userId} (${errorCode(e)})`);
       }
 
       // Fetch weather before title calculation so all data is available
-      const newRunData = fulfilledResults.map(r => r.value).filter(Boolean);
+      const newRunData: ImportedRun[] = importedResults.filter(Boolean);
       try {
         await WeatherService.fetchAndSaveWeatherForRuns(newRunData);
       } catch (weatherError) {
         if (!reprocessError) throw weatherError;
-        logger.error(`❌ Weather fetch failed after failed reprocess for user ${userId}:`, weatherError);
+        logger.error(`❌ Weather fetch failed after failed reprocess for user ${userId} (${errorCode(weatherError)})`);
       }
 
-      await calculateUserTotals(userId);
+      // The first import after connecting (the user has no Strava run yet) is the history import: it can lift XP over several members
+      // at once, and no single run caused it, so it writes no rank_passed. Every later sync imports single new activities as usual.
+      // A missed notification for a first run found by a poll is the accepted price (never a false one); the webhook path is unaffected.
+      if (isFirstImport) await calculateUserTotals(userId, { emitRankNews: false });
+      else await calculateUserTotals(userId);
 
       // Check event qualification for each new run (fire-and-forget)
       for (const run of newRunData) {
@@ -841,8 +925,8 @@ async function syncUserStravaActivities(userId: string): Promise<{
           runId: run.id,
           runDate: activity.start_date_local.split('T')[0],
           distanceKm: activity.distance / 1000,
-          isTreadmill: activity.trainer === true,
-        }).catch((e: unknown) => logger.error('❌ checkEventQualification (strava) error:', e));
+          isTreadmill: isTreadmillActivity(activity),
+        }).catch((e: unknown) => logger.error(`❌ checkEventQualification (strava) error for user ${userId} (${errorCode(e)})`));
       }
 
       if (reprocessError) {
@@ -863,7 +947,7 @@ async function syncUserStravaActivities(userId: string): Promise<{
     };
 
   } catch (error) {
-    logger.error('❌ Error syncing Strava activities:', error);
+    logger.error(`❌ Error syncing Strava activities for user ${userId} (${errorCode(error)})`);
     return { success: false, error: 'Failed to sync activities' };
   } finally {
     // Ingen ny import tog över läkningen (inga nya rundor, Strava-API-fel, alla inserts föll): läk här, best-effort.
@@ -873,74 +957,9 @@ async function syncUserStravaActivities(userId: string): Promise<{
         await reprocessRunsFromDate(userId, healFrom);
         await calculateUserTotals(userId);
       } catch (healError) {
-        logger.error(`❌ Self-heal reprocess from ${healFrom} failed for user ${userId}:`, healError);
+        logger.error(`❌ Self-heal reprocess from ${healFrom} failed for user ${userId} (${errorCode(healError)})`);
       }
     }
-  }
-}
-
-// Helper function to refresh Strava token
-async function refreshStravaToken(refreshToken: string, userId: string): Promise<{
-  success: boolean;
-  access_token?: string;
-  error?: string;
-}> {
-  try {
-    const clientId = process.env.STRAVA_CLIENT_ID;
-    const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-    
-    if (!clientId || !clientSecret) {
-      return { success: false, error: 'Strava credentials not configured' };
-    }
-    
-    const response = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token'
-      })
-    });
-    
-    const tokenData = await response.json();
-    
-    if (!response.ok) {
-      logger.error('❌ Token refresh failed:', tokenData);
-      return { success: false, error: 'Failed to refresh token' };
-    }
-    
-    // Update tokens in database. Strava har redan roterat refresh-tokenen i
-    // och med svaret ovan — misslyckas skrivningen är den gamla tokenen död
-    // och kopplingen förlorad. Därför: försök igen en gång och larma HÖGT.
-    const supabase = getSupabaseClient();
-    const newTokens = {
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expires_at: tokenData.expires_at
-    };
-
-    let { error } = await supabase.from('strava_tokens').update(newTokens).eq('user_id', userId);
-    if (error) {
-      logger.error('⚠️ Token save failed, retrying once:', error);
-      ({ error } = await supabase.from('strava_tokens').update(newTokens).eq('user_id', userId));
-    }
-
-    if (error) {
-      logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel:`, error);
-      return { success: false, error: 'Failed to save new tokens' };
-    }
-    
-    logger.info('✅ Strava token refreshed successfully');
-    return { 
-      success: true, 
-      access_token: tokenData.access_token 
-    };
-    
-  } catch (error) {
-    logger.error('❌ Token refresh error:', error);
-    return { success: false, error: 'Token refresh failed' };
   }
 }
 

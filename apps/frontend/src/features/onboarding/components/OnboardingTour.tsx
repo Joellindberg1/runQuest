@@ -33,10 +33,27 @@ function isVisible(selector: string): boolean {
   return true;
 }
 
+const RESIZE_SETTLE_MS = 150;
+
 export function OnboardingTour({ steps, onDone, delayMs = 800 }: OnboardingTourProps) {
   const doneRef = useRef(false);
 
   useEffect(() => {
+    let running: ReturnType<typeof driver> | null = null;
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+
+    // Ett ankare kan bytas ut medan steget visas (/news: kortet i kolumnen ↔ kugghjulsknappen vid 1024 px). driver.js slår upp selektorn bara
+    // när ett steg börjar, så markeringen skulle ligga kvar på det borttagna elementet. Kontrollen väntar ut att React hunnit rendera om
+    // (brytpunkten läses via matchMedia, som kan svara efter resize-händelsen) och visar sedan om samma steg mot det nya elementet.
+    const followAnchor = () => {
+      const current = running?.getActiveElement();
+      if (running && current && !current.isConnected) running.drive(running.getActiveIndex());
+    };
+    const onResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(followAnchor, RESIZE_SETTLE_MS);
+    };
+
     const t = setTimeout(() => {
 
       const startTour = () => {
@@ -70,12 +87,22 @@ export function OnboardingTour({ steps, onDone, delayMs = 800 }: OnboardingTourP
             popover: { title: s.title, description: s.description },
           })),
         });
+        running = driverObj;
+        window.addEventListener('resize', onResize);
         driverObj.drive();
       };
       startTour();
     }, delayMs);
 
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(resizeTimer);
+      window.removeEventListener('resize', onResize);
+      // Avmonteras mitt i turen (webbläsarens Back, route-byte) ska varken dialogen eller `driver-active` ligga kvar. destroy() anropar inte
+      // onDestroyStarted, så turen markeras inte sedd av att man lämnar sidan. Efter Done/Esc är driver redan nedplockad.
+      if (running?.isActive()) running.destroy();
+      running = null;
+    };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;

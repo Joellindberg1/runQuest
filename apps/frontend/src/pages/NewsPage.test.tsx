@@ -4,7 +4,8 @@ import { Route, Routes } from 'react-router-dom';
 import type { NewsItem } from '@runquest/shared';
 import NewsPage from './NewsPage';
 import { RQ_ICON_PATHS } from '@/shared/components/icons';
-import { TOUR_NEWS_V1 } from '@/features/onboarding/featureTourSteps';
+import { TOUR_NEWS_V2 } from '@/features/onboarding/featureTourSteps';
+import { NEWS_FILTERS } from '@/features/news/newsModel';
 import { ADAM, DAN, ME, NICK, NOW_ISO, at, badgeEarned, challengeWon, eventOpen, item, levelUp, newsServer, streakBroken, titleTaken } from '@/features/news/news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
@@ -12,7 +13,9 @@ import { renderWithApp } from '@/test/renderApp';
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turen startar driver.js efter en timer; ankar-vakten nedan kollar DOM:en i stället.
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({
-  FeatureTour: ({ slug, steps }: { slug: string; steps: unknown[] }) => <div data-testid="feature-tour" data-slug={slug} data-steps={steps.length} />,
+  FeatureTour: ({ slug, steps }: { slug: string; steps: { element?: string }[] }) => (
+    <div data-testid="feature-tour" data-slug={slug} data-steps={steps.length} data-anchors={steps.map((step) => step.element ?? '').join('|')} />
+  ),
 }));
 
 const MOBILE = 390;
@@ -258,7 +261,7 @@ describe('Pack News — filter (?type=)', () => {
     expect(filterButton("Levels")).toHaveAttribute("aria-pressed", "false");
     expect(filterButton("Badges").querySelector("svg path")?.getAttribute("d")).toBe(RQ_ICON_PATHS.shield[0]);
     const labels = [...screen.getByRole("group", { name: "Filter" }).querySelectorAll(".rq-news-filter__name")].map((el) => el.textContent);
-    expect(labels).toEqual(["Titles", "Challenges", "Events", "Levels", "Badges", "Streaks"]);
+    expect(labels).toEqual(['Titles', 'Challenges', 'Ranks', 'Events', 'Levels', 'Badges', 'Streaks']);
     expect(filterButton("Badges").querySelector(".rq-news-filter__count")?.firstChild?.textContent).toBe("1");
 
     fireEvent.click(filterButton("Levels"));
@@ -277,8 +280,8 @@ describe('Pack News — filter (?type=)', () => {
   it('chip-räknarna är antal per kategori i det laddade (ofiltrerade) fönstret — och står kvar när ett filter visas', async () => {
     renderNews('/news?type=streaks');
     await waitFor(() => expect(rowTexts()).toEqual(['Daniel lost a 27-day streak — multiplier back to 1.0×']));
-    const counts = Object.fromEntries(['Titles', 'Challenges', 'Events', 'Levels', 'Badges', 'Streaks'].map((label) => [label, filterButton(label).querySelector('.rq-news-filter__count')?.firstChild?.textContent]));
-    expect(counts).toEqual({ Titles: '2', Challenges: '1', Events: '2', Levels: '3', Badges: '0', Streaks: '1' });
+    const counts = Object.fromEntries(NEWS_FILTERS.map((filter) => filter.label).map((label) => [label, filterButton(label).querySelector('.rq-news-filter__count')?.firstChild?.textContent]));
+    expect(counts).toEqual({ Titles: '2', Challenges: '1', Ranks: '0', Events: '2', Levels: '3', Badges: '0', Streaks: '1' });
     // Räknarens förklaring för den som hovrar: antal av det laddade fönstret.
     expect(filterButton('Titles')).toHaveAttribute('title', '2 in the latest 9');
     expect(filterButton('Levels')).toHaveAttribute('title', '3 in the latest 9');
@@ -296,7 +299,8 @@ describe('Pack News — filter (?type=)', () => {
   it('desktop: samma knappar (filterkortet) — en DOM, ingen dubblering', async () => {
     renderNews('/news', DESKTOP);
     await screen.findByText('7 unread');
-    expect(screen.getAllByRole('button', { name: /^Titles/ })).toHaveLength(1);
+    // Filterchippet är en tryckknapp; panelens sektionsrubrik "Titles" i kolumnen är en annan knapp (aria-expanded).
+    expect(screen.getAllByRole('button', { name: /^Titles/, pressed: false })).toHaveLength(1);
     expect(screen.getByRole('group', { name: 'Filter' })).toBeInTheDocument();
   });
 });
@@ -362,39 +366,41 @@ describe('Pack News — laddning, tomt och fel', () => {
 });
 
 describe('Pack News — tour', () => {
-  it('tomt flöde (prod före backfill): ingen tour monteras — den skulle bli flytande rutor över en tom skärm och ändå markeras sedd', async () => {
+  // Tomt flöde (prod före backfill): stegen skulle bli flytande rutor över en tom skärm, och slugen markeras ändå sedd för alltid.
+  it('turen startar inte när flödet är tomt', async () => {
     setup([]);
     renderNews();
     await screen.findByRole('heading', { name: 'No news yet — go make some' });
     expect(screen.queryByTestId('feature-tour')).toBeNull();
   });
 
-  it('mark-read-steget finns bara när något är oläst (4 steg med oläst, 3 utan)', async () => {
-    renderNews();
-    await screen.findByText('7 unread');
-    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', '4');
-  });
+  it('mark-read-steget visas bara när något är oläst', async () => {
+    const markReadStep = '[data-tour="news-mark-read"]';
+    const anchors = () => screen.getByTestId('feature-tour').getAttribute('data-anchors')?.split('|') ?? [];
 
-  it('inget oläst: turen har tre steg', async () => {
+    const withUnread = renderNews();
+    await screen.findByText('7 unread');
+    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', String(TOUR_NEWS_V2.length));
+    expect(anchors()).toContain(markReadStep);
+    withUnread.unmount();
+
     setup(FEED(), 20);
     renderNews();
     await screen.findByText('All caught up');
-    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', '3');
+    expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-steps', String(TOUR_NEWS_V2.length - 1));
+    expect(anchors()).not.toContain(markReadStep);
   });
 
-  it("filtersteget nämner alla sex slag, inklusive badges", () => {
-    const step = TOUR_NEWS_V1.find((candidate) => candidate.element === '[data-tour="news-filter"]');
-    expect(step?.description).toContain("titles, challenges, events, levels, badges or streaks");
-  });
-
-  it('turen är tour_news_v1 och ankarna finns i sidan (mobil och desktop)', async () => {
+  it('turen är tour_news_v2 och ankarna news-feed, news-filter, news-settings och news-mark-read finns i sidan (mobil och desktop)', async () => {
     for (const width of [MOBILE, DESKTOP]) {
       const view = renderNews('/news', width);
       await screen.findByText('7 unread');
-      expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-slug', 'tour_news_v1');
-      const anchors = TOUR_NEWS_V1.flatMap((step) => (step.element ? [step.element] : []));
-      expect(anchors.length).toBe(3);
+      expect(screen.getByTestId('feature-tour')).toHaveAttribute('data-slug', 'tour_news_v2');
+      const anchors = TOUR_NEWS_V2.flatMap((step) => (step.element ? [step.element] : []));
+      expect(anchors).toEqual(['[data-tour="news-feed"]', '[data-tour="news-filter"]', '[data-tour="news-settings"]', '[data-tour="news-mark-read"]']);
       for (const selector of anchors) expect(document.querySelector(selector), selector).not.toBeNull();
+      // Exakt ett inställningsankare: kortet i kolumnen på desktop, kugghjulsknappen på mobil — aldrig båda.
+      expect(document.querySelectorAll('[data-tour="news-settings"]')).toHaveLength(1);
       view.unmount();
     }
   });

@@ -17,6 +17,7 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
+import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb } from './helpers/fakeDb.js';
@@ -111,12 +112,67 @@ describe('strava routes', () => {
       json: async () => ({ access_token: access, refresh_token: refresh, expires_at: 1900000000, athlete: { id: 7 } }),
     }));
 
-    const res = await server.request('POST', '/api/strava/callback', { token: mintToken(), body: { code: 'oauth-code' } });
+    const res = await server.request('POST', '/api/strava/callback', { token: mintToken(), body: { code: 'oauth-code', consent_version: STRAVA_CONSENT_VERSION } });
     expect(res.status).toBe(200);
 
     const out = logged();
     expect(out).not.toContain(access.slice(0, 5));
     expect(out).not.toContain(refresh.slice(0, 5));
     expect(out).not.toContain('oauth-code');
+  });
+});
+
+describe('strava webhook routes', () => {
+  const verifyToken = 'WEBHOOKVERIFYTOKEN0123456789abcdef';
+  const title = 'Sunrise intervals at Hemliga sjon';
+  const bodyMarker = 'BODYMARKER-5f3a9c';
+
+  afterEach(() => { delete process.env.STRAVA_WEBHOOK_VERIFY_TOKEN; delete process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID; });
+
+  it('no log line contains the verify token, an activity title or the request body', async () => {
+    process.env.STRAVA_WEBHOOK_VERIFY_TOKEN = verifyToken;
+    process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID = '4242';
+    const event = (over: Record<string, unknown> = {}) => ({
+      object_type: 'activity', object_id: 9001, aspect_type: 'update', owner_id: 777, subscription_id: 4242, event_time: 1_760_000_000,
+      updates: { title, private: 'true' }, marker: bodyMarker, ...over,
+    });
+    const send = (body: unknown) => server.request('POST', '/api/strava/webhook', { body });
+    const tokens = [{ user_id: 'user-777', strava_athlete_id: 777 }];
+
+    // verifiering: rätt token och fel token
+    useDb({ strava_tokens: tokens, strava_webhook_events: [] });
+    const verify = (token: string) => server.request('GET', `/api/strava/webhook?hub.mode=subscribe&hub.verify_token=${token}&hub.challenge=abc`);
+    expect((await verify(verifyToken)).status).toBe(200);
+    expect((await verify(`${verifyToken}WRONG`)).status).toBe(403);
+
+    // alla vägar genom POST: lagrad, dubblett, fel prenumeration, fel form, okänd typ, okänd ägare, för stor, kön full, databasfel
+    expect((await send(event())).status).toBe(200);
+    expect((await send(event())).status).toBe(200);
+    expect((await send(event({ subscription_id: 1 }))).status).toBe(403);
+    expect((await send(event({ object_id: 'not-a-number' }))).status).toBe(400);
+    expect((await send(event({ aspect_type: 'archive' }))).status).toBe(200);
+    expect((await send(event({ owner_id: 31337 }))).status).toBe(200);
+    expect((await send(event({ filler: 'x'.repeat(11 * 1024) }))).status).toBe(413);
+
+    useDb({ strava_tokens: tokens, strava_webhook_events: Array.from({ length: 200 }, (_, n) => ({ dedupe_key: `k${n}`, owner_id: 777, status: 'pending' })) });
+    expect((await send(event({ object_id: 9002 }))).status).toBe(200);
+
+    useDb({ strava_tokens: tokens, strava_webhook_events: [] }, { failWhen: (q) => (q.mutation === 'upsert' ? { message: `insert failed for ${title} ${bodyMarker}` } : null) });
+    expect((await send(event({ object_id: 9003 }))).status).toBe(500);
+    useDb({ strava_tokens: tokens }, { errors: { strava_tokens: { message: `lookup failed ${bodyMarker}` } } });
+    expect((await send(event({ object_id: 9004 }))).status).toBe(500);
+
+    // prenumerations-id:t inte satt: händelsen släpps med en varning
+    delete process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
+    expect((await send(event())).status).toBe(200);
+
+    const out = logged();
+    expect(out).not.toContain(verifyToken);
+    expect(out).not.toContain('WEBHOOKVERIFYTOKEN');
+    expect(out).not.toContain(title);
+    expect(out).not.toContain('Hemliga');
+    expect(out).not.toContain(bodyMarker);
+    expect(out).toContain('31337'); // sanity: det som får loggas (ägarens id) loggas
+    expect(loggedObjects().some((o: any) => 'body' in o || 'updates' in o || 'title' in o)).toBe(false);
   });
 });

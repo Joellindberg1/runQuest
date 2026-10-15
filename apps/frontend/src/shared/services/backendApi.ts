@@ -4,9 +4,11 @@ import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
   PublicStatsData, PublicStatsApiResponse,
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
-  NewsApiResponse, NewsMeta, NewsQuery, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
+  NewsApiResponse, NewsMeta, NewsQuery, NewsReadApiResponse, NewsReadRequest, NewsReadResponse, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
+  SettingsApiResponse, SettingsMeta, SettingsResponse, UpdateSettingsRequest,
   AdminWaitlistData,
   WaitlistSignupRequest,
+  StravaCallbackRequest, StravaStatusResponse, StravaSyncPausedRequest, StravaSyncPausedResponse,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
@@ -588,14 +590,16 @@ class BackendApiService {
     }
   }
 
-  async getStravaStatus(): Promise<ApiResponse<{ connected: boolean; expired: boolean; expires_at?: number; auto_refreshed?: boolean; refresh_failed?: boolean; connection_date?: string; last_sync?: string }>> {
+  async getStravaStatus(): Promise<ApiResponse<StravaStatusResponse>> {
     return this.authenticatedRequest('/strava/status');
   }
 
-  async connectStrava(code: string): Promise<ApiResponse> {
+  /** `consentVersion` är versionen användaren godkände före OAuth-omdirigeringen; saknas den utelämnas nyckeln och servern svarar 400 "Consent required". */
+  async connectStrava(code: string, consentVersion?: StravaCallbackRequest['consent_version']): Promise<ApiResponse> {
+    const body: Pick<StravaCallbackRequest, 'code'> & Partial<StravaCallbackRequest> = { code, consent_version: consentVersion };
     return this.authenticatedRequest('/strava/callback', {
       method: 'POST',
-      body: JSON.stringify({ code }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -635,6 +639,18 @@ class BackendApiService {
     });
   }
 
+  /** PUT /strava/sync-paused: pausar eller slår på synken. Svaret är läget efter anropet (ADR 007-formen packas upp här). */
+  async setStravaSyncPaused(paused: boolean): Promise<ApiResponse<StravaSyncPausedResponse['data']>> {
+    const body: StravaSyncPausedRequest = { paused };
+    const result = await this.authenticatedRequest<StravaSyncPausedResponse>('/strava/sync-paused', { method: 'PUT', body: JSON.stringify(body) });
+    if (!result.success || !result.data) return { success: false, error: result.error || 'Request failed' };
+    return { success: true, data: result.data.data };
+  }
+
+  /**
+   * DELETE /strava/disconnect. Kontraktet är `{ success, message }` och ändras inte av bortkopplingen i backend (ADR 010 beslut 7.4): den
+   * ber Strava återkalla åtkomsten och raderar Stravarundorna. Klienten utgår aldrig från att rundorna är borta förrän den läst om dem.
+   */
   async disconnectStrava(): Promise<ApiResponse> {
     return this.authenticatedRequest('/strava/disconnect', {
       method: 'DELETE',
@@ -655,6 +671,8 @@ class BackendApiService {
     users_synced?: number;
     total_users?: number;
     new_runs?: number;
+    /** The newest webhook event received, or null (none yet, or it could not be read). Global, not the user's. */
+    last_webhook_at?: string | null;
   }>> {
     try {
       const response = await fetch(`${this.baseUrl}/strava/last-sync`, {
@@ -1128,6 +1146,8 @@ class BackendApiService {
   /**
    * GET /news — händelseloggen, nyast först (keyset: `before` XOR `after`, aldrig båda; `type` = kommaseparerade ActivityType).
    * `meta` bär unread_count (alla typer), last_seen_id och has_more/next_before; `after`-lägets semantik står i ADR 008 addendum 4.
+   * `involves: 'me'` (ADR 011 beslut 9, servern sedan RUN-188) begränsar till rader där betraktaren är aktör/target (eller deltar i ett event). Exakt `me`
+   * skickas (allt annat ger 400); `meta.unread_count` följer inte filtret, och `has_more`/`next_before` gäller det filtrerade flödet.
    */
   async getNews(query: NewsQuery = {}): Promise<ApiResponse<NewsResponse> & { meta?: NewsMeta }> {
     const params = new URLSearchParams();
@@ -1135,6 +1155,7 @@ class BackendApiService {
     if (query.before !== undefined) params.set('before', String(query.before));
     if (query.after !== undefined) params.set('after', String(query.after));
     if (query.type) params.set('type', query.type);
+    if (query.involves) params.set('involves', query.involves);
     const qs = params.toString();
     const result = await this.newsRequest<NewsApiResponse>('GET', `/news${qs ? `?${qs}` : ''}`, undefined, 'Failed to fetch news');
     if (!result.ok) return { success: false, error: result.error };
@@ -1148,8 +1169,37 @@ class BackendApiService {
     return { success: true, data: result.body.data };
   }
 
+  /** POST /news/read — kvittera enskilda rader (1–50 unika id:n). Svaret är olästa efter kvitteringen (mättad vid 500). */
+  async markNewsRead(ids: number[]): Promise<ApiResponse<NewsReadResponse>> {
+    const body: NewsReadRequest = { ids };
+    const result = await this.newsRequest<NewsReadApiResponse>('POST', '/news/read', body, 'Failed to mark the rows as read');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data };
+  }
+
+  // ─── Användarinställningar (ADR 011 beslut 2) ─────────────────────────────
+
+  /** GET /settings — alla nycklar i användarens scope, upplösta (saknad nyckel = default), och `meta.customised`. */
+  async getSettings(): Promise<ApiResponse<SettingsResponse> & { meta?: SettingsMeta }> {
+    const result = await this.newsRequest<SettingsApiResponse>('GET', '/settings', undefined, 'Failed to fetch settings');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data, meta: result.body.meta };
+  }
+
+  /**
+   * PUT /settings — patch av enskilda nycklar (`null` = återställ till default). Servern svarar med HELA tillståndet, så svaret kan skrivas rakt in
+   * i cachen. Ett 500 kan betyda att skrivningen lyckades men återläsningen föll: anroparen litar därför inte på ett fel som sanning om lagringen.
+   */
+  async putSettings(values: UpdateSettingsRequest['values']): Promise<ApiResponse<SettingsResponse> & { meta?: SettingsMeta }> {
+    const body: UpdateSettingsRequest = { values };
+    const result = await this.newsRequest<SettingsApiResponse>('PUT', '/settings', body, 'Failed to save settings');
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true, data: result.body.data, meta: result.body.meta };
+  }
+
+  // Delad hjälpare för de personliga anropen (nyheter och inställningar): token, 401-hantering och ApiResponse-formen.
   private async newsRequest<T>(
-    method: 'GET' | 'POST', path: string, body: unknown, failure: string,
+    method: 'GET' | 'POST' | 'PUT', path: string, body: unknown, failure: string,
   ): Promise<{ ok: true; body: T } | { ok: false; error: string }> {
     try {
       const token = this.getToken();

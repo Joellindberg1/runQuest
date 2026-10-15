@@ -4,6 +4,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './levelService.js';
 import { toStockholmDate, tomorrowStockholm } from '../utils/dateUtils.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
+import { recordRankPassesForXp } from './rankNews.js';
 import { buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
 
 // ─── Pack News-hjälpare (ADR 008) ─────────────────────────────────────────────
@@ -287,6 +288,8 @@ export async function checkEventQualification(params: {
             const newLevel = await getLevelFromXP(userData.total_xp);
             await supabase.from('users').update({ current_level: newLevel }).eq('id', params.userId);
             await recordLevelUps(params.userId, prevLevel, newLevel, userData.group_id ?? null);
+            // rank_passed (xp): increment_event_xp har redan höjt total_xp, så föregående värde är total_xp minus belöningen.
+            if (rewardXp > 0) await recordRankPassesForXp(params.userId, userData.group_id ?? null, userData.total_xp - rewardXp);
           }
 
           logger.info(`✅ [EventQual] User ${params.userId} qualified for participation event ${event.id} (+${rewardXp} XP)`);
@@ -436,6 +439,7 @@ export async function settleCompetitionEvents(): Promise<void> {
 
       // Dela ut XP per placering
       const payoutFailures: string[] = [];
+      const paidOut: Array<{ userId: string; groupId: string | null; prevXp: number }> = [];
       for (let i = 0; i < scored.length; i++) {
         const { entryId, userId, totalValue } = scored[i];
         const xp = i < xpPerRank.length ? xpPerRank[i] : 0;
@@ -467,9 +471,17 @@ export async function settleCompetitionEvents(): Promise<void> {
             const newLevel = await getLevelFromXP(userData.total_xp);
             await supabase.from('users').update({ current_level: newLevel }).eq('id', userId);
             await recordLevelUps(userId, prevLevel, newLevel, userData.group_id ?? null);
+            // increment_event_xp har redan höjt total_xp: föregående värde för rank_passed är total_xp minus utbetalningen.
+            paidOut.push({ userId, groupId: userData.group_id ?? null, prevXp: userData.total_xp - xp });
           }
           logger.info(`✅ [Settlement] User ${userId} rank ${rank} for event ${event.id} (+${xp} XP, ${totalValue.toFixed(1)} ${event.metric})`);
         }
+      }
+
+      // rank_passed (xp) först NÄR ALLA har fått sin XP, mot slutställningen. Mitt i loopen har senare mottagare ingen XP än, och en
+      // tidig mottagare kunde då "passera" någon som sedan går förbi hen igen: en falsk nyhet. Varje mottagare med utdelad XP, en gång.
+      for (const payout of paidOut) {
+        await recordRankPassesForXp(payout.userId, payout.groupId, payout.prevXp);
       }
 
       // Pack News: efter utbetalningen. Topp 3 med faktiskt utdelad XP; event_closed:<id> ger exakt en rad.
@@ -480,6 +492,8 @@ export async function settleCompetitionEvents(): Promise<void> {
           {
             participants: scored.length,
             members: members ?? scored.length,
+            // Alla med en entry, även de utan XP (participants är samma lista: scored byggs av entries).
+            entrantIds: participants.map((p: any) => p.user_id as string),
             top: scored.slice(0, 3).map((s, i) => ({ user_id: s.userId, rank: i + 1, xp: xpPerRank[i] ?? 0 })),
           },
           now,
@@ -595,14 +609,14 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
     const closedIds = (closed ?? []).map((e: any) => e.id);
     if (closedIds.length === 0) return;
 
-    // participants = antal event_entries per event; members = gruppstorlek (en count per grupp)
+    // participants = antal event_entries per event och entrant_ids = deras user_id, i samma fråga; members = gruppstorlek (en count per grupp)
     const { data: entries, error: entriesErr } = await supabase
       .from('event_entries')
-      .select('event_id')
+      .select('event_id, user_id')
       .in('event_id', closedIds);
     if (entriesErr) throw entriesErr;
-    const participantsByEvent = new Map<string, number>();
-    for (const en of entries ?? []) participantsByEvent.set(en.event_id, (participantsByEvent.get(en.event_id) ?? 0) + 1);
+    const entrantsByEvent = new Map<string, string[]>();
+    for (const en of entries ?? []) entrantsByEvent.set(en.event_id, [...(entrantsByEvent.get(en.event_id) ?? []), en.user_id as string]);
 
     const membersByGroup = new Map<string, number | null>();
     for (const groupId of new Set<string>((closed ?? []).map((e: any) => e.group_id as string))) {
@@ -613,11 +627,12 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
     for (const e of closed ?? []) {
       const row = toActivityEvent(e, asTemplate(e.event_templates));
       if (!row) continue;
-      const participants = participantsByEvent.get(e.id) ?? 0;
+      const entrantIds = entrantsByEvent.get(e.id) ?? [];
+      const participants = entrantIds.length;
       if (participants === 0) continue; // inga deltagare → ingen nyhet (Lead-beslut)
       drafts.push(buildEventClosedDraft(
         row,
-        { participants, members: membersByGroup.get(e.group_id) ?? participants },
+        { participants, members: membersByGroup.get(e.group_id) ?? participants, entrantIds },
         row.ends_at, // participation avslutas av klockan; settled_at sätts inte här
       ));
     }

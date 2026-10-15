@@ -20,7 +20,8 @@ att sänka kraven.
 | Push till `main` | Triggar Railway-deploy av BÅDA tjänsterna = produktionsdeploy. Kräver grön verifiering lokalt (backend-tester + frontend-build) före push |
 | Ändra Railway-variabler för tjänsterna | **ask**; hemliga värden (secret keys) klistras aldrig i chatt/kod — ägaren lägger in dem i Railway-UI:t själv |
 | Radera data i produktion (users/runs/etc.) | **ask**, alltid med exakt omfattning angiven |
-| Backfill-skript mot produktion (`backfill:activity-log` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
+| Backfill-skript mot produktion (`backfill:activity-log`, `backfill:strava-athlete` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
+| Stravas webhook-prenumeration (`strava:webhook create` och `strava:webhook delete`, `--apply`) | **ask**. Prenumerationen är EN per Strava-app och gemensam för alla miljöer, så en `create` eller `delete` gäller även de andra miljöerna; en `delete` stoppar alla nya händelser. Utan `--apply` är båda dry-run (fritt) och `view` är bara läsning. Skriptet skriver ut vad det gör och sätter aldrig en Railway-variabel |
 | Force-push | **never_allowed** |
 | Hemligheter i kod eller committade filer | **never_allowed** — env-variabler är enda vägen (lärdom: PAT- och service role-läckorna, åtgärdade 2026-10-03/04) |
 
@@ -40,6 +41,22 @@ att sänka kraven.
   2026-10-12) tar bort den sista anonpolicyn. En frontend-rollback till v0.5.3
   eller äldre kräver att 040 rullas tillbaka (rollback-SQL i filhuvudet).
   Ingen anon-skrivning någonstans — skrivningar går via backend.
+- v0.7.0 lägger till tre tabeller på samma baslinje (migration 046, 048 och 049):
+  `strava_webhook_events`, `user_settings` och `news_read` har RLS på, inga policyer
+  och `revoke all` från anon och authenticated; de läses och skrivs bara av backend
+  (service role). Funktionen `claim_strava_webhook_events` får bara köras av
+  `service_role` (execute är indraget från public, anon och authenticated).
+- `POST /api/strava/webhook` är appens första oautentiserade, skrivande endpoint som
+  anropas av en extern tjänst (väntelistans `POST /api/waitlist` är också publik, men
+  anropas av besökarens webbläsare). Strava signerar inte händelserna, så skyddet är
+  ADR 010 beslut 1 och 3: händelsen är bara en signal och aktiviteten hämtas alltid
+  från Strava (en radering verifieras mot Strava före varje borttagning);
+  `subscription_id` måste vara lika med `STRAVA_WEBHOOK_SUBSCRIPTION_ID`; en okänd
+  ägare kastas utan rad; ett tak per ägare stoppar översvämning; bara vitlistade
+  `updates` sparas. Det finns ingen IP-gräns (Lead-beslut 2026-10-14): alla händelser
+  kommer från Stravas adresser, så en gräns skulle strypa riktiga leveranser.
+- `GET /api/strava/webhook/health` är admin (`requireAdmin`) och visar bara globala
+  köräknare, ingen gruppdata. Den flyttas till supportrollen när RUN-267 landar.
 - Claude Codes Supabase-MCP är låst till RunQuest-projektet via `--project-ref`
   i `.mcp.json` och en finkornig PAT (Projects: read, Database: read/write).
 

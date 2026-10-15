@@ -13,6 +13,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import {
   activityKeys,
+  buildChallengeAcceptedDraft,
   buildChallengeReceivedDraft,
   buildChallengeSettledDraft,
   buildLevelUpDrafts,
@@ -38,6 +39,12 @@ export function toActivityRow(d: ActivityDraft) {
   };
 }
 
+/** Felkoden ur ett kastat/returnerat fel — aldrig meddelande eller detaljer (kan bära hela raden, ADR 010 §8.6). */
+function errorCode(e: unknown): string | null {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : null;
+}
+
 /** Skriver rader; dubbletter (samma dedupe_key) ignoreras tyst. Kastar aldrig. */
 export async function recordActivities(entries: ReadonlyArray<ActivityDraft>): Promise<void> {
   if (entries.length === 0) return;
@@ -46,10 +53,11 @@ export async function recordActivities(entries: ReadonlyArray<ActivityDraft>): P
       .from(ACTIVITY_LOG_TABLE)
       .upsert(entries.map(toActivityRow), { onConflict: 'dedupe_key', ignoreDuplicates: true });
     if (error) {
-      logger.error('❌ [ActivityLog] Failed to write activity rows:', { error, types: entries.map((e) => e.type) });
+      // Bara koden: PostgREST-felets details/message kan innehålla hela den felande raden (payload).
+      logger.error('❌ [ActivityLog] Failed to write activity rows:', { code: error.code ?? null, types: entries.map((e) => e.type) });
     }
   } catch (e) {
-    logger.error('❌ [ActivityLog] Unexpected error writing activity rows:', e);
+    logger.error('❌ [ActivityLog] Unexpected error writing activity rows:', { code: errorCode(e) });
   }
 }
 
@@ -61,9 +69,9 @@ export async function recordActivity(entry: ActivityDraft): Promise<void> {
 export async function retractActivity(dedupeKey: string): Promise<void> {
   try {
     const { error } = await getSupabaseClient().from(ACTIVITY_LOG_TABLE).delete().eq('dedupe_key', dedupeKey);
-    if (error) logger.error('❌ [ActivityLog] Failed to retract activity row:', { error, dedupeKey });
+    if (error) logger.error('❌ [ActivityLog] Failed to retract activity row:', { code: error.code ?? null, dedupeKey });
   } catch (e) {
-    logger.error('❌ [ActivityLog] Unexpected error retracting activity row:', e);
+    logger.error('❌ [ActivityLog] Unexpected error retracting activity row:', { code: errorCode(e), dedupeKey });
   }
 }
 
@@ -75,6 +83,24 @@ export async function recordChallengeReceived(challenge: ChallengeActivityRow, o
     await recordActivity(buildChallengeReceivedDraft(challenge, occurredAt));
   } catch (e) {
     logger.error('❌ [ActivityLog] recordChallengeReceived failed:', e);
+  }
+}
+
+/**
+ * challenge_accepted — anropas efter att aktiveringen lyckats OCH challenge_active satts i PUT /:id/respond.
+ * `startDate` är exakt det värde routen lagrade på utmaningen. Saknas group_id hoppas raden över (ingen rad utan grupp).
+ */
+export async function recordChallengeAccepted(
+  challenge: ChallengeActivityRow, startDate: string, occurredAt: string = new Date().toISOString(),
+): Promise<void> {
+  try {
+    if (!challenge.group_id) {
+      logger.error('❌ [ActivityLog] recordChallengeAccepted skipped:', { code: 'missing_group_id', challengeId: challenge.id });
+      return;
+    }
+    await recordActivity(buildChallengeAcceptedDraft({ ...challenge, start_date: startDate }, occurredAt));
+  } catch (e) {
+    logger.error('❌ [ActivityLog] recordChallengeAccepted failed:', { code: errorCode(e), challengeId: challenge.id });
   }
 }
 

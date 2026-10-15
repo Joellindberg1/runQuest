@@ -1,17 +1,14 @@
 import { formatAgo, formatIn, formatLongDate } from '@/features/log/logFormat';
+import { stockholmDay, type StravaStatusResponse } from '@runquest/shared';
+import type { Run } from '@runquest/types';
 import { validatePassword } from '@/shared/utils/validation';
 import { STRAVA_RUN_TYPES_LABEL, STRAVA_SYNC_MINUTES } from '@/features/playbook/playbookFacts';
+import { STILL_REMOVED_SENTENCE } from './stravaConnectionCopy';
 
 // Settings-skärmens vymodeller: Strava-kortet ur /strava/status + /strava/last-sync, den senaste synken som en rad, och
 // lösenordsbytets validering (samma regler som tidigare: alla fält, lika lösenord, minst 6 tecken). Ren logik — ingen DOM.
 
-export interface StravaStatusInput {
-  connected: boolean;
-  expired: boolean;
-  connection_date?: string;
-  auto_refreshed?: boolean;
-  refresh_failed?: boolean;
-}
+export type StravaStatusInput = StravaStatusResponse;
 
 export interface StravaSyncInput {
   last_sync_attempt: string | null;
@@ -20,8 +17,9 @@ export interface StravaSyncInput {
   new_runs?: number;
 }
 
-export type StravaCardState = 'connected' | 'expired' | 'disconnected';
-export type Tone = 'up' | 'down' | 'muted';
+export type StravaCardState = 'connected' | 'paused' | 'expired' | 'disconnected';
+/** `paused` är en neutral bläcktoning (inte silver: silver är placering 2) för en pausad synk. */
+export type Tone = 'up' | 'down' | 'muted' | 'paused';
 
 export interface StravaMetaCell {
   key: 'connected' | 'last' | 'next';
@@ -33,7 +31,7 @@ export interface StravaMetaCell {
 export interface StravaCardView {
   state: StravaCardState;
   tone: Tone;
-  /** Statuschipet: "Connected" / "Expired" / "Not connected". */
+  /** Statuschipet: "Connected" / "Paused" / "Expired" / "Not connected". */
   chip: string;
   lead: string;
   /** Tre celler (Connected · Last sync · Next sync) — bara när kopplingen lever. */
@@ -42,7 +40,12 @@ export interface StravaCardView {
   rules: string[];
   /** Förnyelsen som skedde eller misslyckades i samband med statusläsningen. */
   renewal: { tone: Tone; text: string } | null;
+  /** Bara när synken är pausad: vad som ändå gäller under pausen (och sedan när den började). */
+  note: string | null;
 }
+
+/** Kopplingen lever (kopplad och inte utgången): kortet visar celler och samtycket som information, oavsett om synken är pausad. */
+export const isLiveConnection = (state: StravaCardState): boolean => state === 'connected' || state === 'paused';
 
 export const STRAVA_IMPORT_RULES = [
   `Your Strava runs are imported automatically every ${STRAVA_SYNC_MINUTES} minutes.`,
@@ -71,6 +74,12 @@ function nextSyncText(sync: StravaSyncInput | undefined, now: Date): string {
   return ms < 0 ? 'Overdue' : formatIn(ms);
 }
 
+/** Pausens början som kalenderdag i Stockholm (paused_at är en ISO-tid med +00:00); saknas eller är den oläsbar utelämnas datumet. */
+function pausedNote(pausedAt: string | null | undefined): string {
+  const at = pausedAt ? new Date(pausedAt) : null;
+  return at && !Number.isNaN(at.getTime()) ? `Paused since ${formatLongDate(stockholmDay(at))}. ${STILL_REMOVED_SENTENCE}` : STILL_REMOVED_SENTENCE;
+}
+
 export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput | undefined, now: Date): StravaCardView {
   const renewal = status.auto_refreshed
     ? { tone: 'up' as const, text: 'Your Strava connection was renewed automatically.' }
@@ -80,19 +89,30 @@ export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput
 
   if (!status.connected) {
     return {
-      state: 'disconnected', tone: 'muted', chip: 'Not connected', renewal, meta: [], rules: [],
+      state: 'disconnected', tone: 'muted', chip: 'Not connected', renewal, meta: [], rules: [], note: null,
       lead: 'Your Strava account is not connected. Connect it to import your runs.',
     };
   }
   if (status.expired) {
     return {
-      state: 'expired', tone: 'down', chip: 'Expired', renewal, meta: [], rules: [],
+      state: 'expired', tone: 'down', chip: 'Expired', renewal, meta: [], rules: [], note: null,
       lead: 'The connection expired, so new runs are not syncing. Reconnect to pick up where you left off.',
     };
   }
   const lastTone: Tone = sync?.last_sync_attempt ? 'up' : 'muted';
+  if (status.sync_paused === true) {
+    return {
+      state: 'paused', tone: 'paused', chip: 'Paused', renewal, rules: [], note: pausedNote(status.paused_at),
+      lead: 'Sync is paused. Your connection and runs are still here, but no new runs are fetched until you turn sync back on.',
+      meta: [
+        { key: 'connected', label: 'Connected', value: connectedOn(status.connection_date), tone: 'up' },
+        { key: 'last', label: 'Last sync', value: lastSyncText(sync, now), tone: 'muted' },
+        { key: 'next', label: 'Next sync', value: 'Paused', tone: 'paused' },
+      ],
+    };
+  }
   return {
-    state: 'connected', tone: 'up', chip: 'Connected', renewal, rules: STRAVA_IMPORT_RULES,
+    state: 'connected', tone: 'up', chip: 'Connected', renewal, rules: STRAVA_IMPORT_RULES, note: null,
     lead: 'Your Strava connection is active and tokens are renewed as needed.',
     meta: [
       { key: 'connected', label: 'Connected', value: connectedOn(status.connection_date), tone: 'up' },
@@ -100,6 +120,14 @@ export function buildStravaCard(status: StravaStatusInput, sync: StravaSyncInput
       { key: 'next', label: 'Next sync', value: nextSyncText(sync, now), tone: 'muted' },
     ],
   };
+}
+
+/**
+ * Antalet Stravarundor appen själv känner till (`source === 'strava'`). `undefined` = rundorna är inte lästa (laddar eller felade): då `null`, aldrig 0,
+ * så att en siffra på en knapp som raderar något aldrig är en gissning.
+ */
+export function countStravaRuns(runs: readonly Pick<Run, 'source'>[] | undefined): number | null {
+  return runs ? runs.filter((run) => run.source === 'strava').length : null;
 }
 
 export interface SyncRow {

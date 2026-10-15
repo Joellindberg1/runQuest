@@ -1,4 +1,4 @@
-import { addDays, stockholmDay, stockholmMidnightIso } from '@runquest/shared';
+import { addDays, stockholmDay, stockholmMidnightIso, STRAVA_LOOKBACK_BUFFER_DAYS } from '@runquest/shared';
 
 export type LookbackMethod = 'recent-run' | 'connection-date' | 'fallback-30-days';
 
@@ -12,9 +12,18 @@ export interface StravaLookback {
   mostRecentRunDay?: string;
 }
 
-const RECENT_RUN_BUFFER_DAYS = 7;
 const FALLBACK_DAYS = 30;
 const DAY_PREFIX = /^\d{4}-\d{2}-\d{2}/;
+
+/**
+ * Anslutningsdagen: Stockholm-kalenderdagen för `strava_tokens.connection_date`, eller null när värdet saknas eller inte går att
+ * läsa. ENDA omvandlingen: hämtningsfönstret nedan och webhook-reglerna (decideAction) använder den.
+ */
+export function connectionDay(connectionDate: string | null | undefined): string | null {
+  if (!connectionDate) return null;
+  const connected = new Date(connectionDate);
+  return Number.isNaN(connected.getTime()) ? null : stockholmDay(connected);
+}
 
 const midnightSeconds = (day: string): number => Math.floor(Date.parse(stockholmMidnightIso(day)) / 1000);
 
@@ -31,17 +40,12 @@ export function stravaLookback(
   const days = runDates.filter(d => typeof d === 'string' && DAY_PREFIX.test(d)).map(d => d.slice(0, 10));
   if (days.length > 0) {
     const mostRecentRunDay = days.reduce((latest, d) => (d > latest ? d : latest));
-    const anchorDay = addDays(mostRecentRunDay, -RECENT_RUN_BUFFER_DAYS);
+    const anchorDay = addDays(mostRecentRunDay, -STRAVA_LOOKBACK_BUFFER_DAYS);
     return { after: midnightSeconds(anchorDay), anchorDay, method: 'recent-run', mostRecentRunDay };
   }
 
-  if (connectionDate) {
-    const connected = new Date(connectionDate);
-    if (!Number.isNaN(connected.getTime())) {
-      const anchorDay = stockholmDay(connected);
-      return { after: midnightSeconds(anchorDay), anchorDay, method: 'connection-date' };
-    }
-  }
+  const connectedOn = connectionDay(connectionDate);
+  if (connectedOn) return { after: midnightSeconds(connectedOn), anchorDay: connectedOn, method: 'connection-date' };
 
   const anchorDay = addDays(stockholmDay(now), -FALLBACK_DAYS);
   return { after: midnightSeconds(anchorDay), anchorDay, method: 'fallback-30-days' };

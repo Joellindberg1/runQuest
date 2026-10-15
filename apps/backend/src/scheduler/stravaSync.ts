@@ -1,11 +1,12 @@
 // 🕐 Strava Sync Scheduler
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 import cron from 'node-cron';
 import { syncAllStravaUsers } from '../routes/strava.js';
 import { WeatherService } from '../services/weatherService.js';
 import { enhancedTitleService } from '../services/enhancedTitleService.js';
+import { STRAVA_POLL_INTERVAL_MINUTES, stravaPollCron } from '@runquest/shared';
 
-const SYNC_INTERVAL_MINUTES = 30;
 
 interface SyncState {
   lastSyncAttempt: string | null;
@@ -26,7 +27,7 @@ const syncState: SyncState = {
 };
 
 function computeNextSync(): string {
-  return new Date(Date.now() + SYNC_INTERVAL_MINUTES * 60 * 1000).toISOString();
+  return new Date(Date.now() + STRAVA_POLL_INTERVAL_MINUTES * 60 * 1000).toISOString();
 }
 
 export function getSyncInfo(): SyncState {
@@ -44,19 +45,19 @@ async function recalculateTitlesAfterWeather(savedRows: number): Promise<void> {
       logger.warn(`⚠️ Title recalculation after weather: ${result.failed} of ${result.total} users failed`);
     }
   } catch (error) {
-    logger.error('❌ Title recalculation after weather backfill failed:', error);
+    logger.error(`❌ Title recalculation after weather backfill failed (${errorCode(error)})`);
   }
 }
 
 // PRODUCTION: Run every 30 minutes
 export function startStravaScheduler() {
-  logger.info(`🕐 Starting Strava sync scheduler for production (every ${SYNC_INTERVAL_MINUTES} minutes)...`);
+  logger.info(`🕐 Starting Strava sync scheduler for production (every ${STRAVA_POLL_INTERVAL_MINUTES} minutes)...`);
 
   // Set first estimated next sync time
   syncState.nextSyncEstimated = computeNextSync();
 
-  cron.schedule(`*/${SYNC_INTERVAL_MINUTES} * * * *`, async () => {
-    logger.info(`🔄 Scheduled Strava sync starting (${SYNC_INTERVAL_MINUTES}-minute interval)...`);
+  cron.schedule(stravaPollCron(), async () => {
+    logger.info(`🔄 Scheduled Strava sync starting (${STRAVA_POLL_INTERVAL_MINUTES}-minute interval)...`);
     syncState.lastSyncAttempt = new Date().toISOString();
     syncState.lastSyncStatus = 'running';
     try {
@@ -74,7 +75,7 @@ export function startStravaScheduler() {
     } catch (error) {
       syncState.lastSyncStatus = 'error';
       syncState.nextSyncEstimated = computeNextSync();
-      logger.error('❌ Scheduled sync error:', error);
+      logger.error(`❌ Scheduled sync error (${errorCode(error)})`);
     }
   });
 

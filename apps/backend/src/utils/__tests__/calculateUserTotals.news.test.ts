@@ -3,7 +3,7 @@
  * level_up och run_milestone loggas EFTER lyckad users-update, jämfört mot FÖREGÅENDE värden
  * (läses i samma select som event_xp), med gruppen ur users.group_id. Beräkningen rörs inte.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../config/database.js', () => ({
   default: {},
@@ -21,7 +21,14 @@ vi.mock('../../services/enhancedTitleService.js', () => ({
   EnhancedTitleService: class { processAllUsersTitles = processAllUsersTitles; },
 }));
 
+// Den riktiga observatören, men som spion: testerna styr bara när den ska kasta eller läsa vad den fick.
+vi.mock('../../services/rankNews.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/rankNews.js')>();
+  return { ...actual, recordRankPassesForXp: vi.fn(actual.recordRankPassesForXp) };
+});
+
 import { getSupabaseClient } from '../../config/database.js';
+import { recordRankPassesForXp } from '../../services/rankNews.js';
 import { calculateUserTotals } from '../calculateUserTotals.js';
 import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 
@@ -123,5 +130,128 @@ describe('calculateUserTotals → activity_log', () => {
     use(t);
     await calculateUserTotals('u1');
     expect(t.activity_log.filter((r) => r.type === 'run_milestone').map((r) => r.payload.threshold)).toEqual([100]);
+  });
+});
+
+// ─── rank_passed (xp): observatören efter totalskrivningen ───────────────────────────────────────
+
+describe('calculateUserTotals → recordRankPassesForXp', () => {
+  const TODAY = '2026-10-15';
+  const todayRun = (id: string, xp: number): Row => ({ id, user_id: 'u1', date: TODAY, distance: 55, xp_gained: xp }); // 2 × 55 km: passerar 100 km
+
+  // Anna (u1) går från 0 till 105 XP idag och tar sig förbi Bertil (u2, 100 XP) som låg före vid dygnsskiftet.
+  function passTables(): Record<string, Row[]> {
+    const t = tables({ runs: [todayRun('r1', 60), todayRun('r2', 45)] });
+    t.users[0] = { ...t.users[0], name: 'Anna', total_xp: 0, created_at: '2026-01-01T08:00:00.000Z' };
+    t.users.push({ id: 'u2', name: 'Bertil', group_id: 'g1', total_xp: 100, event_xp: 0, current_level: 3, total_km: 0, created_at: '2026-01-01T08:00:00.000Z' });
+    t.event_entries = [];
+    return t;
+  }
+  const rankRows = (t: Record<string, Row[]>) => t.activity_log.filter((r) => r.type === 'rank_passed');
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T10:00:00.000Z'));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('sparar totaler och loggar nivå även när recordRankPassesForXp kastar', async () => {
+    const t = passTables();
+    use(t);
+    vi.mocked(recordRankPassesForXp).mockRejectedValueOnce(new Error('rank news down'));
+
+    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+
+    expect(t.users[0]).toMatchObject({ total_xp: 105, current_level: 3 });
+    expect(t.activity_log.filter((r) => r.type === 'level_up').map((r) => r.payload.level)).toEqual([2, 3]);
+    expect(processAllUsersTitles).toHaveBeenCalledWith('g1'); // kedjan fortsätter förbi observatören
+  });
+
+  it('rank-detektionen anropas efter totalskrivningen och med föregående total_xp', async () => {
+    const t = passTables();
+    const db = use(t);
+    const seen: Array<{ args: unknown[]; storedXp: number; loggedTypes: string[] }> = [];
+    vi.mocked(recordRankPassesForXp).mockImplementationOnce(async (...args) => {
+      seen.push({ args, storedXp: t.users[0].total_xp, loggedTypes: t.activity_log.map((r) => r.type) });
+    });
+
+    await calculateUserTotals('u1');
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].args).toEqual(['u1', 'g1', 0]); // föregående total_xp ur samma select som current_level/total_km/group_id
+    expect(seen[0].storedXp).toBe(105); // totalerna var redan sparade
+    expect(seen[0].loggedTypes).toContain('run_milestone'); // och level_up/run_milestone redan skrivna
+    // fakeDb returnerar hela raden oavsett urval, så urvalet måste läsas: utan total_xp i selecten vore föregående värde alltid null i prod.
+    const previousValues = db.queries.find((q) => q.table === 'users' && q.select !== null && q.select.includes('event_xp'))!;
+    expect(previousValues.select).toContain('total_xp');
+  });
+
+  it('en XP-vinst skriver rank_passed och kostar högst tre extra läsningar', async () => {
+    const withNews = passTables();
+    const a = use(withNews);
+    await calculateUserTotals('u1');
+
+    const without = passTables();
+    const b = use(without);
+    await calculateUserTotals('u1', { emitRankNews: false });
+
+    expect(rankRows(withNews).map((r) => [r.actor_user_id, r.target_user_id])).toEqual([['u1', 'u2']]);
+    const reads = (db: typeof a) => db.queries.filter((q) => q.mutation === undefined).length;
+    expect(reads(a) - reads(b)).toBeLessThanOrEqual(3);
+    expect(reads(a) - reads(b)).toBeGreaterThan(0);
+  });
+
+  it('emitRankNews false skriver inget och gör inga extra queries', async () => {
+    const t = passTables();
+    const db = use(t);
+
+    await calculateUserTotals('u1', { emitRankNews: false });
+
+    expect(recordRankPassesForXp).not.toHaveBeenCalled();
+    expect(rankRows(t)).toHaveLength(0);
+    expect(t.users[0].total_xp).toBe(105); // beräkningen är opåverkad
+    expect(db.queries.some((q) => q.table === 'event_entries')).toBe(false);
+    expect(db.queries.some((q) => q.table === 'users' && q.filters.some((f) => f.column === 'group_id'))).toBe(false);
+  });
+
+  it('emitRankNews false retractar ändå dagens rader vid en minskning, men skriver inga nya', async () => {
+    const t = passTables();
+    t.users[0].total_xp = 130; // lagrat 130, nytt 105: en minskning
+    const db = use(t);
+
+    await calculateUserTotals('u1', { emitRankNews: false });
+
+    expect(recordRankPassesForXp).toHaveBeenCalledTimes(1);
+    expect(recordRankPassesForXp).toHaveBeenCalledWith('u1', 'g1', 130, { mode: 'retract_only' });
+    expect(rankRows(t)).toHaveLength(0);
+    expect(db.queries.filter((q) => q.mutation === undefined && q.table === 'event_entries')).toHaveLength(1); // läsningen för retract
+  });
+
+  it('ingen XP-vinst ger inga extra queries', async () => {
+    const t = passTables();
+    t.users[0].total_xp = 105; // lagrat värde == nytt värde
+    const db = use(t);
+
+    await calculateUserTotals('u1');
+
+    expect(recordRankPassesForXp).not.toHaveBeenCalled();
+    expect(db.queries.some((q) => q.table === 'event_entries')).toBe(false);
+    expect(db.queries.some((q) => q.table === 'users' && q.filters.some((f) => f.column === 'group_id'))).toBe(false);
+  });
+
+  it('en användare utan grupp anropar inte detektionen', async () => {
+    const t = passTables();
+    t.users[0].group_id = null;
+    use(t);
+    await calculateUserTotals('u1');
+    expect(recordRankPassesForXp).not.toHaveBeenCalled();
+  });
+
+  it('en minskning anropar detektionen (för retract) med föregående total_xp', async () => {
+    const t = passTables();
+    t.users[0].total_xp = 130; // rundan raderades: lagrat 130, nytt 105
+    use(t);
+    await calculateUserTotals('u1');
+    expect(recordRankPassesForXp).toHaveBeenCalledWith('u1', 'g1', 130);
   });
 });

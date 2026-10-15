@@ -1,14 +1,21 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { NewsItem } from '@runquest/shared';
 import { AppShell } from './AppShell';
+import { NotificationsPopover } from './NotificationsPopover';
+import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { ADAM, DAN, NOW_ISO, at, challengeWon, eventOpen, levelUp, newsServer, streakBroken, titleTaken } from '@/features/news/news.fixture';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { NewsScreen } from '@/features/news/components/NewsScreen';
+import { POINTER_SETTLE_MS, UNREAD_ANNOUNCE_MS } from '@/features/news/newsModel';
+import '@/test/pointerEvent';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
+// Turen startar driver.js efter en timer och hör inte till det som provas här.
+vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
 
 const MOBILE = 390;
 const DESKTOP = 1280;
@@ -40,6 +47,7 @@ function setup(feed: NewsItem[] = FEED(), lastSeen: number | null = 16) {
   news = newsServer(feed, lastSeen);
   handlers.getNews = (...args: unknown[]) => news.getNews(...(args as [never]));
   handlers.markNewsSeen = (...args: unknown[]) => news.markNewsSeen(...(args as [never]));
+  handlers.markNewsRead = (...args: unknown[]) => news.markNewsRead(...(args as [never]));
 }
 
 const bell = () => screen.findByRole('button', { name: /^Pack news/ });
@@ -65,16 +73,15 @@ describe('klockan i headern', () => {
     expect(button).toHaveAttribute('data-tour', 'header-news');
   });
 
-  it('inget oläst: ingen räknare', async () => {
+  it('badgen följer meta.unread_count (dold vid 0, 99+ över 99)', async () => {
     setup(FEED(), 20);
-    renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
+    const none = renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
     const button = await bell();
     await waitFor(() => expect(news.server.calls).toHaveLength(1));
     expect(button).toHaveAccessibleName('Pack news');
     expect(button.querySelector('.rq-news-badge')).toBeNull();
-  });
+    none.unmount();
 
-  it('räknaren cappas vid 99+', async () => {
     setup(Array.from({ length: 120 }, (_, index) => levelUp(index + 1, index + 1, { occurred_at: at(1) })), 0);
     renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
     await screen.findByRole('button', { name: 'Pack news, 120 unread' });
@@ -155,12 +162,57 @@ describe('popovern', () => {
     expect(await screen.findByRole('button', { name: 'Pack news, 4 unread' })).toBeInTheDocument();
   });
 
-  it('tomt: "No news yet — go make some"', async () => {
-    setup([]);
-    renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
-    fireEvent.click(await bell());
-    const popover = await screen.findByRole('dialog', { name: 'Pack news' });
-    expect(await within(popover).findByText('No news yet — go make some.')).toBeInTheDocument();
+  it('ett laddningsfel i inställningarna använder defaults och popovern öppnas ändå', async () => {
+    // Servern har titelbyten avstängda, men inställningarna går inte att läsa: då gäller defaults (allt påslaget) och raden syns.
+    news.server.settings = { 'notify.title_others': false };
+    const getSettings = vi.fn(async () => ({ success: false, error: 'down' }));
+    handlers.getSettings = getSettings;
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    const popover = await openPopover();
+
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
+    await waitFor(() => expect(within(popover).getAllByRole('listitem')).toHaveLength(5));
+    expect(within(popover).getByText('Daniel took The Consistent King from Adam — 21 days')).toBeInTheDocument();
+    expect(within(popover).queryByText('Nothing new for you')).toBeNull();
+    expect(within(popover).getByRole('link', { name: 'See all pack news' })).toBeInTheDocument();
+  });
+
+  it('en rad av ett avstängt slag renderas aldrig vid första öppningen när inställningarna svarat före', async () => {
+    news.server.settings = { 'notify.title_others': false };
+    let settled = false;
+    handlers.getSettings = async () => {
+      const response = await news.getSettings();
+      settled = true;
+      return response;
+    };
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    // Klockan har värmt inställningarna redan när den monteras, innan någon öppnat popovern.
+    await waitFor(() => expect(settled).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const popover = await openPopover();
+    expect(within(popover).queryByText('Daniel took The Consistent King from Adam — 21 days')).toBeNull();
+    expect(within(popover).getAllByRole('listitem').length).toBeGreaterThan(0);
+  });
+
+  it('en avstängd kategori tas bort ur popovern och räknaren sjunker utan omladdning', async () => {
+    // Fyra olästa: Karl-titeln (title_taken_from_me), Daniels titelbyte (title_others), eventet och förlorade utmaningen.
+    setup(FEED(), 16);
+    handlers.getSettings = () => news.getSettings();
+    handlers.putSettings = (...args: unknown[]) => news.putSettings(...(args as [never]));
+    const Switch = () => {
+      const settings = useUserSettings();
+      return <button type="button" onClick={() => settings.toggle('notify.title_others')}>Title changes off</button>;
+    };
+    renderWithApp(<><Switch /><NotificationsPopover variant="desktop" /></>, { entry: '/board', width: DESKTOP });
+    const popover = await openPopover();
+    expect(within(popover).getByText('Daniel took The Consistent King from Adam — 21 days')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Title changes off' }));
+
+    await waitFor(() => expect(within(popover).queryByText('Daniel took The Consistent King from Adam — 21 days')).toBeNull());
+    expect(await screen.findByRole('button', { name: 'Pack news, 3 unread' })).toBeInTheDocument();
+    expect(within(popover).getByText('Karl took The Longest Run from you — 32.8 km')).toBeInTheDocument();
   });
 
   it('fel: felkort med Retry i popovern', async () => {
@@ -172,5 +224,66 @@ describe('popovern', () => {
     setup();
     fireEvent.click(within(popover).getByRole('button', { name: 'Retry' }));
     expect(await within(popover).findByText('Karl reached level 25')).toBeInTheDocument();
+  });
+});
+
+describe('klockans räknare — live region', () => {
+  it('räknarens ändring annonseras artigt i en live region', async () => {
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    const popover = await openPopover();
+    // Popovern har en egen status-region (Mark all read); räknarens ligger vid klockan, utanför popovern, och är den ENDA artiga regionen där.
+    const bellRegions = screen.getAllByRole('status').filter((element) => !popover.contains(element) && element.getAttribute('aria-live') === 'polite');
+    expect(bellRegions).toHaveLength(1);
+    const [region] = bellRegions;
+    expect(region).toBeEmptyDOMElement();
+    const spoken: string[] = [];
+    new MutationObserver(() => spoken.push(region.textContent ?? '')).observe(region, { childList: true, characterData: true, subtree: true });
+    act(() => { vi.advanceTimersByTime(POINTER_SETTLE_MS); });
+
+    // En svepning över tre olästa rader: klockan visar 1 direkt, men regionen säger ett enda tal, när räknaren stått still.
+    for (const name of [/Karl took The Longest Run/, /Daniel took The Consistent King/, /5K Friday is open/]) {
+      fireEvent.pointerEnter(within(popover).getByRole('button', { name }), { pointerType: 'mouse' });
+    }
+    expect(await screen.findByRole('button', { name: 'Pack news, 1 unread' })).toBeInTheDocument();
+    expect(region).toBeEmptyDOMElement();
+    await waitFor(() => expect(region).toHaveTextContent('Pack news: 1 unread'), { timeout: UNREAD_ANNOUNCE_MS * 4 });
+    expect(spoken.filter(Boolean)).toEqual(['Pack news: 1 unread']);
+  });
+
+  /** Allt som läses upp i någon status-region (utom tomma texter), i ordning. */
+  function listenToAnnouncements() {
+    const spoken: string[] = [];
+    for (const region of screen.getAllByRole('status')) {
+      new MutationObserver(() => {
+        if (region.textContent) spoken.push(region.textContent);
+      }).observe(region, { childList: true, characterData: true, subtree: true });
+    }
+    return spoken;
+  }
+  const settleAnnouncements = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, UNREAD_ANNOUNCE_MS + 300)); });
+
+  it('Mark all read i popovern ger exakt en annonsering ("N marked as read") och klockans region förblir tom', async () => {
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    const popover = await openPopover();
+    const spoken = listenToAnnouncements();
+
+    fireEvent.click(within(popover).getByRole('button', { name: 'Mark all read' }));
+    await waitFor(() => expect(within(popover).getByRole('status')).toHaveTextContent('4 marked as read'));
+    await screen.findByRole('button', { name: 'Pack news' });
+    await settleAnnouncements();
+
+    expect(spoken).toEqual(['4 marked as read']);
+  });
+
+  it('Mark all read på /news ger exakt en annonsering och klockans region förblir tom', async () => {
+    renderWithApp(<><NotificationsPopover variant="desktop" /><NewsScreen /></>, { entry: '/news', width: DESKTOP });
+    const markAll = await screen.findByRole('button', { name: 'Mark all read' });
+    const spoken = listenToAnnouncements();
+
+    fireEvent.click(markAll);
+    await waitFor(() => expect(spoken).toEqual(['4 marked as read']));
+    await settleAnnouncements();
+
+    expect(spoken).toEqual(['4 marked as read']);
   });
 });

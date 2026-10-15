@@ -1,21 +1,26 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { logger } from '@/shared/utils/logger';
-import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, type ActivityType, type NewsItem } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, resolveSettings, type ActivityType, type NewsItem } from '@runquest/shared';
 import {
-  CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, countByFilter, dedupeById, describeNews,
+  CATEGORY_ICON, CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, classifiableRowOf, countByFilter, dedupeById, describeNews,
+  POINTER_SETTLE_MS, READ_DWELL_MS, READ_FLUSH_MS, createReadBatcher, markReadInFeed, markUnreadInFeed,
   feedFromPage, formatAgo, fullTime, gapCursor, groupByDay, isUnread, markSeenInFeed, mergeNewer, parseFilterParam, serializeFilterParam,
-  replaceNewest, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
+  replaceNewest, parseInvolvesParam, serializeInvolvesParam, involvesMe, involvesAnnouncement, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
 } from './newsModel';
 import { formatInt } from '@/features/log/logFormat';
-import { ADAM, DAN, ME, NICK, NOW, KARL, at, badgeEarned, challengeWon, eventOpen, item, levelUp, meta, releasePublished, streakBroken, titleTaken } from './news.fixture';
+import { ADAM, DAN, ME, NICK, NOW, KARL, at, ref, badgeEarned, challengeAccepted, challengeWon, eventOpen, item, levelUp, meta, rankPassed, releasePublished, streakBroken, titleTaken } from './news.fixture';
 
 const ctx = (over: Partial<NewsContext> = {}): NewsContext => ({ viewerId: ME.id, now: NOW, ...over });
+const DEFAULT_SETTINGS = resolveSettings({}, 'user');
+/** Popoverns alternativ: defaults och ME som betraktare — tester skriver bara över det de provar. */
+type PopoverOptions = Parameters<typeof buildPopoverRows>[2];
+const popover = (over: Partial<PopoverOptions> = {}): PopoverOptions => ({ settings: DEFAULT_SETTINGS, viewerId: ME.id, ...over });
 
 describe('kategorier och filter', () => {
   // release_published (RUN-161) är medvetet utan filterchip: systemraden syns när inget filter är valt.
   const WITHOUT_FILTER: readonly ActivityType[] = ['release_published'];
 
-  it('varje händelsetyp har en kategori och hör till exakt ett filter, utom de utan chip (en ny typ i shared kräver ett beslut här)', () => {
+  it('varje händelsetyp hör till exakt en kategori och ett filter (utom release_published)', () => {
     for (const type of ACTIVITY_TYPES) {
       expect(CATEGORY_OF[type], type).toBeTruthy();
       expect(NEWS_FILTERS.filter((filter) => filter.types.includes(type)).map((filter) => filter.key), type).toHaveLength(WITHOUT_FILTER.includes(type) ? 0 : 1);
@@ -26,7 +31,7 @@ describe('kategorier och filter', () => {
   it('release_published: kategori "release" utan eget filter, och inget chip räknar eller släpper igenom den', () => {
     expect(CATEGORY_OF.release_published).toBe('release');
     expect(NEWS_FILTERS.some((filter) => filter.category === 'release')).toBe(false);
-    expect(countByFilter([releasePublished(1)])).toEqual({ titles: 0, challenges: 0, events: 0, levels: 0, badges: 0, streaks: 0 });
+    expect(Object.values(countByFilter([releasePublished(1)]))).toEqual(NEWS_FILTERS.map(() => 0));
     // Inget filter valt = ingen typfiltrering alls, så raden kommer med; varje valt chip utesluter den.
     expect(typesForFilters([])).toBeNull();
     for (const filter of NEWS_FILTERS) expect(typesForFilters([filter.key])).not.toContain('release_published');
@@ -38,20 +43,19 @@ describe('kategorier och filter', () => {
     expect(CATEGORY_OF.badge_earned).toBe('level');
   });
 
-  it('adressparametern: okända nycklar och dubbletter faller bort, ordningen är chipens, alla sex = inget filter', () => {
+  it('adressparametern: okända nycklar och dubbletter faller bort, ordningen är chipens', () => {
     expect(parseFilterParam(null)).toEqual([]);
     expect(parseFilterParam('')).toEqual([]);
     expect(parseFilterParam('levels,titles,titles,nonsense')).toEqual(['titles', 'levels']);
-    expect(parseFilterParam('titles,challenges,events,levels,badges,streaks')).toEqual([]);
     expect(serializeFilterParam(['levels', 'titles'])).toBe('titles,levels');
     expect(serializeFilterParam([])).toBeNull();
   });
 
-  it('toggleFilter lägger till och tar bort; det sjätte valda blir "allt"', () => {
+  it('toggleFilter lägger till och tar bort; det sista valda chipet blir "allt"', () => {
     expect(toggleFilter([], 'events')).toEqual(['events']);
     expect(toggleFilter(['events'], 'titles')).toEqual(['titles', 'events']);
     expect(toggleFilter(['titles', 'events'], 'titles')).toEqual(['events']);
-    expect(toggleFilter(['titles', 'challenges', 'events', 'levels', 'badges'], 'streaks')).toEqual([]);
+    expect(toggleFilter(NEWS_FILTERS.slice(0, -1).map((filter) => filter.key), NEWS_FILTERS[NEWS_FILTERS.length - 1].key)).toEqual([]);
   });
 
   it('chipsens typer blir serverns type= i stabil ordning; inget filter = ingen parameter', () => {
@@ -63,7 +67,7 @@ describe('kategorier och filter', () => {
 
   it('chip-räknarna är antal per kategori i det laddade fönstret', () => {
     const counts = countByFilter([titleTaken(5), titleTaken(4), levelUp(3, 25), streakBroken(2), eventOpen(1)]);
-    expect(counts).toEqual({ titles: 2, challenges: 0, events: 1, levels: 1, badges: 0, streaks: 1 });
+    expect(counts).toEqual({ titles: 2, challenges: 0, ranks: 0, events: 1, levels: 1, badges: 0, streaks: 1 });
     // badge_earned räknas under Badges, inte Levels.
     expect(countByFilter([badgeEarned(2), levelUp(1, 25)])).toMatchObject({ levels: 1, badges: 1 });
   });
@@ -71,7 +75,7 @@ describe('kategorier och filter', () => {
   it("Badges-chipet släpper bara igenom badge_earned, ligger direkt efter Levels, har Levels-färg men egen ikon (shield)", () => {
     const filter = NEWS_FILTERS.find((candidate) => candidate.key === "badges");
     expect(filter).toMatchObject({ label: "Badges", category: "level", icon: "shield", types: ["badge_earned"] });
-    expect(NEWS_FILTERS.map((candidate) => candidate.key)).toEqual(["titles", "challenges", "events", "levels", "badges", "streaks"]);
+    expect(NEWS_FILTERS.map((candidate) => candidate.key)).toEqual(["titles", "challenges", "ranks", "events", "levels", "badges", "streaks"]);
     expect(NEWS_FILTERS.filter((candidate) => candidate.key !== "badges").every((candidate) => !candidate.types.includes("badge_earned"))).toBe(true);
   });
 
@@ -82,6 +86,33 @@ describe('kategorier och filter', () => {
     expect(toggleFilter(["levels"], "badges")).toEqual(["levels", "badges"]);
     expect(typesForFilters(["badges"])).toEqual(["badge_earned"]);
     expect(typeParamOf(typesForFilters(["levels", "badges"]))).toBe("level_up,run_milestone,badge_earned");
+  });
+
+  it('Ranks-chipet släpper bara igenom rank_passed och challenge_accepted ligger under Challenges', () => {
+    expect(NEWS_FILTERS.find((filter) => filter.key === 'ranks')).toMatchObject({ label: 'Ranks', category: 'rank', types: ['rank_passed'] });
+    expect(NEWS_FILTERS.filter((filter) => filter.key !== 'ranks').every((filter) => !filter.types.includes('rank_passed'))).toBe(true);
+    expect(NEWS_FILTERS.find((filter) => filter.key === 'challenges')?.types).toContain('challenge_accepted');
+    expect(NEWS_FILTERS.filter((filter) => filter.key !== 'challenges').every((filter) => !filter.types.includes('challenge_accepted'))).toBe(true);
+    expect(CATEGORY_OF.rank_passed).toBe('rank');
+    expect(CATEGORY_OF.challenge_accepted).toBe('challenge');
+    // Chipet står efter Challenges (frame N3), och typerna följer ACTIVITY_TYPES-ordningen i serverns type=.
+    expect(NEWS_FILTERS.map((filter) => filter.key)).toEqual(['titles', 'challenges', 'ranks', 'events', 'levels', 'badges', 'streaks']);
+    expect(typesForFilters(['ranks'])).toEqual(['rank_passed']);
+    expect(typeParamOf(typesForFilters(['challenges', 'ranks']))).toBe('challenge_received,challenge_won,challenge_draw,rank_passed,challenge_accepted');
+    // Räknarna: en passering är en Ranks-rad, en accepterad utmaning en Challenges-rad.
+    expect(countByFilter([rankPassed(2), challengeAccepted(1)])).toMatchObject({ ranks: 1, challenges: 1 });
+  });
+
+  it('parseFilterParam känner igen ranks och alla sju valda blir inget filter', () => {
+    expect(parseFilterParam('ranks')).toEqual(['ranks']);
+    expect(parseFilterParam('streaks,ranks,titles,nonsense')).toEqual(['titles', 'ranks', 'streaks']);
+    expect(serializeFilterParam(['streaks', 'ranks'])).toBe('ranks,streaks');
+    expect(toggleFilter(['titles'], 'ranks')).toEqual(['titles', 'ranks']);
+    const all = NEWS_FILTERS.map((filter) => filter.key);
+    expect(all).toHaveLength(7);
+    expect(parseFilterParam(all.join(','))).toEqual([]);
+    expect(parseFilterParam(all.slice(1).join(','))).toHaveLength(6);
+    expect(serializeFilterParam(all)).toBeNull();
   });
 });
 
@@ -179,6 +210,120 @@ describe('flödet: dedupe, kursor och sammanslagning', () => {
     expect(next.items.map((row) => row.is_unread)).toEqual([true, false, false]);
     expect(next.meta).toMatchObject({ unread_count: 1, last_seen_id: 10 });
     expect(markSeenInFeed(feed, 5, 2).meta.last_seen_id).toBe(8);
+  });
+});
+
+describe('läst per rad', () => {
+  const unread = (id: number) => ({ ...levelUp(id, id), is_unread: true });
+  const unreadFeed = () => ({ items: [unread(12), unread(11), levelUp(10, 10), unread(9)], meta: meta({ unread_count: 3, last_seen_id: 4 }) });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('markReadInFeed flippar bara olästa rader i ids och minskar räknaren med antalet flippade', () => {
+    const feed = unreadFeed();
+    // 10 är redan läst och 99 finns inte i flödet: ingen av dem räknas som flippad.
+    const next = markReadInFeed(feed, [11, 10, 99]);
+    expect(next.items.map((row) => row.is_unread)).toEqual([true, false, false, true]);
+    expect(next.meta.unread_count).toBe(2);
+    // Vattenmärket rörs aldrig av en enskild kvittering.
+    expect(next.meta.last_seen_id).toBe(4);
+    // Indata muteras inte.
+    expect(feed.items[1].is_unread).toBe(true);
+    expect(feed.meta.unread_count).toBe(3);
+  });
+
+  it('markReadInFeed sänker aldrig räknaren under noll och rör inte andra rader', () => {
+    const drained = { items: unreadFeed().items, meta: meta({ unread_count: 1 }) };
+    const next = markReadInFeed(drained, [12, 11, 9]);
+    expect(next.meta.unread_count).toBe(0);
+    expect(next.items[2]).toBe(drained.items[2]);
+    // Ingen flippad rad: samma flöde tillbaka, räknaren orörd.
+    expect(markReadInFeed(drained, [10])).toBe(drained);
+    // Serverns räknare skriver över den lokala (och en tom id-lista flippar inget).
+    const overwritten = markReadInFeed(unreadFeed(), [12], 7);
+    expect(overwritten.meta.unread_count).toBe(7);
+    expect(overwritten.items.map((row) => row.is_unread)).toEqual([false, true, false, true]);
+    expect(markReadInFeed(unreadFeed(), [], 5).meta.unread_count).toBe(5);
+  });
+
+  it('markUnreadInFeed återställer bara de givna lästa raderna och sätter räknaren till det angivna värdet', () => {
+    const read = markReadInFeed(unreadFeed(), [12, 9]);
+    const restored = markUnreadInFeed(read, [12], 2);
+    expect(restored.items.map((row) => row.is_unread)).toEqual([true, true, false, false]);
+    expect(restored.meta.unread_count).toBe(2);
+    expect(markUnreadInFeed(read, [999], 1).items).toEqual(read.items);
+  });
+
+  it('markReadInFeed och markUnreadInFeed lämnar backfill-rader orörda, även när flaggan säger oläst', () => {
+    const backfill = { ...levelUp(3, 3), is_unread: true, is_backfill: true };
+    const feed = { items: [backfill], meta: meta({ unread_count: 1 }) };
+    expect(markReadInFeed(feed, [3])).toBe(feed);
+    expect(markUnreadInFeed({ items: [{ ...backfill, is_unread: false }], meta: meta({ unread_count: 0 }) }, [3], 0).items[0].is_unread).toBe(false);
+  });
+
+  it('bunten: efter flush() får den gamla timern inte skicka ett senare id för tidigt', () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const batcher = createReadBatcher(send);
+    batcher.add(7);
+    batcher.flush();
+    vi.advanceTimersByTime(100);
+    batcher.add(8);
+    vi.advanceTimersByTime(READ_FLUSH_MS - 50);
+    expect(send).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(50);
+    expect(send).toHaveBeenLastCalledWith([8]);
+  });
+
+  it('READ_DWELL_MS är 0 och READ_FLUSH_MS är 300', () => {
+    expect(READ_DWELL_MS).toBe(0);
+    expect(READ_FLUSH_MS).toBe(300);
+    // Rörelsevakten efter montering är en egen sak (ADR 011 addendum 2026-10-14), inte väntetiden efter en giltig hover.
+    expect(POINTER_SETTLE_MS).toBe(150);
+  });
+
+  it('läs-bunten tömmer efter READ_FLUSH_MS, vid flush och delar upp mer än 50 id', () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const batcher = createReadBatcher(send);
+
+    // Tidsfönstret: id:n buntas, dubbletter slås ihop, och inget skickas före READ_FLUSH_MS.
+    batcher.add(3);
+    batcher.add(4);
+    batcher.add(3);
+    vi.advanceTimersByTime(READ_FLUSH_MS - 1);
+    expect(send).not.toHaveBeenCalled();
+    expect(batcher.hasPending()).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenLastCalledWith([3, 4]);
+    expect(batcher.hasPending()).toBe(false);
+
+    // Fönstret startar vid första id:t och förlängs inte av fler (högst var 300 ms).
+    batcher.add(5);
+    vi.advanceTimersByTime(200);
+    batcher.add(6);
+    vi.advanceTimersByTime(100);
+    expect(send).toHaveBeenLastCalledWith([5, 6]);
+
+    // flush() skickar direkt och avbryter timern (inget andra anrop senare); en tom flush skickar ingenting.
+    send.mockClear();
+    batcher.add(7);
+    batcher.flush();
+    expect(send).toHaveBeenCalledWith([7]);
+    batcher.flush();
+    vi.advanceTimersByTime(READ_FLUSH_MS * 2);
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // Högst 50 id per anrop, i insättningsordning.
+    send.mockClear();
+    for (let id = 1; id <= 120; id += 1) batcher.add(id);
+    batcher.flush();
+    expect(send.mock.calls.map(([ids]) => ids.length)).toEqual([50, 50, 20]);
+    expect(send.mock.calls[0][0][0]).toBe(1);
+    expect(send.mock.calls[2][0].at(-1)).toBe(120);
   });
 });
 
@@ -368,6 +513,94 @@ describe('texterna ur typ + payload + vem som tittar', () => {
     });
   });
 
+  describe('rank_passed och challenge_accepted (frame N3)', () => {
+    it('describeNews: rank_passed ur den passerades, passerarens och en utomståendes perspektiv, per mått — placeringen ligger i brickan, inte i texten', () => {
+      // Den passerade (jag): brickan visar MIN nya rang (passed_rank), aldrig passerarens.
+      expect(describeNews(rankPassed(1), ctx())).toEqual({
+        kind: 'Passed you', text: 'Karl passed you on the leaderboard', placement: { label: "You're #3", spoken: 'You are now number 3' },
+      });
+      expect(describeNews(rankPassed(1, {}, { measure: 'challenge_points', passer_rank: 1, passed_rank: 2 }), ctx())).toEqual({
+        kind: 'Passed you', text: 'Karl passed you on the challenge standings', placement: { label: "You're #2", spoken: 'You are now number 2' },
+      });
+      // Passeraren (jag): brickan visar min rang efter passeringen (passer_rank).
+      expect(describeNews(rankPassed(2, { actor: ME, target: KARL }), ctx())).toEqual({
+        kind: 'You passed', text: 'You passed Karl on the leaderboard', placement: { label: "You're #2", spoken: 'You are now number 2' },
+      });
+      expect(describeNews(rankPassed(2, { actor: ME, target: NICK }, { measure: 'challenge_points', passer_rank: 3 }), ctx())).toEqual({
+        kind: 'You passed', text: 'You passed Nicklas on the challenge standings', placement: { label: "You're #3", spoken: 'You are now number 3' },
+      });
+      // En utomstående: "Rank passed", brickan bär passerarens namn och rang.
+      expect(describeNews(rankPassed(3, { actor: ADAM, target: NICK }, { passer_rank: 4 }), ctx())).toEqual({
+        kind: 'Rank passed', text: 'Adam passed Nicklas on the leaderboard', placement: { label: 'Adam #4', spoken: 'Adam is now number 4' },
+      });
+      expect(describeNews(rankPassed(3, { actor: ADAM, target: NICK }, { measure: 'challenge_points', passer_rank: 4 }), ctx()).text)
+        .toBe('Adam passed Nicklas on the challenge standings');
+      // En raderad användare är "a former member"; en raderad passerare bland utomstående ger en bricka utan namn.
+      expect(describeNews(rankPassed(4, { actor: null }), ctx()).text).toBe('A former member passed you on the leaderboard');
+      expect(describeNews(rankPassed(4, { actor: ADAM, target: null }), ctx()).text).toBe('Adam passed a former member on the leaderboard');
+      expect(describeNews(rankPassed(4, { actor: null, target: NICK }, { passer_rank: 5 }), ctx())).toEqual({
+        kind: 'Rank passed', text: 'A former member passed Nicklas on the leaderboard', placement: { label: '#5', spoken: 'A former member is now number 5' },
+      });
+    });
+
+    it('placeringsbrickan utelämnas när rangen saknas eller är ogiltig (0, negativ, decimal, sträng, NaN)', () => {
+      expect(describeNews(rankPassed(1), ctx()).placement).toBeDefined();
+      for (const invalid of [0, -1, 2.5, '2', Number.NaN, null, undefined]) {
+        // Läsaren är den passerade: passed_rank räknas. Läsaren är passeraren eller utomstående: passer_rank räknas.
+        expect(describeNews(rankPassed(1, {}, { passed_rank: invalid as never }), ctx()).placement, `target ${String(invalid)}`).toBeUndefined();
+        expect(describeNews(rankPassed(2, { actor: ME, target: KARL }, { passer_rank: invalid as never }), ctx()).placement, `actor ${String(invalid)}`).toBeUndefined();
+        expect(describeNews(rankPassed(3, { actor: ADAM, target: NICK }, { passer_rank: invalid as never }), ctx()).placement, `other ${String(invalid)}`).toBeUndefined();
+      }
+    });
+
+    it('describeNews: challenge_accepted för utmanaren och för andra', () => {
+      // Utmanaren (jag, target): "Karl accepted your challenge".
+      expect(describeNews(challengeAccepted(1), ctx())).toEqual({ kind: 'Challenge accepted', text: 'Karl accepted your challenge — it starts tomorrow' });
+      // Motståndaren själv (jag, actor) och en utomstående.
+      expect(describeNews(challengeAccepted(2, { actor: ME, target: ADAM }), ctx()).text).toBe("You accepted Adam's challenge — it starts tomorrow");
+      expect(describeNews(challengeAccepted(3, { actor: KARL, target: ADAM }), ctx())).toEqual({
+        kind: 'Challenge accepted', text: "Karl accepted Adam's challenge — it starts tomorrow",
+      });
+      expect(describeNews(challengeAccepted(4, { actor: KARL, target: null }), ctx()).text).toBe("Karl accepted a former member's challenge — it starts tomorrow");
+    });
+
+    it('challenge_accepted: starttiden räknas i Stockholm-dagar från start_date, som övriga utmaningstider', () => {
+      const text = (startDate: string, now: Date = NOW) => describeNews(challengeAccepted(1, {}, { start_date: startDate }), ctx({ now })).text;
+      expect(text('2026-10-09')).toBe('Karl accepted your challenge — it starts tomorrow');
+      // Kalenderdagar, inte 24-timmarsperioder: 23:59 den 8:e (CEST) är fortfarande "i morgon", och vid midnatt har den börjat.
+      expect(text('2026-10-09', new Date('2026-10-08T21:59:00Z'))).toBe('Karl accepted your challenge — it starts tomorrow');
+      expect(text('2026-10-09', new Date('2026-10-08T22:00:00Z'))).toBe('Karl accepted your challenge — it has started');
+      // Längre fram delar texten format med "starts in 2 d" på dueller.
+      expect(text('2026-10-10')).toBe('Karl accepted your challenge — it starts in 2 d');
+      expect(text('2026-10-08')).toBe('Karl accepted your challenge — it has started');
+      expect(text('2026-10-01')).toBe('Karl accepted your challenge — it has started');
+    });
+
+    it('raden: kategori rank med trophy, challenge_accepted behåller Challenges (swords)', () => {
+      expect(buildNewsRow(rankPassed(1), ctx())).toMatchObject({
+        category: 'rank', tone: 'rank', icon: 'trophy', emblem: null, kind: 'Passed you', placement: { label: "You're #3", spoken: 'You are now number 3' },
+      });
+      expect(buildNewsRow(challengeAccepted(2), ctx())).toMatchObject({ category: 'challenge', tone: 'challenge', icon: 'swords', kind: 'Challenge accepted', placement: null });
+      expect(CATEGORY_ICON.rank).toBe('trophy');
+    });
+
+    it('describeNews tål en payload utan fält', () => {
+      const bare = (row: WireNewsItem, payload: unknown): WireNewsItem => ({ ...row, payload }) as WireNewsItem;
+      for (const payload of [{}, null, undefined]) {
+        // Utan mått: tabellen "leaderboard"; utan rang: ingen "now #N". Aldrig "undefined", "NaN" eller "null".
+        expect(describeNews(bare(rankPassed(1), payload), ctx())?.text, String(payload)).toBe('Karl passed you on the leaderboard');
+        // Utan start_date: ingen tidsfras.
+        expect(describeNews(bare(challengeAccepted(2), payload), ctx())?.text, String(payload)).toBe('Karl accepted your challenge');
+        expect(buildNewsRow(bare(rankPassed(1), payload), ctx())).not.toBeNull();
+        expect(buildNewsRow(bare(challengeAccepted(2), payload), ctx())).not.toBeNull();
+      }
+      const odd = describeNews(bare(rankPassed(3), { measure: 'challenge_points', passer_rank: 'two', passed_rank: Number.NaN }), ctx())?.text;
+      expect(odd).toBe('Karl passed you on the challenge standings');
+      expect(describeNews(bare(challengeAccepted(4), { start_date: 'not-a-date' }), ctx())?.text).toBe('Karl accepted your challenge');
+      expect(describeNews(bare(challengeAccepted(5), { start_date: 7 }), ctx())?.text).toBe('Karl accepted your challenge');
+    });
+  });
+
   describe('level, milstolpe, streak', () => {
     it('level up, milstolpe och bruten streak — "You" när det är jag', () => {
       expect(describeNews(levelUp(1, 25), ctx())).toEqual({ kind: 'Level up', text: 'Karl reached level 25' });
@@ -488,7 +721,7 @@ describe('texterna ur typ + payload + vem som tittar', () => {
       const items: WireNewsItem[] = [releasePublished(2), levelUp(1, 4), unknownFuture];
       const rows = buildNewsGroups(items, ctx()).flatMap((group) => group.rows.map((row) => row.id));
       expect(rows.sort()).toEqual([1, 2]);
-      expect(buildPopoverRows(items, ctx()).map((row) => row.kind).sort()).toEqual(['Level up', 'New version']);
+      expect(buildPopoverRows(items, ctx(), popover()).map((row) => row.kind).sort()).toEqual(['Level up', 'New version']);
     });
   });
 
@@ -561,9 +794,66 @@ describe('vymodeller', () => {
 
   it('popovern: de fem senaste i visningsordning', () => {
     const items = Array.from({ length: 8 }, (_, index) => levelUp(index + 1, index + 1, { occurred_at: at(8 - index) }));
-    const rows = buildPopoverRows(items, ctx());
+    const rows = buildPopoverRows(items, ctx(), popover());
     expect(rows).toHaveLength(5);
     expect(rows.map((row) => row.id)).toEqual([8, 7, 6, 5, 4]);
+  });
+});
+
+describe('klockans popover följer inställningarna', () => {
+  const others = (id: number, hoursAgo: number) => levelUp(id, id, { occurred_at: at(hoursAgo) });
+  const unknown = (id: number, hoursAgo: number): UnknownNewsItem => ({ ...levelUp(id, 1, { occurred_at: at(hoursAgo) }), type: 'quest_completed', payload: { quest: 'x' } });
+
+  it('buildPopoverRows utesluter egna rader, avstängda slag och okända typer före gränsen på fem', () => {
+    const items: WireNewsItem[] = [
+      levelUp(30, 3, { actor: ME, occurred_at: at(0.5) }), // egen handling
+      streakBroken(29, { occurred_at: at(1) }), // slaget är avstängt
+      unknown(28, 1.5),
+      ...Array.from({ length: 6 }, (_, index) => others(index + 1, 10 - index)), // sex som släpps igenom, id 6 nyast
+    ];
+    const rows = buildPopoverRows(items, ctx(), popover({ settings: resolveSettings({ 'notify.streak_broken_others': false }, 'user') }));
+    expect(rows.map((row) => row.id)).toEqual([6, 5, 4, 3, 2]);
+  });
+
+  it('buildPopoverRows tar med lästa rader av påslagna slag', () => {
+    const items = [{ ...others(3, 1), is_unread: true }, { ...others(2, 2), is_unread: false }, { ...streakBroken(1, { occurred_at: at(3) }), is_unread: false }];
+    const rows = buildPopoverRows(items, ctx(), popover());
+    expect(rows.map((row) => [row.id, row.unread])).toEqual([[3, true], [2, false], [1, false]]);
+  });
+
+  it('buildPopoverRows: ett event där jag deltog styrs av event_closed_me, övriga av event_closed_others', () => {
+    const closed = (id: number, entrants: string[]) =>
+      item('event_closed', id, { event_id: `e${id}`, event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: entrants });
+    const items = [closed(2, [ME.id, KARL.id]), closed(1, [KARL.id])];
+
+    expect(buildPopoverRows(items, ctx(), popover()).map((row) => row.id)).toEqual([2, 1]);
+    const meOff = resolveSettings({ 'notify.event_closed_me': false }, 'user');
+    expect(buildPopoverRows(items, ctx(), popover({ settings: meOff })).map((row) => row.id)).toEqual([1]);
+    const othersOff = resolveSettings({ 'notify.event_closed_others': false }, 'user');
+    expect(buildPopoverRows(items, ctx(), popover({ settings: othersOff })).map((row) => row.id)).toEqual([2]);
+  });
+
+  it('buildPopoverRows ger tom lista när allt filtreras bort', () => {
+    const items: WireNewsItem[] = [levelUp(3, 3, { actor: ME }), unknown(2, 2), streakBroken(1)];
+    const settings = resolveSettings({ 'notify.streak_broken_others': false }, 'user');
+    expect(buildPopoverRows(items, ctx(), popover({ settings }))).toEqual([]);
+    expect(buildPopoverRows([], ctx(), popover())).toEqual([]);
+  });
+
+  it('buildPopoverRows ger tom lista utan betraktare (egna rader går inte att avgöra)', () => {
+    expect(buildPopoverRows([others(1, 1)], ctx({ viewerId: null }), popover({ viewerId: null }))).toEqual([]);
+  });
+
+  it('buildPopoverRows håller gränsen och ordningen när limit anges', () => {
+    const items = Array.from({ length: 4 }, (_, index) => others(index + 1, 8 - index));
+    expect(buildPopoverRows(items, ctx(), popover({ limit: 2 })).map((row) => row.id)).toEqual([4, 3]);
+  });
+
+  it('classifiableRowOf mappar aktör och mål till id:n (null för en raderad användare) och bär typ och payload', () => {
+    const won = challengeWon(1);
+    expect(classifiableRowOf(won)).toEqual({ type: 'challenge_won', actorId: won.actor?.id, targetId: ME.id, payload: won.payload });
+    expect(classifiableRowOf(titleTaken(2, { actor: null, target: null }))).toMatchObject({ actorId: null, targetId: null });
+    expect(classifiableRowOf(unknown(3, 1))).toMatchObject({ type: 'quest_completed' });
   });
 });
 
@@ -613,12 +903,12 @@ describe('okända händelsetyper och trasiga rader', () => {
 
   it('popovern: okända rader tar ingen av de fem platserna', () => {
     const known = Array.from({ length: 6 }, (_, index) => levelUp(index + 1, index + 1, { occurred_at: at(10 - index) }));
-    const rows = buildPopoverRows([unknownItem(99, { occurred_at: at(0) }), ...known], ctx());
+    const rows = buildPopoverRows([unknownItem(99, { occurred_at: at(0) }), ...known], ctx(), popover());
     expect(rows.map((row) => row.id)).toEqual([6, 5, 4, 3, 2]);
   });
 
   it('chip-räknarna räknar inte okända rader', () => {
-    expect(countByFilter([levelUp(1, 2), unknownItem(2), unknownItem(3)])).toEqual({ titles: 0, challenges: 0, events: 0, levels: 1, badges: 0, streaks: 0 });
+    expect(countByFilter([levelUp(1, 2), unknownItem(2), unknownItem(3)])).toEqual({ titles: 0, challenges: 0, ranks: 0, events: 0, levels: 1, badges: 0, streaks: 0 });
   });
 
   it('flödet behåller okända rader (så att "Mark all read" når det verkliga högsta id:t) men ingen oläst-markör byggs för dem', () => {
@@ -654,11 +944,65 @@ describe('okända händelsetyper och trasiga rader', () => {
       event_closed: item('event_closed', 11, { event_id: 'e', event_type: 'participation', template_name: '5K Friday', participants: 3, members: 5 }),
       badge_earned: badgeEarned(12),
       release_published: releasePublished(13),
+      rank_passed: rankPassed(14),
+      challenge_accepted: challengeAccepted(15),
     };
     for (const type of ACTIVITY_TYPES) {
       expect(isKnownNewsItem(samples[type]), type).toBe(true);
       expect(describeNews(samples[type], ctx())?.text, type).toBeTruthy();
       expect(buildNewsRow(samples[type], ctx()), type).not.toBeNull();
     }
+  });
+});
+
+describe('Involves me (vyfilter vid sidan av typchipsen)', () => {
+  it('parseInvolvesParam och serializeInvolvesParam: me är på, allt annat är av', () => {
+    expect(parseInvolvesParam('me')).toBe(true);
+    for (const other of [null, undefined, '', 'ME', 'Me', 'true', '1', 'yes', ' me', 'me,me', 'all']) expect(parseInvolvesParam(other), String(other)).toBe(false);
+    expect(serializeInvolvesParam(true)).toBe('me');
+    expect(serializeInvolvesParam(false)).toBeNull();
+    expect(parseInvolvesParam(serializeInvolvesParam(true))).toBe(true);
+  });
+
+  it('involvesMe: aktör, target och deltagare i ett event räknas; en rad utan mig gör det inte', () => {
+    const closed = (entrants: unknown) => item('event_closed', 9, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: entrants } as never);
+    expect(involvesMe(levelUp(1, 5, { actor: ME }), ME.id)).toBe(true);
+    expect(involvesMe(titleTaken(2, { actor: KARL, target: ME }), ME.id)).toBe(true);
+    expect(involvesMe(levelUp(3, 5, { actor: KARL }), ME.id)).toBe(false);
+    expect(involvesMe(eventOpen(4), ME.id)).toBe(false);
+    expect(involvesMe(closed([KARL.id, ME.id]), ME.id)).toBe(true);
+    expect(involvesMe(closed([KARL.id]), ME.id)).toBe(false);
+    // Fältet kan saknas (äldre rader) eller vara trasigt: aldrig ett kast, bara "inte jag".
+    expect(involvesMe(closed(undefined), ME.id)).toBe(false);
+    expect(involvesMe(closed('u-me'), ME.id)).toBe(false);
+    // Bara event_closed bär deltagarlistan, och utan betraktare är inget "mitt".
+    expect(involvesMe({ ...eventOpen(5), payload: { entrant_ids: [ME.id] } } as never, ME.id)).toBe(false);
+    expect(involvesMe(levelUp(6, 5, { actor: ME }), null)).toBe(false);
+  });
+
+  it('involvesMe matchar som servern: betraktarens id i gemener mot det lagrade, exakt', () => {
+    const closed = (entrants: string[]) => item('event_closed', 9, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: entrants } as never);
+    // Ett lagrat id med versaler matchar aldrig (servern jämför jsonb exakt mot gemener) ...
+    expect(involvesMe(closed(['U-ME']), 'u-me')).toBe(false);
+    // ... men en betraktare med versaler gemeniseras, precis som serverns filter gör.
+    expect(involvesMe(closed(['u-me']), 'U-ME')).toBe(true);
+    expect(involvesMe(levelUp(1, 5, { actor: ref('u-me', 'Me') }), 'U-ME')).toBe(true);
+  });
+
+  it('involvesMe utan betraktare är false även för event_closed med deltagare, och kastar inte', () => {
+    const closed = item('event_closed', 9, { event_id: 'e', event_type: 'participation', template_name: '5K', participants: 2, members: 5, entrant_ids: [ME.id] } as never);
+    expect(() => involvesMe(closed, null)).not.toThrow();
+    expect(involvesMe(closed, null)).toBe(false);
+    expect(involvesMe(closed, '')).toBe(false);
+  });
+
+  it('involvesAnnouncement säger vad filtret visar', () => {
+    expect(involvesAnnouncement(true, 4, false)).toBe('Showing 4 rows that involve you');
+    expect(involvesAnnouncement(true, 1, false)).toBe('Showing 1 row that involves you');
+    expect(involvesAnnouncement(true, 0, false)).toBe('Nothing involves you yet');
+    expect(involvesAnnouncement(false, 7, false)).toBe('Showing all pack news');
+    // Med ett typfilter vid sidan av beskriver texten raderna, inte hela flödet.
+    expect(involvesAnnouncement(false, 3, true)).toBe('Showing 3 rows');
+    expect(involvesAnnouncement(true, 2, true)).toBe('Showing 2 rows that involve you');
   });
 });

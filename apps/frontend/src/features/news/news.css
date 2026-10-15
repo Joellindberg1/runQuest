@@ -9,7 +9,9 @@
 [data-category="title"]     { --rq-c: var(--rq-gold-rgb);      --rq-c-edge: var(--rq-gold-rgb); --rq-c-solid: var(--rq-gold-text); }
 [data-category="challenge"] { --rq-c: var(--rq-duel-base-rgb); --rq-c-edge: var(--rq-duel-rgb); --rq-c-solid: var(--rq-duel); }  /* tint/kant på base (#f97316), text på duel (#fdba74) */
 [data-category="level"]     { --rq-c: var(--rq-up-rgb);        --rq-c-edge: var(--rq-up-rgb);   --rq-c-solid: var(--rq-up); }
-[data-category="event"]     { --rq-c: var(--rq-ink-rgb);       --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }
+/* Ranks (frame N3): blå, egna tokens (--rq-news-rank*, temafilen 1.28), inte minor-nivåns blå. "Passed you" är samma blå, inte röd: en förlorad utmaning är en förlust, en passering är en nyhet. */
+[data-category="rank"]      { --rq-c: var(--rq-news-rank-rgb); --rq-c-edge: var(--rq-news-rank-rgb); --rq-c-solid: var(--rq-news-rank-ink); }
+[data-category="event"]     { --rq-c: var(--rq-ink-rgb);      --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }
 [data-category="release"]   { --rq-c: var(--rq-ink-rgb);       --rq-c-edge: var(--rq-ink-rgb);  --rq-c-solid: var(--rq-text-3); }  /* som event: ink, inga nya färger (RUN-161) */
 [data-category="streak"]    { --rq-c: var(--rq-down-rgb);      --rq-c-edge: var(--rq-down-rgb); --rq-c-solid: var(--rq-down); }
 /* Popoverns prick och typrad: en förlorad utmaning är röd (Web Prototypens popover), annars kategorins färg */
@@ -25,6 +27,15 @@
 .rq-news__title { margin: 0; font-weight: 400; }
 .rq-news__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-news__mark { flex-shrink: 0; }
+/* Sidhuvudets verktyg: "Mark all read" och (mobil) kugghjulet som öppnar inställningsbladet. Kugghjulet är 44 px (frame N1 ritar 40; mobilens minsta träffyta gäller). */
+.rq-news__tools { display: flex; align-items: center; gap: var(--rq-sp-14); }
+.rq-btn.rq-news__settings { flex-shrink: 0; width: var(--rq-news-settings-hit); height: var(--rq-news-settings-hit); }
+/* Bladet återanvänder .rq-sheet (app-shell.css); kroppen scrollar inuti så att "Done" alltid ligger inom tummens räckvidd. */
+.rq-notify-sheet { max-height: var(--rq-notify-sheet-max-h); }
+.rq-notify-sheet__body { display: flex; flex-direction: column; gap: var(--rq-sp-12); min-height: 0; overflow-y: auto; }
+.rq-notify-sheet .rq-sheet__close { min-width: var(--rq-news-settings-hit); min-height: var(--rq-news-settings-hit); }
+/* Texten under panelen (kolumnen och bladet). text-3, inte text-4: meningen bär information. */
+.rq-news-settings__note { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 
 /* Bekräftelser och fel: permanenta live-regioner (behållaren finns innan texten kommer) */
 .rq-news-notice { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-up); }
@@ -39,24 +50,46 @@
 .rq-news-days { display: flex; flex-direction: column; gap: var(--rq-sp-14); }
 .rq-news-list { margin: 0; padding: 0; list-style: none; }
 
+/* Raden är ett li med EN knapp som täcker hela raden (frame N2, läs-gesterna): li:t bär bakgrund och kategorikant, knappen rutnätet. */
 .rq-news-row {
-  display: grid; grid-template-columns: var(--rq-news-row-cols); grid-template-areas: var(--rq-news-row-areas);
-  align-items: var(--rq-news-row-align); column-gap: var(--rq-news-row-gap);
-  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x);
   background: var(--rq-read-bg);
   border-left: var(--rq-edge-w) solid rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha));
 }
-.rq-news-row:hover { background: var(--rq-row-hover); }
-.rq-news-row[data-unread] { background: var(--rq-unread-bg); }
-/* Olästmarkören: tinten ensam (4 %) syns knappt (ägarbeslut 2026-10-05). Statisk — inget loopar. */
-.rq-dot.rq-news-unread { color: var(--rq-gold); margin-right: var(--rq-sp-6); vertical-align: middle; }
+.rq-news-row__hit {
+  display: grid; grid-template-columns: var(--rq-news-row-cols); grid-template-areas: var(--rq-news-row-areas);
+  align-items: var(--rq-news-row-align); column-gap: var(--rq-news-row-gap);
+  box-sizing: border-box; width: 100%; min-height: var(--rq-news-row-min-h); margin: 0;
+  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x);
+  border: 0; background: none; text-align: left; font: inherit; color: inherit;
+  cursor: default;  /* raden är ingen länk: en handpekare skulle utlova en navigering (frame N2) */
+}
+.rq-news-row:hover, .rq-news-row:active { background: var(--rq-row-hover); }
+/* Ringen ligger INNANFÖR raden, över kategorikanten, så att hårlinjegriden inte klipper den (frame N2). */
+.rq-news-row__hit:focus-visible, .rq-news-pop__hit:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+/* Raden blir läst på samma händelse, så tinten på hover är bara ett skyddsnät. */
+.rq-news-row[data-unread], .rq-news-row[data-unread]:hover, .rq-news-row[data-unread]:active { background: var(--rq-unread-bg); }
+/* Olästmarkören: tinten ensam (4 %) syns knappt (ägarbeslut 2026-10-05). Statisk — inget loopar. Pricken ligger i en reserverad plats så att tiden aldrig hoppar. */
+.rq-dot.rq-news-unread { color: var(--rq-gold); vertical-align: middle; }
+.rq-news-row__mark { display: inline-block; width: var(--rq-news-dot-slot); text-align: left; vertical-align: middle; }
 .rq-news-row[data-category="event"], .rq-news-row[data-category="release"] { border-left-color: rgb(var(--rq-c-edge) / var(--rq-news-edge-alpha-quiet)); }
 .rq-news-row__icon { grid-area: icon; display: inline-flex; align-self: center; color: var(--rq-c-solid); }
 /* badge_earned: ikonkolumnen rymmer ett sm-emblem (RUN-128, F7). Kanten, typraden och texten är oförändrade Levels-grönt. */
-.rq-news-row[data-emblem] { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr) auto; }
+.rq-news-row[data-emblem] .rq-news-row__hit { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr) auto; }
 .rq-news-row__kind { grid-area: kind; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-c-solid); }
 .rq-news-row__time { grid-area: time; justify-self: end; font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); letter-spacing: 0; text-transform: none; color: var(--rq-text-4); }
 .rq-news-row__text { grid-area: text; margin: 0; font-size: var(--rq-fs-body); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+/* Oläst bärs inte av färgen ensam: prick (form), fetare typrad och text, och tiden i starkare ton (frame N2). Läst = normal vikt. */
+.rq-news-row[data-unread] .rq-news-row__kind { font-weight: 700; }
+.rq-news-row[data-unread] .rq-news-row__time { color: var(--rq-text-2); }
+.rq-news-row[data-unread] .rq-news-row__text { font-weight: 500; }
+
+/* Placeringsbrickan på en rank_passed-rad ("You're #3", "Karl #2"; ägarbeslut 3): mono, hårlinje, ingen egen färg. Samma vikt läst och oläst:
+   en oläst passering ska inte väga tyngre än andra olästa rader (texten runt får 500 när den är oläst, brickan behåller 400). Skarpa hörn. */
+.rq-news-place {
+  display: inline-block; margin-left: var(--rq-sp-8); padding: 0 var(--rq-sp-6); white-space: nowrap;
+  border: var(--rq-hair) solid var(--rq-line-4);
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); font-weight: 400; letter-spacing: 0; line-height: var(--rq-lh-body); color: var(--rq-text-2);
+}
 
 .rq-news-more { display: flex; justify-content: center; padding-top: var(--rq-sp-4); }
 
@@ -68,10 +101,13 @@
 .rq-news-filter__list { position: relative; display: flex; flex-direction: var(--rq-news-filter-dir); gap: var(--rq-news-filter-gap); overflow-x: auto; scroll-snap-type: x proximity; }
 .rq-news-filter__item {
   display: inline-flex; align-items: center; gap: var(--rq-sp-8); flex: 0 0 auto; scroll-snap-align: start; white-space: nowrap; cursor: pointer;
+  box-sizing: border-box; min-height: var(--rq-news-filter-hit);  /* mobil 44 px (sju chips); desktop 0 */
   background: none; border: var(--rq-hair) solid var(--rq-line-4); padding: var(--rq-sp-6) var(--rq-sp-12);
   font-family: var(--rq-font-ui); font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3);
 }
 .rq-news-filter__item:hover { color: var(--rq-c-solid); }
+/* Raden scrollar sidledes och klipper därmed en ring utanför chipet (överkant, underkant och kanten mot skärmen): ringen ritas innanför, som i raderna. */
+.rq-news-filter__item:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
 .rq-news-filter__icon { display: inline-flex; color: var(--rq-c-solid); }
 .rq-news-filter__name { display: inline-flex; align-items: center; gap: var(--rq-sp-6); }
 .rq-news-filter__count { font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); letter-spacing: 0; color: var(--rq-text-4); }
@@ -80,7 +116,30 @@
   background: rgb(var(--rq-c) / var(--rq-tint-selected)); border-color: rgb(var(--rq-c-edge) / var(--rq-edge-selected)); color: var(--rq-c-solid);
 }
 
+/* ── "Involves me" (frame N5): en knapp vid sidan av typchipsen, med egen form (ring + ikon) så den aldrig läses som ett åttonde chip ───────
+   Av = hårlinje (--rq-line-4, som chipsen) och ihålig ring; på = guld (regel 4: ett filter utan egen kategorifärg tar guld), fylld ring och guldsiffra,
+   alltså inte färg ensam. Mobil: egen rad ovanför chip-raden med 44 px träffyta. Texterna i text-3/text-4 klarar 4.5:1 (index.css); beskrivningen bär ingen siffra. */
+.rq-news-involves-wrap { margin-bottom: var(--rq-sp-8); }
+.rq-news-involves {
+  display: inline-flex; align-items: center; gap: var(--rq-sp-8); flex: none; white-space: nowrap; cursor: pointer;
+  box-sizing: border-box; min-height: var(--rq-news-involves-hit); background: none; border: var(--rq-hair) solid var(--rq-line-4); padding: var(--rq-sp-6) var(--rq-sp-12);
+  font-family: var(--rq-font-ui); font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3);
+}
+.rq-news-involves:hover { color: var(--rq-gold-text); }
+.rq-news-involves__mark { width: var(--rq-sp-8); height: var(--rq-sp-8); border-radius: var(--rq-radius-round); border: var(--rq-hair) solid var(--rq-text-4); }
+.rq-news-involves__icon { display: inline-flex; }
+.rq-news-involves .rq-news-filter__count { margin-left: var(--rq-sp-4); }
+.rq-news-involves[aria-pressed="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
+.rq-news-involves[aria-pressed="true"] .rq-news-involves__mark { background: var(--rq-gold); border-color: var(--rq-gold); }
+.rq-news-involves[aria-pressed="true"] .rq-news-filter__count { color: var(--rq-gold-text); }
+/* Beskrivningen finns bara på desktop (mobilens rad är en enda knapp); den är fortfarande knappens aria-describedby. */
+.rq-news-involves__hint { display: none; margin: var(--rq-sp-6) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+
 @media (min-width: 1024px) {
+  .rq-news-involves-wrap { margin-bottom: var(--rq-sp-12); padding-bottom: var(--rq-sp-12); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
+  .rq-news-involves { width: 100%; justify-content: flex-start; padding: var(--rq-sp-8); font-size: var(--rq-fs-lead); letter-spacing: 0; text-transform: none; }
+  .rq-news-involves .rq-news-filter__count { margin-left: auto; }
+  .rq-news-involves__hint { display: block; }
   .rq-news__main { grid-column: 1; grid-row: 1; }
   .rq-news__side { grid-column: 2; grid-row: 1; }
   .rq-news-filter { padding: var(--rq-sp-16) var(--rq-sp-18); background: var(--rq-card-bg); border: var(--rq-hair) solid var(--rq-panel-border); }
@@ -123,19 +182,33 @@
 .rq-news-pop__close { border: 0; background: none; cursor: pointer; padding: 0; font-size: var(--rq-fs-lead); line-height: var(--rq-lh-tight); color: var(--rq-text-4); }
 .rq-news-pop__close:hover { color: var(--rq-text-2); }
 .rq-news-pop__list { margin: 0; padding: 0; list-style: none; }
-.rq-news-pop__row {
+/* Som flödesraden: li med EN knapp som täcker raden. Ringen ritas innanför (popovern klipper en yttre ring, se .rq-news-row__hit:focus-visible). */
+.rq-news-pop__row { border-bottom: var(--rq-hair) solid var(--rq-line-1); }
+.rq-news-pop__hit {
   display: grid; grid-template-columns: var(--rq-sp-6) minmax(0, 1fr); column-gap: var(--rq-sp-10);
-  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x); border-bottom: var(--rq-hair) solid var(--rq-line-1);
+  box-sizing: border-box; width: 100%; min-height: var(--rq-news-row-min-h); margin: 0;
+  padding: var(--rq-news-row-pad-y) var(--rq-news-row-pad-x);
+  border: 0; background: none; text-align: left; font: inherit; color: inherit;
+  cursor: default;
 }
-.rq-news-pop__row[data-unread] { background: var(--rq-unread-bg); }
+.rq-news-pop__row:hover, .rq-news-pop__row:active { background: var(--rq-row-hover); }
+.rq-news-pop__row[data-unread], .rq-news-pop__row[data-unread]:hover, .rq-news-pop__row[data-unread]:active { background: var(--rq-unread-bg); }
 .rq-news-pop__dot { margin-top: var(--rq-sp-6); color: var(--rq-c-solid); }
 /* badge_earned: ett sm-emblem i stället för pricken; samma kolumnbredd som flödesraden (--rq-news-row-icon-badge-w). Övriga rader är oförändrade. */
-.rq-news-pop__row[data-emblem] { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr); }
+.rq-news-pop__row[data-emblem] .rq-news-pop__hit { grid-template-columns: var(--rq-news-row-icon-badge-w) minmax(0, 1fr); }
 .rq-news-pop__emblem { display: inline-flex; align-self: start; }
+.rq-news-pop__body { display: block; min-width: 0; }
 .rq-news-pop__meta { display: flex; justify-content: space-between; gap: var(--rq-sp-10); font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-c-solid); }
 .rq-news-pop__time { color: var(--rq-text-4); white-space: nowrap; }
-.rq-news-pop__text { margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-news-pop__text { display: block; margin: var(--rq-sp-2) 0 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-2); }
+.rq-news-pop__row[data-unread] .rq-news-pop__meta > :first-child { font-weight: 700; }
+.rq-news-pop__row[data-unread] .rq-news-pop__time { color: var(--rq-text-2); }
+.rq-news-pop__row[data-unread] .rq-news-pop__text { font-weight: 500; }
 .rq-news-pop__foot { display: block; padding: var(--rq-sp-10) var(--rq-sp-14); text-align: center; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-3); }
 .rq-news-pop__foot:hover { color: var(--rq-gold-text); }
 .rq-news-pop__note { margin: 0; padding: var(--rq-sp-16) var(--rq-sp-14); text-align: center; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
+/* Filtrerat tomt fönster (frame N2): rubrik + en rad förklaring, centrerat; undantag från regel 9. Bara befintliga tokens. */
+.rq-news-pop__empty { display: flex; flex-direction: column; align-items: center; gap: var(--rq-sp-8); padding: var(--rq-sp-24) var(--rq-sp-16) var(--rq-sp-16); text-align: center; }
+.rq-news-pop__empty-title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+.rq-news-pop__empty-text { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-3); }
 .rq-news-pop__state { padding: var(--rq-sp-8) var(--rq-sp-14) var(--rq-sp-12); }

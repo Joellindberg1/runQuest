@@ -4,8 +4,20 @@ import { getLevelFromXP } from '../services/levelService.js';
 import { reconcileTokensForLevel } from '../services/challengeService.js';
 import { recordLevelUps, recordRunMilestones } from '../services/activityLog.js';
 import { evaluateBadges } from '../services/badgeService.js';
+import { recordRankPassesForXp } from '../services/rankNews.js';
+import { errorCode } from './errorCode.js';
 
-export async function calculateUserTotals(userId: string) {
+export interface CalculateUserTotalsOptions {
+  /**
+   * Skriv NYA rank_passed (xp) efter totalskrivningen. Default true. Massvägar (historikimporten vid anslutning, massraderingen vid
+   * bortkoppling) skickar false: en ökning skriver ingenting och kostar inga extra queries. En MINSKNING retractar ändå dagens
+   * egna rader (retract_only), så att en bortkoppling inte lämnar en falsk nyhet kvar (ADR 011 beslut 6.4, 13.4).
+   */
+  emitRankNews?: boolean;
+}
+
+export async function calculateUserTotals(userId: string, options: CalculateUserTotalsOptions = {}) {
+  const { emitRankNews = true } = options;
   try {
     const startTime = Date.now();
     const supabase = getSupabaseClient();
@@ -33,12 +45,13 @@ export async function calculateUserTotals(userId: string) {
     // (level_up/run_milestone, ADR 008); gruppen (Pack News och titelomräkningen) kommer ur users.group_id, inte ur anroparens JWT.
     const { data: userData } = await supabase
       .from('users')
-      .select('event_xp, current_level, total_km, group_id')
+      .select('event_xp, current_level, total_km, total_xp, group_id')
       .eq('id', userId)
       .single();
     const eventXP: number = userData?.event_xp ?? 0;
     const prevLevel: number | null = typeof userData?.current_level === 'number' ? userData.current_level : null;
     const prevTotalKm: number | null = userData?.total_km == null ? null : Number(userData.total_km);
+    const prevTotalXp: number | null = userData?.total_xp == null ? null : Number(userData.total_xp);
     const userGroupId: string | null = userData?.group_id ?? null;
 
     // Calculate totals
@@ -81,6 +94,20 @@ export async function calculateUserTotals(userId: string) {
       await recordLevelUps(userId, prevLevel, level, userGroupId);
       // users.total_km är numeric(8,2): jämförs avrundat så att "föregående" (lagrat) och "nytt" är på samma skala.
       await recordRunMilestones(userId, prevTotalKm, Math.round(totalDistance * 100) / 100, userGroupId);
+
+      // rank_passed (xp) är den tredje observatören efter totalskrivningen (ADR 011 beslut 6). Den körs bara när total_xp ändrats, så
+      // en vanlig skrivning kostar noll extra queries. En MINSKNING anropar också: dagens rader för de M som W åter ligger bakom retractas.
+      // emitRankNews false stänger bara av NYA rader: en MINSKNING retractar ändå dagens rader (retract_only), annars står en falsk
+      // nyhet kvar efter t.ex. en bortkoppling. En ökning med false ger noll anrop och noll extra queries.
+      const retractOnly = !emitRankNews;
+      if (userGroupId && prevTotalXp !== null && totalXP !== prevTotalXp && (emitRankNews || totalXP < prevTotalXp)) {
+        try {
+          if (retractOnly) await recordRankPassesForXp(userId, userGroupId, prevTotalXp, { mode: 'retract_only' });
+          else await recordRankPassesForXp(userId, userGroupId, prevTotalXp);
+        } catch (rankError) {
+          logger.error(`❌ Error recording rank passes for user ${userId} (${errorCode(rankError)})`);
+        }
+      }
     }
 
     // 🏅 Badges utvärderas ur samma rundor, även vid noll rundor (raderade rundor nedgraderar/raderar). Körs före titlarna

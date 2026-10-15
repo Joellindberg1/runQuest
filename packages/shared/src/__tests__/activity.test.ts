@@ -2,14 +2,17 @@ import { describe, it, expect } from 'vitest';
 import {
   ACTIVITY_PAYLOAD_VERSION,
   ACTIVITY_TYPES,
+  RANK_MEASURES,
   RUN_MILESTONES,
   activityKeys,
   buildBadgeEarnedDraft,
+  buildChallengeAcceptedDraft,
   buildChallengeReceivedDraft,
   buildChallengeSettledDraft,
   buildEventClosedDraft,
   buildEventOpenDraft,
   buildLevelUpDrafts,
+  buildRankPassedDraft,
   buildReleasePublishedDraft,
   buildRunMilestoneDrafts,
   buildStreakBrokenDraft,
@@ -22,17 +25,22 @@ import {
   streakBrokenOccurredAt,
   streakBrokenThreshold,
   type ChallengeActivityRow,
+  type ChallengeAcceptedRow,
   type EventActivityRow,
   type TitleHolder,
 } from '../activity.js';
 import { addDays, stockholmMidnightIso } from '../calendar.js';
 
 describe('ACTIVITY_TYPES', () => {
-  it('är exakt ADR 008:s elva typer + badge_earned (ADR 009 beslut 5) + release_published, unika', () => {
+  it('ACTIVITY_TYPES innehåller rank_passed och challenge_accepted (15 värden)', () => {
     expect([...ACTIVITY_TYPES].sort()).toEqual([
-      'badge_earned', 'challenge_draw', 'challenge_received', 'challenge_won', 'event_closed', 'event_open', 'level_up',
-      'release_published', 'run_milestone', 'streak_broken', 'title_revoked', 'title_taken', 'title_unlocked',
+      'badge_earned', 'challenge_accepted', 'challenge_draw', 'challenge_received', 'challenge_won', 'event_closed', 'event_open',
+      'level_up', 'rank_passed', 'release_published', 'run_milestone', 'streak_broken', 'title_revoked', 'title_taken',
+      'title_unlocked',
     ]);
+    expect(ACTIVITY_TYPES).toHaveLength(15);
+    // Nya typer läggs sist: ordningen styr bland annat typesForFilters och CHECK-listans läsbarhet.
+    expect(ACTIVITY_TYPES.slice(-2)).toEqual(['rank_passed', 'challenge_accepted']);
     expect(new Set(ACTIVITY_TYPES).size).toBe(ACTIVITY_TYPES.length);
   });
 
@@ -40,6 +48,8 @@ describe('ACTIVITY_TYPES', () => {
     expect(isActivityType('level_up')).toBe(true);
     expect(isActivityType('badge_earned')).toBe(true);
     expect(isActivityType('release_published')).toBe(true);
+    expect(isActivityType('rank_passed')).toBe(true);
+    expect(isActivityType('challenge_accepted')).toBe(true);
     expect(isActivityType('challenge_lost')).toBe(false);
     expect(isActivityType(5)).toBe(false);
     expect(isActivityType(undefined)).toBe(false);
@@ -364,6 +374,42 @@ describe('eventbyggare', () => {
     const d = buildEventClosedDraft(participation, { participants: 1, members: 6, top: [{ user_id: 'a', rank: 1, xp: 1 }] }, 'x');
     expect(d.payload).not.toHaveProperty('top');
   });
+
+  it('buildEventClosedDraft sätter entrant_ids när de anges och utelämnar fältet annars', () => {
+    const facts = { participants: 2, members: 6 };
+    const withIds = buildEventClosedDraft(competition, { ...facts, entrantIds: ['b', 'a'] }, 'x');
+    expect(withIds.payload).toMatchObject({ entrant_ids: ['a', 'b'] });
+    expect(buildEventClosedDraft(participation, { ...facts, entrantIds: ['b', 'a'] }, 'x').payload).toMatchObject({ entrant_ids: ['a', 'b'] });
+
+    // Utan entrantIds är payloaden exakt som före fältet (backfill och äldre anropare).
+    const without = buildEventClosedDraft(competition, facts, 'x');
+    expect(without.payload).not.toHaveProperty('entrant_ids');
+    expect(without.payload).toEqual({
+      event_id: 'e2', event_type: 'competition', template_name: 'Weekly Km', participants: 2, members: 6,
+    });
+  });
+
+  it('entrant_ids är unika och sorterade och bär bara användar-id:n', () => {
+    const ids = [
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '',
+    ];
+    const d = buildEventClosedDraft(competition, {
+      participants: 4, members: 6, entrantIds: ids,
+      top: [{ user_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', rank: 1, xp: 75 }],
+    }, 'x');
+    const payload = d.payload as { entrant_ids: string[] };
+    expect(payload.entrant_ids).toEqual([
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    ]);
+    // Något som inte är en sträng (felaktig indata) släpps, och kastar aldrig.
+    const dirty = ['b', null, 7, undefined, {}, 'a'] as unknown as string[];
+    expect((buildEventClosedDraft(competition, { participants: 2, members: 6, entrantIds: dirty }, 'x').payload as { entrant_ids: string[] }).entrant_ids)
+      .toEqual(['a', 'b']);
+    // Lista av strängar på toppnivå: aldrig objekt med namn eller e-post.
+    expect(payload.entrant_ids.every((id) => typeof id === 'string')).toBe(true);
+    expect(Object.keys(payload).sort()).toEqual(['entrant_ids', 'event_id', 'event_type', 'members', 'participants', 'template_name', 'top']);
+  });
 });
 
 describe('buildBadgeEarnedDraft', () => {
@@ -423,8 +469,96 @@ describe('buildReleasePublishedDraft', () => {
   });
 });
 
+describe('rank_passed', () => {
+  const at = '2026-10-14T10:00:00.000Z';
+  const draft = (measure: 'xp' | 'challenge_points' = 'xp', passer = 'w', passed = 'm', when = at) =>
+    buildRankPassedDraft('g1', measure, passer, passed, 2, 3, when);
+
+  it('rankPassed-nyckeln är stabil per ordnat par, mått och Stockholm-dag', () => {
+    expect(activityKeys.rankPassed('xp', 'w', 'm', '2026-10-14')).toBe('rank_passed:xp:w:m:2026-10-14');
+    expect(activityKeys.rankPassed('challenge_points', 'w', 'm', '2026-10-14')).toBe('rank_passed:challenge_points:w:m:2026-10-14');
+    // Samma tupel ger samma nyckel; ordnat par, mått och dag ger olika.
+    expect(activityKeys.rankPassed('xp', 'w', 'm', '2026-10-14')).toBe(activityKeys.rankPassed('xp', 'w', 'm', '2026-10-14'));
+    expect(activityKeys.rankPassed('xp', 'w', 'm', '2026-10-14')).not.toBe(activityKeys.rankPassed('xp', 'm', 'w', '2026-10-14'));
+    expect(activityKeys.rankPassed('xp', 'w', 'm', '2026-10-14')).not.toBe(activityKeys.rankPassed('challenge_points', 'w', 'm', '2026-10-14'));
+    expect(activityKeys.rankPassed('xp', 'w', 'm', '2026-10-14')).not.toBe(activityKeys.rankPassed('xp', 'w', 'm', '2026-10-15'));
+    expect(activityKeys.rankPassed('xp', 'w', 'm', '2026-10-14')).not.toBe(activityKeys.rankPassed('xp', 'w', 'other', '2026-10-14'));
+    // Byggaren följer samma regler: A går förbi B och B går förbi A samma dag är två olika rader.
+    expect(draft('xp', 'a', 'b').dedupe_key).not.toBe(draft('xp', 'b', 'a').dedupe_key);
+    expect(draft('xp', 'a', 'b').dedupe_key).toBe(draft('xp', 'a', 'b', '2026-10-14T15:00:00.000Z').dedupe_key);
+  });
+
+  it('Stockholm-dagen i nyckeln byter vid Stockholms midnatt, inte UTC:s (sommartid)', () => {
+    const key = (iso: string) => draft('xp', 'w', 'm', iso).dedupe_key;
+    // 2026-10-14 är CEST (+2): Stockholms midnatt är 22:00 UTC.
+    expect(key('2026-10-14T21:59:59.999Z')).toBe('rank_passed:xp:w:m:2026-10-14');
+    expect(key('2026-10-14T22:00:00.000Z')).toBe('rank_passed:xp:w:m:2026-10-15');
+    // Före UTC-midnatt men efter Stockholms midnatt: UTC-datumet 14:e, nyckeldagen den 15:e.
+    expect(key('2026-10-14T23:30:00.000Z')).toBe('rank_passed:xp:w:m:2026-10-15');
+    // Strax efter UTC-midnatt är Stockholm redan två timmar in i dagen.
+    expect(key('2026-10-15T00:00:00.000Z')).toBe('rank_passed:xp:w:m:2026-10-15');
+  });
+
+  it('Stockholm-dagen i nyckeln byter vid Stockholms midnatt (vintertid) och över båda sommartidsskiftena', () => {
+    const key = (iso: string) => draft('challenge_points', 'w', 'm', iso).dedupe_key;
+    // Vinter (CET, +1): midnatt = 23:00 UTC.
+    expect(key('2026-01-15T22:59:59.999Z')).toBe('rank_passed:challenge_points:w:m:2026-01-15');
+    expect(key('2026-01-15T23:00:00.000Z')).toBe('rank_passed:challenge_points:w:m:2026-01-16');
+    // Vårens skifte 2026-03-29 (dygnet är 23 timmar): midnatt in = 23:00 UTC den 28:e, midnatt ut = 22:00 UTC den 29:e.
+    expect(key('2026-03-28T22:59:59.999Z')).toBe('rank_passed:challenge_points:w:m:2026-03-28');
+    expect(key('2026-03-28T23:00:00.000Z')).toBe('rank_passed:challenge_points:w:m:2026-03-29');
+    expect(key('2026-03-29T21:59:59.999Z')).toBe('rank_passed:challenge_points:w:m:2026-03-29');
+    expect(key('2026-03-29T22:00:00.000Z')).toBe('rank_passed:challenge_points:w:m:2026-03-30');
+    // Höstens skifte 2026-10-25 (dygnet är 25 timmar): midnatt in = 22:00 UTC den 24:e, midnatt ut = 23:00 UTC den 25:e.
+    expect(key('2026-10-24T21:59:59.999Z')).toBe('rank_passed:challenge_points:w:m:2026-10-24');
+    expect(key('2026-10-24T22:00:00.000Z')).toBe('rank_passed:challenge_points:w:m:2026-10-25');
+    expect(key('2026-10-25T22:59:59.999Z')).toBe('rank_passed:challenge_points:w:m:2026-10-25');
+    expect(key('2026-10-25T23:00:00.000Z')).toBe('rank_passed:challenge_points:w:m:2026-10-26');
+  });
+
+  it('buildRankPassedDraft: aktör är den som passerar, mål den som passeras, payload utan XP-siffror', () => {
+    expect(buildRankPassedDraft('g1', 'xp', 'w', 'm', 2, 3, at)).toEqual({
+      type: 'rank_passed', group_id: 'g1', actor_user_id: 'w', target_user_id: 'm',
+      payload: { measure: 'xp', passer_rank: 2, passed_rank: 3 }, payload_version: ACTIVITY_PAYLOAD_VERSION,
+      dedupe_key: 'rank_passed:xp:w:m:2026-10-14', occurred_at: at, is_backfill: false,
+    });
+    const payload = draft('challenge_points').payload as unknown as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual(['measure', 'passed_rank', 'passer_rank']);
+    expect(draft('challenge_points').dedupe_key).toBe('rank_passed:challenge_points:w:m:2026-10-14');
+  });
+
+  it('RANK_MEASURES är de två måtten i ADR 011 beslut 6', () => {
+    expect([...RANK_MEASURES]).toEqual(['xp', 'challenge_points']);
+  });
+});
+
+describe('challenge_accepted', () => {
+  const at = '2026-10-14T10:00:00.000Z';
+  const accepted: ChallengeAcceptedRow = {
+    id: 'c1', group_id: 'g1', tier: 'major', metric: 'km', duration_days: 7, challenger_id: 'a', opponent_id: 'b',
+    start_date: '2026-10-15',
+  };
+
+  it('challengeAccepted-nyckeln är stabil per utmaning', () => {
+    expect(activityKeys.challengeAccepted('c1')).toBe('challenge_accepted:c1');
+    expect(activityKeys.challengeAccepted('c1')).toBe(activityKeys.challengeAccepted('c1'));
+    expect(activityKeys.challengeAccepted('c1')).not.toBe(activityKeys.challengeAccepted('c2'));
+    // En egen nyckel: delas varken med challenge_received eller challenge_settled för samma utmaning.
+    expect(activityKeys.challengeAccepted('c1')).not.toBe(activityKeys.challengeReceived('c1'));
+    expect(activityKeys.challengeAccepted('c1')).not.toBe(activityKeys.challengeSettled('c1'));
+  });
+
+  it('buildChallengeAcceptedDraft: aktör är motståndaren, mål utmanaren', () => {
+    expect(buildChallengeAcceptedDraft(accepted, at)).toEqual({
+      type: 'challenge_accepted', group_id: 'g1', actor_user_id: 'b', target_user_id: 'a',
+      payload: { challenge_id: 'c1', tier: 'major', metric: 'km', duration_days: 7, start_date: '2026-10-15' },
+      payload_version: ACTIVITY_PAYLOAD_VERSION, dedupe_key: 'challenge_accepted:c1', occurred_at: at, is_backfill: false,
+    });
+  });
+});
+
 describe('payloadbyggarna läcker ingen PII (e-post, hashar, tokens, Strava-id)', () => {
-  it('extra kolumner i käll-raderna når aldrig payloaden', () => {
+  it('byggarnas payload bär varken e-post, hash, token eller Strava-id', () => {
     const dirtyChallenge = {
       id: 'c1', group_id: 'g1', tier: 'minor', metric: 'km', duration_days: 3, challenger_id: 'a', opponent_id: 'b',
       outcome: 'challenger_wins', challenger_final_value: 1, opponent_final_value: 0,
@@ -436,6 +570,8 @@ describe('payloadbyggarna läcker ingen PII (e-post, hashar, tokens, Strava-id)'
     } as unknown as EventActivityRow;
 
     const drafts = [
+      buildChallengeAcceptedDraft({ ...dirtyChallenge, start_date: '2026-10-15' }, 'x'),
+      buildRankPassedDraft('g1', 'xp', 'w', 'm', 1, 2, '2026-10-14T10:00:00.000Z'),
       buildChallengeReceivedDraft(dirtyChallenge, 'x'),
       buildChallengeSettledDraft(dirtyChallenge, 'x')!,
       buildEventOpenDraft(dirtyEvent),

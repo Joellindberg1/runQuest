@@ -1,9 +1,9 @@
-import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, TIER_NAMES, daysBetween, isActivityType, mondayOf, stockholmClock, type ActivityType, type NewsItem, type NewsMeta } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, TIER_NAMES, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/types';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
 import { logger } from '@/shared/utils/logger';
-import { deltaText, durationLongText, firstName, metricLabel } from '@/features/challenges/duelsFormat';
+import { deltaText, durationLongText, firstName, metricLabel, startsInText } from '@/features/challenges/duelsFormat';
 import { formatClock, stockholmDate, weekdayOf } from '@/features/events/eventsFormat';
 import { formatInt } from '@/features/log/logFormat';
 import { SHORT_MONTHS } from '@/features/profile/profileFormat';
@@ -15,12 +15,13 @@ import { resolveGenderedTitle, titleValueText } from '@/features/titles/titleFor
 
 // ─── Kategorier och filter ──────────────────────────────────────────────────
 
-export type NewsCategory = 'title' | 'challenge' | 'level' | 'event' | 'streak' | 'release';
+export type NewsCategory = 'title' | 'challenge' | 'rank' | 'level' | 'event' | 'streak' | 'release';
 
 /**
  * Kategorin styr ikon, färg och kant. run_milestone hör till Levels (ADR 008: Levels = level_up + run_milestone), liksom
  * badge_earned (ADR 009 beslut 5, F7: kanten förblir Levels-grön). release_published (RUN-161) är en systemhändelse med en
- * egen kategori utan filterchip: raden syns när inget filter är valt.
+ * egen kategori utan filterchip: raden syns när inget filter är valt. rank_passed (ADR 011 beslut 6) har kategorin rank och eget chip;
+ * challenge_accepted (beslut 7) är en utmaningshändelse och ligger under Challenges.
  */
 export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   title_unlocked: 'title',
@@ -36,19 +37,22 @@ export const CATEGORY_OF: Record<ActivityType, NewsCategory> = {
   event_closed: 'event',
   badge_earned: 'level',
   release_published: 'release',
+  rank_passed: 'rank',
+  challenge_accepted: 'challenge',
 };
 
 /** Ikonerna ur runquest-icons (prototypens `kinds`). */
 export const CATEGORY_ICON: Record<NewsCategory, RQIconName> = {
   title: 'crown',
   challenge: 'swords',
+  rank: 'trophy',
   level: 'zap',
   event: 'calendar',
   streak: 'flame',
   release: 'sparkles',
 };
 
-export type NewsFilterKey = 'titles' | 'challenges' | 'events' | 'levels' | 'badges' | 'streaks';
+export type NewsFilterKey = 'titles' | 'challenges' | 'ranks' | 'events' | 'levels' | 'badges' | 'streaks';
 
 export interface NewsFilter {
   key: NewsFilterKey;
@@ -62,7 +66,8 @@ export interface NewsFilter {
 
 export const NEWS_FILTERS: readonly NewsFilter[] = [
   { key: 'titles', label: 'Titles', category: 'title', types: ['title_unlocked', 'title_taken', 'title_revoked'] },
-  { key: 'challenges', label: 'Challenges', category: 'challenge', types: ['challenge_received', 'challenge_won', 'challenge_draw'] },
+  { key: 'challenges', label: 'Challenges', category: 'challenge', types: ['challenge_received', 'challenge_accepted', 'challenge_won', 'challenge_draw'] },
+  { key: 'ranks', label: 'Ranks', category: 'rank', types: ['rank_passed'] },
   { key: 'events', label: 'Events', category: 'event', types: ['event_open', 'event_closed'] },
   { key: 'levels', label: 'Levels', category: 'level', types: ['level_up', 'run_milestone'] },
   { key: 'badges', label: 'Badges', category: 'level', icon: 'shield', types: ['badge_earned'] },
@@ -100,6 +105,43 @@ export function typesForFilters(keys: readonly NewsFilterKey[]): ActivityType[] 
 export const typeParamOf = (types: readonly ActivityType[] | null): string | undefined => (types && types.length > 0 ? types.join(',') : undefined);
 
 /**
+ * "Involves me" (ADR 011 beslut 9) är ett vyfilter vid sidan av typchipsen, inte ett av dem: adressen bär `?involves=me`, och bara exakt `me` är på.
+ * Allt annat (saknas, tomt, annat skiftläge, listor) är av — samma värde som servern tar; servern svarar 400 på allt annat, så klienten skickar aldrig något annat.
+ */
+export const INVOLVES_PARAM = 'involves';
+export const INVOLVES_VALUE = 'me';
+
+export const parseInvolvesParam = (raw: string | null | undefined): boolean => raw === INVOLVES_VALUE;
+export const serializeInvolvesParam = (on: boolean): string | null => (on ? INVOLVES_VALUE : null);
+
+/**
+ * Speglar serverns villkor (ADR 011 beslut 9): jag är aktör eller target, eller deltar i ett event (`event_closed` med mig i `payload.entrant_ids`).
+ * Används bara för siffran på knappen (rader i det laddade fönstret, som chip-räknarna); raderna som visas kommer alltid ur serverns filter.
+ * Fältet skrivs av event-avräkningen (settle) men saknas på äldre rader och backfill, och kan vara trasigt — då är raden inte "min".
+ */
+export function involvesMe(item: Pick<WireNewsItem, 'type' | 'actor' | 'target' | 'payload'>, viewerId: string | null): boolean {
+  if (!viewerId) return false;
+  // Som servern: betraktarens id i gemener mot det som ligger lagrat, utan att gemenisera det lagrade (jsonb-containment är exakt).
+  const me = viewerId.toLowerCase();
+  if (item.actor?.id === me || item.target?.id === me) return true;
+  if (item.type !== 'event_closed') return false;
+  const entrants = (item.payload as { entrant_ids?: unknown } | null)?.entrant_ids;
+  return Array.isArray(entrants) && entrants.includes(me);
+}
+
+/**
+ * Texten som annonseras när "Involves me" slås på eller av och raderna har landat: vad filtret visar, inte att det ändrades.
+ * `withTypes` = ett typfilter ligger vid sidan av (då beskriver "av" raderna i stället för hela flödet).
+ */
+export function involvesAnnouncement(on: boolean, rows: number, withTypes: boolean): string {
+  if (on) {
+    if (rows === 0) return 'Nothing involves you yet';
+    return rows === 1 ? 'Showing 1 row that involves you' : `Showing ${rows} rows that involve you`;
+  }
+  return withTypes ? `Showing ${rows} ${rows === 1 ? 'row' : 'rows'}` : 'Showing all pack news';
+}
+
+/**
  * En rad med en händelsetyp den här klienten inte känner (backend nyare än fliken). Typen kommer som string från API:t —
  * `NewsItem` lovar bara de kända — så anropare som tar emot svaret rått typar mot `WireNewsItem`.
  */
@@ -111,7 +153,7 @@ export const isKnownNewsItem = (item: WireNewsItem): item is NewsItem => isActiv
 
 /** Antal rader per chip i det laddade fönstret (ADR 008: chip-räknare = antal i det laddade fönstret). Okända typer räknas inte. */
 export function countByFilter(items: readonly Pick<WireNewsItem, 'type'>[]): Record<NewsFilterKey, number> {
-  const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, events: 0, levels: 0, badges: 0, streaks: 0 };
+  const counts: Record<NewsFilterKey, number> = { titles: 0, challenges: 0, ranks: 0, events: 0, levels: 0, badges: 0, streaks: 0 };
   for (const item of items) {
     if (!isActivityType(item.type)) continue;
     const type = item.type;
@@ -211,6 +253,84 @@ export function markSeenInFeed(feed: NewsFeed, upToId: number, unreadCount: numb
   return {
     items: feed.items.map((item) => (item.id <= upToId && item.is_unread ? { ...item, is_unread: false } : item)),
     meta: { ...feed.meta, unread_count: unreadCount, last_seen_id: Math.max(feed.meta.last_seen_id ?? 0, upToId) },
+  };
+}
+
+// ─── Läst per rad (ADR 011 beslut 4 och addendum 2026-10-14) ────────────────
+// Datalagret exponerar bara `markRead(id)`. Gesterna (hover efter rörelse, tap, Enter/Space) hör till vyerna och använder
+// konstanterna härifrån i stället för egna siffror.
+
+/** Väntetiden EFTER en giltig hover innan raden räknas som läst. 0 = direkt; en dröjsmålsregel kan införas utan omdesign. */
+export const READ_DWELL_MS = 0;
+/** Fönstret efter att listan monterats där `pointerenter` ignoreras, så att en vilande pekare inte markerar raden (något annat än READ_DWELL_MS). */
+export const POINTER_SETTLE_MS = 150;
+/** Kvitteringarna buntas: högst så här länge väntar nätverksanropet efter det första id:t. UI:t väntar aldrig. */
+export const READ_FLUSH_MS = 300;
+/** Serverns tak per POST /news/read (1–50 unika id:n). */
+export const READ_BATCH_MAX = 50;
+/** Hur länge klockans räknare ska stå still innan en minskning annonseras: en svepning över flera rader ger ett tal, inte en tirad. */
+export const UNREAD_ANNOUNCE_MS = 500;
+
+/**
+ * Kvittera enskilda rader lokalt: bara olästa rader vars id står i `ids` flippas, och räknaren minskar med antalet flippade (aldrig
+ * under noll). `unreadCount` (serverns svar) skriver i stället över räknaren. Ingen flippad rad och ingen ny räknare → samma flöde tillbaka.
+ * Vattenmärket (`last_seen_id`) rörs inte: det är "Mark all read":s.
+ */
+export function markReadInFeed(feed: NewsFeed, ids: readonly number[], unreadCount?: number): NewsFeed {
+  return setReadInFeed(feed, ids, true, unreadCount);
+}
+
+/** Omvändningen av markReadInFeed, för att återställa ett misslyckat anrop: lästa rader i `ids` blir olästa, räknaren sätts till `unreadCount`. */
+export function markUnreadInFeed(feed: NewsFeed, ids: readonly number[], unreadCount: number): NewsFeed {
+  return setReadInFeed(feed, ids, false, unreadCount);
+}
+
+function setReadInFeed(feed: NewsFeed, ids: readonly number[], read: boolean, unreadCount: number | undefined): NewsFeed {
+  const wanted = new Set(ids);
+  let flipped = 0;
+  const items = feed.items.map((row) => {
+    if (!wanted.has(row.id) || row.is_unread === !read || row.is_backfill) return row;
+    flipped += 1;
+    return { ...row, is_unread: !read };
+  });
+  const count = unreadCount ?? Math.max(0, feed.meta.unread_count - flipped);
+  if (flipped === 0 && count === feed.meta.unread_count) return feed;
+  return { items: flipped === 0 ? feed.items : items, meta: { ...feed.meta, unread_count: count } };
+}
+
+export interface ReadBatcher {
+  /** Köa ett id (dubbletter slås ihop). Det första id:t startar fönstret; fler förlänger det inte. */
+  add: (id: number) => void;
+  /** Skicka allt köat direkt (avmontering) och avbryt timern. */
+  flush: () => void;
+  hasPending: () => boolean;
+}
+
+/**
+ * Ren buntning av läs-id:n (ingen React): `send` anropas efter READ_FLUSH_MS eller vid `flush()`, med högst READ_BATCH_MAX id per anrop
+ * (fler delas upp i flera anrop, i insättningsordning). Feltolkning av svaren är anroparens sak.
+ */
+export function createReadBatcher(send: (ids: number[]) => void, flushMs: number = READ_FLUSH_MS): ReadBatcher {
+  const queued = new Set<number>();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const flush = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    const all = [...queued];
+    queued.clear();
+    for (let start = 0; start < all.length; start += READ_BATCH_MAX) send(all.slice(start, start + READ_BATCH_MAX));
+  };
+
+  return {
+    add: (id) => {
+      queued.add(id);
+      if (timer === null) timer = setTimeout(flush, flushMs);
+    },
+    flush,
+    hasPending: () => queued.size > 0,
   };
 }
 
@@ -368,11 +488,51 @@ export function untilText(endsAt: string, now: Date): string {
   return `until ${dateText(endDay, todayKey)}`;
 }
 
+/** "on the leaderboard" (xp) / "on the challenge standings"; ett saknat eller okänt mått läses som leaderboarden. */
+const rankTable = (measure: unknown): string => (measure === 'challenge_points' ? 'on the challenge standings' : 'on the leaderboard');
+const isRank = (rank: unknown): rank is number => typeof rank === 'number' && Number.isInteger(rank) && rank >= 1;
+
+/**
+ * Placeringsbrickan på en rank_passed-rad (ägarbeslut 3): rangen som är relevant för LÄSAREN, aldrig en rang som läses som min när den är någon annans.
+ * "You're #3" (läsaren, jag) · "Karl #2" (en utomståendes passerare). `spoken` är det skärmläsaren får i stället för den korta formen.
+ * En saknad eller trasig rang (0, decimal, sträng) ger ingen bricka hellre än "#undefined".
+ */
+export interface Placement {
+  label: string;
+  spoken: string;
+}
+function placementOf(rank: unknown, holder: string | null): Placement | undefined {
+  if (!isRank(rank)) return undefined;
+  if (holder === null) return { label: `#${rank}`, spoken: `A former member is now number ${rank}` };
+  return holder === 'You'
+    ? { label: `You're #${rank}`, spoken: `You are now number ${rank}` }
+    : { label: `${holder} #${rank}`, spoken: `${holder} is now number ${rank}` };
+}
+
+const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * När en accepterad utmaning börjar, sett från Stockholm-dagen `now`: "it starts tomorrow" · "it starts in 2 d" (samma format som
+ * dueller, startsInText) · "it has started". Saknad eller trasig start_date ger null: texten har då ingen tidsfras.
+ */
+function startsPhrase(startDate: unknown, now: Date): string | null {
+  if (typeof startDate !== 'string' || !CALENDAR_DAY.test(startDate)) return null;
+  const days = daysBetween(stockholmClock(now).date, startDate);
+  if (!Number.isFinite(days)) return null;
+  if (days <= 0) return 'it has started';
+  if (days === 1) return 'it starts tomorrow';
+  const starts = startsInText(startDate, now);
+  return starts === null ? null : `it ${starts}`;
+}
+
 export interface NewsText {
   /** Typraden: "Title taken", "Challenge lost" … (sett från den som tittar). */
   kind: string;
   text: string;
+  /** Bara rank_passed: placeringen som en bricka efter texten (se `Placement`). Saknas för allt annat och för en trasig rang. */
+  placement?: Placement;
 }
+
+const withPlacement = (text: NewsText, placement: Placement | undefined): NewsText => (placement ? { ...text, placement } : text);
 
 /**
  * Texten för en rad. En okänd typ har ingen text att visa → null (anroparen filtrerar bort raden); en känd typ ger alltid text.
@@ -471,6 +631,24 @@ export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | n
       const lead = hasVersion ? `RunQuest v${version} is out` : 'A new RunQuest version is out';
       return { kind: 'New version', text: hasTitle ? `${lead} — ${title}` : lead };
     }
+    case 'rank_passed': {
+      // Tåligt mot en payload utan fält: saknat mått = leaderboarden, saknad rang utelämnas.
+      const { measure, passer_rank: passerRank, passed_rank: passedRank } = item.payload ?? {};
+      const table = rankTable(measure);
+      // Brickan är läsarens rang: den passerade ser sin nya (passed_rank), passeraren sin (passer_rank); en utomstående ser passerarens, med namn.
+      if (viewerIsTarget) return withPlacement({ kind: 'Passed you', text: `${subject(actor, ctx)} passed you ${table}` }, placementOf(passedRank, 'You'));
+      if (viewerIsActor) return withPlacement({ kind: 'You passed', text: `You passed ${object(target, ctx)} ${table}` }, placementOf(passerRank, 'You'));
+      return withPlacement(
+        { kind: 'Rank passed', text: `${subject(actor, ctx)} passed ${object(target, ctx)} ${table}` },
+        placementOf(passerRank, actor ? firstName(actor.name) : null),
+      );
+    }
+    case 'challenge_accepted': {
+      const { start_date: startDate } = item.payload ?? {};
+      const owner = viewerIsTarget ? 'your' : target ? `${firstName(target.name)}'s` : `${FORMER_MEMBER}'s`;
+      const starts = startsPhrase(startDate, ctx.now);
+      return { kind: 'Challenge accepted', text: `${subject(actor, ctx)} accepted ${owner} challenge${starts ? ` — ${starts}` : ''}` };
+    }
     default: {
       const unhandled: never = item;
       void unhandled;
@@ -496,6 +674,8 @@ export interface NewsRowModel {
   emblem: { series: string; tier: number } | null;
   kind: string;
   text: string;
+  /** rank_passed: placeringsbrickan efter texten; null för allt annat. */
+  placement: Placement | null;
   /** Kompakt: "2h". */
   time: string;
   /** Popoverns form: "2h ago". */
@@ -543,7 +723,7 @@ function emblemOf(item: NewsItem): NewsRowModel['emblem'] {
 
 function renderRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
   const category = CATEGORY_OF[item.type];
-  const { kind, text } = describeNews(item, ctx);
+  const { kind, text, placement } = describeNews(item, ctx);
   return {
     id: item.id,
     category,
@@ -552,6 +732,7 @@ function renderRow(item: NewsItem, ctx: NewsContext): NewsRowModel {
     emblem: emblemOf(item),
     kind,
     text,
+    placement: placement ?? null,
     time: formatAgo(item.occurred_at, ctx.now),
     timeLong: formatAgo(item.occurred_at, ctx.now, true),
     timeTitle: fullTime(item.occurred_at, ctx.now),
@@ -574,13 +755,36 @@ export function buildNewsGroups(items: readonly WireNewsItem[], ctx: NewsContext
 
 export const POPOVER_ROWS = 5;
 
-/** Popovern: de senaste fem i visningsordning (samma ordning som skärmens översta rader). */
-export function buildPopoverRows(items: readonly WireNewsItem[], ctx: NewsContext, limit = POPOVER_ROWS): NewsRowModel[] {
+/**
+ * Klientens rad som delad klassificering (`classifyNotification`) förstår: id:n i stället för användarreferenser.
+ * En raderad användare är `null` i flödet och blir `null` här — aldrig betraktaren.
+ */
+export function classifiableRowOf(item: WireNewsItem): ClassifiableRow {
+  return { type: item.type, actorId: item.actor?.id ?? null, targetId: item.target?.id ?? null, payload: item.payload };
+}
+
+export interface PopoverOptions {
+  /** Användarens upplösta inställningar (`notify.<slag>`); `useUserSettings().values`, defaults om de inte kunnat läsas. */
+  settings: Readonly<Record<string, unknown>>;
+  /** Den som tittar. `null` (ingen inloggad) ger en tom lista: egna handlingar går då inte att skilja ut. */
+  viewerId: string | null;
+  limit?: number;
+}
+
+/**
+ * Klockans popover (ADR 011 beslut 3): de senaste raderna vars slag är påslaget, lästa som olästa, i visningsordning (samma som
+ * skärmens översta rader). Egna handlingar (`own`) hör hemma på /news, inte här. Oläst-avgörandet är serverns (`is_unread`) —
+ * `isNotifiable` används inte på klienten, bara samma `classifyNotification` och `isKindEnabled` som servern.
+ */
+export function buildPopoverRows(items: readonly WireNewsItem[], ctx: NewsContext, { settings, viewerId, limit = POPOVER_ROWS }: PopoverOptions): NewsRowModel[] {
+  if (viewerId === null) return [];
   const ordered = [...items].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at) || b.id - a.id);
   const rows: NewsRowModel[] = [];
-  // Filtreringen sker före gränsen så att en okänd rad inte tar en av de fem platserna.
+  // Filtreringen sker före gränsen så att en okänd, egen eller avstängd rad inte tar en av platserna.
   for (const item of ordered) {
     if (rows.length >= limit) break;
+    const kind = classifyNotification(classifiableRowOf(item), viewerId);
+    if (kind === null || kind === 'own' || !isKindEnabled(kind, settings)) continue;
     const row = buildNewsRow(item, ctx);
     if (row) rows.push(row);
   }

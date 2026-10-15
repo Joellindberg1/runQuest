@@ -151,3 +151,36 @@ describe('GET /api/leaderboard/rank-delta', () => {
     expect(res.body).toEqual({ error: 'Failed to fetch rank delta' });
   });
 });
+
+describe('Boardens All-time-ordning (GET /api/auth/users-with-runs)', () => {
+  it('Boardens All-time-ordning följer komparatorn vid lika XP', async () => {
+    // Infogade i en ordning som INTE är komparatorns: databasens sortering på total_xp ensam ger lika XP i godtycklig ordning.
+    const t = {
+      users: [
+        user('u-cecilia', 'Cecilia', G1, 100),
+        user('u-anna-b', 'Anna', G1, 100),
+        user('u-bertil', 'bertil', G1, 100),
+        user('u-nils', 'Nils', G1, null as unknown as number), // saknad total_xp räknas som 0, som i rank-delta
+        user('u-zed', 'Zed', G1, 50),
+        user('u-anna-a', 'anna', G1, 100),
+        user('u-dora', 'Dora', G1, 200),
+        user('u-x', 'Främling', G2, 999),
+      ],
+      runs: [],
+      event_entries: [],
+      user_challenge_tokens: [],
+    };
+    useDb(t);
+    const token = mintToken({ group_id: G1 });
+
+    const board = await server.request('GET', '/api/auth/users-with-runs', { token });
+    const delta = await server.request('GET', '/api/leaderboard/rank-delta', { token });
+
+    expect(board.status).toBe(200);
+    const boardOrder = board.body.data.map((u: any) => u.id);
+    // xp fallande, sedan namn (skiftlägesokänsligt), sedan id: 'anna' och 'Anna' är samma namn, så id avgör
+    expect(boardOrder).toEqual(['u-dora', 'u-anna-a', 'u-anna-b', 'u-bertil', 'u-cecilia', 'u-zed', 'u-nils']);
+    // och är exakt den ordning som rank-delta (och därmed rank_passed) rankar efter
+    expect(delta.body.data.users.map((u: any) => u.user_id)).toEqual(boardOrder);
+  });
+});

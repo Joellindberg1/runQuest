@@ -4,8 +4,12 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logger } from '../utils/logger.js';
+import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 import { ACTIVITY_LOG_TABLE } from '../services/activityLog.js';
+import { isRowUnread, loadUnreadState, type Reader } from '../services/newsUnread.js';
+import { acknowledgeRows, parseReadIds, pruneReadReceipts } from '../services/newsRead.js';
 import {
   ACTIVITY_TYPES,
   isActivityType,
@@ -13,6 +17,7 @@ import {
   type NewsApiResponse,
   type NewsItem,
   type NewsMeta,
+  type NewsReadApiResponse,
   type NewsSeenApiResponse,
   type NewsUserRef,
 } from '@runquest/shared';
@@ -30,8 +35,6 @@ function parsePositiveInt(raw: unknown): number | null {
   const n = Number(raw);
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
-
-type Reader = { news_last_seen_id: number | null; created_at: string | null };
 
 async function readReader(userId: string): Promise<Reader | null> {
   const { data, error } = await getSupabaseClient()
@@ -51,44 +54,6 @@ async function readReader(userId: string): Promise<Reader | null> {
   };
 }
 
-/**
- * Oläst-predikatet (ADR 008 beslut 8) i en rad: id över vattenmärket, ej backfill, skapad efter
- * användaren (nya medlemmar ärver inte gamla nyheter) och inte användarens egen handling.
- */
-function isUnread(
-  row: { id: number; is_backfill: boolean; created_at: string; actor_user_id: string | null },
-  userId: string,
-  reader: Reader,
-): boolean {
-  if (row.is_backfill) return false;
-  if (row.id <= (reader.news_last_seen_id ?? 0)) return false;
-  if (row.actor_user_id === userId) return false;
-  if (reader.created_at && !(Date.parse(row.created_at) > Date.parse(reader.created_at))) return false;
-  return true;
-}
-
-/**
- * Antal olästa i gruppen över ALLA typer — samma predikat som isUnread, räknat i databasen:
- * kandidater minus användarens egna handlingar (actor = U; rader utan aktör räknas alltså som olästa).
- */
-async function countUnread(groupId: string, userId: string, reader: Reader): Promise<number> {
-  const supabase = getSupabaseClient();
-  const candidates = () => {
-    let q = supabase
-      .from(ACTIVITY_LOG_TABLE)
-      .select('id', { count: 'exact', head: true })
-      .eq('group_id', groupId)
-      .eq('is_backfill', false)
-      .gt('id', reader.news_last_seen_id ?? 0);
-    if (reader.created_at) q = q.gt('created_at', reader.created_at);
-    return q;
-  };
-  const [all, own] = await Promise.all([candidates(), candidates().eq('actor_user_id', userId)]);
-  if (all.error) throw all.error;
-  if (own.error) throw own.error;
-  return Math.max(0, (all.count ?? 0) - (own.count ?? 0));
-}
-
 async function fetchUserRefs(ids: string[]): Promise<Map<string, NewsUserRef>> {
   const map = new Map<string, NewsUserRef>();
   if (ids.length === 0) return map;
@@ -101,13 +66,39 @@ async function fetchUserRefs(ids: string[]): Promise<Map<string, NewsUserRef>> {
   return map;
 }
 
-// GET /api/news[?limit=&before=&after=&type=]
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** PostgREST-citering av ett värde i ett filteruttryck: omslutet av " med " och \ escapade (så att kommatecken, klamrar och citat inte delar villkoret). */
+function postgrestQuote(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Villkoret för ?involves=me (ADR 011 beslut 9), ett `.or(...)`-uttryck som läggs som extra AND ovanpå gruppfiltret:
+ *   actor = jag ELLER target = jag ELLER (type = event_closed OCH payload @> {"entrant_ids":["<jag>"]})
+ * `userId` MÅSTE vara ett validerat UUID (anroparen kontrollerar det): id:t interpoleras i filtersträngen. Containment-värdet
+ * citeras dessutom, så att ett id aldrig kan lägga till villkor ens om valideringen skulle glömmas.
+ *
+ * Prestanda: feedet är per grupp (indexet group_id,id desc) och begränsat till högst 100 rader per sida; actor/target har egna
+ * partiella index. Jsonb-containment mot `payload` saknar index. Revisit-trigger: ett GIN-index på `payload` (eller på
+ * `payload->'entrant_ids'`) om en grupps activity_log växer till storleken där detta filter blir märkbart långsamt.
+ */
+function involvesFilter(rawUserId: string): string {
+  // Små bokstäver: UUID-regexen är skiftlägesokänslig, men jsonb-containment jämför strängar exakt och entrant_ids skrivs med små.
+  const userId = rawUserId.toLowerCase();
+  const entrants = postgrestQuote(JSON.stringify({ entrant_ids: [userId] }));
+  return `actor_user_id.eq.${userId},target_user_id.eq.${userId},and(type.eq.event_closed,payload.cs.${entrants})`;
+}
+
+// GET /api/news[?limit=&before=&after=&type=&involves=me]
 // Keyset på id (sortering id desc). `before=<id>` ger äldre rader, `after=<id>` rader nyare än id:t
 // (samma sortering; has_more/next_before beskriver alltid äldre rader inom intervallet, så ett glapp
 // mellan klientens kursor och sidans nederkant fylls med ?before=next_before).
+// `involves=me` är ett vyfilter på samma fråga (limit+1 på den filtrerade frågan, så has_more/next_before gäller det filtrerade
+// flödet); det ändrar inte meta.unread_count, som alltid räknas över hela gruppen.
 router.get('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { limit: rawLimit, before: rawBefore, after: rawAfter, type: rawType } = req.query;
+    const { limit: rawLimit, before: rawBefore, after: rawAfter, type: rawType, involves: rawInvolves } = req.query;
 
     let limit = DEFAULT_LIMIT;
     if (rawLimit !== undefined) {
@@ -142,6 +133,12 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       types = [...new Set(parts as ActivityType[])];
     }
 
+    // Exakt "me" (versalkänsligt); tomt, andra värden och upprepade parametrar (array) är 400.
+    if (rawInvolves !== undefined && rawInvolves !== 'me') {
+      res.status(400).json({ error: 'involves must be "me"' }); return;
+    }
+    const involvesMe = rawInvolves === 'me';
+
     const userId = req.user!.user_id;
     const groupId = req.user!.group_id;
     const emptyMeta: NewsMeta = { unread_count: 0, last_seen_id: null, has_more: false, next_before: null };
@@ -150,6 +147,11 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     if (!groupId) {
       const empty: NewsApiResponse = { success: true, data: { items: [] }, meta: emptyMeta };
       res.json(empty); return;
+    }
+
+    // Id:t kommer ur JWT men interpoleras i filtersträngen nedan: bara ett riktigt UUID släpps igenom.
+    if (involvesMe && !UUID.test(userId)) {
+      res.status(400).json({ error: 'involves requires a valid user id' }); return;
     }
 
     const reader = await readReader(userId);
@@ -165,8 +167,13 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     if (before !== null) query = query.lt('id', before);
     if (after !== null) query = query.gt('id', after);
     if (types) query = query.in('type', types);
+    // Ett extra AND ovanpå .eq('group_id', …) ovan: gruppavgränsningen kommer alltid först och gäller alla grenar av or().
+    if (involvesMe) query = query.or(involvesFilter(userId));
 
-    const [{ data: rows, error }, unreadCount] = await Promise.all([query, countUnread(groupId, userId, reader)]);
+    const [{ data: rows, error }, { viewer, unreadCount }] = await Promise.all([
+      query,
+      loadUnreadState(groupId, userId, reader),
+    ]);
     if (error) throw error;
 
     const all = rows ?? [];
@@ -185,7 +192,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       target: r.target_user_id ? (refs.get(r.target_user_id) ?? null) : null,
       payload: r.payload,
       is_backfill: r.is_backfill,
-      is_unread: isUnread({ ...r, id: Number(r.id) }, userId, reader),
+      is_unread: isRowUnread(r, viewer),
     })) as NewsItem[];
 
     const body: NewsApiResponse = {
@@ -254,10 +261,14 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
       current = fresh ? fresh.news_last_seen_id : target;
     }
 
+    // Rader under golvet är redan lästa, så deras kvitton är inerta. Pruningen sker efter höjningen och med det FAKTISKA
+    // golvet (aldrig lägre än det lagrade); den är best-effort och loggar själv, så ett fel här ändrar inte svaret.
+    await pruneReadReceipts(userId, current);
+
     const refreshed: Reader = { ...reader, news_last_seen_id: current };
     const result: NewsSeenApiResponse = {
       success: true,
-      data: { last_seen_id: current, unread_count: await countUnread(groupId, userId, refreshed) },
+      data: { last_seen_id: current, unread_count: (await loadUnreadState(groupId, userId, refreshed)).unreadCount },
     };
     res.json(result);
   } catch (error) {
@@ -266,4 +277,68 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
   }
 });
 
-export default router;
+// POST /api/news/read  body { ids: number[] }  (ADR 011 beslut 4, läs-gesterna)
+// Kvitterar enskilda rader i news_read. Läst-status är privat: skrivningen bär alltid token-användarens user_id, id:n
+// utanför anroparens grupp eller på/under golvet ignoreras tyst, och svaret innehåller bara anroparens egen räknare.
+//
+// Ordning: (1) slå upp vilka id:n som gäller, (2) upsert med ignoreDuplicates (idempotent), (3) rensa anroparens kvitton
+// på eller under golvet, (4) räkna om med samma loadUnreadState som GET /news, så att talet är exakt det GET visar direkt
+// efter skrivningen. Ett fel i (1) eller (2) ger 500 utan detaljer. Ett fel i (3) loggas och ger ändå 200.
+//
+// Race mot /seen: höjer /seen golvet mellan vår läsning av golvet och vår skrivning kan ett kvitto hamna på eller under det
+// nya golvet. Det är inert (rader under golvet är redan lästa) och rensas av nästa /read eller /seen. Ett id som
+// återkallas mellan uppslagning och skrivning ger FK-fel (23503); acknowledgeRows gör då om det en gång (se newsRead.ts).
+//
+// Kvittofönstret: oläst-räknaren läser news_read som de senaste 501 raderna ovanför golvet (newsUnread.ts). Golvet är
+// tabellens enda städning (här och i /seen); ADR 011:s revisit-trigger är > 1 000 rader per användare, då ska golvet
+// kompakteras över det sammanhängande lästa prefixet.
+//
+// Rate limit: klientens gester buntas med READ_FLUSH_MS = 300 ms, alltså som mest ca 200 anrop per minut från en
+// användare och bara om varje flush bär en ny oläst rad. 240 per minut och IP ligger över det taket (och ger marginal
+// för några som delar IP), så vanlig hover-skrollning aldrig märker gränsen; den stoppar bara ett skript.
+const READ_WINDOW_MS = 60 * 1000;
+const READ_MAX_PER_WINDOW = 240;
+
+/**
+ * Routern byggs av en fabrik så att varje instans får en EGEN limiter-karta (ett test kan bygga en ny app utan att ärva
+ * räknare). `app.ts` monterar default-exporten. /read ligger före flödesrutterna och sitter efter auth: anrop utan
+ * token räknas aldrig mot gränsen.
+ */
+export function createNewsRouter(): express.Router {
+  const root = express.Router();
+  const readLimiter = createRateLimiter(READ_WINDOW_MS, READ_MAX_PER_WINDOW);
+
+  root.post('/read', authenticateJWT, readLimiter, async (req, res): Promise<void> => {
+    try {
+      const ids = parseReadIds(req.body);
+      if (!ids) {
+        res.status(400).json({ error: 'ids must be 1 to 50 unique positive integers' }); return;
+      }
+
+      const empty: NewsReadApiResponse = { success: true, data: { unread_count: 0 } };
+      const groupId = groupIdOrRespondEmpty(req, res, empty);
+      if (!groupId) return;
+
+      const userId = req.user!.user_id;
+      const reader = await readReader(userId);
+      if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
+
+      await acknowledgeRows(groupId, userId, ids, reader.news_last_seen_id ?? 0);
+      await pruneReadReceipts(userId, reader.news_last_seen_id);
+
+      const body: NewsReadApiResponse = {
+        success: true,
+        data: { unread_count: (await loadUnreadState(groupId, userId, reader)).unreadCount },
+      };
+      res.json(body);
+    } catch (error) {
+      logger.error('❌ Error marking news rows as read:', error);
+      res.status(500).json({ error: 'Failed to update news state' });
+    }
+  });
+
+  root.use(router);
+  return root;
+}
+
+export default createNewsRouter();

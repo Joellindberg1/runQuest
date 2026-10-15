@@ -89,3 +89,21 @@ Skuld: 240 inline-styles + 7 typsnitt i nuvarande kod ersätts per inkrement (re
     aldrig användas som dekor på något som inte är belöning, rank eller primär
     handling.
    Undantag badges (Design Council 2026-10-11): ikonen inuti ett badge-emblem skalar med emblemet (15/20/24/42 px vid 28/44/56/96 px; v2 2026-10-11) — gäller bara inuti emblemet; panelrubrikers ikoner följer ikontrappan (`--rq-icon-md`). Nivåfärgerna `--rq-badge-*` används bara på emblem, chip, pips och nivårad, aldrig som status- eller varningsfärg; Rare-blå aliasas inte mot `--rq-tier-minor`.
+
+---
+
+## Dokumenterade undantag
+
+Ett undantag är ett beslut med en token eller ett ställe i koden, inte en genväg. Varje rad säger vilken regel som viker, var det syns, vem som beslutat och vad undantaget INTE täcker. Ett nytt undantag kräver ett nytt beslut och en rad här. De äldre undantagen (olästa nyheter i regel 3, badges i regel 10) står kvar där de ligger i reglerna.
+Källa för de fyra v0.7.0-undantagen: `docs/design/claude-design/RunQuest Frames v0.7 - beslut.md` (Design Council 2026-10-14) och ägarbeslut 2026-10-14 och 2026-10-15.
+
+1. **Undantag från regel 3 — grönt reglage (`--rq-toggle-on`, `--rq-toggle-on-knob`).** Ett reglage som är PÅ är grönt (spårfärgen är `--rq-up`, knoppen `--rq-on-up`): "grönt = på/aktivt i ett reglage". Skäl: nästan alla notisreglage är på som standard, och guld skulle göra kortet till en guldvägg och förbruka "guld = belöning" (Change password, rundturen). Läget bärs inte av färgen ensam: av-läget har en 1 px ram (≥ 3:1 mot ytan) och knoppen byter sida.
+   Ägarbeslut 2026-10-14. Token i temafilen, sektion 1.35; konsument `shared/components/form/form.css` (Switch). Gäller INTE temaväxlaren i headern (`.rq-toggle`, `app-shell`), som förblir guld och inte läser de två tokens.
+2. **Undantag från regel 3 — rundturens guldknappar.** Turens popover (`.rq-tour-popover`, driver.js) har en guldfylld primärknapp (Next/Done) och guldtext på titeln även när sidan bakom har en egen guldknapp. Turen är ett flytande lager över sidan, så "en guldknapp per vy" räknas inom lagret.
+   Design Council 2026-10-14. Stilen står i temafilen, sektion 8. Gäller INTE någon annan yta.
+3. **Undantag från regel 9 — popoverns tomtläge.** När Pack News-popovern har rader men alla är bortfiltrerade av användarens notisinställningar visas "Nothing new for you" (Bebas-rubrik) med en mening och länken "See all pack news": ingen streckad kant och ingen sekundärknapp, eftersom länken till /news redan finns i popoverns fot och är den enda åtgärden.
+   Design Council 2026-10-14 (frame N2). Stil: `features/news/news.css` (`.rq-news-pop__empty`). Gäller INTE ett helt tomt flöde ("No news yet — go make some.") eller /news självt, där tomläget följer regel 9.
+4. **Undantag från regel 10 — Ranks är blå (`--rq-news-rank-rgb`, `--rq-news-rank-ink`).** Nyhetskategorin Ranks (`rank_passed`) har en egen blå färg: de övriga kategorierna bär redan guld, orange, grönt, rött och två neutrala, silver är rang 2 och guld är rang 1 och belöning. Tinten och kanten är `#38bdf8` (`56 189 248`), texten, ikonen och pricken `#7dd3fc`.
+   Ägarbeslut 2026-10-14 ("Ranks är blå") och 2026-10-15 (himmelsblå `#38bdf8`/`#7dd3fc` godkänd). Tokens i temafilen, sektion 1.28; konsument `features/news/news.css`. Strikt skilda från `--rq-tier-minor*` och `--rq-badge-*`: inga alias och inga delade värden (vakt i `features/news/guards.test.ts`), så att minor-nivån och badge-serierna kan ändras utan att Ranks följer med. Ljust läge har mörkare blått men är inte granskat (se Frames-beslutets "Known gap").
+
+Lint: undantagen kräver ingen utökad tillåtelselista. Reglagets tokens bor i temafilen (som får deklarera tokens), `news.css` och `form.css` läser dem som vanliga `var(--rq-…)`, och turen ligger i `index.css`, som lintreglerna inte begränsar. Ingen regel är avstängd generellt.

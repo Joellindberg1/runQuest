@@ -1,11 +1,12 @@
 // 🏃 Run Management Routes
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import {
-  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns,
+  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, MANUAL_RUN_MIN_DISTANCE_KM,
   type AdminSettings, type StreakMultiplier, type BoostSpec, type PreviousRunDay,
 } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
@@ -102,7 +103,8 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     .order('date', { ascending: true });
 
   if (error) {
-    logger.error('❌ Error fetching runs to reprocess:', error);
+    // Kod och användar-id, aldrig felobjektet: ett Postgres-fel kan bära radens värden (Strava-id, koordinater) i message/details (ADR 010 8.6).
+    logger.error(`❌ Error fetching runs to reprocess for user ${userId} (${error.code ?? 'no code'})`);
     throw new Error(`Failed to fetch runs to reprocess (user ${userId}): ${error.message}`);
   }
   if (!runs?.length) return;
@@ -147,9 +149,10 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
       }).eq('id', u.id)
     )
   );
-  const failedUpdates = updateResults.filter((r: { error: { message: string } | null }) => r.error);
+  const failedUpdates = updateResults.filter((r: { error: { message: string; code?: string } | null }) => r.error);
   if (failedUpdates.length > 0) {
-    logger.error(`❌ ${failedUpdates.length} of ${updates.length} run updates failed during reprocess:`, failedUpdates[0].error);
+    // Som ovan: antal, användar-id och felkod, aldrig felobjektet.
+    logger.error(`❌ ${failedUpdates.length} of ${updates.length} run updates failed during reprocess for user ${userId} (${failedUpdates[0].error!.code ?? 'no code'})`);
     throw new Error(`${failedUpdates.length} of ${updates.length} run updates failed during reprocess (user ${userId}): ${failedUpdates[0].error!.message}`);
   }
 
@@ -166,7 +169,7 @@ async function tryReprocessRunsFromDate(userId: string, fromDate: string): Promi
     await reprocessRunsFromDate(userId, fromDate);
     return true;
   } catch (e) {
-    logger.error(`❌ Reprocess from ${fromDate} failed for user ${userId}:`, e);
+    logger.error(`❌ Reprocess from ${fromDate} failed for user ${userId} (${errorCode(e)})`);
     return false;
   }
 }
@@ -216,7 +219,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
         offset,
       ));
     } catch (runsError) {
-      logger.error('❌ Error fetching group runs:', runsError);
+      logger.error(`❌ Error fetching group runs (${errorCode(runsError)})`);
       res.status(500).json({ error: 'Failed to fetch group run history' }); return;
     }
 
@@ -249,7 +252,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
     const body: GroupRunHistoryResponse = { runs, meta: buildPageMeta(total, limit, offset) };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error in group history endpoint:', error);
+    logger.error(`❌ Error in group history endpoint (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -275,8 +278,8 @@ const MIN_RUN_DAY = '2025-06-01';
  */
 function validateRunInput(date: string | undefined, distance: unknown): { error: string | null; distanceNum: number } {
   const distanceNum = parseFloat(String(distance));
-  if (isNaN(distanceNum) || distanceNum < 1.0) {
-    return { error: 'Distance must be at least 1.0 km', distanceNum };
+  if (isNaN(distanceNum) || distanceNum < MANUAL_RUN_MIN_DISTANCE_KM) {
+    return { error: `Distance must be at least ${MANUAL_RUN_MIN_DISTANCE_KM.toFixed(1)} km`, distanceNum };
   }
   if (date !== undefined) {
     const runDate = new Date(date);
@@ -355,7 +358,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     if (idempotencyKey) {
       const { data: existing, error: lookupError } = await findRunByKey(idempotencyKey);
       if (lookupError) {
-        logger.error('❌ Error looking up run by idempotency key:', lookupError);
+        logger.error(`❌ Error looking up run by idempotency key for user ${userId} (${errorCode(lookupError)})`);
         res.status(500).json({ error: 'Failed to create run' }); return;
       }
       if (existing) { replayExisting(existing, 'sequential'); return; }
@@ -389,9 +392,9 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
         // Race: ett samtidigt anrop med samma nyckel hann före. Läs dess rad och svara med den.
         const { data: winner, error: winnerError } = await findRunByKey(idempotencyKey);
         if (winner) { replayExisting(winner, 'concurrent'); return; }
-        logger.error('❌ Idempotency conflict but the existing run could not be read:', winnerError ?? 'no row');
+        logger.error(`❌ Idempotency conflict but the existing run could not be read for user ${userId} (${winnerError ? errorCode(winnerError) : 'no row'})`);
       } else {
-        logger.error('❌ Error inserting run:', insertError);
+        logger.error(`❌ Error inserting run for user ${userId} (${errorCode(insertError)})`);
       }
       res.status(500).json({ error: 'Failed to create run' }); return;
     }
@@ -411,7 +414,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       runDate: toRunDay(date), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
       distanceKm: distanceNum,
       groupId: req.user!.group_id,
-    }).catch(e => logger.error('❌ checkEventQualification error:', e));
+    }).catch(e => logger.error(`❌ checkEventQualification error for user ${userId} (${errorCode(e)})`));
 
     if (!reprocessed) {
       res.status(500).json({ error: 'Run was created but XP recalculation failed', written: true }); return;
@@ -425,7 +428,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (fetchError) {
-      logger.warn('⚠️ Could not fetch processed run:', fetchError);
+      logger.warn(`⚠️ Could not fetch processed run for user ${userId} (${errorCode(fetchError)})`);
     }
 
     logger.info(`✅ Run created successfully with ${processedRun?.xp_gained || 0} XP`)
@@ -437,7 +440,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    logger.error('❌ Error creating run:', error);
+    logger.error(`❌ Error creating run for user ${req.user?.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -503,7 +506,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .eq('id', id);
 
     if (updateError) {
-      logger.error('❌ Error updating run:', updateError);
+      logger.error(`❌ Error updating run for user ${userId} (${errorCode(updateError)})`);
       res.status(500).json({ error: 'Failed to update run' }); return;
     }
 
@@ -537,7 +540,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
         // Bara events vars dagar rundans (nya) datum faller inom — annars kvalificerar en redigering av
         // en gammal runda ett event som pågår just nu.
         enforceRunDateWindow: true,
-      }).catch(e => logger.error('❌ checkEventQualification error (PUT):', e));
+      }).catch(e => logger.error(`❌ checkEventQualification error (PUT) for user ${userId} (${errorCode(e)})`));
     }
 
     if (!reprocessed) {
@@ -556,7 +559,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (fetchUpdatedError) {
-      logger.warn('⚠️ Could not fetch updated run:', fetchUpdatedError);
+      logger.warn(`⚠️ Could not fetch updated run for user ${userId} (${errorCode(fetchUpdatedError)})`);
     }
 
     logger.info(`✅ Run ${id} updated and all runs reprocessed successfully`);
@@ -568,7 +571,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    logger.error('❌ Error updating run:', error);
+    logger.error(`❌ Error updating run for user ${req.user?.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -608,16 +611,18 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     const deletedDate = existingRun.date;
 
-    // event_entries.run_id → runs(id) är NO ACTION: en runda som kvalificerat ett event kan inte raderas
-    // (FK-fel). Förkontroll → 409 med klartext i stället för 500. Ingen null-out: den bevarar dagens
-    // de facto-regel (kvalificerande runda står kvar) och öppnar inte för XP-farmning (radera efter utdelad XP).
+    // En manuell runda som kvalificerat ett event får inte raderas: 409 med klartext. Detta är en regel i koden och
+    // ENDA skyddet: sedan migration 047 är event_entries.run_id → runs(id) ON DELETE SET NULL (ADR 010 D2, så att Strava-
+    // raderingar via webhooks inte kraschar), så FK:n stoppar ingenting längre. Skillnaden: webhook-vägen raderar en
+    // Strava-runda och behåller entry + XP med run_id NULL; den här vägen får aldrig radera efter utdelad XP
+    // (XP-farmning: radera efter utdelad XP), så den spärras här, före raderingen.
     const { data: qualifiedEntries, error: entriesError } = await supabase
       .from('event_entries')
       .select('id')
       .eq('run_id', id)
       .limit(1);
     if (entriesError) {
-      logger.error('❌ Error checking event entries for run:', entriesError);
+      logger.error(`❌ Error checking event entries for a run of user ${userId} (${errorCode(entriesError)})`);
       res.status(500).json({ error: 'Failed to delete run' }); return;
     }
     if (qualifiedEntries && qualifiedEntries.length > 0) {
@@ -631,7 +636,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .eq('id', id);
 
     if (deleteError) {
-      logger.error('❌ Error deleting run:', deleteError);
+      logger.error(`❌ Error deleting run for user ${userId} (${errorCode(deleteError)})`);
       res.status(500).json({ error: 'Failed to delete run' }); return;
     }
 
@@ -660,7 +665,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    logger.error('❌ Error deleting run:', error);
+    logger.error(`❌ Error deleting run for user ${req.user?.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });

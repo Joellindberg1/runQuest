@@ -12,6 +12,8 @@
 
 import 'dotenv/config';
 import { getSupabaseClient } from '../config/database.js';
+import { isTreadmillActivity } from '../utils/stravaActivity.js';
+import { getValidAccessToken, stravaFetch } from '../services/stravaClient.js';
 
 // ─── Konstanter ──────────────────────────────────────────────────────────────
 
@@ -25,46 +27,11 @@ function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-async function refreshToken(refreshToken: string, userId: string): Promise<string | null> {
-  const clientId     = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error('Strava credentials saknas i .env');
-
-  const res = await fetch('https://www.strava.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id:     clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type:    'refresh_token',
-    }),
-  });
-
-  if (!res.ok) {
-    console.error(`  ❌ Token refresh misslyckades för ${userId}`);
-    return null;
-  }
-
-  const data = await res.json() as any;
-  const supabase = getSupabaseClient();
-  await supabase
-    .from('strava_tokens')
-    .update({
-      access_token:  data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at:    data.expires_at,
-    })
-    .eq('user_id', userId);
-
-  return data.access_token;
-}
-
 async function fetchTrainerField(
   activityId: string,
   accessToken: string
 ): Promise<boolean | null> {
-  const res = await fetch(
+  const res = await stravaFetch(
     `https://www.strava.com/api/v3/activities/${activityId}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
@@ -73,18 +40,18 @@ async function fetchTrainerField(
     console.warn('  ⚠️  Rate limit träffad — pausar 15 min...');
     await sleep(RATE_LIMIT_PAUSE);
     // Försök igen
-    const retry = await fetch(
+    const retry = await stravaFetch(
       `https://www.strava.com/api/v3/activities/${activityId}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     if (!retry.ok) return null;
     const data = await retry.json() as any;
-    return data.trainer === true;
+    return isTreadmillActivity(data);
   }
 
   if (!res.ok) return null;
   const data = await res.json() as any;
-  return data.trainer === true;
+  return isTreadmillActivity(data);
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -97,7 +64,7 @@ async function main() {
   // 1. Hämta alla användare med Strava-koppling
   const { data: tokens, error: tokensError } = await supabase
     .from('strava_tokens')
-    .select('user_id, access_token, refresh_token, expires_at, users(name)');
+    .select('user_id, users(name)');
 
   if (tokensError || !tokens?.length) {
     console.error('❌ Kunde inte hämta strava_tokens:', tokensError?.message);
@@ -116,19 +83,13 @@ async function main() {
     console.log(`─────────────────────────────────`);
     console.log(`👤 ${userName}`);
 
-    // 2. Hämta access token, refresh om nödvändigt
-    const now = Math.floor(Date.now() / 1000);
-    let accessToken = tokenRow.access_token;
-
-    if (tokenRow.expires_at && tokenRow.expires_at < now) {
-      console.log('  🔄 Token utgången, refreshar...');
-      const refreshed = await refreshToken(tokenRow.refresh_token, userId);
-      if (!refreshed) {
-        console.error('  ❌ Kunde inte refresha token, hoppar över användaren');
-        continue;
-      }
-      accessToken = refreshed;
+    // 2. Hämta access token, refresh om nödvändigt (delad tokenväg)
+    const token = await getValidAccessToken(userId);
+    if (!token.ok) {
+      console.error('  ❌ Kunde inte hämta eller refresha token, hoppar över användaren');
+      continue;
     }
+    const accessToken = token.accessToken;
 
     // 3. Hämta alla Strava-rundor för användaren
     const { data: runs, error: runsError } = await supabase

@@ -42,8 +42,13 @@
     },
     {
       "title": "Pack News",
-      "body": "Everything the group does in one feed, with a bell that shows what is new",
+      "body": "Everything the group does in one feed, with filters, an Involves me view and a bell that shows what is new",
       "icon": "bell"
+    },
+    {
+      "title": "Notifications",
+      "body": "Choose what the bell counts and what its list shows, in Settings → Notifications or on the Pack News page",
+      "icon": "settings"
     },
     {
       "title": "Strava",
@@ -63,17 +68,54 @@
   ],
   "workingOn": [
     {
-      "title": "Notifications",
-      "body": "Get told about challenges, titles and group activity as they happen",
-      "icon": "bell",
+      "title": "Seasons and trophies",
+      "body": "Play in seasons, with a level of their own and a cabinet for what you win",
+      "icon": "trophy",
       "details": [
-        "Challenge invites and results",
-        "Title changes",
-        "Group milestones"
+        "A season level",
+        "Titles per season",
+        "A trophy cabinet"
+      ]
+    },
+    {
+      "title": "Group settings",
+      "body": "Each group gets settings of its own, so the rules can differ between groups",
+      "icon": "settings",
+      "details": [
+        "Settings per group",
+        "Different XP rule packs"
       ]
     }
   ],
   "releases": [
+    {
+      "version": "0.7.0",
+      "type": "minor",
+      "date": "15 October 2026",
+      "title": "Notifications, Ranks and Strava control",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Notifications you control: in Settings → Notifications, or on the Pack News page, switch on what the bell counts and what its list shows, from titles taken from you to rank changes. Pack News itself always shows everything."
+        },
+        {
+          "type": "feature",
+          "description": "Mark news as read one row at a time: move your mouse over a row, tap it, or press Enter or Space. Tabbing onto a row does not count as reading it. Mark all read is still there."
+        },
+        {
+          "type": "feature",
+          "description": "Pack News has an Involves me button that keeps only news about you: your moves, moves against you and events you joined. The new Ranks filter shows when someone passes you on the leaderboard or the challenge standings, and you get a note when someone accepts your challenge."
+        },
+        {
+          "type": "feature",
+          "description": "Connecting Strava now starts with a short summary you tick to agree to: what is imported, what happens when you delete a run on Strava, that Disconnect deletes your Strava runs, and that you can pause sync. The full text is in Privacy & Terms."
+        },
+        {
+          "type": "feature",
+          "description": "In Settings you can Pause sync (your connection and runs stay, but no new runs are fetched until you turn sync back on; the new runs from the pause are fetched when you turn it back on) or Disconnect. Disconnect asks Strava to revoke RunQuest's access and deletes the runs imported from Strava, and it cannot be undone. Runs you added by hand stay."
+        }
+      ]
+    },
     {
       "version": "0.6.2",
       "type": "patch",
