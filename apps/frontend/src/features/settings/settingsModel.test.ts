@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_PASSWORD_FORM, buildStravaCard, buildSyncRow, countStravaRuns, validatePasswordChange } from './settingsModel';
+import { stravaPollIntervalLabel } from '@runquest/shared';
+import { EMPTY_PASSWORD_FORM, STRAVA_IMPORT_RULES, buildStravaCard, buildSyncRow, countStravaRuns, validatePasswordChange } from './settingsModel';
 
 const NOW = new Date('2026-10-05T12:00:00Z');
 const minutes = (n: number) => new Date(NOW.getTime() + n * 60_000).toISOString();
@@ -18,6 +19,15 @@ describe('buildStravaCard', () => {
       ['Next sync', 'in 28 min'],
     ]);
     expect(card.rules).toHaveLength(3);
+  });
+
+  it('reglerna säger att rundor kommer när de sparas på Strava, med en reservkontroll', () => {
+    expect(STRAVA_IMPORT_RULES[0]).toBe(`Your Strava runs are imported as you save them, with a backup check every ${stravaPollIntervalLabel()}.`);
+  });
+
+  it('nästa synk är ofta timmar bort (reservkontrollen går två gånger per dygn) och visas i timmar', () => {
+    const card = buildStravaCard({ connected: true, expired: false }, { ...SYNC, next_sync_estimated: minutes(5 * 60 + 30) }, NOW);
+    expect(card.meta.find((cell) => cell.key === 'next')?.value).toBe('in 5 h');
   });
 
   it('ingen synk har körts: sägs rakt ut, aldrig en tom cell', () => {

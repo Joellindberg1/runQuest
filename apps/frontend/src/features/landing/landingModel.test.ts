@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PREVIEW_RANK_DELTAS, PREVIEW_USERS } from '@/features/leaderboard/previewUsers';
 import { formatInt } from '@/features/log/logFormat';
-import { calculateRunXP, DEFAULT_ADMIN_SETTINGS } from '@runquest/shared';
+import { calculateRunXP, DEFAULT_ADMIN_SETTINGS, stravaPollIntervalLabel } from '@runquest/shared';
 import {
   ARENA, LANDING_NAV, PREVIEW_NOTES, PREVIEW_SIZE, STAT_PLACEHOLDER,
   buildFeatures, buildHowItWorks, buildPreviewRows, buildStatViews, buildXpFormula,
@@ -82,9 +82,9 @@ describe('funktionsrutnätet', () => {
     ]);
   });
 
-  it('Strava-kortet säger var 30:e minut och inte tre timmar', () => {
+  it('Strava-kortet säger att rundorna kommer när de sparas, med en reservkontroll, och inte tre timmar', () => {
     const strava = cards[4].body;
-    expect(strava).toBe('Runs import automatically every 30 minutes. Nothing to log by hand.');
+    expect(strava).toBe(`Runs arrive from Strava as you save them, with a backup check every ${stravaPollIntervalLabel()}. Nothing to log by hand.`);
     expect(strava).not.toMatch(/three hours|3 hours/i);
   });
 

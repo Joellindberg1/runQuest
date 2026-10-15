@@ -1,8 +1,8 @@
 import { formatAgo, formatIn, formatLongDate } from '@/features/log/logFormat';
-import { stockholmDay, type StravaStatusResponse } from '@runquest/shared';
+import { stockholmDay, stravaPollIntervalLabel, type StravaStatusResponse } from '@runquest/shared';
 import type { Run } from '@runquest/types';
 import { validatePassword } from '@/shared/utils/validation';
-import { STRAVA_RUN_TYPES_LABEL, STRAVA_SYNC_MINUTES } from '@/features/playbook/playbookFacts';
+import { STRAVA_RUN_TYPES_LABEL } from '@/features/playbook/playbookFacts';
 import { STILL_REMOVED_SENTENCE } from './stravaConnectionCopy';
 
 // Settings-skärmens vymodeller: Strava-kortet ur /strava/status + /strava/last-sync, den senaste synken som en rad, och
@@ -48,7 +48,7 @@ export interface StravaCardView {
 export const isLiveConnection = (state: StravaCardState): boolean => state === 'connected' || state === 'paused';
 
 export const STRAVA_IMPORT_RULES = [
-  `Your Strava runs are imported automatically every ${STRAVA_SYNC_MINUTES} minutes.`,
+  `Your Strava runs are imported as you save them, with a backup check every ${stravaPollIntervalLabel()}.`,
   `Only running activities are imported (${STRAVA_RUN_TYPES_LABEL}), treadmill runs included.`,
   'Duplicate activities are filtered out.',
 ];
