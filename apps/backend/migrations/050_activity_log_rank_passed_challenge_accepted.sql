@@ -1,5 +1,5 @@
 -- 050: rank_passed och challenge_accepted i händelseloggen (RUN-191, v0.7.0). ADR 011 beslut 6 och 7 (migration 3 i beslut 10).
--- Datum: 2026-10-14. EJ APPLICERAD i prod (kräver ägarens uttryckliga ja; Lead applicerar via Supabase MCP apply_migration,
+-- Datum: 2026-10-14. APPLICERAD i prod 2026-10-15 efter deploy (ägar-ja i chatten; Lead via Supabase MCP apply_migration,
 -- name: 050_activity_log_rank_passed_challenge_accepted, och uppdaterar den här raden till APPLICERAD med datum).
 --
 -- KÖRORDNING: applicera EFTER deployen av backend + frontend (S28, ägarens ja). Annars bryter CHECK:en inget: den här
