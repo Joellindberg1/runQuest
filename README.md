@@ -108,7 +108,7 @@ CI (`.github/workflows/ci.yml`) is blocking on every PR to `main`: backend `tsc`
 - **Leaderboard (Board)** — Season, week and streak views with a podium and ranking rows.
 - **XP & Levels** — Base XP + XP per km + distance bonuses + streak multiplier, 30 levels. Admins can adjust the values; `packages/shared` holds the defaults.
 - **Streaks** — Daily runs give a growing multiplier (the default ladder goes from ×1.1 at day 5 to ×2.0 at day 270); a missed day resets the streak.
-- **Strava** — Connect via OAuth2 (popup). Runs sync automatically every 30 minutes and can be synced manually. Strava runs are read-only in the app; only manual runs can be edited or deleted.
+- **Strava** — Connect via OAuth2 (popup). Runs arrive from Strava as you save them, with a backup check every 12 hours, and can be synced manually. Strava runs are read-only in the app; only manual runs can be edited or deleted.
 - **Log runs** — Manual logging with an XP preview.
 - **Titles** — 24 title engines (longest run, most km, time of day, pace, elevation, comeback, weather and winter titles such as Stormborn, Iceborn and Winter Warrior …), grouped into categories. Titles can be revoked when the requirement is no longer met.
 - **Badges** — Eight series × six tiers (Common to Legendary), derived from the runs and revocable. The `/badges` page, up to three displayed badges, an upgrade popup.

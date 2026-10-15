@@ -52,7 +52,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   Rundans surface kan inte ändras (servern tar bara datum och distans). Rutan visar vad rundan gav senast servern räknade, och att streak och XP räknas om från den dagen.
   Delete är en röd hårlinje som öppnar ett eget bekräftelsesteg — där finns den fyllda röda knappen (oåterkalleligt). Ingen guldknapp på sidan; EN i rutan (Save).
 - **Strava-rundor kan inte raderas här** (`isStravaRun`: `source === 'strava'`; null/saknas = manuell). DELETE lämnar ingen gravsten, så synken importerar tillbaka
-  rundan inom sitt 7-dagarsfönster. Delete-knappen i redigeringsrutan är avstängd med "Strava runs come back on next sync — delete it in Strava instead"
+  rundan inom sitt 7-dagarsfönster. Delete-knappen i redigeringsrutan är avstängd med "Strava runs come back from Strava — delete it in Strava instead"
   (`title` + `sr-only`-text i knappen, som Titles valknapp; en synlig rad med samma text för touch). Redigering är också låst (RUN-139, se nedan): Strava-rundor öppnas skrivskyddade via View. `source` följer med ur users-with-runs
   (`mapApiUser`). **409 vid radering** (rundan kvalificerade ett event, ADR 008 addendum 5): serverns klartext visas i rutans `role="alert"` och rutan står kvar.
 - **Heatmapen:** en ruta per dag, veckor mån–sön, en vecka tillhör månaden där dess måndag ligger (4–5 per månad, som prototypen). Intensitet = dagens km:
