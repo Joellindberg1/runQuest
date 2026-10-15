@@ -108,10 +108,9 @@ describe('changelog: v0.6.0', () => {
     expect(v060?.type).toBe('minor');
     expect(v060?.announce).toBe(true);
     expect(v060?.changes.some((change) => change.type === 'feature' && /badges/i.test(change.description))).toBe(true);
-    // Levererat = ett kort under Features, inte längre under Working on (Notifications ligger kvar där).
+    // Levererat = ett kort under Features, inte längre under Working on.
     expect(changelog.features.map((feature) => feature.title)).toContain('Badges');
     expect(changelog.workingOn.map((item) => item.title)).not.toContain('Badges');
-    expect(changelog.workingOn.map((item) => item.title)).toContain('Notifications');
   });
 
   it('titeltrösklarna i texten är de motorerna använder (läses ur motorfilerna: 12 m/s, 5 °C, december–februari)', () => {
@@ -153,6 +152,41 @@ describe('changelog: v0.6.0', () => {
 
   it('innehåller inga interna ticketnummer i texterna gruppen ser', () => {
     expect(JSON.stringify(changelog)).not.toMatch(/\bRUN-\d+/);
+  });
+});
+
+describe('announcedNotes', () => {
+  it('v0.7.0-posten med announce är med och slugen är unik', () => {
+    const slugs = announcedNotes(changelog.releases).map((note) => note.slug);
+    expect(slugs).toContain(slugForVersion('0.7.0'));
+    expect(slugs.filter((slug) => slug === slugForVersion('0.7.0'))).toHaveLength(1);
+  });
+});
+
+describe('changelog: v0.7.0', () => {
+  const v070 = changelog.releases.find((entry) => entry.version === '0.7.0');
+  const text = v070?.changes.map((change) => change.description).join(' ') ?? '';
+
+  it('är en annonserad minor-post som pekar på Settings → Notifications för den som inte besöker Pack News', () => {
+    expect(v070?.type).toBe('minor');
+    expect(v070?.announce).toBe(true);
+    expect(text).toContain('Settings → Notifications');
+  });
+
+  it('beskriver läs-gesten (hovra, tryck, Enter eller Space) och att fokus inte räknas, samt Involves me och Ranks', () => {
+    expect(text).toMatch(/mouse over a row, tap it, or press Enter or Space/);
+    expect(text).toMatch(/Tabbing onto a row does not count/);
+    expect(text).toContain('Involves me');
+    expect(text).toContain('Ranks');
+  });
+
+  it('Notifications är levererat: ett kort under Features och inte längre under Working on', () => {
+    expect(changelog.features.map((feature) => feature.title)).toContain('Notifications');
+    expect(changelog.workingOn.map((item) => item.title)).not.toContain('Notifications');
+  });
+
+  it('Working on har ägarens två kort, och inget annat', () => {
+    expect(changelog.workingOn.map((item) => item.title)).toEqual(['Seasons and trophies', 'Group settings']);
   });
 });
 

@@ -1,11 +1,11 @@
 # Settings Feature — `/settings`
 
-Strava-koppling, lösenordsbyte och senaste synk. Web Prototypens Settings (Strava-kort · Password | Latest sync); mobilprototypen saknar sidan, så mobil är
-härledd (allt i en kolumn). `pages/SettingsPage.tsx` är tunn.
+Strava-koppling, notisinställningar, lösenordsbyte och senaste synk. Web Prototypens Settings (Strava-kort · Notifications · Password | Latest sync); mobilprototypen saknar sidan, så mobil är
+härledd (allt i en kolumn). Rubrikens undertext är "Strava, notifications and password". `pages/SettingsPage.tsx` är tunn.
 
 ## Struktur
 
-- **components/** — `SettingsScreen` (datakoppling, laddning/fel), `StravaCard`, `StravaConsentBlock` (samtycket i Strava-kortet), `PasswordCard`, `SyncCard`
+- **components/** — `SettingsScreen` (datakoppling, laddning/fel), `StravaCard`, `StravaConsentBlock` (samtycket i Strava-kortet), `StravaConnectionDialog` (pausa eller koppla bort), `NotificationSettingsPanel` (kortet "Notifications"), `PasswordCard`, `SyncCard`
 - **stravaConsent.ts** — bär den godkända samtyckesversionen över OAuth-omdirigeringen (sessionStorage, `rq.strava.consent`)
 - **settingsModel.ts** — `buildStravaCard` (tillstånd, chip, tre celler, regler, token-förnyelse), `buildSyncRow`, `validatePasswordChange` (ren logik, testad)
 - **hooks/** — `useStravaData` (shared Strava-queries + `useStravaConfig`), `useStravaActions` (koppla via OAuth-fönster, koppla om, synka nu), `usePasswordChange`,
@@ -15,6 +15,11 @@ härledd (allt i en kolumn). `pages/SettingsPage.tsx` är tunn.
 
 ## Regler värda att komma ihåg
 
+- **Notifications-kortet (ADR 011 beslut 9, RUN-194):** `NotificationSettingsPanel` ligger mellan Strava- och lösenordskortet och laddar sina inställningar själv (`useUserSettings`), så ett fel där stoppar inte de andra korten. Ett reglage per notisslag i `NOTIFICATION_KINDS` (shared),
+  grupperat i sektionerna Titles · Challenges · Ranks · Events · The pack · System; en sektion utan slag ritas inte. Raden under rubriken är "Everything still lands in Pack News — this decides what reaches you." (inställningarna styr klockan, aldrig vad Pack News visar).
+  På Settings är alla sektioner uppfällda och totalen visas (med standardvalen "18 of 19 on"); på `/news` börjar de hopfällda och totalen utelämnas (samma komponent, se `features/news/README.md`). Sektionsrubrikerna är knappar (chevron, `aria-expanded`); "Reset to defaults" syns bara när något är anpassat.
+  **Reglaget** är `shared/components/form/Switch`: en `button role="switch"` där hela raden är tryckytan, GRÖN när den är på (`--rq-toggle-on`, färgundantaget från regel 3 i designsprak-forslag.md; temaväxlaren i headern förblir guld) och av = 1 px ram med knoppen till vänster. Ett slag som är av som standard bär anteckningen "Off by default" (`aria-describedby`).
+  **Hooken:** `useUserSettings` — optimistisk växling per nyckel; fel återställer och står i den enda `role="alert"`-regionen, "Loading…"/"Saving…" i den enda `role="status"`-regionen; ett laddningsfel visar defaults tydligt märkta ("Defaults shown") med Retry och låser reglagen (`aria-disabled`), eftersom en skrivning ovanpå sparade val som inte gick att läsa vore en gissning.
 - **Strava-queries delas** med skalets Right now och Logs Strava-rad (`shared/hooks/useStravaQueries`): en koppling som görs här syns överallt direkt.
 - **Kortet har tre tillstånd** med kantfärg + statuschip: Connected (grön, live-prick), Expired (röd; "Reconnect Strava" öppnar bara Strava-fönstret, callbackens upsert skriver över tokens och statusen förblir Expired tills kopplingen lyckats), Not connected (neutral).
   Kortet väntar in last-sync-hämtningen så cellerna inte blinkar "Unknown". Statusen går inte att läsa → felkort med Retry; lösenordet fungerar ändå.

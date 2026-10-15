@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.7.0 — Notiser du styr, Ranks och Involves me (2026-10-15)
+
+Användarversion (What's new + Pack News-rad via announce:release). Epic RUN-9 (notiser, ADR 011). Utkast skrivet i release-förberedelsen: Lead fyller i datum och utfall (KÖRD) när stegen körs.
+
+### Nytt — notiser (ADR 011)
+- Inställningar per användare (RUN-184, RUN-186, RUN-187, RUN-244): ett typat register i `packages/shared` (`NOTIFICATION_KINDS`, 19 notisslag i sex sektioner: Titles, Challenges, Ranks, Events, The pack, System) och en gles tabell `user_settings` (migration 048; saknad nyckel = slagets standard). `GET /api/settings` och `PUT /api/settings` (skriver bara anroparens egna rader, högst 40 nycklar per anrop, `null` återställer). Enda slaget som startar avstängt: Rank changes between others.
+- Panelen (RUN-194, RUN-249): kortet "Notifications" på Settings (undertexten är nu "Strava, notifications and password") och samma komponent på /news (sidokolumn på desktop, bottenblad på mobil). Reglaget är grönt när det är på (färgundantag, ägarbeslut 2026-10-14).
+- Klockan följer inställningarna (RUN-250): popovern visar de fem senaste raderna vars slag är påslaget, utan egna handlingar; är allt bortfiltrerat visas "Nothing new for you" och länken till /news. /news visar fortfarande allt, och bara de rader klockan räknar lyser som olästa.
+- Läst per rad (RUN-185, RUN-189, RUN-190, RUN-197, RUN-245): golvet `users.news_last_seen_id` består, och rader ovanför golvet kvitteras en och en i `news_read` (migration 049) via `POST /api/news/read` (1–50 id per anrop). Gesterna: mus över raden efter verklig rörelse, tryck, eller Enter/Space; fokus ensam markerar inget. "Mark all read" finns kvar, höjer golvet och rensar `news_read` under det. Räknaren annonseras artigt (polite live-region). Oläst avgörs av den delade `isNotifiable`; `unread_count` mättas vid 500.
+- Involves me (RUN-188, RUN-196): `GET /api/news?involves=me` och en knapp på /news (`?involves=me`): rader där jag är aktör eller mål, samt events jag deltog i.
+- Ranks (RUN-191, RUN-192, RUN-195, RUN-246, RUN-248): nya händelsetyper `rank_passed` (mått `xp` och `challenge_points`; högst en rad per par, mått och Stockholm-dygn, bara om passeraren låg bakom vid dygnsskiftet) och `challenge_accepted`, additivt fält `entrant_ids` i `event_closed` (RUN-247) och chipet Ranks i filtret (blå kategori, ägarundantag från designregel 10, sky blue `#38bdf8`/`#7dd3fc` godkänd 2026-10-15). Passeringar sker som observatör efter totalskrivningen (`calculateUserTotals`, event-XP, `settleChallenge`); massomräkningar anropar med `emitRankNews: false`. Migration 050 släpper in de två nya typerna i CHECK:en.
+- Touren `tour_news_v2` (RUN-251): fem steg om flödet och läs-gesten, filtret, notisinställningarna, Mark all read och ett avslut. Alla ser den en gång till (ny slug).
+- What's new-popupen (RUN-254) pekar på Settings → Notifications för den som inte besöker /news och beskriver läs-gesten, Involves me och Ranks. Notifications flyttar från Working on till Features, och Working on får ägarens två kort: Seasons and trophies och Group settings.
+
+### Ändrat
+- `GET /api/news`: `is_unread` och `meta.unread_count` följer golvet, `news_read` och påslagna slag i stället för de två count-frågorna (kontraktstexten i `contracts/news.ts` uppdaterad). `POST /api/news/seen` rensar också `news_read` under det nya golvet.
+- Utmaningstabellen (`GET /api/challenges/group-stats` och Duels-tabellen, RUN-246, RUN-248, RUN-269) sorterar med en delad komparator (poäng, vinster, namn, id), så lika poäng får en bestämd ordning och Rank-detektionen aldrig kan skilja sig från tabellen.
+
+### Kodhälsa
+- Designundantagen (grönt reglage, Ranks-blå, turens guldknappar, popoverns tomtläge) är dokumenterade i `docs/design/designsprak-forslag.md` och i temafilens kommentarer; ADR 008 och 011 har fått addendum 2026-10-15; README för news och settings och `docs/open-assumptions.md` är rättade mot koden.
+- Flödestest för klockan, panelen och läs-gesten (RUN-252).
+
+### Prod-steg (kräver ägar-ja)
+1. Migration 048 (`048_create_user_settings`) FÖRE deploy: ny tabell, RLS på och inga policyer, `revoke all` från anon och authenticated. `list_migrations` och `get_advisors security` efteråt.
+2. Migration 049 (`049_create_news_read`) FÖRE deploy: ny tabell med två främmande nycklar, samma RLS-baslinje. Utan 048 fungerar inte inställningarna (`GET/PUT /api/settings`); utan 049 ger `GET /api/news` och `POST /api/news/read` 500 i den nya backenden (ADR 011 beslut 10).
+3. PR release/v0.7.0 → main, grön CI, merge (= deploy). Vänta tills båda tjänsterna är klara.
+4. Röktest: klockan och /news laddar, Settings visar kortet Notifications, ett slag av/på ändrar räknaren, hovra en oläst rad markerar den läst, `GET /api/settings` och `POST /api/news/read` ger 401 utan token.
+5. Migration 050 (`050_activity_log_rank_passed_challenge_accepted`) EFTER deploy och röktest: byter CHECK-listan (15 typer). Mellan deploy och 050 saknas bara `rank_passed`- och `challenge_accepted`-raderna (skrivningen misslyckas tyst, best-effort). Bevis: `pg_get_constraintdef` för `activity_log_type_check` innehåller de två typerna.
+6. Tagg `v0.7.0` på merge-commiten.
+7. `announce:release --version=0.7.0` (dry-run, sedan `--apply`).
+
+### Rollback
+- Kod: redeploya v0.6.2.3 i Railway och revert-PR. Tabellerna `user_settings` och `news_read` är additiva och ignoreras av den gamla koden; de släpps först i en senare städning efter ägar-ja.
+- Migration 048: `drop table if exists public.user_settings;` (raderar alla sparade inställningar). Migration 049: `drop table if exists public.news_read;` (läst-kvitton ovanför golvet försvinner).
+- Migration 050 ångras bara efter att raderna med de nya typerna tagits bort: `delete from public.activity_log where type in ('rank_passed','challenge_accepted');` (ask), därefter den gamla CHECK-listan ur filhuvudet.
+
 ## v0.6.2.3 — Gruppfiltret är fail-closed (2026-10-14)
 
 Intern version (ingen versionsbump, ingen What's new, ingen announce). RUN-258. Ägarbeslut 2026-10-14: buggen tas nu som liten intern version vid sidan av v0.7.0 i stället för i v0.8.0.
