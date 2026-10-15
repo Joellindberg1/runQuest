@@ -40,6 +40,7 @@ vi.mock('../../services/challengeService.js', () => ({
 
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
+import { createFakeDb, type Row } from './helpers/fakeDb.js';
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ let server: http.Server;
 let port: number;
 
 function httpRequest(
-  method: 'POST' | 'PUT',
+  method: 'GET' | 'POST' | 'PUT',
   path: string,
   body: unknown,
   headers: Record<string, string> = {}
@@ -86,6 +87,8 @@ function httpRequest(
 
 const post = (path: string, body: unknown, headers?: Record<string, string>) =>
   httpRequest('POST', path, body, headers);
+const get = (path: string, headers?: Record<string, string>) =>
+  httpRequest('GET', path, undefined, headers);
 const put = (path: string, body: unknown, headers?: Record<string, string>) =>
   httpRequest('PUT', path, body, headers);
 
@@ -445,5 +448,71 @@ describe('PUT /api/challenges/:id/respond', () => {
     );
     expect(status).toBe(200);
     expect(body.success).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('GET /api/challenges/group-stats', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const member = (id: string, name: string, wins: number, draws: number, losses: number): Row => ({
+    id, name, group_id: GROUP_ID, wins, draws, losses, challenge_active: false, current_level: 4, profile_picture: null,
+  });
+
+  async function stats(users: Row[]) {
+    const db = createFakeDb({ users, challenges: [] });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    const res = await get('/api/challenges/group-stats', authHeader);
+    expect(res.status).toBe(200);
+    return res.body.data as Array<Record<string, any>>;
+  }
+
+  it('group-stats ger deterministisk ordning vid lika poäng och vinster', async () => {
+    // Samma ställning 1-0-1 för alla fyra: namn stigande utan hänsyn till skiftläge, därefter id. Databasens ordning är medvetet omvänd.
+    const data = await stats([
+      member('u-4', 'Zelda', 1, 0, 1),
+      member('u-3', 'anna', 1, 0, 1),
+      member('u-2', 'Anna', 1, 0, 1),
+      member('u-1', 'bertil', 1, 0, 1),
+    ]);
+
+    expect(data.map((s) => s.user_id)).toEqual(['u-2', 'u-3', 'u-1', 'u-4']);
+
+    // Samma resultat när databasen svarar i motsatt ordning.
+    const reversed = await stats([
+      member('u-1', 'bertil', 1, 0, 1),
+      member('u-2', 'Anna', 1, 0, 1),
+      member('u-3', 'anna', 1, 0, 1),
+      member('u-4', 'Zelda', 1, 0, 1),
+    ]);
+    expect(reversed.map((s) => s.user_id)).toEqual(['u-2', 'u-3', 'u-1', 'u-4']);
+  });
+
+  it('group-stats rankar spelade före ospelade och jämför oavrundade poäng', async () => {
+    const data = await stats([
+      member('u-fresh', 'Anna', 0, 0, 0),
+      member('u-8', 'Bertil', 8, 9, 9), // (8 + 4,5) / 26 = 0,4808
+      member('u-0', 'Cecilia', 0, 26, 1), // 13 / 27 = 0,4815: båda visas som 0,481 men Cecilia ligger över
+      member('u-lost', 'David', 0, 0, 4), // 0 poäng men har spelat: över den som inte spelat
+    ]);
+
+    expect(data.map((s) => s.user_id)).toEqual(['u-0', 'u-8', 'u-lost', 'u-fresh']);
+    expect(data.slice(0, 2).map((s) => s.points)).toEqual([0.481, 0.481]);
+  });
+
+  it('group-stats behåller svarsformen och avrundade points', async () => {
+    const data = await stats([member('u-1', 'Anna', 2, 0, 1), member('u-2', 'Bertil', 0, 0, 0)]);
+
+    expect(data).toEqual([
+      {
+        user_id: 'u-1', name: 'Anna', wins: 2, draws: 0, losses: 1, total: 3, points: 0.667,
+        challenge_active: false, has_pending_challenge: false, current_level: 4, profile_picture: null,
+      },
+      {
+        user_id: 'u-2', name: 'Bertil', wins: 0, draws: 0, losses: 0, total: 0, points: 0,
+        challenge_active: false, has_pending_challenge: false, current_level: 4, profile_picture: null,
+      },
+    ]);
   });
 });
