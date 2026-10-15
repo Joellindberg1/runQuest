@@ -337,18 +337,39 @@ describe('settleChallenge — rank_passed (challenge_points)', () => {
     expect(pairs(t)).toEqual([['a', 'c']]);
   });
 
+  // Räknarna är skilda från noll med flit: med 0-0-0 skulle den inre vakten i rankNews (negativt "före") stoppa detektionen ändå
+  // och maskera att settleChallenge själv hoppar över anropet.
+  const failsFor = (id: string) => (q: RecordedQuery) => (
+    q.table === 'users' && q.mutation === 'update' && hasOp(q, 'eq') && q.filters.some((f) => f.value === id) ? fail('wdl failed') : null
+  );
+
   it('misslyckad W/D/L-uppdatering ger ingen rank_passed', async () => {
-    const t = world([member('a', 'Anna', 0, 0, 0), member('b', 'Bertil', 0, 0, 0), member('c', 'Cecilia', 1, 1, 0)]);
-    use(t, (q) => (q.table === 'users' && q.mutation === 'update' && hasOp(q, 'eq') && q.filters.some((f) => f.value === 'b') ? fail('wdl failed') : null));
+    // Vinnarens skrivning faller: Zelda står kvar på 5-0-0. Utan hoppet skulle hennes oskrivna räknare ändå läsas som ett lyft
+    // 4 → 5 förbi Aaron (4-0-0), alltså en falsk "Zelda passerade Aaron".
+    const t = world([member('a', 'Zelda', 5, 0, 0), member('b', 'Bertil', 0, 0, 1), member('c', 'Aaron', 4, 0, 0)]);
+    use(t, failsFor('a'));
 
     await expect(settleChallenge('c1')).rejects.toThrow(/W\/D\/L/);
 
+    expect(t.users.find((u) => u.id === 'a')!.wins).toBe(5);
+    expect(rankRows(t)).toHaveLength(0);
+    expect(detectRankPasses).not.toHaveBeenCalled();
+  });
+
+  it('misslyckad W/D/L-uppdatering för förloraren ger ingen rank_passed', async () => {
+    // Vinnarens skrivning lyckas (3-0-1 → 4-0-1 och förbi Aaron 7-0-2), men förlorarens faller: slutläget är inte komplett.
+    const t = world([member('a', 'Zelda', 3, 0, 1), member('b', 'Bertil', 0, 0, 1), member('c', 'Aaron', 7, 0, 2)]);
+    use(t, failsFor('b'));
+
+    await expect(settleChallenge('c1')).rejects.toThrow(/W\/D\/L/);
+
+    expect(t.users.find((u) => u.id === 'a')!.wins).toBe(4);
     expect(rankRows(t)).toHaveLength(0);
     expect(detectRankPasses).not.toHaveBeenCalled();
   });
 
   it('misslyckad läsning av W/D/L ger ingen rank_passed', async () => {
-    const t = world([member('a', 'Anna', 0, 0, 0), member('b', 'Bertil', 0, 0, 0), member('c', 'Cecilia', 1, 1, 0)]);
+    const t = world([member('a', 'Zelda', 5, 0, 0), member('b', 'Bertil', 0, 0, 1), member('c', 'Aaron', 4, 0, 0)]);
     use(t, (q) => (q.table === 'users' && q.select === 'id, wins, draws, losses' ? fail('wdl read failed') : null));
 
     await expect(settleChallenge('c1')).rejects.toThrow(/W\/D\/L/);

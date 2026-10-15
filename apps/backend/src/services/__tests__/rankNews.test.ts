@@ -634,6 +634,76 @@ describe('recordRankPassesForChallenge', () => {
     expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain('Cecilia');
   });
 
+  it('en medlem vars vinster eller oavgjorda går under noll efter subtraktionen hoppas över', async () => {
+    // Cecilia står på 0 vinster men dagens logg säger att hon vunnit en match (och 4-0-0 med en oavgjord i loggen för draws).
+    // Utan vakten skulle hennes negativa term ge ett påhittat dygnsskifte och en rad åt Anna.
+    const wins = duel(
+      [player('a', 'Aaron', 1, 0, 0), player('b', 'Bertil', 0, 0, 1), player('c', 'Cecilia', 0, 3, 0)],
+      [settled('c1', 'challenge_won', 'a', 'b', NOW.toISOString()), settled('e1', 'challenge_won', 'c', 'x', EARLIER_TODAY)],
+      [challengeOf('c1', 'a', 'b')],
+    );
+    use(wins);
+    await recordRankPassesForChallenge('c1');
+    expect(valuesOf(detectInput(0))['c'].midnight).toBeNull();
+    expect(rankRows(wins)).toHaveLength(0);
+
+    const draws = duel(
+      [player('a', 'Aaron', 4, 0, 0), player('b', 'Bertil', 0, 0, 1), player('c', 'Cecilia', 4, 0, 0)],
+      [settled('c1', 'challenge_won', 'a', 'b', NOW.toISOString()), settled('e1', 'challenge_draw', 'c', 'x', EARLIER_TODAY)],
+      [challengeOf('c1', 'a', 'b')],
+    );
+    use(draws);
+    await recordRankPassesForChallenge('c1');
+    expect(valuesOf(detectInput(1))['c'].midnight).toBeNull();
+    expect(rankRows(draws)).toHaveLength(0);
+  });
+
+  it('en medlem skapad idag passerar och passeras inte samma dag', async () => {
+    const createdToday = '2026-10-15T06:00:00.000Z'; // 08:00 i Stockholm
+
+    // M fanns inte vid dygnsskiftet: W passerar inte M, även om M:s räknare ser ut att ha funnits.
+    const passed = duel(
+      [player('u-w', 'Anna', 1, 0, 0), player('u-l', 'Bertil', 0, 0, 1), player('u-m', 'Cecilia', 1, 1, 0, { created_at: createdToday })],
+      [settled('c1', 'challenge_won', 'u-w', 'u-l', NOW.toISOString())],
+    );
+    use(passed);
+    await recordRankPassesForChallenge('c1');
+    expect(rows(passed)).toEqual([]);
+
+    // W fanns inte vid dygnsskiftet: W passerar ingen.
+    const passer = duel(
+      [player('u-w', 'Anna', 1, 0, 0, { created_at: createdToday }), player('u-l', 'Bertil', 0, 0, 1), player('u-m', 'Cecilia', 1, 1, 0)],
+      [settled('c1', 'challenge_won', 'u-w', 'u-l', NOW.toISOString())],
+    );
+    use(passer);
+    await recordRankPassesForChallenge('c1');
+    expect(rows(passer)).toEqual([]);
+  });
+
+  it('dygnsskiftet följer Stockholms sommar- och vintertid', async () => {
+    // [nu, Stockholmsdag, dygnsskiftets ögonblick]: höstens byte till vintertid (25 oktober) och vårens till sommartid (29 mars).
+    const cases: Array<[string, string, string]> = [
+      ['2026-10-25T22:30:00.000Z', '2026-10-25', '2026-10-24T22:00:00.000Z'], // 23:30 sommartid
+      ['2026-10-25T23:30:00.000Z', '2026-10-26', '2026-10-25T23:00:00.000Z'], // 00:30 vintertid, redan nästa dag
+      ['2026-03-29T10:00:00.000Z', '2026-03-29', '2026-03-28T23:00:00.000Z'],
+      ['2026-03-29T22:30:00.000Z', '2026-03-30', '2026-03-29T22:00:00.000Z'], // 00:30 sommartid, redan nästa dag
+    ];
+    for (const [now, day, dayStart] of cases) {
+      vi.setSystemTime(new Date(now));
+      const t = duel(
+        [player('u-w', 'Anna', 1, 0, 0), player('u-l', 'Bertil', 0, 0, 1), player('u-c', 'Cecilia', 1, 1, 0)],
+        [settled('c1', 'challenge_won', 'u-w', 'u-l', now)],
+      );
+      const db = use(t);
+
+      await recordRankPassesForChallenge('c1');
+
+      const read = db.queries.find((q) => q.table === 'activity_log' && q.select !== null)!;
+      expect(read.filters, now).toContainEqual({ op: 'gte', column: 'occurred_at', value: dayStart });
+      expect(rankRows(t).map((r) => r.dedupe_key), now).toEqual([`rank_passed:challenge_points:u-w:u-c:${day}`]);
+    }
+  });
+
   it('en dubbelkörning av samma avgörande ger ingen dubblett', async () => {
     const t = duel(
       [player('u-w', 'Anna', 1, 0, 0), player('u-l', 'Bertil', 0, 0, 1), player('u-c', 'Cecilia', 1, 1, 0)],
