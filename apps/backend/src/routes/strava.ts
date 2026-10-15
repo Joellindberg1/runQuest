@@ -876,9 +876,13 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
 
     if (importedRuns > 0) {
       // Reprocess from earliest new run date — one pass fixes streaks + XP for all affected runs
-      const importedIds = new Set(importedResults.map((run) => run.external_id));
+      // All listed activities count as before (an 'exists' one too), except those the import skipped as gone: nothing was written
+      // for them, so they must not pull the recalculation further back. insertResults is in the order of validActivities.
       const dates = validActivities
-        .filter((a: any) => importedIds.has(a.id.toString()))
+        .filter((_: any, index: number) => {
+          const result = insertResults[index];
+          return !(result.status === 'fulfilled' && result.value.status === 'skipped_gone');
+        })
         .map((a: any) => a.start_date_local.split('T')[0])
         .sort();
       // Läkningen (om någon) ingår i samma omräkning: det tidigaste av läkningsdatumet och importdatumet, en gång.

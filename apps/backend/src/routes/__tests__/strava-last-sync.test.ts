@@ -63,7 +63,8 @@ describe('GET /api/strava/last-sync', () => {
     expect(empty.body.data).toHaveProperty('last_sync_status'); // the existing fields are still there
 
     resetLastWebhookCache();
-    use([event(1, '2026-10-14T08:00:00.000Z'), event(3, '2026-10-15T09:30:00.000Z'), event(2, '2026-10-15T07:00:00.000Z', { status: 'dead' })]);
+    // The newest event is not the one with the highest id (an order by id would give 2026-10-14), and not the first or last row.
+    use([event(5, '2026-10-15T07:00:00.000Z', { status: 'dead' }), event(1, '2026-10-15T09:30:00.000Z'), event(9, '2026-10-14T08:00:00.000Z')]);
     const filled = await lastSync();
     expect(filled.status).toBe(200);
     expect(filled.body.data.last_webhook_at).toBe('2026-10-15T09:30:00.000Z');
@@ -117,6 +118,26 @@ describe('GET /api/strava/last-sync', () => {
     failing = false;
     expect((await lastSync()).body.data.last_webhook_at).toBe('2026-10-15T09:30:00.000Z');
     expect(third.queries.filter((q) => q.table === 'strava_webhook_events')).toHaveLength(2);
+  });
+
+  it('a client that throws gives null and 200, and is not remembered as "no events"', async () => {
+    const leak = 'boom for owner 555111 object 987654321';
+    vi.mocked(getSupabaseClient).mockImplementation(() => { throw Object.assign(new Error(leak), { code: 'T0001' }); });
+
+    const thrown = await lastSync();
+    expect(thrown.status).toBe(200);
+    expect(thrown.body.data.last_webhook_at).toBeNull();
+    expect(lines.some((line) => line.includes('T0001'))).toBe(true);
+    expect(lines.filter((line) => line.includes('555111') || line.includes('987654321'))).toEqual([]);
+
+    // The same when the query builder itself throws.
+    vi.mocked(getSupabaseClient).mockReturnValue({ from: () => { throw Object.assign(new Error(leak), { code: 'T0002' }); } } as any);
+    expect((await lastSync()).body.data.last_webhook_at).toBeNull();
+
+    // Neither failure was cached: the next request asks again and gets the answer.
+    const healthy = use([event(1, '2026-10-15T09:30:00.000Z')]);
+    expect((await lastSync()).body.data.last_webhook_at).toBe('2026-10-15T09:30:00.000Z');
+    expect(healthy.queries.filter((q) => q.table === 'strava_webhook_events')).toHaveLength(1);
   });
 
   it('refuses a request without a token', async () => {
