@@ -108,10 +108,9 @@ describe('changelog: v0.6.0', () => {
     expect(v060?.type).toBe('minor');
     expect(v060?.announce).toBe(true);
     expect(v060?.changes.some((change) => change.type === 'feature' && /badges/i.test(change.description))).toBe(true);
-    // Levererat = ett kort under Features, inte längre under Working on (Notifications ligger kvar där).
+    // Levererat = ett kort under Features, inte längre under Working on.
     expect(changelog.features.map((feature) => feature.title)).toContain('Badges');
     expect(changelog.workingOn.map((item) => item.title)).not.toContain('Badges');
-    expect(changelog.workingOn.map((item) => item.title)).toContain('Notifications');
   });
 
   it('titeltrösklarna i texten är de motorerna använder (läses ur motorfilerna: 12 m/s, 5 °C, december–februari)', () => {
@@ -153,6 +152,69 @@ describe('changelog: v0.6.0', () => {
 
   it('innehåller inga interna ticketnummer i texterna gruppen ser', () => {
     expect(JSON.stringify(changelog)).not.toMatch(/\bRUN-\d+/);
+  });
+});
+
+describe('announcedNotes', () => {
+  // Popupen och Features-kortet kommer med frontend-deployen, men Stravas prenumeration skapas först efter den. Därför har posten ingen announce
+  // (guarden kräver true eller utelämnat, så nyckeln utelämnas) tills webhooks är verifierade. RUN-265 sätter announce: true och vänder det
+  // här testet tillbaka till originalnamnet 'v0.7.0-posten med announce är med och slugen är unik' (posten ska då finnas i announcedNotes, en gång).
+  it('v0.7.0-posten finns men annonseras inte förrän webhooks är verifierade', () => {
+    const posts = changelog.releases.filter((entry) => entry.version === '0.7.0');
+    expect(posts).toHaveLength(1);
+    expect(Boolean(posts[0].announce)).toBe(false);
+    expect(announcedNotes(changelog.releases).map((note) => note.slug)).not.toContain(slugForVersion('0.7.0'));
+  });
+});
+
+describe('changelog: v0.7.0', () => {
+  const v070 = changelog.releases.find((entry) => entry.version === '0.7.0');
+  const text = v070?.changes.map((change) => change.description).join(' ') ?? '';
+
+  it('är en minor-post som pekar på Settings → Notifications för den som inte besöker Pack News', () => {
+    expect(v070?.type).toBe('minor');
+    expect(text).toContain('Settings → Notifications');
+  });
+
+  it('beskriver läs-gesten (hovra, tryck, Enter eller Space) och att fokus inte räknas, samt Involves me och Ranks', () => {
+    expect(text).toMatch(/mouse over a row, tap it, or press Enter or Space/);
+    expect(text).toMatch(/Tabbing onto a row does not count/);
+    expect(text).toContain('Involves me');
+    expect(text).toContain('Ranks');
+  });
+
+  it('Notifications är levererat: ett kort under Features och inte längre under Working on', () => {
+    expect(changelog.features.map((feature) => feature.title)).toContain('Notifications');
+    expect(changelog.workingOn.map((item) => item.title)).not.toContain('Notifications');
+  });
+
+  it('Working on har ägarens två kort, och inget annat', () => {
+    expect(changelog.workingOn.map((item) => item.title)).toEqual(['Seasons and trophies', 'Group settings']);
+  });
+
+  // Före webhook-prenumerationen får posten (som syns i Releases-fliken) inte säga något som kräver verifierade webhooks: inget "tells RunQuest",
+  // inga 48 timmar, ingen reservkontroll och ingen borttagning på Strava under paus. RUN-265 sätter in de texterna och vänder det här testet till att kräva dem.
+  it('Strava-texten är ärlig före prenumerationen: pausen stoppar nya hämtningar, Disconnect raderar och inte går att ångra, och inget kräver verifierade webhooks', () => {
+    expect(text).not.toContain('tells RunQuest');
+    expect(text).not.toContain('48 hours');
+    expect(text).not.toContain('at least every 12 hours');
+    expect(text).not.toContain('still removed here');
+    expect(text).toContain('Pause sync');
+    expect(text).toContain('no new runs are fetched until you turn sync back on; the new runs from the pause are fetched when you turn it back on');
+    expect(text).toMatch(/Disconnect asks Strava to revoke RunQuest's access and deletes the runs imported from Strava, and it cannot be undone/);
+  });
+
+  it('inget Strava-påstående lovar att runda kommer direkt', () => {
+    const stravaTexts = [
+      text,
+      ...changelog.features.filter((feature) => feature.title === 'Strava').map((feature) => feature.body),
+    ].join(' ');
+    expect(stravaTexts).not.toMatch(/instant|within minutes|right away|immediately|real[- ]time/i);
+  });
+
+  it('Strava-kortet under Features lovar inga webhooks förrän webhooks är verifierade', () => {
+    const strava = changelog.features.find((feature) => feature.title === 'Strava');
+    expect(strava?.body).toBe('Your runs are imported automatically');
   });
 });
 

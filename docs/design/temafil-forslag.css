@@ -534,7 +534,7 @@
   --rq-focus-inset: -2px;                                             /* fokusringen INNANFÖR raden (hårlinjegriden och popoverns scroll klipper en yttre ring) */
   --rq-news-pop-w: 360px;                                             /* klock-popovern; på smal skärm krymper den till skärmbredd − 2 × 12 */
   --rq-news-pop-max-h: 520px;                                         /* mobil: scrollar inuti; desktop visar fem rader */
-  /* Kategorin Ranks (RUN-195, ägarbeslut 3): blå. ÄGARUNDANTAG från designregel 10 (färg = betydelse, dokumenteras i designsprak-forslag.md av RUN-254): sex kategorier
+  /* Kategorin Ranks (RUN-195, ägarbeslut 3): blå; himmelsblå #38bdf8 (tint, kant) och #7dd3fc (text, ikon, prick) godkänd av ägaren 2026-10-15. ÄGARUNDANTAG från designregel 10 (färg = betydelse; dokumenterad i designsprak-forslag.md, "Dokumenterade undantag"): sex kategorier
      bär redan guld, orange, grönt, rött och två neutrala; silver är rang 2 och guld är rang 1 och belöning. Egna värden, STRIKT skilda från
      --rq-tier-minor* och --rq-badge-* (inga alias, inga delade värden; vakt i features/news/guards.test.ts), så att minor-nivån och badge-serierna kan ändras utan att Ranks följer med.
      -rgb = tint och kant (med alfa), -ink = text, ikon och prick. Kontrast mot kort och rad (≈ #181818/#0f0f0f): ink ≥ 10:1, kanten (alfa .6) ≥ 3.7:1. Ljust läge: samma roller i mörkare blått. */
@@ -673,7 +673,8 @@
      FÄRGUNDANTAG (ägarbeslut 2026-10-14): reglaget är GRÖNT när det är på (regel 3, "grönt = på/aktivt i ett reglage"). Nästan alla reglage är på som
      standard (idag alla 14); guld skulle göra kortet till en guldvägg och förbruka "guld = belöning" som Change password och rundturen bygger på.
      Av-läget har en 1 px ram (3:1 mot ytan) och knoppen byter sida, så läget bärs inte av färgen ensam. Header-växlaren för tema (.rq-toggle i
-     app-shell) läser INTE de här två och förblir guld. Konsument: shared/components/form/form.css (Switch) och features/settings/settings.css. */
+     app-shell) läser INTE de här två och förblir guld. Dokumenterad i designsprak-forslag.md ("Dokumenterade undantag", regel 3).
+     Konsument: shared/components/form/form.css (Switch) och features/settings/settings.css. */
   --rq-toggle-on:           var(--rq-up);               /* spårets färg när reglaget är på */
   --rq-toggle-on-knob:      var(--rq-on-up);
   --rq-toggle-inset:        3px;                        /* knoppens avstånd till spårets kant (bokstavliga 3px i .rq-toggle) */

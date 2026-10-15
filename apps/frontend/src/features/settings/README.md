@@ -1,11 +1,11 @@
 # Settings Feature — `/settings`
 
-Strava-koppling, notiser och lösenordsbyte. Web Prototypens Settings (Strava-kort · Password | anteckning); mobilprototypen saknar sidan, så mobil är
-härledd (allt i en kolumn). `pages/SettingsPage.tsx` är tunn.
+Strava-koppling, notisinställningar och lösenordsbyte. Web Prototypens Settings (Strava-kort · Notifications · Password | anteckning); mobilprototypen saknar sidan, så mobil är
+härledd (allt i en kolumn). Rubrikens undertext är "Strava, notifications and password". `pages/SettingsPage.tsx` är tunn.
 
 ## Struktur
 
-- **components/** — `SettingsScreen` (datakoppling, laddning/fel), `StravaCard`, `StravaConsentBlock` (samtycket i Strava-kortet), `PasswordCard`
+- **components/** — `SettingsScreen` (datakoppling, laddning/fel), `StravaCard`, `StravaConsentBlock` (samtycket i Strava-kortet), `StravaConnectionDialog` (pausa eller koppla bort), `NotificationSettingsPanel` (kortet "Notifications"), `PasswordCard`
 - **stravaConsent.ts** — bär den godkända samtyckesversionen över OAuth-omdirigeringen (sessionStorage, `rq.strava.consent`)
 - **settingsModel.ts** — `buildStravaCard` (tillstånd, chip, två celler (Connected, Last import ur `/strava/status`), regler, token-förnyelse), `validatePasswordChange` (ren logik, testad)
 - **hooks/** — `useStravaData` (shared Strava-queries + `useStravaConfig`), `useStravaActions` (koppla via OAuth-fönster, koppla om, synka nu), `usePasswordChange`,
@@ -15,9 +15,15 @@ härledd (allt i en kolumn). `pages/SettingsPage.tsx` är tunn.
 
 ## Regler värda att komma ihåg
 
+- **Notifications-kortet (ADR 011 beslut 9, RUN-194):** `NotificationSettingsPanel` ligger mellan Strava- och lösenordskortet och laddar sina inställningar själv (`useUserSettings`), så ett fel där stoppar inte de andra korten. Ett reglage per notisslag i `NOTIFICATION_KINDS` (shared),
+  grupperat i sektionerna Titles · Challenges · Ranks · Events · The pack · System; en sektion utan slag ritas inte. Raden under rubriken är "Everything still lands in Pack News — this decides what reaches you." (inställningarna styr klockan, aldrig vad Pack News visar).
+  På Settings är alla sektioner uppfällda och totalen visas (med standardvalen "18 of 19 on"); på `/news` börjar de hopfällda och totalen utelämnas (samma komponent, se `features/news/README.md`). Sektionsrubrikerna är knappar (chevron, `aria-expanded`); "Reset to defaults" syns bara när något är anpassat.
+  **Reglaget** är `shared/components/form/Switch`: en `button role="switch"` där hela raden är tryckytan, GRÖN när den är på (`--rq-toggle-on`, färgundantaget från regel 3 i designsprak-forslag.md; temaväxlaren i headern förblir guld) och av = 1 px ram med knoppen till vänster. Ett slag som är av som standard bär anteckningen "Off by default" (`aria-describedby`).
+  **Hooken:** `useUserSettings` — optimistisk växling per nyckel; fel återställer och står i den enda `role="alert"`-regionen, "Loading…"/"Saving…" i den enda `role="status"`-regionen; ett laddningsfel visar defaults tydligt märkta ("Defaults shown") med Retry och låser reglagen (`aria-disabled`), eftersom en skrivning ovanpå sparade val som inte gick att läsa vore en gissning.
 - **Strava-queries delas** med skalets Right now och Logs Strava-rad (`shared/hooks/useStravaQueries`): en koppling som görs här syns överallt direkt.
-- **Kortet har tre tillstånd** med kantfärg + statuschip: Connected (grön, live-prick), Expired (röd; "Reconnect Strava" öppnar bara Strava-fönstret, callbackens upsert skriver över tokens och statusen förblir Expired tills kopplingen lyckats), Not connected (neutral).
-  Last import kommer ur `last_import_at` i `/strava/status` (när användarens senaste Strava-runda kom in), så kortet behöver ingen annan hämtning (kortet "Latest sync" och last-sync-anropet är borta i frontend; backendens `/strava/last-sync` finns kvar för catch-up och admin). Statusen går inte att läsa → felkort med Retry; lösenordet fungerar ändå.
+- **Kortet har tre tillstånd** med kantfärg + statuschip: Connected (grön, live-prick), Expired (röd; "Reconnect Strava" öppnar bara Strava-fönstret, callbackens upsert skriver över tokens och statusen förblir Expired tills kopplingen lyckats), Not connected (neutral). En pausad koppling har chippet "Paused" (se "Pausa eller koppla bort" nedan).
+  **Reconnect anropar aldrig disconnect (RUN-236):** disconnect raderar användarens importerade Stravarundor, så en utgången koppling kopplas om genom att callbackens upsert skriver över de gamla tokens, aldrig genom att först koppla bort.
+  Last import kommer ur `last_import_at` i `/strava/status` (när användarens senaste Strava-runda kom in), så kortet behöver ingen annan hämtning; frontend hämtar inte längre servrens synkstatus alls (endpointen finns kvar i backend för catch-up och admin). Statusen går inte att läsa → felkort med Retry; lösenordet fungerar ändå.
 - **OAuth-flödet är oförändrat:** fönstret öppnas mot Strava, `public/strava-popup.html` skickar `{code, error}` med postMessage, bara samma ursprung accepteras.
   Blockerat fönster, avbruten auktorisering och serverfel är text i kortets alert-region.
 - **Samtycket (ADR 010 beslut 12, D4):** utan koppling och vid utgången koppling visar kortet de fyra punkterna (`STRAVA_CONSENT_KEY_POINTS` i shared: vad som importeras, borttagning inom 48 h med omräkning, "Disconnect" raderar och går inte att ångra, synken kan pausas) som en synlig lista, ordagrant ur källan, och hela Strava-avsnittet (`getDataPolicySection('strava')`, aldrig en kopia) hopfällt bakom "Read the full text" (`details`, ingen scrollruta). Rutan "I've read this and agree that RunQuest imports my Strava runs as described" och länken till /legal#privacy står direkt efter; Connect/Reconnect är `disabled` tills rutan är ikryssad och `connect(agreed)` gör ingenting utan bock. Bocken nollas när kortets tillstånd byter. Klicket sparar `STRAVA_CONSENT_VERSION` i sessionStorage, callbacken läser och tar bort den (även utan inloggning) och skickar den som `consent_version` (saknas den skickas ingen nyckel och servern svarar 400 "Consent required", som visas med uppmaning att ladda om sidan). Appen använder inget OAuth-`state`, därför sessionStorage. Den som redan är ansluten ser samma text hopfälld som information (ingen ruta, D4), placerad ovanför åtgärderna så att fler knappar i kortet inte flyttar den.

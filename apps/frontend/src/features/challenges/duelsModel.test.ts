@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { compareChallengeStandings } from '@runquest/shared';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   autoStartText, buildBoosts, buildHistoryRows, buildIncoming, buildLiveCards, buildRecord, buildSent, buildStandings, buildTokenGroups,
   nameMap, summaryText, tokenTotal,
@@ -157,6 +158,62 @@ describe('buildStandings', () => {
     expect(rows.map((row) => row.userId)).toEqual([ADAM, ME, KARL]);
     expect(rows.find((row) => row.userId === ME)?.mine).toBe(true);
     expect(rows.filter((row) => row.mine)).toHaveLength(1);
+  });
+
+  // Lika ställning: namn utan locale (gemener, kodenhetsordning), sedan id — samma tie-breaker som group-stats och rank_passed.
+  const tied = (user_id: string, name: string) => stat(user_id, { name, wins: 1 });
+
+  it('tabellen sorterar lika poäng och vinster med den delade komparatorn (namn utan locale, sedan id)', () => {
+    const åäö = buildStandings([tied('u4', 'Östen'), tied('u3', 'åsa'), tied('u2', 'Zlatan'), tied('u1', 'Per')], ME);
+    expect(åäö.map((row) => row.name)).toEqual(['Per', 'Zlatan', 'åsa', 'Östen']);
+
+    // Skiftläge räknas inte; samma namn i olika skiftläge avgörs av id, inte av gemener-före-versaler.
+    const skiftläge = buildStandings([tied('b', 'anna'), tied('a', 'Anna'), tied('c', 'Bo')], ME);
+    expect(skiftläge.map((row) => row.userId)).toEqual(['a', 'b', 'c']);
+    const skiftlägeOmvänt = buildStandings([tied('b', 'Anna'), tied('a', 'anna')], ME);
+    expect(skiftlägeOmvänt.map((row) => row.userId)).toEqual(['a', 'b']);
+
+    // Lika namn: id avgör, oberoende av indataordningen.
+    const likaNamn = buildStandings([tied('z', 'Sam'), tied('m', 'Sam'), tied('a', 'Sam')], ME);
+    expect(likaNamn.map((row) => row.userId)).toEqual(['a', 'm', 'z']);
+    expect(likaNamn.map((row) => row.rank)).toEqual([1, 2, 3]);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('tabellens ordning är densamma som group-stats för samma ställning, oberoende av webbläsarens språk', () => {
+    const groupStats = [
+      tied('u4', 'Östen'), tied('u3', 'åsa'), tied('u2', 'Zlatan'), tied('u1', 'Per'),
+      tied('u6', 'anna'), tied('u5', 'Anna'), tied('u8', 'Sam'), tied('u7', 'Sam'),
+      stat('u9', { name: 'Ä-spelare', wins: 2, losses: 1 }),
+      stat('u10', { name: 'Bertil', wins: 2, draws: 1 }),
+      stat('u11', { name: 'Ödla' }),
+      stat('u12', { name: 'Cia', losses: 3 }),
+      // Råpoäng 9/29 = 0,3103 och 13/42 = 0,3095 visas båda som 0.310; råpoängen avgör (inte vinsterna, som talar för u14).
+      stat('u14', { name: 'Dora', wins: 13, losses: 29 }),
+      stat('u13', { name: 'Ceasar', wins: 9, losses: 20 }),
+    ];
+    // Backendens mappning och sortering i GET /challenges/group-stats.
+    const expected = [...groupStats]
+      .map((s) => ({ id: s.user_id, name: s.name, wins: s.wins, draws: s.draws, losses: s.losses }))
+      .sort(compareChallengeStandings)
+      .map((s) => s.id);
+    const tableOrder = () => buildStandings(groupStats, ME).map((row) => row.userId);
+
+    expect(tableOrder()).toEqual(expected);
+    const rows = buildStandings(groupStats, ME);
+    expect(rows.find((row) => row.userId === 'u13')?.pct).toBe('0.310');
+    expect(rows.find((row) => row.userId === 'u14')?.pct).toBe('0.310');
+    expect(tableOrder().indexOf('u13')).toBeLessThan(tableOrder().indexOf('u14'));
+
+    for (const locale of ['en-US', 'sv-SE']) {
+      const collator = new Intl.Collator(locale);
+      vi.spyOn(String.prototype, 'localeCompare').mockImplementation(function (this: string, that: string) {
+        return collator.compare(this, that);
+      });
+      expect(tableOrder(), locale).toEqual(expected);
+      vi.restoreAllMocks();
+    }
   });
 });
 
