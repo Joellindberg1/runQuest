@@ -110,7 +110,8 @@ export async function recordRankPassesForXp(
     // Divergerar liggaren från total_xp går dygnsskiftets ställning inte att lita på (previous_xp är klampad till 0).
     if (diverged.length > 0) logger.warn(`⚠️ [RankNews] XP ledger exceeds total_xp for ${diverged.length} user(s) in group ${groupId} — skipping their pairs`);
     const divergedIds = new Set(diverged);
-    if (divergedIds.has(userId)) return;
+    // W:s egen divergens stänger bara av NYA rader (de beror på dygnsskiftets ställning). Retract beror på före/efter och körs ändå.
+    const passerDiverged = divergedIds.has(userId);
 
     const midnight = new Map(standings.map((s) => [s.user_id, s.previous_xp]));
     const result = detectRankPasses({
@@ -128,7 +129,7 @@ export async function recordRankPassesForXp(
       })),
     });
 
-    if (options.mode !== 'retract_only') {
+    if (options.mode !== 'retract_only' && !passerDiverged) {
       const drafts = result.passes
         .filter((p) => !divergedIds.has(p.passedId))
         .map((p) => buildRankPassedDraft(groupId, 'xp', p.passerId, p.passedId, p.passerRank, p.passedRank, occurredAt));

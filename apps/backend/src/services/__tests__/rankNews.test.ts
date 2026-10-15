@@ -206,6 +206,21 @@ describe('recordRankPassesForXp', () => {
     expect(t.activity_log.map((r) => r.dedupe_key)).toEqual([key(YESTERDAY)]);
   });
 
+  it('en minskning retractar dagens rad även när W:s egen liggare är diverged, utan att skriva nya rader', async () => {
+    // W:s runda idag (200 XP) överstiger hennes total_xp 100: diverged. Minskningen 130 -> 100 lägger henne åter bakom M (120).
+    const key = (day: string) => activityKeys.rankPassed('xp', 'u-w', 'u-m', day);
+    const t = world(
+      [user('u-w', 'Anna', 100), user('u-m', 'Bertil', 120), user('u-c', 'Cecilia', 50)],
+      [runOf('rw', 'u-w', TODAY, 200)],
+      { activity_log: [{ id: 1, type: 'rank_passed', dedupe_key: key(TODAY) }, { id: 2, type: 'rank_passed', dedupe_key: key(YESTERDAY) }] },
+    );
+    use(t);
+
+    await recordRankPassesForXp('u-w', G, 130);
+
+    expect(t.activity_log.map((r) => r.dedupe_key)).toEqual([key(YESTERDAY)]);
+  });
+
   it('lika XP avgörs av namn och id', async () => {
     // W går från 90 till 100 (runda idag på 10) och hamnar på lika XP med M (100, ingen runda idag). W låg bakom vid dygnsskiftet (90 mot 100).
     const passes = async (w: [string, string], m: [string, string]) => {
