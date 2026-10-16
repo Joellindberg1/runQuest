@@ -1,0 +1,220 @@
+# 013. Kryptering av Strava-tokens i vila (Jira epic RUN-96 Säkerhetsgenomgång, fixVersion v0.8.0)
+
+## Status
+**Godkänd av ägaren 2026-10-17**, med alla rekommendationer (Ö1–Ö5, se "Avgjorda frågor"; Ö6 besvarad av Lead ur Stravas API Agreement). Ett godkännande av den här ADR:n är *inte* ett ja till själva ändringarna i produktion: nyckeln i Railway, backfill `--apply`, tvingad tokenrotation och migrationen med CHECK-constraint är var och en en egen `ask` (docs/permissions.md, beslut 15 nedan). Ingen ADR ersätts; ADR 010:s revisit-trigger "Tokens flyttas ur klartext (datasäkerhets-ADR)" uppfylls här.
+
+## Kontext
+Strava-kopplingen lagrar användarens `access_token` och `refresh_token` i klartext i `public.strava_tokens` (kolumnerna är `text`; STATE zon 2 "KVAR: Strava-tokens lagras i klartext i DB"). En refresh-token är långlivad: den som läser den kan hämta nya access-tokens så länge användaren inte återkallat behörigheten hos Strava, och kan med `activity:read` läsa användarens aktiviteter (inklusive startkoordinater, puls och starttider = persondata). Det är den känsligaste uppgiften i databasen efter lösenordshasharna. Epic RUN-96 (säkerhetsgenomgång, v0.8.0) har den som uttryckligt ärende.
+
+**Hotbilden (det jag skyddar mot, och det jag inte gör).**
+- *Skyddar mot* (alla har inträffat eller varit nära i det här projektet): (a) läsning av tabellen via felkonfigurerad åtkomst, som RLS-hålen som 038/039 stängde 2026-10-11; (b) läckt service role-nyckel eller läckt Supabase-PAT (incidenterna 2026-10-03/04: nycklarna roterades); (c) databasdump, backup eller SQL-läsning av någon med DB-åtkomst, inklusive agenters Supabase-MCP som är låst till prod (`.mcp.json`) och därmed ser tabellerna; (d) framtida kopia av prod-data till en staging-DB, som annars skulle ge staging fungerande prod-uppgifter.
+- *Skyddar inte mot*: den som har både databasen och Railway-miljön (nyckeln) samtidigt, eller kodkörning i backend-processen. Det är en medveten gräns: nyckeln och chiffertexten ska bo i **olika förtroendedomäner** (Railway respektive Supabase).
+- Krypteringen gäller **bara inloggningsuppgifterna**. `runs` (Strava-data: koordinater, puls m.m.) förblir okrypterat, och Stravas lagringsregel (7-dagarsregeln) är orörd enligt ägarens hållning 2026-10-07. `strava_athlete_id`, `expires_at`, `connection_date`, samtyckeskolumnerna och `sync_paused` är inte hemligheter och krypteras inte (athlete-id måste vara slagbart för webhook-mappningen och det unika indexet, ADR 010 beslut 4).
+
+**Verifierat i koden 2026-10-16** (arbetskopian = lokala `main` v0.7.0, e629f0f, enligt uppdraget; jag läste filerna, körde inget):
+- Efter v0.7.0 finns **en enda tokenväg**: `services/stravaClient.ts` (`getValidAccessToken`, `refreshAccessToken`, intern `refreshStravaToken`). Alla Strava-anrop går via `stravaFetch`. Polling, webhook-workern (`stravaWebhookWorker.ts` + handlers), `GET /status`, `stravaRevoke.ts` (skickar access-token till `/oauth/deauthorize`), `backfillStravaAthleteIds.ts` och `backfill-extended` hämtar sina tokens därifrån. `backfillTreadmill.ts` har ingen egen tokenhantering längre (läser bara `user_id`).
+- **Skrivningar av tokens finns på två ställen**: `POST /strava/callback` (`routes/strava.ts`, `upsert` med `access_token`/`refresh_token`) och `refreshStravaToken` i `stravaClient.ts` (`update` med nya tokens, villkorad på `.eq('refresh_token', <gamla>)`, ett omförsök, `🚨 KRITISKT`-larm om det felar).
+- **Läsningar**: `stravaClient.accessToken()` (`select('access_token, refresh_token, expires_at, connection_date, consent_version')`), `rowHoldsRefreshToken()` (jämför lagrad refresh-token med den som användes) och `syncAllStravaUsers` (`routes/strava.ts`), som väljer `access_token, refresh_token` men bara använder `user_id` (onödig exponering som tas bort här). `/debug-activities` och `backfill-extended` går via `getValidAccessToken`.
+- **Två ställen jämför token-värden i SQL/kod**: villkorade `update ... .eq('refresh_token', refreshToken)` och `rowHoldsRefreshToken`. Slumpad IV gör att samma klartext aldrig ger samma chiffertext, så dessa måste byggas om (beslut 8). Det är den enda icke-triviala delen av ändringen.
+- **Loggning**: `logger.ts` serialiserar kontext rakt av. Callback loggar `has_access_token: Boolean(...)`, aldrig värdet; Stravas felsvar loggas som status. Testet `sensitive-logging.test.ts` ("strava routes never log any part of a token") finns och utökas (beslut 11).
+- **Miljö**: `server.ts` avslutar processen om `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` eller `JWT_SECRET` saknas; Strava-variablerna valideras inte vid start. `.env.example` har `STRAVA_CLIENT_ID/SECRET` och webhook-variablerna. Ingen `.env` finns lokalt (medvetet efter nyckelincidenten); skript och previews körs med `railway run`, som injicerar tjänstens miljö (minnesnotis "Release-preview-mönstret").
+- **Migrationer**: senaste i repot är 050; nästa lediga över repo och ledger tas vid bygget (ADR 002; ADR 012 kan ta ett nummer före).
+- **Tester**: backendens Strava-tester använder fakes (`test-utils/fakeStrava.ts`, `inMemoryWebhookPorts.ts`) och mockade `strava_tokens`-rader med klartextvärden; de behöver ett testnyckelvärde (beslut 12).
+
+**Strava API-policyn.** Ägarens läsning av Stravas API Agreement + API Policy (båda gällande 2026-06-01, 2026-10-06; minnesnotis "Idéanalysen") täcker samtycke, radering, AI och lagring. **Skyddet av användarnas uppgifter hos oss** (rimliga säkerhetsåtgärder för Strava-data och för användarnas autentiseringsuppgifter, samt en eventuell skyldighet att underrätta Strava vid intrång) är den del den här ADR:n hör ihop med: kryptering i vila av tokens är den konkreta åtgärd vi kan peka på. **Jag har inte originaltexten framför mig och har därför inte angivit klausulnummer eller exakt lydelse**; Lead/ägaren fyller i klausulreferensen innan godkännande (Öppen fråga Ö6). ADR:n gör inget anspråk på att kryptering ensam uppfyller policyn: tokens är bara en del av Strava-data hos oss.
+
+**Det jag inte har kunnat verifiera härifrån** (jag har inga webb- eller Jira-verktyg i den här sessionen): (1) Supabase-dokumentationens aktuella status för pgsodium/TCE och Vault (se Alternativ); (2) att Railways *sealed variables* fungerar med `railway run` (Ö1); (3) innehållet i Jira-epicen RUN-96 och dess barn, som därför inte är kopplade till storyerna nedan; (4) Stravas klausulnummer (ovan). Inget beslut nedan hänger på (1)–(3).
+
+**Relaterade ADR:er.** **010** (tokenväg i `stravaClient`, refresh/deauthorize, worker, att en felaktig tolkning av "token avvisad" kan radera användarens rundor, beslut 7.4.3), **002** (migrationsflödet, expand/contract), **001** (teststrategi), **003** (app-factory). `docs/permissions.md`: hemligheter bara i env, aldrig i chatt eller kod; Railway-variabler, prod-migrationer och `--apply` är `ask`.
+
+## Beslut
+
+### 1. Kryptering sker i applikationen (backend), AES-256-GCM, nyckel i Railway-miljön
+Backend krypterar `access_token` och `refresh_token` **innan** de skrivs till Supabase och dekrypterar dem **efter** läsning, med Nodes inbyggda `node:crypto` (`aes-256-gcm`). Ingen ny beroende-, tjänste- eller kostnadspost. Chiffertext lagras i **samma kolumner** (`access_token text`, `refresh_token text`), så ingen kolumnändring och ingen expand-migration behövs (beslut 7 och 15). Databasen ser aldrig nyckeln och backend ser aldrig något "Vault"-API: nyckeln finns i Railway, chiffertexten i Supabase (två domäner, se Kontext).
+
+### 2. Format på lagrat värde
+```
+enc:v1:<kid>:<iv>:<ciphertext>:<tag>
+```
+- `enc:v1` = format-version (framtida byte av algoritm = `v2`); `kid` = nyckel-id (se 3); `iv` = 12 slumpade byte (`crypto.randomBytes(12)`, **ny per kryptering**); `ciphertext` och `tag` (16 byte) = AES-GCM-utdata; alla tre base64url utan padding. Fält separeras med `:` (förekommer inte i base64url eller i `kid`).
+- **AAD (bunden kontext)** = `rq:v1:strava_tokens:<kolumn>:<user_id>` där `<kolumn>` är `access_token` eller `refresh_token`. En chiffertext som flyttats till en annan rad eller kolumn går därför inte att dekryptera (autentiseringstaggen fallerar). Det hindrar att någon med bara skrivåtkomst till databasen byter in en annan användares tokens.
+- Slumpad 96-bitars IV är säker här: volymen är några tiotal krypteringar per dygn, långt under GCM:s gräns för slumpade IV:n per nyckel.
+- Ett värde som börjar med `enc:` är *alltid* krypterat; allt annat är antingen legacy-klartext (beslut 6) eller ett fel.
+- Tillhörande kod bor i två små moduler: `utils/secretBox.ts` (generisk `seal(plain, aad)` / `open(stored, aad)`, nyckelkonfiguration, felkoder) och `services/stravaTokenStore.ts` (`sealStravaToken(userId, column, plain)` / `openStravaToken(userId, column, stored)`; enda stället som känner till AAD-strängen och kolumnnamnen). Allt annat anropar bara `stravaTokenStore`.
+
+### 3. Nycklar, nyckel-id och rotation
+- **Aktiv nyckel:** miljövariabeln `TOKEN_ENCRYPTION_KEY=<kid>:<base64>` där `base64` är exakt 32 byte (standard base64). Används för all kryptering.
+- **Pensionerade nycklar (endast dekryptering):** `TOKEN_ENCRYPTION_KEYS_RETIRED=<kid>:<base64>[,<kid>:<base64>...]`, valfri.
+- **`kid`**: `^[a-z0-9][a-z0-9-]{0,15}$`, miljöprefix i namnet (`prod-1`, `prod-2`, framtida `stg-1`), så en felkopplad miljö syns som "okänt nyckel-id" och inte som ett tyst misslyckande. Dubbletter av `kid` mellan aktiv och pensionerade, fel längd eller ogiltig base64 = ogiltig konfiguration = fail-closed (beslut 9).
+- **Generering:** ägaren skapar nyckeln lokalt (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`) och klistrar in värdet i Railway-UI:t. Värdet visas aldrig i chatt, i kod, i commit eller i loggar (permissions: hemligheter). Systemet loggar bara `kid`, aldrig nyckelmaterial.
+- **Rotation (planerad):** (1) ägaren sätter ny aktiv nyckel `prod-2` och flyttar den gamla till `..._RETIRED` (Railway-ändring = `ask`, redeploy); (2) från den stunden skrivs allt med `prod-2`, och gamla rader läses via den pensionerade nyckeln; varje token-förnyelse (som sker minst var sjätte timme per aktiv användare) omkrypterar dessutom raden med den aktiva nyckeln; (3) `backfill:strava-token-encryption --apply` (beslut 7) omkrypterar resten; (4) när dry-run visar noll rader på gamla `kid` tas den pensionerade nyckeln bort. Ingen driftstopp, ingen användarpåverkan.
+- **Rotation (misstänkt läcka):** som ovan **plus** `--refresh-tokens` (beslut 7), som tvingar fram nya tokens hos Strava. En läckt nyckel + gammal chiffertext ger då bara döda tokens.
+- **Nyckelförlust:** förloras nyckeln (Railway-projektet försvinner utan kopia) går tokens inte att dekryptera, men inget annat går förlorat: rundor, XP och samtycke ligger kvar, och varje användare ansluter om Strava via OAuth (callbacken skriver nya krypterade tokens). Kostnaden är högst sex återanslutningar. En kopia av nyckeln i ägarens lösenordshanterare rekommenderas ändå (Ö1).
+
+### 4. En enda läs- och skrivväg
+All kryptering och dekryptering sker i `stravaTokenStore` och anropas från exakt tre platser: `POST /strava/callback` (seal vid upsert), `stravaClient.refreshStravaToken` (seal vid sparande av roterade tokens) och `stravaClient.accessToken()` (open vid läsning). Dekrypterade värden lever bara i lokala variabler och i `AccessTokenResult.accessToken` (som redan idag aldrig loggas); de får aldrig hamna i ett felmeddelande, en loggrad eller ett svar. `syncAllStravaUsers` slutar välja tokenkolumner (behöver bara `user_id`). En statisk vakt (som de i `ci-guards`) eller ett ESLint-/teststeg kräver att ingen annan fil i `apps/backend/src` (förutom `stravaTokenStore`, `stravaClient`, callbacken, backfillskriptet och tester) nämner `access_token`/`refresh_token` mot `strava_tokens`.
+
+### 5. Villkorade uppdateringar och jämförelser (viktigast att få rätt)
+Pollingens tokenförnyelse är *compare-and-swap* på refresh-token (ADR 010-bygget: uppdateringen gäller bara om raden fortfarande håller den token vi förnyade med). Slumpad IV gör att kryptering av samma klartext två gånger ger olika strängar, så:
+1. `accessToken()` läser och behåller **den lagrade råsträngen** (`storedRefreshRaw`) bredvid klartexten och lämnar båda till `refreshStravaToken`.
+2. CAS-villkoret blir `.eq('refresh_token', storedRefreshRaw)`, alltså den exakta lagrade strängen (gäller även legacy-klartext under övergången, eftersom råsträngen då *är* klartexten).
+3. De nya tokens krypteras **en gång** per förnyelse och samma chiffertext används i omförsöket (annars skulle "sparades vår första försök trots att svaret gick förlorat?" aldrig kunna avgöras).
+4. `rowHoldsRefreshToken(userId, expectedPlain)` läser raden, dekrypterar och jämför klartexter (ingen jämförelse av chiffertext). Dekryptering som felar räknas som "nej" (samma regel som en misslyckad läsning idag).
+5. Före anropet till Stravas token-endpoint görs en **förkontroll** att nyckeln är laddad och giltig (`assertSealingReady()`). Annars skulle Strava hinna rotera refresh-token innan vi upptäcker att vi inte kan spara den, och kopplingen vore förlorad. Fel i förkontrollen = `token_unreadable` utan att Strava anropats.
+
+### 6. Övergång: dual-read, men strikt
+Under övergången (från deploy av S2 till och med S7) läser koden två former:
+- `enc:v1:...` → dekryptera.
+- **Legacy-klartext** = värde som matchar `^[A-Za-z0-9_-]{20,128}$` → används som det är, och en `warn` skrivs en gång per process och användare ("legacy plaintext token read", utan värde). Stravas tokens är i dag 40 hexadecimala tecken; mönstret är medvetet bredare men utesluter `:` och därmed allt som ser ut som (trasig) chiffertext.
+- **Allt annat** (trasig/avkortad `enc:`-sträng, annat format) = `token_unreadable` (beslut 9). Ett trasigt värde skickas aldrig till Strava som om det vore en token. Annars skulle Stravas avvisning av skräp kunna tolkas som "behörigheten är återkallad" och, i kombination med en samtidig deauthorize-händelse, radera användarens rundor (jfr ADR 010 7.4.3).
+- **Skrivning är alltid krypterad** så fort koden är deployad. Det finns ingen väg som skriver klartext, och ingen env-flagga som slår på det.
+- Dual-read har ingen env-växel (mindre konfiguration, mindre att glömma); den tas bort i S7.
+
+### 7. Migrering av befintliga rader: backfillskript med dry-run och `--apply`
+Nytt skript `apps/backend/src/scripts/backfillStravaTokenEncryption.ts`, npm-skript `backfill:strava-token-encryption`, enligt etablerat mönster (dry-run fritt; `--apply` = `ask` med dry-run-rapporten som underlag; skriver ut måldatabasens host). Körs med `railway run --service runQuest-backend -- ...` så att den får produktionsnyckeln utan att hemligheten passerar chatten.
+- **Dry-run (default):** läser alla rader; kräver att nyckeln är giltig (avbryter annars); klassificerar varje rad per kolumn som `null`, `legacy_plaintext`, `encrypted:<kid>` (aktiv/pensionerad/okänd) eller `unrecognised`; för varje legacy-/pensionerad rad görs en **rundtur i minnet** (kryptera och dekryptera, jämför) utan att skriva. Rapporten innehåller bara antal, `user_id` och `kid` per klass. **Aldrig token, aldrig chiffertext.**
+- **`--apply`:** för varje rad som inte redan ligger på aktiv nyckel: kryptera, skriv med CAS (`update ... where user_id = ? and access_token = <gamla råsträngen> and refresh_token = <gamla råsträngen>`) så att en förnyelse som hann emellan inte skrivs över (raden hoppas över, rapporteras och tas vid omkörning), **läs tillbaka, dekryptera och jämför** innan raden räknas som klar. Idempotent (redan krypterade rader på aktiv nyckel rörs inte), per-rad-fel stoppar inte övriga.
+- **`--refresh-tokens` (valfri, egen bekräftelse):** tvinga fram nya tokens hos Strava via `refreshAccessToken(userId)` för varje rad (högst sex anrop mot token-endpointen). Det gör att den *gamla klartexten* i äldre databasbackuper och Postgres-historik blir värdelös. Utan flaggan roteras tokens ändå naturligt för användare vars access-token går ut (högst sex timmar), men inte för pausade eller overksamma kopplingar.
+- **`--decrypt` (nödutgång, egen bekräftelse):** skriver tillbaka klartext (för rollback av release till kod före S2, beslut 13). Kräver nyckeln; skriver samma CAS och rundtursverifiering. Används bara om en release måste backas efter att `--apply` körts.
+- Ingen klartextkopia sparas någonstans (varken fil eller tabell): en säkerhetskopia av klartexten skulle motverka syftet, och återställning vid fel sker via återanslutning.
+
+### 8. Avsluta klartexten: CHECK-constraint, därefter ta bort legacy-läsningen
+När `backfill` visar noll klartextrader (hälsoräknaren i beslut 10 och dry-run) och S2 varit stabilt:
+1. **Migration (nästa lediga nummer, `ask`):** `alter table public.strava_tokens add constraint strava_tokens_tokens_encrypted_chk check ((access_token is null or access_token like 'enc:v1:%') and (refresh_token is null or refresh_token like 'enc:v1:%')) not valid;` följt av `validate constraint`. Från och med nu kan *ingen* väg (inte heller en gammal instans eller en manuell SQL-rad) skriva klartext. Rollback: `drop constraint` (kommenterad SQL i filhuvudet). Kolumnerna behåller typ och namn: ingen kolumn behöver släppas, eftersom klartexten och chiffertexten delar kolumn. "Drop av klartext" betyder därför *att klartext inte längre kan lagras eller läsas*, inte en `drop column`.
+2. **Kod (S7):** legacy-grenen i `openStravaToken` tas bort; ett värde utan `enc:v1:` blir `token_unreadable`. Teststeget som kräver det läggs till.
+Ordningen är fast: kod (dual-read + krypterad skrivning) → nyckel i miljön före deploy → backfill → verifiera noll → migration → ta bort legacy-läsning.
+
+### 9. Saknad eller ogiltig nyckel och fel vid dekryptering: fail-closed, men bara för Strava
+- **Principen:** utan fungerande nyckel kan **ingen** tokenläsning eller -skrivning ske, oavsett om raden är legacy-klartext eller krypterad. Ingen tyst reservväg till klartext, ingen skrivning av klartext, inget Strava-anrop med ett värde vi inte kunnat verifiera.
+- **Resultat i koden:** `AccessTokenResult` får ett nytt, uttömmande hanterat skäl `token_unreadable` (på samma nivå som `token_read_failed`; kompilatorn tvingar varje anropare, bland annat `routes/strava.ts`, `stravaRevoke.ts`, workerns tabell och alla handlers, att ta ställning). Interna orsakskoder (endast till loggen): `key_missing`, `key_invalid`, `unknown_key_id`, `bad_format`, `auth_failed`, `legacy_shape`.
+- **`token_unreadable` betyder aldrig "behörigheten är återkallad".** Det får aldrig mappas till `refresh_rejected` eller `not_connected`, aldrig leda till att en rad nollställs eller raderas, och aldrig till att en deauthorize-händelse bekräftas. Webhook-handlerna behandlar det som `token_read_failed`: händelsen får retry (`pending`, backoff; efter 48 h `dead` + larm), alltså hamnar raderingar inom Stravas frist i larmet i stället för att utföras på felaktiga grunder. Pollingen hoppar över användaren med felet. `GET /status` och synk-endpoints svarar med det befintliga tillfälliga felet (503), inte "koppla om Strava", eftersom felet är vårt och inte användarens.
+- **Vad som *inte* händer:** appen i övrigt (login, rundor, XP, tävlingar) påverkas inte. Jag avstår medvetet från att låta processen avsluta sig vid saknad nyckel (som `JWT_SECRET` gör): nyckeln behövs bara av Strava-spåret, och en nedtagen app är ett sämre utfall än pausad Strava-synk. Ägaren kan välja annat (Ö5).
+- **Larm:** vid uppstart i `NODE_ENV=production` kontrolleras nyckelkonfigurationen; fel ger en `error`-rad med prefixet `🚨 KRITISKT: Strava-tokenkryptering` (en gång per orsak och process; efterföljande läsfel skrivs som vanliga `error` utan prefix, för att inte översvämma loggen). Hälsoendpointen `GET /api/strava/webhook/health` (admin) utökas med `token_encryption: { configured, active_kid, plaintext_rows, rows_on_other_kid, unreadable_since_start }`. Det är det som visar att nyckeln saknas innan en användare märker det.
+- **Deploy utan nyckel är ofarlig men synlig:** koden deployas först *efter* att ägaren satt nyckeln (beslut 16), men om det skulle ske stoppas synken, webhook-händelser får retry i upp till 48 h och lagras kvar, inget går förlorat och synken återupptas när nyckeln sätts.
+
+### 10. Loggning: aldrig token, chiffertext eller nyckel
+- Felkoderna i beslut 9 är de enda detaljer som loggas, tillsammans med `user_id` och kolumnnamn. Undantag av typen `Error` från `secretBox` bär bara en kod, aldrig indata. Kryptoanropens egna undantag (som kan innehålla indata) fångas och byts mot kodfelet.
+- Start-/hälsorader visar `kid` och räknare, inte nyckelmaterial. `server.ts` miljöutskrift skriver redan "set/missing" för variabler vars namn innehåller `KEY` eller `SECRET` (`TOKEN_ENCRYPTION_KEY` träffas av regeln).
+- Stravas svar vid tokenbyte loggas fortfarande som status (befintlig regel); `logger`-kontexten får inte innehålla `AccessTokenResult` eller token-rader.
+
+### 11. Test (ADR 001: ny kod kräver tester; Produkt-läge)
+| Vad | Nivå | Innehåll |
+|---|---|---|
+| `secretBox` rundtur | Enhetstest | seal → open ger samma klartext; två krypteringar av samma klartext ger olika strängar (olika IV); tom sträng och långa värden |
+| **Fel nyckel** | Enhetstest | open med annan nyckel under samma `kid` → `auth_failed`; okänt `kid` → `unknown_key_id`; felaktig nyckellängd/base64/dubblett-`kid` → `key_invalid`; ingen nyckel → `key_missing` |
+| **Manipulerad chiffertext** | Enhetstest | vänd en bit i vardera `iv`, `ciphertext`, `tag` och `kid` → fel; avkortad sträng, extra fält, fel version (`enc:v2`), icke-base64 → `bad_format` |
+| AAD-bindning | Enhetstest | chiffertext från användare A/kolumn `refresh_token` kan inte öppnas som användare B eller som kolumn `access_token` |
+| Rotation | Enhetstest | skriv med `k1`, konfigurera `k2` aktiv + `k1` pensionerad → läsning ok, nyskrivning använder `k2`; utan `k1` → `unknown_key_id` |
+| Övergång | Enhetstest | legacy-klartext (matchande mönster) läses; trasig `enc:`-sträng och klartext med `:` läses *inte* och skickas aldrig vidare |
+| `stravaClient` | Beteendetest | callback skriver `enc:v1:`-värden (aldrig klartext) och upserten bär inte klartext; förnyelsen sparar krypterat, CAS på exakt lagrad sträng, samma chiffertext i omförsöket; `rowHoldsRefreshToken` jämför klartext; **förkontroll före Strava-anrop**: utan nyckel görs inget anrop mot token-endpointen |
+| `token_unreadable` | Beteendetest (zon 5) | webhook-workern: retry, aldrig radering; **deauthorize-handlern raderar inget och bekräftar inget** när token är oläsbar; polling hoppar över; `GET /status` ger 503, inte `expired`/`not_connected` |
+| Loggning | Route-test | utökar `sensitive-logging.test.ts`: ingen loggrad (callback, förnyelse, fel vid dekryptering) innehåller klartexttoken, `enc:v1:`-sträng eller nyckelmaterial; felrader har bara kod, `user_id` och kolumn |
+| Backfillskriptet | Enhetstest av byggfunktionerna + flödestest mot in-memory-fake | dry-run skriver inget och rapporterar klasser/antal; `--apply` krypterar legacy, hoppar över redan aktiva, CAS-konflikt hoppar över raden, rundtursverifiering före "klar", idempotent, rapporten innehåller inga token/chiffertexter; `--decrypt` återställer; `--refresh-tokens` anropar förnyelse |
+| Migration | Statiskt test (mönstret `titleLeaderboardLockMigration.test.ts`) | filen har `check`, `like 'enc:v1:%'`, `not valid` + `validate`, kommenterad rollback |
+| Testmiljö | Konvention | vitest-setup sätter en fast, öppen testnyckel (`test-1:<…>`) så befintliga Strava-tester (fakes med klartextrader) fortsätter fungera; testnyckeln är markerad som icke-hemlig och används aldrig utanför `NODE_ENV=test` |
+| Rök i prod | Manuell, ägaren + Lead | efter deploy: ny `token_encryption.configured=true`; en manuell synk lyckas (läser legacy); efter backfill: `plaintext_rows=0`, manuell synk och en webhook-händelse lyckas; efter migrationen: ett försök att skriva klartext avvisas av databasen |
+
+### 12. Lokala skript, `railway run` och miljöer
+- **Prod och lokala skript/previews:** `railway run --service runQuest-backend -- ...` injicerar tjänstens miljö, inklusive `TOKEN_ENCRYPTION_KEY`. Skript och förhandsvisning som rör Strava-tokens får därför samma nyckel som produktionsdatabasen de ändå pekar på (ingen staging finns, STATE). Ingen nyckel hamnar i en lokal `.env`, och `.env.example` får bara en tom platshållare med instruktion (`TOKEN_ENCRYPTION_KEY=` + `TOKEN_ENCRYPTION_KEYS_RETIRED=`). Lokal utveckling utan nyckel = Strava-spåret avstängt (fail-closed) med tydlig loggrad.
+- **Staging (när den finns, ADR 002 öppet vägval):** egen nyckel per miljö (`stg-1`, eget värde). **Kopiera aldrig `strava_tokens` från prod till staging.** Skulle det ändå ske går raderna inte att dekryptera (annat värde under annat/okänt `kid`, och AAD binder dessutom till `user_id`), vilket är den *önskade* egenskapen: en staging som annars fått levande prod-refresh-tokens skulle kunna förnya dem och därmed döda produktionens kopplingar (Strava roterar refresh-token vid användning).
+- **Railway sealed variables:** se Ö1.
+
+### 13. Utrullning och rollback
+1. Ägaren genererar nyckeln lokalt, sparar en kopia i sin lösenordshanterare och sätter `TOKEN_ENCRYPTION_KEY` i Railway (`ask`, värdet aldrig i chatt). Redeploy.
+2. Deploya S1–S4 (merge release → main, grön CI). Från deploy skrivs allt krypterat; legacy-rader läses vidare. Kontrollera `health`: `configured=true`.
+3. Några dygn utan `token_unreadable`-larm. Därefter `backfill:strava-token-encryption` dry-run → ägaren ser rapporten → `--apply` (`ask`). Eventuellt `--refresh-tokens` (Ö4).
+4. Verifiera `plaintext_rows=0` och en lyckad synk. Därefter migrationen (`ask`), sedan S7.
+5. **Rollback:** *före* första krypterade skrivning: bara koden. *Efter*: kod före S2 kan inte läsa `enc:`-värden. Då körs `--decrypt` (kräver nyckeln, `ask`) före kod-rollbacken, eller så ansluter berörda användare om Strava (inga rundor förloras). Under en deploy kan en gammal instans en kort stund läsa ett värde som den nya instansen krypterat; den ser då ett trasigt token, får 401 från Strava och förnyelsen misslyckas. Fönstret är sekunder; deployen görs i ett lugnt läge, och den trasiga förnyelsen kan inte ensam radera något (deauthorize kräver en samtidig händelse, och ADR 010 7.4.3 är snävt formulerad).
+
+### 14. Vad som uttryckligen inte görs
+Inga kolumnändringar nu, ingen Vault/pgsodium/pgcrypto, ingen extern nyckeltjänst, ingen envelope-kryptering (nyckel per rad), ingen kryptering av `runs` eller andra Strava-data, ingen automatisk nyckelrotation i schema (rotation är en manuell, dokumenterad åtgärd), och ingen ändring av Stravas lagringsregel-hållning.
+
+## Alternativ som övervägts
+Bedömt enligt build-vs-buy-scoring: (1) är det kärnan i appen? (2) finns en etablerad tjänst som löser 80 %? (3) vad kostar det att byta bort? (4) behövs det nu?
+
+| Alternativ | Q1 Kärna? | Q2 Färdig lösning | Q3 Byteskostnad | Q4 Behövs nu? | Utfall |
+|---|---|---|---|---|---|
+| **A. Applikationsnivå, AES-256-GCM med `node:crypto`, nyckel i Railway-env** | Nej, infrastruktur | Ja: plattformsfunktion i Node, noll beroenden; ~100 rader egen kod för format/AAD/rotation | Låg: formatet är versionerat (`v1`), kan senare bytas mot KMS/Vault via `v2` | Ja (RUN-96, policyn, incidenthistoriken) | **Vald (köp: det inbyggda, bygg: bara limkoden)** |
+| B. Supabase Vault | Nej | Ja, men se nedan | Medel: hemligheter bor bakom secret-id i Supabase | Möjligt, men sämre träff | Avvisad |
+| C. pgsodium/TCE (transparent kolumnkryptering) | Nej | Ja, men se nedan | Hög (beroende av avvecklad modul) | Nej | Avvisad |
+| D. pgcrypto (`pgp_sym_encrypt`) i SQL | Nej | Ja | Låg | Nej | Avvisad |
+| E. Extern nyckeltjänst (AWS/GCP KMS, Doppler/Infisical m.fl.) | Nej | Ja | Medel (ny leverantör, nytt hemligt IAM-värde) | Nej (skala) | Skjuts upp (revisit-trigger) |
+| F. Envelope-kryptering (nyckel per rad + huvudnyckel) | Nej | Ja (mönster) | Låg | Nej: sex rader, en nyckel | Skjuts upp |
+| G. Behåll klartext, förlita på RLS och secret-nyckel | – | – | – | Nej | Avvisad |
+
+**A (vald).** Håller nyckel och chiffertext i olika förtroendedomäner: en läckt service role-nyckel, ett läckt Supabase-PAT, en dump, en backup eller felkonfigurerad åtkomst ger bara chiffertext. Det är exakt incidentklassen projektet redan haft. Inga nya tjänster, ingen kostnad, ingen ny dependency, nyckeln per miljö, och funktionen är testbar helt utan databas. Pris: nyckeln är en ny hemlighet som måste förvaras (beslut 3) och en kodväg som måste vara rätt (beslut 5).
+
+**B. Vault.** Avvisad främst därför att den inte skiljer domänerna åt: Vault dekrypterar inne i databasen (`vault.decrypted_secrets`), så den som når databasen med service role eller `postgres` (läckt secret-nyckel, läckt PAT, agentens MCP, SQL-injektion mot en RPC) kan läsa klartext. Dessutom: schemat `vault` exponeras inte via PostgREST, så åtkomst kräver `SECURITY DEFINER`-RPC:er som returnerar klartext över nätet, en extra rundtur per läsning, kolumnerna skulle bli secret-id:n (migration + ny relation), compare-and-swap på refresh-token (beslut 5) blir en tvåstegsoperation över två tabeller, och nyckelhanteringen ligger hos Supabase utan egen nyckel per miljö. **Status hos Supabase:** enligt min kunskap har Supabase markerat pgsodium (och därmed transparent kolumnkryptering) som på väg att avvecklas och avråder från nya användningar, och Vault finns kvar men har haft sin nyckelhantering beroende av pgsodium. **Det är min bedömning ur minnet och är inte verifierat mot aktuell dokumentation från den här sessionen; verifiera mot Supabase-dokumentationen (Database Extensions → pgsodium / Vault) före godkännande.** Beslutet hänger inte på detta: även med fullt stödd Vault vore A att föredra av domänskälet ovan.
+
+**C. pgsodium/TCE.** Avvisad: bygger på en modul Supabase enligt ovan håller på att avveckla (verifiera), nyckeln hanteras i databasplattformen (samma domän som datan), och kolumnerna skulle behöva ersättas av vyer/triggers. Att starta ett nytt beroende av en avvecklad komponent är fel riktning.
+
+**D. pgcrypto.** Avvisad: nyckeln måste skickas i SQL-satsen och kan hamna i serverloggar och statistikvyer, och `pgp_sym_encrypt` är inte autentiserad kryptering som standard. Samma domänproblem som B.
+
+**E. Extern nyckeltjänst.** Skjuts upp. Ny leverantör, ny kostnad, nätverksanrop per dekryptering och ett nytt, själv hemligt IAM-värde i Railway för att nå den: för sex användare flyttar det bara problemet. Se revisit-triggers.
+
+**F. Envelope-kryptering.** Skjuts upp: lönar sig när tusentals rader ska kunna roteras utan att läsa alla, vilket inte gäller här. Formatversionen (`v2`) ger plats för det.
+
+**G. Behålla klartext.** Avvisad: RLS-hål har inträffat (038/039) och ett enda sådant hål till exponerar långlivade tillgångstoken; kryptering i vila av hemliga uppgifter är dessutom den åtgärd policyn och god praxis pekar på. Supabases diskkryptering (transparent, på lagringsnivå) skyddar inte mot SQL-läsning och räknas inte som ett svar.
+
+## Konsekvenser
+- **Hemlighet och drift — flaggat (permissions):** en ny miljövariabel `TOKEN_ENCRYPTION_KEY` (och valfri `TOKEN_ENCRYPTION_KEYS_RETIRED`) i Railway = `ask`; värdet läggs in av ägaren i Railway-UI:t, aldrig i chatt, kod eller commit. Nyckelförlust kostar högst sex återanslutningar (beslut 3), inte data.
+- **Känslig data — flaggat (hård gräns):** ändringen *minskar* exponeringen av känslig persondata (långlivade OAuth-uppgifter) men rör den: backfill `--apply` skriver till `strava_tokens` i prod (`ask`, omfattning = alla rader, dry-run-rapport som underlag), `--refresh-tokens` gör upp till sex anrop mot Stravas token-endpoint och roterar användarnas tokens (`ask`), och `--decrypt` är en nödutgång. Skriptet skriver aldrig token eller chiffertext till terminal eller fil.
+- **Ändrad databas — flaggat:** en migration (CHECK-constraint på `strava_tokens`), `ask`, bakåtkompatibel så länge S2 är deployad, med rollback-SQL i filhuvudet. Inga kolumnändringar, ingen ny tabell, ingen RLS-/policyändring (ingen anon/authenticated-åtkomst läggs till; tabellens RLS är oförändrad).
+- **Ingen kostnad (ingen 15c-flagga):** inga nya tjänster, inga betalda planer, inga nya beroenden.
+- **Ny extern interaktion:** ingen ny. `--refresh-tokens` använder det befintliga förnyelseanropet.
+- **Skrivrättigheter:** bara backend (service role) skriver `strava_tokens`, och bara via `stravaTokenStore` (callback, tokenförnyelse) samt backfillskriptet. Ingen frontendåtkomst, ingen policy.
+- **Positivt:** läckt DB-åtkomst, dump, backup eller MCP-läsning ger inte längre användbara Strava-uppgifter; en kopia av prod till staging blir ofarlig; en dokumenterad rotationsväg finns; tokenvägen blir striktare (en vakt mot spridning, mindre exponerad select); en uppgift mindre på STATE-listan över sköra zoner (zon 2).
+- **Negativt/risker:**
+  1. **Ny hemlighet att förvalta.** Förloras eller läcker den påverkas tokens (läckt nyckel kräver också att databasen läckt; rotation + `--refresh-tokens` hanterar det).
+  2. **Skydd bara mot en domän.** Kompromiss av både Railway-miljön och databasen, eller av backend-processen, ger fortfarande klartext. Beskrivet och accepterat.
+  3. **CAS-omskrivningen (beslut 5) är riskpunkten.** Ett fel där kan förlora en roterad refresh-token (kopplingen förloras, användaren ansluter om). Mildras av förkontrollen, en gång-kryptering för omförsök och tester.
+  4. **Felmappning är farlig.** Om `token_unreadable` felaktigt tolkas som "avvisad" kan en deauthorize-händelse radera rundor (ADR 010 7.4.3). Därför ett eget skäl, uttömmande hantering, och uttryckliga tester att inget raderas.
+  5. **Fail-closed betyder pausad Strava-synk vid nyckelproblem.** Webhook-händelser köas (retry, 48 h) men en nyckelavsaknad som varar längre än 48 h ger `dead`-larm på raderingar. Hälsoräknaren och startlarmet ska fånga det i tid.
+  6. **Gamla backuper innehåller klartext** tills Supabase låter dem åldras ut. Mildras av tokenrotation (`--refresh-tokens`) eftersom gamla värden då är döda hos Strava.
+  7. **Rollback efter backfill** kräver `--decrypt` eller återanslutningar (beslut 13).
+  8. **Testnyckel** i repot är avsiktligt offentlig och får inte förväxlas med en riktig; den accepteras bara när `NODE_ENV=test`.
+  9. **`strava.ts` är stor och skör (zon 5/10).** Ändringen rör bara callbacken och en `select`; resten ligger i `stravaClient` och nya filer. Pollingens och workerns befintliga tester ska vara gröna före och efter.
+- **Produktionsrisk (zon 5, tokenvägen):** hög konsekvens (sex användares Strava-koppling) men liten yta (tre anropsplatser) och full testtäckning av tokenvägen före backfill. Ingen ändring av XP-, runda- eller titellogik.
+- **Arkitekturdiagram (uppdateras i samma commit som ADR:n godkänns; jag skriver inte i repot i det här utkastet):** `docs/architecture/runquest-architecture.json`: raden "Strava-tokens ligger i klartext i strava_tokens (service role-åtkomst)" ersätts av "Strava-tokens krypteras i applikationen (AES-256-GCM, `enc:v1:`); nyckeln bor i Railway-miljön, chiffertexten i Supabase"; en komponent "Tokenkrypto" (`utils/secretBox` + `stravaTokenStore`) i backend med pil från `stravaClient` och från callbacken, samt en förtroendegräns Railway (nyckel) / Supabase (chiffertext) i Förtroendegränser-kortet. `docs/architecture/rq-3-strava-synk.json`: ett steg "dekryptera token" före Strava-anropet och "kryptera + spara roterade tokens" efter förnyelsen. HTML genereras om (archify) av Lead. Under bygget rörs diagrammet inte.
+- **Föreslagna ändringar i STATE.md (Lead skriver):** (1) ADR-index: rad 013 (nedan). (2) Stack, miljövariabler: `TOKEN_ENCRYPTION_KEY`, `TOKEN_ENCRYPTION_KEYS_RETIRED`. (3) Zon 2: raden "KVAR: Strava-tokens lagras i klartext i DB" ändras när S6 är klar till "LÖST (ADR 013): Strava-tokens krypteras i applikationen (AES-256-GCM, nyckel i Railway, CHECK-constraint på `strava_tokens`)". (4) Zon 5: tillägg "tokens läses/skrivs bara via `stravaTokenStore`; `token_unreadable` ≠ återkallad behörighet". (5) Konventioner: "hemliga värden i databasen lagras krypterade i applikationen (`utils/secretBox`), aldrig klartext; nyckel per miljö; `strava_tokens` kopieras aldrig mellan miljöer". (6) `docs/permissions.md`: rader för `TOKEN_ENCRYPTION_KEY` (Railway-variabel = ask; värdet aldrig i chatt), `backfill:strava-token-encryption --apply` / `--refresh-tokens` / `--decrypt` = ask, CHECK-migrationen = ask. (7) Verifieringsnivå/Test: testnyckelkonventionen.
+- **Jira:** epic RUN-96 (v0.8.0) finns enligt uppdraget. Jag kunde inte läsa epicen eller dess barn i den här sessionen och har därför inte kopplat story-förslagen nedan till befintliga ärenden. Refinern bryter ner epicen; jag skriver inga stories i Jira.
+
+## Avgjorda frågor (ägaren 2026-10-16 och 2026-10-17, bindande)
+1. **Ö1** Vanlig Railway-variabel, en huvudnyckel per miljö (prod och staging, aldrig samma), plus en kopia av prod-nyckeln i ägarens lösenordshanterare. Inte en nyckel per användare: användarnas tokens ligger kvar krypterade i databasen.
+2. **Ö2** Accepterat: förlorad nyckel (och förlorad kopia) betyder att alla kopplar om Strava; inga rundor, XP, titlar eller badges förloras.
+3. **Ö3** Ja: CHECK-constraint (beslut 8) i en egen migration med ägarens ja, först när backfill är verifierad.
+4. **Ö4** Ja: `--refresh-tokens` i samma körning som `--apply`. Ett anrop per kopplad användare (sex i dag) genom samma rate guard som övrig Strava-kod; ryms med god marginal i gränsen 600/15 min och 6 000/dygn.
+5. **Ö5** Alternativ A: bara Strava stoppas vid saknad eller ogiltig nyckel, med larm (Sentry när RUN-283 finns) och ingen radering. Ingen förlust: pollingen hämtar allt från sju dygn före senaste importerade runda, webhook-kön försöker igen i 48 h, och raderingar som missas under ett längre avbrott fångas av raderingsavstämningen (RUN-177).
+6. **Ö6** (Lead, ur Strava API Agreement 2026-10-17) Avtalet kräver "appropriate security measures" för data från Strava (inledningen och §11.1) och hänvisar till ytterligare kontroller i API Policy (§6.3). §1.2: misstänkt obehörig åtkomst till API-token ska anmälas till developers@strava.com snarast och senast inom 24 timmar. Avtalet föreskriver inte kryptering uttryckligen; den här ADR:n är en sådan säkerhetsåtgärd. Runbooken för läckt nyckel (S3) tar med 24-timmarsanmälan.
+
+## Revisit-triggers
+- Fler än en backend-replika eller en andra tjänst som läser tokens → dela nyckeln via samma Railway-variabel (ingen kodändring) men ompröva om `stravaTokenStore` ska bli ett eget paket.
+- Staging-DB skapas (ADR 002) → egen nyckel (`stg-1`), regeln "kopiera aldrig `strava_tokens`" skrivs in i staging-ADR:n.
+- Fler hemliga värden i databasen (andra källor än Strava, betalnings- eller push-uppgifter) → generalisera `secretBox`-användningen och ompröva envelope-kryptering (alternativ F) eller extern nyckeltjänst (E).
+- Antalet kopplade användare växer så att en rotationsomkörning blir långsam (hundratals/tusentals rader) → envelope-kryptering.
+- Misstänkt nyckelläcka eller intrång → rotation + `--refresh-tokens` (beslut 3), och anmälan till Strava inom 24 timmar om en API-token kan ha nåtts (API Agreement §1.2).
+- Supabase förtydligar/ändrar status för Vault/pgsodium (verifiera) eller erbjuder kundhanterade nycklar → utvärdera igen, men behåll domänseparationen som krav.
+- Kapacitetsansökan till Strava (athlete capacity > 9 999) → granska säkerhetsåtgärderna (inklusive denna) mot kraven i ansökan.
+- Ändrat OAuth-scope eller nya tokentyper från Strava → granska vad som lagras och krypteras.
+- Ett `token_unreadable`-larm som inte går att hänföra till konfiguration → undersök manipulering (AAD-fel indikerar flyttad chiffertext).
+
+## Story-uppdelning (förslag till Refinern; epic RUN-96, fixVersion v0.8.0)
+Spår: **A = Backend (kod + tester)**, **B = Data (migration)**, **C = Drift (ägarsteg, ask)**. Beroendeordning anges med "efter".
+
+| Story | Spår | Innehåll | Efter |
+|---|---|---|---|
+| **S1** Krypteringsmodul | A | `utils/secretBox.ts`: format `enc:v1:`, AES-256-GCM, AAD, nyckelparser (`TOKEN_ENCRYPTION_KEY`/`..._RETIRED`, `kid`-regler), felkoder, fail-closed vid ogiltig konfiguration. Enhetstester: rundtur, fel nyckel, manipulerad chiffertext (varje fält), AAD-bindning, rotation. | – |
+| **S2** Tokenlagret och tokenvägen | A | `services/stravaTokenStore.ts`; callbackens upsert krypterar; `stravaClient` läser (dual-read enligt beslut 6) och skriver krypterat; CAS på lagrad råsträng, kryptering en gång per förnyelse, förkontroll före Strava-anrop; nytt skäl `token_unreadable` hanterat i alla anropare (routes, revoke, worker, handlers); `syncAllStravaUsers` slutar välja tokenkolumner; vakt mot spridning. Tester enligt beslut 11 (inklusive att deauthorize inte raderar vid oläsbar token). | S1 |
+| **S3** Konfiguration, larm och dokumentation | A | `.env.example`, start-kontroll + `🚨 KRITISKT`-rad, `token_encryption`-block i webhook-health (admin), loggningstest utökat (`sensitive-logging`), testnyckel i vitest-setup, runbook (generera nyckel, rotation, nyckelförlust, läckt nyckel) i docs, `docs/permissions.md`-rader. | S1 (parallellt med S2) |
+| **S4** Backfillskript | A | `backfillStravaTokenEncryption.ts` + npm-skript: dry-run/`--apply`/`--refresh-tokens`/`--decrypt`, CAS, rundtursverifiering, host utskrivet, rapport utan hemligheter, tester. | S1, S2 |
+| **S5** Utrullning i prod | C | Ägaren: nyckel i Railway (ask) → deploy S1–S4 → dry-run → ägar-ja → `--apply` (+ `--refresh-tokens`, Ö4) → verifiera `plaintext_rows=0` och en lyckad synk + webhook-händelse. | S2, S3, S4 |
+| **S6** CHECK-migration | B | Migration (nästa lediga nummer): constraint `not valid` + `validate`, rollback-SQL i huvudet, statiskt migrationstest; körs via `apply_migration` efter ägar-ja; `get_advisors security` efteråt. | S5 |
+| **S7** Ta bort klartextläsningen | A | `openStravaToken` utan legacy-gren (`token_unreadable` för värden utan `enc:v1:`), uppdaterade tester, hälsoblocket förenklas (`plaintext_rows` kvar som invariant). | S6 |
+| **S8** (frivillig) Rotationsövning | C | Genomför en planerad rotation `prod-1` → `prod-2` i prod enligt runbooken för att bevisa vägen innan den behövs; ägarbeslut (ask). | S7 |
+
+Parallellt: S2, S3 och S4 kan byggas av olika byggare efter S1 (S4 behöver S2:s `stravaTokenStore`-gränssnitt, som kan låsas i S1). Minsta släppbara värde (epicens första leverans): S1–S5 (tokens krypterade och klartext borta ur databasen i praktiken); S6–S7 stänger dörren permanent och bör ligga i samma version om det är möjligt. Ordningen S5 före S6 före S7 är fast (beslut 8).
+
+## Föreslagen STATE.md-indexrad
+```
+  013 · Godkänd · Kryptering av Strava-tokens i vila: applikationsnivå AES-256-GCM (node:crypto) i backend, nyckel i Railway-env (TOKEN_ENCRYPTION_KEY=<kid>:<base64 32 byte>, TOKEN_ENCRYPTION_KEYS_RETIRED för rotation), format enc:v1:<kid>:<iv>:<ct>:<tag> med AAD = användare+kolumn, samma kolumner i strava_tokens (ingen kolumnändring); en enda läs-/skrivväg (stravaTokenStore), CAS på lagrad råsträng + kryptera en gång per förnyelse + förkontroll före Strava-anrop; dual-read under övergång (strikt klartextmönster), backfillskript dry-run/--apply/--refresh-tokens/--decrypt, därefter CHECK-constraint (enc:v1:%) och borttagen legacy-läsning; saknad/ogiltig nyckel = fail-closed för Strava (token_unreadable, aldrig tolkad som återkallad behörighet, ingen radering), larm + hälsoräknare; egen nyckel per miljö, strava_tokens kopieras aldrig mellan miljöer; Supabase Vault/pgsodium/pgcrypto avvisade (samma förtroendedomän som datan); ingen kostnad, inga nya beroenden; migration (CHECK), Railway-variabel och backfill --apply kräver var för sig ägar-ja
+```

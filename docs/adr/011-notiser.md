@@ -1,7 +1,7 @@
 # 011. Personliga notiser — användarinställningar, läst per rad och rank_passed (Jira RUN-183, epic RUN-9, v0.7.0)
 
 ## Status
-Godkänd av ägaren 2026-10-13, med alla rekommendationer (B1, B3, B7, B8, B9, B10 och Ö1–Ö10, se "Avgjorda frågor"). Ägarbeslut 2026-10-12 (B2, B4, B5 utökat, B6) är bindande och inbakade. Våg 2 (beslut 12) ingår i v0.7.0; försenas den kan den brytas ut till v0.7.1. Migrationerna i beslut 10 kräver ägarens uttryckliga godkännande per migration (docs/permissions.md, ADR 002). Ingen ADR ersätts; ADR 008 beslut 8 och dess oläst-predikat UTÖKAS (se Kontext, sista stycket) och ADR 008:s statusrad har fått "Utökad av ADR 011 (2026-10-13)".
+Godkänd av ägaren 2026-10-13, med alla rekommendationer (B1, B3, B7, B8, B9, B10 och Ö1–Ö10, se "Avgjorda frågor"). Ägarbeslut 2026-10-12 (B2, B4, B5 utökat, B6) är bindande och inbakade. Våg 2 (beslut 12) ingår i v0.7.0; försenas den kan den brytas ut till v0.7.1. Migrationerna i beslut 10 kräver ägarens uttryckliga godkännande per migration (docs/permissions.md, ADR 002). Ingen ADR ersätts; ADR 008 beslut 8 och dess oläst-predikat UTÖKAS (se Kontext, sista stycket) och ADR 008:s statusrad har fått "Utökad av ADR 011 (2026-10-13)". Utökad av ADR 012 (2026-10-17): titlar, ranking och "låg tvåa" per grupp.
 
 Addendum 2026-10-14 (ägarbeslut efter Design Council): läs-gesten i beslut 4 (B4) ändras, se längst ner.
 
