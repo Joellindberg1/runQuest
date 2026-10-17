@@ -82,14 +82,14 @@ describe('init', () => {
     expect(sent[0].environment).toBe('staging');
   });
 
-  it('uses the production environment and keeps tracing off and every data collection category closed', () => {
+  it('uses the production environment, traces at most a tenth of the requests and keeps every data collection category closed', () => {
     expect(start({ SENTRY_DSN: DSN, SENTRY_ENVIRONMENT: 'production' })).toBe(true);
     const options = Sentry.getClient()!.getOptions();
     expect(options.environment).toBe('production');
     expect(options.dataCollection).toMatchObject({
       userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false, databaseQueryData: false, queues: false, stackFrameVariables: false, frameContextLines: 0,
     });
-    expect(options.tracesSampleRate).toBeUndefined();
+    expect(options.tracesSampleRate).toBeLessThanOrEqual(0.1);
   });
 
   it('sends no lines of source code around the stack frames', async () => {
