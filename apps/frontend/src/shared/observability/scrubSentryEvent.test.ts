@@ -105,6 +105,24 @@ describe('frontend sentry beforeSend', () => {
     expect(scrubbed?.extra?.bare).toEqual({ note: 'kept', text: 'by [Filtered]' });
   });
 
+  it('drops requests that got no response, so a backend outage is not a flood of events', () => {
+    const outage: SentryEventLike = { exception: { values: [{ type: 'TypeError', value: 'Failed to fetch (api.runquest.dev)' }] } };
+
+    expect(scrubSentryEvent(outage, [])).toBeNull();
+  });
+
+  it('strips the hash from relative paths too', () => {
+    const event: SentryEventLike = {
+      message: 'moved from /board#top to /profile#runs and ended at https://runquest.dev/log#x',
+      breadcrumbs: [{ category: 'navigation', data: { from: '/board#top', to: '/profile' } }],
+    };
+
+    const scrubbed = scrubSentryEvent(event, []);
+
+    expect(scrubbed?.message).toBe('moved from /board to /profile and ended at https://runquest.dev/log');
+    expect(scrubbed?.breadcrumbs?.[0]?.data).toEqual({ from: '/board', to: '/profile' });
+  });
+
   it('does not mutate the incoming event', () => {
     const event = fatEvent();
     const before = JSON.stringify(event);

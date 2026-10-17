@@ -1,4 +1,5 @@
 import { isStaleChunkError } from '@/shared/utils/staleChunkReload';
+import { isNetworkFailure } from './networkFailure';
 
 // beforeSend för felspårningen: ren funktion utan Sentry-import, så att den testas utan SDK:t och aldrig drar in det i en tidig chunk.
 // Princip: rapporten ska säga var och vad som gick sönder, aldrig vem det hände för. Allt som kan identifiera en person (användare,
@@ -22,7 +23,8 @@ const DROPPED_BREADCRUMB_CATEGORY = /^(console|ui\..*)$/;
 const EMAIL = /[^\s@"'<>()]+@[^\s@"'<>()]+\.[^\s@"'<>()]+/g;
 // Sökväg eller adress följd av ?query (och eventuell #fragment). Ett fritt frågetecken i en mening ("Why? Because") träffas inte.
 const URL_QUERY = /([\w\-./:%~]+)\?[\w%\-.~!$&'()*+,;=:@/[\]]+(#\S*)?/g;
-const URL_HASH = /(https?:\/\/[^\s#]+)#\S*/g;
+// Fragmentet efter en adress eller en sökväg som börjar med / ("/board#x"); ett # i vanlig text ("issue #12") berörs inte.
+const URL_HASH = /(https?:\/\/[^\s#]+|\/[\w\-./%~]*)#\S*/g;
 
 interface Breadcrumb {
   category?: string;
@@ -117,17 +119,17 @@ function scrubValue(value: unknown, storageValues: readonly string[], keepKeys: 
   return scrubbed;
 }
 
-function isStaleChunkEvent(event: SentryEventLike): boolean {
-  if (event.message && isStaleChunkError(event.message)) return true;
-  return (event.exception?.values ?? []).some((entry) => isStaleChunkError(entry.value ?? ''));
+function isUnreportableEvent(event: SentryEventLike): boolean {
+  if (event.message && (isStaleChunkError(event.message) || isNetworkFailure(event.message))) return true;
+  return (event.exception?.values ?? []).some((entry) => isStaleChunkError(entry.value ?? '') || isNetworkFailure(entry.value ?? ''));
 }
 
 /**
- * Tvättar en händelse före sändning. Returnerar null för fel som en omladdning efter deploy löser (saknad kodfil). Ändrar aldrig
+ * Tvättar en händelse före sändning. Returnerar null för fel som inte ska rapporteras: saknad kodfil efter deploy (en omladdning löser det) och anrop utan svar (backend nere). Ändrar aldrig
  * indata. `storageValues` är det `collectStorageValues` gav vid sändningstillfället.
  */
 export function scrubSentryEvent<T extends SentryEventLike>(event: T, storageValues: readonly string[]): T | null {
-  if (isStaleChunkEvent(event)) return null;
+  if (isUnreportableEvent(event)) return null;
 
   const scrubbed: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(event)) {
