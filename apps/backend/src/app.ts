@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { logger } from './utils/logger.js';
+import { installSentryErrorHandler } from './observability/sentry.js';
 
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
@@ -123,6 +124,9 @@ export function createApp(): express.Express {
       method: req.method
     });
   });
+
+  // Sist: rapporterar fel som kastats i en route utan att fångas (500+), och skickar dem vidare till Expresss svar.
+  installSentryErrorHandler(app);
 
   return app;
 }

@@ -12,6 +12,7 @@ import { startStreakScheduler } from './scheduler/streakScheduler.js';
 import { startStravaWebhookScheduler } from './scheduler/stravaWebhookScheduler.js';
 import { startStravaReconcileScheduler } from './scheduler/stravaReconcileScheduler.js';
 import { registerStravaRateBudget } from './services/stravaRateBudget.js';
+import { initSentry } from './observability/sentry.js';
 
 // 📋 Step 1: Load Environment Variables
 logger.info('🔧 Step 1: Loading environment variables...');
@@ -21,6 +22,10 @@ const __dirname = path.dirname(__filename);
 
 // Load .env from backend directory
 dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Sentry direkt efter env-laddningen, före allt annat som kan fela (utan SENTRY_DSN händer ingenting).
+const sentryEnabled = initSentry();
+logger.info(sentryEnabled ? `🛰️ Sentry on (environment: ${process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development'})` : 'ℹ️ Sentry off (no SENTRY_DSN)');
 
 const requiredEnvVars = {
   NODE_ENV: process.env.NODE_ENV || 'development',

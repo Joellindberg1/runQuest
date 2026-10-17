@@ -71,10 +71,30 @@ function emit(level: 'info' | 'warn' | 'error', message: string, ...args: Meta[]
   }
 }
 
+/**
+ * En enda kopplingspunkt för felrapportering (Sentry, observability/sentry.ts): varje anrop till logger.error lämnas hit.
+ * Loggern känner inte till Sentry, så den går att importera överallt utan att dra in SDK:t.
+ */
+export type ErrorSink = (message: string, args: Meta[]) => void;
+let errorSink: ErrorSink | null = null;
+
+export function setErrorSink(sink: ErrorSink | null): void {
+  errorSink = sink;
+}
+
+function reportError(message: string, args: Meta[]) {
+  if (!errorSink) return;
+  try {
+    errorSink(message, args);
+  } catch {
+    // Felrapporteringen får aldrig stoppa själva loggningen eller anroparen.
+  }
+}
+
 export const logger = {
   info:  (message: string, ...args: Meta[]) => emit('info',  message, ...args),
   warn:  (message: string, ...args: Meta[]) => emit('warn',  message, ...args),
-  error: (message: string, ...args: Meta[]) => emit('error', message, ...args),
+  error: (message: string, ...args: Meta[]) => { emit('error', message, ...args); reportError(message, args); },
   /** Silent in production — use for verbose dev-only output. */
   debug: (message: string, ...args: Meta[]) => { if (!isProd) emit('info', message, ...args); },
 };

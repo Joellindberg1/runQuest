@@ -17,10 +17,12 @@
     "strava:webhook": "tsx src/scripts/stravaWebhookSubscription.ts",
     "backfill:badges": "tsx src/scripts/backfillBadges.ts",
     "reveal:badges": "tsx src/scripts/revealBadges.ts",
-    "announce:release": "tsx src/scripts/announceRelease.ts"
+    "announce:release": "tsx src/scripts/announceRelease.ts",
+    "sentry:test": "tsx src/scripts/sentryTest.ts"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",
+    "@sentry/node": "11.8.0",
     "@supabase/supabase-js": "2.105.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
