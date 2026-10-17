@@ -8,6 +8,15 @@ export const RELOAD_GUARD_MS = 30_000;
 
 type GuardStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
+// Meddelandena webbläsarna och Vite ger när en kodfil från en äldre deploy saknas (Chrome, Firefox, Safari, Vite CSS-preload, webpack-stil).
+const STALE_CHUNK_MESSAGE = /dynamically imported module|importing a module script failed|unable to preload css|loading (css )?chunk [\w-]+ failed/i;
+
+/** Är felet en saknad kodfil efter en deploy? Då löser en omladdning det och det finns inget att felsöka: felspårningen rapporterar det inte. */
+export function isStaleChunkError(error: unknown): boolean {
+  const message = typeof error === 'string' ? error : error instanceof Error ? error.message : '';
+  return STALE_CHUNK_MESSAGE.test(message);
+}
+
 // Utan fungerande lagring går spärren inte att hålla över en omladdning, så då laddas
 // inget om alls (annars oändlig loop vid ett bestående fel) och ErrorBoundary tar felet.
 export function claimStaleChunkReload(now: number, storage: GuardStorage | null): boolean {

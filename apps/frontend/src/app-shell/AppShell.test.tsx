@@ -5,8 +5,13 @@ import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { enableErrorReporting, reportError } from '@/shared/observability/errorReporting';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
+vi.mock('@/shared/observability/errorReporting', () => ({
+  enableErrorReporting: vi.fn(() => Promise.resolve()),
+  reportError: vi.fn(),
+}));
 
 const MOBILE_WIDTH = 1023;
 const DESKTOP_WIDTH = 1024;
@@ -25,6 +30,17 @@ const Tree: React.FC = () => (
 
 beforeEach(() => {
   resetFakeBackend();
+  vi.mocked(enableErrorReporting).mockClear();
+  vi.mocked(reportError).mockClear();
+});
+
+describe('AppShell: felspårning', () => {
+  it('slår på felspårningen när det inloggade skalet monteras, en gång', async () => {
+    renderWithApp(<Tree />, { entry: '/board', width: MOBILE_WIDTH });
+    await screen.findByText('page /board');
+
+    expect(enableErrorReporting).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('AppShell: exakt en variant i DOM (ADR 006 beslut 5)', () => {
@@ -307,6 +323,18 @@ describe('ShellErrorBoundary: ett panelfel ger aldrig vit skärm', () => {
     expect(within(alert).getByRole('button', { name: 'Reload' })).toBeInTheDocument();
     expect(container.querySelector(width === MOBILE_WIDTH ? '.rq-tabbar' : '.rq-sidenav')).not.toBeNull();
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it('felet rapporteras till felspårningen med komponentstacken', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderWithApp(<BrokenTree />, { entry: '/duels', width: MOBILE_WIDTH });
+    await screen.findByText('Something broke');
+
+    expect(reportError).toHaveBeenCalledTimes(1);
+    const [error, context] = vi.mocked(reportError).mock.calls[0] ?? [];
+    expect((error as Error).message).toBe('panel exploded');
+    expect(context).toEqual({ componentStack: expect.any(String) });
     spy.mockRestore();
   });
 
