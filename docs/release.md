@@ -146,6 +146,23 @@ flöde 1 (login → JWT → skyddade anrop). Minst: frontend laddar utan vit sid
 
 **Sentry-alertregeln för kritiska larm** (en gång per Sentry-projekt, `runquest-backend`): villkor `alert:critical` (tagg, `level:fatal`), åtgärd "mejla ägaren", och **notifiera för varje händelse** (inte bara nya issues). Frekvensen begränsas av spärren i koden (högst en händelse per källa och fingeravtryck per 10 minuter, `extra.suppressed_since_last` visar hur många som hölls tillbaka), så regeln behöver ingen egen throttle. Källor och Strava-id-regeln: ADR 010, Addendum 2026-10-17 (RUN-283).
 
+**Källkartor till Sentry** (RUN-285). Både frontend- och backendbygget laddar upp sin källkarta till Sentry (org `joel-lindberg`,
+EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`), så stackar i Sentry visar `src/`-rader.
+- **Token:** `SENTRY_AUTH_TOKEN` sätts som byggvariabel på varje Railway-tjänst som bygger (prod och staging, frontend och
+  backend). Utan den hoppas uppladdningen över med en rad i byggloggen och bygget går igenom (lokalt, i CI, i en
+  förhandsbyggd preview). Ett uppladdningsfel stoppar aldrig en deploy: det syns som en varning i byggloggen.
+- **Release:** `runquest@<version i rotens package.json>+<RAILWAY_GIT_COMMIT_SHA, 7 tecken>` (utan sha: `runquest@<version>`).
+  Namnet byggs i `scripts/sentry-build.mjs` och bakas in i båda apparna (`VITE_SENTRY_RELEASE` i frontend, `__SENTRY_RELEASE__` i
+  backend), så SDK:t och uppladdningen alltid har samma namn. Frontend- och backendtjänsten byggs av samma commit och får samma namn.
+- **Aldrig publika:** frontend byggs med dolda kartor (ingen `sourceMappingURL`) som `stripSourceMaps` tar bort ur `dist/` efter
+  uppladdningen, med eller utan token; `scripts/verify-static-serving.sh` kontrollerar i CI att en `.map` ger 404. Backendens kartor
+  ligger kvar bredvid `dist/server.js`, som aldrig serveras.
+- **Node utan `--enable-source-maps`:** startkommandot är `node dist/server.js` och ska förbli det. SDK:t skickar byggfilens rader
+  med ett debug-id och Sentry översätter dem med den uppladdade kartan. Flaggan skulle skriva om stacken i processen före SDK:t läser den.
+- **Provet efter en deploy med token:** `npm run sentry:test:built --workspace=@runquest/backend` (kör `dist/sentryTest.js`, kräver
+  `SENTRY_DSN` och en byggd `dist/` från samma bygge som laddade upp kartan) skickar en testhändelse; i Sentry ska stacken visa
+  `src/observability/sentry.ts`, inte `dist/sentryTest.js`.
+
 ### 5. Migrationer
 
 1. **Ett ägar-ja per migration**, aldrig ett samlat ja för flera (`docs/permissions.md`). Lead visar exakt filen.

@@ -82,6 +82,18 @@ describe('init', () => {
     expect(sent[0].environment).toBe('staging');
   });
 
+  it('reports under the release baked into the build, the one the source maps are uploaded for', async () => {
+    vi.stubGlobal('__SENTRY_RELEASE__', 'runquest@0.8.0+abcdef1');
+    try {
+      start();
+      logger.error('with a release', new Error('x'));
+      await flushSentry();
+      expect(sent[0].release).toBe('runquest@0.8.0+abcdef1');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('uses the production environment and keeps tracing off and every data collection category closed', () => {
     expect(start({ SENTRY_DSN: DSN, SENTRY_ENVIRONMENT: 'production' })).toBe(true);
     const options = Sentry.getClient()!.getOptions();
