@@ -11,12 +11,13 @@ import { readStoredSettings } from './userSettings.js';
 import {
   isNotifiable,
   resolveSettings,
+  UNREAD_CAP,
   type NotifiableRow,
   type NotifyViewer,
 } from '@runquest/shared';
 
-/** `unread_count` mättas här (klockan visar "99+" över 99). Kandidatläsningen hämtar ett steg mer för att kunna avgöra taket. */
-export const UNREAD_CAP = 500;
+// Taket bor i shared (fejken i frontend delar det); återexporteras här för de som redan importerar det härifrån.
+export { UNREAD_CAP };
 
 export const NEWS_READ_TABLE = 'news_read';
 

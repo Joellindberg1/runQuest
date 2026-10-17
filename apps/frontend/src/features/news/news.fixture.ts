@@ -1,5 +1,5 @@
 import {
-  customisedKeys, isNotifiable, resolveSettings, sanitizePatch,
+  ACTIVITY_PAYLOAD_VERSION, ACTIVITY_TYPES, NEWS_DEFAULT_LIMIT, NEWS_MAX_LIMIT, UNREAD_CAP, customisedKeys, isActivityType, isNotifiable, resolveSettings, sanitizePatch,
   type ActivityType, type NewsItem, type NewsMeta, type NewsQuery, type NewsUserRef, type NotifiableRow, type NotifyViewer, type SettingsValue,
 } from '@runquest/shared';
 
@@ -16,7 +16,7 @@ export const ADAM = ref('u-adam', 'Adam Einstein');
 export const NICK = ref('u-nick', 'Nicklas von Elling');
 export const DAN = ref('u-dan', 'Daniel Lindblad Lüthje');
 
-type ItemOf<T extends ActivityType> = Extract<NewsItem, { type: T }>;
+export type ItemOf<T extends ActivityType> = Extract<NewsItem, { type: T }>;
 
 /** `hoursAgo` räknas från NOW; id sätts av anroparen (flödet är sorterat på id). */
 export const at = (hoursAgo: number): string => new Date(NOW.getTime() - hoursAgo * 3_600_000).toISOString();
@@ -31,7 +31,7 @@ export function item<T extends ActivityType>(
     id,
     type,
     occurred_at: at(1),
-    payload_version: 1,
+    payload_version: ACTIVITY_PAYLOAD_VERSION,
     actor: null,
     target: null,
     payload,
@@ -83,8 +83,21 @@ export const challengeAccepted = (id: number, over: Partial<Omit<ItemOf<'challen
 
 /** Registreringstiden för betraktaren i newsServer: långt före alla rader (rader före den är aldrig notiser). */
 export const VIEWER_CREATED_AT = '2026-01-01T00:00:00Z';
-/** Samma tak som servern (UNREAD_CAP): klockan visar "99+" över 99. */
-const UNREAD_CAP = 500;
+
+const isPositiveInt = (value: number | undefined): boolean => value === undefined || (Number.isSafeInteger(value) && value > 0);
+
+/** Serverns validering av GET /news (backend routes/news.ts) med samma felmeddelanden; null = giltig fråga. */
+function invalidQuery(query: NewsQuery): string | null {
+  if (query.limit !== undefined && (!isPositiveInt(query.limit) || query.limit > NEWS_MAX_LIMIT)) return `limit must be an integer between 1 and ${NEWS_MAX_LIMIT}`;
+  if (!isPositiveInt(query.before)) return 'before must be a positive integer';
+  if (!isPositiveInt(query.after)) return 'after must be a positive integer';
+  if (query.before !== undefined && query.after !== undefined) return 'before and after cannot be combined';
+  if (query.type !== undefined) {
+    const parts = query.type.split(',').map((t) => t.trim());
+    if (parts.some((t) => !isActivityType(t))) return `type must be a comma-separated list of: ${ACTIVITY_TYPES.join(', ')}`;
+  }
+  return null;
+}
 
 /**
  * En liten fake av GET /news, POST /news/seen, POST /news/read och GET/PUT /settings med serverns semantik (ADR 008 och ADR 011): id fallande,
@@ -92,8 +105,11 @@ const UNREAD_CAP = 500;
  * rader, backfill, egna handlingar, påslaget slag), mättat vid 500. Inställningarna lagras glest (`server.settings`) och löses upp med shared.
  * `calls` loggar frågorna så att tester kan se vilken sida klienten bad om; `readCalls` och `settingsCalls` loggar skrivningarna.
  * `involves=me` filtreras som servern (RUN-188): aktör, target eller deltagare i ett event (payload.entrant_ids); unread_count gäller hela flödet och rör sig inte med filtret.
+ * Frågeparametrarna valideras som servern (limit 1–100, before/after positiva heltal, type ur ACTIVITY_TYPES): en fråga servern avvisar avvisas även här.
+ * Paritetstestet i backend (`newsFakeParity.test.ts`) kör samma rader genom den riktiga rutten och den här fejken och kräver identiska svar.
+ * `viewerId` är den som tittar (default ME); backendens involves=me kräver ett riktigt UUID, så paritetstestet skickar ett.
  */
-export function newsServer(initial: NewsItem[], lastSeen: number | null = null) {
+export function newsServer(initial: NewsItem[], lastSeen: number | null = null, viewerId: string = ME.id) {
   const server = {
     rows: [...initial].sort((a, b) => b.id - a.id),
     lastSeen,
@@ -111,7 +127,7 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null) 
     failPutAfterWrite: false,
   };
   const viewer = (): NotifyViewer => ({
-    id: ME.id,
+    id: viewerId,
     createdAt: VIEWER_CREATED_AT,
     floor: server.lastSeen,
     readIds: server.readIds,
@@ -141,11 +157,12 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null) 
       server.failNext = null;
       return { success: false as const, error };
     }
-    if (query.before !== undefined && query.after !== undefined) return { success: false as const, error: 'before and after cannot be combined' };
-    const types = query.type ? query.type.split(',') : null;
+    const invalid = invalidQuery(query);
+    if (invalid) return { success: false as const, error: invalid };
+    const types = query.type !== undefined ? query.type.split(',').map((t) => t.trim()) : null;
     const involvesViewer = (row: NewsItem) => {
       const entrants = (row.payload as { entrant_ids?: unknown }).entrant_ids;
-      return row.actor?.id === ME.id || row.target?.id === ME.id || (row.type === 'event_closed' && Array.isArray(entrants) && entrants.includes(ME.id));
+      return row.actor?.id === viewerId || row.target?.id === viewerId || (row.type === 'event_closed' && Array.isArray(entrants) && entrants.includes(viewerId));
     };
     const matching = server.rows.filter(
       (row) =>
@@ -154,7 +171,7 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null) 
         (query.before === undefined || row.id < query.before) &&
         (query.after === undefined || row.id > query.after),
     );
-    const limit = query.limit ?? 30;
+    const limit = query.limit ?? NEWS_DEFAULT_LIMIT;
     const page = matching.slice(0, limit);
     const hasMore = matching.length > limit;
     return {
