@@ -98,3 +98,13 @@ export interface NewsReadResponse {
 }
 
 export type NewsReadApiResponse = ApiSuccess<NewsReadResponse>;
+
+// Fältlistorna som körtidsvärden, uttömmande mot typerna: ett nytt fält i NewsItem/NewsMeta ger ett tsc-fel här tills det är listat.
+// Paritetstestet (backend: newsFakeParity.test.ts) jämför dem med den riktiga rutten och med frontendens fejkade news-server.
+const NEWS_ITEM_FIELD_SET: Record<keyof NewsItem, true> = {
+  id: true, type: true, occurred_at: true, payload_version: true, actor: true, target: true, payload: true, is_backfill: true, is_unread: true,
+};
+const NEWS_META_FIELD_SET: Record<keyof NewsMeta, true> = { unread_count: true, last_seen_id: true, has_more: true, next_before: true };
+
+export const NEWS_ITEM_FIELDS = Object.keys(NEWS_ITEM_FIELD_SET) as Array<keyof NewsItem>;
+export const NEWS_META_FIELDS = Object.keys(NEWS_META_FIELD_SET) as Array<keyof NewsMeta>;

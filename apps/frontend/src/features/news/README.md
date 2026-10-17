@@ -25,7 +25,11 @@ till `/news`. Notiserna (ADR 011, v0.7.0) styr bara klockan: `/news` visar allti
   (`describeNews`), vymodeller. `now` skickas alltid in.
 - **hooks/** — `useNewsQueries` (`useNewsFeed`, `useNewsUnreadCount`, `useMarkNewsSeen`, `useMarkNewsRead`) — den ENDA query-definitionen; `useNewsContext` (vem som tittar, klockan, namn-/könsuppslag)
 - `news.css` — enda stilfilen; mått (`--rq-news-*`) i temafilen, sektion 1.28 (index.css + docs/design/temafil-forslag.css)
-- `news.fixture.ts` — testdata + `newsServer` (en liten fake av GET /news, POST /news/seen, POST /news/read och GET/PUT /settings; oläst avgörs av samma `isNotifiable` som servern)
+- `news.fixture.ts` — testdata + `newsServer` (en liten fake av GET /news, POST /news/seen, POST /news/read och GET/PUT /settings; oläst avgörs av samma `isNotifiable` som servern; frågeparametrarna valideras som servern)
+- `news.samples.fixture.ts` — `newsSamples`: ett exempel per händelsetyp, uttömmande mot `ACTIVITY_TYPES` (en ny typ i shared ger tsc-fel här).
+  **Paritet:** `apps/backend/src/routes/__tests__/newsFakeParity.test.ts` kör samma rader genom den riktiga `GET /api/news` (mot backendens fakeDb) och genom `newsServer` och kräver identiska svar
+  (fält, filter per typ, paginering, `involves=me`, oläst med golv/kvitton/avstängda slag, felmeddelanden). Ändras serverns svar utan att fejken följer med fäller testet CI. Fältlistorna är `NEWS_ITEM_FIELDS`/`NEWS_META_FIELDS` ur shared.
+  Ändra aldrig fejkens svarsform eller filterregler utan att köra det testet.
 
 ## Regler värda att komma ihåg
 
