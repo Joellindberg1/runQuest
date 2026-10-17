@@ -12,6 +12,8 @@ import { isRowUnread, loadUnreadState, type Reader } from '../services/newsUnrea
 import { acknowledgeRows, parseReadIds, pruneReadReceipts } from '../services/newsRead.js';
 import {
   ACTIVITY_TYPES,
+  NEWS_DEFAULT_LIMIT,
+  NEWS_MAX_LIMIT,
   isActivityType,
   type ActivityType,
   type NewsApiResponse,
@@ -24,8 +26,8 @@ import {
 
 const router = express.Router();
 
-const DEFAULT_LIMIT = 30;
-const MAX_LIMIT = 100;
+const DEFAULT_LIMIT = NEWS_DEFAULT_LIMIT;
+const MAX_LIMIT = NEWS_MAX_LIMIT;
 const ITEM_COLUMNS =
   'id, type, actor_user_id, target_user_id, payload, payload_version, occurred_at, created_at, is_backfill';
 

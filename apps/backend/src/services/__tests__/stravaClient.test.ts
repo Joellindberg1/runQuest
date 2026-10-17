@@ -17,7 +17,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row, type RecordedQuery } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaActivity, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
-import { fetchAthleteActivities, fetchDetailedActivity, fetchDetailedActivityResult, getValidAccessToken, refreshAccessToken, setStravaRequestHooks, stravaFetch } from '../stravaClient.js';
+import { STRAVA_API_TIMEOUT_MS, STRAVA_TOKEN_TIMEOUT_MS, fetchAthleteActivities, fetchDetailedActivity, fetchDetailedActivityResult, getValidAccessToken, refreshAccessToken, setStravaRequestHooks, stravaFetch } from '../stravaClient.js';
 
 let strava: FakeStrava | undefined;
 
@@ -536,5 +536,146 @@ describe('fetchDetailedActivityResult', () => {
 
     await expect(fetchDetailedActivity(7105, 'the-token')).resolves.toBeNull();
     await expect(fetchDetailedActivity(7106, 'the-token')).resolves.toBeNull(); // 404
+  });
+});
+
+describe('timeouts and the shared token refresh', () => {
+  const ACTIVITY_URL = 'https://www.strava.com/api/v3/activities/7020';
+  const TOKEN_URL = 'https://www.strava.com/oauth/token';
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  /** A fetch that never answers; it only ends when the signal it was given is aborted. */
+  function hangingFetch() {
+    return vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (signal?.aborted) reject(signal.reason);
+      else signal?.addEventListener('abort', () => reject(signal.reason));
+    }));
+  }
+
+  it('stravaFetch aborts a hanging request after the timeout', async () => {
+    vi.useFakeTimers();
+    hangingFetch();
+    let settled = false;
+    const outcome = stravaFetch(ACTIVITY_URL).then(() => 'resolved', (error: Error) => error).finally(() => { settled = true; });
+
+    await vi.advanceTimersByTimeAsync(STRAVA_API_TIMEOUT_MS - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(await outcome).toMatchObject({ name: 'TimeoutError' });
+  });
+
+  it('stravaFetch gives the token endpoint a shorter timeout than the API', async () => {
+    vi.useFakeTimers();
+    hangingFetch();
+    const outcome = stravaFetch(TOKEN_URL, { method: 'POST' }).then(() => 'resolved', (error: Error) => error.name);
+
+    await vi.advanceTimersByTimeAsync(STRAVA_TOKEN_TIMEOUT_MS);
+
+    expect(STRAVA_TOKEN_TIMEOUT_MS).toBeLessThan(STRAVA_API_TIMEOUT_MS);
+    expect(await outcome).toBe('TimeoutError');
+  });
+
+  it('stravaFetch keeps the abort of a signal the caller passed', async () => {
+    hangingFetch();
+    const outcome = stravaFetch(ACTIVITY_URL, { signal: AbortSignal.abort(new Error('caller gave up')) }).then(() => 'resolved', (error: Error) => error.message);
+
+    expect(await outcome).toBe('caller gave up');
+  });
+
+  it('a timeout while reading the body is reported as a timeout', async () => {
+    vi.useFakeTimers();
+    // Headers arrive at once; the body then stalls and only ends (with the abort reason) when the signal is aborted.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const signal = init?.signal;
+      const body = new ReadableStream({ start(controller) { signal?.addEventListener('abort', () => controller.error(signal.reason)); } });
+      return new Response(body, { status: 200 });
+    });
+    const response = await stravaFetch(ACTIVITY_URL);
+    const reading = response.json().then(() => 'read', (error: Error) => error.name);
+
+    await vi.advanceTimersByTimeAsync(STRAVA_API_TIMEOUT_MS);
+
+    expect(await reading).toBe('TimeoutError');
+  });
+
+  it('a refresh with a new refresh token does not join an older refresh in progress', async () => {
+    const tokens = (n: string) => new Response(JSON.stringify({ access_token: `${n}-at`, refresh_token: `${n}-rt`, expires_at: 9999999990 }));
+    let releaseOld!: () => void;
+    const oldAnswer = new Promise<void>((resolve) => { releaseOld = resolve; });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(async () => { await oldAnswer; return tokens('old'); })
+      .mockImplementationOnce(async () => tokens('new'));
+    const { t } = use([{ ...TOKEN_ROW, expires_at: 100 }]);
+
+    const older = getValidAccessToken('user-1');
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    // The user reconnects while the old refresh is under way: the row now holds another refresh token.
+    t.strava_tokens.splice(0, 1, { ...TOKEN_ROW, access_token: 'reconnect-at', refresh_token: 'reconnect-rt', expires_at: 100 });
+    const newer = await getValidAccessToken('user-1');
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetchSpy.mock.calls[1][1]?.body))).toMatchObject({ refresh_token: 'reconnect-rt' });
+    expect(newer).toMatchObject({ ok: true, accessToken: 'new-at' });
+    releaseOld();
+    expect(await older).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(t.strava_tokens[0]).toMatchObject({ refresh_token: 'new-rt' });
+  });
+
+  it('a timed-out token refresh is not classified as refresh_rejected', async () => {
+    vi.useFakeTimers();
+    const fetchSpy = hangingFetch();
+    const { t, db } = use([{ ...TOKEN_ROW, expires_at: 100 }]);
+    const pending = getValidAccessToken('user-1');
+
+    await vi.advanceTimersByTimeAsync(STRAVA_TOKEN_TIMEOUT_MS);
+    const result = await pending;
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(tokenWrites(db)).toHaveLength(0);
+    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
+  });
+
+  it('concurrent refreshes for the same user share one request to Strava', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }) });
+    const { t, db } = use([{ ...TOKEN_ROW, expires_at: 100 }]);
+
+    const [first, second, forced] = await Promise.all([getValidAccessToken('user-1'), getValidAccessToken('user-1'), refreshAccessToken('user-1')]);
+
+    expect(strava.calls.oauthToken).toBe(1);
+    for (const result of [first, second, forced]) expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
+    expect(tokenWrites(db)).toHaveLength(1);
+    expect(t.strava_tokens[0]).toMatchObject({ refresh_token: 'new-rt' });
+  });
+
+  it('refreshes for different users do not share a request', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }) });
+    use([{ ...TOKEN_ROW, expires_at: 100 }, { ...TOKEN_ROW, user_id: 'user-2', refresh_token: 'other-rt', expires_at: 100 }]);
+
+    const results = await Promise.all([getValidAccessToken('user-1'), getValidAccessToken('user-2')]);
+
+    expect(strava.calls.oauthToken).toBe(2);
+    for (const result of results) expect(result).toMatchObject({ ok: true });
+  });
+
+  it('a failed shared refresh is cleared so the next call retries', async () => {
+    let answer = 0;
+    strava = installFakeStravaFetch({
+      oauthToken: () => (++answer === 1 ? stravaError(500) : stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 })),
+    });
+    use([{ ...TOKEN_ROW, expires_at: 100 }]);
+
+    const [first, second] = await Promise.all([getValidAccessToken('user-1'), getValidAccessToken('user-1')]);
+    expect(first).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(second).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(strava.calls.oauthToken).toBe(1);
+
+    const retry = await getValidAccessToken('user-1');
+
+    expect(strava.calls.oauthToken).toBe(2);
+    expect(retry).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
   });
 });

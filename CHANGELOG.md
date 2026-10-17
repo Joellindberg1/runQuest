@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.7.1 — Nattlig avstämning mot Strava (2026-10-17)
+
+Användarversion (patch, What's new-posten i `changelog.json` har ingen `announce`: ingen popup och ingen Pack News-rad). Epic RUN-93 (Strava-webhooks, ADR 010 D12). Releasedatumet sätts till deploydagen om den inte är 2026-10-17. Ingen migration, inga nya miljövariabler.
+
+### Nytt — nattlig avstämning mot Strava (RUN-177, ADR 010 beslut 13, D12)
+- Schemat: `scheduler/stravaReconcileScheduler.ts` startar avstämningen 04:15 Europe/Stockholm varje natt (fritt mellan streak-jobbet 03:00, nattjobbet 03:30 och väderbackfillen på :00/:30). Bara i produktion; en natt som ännu pågår hoppas över med en varning.
+- Vad som jämförs (`services/stravaReconcile.ts`, `services/stravaReconcile/*`): för varje kopplad användare Stravas aktivitetslista för de senaste 30 dagarna mot användarens lagrade Strava-rundor, plus 20 äldre rundor per användare och natt i rotation (en användare med 300 gamla rundor får alla kontrollerade inom 15 nätter). Manuella rundor ses aldrig.
+- Budget: 400 Strava-anrop per natt (13 % av dygnsgränsen på 3 000 läsningar), delade rättvist över användarna; rotationen krymper först, och listan och bekräftelsen av det som är i tvivel går före. Avstämningen stannar i förväg om Stravas egen läsbudget passerat mjukgränsen eller svarar 429, och resten väntar till nästa natt.
+- Radering sker bara efter verifiering: varje runda i tvivel går genom webhook-workerns egen aktivitetshanterare (`GET /activities/:id` och samma beslutstabell, ADR 010 7.1). Rundan raderas bara vid 404, eller om aktiviteten blivit privat, bytt typ (inte längre löpning) eller fått distans 0. Allt annat (5xx, 403, 429, nätverksfel, trasig kropp) lämnar rundan orörd och loggas med felkod. Högst 10 raderingar per användare och natt; resten får vänta, och det loggas. En lista som misslyckas eller kan vara avkortad lämnar användaren ifred den natten.
+- Ändrad distans eller ändrat startdatum på Strava uppdateras (Strava skickar ingen händelse för det, se v0.7.0-fyndet). Därefter ett enda `reprocessRunsFromDate` och ett `calculateUserTotals` per användare (XP, streaks, titlar, badges och Pack News räknas om).
+- Pausade användare (ADR 010 7.5.3): bara raderingsdelen. Ingen uppdatering av distans eller datum och ingen import.
+- Samma användarlås som pollingen, webhook-batchen och Disconnect, så att en poll aldrig kan återskapa en runda som just raderats.
+- CI-vakt regel 10 i `scripts/ci-guards.mjs` håller avstämningen startad och kopplad.
+- Loggrad per natt: `🧹 Strava reconcile: N user(s) (… paused, … left alone), … run(s) checked, … removed, … updated, … failed, … of 400 requests`.
+- What's new (`changelog.json`): en patch-post utan `announce` om att raderade och ändrade rundor nu fångas även när Strava inte säger till, och om stabilare Strava-anslutning. Inga löften om omedelbar uppdatering.
+
+### Nytt — stabilare Strava-anslutning (RUN-318)
+- `stravaFetch` har timeout: 30 sekunder för API-anrop och 10 sekunder för `/oauth/` (kodbyte, förnyelse, deauthorize). Timeouten gäller även läsningen av svarskroppen. Ett timeout ger `StravaTimeoutError`, ett vanligt nätverksfel som inte säger något om behörigheten (en token markeras alltså aldrig som avvisad av ett timeout), i stället för ett anrop som hänger kvar under användarlåset.
+- Token-förnyelsen delas: en pågående förnyelse per användare och refresh-token återanvänds av alla som ber om en token samtidigt (webhook-worker, reservpolling, avstämning), så Stravas roterande refresh-token aldrig förbrukas två gånger.
+
+### Borttaget (RUN-319)
+- `GET /api/strava/last-sync` och `services/stravaLastWebhook.ts` är borta (endpointen blev oanvänd när "Next sync" och "Latest sync" togs bort i v0.7.0). Settings och Log läser `last_import_at` i `GET /api/strava/status`. Ingen frontend anropar längre endpointen. Rate budget loggar bara felkod.
+
+### Kodhälsa
+- RUN-320: paritetstest mellan backendens `GET /api/news` och frontendens fejkade news-server. Tak och sidstorlekar bor i `packages/shared/src/contracts/news.ts` (`UNREAD_CAP` 500, `NEWS_DEFAULT_LIMIT` 30, `NEWS_MAX_LIMIT` 100, `NEWS_ITEM_FIELDS`, `NEWS_META_FIELDS`).
+- Staging finns (Railway-miljön `staging` med egna tjänster, eget Supabase-projekt i gratisorganisationen; MCP-servern `supabase-staging` i `.mcp.json`). Strava körs inte i staging (Stravas prenumerationskrav), så ingen användare har en koppling där för avstämningen att gå igenom, och all Strava-verifiering sker med fejkad Strava i tester. Se `docs/release.md`.
+- ADR 010 har fått addendum 2026-10-17.
+
+### Ändrat
+- API: `GET /api/strava/last-sync` är borttagen. Den hade inget användarflöde kvar; `GET /api/strava/status` bär `last_import_at`.
+- Ny scheduler 04:15 Europe/Stockholm (se ovan). Ingen ny miljövariabel.
+
+### Prod-steg
+Inga migrationer och inga nya miljövariabler. Ägar-ja för PR release/v0.7.1 → main (= deploy).
+1. PR release/v0.7.1 → main, grön CI (inkl. `ci-guards`-regel 10), merge (= deploy). Ingen migration att köra före eller efter.
+2. Röktest: backend startade (`/health` 200); i loggen står `🕐 Starting the nightly Strava reconcile (04:15 Europe/Stockholm)...`; `GET /api/strava/last-sync` ger 404 (401 utan token); Settings och Log visar "Last import".
+3. Efter första natten (04:15 Stockholm): följ loggraden `🧹 Strava reconcile: ...`. Förväntat: alla kopplade användare räknade, `failed` 0, `requests` under 400, och `removed`/`updated` bara om något faktiskt skilde sig. Inga `❌ Strava reconcile`-rader. En `removed` högre än väntat på första natten är skäl att läsa loggen innan nästa körning (taket är 10 per användare).
+4. Tagg `v0.7.1` på merge-commiten.
+
+### Rollback
+- Kod: redeploya v0.7.0 i Railway och revert-PR. Inga dataformat ändrade. Avstämningen är bara kod: utan den återgår synken till att raderingar fångas av webhooks (ADR 010 D12 då åter öppen) och ändrad distans eller datum fångas inte.
+
 ## v0.7.0 — Notiser du styr, Ranks, Involves me och Strava-webhooks (2026-10-15)
 
 Användarversion (What's new + Pack News-rad via announce:release). v0.7.0 gick i prod 2026-10-15 (PR #45, tagg `v0.7.0`) utan popup: posten i `changelog.json` hade ingen `announce` och Features-kortet Strava hade den gamla texten tills webhooks var verifierade. RUN-265:s PR (Prod-steg 10) slår på popupen, den nya Strava-texten och reservpollingen på 12 timmar, efter godkänd rök. Epic RUN-9 (notiser, ADR 011) och RUN-93 (Strava-webhooks, ADR 010). Prod-stegen 1–9 är KÖRDA 2026-10-15 (utfall per steg nedan).

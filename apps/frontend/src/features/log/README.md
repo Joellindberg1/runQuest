@@ -53,7 +53,7 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
   lämnar raderna kvar och visar ett felkort under dem. Min egen runda har guldkant (samma "jag"-markering som Events/Duels). Namn och avatar öppnar Runner card.
 - **Väder utan emojis** (regel 10): sol- och snöikon ur ikonsetet där de finns, annars temperatur + etikett ("14 °C · Rain").
 - **Strava-raden (bara mobil)** läser `shared/hooks/useStravaQueries` (`useStravaStatus`) — EN definition med
-  gemensam retry; statusen delas med skalet (`pages/LogShellSeam.test.tsx`); last-sync hämtas inte alls i frontend. Raden visar "Last import 3 h ago" (`last_import_at`), ingen nästa synk. Ej kopplad / utgången → raden pekar på Settings. Ett fel döljer raden (sidoinformation, inget felkort).
+  gemensam retry; statusen delas med skalet (`pages/LogShellSeam.test.tsx`). Raden visar "Last import 3 h ago" (`last_import_at`), ingen nästa synk. Ej kopplad / utgången → raden pekar på Settings. Ett fel döljer raden (sidoinformation, inget felkort).
 - **Ingen guldknapp utöver submit** (Group history har ingen alls). "Show more" är ghost, Retry sekundär.
 - **Ingen tour:** det fanns ingen `tour_log_*` att bumpa — skärmen har inga `data-tour`-ankare.
 - **Löpbandets blå** = minor-nivåns blå (`--rq-tier-minor-*`) under rollnamnet `--rq-log-treadmill*` (prototypens Treadmill-chip).

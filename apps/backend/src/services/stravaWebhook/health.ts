@@ -1,8 +1,8 @@
 // The read behind GET /api/strava/webhook/health (ADR 010 decision 11): counters and two timestamps for the webhook queue, nothing
 // else. No owner, object, user or token ever leaves this module, and no row is fetched except the two timestamps below.
 //
-// Unlike stravaLastWebhook this does NOT swallow a read error. A health check that says 0 when the database is down lies, so any
-// failed read throws and the route answers 500.
+// A read error is NOT swallowed. A health check that says 0 when the database is down lies, so any failed read throws and the route
+// answers 500.
 import { getSupabaseClient } from '../../config/database.js';
 import type { WebhookStatus } from './constants.js';
 

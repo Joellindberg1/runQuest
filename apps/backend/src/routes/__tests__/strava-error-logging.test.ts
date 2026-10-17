@@ -28,7 +28,7 @@ vi.mock('../runs.js', async (importOriginal) => ({
 }));
 vi.mock('../../utils/calculateUserTotals.js', () => ({ calculateUserTotals: vi.fn().mockResolvedValue(undefined) }));
 // Not importOriginal: the scheduler imports routes/strava.ts, so loading the original from inside this factory would hand strava.ts the real one.
-vi.mock('../../scheduler/stravaSync.js', () => ({ getSyncInfo: vi.fn(), startStravaScheduler: vi.fn() }));
+vi.mock('../../scheduler/stravaSync.js', () => ({ startStravaScheduler: vi.fn() }));
 vi.mock('../../services/eventService.js', () => ({
   checkEventQualification: vi.fn().mockResolvedValue(undefined),
   maybeCreateEvent: vi.fn(),
@@ -54,7 +54,6 @@ vi.mock('../../services/xpConfig.js', async () => {
 import { getSupabaseClient } from '../../config/database.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
-import { getSyncInfo } from '../../scheduler/stravaSync.js';
 import { checkEventQualification } from '../../services/eventService.js';
 import { WeatherService } from '../../services/weatherService.js';
 import { getXpConfig } from '../../services/xpConfig.js';
@@ -322,15 +321,6 @@ describe('the other Strava routes', () => {
 
     expect(res.status).toBe(500);
     expectOnlyTheCode('G0001');
-  });
-
-  it('last-sync logs only the code', async () => {
-    vi.mocked(getSyncInfo).mockImplementation(() => { throw leaky('L0001'); });
-
-    const res = await server.request('GET', '/api/strava/last-sync', { token: user() });
-
-    expect(res.status).toBe(500);
-    expectOnlyTheCode('L0001');
   });
 
   it('sync-all logs only the code', async () => {

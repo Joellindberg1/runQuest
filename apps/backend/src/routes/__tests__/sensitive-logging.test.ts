@@ -20,6 +20,7 @@ vi.mock('../../config/database.js', () => ({
 import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
+import { createStravaRateBudget } from '../../services/stravaRateBudget.js';
 import { createFakeDb } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
@@ -119,6 +120,21 @@ describe('strava routes', () => {
     expect(out).not.toContain(access.slice(0, 5));
     expect(out).not.toContain(refresh.slice(0, 5));
     expect(out).not.toContain('oauth-code');
+  });
+});
+
+describe('strava rate budget', () => {
+  it('the rate budget logs only the error code when it cannot read a response', () => {
+    const leak = 'headers broke for REFRESHTOKENVALUE9876543210 and activity 987654321';
+    const unreadable = { status: 200, headers: { get: () => { throw Object.assign(new Error(leak), { code: 'H0001', stack: `stack with ${leak}` }); } } } as unknown as Response;
+
+    expect(() => createStravaRateBudget().recordResponse('https://www.strava.com/api/v3/athlete/activities', unreadable)).not.toThrow();
+
+    const out = logged();
+    expect(out).toContain('H0001');
+    expect(out).not.toContain('REFRESHTOKENVALUE');
+    expect(out).not.toContain('987654321');
+    expect(loggedObjects().some((o: any) => o instanceof Error)).toBe(false);
   });
 });
 

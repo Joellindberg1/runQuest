@@ -63,7 +63,9 @@ function beforeDeadline<T>(work: Promise<T>, deadline: AbortSignal): Promise<T> 
 function asRevokeError(error: unknown, deadline: AbortSignal): Error {
   const code = (error as { code?: unknown } | null)?.code;
   if (typeof code === 'string' && code.startsWith('strava_')) return error as Error;
-  return revokeError(deadline.aborted ? 'strava_timeout' : 'strava_network');
+  // TimeoutError: stravaFetch's own limit (also the name AbortSignal.timeout gives), as opposed to our deadline above.
+  const timedOut = deadline.aborted || (error as { name?: unknown } | null)?.name === 'TimeoutError';
+  return revokeError(timedOut ? 'strava_timeout' : 'strava_network');
 }
 
 /**

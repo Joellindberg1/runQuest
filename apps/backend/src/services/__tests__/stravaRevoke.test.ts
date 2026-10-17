@@ -179,6 +179,13 @@ describe('revokeStravaAuthorization', () => {
     await expect(revokeStravaAuthorization('user-1', { timeoutMs: 30 })).rejects.toMatchObject({ code: 'strava_timeout' });
   });
 
+  it('reports a timeout of the Strava call itself as strava_timeout, not as a network error', async () => {
+    useTokens([tokenRow()]);
+    vi.stubGlobal('fetch', () => Promise.reject(Object.assign(new Error('Strava did not answer in time'), { name: 'TimeoutError' })));
+
+    await expect(revokeStravaAuthorization('user-1')).rejects.toMatchObject({ code: 'strava_timeout' });
+  });
+
   it('gives up with strava_timeout when the token renewal hangs', async () => {
     useTokens([tokenRow({ expires_at: NOW - 60 })]);
     vi.stubGlobal('fetch', () => new Promise(() => {}));

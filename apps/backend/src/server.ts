@@ -10,6 +10,7 @@ import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
 import { startEventScheduler } from './scheduler/eventScheduler.js';
 import { startStreakScheduler } from './scheduler/streakScheduler.js';
 import { startStravaWebhookScheduler } from './scheduler/stravaWebhookScheduler.js';
+import { startStravaReconcileScheduler } from './scheduler/stravaReconcileScheduler.js';
 import { registerStravaRateBudget } from './services/stravaRateBudget.js';
 
 // 📋 Step 1: Load Environment Variables
@@ -84,6 +85,7 @@ server.on('listening', () => {
     startEventScheduler();
     startStreakScheduler();
     startStravaWebhookScheduler();
+    startStravaReconcileScheduler();
   } else {
     logger.info('ℹ️ Schedulers disabled in development mode');
     logger.info('💡 Use POST /api/strava/sync for manual Strava testing');
