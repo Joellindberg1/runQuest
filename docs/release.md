@@ -144,6 +144,8 @@ flöde 1 (login → JWT → skyddade anrop). Minst: frontend laddar utan vit sid
 `/board`), `GET /health` svarar, nya endpoints svarar 401 utan token, och den nya funktionen syns. Muterande rök i prod
 (loggad runda, utmaning) görs bara om ägaren säger ja, eftersom det är den riktiga gruppens data.
 
+**Sentry-alertregeln för kritiska larm** (en gång per Sentry-projekt, `runquest-backend`): villkor `alert:critical` (tagg, `level:fatal`), åtgärd "mejla ägaren", och **notifiera för varje händelse** (inte bara nya issues). Frekvensen begränsas av spärren i koden (högst en händelse per källa och fingeravtryck per 10 minuter, `extra.suppressed_since_last` visar hur många som hölls tillbaka), så regeln behöver ingen egen throttle. Källor och Strava-id-regeln: ADR 010, Addendum 2026-10-17 (RUN-283).
+
 ### 5. Migrationer
 
 1. **Ett ägar-ja per migration**, aldrig ett samlat ja för flera (`docs/permissions.md`). Lead visar exakt filen.

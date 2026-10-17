@@ -1,5 +1,6 @@
 // 🏆 Challenge Service — business logic
 import { getSupabaseClient } from '../config/database.js';
+import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { recordChallengeSettled } from './activityLog.js';
 import { recordRankPassesForChallenge } from './rankNews.js';
@@ -324,13 +325,14 @@ export async function settleChallenge(challengeId: string): Promise<void> {
           `🚨 KRITISK: challenge ${challengeId} is completed WITHOUT boosts and the claim could not be released — manual repair needed ` +
           `(insert winner/loser rows in user_boosts or set the challenge back to active):`,
           { boostError, releaseError },
+          new CriticalAlert('challenge_repair'),
         );
         const { error: freeError } = await supabase
           .from('users')
           .update({ challenge_active: false })
           .in('id', [challenge.challenger_id, challenge.opponent_id]);
         if (freeError) {
-          logger.error(`🚨 KRITISK: could not reset challenge_active for the players of challenge ${challengeId} either:`, freeError);
+          logger.error(`🚨 KRITISK: could not reset challenge_active for the players of challenge ${challengeId} either:`, freeError, new CriticalAlert('challenge_repair'));
         }
         throw new Error(
           `Failed to create boosts for challenge ${challengeId}: ${boostError.message}; ` +

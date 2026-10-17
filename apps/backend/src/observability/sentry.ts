@@ -20,14 +20,19 @@
  *  - Allt som skickas går först genom `scrubSentryEvent` (scrub.ts): inga tokens, headers, bodies, namn eller e-post.
  *
  * Stabilt gränssnitt för larm som bygger vidare på detta: `captureLoggedError` är den enda platsen där en loggrad blir en händelse.
- * Vill ett larm ha egen nivå eller tagg (t.ex. rader med prefixet "🚨 KRITISKT") ändras det där, på ett ställe.
+ * Rader med prefixet "🚨 KRITISK" (utils/criticalAlert.ts) blir där `fatal` med taggarna `alert=critical` och `source=<kod>`, och går
+ * förbi SDK:ts repeat-filter. Sentry-alertregeln filtrerar på `alert:critical`.
  */
 import * as Sentry from '@sentry/node';
 import type { Express, NextFunction, Request, Response } from 'express';
+import { CriticalAlert, criticalAlertOf } from '../utils/criticalAlert.js';
 import { setErrorSink } from '../utils/logger.js';
 import { fingerprintOf, isClientAuthError, isDroppedBreadcrumb, isExpectedClientStatus, scrubSentryEvent, secretsFromEnv, statusOfExpressError } from './scrub.js';
 
 const MAX_DETAIL_LENGTH = 300;
+
+/** Värdet på taggen `alert` för kritiska larm; Sentry-alertregeln filtrerar på `alert:critical`. */
+export const CRITICAL_ALERT_TAG = 'critical';
 
 /**
  * SDK 11 har tagit bort `sendDefaultPii`; `dataCollection` ersätter det, och dess standardvärden samlar ALLT (användaruppgifter,
@@ -55,6 +60,22 @@ export interface InitSentryTestOptions {
   processHandlers?: boolean;
 }
 
+type SentryIntegration = Exclude<NonNullable<Sentry.NodeOptions['integrations']>, (...args: never[]) => unknown>[number];
+
+/**
+ * SDK:ts repeat-filter (Dedupe) släpper en händelse som är identisk med den förra: samma meddelande, samma fingeravtryck och samma
+ * stacktrace. Ett larm som upprepas från samma anropsställe (nattkontrollen av prenumerationen två nätter i rad) skulle då tystas
+ * den andra gången, och ett kritiskt larm får inte försvinna. Kritiska larm går därför förbi filtret.
+ */
+function withoutCriticalAlerts(dedupe: SentryIntegration): SentryIntegration {
+  const { processEvent } = dedupe;
+  if (!processEvent) return dedupe;
+  return {
+    ...dedupe,
+    processEvent: (event, hint, client) => (event.tags?.alert === CRITICAL_ALERT_TAG ? event : processEvent(event, hint, client)),
+  };
+}
+
 /** Startar Sentry om `SENTRY_DSN` är satt. Returnerar om den startades. */
 export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: InitSentryTestOptions = {}): boolean {
   const dsn = env.SENTRY_DSN?.trim();
@@ -75,28 +96,37 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
       .filter((i) => i.name !== 'Console')
       .filter((i) => withProcessHandlers || (i.name !== 'OnUncaughtException' && i.name !== 'OnUnhandledRejection'))
       // Standardläget "warn" sväljer ett oväntat löftesavslag. "strict" fångar det och kraschar processen som Node gör utan Sentry.
-      .map((i) => (i.name === 'OnUnhandledRejection' ? Sentry.onUnhandledRejectionIntegration({ mode: 'strict' }) : i)),
+      .map((i) => (i.name === 'OnUnhandledRejection' ? Sentry.onUnhandledRejectionIntegration({ mode: 'strict' }) : i))
+      .map((i) => (i.name === 'Dedupe' ? withoutCriticalAlerts(i) : i)),
     beforeSend: (event) => scrubSentryEvent(event, secrets),
     beforeBreadcrumb: (breadcrumb) => (isDroppedBreadcrumb(breadcrumb) ? null : breadcrumb),
   });
 
+  clearCriticalThrottle();
   setErrorSink(captureLoggedError);
   return true;
 }
 
-/** Stänger klienten och kopplar loss loggern (tester, och ordnad nedstängning). */
+/** Stänger klienten och kopplar loss loggern (tester, och ordnad nedstängning). Väntande sammanfattningar skickas först. */
 export async function closeSentry(): Promise<void> {
+  sendPendingSummaries();
   setErrorSink(null);
+  clearCriticalThrottle();
   await Sentry.close(2000);
 }
 
-/** Väntar tills köade händelser är skickade, så en process som är på väg att avslutas inte tappar dem. */
+/**
+ * Väntar tills köade händelser är skickade, så en process som är på väg att avslutas inte tappar dem. Väntande sammanfattningar av
+ * tillbakahållna kritiska larm skickas först, så ett larm som hållits tillbaka inte försvinner när processen stängs.
+ */
 export async function flushSentry(timeoutMs = 2000): Promise<boolean> {
-  return Sentry.isInitialized() ? Sentry.flush(timeoutMs) : true;
+  if (!Sentry.isInitialized()) return true;
+  sendPendingSummaries();
+  return Sentry.flush(timeoutMs);
 }
 
 function loggedDetail(args: readonly unknown[]): unknown {
-  const first = args.find((a) => a !== undefined);
+  const first = args.find((a) => a !== undefined && !(a instanceof CriticalAlert));
   if (typeof first === 'string') return first.slice(0, MAX_DETAIL_LENGTH);
   if (first !== null && typeof first === 'object') {
     const { code, message } = first as { code?: unknown; message?: unknown };
@@ -116,19 +146,113 @@ function loggedDetail(args: readonly unknown[]): unknown {
 export function captureLoggedError(message: string, args: readonly unknown[]): void {
   if (!Sentry.isInitialized()) return;
 
-  if (isClientAuthError(args)) return;
+  // Före klientfiltret: ett kritiskt larm får aldrig tystas av att det bär ett JWT-fel.
+  const alert = criticalAlertOf(message, args);
+  if (!alert && isClientAuthError(args)) return;
+
+  // Händelsen ärver aldrig loggtexten när anroparen gett en egen (utan Strava-id): meddelande, gruppering och kontext använder den.
+  const text = alert?.sentryMessage ?? message;
+  const grouping = fingerprintOf(text);
+
+  let suppressedSinceLast = 0;
+  if (alert) {
+    const decision = throttleCriticalAlert(alert.source, `${alert.source}|${grouping}`, Date.now());
+    if (!decision.send) return;
+    suppressedSinceLast = decision.suppressedSinceLast;
+  }
+
+  // `fatal` och taggen alert=critical är det Sentry-alertregeln filtrerar på. `source` säger vilket larm det är; user_id är vårt eget id.
+  const alertContext = alert
+    ? {
+        level: 'fatal' as const,
+        tags: { alert: CRITICAL_ALERT_TAG, source: alert.source, ...(alert.userId ? { user_id: alert.userId } : {}) },
+      }
+    : { level: 'error' as const };
+  const suppressedExtra = suppressedSinceLast > 0 ? { suppressed_since_last: suppressedSinceLast } : {};
 
   const error = args.find((a): a is Error => a instanceof Error);
   if (error) {
-    Sentry.captureException(error, { extra: { log_message: message } });
+    Sentry.captureException(error, { extra: { log_message: text, ...suppressedExtra }, ...alertContext });
     return;
   }
   const detail = loggedDetail(args);
-  Sentry.captureMessage(message, {
-    level: 'error',
-    fingerprint: [fingerprintOf(message)],
-    ...(detail !== undefined ? { extra: { log_detail: detail } } : {}),
+  const extra = { ...(detail !== undefined ? { log_detail: detail } : {}), ...suppressedExtra };
+  Sentry.captureMessage(text, {
+    ...alertContext,
+    fingerprint: [grouping],
+    ...(Object.keys(extra).length > 0 ? { extra } : {}),
   });
+}
+
+/** Högst en Sentry-händelse per (källa, fingeravtryck) och så här lång tid; resten räknas (`extra.suppressed_since_last`). */
+export const CRITICAL_ALERT_THROTTLE_MS = 10 * 60_000;
+
+interface ThrottleEntry {
+  source: string;
+  sentAt: number;
+  suppressed: number;
+  /** Väntar på fönstrets slut för att skicka en sammanfattning om inget nytt larm hinner bära räknaren. */
+  summaryTimer?: ReturnType<typeof setTimeout>;
+}
+
+const criticalThrottle = new Map<string, ThrottleEntry>();
+
+/**
+ * Spärren mot en larmstorm (t.ex. en token-skrivning som felar för varje användare): första larmet går igenom, de följande inom
+ * fönstret räknas, och nästa som släpps igenom bär antalet. Loggraden berörs inte: allt syns fortfarande i Railway-loggen.
+ * Ett tillbakahållet larm får aldrig försvinna tyst (en uteblivd radering är en dataskyddsförpliktelse): kommer inget nytt larm när
+ * fönstret löper ut skickar en timer en sammanfattning (`sendSummary`), och `flushSentry`/`closeSentry` skickar väntande sammanfattningar.
+ * Tillståndet ligger i processen och nollställs vid omstart och vid `initSentry`.
+ */
+function throttleCriticalAlert(source: string, key: string, now: number): { send: true; suppressedSinceLast: number } | { send: false } {
+  const entry = criticalThrottle.get(key);
+  // En klocka som hoppat bakåt (elapsed < 0) räknas som utgånget fönster, annars hölls larmet tillbaka tills klockan hunnit ikapp.
+  const elapsed = entry ? now - entry.sentAt : Infinity;
+  if (entry && elapsed >= 0 && elapsed < CRITICAL_ALERT_THROTTLE_MS) {
+    entry.suppressed += 1;
+    if (!entry.summaryTimer) scheduleSummary(entry, CRITICAL_ALERT_THROTTLE_MS - elapsed);
+    return { send: false };
+  }
+  if (entry?.summaryTimer) clearTimeout(entry.summaryTimer);
+  criticalThrottle.set(key, { source, sentAt: now, suppressed: 0 });
+  return { send: true, suppressedSinceLast: entry?.suppressed ?? 0 };
+}
+
+function scheduleSummary(entry: ThrottleEntry, delayMs: number): void {
+  const timer = setTimeout(() => {
+    entry.summaryTimer = undefined;
+    sendSummary(entry);
+  }, Math.min(Math.max(delayMs, 0), CRITICAL_ALERT_THROTTLE_MS));
+  timer.unref?.(); // en väntande sammanfattning får inte hålla processen vid liv
+  entry.summaryTimer = timer;
+}
+
+/** En händelse per nyckel och fönster: samma taggar som larmet (utan user_id), ingen text från loggraden och inga id. */
+function sendSummary(entry: ThrottleEntry): void {
+  const count = entry.suppressed;
+  if (count <= 0 || !Sentry.isInitialized()) return;
+  entry.suppressed = 0;
+  const minutes = CRITICAL_ALERT_THROTTLE_MS / 60_000;
+  const text = `🚨 KRITISKT: ${entry.source}: ${count} more alert${count === 1 ? '' : 's'} suppressed in the last ${minutes} min`;
+  Sentry.captureMessage(text, {
+    level: 'fatal',
+    tags: { alert: CRITICAL_ALERT_TAG, source: entry.source },
+    fingerprint: [fingerprintOf(text)],
+    extra: { suppressed_count: count },
+  });
+}
+
+function sendPendingSummaries(): void {
+  for (const entry of criticalThrottle.values()) {
+    if (entry.summaryTimer) clearTimeout(entry.summaryTimer);
+    entry.summaryTimer = undefined;
+    sendSummary(entry);
+  }
+}
+
+function clearCriticalThrottle(): void {
+  for (const entry of criticalThrottle.values()) if (entry.summaryTimer) clearTimeout(entry.summaryTimer);
+  criticalThrottle.clear();
 }
 
 /**

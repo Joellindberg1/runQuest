@@ -58,6 +58,8 @@ const UNTOUCHED_TOP_LEVEL = new Set(['sdk', 'modules', 'release', 'environment',
 const JWT_LIKE = /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g;
 const BEARER = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const KEY_VALUE = /\b((?:access|refresh|id)[_-]?token|client[_-]?secret|api[_-]?key|password|passwd|secret|token|authorization)(=|["']\s*:\s*)["']?([^\s"'&,;}]+)/gi;
+// Strava-id (ADR 010 beslut 8.6): en andra försvarslinje om en rad som skrivits som `object_id=123` ändå skulle hamna i en händelse.
+const STRAVA_ID = /\b((?:object|owner|athlete)_id)(\s*[=:]\s*)\d+/gi;
 const HEX_40 = /\b[0-9a-f]{40}\b/gi;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
@@ -77,6 +79,7 @@ function scrubString(value: string, secrets: readonly string[]): string {
     .replace(BEARER, `Bearer ${FILTERED}`)
     .replace(JWT_LIKE, FILTERED)
     .replace(KEY_VALUE, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(STRAVA_ID, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
     .replace(HEX_40, FILTERED)
     .replace(EMAIL, FILTERED);
 }
