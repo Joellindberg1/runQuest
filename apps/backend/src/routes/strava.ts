@@ -12,14 +12,12 @@ import { isTreadmillActivity } from '../utils/stravaActivity.js';
 import { calculateCompleteRunXP, STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import type { StravaCallbackRequest, StravaCallbackResponse, StravaStatusResponse, StravaSyncPausedResponse } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
-import { getSyncInfo } from '../scheduler/stravaSync.js';
 import { WeatherService } from '../services/weatherService.js';
 import { stravaLookback } from '../utils/stravaLookback.js';
 import { withUserLock } from '../utils/keyedMutex.js';
 import { isValidAthleteId } from '../services/stravaAthlete.js';
 import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
-import { getLastWebhookAt } from '../services/stravaLastWebhook.js';
 import { getLastStravaImportAt } from '../services/stravaLastImport.js';
 import { removeStravaConnection } from '../services/stravaConnection.js';
 import { revokeStravaAuthorization } from '../services/stravaRevoke.js';
@@ -587,28 +585,6 @@ export async function syncAllStravaUsers(): Promise<{
     throw error;
   }
 }
-
-// GET /api/strava/last-sync - Get info about the last and next scheduled sync
-router.get('/last-sync', authenticateJWT, async (_req, res): Promise<void> => {
-  try {
-    const info = getSyncInfo();
-    res.json({
-      data: {
-        last_sync_attempt: info.lastSyncAttempt,
-        last_sync_status: info.lastSyncStatus,
-        next_sync_estimated: info.nextSyncEstimated,
-        users_synced: info.usersSynced,
-        total_users: info.totalUsers,
-        new_runs: info.newRuns,
-        // Global, a timestamp only; null when no event has been received or the read failed.
-        last_webhook_at: await getLastWebhookAt(),
-      }
-    });
-  } catch (error) {
-    logger.error(`❌ Error fetching sync info (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to get sync info' });
-  }
-});
 
 // POST /api/strava/backfill-extended - Admin: re-fetch all Strava activities and fill extended fields
 router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
