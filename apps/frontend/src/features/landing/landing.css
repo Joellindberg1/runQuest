@@ -9,7 +9,7 @@
 /* ── Sida: rörligt rutnät och guldglöd bakom allt ─────────────────────────── */
 /* overflow: clip, inte hidden: hidden gör sidan till en scrollbehållare och den fasta headern skulle då fastna mot sidan i stället för mot fönstret. hidden står före clip bara som
    reserv för webbläsare som saknar clip (äldre Safari); där klipps dekoren som förut och headern följer med sidan. Ingen förfader till headern får ha hidden/auto/scroll (guards.test.ts). */
-.rq-landing { position: relative; min-height: 100dvh; overflow: hidden; overflow: clip; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+.rq-landing { position: relative; min-height: calc(100dvh - var(--rq-staging-banner-h)); overflow: hidden; overflow: clip; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
 .rq-landing__grid {
   position: absolute; inset: 0; pointer-events: none; opacity: .7;
   background-image: linear-gradient(rgb(var(--rq-gold-rgb) / .045) var(--rq-hair), transparent var(--rq-hair));
