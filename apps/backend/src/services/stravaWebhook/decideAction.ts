@@ -158,15 +158,22 @@ function storedDistanceKm(km: number): number {
   return Math.round(Number((km * 100).toPrecision(12))) / 100;
 }
 
+/**
+ * Whether the distance stored for a run is what the column would hold for an activity of `distanceMetres`. The comparison of the
+ * update decision below and of the nightly reconcile's cheap check against the activity list (services/stravaReconcile/plan.ts).
+ */
+export function sameStoredDistance(storedKm: number, distanceMetres: number): boolean {
+  return sameNumber(storedKm, storedDistanceKm(distanceMetres / 1000));
+}
+
 /** The columns where Strava differs from the run, with Strava's values. Empty = nothing to write. */
 function diffRun(existing: ExistingRun, activity: StravaActivityDetail): RunChanges {
   const changes: RunChanges = {};
   const date = activity.start_date_local.split('T')[0];
-  const distanceKm = activity.distance / 1000;
   if (existing.date !== date) changes.date = date;
   // The column keeps two decimals: compare what it would store, or a run like 5.2345 km would differ forever. A tolerance
   // would hide real changes that land exactly one step away on a half-step boundary (8575 m -> 8585 m, stored 8.58 -> 8.59).
-  if (!sameNumber(existing.distance, storedDistanceKm(distanceKm))) changes.distance = distanceKm;
+  if (!sameStoredDistance(existing.distance, activity.distance)) changes.distance = activity.distance / 1000;
 
   const fresh = extractExtendedFields(activity);
   const target = changes as Record<string, unknown>;
