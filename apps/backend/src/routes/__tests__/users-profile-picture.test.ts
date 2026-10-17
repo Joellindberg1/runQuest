@@ -62,10 +62,9 @@ async function upload(body: Buffer, contentType: string | null, token: string | 
     headers: { ...(contentType ? { 'Content-Type': contentType } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: new Uint8Array(body),
   });
+  // Alla svar ska vara JSON (ADR 007): ett svar som inte är det fäller testet i stället för att sväljas.
   const text = await res.text();
-  let json: any = null;
-  try { json = JSON.parse(text); } catch { /* ett fel utan JSON-svar */ }
-  return { status: res.status, body: json };
+  return { status: res.status, body: JSON.parse(text) as any };
 }
 
 const image = (bytes = 1024) => Buffer.alloc(bytes, 7);
@@ -95,12 +94,15 @@ describe('POST /api/users/profile-picture', () => {
     expect((await upload(image(), type)).status).toBe(200);
   });
 
+  // application/json får en giltig JSON-kropp, annars stoppar express.json() i app.ts den före routen. Felmeddelandet bevisar att
+  // det är routens typkontroll som nekar.
   it.each(['image/svg+xml', 'image/bmp', 'text/plain', 'application/json', 'application/octet-stream'])(
-    'rejects %s with 400 and stores nothing',
+    'rejects %s with 400 from the route and stores nothing',
     async (type) => {
       const { uploads, users } = use();
-      const res = await upload(image(), type);
+      const res = await upload(type === 'application/json' ? Buffer.from('{}') : image(), type);
       expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'Only jpeg, png, webp or gif images are allowed' });
       expect(uploads).toEqual([]);
       expect(users[0].profile_picture).toBeNull();
     },
@@ -118,12 +120,21 @@ describe('POST /api/users/profile-picture', () => {
     expect(uploads).toHaveLength(1);
     const over = await upload(image(MAX_FILE_SIZE + 1), 'image/png');
     expect(over.status).toBe(413);
+    expect(over.body).toEqual({ error: 'Request body too large' });
     expect(uploads).toHaveLength(1);
   });
 
   it('requires a login', async () => {
     const { uploads } = use();
     expect((await upload(image(), 'image/png', null)).status).toBe(401);
+    expect(uploads).toEqual([]);
+  });
+
+  it('rejects an invalid token with 401', async () => {
+    const { uploads } = use();
+    const res = await upload(image(), 'image/png', 'not-a-valid-jwt');
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'Invalid token' });
     expect(uploads).toEqual([]);
   });
 

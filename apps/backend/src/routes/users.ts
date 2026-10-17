@@ -1,6 +1,6 @@
 // 👤 User Routes — profilbild m.m. Skrivningar mot users/storage går via
 // backend (service role); frontend har ingen skrivåtkomst i RLS.
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
@@ -83,5 +83,11 @@ router.post(
     }
   }
 );
+
+// Fel från body-parsern (för stor bild) som JSON i ADR 007-formen i stället för Express HTML-felsida (som väntelistan).
+router.use((err: { type?: string }, _req: Request, res: Response, next: NextFunction): void => {
+  if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' }); return; }
+  next(err);
+});
 
 export default router;

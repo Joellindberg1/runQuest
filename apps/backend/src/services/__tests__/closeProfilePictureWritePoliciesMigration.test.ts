@@ -29,15 +29,26 @@ describe('migration 051_close_profile_picture_write_policies.sql', () => {
     expect(code).not.toMatch(/\b(truncate|grant|revoke|alter|drop\s+table|delete\s+from)\b/i);
   });
 
-  it('avbryter om en annan bucket finns eller om RLS är av, innan något tas bort', () => {
+  it('avbryter om en annan bucket finns eller om RLS är av, innan något tas bort eller sätts', () => {
     const body = normalize(code);
-    const dropAt = body.indexOf('drop policy');
+    const firstChangeAt = Math.min(body.indexOf('drop policy'), body.indexOf('insert into storage.buckets'));
     for (const guard of ["where id <> 'profile-pictures'", 'relrowsecurity']) {
       const at = body.indexOf(guard);
       expect(at, guard).toBeGreaterThan(-1);
-      expect(at, guard).toBeLessThan(dropAt);
+      expect(at, guard).toBeLessThan(firstChangeAt);
     }
     expect(code.match(/raise exception/gi)).toHaveLength(2);
+  });
+
+  it('lägger hela ändringen i ett enda do-block så att ett guard-fel aldrig lämnar en halv ändring', () => {
+    const body = normalize(code);
+    expect(body.startsWith('do $$ declare')).toBe(true);
+    expect(body.endsWith('end $$;')).toBe(true);
+    expect(code.match(/\$\$/g)).toHaveLength(2);
+    // Bucketens upsert kommer efter policyloopen, inuti blocket.
+    expect(body.indexOf('end loop')).toBeGreaterThan(-1);
+    expect(body.indexOf('insert into storage.buckets')).toBeGreaterThan(body.indexOf('end loop'));
+    expect(body.indexOf('insert into storage.buckets')).toBeLessThan(body.lastIndexOf('end $$;'));
   });
 
   it('sätter bucketens gräns och mime-typer lika med backendens uppladdning och lämnar public orörd vid konflikt', () => {
@@ -50,15 +61,23 @@ describe('migration 051_close_profile_picture_write_policies.sql', () => {
     expect(conflict).not.toContain('public');
   });
 
-  it('headern har rollback för alla fyra policykommandon och för bucketens gränser samt underlag att spara före', () => {
-    const header = sql.split('\n').filter((line) => line.startsWith('--')).join('\n');
-    expect(header).toMatch(/Rollback/);
-    for (const cmd of ['select', 'insert', 'update', 'delete']) {
-      expect(header, cmd).toMatch(new RegExp(`--\\s+create policy "<sparat ${cmd.toUpperCase()}-namn>" on storage\\.objects for ${cmd}`, 'i'));
-    }
-    expect(header).toMatch(/--\s+update storage\.buckets set file_size_limit = null, allowed_mime_types = null/i);
-    expect(header).toMatch(/Före applicering/);
-    expect(header).toMatch(/select policyname, cmd, roles, qual, with_check from pg_policies/);
+  it('headern har rollback som återskapar prods fyra policyer med exakta namn och uttryck samt bucketens gränser', () => {
+    const rollbackLines = sql.split(/\r?\n/).filter((line) => /^--\s+(create policy|update storage\.buckets)/.test(line)).map((line) => normalize(line.replace(/^--\s*/, '')));
+    const own = "(bucket_id = 'profile-pictures'::text) and (auth.role() = 'authenticated'::text)";
+    expect(rollbackLines).toEqual([
+      `create policy "users can upload their own profile pictures" on storage.objects for insert to public with check (${own});`,
+      `create policy "users can update their own profile pictures" on storage.objects for update to public using (${own});`,
+      `create policy "users can delete their own profile pictures" on storage.objects for delete to public using (${own});`,
+      `create policy "anyone can view profile pictures" on storage.objects for select to public using (bucket_id = 'profile-pictures'::text);`,
+      "update storage.buckets set file_size_limit = null, allowed_mime_types = null where id = 'profile-pictures';",
+    ]);
+    expect(sql).not.toMatch(/<sparat/);
+  });
+
+  it('headern anger prods och stagings utgångsläge samt hur staging rullas tillbaka', () => {
+    expect(sql).toMatch(/Rollback i prod/);
+    expect(sql).toMatch(/Rollback i staging: staging saknade både policyer och bucket/);
+    expect(sql).toMatch(/select policyname, cmd, roles, qual, with_check from pg_policies/);
   });
 
   it('headern anger ägar-ja per miljö, motiv för SELECT-policyn och att migrationen inte körs av en builder', () => {

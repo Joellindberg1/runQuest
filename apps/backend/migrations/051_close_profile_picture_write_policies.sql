@@ -8,9 +8,12 @@
 -- publicUrl i users.profile_picture är just den adressen. Ingenting i appen listar bucketen (backend gör bara upload,
 -- getPublicUrl och remove, alla med service role; frontend har ingen Supabase-klient sedan RUN-105). Policyn gav bara
 -- list/select via API:t med den publika nyckeln, dvs. en lista över alla filnamn, och filnamnet är `<user-id>-<tid>.<ext>`.
--- Policynamnen står inte i repot (bucketen och dess policyer skapades i dashboarden), så migrationen går igenom pg_policies
--- och tar bort ALLA policyer på storage.objects i stället för att gissa namn. Det är säkert eftersom profile-pictures är appens
--- enda bucket; finns det ändå en annan bucket avbryts migrationen (inget ändras) i stället för att tyst ta bort dess policyer.
+-- Prods fyra policyer (läst 2026-10-17, alla med roles {public}, dvs. inte "to authenticated"; skrivpolicyerna släppte in via
+-- auth.role() = 'authenticated') finns exakt återgivna i rollbacken nedan. Migrationen går ändå igenom pg_policies och tar bort
+-- ALLA policyer på storage.objects i stället för att räkna upp namn, så att den också rensar en miljö med andra namn. Det är
+-- säkert eftersom profile-pictures är appens enda bucket; finns det ändå en annan bucket avbryts migrationen (inget ändras) i
+-- stället för att tyst ta bort dess policyer. Hela ändringen, även bucketens gränser, ligger i ett enda do-block: ett guard-fel
+-- lämnar aldrig en halv ändring, inte ens vid psql -f utan ON_ERROR_STOP.
 -- Gränserna på bucketen (5 MB, jpeg/png/webp/gif) speglar backendens MAX_FILE_SIZE och ALLOWED_IMAGE_TYPES i routes/users.ts
 -- och gäller även om någon skulle skriva med en annan väg. Om bucketen saknas (en ny miljö) skapas den publik, med samma
 -- gränser; finns den lämnas public som den är.
@@ -18,19 +21,22 @@
 -- via API:t, service role påverkas inte. Befintliga bild-URL:er (publik väg) svarar som förut. Ingen data ändras.
 -- Körordning: när som helst, inga beroenden. Idempotent (omkörning ändrar inget).
 --
--- Före applicering: spara policyerna och bucketens nuvarande gränser (underlag för rollback):
+-- Prod före 051 (Lead, read-only 2026-10-17): RLS på storage.objects true, enda bucket profile-pictures med public = true,
+-- file_size_limit = null och allowed_mime_types = null. Staging (samma datum): RLS true, inga policyer och ingen bucket, eftersom
+-- baslinjen inte innehåller storage. Kontrollfrågor före applicering (bevisar utgångsläget i respektive miljö):
 --   select policyname, cmd, roles, qual, with_check from pg_policies where schemaname = 'storage' and tablename = 'objects';
---   select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'profile-pictures';
+--   select id, public, file_size_limit, allowed_mime_types from storage.buckets;
 -- Migrationen skriver också ut varje borttagen policy som NOTICE (namn, kommando, roller, using, with check).
 --
--- Rollback (ägar-ja krävs, det öppnar skrivning för varje Supabase Auth-session igen). Återskapa varje sparad policy med dess
--- ursprungliga namn och uttryck. Baslinjens avsikt var:
---   create policy "<sparat SELECT-namn>" on storage.objects for select using (bucket_id = 'profile-pictures');
---   create policy "<sparat INSERT-namn>" on storage.objects for insert to authenticated with check (bucket_id = 'profile-pictures');
---   create policy "<sparat UPDATE-namn>" on storage.objects for update to authenticated using (bucket_id = 'profile-pictures');
---   create policy "<sparat DELETE-namn>" on storage.objects for delete to authenticated using (bucket_id = 'profile-pictures');
+-- Rollback i prod (ägar-ja krävs, det öppnar skrivning för varje Supabase Auth-session igen). Återskapar prods exakta policyer:
+--   create policy "Users can upload their own profile pictures" on storage.objects for insert to public with check ((bucket_id = 'profile-pictures'::text) and (auth.role() = 'authenticated'::text));
+--   create policy "Users can update their own profile pictures" on storage.objects for update to public using ((bucket_id = 'profile-pictures'::text) and (auth.role() = 'authenticated'::text));
+--   create policy "Users can delete their own profile pictures" on storage.objects for delete to public using ((bucket_id = 'profile-pictures'::text) and (auth.role() = 'authenticated'::text));
+--   create policy "Anyone can view profile pictures" on storage.objects for select to public using (bucket_id = 'profile-pictures'::text);
 --   update storage.buckets set file_size_limit = null, allowed_mime_types = null where id = 'profile-pictures';
--- (sätt tillbaka de sparade värdena om de inte var null)
+-- Rollback i staging: staging saknade både policyer och bucket före 051. Rollbacken där är att ta bort gränserna (samma update som
+-- ovan) och, bara om bucketen skapades av 051, att ta bort bucketen (tom, via Storage-API:t; delete from storage.buckets nekas av
+-- Storage). Återskapa inga policyer i staging.
 
 do $$
 declare
@@ -61,11 +67,11 @@ begin
     raise notice '051 tar bort policy "%" (%, roller %, using %, with check %)', p.policyname, p.cmd, p.roles, p.qual, p.with_check;
     execute format('drop policy if exists %I on storage.objects', p.policyname);
   end loop;
+
+  insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('profile-pictures', 'profile-pictures', true, 5242880, array['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+  on conflict (id) do update
+    set file_size_limit = excluded.file_size_limit,
+        allowed_mime_types = excluded.allowed_mime_types;
 end
 $$;
-
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('profile-pictures', 'profile-pictures', true, 5242880, array['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-on conflict (id) do update
-  set file_size_limit = excluded.file_size_limit,
-      allowed_mime_types = excluded.allowed_mime_types;
