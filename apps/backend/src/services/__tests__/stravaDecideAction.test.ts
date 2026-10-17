@@ -22,6 +22,7 @@ import { WEBHOOK_BACKOFF_MINUTES, WEBHOOK_OUTCOMES } from '../stravaWebhook/cons
 import {
   decideAction,
   decideBeforeFetch,
+  sameStoredDistance,
   type DecideInput,
   type ExistingRun,
   type StravaResponse,
@@ -552,6 +553,13 @@ describe('decideAction comparison with the stored run', () => {
         outcome: 'noop',
       });
     }
+  });
+
+  it('sameStoredDistance compares what the numeric(6,2) column would hold, to the cent and no further', () => {
+    expect(sameStoredDistance(5.23, 5234.5)).toBe(true); // 5.2345 km is stored as 5.23
+    expect(sameStoredDistance(8.58, 8575)).toBe(true); // half a step up, as PostgreSQL rounds it
+    expect(sameStoredDistance(8.58, 8585)).toBe(false); // one step further
+    expect(sameStoredDistance(5, 5010)).toBe(false);
   });
 
   // One changed field per extended column. The changed activity is spread after the factory, so the splits do not follow

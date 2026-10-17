@@ -82,9 +82,9 @@ export async function fetchDetailedActivity(activityId: string | number, accessT
   return result.kind === 'ok' ? result.activity : null;
 }
 
-/** The raw response of the athlete's activity list from `after` (epoch seconds), 200 per page (Strava's maximum). */
-export function fetchAthleteActivities(accessToken: string, after: number): Promise<Response> {
-  return stravaFetch(`${STRAVA_API}/athlete/activities?after=${after}&per_page=200`, {
+/** The raw response of the athlete's activity list from `after` (epoch seconds), 200 per page (Strava's maximum). Page 1 unless `page` says otherwise. */
+export function fetchAthleteActivities(accessToken: string, after: number, page = 1): Promise<Response> {
+  return stravaFetch(`${STRAVA_API}/athlete/activities?after=${after}&per_page=200${page > 1 ? `&page=${page}` : ''}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
