@@ -62,6 +62,17 @@ interface ReloadTarget {
   location: { reload(): void };
 }
 
+let staleReloadOrdered = false;
+
+/**
+ * Har en omladdning efter deploy just beställts? Handlern stoppar Vites fel (preventDefault), så React.lazy får `undefined` och kastar ett
+ * följdfel ("reading 'default'") innan sidan hunnit laddas om. Felspårningen frågar här och rapporterar ingenting från en sida som ändå
+ * håller på att försvinna.
+ */
+export function isStaleReloadOrdered(): boolean {
+  return staleReloadOrdered;
+}
+
 export function installStaleChunkReload(
   target: ReloadTarget,
   getStorage: () => GuardStorage | null,
@@ -70,6 +81,7 @@ export function installStaleChunkReload(
   target.addEventListener('vite:preloadError', (event) => {
     if (isOptionalChunkFailure((event as Event & { payload?: unknown }).payload)) return;
     if (!claimStaleChunkReload(now(), getStorage())) return;
+    staleReloadOrdered = true;
     event.preventDefault();
     target.location.reload();
   });

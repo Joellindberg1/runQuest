@@ -1,4 +1,4 @@
-import { isStaleChunkError, loadOptionalChunk } from '@/shared/utils/staleChunkReload';
+import { isStaleChunkError, isStaleReloadOrdered, loadOptionalChunk } from '@/shared/utils/staleChunkReload';
 import { isNetworkFailure } from './networkFailure';
 
 // Felspårningens lätta ingång. Den här filen importerar aldrig Sentry-SDK:t: det ligger i ./sentryClient och hämtas med dynamisk import
@@ -37,7 +37,7 @@ const dsnOf = (env: ReportingEnv): string | undefined => env.VITE_SENTRY_DSN?.tr
 
 /** Rapporterar ett fel om felspårningen är påslagen. Kastar aldrig. Omladdningsfel efter deploy (saknad kodfil) rapporteras inte. */
 export function reportError(error: unknown, context?: ReportContext): void {
-  if (failed || isStaleChunkError(error) || isNetworkFailure(error)) return;
+  if (failed || isStaleReloadOrdered() || isStaleChunkError(error) || isNetworkFailure(error)) return;
   if (sink) {
     sink(error, context);
     return;
@@ -61,5 +61,5 @@ export async function enableErrorReporting(env: ReportingEnv = readEnv()): Promi
     queue.length = 0;
     return;
   }
-  for (const { error, context } of queue.splice(0)) sink(error, context);
+  for (const { error, context } of queue.splice(0)) if (!isStaleReloadOrdered()) sink(error, context);
 }
