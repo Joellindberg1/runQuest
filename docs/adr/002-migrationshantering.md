@@ -38,8 +38,11 @@ Schemat lever i produktionsdatabasen (Supabase-projekt
      constraints inkl. unika/främmande nycklar), index, vyer (inkl.
      `title_leaderboard_view`), funktioner/RPC (`increment_event_xp`,
      `update_all_title_leaderboards`, `handle_new_user` m.fl.), triggers,
-     `ENABLE ROW LEVEL SECURITY` + alla kvarvarande policyer, Storage-bucket
-     `profile-pictures` med dess policyer. Referensdata som appen kräver för att
+     `ENABLE ROW LEVEL SECURITY` + alla kvarvarande policyer. Storage ingår inte
+     i baslinjen: bucketen `profile-pictures` skapas av migration 051 (RUN-276,
+     publik, 5 MB, jpeg/png/webp/gif) och `storage.objects` ska ha inga policyer
+     alls (051 tog bort prods fyra); de återskapas aldrig via dashboarden.
+     Referensdata som appen kräver för att
      fungera (t.ex. `level_requirements`, `streak_multipliers`, `titles`,
      `event_templates`, `event_pools`, utmaningskonfig) tas med som INSERT.
    - **Exkluderas, aldrig i repot:** användardata, `strava_tokens`, allt som

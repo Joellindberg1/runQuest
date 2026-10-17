@@ -35,6 +35,15 @@ import { fingerprintOf, isClientAuthError, isDroppedBreadcrumb, isExpectedClient
 
 const MAX_DETAIL_LENGTH = 300;
 
+/**
+ * Releasen bakas in av bygget (`define` i apps/backend/build.mjs, värdet byggs i scripts/sentry-build.mjs) och är samma namn som källkartan
+ * laddas upp under. Obyggd kod (dev med tsx, tester) har ingen konstant; då lämnas releasen åt SDK:t. `typeof` håller läsningen säker utan define.
+ * `node dist/server.js` körs utan `--enable-source-maps`: stacken lämnar processen med byggfilens rader och Sentry översätter dem med den
+ * uppladdade kartan (via debug-id). Flaggan ska INTE sättas, den skulle skriva om stacken i processen före SDK:t läser den.
+ */
+declare const __SENTRY_RELEASE__: string | undefined;
+const builtRelease = (): string | undefined => (typeof __SENTRY_RELEASE__ === 'string' ? __SENTRY_RELEASE__ : undefined);
+
 /** Värdet på taggen `alert` för kritiska larm; Sentry-alertregeln filtrerar på `alert:critical`. */
 export const CRITICAL_ALERT_TAG = 'critical';
 
@@ -96,6 +105,7 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
   Sentry.init({
     dsn,
     environment: env.SENTRY_ENVIRONMENT?.trim() || env.NODE_ENV || 'development',
+    release: builtRelease(),
     dataCollection: NO_DATA_COLLECTION,
     enableRuntimeChannelInjection: false,
     tracePropagationTargets: [],
@@ -300,9 +310,13 @@ export function installSentryErrorHandler(app: Pick<Express, 'use'>): void {
   });
 }
 
-/** För `npm run sentry:test`: en enda testhändelse som syns i Sentry med miljötaggen. Returnerar händelse-id:t. */
+/**
+ * För `npm run sentry:test` (och `sentry:test:built` mot den byggda koden): en enda testhändelse som syns i Sentry med miljötaggen.
+ * Ett Error och inte ett meddelande, så händelsen bär en stacktrace: i den byggda koden visar den om källkartan fungerar (src/-rader
+ * i stället för dist/). Returnerar händelse-id:t.
+ */
 export function captureTestEvent(): string {
-  return Sentry.captureMessage('RunQuest backend sentry:test', {
+  return Sentry.captureException(new Error('RunQuest backend sentry:test'), {
     level: 'info',
     tags: { sentry_test: 'true' },
     fingerprint: ['sentry:test'],

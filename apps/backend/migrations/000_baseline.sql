@@ -17,9 +17,12 @@
 -- · handle_new_user() är en kvarleva från Supabase Auth-eran; dess trigger
 --   satt på auth.users och ingår inte i public-schemat. Funktionen behålls
 --   i baslinjen för trohet mot prod men är sannolikt död.
--- · Storage: bucketen `profile-pictures` + dess policyer ligger i storage-
---   schemat och ingår inte här; de återskapas via Supabase-dashboarden
---   (SELECT public; INSERT/UPDATE/DELETE kräver authenticated — se STATE.md).
+-- · Storage: bucketen `profile-pictures` ligger i storage-schemat och ingår
+--   inte här. Skapa ALDRIG om dess policyer via Supabase-dashboarden: prod hade
+--   fyra (SELECT public; INSERT/UPDATE/DELETE för inloggade), men migration 051
+--   (RUN-276) tog bort dem, och en ny miljö ska ha noll policyer på
+--   storage.objects. Bucketen skapas av 051 (publik, 5 MB, jpeg/png/webp/gif).
+--   Uppladdningen sker bara i backend med service role.
 -- ============================================================================
 
 -- ───────────────────────────── Tabeller ─────────────────────────────────────

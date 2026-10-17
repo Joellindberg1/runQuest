@@ -14,6 +14,8 @@ export interface ReportingEnv {
   VITE_SENTRY_ENVIRONMENT?: string;
   /** Andelen sidladdningar som mäts. Kan bara sänka standarden (0,1); 0 stänger av mätningen. */
   VITE_SENTRY_TRACES_SAMPLE_RATE?: string;
+  /** Sätts av bygget (vite.config.ts), inte av en miljövariabel: samma namn som källkartorna laddas upp under. */
+  VITE_SENTRY_RELEASE?: string;
   MODE?: string;
 }
 
@@ -41,6 +43,7 @@ const readEnv = (): ReportingEnv => ({
   VITE_SENTRY_DSN: import.meta.env.VITE_SENTRY_DSN,
   VITE_SENTRY_ENVIRONMENT: import.meta.env.VITE_SENTRY_ENVIRONMENT,
   VITE_SENTRY_TRACES_SAMPLE_RATE: import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE,
+  VITE_SENTRY_RELEASE: import.meta.env.VITE_SENTRY_RELEASE,
   MODE: import.meta.env.MODE,
 });
 const dsnOf = (env: ReportingEnv): string | undefined => env.VITE_SENTRY_DSN?.trim() || undefined;
@@ -67,6 +70,7 @@ export async function enableErrorReporting(env: ReportingEnv = readEnv()): Promi
     sink = startSentry({
       dsn,
       environment: env.VITE_SENTRY_ENVIRONMENT?.trim() || env.MODE || 'production',
+      release: env.VITE_SENTRY_RELEASE?.trim() || undefined,
       tracesSampleRate: tracesSampleRateOf(env.VITE_SENTRY_TRACES_SAMPLE_RATE),
       documentPath,
     });

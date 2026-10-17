@@ -21,6 +21,8 @@ import { scrubSpanJson, scrubTransaction } from './scrubTransaction';
 export interface SentryStartOptions {
   dsn: string;
   environment: string;
+  /** Bygget bakar in namnet (vite.config.ts); källkartorna är uppladdade under samma. Utan det symboliseras inga stackar. */
+  release?: string;
   /** Andelen sidladdningar som mäts. Aldrig över taket i packages/shared; saknas den används standarden. */
   tracesSampleRate?: number;
   /** Adressens sökväg när dokumentet laddades (före inloggningen). Saknas den mäts ingen sidladdning. */
@@ -31,13 +33,14 @@ export interface SentryStartOptions {
 
 const trimmedPath = (address: string): string => (address.split(/[?#]/)[0] ?? '').replace(/\/$/, '');
 
-export function startSentry({ dsn, environment, tracesSampleRate, documentPath, transport }: SentryStartOptions): (error: unknown, context?: Record<string, unknown>) => void {
+export function startSentry({ dsn, environment, release, tracesSampleRate, documentPath, transport }: SentryStartOptions): (error: unknown, context?: Record<string, unknown>) => void {
   const currentPath = window.location.pathname;
   const measurePageLoad = documentPath !== undefined && isShellPath(documentPath) && trimmedPath(documentPath) === trimmedPath(currentPath);
 
   Sentry.init({
     dsn,
     environment,
+    release,
     // @sentry/react 11 har tagit bort sendDefaultPii; dess ersättare dataCollection har PÅ som standard för användare, cookies, headers och
     // query. Allt stängs uttryckligen, vilket är vad sendDefaultPii: false betydde i 10. beforeSend är andra försvarslinjen.
     dataCollection: { userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false },
