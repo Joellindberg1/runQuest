@@ -49,6 +49,7 @@ import { createStravaRateBudget } from '../stravaRateBudget.js';
 import { setStravaRequestHooks } from '../stravaClient.js';
 import { createStravaReconciler, type ReconcileDeps } from '../stravaReconcile.js';
 import { createReconcilePorts } from '../stravaReconcile/adapters.js';
+import { nightIndex } from '../stravaReconcile/plan.js';
 import type { ReconcilePorts } from '../stravaReconcile/ports.js';
 import { createRecompute, createRunStore, createStravaApi } from '../stravaWebhook/supabaseAdapters.js';
 import type { Recompute } from '../stravaWebhook/ports.js';
@@ -473,6 +474,44 @@ describe('nightly reconcile', () => {
     expect(strava.calls.oauthToken).toBe(0);
     expect(summary).toMatchObject({ removed: 0, failed: 1 });
     expect(ids(t.runs)).toEqual(['7345001']);
+  });
+
+  it('reconcile makes no Strava request for a user without Strava runs', async () => {
+    // An expired token would cost a renewal request; a user with nothing to reconcile must not even get that far.
+    const manual = storedRun(activityOf(7345001), 'user-1', { source: 'manual', external_id: null, id: 'manual-1' });
+    const { reconciler, strava } = build({
+      tables: { strava_tokens: [tokenRow('user-1', { expires_at: 1 })], runs: [manual] },
+      routes: {}, // any request at all fails the test
+    });
+
+    const summary = await reconciler.run();
+
+    expect(strava.requests).toEqual([]);
+    expect(summary).toMatchObject({ users: 1, checked: 0, requests: 0, skippedUnavailable: 0 });
+  });
+
+  it('reconcile leaves budget for later users when one user has many runs in doubt', async () => {
+    // user-1 is first on an even night. Their list is empty (a Strava fault), so all 60 runs look missing; user-2 has 30 old runs.
+    const evenNight = [new Date('2026-10-17T02:15:00.000Z'), new Date('2026-10-18T02:15:00.000Z')].find((day) => nightIndex(day) % 2 === 0)!;
+    const missing = Array.from({ length: 60 }, (_, i) => activityOf(7350000 + i));
+    const old = Array.from({ length: 30 }, (_, i) => activityOf(7360000 + i, { start_date: '2026-07-01T05:30:00Z', start_date_local: '2026-07-01T07:30:00Z' }));
+    const { reconciler, strava } = build({
+      tables: {
+        strava_tokens: [tokenRow('user-1'), tokenRow('user-2')],
+        runs: [...missing.map((a) => storedRun(a, 'user-1')), ...old.map((a) => storedRun(a, 'user-2'))],
+      },
+      routes: { athleteActivities: [], activities: { ...Object.fromEntries(missing.map((a) => [a.id, stravaError(500)])), ...Object.fromEntries(old.map((a) => [a.id, a])) } }, // the 60 fail (no removal cap to stop them), the old ones answer
+      deps: { requestBudget: 40, now: () => evenNight },
+    });
+
+    const summary = await reconciler.run();
+
+    const usersLooked = (ids: number[]) => ids.reduce((sum, id) => sum + strava.activityCalls(id), 0);
+    expect(strava.requests.length).toBeLessThanOrEqual(40);
+    expect(strava.calls.athleteActivities).toBe(2); // the second user was listed
+    expect(usersLooked(missing.map((a) => a.id))).toBeLessThanOrEqual(19 + 5); // an even share of the 39 left after the list, plus the margin
+    expect(usersLooked(old.map((a) => a.id))).toBeGreaterThan(0); // and still had room for their rotation
+    expect(summary.stopped).toBeNull();
   });
 
   it('reconcile spends no more than the budget even when every run is in doubt', async () => {

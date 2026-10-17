@@ -31,6 +31,13 @@ export const RECONCILE_NIGHTLY_REQUEST_BUDGET = 400;
 export const RECONCILE_OLD_RUNS_PER_USER = 20;
 
 /**
+ * How many runs in doubt (missing from the list, or changed) one user may have looked at beyond their even share of what is left of the
+ * night's budget. A user whose list comes back empty by a Strava fault has all runs of the window "missing"; without a bound they would
+ * spend the whole night's requests on 404-checks before the others have even been listed. What is cut waits for the next nights.
+ */
+export const RECONCILE_IN_DOUBT_MARGIN = 5;
+
+/**
  * The most runs one user loses to one night. Every deletion is confirmed by a 404 from Strava, but the night deletes without a person
  * looking, so a wrong 404 on a user's activities (a Strava fault, a token that suddenly cannot see what it saw) must not be able to
  * empty a history in one go. Past the cap the night leaves the rest for the next one and says so in the log; a user who really did

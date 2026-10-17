@@ -39,6 +39,7 @@ import { errorCode } from '../utils/errorCode.js';
 import { withUserLock } from '../utils/keyedMutex.js';
 import {
   RECONCILE_LIST_PAGE_SIZE,
+  RECONCILE_IN_DOUBT_MARGIN,
   RECONCILE_LIST_RESERVE_PER_USER,
   RECONCILE_MAX_REMOVALS_PER_USER,
   RECONCILE_MAX_LIST_PAGES,
@@ -312,15 +313,16 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
 
     async function reconcileUser(user: ReconcileUser, usersLeft: number): Promise<void> {
       const userId = user.userId;
+      // The runs first: a user without a Strava run has nothing to reconcile, and must cost neither a token renewal nor a request.
+      const stored: StoredRun[] = await ports.listStravaRuns(userId);
+      if (stored.length === 0) return;
+
       const token = await strava.getAccessToken(userId);
       if (!token.ok) {
         summary.skippedUnavailable += 1;
         logger.warn(`⚠️ Strava reconcile: no token for user ${userId} (${token.reason}); the user is left alone tonight`);
         return;
       }
-
-      const stored: StoredRun[] = await ports.listStravaRuns(userId);
-      if (stored.length === 0) return;
 
       const { afterSeconds, startDay } = reconcileWindow(started, windowDays);
       const activities = await readList(userId, token.accessToken, afterSeconds);
@@ -330,10 +332,15 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
       }
 
       const plan = planUser(stored, activities, startDay);
-      const inDoubt = [...plan.changed, ...plan.missing];
-      // What is left of the budget after what is in doubt and the lists of the users still to come, shared evenly over this user and them.
-      const spare = ledger.remaining() - inDoubt.length - (usersLeft - 1) * RECONCILE_LIST_RESERVE_PER_USER;
-      const rotationCount = Math.max(0, Math.min(oldRunsPerUser, Math.floor(spare / usersLeft)));
+      // This user's share of what is left of the budget, after the lists of the users still to come, shared evenly over this user and them.
+      const share = Math.max(0, Math.floor((ledger.remaining() - (usersLeft - 1) * RECONCILE_LIST_RESERVE_PER_USER) / usersLeft));
+      // What is in doubt comes first, the missing before the changed (a deletion has a deadline, a changed distance has not), but only up to the
+      // share and a small margin: a user whose whole history looks missing (a Strava fault) must not eat the night. The rest waits for the next nights.
+      const inDoubt = [...plan.missing, ...plan.changed].slice(0, share + RECONCILE_IN_DOUBT_MARGIN);
+      if (inDoubt.length < plan.missing.length + plan.changed.length) {
+        logger.warn(`⚠️ Strava reconcile: ${plan.missing.length + plan.changed.length} runs of user ${userId} are in doubt, only ${inDoubt.length} are looked at tonight`);
+      }
+      const rotationCount = Math.max(0, Math.min(oldRunsPerUser, share - inDoubt.length));
       const rotation = rotationSlice(plan.older, night, rotationCount).map((run) => run.externalId);
 
       const candidates = [...inDoubt, ...rotation].filter(isActivityId);
