@@ -53,7 +53,7 @@ type StorageLike = Pick<Storage, 'length' | 'key' | 'getItem'>;
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[_\-\s]/g, '');
 const isPiiKey = (key: string): boolean => PII_KEYS.has(normalizeKey(key));
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype;
+  typeof value === 'object' && value !== null && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 
 function collectPiiLeaves(value: unknown, insidePiiKey: boolean, into: Set<string>, depth = 0): void {
   if (depth > MAX_DEPTH) return;

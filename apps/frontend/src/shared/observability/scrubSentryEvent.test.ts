@@ -96,6 +96,15 @@ describe('frontend sentry beforeSend', () => {
     expect(scrubSentryEvent(stale, [])).toBeNull();
   });
 
+  it('scrubs objects without a prototype too', () => {
+    const bare = Object.assign(Object.create(null), { email: 'anna@example.com', note: 'kept', text: 'by anna@example.com' });
+    const event: SentryEventLike = { extra: { bare } };
+
+    const scrubbed = scrubSentryEvent(event, []);
+
+    expect(scrubbed?.extra?.bare).toEqual({ note: 'kept', text: 'by [Filtered]' });
+  });
+
   it('does not mutate the incoming event', () => {
     const event = fatEvent();
     const before = JSON.stringify(event);

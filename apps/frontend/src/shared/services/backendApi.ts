@@ -12,6 +12,7 @@ import type {
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
+const HTTP_SERVER_ERROR = 500;
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export interface LoginResponse {
@@ -109,6 +110,15 @@ function writtenFailure(error: unknown): ApiResponse<never> {
   return { success: false, error: typeof error === 'string' ? error : undefined, written: true };
 }
 
+/**
+ * Svar som inte gick igenom loggas efter vad de betyder. 4xx är väntat (fel lösenord, saknad post, dubblett, spärr) och är inget fel i appen,
+ * så de är en varning och blir ingen felhändelse. 5xx är oväntat och rapporteras. Nätverksfel loggas som fel i respektive catch.
+ */
+function logHttpFailure(message: string, status: number, detail: unknown): void {
+  if (status >= HTTP_SERVER_ERROR) logger.error(message, detail);
+  else logger.warn(message, detail);
+}
+
 class BackendApiService {
   private baseUrl: string;
   onUnauthorized?: () => void;
@@ -137,7 +147,7 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
-        logger.error('Backend login failed:', data.error);
+        logHttpFailure('Backend login failed:', response.status, data.error);
         return { success: false, error: data.error || 'Login failed' };
       }
 
@@ -211,7 +221,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        logger.error('Password change failed:', data.error);
+        logHttpFailure('Password change failed:', response.status, data.error);
         return { success: false, error: data.error || 'Password change failed' };
       }
 
@@ -249,7 +259,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        logger.error('Failed to fetch users:', data.error);
+        logHttpFailure('Failed to fetch users:', response.status, data.error);
         return { success: false, error: data.error || 'Failed to fetch users' };
       }
 
@@ -318,6 +328,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        logHttpFailure(failure, response.status, body.error);
         return { success: false, error: body.error || failure };
       }
       return { success: true, data: body.data };
@@ -448,7 +459,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        logger.error('Failed to create user:', data.error);
+        logHttpFailure('Failed to create user:', response.status, data.error);
         return { success: false, error: data.error || 'Failed to create user' };
       }
 
@@ -487,7 +498,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        logger.error('Failed to reset password:', data.error);
+        logHttpFailure('Failed to reset password:', response.status, data.error);
         return { success: false, error: data.error || 'Failed to reset password' };
       }
 
@@ -558,6 +569,8 @@ class BackendApiService {
         this.handleUnauthorized();
         return { success: false, error: 'Session expired. Please log in again.' };
       }
+
+      if (!response.ok) logHttpFailure(`Request failed: ${endpoint}`, response.status, data.error);
 
       return {
         success: response.ok,
@@ -757,7 +770,7 @@ class BackendApiService {
       });
 
       if (!response.success) {
-        logger.error('Failed to refresh title leaderboards:', response.error);
+        logger.warn('Failed to refresh title leaderboards:', response.error); // 5xx och nätverksfel rapporteras redan av authenticatedRequest
         return { success: false, error: response.error };
       }
 
@@ -1182,6 +1195,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { ok: false, error: 'Session expired. Please log in again.' };
         }
+        logHttpFailure(failure, response.status, parsed.error);
         return { ok: false, error: parsed.error || failure };
       }
       return { ok: true, body: parsed as T };

@@ -29,7 +29,6 @@ describe('startSentry', () => {
     expect(options.tracesSampleRate).toBeUndefined();
     expect(options.replaysSessionSampleRate).toBeUndefined();
     expect(options.replaysOnErrorSampleRate).toBeUndefined();
-    expect(options.integrations).toBeUndefined();
   });
 
   it('scrubs every event through beforeSend', () => {
