@@ -69,6 +69,14 @@ describe('the backend build', () => {
     expect(withToken.plugins).toHaveLength(1);
   });
 
+  it('silences the upload plugin\'s default-export warning only when the plugin is in the build', () => {
+    const without = backendBuildOptions({ env: RELEASE_ENV, outdir });
+    const withToken = backendBuildOptions({ env: { ...RELEASE_ENV, SENTRY_AUTH_TOKEN: FAKE_TOKEN }, outdir });
+
+    expect(without.logOverride).toEqual({});
+    expect(withToken.logOverride).toEqual({ 'import-is-undefined': 'silent' });
+  });
+
   it('keeps the start command and the map file name: node dist/server.js', () => {
     const options = backendBuildOptions({ env: {}, outdir: 'dist' });
 

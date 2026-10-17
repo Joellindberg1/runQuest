@@ -63,6 +63,9 @@ check "saknad hashad fil ger 404, aldrig cachad"  "/assets/index-DOESNOTEXIST.js
 # Källkartor är till för Sentry och får aldrig serveras (RUN-285): bygget tar bort dem ur dist. Provet gäller en riktig chunk, inte en påhittad:
 # om en .map låg kvar i dist skulle den ge 200 här. Felspårningens chunk (optional-*.js) kontrolleras särskilt eftersom den är den som bär SDK:t.
 check "källkarta till en hashad fil ger 404"      "/$asset.map"                    404 "^cache-control: no-store" "immutable|content-type: (text|application)/(json|javascript)"
+# Utanför /assets hade SPA-fallbacken svarat 200 med index.html; Caddyfilens .map-regel gäller alla sökvägar.
+check "källkarta utanför /assets ger 404, inte index.html" "/foo.js.map"           404 "^cache-control: no-store" "content-type: text/html"
+check "källkarta i en undermapp ger 404"          "/media/foo.js.map"              404 "^cache-control: no-store" "content-type: text/html"
 optional_chunks=("$DIST"/assets/optional-*.js)
 if [[ ! -e "${optional_chunks[0]}" ]]; then
   echo "FAIL felspårningens chunk (assets/optional-*.js) finns inte i dist; döptes den om? Uppdatera vite.config.ts och det här skriptet"; failures=$((failures + 1))

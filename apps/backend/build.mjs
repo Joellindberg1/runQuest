@@ -35,6 +35,10 @@ export function backendBuildOptions({ env = process.env, outdir = 'dist' } = {})
     alias: { '@runquest/shared': resolve(BACKEND_DIR, '../../packages/shared/src/index.ts') },
     define: { __SENTRY_RELEASE__: JSON.stringify(release) },
     plugins: upload ? [sentryEsbuildPlugin(upload)] : [],
+    // Sentry-pluginet lindar varje ingång i ett JS-proxymodul som återexporterar `default`. sentryTest.ts har ingen default-export, och
+    // esbuild varnar då vid varje bygge med token ("Import "default" will always be undefined"). Varningen gäller bara proxyn: src är
+    // TypeScript, där esbuild aldrig ger den varningen, så ett riktigt fel av samma slag döljs inte.
+    logOverride: upload ? { 'import-is-undefined': 'silent' } : {},
   };
 }
 

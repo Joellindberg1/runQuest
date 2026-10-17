@@ -155,7 +155,8 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
   Namnet byggs i `scripts/sentry-build.mjs` och bakas in i båda apparna (`VITE_SENTRY_RELEASE` i frontend, `__SENTRY_RELEASE__` i
   backend), så SDK:t och uppladdningen alltid har samma namn. Frontend- och backendtjänsten byggs av samma commit och får samma namn.
 - **Aldrig publika:** frontend byggs med dolda kartor (ingen `sourceMappingURL`) som `stripSourceMaps` tar bort ur `dist/` efter
-  uppladdningen, med eller utan token; `scripts/verify-static-serving.sh` kontrollerar i CI att en `.map` ger 404. Backendens kartor
+  uppladdningen, med eller utan token. Caddyfilen svarar dessutom 404 på alla `*.map`, på varje sökväg (även utanför `/assets`), och
+  `scripts/verify-static-serving.sh` kontrollerar i CI att så är fallet. Backendens kartor
   ligger kvar bredvid `dist/server.js`, som aldrig serveras.
 - **Node utan `--enable-source-maps`:** startkommandot är `node dist/server.js` och ska förbli det. SDK:t skickar byggfilens rader
   med ett debug-id och Sentry översätter dem med den uppladdade kartan. Flaggan skulle skriva om stacken i processen före SDK:t läser den.

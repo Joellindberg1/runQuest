@@ -7,6 +7,7 @@
 #   2. Saknade filer under /assets ger 404 i stället för index.html (HTML som JS = vit sida).
 #   3. Filmen under /media (RUN-257): versionerade filnamn (landing-film-720.v1.mp4) cachas för alltid, saknade filer ger 404, och mp4 komprimeras
 #      inte (encode tar bara text, json, svg m.fl.; Range ger 206 av file_server). .webmanifest får sin typ explicit (RUN-205).
+#   4. Källkartor (.map) ger alltid 404, på alla sökvägar (RUN-285).
 # Beteendet verifieras i CI mot det byggda dist/ (scripts/verify-static-serving.sh).
 
 {
@@ -48,6 +49,15 @@
 	encode {
 		gzip
 		zstd
+	}
+
+	# Källkartor (.map) är till för Sentry och serveras aldrig, på någon sökväg (RUN-285). Bygget tar bort dem ur dist; den här regeln gör att
+	# en som ändå råkar ligga kvar inte nås, och att en förfrågan utanför /assets (t.ex. /foo.js.map) får 404 i stället för index.html via SPA-fallbacken.
+	# Först av handle-blocken, så den gäller före /assets-blocket.
+	@sourcemap path *.map
+	handle @sourcemap {
+		header Cache-Control "no-store"
+		respond "Not found" 404
 	}
 
 	# Vite-hashade filer byter namn vid varje bygge och får cachas för alltid.
