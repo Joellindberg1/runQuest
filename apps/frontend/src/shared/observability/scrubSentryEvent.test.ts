@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { collectStorageValues, scrubSentryEvent, type SentryEventLike } from './scrubSentryEvent';
 
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.payload.signature';
@@ -121,6 +121,47 @@ describe('frontend sentry beforeSend', () => {
 
     expect(scrubbed?.message).toBe('moved from /board to /profile and ended at https://runquest.dev/log');
     expect(scrubbed?.breadcrumbs?.[0]?.data).toEqual({ from: '/board', to: '/profile' });
+  });
+
+  it('drops events once a stale chunk reload has been ordered', async () => {
+    vi.resetModules();
+    const { installStaleChunkReload } = await import('@/shared/utils/staleChunkReload');
+    const { scrubSentryEvent: freshScrub } = await import('./scrubSentryEvent');
+    let listener: ((event: Event) => void) | undefined;
+    const stored = new Map<string, string>();
+    installStaleChunkReload(
+      { addEventListener: (_type, fn) => { listener = fn; }, location: { reload: () => {} } },
+      () => ({ getItem: (key) => stored.get(key) ?? null, setItem: (key, value) => { stored.set(key, value); } }),
+    );
+    const followUp: SentryEventLike = { exception: { values: [{ type: 'TypeError', value: "Cannot read properties of undefined (reading 'default')" }] } };
+    expect(freshScrub(followUp, [])).not.toBeNull();
+
+    const event = new Event('vite:preloadError', { cancelable: true });
+    Object.assign(event, { payload: new Error('Failed to fetch dynamically imported module: https://runquest.dev/assets/SettingsPage-abc.js') });
+    listener?.(event);
+
+    expect(freshScrub(followUp, [])).toBeNull();
+  });
+
+  it('turns UUIDs and numeric ids in URLs and messages into :id and keeps the rest of the path', () => {
+    const uuid = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+    const event: SentryEventLike = {
+      message: `GET /api/users/7/runs failed on 2026/10/17 for ${uuid}`,
+      breadcrumbs: [
+        { category: 'fetch', data: { url: `https://api.runquest.dev/api/badges/user/${uuid}`, method: 'GET' } },
+        { category: 'xhr', data: { url: '/api/runs/42/likes?cursor=9' } },
+        { category: 'fetch', data: { url: 'https://api.runquest.dev/api/config/xp' } },
+      ],
+    };
+
+    const scrubbed = scrubSentryEvent(event, []);
+
+    expect(scrubbed?.message).toBe('GET /api/users/:id/runs failed on 2026/10/17 for :id');
+    expect(scrubbed?.breadcrumbs?.map((crumb) => crumb.data?.url)).toEqual([
+      'https://api.runquest.dev/api/badges/user/:id',
+      '/api/runs/:id/likes',
+      'https://api.runquest.dev/api/config/xp',
+    ]);
   });
 
   it('does not mutate the incoming event', () => {

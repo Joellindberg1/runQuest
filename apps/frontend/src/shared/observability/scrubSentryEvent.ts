@@ -1,4 +1,4 @@
-import { isStaleChunkError } from '@/shared/utils/staleChunkReload';
+import { isStaleChunkError, isStaleReloadOrdered } from '@/shared/utils/staleChunkReload';
 import { isNetworkFailure } from './networkFailure';
 
 // beforeSend för felspårningen: ren funktion utan Sentry-import, så att den testas utan SDK:t och aldrig drar in det i en tidig chunk.
@@ -25,6 +25,19 @@ const EMAIL = /[^\s@"'<>()]+@[^\s@"'<>()]+\.[^\s@"'<>()]+/g;
 const URL_QUERY = /([\w\-./:%~]+)\?[\w%\-.~!$&'()*+,;=:@/[\]]+(#\S*)?/g;
 // Fragmentet efter en adress eller en sökväg som börjar med / ("/board#x"); ett # i vanlig text ("issue #12") berörs inte.
 const URL_HASH = /(https?:\/\/[^\s#]+|\/[\w\-./%~]*)#\S*/g;
+
+// Id:n i adresser (UUID och rena tal) blir :id, samma princip som sidnamnen i Umami: sökvägen visar vilken sorts anrop det var, inte vems.
+const ID_PLACEHOLDER = ':id';
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+// En adress eller en sökväg som börjar med / (inte mitt i ett ord eller ett datum som 2026/10/17).
+const PATH_TOKEN = /https?:\/\/[^\s"'<>()]+|(?<![\w/])\/[^\s"'<>()]*/g;
+const NUMERIC_SEGMENT = /(?<=\/)\d+(?=\/|$)/g;
+
+function normalizeIds(text: string): string {
+  return text
+    .replace(UUID, ID_PLACEHOLDER)
+    .replace(PATH_TOKEN, (path) => path.replace(NUMERIC_SEGMENT, ID_PLACEHOLDER));
+}
 
 interface Breadcrumb {
   category?: string;
@@ -103,7 +116,8 @@ function scrubString(text: string, storageValues: readonly string[]): string {
   let result = text;
   for (const value of storageValues) result = result.split(value).join(FILTERED);
   // Adressernas query först: en e-post inne i en query ska försvinna med den, inte dra med sig resten av adressen.
-  return result.replace(URL_QUERY, '$1').replace(URL_HASH, '$1').replace(EMAIL, FILTERED);
+  result = result.replace(URL_QUERY, '$1').replace(URL_HASH, '$1');
+  return normalizeIds(result).replace(EMAIL, FILTERED);
 }
 
 function scrubValue(value: unknown, storageValues: readonly string[], keepKeys: boolean, depth: number): unknown {
@@ -120,6 +134,7 @@ function scrubValue(value: unknown, storageValues: readonly string[], keepKeys: 
 }
 
 function isUnreportableEvent(event: SentryEventLike): boolean {
+  if (isStaleReloadOrdered()) return true;
   if (event.message && (isStaleChunkError(event.message) || isNetworkFailure(event.message))) return true;
   return (event.exception?.values ?? []).some((entry) => isStaleChunkError(entry.value ?? '') || isNetworkFailure(entry.value ?? ''));
 }

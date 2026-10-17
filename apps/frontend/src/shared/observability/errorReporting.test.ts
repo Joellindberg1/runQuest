@@ -115,6 +115,29 @@ describe('errorReporting with a DSN', () => {
     expect(sink).not.toHaveBeenCalled();
   });
 
+  it('a stale chunk reload sends no error report', async () => {
+    const { enableErrorReporting, reportError } = await freshModule();
+    const { installStaleChunkReload } = await import('@/shared/utils/staleChunkReload');
+    let listener: ((event: Event) => void) | undefined;
+    const reload = vi.fn();
+    const stored = new Map<string, string>();
+    installStaleChunkReload(
+      { addEventListener: (_type, fn) => { listener = fn; }, location: { reload } },
+      () => ({ getItem: (key) => stored.get(key) ?? null, setItem: (key, value) => { stored.set(key, value); } }),
+      () => 1_000_000,
+    );
+    await enableErrorReporting(env);
+
+    const event = new Event('vite:preloadError', { cancelable: true });
+    Object.assign(event, { payload: new Error('Failed to fetch dynamically imported module: https://runquest.dev/assets/SettingsPage-abc.js') });
+    listener?.(event);
+    // Vite sväljer importfelet och React.lazy får undefined: det följdfelet ska inte heller rapporteras.
+    reportError(new TypeError("Cannot read properties of undefined (reading 'default')"));
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sink).not.toHaveBeenCalled();
+  });
+
   it('does not report requests that got no response (backend down)', async () => {
     const { enableErrorReporting, reportError } = await freshModule();
 
