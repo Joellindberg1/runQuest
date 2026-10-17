@@ -19,8 +19,8 @@ beforeEach(() => {
   sentry = startFakeSentry();
 });
 afterEach(async () => {
+  vi.useRealTimers(); // before stop(): Sentry's close waits on a real timeout
   await sentry.stop();
-  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -144,11 +144,11 @@ describe('critical alerts in sentry', () => {
         alertFor(n);
         vi.setSystemTime(Date.now() + 1000); // 50 alerts in under a minute
       }
-      expect(await sentry.flush()).toHaveLength(1);
+      expect(await sentry.drain()).toHaveLength(1);
 
       vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS);
       alertFor(51);
-      const sent = await sentry.flush();
+      const sent = await sentry.drain();
 
       expect(sent).toHaveLength(2);
       expect(sent[0].extra?.suppressed_since_last).toBeUndefined();
@@ -157,16 +157,17 @@ describe('critical alerts in sentry', () => {
       // The counter starts over after it has been reported.
       vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS);
       alertFor(52);
-      const later = await sentry.flush();
+      const later = await sentry.drain();
       expect(later).toHaveLength(3);
       expect(later[2].extra?.suppressed_since_last).toBeUndefined();
     });
 
-    it('holds the next alert back until the full window has passed', async () => {
+    it('holds the next alert back until the window has passed', async () => {
       alertFor(1);
-      vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS - 1);
+      // A minute short of the window (the summary timer is a real one in this test, so it must not be about to fire).
+      vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS - 60_000);
       alertFor(2);
-      expect(await sentry.flush()).toHaveLength(1);
+      expect(await sentry.drain()).toHaveLength(1);
     });
 
     it('throttles each source and each kind of alert on its own', async () => {
@@ -174,12 +175,110 @@ describe('critical alerts in sentry', () => {
       logger.error('🚨 KRITISKT: Strava-webhook: the subscription is missing.', new CriticalAlert('subscription_missing'));
       logger.error('🚨 KRITISKT: some other token problem', new CriticalAlert('token_write'));
       logger.error('🚨 KRITISKT: some other token problem', new CriticalAlert('token_write'));
-      expect(await sentry.flush()).toHaveLength(3);
+      expect(await sentry.drain()).toHaveLength(3);
+    });
+
+    it('lets an alert through again when the clock has gone backwards', async () => {
+      alertFor(1);
+      vi.setSystemTime(Date.now() - MS_DAY);
+      alertFor(2);
+      alertFor(3); // inside the new window
+      expect(await sentry.drain()).toHaveLength(2);
     });
 
     it('does not throttle ordinary error lines', async () => {
       for (let n = 0; n < 5; n++) logger.error(`❌ failure number ${n}`, new Error(`e${n}`));
       expect(await sentry.flush()).toHaveLength(5);
+    });
+  });
+
+  // A held-back alert must never vanish silently (a missed deletion is a data-protection duty): when the window ends with alerts
+  // counted and no new alert to carry the count, a summary event goes out on its own.
+  describe('summary of held-back alerts', () => {
+    const deadAlert = (userId: string) =>
+      logger.error('🚨 KRITISKT: Strava-webhook event dead within 48 h: events row 7 (activity delete), attempts=3', new CriticalAlert('webhook_dead', { userId }));
+    /** Flushes with a faked setTimeout: Sentry's flush timeout needs the clock to move. */
+    const settle = async (): Promise<Array<Record<string, any>>> => {
+      const flushed = sentry.flush();
+      await vi.advanceTimersByTimeAsync(2001);
+      return flushed;
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      vi.setSystemTime(new Date('2026-10-17T12:00:00.000Z'));
+    });
+
+    it('3 dead events inside the window and then nothing give the first alert and one summary with N=2', async () => {
+      deadAlert('u-1');
+      vi.setSystemTime(Date.now() + 1000);
+      deadAlert('u-2');
+      deadAlert('u-3');
+      await vi.advanceTimersByTimeAsync(CRITICAL_ALERT_THROTTLE_MS);
+      const sent = await settle();
+
+      expect(sent).toHaveLength(2);
+      expect(sent[1]).toMatchObject({ level: 'fatal', tags: { alert: 'critical', source: 'webhook_dead' } });
+      expect(Object.keys(sent[1].tags).sort()).toEqual(['alert', 'source']);
+      expect(sent[1].message).toBe('🚨 KRITISKT: webhook_dead: 2 more alerts suppressed in the last 10 min');
+      expect(JSON.stringify(sent[1])).not.toMatch(/u-\d|events row/);
+    });
+
+    it('sends no summary when nothing was held back', async () => {
+      deadAlert('u-1');
+      await vi.advanceTimersByTimeAsync(CRITICAL_ALERT_THROTTLE_MS * 2);
+      expect(await settle()).toHaveLength(1);
+    });
+
+    it('counts a held-back alert once: the summary resets the count for the next alert', async () => {
+      deadAlert('u-1');
+      deadAlert('u-2');
+      await vi.advanceTimersByTimeAsync(CRITICAL_ALERT_THROTTLE_MS);
+      deadAlert('u-3');
+      const sent = await settle();
+
+      expect(sent).toHaveLength(3);
+      expect(sent[1].message).toContain('1 more alert');
+      expect(sent[2].extra?.suppressed_since_last).toBeUndefined();
+    });
+
+    it('lets the next alert carry the count and sends no summary when the window ended before the timer ran', async () => {
+      deadAlert('u-1');
+      deadAlert('u-2');
+      vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS); // the clock only; the timer has not fired
+      deadAlert('u-3');
+      await vi.advanceTimersByTimeAsync(CRITICAL_ALERT_THROTTLE_MS * 2);
+      const sent = await settle();
+
+      expect(sent).toHaveLength(2);
+      expect(sent[1].extra.suppressed_since_last).toBe(1);
+    });
+
+    it('flushSentry sends a waiting summary at once and the timer does not send it again', async () => {
+      deadAlert('u-1');
+      deadAlert('u-2');
+      deadAlert('u-3');
+      const sent = await settle();
+      expect(sent).toHaveLength(2);
+      expect(sent[1].message).toContain('2 more alerts');
+
+      await vi.advanceTimersByTimeAsync(CRITICAL_ALERT_THROTTLE_MS * 2);
+      expect(await settle()).toHaveLength(2);
+    });
+
+    it('closeSentry sends a waiting summary and leaves no timer behind', async () => {
+      deadAlert('u-1');
+      deadAlert('u-2');
+      const timersBefore = vi.getTimerCount();
+      const closed = sentry.stop();
+      await vi.advanceTimersByTimeAsync(2001);
+      await closed;
+
+      expect(sentry.sent).toHaveLength(2);
+      expect(sentry.sent[1].message).toContain('1 more alert');
+      expect(vi.getTimerCount()).toBeLessThan(timersBefore);
+      await vi.advanceTimersByTimeAsync(CRITICAL_ALERT_THROTTLE_MS * 2);
+      expect(sentry.sent).toHaveLength(2);
     });
   });
 

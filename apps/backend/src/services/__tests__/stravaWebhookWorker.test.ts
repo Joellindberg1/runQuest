@@ -1203,13 +1203,13 @@ describe('critical alerts in sentry', () => {
     store.seed({ received_at: overdue(), object_id: 13, owner_id: 23 });
 
     await worker.drain();
-    expect(await sentry.flush()).toHaveLength(1);
+    expect(await sentry.drain()).toHaveLength(1);
     expect(store.rows().filter((row) => row.status === 'dead')).toHaveLength(3);
 
     vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS);
     store.seed({ received_at: overdue(), object_id: 14, owner_id: 24 });
     await worker.drain();
-    const sent = await sentry.flush();
+    const sent = await sentry.drain();
 
     expect(sent).toHaveLength(2);
     expect(sent[1].extra.suppressed_since_last).toBe(2);

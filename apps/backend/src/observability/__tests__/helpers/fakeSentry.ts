@@ -2,6 +2,7 @@
  * Sentry utan nätverk för tester: en fejkad transport fångar kuverten som skulle ha skickats, så testet ser exakt det som lämnar
  * processen (efter beforeSend). Samma upplägg som sentry.test.ts, men delbart mellan testfiler som driver riktiga larmkällor.
  */
+import * as Sentry from '@sentry/node';
 import { closeSentry, flushSentry, initSentry } from '../../sentry.js';
 
 export type SentryEvent = Record<string, any>;
@@ -11,8 +12,10 @@ const FAKE_DSN = 'https://publickey@o1.ingest.de.sentry.io/42';
 export interface FakeSentry {
   /** Händelserna som lämnat processen, i ordning. */
   sent: SentryEvent[];
-  /** Väntar tills köade händelser nått transporten och returnerar `sent`. */
+  /** Väntar tills köade händelser nått transporten och returnerar `sent`. Skickar också väntande sammanfattningar (som flushSentry). */
   flush: () => Promise<SentryEvent[]>;
+  /** Som `flush`, men rör inte spärren för kritiska larm: inga sammanfattningar skickas. */
+  drain: () => Promise<SentryEvent[]>;
   stop: () => Promise<void>;
 }
 
@@ -31,6 +34,10 @@ export function startFakeSentry(): FakeSentry {
     sent,
     flush: async () => {
       await flushSentry();
+      return sent;
+    },
+    drain: async () => {
+      await Sentry.flush(2000);
       return sent;
     },
     stop: closeSentry,

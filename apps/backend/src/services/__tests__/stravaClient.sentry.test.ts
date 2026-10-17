@@ -74,7 +74,7 @@ describe('token write alerts in sentry', () => {
 
     await getValidAccessToken('user-1');
     await getValidAccessToken('user-2');
-    const sent = await sentry.flush();
+    const sent = await sentry.drain(); // no summary yet: the window is still open
 
     expect(sent.filter((event) => event.tags?.alert === 'critical')).toHaveLength(1);
   });
