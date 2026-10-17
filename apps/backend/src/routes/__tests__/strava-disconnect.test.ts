@@ -64,6 +64,7 @@ import { createStravaWebhookWorker } from '../../services/stravaWebhookWorker.js
 import { STRAVA_WEBHOOK_HANDLERS } from '../../services/stravaWebhook/handlers.js';
 import { createRunStore, createStravaApi } from '../../services/stravaWebhook/supabaseAdapters.js';
 import { removeStravaConnection } from '../../services/stravaConnection.js';
+import { STRAVA_TOKEN_TIMEOUT_MS } from '../../services/stravaClient.js';
 import { withRunForeignKeys } from '../../test-utils/runForeignKeys.js';
 import { createInMemoryRecompute, createInMemoryWebhookStore } from '../../test-utils/inMemoryWebhookPorts.js';
 import {
@@ -455,9 +456,10 @@ describe('the user lock around a disconnect', () => {
   it('a reconnect whose token exchange hangs is cut off after the time limit, releases the user lock and ends as a failed exchange', async () => {
     const { tables } = setup();
     const before = JSON.parse(JSON.stringify(tables.strava_tokens));
-    // The limit is 15 s; the test makes that one signal 30 ms long instead of waiting for it.
-    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
-    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => realTimeout(ms === 15_000 ? 30 : ms));
+    // The limit is the token timeout of stravaFetch; the test makes that one timer 30 ms long instead of waiting for it.
+    const realSetTimeout = globalThis.setTimeout;
+    const timeout = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((handler: () => void, ms?: number, ...args: unknown[]) =>
+      realSetTimeout(handler, ms === STRAVA_TOKEN_TIMEOUT_MS ? 30 : ms, ...args)) as typeof setTimeout);
     // A Strava that never answers and only gives up when the request is aborted.
     vi.stubGlobal('fetch', (_url: unknown, init?: RequestInit) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
@@ -469,7 +471,7 @@ describe('the user lock around a disconnect', () => {
       });
 
       expect(res.status).toBe(500);
-      expect(timeout).toHaveBeenCalledWith(15_000);
+      expect(timeout).toHaveBeenCalledWith(expect.any(Function), STRAVA_TOKEN_TIMEOUT_MS);
       expect(tables.strava_tokens).toEqual(before); // no row written
       // The lock is free again: a waiting user is not held up.
       await expect(withUserLock('user-1', async () => 'free')).resolves.toBe('free');
