@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sink = vi.fn();
-const startSentry = vi.fn((_options: { dsn: string; environment: string }) => sink);
+const startSentry = vi.fn((_options: { dsn: string; environment: string; release?: string }) => sink);
 let clientLoads = 0;
 
 vi.mock('./sentryClient', () => {
@@ -61,6 +61,20 @@ describe('errorReporting with a DSN', () => {
 
     expect(startSentry).toHaveBeenCalledTimes(1);
     expect(startSentry).toHaveBeenCalledWith({ dsn: 'https://key@example.invalid/1', environment: 'staging' });
+  });
+
+  it('passes the release baked into the build on to the client, and none when it is blank', async () => {
+    const { enableErrorReporting } = await freshModule();
+
+    await enableErrorReporting({ ...env, VITE_SENTRY_RELEASE: 'runquest@0.8.0+abcdef1' });
+
+    expect(startSentry).toHaveBeenCalledWith({ dsn: env.VITE_SENTRY_DSN, environment: 'staging', release: 'runquest@0.8.0+abcdef1' });
+
+    const second = await freshModule();
+    startSentry.mockClear();
+    await second.enableErrorReporting({ ...env, VITE_SENTRY_RELEASE: '  ' });
+
+    expect(startSentry.mock.calls[0]?.[0].release).toBeUndefined();
   });
 
   it('falls back to the build mode when no environment is set', async () => {

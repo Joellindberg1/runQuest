@@ -31,6 +31,12 @@ describe('startSentry', () => {
     expect(options.replaysOnErrorSampleRate).toBeUndefined();
   });
 
+  it('reports under the release the source maps were uploaded for', () => {
+    startSentry({ dsn: 'https://key@example.invalid/1', environment: 'staging', release: 'runquest@0.8.0+abcdef1' });
+
+    expect(sentry.init.mock.calls[0]?.[0].release).toBe('runquest@0.8.0+abcdef1');
+  });
+
   it('scrubs every event through beforeSend', () => {
     startSentry({ dsn: 'https://key@example.invalid/1', environment: 'staging' });
     const [[{ beforeSend }]] = sentry.init.mock.calls;

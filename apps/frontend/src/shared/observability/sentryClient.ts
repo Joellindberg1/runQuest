@@ -8,12 +8,15 @@ import { collectStorageValues, scrubSentryEvent } from './scrubSentryEvent';
 interface SentryStartOptions {
   dsn: string;
   environment: string;
+  /** Bygget bakar in namnet (vite.config.ts); källkartorna är uppladdade under samma. Utan det symboliseras inga stackar. */
+  release?: string;
 }
 
-export function startSentry({ dsn, environment }: SentryStartOptions): (error: unknown, context?: Record<string, unknown>) => void {
+export function startSentry({ dsn, environment, release }: SentryStartOptions): (error: unknown, context?: Record<string, unknown>) => void {
   Sentry.init({
     dsn,
     environment,
+    release,
     // @sentry/react 11 har tagit bort sendDefaultPii; dess ersättare dataCollection har PÅ som standard för användare, cookies, headers och
     // query. Allt stängs uttryckligen, vilket är vad sendDefaultPii: false betydde i 10. beforeSend är andra försvarslinjen.
     dataCollection: { userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false },

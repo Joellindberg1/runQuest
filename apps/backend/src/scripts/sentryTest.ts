@@ -8,6 +8,10 @@
  *
  * Mot staging (Railway-CLI:n injicerar miljön, ingen lokal .env):
  *   railway run --service runquest-backend-staging -- npm run sentry:test --workspace=@runquest/backend
+ *
+ * Mot den byggda koden (bevis för källkartan, RUN-285): bygget skapar dist/sentryTest.js. Efter ett bygge som laddat upp kartan
+ * (SENTRY_AUTH_TOKEN satt) skickar `npm run sentry:test:built --workspace=@runquest/backend` samma händelse från den byggda koden;
+ * stacken i Sentry ska visa src/observability/sentry.ts och inte dist/sentryTest.js. Kräver SENTRY_DSN.
  * Skriptet är inte monterat i någon router och nås inte av servern.
  */
 import dotenv from 'dotenv';

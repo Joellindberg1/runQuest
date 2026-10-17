@@ -60,7 +60,23 @@ check "SPA-route är no-cache"                     "/runner/some-id"            
 check "hashad fil cachas för alltid"              "/$asset"                        200 "^cache-control: public, max-age=31536000, immutable"
 check "hashad fil har JS-typ"                     "/$asset"                        200 "^content-type: (text|application)/javascript"
 check "saknad hashad fil ger 404, aldrig cachad"  "/assets/index-DOESNOTEXIST.js"  404 "^cache-control: no-store" "immutable|content-type: text/html"
-check "assets-katalogen ger 404, aldrig cachad"   "/assets/"                       404 "^cache-control: no-store" "immutable"
+# Källkartor är till för Sentry och får aldrig serveras (RUN-285): bygget tar bort dem ur dist. Provet gäller en riktig chunk, inte en påhittad:
+# om en .map låg kvar i dist skulle den ge 200 här. Felspårningens chunk (optional-*.js) kontrolleras särskilt eftersom den är den som bär SDK:t.
+check "källkarta till en hashad fil ger 404"      "/$asset.map"                    404 "^cache-control: no-store" "immutable|content-type: (text|application)/(json|javascript)"
+# Utanför /assets hade SPA-fallbacken svarat 200 med index.html; Caddyfilens .map-regel gäller alla sökvägar.
+check "källkarta utanför /assets ger 404, inte index.html" "/foo.js.map"           404 "^cache-control: no-store" "content-type: text/html"
+optional_chunks=("$DIST"/assets/optional-*.js)
+if [[ ! -e "${optional_chunks[0]}" ]]; then
+  echo "FAIL felspårningens chunk (assets/optional-*.js) finns inte i dist; döptes den om? Uppdatera vite.config.ts och det här skriptet"; failures=$((failures + 1))
+else
+  check "källkarta till felspårningens chunk ger 404" "/assets/$(basename "${optional_chunks[0]}").map" 404 "^cache-control: no-store" "immutable"
+fi
+if [[ -n "$(find "$DIST" -name '*.map' -print -quit)" ]]; then
+  echo "FAIL dist innehåller .map-filer"; find "$DIST" -name '*.map'; failures=$((failures + 1))
+else
+  echo "ok   dist saknar .map-filer"
+fi
+check "assets-katalogen ger 404, aldrig cachad"  "/assets/"                       404 "^cache-control: no-store" "immutable"
 check "Strava-popupen serveras"                   "/strava-popup.html"             200 "^content-type: text/html"
 check "robots.txt serveras"                       "/robots.txt"                    200 "^content-type: text/plain" "content-type: text/html"
 check "sitemap.xml serveras"                      "/sitemap.xml"                   200 "^content-type: (text|application)/xml" "content-type: text/html"
@@ -129,8 +145,43 @@ check_with "site.webmanifest har manifesttyp"                        "/site.webm
 check_with "saknad manifestfil får inte manifesttypen"        "/saknas.webmanifest" 200 "^content-type: text/html" "application/manifest[+]json"
 check_with "delningsbilden serveras som PNG"                         "/og-image.v1.png" 200 "^content-type: image/png" "content-type: text/html"
 
+# Källkartor som FINNS på disk (RUN-285). Det riktiga dist saknar .map, så kontrollerna ovan visar bara att en saknad fil ger 404. Här planteras riktiga
+# .map-filer i en kopia av dist (assets/, media/, fonts/ och roten) och en egen Caddy-instans serverar kopian: Caddyfile-adaptern sorterar handle-block
+# efter path-matcherns längd, och en .map-regel som hamnat efter /assets/*, /media/* eller /fonts/* serverar då kartan (200 + immutable).
+# Varje katalog får också en vanlig fil som kontroll: den ska serveras (200), annars bevisar ett 404 inget om regeln. Det riktiga dist rörs inte.
+PLANT="$WORK/dist-with-maps"
+PLANT_PORT="18081"
+cp -R "$DIST" "$PLANT"
+for dir in assets media fonts .; do
+  mkdir -p "$PLANT/$dir"
+  printf '{"version":3,"sources":[],"mappings":""}' > "$PLANT/$dir/planted.js.map"
+  printf 'planted' > "$PLANT/$dir/planted.txt"
+done
+sed "s|{{.DIST_DIR}}|$PLANT|g" Caddyfile > "$WORK/Caddyfile.planted"
+"$WORK/caddy" validate --config "$WORK/Caddyfile.planted" --adapter caddyfile
+PORT="$PLANT_PORT" "$WORK/caddy" run --config "$WORK/Caddyfile.planted" --adapter caddyfile > "$WORK/caddy-planted.log" 2>&1 &
+PLANT_PID=$!
+trap 'kill "$CADDY_PID" "$PLANT_PID" 2>/dev/null || true' EXIT
+up=0
+for _ in $(seq 1 50); do
+  if curl -fs "http://127.0.0.1:$PLANT_PORT/health" > /dev/null; then up=1; break; fi
+  sleep 0.2
+done
+if (( up == 0 )); then
+  echo "FAIL Caddy med planterade kartor svarade aldrig på /health"; tail -40 "$WORK/caddy-planted.log"; exit 1
+fi
+MAIN_PORT="$PORT"
+PORT="$PLANT_PORT"
+for dir in assets media fonts; do
+  check "kontroll: vanlig fil i /$dir serveras"          "/$dir/planted.txt"    200 "^cache-control: public, max-age=31536000, immutable"
+  check "planterad källkarta i /$dir ger 404, no-store"  "/$dir/planted.js.map" 404 "^cache-control: no-store" "immutable|content-type: (text|application)/(json|javascript)"
+done
+check "kontroll: vanlig fil i roten serveras"            "/planted.txt"         200 "^cache-control: no-cache"
+check "planterad källkarta i roten ger 404, no-store"    "/planted.js.map"      404 "^cache-control: no-store" "content-type: text/html"
+PORT="$MAIN_PORT"
+
 if (( failures > 0 )); then
-  echo "--- caddy-logg ---"; tail -20 "$WORK/caddy.log"
+  echo "--- caddy-logg ---"; tail -20 "$WORK/caddy.log"; tail -20 "$WORK/caddy-planted.log"
   exit 1
 fi
 echo "Statisk servering: alla kontroller gröna."
