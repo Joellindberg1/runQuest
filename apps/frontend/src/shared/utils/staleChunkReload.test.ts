@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RELOAD_GUARD_MS, claimStaleChunkReload, installStaleChunkReload, isStaleChunkError } from './staleChunkReload';
+import { RELOAD_GUARD_MS, claimStaleChunkReload, installStaleChunkReload, isStaleChunkError, loadOptionalChunk } from './staleChunkReload';
 
 function memoryStorage() {
   const data = new Map<string, string>();
@@ -14,8 +14,9 @@ function fakeWindow() {
   return {
     addEventListener: vi.fn((_type: string, fn: (event: Event) => void) => { listener = fn; }),
     location: { reload: vi.fn() },
-    fire() {
+    fire(payload?: unknown) {
       const event = new Event('vite:preloadError', { cancelable: true });
+      Object.assign(event, { payload });
       listener?.(event);
       return event;
     },
@@ -70,6 +71,46 @@ describe('installStaleChunkReload', () => {
     const event = win.fire();
     expect(win.location.reload).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('a blocked error-reporting chunk does not reload the page', () => {
+    const win = fakeWindow();
+    installStaleChunkReload(win, memoryStorage, () => 1_000_000);
+
+    const event = win.fire(new Error('Failed to fetch dynamically imported module: https://runquest.dev/assets/optional-k3j9x.js'));
+
+    expect(win.location.reload).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('a blocked optional chunk in a browser that names no address does not reload either, but only while it loads', async () => {
+    const win = fakeWindow();
+    installStaleChunkReload(win, memoryStorage, () => 1_000_000);
+    const safariError = new Error('Importing a module script failed.');
+
+    let during: Event | undefined;
+    await loadOptionalChunk(async () => { during = win.fire(safariError); });
+    expect(win.location.reload).not.toHaveBeenCalled();
+    expect(during?.defaultPrevented).toBe(false);
+
+    win.fire(safariError);
+    expect(win.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('an ordinary stale page chunk still reloads while an optional chunk loads', async () => {
+    const win = fakeWindow();
+    installStaleChunkReload(win, memoryStorage, () => 1_000_000);
+
+    await loadOptionalChunk(async () => {
+      win.fire(new Error('Failed to fetch dynamically imported module: https://runquest.dev/assets/AdminPage-abc.js'));
+    });
+
+    expect(win.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('loadOptionalChunk passes the result and the failure through', async () => {
+    await expect(loadOptionalChunk(async () => 7)).resolves.toBe(7);
+    await expect(loadOptionalChunk(async () => { throw new Error('blocked'); })).rejects.toThrow('blocked');
   });
 
   it('släpper felet vidare (ingen loop) om omladdningen redan prövats', () => {

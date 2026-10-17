@@ -1,4 +1,5 @@
-import { isStaleChunkError } from '@/shared/utils/staleChunkReload';
+import { isStaleChunkError, loadOptionalChunk } from '@/shared/utils/staleChunkReload';
+import { isNetworkFailure } from './networkFailure';
 
 // Felspårningens lätta ingång. Den här filen importerar aldrig Sentry-SDK:t: det ligger i ./sentryClient och hämtas med dynamisk import
 // först när det inloggade skalet monterar (enableErrorReporting). Landningen och /legal laddar därför ingen Sentry-kod. Utan
@@ -36,7 +37,7 @@ const dsnOf = (env: ReportingEnv): string | undefined => env.VITE_SENTRY_DSN?.tr
 
 /** Rapporterar ett fel om felspårningen är påslagen. Kastar aldrig. Omladdningsfel efter deploy (saknad kodfil) rapporteras inte. */
 export function reportError(error: unknown, context?: ReportContext): void {
-  if (failed || isStaleChunkError(error)) return;
+  if (failed || isStaleChunkError(error) || isNetworkFailure(error)) return;
   if (sink) {
     sink(error, context);
     return;
@@ -52,7 +53,7 @@ export async function enableErrorReporting(env: ReportingEnv = readEnv()): Promi
   if (!dsn || startRequested) return;
   startRequested = true;
   try {
-    const { startSentry } = await import('./sentryClient');
+    const { startSentry } = await loadOptionalChunk(() => import('./sentryClient'));
     sink = startSentry({ dsn, environment: env.VITE_SENTRY_ENVIRONMENT?.trim() || env.MODE || 'production' });
   } catch (error) {
     console.warn('Error tracking could not start', error);

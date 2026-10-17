@@ -115,6 +115,30 @@ describe('errorReporting with a DSN', () => {
     expect(sink).not.toHaveBeenCalled();
   });
 
+  it('does not report requests that got no response (backend down)', async () => {
+    const { enableErrorReporting, reportError } = await freshModule();
+
+    reportError(new TypeError('Failed to fetch'));
+    await enableErrorReporting(env);
+    reportError(new TypeError('Failed to fetch (api.runquest.dev)'));
+    reportError(new TypeError('Load failed'));
+
+    expect(sink).not.toHaveBeenCalled();
+  });
+
+  it('turns tracking off quietly when the chunk is blocked or missing', async () => {
+    vi.resetModules();
+    vi.doMock('./sentryClient', () => {
+      throw new Error('Failed to fetch dynamically imported module: https://runquest.dev/assets/optional-k3j9x.js');
+    });
+    const { enableErrorReporting, reportError } = await import('./errorReporting');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(enableErrorReporting(env)).resolves.toBeUndefined();
+    expect(() => reportError(new Error('later'))).not.toThrow();
+    vi.doUnmock('./sentryClient');
+  });
+
   it('swallows a failing client load and keeps the app running', async () => {
     const { enableErrorReporting, reportError } = await freshModule();
     startSentry.mockImplementationOnce(() => { throw new Error('init failed'); });
