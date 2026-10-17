@@ -1,7 +1,7 @@
 -- 051: Stäng skrivpolicyerna på storage-bucketen profile-pictures och sätt gränser på bucketen (RUN-276, säkerhetsgenomgång RUN-96).
 -- Datum: 2026-10-17. Kräver ägar-ja per miljö: först staging (supabase-staging), sedan prod. Körs av Lead, aldrig av en builder.
 -- Bakgrund: uppladdningen går via backend (POST /api/users/profile-picture) med service role, som förbigår RLS, till den
--- publika bucketen profile-pictures. Baslinjen (000_baseline.sql rad 20-22) lät ändå INSERT/UPDATE/DELETE på storage.objects
+-- publika bucketen profile-pictures. Baslinjen (000_baseline.sql rad 20-25) lät ändå INSERT/UPDATE/DELETE på storage.objects
 -- kräva rollen authenticated, och 038 rörde dem inte. Den som får en Supabase Auth-session med den publika nyckeln kunde alltså
 -- skriva, skriva över och radera andras bilder. Backend använder ingen av policyerna.
 -- SELECT-policyn tas också bort. En publik bucket serverar objekten via /storage/v1/object/public/<fil> utan RLS, och
