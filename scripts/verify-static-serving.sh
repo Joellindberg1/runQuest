@@ -60,7 +60,21 @@ check "SPA-route är no-cache"                     "/runner/some-id"            
 check "hashad fil cachas för alltid"              "/$asset"                        200 "^cache-control: public, max-age=31536000, immutable"
 check "hashad fil har JS-typ"                     "/$asset"                        200 "^content-type: (text|application)/javascript"
 check "saknad hashad fil ger 404, aldrig cachad"  "/assets/index-DOESNOTEXIST.js"  404 "^cache-control: no-store" "immutable|content-type: text/html"
-check "assets-katalogen ger 404, aldrig cachad"   "/assets/"                       404 "^cache-control: no-store" "immutable"
+# Källkartor är till för Sentry och får aldrig serveras (RUN-285): bygget tar bort dem ur dist. Provet gäller en riktig chunk, inte en påhittad:
+# om en .map låg kvar i dist skulle den ge 200 här. Felspårningens chunk (optional-*.js) kontrolleras särskilt eftersom den är den som bär SDK:t.
+check "källkarta till en hashad fil ger 404"      "/$asset.map"                    404 "^cache-control: no-store" "immutable|content-type: (text|application)/(json|javascript)"
+optional_chunks=("$DIST"/assets/optional-*.js)
+if [[ ! -e "${optional_chunks[0]}" ]]; then
+  echo "FAIL felspårningens chunk (assets/optional-*.js) finns inte i dist; döptes den om? Uppdatera vite.config.ts och det här skriptet"; failures=$((failures + 1))
+else
+  check "källkarta till felspårningens chunk ger 404" "/assets/$(basename "${optional_chunks[0]}").map" 404 "^cache-control: no-store" "immutable"
+fi
+if [[ -n "$(find "$DIST" -name '*.map' -print -quit)" ]]; then
+  echo "FAIL dist innehåller .map-filer"; find "$DIST" -name '*.map'; failures=$((failures + 1))
+else
+  echo "ok   dist saknar .map-filer"
+fi
+check "assets-katalogen ger 404, aldrig cachad"  "/assets/"                       404 "^cache-control: no-store" "immutable"
 check "Strava-popupen serveras"                   "/strava-popup.html"             200 "^content-type: text/html"
 check "robots.txt serveras"                       "/robots.txt"                    200 "^content-type: text/plain" "content-type: text/html"
 check "sitemap.xml serveras"                      "/sitemap.xml"                   200 "^content-type: (text|application)/xml" "content-type: text/html"

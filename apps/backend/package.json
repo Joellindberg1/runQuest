@@ -37,6 +37,7 @@
     "node-cron": "^3.0.3"
   },
   "devDependencies": {
+    "@sentry/esbuild-plugin": "^11.8.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
