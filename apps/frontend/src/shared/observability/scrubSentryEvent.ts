@@ -17,6 +17,11 @@ const PII_KEYS = new Set([
 ]);
 /** Delar av händelsen som SDK:t själv fyller med tekniska namn (webbläsare, OS, SDK-paket); där tas bara text maskas, inte nycklar. */
 const KEEP_KEYS_IN = new Set(['contexts', 'sdk']);
+/**
+ * SDK:ts egen metadata på toppnivå (sätts i prepareEvent före beforeSend) som aldrig bär användardata: bygget och miljön, händelsens id, tid och nivå.
+ * De passerar orörda, för release matchar annars e-postregexen och källkartorna hittas inte. Bara strängar och tal släpps igenom.
+ */
+const SDK_METADATA_KEYS = new Set(['release', 'dist', 'environment', 'event_id', 'platform', 'timestamp', 'level']);
 /** Brödsmulor som kan bära inskriven text eller visningsnamn: konsolrader och klick/inmatning i gränssnittet. */
 const DROPPED_BREADCRUMB_CATEGORY = /^(console|ui\..*)$/;
 
@@ -32,6 +37,8 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 // En adress eller en sökväg som börjar med / (inte mitt i ett ord eller ett datum som 2026/10/17).
 const PATH_TOKEN = /https?:\/\/[^\s"'<>()]+|(?<![\w/])\/[^\s"'<>()]*/g;
 const NUMERIC_SEGMENT = /(?<=\/)\d+(?=\/|$)/g;
+// Debug-id:t som kopplar ett skript till dess källkarta: ett heltäckande UUID, och därför inte ett värde som får bli :id.
+const DEBUG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function normalizeIds(text: string): string {
   return text
@@ -61,6 +68,8 @@ export interface SentryEventLike {
   contexts?: unknown;
   sdk?: unknown;
   tags?: unknown;
+  release?: string;
+  debug_meta?: unknown;
 }
 
 type StorageLike = Pick<Storage, 'length' | 'key' | 'getItem'>;
@@ -133,6 +142,23 @@ function scrubValue(value: unknown, storageValues: readonly string[], keepKeys: 
   return scrubbed;
 }
 
+/**
+ * debug_meta byggs om i stället för att släppas igenom: bara de bilder SDK:t skapar för källkartor (type, debug_id, code_file) och bara om
+ * debug_id verkligen är ett UUID. code_file är en adress och tvättas som alla andra. Allt annat i debug_meta kastas.
+ */
+function rebuildDebugMeta(value: unknown, storageValues: readonly string[]): { images: Array<Record<string, string>> } | null {
+  if (!isPlainObject(value) || !Array.isArray(value.images)) return null;
+  const images: Array<Record<string, string>> = [];
+  for (const image of value.images) {
+    if (!isPlainObject(image) || typeof image.debug_id !== 'string' || !DEBUG_ID.test(image.debug_id)) continue;
+    const rebuilt: Record<string, string> = { debug_id: image.debug_id };
+    if (image.type === 'sourcemap') rebuilt.type = image.type;
+    if (typeof image.code_file === 'string') rebuilt.code_file = scrubString(image.code_file, storageValues);
+    images.push(rebuilt);
+  }
+  return { images };
+}
+
 function isUnreportableEvent(event: SentryEventLike): boolean {
   if (isStaleReloadOrdered()) return true;
   if (event.message && (isStaleChunkError(event.message) || isNetworkFailure(event.message))) return true;
@@ -149,6 +175,15 @@ export function scrubSentryEvent<T extends SentryEventLike>(event: T, storageVal
   const scrubbed: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(event)) {
     if (key === 'user') continue;
+    if (SDK_METADATA_KEYS.has(key)) {
+      if (typeof value === 'string' || typeof value === 'number') scrubbed[key] = value;
+      continue;
+    }
+    if (key === 'debug_meta') {
+      const debugMeta = rebuildDebugMeta(value, storageValues);
+      if (debugMeta) scrubbed[key] = debugMeta;
+      continue;
+    }
     if (key === 'breadcrumbs' && Array.isArray(value)) {
       scrubbed[key] = (value as Breadcrumb[])
         .filter((crumb) => !DROPPED_BREADCRUMB_CATEGORY.test(crumb.category ?? ''))

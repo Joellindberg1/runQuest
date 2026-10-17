@@ -172,6 +172,76 @@ describe('frontend sentry beforeSend', () => {
   });
 });
 
+describe('frontend sentry beforeSend and source map metadata', () => {
+  const DEBUG_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+  const SCRIPT = 'https://www.runquest.dev/assets/optional-abc.js';
+
+  function sdkShapedEvent() {
+    return {
+      event_id: '0123456789abcdef0123456789abcdef',
+      release: 'runquest@0.8.0+abcdef1',
+      dist: '1',
+      environment: 'staging',
+      platform: 'javascript',
+      level: 'error',
+      timestamp: 1_790_000_000.5,
+      debug_meta: { images: [{ type: 'sourcemap', debug_id: DEBUG_ID, code_file: SCRIPT }] },
+      exception: {
+        values: [
+          {
+            type: 'Error',
+            value: `lookup failed for anna@example.com and ${DEBUG_ID}`,
+            stacktrace: { frames: [{ filename: `${SCRIPT}?v=anna@example.com`, function: 'load', lineno: 1, colno: 2048 }] },
+          },
+        ],
+      },
+    };
+  }
+
+  it('keeps release and debug ids intact while the message and the frames are still scrubbed', () => {
+    const scrubbed = scrubSentryEvent(sdkShapedEvent(), []);
+
+    expect(scrubbed).toMatchObject({
+      event_id: '0123456789abcdef0123456789abcdef',
+      release: 'runquest@0.8.0+abcdef1',
+      dist: '1',
+      environment: 'staging',
+      platform: 'javascript',
+      level: 'error',
+      timestamp: 1_790_000_000.5,
+      debug_meta: { images: [{ type: 'sourcemap', debug_id: DEBUG_ID, code_file: SCRIPT }] },
+    });
+    const [entry] = scrubbed?.exception?.values ?? [];
+    expect(entry?.value).toBe('lookup failed for [Filtered] and :id');
+    expect(JSON.stringify(entry?.stacktrace)).not.toContain('anna');
+    expect(entry?.stacktrace).toMatchObject({ frames: [{ filename: SCRIPT, function: 'load', lineno: 1, colno: 2048 }] });
+  });
+
+  it('lets debug_meta carry nothing but well-formed images', () => {
+    const event = {
+      ...sdkShapedEvent(),
+      debug_meta: {
+        note: 'anna@example.com',
+        images: [
+          { type: 'sourcemap', debug_id: DEBUG_ID, code_file: `${SCRIPT}?user=anna@example.com`, extra: 'anna@example.com' },
+          { type: 'sourcemap', debug_id: 'anna@example.com', code_file: SCRIPT },
+          'anna@example.com',
+        ],
+      },
+    };
+
+    const scrubbed = scrubSentryEvent(event, []);
+
+    expect(scrubbed).toMatchObject({ debug_meta: { images: [{ type: 'sourcemap', debug_id: DEBUG_ID, code_file: SCRIPT }] } });
+    expect(JSON.stringify(scrubbed?.debug_meta)).not.toContain('anna');
+  });
+
+  it('drops a debug_meta that is not the shape the SDK creates', () => {
+    expect(scrubSentryEvent({ ...sdkShapedEvent(), debug_meta: 'anna@example.com' }, [])).not.toHaveProperty('debug_meta');
+    expect(scrubSentryEvent({ ...sdkShapedEvent(), debug_meta: { images: 'anna@example.com' } }, [])).not.toHaveProperty('debug_meta');
+  });
+});
+
 describe('collectStorageValues', () => {
   it('returns raw values and PII-keyed leaves of stored JSON, longest first, ignoring short ones', () => {
     const values = collectStorageValues(storage);
