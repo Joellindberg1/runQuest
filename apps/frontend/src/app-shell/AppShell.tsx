@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { enableErrorReporting } from '@/shared/observability/errorReporting';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
 import { BadgeUpgradeHost } from '@/features/badges/components/BadgeUpgradeHost';
 import { DesktopShell } from './DesktopShell';
@@ -11,6 +13,11 @@ import './app-shell.css';
  */
 export function AppShell() {
   const isDesktop = useIsDesktop();
+
+  // Felspårningen startar när det inloggade skalet monterar, aldrig på landningen (Sentry-koden hämtas som egen chunk).
+  useEffect(() => {
+    void enableErrorReporting();
+  }, []);
 
   if (isDesktop === undefined) {
     return (

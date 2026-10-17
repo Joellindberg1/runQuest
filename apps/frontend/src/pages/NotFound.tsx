@@ -8,7 +8,8 @@ const NotFound = () => {
   const location = useLocation();
 
   useEffect(() => {
-    log.error('404 Error: User attempted to access non-existent route:', location.pathname);
+    // En felskriven adress är väntat och ska inte bli en felhändelse.
+    log.warn('404 Error: User attempted to access non-existent route:', location.pathname);
   }, [location.pathname]);
 
   return (

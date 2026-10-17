@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RELOAD_GUARD_MS, claimStaleChunkReload, installStaleChunkReload } from './staleChunkReload';
+import { RELOAD_GUARD_MS, claimStaleChunkReload, installStaleChunkReload, isStaleChunkError } from './staleChunkReload';
 
 function memoryStorage() {
   const data = new Map<string, string>();
@@ -21,6 +21,25 @@ function fakeWindow() {
     },
   };
 }
+
+describe('isStaleChunkError', () => {
+  it.each([
+    'Failed to fetch dynamically imported module: https://runquest.dev/assets/AdminPage-abc.js',
+    'error loading dynamically imported module: https://runquest.dev/assets/AdminPage-abc.js',
+    'Importing a module script failed.',
+    'Unable to preload CSS for /assets/Index-abc.css',
+    'Loading chunk 12 failed.',
+  ])('recognises "%s" as a reload-after-deploy error', (message) => {
+    expect(isStaleChunkError(new Error(message))).toBe(true);
+    expect(isStaleChunkError(message)).toBe(true);
+  });
+
+  it('lets ordinary errors and non-errors through', () => {
+    expect(isStaleChunkError(new Error('Cannot read properties of undefined'))).toBe(false);
+    expect(isStaleChunkError(undefined)).toBe(false);
+    expect(isStaleChunkError({ code: 500 })).toBe(false);
+  });
+});
 
 describe('claimStaleChunkReload', () => {
   it('tillåter första omladdningen och spärrar en andra inom fönstret', () => {

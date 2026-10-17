@@ -26,12 +26,19 @@ const CHANGELOG_JSON = {
   message: "Bara features/changelog/changelogData.ts läser changelog.json; övriga går via changelogData.",
 };
 
+// Felspårningen (RUN-284): Sentry-SDK:t hämtas som egen chunk först när det inloggade skalet monterar. En statisk import av SDK:t eller av
+// sentryClient drar in det i huvudbunten som landningen också laddar. Bara errorReporting.ts når klienten, via dynamisk import().
+const SENTRY_STAYS_LAZY = {
+  regex: "^@sentry/|(^|/)sentryClient$",
+  message: "Sentry-koden hämtas bara via dynamisk import() i shared/observability/errorReporting.ts, annars hamnar den i huvudbunten och landningen laddar den.",
+};
+
 const STREAK_CONSTANTS = {
   regex: "streakConstants",
   message: "Multiplikatortrappan kommer ur config-endpointen (/api/config/xp), inte ur en konstant.",
 };
 
-const GLOBAL_IMPORT_PATTERNS = [LAZY_ONLY, CHANGELOG_JSON];
+const GLOBAL_IMPORT_PATTERNS = [LAZY_ONLY, CHANGELOG_JSON, SENTRY_STAYS_LAZY];
 
 const importRestrictions = (...extraPatterns) => ["error", { patterns: [...GLOBAL_IMPORT_PATTERNS, ...extraPatterns] }];
 
@@ -274,7 +281,7 @@ export default tseslint.config(
   // Gränser för all produktionskod: lazy-sidorna och changelog.json (changelogData.ts får läsa JSON-filen).
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: [...NOT_PRODUCTION, "src/features/changelog/changelogData.ts"],
+    ignores: [...NOT_PRODUCTION, "src/features/changelog/changelogData.ts", "src/shared/observability/sentryClient.ts"],
     rules: { "no-restricted-imports": importRestrictions() },
   },
   {

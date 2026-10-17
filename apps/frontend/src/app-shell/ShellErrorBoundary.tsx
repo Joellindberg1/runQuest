@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import '@/shared/components/error-state.css';
+import { reportError } from '@/shared/observability/errorReporting';
 
 interface ShellErrorBoundaryProps {
   children: ReactNode;
@@ -25,6 +26,7 @@ export class ShellErrorBoundary extends Component<ShellErrorBoundaryProps, Shell
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('Shell content crashed:', error, info.componentStack);
+    reportError(error, { componentStack: info.componentStack });
   }
 
   render(): ReactNode {
