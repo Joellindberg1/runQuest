@@ -72,6 +72,26 @@ då ägaren inte fick någon release-popup när versionen gick live. Därför:
 
 När ägaren har provat och säger **"kör vidare"** går kedjan vidare. Utan det stannar den här.
 
+#### Preview på staging (möjlig från v0.7.1)
+
+Sedan 2026-10-17 finns en stagingmiljö: Railway-miljön `staging` med egna tjänster och ett eget Supabase-projekt
+(gratisorganisationen; MCP-servern `supabase-staging` i `.mcp.json`). Previewn för en release kan därför göras där i
+stället för mot prod-databasen:
+
+- Backend: `https://runquest-backend-staging-staging.up.railway.app`
+- Frontend: `https://runquest-frontend-staging-staging.up.railway.app`
+- **Migrationer provas i staging före prod.** Release-PR:ens nya migrationer appliceras först på staging-databasen
+  (`supabase-staging`), koden provas mot dem, och först därefter söker Lead ägarens ja per migration för prod (steg 5).
+  Prod-regeln om ett ja per migration ändras inte, och staging kräver inget ägar-ja.
+- Fällan om förbrukade popuper ovan gäller inte staging: det är en annan databas, så ägarens `user_seen_items` och
+  `user_badges` i prod rörs inte och ingen loggning eller återställning behövs.
+- **Strava är avstängt i staging** (Stravas prenumerationskrav; ägarbeslut 2026-10-17): ingen koppling, ingen
+  webhook, och avstämningen har inga kopplade användare att gå igenom. Strava-flöden provas med fejkad Strava i
+  tester, och rök mot riktig Strava görs bara i prod.
+
+Den gamla vägen med `railway run` mot prod-databasen (ovan) finns kvar som alternativ, till exempel när något bara
+går att visa med prod-data.
+
 ### 3. PR, grön CI och merge (= deploy)
 
 1. Öppna PR mot `main`. CI körs på PR: jobben Backend, Shared och Frontend ska vara gröna (branch protection kräver

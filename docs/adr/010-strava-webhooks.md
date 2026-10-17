@@ -42,7 +42,7 @@ Relaterade ADR:er: **002** (migrationsflödet, expand/contract), **003** (router
 | D8 | **Byggs nu (ägaren 2026-10-13):** Disconnect i Inställningar blir en popup med två val, "Pausa synk" och "Koppla bort". "Koppla bort" återkallar behörigheten hos Strava (`/oauth/deauthorize`) och raderar de importerade rundorna. Skälet: man kan vilja koppla bort men ha kvar rundorna, och RunQuest ska på sikt kunna ta in fler källor än Strava. |
 | Pausa synk | Kopplingen och rundorna ligger kvar, men inga nya rundor importeras förrän man slår på igen. Ryms inom villkoren eftersom behörigheten finns kvar (beslut 7.5). |
 | Återanslutning | Ingen återhämtning av historik: synken börjar från anslutningsdagen, som idag (ägaren 2026-10-13). |
-| D12 | Raderingsavstämning (RUN-177) först efter verifierade webhooks, utanför v0.7.0. |
+| D12 | Raderingsavstämning (RUN-177) först efter verifierade webhooks, utanför v0.7.0. Byggd i v0.7.1, se Addendum 2026-10-17. |
 | Rate limits | 300 läsanrop/15 min och 3 000/dygn (läsgränsen), 600/6 000 totalt är den gräns som gäller (ägaren 2026-10-13). |
 
 ## Beslut
@@ -243,7 +243,7 @@ Gränserna gäller *hela appen*, alltså alla användare, pollingen och workern 
 - **D6:** `SYNC_INTERVAL_MINUTES` stannar på **30** i v0.7.0 (utfall 2026-10-15: kriteriet ersattes av ägarbeslutet 2026-10-14, och pollingen är 12 h sedan RUN-265; se Addendum). Webhooks ersätter inte pollingen förrän de är verifierade i prod; då sänks den till 12 h (RUN-176, utanför v0.7.0). *Verifierade* = rök-testet i beslut 17 passerat och sju dygn utan `dead`-rader eller larm (**mitt antagande**, ägaren kan ändra kriteriet).
 - **Pollingen ändras inte i sak** utöver: mutexen (beslut 6), den delade importlogiken, att dess Strava-anrop räknas av räknarmodulen (beslut 9) och att den hoppar över pausade användare (beslut 7.5).
 - **D8:** byggs nu (beslut 7.4–7.6): "Koppla bort" återkallar behörigheten hos Strava (`/oauth/deauthorize`) före raderingen, så Strava slutar skicka händelser för användaren. Misslyckas återkallandet fortsätter bortkopplingen, och kvarvarande händelser ignoreras som okänd ägare (beslut 3.3).
-- **D12:** raderingsavstämning (jämförelse mellan Strava och `runs`, som fångar en raderingshändelse som aldrig levererades eller kastades i gluggen i beslut 2) byggs först efter verifierade webhooks (RUN-177). **Fram till dess fångar pollingen aldrig raderingar**; bara `dead`-larmet (48 h) upptäcker en radering som aldrig bearbetades.
+- **D12:** raderingsavstämning (jämförelse mellan Strava och `runs`, som fångar en raderingshändelse som aldrig levererades eller kastades i gluggen i beslut 2) byggs först efter verifierade webhooks (RUN-177; byggd i v0.7.1, se Addendum 2026-10-17). **Fram till dess fångar pollingen aldrig raderingar**; bara `dead`-larmet (48 h) upptäcker en radering som aldrig bearbetades.
 
 ### 14. Strava-hållningen — hur ADR:n följer den
 1. **Ingen AI/ML:** all bearbetning är deterministisk (beslut 1, 7). Ingenting av Strava-datan eller härledd data går till någon modell.
@@ -306,7 +306,7 @@ Workern byggs som ren orkestrering över **portar** (`WebhookEventStore`, `Strav
   4. **`activity:read` ger inte `private`-flaggan.** En privat-ifiering ser vi som 404 och kan inte skilja den från en radering. Utfallet (rundan tas bort) är detsamma, men utfallsnamnet (`deleted`) skiljer inte dem.
   5. **Användare kan förlora data de förväntar sig att behålla.** En aktivitet som görs privat tar bort rundan och tappar XP/streak/badges; "Koppla bort" raderar all importerad historik och den kommer inte tillbaka vid återanslutning (7.4). Det måste stå i samtyckestexten och popupen, och "Koppla bort" kräver separat bekräftelse. "Pausa synk" är mjukare vägen för den som vill behålla rundorna.
   6. **Mellan prenumerationens skapande och att `STRAVA_WEBHOOK_SUBSCRIPTION_ID` sätts** kastas händelser. Nya rundor täcks av pollingen, men en radering kan missas tills RUN-177 finns (beslut 13). Prenumerationen skapas därför i ett lugnt läge.
-  7. **Raderingar kan missas** om en händelse aldrig levereras; ingen avstämning finns förrän RUN-177 (D12). Dygnskontrollen av prenumerationen och `dead`-larmet är det som finns i v0.7.0.
+  7. **Raderingar kan missas** om en händelse aldrig levereras; ingen avstämning finns förrän RUN-177 (D12; byggd i v0.7.1, se Addendum 2026-10-17). Dygnskontrollen av prenumerationen och `dead`-larmet är det som finns i v0.7.0.
   8. **Under en paus uppdateras inte ändrade aktiviteter** (7.5), och en paus med fler än 200 nya aktiviteter fylls inte helt vid återupptagning (ingen paginering i pollingen idag).
   9. **Tokens ligger fortfarande i klartext** (STATE zon 2); webhooks försämrar inte det men löser det inte.
   10. **De sex befintliga har bara ett muntligt godkännande via ägaren** (D4). Texten i RUN-201/RUN-204 gäller även dem framåt.
@@ -341,7 +341,7 @@ Workern byggs som ren orkestrering över **portar** (`WebhookEventStore`, `Strav
 - **Spara hela händelsen inklusive `title`.** Avvisat: titeln är fritext = Strava-data utan nytta för oss (hållningen "lagring orörd").
 - **Hemlig sökvägsdel i `callback_url` redan nu.** Inte nu: osäkert hur Strava hanterar sökvägen vid verifieringen, och beslut 1 gör förfalskade händelser ofarliga. Läggs till om förfalskningar börjar synas.
 - **Separat webhook-tjänst** (ADR 003 revisit-trigger). Avvisat: samma app, samma DB-åtkomst, en replika; en andra tjänst vore driftkostnad utan vinst.
-- **Förbättrad polling som även upptäcker raderingar** (full listjämförelse). Avvisat för v0.7.0: tungt mot Stravas gränser och är precis raderingsavstämningen (D12/RUN-177) som kommer efter verifierade webhooks.
+- **Förbättrad polling som även upptäcker raderingar** (full listjämförelse). Avvisat för v0.7.0: tungt mot Stravas gränser och är precis raderingsavstämningen (D12/RUN-177) som kommer efter verifierade webhooks (byggd i v0.7.1, se Addendum 2026-10-17).
 - **Sänka pollingen till 12 h redan i v0.7.0.** Avvisat av D6.
 
 ## Öppna frågor
@@ -386,7 +386,7 @@ Inga genuint öppna frågor till ägaren kvarstår. Följande är antaganden som
 | Ö7 (D8) | Disconnect | **Byggs nu:** popup med "Pausa synk" och "Koppla bort"; "Koppla bort" återkallar behörigheten hos Strava (före raderingen, tåligt) och raderar importerade rundor | Ägaren 2026-10-13 (återkallandet är arkitektens förslag, antaget) |
 | Ö8 | Pausa synk | Flagga `strava_tokens.sync_paused` + `paused_at` (migration A); pollingen hoppar över; create/update ignoreras; delete/privat/typbyte/deauthorize behandlas ändå; luckan fylls vid återupptagning | Ägaren 2026-10-13 |
 | Ö9 | Återanslutning | Ingen återhämtning av historik; synken börjar från anslutningsdagen | Ägaren 2026-10-13 |
-| Ö10 (D12) | Raderingsavstämning | Efter verifierade webhooks (RUN-177), utanför v0.7.0 | Ägaren |
+| Ö10 (D12) | Raderingsavstämning | Efter verifierade webhooks (RUN-177), utanför v0.7.0 (byggd i v0.7.1, se Addendum 2026-10-17) | Ägaren |
 | Ö11 | Rate limits | Läsgräns 300/15 min och 3 000/dygn (totalt 600/6 000) som konstanter; mjukgräns 210/2 100 (≈ 70 %) för workern | Appens inställningar i Strava, kontrollerat 2026-10-07, bekräftat av ägaren 2026-10-13; mjukgränsen är arkitektens förslag |
 | – | Händelsen är en signal; tillståndet hämtas alltid från Strava | Ja (skydd utan signatur, ordning, idempotens) | Arkitekten (förslag) |
 | – | Idempotensnyckel | `strava:<type>:<id>:<aspect>:<event_time>:<updates_hash>` | Arkitekten (förslag) |
@@ -410,3 +410,17 @@ Besluten ovan är oförändrade. Det här är utfallet och två fynd:
 - **Läsbudgeten** (beslut 9): med 12 h kostar polling 2 listanrop per löpare och dygn; siffrorna i budgetkollen ovan gäller 30 min.
 - **Fynd: Strava skickar ingen händelse när bara distans eller datum ändras** (bara vid skapande, radering, titel, typ och synlighet). Webhooks fångar därför inte en ändrad distans eller ett ändrat datum, och beslut 17:s smoke-punkt "ändra distansen → uppdaterad" gäller inte; en sådan ändring slår inte igenom (pollen är insert-only). Användartexterna lovar det inte.
 - **Visning:** Settings och Log visar "Last import" (`last_import_at` i `GET /api/strava/status`, ur `runs.created_at`), inte nästa pollning, eftersom reservkontrollens tid inte säger när rundor kommer.
+
+## Addendum 2026-10-17 (v0.7.1: raderingsavstämningen byggd, RUN-177, RUN-318, RUN-319)
+
+Besluten ovan är oförändrade. Det här är utfallet av det som ADR:n sköt till efter verifierade webhooks, och två städningar:
+
+- **D12/raderingsavstämningen är byggd** (`services/stravaReconcile.ts`, `services/stravaReconcile/*`, `scheduler/stravaReconcileScheduler.ts`). Den kör 04:15 Europe/Stockholm varje natt, bara i produktion, och jämför för varje kopplad användare Stravas aktivitetslista för de senaste 30 dagarna med de lagrade Strava-rundorna, plus 20 äldre rundor per användare och natt i rotation. Budget 400 Strava-anrop per natt (13 % av läsgränsen 3 000/dygn), delad rättvist över användarna; avstämningen stannar i förväg vid Stravas mjukgräns eller 429.
+- **Verifieringsregeln.** Varje runda i tvivel (saknas i listan, ändrad, eller en äldre i rotationen) går genom webhook-workerns aktivitetshanterare oförändrad, alltså ett `GET /activities/:id` och beslutstabellen i 7.1; det finns ingen andra kopia av reglerna. Rundan raderas bara vid 404, eller när aktiviteten blivit privat, bytt typ eller fått distans 0. Övriga svar (5xx, 403, 429, nätverksfel) lämnar rundan orörd. En lista som misslyckas eller kan vara avkortad lämnar användaren ifred den natten.
+- **Tak.** Högst 10 raderingar per användare och natt; resten väntar till nästa natt och det loggas. Skälet är att ett felaktigt 404 aldrig ska kunna tömma en historik på en natt.
+- **Ändrad distans eller startdatum** uppdateras (där webhooks inte hjälper, se Addendum 2026-10-15), med en omräkning per användare efter kontrollerna.
+- **Pausade användare** får bara raderingsdelen (7.5.3): ingen uppdatering av distans eller datum och ingen import.
+- **Lås och logg.** Samma användarlås som polling, webhook-batch och Disconnect. En loggrad per natt: `🧹 Strava reconcile: ...`. CI-vakt regel 10 (`scripts/ci-guards.mjs`) håller avstämningen startad.
+- **`GET /api/strava/last-sync` är borttagen** (RUN-319) och `services/stravaLastWebhook.ts` med den; Settings och Log läser `last_import_at` i `GET /api/strava/status` (Addendum 2026-10-15). Fältet `last_webhook_at` (v0.7.0) försvann med den.
+- **`stravaFetch` har timeout** (RUN-318): 30 sekunder för API-anrop och 10 sekunder för `/oauth/`, även under läsningen av svarskroppen; ett timeout ger `StravaTimeoutError`, ett vanligt nätverksfel som inte säger något om behörigheten. **Token-förnyelsen delas**: en pågående förnyelse per användare och refresh-token används av alla som ber om en token samtidigt (worker, polling, avstämning), så att Stravas roterande refresh-token inte förbrukas två gånger.
+- **Fortfarande öppet:** punkt 8 i Konsekvenser (en paus med fler än 200 nya aktiviteter fylls inte helt) berörs inte; avstämningen importerar aldrig.
