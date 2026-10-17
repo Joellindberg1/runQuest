@@ -23,8 +23,13 @@ och 3xx skickas inte (SDK:ts standard), inte heller 429 (vår rensning).
 
 **Provtagning:** högst 0,1 i båda (storyns tak, inom gratisnivåns kvot), en konstant i `packages/shared/src/tracingRate.ts`.
 `SENTRY_TRACES_SAMPLE_RATE` (backend, runtime) och `VITE_SENTRY_TRACES_SAMPLE_RATE` (frontend, byggtid) kan bara sänka talet;
-`0` stänger av spårningen utan kodändring. Backend ignorerar provtagningsbeslut som kommer med en inkommande förfrågan
-(`sentry-trace: …-1`), så ingen utifrån kan tvinga fram spårning och äta kvoten.
+`0` stänger av spårningen utan kodändring. Backend tar bort `sentry-trace`, `baggage`, `traceparent` och `tracestate` ur varje
+inkommande förfrågan innan SDK:t läser dem (`stripIncomingTraceContext`), så ingen utifrån kan tvinga fram spårning, äta kvoten
+eller lägga egna trace-id och fria textfält i våra transaktioner och kuvertets trace-header.
+
+**SDK v12:** `traceLifecycle: 'static'`, `beforeSendTransaction` och SDK:ts standardfilter för statuskoder (`ignoreStatusCodes`, som
+släpper 401–404 och 3xx) försvinner i v12, där strömmande spans är enda läget. Uppgradera inte Sentry-SDK:t till v12 utan att gå
+igenom `tracing.ts` och `sentryClient.ts` och flytta rensningen till `beforeSendSpan` (tillåtelselistorna flyttar med).
 
 ## Vad som aldrig lämnar processen eller webbläsaren
 
@@ -37,8 +42,13 @@ och 3xx skickas inte (SDK:ts standard), inte heller 429 (vår rensning).
   - Servertransaktion (SDK:t): namn med råa sökvägen, `url.full/path/query`, `client.address`, `user_agent.original`, portar,
     `request.url`, brödsmulor, användare. **Kvar:** routenamn, metod, status, provtagningstal, tid.
   - Utgående anrop, supabase-js är fetch (SDK:t): namn och `url.full` med query (`?user_id=eq.<uuid>`), `network.peer.*`, user agent.
-    **Kvar:** `METOD https://värd/sökvägens form` där ett sökvägssegment bara står kvar om det är ett gement ord eller en version
-    (`/rest/v1/runs`, `/api/v3/activities/:id`), samt status och tid.
+    **Kvar:** `METOD https://värd/sökvägens form` där ett sökvägssegment bara står kvar om det står på listan
+    `FIRST_PARTY_PATH_SEGMENTS` i `tracing.ts` (Supabase-vägar, våra tabeller och rpc-namn, Strava- och Open-Meteo-vägar);
+    allt annat blir `:id` (`/rest/v1/runs`, `/api/v3/activities/:id`, `/storage/v1/object/public/profile-pictures/:id`), samt
+    status och tid. Ett test låser listan mot migrationerna och mot `.from()`/`.rpc()` i koden, så en ny tabell syns.
+  - Felhändelser från backend (inte bara transaktioner): `transaction` är routenamnet (`sentryRouteNaming` sätter det på
+    förfrågans isolation scope, även för förfrågningar som inte provtagits) och `request.url` är värden plus routenamnet, aldrig
+    den råa sökvägen eller query-strängen (`scrub.ts`).
   - Sidladdning (frontend): råa sökvägen, resurs-spans med adresser, `lcp.element`/`lcp.url` (t.ex. en avatars adress),
     `cls.source.*`. **Kvar:** routenamn, webbvärdena, webbläsare, tidpunkter.
   - INP (frontend): en väljare för elementet (kan innehålla `aria-label`). **Kvar:** värdet, typen av interaktion, webbläsaren.

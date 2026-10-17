@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } 
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import http from 'node:http';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 
 process.env.JWT_SECRET = 'test-jwt-secret-for-integration-tests';
@@ -21,7 +23,8 @@ vi.mock('../../config/database.js', () => ({
 import { createApp } from '../../app.js';
 import { closeSentry, flushSentry, initSentry } from '../sentry.js';
 import { MAX_TRACES_SAMPLE_RATE } from '@runquest/shared';
-import { scrubTransaction, sentryRouteNaming } from '../tracing.js';
+import { FIRST_PARTY_PATH_SEGMENTS, scrubTransaction, sentryRouteNaming } from '../tracing.js';
+import { logger } from '../../utils/logger.js';
 import { startServer, type TestServer } from '../../routes/__tests__/helpers/http.js';
 
 type Envelope = Record<string, any>;
@@ -36,10 +39,17 @@ const BEARER_MARKER = 'bearer-marker-value';
 const FORWARDED_FOR = '203.0.113.77';
 
 let transactions: Envelope[] = [];
+let errorEvents: Envelope[] = [];
+/** Hela kuvert, med sin egen header (där spårningens "trace"-fält ligger). */
+let envelopes: unknown[] = [];
 
 const fakeTransport = () => ({
   send: async (envelope: [unknown, Array<[{ type: string }, Envelope]>]) => {
-    for (const [header, payload] of envelope[1]) if (header.type === 'transaction') transactions.push(payload);
+    envelopes.push(envelope);
+    for (const [header, payload] of envelope[1]) {
+      if (header.type === 'transaction') transactions.push(payload);
+      if (header.type === 'event') errorEvents.push(payload);
+    }
     return {};
   },
   flush: async () => true,
@@ -47,12 +57,12 @@ const fakeTransport = () => ({
 
 process.setMaxListeners(50);
 
-/** Startar Sentry med tracing. `rate` ersätter det kapade provtagningstalet (bara tester får passera taket 0,1). */
-function start(env: NodeJS.ProcessEnv = {}, rate: number | null = 1): boolean {
-  return initSentry(
-    { SENTRY_DSN: DSN, SENTRY_ENVIRONMENT: 'test', ...env },
-    { transport: fakeTransport as never, processHandlers: false, ...(rate === null ? {} : { tracesSampleRate: rate }) },
-  );
+/**
+ * Startar Sentry med tracing. Taket 0,1 gäller även här: provtagningen är deterministisk för att Math.random är fixerad (se
+ * beforeEach) till ett tal under taket, så varje förfrågan blir provtagen.
+ */
+function start(env: NodeJS.ProcessEnv = {}): boolean {
+  return initSentry({ SENTRY_DSN: DSN, SENTRY_ENVIRONMENT: 'test', ...env }, { transport: fakeTransport as never, processHandlers: false });
 }
 
 async function waitFor(condition: () => boolean, timeoutMs = 3000): Promise<void> {
@@ -88,10 +98,15 @@ afterAll(async () => {
 
 beforeEach(() => {
   transactions = [];
+  errorEvents = [];
+  envelopes = [];
   upstreamHeaders = [];
+  // Sentry jämför ett slumptal med provtagningstalet; ett tal under 0,1 ger en provtagen förfrågan.
+  vi.spyOn(Math, 'random').mockReturnValue(0.01);
 });
 afterEach(async () => {
   await closeSentry();
+  vi.restoreAllMocks();
 });
 
 // ---- Appen under test: samma montering som createApp (routern monteras på ett prefix, id i sökvägen) ----
@@ -102,8 +117,8 @@ function buildApp(): express.Express {
   const runs = express.Router();
   runs.get('/:id', async (_req, res) => {
     // Som supabase-js: ett http-anrop med filter i query-strängen. Och ett Strava-anrop med id i sökvägen.
-    await fetch(`${upstreamBase}/upstream/rest/v1/runs?select=*&user_id=eq.${USER_ID}&api_key=${QUERY_MARKER}`);
-    await fetch(`${upstreamBase}/upstream/api/v3/activities/${STRAVA_ACTIVITY_ID}`);
+    await fetch(`${upstreamBase}/rest/v1/runs?select=*&user_id=eq.${USER_ID}&api_key=${QUERY_MARKER}`);
+    await fetch(`${upstreamBase}/api/v3/activities/${STRAVA_ACTIVITY_ID}`);
     res.json({ ok: true });
   });
   runs.post('/', (_req, res) => {
@@ -119,6 +134,10 @@ function buildApp(): express.Express {
       http.get(`${upstreamBase}/upstream/http`, (r) => { r.resume(); r.on('end', resolve); }).on('error', reject);
     });
     res.json({ ok: true });
+  });
+  app.get('/api/titles/user/:id', (_req, res) => {
+    logger.error('lookup failed', new Error('boom'));
+    res.status(500).json({ error: 'failed' });
   });
   app.get('/health', (_req, res) => {
     res.json({ status: 'OK' });
@@ -138,13 +157,13 @@ function buildApp(): express.Express {
 // Talets egna regler (tak, 0 = av, ogiltigt = standard) testas i packages/shared. Här: att klienten använder dem.
 describe('sample rate', () => {
   it('is what the initialised client uses', () => {
-    expect(start({ SENTRY_TRACES_SAMPLE_RATE: '1' }, null)).toBe(true);
+    expect(start({ SENTRY_TRACES_SAMPLE_RATE: '1' })).toBe(true);
     expect(Sentry.getClient()!.getOptions().tracesSampleRate).toBe(0.1);
     expect(Sentry.getClient()!.getOptions().tracesSampleRate).toBeLessThanOrEqual(MAX_TRACES_SAMPLE_RATE);
   });
 
   it('is not raised by a sampling decision the caller sends', async () => {
-    start({ SENTRY_TRACES_SAMPLE_RATE: '0' }, null);
+    start({ SENTRY_TRACES_SAMPLE_RATE: '0' });
     const server = await startServer(buildApp());
     await server.request('GET', '/api/runs/', { headers: { 'sentry-trace': '0123456789abcdef0123456789abcdef-0123456789abcdef-1', baggage: 'sentry-sample_rate=1,sentry-sampled=true' } });
     await sleep(150);
@@ -253,8 +272,8 @@ describe('what a transaction carries', () => {
     const spans = own()[0].spans as Array<Record<string, any>>;
     const host = upstreamBase.replace('http://', '');
     expect(spans.map((s) => s.description)).toEqual([
-      `GET http://${host}/upstream/rest/v1/runs`,
-      `GET http://${host}/upstream/api/v3/activities/:id`,
+      `GET http://${host}/rest/v1/runs`,
+      `GET http://${host}/api/v3/activities/:id`,
     ]);
     for (const span of spans) {
       expect(span.op).toBe('http.client');
@@ -400,8 +419,8 @@ describe('scrubTransaction', () => {
 
     expect(spans.map((s) => s.description)).toEqual([
       'GET https://abc.supabase.co/rest/v1/runs',
-      'POST https://www.strava.com/api/v3/activities/:id/streams',
-      'GET https://hooks.example.com/services/:id/:id/:id',
+      'POST https://www.strava.com/api/v3/activities/:id/:id',
+      'GET https://hooks.example.com/:id/:id/:id/:id',
     ]);
     expect(spans[0].data).toEqual({ 'http.request.method': 'GET', 'http.response.status_code': 200, 'server.address': 'abc.supabase.co' });
     expect(spans[0]).toMatchObject({ span_id: 'a1', trace_id: 't1', parent_span_id: 'p1', start_timestamp: 1, timestamp: 2, status: 'ok', op: 'http.client' });
@@ -419,5 +438,140 @@ describe('scrubTransaction', () => {
   it('still masks secrets from the environment that end up anywhere in the event', () => {
     const event = { ...baseTransaction(), transaction: 'GET /api/sk-test-secret-value', transaction_info: { source: 'route' } };
     expect(JSON.stringify(scrubTransaction(event, ['sk-test-secret-value']))).not.toContain('sk-test-secret-value');
+  });
+
+  it('sends only what it knows: no tags, extra, fingerprint, other contexts or unknown fields', () => {
+    const event = {
+      ...baseTransaction(),
+      transaction_info: { source: 'route' },
+      tags: { user_name: 'Anna Andersson', run: '3f2b8c1e-9d4a-4e7b-8a61-5c0d2e9f7a14' },
+      extra: { note: 'Anna Andersson ran 3f2b8c1e-9d4a-4e7b-8a61-5c0d2e9f7a14' },
+      fingerprint: ['Anna Andersson'],
+      measurements: { custom: { value: 1 } },
+      sdkProcessingMetadata: { anything: 'Anna Andersson' },
+      contexts: {
+        ...baseTransaction().contexts,
+        response: { status_code: 200, headers: { 'set-cookie': 'a=b' } },
+        runtime: { name: 'node', version: 'v24.0.0' },
+        profile: { who: 'Anna Andersson' },
+        custom_context: { name: 'Anna Andersson' },
+      },
+    };
+    const scrubbed = scrubTransaction(event, [])! as Record<string, any>;
+
+    expect(JSON.stringify(scrubbed)).not.toContain('Anna');
+    expect(JSON.stringify(scrubbed)).not.toContain('3f2b8c1e');
+    for (const field of ['tags', 'extra', 'fingerprint', 'sdkProcessingMetadata', 'measurements']) expect(scrubbed).not.toHaveProperty(field);
+    expect(Object.keys(scrubbed.contexts).sort()).toEqual(['response', 'runtime', 'trace']);
+    expect(scrubbed.contexts.response).toEqual({ status_code: 200 });
+    expect(scrubbed.contexts.runtime).toEqual({ name: 'node', version: 'v24.0.0' });
+  });
+});
+
+describe('path segments of outgoing calls', () => {
+  const describeCall = (url: string) => {
+    const event = { type: 'transaction', transaction: 'GET /x', transaction_info: { source: 'route' }, spans: [{ op: 'http.client', data: { 'url.full': url, 'http.request.method': 'GET' } }] };
+    return (scrubTransaction(event, [])!.spans as Array<{ description: string }>)[0]!.description;
+  };
+
+  it('keeps a segment only if it is one the code calls, so a username or an email cannot pass as a word', () => {
+    expect(describeCall('https://abc.supabase.co/storage/v1/object/public/profile-pictures/joelindberg')).toBe('GET https://abc.supabase.co/storage/v1/object/public/profile-pictures/:id');
+    expect(describeCall('https://abc.supabase.co/rest/v1/anna-andersson-gmail-com')).toBe('GET https://abc.supabase.co/rest/v1/:id');
+    expect(describeCall('https://abc.supabase.co/rest/v1/runs')).toBe('GET https://abc.supabase.co/rest/v1/runs');
+    expect(describeCall('https://abc.supabase.co/rest/v1/rpc/update_title_leaderboard')).toBe('GET https://abc.supabase.co/rest/v1/rpc/update_title_leaderboard');
+    expect(describeCall('https://www.strava.com/api/v3/athlete/activities')).toBe('GET https://www.strava.com/api/v3/athlete/activities');
+    expect(describeCall('https://www.strava.com/api/v3/activities/987654321')).toBe('GET https://www.strava.com/api/v3/activities/:id');
+    expect(describeCall('https://api.open-meteo.com/v1/forecast')).toBe('GET https://api.open-meteo.com/v1/forecast');
+  });
+
+  // Låser listan mot koden: ett nytt tabell-, vy- eller rpc-namn blir `:id` i spårningen tills det läggs till i
+  // FIRST_PARTY_PATH_SEGMENTS (det är säkert, men man vill se det). Tabeller ur migrationerna, resten ur anropen i koden.
+  it('lists every table, view, rpc and storage bucket the backend uses', () => {
+    const backendRoot = join(__dirname, '..', '..', '..');
+    const used = new Set<string>();
+    for (const file of readdirSync(join(backendRoot, 'migrations')).filter((f) => f.endsWith('.sql'))) {
+      const sql = readFileSync(join(backendRoot, 'migrations', file), 'utf8');
+      for (const match of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)\s*\(/gi)) used.add(match[1]!.toLowerCase());
+    }
+    const sources = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) return entry.name === '__tests__' || entry.name === 'scripts' || entry.name === 'test-utils' ? [] : sources(path);
+        return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [path] : [];
+      });
+    for (const file of sources(join(backendRoot, 'src'))) {
+      const text = readFileSync(file, 'utf8');
+      for (const match of text.matchAll(/\.(?:from|rpc)\(\s*'([a-z][a-z0-9_-]*)'/g)) used.add(match[1]!);
+    }
+    used.delete('t'); // hjälpfunktion i ett test-liknande uttryck, inget tabellnamn
+
+    expect(used.size).toBeGreaterThan(25);
+    const missing = [...used].filter((name) => !FIRST_PARTY_PATH_SEGMENTS.has(name));
+    expect(missing).toEqual([]);
+  });
+});
+
+describe('error events', () => {
+  it('carry the route and not the user id, in the name or in the address', async () => {
+    start();
+    const server = await startServer(buildApp());
+    await server.request('GET', `/api/titles/user/${USER_ID}?token=${QUERY_MARKER}`);
+    await flushSentry();
+    await server.close();
+
+    expect(errorEvents).toHaveLength(1);
+    const json = JSON.stringify(errorEvents[0]);
+    expect(json).not.toContain(USER_ID);
+    expect(json).not.toContain(QUERY_MARKER);
+    expect(errorEvents[0]!.transaction).toBe('GET /api/titles/user/:id');
+  });
+
+  it('carry the route also when the request was not sampled for tracing', async () => {
+    start({ SENTRY_TRACES_SAMPLE_RATE: '0' });
+    const server = await startServer(buildApp());
+    // Ett id som inte är ett UUID eller ett tal kan ingen mönsterrensning ta: bara routenamnet gör det.
+    await server.request('GET', '/api/titles/user/anna-andersson');
+    await flushSentry();
+    await server.close();
+
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0]!.transaction).toBe('GET /api/titles/user/:id');
+    expect(JSON.stringify(errorEvents[0]).replace(/@/g, '')).not.toContain('anna-andersson');
+  });
+});
+
+describe('incoming trace context', () => {
+  const ATTACKER_TRACE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const ATTACKER_SPAN = 'bbbbbbbbbbbbbbbb';
+
+  it('is ignored: neither the transaction nor the envelope carries the id or the baggage the caller sent', async () => {
+    start();
+    const server = await startServer(buildApp());
+    await server.request('GET', '/api/runs/', {
+      headers: {
+        'sentry-trace': `${ATTACKER_TRACE}-${ATTACKER_SPAN}-1`,
+        baggage: 'sentry-trace_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,sentry-public_key=attackerkey,sentry-transaction=ATTACKER_MARK,sentry-release=evil,sentry-sample_rate=1,sentry-sample_rand=0.001',
+      },
+    });
+    await waitFor(() => own().length >= 1);
+    await server.close();
+
+    const everything = JSON.stringify(envelopes);
+    for (const planted of [ATTACKER_TRACE, ATTACKER_SPAN, 'attackerkey', 'ATTACKER_MARK', 'evil']) expect(everything).not.toContain(planted);
+    expect(own()[0]!.contexts.trace.parent_span_id).toBeUndefined();
+  });
+
+  it('does not make a request sampled that the rate would not sample', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    start({ SENTRY_TRACES_SAMPLE_RATE: '1' });
+    const server = await startServer(buildApp());
+    await server.request('GET', '/api/runs/', {
+      headers: { 'sentry-trace': `${ATTACKER_TRACE}-${ATTACKER_SPAN}-1`, baggage: 'sentry-sample_rand=0.001,sentry-sample_rate=1' },
+    });
+    await sleep(150);
+    await flushSentry();
+    await server.close();
+
+    expect(own()).toEqual([]);
   });
 });

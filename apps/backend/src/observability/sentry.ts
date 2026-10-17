@@ -30,7 +30,7 @@ import type { Express, NextFunction, Request, Response } from 'express';
 import { CriticalAlert, criticalAlertOf } from '../utils/criticalAlert.js';
 import { setErrorSink } from '../utils/logger.js';
 import { tracesSampleRateOf } from '@runquest/shared';
-import { isUntracedRequest, tracingOptions } from './tracing.js';
+import { isUntracedRequest, stripIncomingTraceContext, tracingOptions } from './tracing.js';
 import { fingerprintOf, isClientAuthError, isDroppedBreadcrumb, isExpectedClientStatus, scrubSentryEvent, secretsFromEnv, statusOfExpressError } from './scrub.js';
 
 const MAX_DETAIL_LENGTH = 300;
@@ -71,8 +71,6 @@ export interface InitSentryTestOptions {
   transport?: Sentry.NodeOptions['transport'];
   /** `false` hoppar över hanterarna för unhandledRejection/uncaughtException (de testas i en egen process). Standard: true. */
   processHandlers?: boolean;
-  /** Ersätter det kapade provtagningstalet så att ett test kan få varje förfrågan spårad (1) eller ingen (0). Används aldrig i drift. */
-  tracesSampleRate?: number;
 }
 
 type SentryIntegration = Exclude<NonNullable<Sentry.NodeOptions['integrations']>, (...args: never[]) => unknown>[number];
@@ -100,6 +98,8 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
   if (!dsn) return false;
 
   const secrets = secretsFromEnv(env);
+  // Före Sentry.init: SDK:ts egen prenumeration på inkommande förfrågningar ska aldrig se anroparens spårningshuvuden.
+  stripIncomingTraceContext();
   const withProcessHandlers = testOptions.processHandlers !== false;
 
   Sentry.init({
@@ -109,7 +109,7 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
     dataCollection: NO_DATA_COLLECTION,
     enableRuntimeChannelInjection: false,
     tracePropagationTargets: [],
-    ...tracingOptions(testOptions.tracesSampleRate ?? tracesSampleRateOf(env.SENTRY_TRACES_SAMPLE_RATE), secrets),
+    ...tracingOptions(tracesSampleRateOf(env.SENTRY_TRACES_SAMPLE_RATE), secrets),
     ...(testOptions.transport ? { transport: testOptions.transport } : {}),
     integrations: (defaults) => defaults
       // Bara det SDK:t har utan spårning. Tilläggen som spårning ger (Express, Koa, databasklienter, ...) hör till modul-
