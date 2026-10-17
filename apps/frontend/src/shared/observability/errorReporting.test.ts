@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sink = vi.fn();
-const startSentry = vi.fn((_options: { dsn: string; environment: string }) => sink);
+const startSentry = vi.fn((_options: { dsn: string; environment: string; tracesSampleRate?: number; documentPath?: string }) => sink);
 let clientLoads = 0;
 
 vi.mock('./sentryClient', () => {
@@ -60,7 +60,7 @@ describe('errorReporting with a DSN', () => {
     await enableErrorReporting(env);
 
     expect(startSentry).toHaveBeenCalledTimes(1);
-    expect(startSentry).toHaveBeenCalledWith({ dsn: 'https://key@example.invalid/1', environment: 'staging' });
+    expect(startSentry).toHaveBeenCalledWith(expect.objectContaining({ dsn: 'https://key@example.invalid/1', environment: 'staging' }));
   });
 
   it('falls back to the build mode when no environment is set', async () => {
@@ -68,7 +68,37 @@ describe('errorReporting with a DSN', () => {
 
     await enableErrorReporting({ VITE_SENTRY_DSN: env.VITE_SENTRY_DSN, MODE: 'production' });
 
-    expect(startSentry).toHaveBeenCalledWith({ dsn: env.VITE_SENTRY_DSN, environment: 'production' });
+    expect(startSentry).toHaveBeenCalledWith(expect.objectContaining({ dsn: env.VITE_SENTRY_DSN, environment: 'production' }));
+  });
+
+  it('asks for at most a tenth of the page loads to be measured, and lets the environment lower it', async () => {
+    const { enableErrorReporting } = await freshModule();
+    await enableErrorReporting(env);
+    expect(startSentry.mock.calls[0]?.[0].tracesSampleRate).toBe(0.1);
+
+    startSentry.mockClear();
+    const { enableErrorReporting: again } = await freshModule();
+    await again({ ...env, VITE_SENTRY_TRACES_SAMPLE_RATE: '1' });
+    expect(startSentry.mock.calls[0]?.[0].tracesSampleRate).toBe(0.1);
+
+    startSentry.mockClear();
+    const { enableErrorReporting: lowered } = await freshModule();
+    await lowered({ ...env, VITE_SENTRY_TRACES_SAMPLE_RATE: '0' });
+    expect(startSentry.mock.calls[0]?.[0].tracesSampleRate).toBe(0);
+  });
+
+  it('tells the client which page the document was loaded on, as it was before any later navigation', async () => {
+    const location = { pathname: '/board' };
+    vi.stubGlobal('window', { location });
+    try {
+      const { enableErrorReporting } = await freshModule();
+      location.pathname = '/profile';
+      await enableErrorReporting(env);
+
+      expect(startSentry.mock.calls[0]?.[0].documentPath).toBe('/board');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('forwards reports once started', async () => {
