@@ -102,6 +102,7 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
     beforeBreadcrumb: (breadcrumb) => (isDroppedBreadcrumb(breadcrumb) ? null : breadcrumb),
   });
 
+  criticalThrottle.clear();
   setErrorSink(captureLoggedError);
   return true;
 }
@@ -109,6 +110,7 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
 /** Stänger klienten och kopplar loss loggern (tester, och ordnad nedstängning). */
 export async function closeSentry(): Promise<void> {
   setErrorSink(null);
+  criticalThrottle.clear();
   await Sentry.close(2000);
 }
 
@@ -142,6 +144,17 @@ export function captureLoggedError(message: string, args: readonly unknown[]): v
   const alert = criticalAlertOf(message, args);
   if (!alert && isClientAuthError(args)) return;
 
+  // Händelsen ärver aldrig loggtexten när anroparen gett en egen (utan Strava-id): meddelande, gruppering och kontext använder den.
+  const text = alert?.sentryMessage ?? message;
+  const grouping = fingerprintOf(text);
+
+  let suppressedSinceLast = 0;
+  if (alert) {
+    const decision = throttleCriticalAlert(`${alert.source}|${grouping}`, Date.now());
+    if (!decision.send) return;
+    suppressedSinceLast = decision.suppressedSinceLast;
+  }
+
   // `fatal` och taggen alert=critical är det Sentry-alertregeln filtrerar på. `source` säger vilket larm det är; user_id är vårt eget id.
   const alertContext = alert
     ? {
@@ -149,18 +162,40 @@ export function captureLoggedError(message: string, args: readonly unknown[]): v
         tags: { alert: CRITICAL_ALERT_TAG, source: alert.source, ...(alert.userId ? { user_id: alert.userId } : {}) },
       }
     : { level: 'error' as const };
+  const suppressedExtra = suppressedSinceLast > 0 ? { suppressed_since_last: suppressedSinceLast } : {};
 
   const error = args.find((a): a is Error => a instanceof Error);
   if (error) {
-    Sentry.captureException(error, { extra: { log_message: message }, ...alertContext });
+    Sentry.captureException(error, { extra: { log_message: text, ...suppressedExtra }, ...alertContext });
     return;
   }
   const detail = loggedDetail(args);
-  Sentry.captureMessage(message, {
+  const extra = { ...(detail !== undefined ? { log_detail: detail } : {}), ...suppressedExtra };
+  Sentry.captureMessage(text, {
     ...alertContext,
-    fingerprint: [fingerprintOf(message)],
-    ...(detail !== undefined ? { extra: { log_detail: detail } } : {}),
+    fingerprint: [grouping],
+    ...(Object.keys(extra).length > 0 ? { extra } : {}),
   });
+}
+
+/** Högst en Sentry-händelse per (källa, fingeravtryck) och så här lång tid; resten räknas (`extra.suppressed_since_last`). */
+export const CRITICAL_ALERT_THROTTLE_MS = 10 * 60_000;
+
+const criticalThrottle = new Map<string, { sentAt: number; suppressed: number }>();
+
+/**
+ * Spärren mot en larmstorm (t.ex. en token-skrivning som felar för varje användare): första larmet går igenom, de följande inom
+ * fönstret räknas, och nästa som släpps igenom bär antalet. Loggraden berörs inte: allt syns fortfarande i Railway-loggen.
+ * Tillståndet ligger i processen och nollställs vid omstart och vid `initSentry`.
+ */
+function throttleCriticalAlert(key: string, now: number): { send: true; suppressedSinceLast: number } | { send: false } {
+  const entry = criticalThrottle.get(key);
+  if (entry && now - entry.sentAt < CRITICAL_ALERT_THROTTLE_MS) {
+    entry.suppressed += 1;
+    return { send: false };
+  }
+  criticalThrottle.set(key, { sentAt: now, suppressed: 0 });
+  return { send: true, suppressedSinceLast: entry?.suppressed ?? 0 };
 }
 
 /**

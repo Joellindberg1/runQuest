@@ -296,11 +296,13 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
     // The one place a Strava id is logged (ADR 010 decision 11): the alarm must say which deletion is missing.
     const subject = `${row.object_type} ${row.aspect_type} object_id=${row.object_id} owner_id=${row.owner_id} attempts=${row.attempts}`;
     const isDeletion = row.aspect_type === 'delete' || row.object_type === 'athlete';
+    // The Sentry copy names our own row (strava_webhook_events.id) and no Strava id: the id pair above stays in the Railway log only.
+    const sentryMessage = `🚨 KRITISKT: Strava-webhook ${isDeletion ? 'deletion not completed' : 'event dead'} within ${WEBHOOK_DEAD_AFTER_HOURS} h: events row ${row.id} (${row.object_type} ${row.aspect_type}), attempts=${row.attempts}`;
     logger.error(
       isDeletion
         ? `🚨 KRITISKT: Strava-webhook deletion not completed within Strava's ${WEBHOOK_DEAD_AFTER_HOURS} h deadline: ${subject}. The event is dead and nothing retries it; the data must be removed by hand.`
         : `🚨 KRITISKT: Strava-webhook event dead after ${WEBHOOK_DEAD_AFTER_HOURS} h without being processed: ${subject}.`,
-      new CriticalAlert('webhook_dead', { userId: row.user_id ?? undefined }),
+      new CriticalAlert('webhook_dead', { userId: row.user_id ?? undefined, sentryMessage }),
     );
   }
 

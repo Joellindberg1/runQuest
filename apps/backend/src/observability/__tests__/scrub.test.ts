@@ -90,6 +90,17 @@ describe('beforeSend strips tokens and PII', () => {
     expect(out.extra.strava.expires_at).toBe(1234);
   });
 
+  it.each([
+    ['object_id=987654321', '987654321'],
+    ['owner_id=555111', '555111'],
+    ['athlete_id: 424242', '424242'],
+    ['Object_ID = 31337', '31337'],
+  ])('masks a Strava id written as %s anywhere in a string', (written, id) => {
+    const out = scrub({ message: `dead event ${written} attempts=3`, extra: { note: `again ${written}` } })!;
+    expect(JSON.stringify(out)).not.toContain(id);
+    expect(JSON.stringify(out)).toContain('attempts=3');
+  });
+
   it('survives circular structures', () => {
     const e: Record<string, unknown> = { extra: {} };
     (e.extra as Record<string, unknown>).self = e.extra;

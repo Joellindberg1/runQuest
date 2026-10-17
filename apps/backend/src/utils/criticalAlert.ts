@@ -32,20 +32,34 @@ export class CriticalAlert {
   /** Vårt eget användar-id, om larmet gäller en användare. Aldrig ett Strava-id. */
   readonly userId?: string;
 
-  constructor(source: CriticalAlertSource, options: { userId?: string } = {}) {
+  /**
+   * Texten som Sentry-händelsen får i stället för loggraden (meddelande, gruppering och undantagskontext), byggd av anroparen utan
+   * Strava-id. Loggraden i Railway är oförändrad. Inte uppräkningsbar, så den hamnar inte i loggradens kontext.
+   */
+  readonly sentryMessage?: string;
+
+  constructor(source: CriticalAlertSource, options: { userId?: string; sentryMessage?: string } = {}) {
     this.source = source;
     if (options.userId) this.userId = options.userId;
+    if (options.sentryMessage) Object.defineProperty(this, 'sentryMessage', { value: options.sentryMessage, enumerable: false });
   }
 }
 
 export interface CriticalAlertInfo {
   source: CriticalAlertSource | typeof UNKNOWN_CRITICAL_SOURCE;
   userId?: string;
+  sentryMessage?: string;
 }
 
 /** Är loggraden ett kritiskt larm? Prefixet eller en `CriticalAlert` bland argumenten räcker. */
 export function criticalAlertOf(message: string, args: readonly unknown[]): CriticalAlertInfo | null {
   const marker = args.find((a): a is CriticalAlert => a instanceof CriticalAlert);
-  if (marker) return { source: marker.source, ...(marker.userId ? { userId: marker.userId } : {}) };
+  if (marker) {
+    return {
+      source: marker.source,
+      ...(marker.userId ? { userId: marker.userId } : {}),
+      ...(marker.sentryMessage ? { sentryMessage: marker.sentryMessage } : {}),
+    };
+  }
   return message.startsWith(CRITICAL_ALERT_PREFIX) ? { source: UNKNOWN_CRITICAL_SOURCE } : null;
 }

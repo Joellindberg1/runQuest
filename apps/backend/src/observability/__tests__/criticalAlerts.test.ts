@@ -4,17 +4,23 @@
  * egna tester i sina testfiler; här testas regeln själv. Ingen riktig Sentry: fejkad transport.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { MS_DAY } from '@runquest/shared';
 import { logger } from '../../utils/logger.js';
 import { CriticalAlert } from '../../utils/criticalAlert.js';
+import { CRITICAL_ALERT_THROTTLE_MS } from '../sentry.js';
 import { startFakeSentry, type FakeSentry } from './helpers/fakeSentry.js';
 
 let sentry: FakeSentry;
 beforeEach(() => {
+  // Bara Date: spärren för kritiska larm räknar tid, och Sentrys flush ska fortsätta på riktiga timers.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-17T12:00:00.000Z'));
   for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) vi.spyOn(console, method).mockImplementation(() => {});
   sentry = startFakeSentry();
 });
 afterEach(async () => {
   await sentry.stop();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -63,9 +69,10 @@ describe('critical alerts in sentry', () => {
   });
 
   it('every critical line is sent, also when the same alarm repeats in a row', async () => {
-    // Samma anropsställe två gånger (som nattkontrollen två nätter): SDK:ts repeat-filter slår annars ihop dem.
+    // Samma anropsställe två nätter i rad: SDK:ts repeat-filter slår annars ihop dem.
     for (let night = 0; night < 2; night++) {
       logger.error('🚨 KRITISKT: Strava-webhook: the subscription is missing.', new CriticalAlert('subscription_missing'));
+      vi.setSystemTime(Date.now() + MS_DAY);
     }
     const sent = await sentry.flush();
 
@@ -99,6 +106,81 @@ describe('critical alerts in sentry', () => {
   it('an ordinary error line is still removed by the repeat filter', async () => {
     for (let round = 0; round < 2; round++) logger.error('❌ same line twice');
     expect(await sentry.flush()).toHaveLength(1);
+  });
+
+  describe('sentryMessage', () => {
+    const LOGGED = '🚨 KRITISKT: Strava-webhook event dead: activity create object_id=987654321 owner_id=555111 attempts=3.';
+    const FOR_SENTRY = '🚨 KRITISKT: Strava-webhook event dead within 48 h: events row 42 (activity create), attempts=3';
+
+    it('replaces the log text in the event, the grouping and the exception context, and the console line is unchanged', async () => {
+      logger.error(LOGGED, new CriticalAlert('webhook_dead', { sentryMessage: FOR_SENTRY }));
+      logger.error(LOGGED, new Error('write failed'), new CriticalAlert('token_write', { sentryMessage: FOR_SENTRY }));
+      const sent = await sentry.flush();
+
+      expect(sent).toHaveLength(2);
+      expect(sent[0].message).toBe(FOR_SENTRY);
+      expect(sent[0].fingerprint).toEqual([FOR_SENTRY.replace(/\d+/g, '<n>')]);
+      expect(sent[1].extra.log_message).toBe(FOR_SENTRY);
+      for (const event of sent) {
+        const text = JSON.stringify(event);
+        expect(text).not.toContain('987654321');
+        expect(text).not.toContain('555111');
+      }
+      expect(console.error).toHaveBeenCalledWith(LOGGED, expect.objectContaining({ source: 'webhook_dead' }));
+    });
+
+    it('is not written into the log context', () => {
+      logger.error(LOGGED, new CriticalAlert('webhook_dead', { sentryMessage: FOR_SENTRY }));
+      const [, context] = vi.mocked(console.error).mock.calls[0] as [string, Record<string, unknown>];
+      expect(JSON.stringify(context)).not.toContain('events row 42');
+    });
+  });
+
+  describe('throttle', () => {
+    const alertFor = (n: number) => logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user u-${n}`, new CriticalAlert('token_write', { userId: `u-${n}` }));
+
+    it('lets through one event per source and fingerprint per 10 minutes and counts the rest', async () => {
+      for (let n = 0; n < 50; n++) {
+        alertFor(n);
+        vi.setSystemTime(Date.now() + 1000); // 50 alerts in under a minute
+      }
+      expect(await sentry.flush()).toHaveLength(1);
+
+      vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS);
+      alertFor(51);
+      const sent = await sentry.flush();
+
+      expect(sent).toHaveLength(2);
+      expect(sent[0].extra?.suppressed_since_last).toBeUndefined();
+      expect(sent[1].extra.suppressed_since_last).toBe(49);
+
+      // The counter starts over after it has been reported.
+      vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS);
+      alertFor(52);
+      const later = await sentry.flush();
+      expect(later).toHaveLength(3);
+      expect(later[2].extra?.suppressed_since_last).toBeUndefined();
+    });
+
+    it('holds the next alert back until the full window has passed', async () => {
+      alertFor(1);
+      vi.setSystemTime(Date.now() + CRITICAL_ALERT_THROTTLE_MS - 1);
+      alertFor(2);
+      expect(await sentry.flush()).toHaveLength(1);
+    });
+
+    it('throttles each source and each kind of alert on its own', async () => {
+      alertFor(1);
+      logger.error('🚨 KRITISKT: Strava-webhook: the subscription is missing.', new CriticalAlert('subscription_missing'));
+      logger.error('🚨 KRITISKT: some other token problem', new CriticalAlert('token_write'));
+      logger.error('🚨 KRITISKT: some other token problem', new CriticalAlert('token_write'));
+      expect(await sentry.flush()).toHaveLength(3);
+    });
+
+    it('does not throttle ordinary error lines', async () => {
+      for (let n = 0; n < 5; n++) logger.error(`❌ failure number ${n}`, new Error(`e${n}`));
+      expect(await sentry.flush()).toHaveLength(5);
+    });
   });
 
   it('keeps the console line and the source code in the log context', () => {

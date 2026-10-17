@@ -61,8 +61,22 @@ describe('token write alerts in sentry', () => {
     await getValidAccessToken('user-1');
     const sent = await sentry.flush();
 
+    // The whole event, not just the tags: only our own user id identifies anyone.
     const text = JSON.stringify(sent);
+    expect(text).toContain('user-1');
     for (const secret of ['old-at-secret-1', 'old-rt-secret-1', 'new-at-secret-1', 'new-rt-secret-1']) expect(text).not.toContain(secret);
+    expect(text).not.toMatch(/(object|owner|athlete)_id/);
+  });
+
+  it('a second user whose token cannot be saved within 10 minutes is counted, not sent again', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at-secret-1', refresh_token: 'new-rt-secret-1' }) });
+    use([{ ...EXPIRED }, { ...EXPIRED, user_id: 'user-2' }], failingWrite);
+
+    await getValidAccessToken('user-1');
+    await getValidAccessToken('user-2');
+    const sent = await sentry.flush();
+
+    expect(sent.filter((event) => event.tags?.alert === 'critical')).toHaveLength(1);
   });
 
   it('sends no critical alert for a refresh that succeeds', async () => {

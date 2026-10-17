@@ -10,6 +10,7 @@ vi.mock('../../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
+import { MS_DAY } from '@runquest/shared';
 import { startFakeSentry, type FakeSentry } from '../../../observability/__tests__/helpers/fakeSentry.js';
 import { installFakeStravaFetch, stravaSubscription, type FakeStrava } from '../../../test-utils/fakeStrava.js';
 import { STRAVA_WEBHOOK_CALLBACK_URL } from '../constants.js';
@@ -26,6 +27,8 @@ let sentry: FakeSentry;
 let strava: FakeStrava | undefined;
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] }); // the throttle for critical alerts counts time; the nightly job is a day apart
+  vi.setSystemTime(new Date('2026-10-17T03:30:00.000Z'));
   for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) vi.spyOn(console, method).mockImplementation(() => {});
   sentry = startFakeSentry();
 });
@@ -33,6 +36,7 @@ afterEach(async () => {
   strava?.restore();
   strava = undefined;
   await sentry.stop();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -67,6 +71,7 @@ describe('subscription check alerts in sentry', () => {
       await runStravaSubscriptionCheck(ENV);
       strava.restore();
       strava = undefined;
+      vi.setSystemTime(Date.now() + MS_DAY);
     }
 
     expect(await sentry.flush()).toHaveLength(2);
