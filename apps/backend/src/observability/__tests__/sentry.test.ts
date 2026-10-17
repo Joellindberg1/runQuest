@@ -19,7 +19,8 @@ import { getSupabaseClient } from '../../config/database.js';
 import { createApp } from '../../app.js';
 import { logger } from '../../utils/logger.js';
 import express from 'express';
-import { initSentry, closeSentry, flushSentry, setSentryUser, installSentryErrorHandler } from '../sentry.js';
+import http from 'node:http';
+import { initSentry, closeSentry, flushSentry, installSentryErrorHandler, withSentryUser } from '../sentry.js';
 import { authenticateJWT } from '../../middleware/auth.js';
 import { requireAdmin } from '../../middleware/admin.js';
 import { createRateLimiter } from '../../middleware/rateLimit.js';
@@ -86,9 +87,22 @@ describe('init', () => {
     const options = Sentry.getClient()!.getOptions();
     expect(options.environment).toBe('production');
     expect(options.dataCollection).toMatchObject({
-      userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false, databaseQueryData: false, queues: false, stackFrameVariables: false,
+      userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false, databaseQueryData: false, queues: false, stackFrameVariables: false, frameContextLines: 0,
     });
     expect(options.tracesSampleRate).toBeUndefined();
+  });
+
+  it('sends no lines of source code around the stack frames', async () => {
+    start();
+    logger.error('with a stack', new Error('x'));
+    await flushSentry();
+    const frames = sent[0].exception.values[0].stacktrace.frames as Array<Record<string, unknown>>;
+    expect(frames.length).toBeGreaterThan(0);
+    for (const frame of frames) {
+      expect(frame).not.toHaveProperty('context_line');
+      expect(frame).not.toHaveProperty('pre_context');
+      expect(frame).not.toHaveProperty('post_context');
+    }
   });
 
   it('does not collect console lines as breadcrumbs', async () => {
@@ -147,20 +161,13 @@ describe('logger.error', () => {
     expect(consoleSpies[2]).toHaveBeenCalledWith('keeps going');
   });
 
-  it.each([401, 403, 404, 429])('does not send an event for an error with status %i', async (status) => {
+  it.each([401, 403, 404, 429, 500])('reports a logged error that carries an upstream status %i', async (status) => {
     start();
+    // Ett svar från Supabase eller Strava (t.ex. 401/404 av fel nyckel eller saknad migration) är vårt fel, inte ett klientfel.
     logger.error('upstream said no', Object.assign(new Error('nope'), { status }));
-    logger.error('upstream said no', Object.assign(new Error('nope'), { statusCode: status }));
-    logger.error('upstream said no', { response: { status } });
+    logger.error('upstream said no too', { response: { status }, message: 'x' });
     await flushSentry();
-    expect(sent).toEqual([]);
-  });
-
-  it('sends an event for an error with status 500', async () => {
-    start();
-    logger.error('upstream broke', Object.assign(new Error('bad gateway'), { status: 500 }));
-    await flushSentry();
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
   });
 
   it.each(['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'])('treats %s as a 401 and sends nothing', async (name) => {
@@ -267,8 +274,95 @@ describe('express error handler and middleware', () => {
   });
 });
 
-describe('setSentryUser', () => {
-  it('sets nothing when Sentry is off', () => {
-    expect(() => setSentryUser('user-1')).not.toThrow();
+describe('request user isolation', () => {
+  it('withSentryUser puts the user on the events of its callback only, also when called outside any request scope', async () => {
+    start();
+    await withSentryUser('user-X', async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      logger.error('inside the callback');
+    });
+    logger.error('after the callback');
+    expect(withSentryUser('user-Y', () => 'result')).toBe('result');
+    await flushSentry();
+    expect(sent.map((e) => e.user?.id)).toEqual(['user-X', undefined]);
+  });
+
+  it('withSentryUser just runs the callback when Sentry is off', () => {
+    expect(withSentryUser('user-X', () => 42)).toBe(42);
+  });
+
+  /** POST med JSON-bodyn i två skrivningar med paus, så att express.json() läser den i senare TCP-segment (utanför förfrågans async-kontext). */
+  function postInTwoWrites(port: number, token: string, body: object, agent?: http.Agent): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const payload = JSON.stringify(body);
+      const req = http.request({ hostname: '127.0.0.1', port, path: '/work', method: 'POST', agent, headers: {
+        'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), Authorization: `Bearer ${token}`,
+      } }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode ?? 0)); });
+      req.on('error', reject);
+      req.write(payload.slice(0, 5));
+      setTimeout(() => { req.write(payload.slice(5)); req.end(); }, 60);
+    });
+  }
+
+  function workApp(): express.Express {
+    const app = express();
+    app.use(express.json());
+    app.post('/work', authenticateJWT, async (req, res) => {
+      await new Promise((r) => setTimeout(r, 5));
+      logger.error(`work failed for ${req.body.job}`);
+      res.json({});
+    });
+    installSentryErrorHandler(app);
+    return app;
+  }
+
+  it('keeps the user of a request with a late-read body off later events outside any request', async () => {
+    start();
+    const app = workApp();
+    const srv = http.createServer(app);
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', () => r()));
+    const port = (srv.address() as { port: number }).port;
+    try {
+      // Samma TCP-anslutning för båda: nästa förfrågan ärver inte den förra förfrågans kontext.
+      const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+      expect(await postInTwoWrites(port, mintToken({ user_id: 'user-A' }), { job: 'alpha' }, agent)).toBe(200);
+      expect(await postInTwoWrites(port, mintToken({ user_id: 'user-B' }), { job: 'beta' }, agent)).toBe(200);
+      agent.destroy();
+      logger.error('scheduler job failed');
+      await flushSentry();
+      expect(sent.map((e) => e.user?.id)).toEqual(['user-A', 'user-B', undefined]);
+    } finally {
+      await new Promise<void>((r) => srv.close(() => r()));
+    }
+  });
+});
+
+describe('outgoing requests', () => {
+  /** En loopback-server som skriver ner headers för varje inkommande anrop. */
+  async function recordingServer() {
+    const seen: Array<http.IncomingHttpHeaders> = [];
+    const srv = http.createServer((req, res) => { seen.push(req.headers); res.end('ok'); });
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', () => r()));
+    const port = (srv.address() as { port: number }).port;
+    return { seen, port, close: () => new Promise<void>((r) => srv.close(() => r())) };
+  }
+
+  it('adds no sentry-trace or baggage header to outgoing fetch or http requests', async () => {
+    start();
+    const target = await recordingServer();
+    try {
+      await (await fetch(`http://127.0.0.1:${target.port}/via-fetch`)).text();
+      await new Promise<void>((resolve, reject) => {
+        http.get(`http://127.0.0.1:${target.port}/via-http`, (res) => { res.resume(); res.on('end', resolve); }).on('error', reject);
+      });
+    } finally {
+      await target.close();
+    }
+    expect(target.seen).toHaveLength(2);
+    for (const headers of target.seen) {
+      expect(headers).not.toHaveProperty('sentry-trace');
+      expect(headers).not.toHaveProperty('baggage');
+      expect(headers).not.toHaveProperty('traceparent');
+    }
   });
 });

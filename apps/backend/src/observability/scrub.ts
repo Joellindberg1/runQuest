@@ -19,22 +19,23 @@ export function isExpectedClientStatus(status: unknown): boolean {
 // jsonwebtoken kastar dessa vid ogiltig eller utgången token; authenticateJWT svarar 401 på dem.
 const JWT_ERROR_NAMES = new Set(['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError']);
 
-function numericStatus(value: unknown): number | undefined {
-  const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
-  return typeof n === 'number' && Number.isInteger(n) ? n : undefined;
+/**
+ * Är ett loggat fel ett JWT-fel, alltså ett 401 vi själva svarat på en klients ogiltiga token?
+ * Bara det räknas som klientfel bland loggade fel. En status på ett loggat fel i övrigt (ett svar från Supabase eller Strava,
+ * t.ex. 401 av fel nyckel eller 404 av en saknad migration) är vårt fel och ska till Sentry.
+ */
+export function isClientAuthError(args: readonly unknown[]): boolean {
+  return args.some((arg) => typeof (arg as { name?: unknown } | null)?.name === 'string' && JWT_ERROR_NAMES.has((arg as { name: string }).name));
 }
 
-/** HTTP-statusen ett loggat fel hör till, om argumenten bär en (felobjekt, Strava-/fetch-svar) eller är ett JWT-fel (401). */
-export function statusOfLoggedArgs(args: readonly unknown[]): number | undefined {
-  for (const arg of args) {
-    if (arg === null || typeof arg !== 'object') continue;
-    const candidate = arg as { name?: unknown; status?: unknown; statusCode?: unknown; response?: { status?: unknown; statusCode?: unknown } | null };
-    if (typeof candidate.name === 'string' && JWT_ERROR_NAMES.has(candidate.name)) return 401;
-    const status = numericStatus(candidate.status) ?? numericStatus(candidate.statusCode)
-      ?? numericStatus(candidate.response?.status) ?? numericStatus(candidate.response?.statusCode);
-    if (status !== undefined) return status;
+/** HTTP-statusen ett fel som nått Express bär (error.status eller statusCode). Saknas den är det ett serverfel, 500. */
+export function statusOfExpressError(error: unknown): number {
+  const candidate = error as { status?: unknown; statusCode?: unknown } | null;
+  for (const value of [candidate?.status, candidate?.statusCode]) {
+    const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+    if (typeof n === 'number' && Number.isInteger(n)) return n;
   }
-  return undefined;
+  return 500;
 }
 
 // Nyckelnamn vars värde aldrig skickas, oavsett vad det är.
