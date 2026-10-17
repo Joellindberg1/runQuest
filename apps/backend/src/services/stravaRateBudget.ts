@@ -10,6 +10,7 @@
  */
 import { MS_DAY } from '@runquest/shared';
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 import {
   STRAVA_READ_LIMIT_15_MIN,
   STRAVA_READ_LIMIT_DAILY,
@@ -167,7 +168,7 @@ export function createStravaRateBudget(options: BudgetOptions = {}): StravaRateB
       }
     } catch (error) {
       // A broken budget must never break the Strava call it listens to.
-      logger.error('❌ Strava rate budget could not read a response:', error);
+      logger.error(`❌ Strava rate budget could not read a response (${errorCode(error)})`);
     }
   }
 

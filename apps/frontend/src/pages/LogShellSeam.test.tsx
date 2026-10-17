@@ -11,8 +11,8 @@ import { setViewportWidth } from '@/test/viewport';
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
 
-// Skarven skalets "Right now" ↔ Log-skärmens Strava-rad med EN delad QueryClient: båda läser ['strava','status'] genom samma hook; synken
-// ['strava','last-sync'] läses bara av Log-raden (skalet visar ingen nästa synk). Hooks i shared/hooks/useStravaQueries.
+// Skarven skalets "Right now" ↔ Log-skärmens Strava-rad med EN delad QueryClient: båda läser ['strava','status'] genom samma hook
+// (senaste import = last_import_at; skalet visar ingen nästa synk). Hooks i shared/hooks/useStravaQueries.
 
 const MS_MINUTE = 60_000;
 const at = (ms: number) => new Date(Date.now() + ms).toISOString();

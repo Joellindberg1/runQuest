@@ -5,6 +5,15 @@ import { getSupabaseClient } from '../config/database.js';
 
 const STRAVA_API = 'https://www.strava.com/api/v3';
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
+const STRAVA_OAUTH_PREFIX = 'https://www.strava.com/oauth/';
+
+/** How long one Strava API call may take (headers and body) before it counts as a network error. The activity list is the largest answer. */
+export const STRAVA_API_TIMEOUT_MS = 30_000;
+/**
+ * The token endpoint (code exchange, refresh, deauthorize) answers with a few hundred bytes, so a longer wait is a hang. Shorter than
+ * the API timeout because these calls run under the user's lock (the code exchange) or hold up the shared refresh below.
+ */
+export const STRAVA_TOKEN_TIMEOUT_MS = 10_000;
 
 export interface StravaRequestHooks {
   /** Runs before the request is sent; awaiting it lets a later rate budget hold the request back. */
@@ -26,10 +35,52 @@ export function setStravaRequestHooks(next: Partial<StravaRequestHooks>): () => 
   };
 }
 
-/** The only place that calls Strava over the network. */
+/** Thrown by stravaFetch when Strava did not answer in time. An ordinary network failure: it says nothing about the authorisation. */
+export class StravaTimeoutError extends Error {
+  constructor() {
+    super('Strava did not answer in time');
+    this.name = 'TimeoutError'; // the name AbortSignal.timeout gives, so existing checks of it keep working
+  }
+}
+
+function timeoutFor(url: string): number {
+  return url.startsWith(STRAVA_OAUTH_PREFIX) ? STRAVA_TOKEN_TIMEOUT_MS : STRAVA_API_TIMEOUT_MS;
+}
+
+/**
+ * The only place that calls Strava over the network. Every call has a timeout, which also bounds reading the body (the timer keeps
+ * running after the headers arrive). A `signal` from the caller still works: the earlier of the two aborts. The wait for the rate
+ * budget (hooks.before) is not part of the timeout.
+ */
 export async function stravaFetch(url: string, init?: RequestInit): Promise<Response> {
   await hooks.before(url);
-  const response = await fetch(url, init);
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new StravaTimeoutError());
+  }, timeoutFor(url));
+  // A finished call must not keep the process alive for the rest of the timeout.
+  timer.unref?.();
+
+  const callerSignal = init?.signal;
+  const forwardAbort = () => controller.abort(callerSignal?.reason);
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort(callerSignal.reason);
+    // Stays while the body is read, so the caller's abort still reaches that; only a failed call lets go of it here.
+    else callerSignal.addEventListener('abort', forwardAbort, { once: true });
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', forwardAbort);
+    if (timedOut) throw new StravaTimeoutError();
+    throw error;
+  }
   hooks.after(url, response);
   return response;
 }
@@ -145,7 +196,26 @@ async function rowHoldsRefreshToken(userId: string, refreshToken: string): Promi
   return !error && data?.refresh_token === refreshToken;
 }
 
-async function refreshStravaToken(refreshToken: string, userId: string): Promise<RefreshOutcome> {
+// The refresh in progress per user. Strava rotates the refresh token, so two refreshes at once (the webhook worker, the backup poll and
+// the user's own sync can all find the token expired) would make the second ask with a token the first has already replaced. Callers
+// that arrive meanwhile wait for the same answer instead. Keyed on the refresh token as well: a caller that holds another one (the
+// user reconnected meanwhile) must not be given the answer of a refresh made with the old one. Per process: the backend runs as one instance.
+const refreshesInProgress = new Map<string, Promise<RefreshOutcome>>();
+
+function refreshStravaToken(refreshToken: string, userId: string): Promise<RefreshOutcome> {
+  const key = `${userId}:${refreshToken}`;
+  const running = refreshesInProgress.get(key);
+  if (running) return running;
+
+  // Removed when it ends, whatever the outcome, so the next call asks Strava again.
+  const started: Promise<RefreshOutcome> = requestNewTokens(refreshToken, userId).finally(() => {
+    if (refreshesInProgress.get(key) === started) refreshesInProgress.delete(key);
+  });
+  refreshesInProgress.set(key, started);
+  return started;
+}
+
+async function requestNewTokens(refreshToken: string, userId: string): Promise<RefreshOutcome> {
   try {
     const clientId = process.env.STRAVA_CLIENT_ID;
     const clientSecret = process.env.STRAVA_CLIENT_SECRET;

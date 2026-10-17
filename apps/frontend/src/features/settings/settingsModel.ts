@@ -5,7 +5,7 @@ import { validatePassword } from '@/shared/utils/validation';
 import { STRAVA_RUN_TYPES_LABEL } from '@/features/playbook/playbookFacts';
 import { STILL_REMOVED_SENTENCE } from './stravaConnectionCopy';
 
-// Settings-skärmens vymodeller: Strava-kortet ur /strava/status + /strava/last-sync, den senaste synken som en rad, och
+// Settings-skärmens vymodeller: Strava-kortet ur /strava/status, den senaste importen som en rad, och
 // lösenordsbytets validering (samma regler som tidigare: alla fält, lika lösenord, minst 6 tecken). Ren logik — ingen DOM.
 
 export type StravaStatusInput = StravaStatusResponse;
