@@ -1,15 +1,15 @@
 /* Stagingbannern (v0.8.0). ENDAST tokens ur index.css. Röd är risk-färgen (designspråkets regel 3): "det här är inte den riktiga appen". Statuschip-receptet
-   (tint 10 % / kant 45 % / text i full accent), men på en ogenomskinlig bas, eftersom remsan ligger kvar över innehållet när sidan scrollas.
-   Remsan ligger i flödet överst (inga fasta element flyttas) och är sticky ovanför sidhuvudena (landningens och skalets, båda 20). */
+   (tint 10 % / kant 45 % / text i full accent) på sidans bas. Remsan är en vanlig rad överst i flödet: den scrollar bort med sidan och ligger aldrig över
+   sidhuvudenas knappar. Höjden räknas bort från sidans 100dvh-ytor via --rq-staging-banner-h (app-shell.css, landing.css). Under en notch/statusyta
+   (viewport-fit=cover, PWA) skjuter övre paddingen ned texten med samma inset som landingens header. */
 .rq-staging-banner {
-  position: sticky; top: 0; z-index: var(--rq-z-staging-banner);
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap; column-gap: var(--rq-sp-12);
-  padding: var(--rq-sp-4) var(--rq-pad-screen);
+  padding: calc(var(--rq-landing-header-inset) + var(--rq-sp-4)) var(--rq-pad-screen) var(--rq-sp-4);
   background-color: var(--rq-bg-shell);
   background-image: linear-gradient(rgb(var(--rq-down-rgb) / var(--rq-tint-status)), rgb(var(--rq-down-rgb) / var(--rq-tint-status)));
   border-bottom: var(--rq-hair) solid rgb(var(--rq-down-rgb) / var(--rq-edge-status));
   color: var(--rq-down);
-  font-family: var(--rq-font-mono); font-size: var(--rq-fs-chip); line-height: var(--rq-lh-tight);
+  font-family: var(--rq-font-ui); font-size: var(--rq-fs-chip); line-height: var(--rq-lh-tight);
   letter-spacing: var(--rq-ls-label); text-transform: uppercase; text-align: center;
 }
-.rq-staging-banner__tag { font-weight: 400; }
+.rq-staging-banner__tag { font-weight: 700; }

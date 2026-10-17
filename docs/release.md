@@ -98,6 +98,12 @@ stället för mot prod-databasen:
     sökrobotar (`User-agent: *`, `Disallow: /`). Sitemapen tas bort. Allt sker vid bygget (`apps/frontend/stagingGuard.ts`),
     eftersom Railpack serverar `apps/frontend/dist` som statiska filer; `public/robots.txt` och `public/sitemap.xml`
     ändras inte och prodbygget får dem som förut.
+    Två följder är kända och ofarliga: `noindex` och `Disallow: /` samtidigt betyder att en blockerad sökrobot aldrig
+    hämtar sidan och därför inte ser metan (blockeringen räcker då; metan fångar robotar som ändå kommer in, till
+    exempel via en länk), och `canonical` och `og:url` i `index.html` pekar fortfarande mot prod (`www.runquest.dev`),
+    vilket inte skadar eftersom staging är noindex.
+  - Remsan är en vanlig rad överst som scrollar bort med sidan (den ligger aldrig över sidhuvudenas knappar). Dess
+    uppmätta höjd läggs på `<html>` som `--rq-staging-banner-h` (0 i prod), och sidans 100dvh-ytor räknar bort den.
   - Inga utskick når riktiga människor: appen skickar varken mejl, SMS eller push (bara notiser i appen och
     Pack News-rader i databasen), och Strava är avstängt i staging. Väntelistan sparar en adress men skickar ingen
     bekräftelse. En riktig e-postadress som skrivs in i stagingformuläret hamnar bara i stagingdatabasen. Skulle ett

@@ -2,7 +2,7 @@
    (--rq-shell-narrow-max) och sidmarginalen landningens (--rq-landing-pad). En kolumn från 320 till 1440 px, ingen horisontell scroll.
    Fokusringen kommer från temafilens globala :focus-visible. */
 
-.rq-legal { min-height: 100dvh; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+.rq-legal { min-height: calc(100dvh - var(--rq-staging-banner-h)); background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
 /* position: relative är bärande: bakgrunden (TrackBackdrop) ligger först i .rq-legal och ritas före texten i trädordning (trackBackdrop.guards.test.ts). */
 .rq-legal__inner {
   position: relative; box-sizing: border-box; width: 100%; max-width: var(--rq-shell-narrow-max); margin-inline: auto;
