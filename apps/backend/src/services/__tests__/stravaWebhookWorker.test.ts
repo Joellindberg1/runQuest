@@ -11,6 +11,7 @@ vi.mock('../stravaAthlete.js', () => ({ findUserByAthleteId: vi.fn(), isValidAth
 import { findUserByAthleteId } from '../stravaAthlete.js';
 import { withUserLock } from '../../utils/keyedMutex.js';
 import { logger } from '../../utils/logger.js';
+import { startFakeSentry, type FakeSentry } from '../../observability/__tests__/helpers/fakeSentry.js';
 import {
   LEASE_SECONDS,
   WEBHOOK_CLAIM_BATCH,
@@ -1140,5 +1141,89 @@ describe('after an import', () => {
     await worker.drain();
 
     expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 1, last_error: 'invalid_handler_result' });
+  });
+});
+
+describe('critical alerts in sentry', () => {
+  const overdue = () => new Date(START.getTime() - WEBHOOK_DEAD_AFTER_HOURS * HOUR - 1000).toISOString();
+  let sentry: FakeSentry;
+  beforeEach(() => {
+    for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) vi.spyOn(console, method).mockImplementation(() => {});
+    sentry = startFakeSentry();
+  });
+  afterEach(async () => {
+    await sentry.stop();
+  });
+
+  it('critical log lines reach sentry', async () => {
+    const { store, worker } = setup(async () => done('noop'));
+    const old = store.seed({ received_at: overdue(), object_id: 987654321, owner_id: 555111 });
+
+    await worker.drain();
+    const sent = await sentry.flush();
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ level: 'fatal', tags: { alert: 'critical', source: 'webhook_dead', user_id: old.user_id } });
+  });
+
+  it('a dead deletion reaches sentry as the same alert', async () => {
+    const { store, worker } = setup(async () => done('noop'));
+    store.seed({ received_at: overdue(), object_type: 'activity', aspect_type: 'delete' });
+
+    await worker.drain();
+    const sent = await sentry.flush();
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ level: 'fatal', tags: { alert: 'critical', source: 'webhook_dead' } });
+    expect(sent[0].message).toMatch(/deletion/i);
+  });
+
+  it('a dead event alerts once at the transition, not on every worker round', async () => {
+    const { store, worker } = setup(async () => done('noop'));
+    store.seed({ received_at: overdue() });
+
+    await worker.drain();
+    await worker.drain();
+    await worker.drain();
+    const sent = await sentry.flush();
+
+    expect(store.row(1).status).toBe('dead');
+    expect(sent).toHaveLength(1);
+  });
+
+  it('two events that die in the same round are two alerts, one each', async () => {
+    const { store, worker } = setup(async () => done('noop'));
+    store.seed({ received_at: overdue(), object_id: 11, owner_id: 21 });
+    store.seed({ received_at: overdue(), object_id: 12, owner_id: 22 });
+
+    await worker.drain();
+    const sent = await sentry.flush();
+
+    expect(sent).toHaveLength(2);
+  });
+
+  it('sends no Strava id, name or token in the tags', async () => {
+    const { store, worker } = setup(async () => done('noop'));
+    store.seed({ received_at: overdue(), object_id: 987654321, owner_id: 555111 });
+
+    await worker.drain();
+    const [event] = await sentry.flush();
+
+    const tags = JSON.stringify(event.tags);
+    expect(tags).not.toContain('987654321');
+    expect(tags).not.toContain('555111');
+    expect(Object.keys(event.tags).sort()).toEqual(['alert', 'source', 'user_id']);
+  });
+
+  it('a dead event whose status could not be written sends no critical alert', async () => {
+    const { store, worker } = setup(async () => done('noop'));
+    store.seed({ received_at: overdue() });
+    store.writeError = new Error('db down');
+
+    await worker.drain();
+
+    // The failed write itself is an ordinary error line; the alarm is not given.
+    const sent = await sentry.flush();
+    expect(sent.filter((event) => event.tags?.alert === 'critical')).toEqual([]);
   });
 });

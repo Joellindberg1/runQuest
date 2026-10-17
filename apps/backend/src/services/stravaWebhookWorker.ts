@@ -66,6 +66,7 @@
  * 8.6); only the dead alarm names object_id and owner_id (decision 11). Never a token, a title, a body, an error message or `updates`.
  */
 import { MS_DAY, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '@runquest/shared';
+import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { withUserLock } from '../utils/keyedMutex.js';
 import type { AccessTokenFailureReason } from './stravaClient.js';
@@ -299,6 +300,7 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
       isDeletion
         ? `🚨 KRITISKT: Strava-webhook deletion not completed within Strava's ${WEBHOOK_DEAD_AFTER_HOURS} h deadline: ${subject}. The event is dead and nothing retries it; the data must be removed by hand.`
         : `🚨 KRITISKT: Strava-webhook event dead after ${WEBHOOK_DEAD_AFTER_HOURS} h without being processed: ${subject}.`,
+      new CriticalAlert('webhook_dead', { userId: row.user_id ?? undefined }),
     );
   }
 

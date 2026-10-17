@@ -4,6 +4,7 @@
 //
 // Logs, never the client secret or the verify token (ADR 010 decision 8.6): the list function reports a failure by status or error
 // name only, and the callback url Strava returns is shown without its query string.
+import { CriticalAlert } from '../../utils/criticalAlert.js';
 import { logger } from '../../utils/logger.js';
 import { STRAVA_WEBHOOK_CALLBACK_URL } from './constants.js';
 import { listStravaSubscriptions, type StravaSubscriptionRow } from './subscriptions.js';
@@ -66,17 +67,17 @@ export async function runStravaSubscriptionCheck(env: NodeJS.ProcessEnv = proces
   }
 
   if (listed.rows.length === 0) {
-    logger.error(`${ALARM}: the subscription is missing. Strava lists none for this app (expected id ${configuredId}), so no events arrive and deletions will not be received.`);
+    logger.error(`${ALARM}: the subscription is missing. Strava lists none for this app (expected id ${configuredId}), so no events arrive and deletions will not be received.`, new CriticalAlert('subscription_missing'));
     return 'missing';
   }
   const ours: StravaSubscriptionRow | undefined = listed.rows.find((row) => row.id === configuredId);
   if (!ours) {
     const listedIds = listed.rows.map((row) => row.id).join(', ');
-    logger.error(`${ALARM}: the subscription id differs. STRAVA_WEBHOOK_SUBSCRIPTION_ID is ${configuredId} but Strava lists ${listedIds}, so events carry another id and are rejected.`);
+    logger.error(`${ALARM}: the subscription id differs. STRAVA_WEBHOOK_SUBSCRIPTION_ID is ${configuredId} but Strava lists ${listedIds}, so events carry another id and are rejected.`, new CriticalAlert('subscription_missing'));
     return 'id_differs';
   }
   if (ours.callback_url !== STRAVA_WEBHOOK_CALLBACK_URL) {
-    logger.error(`${ALARM}: subscription ${configuredId} points at another callback url (${shownCallback(ours.callback_url)}, expected ${STRAVA_WEBHOOK_CALLBACK_URL}), so events go to the wrong place.`);
+    logger.error(`${ALARM}: subscription ${configuredId} points at another callback url (${shownCallback(ours.callback_url)}, expected ${STRAVA_WEBHOOK_CALLBACK_URL}), so events go to the wrong place.`, new CriticalAlert('subscription_missing'));
     return 'callback_differs';
   }
 

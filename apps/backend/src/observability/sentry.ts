@@ -20,14 +20,19 @@
  *  - Allt som skickas går först genom `scrubSentryEvent` (scrub.ts): inga tokens, headers, bodies, namn eller e-post.
  *
  * Stabilt gränssnitt för larm som bygger vidare på detta: `captureLoggedError` är den enda platsen där en loggrad blir en händelse.
- * Vill ett larm ha egen nivå eller tagg (t.ex. rader med prefixet "🚨 KRITISKT") ändras det där, på ett ställe.
+ * Rader med prefixet "🚨 KRITISK" (utils/criticalAlert.ts) blir där `fatal` med taggarna `alert=critical` och `source=<kod>`, och går
+ * förbi SDK:ts repeat-filter. Sentry-alertregeln filtrerar på `alert:critical`.
  */
 import * as Sentry from '@sentry/node';
 import type { Express, NextFunction, Request, Response } from 'express';
+import { CriticalAlert, criticalAlertOf } from '../utils/criticalAlert.js';
 import { setErrorSink } from '../utils/logger.js';
 import { fingerprintOf, isClientAuthError, isDroppedBreadcrumb, isExpectedClientStatus, scrubSentryEvent, secretsFromEnv, statusOfExpressError } from './scrub.js';
 
 const MAX_DETAIL_LENGTH = 300;
+
+/** Värdet på taggen `alert` för kritiska larm; Sentry-alertregeln filtrerar på `alert:critical`. */
+export const CRITICAL_ALERT_TAG = 'critical';
 
 /**
  * SDK 11 har tagit bort `sendDefaultPii`; `dataCollection` ersätter det, och dess standardvärden samlar ALLT (användaruppgifter,
@@ -55,6 +60,22 @@ export interface InitSentryTestOptions {
   processHandlers?: boolean;
 }
 
+type SentryIntegration = Exclude<NonNullable<Sentry.NodeOptions['integrations']>, (...args: never[]) => unknown>[number];
+
+/**
+ * SDK:ts repeat-filter (Dedupe) släpper en händelse som är identisk med den förra: samma meddelande, samma fingeravtryck och samma
+ * stacktrace. Ett larm som upprepas från samma anropsställe (nattkontrollen av prenumerationen två nätter i rad) skulle då tystas
+ * den andra gången, och ett kritiskt larm får inte försvinna. Kritiska larm går därför förbi filtret.
+ */
+function withoutCriticalAlerts(dedupe: SentryIntegration): SentryIntegration {
+  const { processEvent } = dedupe;
+  if (!processEvent) return dedupe;
+  return {
+    ...dedupe,
+    processEvent: (event, hint, client) => (event.tags?.alert === CRITICAL_ALERT_TAG ? event : processEvent(event, hint, client)),
+  };
+}
+
 /** Startar Sentry om `SENTRY_DSN` är satt. Returnerar om den startades. */
 export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: InitSentryTestOptions = {}): boolean {
   const dsn = env.SENTRY_DSN?.trim();
@@ -75,7 +96,8 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
       .filter((i) => i.name !== 'Console')
       .filter((i) => withProcessHandlers || (i.name !== 'OnUncaughtException' && i.name !== 'OnUnhandledRejection'))
       // Standardläget "warn" sväljer ett oväntat löftesavslag. "strict" fångar det och kraschar processen som Node gör utan Sentry.
-      .map((i) => (i.name === 'OnUnhandledRejection' ? Sentry.onUnhandledRejectionIntegration({ mode: 'strict' }) : i)),
+      .map((i) => (i.name === 'OnUnhandledRejection' ? Sentry.onUnhandledRejectionIntegration({ mode: 'strict' }) : i))
+      .map((i) => (i.name === 'Dedupe' ? withoutCriticalAlerts(i) : i)),
     beforeSend: (event) => scrubSentryEvent(event, secrets),
     beforeBreadcrumb: (breadcrumb) => (isDroppedBreadcrumb(breadcrumb) ? null : breadcrumb),
   });
@@ -96,7 +118,7 @@ export async function flushSentry(timeoutMs = 2000): Promise<boolean> {
 }
 
 function loggedDetail(args: readonly unknown[]): unknown {
-  const first = args.find((a) => a !== undefined);
+  const first = args.find((a) => a !== undefined && !(a instanceof CriticalAlert));
   if (typeof first === 'string') return first.slice(0, MAX_DETAIL_LENGTH);
   if (first !== null && typeof first === 'object') {
     const { code, message } = first as { code?: unknown; message?: unknown };
@@ -116,16 +138,26 @@ function loggedDetail(args: readonly unknown[]): unknown {
 export function captureLoggedError(message: string, args: readonly unknown[]): void {
   if (!Sentry.isInitialized()) return;
 
-  if (isClientAuthError(args)) return;
+  // Före klientfiltret: ett kritiskt larm får aldrig tystas av att det bär ett JWT-fel.
+  const alert = criticalAlertOf(message, args);
+  if (!alert && isClientAuthError(args)) return;
+
+  // `fatal` och taggen alert=critical är det Sentry-alertregeln filtrerar på. `source` säger vilket larm det är; user_id är vårt eget id.
+  const alertContext = alert
+    ? {
+        level: 'fatal' as const,
+        tags: { alert: CRITICAL_ALERT_TAG, source: alert.source, ...(alert.userId ? { user_id: alert.userId } : {}) },
+      }
+    : { level: 'error' as const };
 
   const error = args.find((a): a is Error => a instanceof Error);
   if (error) {
-    Sentry.captureException(error, { extra: { log_message: message } });
+    Sentry.captureException(error, { extra: { log_message: message }, ...alertContext });
     return;
   }
   const detail = loggedDetail(args);
   Sentry.captureMessage(message, {
-    level: 'error',
+    ...alertContext,
     fingerprint: [fingerprintOf(message)],
     ...(detail !== undefined ? { extra: { log_detail: detail } } : {}),
   });

@@ -1,4 +1,5 @@
 // Strava client: the one token path and the one fetch path for polling, GET /status and the webhook worker (ADR 010 decision 7).
+import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { errorCode } from '../utils/errorCode.js';
 import { getSupabaseClient } from '../config/database.js';
@@ -285,7 +286,7 @@ async function requestNewTokens(refreshToken: string, userId: string): Promise<R
     }
 
     if (error) {
-      logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel: ${errorCode(error)}`);
+      logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel: ${errorCode(error)}`, new CriticalAlert('token_write', { userId }));
       return { kind: 'failed' };
     }
 
