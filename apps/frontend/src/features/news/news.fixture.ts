@@ -1,5 +1,5 @@
 import {
-  ACTIVITY_PAYLOAD_VERSION, ACTIVITY_TYPES, customisedKeys, isActivityType, isNotifiable, resolveSettings, sanitizePatch,
+  ACTIVITY_PAYLOAD_VERSION, ACTIVITY_TYPES, NEWS_DEFAULT_LIMIT, NEWS_MAX_LIMIT, UNREAD_CAP, customisedKeys, isActivityType, isNotifiable, resolveSettings, sanitizePatch,
   type ActivityType, type NewsItem, type NewsMeta, type NewsQuery, type NewsUserRef, type NotifiableRow, type NotifyViewer, type SettingsValue,
 } from '@runquest/shared';
 
@@ -83,14 +83,12 @@ export const challengeAccepted = (id: number, over: Partial<Omit<ItemOf<'challen
 
 /** Registreringstiden för betraktaren i newsServer: långt före alla rader (rader före den är aldrig notiser). */
 export const VIEWER_CREATED_AT = '2026-01-01T00:00:00Z';
-/** Samma tak som servern (UNREAD_CAP): klockan visar "99+" över 99. */
-const UNREAD_CAP = 500;
 
 const isPositiveInt = (value: number | undefined): boolean => value === undefined || (Number.isSafeInteger(value) && value > 0);
 
 /** Serverns validering av GET /news (backend routes/news.ts) med samma felmeddelanden; null = giltig fråga. */
 function invalidQuery(query: NewsQuery): string | null {
-  if (query.limit !== undefined && (!isPositiveInt(query.limit) || query.limit > 100)) return 'limit must be an integer between 1 and 100';
+  if (query.limit !== undefined && (!isPositiveInt(query.limit) || query.limit > NEWS_MAX_LIMIT)) return `limit must be an integer between 1 and ${NEWS_MAX_LIMIT}`;
   if (!isPositiveInt(query.before)) return 'before must be a positive integer';
   if (!isPositiveInt(query.after)) return 'after must be a positive integer';
   if (query.before !== undefined && query.after !== undefined) return 'before and after cannot be combined';
@@ -173,7 +171,7 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null, 
         (query.before === undefined || row.id < query.before) &&
         (query.after === undefined || row.id > query.after),
     );
-    const limit = query.limit ?? 30;
+    const limit = query.limit ?? NEWS_DEFAULT_LIMIT;
     const page = matching.slice(0, limit);
     const hasMore = matching.length > limit;
     return {

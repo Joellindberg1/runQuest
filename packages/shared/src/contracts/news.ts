@@ -108,3 +108,9 @@ const NEWS_META_FIELD_SET: Record<keyof NewsMeta, true> = { unread_count: true, 
 
 export const NEWS_ITEM_FIELDS = Object.keys(NEWS_ITEM_FIELD_SET) as Array<keyof NewsItem>;
 export const NEWS_META_FIELDS = Object.keys(NEWS_META_FIELD_SET) as Array<keyof NewsMeta>;
+
+/** `unread_count` mättas här (klockan visar "99+" över 99). Backendens kandidatläsning hämtar ett steg mer för att kunna avgöra taket. */
+export const UNREAD_CAP = 500;
+/** GET /api/news: standardsida och största tillåtna `limit`. */
+export const NEWS_DEFAULT_LIMIT = 30;
+export const NEWS_MAX_LIMIT = 100;

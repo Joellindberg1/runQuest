@@ -20,7 +20,7 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
-import { ACTIVITY_PAYLOAD_VERSION, ACTIVITY_TYPES, NEWS_ITEM_FIELDS, NEWS_META_FIELDS, notifyKey, type ActivityType, type NewsItem, type NewsQuery, type NewsUserRef } from '@runquest/shared';
+import { ACTIVITY_PAYLOAD_VERSION, ACTIVITY_TYPES, NEWS_ITEM_FIELDS, NEWS_META_FIELDS, UNREAD_CAP, notifyKey, type ActivityType, type NewsItem, type NewsQuery, type NewsUserRef } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
@@ -64,7 +64,9 @@ const toDbRow = (row: NewsItem): Row => ({
   id: row.id, group_id: GROUP, type: row.type, actor_user_id: row.actor?.id ?? null, target_user_id: row.target?.id ?? null,
   // payload_version läses INTE ur fejkens rad: saknar fejken fältet ska den riktiga rutten ändå skicka det, så att jämförelsen faller.
   payload: row.payload, payload_version: ACTIVITY_PAYLOAD_VERSION, dedupe_key: `k${row.id}`, is_backfill: row.is_backfill,
-  // Fejken avgör "efter registreringen" på occurred_at; i den riktiga loggen är created_at ungefär samma tid.
+  // KÄND BEGRÄNSNING: backend avgör "efter registreringen" på activity_log.created_at, fejken på occurred_at (NewsItem har inget created_at).
+  // Här sätts de lika, så paritet gäller bara rader där de två tiderna hamnar på samma sida av användarens registrering. En rad som
+  // hände före registreringen men loggades efter (t.ex. backfill-liknande) kan skilja och täcks inte av det här testet.
   occurred_at: row.occurred_at, created_at: row.occurred_at,
 });
 
@@ -163,6 +165,16 @@ describe('newsServer parity with GET /api/news', () => {
 
     expect(real.body.data.items.some((row: NewsItem) => row.is_unread)).toBe(true);
     expect(real.body.data.items.some((row: NewsItem) => !row.is_unread)).toBe(true);
+    expect(wire(mine)).toEqual(real.body);
+  });
+
+  it('caps unread_count at the shared ceiling when more rows than that are unread', async () => {
+    const feed = Array.from({ length: UNREAD_CAP + 20 }, (_, i) => newsSamples.level_up(i + 1, { actor: KARL }));
+    const fake = useWorld({ feed });
+    const real = await realGet({ limit: 1 });
+    const mine = await fake.getNews({ limit: 1 });
+
+    expect(real.body.meta.unread_count).toBe(UNREAD_CAP);
     expect(wire(mine)).toEqual(real.body);
   });
 
