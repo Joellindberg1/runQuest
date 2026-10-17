@@ -1,5 +1,6 @@
 // 🔐 JWT Authentication Middleware
 import { logger } from '../utils/logger.js';
+import { withSentryUser } from '../observability/sentry.js';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 
@@ -43,7 +44,7 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
-    logger.info(`🔐 JWT verified for user: ${decoded.name}`);
+    logger.info(`🔐 JWT verified for user_id: ${decoded.user_id}`);
 
     req.user = {
       user_id: decoded.user_id,
@@ -52,7 +53,8 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
       group_id: decoded.group_id ?? undefined
     };
 
-    next();
+    // Resten av förfrågan körs i en egen Sentry-scope med bara user_id (se withSentryUser).
+    withSentryUser(decoded.user_id, () => next());
   } catch (error) {
     logger.error('❌ JWT verification failed:', error);
     // Ogiltig/utgången token är AUTENTISERING (401), inte auktorisering — klienten loggar ut vid 401.

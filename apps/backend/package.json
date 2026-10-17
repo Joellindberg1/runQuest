@@ -21,10 +21,12 @@
     "staging:migrate": "tsx src/scripts/staging/stagingMigrate.ts",
     "staging:seed-reference": "tsx src/scripts/staging/stagingSeedReference.ts",
     "staging:seed-group": "tsx src/scripts/staging/stagingSeedGroup.ts",
-    "staging:schema-diff": "tsx src/scripts/staging/stagingSchemaDiff.ts"
+    "staging:schema-diff": "tsx src/scripts/staging/stagingSchemaDiff.ts",
+    "sentry:test": "tsx src/scripts/sentryTest.ts"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",
+    "@sentry/node": "11.8.0",
     "@supabase/supabase-js": "2.105.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",

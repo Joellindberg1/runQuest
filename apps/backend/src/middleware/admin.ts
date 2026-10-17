@@ -13,7 +13,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    logger.info(`🔍 Admin check for user: ${user.name}`);
+    logger.info(`🔍 Admin check for user_id: ${user.user_id}`);
     
     const supabase = getSupabaseClient();
     
@@ -31,12 +31,12 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     }
 
     if (!userData?.is_admin) {
-      logger.info(`❌ Access denied: ${user.name} is not admin`);
+      logger.info(`❌ Access denied: user_id ${user.user_id} is not admin`);
       res.status(403).json({ error: 'Admin access required' });
       return;
     }
 
-    logger.info(`✅ Admin access granted for: ${user.name}`);
+    logger.info(`✅ Admin access granted for user_id: ${user.user_id}`);
     next();
     
   } catch (error) {

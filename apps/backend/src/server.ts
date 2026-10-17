@@ -12,6 +12,8 @@ import { startStreakScheduler } from './scheduler/streakScheduler.js';
 import { startStravaWebhookScheduler } from './scheduler/stravaWebhookScheduler.js';
 import { startStravaReconcileScheduler } from './scheduler/stravaReconcileScheduler.js';
 import { registerStravaRateBudget } from './services/stravaRateBudget.js';
+import { flushSentry, initSentry } from './observability/sentry.js';
+import { createShutdown, exitAfterFlush } from './utils/shutdown.js';
 
 // 📋 Step 1: Load Environment Variables
 logger.info('🔧 Step 1: Loading environment variables...');
@@ -21,6 +23,10 @@ const __dirname = path.dirname(__filename);
 
 // Load .env from backend directory
 dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Sentry direkt efter env-laddningen, före allt annat som kan fela (utan SENTRY_DSN händer ingenting).
+const sentryEnabled = initSentry();
+logger.info(sentryEnabled ? `🛰️ Sentry on (environment: ${process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development'})` : 'ℹ️ Sentry off (no SENTRY_DSN)');
 
 const requiredEnvVars = {
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -42,7 +48,7 @@ const missingVars = Object.entries(requiredEnvVars)
 
 if (missingVars.length > 0) {
   logger.error('❌ Missing required environment variables:', missingVars);
-  process.exit(1);
+  await exitAfterFlush(1, { flush: flushSentry, exit: (code) => process.exit(code) });
 }
 
 logger.info('✅ Step 1 Complete: Environment loaded successfully\n');
@@ -66,12 +72,12 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`🌍 Environment: ${requiredEnvVars.NODE_ENV}`);
 });
 
-server.on('error', (error: NodeJS.ErrnoException) => {
+server.on('error', async (error: NodeJS.ErrnoException) => {
   logger.error('❌ Server error:', error.code);
   if (error.code === 'EADDRINUSE') {
     logger.error(`❌ Port ${PORT} is already in use`);
   }
-  process.exit(1);
+  await exitAfterFlush(1, { flush: flushSentry, exit: (code) => process.exit(code) });
 });
 
 server.on('listening', () => {
@@ -92,13 +98,15 @@ server.on('listening', () => {
   }
 });
 
-// Graceful shutdown
-process.on('SIGINT', () => {
-  logger.info('\n🔄 Shutting down gracefully...');
-  server.close(() => {
-    logger.info('✅ Server closed');
-    process.exit(0);
-  });
+// Graceful shutdown: SIGTERM är det Railway skickar vid varje deploy, SIGINT är Ctrl+C. Båda skickar köade Sentry-händelser före exit.
+const shutdown = createShutdown({
+  closeServer: (onClosed) => server.close(() => onClosed()),
+  flush: flushSentry,
+  exit: (code) => process.exit(code),
+  log: (message) => logger.info(message),
+  forceExitAfterMs: 10_000,
 });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
 
 export default app;
