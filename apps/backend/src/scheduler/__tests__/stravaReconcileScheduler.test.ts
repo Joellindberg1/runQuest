@@ -28,7 +28,7 @@ import { WEBHOOK_RETENTION_CRON } from '../../services/stravaWebhook/constants.j
 import type { ReconcileSummary, StravaReconciler } from '../../services/stravaReconcile.js';
 import { startStravaReconcileScheduler } from '../stravaReconcileScheduler.js';
 
-const SUMMARY: ReconcileSummary = { users: 0, skippedPaused: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 0, requests: 0, stopped: null };
+const SUMMARY: ReconcileSummary = { users: 0, pausedUsers: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 0, requests: 0, stopped: null };
 const fakeReconciler = (): StravaReconciler & { run: ReturnType<typeof vi.fn> } => ({ run: vi.fn().mockResolvedValue(SUMMARY) });
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 

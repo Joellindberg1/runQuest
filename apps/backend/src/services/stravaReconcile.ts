@@ -1,8 +1,9 @@
 /**
  * The nightly reconcile of Strava runs against Strava (ADR 010 decision 13, D12): the safety net under the webhooks. A webhook that was
  * never delivered (or thrown away in the gap before the subscription id was set) leaves a deleted activity alive here, and Strava
- * sends no event at all when only the distance or the date of an activity changes. Each night this compares, for every connected user
- * that is not paused, the runs stored here with what Strava has, and fixes what differs.
+ * sends no event at all when only the distance or the date of an activity changes. Each night this compares, for every connected user,
+ * the runs stored here with what Strava has, and fixes what differs. A PAUSED user gets the removals only (ADR 010 7.5.3: a pause stops
+ * imports and updates, never the deletion rules): the activity update handler writes nothing but a removal for a paused user.
  *
  * ── HOW A NIGHT GOES (per user) ─────────────────────────────────────────────────────────────────────────────────────────────
  *   1. A token (getValidAccessToken). No token, no night for that user: nothing is listed, nothing is deleted.
@@ -23,7 +24,8 @@
  *   - The user lock (withUserLock) is held while a user's runs are checked, changed and recalculated, the same lock the polling, the
  *     webhook batch and the disconnect take, so a poll can never bring back a run that was just deleted. The list is read before the
  *     lock; every decision is made on the single activity inside it. The lock is taken once, outermost; nothing inside takes it again.
- *   - Paused users are skipped, and the pause is read again inside the lock (it can come while the list is on its way).
+ *   - A paused user (the pause is read by the handler for every run, inside the lock) loses runs that Strava says are gone, private or no
+ *     longer a run, and is otherwise left untouched: no update of distance or date, no import.
  *   - A manual run is never looked at: the runs port lists `source = 'strava'` only, and the handler and the deletion repeat it.
  *   - The night has a request budget (RECONCILE_NIGHTLY_REQUEST_BUDGET) for everything it asks Strava, shared fairly over the users
  *     (the rotation shrinks, the list and the confirmation of what is in doubt come first), and it stops, leaving the rest for the next
@@ -74,7 +76,8 @@ export interface ReconcileDeps {
 export interface ReconcileSummary {
   /** Connected users, paused ones included. */
   users: number;
-  skippedPaused: number;
+  /** Of those, the paused ones: they get the removals only. */
+  pausedUsers: number;
   /** Users left alone because no token or no complete list could be had. */
   skippedUnavailable: number;
   /** Runs looked at in Strava one by one. */
@@ -204,7 +207,7 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
 
   async function run(): Promise<ReconcileSummary> {
     const started = now();
-    const summary: ReconcileSummary = { users: 0, skippedPaused: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 0, requests: 0, stopped: null };
+    const summary: ReconcileSummary = { users: 0, pausedUsers: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 0, requests: 0, stopped: null };
     const ledger = createLedger(requestBudget);
     const strava = countedStrava(deps.strava, ledger);
     const night = nightIndex(started);
@@ -249,10 +252,6 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
         return;
       }
       if (!connection) return;
-      if (connection.syncPaused) {
-        summary.skippedPaused += 1;
-        return;
-      }
 
       let recalculateFrom: string | null = null;
       let removedForUser = 0;
@@ -300,8 +299,8 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
           removedForUser += 1;
         } else if (result.outcome === 'updated') {
           summary.updated += 1;
-        } else if (result.outcome === 'ignored_paused' || result.outcome === 'ignored_unknown_owner') {
-          break; // the connection changed under us
+        } else if (result.outcome === 'ignored_unknown_owner') {
+          break; // the connection went away under us
         }
       }
 
@@ -352,8 +351,8 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
     }
 
     summary.users = users.length;
-    const eligible = users.filter((user) => !user.syncPaused).sort((a, b) => (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0));
-    summary.skippedPaused = users.length - eligible.length;
+    const eligible = [...users].sort((a, b) => (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0));
+    summary.pausedUsers = users.filter((user) => user.syncPaused).length;
     // The order moves on one step a night, so when a night is cut short it is not always the same users that wait.
     const offset = eligible.length > 0 ? night % eligible.length : 0;
     const ordered = [...eligible.slice(offset), ...eligible.slice(0, offset)];
@@ -370,7 +369,7 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
 
     summary.requests = ledger.spent;
     logger.info(
-      `🧹 Strava reconcile: ${summary.users} user(s) (${summary.skippedPaused} paused, ${summary.skippedUnavailable} left alone), ` +
+      `🧹 Strava reconcile: ${summary.users} user(s) (${summary.pausedUsers} paused, ${summary.skippedUnavailable} left alone), ` +
         `${summary.checked} run(s) checked, ${summary.removed} removed, ${summary.updated} updated, ${summary.failed} failed, ` +
         `${summary.requests} of ${requestBudget} requests${summary.stopped ? `, stopped early (${summary.stopped})` : ''}`,
     );
@@ -384,7 +383,7 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
       } catch (error) {
         // Unreachable by design; a last guard so that a bug here cannot take the scheduler down.
         logger.error(`❌ Strava reconcile failed unexpectedly (${errorCode(error)})`);
-        return { users: 0, skippedPaused: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 1, requests: 0, stopped: null };
+        return { users: 0, pausedUsers: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 1, requests: 0, stopped: null };
       }
     },
   };

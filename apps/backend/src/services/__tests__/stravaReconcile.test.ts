@@ -570,32 +570,68 @@ describe('nightly reconcile', () => {
     expect(calculateUserTotals).toHaveBeenCalledTimes(totalsAfterFirst);
   });
 
-  it('reconcile skips paused users', async () => {
-    const { t, reconciler, strava } = build({
+  it('reconcile only removes runs for paused users', async () => {
+    const changed = activityOf(7345001);
+    const gone = activityOf(7345002, { start_date: '2026-10-13T05:30:00Z', start_date_local: '2026-10-13T07:30:00Z' });
+    const ride = activityOf(7345003);
+    const { t, reconciler, reprocessCalls, strava } = build({
       tables: {
         strava_tokens: [tokenRow('user-1', { sync_paused: true })],
-        runs: [storedRun(activityOf(7345001))],
+        runs: [storedRun(changed), storedRun(gone), storedRun(ride)],
       },
-      routes: {}, // any Strava request at all fails the test
+      routes: {
+        athleteActivities: [
+          activityOf(7345001, { distance: 8000, start_date: '2026-10-15T05:30:00Z', start_date_local: '2026-10-15T07:30:00Z' }), // longer and moved
+          activityOf(7345003, { sport_type: 'Ride', type: 'Ride' }),
+        ],
+        activities: {
+          7345001: activityOf(7345001, { distance: 8000, start_date: '2026-10-15T05:30:00Z', start_date_local: '2026-10-15T07:30:00Z' }),
+          7345003: activityOf(7345003, { sport_type: 'Ride', type: 'Ride' }),
+        },
+      },
+    });
+    const before = JSON.parse(JSON.stringify(t.runs.find((r) => r.external_id === '7345001')));
+
+    const summary = await reconciler.run();
+
+    // The 404 run and the run that became a ride go (the deletion rules hold under a pause); the changed run is left exactly as it was.
+    expect(ids(t.runs)).toEqual(['7345001']);
+    expect(t.runs[0]).toMatchObject({ date: before.date, distance: before.distance, start_time: before.start_time }); // XP may follow the reprocess; Strava's columns do not move
+    expect(summary).toMatchObject({ users: 1, pausedUsers: 1, removed: 2, updated: 0, failed: 0 });
+    expect(reprocessCalls).toEqual([{ userId: 'user-1', fromDate: '2026-10-12' }]);
+    expect(calculateUserTotals).toHaveBeenCalledTimes(1);
+    expect(strava.activityCalls(7345002)).toBe(1);
+  });
+
+  it('reconcile imports nothing and updates nothing for a paused user', async () => {
+    const { t, reconciler } = build({
+      tables: { strava_tokens: [tokenRow('user-1', { sync_paused: true })], runs: [storedRun(activityOf(7345001))] },
+      routes: {
+        athleteActivities: [activityOf(7345001, { distance: 9000 }), activityOf(7349999)], // a changed run and a new activity
+        activities: { 7345001: activityOf(7345001, { distance: 9000 }) },
+      },
     });
 
     const summary = await reconciler.run();
 
-    expect(ids(t.runs)).toEqual(['7345001']);
-    expect(summary).toMatchObject({ users: 1, skippedPaused: 1, checked: 0, requests: 0 });
-    expect(strava.requests).toEqual([]);
+    expect(t.runs).toHaveLength(1);
+    expect(t.runs[0]).toMatchObject({ distance: 5 });
+    expect(summary).toMatchObject({ removed: 0, updated: 0 });
+    expect(calculateUserTotals).not.toHaveBeenCalled();
   });
 
-  it('reconcile skips a user who was paused after the night began', async () => {
-    // The user list was read while the user was not paused; by the time the user's lock is theirs, the pause is on.
+  it('reconcile treats a user paused after the night began as paused: removals only', async () => {
+    // The user list was read while the user was not paused; the pause lands while the list is on its way back.
     const { t, reconciler } = build({
-      tables: { runs: [storedRun(activityOf(7345001)), storedRun(activityOf(7345002))] },
-      routes: { athleteActivities: [activityOf(7345001)], activities: {} },
+      tables: { runs: [storedRun(activityOf(7345001)), storedRun(activityOf(7345002)), storedRun(activityOf(7345003))] },
+      routes: {
+        athleteActivities: [activityOf(7345001, { distance: 8000 }), activityOf(7345002)],
+        activities: { 7345001: activityOf(7345001, { distance: 8000 }) }, // 7345003 is gone
+      },
       ports: (real) => ({
         ...real,
         listActivities: async (...args) => {
           const result = await real.listActivities(...args);
-          // The pause lands while the list is on its way back.
           await (getSupabaseClient() as any).from('strava_tokens').update({ sync_paused: true }).eq('user_id', 'user-1');
           return result;
         },
@@ -605,7 +641,8 @@ describe('nightly reconcile', () => {
     const summary = await reconciler.run();
 
     expect(ids(t.runs)).toEqual(['7345001', '7345002']);
-    expect(summary.removed).toBe(0);
+    expect(t.runs.find((r) => r.external_id === '7345001')).toMatchObject({ distance: 5 });
+    expect(summary).toMatchObject({ removed: 1, updated: 0 });
   });
 
   it('reconcile skips a user who is not connected any more', async () => {
