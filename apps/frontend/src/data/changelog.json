@@ -89,6 +89,22 @@
   ],
   "releases": [
     {
+      "version": "0.7.1",
+      "type": "patch",
+      "date": "17 October 2026",
+      "title": "A nightly check against Strava",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Every night RunQuest now checks your Strava runs against Strava. A run you deleted or made private on Strava is removed here even if Strava never told us, and a run whose distance or start date you changed on Strava is updated. Strava sends no message for those two edits, so they show up after the next nightly check. While sync is paused, only removals are applied."
+        },
+        {
+          "type": "bugfix",
+          "description": "The Strava connection is steadier: a slow answer from Strava no longer leaves a sync hanging."
+        }
+      ]
+    },
+    {
       "version": "0.7.0",
       "type": "minor",
       "date": "15 October 2026",
