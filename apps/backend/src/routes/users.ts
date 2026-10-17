@@ -7,8 +7,9 @@ import { authenticateJWT } from '../middleware/auth.js';
 
 const router = express.Router();
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — samma gräns som frontend visar
-const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+// Exporteras så att migrationen som sätter bucketens gränser testas mot samma värden.
+export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — samma gräns som frontend visar
+export const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
