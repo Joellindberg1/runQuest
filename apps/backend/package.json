@@ -17,7 +17,11 @@
     "strava:webhook": "tsx src/scripts/stravaWebhookSubscription.ts",
     "backfill:badges": "tsx src/scripts/backfillBadges.ts",
     "reveal:badges": "tsx src/scripts/revealBadges.ts",
-    "announce:release": "tsx src/scripts/announceRelease.ts"
+    "announce:release": "tsx src/scripts/announceRelease.ts",
+    "staging:migrate": "tsx src/scripts/staging/stagingMigrate.ts",
+    "staging:seed-reference": "tsx src/scripts/staging/stagingSeedReference.ts",
+    "staging:seed-group": "tsx src/scripts/staging/stagingSeedGroup.ts",
+    "staging:schema-diff": "tsx src/scripts/staging/stagingSchemaDiff.ts"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",

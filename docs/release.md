@@ -122,6 +122,9 @@ stället för mot prod-databasen:
   webhook, och avstämningen har inga kopplade användare att gå igenom. Strava-flöden provas med fejkad Strava i
   tester, och rök mot riktig Strava görs bara i prod.
 
+Hur stagingdatabasen byggs om från noll (migrationer, spelregler, testgrupp, schemajämförelse mot prod) står i
+[`docs/staging.md`](staging.md).
+
 Den gamla vägen med `railway run` mot prod-databasen (ovan) finns kvar som alternativ, till exempel när något bara
 går att visa med prod-data.
 
