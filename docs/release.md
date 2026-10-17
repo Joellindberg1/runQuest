@@ -4,8 +4,9 @@ Intern förvaltningsdokumentation (svenska, för Lead och ägaren). Versionsregl
 rollerna och grindarna i `docs/permissions.md`, nuläget och de kritiska flödena i `STATE.md`. Det här dokumentet är
 ordningen: vad som görs, i vilken följd, och vem som säger ja.
 
-Appen har en enda databasmiljö, produktionen (STATE.md, "Verifieringsnivå"). Därför körs previewn mot prod, och
-varje steg som skriver till prod kräver ägarens uttryckliga ja, ett ja per åtgärd. "Ja" betyder ett meddelande
+Produktionen är den enda skarpa databasmiljön (STATE.md, "Verifieringsnivå"); sedan 2026-10-17 finns även staging
+(avsnittet "Preview på staging" nedan). Previewn kan köras mot prod, och varje steg som skriver till prod kräver
+ägarens uttryckliga ja, ett ja per åtgärd. "Ja" betyder ett meddelande
 från ägaren i chatten; ett agentmeddelande räknas aldrig som ja.
 
 ## Stegen
@@ -13,7 +14,7 @@ från ägaren i chatten; ett agentmeddelande räknas aldrig som ja.
 | # | Steg | Vem gör | Vem säger ja |
 |---|---|---|---|
 | 1 | Release-PR och versionsbump | Lead (builders levererar) | – |
-| 2 | Preview mot prod, med loggning före och återställning efter | Lead | Ägaren: "kör vidare" |
+| 2 | Preview på staging (migrationerna först), eller mot prod med loggning före och återställning efter | Lead | Ägaren: "kör vidare" |
 | 3 | PR mot `main`, grön CI, merge (= deploy) | Lead utför mekaniskt | Ägaren (samma "kör vidare") |
 | 4 | Rök mot de kritiska flödena | Lead | – |
 | 5 | Migrationer | Lead via MCP `apply_migration` | Ägaren, ett ja per migration |
@@ -80,9 +81,35 @@ stället för mot prod-databasen:
 
 - Backend: `https://runquest-backend-staging-staging.up.railway.app`
 - Frontend: `https://runquest-frontend-staging-staging.up.railway.app`
+- **Staging följer integrationsbranchen `integration/<version>`.** Båda stagingtjänsterna deployar den automatiskt vid
+  push (v0.8.0: `integration/v0.8.0`), så previewn är alltid integrationsbranchens senaste commit. Prod berörs inte:
+  produktionstjänsterna deployar bara `main`. När versionen släpps pekar Lead om stagingtjänsterna till nästa
+  `integration/<version>`-gren.
+- **Staging delar ingen hemlighet med prod.** Varje variabel i stagingmiljön har ett eget värde (egen
+  `JWT_SECRET`, eget Supabase-projekt och egna nycklar, egen `TOKEN_ENCRYPTION_KEY`, egen Sentry-miljö), och ingen
+  hemlighet kopieras från prod. Lead jämför de två variabellistorna före första previewn.
+- **Skydd mot förväxling och utspridning** (RUN-273). Stagingfrontenden byggs med `VITE_APP_ENV=staging`
+  (variabeln sätts bara på stagingtjänsten, aldrig i prod; saknas den, eller har den något annat värde, är bygget ett
+  prodbygge):
+  - En smal röd remsa "STAGING / Test environment" överst på varje sida, även landningen och login. Den är en egen
+    lazy-chunk som bara finns i stagingbygget: prodbygget innehåller varken kod eller CSS för den, så landningens
+    Lighthouse-budget rörs inte.
+  - `<meta name="robots" content="noindex, nofollow">` i `index.html` och en `robots.txt` som blockerar alla
+    sökrobotar (`User-agent: *`, `Disallow: /`). Sitemapen tas bort. Allt sker vid bygget (`apps/frontend/stagingGuard.ts`),
+    eftersom Railpack serverar `apps/frontend/dist` som statiska filer; `public/robots.txt` och `public/sitemap.xml`
+    ändras inte och prodbygget får dem som förut.
+  - Inga utskick når riktiga människor: appen skickar varken mejl, SMS eller push (bara notiser i appen och
+    Pack News-rader i databasen), och Strava är avstängt i staging. Väntelistan sparar en adress men skickar ingen
+    bekräftelse. En riktig e-postadress som skrivs in i stagingformuläret hamnar bara i stagingdatabasen. Skulle ett
+    utskick byggas senare ska det stängas av i staging med en miljöflagga innan det går live (kontrolleras vid
+    previewn).
+  - Kontroll vid previewn: öppna stagingadressen och bekräfta att remsan syns, och att
+    `curl https://runquest-frontend-staging-staging.up.railway.app/robots.txt` ger `Disallow: /`.
 - **Migrationer provas i staging före prod.** Release-PR:ens nya migrationer appliceras först på staging-databasen
   (`supabase-staging`), koden provas mot dem, och först därefter söker Lead ägarens ja per migration för prod (steg 5).
-  Prod-regeln om ett ja per migration ändras inte, och staging kräver inget ägar-ja.
+  Prod-regeln om ett ja per migration ändras inte, och staging kräver inget ägar-ja. Skripten för att läsa, återställa
+  och seeda stagingdatabasen (`staging:*`, RUN-272) hör till samma kedja; de finns i repot först när RUN-272 är
+  integrerad, och tills dess görs stagingstegen via MCP-servern `supabase-staging`.
 - Fällan om förbrukade popuper ovan gäller inte staging: det är en annan databas, så ägarens `user_seen_items` och
   `user_badges` i prod rörs inte och ingen loggning eller återställning behövs.
 - **Strava är avstängt i staging** (Stravas prenumerationskrav; ägarbeslut 2026-10-17): ingen koppling, ingen

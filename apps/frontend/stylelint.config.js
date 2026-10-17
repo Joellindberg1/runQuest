@@ -150,6 +150,11 @@ export default {
         extraRules: { "declaration-no-important": [true, { message: "landingFilm.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }] },
       }),
     },
+    {
+      // Stagingbannern (v0.8.0): ingen rörelse, inga egna custom properties; lagret är bara dess egen token, ovanför de sticky sidhuvudena.
+      files: ["src/app-shell/staging-banner.css"],
+      rules: designRules({ zIndex: ["/^var\\(--rq-z-staging-banner\\)$/"] }),
+    },
     { files: ["src/features/admin/admin.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-form-gap"] }) },
     {
       // Chippet "Paused" (RUN-241) är neutral bläck och aldrig silver (silver = placering 2): inget i den här filen läser rangfärgerna.

@@ -789,6 +789,8 @@
   --rq-z-popover-over-modal: 67;
   /* Landingens fasta header: ovanför innehållet och dekoren, under skalets lager (.rq-scrim 65, .rq-modal/.rq-sheet 66), så inloggningsdialogen ritas över den. */
   --rq-z-landing-header: 20;
+  /* Stagingbannern (v0.8.0, app-shell/staging-banner.css): ovanför de sticky sidhuvudena (landing och skal, 20) så remsan aldrig döljs bakom dem, under skalets modallager (65/66). */
+  --rq-z-staging-banner: 25;
   /* Väntelistans kort (RUN-211, landingen): mått ur Landing-designens kort "Start a pack in a minute", ombyggt till ett e-postfält. Mobil = standard (en kolumn; designen saknar mobil), desktop skriver över i avsnitt 2. Konsument: features/landing/landingWaitlist.css. */
   --rq-landing-waitlist-pad:       24px 20px;                         /* kortets inre marginal (desktop 44 40) */
   --rq-landing-waitlist-title-size: 34px;                             /* Bebas-rubriken (desktop 56) */
