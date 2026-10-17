@@ -59,15 +59,17 @@ export async function stravaFetch(url: string, init?: RequestInit): Promise<Resp
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    controller.abort();
+    controller.abort(new StravaTimeoutError());
   }, timeoutFor(url));
   // A finished call must not keep the process alive for the rest of the timeout.
   timer.unref?.();
 
   const callerSignal = init?.signal;
+  const forwardAbort = () => controller.abort(callerSignal?.reason);
   if (callerSignal) {
     if (callerSignal.aborted) controller.abort(callerSignal.reason);
-    else callerSignal.addEventListener('abort', () => controller.abort(callerSignal.reason), { once: true });
+    // Stays while the body is read, so the caller's abort still reaches that; only a failed call lets go of it here.
+    else callerSignal.addEventListener('abort', forwardAbort, { once: true });
   }
 
   let response: Response;
@@ -75,6 +77,7 @@ export async function stravaFetch(url: string, init?: RequestInit): Promise<Resp
     response = await fetch(url, { ...init, signal: controller.signal });
   } catch (error) {
     clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', forwardAbort);
     if (timedOut) throw new StravaTimeoutError();
     throw error;
   }
@@ -195,18 +198,20 @@ async function rowHoldsRefreshToken(userId: string, refreshToken: string): Promi
 
 // The refresh in progress per user. Strava rotates the refresh token, so two refreshes at once (the webhook worker, the backup poll and
 // the user's own sync can all find the token expired) would make the second ask with a token the first has already replaced. Callers
-// that arrive meanwhile wait for the same answer instead. Per process: the backend runs as one instance.
+// that arrive meanwhile wait for the same answer instead. Keyed on the refresh token as well: a caller that holds another one (the
+// user reconnected meanwhile) must not be given the answer of a refresh made with the old one. Per process: the backend runs as one instance.
 const refreshesInProgress = new Map<string, Promise<RefreshOutcome>>();
 
 function refreshStravaToken(refreshToken: string, userId: string): Promise<RefreshOutcome> {
-  const running = refreshesInProgress.get(userId);
+  const key = `${userId}:${refreshToken}`;
+  const running = refreshesInProgress.get(key);
   if (running) return running;
 
   // Removed when it ends, whatever the outcome, so the next call asks Strava again.
   const started: Promise<RefreshOutcome> = requestNewTokens(refreshToken, userId).finally(() => {
-    if (refreshesInProgress.get(userId) === started) refreshesInProgress.delete(userId);
+    if (refreshesInProgress.get(key) === started) refreshesInProgress.delete(key);
   });
-  refreshesInProgress.set(userId, started);
+  refreshesInProgress.set(key, started);
   return started;
 }
 

@@ -585,6 +585,45 @@ describe('timeouts and the shared token refresh', () => {
     expect(await outcome).toBe('caller gave up');
   });
 
+  it('a timeout while reading the body is reported as a timeout', async () => {
+    vi.useFakeTimers();
+    // Headers arrive at once; the body then stalls and only ends (with the abort reason) when the signal is aborted.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const signal = init?.signal;
+      const body = new ReadableStream({ start(controller) { signal?.addEventListener('abort', () => controller.error(signal.reason)); } });
+      return new Response(body, { status: 200 });
+    });
+    const response = await stravaFetch(ACTIVITY_URL);
+    const reading = response.json().then(() => 'read', (error: Error) => error.name);
+
+    await vi.advanceTimersByTimeAsync(STRAVA_API_TIMEOUT_MS);
+
+    expect(await reading).toBe('TimeoutError');
+  });
+
+  it('a refresh with a new refresh token does not join an older refresh in progress', async () => {
+    const tokens = (n: string) => new Response(JSON.stringify({ access_token: `${n}-at`, refresh_token: `${n}-rt`, expires_at: 9999999990 }));
+    let releaseOld!: () => void;
+    const oldAnswer = new Promise<void>((resolve) => { releaseOld = resolve; });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(async () => { await oldAnswer; return tokens('old'); })
+      .mockImplementationOnce(async () => tokens('new'));
+    const { t } = use([{ ...TOKEN_ROW, expires_at: 100 }]);
+
+    const older = getValidAccessToken('user-1');
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    // The user reconnects while the old refresh is under way: the row now holds another refresh token.
+    t.strava_tokens.splice(0, 1, { ...TOKEN_ROW, access_token: 'reconnect-at', refresh_token: 'reconnect-rt', expires_at: 100 });
+    const newer = await getValidAccessToken('user-1');
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetchSpy.mock.calls[1][1]?.body))).toMatchObject({ refresh_token: 'reconnect-rt' });
+    expect(newer).toMatchObject({ ok: true, accessToken: 'new-at' });
+    releaseOld();
+    expect(await older).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(t.strava_tokens[0]).toMatchObject({ refresh_token: 'new-rt' });
+  });
+
   it('a timed-out token refresh is not classified as refresh_rejected', async () => {
     vi.useFakeTimers();
     const fetchSpy = hangingFetch();
