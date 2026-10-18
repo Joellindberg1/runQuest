@@ -42,7 +42,7 @@ import {
   type TokenKeyConfig,
   type TokenRewriteOutcome,
 } from '../services/stravaTokenStore.js';
-import { supabaseHost } from './backfillActivityLog.js';
+import { supabaseHost } from './lib/supabaseHost.js';
 import { missingStravaCredentials } from './backfillStravaAthleteIds.js';
 
 export interface BackfillOptions {

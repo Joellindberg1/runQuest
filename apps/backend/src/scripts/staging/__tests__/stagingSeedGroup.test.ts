@@ -100,9 +100,15 @@ describe('seed-group', () => {
     const sql = String(staging.api.writes()[0].body?.query);
     expect(sql.startsWith('begin;') && sql.endsWith('commit;')).toBe(true);
     expect(sql.match(/insert into public\.users/g)).toHaveLength(4);
-    expect(sql.match(/, true, '/g)).toHaveLength(1);
-    expect(sql).toMatch(/update public\.groups set owner_id = '[0-9a-f-]{36}' where id = /);
+    expect(sql.match(/, true\);/g)).toHaveLength(1);
+    // The group, the admin membership and the pointer come from the database functions of migration 053, not from rows written here.
+    expect(sql).not.toMatch(/insert into public\.(groups|group_members)|group_id|update public\./);
+    expect(sql.match(/select public\.create_group_with_admin\(/g)).toHaveLength(1);
+    expect(sql.match(/select public\.join_group\(/g)).toHaveLength(3);
+    expect(sql).toMatch(/select public\.create_group_with_admin\('Staging Pack', '[^']+', '[0-9a-f-]{36}', '\d{4}-\d{2}-\d{2}'\);/);
+    expect(sql).toMatch(/, 'member', '\d{4}-\d{2}-\d{2}'\);/);
     expect(TEST_PEOPLE.filter((p) => p.admin)).toHaveLength(1);
+    expect(TEST_PEOPLE[0].admin).toBe(true); // the first person is the one who creates the group
     expect(TEST_PEOPLE.every((p) => p.email.endsWith('@staging.runquest.test'))).toBe(true);
   });
 
@@ -196,9 +202,33 @@ describe('seed-group', () => {
   });
 
   it('escapes quotes in what it puts into the SQL', () => {
-    const sql = buildSeedGroupSql({ groupId: 'g', userIds: ['a', 'b', 'c', 'd'], inviteCode: "ST'G", passwordHash: "ha'sh" });
+    const sql = buildSeedGroupSql({ userIds: ['a', 'b', 'c', 'd'], inviteCode: "ST'G", passwordHash: "ha'sh", today: '2026-10-18' });
     expect(sql).toContain("'ST''G'");
     expect(sql).toContain("'ha''sh'");
+  });
+
+  it('makes the first person the group creator and the other three members, all joined on the given day', () => {
+    const ids = ['a-admin', 'b', 'c', 'd'];
+    const sql = buildSeedGroupSql({ userIds: ids, inviteCode: 'STGCODE', passwordHash: 'h', today: '2026-10-18' });
+    expect(sql).toContain("select public.create_group_with_admin('Staging Pack', 'STGCODE', 'a-admin', '2026-10-18');");
+    for (const id of ids.slice(1)) {
+      expect(sql).toContain(`select public.join_group('${id}', (select id from public.groups where invite_code = 'STGCODE'), 'member', '2026-10-18');`);
+    }
+    expect(sql).not.toContain("join_group('a-admin'");
+  });
+
+  it('runs the statements in the order the database needs: users, then the group, then the joins', () => {
+    const sql = buildSeedGroupSql({ userIds: ['a', 'b', 'c', 'd'], inviteCode: 'STGCODE', passwordHash: 'h', today: '2026-10-18' });
+    const at = (needle: string, from = 0) => sql.indexOf(needle, from);
+    const lastUserInsert = sql.lastIndexOf('insert into public.users');
+    const create = at('select public.create_group_with_admin(');
+    const firstJoin = at('select public.join_group(');
+    // The joins look the group up by its invite code, and the creator must exist as a user before the group is made.
+    expect(lastUserInsert).toBeGreaterThan(-1);
+    expect(create).toBeGreaterThan(lastUserInsert);
+    expect(firstJoin).toBeGreaterThan(create);
+    expect(sql.startsWith('begin;')).toBe(true);
+    expect(sql.endsWith('commit;')).toBe(true);
   });
 
   it('puts the default seed file in the repo root under the git-ignored name', () => {

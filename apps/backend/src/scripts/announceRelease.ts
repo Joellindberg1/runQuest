@@ -42,7 +42,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { getSupabaseClient } from '../config/database.js';
 import { ACTIVITY_LOG_TABLE, recordActivities } from '../services/activityLog.js';
-import { supabaseHost } from './backfillActivityLog.js';
+import { supabaseHost } from './lib/supabaseHost.js';
 import { probeActivityType } from './lib/activityTypeProbe.js';
 import { activityKeys, buildReleasePublishedDraft, type ActivityDraft } from '@runquest/shared';
 

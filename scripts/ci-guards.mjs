@@ -365,12 +365,6 @@ export function checkGroupRoleMapping(files) {
   return errors;
 }
 
-// Filer som får skriva users.group_id trots regel 14, med skäl. Varje rad ska försvinna när skälet är borta.
-const USERS_GROUP_ID_EXEMPT_FILES = new Map([
-  // Seedar stagingens låtsasgrupp med rå SQL som sätter users.group_id utan medlemskap. Ersätts av scripts/createGroup.ts (ADR 012 S12),
-  // som anropar create_group_with_admin; ta bort raden då.
-  ['apps/backend/src/scripts/staging/stagingSeedGroup.ts', 'staging-seed skriver SQL direkt; ersätts av create_group_with_admin (ADR 012 S12)'],
-]);
 const USERS_FROM = /\.from\(\s*(['"`])users\1\s*\)/g;
 // `group_id` som nyckel i ett objektliteral: `{ group_id: x`, `, group_id }` (shorthand), `{ 'group_id': x`, `{ ["group_id"]: x`.
 // Värdesidan (`{ name: group_id }`) räknas inte: nyckeln måste stå direkt efter `{` eller `,`.
@@ -393,7 +387,7 @@ const USERS_SQL_INSERT = /\binsert\s+into\s+(?:"?public"?\.)?"?users"?\s*\(([^)]
 export function checkUsersGroupIdWrites(files) {
   const errors = [];
   for (const { path, content } of files) {
-    if (!BACKEND_SOURCE.test(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path) || USERS_GROUP_ID_EXEMPT_FILES.has(path)) continue;
+    if (!BACKEND_SOURCE.test(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
     const code = withoutComments(content);
     const lines = new Set();
     const lineAt = (index) => code.slice(0, index).split(/\r?\n/).length;
