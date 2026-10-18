@@ -5,6 +5,8 @@
 // "Pause sync". Den når main först med v0.7.0-releasen. Varje påstående ska gå att peka mot kod eller ett ägarbeslut; ändras beteendet
 // ändras texten OCH DATA_POLICY_VERSION (snapshotvakten i dataPolicy.test.ts). Knappnamnen är appens egna ("Disconnect", "Pause sync",
 // "Turn sync back on"); "Pause or disconnect" är popupens rubrik och används inte som knappnamn.
+// v0.8.0 (RUN-293): avsnitten 'statistics' (Umami) och 'errors' (Sentry) beskriver vad koden skickar (observability/scrub.ts i backend,
+// shared/observability/ i frontend). Umami-uppgifterna kommer från ägarbeslut och RUN-290..292; regionen är en platshållare tills ägaren fyllt i den.
 // Språk: engelska, klartext. Ingen HTML och ingen markdown i styckena.
 
 import { WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '../rules.js';
@@ -29,7 +31,13 @@ export interface LegalDocument {
 }
 
 /** Version av integritetstexten, 'YYYY-MM-DD[.N]'. Höjs vid varje innehållsändring. Väntelistans samtyckesversion är samma värde. */
-export const DATA_POLICY_VERSION = '2026-10-14.1';
+export const DATA_POLICY_VERSION = '2026-10-18';
+
+/**
+ * Var Umami Cloud lagrar statistiken. PLATSHÅLLARE: ägaren kontrollerar regionen i Umami-kontot och skriver in den (t.ex. "the EU")
+ * före release. Repot säger inte var, så ingen region får antas här. Ändringen höjer versionen igen (snapshotvakten).
+ */
+const UMAMI_DATA_LOCATION = '[REGION: the owner fills in where Umami Cloud stores the data, before release]';
 
 /** Personuppgiftsansvarig (ägarbeslut 2026-10-13, publik visning godkänd av ägaren). */
 export const DATA_CONTROLLER: DataController = {
@@ -180,7 +188,34 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     paragraphs: [
       'RunQuest sets no cookies.',
       "When you log in, a login token and basic account details (id, username, email and admin status) are kept in your browser's local storage so that you stay logged in. This storage is strictly necessary for logging in and is removed when you log out. A timestamp in session storage stops the page from reloading in a loop after an update.",
-      'RunQuest uses no web analytics, advertising or tracking tools.',
+      'RunQuest uses no advertising and no tools that follow you between sites. Visitor statistics (Umami) and error reports (Sentry) are described in the next two sections.',
+    ],
+  },
+  {
+    id: 'statistics',
+    title: 'Visitor statistics (Umami)',
+    paragraphs: [
+      'RunQuest counts visits with Umami Cloud, a visitor statistics service that uses no cookies. It is loaded only on the live site, not while the app is built or tested.',
+      'What is counted is which page was opened, as the page type and never the exact address (for example /runner/:id for a runner card), together with the kind of browser, operating system and device and the country, which Umami works out from the request. The address never carries a query or a fragment into the statistics, with one exception: campaign tags in the link to the landing page (such as utm_source) are counted there, so that RunQuest can see which links bring visitors.',
+      'Nothing that identifies you is sent: no user ID, no name, no email address and nothing about your runs or your Strava data. A visit is not linked to your account.',
+      'Your IP address reaches Umami as part of every request, as with any web page; according to Umami it is not stored.',
+      'A few actions in the app are counted as events; an event carries only a value from a fixed list, never text you typed or anything about you or your runs.',
+      'If your browser sends the Do Not Track signal, nothing is counted.',
+      `The statistics are used only to see how many people visit and which pages are used. Umami Cloud stores the statistics in ${UMAMI_DATA_LOCATION}.`,
+    ],
+  },
+  {
+    id: 'errors',
+    title: 'Error reports (Sentry)',
+    paragraphs: [
+      'When something breaks in the app or on the server, a report is sent to Sentry so that the error can be found and fixed. In the app, reporting starts when you log in.',
+      'A report holds the type of error, its message, where in the code it happened, the version of RunQuest, the kind of browser and operating system, and the name of the page or route (such as /runner/:id), never an address with an ID, a query or a fragment.',
+      'Reports do not hold your name, email address or tokens. RunQuest does not attach them, and it removes email addresses, tokens and passwords it finds in the text of a report before the report is sent.',
+      'RunQuest adds no cookies, no request contents and no IP address to a report.',
+      'A report about an error on the server can carry your RunQuest user ID, an internal identifier that is not your name or email, so that the fault can be traced.',
+      'To follow how fast the app is, Sentry also receives timings for a sample of page loads and server requests (at most one in ten), labelled with the page name or route and never with an ID.',
+      'There are no session recordings.',
+      'Sentry stores the reports in the EU, in its German region.',
     ],
   },
   {
@@ -193,6 +228,8 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Supabase provides the database and the file storage for profile pictures. All stored data described on this page, including the waitlist, lives there.',
       'Strava is where your runs come from. Strava\'s own terms and privacy policy apply to your data there.',
       'Open-Meteo receives the start coordinates and time of a run and returns the weather.',
+      'Umami Cloud counts visits and provides the visitor statistics. It receives page types, never user IDs or names.',
+      'Sentry receives the error reports and stores them in the EU.',
       'Vercel provides DNS for runquest.dev, which turns the domain name into an address. It does not host RunQuest.',
     ],
   },
@@ -206,6 +243,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Notification settings are kept as long as your account exists. The read marks for Pack News rows are cleared when you mark all as read.',
       'Waitlist entries are kept as described in the Waitlist section.',
       'Server logs are kept by the hosting provider under its own rules.',
+      'Visitor statistics and error reports are kept by Umami and Sentry under their own rules.',
     ],
   },
   {

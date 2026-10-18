@@ -19,7 +19,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-14.1', sha256: '4ce90e0d69e15e3018de0518bedb15ab7b817efb019720f37183699ca8abad6b' };
+const PINNED_POLICY = { version: '2026-10-18', sha256: '2184942319a2a984d6370d4951b010cc508c8ec643c6a5876da02c701bf18387' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -274,9 +274,56 @@ describe('dataPolicy', () => {
     expect(text).toMatch(/No email is sent to the waitlist/i);
   });
 
-  it('dataPolicy states that no web analytics or trackers are used', () => {
-    expect(policyText()).toMatch(/no web analytics, advertising or tracking tools/i);
-    expect(policyText()).toMatch(/no cookies/i);
+  it('cookies section says no cookies, no advertising and no cross-site tools, and points to the statistics and error report sections', () => {
+    const text = textOf(getDataPolicySection('cookies'));
+    expectSentence(text, /sets no cookies/i);
+    expectSentence(text, /no advertising/i);
+    expectSentence(text, /visitor statistics/i, /Umami/, /error reports/i, /Sentry/);
+    expect(text).not.toMatch(/no web analytics/i);
+  });
+
+  it('statistics section describes Umami as cookieless, personal-data-free and ID-free, with normalized addresses, Do Not Track and fixed event values', () => {
+    const section = getDataPolicySection('statistics');
+    const text = textOf(section);
+    expectSentence(text, /Umami Cloud/, /no cookies/i);
+    expectSentence(text, /live site/i);
+    expectSentence(text, /page type/i, /never the exact address/i, /\/runner\/:id/);
+    expectSentence(text, /(query|fragment)/i, /utm_source/i, /landing page/i);
+    expectSentence(text, /no user ID/i, /no name/i, /no email address/i, /runs/i);
+    expectSentence(text, /not linked to your account/i);
+    expectSentence(text, /IP address/i, /not stored/i);
+    expectSentence(text, /events/i, /fixed list/i, /never/i);
+    expectSentence(text, /Do Not Track/, /nothing is counted/i);
+  });
+
+  it('statistics section says where Umami stores the data', () => {
+    expectSentence(textOf(getDataPolicySection('statistics')), /Umami Cloud stores the statistics in/i);
+  });
+
+  it('errors section describes Sentry reports without name, email address or tokens, without session recordings, stored in the EU', () => {
+    const text = textOf(getDataPolicySection('errors'));
+    expectSentence(text, /report/i, /Sentry/, /found and fixed/i);
+    expectSentence(text, /after you log in|when you log in/i);
+    expectSentence(text, /do not hold/i, /name/i, /email address/i, /tokens/i);
+    expectSentence(text, /removes? email addresses, tokens and passwords/i);
+    expectSentence(text, /no cookies/i, /no IP address/i);
+    expectSentence(text, /server/i, /user ID/i, /not your name or email/i);
+    expectSentence(text, /one in ten/i, /never with an ID/i);
+    expectSentence(text, /no session recordings/i);
+    expectSentence(text, /Sentry stores/i, /EU/);
+  });
+
+  it('processors and retention sections name Umami and Sentry', () => {
+    const processors = textOf(getDataPolicySection('processors'));
+    expectSentence(processors, /Umami Cloud/, /visitor statistics/i);
+    expectSentence(processors, /Sentry/, /error reports/i, /EU/);
+    expectSentence(textOf(getDataPolicySection('retention')), /Umami/, /Sentry/, /their own rules/i);
+  });
+
+  it('puts the statistics and error report sections right after the cookies section', () => {
+    const ids = DATA_POLICY_SECTIONS.map((section) => section.id);
+    const cookies = ids.indexOf('cookies');
+    expect(ids.slice(cookies, cookies + 3)).toEqual(['cookies', 'statistics', 'errors']);
   });
 
   it('terms section says as is, no warranty, private hobby project and gives the contact address', () => {
