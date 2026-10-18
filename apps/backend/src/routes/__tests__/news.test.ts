@@ -299,6 +299,25 @@ describe('GET /api/news', () => {
       expect(res.body.data.items[0].payload.event_name).toBe('The "Big, {Bad}" run \\ 5k');
     });
 
+    it('involves=me tar med title_taken där jag är låg tvåa och utelämnar någon annans tvåa', async () => {
+      const taken = (id: number, payload: Row, over: Row = {}) =>
+        rowOf(id, { type: 'title_taken', actor_user_id: KARL, target_user_id: LISA, payload, ...over });
+      use(world([
+        taken(1, { title_name: 'A', reason: 'overtaken', runner_up_user_id: ME }),
+        taken(2, { title_name: 'B', reason: 'overtaken', runner_up_user_id: KARL }), // någon annans tvåa
+        taken(3, { title_name: 'C', reason: 'overtaken' }), // utan fältet (äldre rader, ingen tvåa)
+        // Typvakten: fältet räknas bara på title_taken
+        rowOf(4, { type: 'title_unlocked', actor_user_id: KARL, payload: { title_name: 'D', runner_up_user_id: ME } }),
+        taken(5, { title_name: 'E', runner_up_user_id: [ME] }), // en lista är inte ett id
+        taken(6, { title_name: 'F', details: { runner_up_user_id: ME } }), // fel nivå
+        taken(7, { title_name: 'G "Q", {x} \\', reason: 'overtaken', runner_up_user_id: ME }), // specialtecken i payloaden
+      ]));
+      const res = await getMine('/api/news?involves=me');
+
+      expect(res.status).toBe(200);
+      expect(idsOf(res)).toEqual([7, 1]);
+    });
+
     it('involves=me tar med event_closed där jag är deltagare', async () => {
       // Raderna skrivs av den riktiga byggaren, så skrivaren och filtret är bundna till samma format.
       const event = (id: string): EventActivityRow => ({
