@@ -80,6 +80,7 @@ Ordlista (domänterm sv → en; koden är engelsk):
 - notis/notisslag → notification kind (`NOTIFICATION_KINDS`, nyckel `notify.<slag>`) · inställning → setting (`user_settings`) · läst → read (`news_read`) · passerad på tabellen → rank passed (`rank_passed`)
 - Strava-händelse → webhook event (`strava_webhook_events`) · pausa synk → pause sync (`strava_tokens.sync_paused`) · koppla bort → disconnect (`removeStravaConnection`)
 Behörigheter (vem får göra vad mot prod): docs/permissions.md.
+Backup och återställning (vad Pro täcker, vad som saknar backup, övning, RPO/RTO; RUN-288 för export utöver Pro): docs/runbook-backup.md.
 
 ## Sköra zoner
 Ordnade efter risk; verifierade i koden om inget annat anges.

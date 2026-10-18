@@ -221,6 +221,8 @@ Beslutas av ägaren; snabbast först. Varje releases egen "Rollback" i `CHANGELO
 4. **Data som den nya koden skrivit** (t.ex. nya händelsetyper i `activity_log`) kan behöva raderas innan den gamla
    frontenden tas tillbaka. Radering i prod kräver ägar-ja med exakt omfattning.
 5. Railway-variabler ändras bara efter ägar-ja; hemliga värden klistras aldrig i chatten, ägaren lägger in dem i Railway-UI:t.
+6. **Data som gått förlorad** (databasen, profilbilder, hemligheter): koden rullas inte tillbaka för det. Vad Pro-backupen täcker och
+   inte täcker, återställningsövningen och RPO/RTO står i [`docs/runbook-backup.md`](runbook-backup.md).
 
 ## Interna versioner (fyra delar, `0.6.1.1`)
 
