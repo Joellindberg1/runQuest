@@ -15,7 +15,7 @@ vi.mock('../../services/levelService.js', () => ({ getLevelFromXP: vi.fn(async (
 vi.mock('../../services/challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
 vi.mock('../../services/badgeService.js', () => ({ evaluateBadges: vi.fn(async () => null) }));
 vi.mock('../../services/enhancedTitleService.js', () => ({
-  EnhancedTitleService: class { processAllUsersTitles = vi.fn(async () => undefined); processUserTitlesAfterRun = vi.fn(async () => undefined); },
+  EnhancedTitleService: class { processGroupTitles = vi.fn(async () => undefined); processUserTitlesAfterRun = vi.fn(async () => undefined); },
 }));
 
 import { getSupabaseClient } from '../../config/database.js';

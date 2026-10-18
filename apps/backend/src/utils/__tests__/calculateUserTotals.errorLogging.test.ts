@@ -14,14 +14,13 @@ vi.mock('../../config/database.js', () => ({
 const mocks = vi.hoisted(() => ({
   getLevelFromXP: vi.fn(async (xp: number) => (xp >= 50 ? 2 : 1)),
   evaluateBadges: vi.fn(async () => null),
-  processAllUsersTitles: vi.fn(async () => undefined),
-  processUserTitlesAfterRun: vi.fn(async () => undefined),
+  processGroupTitles: vi.fn(async () => undefined),
 }));
 vi.mock('../../services/levelService.js', () => ({ getLevelFromXP: mocks.getLevelFromXP }));
 vi.mock('../../services/challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
 vi.mock('../../services/badgeService.js', () => ({ evaluateBadges: mocks.evaluateBadges }));
 vi.mock('../../services/enhancedTitleService.js', () => ({
-  EnhancedTitleService: class { processAllUsersTitles = mocks.processAllUsersTitles; processUserTitlesAfterRun = mocks.processUserTitlesAfterRun; },
+  EnhancedTitleService: class { processGroupTitles = mocks.processGroupTitles; },
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
@@ -36,6 +35,7 @@ const thrown = () => Object.assign(new Error(`socket hang up near ${LEAK}`), { c
 const tables = (groupId: string | null = 'g1'): Record<string, Row[]> => ({
   activity_log: [],
   users: [{ id: 'u1', group_id: groupId, event_xp: 0, current_level: 1, total_km: 0, total_xp: 10, current_streak: 0, longest_streak: 0 }],
+  group_members: groupId ? [{ id: 'm1', user_id: 'u1', group_id: groupId, role: 'member', starts_on: null, left_at: null }] : [],
   runs: [{ id: 'r1', user_id: 'u1', date: '2020-01-01', distance: 10, xp_gained: 60 }],
 });
 
@@ -79,8 +79,8 @@ describe('calculateUserTotals when the database returns an error', () => {
   it.each([
     ['the runs read', 'g1', { failWhen: (q: RecordedQuery) => (totalsRead(q) ? dbError() : null) }],
     ['the totals write', 'g1', { failWhen: (q: RecordedQuery) => (totalsWrite(q) ? dbError() : null) }],
-    ['the title leaderboard refresh', 'g1', { rpc: { update_all_title_leaderboards: () => ({ error: dbError() }) } }],
-    ['the title leaderboard refresh without a group', null, { rpc: { update_all_title_leaderboards: () => ({ error: dbError() }) } }],
+    ['the title leaderboard refresh', 'g1', { rpc: { update_group_title_leaderboards: () => ({ error: dbError() }) } }],
+    ['the membership read', 'g1', { failWhen: (q: RecordedQuery) => (q.table === 'group_members' ? dbError() : null) }],
   ])('logs and reports only the error code (%s)', async (_label, groupId, options) => {
     useDb(groupId, options as never);
     await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
@@ -91,8 +91,7 @@ describe('calculateUserTotals when the database returns an error', () => {
 describe('calculateUserTotals when a step throws', () => {
   it.each([
     ['the badge evaluation', 'g1', () => mocks.evaluateBadges.mockRejectedValueOnce(thrown())],
-    ['the group title run', 'g1', () => mocks.processAllUsersTitles.mockRejectedValueOnce(thrown())],
-    ['the own title run', null, () => mocks.processUserTitlesAfterRun.mockRejectedValueOnce(thrown())],
+    ['the group title run', 'g1', () => mocks.processGroupTitles.mockRejectedValueOnce(thrown())],
     ['the level lookup', 'g1', () => mocks.getLevelFromXP.mockRejectedValueOnce(thrown())],
   ])('logs and reports only the error code (%s)', async (_label, groupId, arrange) => {
     arrange();

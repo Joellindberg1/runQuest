@@ -118,7 +118,7 @@ describe('Titles — säsongstitlar och när titlarna räknas om', () => {
     const dir = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../backend/src/scheduler');
     const files = readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith('.ts') && !/\.test\.ts$/.test(entry.name)).map((entry) => entry.name);
     expect(files).toEqual(expect.arrayContaining(['eventScheduler.ts', 'streakScheduler.ts', 'challengeScheduler.ts', 'stravaSync.ts']));
-    const RECALC = /calculateUserTotals|processAllUsersTitles|EnhancedTitleService|enhancedTitleService|titleLeaderboardService/;
+    const RECALC = /calculateUserTotals|processGroupTitles|processAllGroupsTitles|EnhancedTitleService|enhancedTitleService|titleLeaderboardService/;
     // stravaSync.ts (omräkningen bara efter väder-backfill som sparade rader, aldrig calculateUserTotals) läses inte som text här:
     // scheduler/__tests__/stravaSync.test.ts och stravaSyncSchedule.test.ts prövar det som beteende.
     for (const name of files.filter((candidate) => candidate !== 'stravaSync.ts')) {
@@ -132,7 +132,7 @@ describe('Titles — säsongstitlar och när titlarna räknas om', () => {
     // Strava-synken (väder hämtas före omräkningen) läses inte som text här: routes/__tests__/strava-import-rules.test.ts prövar ordningen.
     const service = backend('src/services/enhancedTitleService.ts');
     expect(service).toContain('const ctx: TitleContext = { now: new Date() };');
-    expect(backend('src/utils/calculateUserTotals.ts')).toContain('await titleService.processAllUsersTitles(userGroupId);');
+    expect(backend('src/utils/calculateUserTotals.ts')).toContain('await titleService.processGroupTitles(groupId);');
     const titles = text('titles');
     expect(titles).toMatch(/doesn’t start at midnight on 1 December/);
     expect(titles).toMatch(/the first time the titles are updated after that, which is normally when the next run is logged or synced from Strava/);

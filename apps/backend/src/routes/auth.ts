@@ -13,6 +13,7 @@ import { compareXpStandings } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { joinGroup } from '../utils/membership.js';
+import { rebuildGroupRankingAfterJoin } from '../services/groupRanking.js';
 
 const router = express.Router();
 
@@ -317,6 +318,9 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       logger.error(`❌ Error adding new user ${newUser.id} to the group (${errorCode(joinError)})${cleanupError ? `; the user could not be removed again (${errorCode(cleanupError)})` : ''}`);
       res.status(500).json({ error: 'Failed to create user' }); return;
     }
+
+    // Gruppens ranking byggs om efter en lyckad join (ADR 012 beslut 2.4), utan titelnyheter. Ett fel fäller inte kontot: medlemskapet är sparat.
+    await rebuildGroupRankingAfterJoin(groupId, supabase);
 
     logger.info(`🎉 Successfully created user ${newUser.id}`);
 

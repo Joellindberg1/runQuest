@@ -57,6 +57,14 @@ function use(tables: Record<string, Row[]>, options: FakeDbOptions = {}, beforeR
   return { tables: state, calls, queries: db.queries };
 }
 
+/** Fejkar rpc update_group_title_leaderboards och samlar anropen (i ordning med join_group via samma lista). */
+function rebuildRpc(order: string[] = [], result: { error?: { code: string; message: string } } = {}): NonNullable<FakeDbOptions['rpc']> {
+  return {
+    update_group_title_leaderboards: (args: any) => { order.push('rebuild:' + args.p_group_id); return result.error ? { error: result.error } : { data: null }; },
+    update_all_title_leaderboards: () => { order.push('rebuild:ALL'); return { data: null }; },
+  };
+}
+
 const groups = (): Row[] => [
   { id: G1, name: 'Crew', invite_code: INVITE, owner_id: 'owner-1', created_at: '2026-01-01T00:00:00Z' },
   { id: G2, name: 'Other crew', invite_code: 'OTHER99', owner_id: 'owner-2', created_at: '2026-01-02T00:00:00Z' },
@@ -146,6 +154,53 @@ describe('POST /api/groups/join', () => {
     await join(INVITE);
 
     expect(queries.filter((q) => q.table === 'users' && q.mutation)).toEqual([]);
+  });
+
+  it('rebuilds the ranking of the joined group, and only that group, after join_group succeeded', async () => {
+    const order: string[] = [];
+    use({ groups: groups(), users: [{ id: 'user-1', group_id: null }] }, {
+      rpc: rebuildRpc(order),
+    }, (name) => { order.push(name); });
+
+    const res = await join(INVITE);
+
+    expect(res.status).toBe(200);
+    expect(order).toEqual(['join_group', 'rebuild:' + G1]);
+  });
+
+  it('gives no title news for the rebuild: no activity is written and no holders are read', async () => {
+    const { queries } = use({ groups: groups(), users: [{ id: 'user-1', group_id: null }], activity_log: [], title_leaderboard: [] }, { rpc: rebuildRpc() });
+
+    const res = await join(INVITE);
+
+    expect(res.status).toBe(200);
+    expect(queries.filter((q) => q.table === 'activity_log' || q.table === 'title_leaderboard')).toEqual([]);
+  });
+
+  it('still answers 200 and logs only the code when the ranking rebuild fails (the membership is already saved)', async () => {
+    const { tables } = use({ groups: groups(), users: [{ id: 'user-1', group_id: null }] }, {
+      rpc: rebuildRpc([], { error: { code: '40P01', message: `deadlock ${INVITE} jane@example.com` } }),
+    });
+
+    const res = await join(INVITE);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(tables.group_members).toHaveLength(1);
+    expect(logged.join('\n')).toContain('40P01');
+    expect(logged.join('\n')).not.toMatch(new RegExp(INVITE + '|jane@example.com', 'i'));
+  });
+
+  it.each([
+    ['an active membership (409)', { groups: groups(), users: [{ id: 'user-1', group_id: G2 }], group_members: [member('user-1', G2, 'member')] }, undefined],
+    ['a join_group failure (500)', { groups: groups(), users: [{ id: 'user-1', group_id: null }] }, { code: '40P01', message: 'deadlock' }],
+  ])('does not rebuild any ranking after %s', async (_label, tables, joinError) => {
+    const order: string[] = [];
+    use(tables as Record<string, Row[]>, { rpc: { ...rebuildRpc(order), ...(joinError ? { join_group: () => ({ error: joinError }) } : {}) } });
+
+    await join(INVITE, mintToken({ user_id: 'user-1', group_id: null }));
+
+    expect(order).toEqual([]);
   });
 
   it('answers 404 for an unknown invite code and does not call join_group', async () => {
@@ -280,6 +335,37 @@ describe('POST /api/auth/users', () => {
     expect(calls).toEqual([{ name: 'join_group', args: { p_user_id: created.id, p_group_id: G1, p_role: 'member', p_today: '2026-07-01' } }]);
     expect(tables.group_members.find((m) => m.user_id === created.id)).toMatchObject({ group_id: G1, role: 'member', starts_on: null, left_at: null });
     expect(created.group_id).toBe(G1);
+  });
+
+  it('rebuilds the ranking of the admin group after the join, without title news', async () => {
+    const order: string[] = [];
+    const { queries } = use({ ...base(), activity_log: [], title_leaderboard: [] }, { rpc: rebuildRpc(order) }, (name) => { order.push(name); });
+
+    const res = await create();
+
+    expect(res.status).toBe(200);
+    expect(order).toEqual(['join_group', 'rebuild:' + G1]);
+    expect(queries.filter((q) => q.table === 'activity_log' || q.table === 'title_leaderboard')).toEqual([]);
+  });
+
+  it('still answers 200 and logs only the code when the ranking rebuild fails', async () => {
+    use(base(), { rpc: rebuildRpc([], { error: { code: '40P01', message: 'deadlock for newbie@example.com' } }) });
+
+    const res = await create();
+
+    expect(res.status).toBe(200);
+    expect(logged.join('\n')).toContain('40P01');
+    expect(logged.join('\n')).not.toContain('newbie@example.com');
+  });
+
+  it('does not rebuild any ranking when join_group fails', async () => {
+    const order: string[] = [];
+    use(base(), { rpc: { ...rebuildRpc(order), join_group: () => ({ error: { code: '40P01', message: 'deadlock' } }) } });
+
+    const res = await create();
+
+    expect(res.status).toBe(500);
+    expect(order).toEqual([]);
   });
 
   it('does not set group_id itself when it creates the row', async () => {

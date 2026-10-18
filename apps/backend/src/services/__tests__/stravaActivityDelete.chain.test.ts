@@ -37,7 +37,7 @@ vi.mock('../badgeService.js', async (importOriginal) => {
 vi.mock('../challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
 vi.mock('../enhancedTitleService.js', () => ({
   EnhancedTitleService: class {
-    processAllUsersTitles = vi.fn(async () => undefined);
+    processGroupTitles = vi.fn(async () => undefined);
     processUserTitlesAfterRun = vi.fn(async () => undefined);
   },
 }));
