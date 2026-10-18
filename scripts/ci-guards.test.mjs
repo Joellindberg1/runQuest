@@ -23,6 +23,7 @@ import {
   checkRawStravaFetch,
   checkTestNames,
   checkTodos,
+  checkUsersGroupIdWrites,
   isEntryPoint,
   listWorkspaces,
   walkFiles,
@@ -268,6 +269,95 @@ describe('checkGroupRoleMapping', () => {
     assert.equal(scan(bad, 'apps/frontend/src/features/groups/groupModel.ts').length, 1);
     assert.equal(scan(bad, 'packages/shared/src/other.ts').length, 1);
     assert.deepEqual(scan(bad, 'apps/backend/migrations/x.ts'), []);
+  });
+});
+
+describe('checkUsersGroupIdWrites', () => {
+  const scan = (content, path = 'apps/backend/src/routes/groups.ts') => checkUsersGroupIdWrites([{ path, content }]);
+
+  it('flags a supabase-js write to users that sets group_id, with or without other fields', () => {
+    for (const code of [
+      "await supabase.from('users').update({ group_id: group.id }).eq('id', userId);",
+      "await supabase.from('users').update({ name, group_id: groupId, total_xp: 0 }).eq('id', userId);",
+      "await supabase.from('users').update({\n  name,\n  group_id: groupId,\n}).eq('id', userId);",
+      "await db.from('users').update({ group_id }).eq('id', id);",
+      "await db.from('users').update({ total_xp: 0, group_id }).eq('id', id);",
+      "await db.from('users').update({ 'group_id': groupId }).eq('id', id);",
+      'await db.from("users").update({ ["group_id"]: groupId }).eq("id", id);',
+      "await db.from('users').insert({ name, email, group_id: groupId }).select('id').single();",
+      "await db.from('users').insert([{ name: 'a', group_id: groupId }, { name: 'b' }]);",
+      "await db.from('users').upsert({ id, group_id: groupId }, { onConflict: 'id' });",
+      "await db\n  .from('users')\n  .update({ group_id: null })\n  .in('id', ids);",
+      "await db.from(`users`).update({ group_id: null }).eq('id', id);",
+    ]) {
+      const errors = scan(code);
+      assert.equal(errors.length, 1, code);
+      assert.match(errors[0], /apps\/backend\/src\/routes\/groups\.ts:\d+: .*join_group/);
+    }
+  });
+
+  it('flags SQL text that updates or inserts users.group_id', () => {
+    for (const code of [
+      'await client.query("update public.users set group_id = $1 where id = $2");',
+      'const sql = `update users set name = $1, group_id = $2 where id = $3`;',
+      "const sql = 'UPDATE public.users u SET group_id = null WHERE u.id = 1';",
+      "sql += `insert into public.users (id, name, email, password_hash, is_admin, group_id) values ($1, $2, $3, $4, $5, $6);`;",
+      "const sql = 'insert into users (id, group_id) values (1, 2)';",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('passes writes that do not set group_id and reads of group_id', () => {
+    for (const code of [
+      "await supabase.from('users').update({ password_hash }).eq('id', id);",
+      "await supabase.from('users').update({ news_last_seen_id: target }).eq('id', id);",
+      "await supabase.from('users').update(update).eq('id', user.id);",
+      "await supabase.from('users').select('id, group_id').eq('group_id', groupId);",
+      "await supabase.from('users').update({ challenge_active: false }).eq('group_id', groupId);",
+      "await supabase.from('users').update({ name: group_id }).eq('id', id);",
+      "await supabase.from('runs').insert({ user_id, group_id: groupId });",
+      "await supabase.from('activity_log').insert({ group_id: groupId, actor_id });",
+      "await supabase.from('group_members').update({ role }).eq('group_id', groupId);",
+      "await supabase.from('users').delete().eq('group_id', groupId);",
+      "await supabase.rpc('join_group', { p_user_id: id, p_group_id: groupId, p_role: 'member', p_today: today });",
+      'const sql = "update public.users set password_hash = $1 where group_id = $2";',
+      "const sql = 'insert into public.users (id, name) values (1, 2)';",
+      "const sql = 'update public.groups set owner_id = $1 where id = $2';",
+      "// await supabase.from('users').update({ group_id: x }) är förbjudet\nconst a = 1;",
+      '/* update users set group_id = 1 */ const b = 2;',
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('reads the query chain of the users table, not what follows after it', () => {
+    const code = "await db.from('users').select('id');\nawait db.from('runs').insert({ group_id: groupId });\n";
+    assert.deepEqual(scan(code), []);
+  });
+
+  it('reports each offending write with its own line number', () => {
+    const errors = scan("a;\nawait db.from('users').update({ group_id: a }).eq('id', 1);\nb;\nawait db.from('users').insert({ group_id: b });\n");
+    assert.equal(errors.length, 2);
+    assert.match(errors[0], /:2:/);
+    assert.match(errors[1], /:4:/);
+  });
+
+  it('checks all backend source including scripts, and skips tests, test support, and other workspaces', () => {
+    const bad = "await db.from('users').update({ group_id: g }).eq('id', 1);";
+    assert.equal(scan(bad, 'apps/backend/src/scripts/backfillSomething.ts').length, 1);
+    assert.equal(scan(bad, 'apps/backend/src/services/membershipService.ts').length, 1);
+    assert.equal(scan(bad, 'apps/backend/src/utils/membership.ts').length, 1);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/__tests__/helpers/fakeDb.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/groups.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/frontend/src/shared/x.ts'), []);
+    assert.deepEqual(scan(bad, 'packages/shared/src/x.ts'), []);
+  });
+
+  it('lets the staging seed script through, by name, until create_group_with_admin replaces it', () => {
+    const sql = 'sql += `insert into public.users (id, name, group_id) values (1, 2, 3);`;';
+    assert.deepEqual(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedGroup.ts'), []);
+    assert.equal(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedOther.ts').length, 1);
   });
 });
 
@@ -921,6 +1011,32 @@ describe('CLI', () => {
     const result = runCli('strava-fetch');
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /stravaFetch/);
+  });
+
+  it('exits 1 on a direct write to users.group_id (also under all) and 0 once it goes through join_group', () => {
+    const makeBackend = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'utils'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'utils', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeBackend('ugid-bad', "export const f = (db) => db.from('users').update({ group_id: 1 }).eq('id', 2);\n");
+    for (const mode of ['users-group-id', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/utils\/planted\.ts:1: .*join_group/);
+    }
+    assert.equal(runCli('users-group-id', makeBackend('ugid-good', "export const f = (db) => db.rpc('join_group', {});\n")).status, 0);
+  });
+
+  it('exits 0 on the current repo in users-group-id mode', () => {
+    const result = runCli('users-group-id');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /group_id/);
   });
 
   it('does not flag the same code outside routes/', () => {

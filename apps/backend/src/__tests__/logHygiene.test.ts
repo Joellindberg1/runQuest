@@ -50,7 +50,7 @@ const ERRORISH = /^(e|err|error|exception|cause)$|(Err|Error)$/;
 /** Funktioner som gör ett fel till en kort kod eller ett namn (utils/errorCode.ts och de små hjälparna i Strava-filerna). */
 const SAFE_WRAPPERS = new Set(['errorCode', 'errorName', 'shortCode']);
 /** Egna felklasser som tar ett databasfel som argument men bara behåller dess kod (`errorCode(source)`), aldrig texten eller objektet. */
-const SAFE_ERROR_CLASSES = new Set(['BadgeReadError']);
+const SAFE_ERROR_CLASSES = new Set(['BadgeReadError', 'MembershipError']);
 /** Läsningar av ett felobjekt som är säkra: `error.code`, `error.status`. */
 const SAFE_ERROR_PROPERTIES = new Set(['code', 'status']);
 

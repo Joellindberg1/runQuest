@@ -12,3 +12,4 @@ export * from './publicStats.js';
 export * from './settings.js';
 export * from './strava.js';
 export * from './titles.js';
+export * from './groups.js';

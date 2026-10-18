@@ -59,7 +59,11 @@
 // 13. Roll blir rättighet bara i groupRoleCan (ADR 012 beslut 2.5): ingen källfil under apps/* och packages/* utom `packages/shared/src/groupRoles.ts`
 //     jämför en `role` mot rollnamnen 'admin' eller 'member'. Textbaserad (se checkGroupRoleMapping för vad den inte fångar).
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
+// 14. users.group_id skrivs bara av databasfunktionerna (ADR 012 beslut 2.2): ingen backendkod sätter kolumnen direkt (supabase-js `.from('users').update/insert/upsert`
+//     med group_id som nyckel, eller SQL-text som gör det). Pekaren sätts av join_group/create_group_with_admin via utils/membership.ts, i en transaktion med
+//     raden i group_members. Textbaserad (se checkUsersGroupIdWrites för vad den inte fångar).
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -351,6 +355,58 @@ export function checkGroupRoleMapping(files) {
   return errors;
 }
 
+// Filer som får skriva users.group_id trots regel 14, med skäl. Varje rad ska försvinna när skälet är borta.
+const USERS_GROUP_ID_EXEMPT_FILES = new Map([
+  // Seedar stagingens låtsasgrupp med rå SQL som sätter users.group_id utan medlemskap. Ersätts av scripts/createGroup.ts (ADR 012 S12),
+  // som anropar create_group_with_admin; ta bort raden då.
+  ['apps/backend/src/scripts/staging/stagingSeedGroup.ts', 'staging-seed skriver SQL direkt; ersätts av create_group_with_admin (ADR 012 S12)'],
+]);
+const USERS_FROM = /\.from\(\s*(['"`])users\1\s*\)/g;
+// `group_id` som nyckel i ett objektliteral: `{ group_id: x`, `, group_id }` (shorthand), `{ 'group_id': x`, `{ ["group_id"]: x`.
+// Värdesidan (`{ name: group_id }`) räknas inte: nyckeln måste stå direkt efter `{` eller `,`.
+const GROUP_ID_KEY = /[{,]\s*(?:group_id|(['"`])group_id\1|\[\s*(['"`])group_id\2\s*\])\s*(?=[:,}])/;
+const USERS_SQL_UPDATE = /\bupdate\s+(?:only\s+)?(?:"?public"?\.)?"?users"?(?:\s+(?:as\s+)?\w+)?\s+set\b([\s\S]*?)(?=\bwhere\b|\bfrom\b|\breturning\b|;|$)/gi;
+const SQL_ASSIGNS_GROUP_ID = /(?:^|[\s,(])group_id\s*=(?!=)/i;
+const USERS_SQL_INSERT = /\binsert\s+into\s+(?:"?public"?\.)?"?users"?\s*\(([^)]*)\)/gi;
+
+/**
+ * Regel 14 (ADR 012 beslut 2.2). Pekaren users.group_id skrivs bara av databasfunktionerna join_group och create_group_with_admin (via
+ * utils/membership.ts), i en transaktion med raden i group_members. Ingen annan backendkod får sätta kolumnen, annars driver pekaren
+ * ifrån medlemskapet (zon 8, "två sanningar"). Fångas: `.from('users')` följt av `.update/.insert/.upsert` vars objektliteral har
+ * `group_id` som nyckel (även bland andra fält, även som shorthand eller citerad nyckel), och SQL-text i källan:
+ * `update [public.]users … set … group_id = …` och `insert into [public.]users (… group_id …)`. Migrationerna (.sql) ingår inte: funktionerna
+ * bor där. `files`: [{ path, content }]. Bara apps/backend/src, utan tester och testhjälpare. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: en skrivning vars argument är en variabel (`.update(fields)`) eller byggs med
+ * spridning (`.update({ ...fields })`), en frågekedja som byggs i flera satser (`const q = db.from('users'); q.update({ group_id })`),
+ * en tabell som anges med en konstant, och SQL som byggs ihop av delar. Granskning täcker de formerna.
+ */
+export function checkUsersGroupIdWrites(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!BACKEND_SOURCE.test(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path) || USERS_GROUP_ID_EXEMPT_FILES.has(path)) continue;
+    const code = withoutComments(content);
+    const lines = new Set();
+    const lineAt = (index) => code.slice(0, index).split(/\r?\n/).length;
+
+    for (const match of code.matchAll(USERS_FROM)) {
+      const chain = queryChainText(code, match.index + match[0].length);
+      const writesGroupId = ['update', 'insert', 'upsert'].some((method) => methodArguments(chain, method).some((argument) => GROUP_ID_KEY.test(argument)));
+      if (writesGroupId) lines.add(lineAt(match.index));
+    }
+    for (const match of code.matchAll(USERS_SQL_UPDATE)) {
+      if (SQL_ASSIGNS_GROUP_ID.test(match[1])) lines.add(lineAt(match.index));
+    }
+    for (const match of code.matchAll(USERS_SQL_INSERT)) {
+      if (/\bgroup_id\b/i.test(match[1])) lines.add(lineAt(match.index));
+    }
+
+    for (const line of [...lines].sort((a, b) => a - b)) {
+      errors.push(`${path}:${line}: users.group_id skrivs direkt — pekaren sätts bara av join_group/create_group_with_admin via utils/membership.ts (ADR 012 beslut 2.2)`);
+    }
+  }
+  return errors;
+}
+
 const SERVER_FILE = 'apps/backend/src/server.ts';
 const RATE_BUDGET_HOOK_CALL = /^registerStravaRateBudget\s*\(\s*\)/m;
 
@@ -576,8 +632,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -592,7 +648,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -613,6 +669,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'group-role-mapping') {
       errors.push(...checkGroupRoleMapping(files));
       summary.push('roller mappas till rättigheter bara i groupRoleCan');
+    }
+    if (mode === 'all' || mode === 'users-group-id') {
+      errors.push(...checkUsersGroupIdWrites(files));
+      summary.push('users.group_id skrivs bara av join_group/create_group_with_admin');
     }
     if (mode === 'all' || mode === 'webhook-scheduler-start') {
       errors.push(...checkWebhookSchedulerStart(files));
