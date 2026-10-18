@@ -45,7 +45,7 @@
 import { pathToFileURL } from 'node:url';
 import { getSupabaseClient } from '../config/database.js';
 import { applyBadgeDiff, readExistingBadges, readRuns } from '../services/badgeService.js';
-import { supabaseHost } from './backfillActivityLog.js';
+import { supabaseHost } from './lib/supabaseHost.js';
 import {
   BADGE_METRICS,
   BADGE_SERIES,

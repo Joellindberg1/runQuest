@@ -120,8 +120,9 @@ stället för mot prod-databasen:
 - **Låtsasgruppen för flergruppstestet** (ADR 012 S12/S14, ägarbeslut F5: aldrig en testgrupp i prod) skapas i staging med
   `npm run create:group` (`apps/backend/src/scripts/createGroup.ts`): dry-run som standard, `--apply` skapar gruppen via
   `create_group_with_admin` och skriver ut måldatabasens host. Skaparen är ett testkonto utan medlemskap som ägaren skapar i staging; Lead kör skriptet därefter.
-  Skriptet avgör målet ur `SUPABASE_URL` och vägrar `--apply` mot prod utan `--allow-prod` plus bekräftelsesträngen, som Lead bara
-  använder efter ägarens uttryckliga ja. Kommandon, vakter och hur kontot görs: [`docs/staging.md`](staging.md), "En andra låtsasgrupp".
+  Skriptet avgör målet ur `SUPABASE_URL`. Mot prod vägras även en dry-run utan `--allow-prod`, och `--apply` kräver dessutom
+  bekräftelsesträngen; Lead använder dem bara efter ägarens uttryckliga ja. Kommandon, vakter och hur kontot görs:
+  [`docs/staging.md`](staging.md), avsnitt 5 (`create:group`).
 - Fällan om förbrukade popuper ovan gäller inte staging: det är en annan databas, så ägarens `user_seen_items` och
   `user_badges` i prod rörs inte och ingen loggning eller återställning behövs.
 - **Strava är avstängt i staging** (Stravas prenumerationskrav; ägarbeslut 2026-10-17): ingen koppling, ingen

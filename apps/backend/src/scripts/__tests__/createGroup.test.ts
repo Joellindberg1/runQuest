@@ -3,16 +3,17 @@
  * from the connection URL, and production is refused unless the explicit flag and the confirmation string are both given.
  * Database: createFakeDb with the fake of migration 053's functions. Nothing here touches a network: the client is built by an injected factory.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { membershipRpc, type MembershipRpcCall } from '../../routes/__tests__/helpers/fakeMembership.js';
 import {
   PROD_CONFIRMATION,
   classifyTarget,
-  decideApply,
+  decideRun,
   exitCodeFor,
   generateInviteCode,
   parseArgs,
+  runCli,
   runCreateGroup,
   type CreateGroupOptions,
 } from '../createGroup.js';
@@ -59,7 +60,7 @@ function setup(opts: { users?: Row[]; groups?: Row[]; members?: Row[]; env?: Nod
       today: '2026-10-18',
       generateCode: () => GENERATED_CODE,
     });
-  return { run, db: fake.client as any, tables, calls, created, lines, output: () => lines.join('\n') };
+  return { run, db: fake.client as any, queries: () => fake.queries, tables, calls, created, lines, output: () => lines.join('\n') };
 }
 
 describe('parseArgs', () => {
@@ -102,6 +103,11 @@ describe('parseArgs', () => {
   it('refuses an empty name', () => {
     expect(() => parseArgs([`--owner-id=${OWNER_ID}`, '--name=   '])).toThrow(/name/i);
   });
+
+  it('accepts a name of 60 characters and refuses one of 61', () => {
+    expect(parseArgs([`--owner-id=${OWNER_ID}`, `--name=${'a'.repeat(60)}`]).name).toHaveLength(60);
+    expect(() => parseArgs([`--owner-id=${OWNER_ID}`, `--name=${'a'.repeat(61)}`])).toThrow(/name/i);
+  });
 });
 
 describe('classifyTarget', () => {
@@ -142,48 +148,65 @@ describe('classifyTarget', () => {
   });
 });
 
-describe('decideApply', () => {
+describe('decideRun', () => {
   const staging = classifyTarget(STAGING_URL);
   const prod = classifyTarget(PROD_URL);
   const unknown = classifyTarget('https://abcdefghijklmnopqrst.supabase.co');
 
-  it('lets a dry-run read any target', () => {
-    expect(decideApply(prod, options()).ok).toBe(true);
-    expect(decideApply(unknown, options()).ok).toBe(true);
+  it('lets a dry-run read staging and a project it cannot identify', () => {
+    expect(decideRun(staging, options()).ok).toBe(true);
+    expect(decideRun(unknown, options()).ok).toBe(true);
   });
 
   it('lets --apply write to staging', () => {
-    expect(decideApply(staging, options({ apply: true })).ok).toBe(true);
+    expect(decideRun(staging, options({ apply: true })).ok).toBe(true);
   });
 
-  it('refuses --apply against production without the flag', () => {
-    const decision = decideApply(prod, options({ apply: true }));
-    expect(decision).toMatchObject({ ok: false, outcome: 'refused_prod' });
-  });
+  describe('production', () => {
+    it('refuses even a dry-run without --allow-prod, because it reads users and memberships there', () => {
+      expect(decideRun(prod, options())).toMatchObject({ ok: false, outcome: 'refused_prod' });
+    });
 
-  it('refuses --apply against production with the flag but no confirmation', () => {
-    expect(decideApply(prod, options({ apply: true, allowProd: true })).ok).toBe(false);
-  });
+    it('lets a dry-run read with --allow-prod alone, without the confirmation string', () => {
+      expect(decideRun(prod, options({ allowProd: true })).ok).toBe(true);
+    });
 
-  it('refuses --apply against production with the confirmation but no flag', () => {
-    expect(decideApply(prod, options({ apply: true, confirmProd: PROD_CONFIRMATION })).ok).toBe(false);
-  });
+    it('refuses --apply without the flag', () => {
+      expect(decideRun(prod, options({ apply: true }))).toMatchObject({ ok: false, outcome: 'refused_prod' });
+    });
 
-  it('refuses --apply against production with a wrong confirmation', () => {
-    expect(decideApply(prod, options({ apply: true, allowProd: true, confirmProd: 'yes' })).ok).toBe(false);
-  });
+    it('refuses --apply with the flag but no confirmation', () => {
+      expect(decideRun(prod, options({ apply: true, allowProd: true })).ok).toBe(false);
+    });
 
-  it('allows --apply against production only with both the flag and the exact confirmation', () => {
-    expect(decideApply(prod, options({ apply: true, allowProd: true, confirmProd: PROD_CONFIRMATION })).ok).toBe(true);
+    it('refuses --apply with the confirmation but no flag', () => {
+      expect(decideRun(prod, options({ apply: true, confirmProd: PROD_CONFIRMATION })).ok).toBe(false);
+    });
+
+    it.each([
+      ['a wrong word', 'yes'],
+      ['the right string with something appended', `${PROD_CONFIRMATION}x`],
+      ['the right string with a trailing space', `${PROD_CONFIRMATION} `],
+      ['a prefix of the right string', PROD_CONFIRMATION.slice(0, -1)],
+      ['the right string in lower case', PROD_CONFIRMATION.toLowerCase()],
+      ['the empty string', ''],
+    ])('refuses --apply with %s as the confirmation', (_name, confirmProd) => {
+      expect(decideRun(prod, options({ apply: true, allowProd: true, confirmProd })).ok).toBe(false);
+    });
+
+    it('allows --apply only with both the flag and the exact confirmation', () => {
+      expect(decideRun(prod, options({ apply: true, allowProd: true, confirmProd: PROD_CONFIRMATION })).ok).toBe(true);
+    });
   });
 
   it('refuses --apply against a project it cannot identify, even with the production flags', () => {
-    const decision = decideApply(unknown, options({ apply: true, allowProd: true, confirmProd: PROD_CONFIRMATION }));
+    const decision = decideRun(unknown, options({ apply: true, allowProd: true, confirmProd: PROD_CONFIRMATION }));
     expect(decision).toMatchObject({ ok: false, outcome: 'refused_target' });
   });
 
-  it('refuses --apply on staging when production flags are given, a sign that the URL is not the one meant', () => {
-    expect(decideApply(staging, options({ apply: true, allowProd: true })).ok).toBe(false);
+  it('refuses production flags on staging, in a dry-run too, a sign that the URL is not the one meant', () => {
+    expect(decideRun(staging, options({ apply: true, allowProd: true })).ok).toBe(false);
+    expect(decideRun(staging, options({ allowProd: true })).ok).toBe(false);
   });
 });
 
@@ -280,6 +303,35 @@ describe('runCreateGroup', () => {
     expect(env.output()).not.toContain(SERVICE_KEY);
   });
 
+  it('keeps the invite code out of the report lines even when it is shown', async () => {
+    const env = setup();
+    const report = await env.run(options({ apply: true, showInviteCode: true }));
+    expect(report.inviteCode).toBe(GENERATED_CODE);
+    expect(report.lines.join('\n')).not.toContain(GENERATED_CODE);
+  });
+
+  describe('the environment', () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it('is the one handed in, never process.env: a staging env wins over a production process.env', async () => {
+      vi.stubEnv('SUPABASE_URL', PROD_URL);
+      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'FAKE_PROCESS_KEY_not_a_real_secret');
+      const env = setup();
+      const report = await env.run(options({ apply: true }));
+      expect(report.outcome).toBe('created');
+      expect(env.created).toEqual([{ url: STAGING_URL, key: SERVICE_KEY }]);
+    });
+
+    it('is the one handed in, never process.env: a production env is refused whatever process.env says', async () => {
+      vi.stubEnv('SUPABASE_URL', STAGING_URL);
+      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', SERVICE_KEY);
+      const env = setup({ env: { SUPABASE_URL: PROD_URL, SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY } });
+      const report = await env.run(options({ apply: true }));
+      expect(report.outcome).toBe('refused_prod');
+      expect(env.created).toEqual([]);
+    });
+  });
+
   it('never prints the service role key', async () => {
     const env = setup();
     await env.run(options({ apply: true }));
@@ -313,10 +365,19 @@ describe('runCreateGroup', () => {
       expect(env.created).toEqual([{ url: PROD_URL, key: SERVICE_KEY }]);
     });
 
-    it('lets a dry-run read production but writes nothing', async () => {
+    it('refuses a dry-run against production without --allow-prod and reads nothing', async () => {
       const env = setup({ env: prodEnv });
       const report = await env.run(options());
+      expect(report.outcome).toBe('refused_prod');
+      expect(env.created).toEqual([]);
+      expect(env.queries()).toEqual([]);
+    });
+
+    it('lets a dry-run read production with --allow-prod alone, and writes nothing', async () => {
+      const env = setup({ env: prodEnv });
+      const report = await env.run(options({ allowProd: true }));
       expect(report.outcome).toBe('dry_run');
+      expect(env.created).toEqual([{ url: PROD_URL, key: SERVICE_KEY }]);
       expect(env.calls).toEqual([]);
     });
 
@@ -393,13 +454,32 @@ describe('runCreateGroup', () => {
       expect(env.output()).not.toContain('duplicate key');
     });
 
-    it('reports an error that is thrown, not returned, with its code only', async () => {
+    it('says the outcome is unknown, not that nothing was created, when the connection broke', async () => {
+      const env = setup({ rpcError: { code: '', message: 'TypeError: fetch failed', details: 'Caused by: Error: read ECONNRESET (ECONNRESET)' } });
+      const report = await env.run(options({ apply: true }));
+
+      expect(report.outcome).toBe('failed');
+      expect(env.output()).toMatch(/outcome is unknown/i);
+      expect(env.output()).toMatch(/dry-run/i);
+      expect(env.output()).toContain('ECONNRESET');
+      expect(env.output()).not.toMatch(/nothing was created/i);
+    });
+
+    it('says the same for an error that is thrown, not returned, and prints its code only', async () => {
       const env = setup({ rpcThrows: new Error('connect ECONNREFUSED while writing Second Admin') });
       const report = await env.run(options({ apply: true }));
 
       expect(report.outcome).toBe('failed');
       expect(env.output()).toContain('ECONNREFUSED');
+      expect(env.output()).toMatch(/outcome is unknown/i);
       expect(env.output()).not.toContain('while writing');
+    });
+
+    it('still says nothing was created when the database refused the input', async () => {
+      const env = setup({ rpcError: { code: '22023', message: 'create_group_with_admin: name_required' } });
+      const report = await env.run(options({ apply: true }));
+      expect(report.outcome).toBe('failed');
+      expect(env.output()).toMatch(/nothing was created/i);
     });
 
     it('reports any other failure with the database code only', async () => {
@@ -420,5 +500,55 @@ describe('exitCodeFor', () => {
     for (const outcome of ['refused_prod', 'refused_target', 'missing_env', 'owner_not_found', 'owner_ambiguous', 'owner_has_membership', 'invite_code_taken', 'failed'] as const) {
       expect(exitCodeFor({ outcome })).toBe(1);
     }
+  });
+});
+
+describe('runCli', () => {
+  const STAGING_ENV = { SUPABASE_URL: STAGING_URL, SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY };
+
+  function cli(env: NodeJS.ProcessEnv) {
+    const tables: Record<string, Row[]> = {
+      users: [{ id: OWNER_ID, name: 'Second Admin', email: 'second-admin@staging.runquest.test', group_id: null }],
+      groups: [],
+      group_members: [],
+    };
+    const fake = createFakeDb(tables, { rpc: membershipRpc(tables) });
+    const lines: string[] = [];
+    const urls: string[] = [];
+    const run = (argv: string[]) =>
+      runCli(argv, env, {
+        createDb: (url) => {
+          urls.push(url);
+          return fake.client as any;
+        },
+        log: (line) => void lines.push(line),
+      });
+    return { run, tables, lines, urls };
+  }
+
+  it('turns the arguments into a run and the outcome into the exit code: a dry-run is 0 and creates nothing', async () => {
+    const c = cli(STAGING_ENV);
+    expect(await c.run([`--owner-id=${OWNER_ID}`])).toBe(0);
+    expect(c.tables.groups).toEqual([]);
+  });
+
+  it('creates the group with --apply and exits 0', async () => {
+    const c = cli(STAGING_ENV);
+    expect(await c.run([`--owner-id=${OWNER_ID}`, '--apply', '--name=From The Cli'])).toBe(0);
+    expect(c.tables.groups).toMatchObject([{ name: 'From The Cli', owner_id: OWNER_ID }]);
+  });
+
+  it('exits 1 for a refusal and never builds a client', async () => {
+    const c = cli({ SUPABASE_URL: PROD_URL, SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY });
+    expect(await c.run([`--owner-id=${OWNER_ID}`, '--apply'])).toBe(1);
+    expect(c.urls).toEqual([]);
+  });
+
+  it('exits 1 for bad arguments, says why and does not echo what was typed', async () => {
+    const c = cli(STAGING_ENV);
+    expect(await c.run([`--owner-id=${OWNER_ID}`, '--service-key=SECRET-VALUE-123'])).toBe(1);
+    expect(c.lines.join('\n')).toMatch(/Unknown argument/);
+    expect(c.lines.join('\n')).not.toContain('SECRET-VALUE-123');
+    expect(c.urls).toEqual([]);
   });
 });

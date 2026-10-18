@@ -18,7 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { getSupabaseClient } from '../config/database.js';
 import { getValidAccessToken, stravaFetch } from '../services/stravaClient.js';
 import { isValidAthleteId } from '../services/stravaAthlete.js';
-import { supabaseHost } from './backfillActivityLog.js';
+import { supabaseHost } from './lib/supabaseHost.js';
 
 type Client = ReturnType<typeof getSupabaseClient>;
 

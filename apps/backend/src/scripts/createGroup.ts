@@ -8,14 +8,16 @@
  *   --apply    creates the group; the owner becomes its admin (create_group_with_admin also sets the pointer users.group_id, in one transaction).
  *
  * The owner must be an existing user WITHOUT an active membership (one active membership per user in v0.8.0). The script creates no account:
- * make the test account the usual way (docs/staging.md, "En andra låtsasgrupp") and give the script its e-mail address or id.
+ * make the test account the usual way (docs/staging.md, section 5) and give the script its e-mail address or id.
  *
  * The target is decided from the connection URL the script will really use (SUPABASE_URL), never from a flag:
- *   - staging (aormctqrmguvncxrigwy):  --apply allowed.
- *   - production (yrrqaxdngayakcivfrck): --apply is refused unless BOTH --allow-prod and --confirm-prod=<PROD_CONFIRMATION> are given. That pair is
- *     used only after the owner's explicit yes (docs/permissions.md); a test group never goes to production (F5). A URL that names the production
- *     ref anywhere counts as production.
- *   - anything else (another project, a local stack, a custom domain, a URL that cannot be read): --apply is refused, because it cannot be told apart from prod.
+ *   - staging (aormctqrmguvncxrigwy):  dry-run and --apply allowed.
+ *   - production (yrrqaxdngayakcivfrck): even a DRY-RUN is refused without --allow-prod, because it reads users and memberships there (a read in
+ *     prod is an ask). --apply needs BOTH --allow-prod and --confirm-prod=<PROD_CONFIRMATION>. They are used only after the owner's explicit yes
+ *     (docs/staging.md, "5. create:group"; the matching row in docs/permissions.md waits for the owner's OK); a test group never goes to production
+ *     (F5). A URL that names the production ref anywhere counts as production.
+ *   - anything else (another project, a local stack, a custom domain, a URL that cannot be read): a dry-run is allowed, --apply is refused,
+ *     because it cannot be told apart from prod.
  * The environment comes from the shell (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY), e.g. `railway run` against the staging service. No .env is
  * loaded, so a stray local file cannot choose the target. Run by Lead, never by CI or a builder (the entry point refuses under CI/VITEST).
  *
@@ -27,7 +29,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { errorCode } from '../utils/errorCode.js';
 import { MembershipError, createGroupWithAdmin, getActiveMembership } from '../utils/membership.js';
 import { todayStockholm } from '../utils/dateUtils.js';
-import { supabaseHost } from './backfillActivityLog.js';
+import { supabaseHost } from './lib/supabaseHost.js';
 import { PROD_PROJECT_REF, STAGING_PROJECT_REF, createSay, runIfEntry } from './staging/stagingTarget.js';
 
 /** What --confirm-prod must be, letter for letter. Typed by Lead only after the owner's yes. */
@@ -107,11 +109,14 @@ export type CreateGroupOutcome =
   | 'invite_code_taken'
   | 'failed';
 
-export type ApplyDecision = { ok: true } | { ok: false; outcome: 'refused_prod' | 'refused_target'; message: string };
+export type RunDecision = { ok: true } | { ok: false; outcome: 'refused_prod' | 'refused_target'; message: string };
 
-/** Whether this run may write to the target. A dry-run only reads and is always allowed. Decided before any database client exists. */
-export function decideApply(target: Target, options: Pick<CreateGroupOptions, 'apply' | 'allowProd' | 'confirmProd'>): ApplyDecision {
-  if (!options.apply) return { ok: true };
+/**
+ * Whether this run may touch the target at all. Decided before any database client exists.
+ * Staging: allowed. Production: a dry-run needs --allow-prod (it reads users and memberships, which in prod is an ask), --apply needs the flag and
+ * the exact confirmation string. Another project: a dry-run only. Production flags on staging are refused, in a dry-run too.
+ */
+export function decideRun(target: Target, options: Pick<CreateGroupOptions, 'apply' | 'allowProd' | 'confirmProd'>): RunDecision {
   const prodFlags = options.allowProd || options.confirmProd !== undefined;
   if (target.kind === 'staging') {
     return prodFlags
@@ -119,15 +124,18 @@ export function decideApply(target: Target, options: Pick<CreateGroupOptions, 'a
       : { ok: true };
   }
   if (target.kind === 'prod') {
-    return options.allowProd && options.confirmProd === PROD_CONFIRMATION
+    const allowed = options.apply ? options.allowProd && options.confirmProd === PROD_CONFIRMATION : options.allowProd;
+    return allowed
       ? { ok: true }
       : {
           ok: false,
           outcome: 'refused_prod',
-          message: 'Refusing: the target is the PRODUCTION project. A test group is never created in production (owner decision F5); a real group needs the owner\'s explicit yes, then --allow-prod and --confirm-prod=<the confirmation string in docs/staging.md>.',
+          message: `Refusing: the target is the PRODUCTION project. Even a dry-run reads users and memberships there, and a test group is never created in production (owner decision F5). Needs the owner's explicit yes, then --allow-prod${options.apply ? ' and --confirm-prod=<the confirmation string in docs/staging.md>' : ''}.`,
         };
   }
-  return { ok: false, outcome: 'refused_target', message: 'Refusing: SUPABASE_URL is neither the staging nor the production project, so --apply cannot be allowed (it could be production under another name).' };
+  return options.apply
+    ? { ok: false, outcome: 'refused_target', message: 'Refusing: SUPABASE_URL is neither the staging nor the production project, so --apply cannot be allowed (it could be production under another name).' }
+    : { ok: true };
 }
 
 /** A fresh upper-case code from crypto.randomBytes: 10 hex digits is 40 bits, enough for a code that is checked against a unique index. */
@@ -180,7 +188,7 @@ export async function runCreateGroup(input: RunCreateGroupInput): Promise<Create
     say(`${missing.join(' and ')} must be set in the shell: nothing was read or written.`);
     return finish('missing_env');
   }
-  const decision = decideApply(target, options);
+  const decision = decideRun(target, options);
   if (!decision.ok) {
     say(decision.message);
     return finish(decision.outcome);
@@ -233,14 +241,16 @@ export async function runCreateGroup(input: RunCreateGroupInput): Promise<Create
     say('The invite code was not printed (--show-invite-code); the admin sees it in the app.');
     return done;
   } catch (err) {
-    if (err instanceof MembershipError) {
+    if (err instanceof MembershipError && err.kind !== 'unavailable') {
+      // The database itself refused, and its transaction rolled back: nothing exists.
       say(`${err.message} (database code ${err.code}): nothing was created.`);
       if (err.kind === 'invite_code_taken') return finish('invite_code_taken');
       if (err.kind === 'already_member') return finish('owner_has_membership');
       if (err.kind === 'not_found') return finish('owner_not_found');
       return finish('failed');
     }
-    say(`Creating failed (code ${errorCode(err)}).`);
+    // A broken connection or a timeout can come after the commit, so the outcome is not known: never say "nothing was created".
+    say(`Creating failed (code ${errorCode(err)}). The outcome is unknown: the group may have been created before the answer was lost. Run a dry-run (without --apply): if the owner now has an active membership the group exists; do not run --apply again before that.`);
     return finish('failed');
   }
 }
@@ -257,15 +267,28 @@ async function findOwner(db: SupabaseClient, options: Pick<CreateGroupOptions, '
   return { kind: 'one', id: rows[0].id, name: rows[0].name };
 }
 
+export interface CliDeps {
+  createDb: RunCreateGroupInput['createDb'];
+  log: (line: string) => void;
+}
+
+/** The command line as a function: arguments and environment in, exit code out. Bad arguments are reported, not thrown, and never echoed. */
+export async function runCli(argv: string[], env: NodeJS.ProcessEnv, deps: CliDeps): Promise<0 | 1> {
+  let options: CreateGroupOptions;
+  try {
+    options = parseArgs(argv);
+  } catch (err) {
+    deps.log(err instanceof Error ? err.message : 'Invalid arguments.');
+    return 1;
+  }
+  return exitCodeFor(await runCreateGroup({ options, env, createDb: deps.createDb, log: deps.log }));
+}
+
 async function main() {
-  const options = parseArgs(process.argv.slice(2));
-  const report = await runCreateGroup({
-    options,
-    env: process.env,
+  process.exitCode = await runCli(process.argv.slice(2), process.env, {
     createDb: (url, key) => createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } }),
     log: (line) => console.log(line),
   });
-  process.exitCode = exitCodeFor(report);
 }
 
 runIfEntry(import.meta.url, 'create:group', main);

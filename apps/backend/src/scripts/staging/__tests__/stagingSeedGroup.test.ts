@@ -217,6 +217,20 @@ describe('seed-group', () => {
     expect(sql).not.toContain("join_group('a-admin'");
   });
 
+  it('runs the statements in the order the database needs: users, then the group, then the joins', () => {
+    const sql = buildSeedGroupSql({ userIds: ['a', 'b', 'c', 'd'], inviteCode: 'STGCODE', passwordHash: 'h', today: '2026-10-18' });
+    const at = (needle: string, from = 0) => sql.indexOf(needle, from);
+    const lastUserInsert = sql.lastIndexOf('insert into public.users');
+    const create = at('select public.create_group_with_admin(');
+    const firstJoin = at('select public.join_group(');
+    // The joins look the group up by its invite code, and the creator must exist as a user before the group is made.
+    expect(lastUserInsert).toBeGreaterThan(-1);
+    expect(create).toBeGreaterThan(lastUserInsert);
+    expect(firstJoin).toBeGreaterThan(create);
+    expect(sql.startsWith('begin;')).toBe(true);
+    expect(sql.endsWith('commit;')).toBe(true);
+  });
+
   it('puts the default seed file in the repo root under the git-ignored name', () => {
     expect(basename(DEFAULT_SEED_FILE)).toBe('staging-testkonton.seed');
     expect(existsSync(join(dirname(DEFAULT_SEED_FILE), 'package.json'))).toBe(true);
