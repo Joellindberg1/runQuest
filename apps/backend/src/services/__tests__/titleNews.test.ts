@@ -57,9 +57,40 @@ describe('snapshotTitleHolders', () => {
     tables.title_leaderboard = [lb('t1', 'a', 12.5), lb('t1', 'b', 9, 2), { ...lb('t2', 'b', 3), value: '3.0000' }];
     use(tables);
     expect(await snapshotTitleHolders()).toEqual([
-      { title_id: 't1', user_id: 'a', value: 12.5 },
-      { title_id: 't2', user_id: 'b', value: 3 },
+      { group_id: 'g1', title_id: 't1', user_id: 'a', value: 12.5 },
+      { group_id: 'g1', title_id: 't2', user_id: 'b', value: 3 },
     ]);
+  });
+
+  it('hållaren bär användarens grupp, och en innehavare utan grupp lämnas utanför (ingen spelar utan grupp)', async () => {
+    const tables = baseTables();
+    tables.title_leaderboard = [lb('t1', 'a', 12.5), lb('t2', 'x', 4)];
+    use(tables);
+    expect(await snapshotTitleHolders()).toEqual([{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 12.5 }]);
+  });
+
+  it('hållare i två grupper får var sin grupp', async () => {
+    const tables = baseTables();
+    tables.users.push({ id: 'c', group_id: 'g2', total_km: 1, longest_streak: 1 });
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t2', 'c', 4), lb('t1', 'b', 9, 2)];
+    use(tables);
+    expect(await snapshotTitleHolders()).toEqual([
+      { group_id: 'g1', title_id: 't1', user_id: 'a', value: 12 },
+      { group_id: 'g2', title_id: 't2', user_id: 'c', value: 4 },
+    ]);
+  });
+
+  it('tom ranking → tom lista utan uppslag av användare', async () => {
+    const db = use(baseTables());
+    expect(await snapshotTitleHolders()).toEqual([]);
+    expect(db.queries.some((q) => q.table === 'users')).toBe(false);
+  });
+
+  it('databasfel vid läsningen av användarnas grupp → null, kastar inte', async () => {
+    const tables = baseTables();
+    tables.title_leaderboard = [lb('t1', 'a', 12.5)];
+    use(tables, { errors: { users: { message: 'boom' } } });
+    expect(await snapshotTitleHolders()).toBeNull();
   });
 
   it('databasfel → null (diffen hoppas över), kastar inte', async () => {
@@ -72,7 +103,7 @@ describe('emitTitleNews', () => {
   it('ingen → någon: title_unlocked med titelnamn som ögonblicksbild', async () => {
     const tables = baseTables();
     use(tables);
-    await emitTitleNews([], [{ title_id: 't1', user_id: 'a', value: 12 }]);
+    await emitTitleNews([], [{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 12 }]);
     expect(tables.activity_log).toHaveLength(1);
     expect(tables.activity_log[0]).toMatchObject({
       type: 'title_unlocked', group_id: 'g1', actor_user_id: 'a', target_user_id: null, is_backfill: false,
@@ -85,7 +116,7 @@ describe('emitTitleNews', () => {
     const tables = baseTables();
     tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 12 }, { user_id: 'b', title_id: 't1', value: 15 }];
     use(tables);
-    await emitTitleNews([{ title_id: 't1', user_id: 'a', value: 12 }], [{ title_id: 't1', user_id: 'b', value: 15 }]);
+    await emitTitleNews([{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 12 }], [{ group_id: 'g1', title_id: 't1', user_id: 'b', value: 15 }]);
     expect(tables.activity_log[0]).toMatchObject({
       type: 'title_taken', actor_user_id: 'b', target_user_id: 'a', dedupe_key: 'title_taken:t1:b:a:15:2026-10-05',
       payload: { value: 15, previous_value: 12, reason: 'overtaken', title_name: 'The Marathoner' },
@@ -96,14 +127,14 @@ describe('emitTitleNews', () => {
     const tables = baseTables();
     tables.user_titles = [{ user_id: 'b', title_id: 't1', value: 3 }]; // A återkallad (issue #10)
     use(tables);
-    await emitTitleNews([{ title_id: 't1', user_id: 'a', value: 12 }], [{ title_id: 't1', user_id: 'b', value: 3 }]);
+    await emitTitleNews([{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 12 }], [{ group_id: 'g1', title_id: 't1', user_id: 'b', value: 3 }]);
     expect(tables.activity_log[0].payload).toMatchObject({ reason: 'revoked', previous_value: 12, value: 3 });
   });
 
   it('någon → ingen: title_revoked (aktör = förra innehavaren), dagen i nyckeln är Stockholm-dagen', async () => {
     const tables = baseTables();
     use(tables);
-    await emitTitleNews([{ title_id: 't2', user_id: 'b', value: 4 }], []);
+    await emitTitleNews([{ group_id: 'g1', title_id: 't2', user_id: 'b', value: 4 }], []);
     expect(tables.activity_log[0]).toMatchObject({
       type: 'title_revoked', group_id: 'g1', actor_user_id: 'b', dedupe_key: 'title_revoked:t2:b:2026-10-05',
       payload: { title_id: 't2', title_name: 'The Early Bird', metric_key: 'early_run_count' },
@@ -113,7 +144,7 @@ describe('emitTitleNews', () => {
   it('samma innehavare med ändrat värde → ingen rad och inga extra queries', async () => {
     const tables = baseTables();
     const db = use(tables);
-    await emitTitleNews([{ title_id: 't1', user_id: 'a', value: 12 }], [{ title_id: 't1', user_id: 'a', value: 14 }]);
+    await emitTitleNews([{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 12 }], [{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 14 }]);
     expect(tables.activity_log).toHaveLength(0);
     expect(db.queries).toHaveLength(0);
   });
@@ -122,8 +153,8 @@ describe('emitTitleNews', () => {
     const tables = baseTables();
     tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 12 }, { user_id: 'b', title_id: 't1', value: 15 }];
     use(tables);
-    const before = [{ title_id: 't1', user_id: 'a', value: 12 }];
-    const after = [{ title_id: 't1', user_id: 'b', value: 15 }];
+    const before = [{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 12 }];
+    const after = [{ group_id: 'g1', title_id: 't1', user_id: 'b', value: 15 }];
     await emitTitleNews(before, after);
     await emitTitleNews(before, after);
     expect(tables.activity_log).toHaveLength(1);
@@ -132,8 +163,8 @@ describe('emitTitleNews', () => {
   it('legitim upprepning en ANNAN dag (titeln tappas och vinns tillbaka med samma värde) loggas igen', async () => {
     const tables = baseTables();
     use(tables);
-    const before: Array<{ title_id: string; user_id: string; value: number }> = [];
-    const after = [{ title_id: 't1', user_id: 'a', value: 12 }];
+    const before: Array<{ group_id: string; title_id: string; user_id: string; value: number }> = [];
+    const after = [{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 12 }];
     await emitTitleNews(before, after);                       // 2026-10-05
     vi.setSystemTime(new Date('2026-10-07T12:00:00.000Z'));
     await emitTitleNews(before, after);                       // samma value, två dagar senare
@@ -145,13 +176,20 @@ describe('emitTitleNews', () => {
   it('innehavare utan grupp hoppas över (ingen gruppavgränsad plats i loggen)', async () => {
     const tables = baseTables();
     use(tables);
-    await emitTitleNews([], [{ title_id: 't1', user_id: 'x', value: 1 }]);
+    await emitTitleNews([], [{ group_id: '', title_id: 't1', user_id: 'x', value: 1 }]);
     expect(tables.activity_log).toHaveLength(0);
+  });
+
+  it('loggraden får hållarens grupp, inte en uppslagning av användarens grupp', async () => {
+    const tables = baseTables();
+    use(tables);
+    await emitTitleNews([], [{ group_id: 'g2', title_id: 't1', user_id: 'a', value: 12 }]);
+    expect(tables.activity_log[0]).toMatchObject({ type: 'title_unlocked', group_id: 'g2', actor_user_id: 'a' });
   });
 
   it('ett databasfel i uppslagen sväljs', async () => {
     use(baseTables(), { errors: { titles: { message: 'boom' } } });
-    await expect(emitTitleNews([], [{ title_id: 't1', user_id: 'a', value: 1 }])).resolves.toBeUndefined();
+    await expect(emitTitleNews([], [{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 1 }])).resolves.toBeUndefined();
   });
 });
 
