@@ -193,7 +193,11 @@ type RefreshOutcome =
   /** Strava's token endpoint rejected the refresh token. */
   | { kind: 'rejected' }
   /** Anything else: a network error, 5xx, 429, missing credentials, an unusable answer, a failed or superseded save. */
-  | { kind: 'failed' };
+  /**
+   * `mayHaveRotated`: Strava may already have replaced the refresh token when this failed (it answered and we could not use or save the
+   * answer, or the answer was lost), so the connection may be lost. Not set when Strava was never asked or refused.
+   */
+  | { kind: 'failed'; mayHaveRotated?: true };
 
 function isTokenAnswer(data: unknown): data is { access_token: string; refresh_token: string; expires_at: number } {
   if (typeof data !== 'object' || data === null) return false;
@@ -272,7 +276,7 @@ async function requestNewTokens(held: HeldRefreshToken, userId: string, ring: Ke
 
     if (!isTokenAnswer(tokenData)) {
       logger.error(`❌ Token refresh answer for user ${userId} has no usable tokens (HTTP ${response.status})`);
-      return { kind: 'failed' };
+      return { kind: 'failed', mayHaveRotated: true };
     }
 
     // Update tokens in database. Strava har redan roterat refresh-tokenen i
@@ -288,7 +292,7 @@ async function requestNewTokens(held: HeldRefreshToken, userId: string, ring: Ke
       // The key was checked before Strava was asked, so this is an input Strava sent that cannot be stored. The old refresh token is
       // already replaced at Strava: the same loss as a failed save.
       logger.error(`🚨 KRITISKT: kunde inte kryptera roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel: ${errorCode(error)}`, new CriticalAlert('token_write', { userId }));
-      return { kind: 'failed' };
+      return { kind: 'failed', mayHaveRotated: true };
     }
 
     // Conditional on the stored string we started from: the row is only ours to change while it still holds exactly that. A reconnect
@@ -304,7 +308,7 @@ async function requestNewTokens(held: HeldRefreshToken, userId: string, ring: Ke
 
     if (error) {
       logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel: ${errorCode(error)}`, new CriticalAlert('token_write', { userId }));
-      return { kind: 'failed' };
+      return { kind: 'failed', mayHaveRotated: true };
     }
 
     if (!saved) {
@@ -324,7 +328,8 @@ async function requestNewTokens(held: HeldRefreshToken, userId: string, ring: Ke
 
   } catch (error) {
     logger.error(`❌ Token refresh error for user ${userId} (${errorName(error)})`);
-    return { kind: 'failed' };
+    // A network error or a timeout may have come after Strava answered: the answer is lost, the old refresh token may be replaced.
+    return { kind: 'failed', mayHaveRotated: true };
   }
 }
 
@@ -345,7 +350,9 @@ interface StoredTokenState {
  *   - refresh_rejected: Strava's token endpoint rejected the refresh token (revoked or invalid). The only reason that proves Strava
  *     withdrew the authorisation; nothing else may be read as that.
  *   - refresh_failed: any other failure of the renewal (network, 5xx, 429, missing credentials, an unusable answer, a failed or
- *     superseded save). Says nothing about the authorisation; a retry may work.
+ *     superseded save). Says nothing about the authorisation; a retry may work. `mayHaveRotated` is set when Strava may already have
+ *     replaced the refresh token without us holding the new one (a lost answer, an unusable answer, a save that failed): the connection
+ *     may be lost. The backfill script stops on it.
  *   - token_unreadable (ADR 013): the stored token could not be read, or the key that reads and saves tokens is missing or invalid.
  *     The fault is ours (configuration or the stored value), not the user's and not Strava's. It NEVER means that Strava withdrew the
  *     authorisation: no caller may treat it as refresh_rejected or not_connected, delete anything because of it or confirm a
@@ -356,7 +363,7 @@ export type AccessTokenResult =
   | { ok: false; reason: 'not_connected' }
   | { ok: false; reason: 'token_read_failed' }
   | { ok: false; reason: 'token_unreadable' }
-  | ({ ok: false; reason: 'refresh_failed' | 'refresh_rejected' | 'no_refresh_token' } & StoredTokenState);
+  | ({ ok: false; reason: 'refresh_failed' | 'refresh_rejected' | 'no_refresh_token'; mayHaveRotated?: true } & StoredTokenState);
 
 export type AccessTokenFailureReason = Extract<AccessTokenResult, { ok: false }>['reason'];
 
@@ -447,6 +454,8 @@ async function accessToken(userId: string, forceRefresh: boolean): Promise<Acces
   logger.info(forceRefresh ? '🔄 Strava rejected the access token, refreshing...' : '🔄 Access token expired, refreshing...');
   const refreshResult = await refreshStravaToken({ plain: refresh.token, raw: row.refreshRaw }, userId, ring);
   if (refreshResult.kind === 'rejected') return { ok: false, reason: 'refresh_rejected', ...state };
-  if (refreshResult.kind === 'failed') return { ok: false, reason: 'refresh_failed', ...state };
+  if (refreshResult.kind === 'failed') {
+    return { ok: false, reason: 'refresh_failed', ...state, ...(refreshResult.mayHaveRotated ? { mayHaveRotated: true as const } : {}) };
+  }
   return { ok: true, accessToken: refreshResult.accessToken, refreshed: true, ...state };
 }
