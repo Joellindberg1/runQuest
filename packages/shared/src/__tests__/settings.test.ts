@@ -305,6 +305,10 @@ describe('diffResolvedSettings', () => {
 });
 
 describe('groupSettingsMissingEventType', () => {
+  it('names the reserved event type exactly as ADR 012 spells it', () => {
+    expect(GROUP_SETTING_EVENT_TYPE).toBe('group_setting_changed');
+  });
+
   const GROUP_FLAG: SettingDefinition = { key: 'group.digest', scope: 'group', type: 'boolean', default: false };
 
   it('fails the build when a group key is registered and group_setting_changed is not an activity type', () => {

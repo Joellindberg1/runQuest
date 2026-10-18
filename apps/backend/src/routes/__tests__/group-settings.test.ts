@@ -24,7 +24,7 @@ import { logger } from '../../utils/logger.js';
 import { createApp } from '../../app.js';
 import { createGroupSettingsRouter } from '../groupSettings.js';
 import type { GroupSettingsChangedEvent } from '../../services/groupSettings.js';
-import { createFakeDb, type FakeDbOptions, type Row } from './helpers/fakeDb.js';
+import { createFakeDb, type FakeDbOptions, type RecordedQuery, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
 const DIGEST: SettingDefinition = { key: 'group.digest', scope: 'group', type: 'boolean', default: false };
@@ -62,7 +62,13 @@ afterAll(async () => { await server.close(); await appServer.close(); });
 beforeEach(() => { changes.length = 0; });
 afterEach(() => { vi.clearAllMocks(); vi.restoreAllMocks(); });
 
-function use(rows: Row[] = [], memberships: Row[] = MEMBERSHIPS, options: FakeDbOptions = {}) {
+/** Fördröjer en fråga (fejken är synkron): ger en kapplöpning mellan samtidiga anrop utan att ändra vad som skrivs. */
+type Delay = (query: RecordedQuery) => Promise<void> | undefined;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** Fördröjning av alla frågor mot group_settings, så att två samtidiga PUT hinner läsa innan någon skrivit. */
+const slowSettings: Delay = (query) => (query.table === 'group_settings' ? sleep(10) : undefined);
+
+function use(rows: Row[] = [], memberships: Row[] = MEMBERSHIPS, options: FakeDbOptions = {}, delay?: Delay) {
   const tables: Record<string, Row[]> = { group_members: memberships, group_settings: rows };
   const db = createFakeDb(tables, { primaryKeys: { group_settings: ['group_id', 'key'] }, ...options });
   // fakeDb faller tillbaka på primärnyckeln när onConflict saknas, så upsertens argument spelas in här.
@@ -71,6 +77,14 @@ function use(rows: Row[] = [], memberships: Row[] = MEMBERSHIPS, options: FakeDb
     ...db.client,
     from: (table: string) => {
       const builder = db.client.from(table);
+      const query = db.queries[db.queries.length - 1];
+      if (delay) {
+        const run = builder.then.bind(builder);
+        builder.then = (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
+          const wait = delay(query);
+          return wait ? wait.then(() => run(resolve, reject)) : run(resolve, reject);
+        };
+      }
       const upsert = builder.upsert.bind(builder);
       builder.upsert = (values: Row | Row[], opts?: { onConflict?: string }) => {
         upserts.push({ rows: values, options: opts });
@@ -490,6 +504,173 @@ describe('the seam onGroupSettingsChanged', () => {
       const line = info.mock.calls.find((call) => String(call[0]).includes('group settings changed'));
       expect(line?.[1]).toEqual({ group_id: G1, actor_id: ADMIN, keys: [DIGEST.key] });
       expect(Object.keys(tables).sort()).toEqual(['group_members', 'group_settings']);
+    } finally {
+      await local.close();
+    }
+  });
+});
+
+describe('concurrent PUT requests', () => {
+  it('two identical writes at the same time announce the change exactly once', async () => {
+    const { tables } = use([], MEMBERSHIPS, {}, slowSettings);
+    const [first, second] = await Promise.all([
+      put(ADMIN, { values: { [DIGEST.key]: true } }),
+      put(ADMIN, { values: { [DIGEST.key]: true } }),
+    ]);
+    expect([first.status, second.status]).toEqual([200, 200]);
+    expect(changes).toHaveLength(1);
+    expect(changes[0].changes).toEqual([{ key: DIGEST.key, from: false, to: true }]);
+    expect(tables.group_settings).toHaveLength(1);
+  });
+
+  it('writes to different keys at the same time are each announced with only their own change', async () => {
+    use([], MEMBERSHIPS, {}, slowSettings);
+    const [first, second] = await Promise.all([
+      put(ADMIN, { values: { [DIGEST.key]: true } }),
+      put(ADMIN, { values: { [PACE.key]: 'hard' } }),
+    ]);
+    expect([first.status, second.status]).toEqual([200, 200]);
+    expect(changes).toHaveLength(2);
+    expect(changes.map((event) => event.changes).sort((a, b) => a[0].key.localeCompare(b[0].key))).toEqual([
+      [{ key: DIGEST.key, from: false, to: true }],
+      [{ key: PACE.key, from: 'easy', to: 'hard' }],
+    ]);
+    // Svaret till den som skrev sist visar båda, eftersom det visar nuläget.
+    expect([first, second].some((res) => res.body.data.values[DIGEST.key] === true && res.body.data.values[PACE.key] === 'hard')).toBe(true);
+  });
+
+  it('a second write on the same group does not start reading until the first has finished', async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let blocked = false;
+    const { db } = use([], MEMBERSHIPS, {}, (query) => {
+      if (query.table !== 'group_settings' || blocked) return undefined;
+      blocked = true;
+      return held;
+    });
+    const first = put(ADMIN, { values: { [DIGEST.key]: true } });
+    await sleep(20);
+    const second = put(ADMIN, { values: { [PACE.key]: 'hard' } });
+    await sleep(40);
+    expect(db.queries.filter((q) => q.table === 'group_settings')).toHaveLength(1);
+    release();
+    expect([(await first).status, (await second).status]).toEqual([200, 200]);
+    expect(db.queries.filter((q) => q.table === 'group_settings').length).toBeGreaterThan(1);
+  });
+
+  it('writes on different groups are not serialised against each other', async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const { tables } = use([], MEMBERSHIPS, {}, (query) =>
+      query.table === 'group_settings' && query.filters.some((f) => f.column === 'group_id' && f.value === G1) ? held : undefined);
+    const stuck = put(ADMIN, { values: { [DIGEST.key]: true } });
+    await sleep(20);
+    const other = await put(OTHER_ADMIN, { values: { [DIGEST.key]: true } });
+    expect(other.status).toBe(200);
+    expect(tables.group_settings.map((r) => r.group_id)).toEqual([G2]);
+    release();
+    expect((await stuck).status).toBe(200);
+    expect(changes.map((event) => event.groupId).sort()).toEqual([G1, G2]);
+  });
+
+  it('releases the group when a write fails, so the next write is not stuck behind it', async () => {
+    let upserts = 0;
+    const { tables } = use([], MEMBERSHIPS, { failWhen: (q) => (q.mutation === 'upsert' && ++upserts === 1 ? { message: 'boom', code: 'XX000' } : null) }, slowSettings);
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const [failing, following] = await Promise.all([
+      put(ADMIN, { values: { [DIGEST.key]: true } }),
+      put(ADMIN, { values: { [PACE.key]: 'hard' } }),
+    ]);
+    expect(failing.status).toBe(500);
+    expect(following.status).toBe(200);
+    expect(tables.group_settings.map((r) => r.key)).toEqual([PACE.key]);
+    expect(changes.map((event) => event.changes)).toEqual([[{ key: PACE.key, from: 'easy', to: 'hard' }]]);
+    expect((await put(ADMIN, { values: { [DIGEST.key]: true } })).status).toBe(200);
+  });
+
+  it('releases the group when the first read fails', async () => {
+    let reads = 0;
+    use([], MEMBERSHIPS, { failWhen: (q) => (q.table === 'group_settings' && !q.mutation && ++reads === 1 ? { message: 'boom' } : null) }, slowSettings);
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const [failing, following] = await Promise.all([
+      put(ADMIN, { values: { [DIGEST.key]: true } }),
+      put(ADMIN, { values: { [DIGEST.key]: true } }),
+    ]);
+    expect([failing.status, following.status]).toEqual([500, 200]);
+  });
+});
+
+describe('the seam when parts of a write fail', () => {
+  it('announces only the part that was saved when the delete fails and the read after it fails too', async () => {
+    let reads = 0;
+    const { tables } = use([stored(G1, PACE.key, 'hard')], MEMBERSHIPS, {
+      failWhen: (q) => {
+        if (q.mutation === 'delete') return { message: 'secret-delete', code: 'XX001' };
+        if (q.table === 'group_settings' && !q.mutation && ++reads >= 2) return { message: 'secret-reread' };
+        return null;
+      },
+    });
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const res = await put(ADMIN, { values: { [DIGEST.key]: true, [PACE.key]: null } });
+    expect(res.status).toBe(500);
+    expect(tables.group_settings.map((r) => r.key).sort()).toEqual([DIGEST.key, PACE.key]);
+    expect(changes).toHaveLength(1);
+    expect(changes[0].changes).toEqual([{ key: DIGEST.key, from: false, to: true }]);
+  });
+
+  it('announces a reset derived from the request when the read after the write fails', async () => {
+    let reads = 0;
+    const { tables } = use([stored(G1, PACE.key, 'hard')], MEMBERSHIPS, {
+      failWhen: (q) => (q.table === 'group_settings' && !q.mutation && ++reads >= 2 ? { message: 'secret-reread' } : null),
+    });
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const res = await put(ADMIN, { values: { [PACE.key]: null } });
+    expect(res.status).toBe(500);
+    expect(tables.group_settings).toEqual([]);
+    expect(changes).toHaveLength(1);
+    expect(changes[0].changes).toEqual([{ key: PACE.key, from: 'hard', to: 'easy' }]);
+  });
+
+  it('announces nothing when the upsert fails and the read after it fails too', async () => {
+    let reads = 0;
+    use([], MEMBERSHIPS, {
+      failWhen: (q) => {
+        if (q.mutation === 'upsert') return { message: 'boom' };
+        return q.table === 'group_settings' && !q.mutation && ++reads >= 2 ? { message: 'boom' } : null;
+      },
+    });
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const res = await put(ADMIN, { values: { [DIGEST.key]: true } });
+    expect(res.status).toBe(500);
+    expect(changes).toEqual([]);
+  });
+
+  it('logs "group settings saved" only when the write succeeded', async () => {
+    use([], MEMBERSHIPS, { failWhen: (q) => (q.mutation === 'upsert' ? { message: 'boom' } : null) });
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const info = vi.spyOn(logger, 'info').mockImplementation(() => {});
+    await put(ADMIN, { values: { [DIGEST.key]: true } });
+    expect(info.mock.calls.some((call) => String(call[0]).includes('group settings saved'))).toBe(false);
+  });
+});
+
+describe('a seam that never answers', () => {
+  it('does not hang the PUT or hold the group: the answer comes after the timeout and the next write goes through', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/groups/settings', createGroupSettingsRouter(REGISTRY, { onGroupSettingsChanged: () => new Promise<void>(() => {}), announceTimeoutMs: 40 }));
+    const local = await startServer(app);
+    try {
+      const { tables } = use();
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+      const started = Date.now();
+      const first = await local.request('PUT', '/api/groups/settings', { token: token(ADMIN), body: { values: { [DIGEST.key]: true } } });
+      expect(first.status).toBe(200);
+      expect(Date.now() - started).toBeLessThan(2000);
+      expect(JSON.stringify(error.mock.calls)).toContain('seam_timeout');
+      const second = await local.request('PUT', '/api/groups/settings', { token: token(ADMIN), body: { values: { [PACE.key]: 'hard' } } });
+      expect(second.status).toBe(200);
+      expect(tables.group_settings.map((r) => r.key).sort()).toEqual([DIGEST.key, PACE.key]);
     } finally {
       await local.close();
     }

@@ -416,6 +416,10 @@ export function checkUsersGroupIdWrites(files) {
 // ett skäl och en ticket som tar bort den (som USERS_GROUP_ID_EXEMPT_FILES).
 export const GROUP_SETTINGS_EXEMPT_FILES = new Map();
 const GROUP_SETTINGS_FROM_LITERAL = String.raw`(['"\`])group_settings\1`;
+// Namnet på konstanten i services/groupSettings.ts. Den exporteras inte, men matchas ändå på namn i vilken fil som helst, ifall någon exporterar den igen.
+const GROUP_SETTINGS_TABLE_IDENTIFIER = 'GROUP_SETTINGS_TABLE';
+// `.from('group_settings' as const)`, `… satisfies string`: en typpåstående efter tabellnamnet ändrar inte vilken tabell det är.
+const TYPE_ASSERTION = String.raw`(?:\s+(?:as|satisfies)\s+[\w.]+)?`;
 // `const TABLE = 'group_settings'` (valfri typannotation): tabellen anges då av en konstant i samma fil.
 const GROUP_SETTINGS_CONSTANT = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*(['"`])group_settings\2/g;
 const WRITE_METHOD = /\.(?:upsert|insert|update|delete)\s*\(/;
@@ -431,14 +435,15 @@ const GROUP_ID_WORD = /group[_-]?id/i;
  * till group_settings måste anropa `actingGroupForWriteOrRespond` eller `resolveActingGroupForWrite` (utils/groupAccess.ts), och gruppen till
  * skrivningen får aldrig hämtas ur `req.params`, `req.body`, `req.query`, `req.headers` (eller `req.header()`/`req.get()`) eller `req.user` (JWT:ns group_id är inaktuell
  * efter join, och resten styr anroparen själv). Annars kan en admin rikta en skrivning mot en annan grupp (IDOR) eller en medlem skriva alls.
- * Fångas: `.from('group_settings')` (eller en konstant i samma fil som är satt till 'group_settings') följt av `.upsert/.insert/.update/.delete` i
+ * Fångas: `.from('group_settings')` (också med `as const`/`satisfies`, eller en konstant i samma fil som är satt till 'group_settings', eller identifieraren
+ * `GROUP_SETTINGS_TABLE` i vilken fil som helst) följt av `.upsert/.insert/.update/.delete` i
  * frågekedjan, och SQL-text med `insert into / update / delete from [public.]group_settings`; en sådan fil utan grind-anrop; en frågekedja som nämner
  * request-data; och en sats (mellan `;`) som nämner både `group_id`/`groupId` och request-data (`const groupId = req.user!.group_id;`).
  * `files`: [{ path, content }]; `exempt`: filer som släpps igenom (standard: GROUP_SETTINGS_EXEMPT_FILES). Bara apps/backend/src, utan tester och
  * testhjälpare. Returnerar "path:rad: text".
  * Vakten är textbaserad och förstår inte kod. Fångas INTE: att grindens resultat faktiskt är det som skickas till skrivningen (ett grind-anrop någonstans i
- * filen räcker), en tabell som importeras som konstant från en annan fil (`.from(GROUP_SETTINGS_TABLE)`; skriv tabellnamnet som en bokstavlig sträng på
- * skrivstället), en fråga som byggs i flera satser, ett gruppid som går via en mellanvariabel utan "group_id" i namnet (`const g = req.body.x`), satser utan
+ * filen räcker), en tabell som importeras under ett annat namn än `GROUP_SETTINGS_TABLE` från en annan fil (`import { X as T }`; skriv tabellnamnet som en bokstavlig
+ * sträng på skrivstället), en fråga som byggs i flera satser, ett gruppid som går via en mellanvariabel utan "group_id" i namnet (`const g = req.body.x`), satser utan
  * semikolon, och ett grind-anrop som bara står i en sträng. Granskning täcker de formerna.
  */
 export function checkGroupSettingsWrites(files, exempt = GROUP_SETTINGS_EXEMPT_FILES) {
@@ -448,9 +453,9 @@ export function checkGroupSettingsWrites(files, exempt = GROUP_SETTINGS_EXEMPT_F
     const code = withoutComments(content);
     const lineAt = (index) => code.slice(0, index).split(/\r?\n/).length;
 
-    const tableNames = [GROUP_SETTINGS_FROM_LITERAL];
+    const tableNames = [GROUP_SETTINGS_FROM_LITERAL, GROUP_SETTINGS_TABLE_IDENTIFIER];
     for (const constant of code.matchAll(GROUP_SETTINGS_CONSTANT)) tableNames.push(constant[1].replace(/\$/g, '\\$'));
-    const fromTable = new RegExp(String.raw`\.from\(\s*(?:${tableNames.join('|')})\s*\)`, 'g');
+    const fromTable = new RegExp(String.raw`\.from\(\s*(?:${tableNames.join('|')})${TYPE_ASSERTION}\s*\)`, 'g');
 
     const writes = []; // { line, requestInChain }
     for (const match of code.matchAll(fromTable)) {
