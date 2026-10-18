@@ -106,8 +106,9 @@ afterAll(() => new Promise<void>((resolve) => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const USER_ID = '11111111-1111-4111-8111-111111111111';
-const OPPONENT_ID = '22222222-2222-4222-8222-222222222222';
+// Med hex-bokstäver, så att versalvarianten skiljer sig från gemenerna.
+const USER_ID = 'aaaa1111-1111-4111-8111-11111111aaaa';
+const OPPONENT_ID = 'bbbb2222-2222-4222-8222-22222222bbbb';
 const TOKEN_ID = 'token-uuid-1';
 const CHALLENGE_ID = 'challenge-uuid-1';
 const GROUP_ID = 'group-uuid-1';
@@ -326,6 +327,49 @@ describe('POST /api/challenges/send', () => {
     );
     expect(status).toBe(404);
     expect(body.error).toMatch(/opponent not found/i);
+  });
+
+  it('returns 400 when opponent_id is the caller own id written in upper case', async () => {
+    const stub: any = buildSendStub();
+    const baseFrom = stub.from.getMockImplementation()!;
+    const inserts: unknown[] = [];
+    stub.from.mockImplementation((table: string) => {
+      const chain = baseFrom(table);
+      // Databasen jämför uuid skiftlägesokänsligt: raden för versal-id:t är anroparens egen rad.
+      if (table === 'users') chain.single = vi.fn().mockResolvedValue({ data: CHALLENGER_USER, error: null });
+      if (table === 'challenges') chain.insert = vi.fn().mockImplementation((row: unknown) => { inserts.push(row); return chain; });
+      return chain;
+    });
+    vi.mocked(getSupabaseClient).mockReturnValue(stub);
+    const { status, body } = await post(
+      '/api/challenges/send',
+      { token_id: TOKEN_ID, opponent_id: USER_ID.toUpperCase() },
+      authHeader
+    );
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/cannot challenge yourself/i);
+    expect(inserts).toHaveLength(0);
+  });
+
+  it('builds the busy-filter from the database id, not from the opponent_id text in the body', async () => {
+    const stub: any = buildSendStub();
+    const baseFrom = stub.from.getMockImplementation()!;
+    const orArgs: string[] = [];
+    stub.from.mockImplementation((table: string) => {
+      const chain = baseFrom(table);
+      if (table === 'challenges') chain.or = vi.fn().mockImplementation((filter: string) => { orArgs.push(filter); return chain; });
+      return chain;
+    });
+    vi.mocked(getSupabaseClient).mockReturnValue(stub);
+    const { status } = await post(
+      '/api/challenges/send',
+      { token_id: TOKEN_ID, opponent_id: OPPONENT_ID.toUpperCase() },
+      authHeader
+    );
+    expect(status).toBe(201);
+    expect(orArgs).toHaveLength(1);
+    expect(orArgs[0]).toContain(`challenger_id.eq.${OPPONENT_ID},opponent_id.eq.${OPPONENT_ID}`);
+    expect(orArgs[0]).not.toContain(OPPONENT_ID.toUpperCase());
   });
 
   // ── Token ownership ───────────────────────────────────────────────────────

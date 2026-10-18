@@ -213,6 +213,10 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     if (!opponent) {
       res.status(404).json({ error: 'Opponent not found' }); return;
     }
+    // isUuid släpper igenom versaler och databasen jämför uuid skiftlägesokänsligt: kontrollera även mot det riktiga id:t.
+    if (opponent.id === userId) {
+      res.status(400).json({ error: 'You cannot challenge yourself' }); return;
+    }
     // Fail-closed (ADR 007 A6): en token utan group_id får inte utmana någon över gruppgränsen.
     if (!groupId || opponent.group_id !== groupId) {
       res.status(400).json({ error: 'Opponent is not in your group' }); return;
@@ -262,7 +266,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
         group_id: groupId,
         tier: token.tier,
         challenger_id: userId,
-        opponent_id,
+        opponent_id: opponent.id,
         metric: token.metric,
         duration_days: token.duration_days,
         winner_type: reward.winner_type,
