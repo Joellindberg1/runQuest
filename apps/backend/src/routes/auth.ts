@@ -8,7 +8,7 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { loginRateLimiter } from '../middleware/rateLimit.js';
 import { invalidateXpConfigCache } from '../services/xpConfig.js';
-import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
+import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
 import { compareXpStandings } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 
@@ -322,15 +322,21 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
     }
 
+    // Admin utan grupp får inte röra något (403). Målet måste ligga i adminens grupp; annars svarar vi 404 som för ett id som saknas,
+    // så att svaret inte avslöjar att användaren finns i en annan grupp.
+    const groupId = groupIdOrRespondForbidden(req, res);
+    if (!groupId) return;
+
     logger.info(`🔍 Resetting password for user ID: ${id}`);
-    
+
     const supabase = getSupabaseClient();
-    
-    // Verify user exists
+
+    // Verify user exists in the admin's group
     const { data: user, error: findError } = await supabase
       .from('users')
       .select('id, name')
       .eq('id', id)
+      .eq('group_id', groupId)
       .single();
 
     if (findError || !user) {
@@ -348,7 +354,8 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
     const { error: updateError } = await supabase
       .from('users')
       .update({ password_hash: newPasswordHash })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('group_id', groupId);
 
     if (updateError) {
       logger.info('❌ Error updating password:', updateError.message);
