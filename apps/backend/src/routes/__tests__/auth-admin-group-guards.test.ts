@@ -110,6 +110,19 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
     expect(otherGroup.body).toEqual(missing.body);
   });
 
+  it('answers 500 and writes nothing when the user lookup fails in the database, not the 404 of a missing user', async () => {
+    const db = useDb(people(), {
+      failWhen: (q) => (q.table === 'users' && !q.mutation && q.select === 'id' ? { message: 'connection terminated', code: '57P01' } : null),
+    });
+    const res = await reset('member-a', adminToken(GROUP_A));
+    const missing = await server.request('PUT', '/api/auth/users/no-such-user/password', { token: adminToken(GROUP_A), body: { newPassword: 'brand-new-secret' } });
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to look up the user' });
+    expect(missing.status).toBe(500);
+    expect(writesTo(db, 'users')).toEqual([]);
+    expect(db.tables.users.find((u) => u.id === 'member-a')!.password_hash).toBe(OLD_HASH);
+  });
+
   it('answers 404 and keeps the password when the user moves to another group between the lookup and the update', async () => {
     // failWhen körs före radfiltreringen i updaten: precis då flyttas målet till en annan grupp, som vid ett samtidigt anrop.
     const db = useDb(people(), {

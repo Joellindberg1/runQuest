@@ -21,6 +21,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb, type Row, type RecordedQuery } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
+import { startFakeSentry } from '../../observability/__tests__/helpers/fakeSentry.js';
 
 let server: TestServer;
 beforeAll(async () => { server = await startServer(app); });
@@ -61,7 +62,7 @@ const databaseErrorCases: Case[] = [
   { name: 'change-password update', method: 'POST', path: '/api/auth/change-password', body: { currentPassword: CURRENT_PASSWORD, newPassword: 'another-secret' }, fails: (q) => q.mutation === 'update', status: 500 },
   { name: 'user list', method: 'GET', path: '/api/auth/users', fails: readsUsers, status: 500 },
   { name: 'user create', method: 'POST', path: '/api/auth/users', body: { name: 'Newbie', email: 'newbie@example.com', password: 'secret123' }, fails: (q) => q.mutation === 'insert', status: 500 },
-  { name: 'password reset lookup', method: 'PUT', path: '/api/auth/users/u2/password', body: { newPassword: 'another-secret' }, fails: readsUsers, status: 404 },
+  { name: 'password reset lookup', method: 'PUT', path: '/api/auth/users/u2/password', body: { newPassword: 'another-secret' }, fails: readsUsers, status: 500 },
   { name: 'password reset update', method: 'PUT', path: '/api/auth/users/u2/password', body: { newPassword: 'another-secret' }, fails: (q) => q.mutation === 'update', status: 500 },
   { name: 'displayed titles', method: 'PUT', path: '/api/auth/me/displayed-titles', body: { title_ids: ['t1'] }, fails: (q) => q.mutation === 'update', status: 500 },
   { name: 'users with runs', method: 'GET', path: '/api/auth/users-with-runs', fails: readsUsers, status: 500 },
@@ -111,5 +112,22 @@ describe('auth routes when a call throws', () => {
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toContain(LEAK);
     expectOnlyTheCodeWasLogged('ECONNRESET');
+  });
+});
+
+describe('auth routes that answer 500 when the database fails', () => {
+  // En 500 är vårt fel och ska bli en Sentry-händelse (logger.error), med felkoden och utan databasmeddelandet.
+  it.each(databaseErrorCases.filter((c) => c.status === 500))('$name is reported to Sentry with the error code only', async (c) => {
+    const sentry = startFakeSentry();
+    try {
+      useDb(c.fails, () => ({ message: `duplicate key value violates unique constraint (email)=(${LEAK})`, details: `Key (email)=(${LEAK}) already exists.`, code: '23505' }));
+      const res = await send(c);
+      expect(res.status).toBe(500);
+      const events = JSON.stringify(await sentry.drain());
+      expect(events).toContain('23505');
+      expect(events).not.toContain(LEAK);
+    } finally {
+      await sentry.stop();
+    }
   });
 });
