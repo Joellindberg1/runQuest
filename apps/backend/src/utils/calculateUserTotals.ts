@@ -30,7 +30,7 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
       .order('date', { ascending: true });
 
     if (error) {
-      logger.error('Error fetching user runs:', error);
+      logger.error(`Error fetching user runs (${errorCode(error)})`);
       return;
     }
 
@@ -85,7 +85,7 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
       .eq('id', userId);
 
     if (updateError) {
-      logger.error('Error updating user totals:', updateError);
+      logger.error(`Error updating user totals (${errorCode(updateError)})`);
     } else {
       logger.info(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
 
@@ -115,7 +115,7 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
     try {
       await evaluateBadges(userId, { longestStreak });
     } catch (badgeError) {
-      logger.error('❌ Error evaluating badges:', badgeError);
+      logger.error(`❌ Error evaluating badges (${errorCode(badgeError)})`);
     }
 
     // 🏆 Omräkningen av titlar är gruppavgränsad (RUN-104): bara användarens EGEN grupp, aldrig andra grupper.
@@ -144,7 +144,7 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
           await titleService.processUserTitlesAfterRun(userId, runsWithAlias, Math.round(totalDistance * 100) / 100, longestStreak); // numeric(8,2) som users.total_km i gruppvägen
           logger.info('✅ Own titles processed successfully');
         } catch (ownTitlesError) {
-          logger.error('❌ Error processing own titles:', ownTitlesError);
+          logger.error(`❌ Error processing own titles (${errorCode(ownTitlesError)})`);
         }
       }
       
@@ -154,18 +154,18 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
       const { error: leaderboardError } = await supabase.rpc('update_all_title_leaderboards');
       
       if (leaderboardError) {
-        logger.error('❌ Failed to refresh title leaderboard:', leaderboardError);
+        logger.error(`❌ Failed to refresh title leaderboard (${errorCode(leaderboardError)})`);
       } else {
         logger.info('✅ Title leaderboard refreshed successfully');
       }
       
     } catch (titleError) {
-      logger.error('❌ Error processing titles:', titleError);
+      logger.error(`❌ Error processing titles (${errorCode(titleError)})`);
       // Don't throw - user totals were saved successfully
     }
 
     logger.info(`✅ calculateUserTotals:${userId} completed in ${Date.now() - startTime}ms`);
   } catch (error) {
-    logger.error('Error in calculateUserTotals:', error);
+    logger.error(`Error in calculateUserTotals (${errorCode(error)})`);
   }
 }
