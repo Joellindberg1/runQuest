@@ -199,16 +199,19 @@ export class TitleLeaderboardService {
   }
 
   /**
-   * Refresh leaderboard for a specific title
+   * Refresh ONE group's leaderboard for a specific title (ADR 012 beslut 4.3). Rankingen är per grupp: en annan grupps lista rörs aldrig.
+   * Fail-closed: utan groupId kastas det, så att ett anrop aldrig faller tillbaka på en ombyggnad av alla grupper.
    */
-  async refreshTitleLeaderboard(titleId: string): Promise<void> {
+  async refreshTitleLeaderboard(groupId: string, titleId: string): Promise<void> {
+    if (typeof groupId !== 'string' || groupId === '') throw new Error('refreshTitleLeaderboard kräver groupId');
     logger.info(`🔄 Refreshing leaderboard for title: ${titleId}`);
 
-    const { error } = await supabase.client.rpc('update_title_leaderboard', {
+    const { error } = await supabase.client.rpc('update_group_title_leaderboard', {
+      p_group_id: groupId,
       p_title_id: titleId
     });
 
-    if (error) throw errorWithCode(`Failed to refresh the leaderboard of title ${titleId}`, error);
+    if (error) throw errorWithCode(`Failed to refresh the leaderboard of title ${titleId} in group ${groupId}`, error);
 
     logger.info(`✅ Leaderboard refreshed for title ${titleId}`);
   }

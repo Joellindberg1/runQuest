@@ -1,6 +1,6 @@
 /**
  * The error that processUserTitlesAfterRun throws carries the code of the first thing that failed, never the database text, so the
- * one place that catches it (processAllUsersTitles, calculateUserTotals) logs a meaningful code and not "(Error)".
+ * one place that catches it (processGroupTitles, calculateUserTotals) logs a meaningful code and not "(Error)".
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -25,13 +25,13 @@ function use(options: { failWhen?: (q: RecordedQuery) => { message: string; code
   const db = createFakeDb(tables, {
     autoIds: true,
     failWhen: options.failWhen,
-    rpc: { update_title_leaderboard: () => (options.failRefresh ? { error: options.failRefresh } : { data: null }) },
+    rpc: { update_group_title_leaderboard: () => (options.failRefresh ? { error: options.failRefresh } : { data: null }) },
   });
   holder.client = db.client;
   return tables;
 }
 
-const run = (service = new EnhancedTitleService()) => service.processUserTitlesAfterRun('u1', [], 10, 0).catch((error: Error) => error);
+const run = (service = new EnhancedTitleService()) => service.processUserTitlesAfterRun({ userId: 'u1', groupId: 'g1', window: { from: null } }, [], { total_km: 10, longest_streak: 0 }).catch((error: Error) => error);
 
 beforeEach(() => {
   vi.spyOn(logger, 'info').mockImplementation(() => {});

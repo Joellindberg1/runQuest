@@ -15,7 +15,7 @@ const h = vi.hoisted(() => ({
   syncAllStravaUsers: vi.fn(),
   calculateUserTotals: vi.fn(),
   backfillMissingWeather: vi.fn(),
-  processAllUsersTitles: vi.fn(),
+  processAllGroupsTitles: vi.fn(),
 }));
 
 vi.mock('node-cron', () => ({
@@ -23,7 +23,7 @@ vi.mock('node-cron', () => ({
 }));
 vi.mock('../../routes/strava.js', () => ({ syncAllStravaUsers: h.syncAllStravaUsers }));
 vi.mock('../../services/weatherService.js', () => ({ WeatherService: { backfillMissingWeather: h.backfillMissingWeather } }));
-vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllUsersTitles: h.processAllUsersTitles } }));
+vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllGroupsTitles: h.processAllGroupsTitles } }));
 vi.mock('../../utils/calculateUserTotals.js', () => ({ calculateUserTotals: h.calculateUserTotals }));
 
 import { startStravaScheduler, getSyncInfo } from '../stravaSync.js';
@@ -122,17 +122,17 @@ describe('Strava sync schedule', () => {
     await weatherJob().run();
 
     expect(h.calculateUserTotals).not.toHaveBeenCalled();
-    expect(h.processAllUsersTitles).not.toHaveBeenCalled();
+    expect(h.processAllGroupsTitles).not.toHaveBeenCalled();
   });
 
   it('a weather tick that saved weather recalculates titles once and never the user totals', async () => {
     h.backfillMissingWeather.mockResolvedValueOnce(3);
-    h.processAllUsersTitles.mockResolvedValue({ total: 1, processed: 1, failed: 0 });
+    h.processAllGroupsTitles.mockResolvedValue({ total: 1, processed: 1, failed: 0 });
     startStravaScheduler();
 
     await weatherJob().run();
 
-    expect(h.processAllUsersTitles).toHaveBeenCalledTimes(1);
+    expect(h.processAllGroupsTitles).toHaveBeenCalledTimes(1);
     expect(h.calculateUserTotals).not.toHaveBeenCalled();
   });
 });

@@ -21,7 +21,7 @@ vi.mock('@runquest/shared', async (importOriginal) => {
 vi.mock('node-cron', () => ({ default: { schedule: (expr: string, run: () => Promise<void>, options: unknown) => { h.runs.set(expr, run); h.schedule(expr, options); } } }));
 vi.mock('../../routes/strava.js', () => ({ syncAllStravaUsers: vi.fn().mockResolvedValue({ success: true, message: 'ok', syncedUsers: 0, totalUsers: 0, totalNewRuns: 0 }) }));
 vi.mock('../../services/weatherService.js', () => ({ WeatherService: { backfillMissingWeather: vi.fn() } }));
-vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllUsersTitles: vi.fn() } }));
+vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllGroupsTitles: vi.fn() } }));
 
 import { startStravaScheduler, getSyncInfo } from '../stravaSync.js';
 import { logger } from '../../utils/logger.js';
