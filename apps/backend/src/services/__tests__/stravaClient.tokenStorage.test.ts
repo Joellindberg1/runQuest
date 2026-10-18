@@ -185,6 +185,126 @@ describe('saving the tokens of a refresh', () => {
   });
 });
 
+describe('the row is encrypted again while a refresh is under way (the backfill script)', () => {
+  const NEW_TOKENS = { access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 };
+
+  /** Runs a refresh that Strava answers only after `during` has changed the row, as the backfill script would. */
+  async function refreshWhile(rows: Row[], during: (t: Record<string, Row[]>) => void, failWhen?: (q: RecordedQuery) => { message: string } | null) {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse(NEW_TOKENS) });
+    const world = use(rows, failWhen);
+    const hold = holdTheTokenRequest();
+    try {
+      const pending = getValidAccessToken('user-1');
+      await hold.reached;
+      during(world.t);
+      hold.release();
+      return { result: await pending, ...world };
+    } finally {
+      hold.restore();
+    }
+  }
+
+  it('follows the row to its new string and saves the new tokens there, instead of throwing them away', async () => {
+    const { result, t, db } = await refreshWhile([{ ...TOKEN_ROW, expires_at: 100 }], (tables) => {
+      // The same tokens, sealed again (a re-encryption to the active key): the string the refresh started from is gone.
+      Object.assign(tables.strava_tokens[0], { access_token: storedToken('user-1', 'access_token', 'old-at'), refresh_token: storedToken('user-1', 'refresh_token', 'old-rt') });
+    });
+
+    expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 });
+    expect(tokenWrites(db)).toHaveLength(2); // the first save matched nothing, the second was made on the new string
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('does the same when the row was plaintext and has been encrypted meanwhile', async () => {
+    const legacy = { ...TOKEN_ROW, access_token: legacyToken('old-at'), refresh_token: legacyToken('old-rt'), expires_at: 100 };
+    const { result, t } = await refreshWhile([legacy], (tables) => {
+      Object.assign(tables.strava_tokens[0], { access_token: storedToken('user-1', 'access_token', legacyToken('old-at')), refresh_token: storedToken('user-1', 'refresh_token', legacyToken('old-rt')) });
+    });
+
+    expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+    expect(t.strava_tokens[0].refresh_token.startsWith('enc:v1:')).toBe(true);
+  });
+
+  it('still drops the answer when the row now holds another connection, and overwrites nothing', async () => {
+    const { result, t } = await refreshWhile([{ ...TOKEN_ROW, expires_at: 100 }], (tables) => {
+      Object.assign(tables.strava_tokens[0], { access_token: storedToken('user-1', 'access_token', 'other-at'), refresh_token: storedToken('user-1', 'refresh_token', 'other-rt') });
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(result).not.toHaveProperty('mayHaveRotated');
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'other-at', refresh_token: 'other-rt' });
+    expect(vi.mocked(logger.warn).mock.calls.some((call) => String(call[0]).includes('superseded by a newer connection'))).toBe(true);
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalled();
+  });
+
+  it('still drops the answer when the row is gone', async () => {
+    const { result } = await refreshWhile([{ ...TOKEN_ROW, expires_at: 100 }], (tables) => {
+      tables.strava_tokens.length = 0;
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(result).not.toHaveProperty('mayHaveRotated');
+  });
+
+  it('gives up after a few tries when the row keeps changing, with the critical alarm and mayHaveRotated', async () => {
+    let writes = 0;
+    const rows: Row[] = [{ ...TOKEN_ROW, expires_at: 100 }];
+    const { result } = await refreshWhile(
+      rows,
+      () => {},
+      (q) => {
+        if (q.table !== 'strava_tokens' || q.mutation !== 'update') return null;
+        writes += 1;
+        // Before every save the row is sealed again (same tokens), so the save never matches.
+        Object.assign(rows[0], { refresh_token: storedToken('user-1', 'refresh_token', 'old-rt') });
+        return null;
+      },
+    );
+
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed', mayHaveRotated: true });
+    expect(writes).toBeLessThanOrEqual(4); // the first save and at most three follow-ups
+    expect(vi.mocked(logger.error).mock.calls.some((call) => String(call[0]).includes('KRITISKT'))).toBe(true);
+  });
+
+  it('is unsure, and says so as critical, when the row cannot be read again after the save missed', async () => {
+    let updated = false;
+    const { result } = await refreshWhile(
+      [{ ...TOKEN_ROW, expires_at: 100 }],
+      (tables) => {
+        Object.assign(tables.strava_tokens[0], { refresh_token: storedToken('user-1', 'refresh_token', 'old-rt') });
+      },
+      (q) => {
+        if (q.table !== 'strava_tokens') return null;
+        if (q.mutation === 'update') {
+          updated = true;
+          return null;
+        }
+        return updated ? { message: 'connection lost' } : null;
+      },
+    );
+
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed', mayHaveRotated: true });
+    expect(vi.mocked(logger.error).mock.calls.some((call) => String(call[0]).includes('KRITISKT'))).toBe(true);
+  });
+});
+
+describe('the reason a forced refresh gives in the log', () => {
+  it('says Strava rejected the access token by default, and what the caller says when it is not that', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }) });
+    use([{ ...TOKEN_ROW }]);
+
+    await refreshAccessToken('user-1');
+    await refreshAccessToken('user-1', { reason: 'Renewing the tokens on request' });
+
+    const lines = vi.mocked(logger.info).mock.calls.map((call) => String(call[0]));
+    expect(lines).toContain('🔄 Strava rejected the access token, refreshing...');
+    expect(lines).toContain('🔄 Renewing the tokens on request, refreshing...');
+  });
+});
+
 describe('rows that are still plaintext (the dual-read of the transition)', () => {
   it('a legacy plaintext row is read as it is, sent to Strava as it is, and replaced by an encrypted one after the refresh', async () => {
     const legacyAccess = legacyToken('legacy-at');

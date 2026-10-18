@@ -376,7 +376,7 @@ export async function runBackfill({ options, host, log, signal, rateGuard = { is
           );
           break;
         }
-        const result = await refreshAccessToken(row.userId);
+        const result = await refreshAccessToken(row.userId, { reason: 'The token backfill renews the tokens' });
         if (result.ok && result.refreshed) {
           refresh.renewed.push(row.userId);
           consecutiveFailures = 0;
