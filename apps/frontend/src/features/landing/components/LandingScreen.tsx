@@ -14,7 +14,7 @@ import { LandingWaitlist } from './LandingWaitlist';
  * Den publika startsidan (ADR 006: `/` för utloggade). Innehållet är sant eller tydligt märkt exempel: spelreglerna läses ur shared,
  * flocken är påhittad ("Sample pack"), och de tre talen i hjälten kommer från GET /public/stats — sidans enda anrop. Mobil =
  * App Prototypens landing i en kolumn; desktop = Landing-designen (1440 px) med text | bana i hjälten.
- * Filmen (RUN-257) och väntelistan (RUN-211) är egna komponenter; filmen renderar bara den variant som passar bredden.
+ * Filmen (RUN-257) och väntelistan (RUN-211) är egna komponenter; båda filmvarianterna ligger i HTML och CSS visar den som passar bredden.
  */
 export function LandingScreen() {
   const previewRows = useMemo(() => buildPreviewRows(PREVIEW_USERS, PREVIEW_RANK_DELTAS), []);

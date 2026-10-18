@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent, type RefObject } from 'react';
-import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { track } from '@/shared/analytics/track';
+import { prefersReducedMotion } from '@/shared/utils/prefersReducedMotion';
+import { FILM_ID, FILM_MOBILE_ID } from '../landingModel';
 import '../landingFilm.css';
 
 // Filmen "RunQuest Mixed" (49 s, inget ljudspår, påhittade namn). Den startar först vid tryck på play (preload="none", ingen autoplay, ingen
@@ -204,7 +205,7 @@ function DesktopFilm() {
   const playing = status === 'playing';
 
   return (
-    <section id="film" ref={player.rootRef} className="rq-film rq-film--desktop" aria-labelledby={titleId}>
+    <section id={FILM_ID} ref={player.rootRef} className="rq-film rq-film--desktop" aria-labelledby={titleId}>
       <div className="rq-film__head">
         <div>
           <p className="rq-film__eyebrow">Watch the film</p>
@@ -272,7 +273,7 @@ function MobileFilm() {
   const playing = status === 'playing';
 
   return (
-    <div id="film" ref={player.rootRef as RefObject<HTMLDivElement>} className="rq-film rq-film--mobile">
+    <div id={FILM_MOBILE_ID} ref={player.rootRef as RefObject<HTMLDivElement>} className="rq-film rq-film--mobile">
       <div className="rq-film__stage">
         <FilmVideo player={player} stepsId={stepsId} toggleOnClick={false} />
         {showPoster && <FilmPoster />}
@@ -305,23 +306,25 @@ function MobileFilm() {
 }
 
 /**
- * Filmen i en av två vyer. Bara varianten som matchar skärmbredden renderas (desktop från 1024 px), så `#film` alltid har ett mål
- * och bara en spelare finns i tillgänglighetsträdet. Lead monterar desktop på A:s plats för filmen och mobil i hjältens `mobileFilm`.
+ * Filmen i en av två vyer. Båda ligger i HTML (förrenderingen vet inte skärmbredden) och CSS döljer den som inte passar: desktop syns från
+ * 1024 px, mobil under. Den dolda är display: none, alltså utanför tillgänglighetsträdet och tab-ordningen, och hämtar ingenting (preload="none",
+ * lat poster). Varje vy har eget ankar-id (`film` / `film-mobile`). Lead monterar desktop på A:s plats för filmen och mobil i hjältens `mobileFilm`.
  */
 export function LandingFilm({ variant }: { variant: 'desktop' | 'mobile' }) {
-  const isDesktop = useIsDesktop();
-  if (isDesktop === undefined || (variant === 'desktop') !== isDesktop) return null;
   return variant === 'desktop' ? <DesktopFilm /> : <MobileFilm />;
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Filmen som syns just nu: den vars ankare CSS inte har dolt (en dold vy har inga rutor). Undviker att välja på bredd i JS. */
+function visibleFilm(): HTMLElement | undefined {
+  return [FILM_ID, FILM_MOBILE_ID]
+    .map((id) => document.getElementById(id))
+    .find((film): film is HTMLElement => film !== null && film.getClientRects().length > 0);
 }
 
-/** "Watch the film" i hjälten: scrollar till filmen och lägger fokus på play-knappen. Filmen startar inte. */
+/** "Watch the film" i hjälten: scrollar till filmen som syns och lägger fokus på dess play-knapp. Filmen startar inte. */
 export function WatchFilmButton() {
   const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    const film = document.getElementById('film');
+    const film = visibleFilm();
     if (!film) return;
     event.preventDefault();
     film.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
@@ -330,7 +333,7 @@ export function WatchFilmButton() {
   };
 
   return (
-    <a href="#film" className="rq-btn rq-btn--ghost rq-btn--lg" onClick={onClick}>
+    <a href={`#${FILM_ID}`} className="rq-btn rq-btn--ghost rq-btn--lg" onClick={onClick}>
       {`Watch the film — ${FILM_LENGTH}`}
     </a>
   );
