@@ -304,10 +304,17 @@ describe('buildTitleDrafts', () => {
       [
         { kind: 'unlocked', group_id: 'g1', title_id: 't1', user_id: 'a', value: 7 },
         { kind: 'unlocked', group_id: 'g2', title_id: 't1', user_id: 'c', value: 3 },
+        { kind: 'taken', group_id: 'g2', title_id: 't1', new_holder_id: 'd', old_holder_id: 'c', value: 9, previous_value: 3, reason: 'overtaken' },
+        { kind: 'revoked', group_id: 'g2', title_id: 't1', user_id: 'e' },
       ],
       titles, at, '2026-10-05',
     );
-    expect(drafts.map((d) => [d.group_id, d.actor_user_id])).toEqual([['g1', 'a'], ['g2', 'c']]);
+    expect(drafts.map((d) => [d.type, d.group_id, d.actor_user_id])).toEqual([
+      ['title_unlocked', 'g1', 'a'],
+      ['title_unlocked', 'g2', 'c'],
+      ['title_taken', 'g2', 'd'],
+      ['title_revoked', 'g2', 'e'],
+    ]);
   });
 
   it('hoppar över rader utan grupp eller utan titelmeta', () => {

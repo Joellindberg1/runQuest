@@ -69,6 +69,17 @@ describe('snapshotTitleHolders', () => {
     expect(await snapshotTitleHolders()).toEqual([{ group_id: 'g1', title_id: 't1', user_id: 'a', value: 12.5 }]);
   });
 
+  it('hållare i två grupper får var sin grupp', async () => {
+    const tables = baseTables();
+    tables.users.push({ id: 'c', group_id: 'g2', total_km: 1, longest_streak: 1 });
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t2', 'c', 4), lb('t1', 'b', 9, 2)];
+    use(tables);
+    expect(await snapshotTitleHolders()).toEqual([
+      { group_id: 'g1', title_id: 't1', user_id: 'a', value: 12 },
+      { group_id: 'g2', title_id: 't2', user_id: 'c', value: 4 },
+    ]);
+  });
+
   it('tom ranking → tom lista utan uppslag av användare', async () => {
     const db = use(baseTables());
     expect(await snapshotTitleHolders()).toEqual([]);

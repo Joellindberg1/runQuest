@@ -41,6 +41,15 @@ describe('runsInWindow', () => {
     expect(runsInWindow([run('2026-03-28'), run('2026-03-29')], spring).map((r) => r.date)).toEqual(['2026-03-29']);
   });
 
+  it('dagen är run.date: start_time ignoreras, även när tidsstämpeln hamnar på andra sidan gränsen i Stockholm-tid', () => {
+    const window = titleWindow({ starts_on: '2026-10-05' });
+    // 23:30 den 4:e är 01:30 den 5:e i Stockholm, men rundans dag är fortfarande den 4:e.
+    const before = { date: '2026-10-04', distance_km: 5, start_time: '2026-10-04T23:30:00Z' };
+    // 00:30 den 5:e är rundans dag den 5:e oavsett hur tidsstämpeln tolkas.
+    const onDay = { date: '2026-10-05', distance_km: 5, start_time: '2026-10-05T00:30:00Z' };
+    expect(runsInWindow([before, onDay], window)).toEqual([onDay]);
+  });
+
   it('gränsen går över månads- och årsskiften', () => {
     const window = titleWindow({ starts_on: '2027-01-01' });
     expect(runsInWindow([run('2026-12-31'), run('2027-01-01')], window).map((r) => r.date)).toEqual(['2027-01-01']);
