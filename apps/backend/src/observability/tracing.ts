@@ -176,7 +176,7 @@ function pick(source: Json | undefined, allowed: ReadonlySet<string>): Json {
 
 /** Fält på toppnivån i en transaktion som får följa med. SDK:ts egen metadata om processen och bygget; inget som någon kan fylla på. */
 const TRANSACTION_FIELDS: readonly string[] = [
-  'type', 'event_id', 'timestamp', 'start_timestamp', 'platform', 'environment', 'release', 'dist', 'server_name', 'sdk', 'modules', 'spans',
+  'type', 'event_id', 'timestamp', 'start_timestamp', 'platform', 'environment', 'release', 'dist', 'sdk', 'spans',
 ];
 /** Contexts som får följa med: SDK:ts egna beskrivningar av förfrågan och processen. Okända (någon kan ha lagt dit fritt innehåll) tas bort. */
 const TRANSACTION_CONTEXTS: readonly string[] = ['trace', 'response', 'runtime', 'app', 'os', 'device', 'culture', 'cloud_resource'];
@@ -229,6 +229,9 @@ function scrubSpan(span: Json): Json {
  */
 export function scrubTransaction<T extends object>(event: T, secrets: readonly string[] = []): T | null {
   const source = event as Json;
+  // En transaktion per förfrågan: ett anrop som avslutas efter att servertransaktionen är klar (ett svar som skickas medan ett annat
+  // anrop pågår) blir annars en egen transaktion med anropet som rot. Bara servertransaktioner skickas.
+  if (source.contexts?.trace?.op !== 'http.server') return null;
   const routed = source.transaction_info?.source === 'route' && typeof source.transaction === 'string';
   const method = methodOf(source);
 

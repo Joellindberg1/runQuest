@@ -53,6 +53,14 @@ igenom `tracing.ts` och `sentryClient.ts` och flytta rensningen till `beforeSend
   - Sidladdning (frontend): råa sökvägen, resurs-spans med adresser, `lcp.element`/`lcp.url` (t.ex. en avatars adress),
     `cls.source.*`. **Kvar:** routenamn, webbvärdena, webbläsare, tidpunkter.
   - INP (frontend): en väljare för elementet (kan innehålla `aria-label`). **Kvar:** värdet, typen av interaktion, webbläsaren.
+  - Kuvertets trace-header (frontend, `dynamicSamplingContext`): bara release i sin kända form (`RELEASE_PATTERN`), miljö, nyckel,
+    trace-id, provtagning och sidans routenamn; `user_segment`, `replay_id` och allt annat kastas. En release som inte matchar
+    mönstret tas bort i stället för att maskas.
+  - Backend skickar inte `modules` och `server_name` (behövs inte för p95).
+- **En transaktion per förfrågan, bara servertransaktioner:** ett utgående anrop som avslutas efter att svaret skickats (till
+  exempel en `Promise.all` där ett anrop felar medan ett annat pågår) skulle annars skickas som en egen transaktion
+  `GET (no route)` med anropet som rot. `scrubTransaction` släpper allt vars rot inte är `http.server`; de sena delspansen
+  syns alltså inte i förfrågans transaktion heller.
 
 ## Trösklar
 
