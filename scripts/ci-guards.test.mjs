@@ -11,6 +11,7 @@ import {
   checkConditionalGroupFilter,
   checkEmptySuites,
   checkFontFiles,
+  checkGroupRoleMapping,
   checkGitignoreForVideo,
   checkMediaFiles,
   checkNoTrackedVideoOriginals,
@@ -214,6 +215,59 @@ describe('checkConditionalGroupFilter', () => {
     assert.equal(errors.length, 2);
     assert.match(errors[0], /:2:/);
     assert.match(errors[1], /:4:/);
+  });
+});
+
+describe('checkGroupRoleMapping', () => {
+  const scan = (content, path = 'apps/backend/src/utils/groupAccess.ts') => checkGroupRoleMapping([{ path, content }]);
+
+  it('flags a role compared with a role name instead of asking groupRoleCan', () => {
+    for (const code of [
+      "if (member.role === 'admin') allow();",
+      'if (role !== "admin") return deny();',
+      "const isAdmin = membership.role == 'admin';",
+      "if ('admin' === membership.role) allow();",
+      "if (role === 'member') hide();",
+      "if (['admin'].includes(membership.role)) allow();",
+      "if (  role   ===\n  'admin') allow();",
+    ]) {
+      const errors = scan(code);
+      assert.equal(errors.length, 1, code);
+      assert.match(errors[0], /apps\/backend\/src\/utils\/groupAccess\.ts:1: .*groupRoleCan/);
+    }
+  });
+
+  it('passes the allowed forms: groupRoleCan, role values as data, database filters and unrelated roles', () => {
+    for (const code of [
+      "if (groupRoleCan(membership.role, 'settings.write')) allow();",
+      "await rpc('join_group', { p_role: 'member' });",
+      "const { data } = await db.from('group_members').select('role').eq('role', 'admin');",
+      "quiet={kind.role === 'others'}",
+      '<nav role="admin-menu" />',
+      "const roleLabel = role === 'viewer' ? 'Viewer' : 'Other';",
+      "// if (role === 'admin') är förbjudet — använd groupRoleCan\nconst x = 1;",
+      "/* role === 'admin' */ const y = 2;",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('reports every offending line with its own line number', () => {
+    const errors = scan("a;\nif (role === 'admin') x();\nb;\nif (m.role !== 'member') y();\n");
+    assert.equal(errors.length, 2);
+    assert.match(errors[0], /:2:/);
+    assert.match(errors[1], /:4:/);
+  });
+
+  it('exempts the one file that maps roles, tests and test support, and ignores other places', () => {
+    const bad = "if (role === 'admin') x();";
+    assert.deepEqual(scan(bad, 'packages/shared/src/groupRoles.ts'), []);
+    assert.deepEqual(scan(bad, 'packages/shared/src/__tests__/groupRoles.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/utils/groupAccess.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/__tests__/helpers/x.ts'), []);
+    assert.equal(scan(bad, 'apps/frontend/src/features/groups/groupModel.ts').length, 1);
+    assert.equal(scan(bad, 'packages/shared/src/other.ts').length, 1);
+    assert.deepEqual(scan(bad, 'apps/backend/migrations/x.ts'), []);
   });
 });
 
@@ -749,6 +803,32 @@ describe('CLI', () => {
       assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av registerStravaRateBudget/);
     }
     assert.equal(runCli('rate-budget-hook', makeBackend('hook-good', 'registerStravaRateBudget();\n')).status, 0);
+  });
+
+  it('exits 1 on a role compared with a role name (also under all) and 0 once it asks groupRoleCan', () => {
+    const makeRoleRepo = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'utils'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'utils', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeRoleRepo('role-bad', "if (membership.role === 'admin') allow();\n");
+    for (const mode of ['group-role-mapping', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/utils\/planted\.ts:1: .*groupRoleCan/);
+    }
+    assert.equal(runCli('group-role-mapping', makeRoleRepo('role-good', "if (groupRoleCan(membership.role, 'settings.write')) allow();\n")).status, 0);
+  });
+
+  it('exits 0 on the current repo in group-role-mapping mode', () => {
+    const result = runCli('group-role-mapping');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /groupRoleCan/);
   });
 
   it('exits 1 when server.ts lacks the token key check (also under all) and 0 once it is planted', () => {

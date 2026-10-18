@@ -18,3 +18,5 @@ export * from './rules.js';
 export * from './notifications.js';
 export * from './settings.js';
 export * from './tracingRate.js';
+export * from './titleWindow.js';
+export * from './groupRoles.js';

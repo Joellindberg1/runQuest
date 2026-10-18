@@ -56,7 +56,10 @@
 //     Utan anropet blir en saknad eller felaktig nyckel inget larm, och inget test märker det (server.ts går inte att importera i ett test).
 //     Samma vakt och samma begränsningar som regel 8: raden måste börja i kolumn 0.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
+// 13. Roll blir rättighet bara i groupRoleCan (ADR 012 beslut 2.5): ingen källfil under apps/* och packages/* utom `packages/shared/src/groupRoles.ts`
+//     jämför en `role` mot rollnamnen 'admin' eller 'member'. Textbaserad (se checkGroupRoleMapping för vad den inte fångar).
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -305,6 +308,49 @@ export function checkStravaTokenPath(files) {
   return errors;
 }
 
+const GROUP_ROLE_FILE = 'packages/shared/src/groupRoles.ts';
+const WORKSPACE_SOURCE = /^(?:apps|packages)\/[^/]+\/src\//;
+const ROLE_NAME = String.raw`['"\`](?:admin|member)['"\`]`;
+const ROLE_OPERAND = String.raw`[\w$.?!]*\brole\b`;
+const GROUP_ROLE_COMPARISONS = [
+  new RegExp(String.raw`\brole\s*[!=]==?\s*${ROLE_NAME}`, 'g'),
+  new RegExp(String.raw`${ROLE_NAME}\s*[!=]==?\s*${ROLE_OPERAND}`, 'g'),
+  new RegExp(String.raw`\[[^\]]*${ROLE_NAME}[^\]]*\]\s*\.includes\(\s*${ROLE_OPERAND}`, 'g'),
+];
+
+/** Kommentarer bort, men radbrytningarna kvar så att radnumren stämmer. */
+function withoutComments(code) {
+  return code
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
+    .replace(/(^|\s)\/\/.*$/gm, '$1');
+}
+
+/**
+ * Regel 13 (ADR 012 beslut 2.5). Roll blir rättighet på ETT ställe: `groupRoleCan(role, capability)` i packages/shared/src/groupRoles.ts.
+ * Ingen annan källfil under apps/* och packages/* (utom tester och testhjälpare) får jämföra en `role` mot rollnamnen 'admin' eller 'member'
+ * (`role === 'admin'`, `'admin' !== m.role`, `['admin'].includes(m.role)`). Annars blir en ny roll (vice admin) eller en ny rättighet
+ * en ändring på många ställen i stället för en rad i tabellen, och en glömd kontroll är en behörighetslucka.
+ * `files`: [{ path, content }]. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: en roll i en variabel med annat namn än `role` (`const r = m.role; r === 'admin'`),
+ * en switch på rollen (`case 'admin':`), ett rollnamn som byggs ihop av delar, och databasfrågor som filtrerar på rollen (`.eq('role', 'admin')`,
+ * medvetet tillåtna: det är ett urval, ingen behörighetsprövning).
+ */
+export function checkGroupRoleMapping(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!WORKSPACE_SOURCE.test(path) || path === GROUP_ROLE_FILE || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
+    const code = withoutComments(content);
+    const lines = new Set();
+    for (const pattern of GROUP_ROLE_COMPARISONS) {
+      for (const match of code.matchAll(pattern)) lines.add(code.slice(0, match.index).split(/\r?\n/).length);
+    }
+    for (const line of [...lines].sort((a, b) => a - b)) {
+      errors.push(`${path}:${line}: en roll jämförs mot ett rollnamn — fråga groupRoleCan(role, capability) (packages/shared/src/groupRoles.ts), den enda platsen som mappar roll till rättighet (ADR 012 beslut 2.5)`);
+    }
+  }
+  return errors;
+}
+
 const SERVER_FILE = 'apps/backend/src/server.ts';
 const RATE_BUDGET_HOOK_CALL = /^registerStravaRateBudget\s*\(\s*\)/m;
 
@@ -530,8 +576,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -546,7 +592,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -563,6 +609,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'token-key-startup') {
       errors.push(...checkTokenKeyStartupCheck(files));
       summary.push('tokennyckeln kontrolleras vid start i server.ts');
+    }
+    if (mode === 'all' || mode === 'group-role-mapping') {
+      errors.push(...checkGroupRoleMapping(files));
+      summary.push('roller mappas till rättigheter bara i groupRoleCan');
     }
     if (mode === 'all' || mode === 'webhook-scheduler-start') {
       errors.push(...checkWebhookSchedulerStart(files));
