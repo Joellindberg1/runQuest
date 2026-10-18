@@ -12,6 +12,7 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(() => holder.client),
 }));
 vi.mock('../titleLeaderboardService', () => ({ titleLeaderboardService: { refreshTitleLeaderboard: vi.fn() } }));
+const MEMBER = { userId: 'u1', groupId: 'g1', window: { from: null } };
 
 import { EnhancedTitleService } from '../enhancedTitleService.js';
 import { titleEngineRegistry } from '../../titleEngines/index.js';
@@ -39,6 +40,10 @@ function tables(): Record<string, Row[]> {
         pace_std_dev: null, moving_time: null,
         run_weather: [{ temperature_c: 4, wind_speed_ms: 1.5, wind_gusts_ms: null }] },
     ],
+    group_members: [
+      { id: 'm1', user_id: 'u1', group_id: 'g1', role: 'member', starts_on: null, left_at: null },
+      { id: 'm2', user_id: 'u2', group_id: 'g1', role: 'member', starts_on: null, left_at: null },
+    ],
     titles: [{ id: 't1', name: 'Spy', description: '', unlock_requirement: 0, metric_key: SPY_KEY }],
     user_titles: [],
     title_leaderboard: [],
@@ -63,10 +68,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('processAllUsersTitles — väder och ctx', () => {
-  it('processAllUsersTitles hämtar run_weather i runs-selecten och skickar ctx.now till motorn', async () => {
+describe('processGroupTitles — väder och ctx', () => {
+  it('processGroupTitles hämtar run_weather i runs-selecten och skickar ctx.now till motorn', async () => {
     const { db, service } = setup();
-    await service.processAllUsersTitles('g1', { emitNews: false });
+    await service.processGroupTitles('g1', { emitNews: false });
 
     const runReads = db.queries.filter((q) => q.table === 'runs');
     expect(runReads).toHaveLength(2);
@@ -86,7 +91,7 @@ describe('processAllUsersTitles — väder och ctx', () => {
 
   it('väderfälten når motorn som tal (objekt, null och array från PostgREST-embeden)', async () => {
     const { service } = setup();
-    await service.processAllUsersTitles('g1', { emitNews: false });
+    await service.processGroupTitles('g1', { emitNews: false });
 
     const byFirstDate = new Map<string, any[]>();
     for (const call of spyEngine.calculate.mock.calls as unknown as any[][]) byFirstDate.set(call[0][0].date, call[0]);
@@ -108,15 +113,15 @@ describe('processAllUsersTitles — väder och ctx', () => {
       vi.setSystemTime(new Date(NOW.getTime() + 60_000)); // klockan går medan körningen pågår
       return 1;
     }) as any);
-    await service.processAllUsersTitles('g1', { emitNews: false });
+    await service.processGroupTitles('g1', { emitNews: false });
     expect(seen).toHaveLength(2);
     expect(seen[0]).toBe(seen[1]);
     spyEngine.calculate.mockImplementation(() => 1);
   });
 
-  it('processUserTitlesAfterRun utan ctx (skrivvägen utan grupp) defaultar till nuvarande tid', async () => {
+  it('processUserTitlesAfterRun utan ctx defaultar till nuvarande tid', async () => {
     const { service } = setup();
-    await service.processUserTitlesAfterRun('u1', [{ date: '2026-12-01', distance_km: 5 }], 5, 1);
+    await service.processUserTitlesAfterRun(MEMBER, [{ date: '2026-12-01', distance_km: 5 }], { total_km: 5, longest_streak: 1 });
     expect(spyEngine.calculate).toHaveBeenCalledTimes(1);
     expect((spyEngine.calculate.mock.calls[0] as unknown as any[])[2]).toEqual({ now: NOW });
   });
@@ -124,7 +129,7 @@ describe('processAllUsersTitles — väder och ctx', () => {
   it('processUserTitlesAfterRun skickar ett explicit ctx vidare oförändrat', async () => {
     const { service } = setup();
     const ctx = { now: new Date('2027-01-01T00:00:00Z') };
-    await service.processUserTitlesAfterRun('u1', [{ date: '2026-12-01', distance_km: 5 }], 5, 1, ctx);
+    await service.processUserTitlesAfterRun(MEMBER, [{ date: '2026-12-01', distance_km: 5 }], { total_km: 5, longest_streak: 1 }, ctx);
     expect((spyEngine.calculate.mock.calls[0] as unknown as any[])[2]).toBe(ctx);
   });
 

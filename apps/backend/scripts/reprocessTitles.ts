@@ -1,20 +1,10 @@
 /**
- * One-off script to reprocess all user titles.
- * Run: cd apps/backend && npx tsx scripts/reprocessTitles.ts
+ * One-off script to reprocess all user titles, group by group and without Pack News (like admin /titles/reprocess-all).
+ * Exit code 1 if anything failed. Run: cd apps/backend && npx tsx scripts/reprocessTitles.ts
  */
 
 import '../src/config/database';
 import { EnhancedTitleService } from '../src/services/enhancedTitleService';
+import { reprocessAllTitles } from '../src/scripts/reprocessTitlesRun';
 
-async function main() {
-  console.log('🏆 Starting full title reprocess...');
-  const service = new EnhancedTitleService();
-  await service.processAllUsersTitles(undefined, { allGroups: true });
-  console.log('✅ Done.');
-  process.exit(0);
-}
-
-main().catch(err => {
-  console.error('❌ Error:', err);
-  process.exit(1);
-});
+reprocessAllTitles(new EnhancedTitleService(), console).then((code) => process.exit(code));

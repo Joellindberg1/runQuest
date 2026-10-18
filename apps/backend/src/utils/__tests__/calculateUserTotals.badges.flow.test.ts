@@ -12,7 +12,7 @@ vi.mock('../../config/database.js', () => ({
 vi.mock('../../services/levelService.js', () => ({ getLevelFromXP: vi.fn(async () => 1) }));
 vi.mock('../../services/challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
 vi.mock('../../services/enhancedTitleService.js', () => ({
-  EnhancedTitleService: class { processAllUsersTitles = vi.fn(async () => undefined); },
+  EnhancedTitleService: class { processGroupTitles = vi.fn(async () => undefined); },
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
@@ -27,6 +27,7 @@ describe('flöde 9: calculateUserTotals → user_badges (riktig evaluateBadges)'
       activity_log: [],
       user_badges: [],
       users: [{ id: 'u1', group_id: 'g1', event_xp: 0, current_level: 1, total_km: 0, total_xp: 0, current_streak: 0, longest_streak: 0, displayed_badge_series: [] }],
+      group_members: [{ id: 'm1', user_id: 'u1', group_id: 'g1', role: 'member', starts_on: null, left_at: null }],
       runs: [{ id: 'r1', user_id: 'u1', date: '2020-01-01', distance: 5, xp_gained: 10, start_time: null, moving_time: null, total_elevation_gain: null, is_treadmill: false, source: 'manual' }],
     };
     const db = createFakeDb(t, { numericIds: ['activity_log'] });

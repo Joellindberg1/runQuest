@@ -1,5 +1,5 @@
 /**
- * Titelhändelser (ADR 008 beslut 6): snapshot av innehavarna före/efter processAllUsersTitles,
+ * Titelhändelser (ADR 008 beslut 6): snapshot av innehavarna före/efter processGroupTitles,
  * ren diff → title_unlocked / title_taken / title_revoked. Endast framåt; emitNews:false för admin-underhåll.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -41,6 +41,10 @@ function baseTables(): Record<string, Row[]> {
       { id: 'a', group_id: 'g1', total_km: 10, longest_streak: 2 },
       { id: 'b', group_id: 'g1', total_km: 20, longest_streak: 3 },
       { id: 'x', group_id: null, total_km: 5, longest_streak: 1 },
+    ],
+    group_members: [
+      { id: 'ma', user_id: 'a', group_id: 'g1', role: 'member', starts_on: null, left_at: null },
+      { id: 'mb', user_id: 'b', group_id: 'g1', role: 'member', starts_on: null, left_at: null },
     ],
     runs: [],
     user_titles: [],
@@ -193,11 +197,11 @@ describe('emitTitleNews', () => {
   });
 });
 
-describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering', () => {
+describe('EnhancedTitleService.processGroupTitles — snapshot-orkestrering', () => {
   /** Ersätter titelbearbetningen: skriver user_titles + title_leaderboard som DB-triggern skulle göra. */
   function simulate(service: EnhancedTitleService, tables: Record<string, Row[]>, mutate: () => void) {
-    return vi.spyOn(service, 'processUserTitlesAfterRun').mockImplementation(async (userId: string) => {
-      if (userId === 'a') mutate(); // en gång per bearbetning räcker
+    return vi.spyOn(service, 'processUserTitlesAfterRun').mockImplementation(async (member: { userId: string }) => {
+      if (member.userId === 'a') mutate(); // en gång per bearbetning räcker
       void tables;
     });
   }
@@ -213,11 +217,11 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
       tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2)];
     });
 
-    await service.processAllUsersTitles('g1');
+    await service.processGroupTitles('g1');
     expect(tables.activity_log.map((r) => r.type)).toEqual(['title_taken']);
 
     // omkörning: leaderboarden är oförändrad → inget nytt; och även om samma byte upptäcks igen → dedupe_key
-    await service.processAllUsersTitles('g1');
+    await service.processGroupTitles('g1');
     expect(tables.activity_log).toHaveLength(1);
   });
 
@@ -227,7 +231,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
     use(tables);
     const service = new EnhancedTitleService();
     simulate(service, tables, () => {});
-    await service.processAllUsersTitles('g1');
+    await service.processGroupTitles('g1');
     expect(tables.activity_log).toHaveLength(0);
   });
 
@@ -239,7 +243,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
       tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
     });
-    await service.processAllUsersTitles('g1');
+    await service.processGroupTitles('g1');
     expect(tables.activity_log.map((r) => [r.type, r.actor_user_id])).toEqual([['title_unlocked', 'a']]);
   });
 
@@ -250,7 +254,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
     use(tables);
     const service = new EnhancedTitleService();
     simulate(service, tables, () => { tables.user_titles = []; tables.title_leaderboard = []; });
-    await service.processAllUsersTitles('g1');
+    await service.processGroupTitles('g1');
     expect(tables.activity_log.map((r) => [r.type, r.actor_user_id])).toEqual([['title_revoked', 'a']]);
   });
 
@@ -262,7 +266,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
       tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
     });
-    await service.processAllUsersTitles(undefined, { emitNews: false, allGroups: true });
+    await service.processAllGroupsTitles({ emitNews: false });
     expect(tables.activity_log).toHaveLength(0);
     expect(db.queries.some((q) => q.table === 'title_leaderboard')).toBe(false);
   });
@@ -275,7 +279,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
       tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
     });
-    await expect(service.processAllUsersTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
+    await expect(service.processGroupTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
     expect(spy).toHaveBeenCalled();
   });
 
@@ -284,7 +288,7 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
     use(tables, { errors: { title_leaderboard: { message: 'boom' } } });
     const service = new EnhancedTitleService();
     const spy = simulate(service, tables, () => {});
-    await expect(service.processAllUsersTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
+    await expect(service.processGroupTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
     expect(spy).toHaveBeenCalledTimes(2); // båda gruppmedlemmarna bearbetades
     expect(tables.activity_log).toHaveLength(0);
   });

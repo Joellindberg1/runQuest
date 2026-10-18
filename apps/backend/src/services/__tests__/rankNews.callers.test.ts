@@ -18,10 +18,11 @@ vi.mock('../../config/database.js', () => ({
 vi.mock('../levelService.js', () => ({ getLevelFromXP: vi.fn(async () => 1) }));
 vi.mock('../challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
 vi.mock('../badgeService.js', () => ({ evaluateBadges: vi.fn(async () => null) }));
-const processAllUsersTitles = vi.hoisted(() => vi.fn(async () => ({ total: 0, processed: 0, failed: 0 })));
+const processGroupTitles = vi.hoisted(() => vi.fn(async () => ({ total: 0, processed: 0, failed: 0 })));
+const processAllGroupsTitles = vi.hoisted(() => vi.fn(async () => ({ total: 0, processed: 0, failed: 0 })));
 vi.mock('../enhancedTitleService.js', () => ({
-  EnhancedTitleService: class { processAllUsersTitles = processAllUsersTitles; },
-  enhancedTitleService: { processAllUsersTitles },
+  EnhancedTitleService: class { processGroupTitles = processGroupTitles; processAllGroupsTitles = processAllGroupsTitles; },
+  enhancedTitleService: { processGroupTitles, processAllGroupsTitles },
 }));
 vi.mock('../eventService.js', () => ({
   checkEventQualification: vi.fn().mockResolvedValue(undefined),
@@ -92,6 +93,8 @@ function use(tables: Partial<Record<string, Row[]>>) {
     runs: [], event_entries: [], activity_log: [], user_boosts: [],
     ...(tables as Record<string, Row[]>),
   };
+  // Medlemskapet i group_members är sanningen för titelkedjan (ADR 012); fixturen speglar pekaren users.group_id.
+  t.group_members ??= (t.users ?? []).filter((u) => u.group_id).map((u) => ({ id: `m-${u.id}`, user_id: u.id, group_id: u.group_id, role: 'member', starts_on: null, left_at: null }));
   const db = createFakeDb(t, { autoIds: true, numericIds: ['activity_log'] });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return { t, db };
@@ -139,7 +142,7 @@ describe('massvägar skriver ingen rank_passed', () => {
     const res = await server.request('POST', '/api/titles/reprocess-all', { token: mintToken({ user_id: 'admin-1', group_id: G }) });
 
     expect(res.status).toBe(200);
-    expect(processAllUsersTitles).toHaveBeenCalledWith(undefined, { emitNews: false, allGroups: true });
+    expect(processAllGroupsTitles).toHaveBeenCalledWith({ emitNews: false });
     expect(recordRankPassesForXp).not.toHaveBeenCalled();
     expect(rankRows(t)).toHaveLength(0);
   });

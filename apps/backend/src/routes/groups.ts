@@ -5,6 +5,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { errorCode } from '../utils/errorCode.js';
 import { MembershipError, getActiveMembership, joinGroup } from '../utils/membership.js';
+import { rebuildGroupRankingAfterJoin } from '../services/groupRanking.js';
 import type { JoinGroupResponse, MyGroupResponse } from '@runquest/shared';
 
 const router = express.Router();
@@ -124,7 +125,8 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Failed to join group' }); return;
     }
 
-    // TODO(RUN-299): bygg om gruppens ranking efter en lyckad join (update_group_title_leaderboards ur migration 055, utan titelnyheter; ADR 012 beslut 2.4).
+    // Gruppens ranking byggs om efter en lyckad join (ADR 012 beslut 2.4), utan titelnyheter. Ett fel fäller inte joinen: medlemskapet är redan sparat.
+    await rebuildGroupRankingAfterJoin(group.id, supabase);
     logger.info(`✅ User ${userId} joined group ${group.id}`);
 
     const body: JoinGroupResponse = {

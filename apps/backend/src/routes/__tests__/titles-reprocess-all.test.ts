@@ -1,6 +1,6 @@
 /**
  * RUN-158: POST /api/titles/reprocess-all svarade alltid 200 success, även när användare misslyckades
- * (processAllUsersTitles räknar fel sedan RUN-157 men routen kastade bort räknarna). Admin-underhållet ska få
+ * (processAllGroupsTitles räknar fel sedan RUN-157 men routen kastade bort räknarna). Admin-underhållet ska få
  * ett ärligt svar: antal totalt/klara/misslyckade, och en status som avslöjar delvis fel.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -15,9 +15,9 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
-const processAllUsersTitles = vi.hoisted(() => vi.fn());
-vi.mock('../../services/enhancedTitleService', () => ({ enhancedTitleService: { processAllUsersTitles } }));
-vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllUsersTitles } }));
+const processAllGroupsTitles = vi.hoisted(() => vi.fn());
+vi.mock('../../services/enhancedTitleService', () => ({ enhancedTitleService: { processAllGroupsTitles } }));
+vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllGroupsTitles } }));
 
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
@@ -38,17 +38,17 @@ beforeEach(() => { vi.clearAllMocks(); asAdmin(); });
 
 describe('POST /api/titles/reprocess-all', () => {
   it('alla lyckas: 200, success true och räknarna', async () => {
-    processAllUsersTitles.mockResolvedValue({ total: 6, processed: 6, failed: 0 });
+    processAllGroupsTitles.mockResolvedValue({ total: 6, processed: 6, failed: 0 });
 
     const res = await post();
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, total: 6, processed: 6, failed: 0 });
-    expect(processAllUsersTitles).toHaveBeenCalledWith(undefined, { emitNews: false, allGroups: true });
+    expect(processAllGroupsTitles).toHaveBeenCalledWith({ emitNews: false });
   });
 
   it('några användare misslyckas: 207, success false och räknarna — inte "success"', async () => {
-    processAllUsersTitles.mockResolvedValue({ total: 6, processed: 4, failed: 2 });
+    processAllGroupsTitles.mockResolvedValue({ total: 6, processed: 4, failed: 2 });
 
     const res = await post();
 
@@ -58,7 +58,7 @@ describe('POST /api/titles/reprocess-all', () => {
   });
 
   it('alla misslyckas: 500 med räknarna', async () => {
-    processAllUsersTitles.mockResolvedValue({ total: 3, processed: 0, failed: 3 });
+    processAllGroupsTitles.mockResolvedValue({ total: 3, processed: 0, failed: 3 });
 
     const res = await post();
 
@@ -69,7 +69,7 @@ describe('POST /api/titles/reprocess-all', () => {
   });
 
   it('noll användare är inget fel: 200', async () => {
-    processAllUsersTitles.mockResolvedValue({ total: 0, processed: 0, failed: 0 });
+    processAllGroupsTitles.mockResolvedValue({ total: 0, processed: 0, failed: 0 });
 
     const res = await post();
 
@@ -78,7 +78,7 @@ describe('POST /api/titles/reprocess-all', () => {
   });
 
   it('ett kast i omräkningen: 500 som förut', async () => {
-    processAllUsersTitles.mockRejectedValue(new Error('Users fetch failed'));
+    processAllGroupsTitles.mockRejectedValue(new Error('Users fetch failed'));
 
     const res = await post();
 
@@ -92,6 +92,6 @@ describe('POST /api/titles/reprocess-all', () => {
     const res = await post();
 
     expect(res.status).toBe(403);
-    expect(processAllUsersTitles).not.toHaveBeenCalled();
+    expect(processAllGroupsTitles).not.toHaveBeenCalled();
   });
 });

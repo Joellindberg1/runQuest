@@ -1,5 +1,5 @@
 /**
- * RUN-99 T5 — efter väder-backfillen räknas titlarna om (alla grupper, RUN-104:s explicita allGroups) men bara när
+ * RUN-99 T5 — efter väder-backfillen räknas titlarna om (alla grupper, en i taget) men bara när
  * backfillen faktiskt sparade rader. Titlarna hänger på väder (Stormborn/Iceborn) som kommer efter importen.
  * Backfillen har ett eget schema (var 30:e minut) skilt från Strava-pollingen; stravaSyncSchedule.test.ts prövar schemaläggningen.
  */
@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
   pollCallback: null as null | (() => Promise<void>),
   syncAllStravaUsers: vi.fn(),
   backfillMissingWeather: vi.fn(),
-  processAllUsersTitles: vi.fn(),
+  processAllGroupsTitles: vi.fn(),
   order: [] as string[],
 }));
 
@@ -20,7 +20,7 @@ vi.mock('node-cron', () => ({
 }));
 vi.mock('../../routes/strava.js', () => ({ syncAllStravaUsers: h.syncAllStravaUsers }));
 vi.mock('../../services/weatherService.js', () => ({ WeatherService: { backfillMissingWeather: h.backfillMissingWeather } }));
-vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllUsersTitles: h.processAllUsersTitles } }));
+vi.mock('../../services/enhancedTitleService.js', () => ({ enhancedTitleService: { processAllGroupsTitles: h.processAllGroupsTitles } }));
 
 import { startStravaScheduler, getSyncInfo } from '../stravaSync.js';
 import { logger } from '../../utils/logger.js';
@@ -35,7 +35,7 @@ beforeEach(() => {
   h.order.length = 0;
   h.syncAllStravaUsers.mockResolvedValue({ success: true, message: 'ok', syncedUsers: 1, totalUsers: 1, totalNewRuns: 0 });
   h.backfillMissingWeather.mockImplementation(async () => { h.order.push('backfill'); return 0; });
-  h.processAllUsersTitles.mockImplementation(async () => { h.order.push('titles'); return { total: 1, processed: 1, failed: 0 }; });
+  h.processAllGroupsTitles.mockImplementation(async () => { h.order.push('titles'); return { total: 1, processed: 1, failed: 0 }; });
   startStravaScheduler();
 });
 
@@ -44,8 +44,8 @@ describe('stravaSync — titelomräkning efter väder-backfill', () => {
     h.backfillMissingWeather.mockImplementation(async () => { h.order.push('backfill'); return 3; });
     await runTick();
 
-    expect(h.processAllUsersTitles).toHaveBeenCalledTimes(1);
-    expect(h.processAllUsersTitles).toHaveBeenCalledWith(undefined, { allGroups: true });
+    expect(h.processAllGroupsTitles).toHaveBeenCalledTimes(1);
+    expect(h.processAllGroupsTitles).toHaveBeenCalledWith();
     expect(h.order).toEqual(['backfill', 'titles']);
   });
 
@@ -54,12 +54,12 @@ describe('stravaSync — titelomräkning efter väder-backfill', () => {
     await runTick();
 
     expect(h.backfillMissingWeather).toHaveBeenCalledTimes(1);
-    expect(h.processAllUsersTitles).not.toHaveBeenCalled();
+    expect(h.processAllGroupsTitles).not.toHaveBeenCalled();
   });
 
   it('ett fel i omräkningen fäller inte synkstatusen (synken lyckades)', async () => {
     h.backfillMissingWeather.mockResolvedValue(2);
-    h.processAllUsersTitles.mockRejectedValue(new Error('boom'));
+    h.processAllGroupsTitles.mockRejectedValue(new Error('boom'));
     await h.pollCallback!();
     await expect(runTick()).resolves.toBeUndefined();
 
@@ -71,7 +71,7 @@ describe('misslyckade användare i titelomräkningen efter väder syns i loggen'
   it('failed > 0 ger logger.warn med antalen och fäller inte synkstatusen', async () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
     h.backfillMissingWeather.mockResolvedValue(2);
-    h.processAllUsersTitles.mockResolvedValue({ total: 6, processed: 5, failed: 1 });
+    h.processAllGroupsTitles.mockResolvedValue({ total: 6, processed: 5, failed: 1 });
 
     await runTick();
 
@@ -83,7 +83,7 @@ describe('misslyckade användare i titelomräkningen efter väder syns i loggen'
   it('failed 0 ger ingen varning', async () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
     h.backfillMissingWeather.mockResolvedValue(2);
-    h.processAllUsersTitles.mockResolvedValue({ total: 6, processed: 6, failed: 0 });
+    h.processAllGroupsTitles.mockResolvedValue({ total: 6, processed: 6, failed: 0 });
 
     await runTick();
 

@@ -13,9 +13,9 @@ vi.mock('../../config/database.js', () => ({
 vi.mock('../../services/levelService.js', () => ({ getLevelFromXP: vi.fn(async () => 2) }));
 vi.mock('../../services/challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
 vi.mock('../../services/badgeService.js', () => ({ evaluateBadges: vi.fn() }));
-const processAllUsersTitles = vi.fn(async (..._args: unknown[]) => undefined);
+const processGroupTitles = vi.fn(async (..._args: unknown[]) => undefined);
 vi.mock('../../services/enhancedTitleService.js', () => ({
-  EnhancedTitleService: class { processAllUsersTitles = processAllUsersTitles; },
+  EnhancedTitleService: class { processGroupTitles = processGroupTitles; },
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
@@ -35,6 +35,7 @@ function tables(over: Partial<Record<string, Row[]>> = {}): Record<string, Row[]
   return {
     activity_log: [],
     users: [{ id: 'u1', group_id: 'g1', event_xp: 0, current_level: 1, total_km: 0, total_xp: 0, current_streak: 0, longest_streak: 0 }],
+    group_members: [{ id: 'm1', user_id: 'u1', group_id: 'g1', role: 'member', starts_on: null, left_at: null }],
     runs: [run('r1', '2020-01-01', 5, 10), run('r2', '2020-01-02', 7, 14)],
     ...over,
   } as Record<string, Row[]>;
@@ -42,7 +43,7 @@ function tables(over: Partial<Record<string, Row[]>> = {}): Record<string, Row[]
 
 beforeEach(() => {
   vi.clearAllMocks();
-  processAllUsersTitles.mockImplementation(async () => undefined);
+  processGroupTitles.mockImplementation(async () => undefined);
   vi.mocked(evaluateBadges).mockResolvedValue({
     written: { inserts: [], upgrades: [], downgrades: [], deletes: [], showcaseRemovals: [] },
     complete: true,
@@ -62,7 +63,7 @@ describe('calculateUserTotals → evaluateBadges', () => {
       newsAtBadges = t.activity_log.length;
       return null;
     });
-    processAllUsersTitles.mockImplementation(async () => { order.push('titles'); });
+    processGroupTitles.mockImplementation(async () => { order.push('titles'); });
 
     await calculateUserTotals('u1');
 
@@ -98,13 +99,13 @@ describe('calculateUserTotals → evaluateBadges', () => {
     vi.mocked(evaluateBadges).mockRejectedValue(new Error('badges boom'));
     await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12, current_level: 2 });
-    expect(processAllUsersTitles).toHaveBeenCalledWith('g1');
+    expect(processGroupTitles).toHaveBeenCalledWith('g1');
   });
 
   it('evaluateBadges som kastar synkront (inte bara avvisar) fäller heller inte kedjan', async () => {
     use(tables());
     vi.mocked(evaluateBadges).mockImplementation(() => { throw new Error('sync boom'); });
     await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
-    expect(processAllUsersTitles).toHaveBeenCalledWith('g1');
+    expect(processGroupTitles).toHaveBeenCalledWith('g1');
   });
 });

@@ -47,12 +47,12 @@ export function getSyncInfo(): SyncState {
 }
 
 // Väder kommer efter importen, och Stormborn/Iceborn hänger på det: ny väderdata kan ändra vem som håller titlarna.
-// Alla grupper (explicit allGroups, RUN-104); ett fel här är inte ett synkfel — synken och backfillen har redan lyckats.
+// Alla grupper, en i taget (processAllGroupsTitles); ett fel här är inte ett synkfel — synken och backfillen har redan lyckats.
 async function recalculateTitlesAfterWeather(savedRows: number): Promise<void> {
   try {
     logger.info(`🏆 Weather saved for ${savedRows} run(s) — recalculating titles...`);
-    const result = await enhancedTitleService.processAllUsersTitles(undefined, { allGroups: true });
-    // processAllUsersTitles kastar inte vid fel hos enskilda användare (RUN-157): räknarna är det enda som syns.
+    const result = await enhancedTitleService.processAllGroupsTitles();
+    // processAllGroupsTitles kastar inte vid fel hos enskilda användare (RUN-157): räknarna är det enda som syns.
     if (result.failed > 0) {
       logger.warn(`⚠️ Title recalculation after weather: ${result.failed} of ${result.total} users failed`);
     }
