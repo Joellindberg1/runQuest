@@ -310,12 +310,12 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
         metric: token.metric,
         duration_days: token.duration_days,
         challenger_id: userId,
-        opponent_id,
+        opponent_id: opponent.id,
       },
       sentAt,
     );
 
-    logger.info(`⚔️ Challenge sent: ${userId} → ${opponent_id} (${token.tier} / ${token.metric})`);
+    logger.info(`⚔️ Challenge sent: ${userId} → ${opponent.id} (${token.tier} / ${token.metric})`);
 
     res.status(201).json({ success: true, data: { challenge_id: challenge.id } });
   } catch (err) {

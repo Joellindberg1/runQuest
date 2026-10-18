@@ -21,6 +21,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
+import { logger } from '../../utils/logger.js';
 
 let server: TestServer;
 beforeAll(async () => { server = await startServer(app); });
@@ -65,6 +66,36 @@ describe('POST /api/challenges/send → challenge_received', () => {
       dedupe_key: 'challenge_received:gen-1',
       payload: { challenge_id: 'gen-1', tier: 'major', metric: 'km', duration_days: 5 },
     });
+  });
+
+  it('news row and log line use the opponent id from the database, not the spelling in the request body', async () => {
+    // Postgres compares uuid values case-insensitively, so a body with an upper-case opponent_id finds the row. The id that is
+    // written to the news row (its recipient) and to the log must be the canonical one from the row, as the rest of the route uses.
+    const tables = sendTables();
+    const db = createFakeDb(tables, { autoIds: true, numericIds: ['activity_log'] });
+    const caseInsensitiveUuids = {
+      ...db.client,
+      from: (table: string) => {
+        const builder = db.client.from(table);
+        const eq = builder.eq.bind(builder);
+        builder.eq = (column: string, value: unknown) => eq(column, typeof value === 'string' ? value.toLowerCase() : value);
+        return builder;
+      },
+    };
+    vi.mocked(getSupabaseClient).mockReturnValue(caseInsensitiveUuids as any);
+    const infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => {});
+
+    const res = await server.request('POST', '/api/challenges/send', {
+      token: mintToken({ user_id: SENDER_ID, group_id: 'g1' }),
+      body: { token_id: 't1', opponent_id: TARGET_ID.toUpperCase() },
+    });
+
+    expect(res.status).toBe(201);
+    expect(tables.activity_log).toHaveLength(1);
+    expect(tables.activity_log[0].target_user_id).toBe(TARGET_ID);
+    const sent = infoSpy.mock.calls.map((c: unknown[]) => String(c[0])).find((l) => l.includes('Challenge sent'));
+    expect(sent).toContain(`${SENDER_ID} → ${TARGET_ID} (`);
+    infoSpy.mockRestore();
   });
 
   it('en trasig logg fäller inte utskicket (utmaningen skapas ändå, 201)', async () => {
