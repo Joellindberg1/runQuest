@@ -151,7 +151,7 @@ export const FIRST_PARTY_PATH_SEGMENTS: ReadonlySet<string> = new Set([
   'rest', 'v1', 'rpc', 'storage', 'object', 'public', 'authenticated', 'sign', 'auth', 'profile-pictures',
   // Tabeller (apps/backend/migrations) och vyn som koden läser
   'activity_log', 'admin_settings', 'challenge_durations', 'challenge_metrics', 'challenge_rewards', 'challenges', 'event_entries',
-  'event_pool_members', 'event_pools', 'event_templates', 'events', 'groups', 'level_challenge_rewards', 'level_requirements',
+  'event_pool_members', 'event_pools', 'event_templates', 'events', 'group_members', 'groups', 'level_challenge_rewards', 'level_requirements',
   'news_read', 'run_weather', 'runs', 'strava_tokens', 'strava_webhook_events', 'streak_multipliers', 'title_leaderboard',
   'title_leaderboard_view', 'titles', 'user_badges', 'user_boosts', 'user_challenge_tokens', 'user_seen_items', 'user_settings',
   'user_titles', 'users', 'waitlist_signups',
