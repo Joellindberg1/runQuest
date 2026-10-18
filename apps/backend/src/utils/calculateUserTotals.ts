@@ -24,10 +24,10 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
     const startTime = Date.now();
     const supabase = getSupabaseClient();
 
-    // Get all runs for the user
+    // Get all runs for the user (bara XP och distans behövs här; titlarna läser sina egna rundor i processGroupTitles)
     const { data: runs, error } = await supabase
       .from('runs')
-      .select('xp_gained, distance, date, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
+      .select('xp_gained, distance')
       .eq('user_id', userId)
       .order('date', { ascending: true });
 
@@ -44,7 +44,8 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
 
     // Fetch event_xp separately — accumulated from event settlements.
     // current_level/total_km/group_id läses i SAMMA select och är "föregående värden" för Pack News
-    // (level_up/run_milestone, ADR 008); gruppen (Pack News och titelomräkningen) kommer ur users.group_id, inte ur anroparens JWT.
+    // (level_up/run_milestone, ADR 008); gruppen för Pack News kommer ur users.group_id, inte ur anroparens JWT. Titelomräkningen
+    // använder inte den utan användarens aktiva medlemskap i group_members (längre ner).
     const { data: userData } = await supabase
       .from('users')
       .select('event_xp, current_level, total_km, total_xp, group_id')

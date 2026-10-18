@@ -23,9 +23,10 @@ import { errorCode, errorWithCode } from '../utils/errorCode.js';
  * - Andra skrivningar av titles.updated_at (manuell populate/refresh, admin-SQL, migrationer) flyttar klockan utan
  *   att några användare räknats om.
  *
- * Flera grupper (antagande, att se över inför RUN-95): klockan är GLOBAL (max över alla titlar) och topplistan är
- * global, men omräkningen är gruppavgränsad (processGroupTitles(groupId)). En grupps omräkning kan alltså flytta
- * klockan för en annan grupp vars användare ännu inte räknats om med det nya fönstret.
+ * Flera grupper (antagande, att se över inför RUN-95): klockan är GLOBAL (max över alla titlar), medan topplistorna och
+ * omräkningen är per grupp (processGroupTitles(groupId), update_group_title_leaderboard). Stämplingen av titles.updated_at
+ * ligger dock på en titelrad som alla grupper delar, så en grupps omräkning kan flytta klockan för en annan grupp vars
+ * användare ännu inte räknats om med det nya fönstret. Klockan per grupp byggs i en senare story (ADR 012 beslut 5.6).
  */
 export async function getTitleRecalcContext(): Promise<TitleContext> {
   const requestTime = new Date();
