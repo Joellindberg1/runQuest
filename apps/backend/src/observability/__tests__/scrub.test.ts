@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
 import { scrubSentryEvent, secretsFromEnv, isExpectedClientStatus, CLIENT_STATUSES_NOT_REPORTED } from '../scrub.js';
 
@@ -165,5 +166,59 @@ describe('secretsFromEnv', () => {
       STRAVA_WEBHOOK_VERIFY_TOKEN: 'short', SENTRY_DSN: 'https://key@o1.ingest.de.sentry.io/1', PORT: '3001', NODE_ENV: 'production',
     });
     expect(secrets.sort()).toEqual(['another-long-one', 'long-enough-secret', 'svc-role-key-value']);
+  });
+
+  // The keys are generated here: nothing in these tests is a real key.
+  const keyBase64 = () => randomBytes(32).toString('base64');
+
+  it('also collects the base64 part of the active key and of every retired key, and the list entries themselves', () => {
+    const active = keyBase64();
+    const retiredA = keyBase64();
+    const retiredB = keyBase64();
+    const secrets = secretsFromEnv({
+      TOKEN_ENCRYPTION_KEY: `prod-2:${active}`,
+      TOKEN_ENCRYPTION_KEYS_RETIRED: `prod-1:${retiredA}, old-0:${retiredB}`,
+    });
+
+    for (const part of [active, retiredA, retiredB]) expect(secrets).toContain(part);
+    expect(secrets).toContain(`prod-2:${active}`);
+    expect(secrets).toContain(`prod-1:${retiredA}`);
+    expect(secrets).toContain(`old-0:${retiredB}`);
+  });
+
+  it('skips a blank or malformed key variable without throwing', () => {
+    expect(() => secretsFromEnv({ TOKEN_ENCRYPTION_KEY: '', TOKEN_ENCRYPTION_KEYS_RETIRED: ',, ,x' })).not.toThrow();
+    expect(secretsFromEnv({ TOKEN_ENCRYPTION_KEY: '', TOKEN_ENCRYPTION_KEYS_RETIRED: '' })).toEqual([]);
+  });
+});
+
+describe('encrypted values and key material in events', () => {
+  const stored = `enc:v1:prod-1:${randomBytes(12).toString('base64url')}:${randomBytes(40).toString('base64url')}:${randomBytes(16).toString('base64url')}`;
+
+  it('scrubSentryEvent masks an enc:v1 value wherever it stands, also cut short and inside other text', () => {
+    const event = {
+      message: `row ${stored} could not be read`,
+      extra: { note: `the column held ${stored.slice(0, 40)}`, list: [`x ${stored}`] },
+      exception: { values: [{ type: 'Error', value: `bad value (${stored}), retrying` }] },
+    };
+
+    const out = JSON.stringify(scrubSentryEvent(event, []));
+
+    expect(out).not.toContain('enc:v1');
+    expect(out).not.toContain(stored.split(':')[3]);
+    expect(out).not.toContain(stored.split(':')[4]);
+    expect(out).toContain('[Filtered]');
+  });
+
+  it('scrubSentryEvent masks the base64 of a configured key even when it appears without its key id', () => {
+    const active = randomBytes(32).toString('base64');
+    const retired = randomBytes(32).toString('base64');
+    const secrets = secretsFromEnv({ TOKEN_ENCRYPTION_KEY: `prod-2:${active}`, TOKEN_ENCRYPTION_KEYS_RETIRED: `prod-1:${retired}` });
+    const event = { message: `key ${active} and ${retired}`, extra: { entry: `prod-2:${active}`, list: [`old=${retired}`] } };
+
+    const out = JSON.stringify(scrubSentryEvent(event, secrets));
+
+    expect(out).not.toContain(active);
+    expect(out).not.toContain(retired);
   });
 });
