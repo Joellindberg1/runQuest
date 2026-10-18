@@ -8,8 +8,10 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { loginRateLimiter } from '../middleware/rateLimit.js';
 import { invalidateXpConfigCache } from '../services/xpConfig.js';
-import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
+import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
 import { compareXpStandings } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
+import { isUuid } from '../utils/uuid.js';
 
 const router = express.Router();
 
@@ -50,11 +52,11 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
     }
 
     if (error || !user) {
-      logger.info('❌ User not found or database error:', error?.message);
+      logger.info(`❌ User not found or database error (${error ? errorCode(error) : 'no row'})`);
       res.status(401).json({ error: 'Invalid credentials' }); return;
     }
 
-    logger.info(`🔑 User found, verifying password for: ${user.name}`);
+    logger.info(`🔑 User found, verifying password for user ${user.id}`);
 
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
@@ -88,7 +90,7 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
       } as jwt.SignOptions
     );
 
-    logger.info(`🎉 Login successful for user: ${user.name} (Admin: ${user.is_admin})`);
+    logger.info(`🎉 Login successful for user ${user.id} (Admin: ${user.is_admin})`);
 
     // Return token and user info
     res.json({
@@ -103,7 +105,7 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    logger.error('❌ Login error:', error);
+    logger.error(`❌ Login error (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -142,12 +144,18 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
       .eq('id', userId)
       .single();
 
-    if (error || !user) {
-      logger.info('❌ User not found or database error:', error?.message);
+    // PGRST116 = .single() fann ingen rad: användaren finns inte (JWT:n är giltig men raden borta), inget serverfel. Varje annat fel är
+    // databasen som felar: 500 och en felhändelse med koden, aldrig ett 404 som döljer avbrottet.
+    if (error && error.code !== 'PGRST116') {
+      logger.error(`❌ Could not read the user for a password change (${errorCode(error)})`);
+      res.status(500).json({ error: 'Failed to change password' }); return;
+    }
+    if (!user) {
+      logger.info('❌ User not found for password change');
       res.status(404).json({ error: 'User not found' }); return;
     }
 
-    logger.info(`🔑 User found, verifying current password for: ${user.name}`);
+    logger.info(`🔑 User found, verifying current password for user ${user.id}`);
 
     // Verify current password
     const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
@@ -169,11 +177,11 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
       .eq('id', userId);
 
     if (updateError) {
-      logger.info('❌ Error updating password:', updateError.message);
+      logger.error(`❌ Error updating password (${errorCode(updateError)})`);
       res.status(500).json({ error: 'Failed to update password' }); return;
     }
 
-    logger.info(`🎉 Password successfully changed for user: ${user.name}`);
+    logger.info(`🎉 Password successfully changed for user ${user.id}`);
 
     res.json({
       success: true,
@@ -181,7 +189,7 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     });
 
   } catch (error) {
-    logger.error('❌ Password change error:', error);
+    logger.error(`❌ Password change error (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -206,7 +214,7 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
       .order('created_at', { ascending: true });
 
     if (error) {
-      logger.info('❌ Error fetching users:', error.message);
+      logger.error(`❌ Error fetching users (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
@@ -223,7 +231,7 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
     });
 
   } catch (error) {
-    logger.error('❌ Error fetching users:', error);
+    logger.error(`❌ Error fetching users (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -232,9 +240,14 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
 router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     logger.info('👤 Admin request to create new user');
+
+    // Aldrig ett konto utan grupp: en admin utan grupp får 403 innan något annat prövas eller skrivs.
+    const groupId = groupIdOrRespondForbidden(req, res);
+    if (!groupId) return;
+
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
       logger.info('❌ Missing required fields');
       res.status(400).json({ error: 'Name, email, and password are required' }); return;
     }
@@ -244,18 +257,23 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       res.status(400).json({ error: 'Password must be at least 6 characters long' }); return;
     }
 
-    logger.info(`🔍 Creating user: ${name}`);
+    logger.info('🔍 Creating a new user');
     
     const supabase = getSupabaseClient();
     
-    // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .or(`name.eq.${name},email.eq.${email}`)
-      .single();
+    // Check if user already exists. Två parametriserade .eq-frågor (aldrig ett .or() byggt av body-strängar: kommatecken och
+    // operatorer i namnet skulle annars ändra filtret). limit(1) i stället för single(), som svarar fel när båda träffar olika rader.
+    const [byName, byEmail] = await Promise.all([
+      supabase.from('users').select('id').eq('name', name).limit(1),
+      supabase.from('users').select('id').eq('email', email).limit(1),
+    ]);
+    if (byName.error || byEmail.error) {
+      // Bara felkoden: PostgREST-meddelandet kan bära radvärden och går via Sentry-kopplingen vidare som log_detail.
+      logger.error(`❌ Error checking for existing user (${errorCode(byName.error ?? byEmail.error)})`);
+      res.status(500).json({ error: 'Internal server error' }); return;
+    }
 
-    if (existingUser) {
+    if ((byName.data?.length ?? 0) > 0 || (byEmail.data?.length ?? 0) > 0) {
       logger.info('❌ User already exists');
       res.status(409).json({ error: 'User with this name or email already exists' }); return;
     }
@@ -276,17 +294,17 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
         current_streak: 0,
         longest_streak: 0,
         total_km: 0.0,
-        group_id: req.user!.group_id ?? null
+        group_id: groupId
       })
       .select('id, name, email, total_xp, current_level, current_streak, created_at')
       .single();
 
     if (error) {
-      logger.info('❌ Error creating user:', error.message);
+      logger.error(`❌ Error creating user (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to create user' }); return;
     }
 
-    logger.info(`🎉 Successfully created user: ${newUser.name}`);
+    logger.info(`🎉 Successfully created user ${newUser.id}`);
 
     res.json({
       success: true,
@@ -294,7 +312,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     });
 
   } catch (error) {
-    logger.error('❌ Error creating user:', error);
+    logger.error(`❌ Error creating user (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -303,6 +321,12 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     logger.info('🔐 Admin request to reset user password');
+
+    // Admin utan grupp får inte röra något (403), före bodyvalideringen som i POST /users. Målet måste ligga i adminens grupp;
+    // annars svarar vi 404 som för ett id som saknas, så att svaret inte avslöjar att användaren finns i en annan grupp.
+    const groupId = groupIdOrRespondForbidden(req, res);
+    if (!groupId) return;
+
     const { id } = req.params;
     const { newPassword } = req.body;
 
@@ -316,40 +340,62 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
     }
 
-    logger.info(`🔍 Resetting password for user ID: ${id}`);
-    
-    const supabase = getSupabaseClient();
-    
-    // Verify user exists
-    const { data: user, error: findError } = await supabase
-      .from('users')
-      .select('id, name')
-      .eq('id', id)
-      .single();
-
-    if (findError || !user) {
-      logger.info('❌ User not found:', findError?.message);
+    // Ett id som inte är ett uuid kan inte finnas: samma 404 som för en saknad rad, före frågan (annars svarar databasen 22P02 och det blir ett 500).
+    if (!isUuid(id)) {
+      logger.info('❌ User not found (id is not a uuid)');
       res.status(404).json({ error: 'User not found' }); return;
     }
 
-    logger.info(`✅ User found: ${user.name}, hashing new password`);
+    logger.info(`🔍 Resetting password for user ID: ${id}`);
+
+    const supabase = getSupabaseClient();
+
+    // Verify user exists in the admin's group
+    // maybeSingle: en saknad rad (eller en i en annan grupp) är null utan fel (404 nedan), medan ett databasfel är ett serverfel (500).
+    const { data: user, error: findError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', id)
+      .eq('group_id', groupId)
+      .maybeSingle();
+
+    if (findError) {
+      logger.error(`❌ Error looking up the user for a password reset (${errorCode(findError)})`);
+      res.status(500).json({ error: 'Failed to look up the user' }); return;
+    }
+
+    if (!user) {
+      logger.info('❌ User not found');
+      res.status(404).json({ error: 'User not found' }); return;
+    }
+
+    logger.info(`✅ User ${user.id} found, hashing new password`);
 
     // Hash new password
     const saltRounds = 10;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password in database
-    const { error: updateError } = await supabase
+    // Filtret på grupp sitter även här: målet kan ha bytt grupp sedan uppslaget. select('id') visar hur många rader som uppdaterades;
+    // noll rader (flyttad eller borttagen under tiden) är ett 404 som för ett id som saknas, aldrig ett falskt "Password reset successfully".
+    const { data: updated, error: updateError } = await supabase
       .from('users')
       .update({ password_hash: newPasswordHash })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('group_id', groupId)
+      .select('id');
 
     if (updateError) {
-      logger.info('❌ Error updating password:', updateError.message);
+      logger.error(`❌ Error updating password (${errorCode(updateError)})`);
       res.status(500).json({ error: 'Failed to update password' }); return;
     }
 
-    logger.info(`🎉 Password successfully reset for user: ${user.name}`);
+    if (!updated?.length) {
+      logger.info('❌ User not found when updating the password (moved or removed since the lookup)');
+      res.status(404).json({ error: 'User not found' }); return;
+    }
+
+    logger.info(`🎉 Password successfully reset for user ${user.id}`);
 
     res.json({
       success: true,
@@ -357,7 +403,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
     });
 
   } catch (error) {
-    logger.error('❌ Password reset error:', error);
+    logger.error(`❌ Password reset error (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -381,11 +427,11 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('❌ Error recalculating user totals:', error);
-    res.status(500).json({ 
+    logger.error(`❌ Error recalculating user totals (${errorCode(error)})`);
+    // Aldrig error.message i svaret: det kan bära databasvärden. Detaljerna finns i loggen som felkod.
+    res.status(500).json({
       success: false,
-      error: 'Failed to recalculate user totals',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to recalculate user totals'
     });
   }
 });
@@ -437,7 +483,7 @@ router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): 
       .single();
 
     if (error || !settings) {
-      logger.error('❌ Failed to fetch admin settings:', error);
+      logger.error(`❌ Failed to fetch admin settings (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
     }
 
@@ -445,7 +491,7 @@ router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): 
     res.json({ success: true, data: toAdminSettingsResponse(settings) });
     
   } catch (error) {
-    logger.error('❌ Error fetching admin settings:', error);
+    logger.error(`❌ Error fetching admin settings (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
   }
 });
@@ -477,7 +523,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
       .limit(1)
       .single();
     if (findError || !current) {
-      logger.error('❌ Failed to find admin settings row:', findError);
+      logger.error(`❌ Failed to find admin settings row (${errorCode(findError)})`);
       res.status(500).json({ error: 'Failed to update admin settings' }); return;
     }
 
@@ -499,7 +545,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
 
     if (error || !updatedSettings) {
       invalidateXpConfigCache(); // släng cachen oavsett utfall — raden kan ha ändrats
-      logger.error('❌ Failed to update admin settings:', error);
+      logger.error(`❌ Failed to update admin settings (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to update admin settings' }); return;
     }
     
@@ -512,7 +558,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
     });
     
   } catch (error) {
-    logger.error('❌ Error updating admin settings:', error);
+    logger.error(`❌ Error updating admin settings (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to update admin settings' }); return;
   }
 });
@@ -529,7 +575,7 @@ router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, re
       .order('days');
     
     if (error) {
-      logger.error('❌ Failed to fetch streak multipliers:', error);
+      logger.error(`❌ Failed to fetch streak multipliers (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to fetch streak multipliers' }); return;
     }
     
@@ -537,7 +583,7 @@ router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, re
     res.json({ success: true, data: multipliers });
     
   } catch (error) {
-    logger.error('❌ Error fetching streak multipliers:', error);
+    logger.error(`❌ Error fetching streak multipliers (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to fetch streak multipliers' }); return;
   }
 });
@@ -565,7 +611,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
 
     if (error) {
       invalidateXpConfigCache();
-      logger.error('❌ Failed to update streak multipliers:', error);
+      logger.error(`❌ Failed to update streak multipliers (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
     }
 
@@ -576,7 +622,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
 
     invalidateXpConfigCache();
     if (pruneError) {
-      logger.error('❌ Failed to remove old streak multipliers (new steps were saved):', pruneError);
+      logger.error(`❌ Failed to remove old streak multipliers (new steps were saved) (${errorCode(pruneError)})`);
       res.status(500).json({ error: 'Saved the new steps but could not remove old ones — try saving again' }); return;
     }
 
@@ -588,7 +634,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     });
     
   } catch (error) {
-    logger.error('❌ Error updating streak multipliers:', error);
+    logger.error(`❌ Error updating streak multipliers (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
   }
 });
@@ -610,14 +656,14 @@ router.put('/me/displayed-titles', authenticateJWT, async (req, res): Promise<vo
       .eq('id', userId);
 
     if (error) {
-      logger.error('❌ Error updating displayed titles:', error.message);
+      logger.error(`❌ Error updating displayed titles (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to update displayed titles' }); return;
     }
 
-    logger.info(`✅ Updated displayed titles for user ${userId}: [${title_ids.join(', ')}]`);
+    logger.info(`✅ Updated displayed titles for user ${userId} (${title_ids.length} selected)`);
     res.json({ success: true });
   } catch (error) {
-    logger.error('❌ Error updating displayed titles:', error);
+    logger.error(`❌ Error updating displayed titles (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -646,7 +692,7 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
       .eq('group_id', groupId);
 
     if (error) {
-      logger.error('❌ Error fetching users with runs:', error.message);
+      logger.error(`❌ Error fetching users with runs (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
@@ -685,7 +731,7 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
     });
 
   } catch (error) {
-    logger.error('❌ Error fetching users with runs:', error);
+    logger.error(`❌ Error fetching users with runs (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });

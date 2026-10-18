@@ -257,6 +257,10 @@ describe('frontend sentry beforeSend and source map metadata', () => {
     ['dist', 'two words'],
     ['environment', 'a@b.se'],
     ['environment', 'Anna Andersson'],
+    ['environment', 'Staging2'],
+    ['environment', '2staging'],
+    ['environment', 'pr 123'],
+    ['environment', 'a'.repeat(33)],
     ['platform', 'a@b.se'],
     ['level', 'a@b.se'],
     ['level', 'critical'],
@@ -275,6 +279,8 @@ describe('frontend sentry beforeSend and source map metadata', () => {
     ['dist', '1'],
     ['environment', 'production'],
     ['environment', 'staging-eu'],
+    ['environment', 'staging2'],
+    ['environment', 'pr-123'],
     ['platform', 'node'],
     ['level', 'fatal'],
     ['level', 'warning'],
@@ -309,6 +315,57 @@ describe('frontend sentry beforeSend and source map metadata', () => {
   it('drops a debug_meta that is not the shape the SDK creates', () => {
     expect(scrubSentryEvent({ ...sdkShapedEvent(), debug_meta: 'anna@example.com' }, [])).not.toHaveProperty('debug_meta');
     expect(scrubSentryEvent({ ...sdkShapedEvent(), debug_meta: { images: 'anna@example.com' } }, [])).not.toHaveProperty('debug_meta');
+  });
+});
+
+describe('the trace context that goes into the envelope header', () => {
+  const dsc = (overrides: Record<string, unknown> = {}) => ({
+    release: 'runquest@0.8.0+abcdef1',
+    environment: 'staging',
+    public_key: 'abc123publickey',
+    trace_id: '0123456789abcdef0123456789abcdef',
+    sample_rate: '0.1',
+    sampled: 'true',
+    transaction: '/runner/3f2b8c1e-9d4a-4e7b-8a61-5c0d2e9f7a14',
+    user_segment: 'vip-anna',
+    replay_id: 'abcdef0123456789abcdef0123456789',
+    ...overrides,
+  });
+  const scrubbedDsc = (overrides?: Record<string, unknown>) =>
+    (scrubSentryEvent({ message: 'x', sdkProcessingMetadata: { dynamicSamplingContext: dsc(overrides), normalizedRequest: { url: 'https://runquest.dev/board?token=abc' } } } as never, [])! as { sdkProcessingMetadata?: { dynamicSamplingContext?: Record<string, unknown> } })
+      .sdkProcessingMetadata?.dynamicSamplingContext;
+
+  it('keeps the release in its known form, the key, the ids and the sampling, with the page as a route', () => {
+    expect(scrubbedDsc()).toEqual({
+      release: 'runquest@0.8.0+abcdef1',
+      environment: 'staging',
+      public_key: 'abc123publickey',
+      trace_id: '0123456789abcdef0123456789abcdef',
+      sample_rate: '0.1',
+      sampled: 'true',
+      transaction: '/runner/:id',
+    });
+  });
+
+  it('drops a release, an environment or a key that is not in a known form, instead of masking it', () => {
+    const scrubbed = scrubbedDsc({ release: 'someone@example.com', environment: 'Anna Andersson', public_key: 'a b@c.se', trace_id: 'nope' });
+    expect(scrubbed).not.toHaveProperty('release');
+    expect(scrubbed).not.toHaveProperty('environment');
+    expect(scrubbed).not.toHaveProperty('public_key');
+    expect(scrubbed).not.toHaveProperty('trace_id');
+  });
+
+  it.each(['0.07102618656499637', '0.08335781411790813', '5e-7', '1e-10', '0', '1', '0.5'])('keeps the sampling number %s that Math.random can give', (sampleRand) => {
+    expect(scrubbedDsc({ sample_rand: sampleRand })).toHaveProperty('sample_rand', sampleRand);
+  });
+
+  it.each(['1.5', '-0.1', 'abc', '0.1x', '', '2e-0', '0.5 anna@example.com', '1e5'])('drops the sampling number %j', (sampleRand) => {
+    expect(scrubbedDsc({ sample_rand: sampleRand })).not.toHaveProperty('sample_rand');
+  });
+
+  it('sends nothing else from the processing metadata', () => {
+    const scrubbed = scrubSentryEvent({ message: 'x', sdkProcessingMetadata: { dynamicSamplingContext: dsc(), normalizedRequest: { url: 'https://runquest.dev/board?token=abc' }, ipAddress: '1.2.3.4' } } as never, []);
+    expect(Object.keys((scrubbed! as { sdkProcessingMetadata: object }).sdkProcessingMetadata)).toEqual(['dynamicSamplingContext']);
   });
 });
 

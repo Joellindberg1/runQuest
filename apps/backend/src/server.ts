@@ -2,6 +2,7 @@
 // All http-wiring bor i app.ts (createApp, ADR 003); här finns bara det som
 // hör till PROCESSEN: env-laddning/validering, listen, schedulers, shutdown.
 import { logger } from './utils/logger.js';
+import { errorCode } from './utils/errorCode.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -12,6 +13,7 @@ import { startStreakScheduler } from './scheduler/streakScheduler.js';
 import { startStravaWebhookScheduler } from './scheduler/stravaWebhookScheduler.js';
 import { startStravaReconcileScheduler } from './scheduler/stravaReconcileScheduler.js';
 import { registerStravaRateBudget } from './services/stravaRateBudget.js';
+import { reportTokenKeyAtStartup } from './services/tokenKeyStartup.js';
 import { flushSentry, initSentry } from './observability/sentry.js';
 import { createShutdown, exitAfterFlush } from './utils/shutdown.js';
 
@@ -57,6 +59,10 @@ logger.info('✅ Step 1 Complete: Environment loaded successfully\n');
 // request or scheduler can call Strava; in createApp() it would also leak into every test that builds the app.
 registerStravaRateBudget();
 
+// Token key (ADR 013 decision 9): a missing or refused key is a KRITISKT alarm and the Strava track stays off (fail-closed); the process
+// goes on, since the rest of the app does not need the key. Called at the top level so that the CI guard (rule 12) can see it.
+reportTokenKeyAtStartup();
+
 // 📋 Step 2: Create app (måste importeras EFTER dotenv.config — dynamisk import)
 logger.info('🔧 Step 2: Creating Express app...');
 const { createApp } = await import('./app.js');
@@ -73,7 +79,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 server.on('error', async (error: NodeJS.ErrnoException) => {
-  logger.error('❌ Server error:', error.code);
+  logger.error('❌ Server error:', errorCode(error));
   if (error.code === 'EADDRINUSE') {
     logger.error(`❌ Port ${PORT} is already in use`);
   }

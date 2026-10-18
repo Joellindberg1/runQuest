@@ -6,6 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { logger } from './utils/logger.js';
 import { installSentryErrorHandler } from './observability/sentry.js';
+import { sentryRouteNaming } from './observability/tracing.js';
 
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
@@ -34,6 +35,9 @@ export function createApp(): express.Express {
   // Bakom Railways proxy — krävs för att req.ip ska vara klientens IP
   // (annars delar alla användare proxyns IP i rate limitern)
   app.set('trust proxy', 1);
+
+  // Först av allt: ger prestandaspårningens transaktion routens namn ("GET /api/runs/:id") när en route matchar. Gör inget utan Sentry.
+  app.use(sentryRouteNaming());
 
   // Middleware
   app.use(helmet());

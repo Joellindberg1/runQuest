@@ -16,6 +16,7 @@ vi.mock('../weatherService.js', () => ({ WeatherService: { fetchAndSaveWeatherFo
 vi.mock('../eventService.js', () => ({ checkEventQualification: vi.fn().mockResolvedValue(undefined) }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { reprocessRunsFromDate } from '../../routes/runs.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { WeatherService } from '../weatherService.js';
@@ -64,6 +65,27 @@ describe('Supabase event store', () => {
 
     expect(rpc).toHaveBeenCalledWith({ p_lease_seconds: 300, p_max: 25 });
     expect(rows).toEqual([{ id: 1, owner_id: 5001 }]);
+  });
+
+  it('a claim that fails because the connection broke throws the network cause, not "unknown" (supabase-js gives code "")', async () => {
+    // The error postgrest-js returns instead of throwing when fetch fails: code '', no name, the cause only in the text.
+    const networkError = {
+      message: 'TypeError: fetch failed',
+      details: 'TypeError: fetch failed\n\nCaused by: Error: read ECONNRESET (ECONNRESET)\n    at jane@example.com',
+      hint: '',
+      code: '',
+    };
+    useDb({}, { rpc: { claim_strava_webhook_events: () => ({ error: networkError as any }) } });
+
+    const failure = await createWebhookEventStore().claim(300, 25).catch((error: Error & { code?: string }) => error);
+
+    expect((failure as Error & { code?: string }).code).toBe('ECONNRESET');
+    expect((failure as Error).message).toBe('claim failed (ECONNRESET)');
+
+    // A write on a claimed row goes through the same helper.
+    useDb({ [EVENTS]: [{ id: 1, status: 'processing' }] }, { errors: { [EVENTS]: networkError as never } });
+    const writeFailure = await createWebhookEventStore().markDone(claimed(1), 'imported', AT).catch((error: Error & { code?: string }) => error);
+    expect((writeFailure as Error & { code?: string }).code).toBe('ECONNRESET');
   });
 
   it('an empty claim is an empty list and a failed claim throws with the code only', async () => {
@@ -275,7 +297,7 @@ describe('Strava API', () => {
     vi.stubEnv('STRAVA_CLIENT_ID', 'client-id');
     vi.stubEnv('STRAVA_CLIENT_SECRET', 'client-secret');
     strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'renewed' }) });
-    useDb({ strava_tokens: [{ user_id: 'user-1', access_token: 'old', refresh_token: 'rt', expires_at: 9999999999, connection_date: null }] }, {
+    useDb({ strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'old', 'rt'), expires_at: 9999999999, connection_date: null }] }, {
       primaryKeys: { strava_tokens: ['user_id'] },
     });
 

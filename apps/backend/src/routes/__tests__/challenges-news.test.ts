@@ -21,6 +21,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
+import { logger } from '../../utils/logger.js';
 
 let server: TestServer;
 beforeAll(async () => { server = await startServer(app); });
@@ -33,10 +34,14 @@ function use(tables: Record<string, Row[]>) {
   return db;
 }
 
+// Riktiga uuid: /send avvisar opponent_id som inte är ett uuid.
+const SENDER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const TARGET_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
 const sendTables = (): Record<string, Row[]> => ({
   activity_log: [],
-  user_challenge_tokens: [{ id: 't1', user_id: 'a', tier: 'major', metric: 'km', duration_days: 5, reward_id: 'rw1', sent_at: null }],
-  users: [{ id: 'a', current_level: 6, group_id: 'g1' }, { id: 'b', current_level: 7, group_id: 'g1' }],
+  user_challenge_tokens: [{ id: 't1', user_id: SENDER_ID, tier: 'major', metric: 'km', duration_days: 5, reward_id: 'rw1', sent_at: null }],
+  users: [{ id: SENDER_ID, current_level: 6, group_id: 'g1' }, { id: TARGET_ID, current_level: 7, group_id: 'g1' }],
   challenges: [],
   challenge_rewards: [{
     id: 'rw1', winner_type: 'multiplier_days', winner_delta: 0.2, winner_duration: 3,
@@ -49,18 +54,48 @@ describe('POST /api/challenges/send → challenge_received', () => {
     const tables = sendTables();
     use(tables);
     const res = await server.request('POST', '/api/challenges/send', {
-      token: mintToken({ user_id: 'a', group_id: 'g1' }),
-      body: { token_id: 't1', opponent_id: 'b' },
+      token: mintToken({ user_id: SENDER_ID, group_id: 'g1' }),
+      body: { token_id: 't1', opponent_id: TARGET_ID },
     });
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ success: true, data: { challenge_id: 'gen-1' } });
     expect(tables.activity_log).toHaveLength(1);
     expect(tables.activity_log[0]).toMatchObject({
-      group_id: 'g1', type: 'challenge_received', actor_user_id: 'a', target_user_id: 'b', is_backfill: false,
+      group_id: 'g1', type: 'challenge_received', actor_user_id: SENDER_ID, target_user_id: TARGET_ID, is_backfill: false,
       dedupe_key: 'challenge_received:gen-1',
       payload: { challenge_id: 'gen-1', tier: 'major', metric: 'km', duration_days: 5 },
     });
+  });
+
+  it('news row and log line use the opponent id from the database, not the spelling in the request body', async () => {
+    // Postgres compares uuid values case-insensitively, so a body with an upper-case opponent_id finds the row. The id that is
+    // written to the news row (its recipient) and to the log must be the canonical one from the row, as the rest of the route uses.
+    const tables = sendTables();
+    const db = createFakeDb(tables, { autoIds: true, numericIds: ['activity_log'] });
+    const caseInsensitiveUuids = {
+      ...db.client,
+      from: (table: string) => {
+        const builder = db.client.from(table);
+        const eq = builder.eq.bind(builder);
+        builder.eq = (column: string, value: unknown) => eq(column, typeof value === 'string' ? value.toLowerCase() : value);
+        return builder;
+      },
+    };
+    vi.mocked(getSupabaseClient).mockReturnValue(caseInsensitiveUuids as any);
+    const infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => {});
+
+    const res = await server.request('POST', '/api/challenges/send', {
+      token: mintToken({ user_id: SENDER_ID, group_id: 'g1' }),
+      body: { token_id: 't1', opponent_id: TARGET_ID.toUpperCase() },
+    });
+
+    expect(res.status).toBe(201);
+    expect(tables.activity_log).toHaveLength(1);
+    expect(tables.activity_log[0].target_user_id).toBe(TARGET_ID);
+    const sent = infoSpy.mock.calls.map((c: unknown[]) => String(c[0])).find((l) => l.includes('Challenge sent'));
+    expect(sent).toContain(`${SENDER_ID} → ${TARGET_ID} (`);
+    infoSpy.mockRestore();
   });
 
   it('en trasig logg fäller inte utskicket (utmaningen skapas ändå, 201)', async () => {
@@ -68,8 +103,8 @@ describe('POST /api/challenges/send → challenge_received', () => {
     const db = createFakeDb(tables, { autoIds: true, errors: { activity_log: { message: 'relation does not exist' } } });
     vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
     const res = await server.request('POST', '/api/challenges/send', {
-      token: mintToken({ user_id: 'a', group_id: 'g1' }),
-      body: { token_id: 't1', opponent_id: 'b' },
+      token: mintToken({ user_id: SENDER_ID, group_id: 'g1' }),
+      body: { token_id: 't1', opponent_id: TARGET_ID },
     });
     expect(res.status).toBe(201);
     expect(tables.challenges).toHaveLength(1);
@@ -80,8 +115,8 @@ describe('POST /api/challenges/send → challenge_received', () => {
     tables.users[1].group_id = 'other-group';
     use(tables);
     const res = await server.request('POST', '/api/challenges/send', {
-      token: mintToken({ user_id: 'a', group_id: 'g1' }),
-      body: { token_id: 't1', opponent_id: 'b' },
+      token: mintToken({ user_id: SENDER_ID, group_id: 'g1' }),
+      body: { token_id: 't1', opponent_id: TARGET_ID },
     });
     expect(res.status).toBe(400);
     expect(tables.activity_log).toHaveLength(0);

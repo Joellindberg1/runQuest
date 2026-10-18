@@ -3,6 +3,7 @@
 //
 // Errors from the database are rethrown with the PostgREST code only (the message can carry values from the row).
 import { getSupabaseClient } from '../../config/database.js';
+import { errorCode, errorWithCode } from '../../utils/errorCode.js';
 import { fetchAthleteActivities } from '../stravaClient.js';
 import type { ListedActivity, StoredRun } from './plan.js';
 import type { ListPageResult, ReconcilePorts, ReconcileUser } from './ports.js';
@@ -10,9 +11,9 @@ import type { ListPageResult, ReconcilePorts, ReconcileUser } from './ports.js';
 const PAGE_SIZE = 1000; // PostgREST's default cap on rows per request
 const MAX_PAGES = 100;
 
-function databaseError(operation: string, error: { code?: string }): Error {
-  const code = error.code ?? 'unknown';
-  return Object.assign(new Error(`${operation} failed (${code})`), { code });
+/** supabase-js gives `code: ''` when the connection breaks, so the code comes from errorCode (the network cause), not from `error.code`. */
+function databaseError(operation: string, error: unknown): Error {
+  return errorWithCode(`${operation} failed (${errorCode(error)})`, error);
 }
 
 /** A request for an offset beyond the last row (416): the end when the last page happened to be exactly full. */

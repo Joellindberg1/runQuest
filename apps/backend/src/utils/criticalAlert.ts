@@ -18,6 +18,8 @@ export const CRITICAL_ALERT_SOURCES = [
   'subscription_missing',
   /** En roterad Strava-token kunde inte sparas (stravaClient.refreshStravaToken). */
   'token_write',
+  /** Nyckeln för tokenkryptering saknas, är ogiltig eller godtas inte i miljön vid uppstart (services/tokenKeyStartup, ADR 013). Strava-synken är då avstängd. */
+  'token_key',
   /** En avgjord utmaning har inga boostar och kunde inte släppas, eller spelarna kunde inte låsas upp (challengeService). */
   'challenge_repair',
 ] as const;

@@ -69,6 +69,7 @@ import { MS_DAY, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } fr
 import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { withUserLock } from '../utils/keyedMutex.js';
+import { errorCode } from '../utils/errorCode.js';
 import type { AccessTokenFailureReason } from './stravaClient.js';
 import {
   LEASE_SECONDS,
@@ -157,6 +158,10 @@ export function resultForTokenFailure(reason: AccessTokenFailureReason): Webhook
     // The row could not be read: nothing is known about the connection, so it is never an unknown owner.
     case 'token_read_failed':
       return { status: 'retry', error: 'token_read_failed' };
+    // The stored token cannot be read, or the key is missing or invalid (ADR 013 decision 9). Our fault, not Strava's: a retry (the
+    // worker's backoff, then the 48 h alarm), never an unknown owner, never a removal, never a confirmed deauthorize.
+    case 'token_unreadable':
+      return { status: 'retry', error: 'token_unreadable' };
   }
 }
 
@@ -200,12 +205,6 @@ function isCalendarDay(value: unknown): value is string {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 const isOutcome = (value: unknown): value is WebhookOutcome => (WEBHOOK_OUTCOMES as readonly unknown[]).includes(value);
-
-/** A short, safe label for an error: its code or its name, characters limited. Never the message (it can carry values). */
-function errorCode(error: unknown): string {
-  const raw = (error as { code?: unknown } | null)?.code ?? (error as { name?: unknown } | null)?.name ?? 'unknown';
-  return String(raw).replace(/[^\w.:-]/g, '').slice(0, 40) || 'unknown';
-}
 
 /** A handler's error string is stored as last_error: filtered like an error code (no spaces, quotes or braces) and cut. */
 const shortError = (value: string): string => value.replace(/[^\w.:-]/g, '').slice(0, WEBHOOK_LAST_ERROR_MAX_LENGTH) || 'unknown';

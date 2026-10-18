@@ -22,6 +22,7 @@ vi.mock('@runquest/shared', async (importOriginal) => {
 import { detectRankPasses } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
+import { errorCode } from '../../utils/errorCode.js';
 import { settleChallenge } from '../challengeService.js';
 import { recordRankPassesForChallenge } from '../rankNews.js';
 import { createFakeDb, type Row, type RecordedQuery } from '../../routes/__tests__/helpers/fakeDb.js';
@@ -57,7 +58,7 @@ function use(tables: Record<string, Row[]>, failWhen?: (q: RecordedQuery) => { m
 }
 
 const hasOp = (q: RecordedQuery, op: string) => q.filters.some((f) => f.op === op);
-const fail = (message: string) => ({ message });
+const fail = (message: string, code?: string) => ({ message, ...(code ? { code } : {}) });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -84,21 +85,21 @@ describe('settleChallenge — fel efter claim', () => {
   it('boost-insert som misslyckas OCH en claim som inte kan släppas ger ett fel som nämner båda', async () => {
     const tables = baseTables();
     use(tables, (q) => {
-      if (q.table === 'user_boosts' && q.mutation === 'insert') return fail('boost insert failed');
+      if (q.table === 'user_boosts' && q.mutation === 'insert') return fail('boost insert failed: secret', '40001');
       if (q.table === 'challenges' && q.mutation === 'update' && hasOp(q, 'eq') && q.filters.some((f) => f.column === 'status' && f.value === 'completed')) {
-        return fail('release failed');
+        return fail('release failed: secret', '42501');
       }
       return null;
     });
 
-    await expect(settleChallenge('c1')).rejects.toThrow(/boost insert failed.*release failed|release failed.*boost insert failed/s);
+    await expect(settleChallenge('c1')).rejects.toMatchObject({ code: '40001', message: expect.stringMatching(/Failed to create boosts for challenge c1.*could not be released either/) });
   });
 
   describe('boost-insert fails AND the claim cannot be released', () => {
     const bothFail = (q: RecordedQuery) => {
-      if (q.table === 'user_boosts' && q.mutation === 'insert') return fail('boost insert failed');
+      if (q.table === 'user_boosts' && q.mutation === 'insert') return fail('boost insert failed: secret', '40001');
       if (q.table === 'challenges' && q.mutation === 'update' && q.filters.some((f) => f.column === 'status' && f.value === 'completed')) {
-        return fail('release failed');
+        return fail('release failed: secret', '42501');
       }
       return null;
     };
@@ -128,8 +129,26 @@ describe('settleChallenge — fel efter claim', () => {
       const tables = baseTables();
       use(tables, (q) => (q.table === 'users' && q.mutation === 'update' ? fail('reset failed') : bothFail(q)));
 
-      await expect(settleChallenge('c1')).rejects.toThrow(/boost insert failed/);
+      await expect(settleChallenge('c1')).rejects.toMatchObject({ code: '40001', message: expect.stringContaining('Failed to create boosts for challenge c1') });
       expect(vi.mocked(logger.error).mock.calls.some((c: unknown[]) => /KRITISK/.test(String(c[0])))).toBe(true);
+    });
+
+    it('the thrown error carries the boost insert code when the claim was released (will be retried)', async () => {
+      use(baseTables(), (q) => (q.table === 'user_boosts' && q.mutation === 'insert' ? fail('boost insert failed: secret', '40001') : null));
+
+      const failure = await settleChallenge('c1').catch((error: Error) => error);
+
+      expect(errorCode(failure)).toBe('40001');
+      expect((failure as Error).message).toBe('Failed to create boosts for challenge c1 (claim released, will be retried)');
+    });
+
+    it('the thrown error carries the boost insert code, not the release code, when the claim could not be released either', async () => {
+      use(baseTables(), bothFail);
+
+      const failure = await settleChallenge('c1').catch((error: Error) => error);
+
+      expect(errorCode(failure)).toBe('40001');
+      expect((failure as Error).message).toBe('Failed to create boosts for challenge c1 (the claim could not be released either; challenge stays completed without boosts)');
     });
 
     it('a released claim (only the boost insert fails) logs no KRITISK line and leaves challenge_active alone', async () => {
@@ -145,9 +164,9 @@ describe('settleChallenge — fel efter claim', () => {
 
   it('settleChallenge surfaces a failed W/D/L update', async () => {
     const tables = baseTables();
-    use(tables, (q) => (q.table === 'users' && q.mutation === 'update' && hasOp(q, 'eq') ? fail('wdl failed') : null));
+    use(tables, (q) => (q.table === 'users' && q.mutation === 'update' && hasOp(q, 'eq') ? fail('wdl failed: secret', '40P01') : null));
 
-    await expect(settleChallenge('c1')).rejects.toThrow(/W\/D\/L/);
+    await expect(settleChallenge('c1')).rejects.toMatchObject({ code: '40P01', message: expect.stringContaining('W/D/L update failed (40P01)') });
     // Boostarna är redan utdelade — avgörandet står kvar som completed (att släppa det skulle dubbelräkna vid omförsök).
     expect(tables.challenges[0].status).toBe('completed');
     expect(tables.user_boosts).toHaveLength(2);
@@ -155,33 +174,33 @@ describe('settleChallenge — fel efter claim', () => {
 
   it('settleChallenge surfaces a failed challenge_active reset', async () => {
     const tables = baseTables();
-    use(tables, (q) => (q.table === 'users' && q.mutation === 'update' && hasOp(q, 'in') ? fail('reset failed') : null));
+    use(tables, (q) => (q.table === 'users' && q.mutation === 'update' && hasOp(q, 'in') ? fail('reset failed: secret', '42501') : null));
 
     await expect(settleChallenge('c1')).rejects.toThrow(/challenge_active/);
   });
 
   it('ett fel i claimen kastas (inte en tyst return som ser ut som "redan avgjord")', async () => {
     const tables = baseTables();
-    use(tables, (q) => (q.table === 'challenges' && q.mutation === 'update' ? fail('claim failed') : null));
+    use(tables, (q) => (q.table === 'challenges' && q.mutation === 'update' ? fail('claim failed: secret', '55P03') : null));
 
-    await expect(settleChallenge('c1')).rejects.toThrow(/claim failed/);
+    await expect(settleChallenge('c1')).rejects.toMatchObject({ code: '55P03', message: 'Failed to claim challenge c1 for settling' });
     expect(tables.challenges[0].status).toBe('active');
     expect(tables.user_boosts).toHaveLength(0);
   });
 
   it('en trasig progress-läsning avgör inte utmaningen som 0–0-oavgjort', async () => {
     const tables = baseTables();
-    use(tables, (q) => (q.table === 'runs' ? fail('runs read failed') : null));
+    use(tables, (q) => (q.table === 'runs' ? fail('runs read failed: secret', '57014') : null));
 
-    await expect(settleChallenge('c1')).rejects.toThrow(/runs read failed/);
+    await expect(settleChallenge('c1')).rejects.toMatchObject({ code: '57014', message: expect.not.stringContaining('secret') });
     expect(tables.challenges[0].status).toBe('active');
     expect(tables.users.map((u) => u.draws)).toEqual([0, 0]);
   });
 
   it('en trasig läsning av utmaningen själv kastas, men "finns inte" är fortfarande en tyst return', async () => {
     const broken = baseTables();
-    use(broken, (q) => (q.table === 'challenges' && q.select ? fail('read failed') : null));
-    await expect(settleChallenge('c1')).rejects.toThrow(/read failed/);
+    use(broken, (q) => (q.table === 'challenges' && q.select ? fail('read failed: secret', '08006') : null));
+    await expect(settleChallenge('c1')).rejects.toMatchObject({ code: '08006', message: 'Failed to read challenge c1 for settling' });
 
     const missing = baseTables();
     use(missing);

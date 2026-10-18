@@ -52,6 +52,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
 import { checkEventQualification } from '../../services/eventService.js';
@@ -98,7 +99,7 @@ const user = () => mintToken({ user_id: 'user-1', group_id: 'group-1' });
 const admin = () => mintToken({ user_id: 'admin-1', group_id: 'group-1' });
 
 const connected = (over: Row = {}): Row => ({
-  user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9_999_999_999, connection_date: '2026-09-01', sync_paused: false, ...over,
+  user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9_999_999_999, connection_date: '2026-09-01', sync_paused: false, ...over,
 });
 
 interface Setup {
@@ -314,17 +315,8 @@ describe('the other Strava routes', () => {
     expectOnlyTheCode('M0001');
   });
 
-  it('debug-activities logs only the code', async () => {
-    databaseThrows('G0001');
-
-    const res = await server.request('GET', '/api/strava/debug-activities', { token: user() });
-
-    expect(res.status).toBe(500);
-    expectOnlyTheCode('G0001');
-  });
-
   it('sync-all logs only the code', async () => {
-    setup({ failWhen: (q) => (q.table === 'strava_tokens' && q.select?.includes('access_token') ? (Object.assign({ message: LEAK }, { code: 'Y0001', details: LEAK }) as never) : null) });
+    setup({ failWhen: (q) => (q.table === 'strava_tokens' && q.select?.includes('users!inner') ? (Object.assign({ message: LEAK }, { code: 'Y0001', details: LEAK }) as never) : null) });
 
     const res = await server.request('GET', '/api/strava/sync-all', { token: admin() });
 

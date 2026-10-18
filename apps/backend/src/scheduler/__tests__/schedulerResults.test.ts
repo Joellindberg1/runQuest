@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); });
 
-function use(tables: Record<string, Row[]>, failWhen?: (q: RecordedQuery) => { message: string } | null) {
+function use(tables: Record<string, Row[]>, failWhen?: (q: RecordedQuery) => { message: string; code?: string; details?: string } | null) {
   const db = createFakeDb(tables, { failWhen });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return db;
@@ -75,9 +75,10 @@ describe('streakScheduler', () => {
     await recalculateAllStreaks();
 
     expect(errorLines().some((l) => /StreakScheduler.*2 of 3/.test(l))).toBe(true);
-    // orsakerna följer med som kontext
+    // orsakernas felkoder följer med i texten, aldrig meddelandena (de kan bära radvärden)
     const call = errorSpy.mock.calls.find((c: unknown[]) => /2 of 3/.test(String(c[0])))!;
-    expect(JSON.stringify(call.slice(1), (_k, v) => (v instanceof Error ? v.message : v))).toMatch(/boom u1.*boom u3/);
+    expect(String(call[0])).toContain('(Error)');
+    expect(JSON.stringify(call)).not.toMatch(/boom/);
   });
 
   it('lyckad körning: bara info-raden, inget error', async () => {
@@ -109,10 +110,12 @@ describe('challengeScheduler', () => {
       user_challenge_tokens: [{ id: 't1', challenge_id: 'old1', sent_at: old }],
       users: [{ id: 'a', challenge_active: true }, { id: 'b', challenge_active: true }],
     };
-    use(tables, (q) => (q.table === 'user_challenge_tokens' && q.mutation === 'update' ? { message: 'restore failed' } : null));
+    use(tables, (q) => (q.table === 'user_challenge_tokens' && q.mutation === 'update' ? { message: 'restore failed: secret', code: '42501' } : null));
 
-    await expect(autoDeclinePendingChallenges()).rejects.toThrow(/1 of 1/);
+    // Felet loggas en gång här, med sin kod; funktionen kastar inte vidare (tickens sammanfattning loggade annars samma fel igen).
+    await expect(autoDeclinePendingChallenges()).resolves.toBeUndefined();
 
+    expect(errorLines().filter((l) => /Auto-declining challenges: 1 of 1 failed \(42501\)/.test(l))).toHaveLength(1);
     expect(tables.challenges).toHaveLength(1);
     expect(h.retractChallengeReceived).not.toHaveBeenCalled();
   });
@@ -124,13 +127,14 @@ describe('challengeScheduler', () => {
         challenges: [{ id: 'old1', status: 'pending', tier: 'minor', challenger_id: 'a', opponent_id: 'b', created_at: old }],
         user_challenge_tokens: [], users: [],
       },
-      (q) => (q.table === 'users' && q.mutation === 'update' ? { message: 'reset failed' } : null),
+      (q) => (q.table === 'users' && q.mutation === 'update' ? { message: 'reset failed: secret', code: '42501' } : null),
     );
     startChallengeScheduler();
 
     await tick('10 */6 * * *');
 
-    expect(errorLines().some((l) => /ChallengeScheduler.*1 of 2/.test(l))).toBe(true);
+    expect(errorLines().filter((l) => /ChallengeScheduler.*1 of 1 failed \(42501\)/.test(l))).toHaveLength(1);
+    expect(errorLines()).toHaveLength(1);
   });
 
   it('auto-start av legendary: ett misslyckat update kastas (och syns i tickens sammanfattning)', async () => {
@@ -139,13 +143,50 @@ describe('challengeScheduler', () => {
       challenges: [{ id: 'L1', status: 'pending', tier: 'legendary', duration_days: 3, legendary_sent_at: old }],
       user_challenge_tokens: [], users: [],
     };
-    use(tables, (q) => (q.table === 'challenges' && q.mutation === 'update' ? { message: 'start failed' } : null));
+    use(tables, (q) => (q.table === 'challenges' && q.mutation === 'update' ? { message: 'start failed: secret', code: '23514' } : null));
     startChallengeScheduler();
 
     await tick('10 */6 * * *');
 
-    expect(errorLines().some((l) => /ChallengeScheduler.*1 of 2/.test(l))).toBe(true);
+    expect(errorLines().filter((l) => /Auto-starting legendary challenges: 1 of 1 failed \(23514\)/.test(l))).toHaveLength(1);
+    expect(errorLines()).toHaveLength(1);
     expect(tables.challenges[0].status).toBe('pending');
+  });
+
+  describe('a database error in the auto-manage tick logs a meaningful code and no text', () => {
+    const tables = (): Record<string, Row[]> => ({ challenges: [], user_challenge_tokens: [], users: [] });
+    const readsFail = (failure: { message: string; code: string; details?: string }) => (q: RecordedQuery) => (q.table === 'challenges' && !q.mutation ? failure : null);
+    const logged = () => JSON.stringify(errorSpy.mock.calls);
+
+    it('names the Postgres code of a failed read, once per failing job and without the database message', async () => {
+      use(tables(), readsFail({ message: 'canceling statement due to statement timeout (row 987654321, jane@example.com)', code: '57014' }));
+      startChallengeScheduler();
+
+      await tick('10 */6 * * *');
+
+      const lines = errorLines();
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatch(/Auto-manage tick: 2 of 2 failed \(57014\)/);
+      expect(logged()).not.toMatch(/987654321|jane@example\.com|statement timeout/);
+      expect(logged()).not.toMatch(/\((Error|unknown)\)/);
+    });
+
+    it('names the network cause when supabase-js gives an error without a code (the connection broke)', async () => {
+      // What supabase-js returns instead of throwing when fetch fails: code '', no name, the cause only in the text.
+      use(tables(), readsFail({
+        message: 'TypeError: fetch failed',
+        details: 'TypeError: fetch failed\n\nCaused by: Error: read ECONNRESET (ECONNRESET)\n    at jane@example.com',
+        code: '',
+      }));
+      startChallengeScheduler();
+
+      await tick('10 */6 * * *');
+
+      const lines = errorLines();
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatch(/Auto-manage tick: 2 of 2 failed \(ECONNRESET\)/);
+      expect(logged()).not.toMatch(/jane@example\.com|\((Error|unknown)\)/);
+    });
   });
 
   it('lyckad settle-tick: inget error', async () => {

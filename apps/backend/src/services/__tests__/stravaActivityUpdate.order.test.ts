@@ -46,6 +46,7 @@ vi.mock('../xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import { buildStravaRunRow } from '../stravaImport.js';
 import { createStravaWebhookWorker } from '../stravaWebhookWorker.js';
@@ -124,7 +125,7 @@ async function deliver(
   const strava = installFakeStravaFetch({ activities: { [ID]: FINAL_STATES[final].answer() } });
   try {
     const tables: Record<string, Row[]> = {
-      strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01T09:00:00+00:00', sync_paused: false }],
+      strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01T09:00:00+00:00', sync_paused: false }],
       runs: STARTS[start](),
       user_boosts: [],
       run_weather: [],

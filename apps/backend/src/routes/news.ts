@@ -23,6 +23,7 @@ import {
   type NewsSeenApiResponse,
   type NewsUserRef,
 } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -209,7 +210,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error fetching news:', error);
+    logger.error(`❌ Error fetching news (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to fetch news' });
   }
 });
@@ -274,7 +275,7 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     };
     res.json(result);
   } catch (error) {
-    logger.error('❌ Error marking news as seen:', error);
+    logger.error(`❌ Error marking news as seen (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to update news state' });
   }
 });
@@ -334,7 +335,7 @@ export function createNewsRouter(): express.Router {
       };
       res.json(body);
     } catch (error) {
-      logger.error('❌ Error marking news rows as read:', error);
+      logger.error(`❌ Error marking news rows as read (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to update news state' });
     }
   });

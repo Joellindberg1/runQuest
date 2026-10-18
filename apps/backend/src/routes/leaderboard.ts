@@ -16,6 +16,7 @@ import {
   type RankDeltaApiResponse,
   type WeekLeaderboardApiResponse,
 } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -125,7 +126,7 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     try {
       historicalBest = await fetchGroupBestWeekKm(groupId);
     } catch (historyError) {
-      logger.warn('⚠️ Could not read runs history for best week, falling back to this week:', historyError);
+      logger.warn(`⚠️ Could not read runs history for best week, falling back to this week (${errorCode(historyError)})`);
     }
     const bestKm = Math.max(historicalBest, computed.totals.km);
 
@@ -140,7 +141,7 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error fetching week leaderboard:', error);
+    logger.error(`❌ Error fetching week leaderboard (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to fetch week leaderboard' });
   }
 });
@@ -207,7 +208,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
     const body: RankDeltaApiResponse = { success: true, data: { as_of: asOf, users } };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error fetching rank delta:', error);
+    logger.error(`❌ Error fetching rank delta (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to fetch rank delta' });
   }
 });

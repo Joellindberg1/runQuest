@@ -102,3 +102,6 @@ apps/e2e/playwright-report/
 # Filmens original (RUN-257): ligger i ägarens OneDrive och i Claude Design, aldrig i git. Bara de komprimerade filerna i apps/frontend/public/media/ spåras.
 docs/design/*.mp4
 docs/design/landing-media/
+
+# Lasttestets rapportfiler (scripts/loadtest): bär rundornas id och nycklar, hör inte hemma i git
+scripts/loadtest/out/

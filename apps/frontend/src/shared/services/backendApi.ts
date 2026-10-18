@@ -622,36 +622,6 @@ class BackendApiService {
     });
   }
 
-  async debugStravaActivities(): Promise<ApiResponse<{
-    connection_date: string;
-    after_timestamp: number;
-    after_date: string;
-    after_calculation_method: string;
-    total_activities: number;
-    running_activities: number;
-    existing_run_ids: string[];
-    existing_runs_count: number;
-    new_runs_count: number;
-    all_activities: Array<{
-      id: number;
-      name: string;
-      type: string;
-      distance: string;
-      date: string;
-      already_imported: boolean;
-    }>;
-    new_runs: Array<{
-      id: number;
-      name: string;
-      distance: string;
-      date: string;
-    }>;
-  }>> {
-    return this.authenticatedRequest('/strava/debug-activities', {
-      method: 'GET',
-    });
-  }
-
   /** PUT /strava/sync-paused: pausar eller slår på synken. Svaret är läget efter anropet (ADR 007-formen packas upp här). */
   async setStravaSyncPaused(paused: boolean): Promise<ApiResponse<StravaSyncPausedResponse['data']>> {
     const body: StravaSyncPausedRequest = { paused };

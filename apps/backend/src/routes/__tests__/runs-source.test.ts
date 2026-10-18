@@ -39,6 +39,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
@@ -130,7 +131,7 @@ describe('Strava-importen skriver fortfarande source = strava', () => {
   it('POST /api/strava/sync sparar importerade rundor som strava med external_id', async () => {
     const tables = use({
       runs: [],
-      strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01' }],
+      strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01' }],
     });
     // fakeDb saknar stöd för .not('external_id','is',null) (och kastar hellre än matchar tyst) — släpp igenom just det anropet.
     const real = vi.mocked(getSupabaseClient)();

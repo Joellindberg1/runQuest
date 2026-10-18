@@ -48,6 +48,7 @@ vi.mock('@runquest/shared', async (importOriginal) => {
 
 import { detectRankPasses, notifyKey } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { createApp } from '../../app.js';
 import { settleChallenge } from '../../services/challengeService.js';
 import { settleCompetitionEvents } from '../../services/eventService.js';
@@ -253,7 +254,7 @@ describe('rank_passed i flödet: xp', () => {
     // Den riktiga massvägen: Annas FÖRSTA Strava-import (hon har bara manuella rundor) går via POST /api/strava/sync och
     // calculateUserTotals(userId, { emitRankNews: false }). Importen lyfter henne förbi Bertil, men ingen enskild runda orsakade det.
     const t = world({
-      strava_tokens: [{ user_id: W, access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01' }],
+      strava_tokens: [{ user_id: W, ...tokenCols(W, 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01' }],
     });
     use(t);
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {

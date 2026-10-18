@@ -47,6 +47,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { checkEventQualification } from '../../services/eventService.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
@@ -83,7 +84,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 function use(runs: Row[] = []) {
   const tables: Record<string, Row[]> = {
-    strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01' }],
+    strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01' }],
     runs,
     user_boosts: [],
   };

@@ -4,6 +4,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { ACTIVITY_LOG_TABLE } from './activityLog.js';
 import { NEWS_READ_TABLE } from './newsUnread.js';
+import { errorCode } from '../utils/errorCode.js';
 
 /** Postgres foreign_key_violation: raden i activity_log togs bort (retract) mellan uppslagningen och skrivningen. */
 const FOREIGN_KEY_VIOLATION = '23503';
@@ -81,6 +82,6 @@ export async function pruneReadReceipts(userId: string, floor: number | null): P
       .lte('activity_id', floor);
     if (error) throw error;
   } catch (error) {
-    logger.error('❌ Kunde inte rensa news_read under golvet (ofarligt, rensas vid nästa anrop):', error);
+    logger.error(`❌ Kunde inte rensa news_read under golvet (ofarligt, rensas vid nästa anrop) (${errorCode(error)})`);
   }
 }

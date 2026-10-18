@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
 import { scrubSentryEvent, secretsFromEnv, isExpectedClientStatus, CLIENT_STATUSES_NOT_REPORTED } from '../scrub.js';
 
@@ -70,7 +71,8 @@ describe('beforeSend strips tokens and PII', () => {
     expect(out.request.cookies).toBeUndefined();
     expect(out.request.query_string).toBeUndefined();
     expect(out.request.headers).toEqual({ 'content-type': 'application/json', 'user-agent': 'vitest' });
-    expect(out.request.url).toBe('https://api.runquest.dev/api/strava/callback');
+    // Ingen route i fixturen: bara värden, aldrig den råa sökvägen (den kan bära ett id som inget mönster känner igen).
+    expect(out.request.url).toBe('https://api.runquest.dev');
   });
 
   it('keeps only user.id on the user', () => {
@@ -95,10 +97,24 @@ describe('beforeSend strips tokens and PII', () => {
     ['owner_id=555111', '555111'],
     ['athlete_id: 424242', '424242'],
     ['Object_ID = 31337', '31337'],
+    // a prefix joined with an underscore is part of the same word for \b, so these used to slip through
+    ['strava_athlete_id=777001', '777001'],
+    ['strava_owner_id: 777002', '777002'],
+    ['webhook_object_id=777003', '777003'],
+    ['user.strava_athlete_id = 777004', '777004'],
   ])('masks a Strava id written as %s anywhere in a string', (written, id) => {
     const out = scrub({ message: `dead event ${written} attempts=3`, extra: { note: `again ${written}` } })!;
     expect(JSON.stringify(out)).not.toContain(id);
     expect(JSON.stringify(out)).toContain('attempts=3');
+  });
+
+  it.each([
+    ['strava_access_token=ACCESS-marker-1234', 'ACCESS-marker-1234'],
+    ['db_password=hunter2-marker', 'hunter2-marker'],
+    ['STRAVA_CLIENT_SECRET=client-marker-5678', 'client-marker-5678'],
+  ])('masks a secret written with a prefix joined by an underscore: %s', (written, secret) => {
+    const out = scrub({ message: `failed ${written} attempts=3` })!;
+    expect(JSON.stringify(out)).not.toContain(secret);
   });
 
   it('survives circular structures', () => {
@@ -135,6 +151,28 @@ describe('expected client statuses', () => {
   });
 });
 
+describe('ids in the address of an error event', () => {
+  const USER = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+
+  it('become :id in the transaction name and the request address, and the query is gone', () => {
+    const scrubbed = scrubSentryEvent({
+      transaction: `GET /api/titles/user/${USER}`,
+      request: { method: 'GET', url: `https://api.runquest.dev/api/titles/user/${USER}?week=2026-10-12#top` },
+    }, [])! as { transaction: string; request: { url: string } };
+
+    expect(scrubbed.transaction).toBe('GET /api/titles/user/:id');
+    expect(scrubbed.request.url).toBe('https://api.runquest.dev/api/titles/user/:id');
+    expect(JSON.stringify(scrubbed)).not.toContain(USER);
+  });
+
+  it('also turn a numeric segment into :id, and take the path of the address from the route name, never from the raw path', () => {
+    const scrubbed = scrubSentryEvent({ transaction: 'GET /api/strava/activities/987654321', request: { url: 'https://api.runquest.dev/api/users/anna-andersson' } }, [])! as { transaction: string; request: { url: string } };
+    expect(scrubbed.transaction).toBe('GET /api/strava/activities/:id');
+    expect(scrubbed.request.url).toBe('https://api.runquest.dev/api/strava/activities/:id');
+    expect(JSON.stringify(scrubbed)).not.toContain('anna-andersson');
+  });
+});
+
 describe('secretsFromEnv', () => {
   it('collects values of secret-looking variables, skipping short values and the DSN', () => {
     const secrets = secretsFromEnv({
@@ -142,5 +180,59 @@ describe('secretsFromEnv', () => {
       STRAVA_WEBHOOK_VERIFY_TOKEN: 'short', SENTRY_DSN: 'https://key@o1.ingest.de.sentry.io/1', PORT: '3001', NODE_ENV: 'production',
     });
     expect(secrets.sort()).toEqual(['another-long-one', 'long-enough-secret', 'svc-role-key-value']);
+  });
+
+  // The keys are generated here: nothing in these tests is a real key.
+  const keyBase64 = () => randomBytes(32).toString('base64');
+
+  it('also collects the base64 part of the active key and of every retired key, and the list entries themselves', () => {
+    const active = keyBase64();
+    const retiredA = keyBase64();
+    const retiredB = keyBase64();
+    const secrets = secretsFromEnv({
+      TOKEN_ENCRYPTION_KEY: `prod-2:${active}`,
+      TOKEN_ENCRYPTION_KEYS_RETIRED: `prod-1:${retiredA}, old-0:${retiredB}`,
+    });
+
+    for (const part of [active, retiredA, retiredB]) expect(secrets).toContain(part);
+    expect(secrets).toContain(`prod-2:${active}`);
+    expect(secrets).toContain(`prod-1:${retiredA}`);
+    expect(secrets).toContain(`old-0:${retiredB}`);
+  });
+
+  it('skips a blank or malformed key variable without throwing', () => {
+    expect(() => secretsFromEnv({ TOKEN_ENCRYPTION_KEY: '', TOKEN_ENCRYPTION_KEYS_RETIRED: ',, ,x' })).not.toThrow();
+    expect(secretsFromEnv({ TOKEN_ENCRYPTION_KEY: '', TOKEN_ENCRYPTION_KEYS_RETIRED: '' })).toEqual([]);
+  });
+});
+
+describe('encrypted values and key material in events', () => {
+  const stored = `enc:v1:prod-1:${randomBytes(12).toString('base64url')}:${randomBytes(40).toString('base64url')}:${randomBytes(16).toString('base64url')}`;
+
+  it('scrubSentryEvent masks an enc:v1 value wherever it stands, also cut short and inside other text', () => {
+    const event = {
+      message: `row ${stored} could not be read`,
+      extra: { note: `the column held ${stored.slice(0, 40)}`, list: [`x ${stored}`] },
+      exception: { values: [{ type: 'Error', value: `bad value (${stored}), retrying` }] },
+    };
+
+    const out = JSON.stringify(scrubSentryEvent(event, []));
+
+    expect(out).not.toContain('enc:v1');
+    expect(out).not.toContain(stored.split(':')[3]);
+    expect(out).not.toContain(stored.split(':')[4]);
+    expect(out).toContain('[Filtered]');
+  });
+
+  it('scrubSentryEvent masks the base64 of a configured key even when it appears without its key id', () => {
+    const active = randomBytes(32).toString('base64');
+    const retired = randomBytes(32).toString('base64');
+    const secrets = secretsFromEnv({ TOKEN_ENCRYPTION_KEY: `prod-2:${active}`, TOKEN_ENCRYPTION_KEYS_RETIRED: `prod-1:${retired}` });
+    const event = { message: `key ${active} and ${retired}`, extra: { entry: `prod-2:${active}`, list: [`old=${retired}`] } };
+
+    const out = JSON.stringify(scrubSentryEvent(event, secrets));
+
+    expect(out).not.toContain(active);
+    expect(out).not.toContain(retired);
   });
 });

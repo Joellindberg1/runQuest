@@ -14,12 +14,13 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { startFakeSentry, type FakeSentry } from '../../observability/__tests__/helpers/fakeSentry.js';
 import { createFakeDb, type Row, type RecordedQuery } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
 import { getValidAccessToken } from '../stravaClient.js';
 
-const EXPIRED: Row = { user_id: 'user-1', access_token: 'old-at-secret-1', refresh_token: 'old-rt-secret-1', expires_at: 100, connection_date: '2026-09-01' };
+const EXPIRED: Row = { user_id: 'user-1', ...tokenCols('user-1', 'old-at-secret-1', 'old-rt-secret-1'), expires_at: 100, connection_date: '2026-09-01' };
 
 let sentry: FakeSentry;
 let strava: FakeStrava | undefined;
