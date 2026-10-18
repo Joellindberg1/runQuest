@@ -242,6 +242,11 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
    finns) och, efter RLS- eller policyändring, `get_advisors` (security). Filen ligger redan i release-PR:en.
 4. Backfill- och omräkningsskript (`backfill:*`, `reveal:badges`, `convert:wind-ms`): dry-run fritt, `--apply` kräver
    ägar-ja med dry-run-rapporten som underlag. Skripten skriver ut måldatabasens host.
+5. **Titelmigrationen 055 (`055_title_scope_group`)** körs när ingen Strava-synk, cron eller titelomräkning pågår (den tar
+   ACCESS EXCLUSIVE på `user_titles`/`title_leaderboard` och alla titellås i slutet). Kör före-frågorna A1–A7 i filens huvud
+   först och spara A4/A5; efter apply B1/B2, C1/C2, D1 och E1–E6, och `get_advisors` (security). Får den `40P01` (deadlock)
+   eller `lock_timeout` (55P03) har allt rullats tillbaka: vänta en stund och kör om hela filen. Stannar en av migrationens egna
+   kontroller (`migration 055 stopped/failed`) ändras ingenting; fråga ägaren, ändra ingen data för att få den att gå igenom.
 
 ### 6. `announce:release`
 
