@@ -62,7 +62,11 @@ export function LandingWaitlist() {
     if (nextConsentError) { consentRef.current?.focus(); return; }
 
     const outcome = await join({ email: trimmed, website });
-    if (outcome === 'joined') { track('waitlist-joined'); setDone(true); }
+    if (outcome === 'joined') {
+      // Servern kastar tyst en anmälan med ifyllt honeypot-fält men svarar ändå 200: den räknas inte som en anmälan i statistiken.
+      if (website === '') track('waitlist-joined');
+      setDone(true);
+    }
     else if (outcome === 'invalid') { setEmailError(MESSAGES.emailInvalid); emailRef.current?.focus(); }
     else if (outcome === 'rate-limited') setFormError(MESSAGES.rateLimited);
     else if (outcome === 'failed') setFormError(MESSAGES.failed);

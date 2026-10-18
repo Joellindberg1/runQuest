@@ -24,7 +24,8 @@ const SETTING_KEYS = NOTIFICATION_KINDS.map((kind) => kind.key);
  *   personliga val och blir, när gruppinställningar och enumvärden kommer (ADR 012), något som kan peka ut en grupps regler. Att räkna vilka
  *   inställningar som rörs räcker för att se vad som används; riktningen (på/av) kan läggas till senare som en uppräknad prop om ägaren vill.
  * - `strava-connected` bär inget: bara att det hände. Aldrig athlete-id, aldrig vad som importerades.
- * - `run-logged-manual` bär inget: ingen distans, inget datum, ingen tid. Importerade Stravarundor kan klienten inte ens se som en händelse.
+ * - Ingen händelse om loggade rundor finns, medvetet (ägarens gräns "ingen rundata", Stravas API-policy 5.4): en sådan läggs till först efter
+ *   ägarens beslut.
  */
 export const ANALYTICS_EVENTS = {
   // Landningen
@@ -37,7 +38,6 @@ export const ANALYTICS_EVENTS = {
   'notifications-opened': {},
   'setting-changed': { setting: SETTING_KEYS },
   'strava-connected': {},
-  'run-logged-manual': {},
 } as const satisfies Record<string, Record<string, readonly string[]>>;
 
 type AnalyticsEventDefinitions = typeof ANALYTICS_EVENTS;

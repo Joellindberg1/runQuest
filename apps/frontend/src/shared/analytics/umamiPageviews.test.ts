@@ -291,6 +291,16 @@ describe('the Umami loader, events', () => {
     expect(() => scriptLoaded()).not.toThrow();
   });
 
+  it('never throws, not even when the page address cannot be read or the script cannot be added', () => {
+    const noLocation = { document, addEventListener: () => {}, get location(): Location { throw new Error('no location'); } } as unknown as Window;
+    expect(() => createPageviewSender(WEBSITE_ID, noLocation).sendEvent('waitlist-click')).not.toThrow();
+
+    vi.spyOn(document.head, 'appendChild').mockImplementation(() => { throw new Error('cannot add the script'); });
+    // Ett eget skript per sändare: den första som ber om skriptet är den som kastar.
+    expect(() => createPageviewSender(WEBSITE_ID, window).sendEvent('waitlist-click')).not.toThrow();
+    expect(() => createPageviewSender(WEBSITE_ID, window).send('/')).not.toThrow();
+  });
+
   it('stores nothing in cookies or browser storage', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
     const sender = createPageviewSender(WEBSITE_ID, window);

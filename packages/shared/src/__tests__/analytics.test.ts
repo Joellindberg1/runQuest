@@ -26,7 +26,6 @@ describe('the analytics event list', () => {
         'film-started',
         'login-click',
         'notifications-opened',
-        'run-logged-manual',
         'setting-changed',
         'strava-connected',
         'waitlist-click',
@@ -80,6 +79,11 @@ describe('sanitizeAnalyticsEvent', () => {
     expect(result).toEqual({ name: 'setting-changed', data: { setting: 'notify.title_taken_from_me' } });
   });
 
+  it('knows no event about logged runs, since the owner has not decided on one', () => {
+    expect(ANALYTICS_EVENT_NAMES.filter((name) => /run/.test(name))).toEqual([]);
+    expect(sanitizeAnalyticsEvent('run-logged-manual')).toBeNull();
+  });
+
   it.each([undefined, null, '', 'unknown-event', 'Waitlist-Click', 'waitlist_click', 'constructor', '__proto__', 'toString', 42, {}, ['waitlist-click']])(
     'rejects the event name %j',
     (name) => {
@@ -101,7 +105,7 @@ describe('sanitizeAnalyticsEvent', () => {
     ['title', 'Morning run'],
     ['xp', 120],
   ])('rejects the prop %s=%j on an event that takes no props', (key, value) => {
-    expect(sanitizeAnalyticsEvent('run-logged-manual', { [key]: value })).toBeNull();
+    expect(sanitizeAnalyticsEvent('login-click', { [key]: value })).toBeNull();
     expect(sanitizeAnalyticsEvent('waitlist-joined', { [key]: value })).toBeNull();
   });
 

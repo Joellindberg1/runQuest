@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Run } from '@runquest/types';
-import { track } from '@/shared/analytics/track';
 import { backendApi } from '@/shared/services/backendApi';
 import { invalidateAfterRunChange, invalidateIfRunWritten, runChangeError } from '@/features/runs/runEffects';
 import type { RunSubmission } from '../logModel';
@@ -21,11 +20,7 @@ export function useCreateRun() {
       if (!res.success || !res.data) throw runChangeError(res, 'Failed to log the run');
       return res.data;
     },
-    onSuccess: () => {
-      // Bara att en runda loggades för hand: ingen distans, inget datum, inget runda-id (Stravas API-policy 5.4). Importerade Stravarundor räknas inte här.
-      track('run-logged-manual');
-      return invalidateAfterRunChange(queryClient);
-    },
+    onSuccess: () => invalidateAfterRunChange(queryClient),
     onError: invalidateIfRunWritten(queryClient),
   });
 }

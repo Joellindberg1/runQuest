@@ -280,6 +280,16 @@ describe('LandingWaitlist: webbanalys', () => {
     expect(track).toHaveBeenCalledExactlyOnceWith('waitlist-joined');
   });
 
+  it('reports nothing for a sign-up where the hidden honeypot field has been filled in, since that is a bot', async () => {
+    renderForm();
+    await userEvent.type(emailField(), 'bot@example.com');
+    await userEvent.click(consentBox());
+    fireEvent.change(document.querySelector('input[name="website"]') as HTMLInputElement, { target: { value: 'http://spam.example' } });
+    await userEvent.click(submitButton());
+    await screen.findByText("You're on the list.");
+    expect(track).not.toHaveBeenCalled();
+  });
+
   it.each([[400], [429], [500]])('reports nothing when the server answers %i', async (status) => {
     joinWaitlist.mockResolvedValue({ status });
     renderForm();

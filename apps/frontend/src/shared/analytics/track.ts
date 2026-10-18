@@ -10,5 +10,9 @@ import { createDefaultPageviewSender } from './umamiPageviews';
  * påverka appen. Sidvisningar skickas av usePageviewTracking, inte härifrån.
  */
 export function track<E extends AnalyticsEventName>(event: E, ...props: AnalyticsTrackArgs<E>): void {
-  createDefaultPageviewSender().sendEvent(event, ...props);
+  try {
+    createDefaultPageviewSender().sendEvent(event, ...props);
+  } catch {
+    // Statistiken får aldrig fälla en lyckad handling i appen (en mutation, ett klick) som rapporterar den.
+  }
 }

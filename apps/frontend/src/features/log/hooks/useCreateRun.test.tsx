@@ -87,14 +87,9 @@ describe('useCreateRun — webbanalys', () => {
     vi.mocked(track).mockClear();
   });
 
-  it('reports run-logged-manual, and nothing about the run, once the run has been saved', async () => {
+  it('reports nothing about a run, whether it is saved, refused or written by a server that then fails', async () => {
     const { result } = setup();
     await result.current.mutateAsync(submission);
-    expect(track).toHaveBeenCalledExactlyOnceWith('run-logged-manual');
-  });
-
-  it('reports nothing when the run is refused, or when the server fails after it wrote the run', async () => {
-    const { result } = setup();
     handlers.createRun = async () => ({ success: false, error: 'Distance must be at least 1.0 km' });
     await expect(result.current.mutateAsync(submission)).rejects.toThrow();
     handlers.createRun = async () => ({ success: false, error: 'Run was created but XP recalculation failed', written: true });

@@ -64,12 +64,22 @@ describe('track', () => {
     vi.stubEnv('VITE_UMAMI_WEBSITE_ID', WEBSITE_ID);
     const loose = track as unknown as (name: string, props?: unknown) => void;
     loose('waitlist-click', { email: 'anna@example.com' });
-    loose('run-logged-manual', { distance: 5.2 });
+    loose('strava-connected', { distance: 5.2 });
     loose('setting-changed', { setting: 'notify.title_taken_from_me', user_id: '3f2b8c1e-5d4a-4b9e-8c1f-2a7d6e9b0c11' });
     track('film-started');
     scriptLoaded();
     expect(umamiTrack).toHaveBeenCalledTimes(1);
     expect(sent(0)).toMatchObject({ name: 'film-started' });
+  });
+
+  it('never throws, even when the sender itself cannot be built', () => {
+    vi.stubEnv('VITE_UMAMI_WEBSITE_ID', WEBSITE_ID);
+    vi.stubGlobal('window', undefined);
+    try {
+      expect(() => track('waitlist-click')).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('does not compile for an unknown event, a wrong prop or a missing prop', () => {
@@ -78,7 +88,7 @@ describe('track', () => {
       // @ts-expect-error not in the fixed event list
       track('page-viewed-by-anna');
       // @ts-expect-error distance is not a prop of any event
-      track('run-logged-manual', { distance: 5.2 });
+      track('strava-connected', { distance: 5.2 });
       // @ts-expect-error a free string is not an enumerated value
       track('setting-changed', { setting: 'anna@example.com' });
       // @ts-expect-error the prop is required
