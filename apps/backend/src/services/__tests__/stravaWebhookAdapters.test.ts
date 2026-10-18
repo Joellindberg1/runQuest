@@ -16,6 +16,7 @@ vi.mock('../weatherService.js', () => ({ WeatherService: { fetchAndSaveWeatherFo
 vi.mock('../eventService.js', () => ({ checkEventQualification: vi.fn().mockResolvedValue(undefined) }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { reprocessRunsFromDate } from '../../routes/runs.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { WeatherService } from '../weatherService.js';
@@ -275,7 +276,7 @@ describe('Strava API', () => {
     vi.stubEnv('STRAVA_CLIENT_ID', 'client-id');
     vi.stubEnv('STRAVA_CLIENT_SECRET', 'client-secret');
     strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'renewed' }) });
-    useDb({ strava_tokens: [{ user_id: 'user-1', access_token: 'old', refresh_token: 'rt', expires_at: 9999999999, connection_date: null }] }, {
+    useDb({ strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'old', 'rt'), expires_at: 9999999999, connection_date: null }] }, {
       primaryKeys: { strava_tokens: ['user_id'] },
     });
 

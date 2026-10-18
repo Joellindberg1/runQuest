@@ -789,6 +789,10 @@ describe('handler contract', () => {
     expect(resultForTokenFailure('refresh_rejected')).toEqual({ status: 'retry', error: 'token_refresh_rejected' });
     expect(resultForTokenFailure('token_read_failed')).toEqual({ status: 'retry', error: 'token_read_failed' });
   });
+
+  it('a token that cannot be read is a retry with its own code for every event, never an unknown owner or a refusal', () => {
+    expect(resultForTokenFailure('token_unreadable')).toEqual({ status: 'retry', error: 'token_unreadable' });
+  });
 });
 
 describe('the loop', () => {

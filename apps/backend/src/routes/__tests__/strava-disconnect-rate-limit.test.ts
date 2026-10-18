@@ -19,6 +19,7 @@ vi.mock('../../config/database.js', () => ({
 vi.mock('../../utils/calculateUserTotals.js', () => ({ calculateUserTotals: vi.fn().mockResolvedValue(undefined) }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { installFakeStravaFetch, type FakeStrava } from '../../test-utils/fakeStrava.js';
@@ -44,7 +45,7 @@ afterEach(() => {
 describe('DELETE /api/strava/disconnect rate limit', () => {
   it('answers 401 without a token and without using the budget, and 429 on the 11th signed-in call', async () => {
     const tables = {
-      strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9_999_999_999, connection_date: '2026-09-01', consent_version: '2026-10-14', consented_at: '2026-10-14T09:30:00.000Z' }],
+      strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9_999_999_999, connection_date: '2026-09-01', consent_version: '2026-10-14', consented_at: '2026-10-14T09:30:00.000Z' }],
       runs: [],
     };
     vi.mocked(getSupabaseClient).mockReturnValue(createFakeDb(tables, { primaryKeys: { strava_tokens: ['user_id'] } }).client as any);

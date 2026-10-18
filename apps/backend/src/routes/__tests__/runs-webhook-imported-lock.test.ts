@@ -40,6 +40,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createStravaWebhookWorker } from '../../services/stravaWebhookWorker.js';
@@ -72,7 +73,7 @@ const token = mintToken({ user_id: 'user-1', group_id: 'group-1' });
 async function importThroughWebhook() {
   strava = installFakeStravaFetch({ activities: { 7001: stravaActivity({ id: 7001 }) } });
   const tables: Record<string, Row[]> = {
-    strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01T09:00:00+00:00', sync_paused: false }],
+    strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01T09:00:00+00:00', sync_paused: false }],
     runs: [],
     user_boosts: [],
     event_entries: [],

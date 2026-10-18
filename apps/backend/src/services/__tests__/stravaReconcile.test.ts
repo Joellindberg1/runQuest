@@ -41,6 +41,7 @@ vi.mock('../xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
 import { withUserLock } from '../../utils/keyedMutex.js';
@@ -91,8 +92,7 @@ afterEach(() => {
 
 const tokenRow = (userId: string, over: Row = {}): Row => ({
   user_id: userId,
-  access_token: 'old-at',
-  refresh_token: 'old-rt',
+  ...tokenCols(userId, 'old-at', 'old-rt'),
   expires_at: 9999999999,
   connection_date: '2026-01-01T09:00:00+00:00',
   sync_paused: false,
