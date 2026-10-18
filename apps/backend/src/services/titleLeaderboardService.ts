@@ -1,5 +1,6 @@
 import { supabase } from '../config/database';
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 
 // Type definitions for leaderboard data
 interface LeaderboardRow {
@@ -51,7 +52,7 @@ export class TitleLeaderboardService {
       
       logger.info('✅ Title recalculation completed successfully');
     } catch (error) {
-      logger.error('❌ Error triggering title recalculation:', error);
+      logger.error(`❌ Error triggering title recalculation (${errorCode(error)})`);
       throw new Error(`Failed to recalculate titles: ${error}`);
     }
   }
@@ -71,7 +72,7 @@ export class TitleLeaderboardService {
         .order('position');
 
       if (error) {
-        logger.error('❌ Error fetching title leaderboard:', error);
+        logger.error(`❌ Error fetching title leaderboard (${errorCode(error)})`);
         throw error;
       }
 
@@ -121,7 +122,7 @@ export class TitleLeaderboardService {
       return result;
       
     } catch (error) {
-      logger.error('❌ Error in getTitleLeaderboard:', error);
+      logger.error(`❌ Error in getTitleLeaderboard (${errorCode(error)})`);
       throw error;
     }
   }
@@ -141,7 +142,7 @@ export class TitleLeaderboardService {
         .order('position');
 
       if (leaderboardError) {
-        logger.error('❌ Error fetching user titles from leaderboard:', leaderboardError);
+        logger.error(`❌ Error fetching user titles from leaderboard (${errorCode(leaderboardError)})`);
       }
 
       // Also get ALL user titles (including those not in top 10)
@@ -159,7 +160,7 @@ export class TitleLeaderboardService {
         .eq('user_id', userId);
 
       if (allTitlesError) {
-        logger.error('❌ Error fetching all user titles:', allTitlesError);
+        logger.error(`❌ Error fetching all user titles (${errorCode(allTitlesError)})`);
       }
 
       // Combine and deduplicate
@@ -194,7 +195,7 @@ export class TitleLeaderboardService {
       return allTitles;
       
     } catch (error) {
-      logger.error('❌ Error in getUserTitles:', error);
+      logger.error(`❌ Error in getUserTitles (${errorCode(error)})`);
       throw error;
     }
   }
@@ -210,14 +211,14 @@ export class TitleLeaderboardService {
       const { error } = await supabase.client.rpc('update_all_title_leaderboards');
       
       if (error) {
-        logger.error('❌ Error refreshing title leaderboards:', error);
+        logger.error(`❌ Error refreshing title leaderboards (${errorCode(error)})`);
         throw error;
       }
       
       logger.info('✅ All title leaderboards refreshed');
       
     } catch (error) {
-      logger.error('❌ Error in refreshAllTitleLeaderboards:', error);
+      logger.error(`❌ Error in refreshAllTitleLeaderboards (${errorCode(error)})`);
       throw error;
     }
   }
@@ -234,14 +235,14 @@ export class TitleLeaderboardService {
       });
       
       if (error) {
-        logger.error('❌ Error refreshing title leaderboard:', error);
+        logger.error(`❌ Error refreshing title leaderboard (${errorCode(error)})`);
         throw error;
       }
       
       logger.info(`✅ Leaderboard refreshed for title ${titleId}`);
       
     } catch (error) {
-      logger.error('❌ Error in refreshTitleLeaderboard:', error);
+      logger.error(`❌ Error in refreshTitleLeaderboard (${errorCode(error)})`);
       throw error;
     }
   }
@@ -260,7 +261,7 @@ export class TitleLeaderboardService {
         .order('name');
 
       if (error) {
-        logger.error('❌ Error fetching all titles:', error);
+        logger.error(`❌ Error fetching all titles (${errorCode(error)})`);
         throw error;
       }
 
@@ -268,7 +269,7 @@ export class TitleLeaderboardService {
       return data || [];
       
     } catch (error) {
-      logger.error('❌ Error in getAllTitles:', error);
+      logger.error(`❌ Error in getAllTitles (${errorCode(error)})`);
       throw error;
     }
   }
@@ -289,7 +290,7 @@ export class TitleLeaderboardService {
       return;
       
     } catch (error) {
-      logger.error('❌ Error in populateTitleLeaderboard:', error);
+      logger.error(`❌ Error in populateTitleLeaderboard (${errorCode(error)})`);
       throw error;
     }
   }

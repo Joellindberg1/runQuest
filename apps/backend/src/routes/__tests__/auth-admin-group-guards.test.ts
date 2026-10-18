@@ -21,6 +21,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
+import { startFakeSentry } from '../../observability/__tests__/helpers/fakeSentry.js';
 
 let server: TestServer;
 beforeAll(async () => { server = await startServer(app); });
@@ -35,8 +36,8 @@ const adminToken = (group_id: string | null) => mintToken({ user_id: 'admin-a', 
 
 const people = (): Row[] => [
   { id: 'admin-a', name: 'Admin A', email: 'admin-a@example.com', is_admin: true, group_id: GROUP_A, password_hash: OLD_HASH },
-  { id: 'member-a', name: 'Member A', email: 'member-a@example.com', is_admin: false, group_id: GROUP_A, password_hash: OLD_HASH },
-  { id: 'member-b', name: 'Member B', email: 'member-b@example.com', is_admin: false, group_id: GROUP_B, password_hash: OLD_HASH },
+  { id: '00000000-0000-4000-8000-0000000000a1', name: 'Member A', email: '00000000-0000-4000-8000-0000000000a1@example.com', is_admin: false, group_id: GROUP_A, password_hash: OLD_HASH },
+  { id: '00000000-0000-4000-8000-0000000000b2', name: 'Member B', email: '00000000-0000-4000-8000-0000000000b2@example.com', is_admin: false, group_id: GROUP_B, password_hash: OLD_HASH },
 ];
 
 function useDb(users: Row[] = people(), options: Parameters<typeof createFakeDb>[1] = {}) {
@@ -86,28 +87,60 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
 
   it('resets the password of a user in the admin\'s own group', async () => {
     const db = useDb();
-    const res = await reset('member-a', adminToken(GROUP_A));
+    const res = await reset('00000000-0000-4000-8000-0000000000a1', adminToken(GROUP_A));
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    const member = db.tables.users.find((u) => u.id === 'member-a')!;
+    const member = db.tables.users.find((u) => u.id === '00000000-0000-4000-8000-0000000000a1')!;
     expect(await bcrypt.compare('brand-new-secret', member.password_hash)).toBe(true);
   });
 
   it('answers 404 and writes nothing when the user is in another group', async () => {
     const db = useDb();
-    const res = await reset('member-b', adminToken(GROUP_A));
+    const res = await reset('00000000-0000-4000-8000-0000000000b2', adminToken(GROUP_A));
     expect(res.status).toBe(404);
     expect(writesTo(db, 'users')).toEqual([]);
-    expect(db.tables.users.find((u) => u.id === 'member-b')!.password_hash).toBe(OLD_HASH);
+    expect(db.tables.users.find((u) => u.id === '00000000-0000-4000-8000-0000000000b2')!.password_hash).toBe(OLD_HASH);
   });
 
   it('answers the same 404 for a user in another group as for a user that does not exist', async () => {
     useDb();
-    const otherGroup = await reset('member-b', adminToken(GROUP_A));
-    const missing = await reset('no-such-user', adminToken(GROUP_A));
+    const otherGroup = await reset('00000000-0000-4000-8000-0000000000b2', adminToken(GROUP_A));
+    const missing = await reset('00000000-0000-4000-8000-0000000000ff', adminToken(GROUP_A));
     expect(missing.status).toBe(404);
     expect(otherGroup.status).toBe(missing.status);
     expect(otherGroup.body).toEqual(missing.body);
+  });
+
+  it.each(['not-a-uuid', '12345', 'null', '00000000-0000-4000-8000-0000000000zz'])('answers the same 404 as for a missing user for the id %s, without a database error', async (badId) => {
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    // Postgres svarar 22P02 när en uuid-kolumn jämförs med en sträng som inte är ett uuid.
+    const db = useDb(people(), {
+      failWhen: (q) => (q.select !== 'is_admin' && q.filters.some((f) => f.column === 'id' && !UUID.test(String(f.value))) ? { message: 'invalid input syntax for type uuid', code: '22P02' } : null),
+    });
+    const sentry = startFakeSentry();
+    try {
+      const res = await reset(badId, adminToken(GROUP_A));
+      const missing = await reset('00000000-0000-4000-8000-0000000000ff', adminToken(GROUP_A));
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual(missing.body);
+      expect(writesTo(db, 'users')).toEqual([]);
+      expect(await sentry.drain()).toEqual([]);
+    } finally {
+      await sentry.stop();
+    }
+  });
+
+  it('answers 500 and writes nothing when the user lookup fails in the database, not the 404 of a missing user', async () => {
+    const db = useDb(people(), {
+      failWhen: (q) => (q.table === 'users' && !q.mutation && q.select === 'id' ? { message: 'connection terminated', code: '57P01' } : null),
+    });
+    const res = await reset('00000000-0000-4000-8000-0000000000a1', adminToken(GROUP_A));
+    const missing = await server.request('PUT', '/api/auth/users/00000000-0000-4000-8000-0000000000ff/password', { token: adminToken(GROUP_A), body: { newPassword: 'brand-new-secret' } });
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to look up the user' });
+    expect(missing.status).toBe(500);
+    expect(writesTo(db, 'users')).toEqual([]);
+    expect(db.tables.users.find((u) => u.id === '00000000-0000-4000-8000-0000000000a1')!.password_hash).toBe(OLD_HASH);
   });
 
   it('answers 404 and keeps the password when the user moves to another group between the lookup and the update', async () => {
@@ -115,22 +148,22 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
     const db = useDb(people(), {
       failWhen: (q) => {
         if (q.table === 'users' && q.mutation === 'update') {
-          db.tables.users.find((u) => u.id === 'member-a')!.group_id = GROUP_B;
+          db.tables.users.find((u) => u.id === '00000000-0000-4000-8000-0000000000a1')!.group_id = GROUP_B;
         }
         return null;
       },
     });
-    const res = await reset('member-a', adminToken(GROUP_A));
-    const missing = await reset('no-such-user', adminToken(GROUP_A));
+    const res = await reset('00000000-0000-4000-8000-0000000000a1', adminToken(GROUP_A));
+    const missing = await reset('00000000-0000-4000-8000-0000000000ff', adminToken(GROUP_A));
     expect(res.status).toBe(404);
     expect(res.body).toEqual(missing.body);
-    expect(db.tables.users.find((u) => u.id === 'member-a')!.password_hash).toBe(OLD_HASH);
+    expect(db.tables.users.find((u) => u.id === '00000000-0000-4000-8000-0000000000a1')!.password_hash).toBe(OLD_HASH);
   });
 
   it('answers 403 before it validates the body when the admin token has no group', async () => {
     const db = useDb();
-    const noPassword = await server.request('PUT', '/api/auth/users/member-a/password', { token: adminToken(null), body: {} });
-    const tooShort = await server.request('PUT', '/api/auth/users/member-a/password', { token: adminToken(null), body: { newPassword: '123' } });
+    const noPassword = await server.request('PUT', '/api/auth/users/00000000-0000-4000-8000-0000000000a1/password', { token: adminToken(null), body: {} });
+    const tooShort = await server.request('PUT', '/api/auth/users/00000000-0000-4000-8000-0000000000a1/password', { token: adminToken(null), body: { newPassword: '123' } });
     expect(noPassword.status).toBe(403);
     expect(tooShort.status).toBe(403);
     expect(writesTo(db, 'users')).toEqual([]);
@@ -138,11 +171,11 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
 
   it('answers 403 and touches no user when the admin token has no group', async () => {
     const db = useDb();
-    const res = await reset('member-a', adminToken(null));
+    const res = await reset('00000000-0000-4000-8000-0000000000a1', adminToken(null));
     expect(res.status).toBe(403);
     expect(writesTo(db, 'users')).toEqual([]);
     // requireAdmin slår upp is_admin; målanvändaren får inte ens läsas
     expect(db.queries.filter((q) => q.table === 'users' && q.select !== 'is_admin')).toEqual([]);
-    expect(db.tables.users.find((u) => u.id === 'member-a')!.password_hash).toBe(OLD_HASH);
+    expect(db.tables.users.find((u) => u.id === '00000000-0000-4000-8000-0000000000a1')!.password_hash).toBe(OLD_HASH);
   });
 });

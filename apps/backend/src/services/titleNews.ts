@@ -11,6 +11,7 @@ import { logger } from '../utils/logger.js';
 import { todayStockholm } from '../utils/dateUtils.js';
 import { recordActivities } from './activityLog.js';
 import { buildTitleDrafts, diffTitleHolders, type TitleHolder, type TitleMeta } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 /** Nuvarande innehavare (position 1) per titel, ~21 rader. null om läsningen felar (då hoppas diffen över). */
 export async function snapshotTitleHolders(): Promise<TitleHolder[] | null> {
@@ -20,12 +21,12 @@ export async function snapshotTitleHolders(): Promise<TitleHolder[] | null> {
       .select('title_id, user_id, value')
       .eq('position', 1);
     if (error) {
-      logger.error('❌ [TitleNews] Could not snapshot title holders:', error);
+      logger.error(`❌ [TitleNews] Could not snapshot title holders (${errorCode(error)})`);
       return null;
     }
     return (data ?? []).map((r: any) => ({ title_id: r.title_id, user_id: r.user_id, value: Number(r.value) }));
   } catch (e) {
-    logger.error('❌ [TitleNews] Unexpected error snapshotting title holders:', e);
+    logger.error(`❌ [TitleNews] Unexpected error snapshotting title holders (${errorCode(e)})`);
     return null;
   }
 }
@@ -76,6 +77,6 @@ export async function emitTitleNews(before: TitleHolder[], after: TitleHolder[])
 
     await recordActivities(buildTitleDrafts(changes, titles, groups, new Date().toISOString(), todayStockholm()));
   } catch (e) {
-    logger.error('❌ [TitleNews] Failed to emit title news:', e);
+    logger.error(`❌ [TitleNews] Failed to emit title news (${errorCode(e)})`);
   }
 }

@@ -11,6 +11,7 @@ import { invalidateXpConfigCache } from '../services/xpConfig.js';
 import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
 import { compareXpStandings } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { isUuid } from '../utils/uuid.js';
 
 const router = express.Router();
 
@@ -55,7 +56,7 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
       res.status(401).json({ error: 'Invalid credentials' }); return;
     }
 
-    logger.info(`🔑 User found, verifying password for: ${user.name}`);
+    logger.info(`🔑 User found, verifying password for user ${user.id}`);
 
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
@@ -89,7 +90,7 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
       } as jwt.SignOptions
     );
 
-    logger.info(`🎉 Login successful for user: ${user.name} (Admin: ${user.is_admin})`);
+    logger.info(`🎉 Login successful for user ${user.id} (Admin: ${user.is_admin})`);
 
     // Return token and user info
     res.json({
@@ -148,7 +149,7 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
       res.status(404).json({ error: 'User not found' }); return;
     }
 
-    logger.info(`🔑 User found, verifying current password for: ${user.name}`);
+    logger.info(`🔑 User found, verifying current password for user ${user.id}`);
 
     // Verify current password
     const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
@@ -170,11 +171,11 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
       .eq('id', userId);
 
     if (updateError) {
-      logger.info(`❌ Error updating password (${errorCode(updateError)})`);
+      logger.error(`❌ Error updating password (${errorCode(updateError)})`);
       res.status(500).json({ error: 'Failed to update password' }); return;
     }
 
-    logger.info(`🎉 Password successfully changed for user: ${user.name}`);
+    logger.info(`🎉 Password successfully changed for user ${user.id}`);
 
     res.json({
       success: true,
@@ -207,7 +208,7 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
       .order('created_at', { ascending: true });
 
     if (error) {
-      logger.info(`❌ Error fetching users (${errorCode(error)})`);
+      logger.error(`❌ Error fetching users (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to fetch users' }); return;
     }
 
@@ -250,7 +251,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       res.status(400).json({ error: 'Password must be at least 6 characters long' }); return;
     }
 
-    logger.info(`🔍 Creating user: ${name}`);
+    logger.info('🔍 Creating a new user');
     
     const supabase = getSupabaseClient();
     
@@ -293,11 +294,11 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       .single();
 
     if (error) {
-      logger.info(`❌ Error creating user (${errorCode(error)})`);
+      logger.error(`❌ Error creating user (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to create user' }); return;
     }
 
-    logger.info(`🎉 Successfully created user: ${newUser.name}`);
+    logger.info(`🎉 Successfully created user ${newUser.id}`);
 
     res.json({
       success: true,
@@ -333,24 +334,36 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
     }
 
+    // Ett id som inte är ett uuid kan inte finnas: samma 404 som för en saknad rad, före frågan (annars svarar databasen 22P02 och det blir ett 500).
+    if (!isUuid(id)) {
+      logger.info('❌ User not found (id is not a uuid)');
+      res.status(404).json({ error: 'User not found' }); return;
+    }
+
     logger.info(`🔍 Resetting password for user ID: ${id}`);
 
     const supabase = getSupabaseClient();
 
     // Verify user exists in the admin's group
+    // maybeSingle: en saknad rad (eller en i en annan grupp) är null utan fel (404 nedan), medan ett databasfel är ett serverfel (500).
     const { data: user, error: findError } = await supabase
       .from('users')
-      .select('id, name')
+      .select('id')
       .eq('id', id)
       .eq('group_id', groupId)
-      .single();
+      .maybeSingle();
 
-    if (findError || !user) {
-      logger.info(`❌ User not found (${findError ? errorCode(findError) : 'no row'})`);
+    if (findError) {
+      logger.error(`❌ Error looking up the user for a password reset (${errorCode(findError)})`);
+      res.status(500).json({ error: 'Failed to look up the user' }); return;
+    }
+
+    if (!user) {
+      logger.info('❌ User not found');
       res.status(404).json({ error: 'User not found' }); return;
     }
 
-    logger.info(`✅ User found: ${user.name}, hashing new password`);
+    logger.info(`✅ User ${user.id} found, hashing new password`);
 
     // Hash new password
     const saltRounds = 10;
@@ -367,7 +380,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       .select('id');
 
     if (updateError) {
-      logger.info(`❌ Error updating password (${errorCode(updateError)})`);
+      logger.error(`❌ Error updating password (${errorCode(updateError)})`);
       res.status(500).json({ error: 'Failed to update password' }); return;
     }
 
@@ -376,7 +389,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       res.status(404).json({ error: 'User not found' }); return;
     }
 
-    logger.info(`🎉 Password successfully reset for user: ${user.name}`);
+    logger.info(`🎉 Password successfully reset for user ${user.id}`);
 
     res.json({
       success: true,
@@ -641,7 +654,7 @@ router.put('/me/displayed-titles', authenticateJWT, async (req, res): Promise<vo
       res.status(500).json({ error: 'Failed to update displayed titles' }); return;
     }
 
-    logger.info(`✅ Updated displayed titles for user ${userId}: [${title_ids.join(', ')}]`);
+    logger.info(`✅ Updated displayed titles for user ${userId} (${title_ids.length} selected)`);
     res.json({ success: true });
   } catch (error) {
     logger.error(`❌ Error updating displayed titles (${errorCode(error)})`);
