@@ -33,6 +33,9 @@
 --      user_id). De tre nya skapas bara om de saknas, de tre gamla globala nycklarna släpps efteråt. Primärnycklarna och CHECK position 1-10
 --      rörs inte (topp 10 gäller nu per grupp, eftersom nyckeln är per grupp). Index (group_id, title_id, value desc) på user_titles
 --      (täcker också främmande nyckeln); title_leaderboards nya nyckel börjar på group_id och täcker dess främmande nyckel.
+--      Främmande nyckeln titles_current_holder_id_fkey (titles.current_holder_id -> users) byts från NO ACTION till ON DELETE SET NULL. Kolumnen
+--      skrivs inte längre (steg 8) och står kvar med sitt sista värde; med NO ACTION skulle en fryst innehavare blockera radering av den användaren.
+--      Förlustfritt: ingen läser kolumnen, och raderingen nollställer bara ett värde som inte längre uppdateras. Bara om nyckeln inte redan är SET NULL.
 --   8. Funktionerna (alla plpgsql, set search_path to '', säkerhetsläge INVOKER; se FUNKTIONERNA).
 --   9. BEFORE INSERT-shim på user_titles (se BAKÅTKOMPATIBILITET), och rebuild-triggern sätts på igen.
 --  10. Vyn title_leaderboard_view återskapas med security_invoker = true och group_id sist.
@@ -43,8 +46,9 @@
 --
 -- FUNKTIONERNA
 --   update_group_title_leaderboard(p_group_id uuid, p_title_id uuid) returns void   -- NY
---     Kräver båda argumenten (22004). Första data-satsen är pg_advisory_xact_lock på 'title_leaderboard:<grupp>:<titel>' (som 042, men per grupp och
---     titel): samtidiga ombyggnader av SAMMA lista köar, olika listor blockerar inte varandra, låset släpps vid transaktionens slut. Lämnar en
+--     Kräver båda argumenten (22004). Tar först radlåset på titles-raden (select ... for no key update; hittas ingen rad är titeln borta och
+--     funktionen återvänder), sedan pg_advisory_xact_lock på 'title_leaderboard:<grupp>:<titel>' (som 042, men per grupp och titel): samtidiga
+--     ombyggnader av SAMMA lista köar, olika listor blockerar inte varandra, låsen släpps vid transaktionens slut. Lämnar en
 --     grupp som inte längre finns ifred (kaskadraderar en grupp sina user_titles utlöser triggern en ombyggnad för en grupp som redan är borta;
 --     utan den kontrollen skulle insatsen bryta mot främmande nyckeln). Raderar och bygger om BARA den gruppens lista för titeln: topp 10 ur
 --     user_titles med group_id = gruppen, value inte null och ett aktivt medlemskap (group_members.left_at is null), ordning value desc,
@@ -57,9 +61,17 @@
 --     (ingen uppslagning, så en kaskadraderad användare fungerar). En UPDATE som flyttar en rad mellan grupp eller titel bygger även om den gamla
 --     listan; ingen kod gör det i dag.
 --   user_titles_fill_group_id() returns trigger                                     -- NY, shimmen
---   Låsordning: alla slingor tar låsen i ordningen (grupp-id, titel-id), så att update_all, update_group_title_leaderboards och omslaget per
---   titel aldrig kan ta samma lås i olika ordning (deadlock). Känd kvarvarande risk, accepterad (som 042): update_all håller alla lås till sin
---   transaktion committar; en enskild ombyggnad som kommer under tiden väntar.
+--   Låsordning (deadlock-fri): varje ombyggnad tar ALLTID titles-radens lås FÖRE advisory-låset, och stämplingen av titles.updated_at kommer sist
+--   (samma radlås, redan taget). Utan det första steget kunde omslaget update_title_leaderboard(T) (advisory (A,T), sedan titles[T] via stämplingen,
+--   sedan advisory (B,T)) och en triggerombyggnad för (B,T) (advisory (B,T), sedan titles[T]) vänta på varandra: 40P01. Nu håller den som har ett
+--   advisory-lås alltid också titles[T], så advisory-låset blockerar aldrig självständigt. Flerlåsslingorna tar titlarna i stigande id-ordning
+--   (update_group_title_leaderboards: titlar i id-ordning; update_all och omslaget: grupper i id-ordning, och inom en grupp titlar i id-ordning),
+--   så två slingor kan inte hålla var sitt titelradlås och vilja ha varandras. Radlåset är FOR NO KEY UPDATE, samma läge som den gamla
+--   stämplingens UPDATE, och inte FOR UPDATE: FOR UPDATE krockar med FOR KEY SHARE, som varje insert i user_titles och title_leaderboard tar på
+--   titles-raden via främmande nyckeln, och två samtidiga inserts (båda håller key share, båda vill ha FOR UPDATE i sin AFTER-trigger) skulle då
+--   deadlocka med varandra. Känd kvarvarande risk, accepterad (som 042): update_all håller alla lås till sin transaktion committar; en
+--   enskild ombyggnad som kommer under tiden väntar. En transaktion som själv ändrar många user_titles-rader i godtycklig titelordning (bulk-DML)
+--   kan fortfarande få 40P01 mot en annan; appen gör inga sådana. Postgres avbryter då en av dem i stället för att hänga.
 --   Säkerhetsläge INVOKER är medvetet (som 046 och 053): service_role kringgår RLS ändå, och migrationen körs som postgres. Execute dras in från
 --   public, anon och authenticated och ges bara till service_role för de TRE NYA funktionerna. De tre gamla behåller sina befintliga behörigheter
 --   (create or replace rör dem inte); migrationen ändrar inga andra grants.
@@ -74,6 +86,10 @@
 --     bara users.group_id utan medlemskap (se 053): en sådan användares titlar sparas men räknas inte in i rankingen förrän 053:s backfill körs om
 --     (den är idempotent) och rankingen byggs om. Release-röken kör konsistenskontrollen från 053.
 --   * Ny kod mot gammal databas fungerar inte (kolumn och funktioner saknas): därför före deploy.
+--
+-- KÖR NÄR INGET ANNAT SKRIVER TITLAR: 055 ska köras när ingen Strava-synk, cron eller titelomräkning pågår (rundloggning och synk skriver
+-- user_titles, och update_all i slutet tar alla titellås). Får migrationen 40P01 (deadlock) eller lock_timeout (55P03) rullas hela
+-- transaktionen tillbaka utan att något ändrats: vänta en stund och KÖR OM filen, ingen annan åtgärd behövs.
 --
 -- LÅS OCH TID: alter table tar ACCESS EXCLUSIVE på user_titles och title_leaderboard under migrationen (tabellerna har tiotals rader), så skrivningar
 -- till titlar väntar i millisekunder. Främmande nycklarna tar SHARE ROW EXCLUSIVE på groups. lock_timeout (steg 1) gör att den misslyckas i stället
@@ -97,6 +113,9 @@
 --   union all select 'materialized view ' || m.matviewname from pg_matviews m where m.schemaname = 'public' and m.definition ~ 'current_holder_id'
 --   union all select 'policy ' || pol.policyname from pg_policies pol where pol.schemaname = 'public' and coalesce(pol.qual, '') || coalesce(pol.with_check, '') ~ 'current_holder_id'
 --   union all select 'trigger ' || t.tgname from pg_trigger t where not t.tgisinternal and pg_get_triggerdef(t.oid) ~ 'current_holder_id';
+--   -- A7. FÖRE: exakt lika (title_id, value, earned_at) i user_titles (förväntat: 0 rader). Rebuilden bryter nu lika med user_id; den gamla funktionen
+--   -- hade ingen bestämd ordning vid lika. Finns sådana kan positionerna byta plats, och migrationens EXCEPT-kontroll stoppar då (rullar tillbaka): fråga ägaren.
+--   select title_id, value, earned_at, count(*) as antal from public.user_titles where value is not null group by title_id, value, earned_at having count(*) > 1;
 --   -- A3. FÖRE: innehavare (position 1) i klartext, spara utfallet och jämför med D1 efter apply (förväntat: identiskt)
 --   select t.name as titel, u.name as innehavare, tl.value from public.title_leaderboard tl join public.titles t on t.id = tl.title_id join public.users u on u.id = tl.user_id where tl."position" = 1 order by t.name;
 --   -- A4. FÖRE: hela listan som JSON. Spara värdet; det klistras in som <FORE_TL_JSON> i B1 (listan: title_id, user_id, position, value, earned_at)
@@ -142,8 +161,12 @@
 -- ROLLBACK (körs manuellt och bara efter ägar-ja, i den här ordningen. GILTIG BARA MED EN GRUPP: de återskapade globala nycklarna kräver att
 -- ingen titel har rader från två grupper. Återställer 042:s och baslinjens funktioner och vyn utan group_id. Raderar group_id-kolumnerna
 -- (förlustfritt med en grupp). Rulla tillbaka 055 före 053 om båda ska bort. Migrationerna är framåtriktade (ADR 002 beslut 3); rollbacken
--- finns bara här och har körts mot en riktig Postgres (PGlite) av buildern.)
+-- finns bara här och har körts mot en riktig Postgres (PGlite) av buildern; Supabases egen miljö (roller, default-privilegier) har den inte körts i.
+-- Kör blocket som EN transaktion (ett apply_migration-anrop, eller begin; ... commit; i ett svep): första raden sätter lock_timeout, och ett fel
+-- (lock_timeout eller 40P01) rullar tillbaka allt, då är det bara att köra om. Titelnyckeln titles_current_holder_id_fkey återställs till NO ACTION;
+-- kolumnen har då värden som inte längre uppdaterats, vilket rebuilden från 042 skriver rätt igen i sista raden.)
 -- ROLLBACK-START
+--   set local lock_timeout = '5s';
 --   drop view if exists public.title_leaderboard_view;
 --   drop trigger if exists user_titles_group_id_shim on public.user_titles;
 --   create or replace function public.update_title_leaderboard(p_title_id uuid)
@@ -231,6 +254,8 @@
 --      left join public.users u on tl.user_id = u.id
 --     order by t.name, tl."position";
 --   revoke select on public.title_leaderboard_view from anon, authenticated;
+--   alter table public.titles drop constraint titles_current_holder_id_fkey;
+--   alter table public.titles add constraint titles_current_holder_id_fkey foreign key (current_holder_id) references public.users(id);
 --   select public.update_all_title_leaderboards();
 -- ROLLBACK-END
 -- (Efter rollbacken: vyn har samma behörigheter som efter 039 och 052 (ingen select för anon eller authenticated, security_invoker). Kontrollera med E5.)
@@ -333,6 +358,11 @@ begin
   if not exists (select 1 from pg_constraint where conrelid = 'public.title_leaderboard'::regclass and conname = 'title_leaderboard_group_title_user_key') then
     alter table public.title_leaderboard add constraint title_leaderboard_group_title_user_key unique (group_id, title_id, user_id);
   end if;
+  -- titles.current_holder_id skrivs inte längre och står kvar frusen: ON DELETE SET NULL så att en frusen innehavare inte blockerar radering av användaren.
+  if not exists (select 1 from pg_constraint where conrelid = 'public.titles'::regclass and conname = 'titles_current_holder_id_fkey' and confdeltype = 'n') then
+    alter table public.titles drop constraint if exists titles_current_holder_id_fkey;
+    alter table public.titles add constraint titles_current_holder_id_fkey foreign key (current_holder_id) references public.users(id) on delete set null;
+  end if;
 end;
 $constraints$;
 
@@ -352,7 +382,15 @@ begin
         raise exception 'update_group_title_leaderboard: group_and_title_required' using errcode = '22004';
     end if;
 
-    -- Låset före all läsning och skrivning: allt nedan körs först när ingen annan ombyggnad av samma (grupp, titel) pågår.
+    -- Låsordning: titles-radens lås (FOR NO KEY UPDATE, som stämplingens UPDATE längst ner) FÖRE advisory-låset, annars kan två ombyggnader av
+    -- olika grupper för samma titel deadlocka (advisory A,T -> titles[T] -> advisory B,T mot advisory B,T -> titles[T]). Inte FOR UPDATE: det
+    -- krockar med key share som varje insert i user_titles tar på titles-raden. Finns ingen rad är titeln borta (kaskad): inget att bygga.
+    perform 1 from public.titles where id = p_title_id for no key update;
+    if not found then
+        return;
+    end if;
+
+    -- Advisory-låset före all läsning och skrivning av listan: allt nedan körs först när ingen annan ombyggnad av samma (grupp, titel) pågår.
     perform pg_advisory_xact_lock(hashtextextended('title_leaderboard:' || p_group_id::text || ':' || p_title_id::text, 0));
 
     -- En grupp som raderas kaskadar sina user_titles och triggern hamnar här: inget att bygga åt en grupp som inte finns.
@@ -504,6 +542,7 @@ declare
   v_null_ut      integer;
   v_null_tl      integer;
   v_global_keys  integer;
+  v_holder_fk    integer;
   v_diff_tl      integer := 0;
   v_diff_ut      integer := 0;
 begin
@@ -518,6 +557,11 @@ begin
      and c.contype = 'u' and not (select a.attnum from pg_attribute a where a.attrelid = c.conrelid and a.attname = 'group_id') = any (c.conkey);
   if v_global_keys > 0 then
     raise exception 'migration 055 failed: % unique constraints on user_titles or title_leaderboard lack group_id. Nothing was changed.', v_global_keys;
+  end if;
+
+  select count(*) into v_holder_fk from pg_constraint c where c.conrelid = 'public.titles'::regclass and c.conname = 'titles_current_holder_id_fkey' and c.confdeltype <> 'n';
+  if v_holder_fk > 0 then
+    raise exception 'migration 055 failed: titles_current_holder_id_fkey is not ON DELETE SET NULL. Nothing was changed.';
   end if;
 
   -- Beteendeneutralt med en grupp: innehavare, positioner, värden och earned_at identiska före och efter (första körningen).

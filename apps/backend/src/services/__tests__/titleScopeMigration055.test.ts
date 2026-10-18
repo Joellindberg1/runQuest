@@ -6,8 +6,8 @@
  * Varför beteendet bara läses och inte körs här: advisory-lås, plpgsql, unika nycklar, triggers och DO-block finns bara i Postgres, och
  * staging och prod är förbjudna för en builder. Testerna fäster därför det som GÖR beteendet: nycklarnas kolumner och namn, att varje
  * villkor sitter ihop med sin raise, att rebuild-funktionen är avgränsad på gruppen, att triggern är avstängd medan group_id fylls i,
- * att före/efter-beviset körs i migrationen, och att rollbacken i huvudet är exakt den som körts mot en riktig Postgres (PGlite) i
- * builderns bevis. Beviset i en riktig databas är katalogfrågorna och EXCEPT-frågorna i migrationens header, som Lead kör i staging.
+ * att före/efter-beviset körs i migrationen, och att rollbacken i huvudet har körts mot en riktig Postgres (PGlite) i builderns bevis (inte i Supabases egen
+ * miljö; testet binder dess ordning och innehåll, inte att den är identisk där). Beviset i en riktig databas är katalogfrågorna och EXCEPT-frågorna i migrationens header, som Lead kör i staging.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -113,7 +113,17 @@ describe(`migration ${file}: kolumner och unika nycklar`, () => {
         `if not exists (select 1 from pg_constraint where conrelid = '${table}'::regclass and conname = '${name}') then alter table ${table} add constraint ${name} ${def}; end if;`,
       );
     }
-    expect(constraintsBody.match(/add constraint/g)).toHaveLength(3);
+    expect(constraintsBody.match(/add constraint/g)).toHaveLength(4);
+  });
+
+  it('titles_current_holder_id_fkey byts till ON DELETE SET NULL, bara om den inte redan är det, och drop och add hör ihop', () => {
+    expect(constraintsBody).toContain(
+      "if not exists (select 1 from pg_constraint where conrelid = 'public.titles'::regclass and conname = 'titles_current_holder_id_fkey' and confdeltype = 'n') then alter table public.titles drop constraint if exists titles_current_holder_id_fkey; alter table public.titles add constraint titles_current_holder_id_fkey foreign key (current_holder_id) references public.users(id) on delete set null; end if;",
+    );
+    // Slutkontrollen kräver att nyckeln verkligen blev SET NULL.
+    expect(postcheckBody).toContain(
+      "select count(*) into v_holder_fk from pg_constraint c where c.conrelid = 'public.titles'::regclass and c.conname = 'titles_current_holder_id_fkey' and c.confdeltype <> 'n'; if v_holder_fk > 0 then raise exception 'migration 055 failed: titles_current_holder_id_fkey is not on delete set null",
+    );
   });
 
   it('de gamla globala unika nycklarna släpps, och först efter att de nya finns', () => {
@@ -255,13 +265,25 @@ describe(`migration ${file}: omslagsfunktioner med oförändrade signaturer`, ()
 describe(`migration ${file}: rebuild per grupp (update_group_title_leaderboard)`, () => {
   it('kräver grupp och titel, tar lås per (grupp, titel) före all läsning och skrivning, och lämnar en raderad grupp ifred', () => {
     expect(groupBody).toMatch(
-      /^begin if p_group_id is null or p_title_id is null then raise exception 'update_group_title_leaderboard: group_and_title_required' using errcode = '22004'; end if; perform pg_advisory_xact_lock\(hashtextextended\('title_leaderboard:' \|\| p_group_id::text \|\| ':' \|\| p_title_id::text, 0\)\); if not exists \(select 1 from public\.groups where id = p_group_id\) then return; end if; /,
+      /^begin if p_group_id is null or p_title_id is null then raise exception 'update_group_title_leaderboard: group_and_title_required' using errcode = '22004'; end if; perform 1 from public\.titles where id = p_title_id for no key update; if not found then return; end if; perform pg_advisory_xact_lock\(hashtextextended\('title_leaderboard:' \|\| p_group_id::text \|\| ':' \|\| p_title_id::text, 0\)\); if not exists \(select 1 from public\.groups where id = p_group_id\) then return; end if; /,
     );
     const lockAt = at(groupBody, /pg_advisory_xact_lock/);
+    const rowLockAt = at(groupBody, /perform 1 from public\.titles where id = p_title_id for no key update/);
+    const stampAt = at(groupBody, /update public\.titles set updated_at/);
+    // Deadlock-fri ordning: titles-radens lås, sedan advisory-låset, sedan allt annat, sist stämplingen (ADR 012, kritikerns F1).
+    expect(rowLockAt).toBeGreaterThan(-1);
+    expect(rowLockAt).toBeLessThan(lockAt);
+    expect(lockAt).toBeLessThan(stampAt);
     for (const dml of [/delete from public\.title_leaderboard/, /insert into public\.title_leaderboard/, /update public\.titles/, /from public\.user_titles/]) {
       expect(at(groupBody, dml)).toBeGreaterThan(lockAt);
     }
     expect(code).not.toMatch(/pg_advisory_lock\(|pg_try_advisory/i); // xact-varianten: släpps vid transaktionens slut
+  });
+
+  it('radlåset på titles är FOR NO KEY UPDATE, aldrig FOR UPDATE (FOR UPDATE krockar med key share från varje insert och deadlockar två inserts)', () => {
+    expect(groupBody).toContain('for no key update');
+    expect(code).not.toMatch(/\bfor\s+update\b/i);
+    expect([...code.matchAll(/\bfor\s+no\s+key\s+update\b/gi)]).toHaveLength(1);
   });
 
   it('raderar och bygger om bara den här gruppens rader för titeln', () => {
@@ -288,8 +310,10 @@ describe(`migration ${file}: rebuild per grupp (update_group_title_leaderboard)`
   it('stämplar titles.updated_at men skriver inte current_holder_id eller current_value (ingen läsare, ADR 012 beslut 1.5)', () => {
     expect(groupBody).toMatch(/update public\.titles set updated_at = now\(\) where id = p_title_id; end;$/);
     // Ingen funktion (och därmed inget som en omkörnings förkontroll skulle räkna som läsare) nämner kolumnerna; bara förkontrollen letar efter namnet.
-    for (const fn of [groupFn, groupAllFn, wrapperFn, wrapperAllFn, triggerFn, shimFn, postcheck]) expect(fn).not.toMatch(/current_holder_id|current_value/i);
-    expect(code.replace(preflight, '')).not.toMatch(/current_holder_id|current_value/i);
+    for (const fn of [groupFn, groupAllFn, wrapperFn, wrapperAllFn, triggerFn, shimFn]) expect(fn).not.toMatch(/current_holder_id|current_value/i);
+    // Utanför förkontrollen nämns kolumnen bara i den främmande nyckeln (namn och kolumnlista) som byts till on delete set null.
+    const withoutFk = code.replace(preflight, '').replace(/titles_current_holder_id_fkey/g, '').replace(/foreign key \(current_holder_id\)/g, '');
+    expect(withoutFk).not.toMatch(/current_holder_id|current_value/i);
   });
 });
 
@@ -473,7 +497,9 @@ describe(`migration ${file}: form, idempotens och rollback`, () => {
   it('första satsen är lock_timeout, ingen egen transaktion, inga data raderas', () => {
     expect(statements[0]).toBe("set local lock_timeout = '5s'");
     expect(code).not.toMatch(/\bset\s+(session\s+)?lock_timeout\b/i);
-    expect(code).not.toMatch(/\b(begin;|commit|rollback)\b/i);
+    // code är utan kommentarer, så rollback-blocket och orden i headern räknas inte.
+    expect(code).not.toMatch(/\bbegin\s*;|\bcommit\b|\brollback\b/i);
+    expect('begin;').toMatch(/\bbegin\s*;|\bcommit\b|\brollback\b/i); // regexen träffar det den ska
     // Inga delete från användardata utanför rebuild-funktionen (title_leaderboard är härledd), ingen truncate/drop av tabeller eller kolumner.
     // Enda drop table är snapshot-tabellerna (pg_temp.mig055_*), som den här körningen själv skapat.
     expect(code.replace(groupFn, '')).not.toMatch(
@@ -514,6 +540,15 @@ describe(`migration ${file}: form, idempotens och rollback`, () => {
     const dropColumns = idx('alter table public.user_titles drop column group_id');
     const addKey = idx('alter table public.user_titles add constraint user_titles_user_id_title_id_key unique (user_id, title_id)');
     const createView = idx('create view public.title_leaderboard_view with (security_invoker = true)');
+    const restoreFkDrop = idx('alter table public.titles drop constraint titles_current_holder_id_fkey');
+    const restoreFkAdd = idx('alter table public.titles add constraint titles_current_holder_id_fkey foreign key (current_holder_id) references public.users(id)');
+    const finalRebuild = idx('select public.update_all_title_leaderboards()');
+    // Rollbacken är en transaktion med lock_timeout först, och återställer NO ACTION (utan on delete) innan den avslutande ombyggnaden.
+    expect(rollback[0]).toBe("set local lock_timeout = '5s'");
+    expect(restoreFkDrop).toBeGreaterThan(-1);
+    expect(restoreFkAdd).toBe(restoreFkDrop + 1);
+    expect(restoreFkAdd).toBeLessThan(finalRebuild);
+    expect(rollback[restoreFkAdd]).not.toMatch(/on delete/);
     const revokeView = idx('revoke select on public.title_leaderboard_view from anon, authenticated');
     for (const i of [dropView, dropShim, restoreWrapper, dropGroupFn, dropColumns, addKey, createView, revokeView]) expect(i).toBeGreaterThan(-1);
     // Vyn måste bort före kolumnen den läser; funktionerna återställs före kolumnen släpps; vyn skapas sist.
@@ -539,6 +574,8 @@ describe(`migration ${file}: form, idempotens och rollback`, () => {
     expect(queries).toMatch(/jsonb_agg\(to_jsonb\(s\) order by s\.user_id, s\.title_id\)[\s\S]*from public\.user_titles/);
     // EXCEPT i båda riktningarna för båda tabellerna.
     expect(queries.match(/\bexcept\b/gi)!.length).toBeGreaterThanOrEqual(4);
+    // A7: exakt lika (title_id, value, earned_at) kan ge annan ordning med nya tie-breaken.
+    expect(queries).toMatch(/group by title_id, value, earned_at having count\(\*\) > 1/);
     // Katalogfrågor: index, trigger, funktioners signatur/search_path/grants och vyns security_invoker + kolumner.
     for (const token of ['pg_indexes', 'pg_trigger', 'pg_get_function_identity_arguments', 'proconfig', 'has_function_privilege', 'reloptions', 'information_schema.columns', 'pg_constraint']) {
       expect(queries, token).toContain(token);
@@ -550,5 +587,8 @@ describe(`migration ${file}: form, idempotens och rollback`, () => {
     expect(sql).toMatch(/053/);
     expect(sql).toMatch(/054/);
     expect(sql).toMatch(/aldrig av en builder/);
+    // Körvillkor: ingen synk/cron/omräkning pågår, och 40P01 eller lock_timeout betyder kör om.
+    expect(sql).toMatch(/KÖR NÄR INGET ANNAT SKRIVER TITLAR[\s\S]*Strava-synk[\s\S]*40P01[\s\S]*lock_timeout[\s\S]*KÖR OM/);
+    expect(sql).toMatch(/EN transaktion[\s\S]*lock_timeout/);
   });
 });
