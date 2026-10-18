@@ -15,7 +15,7 @@ och 3xx skickas inte (SDK:ts standard), inte heller 429 (vår rensning).
 
 **Frontend** (`apps/frontend/src/shared/observability/sentryClient.ts`, projekt `runquest-frontend`):
 - LCP, CLS, FCP och TTFB på en transaktion per sidladdning, namngiven efter sidan (`/board`, `/runner/:id`), och INP som en egen span.
-  Mäts bara efter inloggning: Sentry-chunken laddas först när det inloggade skalet monterar. Landningen mäts av Lighthouse (RUN-259).
+  Mäts bara efter inloggning: Sentry-chunken laddas först när det inloggade skalet monterar. Landningen mäts av Lighthouse i CI (RUN-259, budget och rutin i `docs/release.md`).
 - Sidladdningen mäts bara om dokumentet laddades på en skalsida och appen fortfarande står kvar där. Loggar användaren in från
   landningen mäts alltså inte den sidladdningen (det vore landningens LCP på `/board`); INP mäts ändå över hela besöket och
   får routenamnet för sidan som är öppen när den skickas (besökets sista sida), eftersom navigationer inte spåras.

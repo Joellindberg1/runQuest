@@ -131,11 +131,62 @@ går att visa med prod-data.
 ### 3. PR, grön CI och merge (= deploy)
 
 1. Öppna PR mot `main`. CI körs på PR: jobben Backend, Shared och Frontend ska vara gröna (branch protection kräver
-   dem; ett admin-undantag finns, se `STATE.md`).
+   dem; ett admin-undantag finns, se `STATE.md`). Jobbet Lighthouse körs också men fäller inte PR:en förrän det slagits om
+   till blockerande (se Lighthouse-budget nedan); titta på dess sammanfattning före merge.
 2. Merge. **Merge till `main` är deployen:** Railway bygger och deployar båda tjänsterna (runQuest-frontend och
    runQuest-backend) vid push, oberoende av CI. Byggena går med Railpack och Node-versionen styrs av `.nvmrc`.
    Frontend serveras av Caddy med repo-rotens `Caddyfile`. Det är därför CI ska vara grön *före* merge.
 3. Vänta tills båda deployerna är klara i Railway innan rök och migrationer.
+
+#### Lighthouse-budget (RUN-259)
+
+CI-jobbet `Lighthouse — prestandabudget` (`.github/workflows/ci.yml`) mäter de publika sidorna på varje PR mot `main` och på varje
+push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
+
+- **Vad som mäts:** `/` och `/legal` i det byggda `apps/frontend/dist`, serverat av samma Caddy och Caddyfile som
+  `scripts/verify-static-serving.sh` (samma Caddy-version, hämtad med kontrollsumma). Lighthouse mobil (mobilemulering, simulerad
+  långsam 4G och 4x CPU-bromsning), 3 körningar per sida, **medianen** prövas. Mätningen går bara mot `127.0.0.1`: ingen prod, ingen
+  Railway, ingen extern rapporttjänst (inte `temporary-public-storage`). Bygget saknar `VITE_API_URL` och pekar då på
+  `localhost:3001`; jobbet mäter därför två lägen efter varandra och sidan ska klara båda: *API ger fel* (inget lyssnar, sifferraden
+  döljs) och *falskt API* (`scripts/lighthouse/mock-api.mjs` svarar med tre tal). Samma budget gäller i båda.
+- **Rapporten:** artefakten `lighthouse-reports` (14 dygn) innehåller `error/` och `mock/` med HTML- och JSON-rapport per körning.
+  Jobbets sammanfattning (Summary-fliken) visar medianen per sida i en tabell, också när budgeten hålls, så att man ser hur långt
+  under taket sidorna ligger.
+- **Budgeten** står i `scripts/lighthouse/lighthouserc.json` (gäller båda sidorna):
+
+  | Mått | Gräns | Utgångsvärde kommer från |
+  |---|---|---|
+  | Prestanda (poäng) | minst 0,75 | RUN-212, prod: 85 (lokal körning 81 och 91), ca 10 poängs marginal |
+  | Tillgänglighet / SEO | minst 0,95 | RUN-212, prod: 100 |
+  | Best practices | minst 0,90 | RUN-212, prod: 100; lokalt 96 när API:et ger fel (konsolfelet från anslutningen) |
+  | LCP | högst 5 000 ms | lokal körning: 4,4 s (prod 3,5 s i RUN-212; lokalt mäts ca 0,9 s högre), ca 13 % marginal |
+  | CLS | högst 0,05 | RUN-212, prod: 0 (lokalt högst 0,018 när API:et ger fel) |
+  | TBT | högst 200 ms | RUN-212, prod: 0 ms; 200 ms är Googles gräns för "bra" |
+  | JS (överförd storlek) | högst 275 kB | lokal körning: 237 kB, ca 15 % marginal (RUN-212 mätte inte vikt) |
+  | CSS (överförd storlek) | högst 50 kB | lokal körning: 42 kB, ca 18 % marginal |
+  | Totalvikt | högst 500 kB | lokal körning: 428 kB (`/`), 303 kB (`/legal`), ca 17 % marginal |
+
+  Utgångsvärdena är mätta lokalt (Lighthouse 12.6, Chromium-webbläsare, medianen av 3) eftersom RUN-212 bara noterade prod-poäng,
+  FCP, LCP, TBT och CLS, inte vikter. Taken kalibreras mot CI-körningarnas siffror under den icke-blockerande veckan (nedan).
+- **Budgeten får aldrig sänkas utan ägarens ok.** "Sänkas" betyder att kravet lättas: en lägre minpoäng, ett högre tak för
+  LCP/CLS/TBT/vikt, en borttagen rad eller en sida som tas ur mätningen. Att skärpa budgeten (högre minpoäng, lägre tak) kräver
+  inget ok och är önskvärt när CI-värdena visar utrymme. En PR som lättar en rad ska ange ägarens ja i beskrivningen. En ny funktion
+  som kostar vikt eller tid löses genom att optimera (kodsplittring, bildmått, lat laddning), inte genom att höja taket.
+- **Icke-blockerande första veckan.** `LIGHTHOUSE_BLOCKING: 'false'` överst i jobbet gör att ett budgetbrott märker steget orange (och
+  syns i loggen, sammanfattningen och artefakten) utan att fälla PR:en. **Slå om till blockerande:** tidigast sju dygn efter att
+  jobbet första gången körts på `main` och efter att Lead jämfört veckans siffror med taken (en ren `main` ska ligga under taken med
+  marginal), ändra värdet till `'true'` i en liten PR och lägg `Lighthouse — prestandabudget` bland required checks i branch
+  protection. Därefter fäller ett budgetbrott PR:en. **Tillbaka till icke-blockerande** är samma rad (kräver ägarens ja, eftersom det
+  lättar kontrollen).
+- **Köra lokalt:** `npm ci` i `scripts/lighthouse`, bygg frontend, och kör sedan `bash scripts/lighthouse/run.sh` från repo-roten
+  (`STATS_MODE=error|mock`, `DIST_DIR`, `CADDY_BIN`, `CHROME_PATH`, se skriptets huvud). Rapporterna hamnar i `lighthouse-reports/`.
+  Skriptet vägrar köra om något redan svarar på port 3001 (ett riktigt lokalt backend ska aldrig mätas).
+- **Fäller budgeten:** öppna HTML-rapporten i artefakten för sidan och körningen som avviker. Vanliga orsaker: ny blockerande
+  resurs i `<head>`, bild utan `width`/`height` (CLS), en stor ny beroende i entry-chunken (JS-vikt, LCP) eller ett nytt typsnitt.
+  Stagingremsan (`VITE_APP_ENV=staging`) är en egen chunk som inte finns i prodbygget och påverkar inte budgeten.
+- **Verktyget** har ett eget beroendeträd (`scripts/lighthouse/package.json` och egen lockfil, utanför workspaces) så att de andra
+  jobbens `npm ci` och cache inte växer. Uppgradera `@lhci/cli` medvetet: en ny Lighthouse-version kan flytta poängen, så läs
+  tabellen före och efter och justera inte budgeten för att dölja det.
 
 ### 4. Rök mot de kritiska flödena
 

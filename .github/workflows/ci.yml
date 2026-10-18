@@ -136,3 +136,69 @@ jobs:
       # Blockerande från start: ny frontendkod kräver tester (ADR 001).
       - name: Test
         run: npm test
+
+  # Prestandabudget för de publika sidorna (RUN-259): Lighthouse mobil mot det byggda dist/, serverat av samma Caddy som
+  # verify-static-serving.sh. Eget jobb, parallellt med de andra: de andra jobbens installation och cache berörs inte
+  # (Lighthouse-verktyget har ett eget beroendeträd i scripts/lighthouse). Mätningen går bara mot 127.0.0.1; ingen prod,
+  # ingen Railway, ingen extern rapporttjänst. Budget och rutin: docs/release.md ("Lighthouse-budget").
+  lighthouse:
+    name: Lighthouse — prestandabudget
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Icke-blockerande första veckan (RUN-259): budgetbrott syns som orange steg och i artefakten men fäller inte PR:en.
+      # Slå om till 'true' för att göra budgeten blockerande (och lägg jobbet bland required checks). Se docs/release.md.
+      LIGHTHOUSE_BLOCKING: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            scripts/lighthouse/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: apps/frontend
+
+      - name: Install Lighthouse CI
+        run: npm ci
+        working-directory: scripts/lighthouse
+
+      # Enda steget som hämtar något utifrån: Caddy från GitHub Releases, med kontrollsumma (samma version som verify-static-serving.sh).
+      - name: Install Caddy
+        run: echo "CADDY_BIN=$(bash scripts/lighthouse/install-caddy.sh "$RUNNER_TEMP/caddy" | tail -n 1)" >> "$GITHUB_ENV"
+
+      # Sidan ska klara båda: utan svar från API:et (anslutningsfel, bygget pekar på localhost:3001 där inget lyssnar) och med ett falskt svar.
+      - name: Lighthouse (API ger fel)
+        id: lighthouse-error
+        continue-on-error: ${{ env.LIGHTHOUSE_BLOCKING != 'true' }}
+        run: |
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium)"
+          export CHROME_PATH
+          STATS_MODE=error bash scripts/lighthouse/run.sh
+
+      - name: Lighthouse (falskt API)
+        id: lighthouse-mock
+        if: ${{ !cancelled() }}
+        continue-on-error: ${{ env.LIGHTHOUSE_BLOCKING != 'true' }}
+        run: |
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium)"
+          export CHROME_PATH
+          STATS_MODE=mock bash scripts/lighthouse/run.sh
+
+      - name: Upload Lighthouse reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: lighthouse-reports/
+          retention-days: 14
+          if-no-files-found: warn
