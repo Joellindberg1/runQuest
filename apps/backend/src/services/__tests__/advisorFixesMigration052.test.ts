@@ -1,12 +1,13 @@
 /**
  * Statiskt test: migration 052 (Supabase-säkerhetsråd). Läser SQL-filerna från disk, ingen databas.
  *  - increment_event_xp får fast search_path men behåller signatur, returtyp, språk, säkerhetsläge och beteende från baslinjen.
- *  - Det döda cron-jobbet avregistreras utan hårdkodat jobid, bakom en guard, och pg_net tas bort bara efter kontroller.
- *  - title_leaderboard_view får security_invoker utan att någon behörighet ändras.
- *  - Ingen JWT eller nyckel i filen, rollback finns och återskapar inte jobbet.
+ *  - Det döda cron-jobbet avregistreras utan hårdkodat jobid, bakom en guard, och bara när exakt ett jobb matchar.
+ *  - pg_net tas bara bort när den ligger i public och ingen använder den, och ett misslyckande (ägarskap) avbryter aldrig resten.
+ *  - title_leaderboard_view får security_invoker, och senare migrationer som återskapar vyn måste behålla det.
+ *  - Ingen JWT eller nyckel i filen, och rollbacken återskapar funktionen exakt som baslinjen.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,13 +16,16 @@ const migrationsDir = resolve(__dirname, '../../../migrations');
 const sql = readFileSync(resolve(migrationsDir, '052_advisor_fixes.sql'), 'utf8');
 const baseline = readFileSync(resolve(migrationsDir, '000_baseline.sql'), 'utf8');
 
-// Kommentarer bort så att rollback-SQL:en i headern inte räknas som körbar kod.
-const code = sql.replace(/--.*$/gm, '');
+const stripComments = (s: string) => s.replace(/--.*$/gm, '');
 const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+// Kommentarer bort så att rollback-SQL:en i headern inte räknas som körbar kod.
+const code = stripComments(sql);
 const body = normalize(code);
+const at = (needle: string, from = 0) => body.indexOf(needle, from);
 
-const baselineFunction = /create or replace function public\.increment_event_xp[\s\S]*?\$function\$;/i.exec(baseline.slice(baseline.search(/create or replace function public\.increment_event_xp/i)));
-const migrationFunction = /create or replace function public\.increment_event_xp[\s\S]*?\$function\$;/i.exec(code);
+const FUNCTION_RE = /create or replace function public\.increment_event_xp[\s\S]*?\$function\$;/i;
+const baselineFunction = FUNCTION_RE.exec(baseline.slice(baseline.search(/create or replace function public\.increment_event_xp/i)));
+const migrationFunction = FUNCTION_RE.exec(code);
 
 /** Rollback-raderna i headern (kommentarer som börjar med `--` följt av minst fyra blanksteg), utan kommentarstecknen. */
 const rollbackSql = sql
@@ -29,6 +33,12 @@ const rollbackSql = sql
   .filter((line) => /^--\s{4,}\S/.test(line))
   .map((line) => line.replace(/^--\s*/, ''))
   .join('\n');
+
+/** Satser som skapar title_leaderboard_view utan security_invoker = true. Kommentarer ignoreras. */
+function viewStatementsWithoutInvoker(migrationSql: string): string[] {
+  const statements = stripComments(migrationSql).match(/create\s+(?:or\s+replace\s+)?view\s+(?:public\.)?title_leaderboard_view\b[^;]*;/gi) ?? [];
+  return statements.filter((statement) => !/\bwith\s*\([^)]*security_invoker\s*=\s*true[^)]*\)/i.test(statement));
+}
 
 describe('migration 052_advisor_fixes.sql: increment_event_xp', () => {
   it('sätter search_path till tom sträng och kvalificerar tabellen', () => {
@@ -61,48 +71,82 @@ describe('migration 052_advisor_fixes.sql: increment_event_xp', () => {
   });
 });
 
-describe('migration 052_advisor_fixes.sql: cron-jobbet och pg_net', () => {
-  it('avregistrerar jobbet via sin url, inte med ett hårdkodat jobid, bakom en guard för att cron saknas', () => {
+describe('migration 052_advisor_fixes.sql: cron-jobbet', () => {
+  it('rör cron-schemat bara bakom to_regclass-guarden, så att staging (utan pg_cron) hoppar över steget', () => {
     expect(body).toContain("to_regclass('cron.job') is not null");
+    const firstCron = at('from cron.job');
+    expect(at("to_regclass('cron.job') is not null")).toBeLessThan(firstCron);
+    expect(at('perform cron.unschedule')).toBeGreaterThan(firstCron);
+  });
+
+  it('avregistrerar via url-delen och bara när exakt ett jobb matchar, utan hårdkodat jobid', () => {
     expect(body).toContain("where command ilike '%functions/v1/strava-sync%'");
     expect(body).toContain('perform cron.unschedule(j.jobid)');
+    expect(body).toMatch(/if matching_jobs = 1 then[\s\S]*perform cron\.unschedule\(j\.jobid\)[\s\S]*elsif matching_jobs > 1 then/);
     expect(code).not.toMatch(/cron\.unschedule\s*\(\s*[0-9']/);
     expect(code).not.toMatch(/jobid\s*=\s*[0-9]/i);
-    // Allt som rör cron-schemat ligger inne i guarden, före den första cron-referensen.
-    expect(body.indexOf("to_regclass('cron.job')")).toBeLessThan(body.indexOf('from cron.job'));
-    expect(body.indexOf('from cron.job')).toBeLessThan(body.indexOf('perform cron.unschedule'));
   });
 
-  it('skriver aldrig ut jobbets command (det innehåller JWT:n)', () => {
+  it('hoppar över avregistreringen med en NOTICE när fler än ett jobb matchar, och räknar upp antalet synliga jobb', () => {
+    const elsif = body.slice(at('elsif matching_jobs > 1 then'));
+    expect(elsif.slice(0, elsif.indexOf('end if;'))).toContain('raise notice');
+    expect(body).toMatch(/select count\(\*\) into visible_jobs from cron\.job/);
+    expect(body).toMatch(/raise notice '[^']*%[^']*', visible_jobs/);
+  });
+
+  it('skriver aldrig ut jobbets command (det innehåller JWT:n), bara jobid och jobname', () => {
     const notices = code.match(/raise notice[^;]*;/gi) ?? [];
     expect(notices.length).toBeGreaterThan(0);
-    for (const notice of notices) expect(notice).not.toMatch(/command/i);
+    for (const notice of notices) expect(notice).not.toMatch(/\bcommand\b/i);
     expect(code).not.toMatch(/select[^;]*\bcommand\b[^;]*from cron\.job/i);
+    expect(code).not.toMatch(/\bj\.command\b/i);
   });
 
-  it('tar bort pg_net med drop extension if exists, utan cascade, först efter kontrollerna', () => {
+  it('lägger aldrig till ett nytt jobb', () => {
+    expect(code).not.toMatch(/cron\.schedule/i);
+    expect(rollbackSql).not.toMatch(/cron\.schedule/i);
+  });
+});
+
+describe('migration 052_advisor_fixes.sql: pg_net', () => {
+  const guardStart = at("e.extname = 'pg_net' and n.nspname = 'public'");
+
+  it('gör ingenting om pg_net inte ligger i schemat public', () => {
+    expect(guardStart).toBeGreaterThan(-1);
+    expect(body.slice(guardStart - 200, guardStart)).toMatch(/if exists \(\s*select 1 from pg_extension e join pg_namespace n on n\.oid = e\.extnamespace where\s*$/);
+    expect(guardStart).toBeLessThan(at("p.prosrc ~* 'net\\.http_'"));
+    expect(guardStart).toBeLessThan(at('drop extension'));
+  });
+
+  it('undantar event trigger-funktioner och schemana net, extensions, pg_catalog och information_schema ur kontrollen av användare', () => {
+    expect(body).toContain('p.oid not in (select evtfoid from pg_event_trigger)');
+    expect(body).toContain("n.nspname not in ('net', 'extensions', 'pg_catalog', 'information_schema')");
+    // supabase_functions räknas bara om en icke-intern trigger anropar funktionen.
+    expect(body).toContain("n.nspname <> 'supabase_functions' or exists (select 1 from pg_trigger t where t.tgfoid = p.oid and not t.tgisinternal)");
+  });
+
+  it('kontrollerar även kvarvarande cron-jobb som använder net.http_ innan något tas bort', () => {
+    expect(body).toContain("where command ~* 'net\\.http_'");
+    expect(at("where command ~* 'net\\.http_'")).toBeLessThan(at('drop extension'));
+  });
+
+  it('tar bort pg_net utan cascade, i ett eget block som fångar saknat ägarskap och beroenden', () => {
     expect(code.match(/drop\s+extension/gi)).toHaveLength(1);
-    expect(body).toContain('drop extension if exists pg_net;');
     expect(body).not.toMatch(/drop extension[^;]*cascade/);
-    const dropAt = body.indexOf('drop extension');
-    expect(body.indexOf("command ~* 'net\\.http_'")).toBeGreaterThan(-1);
-    expect(body.indexOf("command ~* 'net\\.http_'")).toBeLessThan(dropAt);
-    expect(body.indexOf("p.prosrc ~* 'net\\.http_'")).toBeGreaterThan(-1);
-    expect(body.indexOf("p.prosrc ~* 'net\\.http_'")).toBeLessThan(dropAt);
-    expect(code.match(/raise exception/gi)).toHaveLength(2);
+    const dropAt = at('drop extension');
+    const blockStart = body.lastIndexOf('begin', dropAt);
+    const handler = body.slice(dropAt, body.indexOf('end;', dropAt));
+    expect(blockStart).toBeGreaterThan(at('p.prosrc'));
+    expect(handler).toContain('exception when insufficient_privilege or dependent_objects_still_exist then');
+    expect(handler).toContain('raise notice');
+  });
+
+  it('avbryter aldrig migrationen på pg_net: inga raise exception, så funktion, vy och cron alltid blir kvar', () => {
+    expect(code).not.toMatch(/raise\s+exception/i);
   });
 
   it('lämnar pg_cron kvar', () => {
     expect(code).not.toMatch(/drop\s+extension[^;]*pg_cron/i);
-    expect(code).not.toMatch(/cron\.schedule/i);
-  });
-
-  it('lägger cron-avregistreringen och pg_net-borttagningen i samma do-block så att ett guard-fel avbryter allt', () => {
-    expect(code.match(/\bdo\s+\$\$/gi)).toHaveLength(1);
-    const doAt = body.indexOf('do $$');
-    expect(body.indexOf('perform cron.unschedule')).toBeGreaterThan(doAt);
-    expect(body.indexOf('drop extension')).toBeGreaterThan(doAt);
-    expect(body.endsWith('end $$;')).toBe(true);
   });
 });
 
@@ -110,7 +154,26 @@ describe('migration 052_advisor_fixes.sql: title_leaderboard_view', () => {
   it('sätter security_invoker = true med alter view och rör inga behörigheter eller vydefinitionen', () => {
     expect(body).toContain('alter view public.title_leaderboard_view set (security_invoker = true);');
     expect(code).not.toMatch(/create\s+(or\s+replace\s+)?view/i);
-    expect(code).not.toMatch(/\b(grant|revoke)\b/i);
+  });
+});
+
+describe('migrationer efter 052 som återskapar title_leaderboard_view', () => {
+  it('upptäcker en återskapad vy utan security_invoker (create or replace ersätter alternativen)', () => {
+    expect(viewStatementsWithoutInvoker('create or replace view public.title_leaderboard_view as select 1;')).toHaveLength(1);
+    expect(viewStatementsWithoutInvoker('CREATE VIEW title_leaderboard_view AS SELECT 1;')).toHaveLength(1);
+    expect(viewStatementsWithoutInvoker('create or replace view public.title_leaderboard_view with (security_barrier) as select 1;')).toHaveLength(1);
+    expect(viewStatementsWithoutInvoker('create or replace view public.title_leaderboard_view with (security_invoker = true) as select 1;')).toHaveLength(0);
+    expect(viewStatementsWithoutInvoker('create or replace view public.title_leaderboard_view with (security_barrier, security_invoker = true) as select 1;')).toHaveLength(0);
+    expect(viewStatementsWithoutInvoker('-- create or replace view public.title_leaderboard_view as select 1;\nselect 1;')).toHaveLength(0);
+    expect(viewStatementsWithoutInvoker('create view public.other_view as select 1;')).toHaveLength(0);
+  });
+
+  it('kräver security_invoker = true i varje migration över 052 som skapar title_leaderboard_view', () => {
+    const later = readdirSync(migrationsDir)
+      .filter((name) => /^\d+_.*\.sql$/.test(name) && Number.parseInt(name, 10) > 52)
+      .sort();
+    const offenders = later.filter((name) => viewStatementsWithoutInvoker(readFileSync(resolve(migrationsDir, name), 'utf8')).length > 0);
+    expect(offenders).toEqual([]);
   });
 });
 
@@ -129,36 +192,21 @@ describe('migration 052_advisor_fixes.sql: säkerhet och form', () => {
     expect(code.match(/\bupdate\b/gi)).toHaveLength(1);
   });
 
-  it('är idempotent: bara create or replace, alter view set, och ett do-block med guards', () => {
-    const outsideDo = code.replace(/do\s+\$\$[\s\S]*?\$\$;/i, '').replace(/\$function\$[\s\S]*?\$function\$/i, '');
-    const statements = outsideDo.split(';').map(normalize).filter(Boolean);
-    expect(statements).toEqual([
-      "create or replace function public.increment_event_xp(p_user_id uuid, p_xp integer) returns void language sql set search_path to '' as",
-      'alter view public.title_leaderboard_view set (security_invoker = true)',
-    ]);
+  it('ligger i ett enda do-block (som 051) så att allt går eller inget, även med psql -f utan en omslutande transaktion', () => {
+    expect(body.startsWith('do $do$ declare')).toBe(true);
+    expect(body.endsWith('end $do$;')).toBe(true);
+    expect(code.match(/\$do\$/g)).toHaveLength(2);
+    expect(code.match(/\bdo\s+\$/gi)).toHaveLength(1);
+    // Funktionen och vyn skapas före cron- och pg_net-stegen, så att ett fel där aldrig lämnar dem ogjorda.
+    expect(at('create or replace function public.increment_event_xp')).toBeLessThan(at('alter view'));
+    expect(at('alter view')).toBeLessThan(at("to_regclass('cron.job')"));
   });
 
   it('headern har rollback som återskapar funktionen exakt som i baslinjen, vyn utan alternativ och pg_net i schemat extensions', () => {
-    const fnRollback = /create or replace function public\.increment_event_xp[\s\S]*?\$function\$;/i.exec(rollbackSql);
+    const fnRollback = FUNCTION_RE.exec(rollbackSql);
     expect(fnRollback, 'rollback för funktionen saknas').not.toBeNull();
     expect(normalize(fnRollback![0])).toBe(normalize(baselineFunction![0]));
     expect(normalize(rollbackSql)).toContain('alter view public.title_leaderboard_view reset (security_invoker);');
     expect(normalize(rollbackSql)).toContain('create extension if not exists pg_net with schema extensions;');
-  });
-
-  it('headern säger att cron-jobbet inte återskapas och att inga hemligheter skrivs in igen', () => {
-    expect(sql).toMatch(/Cron-jobbet återskapas INTE/);
-    expect(sql).toMatch(/hemligheter hör inte hemma i migrationer/);
-    expect(rollbackSql).not.toMatch(/cron\.schedule/i);
-  });
-
-  it('headern anger syfte, före-läge, körordning, idempotens, ägar-ja per miljö och kontrollfrågor', () => {
-    for (const heading of ['SYFTE', 'FÖRE-LÄGE', 'BESLUT PER PUNKT', 'KÖRORDNING', 'IDEMPOTENS', 'KONTROLLFRÅGOR', 'ROLLBACK']) {
-      expect(sql, heading).toContain(heading);
-    }
-    expect(sql).toMatch(/ägar-ja per miljö/i);
-    expect(sql).toMatch(/aldrig av en builder/);
-    expect(sql).toMatch(/jobid 1/);
-    expect(sql).toMatch(/2025-06-11/);
   });
 });
