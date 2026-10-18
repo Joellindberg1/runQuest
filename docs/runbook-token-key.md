@@ -51,6 +51,12 @@ tills den pensionerade nyckeln är borttagen och verifierad (avsnitt 5).
 
 ## 4. Sätta nyckeln i Railway (ägaren) och kontrollera
 
+**Ordning vid release: nyckeln ska vara satt i Railway FÖRE deployen av S1–S4 (ADR 013), som en enhet.** Koden som krypterar (S1–S2),
+larmet och hälsoblocket (S3) och backfillskriptet (S4) deployas tillsammans. Deployas de utan nyckel startar appen men Strava-synken står
+still (KRITISKT-larm vid start, webhook-händelser väntar i högst 48 timmar), och en användare som kopplar bort under tiden får ingen
+återkallelse hos Strava (avsnitt 8). Backfill `--apply` körs först när hälsoblocket visar `configured: true` och några dygn utan
+`token_unreadable`.
+
 1. Railway → projektet → tjänsten `runQuest-backend` (staging: `runquest-backend-staging`) → Variables → `TOKEN_ENCRYPTION_KEY` →
    klistra in värdet → Deploy. Ändringen av en Railway-variabel är `ask`.
 2. Backend kontrollerar nyckeln när den startar. I loggen (Railway) står en av två saker:
@@ -128,14 +134,16 @@ badges och samtycke ligger kvar. Hälsoblocket visar `rows_on_other_kid` eller `
 
 ## 8. Om en användare kopplar bort Strava medan tokenet är oläsbart
 
-Vid "Koppla bort" återkallar backend först behörigheten hos Strava (`/oauth/deauthorize` med användarens access-token). Går tokenet inte att
+Vid "Koppla bort" återkallar backend först behörigheten hos Strava (`/oauth/deauthorize` med användarens access-token). Återkallelsen är
+tolerant (ADR 010 7.4.2): misslyckas den, tas kopplingen bort ändå, eftersom användaren valt det. Går tokenet inte att
 läsa (nyckel saknas, fel nyckel, skadad rad) går återkallelsen inte att göra och Strava anropas inte. Kopplingen tas ändå bort hos oss
 (rundorna och token-raden raderas, det är det användaren bad om; det loggas som en varning med koden `strava_token_unreadable`). Användaren
 får inget fel.
 
 **Konsekvens: RunQuest står kvar som godkänd app i användarens Strava-konto**, och Strava kan fortsätta skicka händelser för användaren
 (de kastas hos oss som "okänd ägare"). **Rekommendation:** be användaren återkalla behörigheten själv hos Strava (strava.com → Settings → My
-Apps → RunQuest → Revoke Access), eller laga nyckeln och be användaren koppla om och sedan koppla bort igen. Ägaren kan se fallen i loggen:
+Apps → RunQuest → Revoke Access), eller laga nyckeln och be användaren koppla om och sedan koppla bort igen. **Var nyckeln trasig under en
+period ska ägaren gå igenom loggen för den perioden efter varningsraden nedan och be varje berörd användare återkalla manuellt hos Strava.** Ägaren kan se fallen i loggen:
 raden `Strava disconnect: the revoke at Strava failed for user <id> (strava_token_unreadable), carrying on`.
 
 ## 9. Felsökning i korthet
@@ -146,5 +154,5 @@ raden `Strava disconnect: the revoke at Strava failed for user <id> (strava_toke
 | `... ogiltig nyckelkonfiguration` | Fel format, fel längd (inte 32 byte), samma `kid` två gånger, eller värdet har klistrats in med citattecken eller radbrytning mitt i | Skapa värdet på nytt (avsnitt 2); jämför inte med chatten |
 | `... godtar inte nyckel-id test-1 i den här miljön` | Testnyckeln eller en nyckel från fel miljö (`stg-` i prod, `prod-` i staging) | Sätt miljöns egen nyckel; i staging ska `SENTRY_ENVIRONMENT=staging` vara satt |
 | `❌ Strava sync skipped: the token key is not usable` | Samma problem, nu som påminnelse vid varje schemalagd synk (högst ett larm per körning) | Åtgärda enligt larmet vid start |
-| `unreadable_since_start` växer men `configured` är `true` | En enskild rad går inte att öppna (flyttad, skadad, fel nyckel under samma `kid`) | Loggen har `user_id`, kolumn och orsakskod; en rad på fel nyckel hanteras som avsnitt 7 |
+| `unreadable_since_start` växer men `configured` är `true` | En enskild rad går inte att öppna (flyttad, skadad, fel nyckel under samma `kid`) | Loggen har `user_id`, kolumn och orsakskod (`Strava token unreadable for user ...`): ett fel (Sentry-händelse) första gången per orsakskod och process, därefter en varning i loggen. Räknaren i hälsoblocket ser alla. En rad på fel nyckel hanteras som avsnitt 7 |
 | `plaintext_rows` > 0 efter backfill | En förnyelse hann emellan eller en användare anslöt under körningen | Kör backfillen igen (idempotent) |

@@ -51,7 +51,8 @@ export type TokenKeyProblem = 'key_missing' | 'key_invalid' | 'kid_not_allowed';
 
 export type TokenKeyConfig =
   | { ok: true; ring: KeyRing }
-  | { ok: false; problem: 'key_missing' | 'key_invalid' }
+  | { ok: false; problem: 'key_missing' }
+  | { ok: false; problem: 'key_invalid' }
   | { ok: false; problem: 'kid_not_allowed'; ring: KeyRing; requiredPrefix: KidPrefix; offendingKids: string[] };
 
 /**

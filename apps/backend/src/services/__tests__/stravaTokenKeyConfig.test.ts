@@ -17,7 +17,7 @@ import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js
 import { legacyToken } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import { ACTIVE_KEY_ENV, RETIRED_KEYS_ENV, parseKeyRing } from '../../utils/secretBox.js';
-import { getValidAccessToken } from '../stravaClient.js';
+import { getValidAccessToken, resetUnreadableLogThrottle } from '../stravaClient.js';
 import {
   checkSealingReady,
   inspectTokenKeyConfig,
@@ -137,6 +137,58 @@ describe('the key id an environment accepts', () => {
 
     expect(rendered).not.toContain(active.split(':')[1]);
     expect(rendered).not.toContain(active.split(':')[1].slice(0, 8));
+  });
+});
+
+describe('the log line for a token that could not be read', () => {
+  const row = (userId: string, over: Row = {}): Row => ({ user_id: userId, access_token: 'enc:v1:test-1:AAAA', refresh_token: legacyToken('legacy-r'), expires_at: 9999999999, ...over });
+  function useRows(rows: Row[]) {
+    const db = createFakeDb({ strava_tokens: rows }, { primaryKeys: { strava_tokens: ['user_id'] } });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as never);
+  }
+  const lines = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((call) => String(call[0]));
+
+  beforeEach(() => {
+    resetUnreadableLogThrottle();
+  });
+
+  it('is an error once per code and process, then a warning, so one cause is one Sentry event and not one per read', async () => {
+    useRows([row('u1'), row('u2'), row('u3')]);
+
+    for (const userId of ['u1', 'u2', 'u3', 'u1']) {
+      expect(await getValidAccessToken(userId)).toEqual({ ok: false, reason: 'token_unreadable' });
+    }
+
+    expect(lines(logger.error as never)).toHaveLength(1);
+    expect(lines(logger.error as never)[0]).toContain('Strava token unreadable for user u1 (bad_format, access_token)');
+    expect(lines(logger.warn as never)).toHaveLength(3);
+    expect(lines(logger.warn as never).every((line) => line.includes('Strava token unreadable for user'))).toBe(true);
+    expect(unreadableSinceStart()).toBe(4); // the count still sees every read
+  });
+
+  it('is one error per code: a second cause is announced again, and the same cause on another column is not', async () => {
+    useRows([row('u1'), row('u2', { access_token: 'x' }), row('u3', { refresh_token: 'enc:v1:test-1:AAAA', access_token: null, expires_at: 1 })]);
+
+    await getValidAccessToken('u1'); // bad_format
+    await getValidAccessToken('u2'); // legacy_shape
+    await getValidAccessToken('u3'); // bad_format again, on the refresh token
+
+    expect(lines(logger.error as never)).toHaveLength(2);
+    expect(lines(logger.error as never)[1]).toContain('(legacy_shape, access_token)');
+    expect(lines(logger.warn as never)).toHaveLength(1);
+  });
+
+  it('a missing key is one error for the process, however many users meet it', async () => {
+    useRows([row('u1'), row('u2')]);
+    vi.stubEnv(ACTIVE_KEY_ENV, '');
+
+    await getValidAccessToken('u1');
+    await getValidAccessToken('u2');
+    await getValidAccessToken('u1');
+
+    expect(lines(logger.error as never)).toEqual([expect.stringContaining('(key_missing)')]);
+    expect(lines(logger.warn as never)).toHaveLength(2);
+    expect([...lines(logger.error as never), ...lines(logger.warn as never)].some((line) => line.includes('KRITISK'))).toBe(false);
   });
 });
 
