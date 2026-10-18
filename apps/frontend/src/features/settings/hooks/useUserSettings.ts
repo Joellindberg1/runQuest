@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MAX_PATCH_KEYS, resolveSettings, type SettingsValue } from '@runquest/shared';
+import { MAX_PATCH_KEYS, isAnalyticsSettingKey, resolveSettings, type SettingsValue } from '@runquest/shared';
+import { track } from '@/shared/analytics/track';
 import { backendApi } from '@/shared/services/backendApi';
 import { useAuth } from '@/providers/authContext';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
@@ -137,7 +138,9 @@ export function useUserSettings() {
       setError(failure instanceof Error && failure.message ? failure.message : SAVE_FAILED);
       needsRefresh.current = true;
     },
-    onSuccess: (state) => {
+    onSuccess: (state, patch) => {
+      // Bara vilken inställning som rördes, aldrig vad den sattes till (se ANALYTICS_EVENTS i shared). Efter sparandet, så en misslyckad skrivning inte räknas.
+      for (const key of Object.keys(patch)) if (isAnalyticsSettingKey(key)) track('setting-changed', { setting: key });
       if (isLastWrite()) queryClient.setQueryData<UserSettingsState>(USER_SETTINGS_QUERY_KEY, state);
       void queryClient.invalidateQueries({ queryKey: NEWS_QUERY_KEYS.feedRoot });
     },

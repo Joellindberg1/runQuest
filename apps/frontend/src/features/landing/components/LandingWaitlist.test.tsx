@@ -4,8 +4,12 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WAITLIST_CONSENT_LABEL, WAITLIST_CONSENT_LINK_TEXT, WAITLIST_EMAIL_MAX_LENGTH } from '@runquest/shared';
 import { legalPrivacyPath } from '@/paths';
+import userEvent from '@testing-library/user-event';
+import { track } from '@/shared/analytics/track';
 import { backendApi } from '@/shared/services/backendApi';
 import { LandingWaitlist } from './LandingWaitlist';
+
+vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 
 // Väntelistans kort: semantik, validering, lägen (skickar, klart, fel) och fokus. Anropets form och statusmappningen prövas i
 // useJoinWaitlist.test.tsx och backendApi.waitlist.test.ts. user-event finns inte i projektet, så inmatning går via fireEvent.
@@ -259,5 +263,48 @@ describe('LandingWaitlist', () => {
     expect(gold).toHaveLength(1);
     expect(gold[0]).toBe(submitButton());
     expect(gold[0]).toHaveAccessibleName('Join the waitlist');
+  });
+});
+
+describe('LandingWaitlist: webbanalys', () => {
+  beforeEach(() => {
+    vi.mocked(track).mockClear();
+  });
+
+  it('reports waitlist-joined, with nothing about the address, when the server accepts the sign-up', async () => {
+    renderForm();
+    await userEvent.type(emailField(), 'anna@example.com');
+    await userEvent.click(consentBox());
+    await userEvent.click(submitButton());
+    await screen.findByText("You're on the list.");
+    expect(track).toHaveBeenCalledExactlyOnceWith('waitlist-joined');
+  });
+
+  it('reports nothing for a sign-up where the hidden honeypot field has been filled in, since that is a bot', async () => {
+    renderForm();
+    await userEvent.type(emailField(), 'bot@example.com');
+    await userEvent.click(consentBox());
+    fireEvent.change(document.querySelector('input[name="website"]') as HTMLInputElement, { target: { value: 'http://spam.example' } });
+    await userEvent.click(submitButton());
+    await screen.findByText("You're on the list.");
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it.each([[400], [429], [500]])('reports nothing when the server answers %i', async (status) => {
+    joinWaitlist.mockResolvedValue({ status });
+    renderForm();
+    await userEvent.type(emailField(), 'anna@example.com');
+    await userEvent.click(consentBox());
+    await userEvent.click(submitButton());
+    await screen.findByRole('alert');
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it('reports nothing for a sign-up that the form itself stops, or while typing', async () => {
+    renderForm();
+    await userEvent.type(emailField(), 'nope');
+    await userEvent.click(submitButton());
+    expect(await screen.findAllByRole('alert')).not.toHaveLength(0);
+    expect(track).not.toHaveBeenCalled();
   });
 });

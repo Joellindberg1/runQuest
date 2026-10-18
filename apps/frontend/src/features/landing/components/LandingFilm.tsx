@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent, type RefObject } from 'react';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { cssVars } from '@/features/leaderboard/cssVars';
+import { track } from '@/shared/analytics/track';
 import '../landingFilm.css';
 
 // Filmen "RunQuest Mixed" (49 s, inget ljudspår, påhittade namn). Den startar först vid tryck på play (preload="none", ingen autoplay, ingen
@@ -114,6 +115,8 @@ function useFilmPlayer() {
   const videoHandlers = {
     onPlaying: () => {
       keepFocus();
+      // 'loading' sätts bara av ett tryck på play från postern: en återupptagen paus och en sökning ger 'paused'/'playing' och räknas inte.
+      if (status === 'loading') track('film-started');
       setFailed(false);
       setStatus('playing');
     },

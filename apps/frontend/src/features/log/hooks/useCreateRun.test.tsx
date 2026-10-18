@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
@@ -8,8 +8,10 @@ import { HEAD_TO_HEAD_ROOT } from '@/features/runner/hooks/useRunnerQueries';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { EVENT_FOLLOW_UP_MS, useCreateRun } from './useCreateRun';
 import { LOG_QUERY_KEYS } from './useLogQueries';
+import { track } from '@/shared/analytics/track';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
+vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 
 const submission = { date: '2026-10-04', distance: 8, isTreadmill: false };
 
@@ -77,5 +79,21 @@ describe('useCreateRun — vad en lyckad runda invaliderar', () => {
 
     await expect(result.current.mutateAsync(submission)).rejects.toThrow('Distance must be at least 1.0 km');
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('useCreateRun — webbanalys', () => {
+  beforeEach(() => {
+    vi.mocked(track).mockClear();
+  });
+
+  it('reports nothing about a run, whether it is saved, refused or written by a server that then fails', async () => {
+    const { result } = setup();
+    await result.current.mutateAsync(submission);
+    handlers.createRun = async () => ({ success: false, error: 'Distance must be at least 1.0 km' });
+    await expect(result.current.mutateAsync(submission)).rejects.toThrow();
+    handlers.createRun = async () => ({ success: false, error: 'Run was created but XP recalculation failed', written: true });
+    await expect(result.current.mutateAsync(submission)).rejects.toThrow();
+    expect(track).not.toHaveBeenCalled();
   });
 });

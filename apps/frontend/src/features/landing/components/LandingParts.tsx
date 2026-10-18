@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { DeltaMark } from '@/features/leaderboard/components/BoardParts';
+import { track } from '@/shared/analytics/track';
 import {
   HOW_IT_WORKS_ID, LEAD_DESKTOP, LEAD_MOBILE, PREVIEW_NOTES, PREVIEW_PACK_NAME, WAITLIST_ID,
   type HowStep, type PreviewRow, type XpFormula as XpFormulaView,
@@ -31,7 +32,7 @@ export function LandingHero({ watchFilm, mobileFilm }: LandingHeroProps) {
       <ArenaTrack />
       <p className="rq-lead rq-landing-lead">{isDesktop ? LEAD_DESKTOP : LEAD_MOBILE}</p>
       <div className="rq-landing-cta">
-        <a href={`#${WAITLIST_ID}`} className="rq-btn rq-btn--primary rq-btn--lg">Join the waitlist</a>
+        <a href={`#${WAITLIST_ID}`} className="rq-btn rq-btn--primary rq-btn--lg" onClick={() => track('waitlist-click')}>Join the waitlist</a>
         {watchFilm}
       </div>
       <div className="rq-landing-hero__film">{mobileFilm}</div>

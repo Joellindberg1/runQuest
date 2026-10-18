@@ -217,13 +217,13 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
   skickar ingenting. Som extra skydd är skriptet låst till `www.runquest.dev` och `runquest.dev` (`data-domains`), och ett bygge
   med `VITE_APP_ENV=staging` ignorerar variabeln även om den satts av misstag. Lead sätter variabeln efter ägarens ja (Railway-variabler
   ändras bara så); ingen Railway-variabel är satt av koden eller av den här PR:en.
-- **Vad som skickas:** bara sidvisningar, och bara en normaliserad adress: routens mönster (`/runner/:id`, `/board`, `/login`), aldrig
+- **Vad som skickas:** sidvisningar och de åtta egna händelserna i avsnittet "Egna händelser och trattar" nedan, och bara med en normaliserad adress: routens mönster (`/runner/:id`, `/board`, `/login`), aldrig
   den riktiga adressen. Query och fragment tas bort; på landningen behålls `utm_source`, `utm_medium`, `utm_campaign` och
   `utm_content` (Umami läser kampanjerna ur adressen, annars blir kampanjvyn tom), men bara värden som står på **vitlistan**
   (`apps/frontend/src/shared/analytics/utmAllowlist.ts`). Jämförelsen ignorerar skiftläge och det som skickas är listans eget värde,
   aldrig besökarens sträng; okända värden och `utm_term` tas bort. Ett fritt värde kunde annars bära ett id eller ett namn. Okända adresser skickas som `/(not-found)`. Sidans titel ersätts av samma adress och hänvisningen skickas bara som
-  ursprung (`https://www.google.com`) eller, inne i appen, som föregående sidas normaliserade adress. Inga händelser, ingen
-  rundata, inga distanser, inga namn och inget användar-id (Stravas API-policy 5.4 förbjuder analys på Strava-data).
+  ursprung (`https://www.google.com`) eller, inne i appen, som föregående sidas normaliserade adress. Ingen
+  rundata, inga distanser, inga tider, inga namn, ingen e-post, inga id:n och inget användar-id (Stravas API-policy 5.4 förbjuder analys på Strava-data).
 - **Lägga till en kampanjtagg:** när ägaren ska dela en länk, välj en kort etikett (ett ord, små bokstäver, inget som pekar ut en person),
   lägg den i `utm_campaign` (kampanjen) eller `utm_content` (varianten) i `utmAllowlist.ts`, och använd exakt den i länken
   (`https://www.runquest.dev/?utm_source=instagram&utm_medium=social&utm_campaign=<tagg>`). Ändringen är en liten PR med ett
@@ -244,6 +244,50 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
   `cloud.umami.is` och en POST till Umamis `/api/send` vars payload har `url` som routemönster (till exempel `/login`, inte en adress
   med id). Gå sedan in i appen och öppna en löpare: payloaden ska visa `/runner/:id`. Ägaren bekräftar att sidvisningarna syns i
   Umami-panelen. Integritetstexten på `/legal` uppdateras i en egen story i samma epic (S3), inte här.
+
+#### Egna händelser och trattar (RUN-292, epic RUN-19)
+
+**Händelserna.** Listan är fast och bor i `packages/shared/src/analytics.ts` (`ANALYTICS_EVENTS`); appen skickar med
+`track(händelse, props)` (`apps/frontend/src/shared/analytics/track.ts`). Ett okänt namn eller en okänd prop är ett kompileringsfel, och
+en vakt (`sanitizeAnalyticsEvent`) avvisar hela händelsen vid körning om något avviker från listan (okänt namn, okänd nyckel, ett värde
+utanför de uppräknade, en prop som saknas). Namnen är kebab-case, som i Umamis egen dokumentation (`signup-button`); propnycklar är
+enstaka gemena ord. En ny händelse eller ett nytt värde kräver en ändring i `analytics.ts`, alltså en granskad diff.
+
+| Händelse | När den skickas | Props |
+| --- | --- | --- |
+| `film-started` | Landningens film börjar spela från postern (inte vid återupptagen paus eller sökning) | inga |
+| `waitlist-click` | Klick på "Join the waitlist" i landningens hjälte | inga |
+| `waitlist-joined` | Servern har tagit emot anmälan till väntelistan | inga |
+| `login-click` | Klick på "Sign in" i landningens header | inga |
+| `challenge-accepted` | En utmaning har antagits (servern har svarat ok) | inga |
+| `notifications-opened` | Klockan i headern öppnas | inga |
+| `setting-changed` | En inställning är sparad (servern har svarat ok); en händelse per nyckel, även vid återställning | `setting`: inställningens nyckel ur registret (`notify.<slag>`) |
+| `strava-connected` | Strava-kopplingen har godkänts av servern | inga |
+
+- **Medvetet utelämnad: `run-logged-manual` (runda loggad manuellt).** Förslaget i RUN-292 hade den, men en händelse som räknar loggade
+  rundor ligger för nära ägarens gräns "ingen rundata" och Stravas API-policy 5.4 för att tas med utan ett uttryckligt beslut.
+  Den kan läggas till i `analytics.ts` (med koppling i `useCreateRun` och test) efter ägarens beslut.
+- **Aldrig i händelserna:** rundata, distanser, tider, namn, e-post, id:n, athlete-id, användar-id eller några fria strängar och tal
+  (Stravas API-policy 5.4, ägarbeslut i RUN-19). `setting-changed` skickar vilken inställning som ändrades men **aldrig värdet**: värdet
+  är användarens personliga val och blir, när gruppinställningar och enumvärden kommer (ADR 012), något som kan peka ut en grupps regler.
+  Att räkna vilka inställningar som rörs räcker för att se vad som används. Vill ägaren senare se riktningen (på/av) läggs den till som en
+  uppräknad prop i `analytics.ts`, med nytt test.
+- **Samma grindar som sidvisningarna:** händelserna delar kö, laddare och skripttagg med sidvisningarna (`umamiPageviews.ts`). Utan
+  `VITE_UMAMI_WEBSITE_ID`, eller i ett stagingbygge, laddas inget skript och inget skickas. Händelsens `url` är den normaliserade sidan
+  den hände på, titeln ersätts av samma adress och hänvisningen är tom.
+- **Ägarens steg i Umami-panelen (Reports → Funnel), efter att variabeln är satt i prod och en första sidvisning syns:**
+  1. Skapa en tratt med namnet **Waitlist**, fönster **60 minuter** (hur länge en besökare får ta på sig mellan stegen).
+  2. Steg 1: typ **Page (URL)**, värde `/` (landningen).
+  3. Steg 2: typ **Event**, värde `waitlist-click`.
+  4. Steg 3: typ **Event**, värde `waitlist-joined`.
+  Att komma ihåg: steg 2 räknar bara klick på knappen i hjälten. En besökare som scrollar ner till formuläret och anmäler sig utan
+  att klicka knappen tappas ur tratten mellan steg 1 och 2 (men syns som `waitlist-joined` i händelsevyn). Vill ägaren ha tratten
+  utan det glappet är alternativet att göra steg 2 till "formuläret fokuserat"; det kräver en ny händelse i listan.
+  Frivilliga fler: **Film** (Page `/` → Event `film-started` → Event `waitlist-joined`) och **Login** (Page `/` → Event `login-click`).
+  Ägaren bekräftar i Umami att trattarna visar siffror; det går inte att bekräfta före första riktiga trafiken i prod.
+- **Kontroll i prod (Lead och ägaren):** i DevTools → Network ska en klick på "Join the waitlist" ge en POST till `/api/send` med
+  `"name":"waitlist-click"` och en `url` som `/`; en inställningsändring ska ge `"name":"setting-changed"` med `data` som bara har `setting`.
+  Ingen payload ska innehålla ett id, ett namn, en e-postadress eller ett tal.
 
 ### 4. Rök mot de kritiska flödena
 
