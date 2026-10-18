@@ -36,6 +36,9 @@ const tables = (): Record<string, Row[]> => ({
 /** Totalernas egen runs-läsning har en lång select; streakläsningen väljer bara `date`. */
 const streakReadFails = (q: RecordedQuery) => (q.table === 'runs' && q.select === 'date' ? { message: 'streak read failed' } : null);
 
+/** Totalernas users-läsning (event_xp m.fl.): den enda läsningen av users som inte är en mutation. */
+const usersReadFails = (q: RecordedQuery) => (q.table === 'users' && !q.mutation && q.select?.includes('event_xp') ? { message: 'users read failed' } : null);
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(logger, 'info').mockImplementation(() => {});
@@ -58,12 +61,54 @@ describe('calculateUserTotals — streak-läsfel', () => {
     expect(vi.mocked(logger.error).mock.calls.some((c: unknown[]) => /calculateUserTotals/.test(String(c[0])))).toBe(true);
   });
 
+  it('writes nothing and returns false when the users read fails, instead of writing totals without the event XP', async () => {
+    const t = tables();
+    t.users[0].event_xp = 40;
+    const db = createFakeDb(t, { numericIds: ['activity_log'], failWhen: usersReadFails });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+
+    await expect(calculateUserTotals('u1')).resolves.toBe(false);
+
+    expect(t.users[0]).toMatchObject({ total_xp: 10, current_level: 1, current_streak: 5, longest_streak: 9, event_xp: 40 });
+    expect(db.queries.filter((q) => q.table === 'users' && q.mutation)).toHaveLength(0);
+    expect(reconcileTokensForLevel).not.toHaveBeenCalled();
+    expect(t.activity_log).toHaveLength(0);
+  });
+
+  it('logs only the error code when the users read fails, never the message', async () => {
+    const t = tables();
+    const db = createFakeDb(t, {
+      numericIds: ['activity_log'],
+      failWhen: (q) => (usersReadFails(q) ? { message: 'secret detail user u1', code: 'XX000' } : null),
+    });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+
+    await calculateUserTotals('u1');
+
+    const logged = vi.mocked(logger.error).mock.calls.map((c: unknown[]) => String(c[0])).join('\n');
+    expect(logged).toContain('XX000');
+    expect(logged).not.toContain('secret detail');
+  });
+
+  it('writes nothing and returns false when the users row is missing', async () => {
+    const t = tables();
+    t.users = [];
+    const db = createFakeDb(t, { numericIds: ['activity_log'] });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+
+    await expect(calculateUserTotals('u1')).resolves.toBe(false);
+
+    expect(db.queries.filter((q) => q.table === 'users' && q.mutation)).toHaveLength(0);
+    expect(reconcileTokensForLevel).not.toHaveBeenCalled();
+  });
+
   it('returns true when the totals were written, false when they were not, and never throws', async () => {
     // Återhämtningen av en omräkning rensar sin markering bara på det här svaret (RUN-322): ett fel som fångas inuti får inte se ut som en lyckad körning.
     const cases: Array<{ label: string; failWhen?: (q: RecordedQuery) => { message: string } | null; expected: boolean; setup?: () => void }> = [
       { label: 'the totals are written', expected: true },
       { label: 'the runs cannot be read', failWhen: (q) => (q.table === 'runs' && q.select === 'xp_gained, distance' ? { message: 'down' } : null), expected: false },
       { label: 'the streak cannot be read', failWhen: streakReadFails, expected: false },
+      { label: 'the users cannot be read', failWhen: usersReadFails, expected: false },
       { label: 'the update of users fails', failWhen: (q) => (q.table === 'users' && q.mutation === 'update' ? { message: 'down' } : null), expected: false },
       { label: 'the token reconciliation throws', expected: false, setup: () => vi.mocked(reconcileTokensForLevel).mockRejectedValueOnce(new Error('boom')) },
     ];

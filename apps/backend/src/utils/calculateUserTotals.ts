@@ -20,7 +20,7 @@ export interface CalculateUserTotalsOptions {
 
 /**
  * Räknar om användarens totaler och skriver dem (enda skribenten, ADR 005). Kastar ALDRIG: alla fel fångas och loggas.
- * Returnerar om uppdateringen av `users` lyckades (true) eller inte (false: en läsning eller skrivning föll, eller något kastade före
+ * Returnerar om uppdateringen av `users` lyckades (true) eller inte (false: en läsning (runs, users, streak) eller skrivning föll, eller något kastade före
  * skrivningen). Badges, titlar och Pack News som felar EFTER en lyckad skrivning ändrar inte svaret. Anropare som bara vill ha den gamla
  * best-effort-beteendet ignorerar värdet; en omräkning som ska kunna återhämtas (RUN-322) rensar sin markering bara på `true`.
  */
@@ -53,12 +53,19 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
     // current_level/total_km/group_id läses i SAMMA select och är "föregående värden" för Pack News
     // (level_up/run_milestone, ADR 008); gruppen för Pack News kommer ur users.group_id, inte ur anroparens JWT. Titelomräkningen
     // använder inte den utan användarens aktiva medlemskap i group_members (längre ner).
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('event_xp, current_level, total_km, total_xp, group_id')
       .eq('id', userId)
       .single();
-    const eventXP: number = userData?.event_xp ?? 0;
+
+    // Utan raden vet vi inte event_xp: en 0 här skulle skriva total_xp och nivå UTAN eventpoängen. Hellre ingen skrivning alls
+    // (som runs- och streakläsningen) än fel totaler; anroparen får false och kan försöka igen.
+    if (userError || !userData) {
+      logger.error(`Error fetching user row for totals (${userError ? errorCode(userError) : 'no_row'})`);
+      return false;
+    }
+    const eventXP: number = userData.event_xp ?? 0;
     const prevLevel: number | null = typeof userData?.current_level === 'number' ? userData.current_level : null;
     const prevTotalKm: number | null = userData?.total_km == null ? null : Number(userData.total_km);
     const prevTotalXp: number | null = userData?.total_xp == null ? null : Number(userData.total_xp);

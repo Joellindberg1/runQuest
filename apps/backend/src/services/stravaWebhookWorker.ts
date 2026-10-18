@@ -39,7 +39,7 @@
  * and died before it): a retry always recalculates. noop and ignored_* on a first try need none. `recalculateUnknown`, and an
  * attempts >= 1 result without a date, fall back to the user's EARLIEST run (RunStore.earliestRunDate): always correct,
  * because reprocessing is idempotent and a deleted run can be older than any lookback window. A user with no runs gets
- * only calculateUserTotals (totals must still be zeroed). An event is `done` only after the recalculation ran; if it throws,
+ * only calculateUserTotals (totals must still be zeroed). An event is `done` only after the recalculation ran; if it throws or the totals come back as not written (calculateUserTotals answers false),
  * the events that needed it are retried and the others still finish.
  * After an import (ADR 010 7.1): a `done` result may carry `importedRuns`, the rows it INSERTED. The recalculation of the batch is
  * then, in the polling's order: (1) the one reprocess, (2) weather for ALL runs imported in the batch (one call, best-effort: an
@@ -70,6 +70,7 @@ import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { withUserLock } from '../utils/keyedMutex.js';
 import { errorCode } from '../utils/errorCode.js';
+import { assertTotalsWritten } from './recalculationMarks/totals.js';
 import type { AccessTokenFailureReason } from './stravaClient.js';
 import {
   LEASE_SECONDS,
@@ -365,7 +366,7 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
 
     if (!failure) {
       try {
-        await recompute.recalculateTotals(userId);
+        assertTotalsWritten(await recompute.recalculateTotals(userId)); // false = not written (RUN-327): a failure like a throw, so the retry takes it
       } catch (error) {
         failure = { error };
       }

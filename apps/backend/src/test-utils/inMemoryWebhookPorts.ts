@@ -199,6 +199,8 @@ export interface InMemoryRecompute extends Recompute {
   >;
   reprocessError: Error | null;
   totalsError: Error | null;
+  /** What recalculateTotals answers when it does not throw: true = written, false = not written, undefined = a fake that answers nothing. */
+  totalsAnswer: boolean | undefined;
   weatherError: Error | null;
   qualifyError: Error | null;
   /** qualifyEvents throws before it returns a promise. */
@@ -212,6 +214,7 @@ export function createInMemoryRecompute(): InMemoryRecompute {
     calls: [],
     reprocessError: null,
     totalsError: null,
+    totalsAnswer: true,
     weatherError: null,
     qualifyError: null,
     qualifyThrowsSynchronously: false,
@@ -223,7 +226,7 @@ export function createInMemoryRecompute(): InMemoryRecompute {
     async recalculateTotals(userId) {
       recompute.calls.push({ kind: 'totals', userId });
       if (recompute.totalsError) throw recompute.totalsError;
-      return true;
+      return recompute.totalsAnswer as boolean; // undefined on purpose: a fake that answers nothing must count as written
     },
     async fetchWeather(runs) {
       recompute.calls.push({ kind: 'weather', runIds: runs.map((run) => run.id) });
