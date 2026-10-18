@@ -459,10 +459,14 @@ describe('checkStravaTokenPath', () => {
     }
   });
 
-  it('lets stravaTokenStore.ts, the token backfill, tests and test-utils touch the token columns', () => {
+  it('does not exempt the token backfill: it goes through stravaTokenStore like everything else', () => {
+    const raw = "await db.from('strava_tokens').select('access_token, refresh_token');";
+    assert.equal(scan(raw, 'apps/backend/src/scripts/backfillStravaTokenEncryption.ts').length, 1);
+  });
+
+  it('lets stravaTokenStore.ts, tests and test-utils touch the token columns', () => {
     const raw = "await db.from('strava_tokens').select('access_token, refresh_token');";
     assert.deepEqual(scan(raw, 'apps/backend/src/services/stravaTokenStore.ts'), []);
-    assert.deepEqual(scan(raw, 'apps/backend/src/scripts/backfillStravaTokenEncryption.ts'), []);
     assert.deepEqual(scan(raw, 'apps/backend/src/services/__tests__/x.test.ts'), []);
     assert.deepEqual(scan(raw, 'apps/backend/src/test-utils/fakeStrava.ts'), []);
   });

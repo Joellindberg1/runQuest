@@ -14,6 +14,7 @@
     "backfill:activity-log": "tsx src/scripts/backfillActivityLog.ts",
     "convert:wind-ms": "tsx src/scripts/convertWindToMs.ts",
     "backfill:strava-athlete": "tsx src/scripts/backfillStravaAthleteIds.ts",
+    "backfill:strava-token-encryption": "tsx src/scripts/backfillStravaTokenEncryption.ts",
     "strava:webhook": "tsx src/scripts/stravaWebhookSubscription.ts",
     "backfill:badges": "tsx src/scripts/backfillBadges.ts",
     "reveal:badges": "tsx src/scripts/revealBadges.ts",
