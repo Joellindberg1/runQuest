@@ -42,6 +42,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { syncAllStravaUsers } from '../strava.js';
@@ -90,8 +91,7 @@ function setup(hold: UserId[] = []) {
   const tables: Record<string, Row[]> = {
     strava_tokens: (['user-1', 'user-2'] as UserId[]).map((userId) => ({
       user_id: userId,
-      access_token: accessTokenOf(userId),
-      refresh_token: `rt-${userId}`,
+      ...tokenCols(userId, accessTokenOf(userId), `rt-${userId}`),
       expires_at: 9999999999,
       connection_date: '2026-09-01',
       sync_paused: false,

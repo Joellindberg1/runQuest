@@ -4,6 +4,7 @@
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { inspect } from 'node:util';
+import { randomBytes } from 'node:crypto';
 
 process.env.JWT_SECRET = 'test-jwt-secret-for-integration-tests';
 process.env.SUPABASE_URL = 'http://localhost:54321';
@@ -21,6 +22,7 @@ import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createStravaRateBudget } from '../../services/stravaRateBudget.js';
+import { buildSecretAad, parseKeyRing, seal } from '../../utils/secretBox.js';
 import { createFakeDb } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
@@ -32,7 +34,7 @@ let spies: Array<ReturnType<typeof vi.spyOn>>;
 beforeEach(() => {
   spies = (['log', 'info', 'warn', 'error'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 /** Allt som loggades, som en enda sträng (objekt expanderas som console skulle visa dem). */
 const logged = () => spies.flatMap((s) => s.mock.calls).map((args: unknown[]) => args.map((a) => (typeof a === 'string' ? a : inspect(a, { depth: 6 }))).join(' ')).join('\n');
@@ -120,6 +122,56 @@ describe('strava routes', () => {
     expect(out).not.toContain(access.slice(0, 5));
     expect(out).not.toContain(refresh.slice(0, 5));
     expect(out).not.toContain('oauth-code');
+  });
+
+  it('strava token storage never logs a token, an enc:v1 value or any part of the key, on every path that touches them', async () => {
+    const keyBase64 = randomBytes(32).toString('base64');
+    const keyEntry = `log-1:${keyBase64}`;
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', keyEntry);
+    const ring = parseKeyRing({ TOKEN_ENCRYPTION_KEY: keyEntry });
+    const sealFor = (column: 'access_token' | 'refresh_token', plain: string) =>
+      seal(plain, buildSecretAad({ table: 'strava_tokens', column, userId: 'user-1' }), ring);
+    const connected = { access: 'CONNECTEDACCESS0123456789', refresh: 'CONNECTEDREFRESH9876543210' };
+    const renewed = { access: 'RENEWEDACCESS0123456789', refresh: 'RENEWEDREFRESH9876543210' };
+    const stored = { access: 'STOREDACCESS0123456789', refresh: 'STOREDREFRESH9876543210' };
+    const tokenAnswer = (tokens: { access: string; refresh: string }) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: tokens.access, refresh_token: tokens.refresh, expires_at: 1900000000, athlete: { id: 7 } }),
+    });
+    const tables = { strava_tokens: [] as Array<Record<string, unknown>>, runs: [], users: [] };
+    useDb(tables);
+    const fetchStub = vi.fn().mockResolvedValueOnce(tokenAnswer(connected)).mockResolvedValueOnce(tokenAnswer(renewed));
+    vi.stubGlobal('fetch', fetchStub);
+    const user = () => mintToken({ user_id: 'user-1' });
+    const status = () => server.request('GET', '/api/strava/status', { token: user() });
+
+    // 1. The callback saves sealed tokens.
+    expect((await server.request('POST', '/api/strava/callback', { token: user(), body: { code: 'oauth-code', consent_version: STRAVA_CONSENT_VERSION } })).status).toBe(200);
+    // 2. A refresh of an expired row saves the renewed ones.
+    tables.strava_tokens[0] = { ...tables.strava_tokens[0], access_token: sealFor('access_token', stored.access), refresh_token: sealFor('refresh_token', stored.refresh), expires_at: 1 };
+    expect((await status()).status).toBe(200);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+    // 3. A damaged stored value, 4. a value moved from another column, 5. a missing key.
+    tables.strava_tokens[0] = { ...tables.strava_tokens[0], expires_at: 1, refresh_token: 'enc:v1:log-1:DAMAGEDCHUNK' };
+    expect((await status()).status).toBe(503);
+    tables.strava_tokens[0] = { ...tables.strava_tokens[0], expires_at: 1, refresh_token: sealFor('access_token', stored.refresh) };
+    expect((await status()).status).toBe(503);
+    tables.strava_tokens[0] = { ...tables.strava_tokens[0], expires_at: 9999999999, access_token: sealFor('access_token', stored.access) };
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+    expect((await status()).status).toBe(503);
+    expect((await server.request('POST', '/api/strava/callback', { token: user(), body: { code: 'oauth-code', consent_version: STRAVA_CONSENT_VERSION } })).status).toBe(503);
+
+    const out = logged();
+    for (const secret of [...Object.values(connected), ...Object.values(renewed), ...Object.values(stored), 'DAMAGEDCHUNK', keyBase64, keyBase64.slice(0, 10), 'oauth-code']) {
+      expect(out, secret).not.toContain(secret);
+    }
+    expect(out).not.toContain('enc:v1');
+    expect(out).not.toContain('KRITISKT'); // an unreadable token is an error line with a code, not the startup alarm
+    // What is logged for the failures: the user, the code and the column.
+    expect(out).toMatch(/Strava token unreadable for user user-1 \(bad_format, refresh_token\)/);
+    expect(out).toMatch(/Strava token unreadable for user user-1 \(auth_failed, refresh_token\)/);
+    expect(out).toMatch(/Strava token unreadable for user user-1 \(key_missing\)/);
   });
 });
 

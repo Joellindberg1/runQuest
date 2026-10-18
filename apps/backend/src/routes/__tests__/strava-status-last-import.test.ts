@@ -18,6 +18,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createFakeDb, type RecordedQuery, type Row } from './helpers/fakeDb.js';
@@ -37,7 +38,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-const TOKEN_ROW = { user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } };
+const TOKEN_ROW = { user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } };
 
 const run = (id: string, over: Row = {}): Row => ({
   id, user_id: 'user-1', source: 'strava', date: '2026-10-01', created_at: '2026-10-02T08:00:00.000Z', ...over,

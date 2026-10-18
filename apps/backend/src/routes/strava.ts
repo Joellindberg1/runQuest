@@ -19,6 +19,7 @@ import { isValidAthleteId } from '../services/stravaAthlete.js';
 import { fetchAthleteActivities, fetchDetailedActivity, getValidAccessToken, stravaFetch, type AccessTokenResult } from '../services/stravaClient.js';
 import { exceedsImportDistance, extractExtendedFields, importStravaActivity, isRunningActivity, type ImportedRun } from '../services/stravaImport.js';
 import { getLastStravaImportAt } from '../services/stravaLastImport.js';
+import { checkSealingReady, upsertStravaConnection } from '../services/stravaTokenStore.js';
 import { removeStravaConnection } from '../services/stravaConnection.js';
 import { revokeStravaAuthorization } from '../services/stravaRevoke.js';
 import { errorCode } from '../utils/errorCode.js';
@@ -63,12 +64,17 @@ function parseSyncPausedBody(body: unknown): boolean | null {
   return typeof paused === 'boolean' ? paused : null;
 }
 
+/** What the endpoints say when the Strava tokens cannot be read or saved (ADR 013 decision 9). The answer is 503: the fault is ours and passes. */
+const TOKEN_STORAGE_UNAVAILABLE = 'Strava is temporarily unavailable';
+
 /** The message the sync and the debug endpoint give for a token that could not be had. */
 function tokenFailureMessage(token: Extract<AccessTokenResult, { ok: false }>): string {
   switch (token.reason) {
     case 'not_connected': return 'User not connected to Strava';
     // The row could not be read: that says nothing about the connection, so it is not "not connected".
     case 'token_read_failed': return 'Failed to read Strava connection';
+    // The stored token cannot be read or the key is missing (ADR 013): our fault and temporary, never "connect again".
+    case 'token_unreadable': return TOKEN_STORAGE_UNAVAILABLE;
     // A rejected refresh token is reported like any failed refresh: the sync deletes nothing (only the deauthorize event does).
     case 'refresh_failed':
     case 'refresh_rejected':
@@ -104,6 +110,12 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
     // A row that could not be read says nothing about the connection: an error, never "not connected" (which the client acts on).
     if (!token.ok && token.reason === 'token_read_failed') {
       res.status(500).json({ error: 'Failed to check Strava status' }); return;
+    }
+
+    // A token we cannot read (or a missing key) is our fault and says nothing about the connection: not "not connected" and not
+    // "expired" (the client acts on both by asking the user to connect again). A temporary error, ADR 013 decision 9.
+    if (!token.ok && token.reason === 'token_unreadable') {
+      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE }); return;
     }
 
     if (!token.ok && token.reason === 'not_connected') {
@@ -264,7 +276,15 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     if (!clientId || !clientSecret) {
       res.status(500).json({ error: 'Strava credentials not configured' }); return;
     }
-    
+
+    // The key is checked BEFORE the code is exchanged (ADR 013 decision 5.5 and 9): a code spent on tokens that cannot be saved is a
+    // connection the user has to make again, and a connection that could only be saved as plaintext must not be made at all.
+    const sealing = checkSealingReady();
+    if (!sealing.ok) {
+      logger.error(`❌ Strava callback for user ${userId} cannot store tokens (${sealing.code}); the code was not exchanged`);
+      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE }); return;
+    }
+
     // The exchange and the save are ONE step under the user's lock, like the disconnect (ADR 010 decision 6): a reconnect that starts in
     // the middle of a disconnect waits for it, so the disconnect's delete can never remove the connection that was just made, and a
     // code is never exchanged just before the disconnect revokes the authorisation it creates.
@@ -308,16 +328,12 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
         });
       }
 
-      // Save tokens to database
-      const supabase = getSupabaseClient();
+      // Save tokens to database: the token store seals them (ADR 013), and nothing here handles a token column.
       const connectedAt = new Date().toISOString();
-      const { error } = await supabase
-        .from('strava_tokens')
-        .upsert({
-          user_id: userId,
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          expires_at: tokenData.expires_at,
+      const { error } = await upsertStravaConnection(
+        userId,
+        { accessToken: tokenData.access_token, refreshToken: tokenData.refresh_token, expiresAt: tokenData.expires_at },
+        {
           connection_date: connectedAt,
           // Samtyckesloggen: versionen är kontrollerad ovan, tidpunkten sätts av servern. En återanslutning skriver nya värden.
           consent_version: STRAVA_CONSENT_VERSION,
@@ -327,7 +343,9 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
           // En ny anslutning är aldrig pausad.
           sync_paused: false,
           paused_at: null
-        });
+        },
+        sealing.ring
+      );
 
       if (error?.code === '23505' && `${error.message} ${error.details ?? ''}`.includes('strava_tokens_athlete_id_key')) {
         // Samma Strava-konto är redan kopplat till en annan RunQuest-användare (unikt index, migration 045).
@@ -404,10 +422,13 @@ router.post('/sync', authenticateJWT, async (req, res) => {
         newRuns: result.newRuns,
         totalActivities: result.totalActivities
       });
+    } else if (result.unavailable) {
+      // The Strava tokens cannot be read or the key is missing (ADR 013): the same temporary error as GET /status, not a request error.
+      res.status(503).json({ error: result.error }); return;
     } else {
       res.status(400).json({ error: result.error }); return;
     }
-    
+
   } catch (error) {
     logger.error(`❌ Manual Strava sync error for user ${req.user!.user_id} (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to sync Strava activities' }); return;
@@ -433,10 +454,9 @@ export async function syncAllStravaUsers(): Promise<{
 
     const { data: connectedUsers, error } = await supabase
       .from('strava_tokens')
+      // No token columns: only the user is needed here, and the tokens are read by the token store when each user is synced.
       .select(`
         user_id,
-        access_token,
-        refresh_token,
         expires_at,
         users!inner(name)
       `)
@@ -609,6 +629,8 @@ interface UserSyncResult {
   error?: string;
   /** The user's sync is paused (ADR 010 decision 7.5): nothing was fetched or imported. */
   paused?: true;
+  /** The Strava tokens could not be read or the key is missing (token_unreadable): temporary and ours. The manual sync answers 503. */
+  unavailable?: true;
 }
 
 // Helper function to sync activities for a single user. Every caller (manual POST /sync, the scheduled polling) goes through the
@@ -634,7 +656,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
 
     const token = await getValidAccessToken(userId);
     if (!token.ok) {
-      return { success: false, error: tokenFailureMessage(token) };
+      return { success: false, error: tokenFailureMessage(token), ...(token.reason === 'token_unreadable' ? { unavailable: true as const } : {}) };
     }
     const accessToken = token.accessToken;
 

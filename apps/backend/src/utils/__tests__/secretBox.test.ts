@@ -109,6 +109,7 @@ describe('secretBox wrong key', () => {
   });
 
   it('reads the process environment when no ring is passed, and only when called', () => {
+    vi.stubEnv(RETIRED_KEYS_ENV, ''); // a retired list in the surrounding environment must not decide this test
     vi.stubEnv(ACTIVE_KEY_ENV, '');
     expect(codeOf(() => seal('x', AAD))).toBe('key_missing');
     expect(codeOf(() => open('enc:v1:env-1:AAAAAAAAAAAAAAAA::AAAAAAAAAAAAAAAAAAAAAA', AAD))).toBe('key_missing');

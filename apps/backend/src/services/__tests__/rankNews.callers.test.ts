@@ -51,6 +51,7 @@ vi.mock('../rankNews.js', async (importOriginal) => {
 
 import { activityKeys } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { recordRankPassesForXp } from '../rankNews.js';
@@ -87,7 +88,7 @@ const stravaRun = (over: Row = {}): Row => ({
 
 function use(tables: Partial<Record<string, Row[]>>) {
   const t: Record<string, Row[]> = {
-    strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01' }],
+    strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01' }],
     runs: [], event_entries: [], activity_log: [], user_boosts: [],
     ...(tables as Record<string, Row[]>),
   };

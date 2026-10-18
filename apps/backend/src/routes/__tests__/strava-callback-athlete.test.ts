@@ -19,6 +19,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols, plainRow } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
@@ -63,7 +64,7 @@ const connect = (user_id = 'user-1') =>
   server.request('POST', '/api/strava/callback', { token: mintToken({ user_id, group_id: 'group-1' }), body: { code: 'auth-code', consent_version: STRAVA_CONSENT_VERSION } });
 
 const existing = (user_id: string, over: Row = {}): Row => ({
-  user_id, access_token: 'old-at', refresh_token: 'old-rt', expires_at: 1, connection_date: '2026-09-01', sync_paused: false, ...over,
+  user_id, ...tokenCols(user_id, 'old-at', 'old-rt'), expires_at: 1, connection_date: '2026-09-01', sync_paused: false, ...over,
 });
 
 describe('POST /api/strava/callback — athlete identity', () => {
@@ -75,7 +76,7 @@ describe('POST /api/strava/callback — athlete identity', () => {
 
     expect(res.status).toBe(200);
     expect(t.strava_tokens).toHaveLength(1);
-    expect(t.strava_tokens[0]).toMatchObject({ user_id: 'user-1', access_token: 'new-at', refresh_token: 'new-rt', strava_athlete_id: 4711 });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ user_id: 'user-1', access_token: 'new-at', refresh_token: 'new-rt', strava_athlete_id: 4711 });
     expect(errorLog).not.toHaveBeenCalled();
   });
 
@@ -88,7 +89,7 @@ describe('POST /api/strava/callback — athlete identity', () => {
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ error: 'This Strava account is already connected to another RunQuest user' });
     expect(t.strava_tokens).toHaveLength(1); // ingen rad för user-1
-    expect(t.strava_tokens[0]).toMatchObject({ user_id: 'user-2', strava_athlete_id: 4711, access_token: 'old-at' }); // user-2 orörd
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ user_id: 'user-2', strava_athlete_id: 4711, access_token: 'old-at' }); // user-2 orörd
   });
 
   it('callback lets the same user reconnect the athlete they already own', async () => {
@@ -99,7 +100,7 @@ describe('POST /api/strava/callback — athlete identity', () => {
 
     expect(res.status).toBe(200);
     expect(t.strava_tokens).toHaveLength(1);
-    expect(t.strava_tokens[0]).toMatchObject({ user_id: 'user-1', strava_athlete_id: 4711, access_token: 'new-at' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ user_id: 'user-1', strava_athlete_id: 4711, access_token: 'new-at' });
   });
 
   it('callback keeps working and logs an error when the token response has no athlete object', async () => {
@@ -110,7 +111,7 @@ describe('POST /api/strava/callback — athlete identity', () => {
 
     expect(res.status).toBe(200);
     expect(t.strava_tokens).toHaveLength(1);
-    expect(t.strava_tokens[0]).toMatchObject({ user_id: 'user-1', access_token: 'new-at' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ user_id: 'user-1', access_token: 'new-at' });
     expect(t.strava_tokens[0].strava_athlete_id ?? null).toBeNull();
     expect(errorLog).toHaveBeenCalledTimes(1);
     expect(String(errorLog.mock.calls[0][0])).toMatch(/athlete/i);
@@ -148,7 +149,7 @@ describe('POST /api/strava/callback — athlete identity', () => {
 
     expect(res.status).toBe(200);
     expect(t.strava_tokens).toHaveLength(1);
-    expect(t.strava_tokens[0]).toMatchObject({ strava_athlete_id: 4711, access_token: 'new-at' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ strava_athlete_id: 4711, access_token: 'new-at' });
   });
 
   it('callback does not report a 409 for other database failures', async () => {

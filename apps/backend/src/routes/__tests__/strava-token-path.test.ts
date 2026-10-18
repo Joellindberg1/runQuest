@@ -41,6 +41,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols, plainRow } from '../../test-utils/stravaTokens.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
@@ -65,7 +66,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const TOKEN_ROW = { user_id: 'user-1', access_token: 'old-at', refresh_token: 'old-rt', expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } };
+const TOKEN_ROW = { user_id: 'user-1', ...tokenCols('user-1', 'old-at', 'old-rt'), expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } };
 const EXPIRED = { ...TOKEN_ROW, expires_at: 100 };
 
 function use(
@@ -163,7 +164,7 @@ describe('POST /api/strava/sync token path', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, newRuns: 1, totalActivities: 1 });
     expect(strava.requests.find((r) => r.route === 'athleteActivities')?.headers.authorization).toBe('Bearer new-at');
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
   });
 
   it('sync fails with a refresh error when the token cannot be renewed', async () => {
@@ -205,7 +206,7 @@ describe('POST /api/strava/backfill-extended', () => {
 
     expect(res.body).toMatchObject({ success: true, totalUpdated: 1, summary: [{ user: 'Test', updated: 1 }] });
     expect(strava.requests.find((r) => r.route === 'activity')?.headers.authorization).toBe('Bearer new-at');
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
     expect(t.runs[0]).toMatchObject({ suffer_score: 33, sport_type: 'Run' });
 
     // The listing query no longer carries the secrets; the token path reads them per user.
