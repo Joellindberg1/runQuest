@@ -176,3 +176,102 @@ migration, `docs/release.md`).
    tung fråga (hög `total_ms` eller `seq_tup_read`) vars filterkolumner saknas här.
 5. En tabell med några hundra rader får ofta en sekventiell läsning även när ett index finns, för att planeraren väljer det
    billigaste. Skapa inte index på tabeller under några tusen rader utan att frågan faktiskt är långsam.
+
+## Landningens baslinje (RUN-260)
+
+Mätt 2026-10-19 (RUN-328, S1 i ADR 006, addendum 2026-10-19) på `/` **innan** förrenderingen finns: `dist/landing.html` och Caddy-regeln saknas, så `/` serveras av `index.html` och landningen ritas av JS (lazy `Index`-chunk). Det här är siffrorna S4–S6 ska slå, och underlaget för ägarbeslut C.
+
+**Hur det mättes.** Bygge av `integration/v0.8.0` (76e2834e), `npm run build` i `apps/frontend`. `scripts/lighthouse/run.sh` oförändrat (mobilprofil, 3 körningar, Caddy på 127.0.0.1) i båda `STATS_MODE`. Desktop och "applicerad strypning" (nedan) kördes med samma servering och egna lhci-inställningar (`preset: desktop` respektive `throttlingMethod: devtools`), 3 körningar vardera. Lighthouse 12.6.1, Microsoft Edge 155 headless (`--headless=new`) på Windows, **inte** Linux/Chrome som CI. Absoluta tal är alltså lokala och ska inte jämföras mot CI-medianerna i `docs/release.md`; jämför före/efter på samma maskin. Råa rapporter ligger inte i repot. Medianer av 3 körningar, siffror för `/`.
+
+### Mått (median av 3)
+
+| Profil | Läge | Perf | LCP (ms) | FCP (ms) | CLS | TBT (ms) |
+|---|---|---|---|---|---|---|
+| Mobil (simulerad strypning, som CI) | API ger fel | 0,81 | 4 347 | 2 722 | 0,018 | 7 |
+| Mobil (simulerad strypning, som CI) | falskt API | 0,81 | 4 326 | 2 727 | 0,000 | 27 |
+| Desktop | API ger fel | 0,99 | 936 | 609 | 0,009 | 0 |
+| Desktop | falskt API | 0,99 | 934 | 614 | 0,000 | 0 |
+| Mobil, applicerad strypning (tillägg, brusig) | API ger fel | 0,69 | 5 386 | 2 985 | 0,018 | 211 |
+| Mobil, applicerad strypning (tillägg, brusig) | falskt API | 0,67 | 5 521 | 3 033 | 0,000 | 247 |
+
+Enskilda körningar (LCP, mobil simulerad): fel 4 364 / 4 347 / 4 264, falskt API 4 326 / 4 279 / 4 467. Applicerad strypning varierar mer (LCP 5 243–7 195 ms, TBT 142–1 035 ms; första körningen är kall). Den raden är ett tillägg: den visar riktiga, ordnade nätverkstider under 150 ms RTT, 1,6 Mbit/s och 4× CPU, men är inte CI:s mått. Budgetens `/legal` låg på LCP 2 909 / 2 961 ms (mobil, fel/falskt API).
+
+### LCP-elementet
+
+| Profil | Element (selektor ur `largest-contentful-paint-element`) | Typ |
+|---|---|---|
+| Mobil (390 px) | `div#film > div.rq-film__stage > picture.rq-film__poster > img` | filmens poster, `landing-film-poster-480.v1.webp`, `loading="lazy"`, ruta 370×207 vid y = 464 |
+| Desktop | `div.rq-landing__inner > main.rq-landing-main > section.rq-landing-hero > h1#landing-title` | rubriktext, ruta 679×265 |
+
+Samma element i alla 12 mobilkörningar och alla 6 desktopkörningar. På desktop ritas h1 när CSS och JS är klara; filmens poster (720-varianten, 50 954 B) laddas men är inte LCP. Efter S2 byter mobilpostern id (`#film-mobile`), selektorn ovan ändras då.
+
+### LCP-faser, mobil
+
+| Fas (median) | Simulerad, fel | Simulerad, falskt API | Applicerad, fel |
+|---|---|---|---|
+| TTFB | 453 ms (10 %) | 452 ms | 5 ms |
+| **Load delay** (tid till att postern begärs) | **3 191 ms (≈ 74 %)** | **3 064 ms (≈ 71 %)** | **4 171 ms (≈ 77 %)** |
+| Load time (själva hämtningen) | 99 ms (≈ 2 %) | 64 ms (≈ 1 %) | 1 188 ms (≈ 22 %) |
+| Render delay | 548 ms | 715 ms | 35 ms |
+
+Lighthouse underkänner `lcp-discovery-insight` och `lcp-lazy-loaded` i alla mobilkörningar: begäran finns inte i det första dokumentet, `fetchpriority="high"` saknas och bilden är `loading="lazy"`. (`prioritize-lcp-image` godkänner, eftersom bilden redan hämtas med hög prioritet först när den väl finns.) Desktop-LCP (h1) har load delay 0 och render delay ≈ 0,8 s.
+
+### Nätverksordning (Lighthouse `network-requests`, ms från första begäran: start till slut)
+
+Observerade tider, localhost utan strypning (mobil, median av 3; falskt API inom parentes där det skiljer sig):
+
+| Resurs | Start – slut | Anmärkning |
+|---|---|---|
+| `/` (dokumentet) | 1 – 5 | 3 542 B, ingen `landing`-markup, tom `#root` |
+| `fonts/bebas-neue-400.v1.woff2` | 22 – 36 | förladdad i `<head>` |
+| **`assets/index-BDyySsWJ.js` (ingångs-JS)** | **30 – 46** | `modulepreload` av `router-` och `react-query-` samtidigt |
+| `assets/index-CinfvKFm.css` | 32 – 40 | renderingsblockerande |
+| **`assets/Index-B4w1MJSK.js` (landningens lazy-chunk)** | **169 – 177** (160 – 164) | begärs först när ingångs-JS körts och routern valt `Index` |
+| `assets/Index-OCyMgc2W.css` | 170 – 176 | landningens CSS, hör till samma lazy-chunk |
+| **`media/landing-film-poster-480.v1.webp` (poster)** | **286 – 288** (305 – 312) | prioritet Low i Chrome (lazy), begärs efter lazy-chunken |
+| `/api/public/stats` | 221 – 225 (211 – 216) | efter hydrering |
+
+Lokalt är allt snabbt; det som visar ordningen är att postern är **tredje nivån**: dokument, sedan ingångs-JS, sedan lazy-chunken, sedan postern. Samma kedja med applicerad strypning (mobil, median av 3, fel-läge; falskt API inom parentes), där tiderna är verkliga:
+
+| Resurs | Start – slut (ms) |
+|---|---|
+| dokumentet | 1 – 590 |
+| ingångs-JS | 637 – 2 720 (624 – 2 719) |
+| entry-CSS | 637 – 1 955 |
+| lazy-chunk `Index-*.js` | 3 040 – 3 770 (3 086 – 3 826) |
+| `Index-*.css` | 3 043 – 3 724 |
+| **poster** | **4 173 – 5 349 (4 268 – 5 449)** |
+| LCP | 5 386 (5 521) |
+
+Desktop (observerat, median): ingångs-JS 21 – 37, lazy-chunk 150 – 156, poster (720) 255 – 262 (falskt API 332 – 345).
+
+### Bytes
+
+Ingångskedjan på `/` är sex JS-filer. Rått, gzip (nivå 9, `zlib`) och överfört enligt Lighthouse (Caddy `encode`, med svarshuvud):
+
+| Fil | Rått | gzip | Överfört |
+|---|---|---|---|
+| **`index-BDyySsWJ.js` (ingångs-chunk)** | **495 849 B** | **152 994 B** | 159 880 B |
+| `router-Dbt-CLBq.js` (modulepreload) | 162 532 B | 53 252 B | 56 052 B |
+| `react-query-CHP6laak.js` (modulepreload) | 39 697 B | 11 794 B | 12 666 B |
+| **`Index-B4w1MJSK.js` (landningens lazy-chunk)** | **27 570 B** | **9 164 B** | 9 800 B |
+| `TextField-DwlUB5us.js`, `previewUsers-DeZ1pD3M.js` (lazy, små) | 1 106 + 1 929 B | 541 + 770 B | 879 + 1 133 B |
+| **Summa JS på `/`** | **728 683 B** | **228 515 B** | **240 410 B** (= `resource-summary:script:size` 240,4 kB) |
+| `index-CinfvKFm.css` (renderingsblockerande) | 216 871 B | 32 913 B | 36 979 B |
+| `Index-OCyMgc2W.css` (landning) | 27 637 B | 4 554 B | 5 310 B |
+| `landing-film-poster-480.v1.webp` (mobil) | 27 246 B | – | 27 552 B |
+| `landing-film-poster-720.v1.webp` (desktop) | 50 954 B | – | 51 261 B |
+
+Totalt överfört på `/`: ca 431 kB (mobil, 20 begäranden). Budgettaket för skriptvikt är 275 kB. Teckensnitten väger 116 kB (sex filer, bara Bebas Neue är förladdad).
+
+### Slutsats för ägarbeslut C: är mobilpostern LCP-flaskhalsen?
+
+**Ja, postern är LCP-elementet på mobil (12 av 12 körningar), men det är inte bildens storlek som kostar, det är att den upptäcks sent.** Tre fynd:
+
+1. **Väntan, inte hämtning.** 71–77 % av mobil-LCP är load delay (3,1–4,2 s) innan postern ens begärs; själva hämtningen är 1–2 % (64–99 ms simulerat). Under riktig strypning är hämtningen 1,2 s, men med 150 ms RTT (562 ms i Lighthouses strypning) är det troligen mest latens, inte de 27 kB (inte separat mätt).
+2. **Orsaken är JS-kedjan.** Postern finns inte i dokumentet; den skapas av landningens lazy-chunk, som i sin tur begärs först efter att ingångs-JS (496 kB rått, 160 kB överfört) hämtats och körts. Ingen yta ritas heller före JS: mobil-FCP är 2,7 s, redan över målet 2,5 s, så även en omedelbart hämtad poster hade inte räckt utan förrendering.
+3. **Desktop är inte ett problem att lösa med postern.** LCP är rubriken (0,93 s), långt under målet.
+
+Det betyder att S4–S6 (förrendering, `<link rel="preload" … fetchpriority="high">` för mobilpostern, `loading="eager"`) träffar den faktiska orsaken. Att **minska postern** vore en dålig hävstång på dessa siffror: 27 kB är ca 6 % av sidans 431 kB och hämtningen 1–2 % av LCP. Att **flytta postern under första skärmen** ändrar bara vilket element som blir LCP (troligen h1 eller ingressen), men löser inte att inget ritas före JS. Ingen av de tre vägarna i beslut C ska väljas på dagens underlag.
+
+Det som **inte** går att avgöra ur baslinjen: om 2,5 s nås efter förrendering. Hypotesen är att kedjan blir dokument, CSS (37 kB), poster (27 kB) i stället för dokument, JS, lazy-chunk, poster, men S6 måste mäta det. Beslut C blir aktuellt först om S6:s mobil-LCP fortfarande ligger över 2,5 s **och** postern fortfarande är LCP-elementet; då avgör LCP-fasen "load time" i den rapporten om det är bildens storlek (minska eller flytta) eller något annat som kostar. Ligger postern kvar som LCP men load delay är nära noll vore storleken nästa hävstång. TBT är lågt idag (7–27 ms simulerat, 211–247 ms applicerat); hydrering av hela landningen kan höja det (ADR 006, risk 2), så den raden ska följas i S6.
