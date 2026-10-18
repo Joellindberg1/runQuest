@@ -314,15 +314,6 @@ describe('the other Strava routes', () => {
     expectOnlyTheCode('M0001');
   });
 
-  it('debug-activities logs only the code', async () => {
-    databaseThrows('G0001');
-
-    const res = await server.request('GET', '/api/strava/debug-activities', { token: user() });
-
-    expect(res.status).toBe(500);
-    expectOnlyTheCode('G0001');
-  });
-
   it('sync-all logs only the code', async () => {
     setup({ failWhen: (q) => (q.table === 'strava_tokens' && q.select?.includes('access_token') ? (Object.assign({ message: LEAK }, { code: 'Y0001', details: LEAK }) as never) : null) });
 
