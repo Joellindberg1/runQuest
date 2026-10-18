@@ -18,6 +18,9 @@ import {
   errorCode,
   recomputeAfterRemoval,
 } from './stravaRemoval.js';
+import { tryClear, tryMark } from './recalculationMarks/bestEffort.js';
+import type { RecalculationMarkStore } from './recalculationMarks/ports.js';
+import { createRecalculationMarkStore } from './recalculationMarks/supabaseStore.js';
 
 /** 'deauthorized': Strava already revoked, so we never revoke again (S17). 'user_disconnect': the user chose it in Settings (S19). */
 export type RemoveConnectionReason = 'deauthorized' | 'user_disconnect';
@@ -30,6 +33,8 @@ export interface RemoveConnectionOptions {
    * Default: none.
    */
   revoke?: (userId: string) => Promise<void>;
+  /** The recalculation marks (migration 057). Default: the real store. Only tests pass one. */
+  marks?: RecalculationMarkStore;
 }
 
 function fail(what: string, error: unknown): never {
@@ -57,10 +62,24 @@ function fail(what: string, error: unknown): never {
  *
  * Throws on a database error (a Postgres code, no row values) and on a reprocess error from recomputeAfterRemoval (after it has
  * tried the totals); in both cases the token row is still there and a rerun carries on.
+ *
+ * RECALCULATION MARKS (RUN-322, migration 057): the row above is this function's own recovery for everything but one case, the totals
+ * failing after a reprocess that worked (recomputeAfterRemoval does not throw for that, and the row then goes: nothing would ever
+ * recalculate that user). The same mark the nightly reconcile uses closes it: written before the delete, cleared when the recalculation
+ * (reprocess AND totals) worked, left for the recovery job otherwise. Unlike the reconcile, a mark that cannot be written does NOT stop
+ * the disconnect: a deletion has Strava's deadline and the row-based rerun covers the crash, so the mark is a second net here.
  */
 export async function removeStravaConnection(userId: string, options: RemoveConnectionOptions): Promise<void> {
   if (typeof userId !== 'string' || userId === '') throw new TypeError('removeStravaConnection needs a user id');
   const { reason, revoke } = options;
+  const marks = options.marks ?? createRecalculationMarkStore();
+  const who = 'Strava disconnect';
+
+  /** Recalculates from `from` under a mark; the mark is cleared only when the reprocess AND the totals worked (a reprocess failure throws before that). */
+  async function recomputeMarked(from: string, markedVersion: number | null): Promise<void> {
+    const totalsDone = await recomputeAfterRemoval(userId, from);
+    if (totalsDone && markedVersion !== null) await tryClear(marks, userId, markedVersion, who);
+  }
 
   if (reason === 'user_disconnect' && revoke) {
     try {
@@ -81,9 +100,10 @@ export async function removeStravaConnection(userId: string, options: RemoveConn
   // The oldest date comes from its own query: the rows a delete hands back are capped by PostgREST max-rows and unordered.
   const oldest = await earliestStravaRunDate(userId);
   if (oldest !== null) {
+    const markedVersion = await tryMark(marks, userId, oldest, who); // before the delete: nothing between here and the recalculation can lose the date
     const deletedDates = await deleteStravaRuns(userId, { all: true });
     const from = deletedDates.length > 0 && deletedDates[0] < oldest ? deletedDates[0] : oldest;
-    await recomputeAfterRemoval(userId, from);
+    await recomputeMarked(from, markedVersion);
 
     // The row must not go while a Strava run is left (a capped or partial delete): a rerun finishes the runs first.
     const left = await countStravaRuns(userId);
@@ -96,7 +116,7 @@ export async function removeStravaConnection(userId: string, options: RemoveConn
     const from = await earliestRunDate(userId);
     if (from !== null) {
       logger.info(`🔁 Strava disconnect: finishing an earlier attempt for user ${userId}, reprocessing from the earliest run`);
-      await recomputeAfterRemoval(userId, from);
+      await recomputeMarked(from, await tryMark(marks, userId, from, who));
     } else {
       await calculateUserTotals(userId, { emitRankNews: false }); // the bulk deletion: no rank_passed (ADR 011 decision 6)
     }

@@ -12,6 +12,7 @@ import { startEventScheduler } from './scheduler/eventScheduler.js';
 import { startStreakScheduler } from './scheduler/streakScheduler.js';
 import { startStravaWebhookScheduler } from './scheduler/stravaWebhookScheduler.js';
 import { startStravaReconcileScheduler } from './scheduler/stravaReconcileScheduler.js';
+import { startRecalculationRecoveryScheduler } from './scheduler/recalculationRecoveryScheduler.js';
 import { registerStravaRateBudget } from './services/stravaRateBudget.js';
 import { reportTokenKeyAtStartup } from './services/tokenKeyStartup.js';
 import { flushSentry, initSentry } from './observability/sentry.js';
@@ -98,6 +99,7 @@ server.on('listening', () => {
     startStreakScheduler();
     startStravaWebhookScheduler();
     startStravaReconcileScheduler();
+    startRecalculationRecoveryScheduler();
   } else {
     logger.info('ℹ️ Schedulers disabled in development mode');
     logger.info('💡 Use POST /api/strava/sync for manual Strava testing');

@@ -153,11 +153,11 @@ export const FIRST_PARTY_PATH_SEGMENTS: ReadonlySet<string> = new Set([
   'activity_log', 'admin_settings', 'challenge_durations', 'challenge_metrics', 'challenge_rewards', 'challenges', 'event_entries',
   'event_pool_members', 'event_pools', 'event_templates', 'events', 'group_members', 'group_settings', 'groups',
   'level_challenge_rewards', 'level_requirements',
-  'news_read', 'run_weather', 'runs', 'strava_tokens', 'strava_webhook_events', 'streak_multipliers', 'title_leaderboard',
+  'news_read', 'recalculation_marks', 'run_weather', 'runs', 'strava_tokens', 'strava_webhook_events', 'streak_multipliers', 'title_leaderboard',
   'title_leaderboard_view', 'titles', 'user_badges', 'user_boosts', 'user_challenge_tokens', 'user_seen_items', 'user_settings',
   'user_titles', 'users', 'waitlist_signups',
   // rpc-funktioner koden anropar
-  'claim_strava_webhook_events', 'create_group_with_admin', 'increment_event_xp', 'join_group', 'update_all_title_leaderboards', 'update_group_title_leaderboard', 'update_group_title_leaderboards',
+  'claim_strava_webhook_events', 'clear_recalculation_mark', 'create_group_with_admin', 'increment_event_xp', 'join_group', 'mark_recalculation', 'update_all_title_leaderboards', 'update_group_title_leaderboard', 'update_group_title_leaderboards',
   'update_title_leaderboard',
   // Strava: api/v3/activities/{id}, athlete, athlete/activities, push_subscriptions och oauth/token|deauthorize
   'api', 'v3', 'activities', 'athlete', 'push_subscriptions', 'oauth', 'token', 'deauthorize',
