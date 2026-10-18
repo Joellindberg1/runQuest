@@ -45,7 +45,7 @@ export interface FakeDbOptions {
   /** Anropas precis innan en insert i `table` utvärderas — för att simulera att en annan förfrågan hann före. */
   beforeInsert?: (table: string, tables: Record<string, Row[]>) => void;
   /** Svar för supabase.rpc(namn, args). Okänd rpc → { data: null, error: null }. */
-  rpc?: Record<string, (args: any) => { data?: unknown; error?: { message: string } | null }>;
+  rpc?: Record<string, (args: any) => { data?: unknown; error?: { message: string; code?: string; details?: string; hint?: string } | null }>;
 }
 
 function pick(row: Row, path: string): unknown {

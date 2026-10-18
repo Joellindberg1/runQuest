@@ -12,6 +12,7 @@ import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/group
 import { compareXpStandings } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
+import { joinGroup } from '../utils/membership.js';
 
 const router = express.Router();
 
@@ -282,7 +283,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create new user — assign to same group as the admin creating them
+    // Create new user. Gruppen sätts inte här: join_group ger medlemskapet och sätter pekaren users.group_id (ADR 012 beslut 2.2).
     const { data: newUser, error } = await supabase
       .from('users')
       .insert({
@@ -293,14 +294,27 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
         current_level: 1,
         current_streak: 0,
         longest_streak: 0,
-        total_km: 0.0,
-        group_id: groupId
+        total_km: 0.0
       })
       .select('id, name, email, total_xp, current_level, current_streak, created_at')
       .single();
 
     if (error) {
       logger.error(`❌ Error creating user (${errorCode(error)})`);
+      res.status(500).json({ error: 'Failed to create user' }); return;
+    }
+
+    // Medlemskapet i adminens grupp (rollen member; första medlemskapet räknar hela historiken). Misslyckas det tas kontot bort igen:
+    // supabase-js har inga flerstegstransaktioner, och ett konto utan grupp får aldrig bli kvar (F2, ADR 007 A6).
+    // Misslyckas även borttagningen blir kontot kvar utan group_id och utan rad i group_members; loggen har då båda felkoderna och användar-id:t.
+    // Manuell städning (Lead/ägaren, prod-radering kräver ägarens ja): verifiera i läsfråga att id:t saknar aktivt medlemskap och group_id
+    // (`select id from users u where u.id = '<id>' and u.group_id is null and not exists (select 1 from group_members m where m.user_id = u.id)`),
+    // radera sedan exakt den raden (`delete from users where id = '<id>'`; inget annat följer med, kontot har inga rundor eller medlemskap).
+    try {
+      await joinGroup({ userId: newUser.id, groupId, role: 'member' }, supabase);
+    } catch (joinError) {
+      const { error: cleanupError } = await supabase.from('users').delete().eq('id', newUser.id);
+      logger.error(`❌ Error adding new user ${newUser.id} to the group (${errorCode(joinError)})${cleanupError ? `; the user could not be removed again (${errorCode(cleanupError)})` : ''}`);
       res.status(500).json({ error: 'Failed to create user' }); return;
     }
 

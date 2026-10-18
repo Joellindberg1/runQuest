@@ -20,6 +20,7 @@ vi.mock('../../config/database.js', () => ({
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
+import { membershipRpc } from './helpers/fakeMembership.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 import { startFakeSentry } from '../../observability/__tests__/helpers/fakeSentry.js';
 
@@ -41,8 +42,8 @@ const people = (): Row[] => [
 ];
 
 function useDb(users: Row[] = people(), options: Parameters<typeof createFakeDb>[1] = {}) {
-  const tables: Record<string, Row[]> = { users };
-  const db = createFakeDb(tables, { autoIds: true, ...options });
+  const tables: Record<string, Row[]> = { users, groups: [{ id: GROUP_A }, { id: GROUP_B }], group_members: [] };
+  const db = createFakeDb(tables, { autoIds: true, rpc: membershipRpc(tables), ...options });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return { ...db, tables };
 }
@@ -61,6 +62,7 @@ describe('POST /api/auth/users (admin)', () => {
     expect(res.body.success).toBe(true);
     const created = db.tables.users.find((u) => u.email === 'newbie@example.com');
     expect(created?.group_id).toBe(GROUP_A);
+    expect(db.tables.group_members).toMatchObject([{ user_id: created?.id, group_id: GROUP_A, role: 'member' }]);
   });
 
   it('answers 403 and creates no user when the admin token has no group', async () => {

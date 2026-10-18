@@ -157,7 +157,7 @@ export const FIRST_PARTY_PATH_SEGMENTS: ReadonlySet<string> = new Set([
   'title_leaderboard_view', 'titles', 'user_badges', 'user_boosts', 'user_challenge_tokens', 'user_seen_items', 'user_settings',
   'user_titles', 'users', 'waitlist_signups',
   // rpc-funktioner koden anropar
-  'claim_strava_webhook_events', 'increment_event_xp', 'update_all_title_leaderboards', 'update_title_leaderboard',
+  'claim_strava_webhook_events', 'create_group_with_admin', 'increment_event_xp', 'join_group', 'update_all_title_leaderboards', 'update_title_leaderboard',
   // Strava: api/v3/activities/{id}, athlete, athlete/activities, push_subscriptions och oauth/token|deauthorize
   'api', 'v3', 'activities', 'athlete', 'push_subscriptions', 'oauth', 'token', 'deauthorize',
   // Open-Meteo

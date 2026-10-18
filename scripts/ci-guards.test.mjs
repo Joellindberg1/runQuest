@@ -23,6 +23,7 @@ import {
   checkRawStravaFetch,
   checkTestNames,
   checkTodos,
+  checkUsersGroupIdWrites,
   isEntryPoint,
   listWorkspaces,
   walkFiles,
@@ -271,6 +272,134 @@ describe('checkGroupRoleMapping', () => {
   });
 });
 
+describe('checkUsersGroupIdWrites', () => {
+  const scan = (content, path = 'apps/backend/src/routes/groups.ts') => checkUsersGroupIdWrites([{ path, content }]);
+
+  it('flags a supabase-js write to users that sets group_id, with or without other fields', () => {
+    for (const code of [
+      "await supabase.from('users').update({ group_id: group.id }).eq('id', userId);",
+      "await supabase.from('users').update({ name, group_id: groupId, total_xp: 0 }).eq('id', userId);",
+      "await supabase.from('users').update({\n  name,\n  group_id: groupId,\n}).eq('id', userId);",
+      "await db.from('users').update({ group_id }).eq('id', id);",
+      "await db.from('users').update({ total_xp: 0, group_id }).eq('id', id);",
+      "await db.from('users').update({ 'group_id': groupId }).eq('id', id);",
+      'await db.from("users").update({ ["group_id"]: groupId }).eq("id", id);',
+      "await db.from('users').insert({ name, email, group_id: groupId }).select('id').single();",
+      "await db.from('users').insert([{ name: 'a', group_id: groupId }, { name: 'b' }]);",
+      "await db.from('users').upsert({ id, group_id: groupId }, { onConflict: 'id' });",
+      "await db\n  .from('users')\n  .update({ group_id: null })\n  .in('id', ids);",
+      "await db.from(`users`).update({ group_id: null }).eq('id', id);",
+    ]) {
+      const errors = scan(code);
+      assert.equal(errors.length, 1, code);
+      assert.match(errors[0], /apps\/backend\/src\/routes\/groups\.ts:\d+: .*join_group/);
+    }
+  });
+
+  it('flags SQL text that updates or inserts users.group_id', () => {
+    for (const code of [
+      'await client.query("update public.users set group_id = $1 where id = $2");',
+      'const sql = `update users set name = $1, group_id = $2 where id = $3`;',
+      "const sql = 'UPDATE public.users u SET group_id = null WHERE u.id = 1';",
+      "sql += `insert into public.users (id, name, email, password_hash, is_admin, group_id) values ($1, $2, $3, $4, $5, $6);`;",
+      "const sql = 'insert into users (id, group_id) values (1, 2)';",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('passes writes that do not set group_id and reads of group_id', () => {
+    for (const code of [
+      "await supabase.from('users').update({ password_hash }).eq('id', id);",
+      "await supabase.from('users').update({ news_last_seen_id: target }).eq('id', id);",
+      "await supabase.from('users').update(update).eq('id', user.id);",
+      "await supabase.from('users').select('id, group_id').eq('group_id', groupId);",
+      "await supabase.from('users').update({ challenge_active: false }).eq('group_id', groupId);",
+      "await supabase.from('users').update({ name: group_id }).eq('id', id);",
+      "await supabase.from('runs').insert({ user_id, group_id: groupId });",
+      "await supabase.from('activity_log').insert({ group_id: groupId, actor_id });",
+      "await supabase.from('group_members').update({ role }).eq('group_id', groupId);",
+      "await supabase.from('users').delete().eq('group_id', groupId);",
+      "await supabase.rpc('join_group', { p_user_id: id, p_group_id: groupId, p_role: 'member', p_today: today });",
+      'const sql = "update public.users set password_hash = $1 where group_id = $2";',
+      "const sql = 'insert into public.users (id, name) values (1, 2)';",
+      "const sql = 'update public.groups set owner_id = $1 where id = $2';",
+      "// await supabase.from('users').update({ group_id: x }) är förbjudet\nconst a = 1;",
+      '/* update users set group_id = 1 */ const b = 2;',
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('reads the query chain of the users table, not what follows after it', () => {
+    const code = "await db.from('users').select('id');\nawait db.from('runs').insert({ group_id: groupId });\n";
+    assert.deepEqual(scan(code), []);
+  });
+
+  it('ends the chain at the next element of a Promise.all and at a statement without a semicolon', () => {
+    for (const code of [
+      "await Promise.all([db.from('users').select('id'), db.from('runs').insert({ user_id, group_id: g })]);",
+      "const [a, b] = await Promise.all([\n  db.from('users').select('id'),\n  db.from('runs').insert({ user_id, group_id: g }),\n]);",
+      "const users = db.from('users').select('id'), runs = db.from('runs').insert({ group_id: g });",
+      "await db.from('users').select('id')\nawait db.from('runs').insert({ user_id, group_id: g })\n",
+      "const { data } = await db.from('users').select('id')\n\nconst next = { group_id: g }\n",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('still reads a chain that continues on following lines and a write inside a Promise.all', () => {
+    for (const code of [
+      "await db\n  .from('users')\n  .select('id')\n  .update({ group_id: g });",
+      "await db.from('users')\n  ?.update({ group_id: g });",
+      "await Promise.all([db.from('users').select('id'), db.from('users').update({ group_id: g }).eq('id', 1)]);",
+      "await db.from('users').update({ name })\n  .eq('id', 1)\n  .update({ group_id: g })\n",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('keeps reading the chain across a line comment, a block comment, blank lines and CRLF between its lines', () => {
+    const write = ".update({ group_id: g }).eq('id', 1);";
+    for (const code of [
+      `await db\n  .from('users')\n  // only active ones\n  ${write}`,
+      `await db\n  .from('users')\n  /* only active ones */\n  ${write}`,
+      `await db\n  .from('users')\n  /*\n   * several\n   * lines\n   */\n  ${write}`,
+      `await db\r\n  .from('users')\r\n  // only active ones\r\n  ${write}`,
+      `await db\r\n  .from('users')\r\n  /* only active ones */\r\n  ${write}`,
+      `await db\n  .from('users')\n\n\n  ${write}`,
+      `await db\n  .from('users')\n  /* ${'x'.repeat(400)} */\n  ${write}`,
+      `await db\n  .from('users')\n${' '.repeat(400)}${write}`,
+    ]) {
+      assert.equal(scan(code).length, 1, JSON.stringify(code));
+    }
+  });
+
+  it('reports each offending write with its own line number', () => {
+    const errors = scan("a;\nawait db.from('users').update({ group_id: a }).eq('id', 1);\nb;\nawait db.from('users').insert({ group_id: b });\n");
+    assert.equal(errors.length, 2);
+    assert.match(errors[0], /:2:/);
+    assert.match(errors[1], /:4:/);
+  });
+
+  it('checks all backend source including scripts, and skips tests, test support, and other workspaces', () => {
+    const bad = "await db.from('users').update({ group_id: g }).eq('id', 1);";
+    assert.equal(scan(bad, 'apps/backend/src/scripts/backfillSomething.ts').length, 1);
+    assert.equal(scan(bad, 'apps/backend/src/services/membershipService.ts').length, 1);
+    assert.equal(scan(bad, 'apps/backend/src/utils/membership.ts').length, 1);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/__tests__/helpers/fakeDb.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/groups.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/frontend/src/shared/x.ts'), []);
+    assert.deepEqual(scan(bad, 'packages/shared/src/x.ts'), []);
+  });
+
+  it('lets the staging seed script through, by name, until create_group_with_admin replaces it', () => {
+    const sql = 'sql += `insert into public.users (id, name, group_id) values (1, 2, 3);`;';
+    assert.deepEqual(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedGroup.ts'), []);
+    assert.equal(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedOther.ts').length, 1);
+  });
+});
+
 describe('checkWebhookSchedulerStart', () => {
   const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
   const prod = (inside) => `import x from 'x';\nserver.on('listening', () => {\n  if (process.env.NODE_ENV === 'production') {\n${inside}\n  } else {\n    logger.info('dev');\n  }\n});\n`;
@@ -451,6 +580,46 @@ describe('checkStravaTokenPath', () => {
     const errors = scan("a;\nconst { data } = await db.from('strava_tokens').select('user_id, access_token').eq('user_id', id);\n");
     assert.equal(errors.length, 1);
     assert.match(errors[0], /apps\/backend\/src\/routes\/x\.ts:2: .*stravaTokenStore/);
+  });
+
+  it('keeps reading the chain across a line comment, a block comment, blank lines and CRLF between its lines, and reports the right line', () => {
+    const reads = [
+      ".select('access_token')",
+      ".select('*')",
+      '.select()',
+      ".select('user_id').not('refresh_token', 'is', 'x')",
+      '.upsert({ ...tokens })',
+      '.update({ ...tokens })',
+      ".insert({ user_id, access_token: 'x' })",
+    ];
+    for (const read of reads) {
+      for (const code of [
+        `await db\n  .from('strava_tokens')\n  // only active ones\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /* only active ones */\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /*\n   * several\n   * lines\n   */\n  ${read};`,
+        `await db\r\n  .from('strava_tokens')\r\n  // only active ones\r\n  ${read};`,
+        `await db\r\n  .from('strava_tokens')\r\n  /* only active ones */\r\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n\n\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /* ${'x'.repeat(400)} */\n  ${read};`,
+      ]) {
+        const errors = scan(code);
+        assert.equal(errors.length, 1, JSON.stringify(code));
+        assert.match(errors[0], /x\.ts:2:/);
+      }
+    }
+  });
+
+  it('does not let a comment mentioning a token column flag a chain that reads none', () => {
+    assert.deepEqual(scan("await db\n  .from('strava_tokens')\n  // never select access_token here\n  .select('user_id');"), []);
+    assert.deepEqual(scan("await db.from('strava_tokens').select('user_id'); // access_token is in the store\n"), []);
+  });
+
+  it('still flags a token read inside a Promise.all or before a following statement, and ignores what comes after the chain', () => {
+    assert.equal(scan("await Promise.all([db.from('strava_tokens').select('access_token'), db.from('users').select('id')]);").length, 1);
+    assert.equal(scan("await Promise.all([db.from('users').select('id'), db.from('strava_tokens').select('refresh_token').eq('user_id', id)]);").length, 1);
+    assert.equal(scan("await db.from('strava_tokens').select('access_token')\nawait other()\n").length, 1);
+    assert.deepEqual(scan("await Promise.all([db.from('strava_tokens').select('user_id'), db.from('x').select('access_token')]);"), []);
+    assert.deepEqual(scan("await db.from('strava_tokens').select('user_id')\nconst t = { access_token: 1 }\n"), []);
   });
 
   it('flags the variants: refresh_token, a multi-line template select, select(*) and select(), a filter, an update, an upsert, an insert', () => {
@@ -921,6 +1090,32 @@ describe('CLI', () => {
     const result = runCli('strava-fetch');
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /stravaFetch/);
+  });
+
+  it('exits 1 on a direct write to users.group_id (also under all) and 0 once it goes through join_group', () => {
+    const makeBackend = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'utils'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'utils', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeBackend('ugid-bad', "export const f = (db) => db.from('users').update({ group_id: 1 }).eq('id', 2);\n");
+    for (const mode of ['users-group-id', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/utils\/planted\.ts:1: .*join_group/);
+    }
+    assert.equal(runCli('users-group-id', makeBackend('ugid-good', "export const f = (db) => db.rpc('join_group', {});\n")).status, 0);
+  });
+
+  it('exits 0 on the current repo in users-group-id mode', () => {
+    const result = runCli('users-group-id');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /group_id/);
   });
 
   it('does not flag the same code outside routes/', () => {
