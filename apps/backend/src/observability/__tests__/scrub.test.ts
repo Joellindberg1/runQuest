@@ -97,10 +97,24 @@ describe('beforeSend strips tokens and PII', () => {
     ['owner_id=555111', '555111'],
     ['athlete_id: 424242', '424242'],
     ['Object_ID = 31337', '31337'],
+    // a prefix joined with an underscore is part of the same word for \b, so these used to slip through
+    ['strava_athlete_id=777001', '777001'],
+    ['strava_owner_id: 777002', '777002'],
+    ['webhook_object_id=777003', '777003'],
+    ['user.strava_athlete_id = 777004', '777004'],
   ])('masks a Strava id written as %s anywhere in a string', (written, id) => {
     const out = scrub({ message: `dead event ${written} attempts=3`, extra: { note: `again ${written}` } })!;
     expect(JSON.stringify(out)).not.toContain(id);
     expect(JSON.stringify(out)).toContain('attempts=3');
+  });
+
+  it.each([
+    ['strava_access_token=ACCESS-marker-1234', 'ACCESS-marker-1234'],
+    ['db_password=hunter2-marker', 'hunter2-marker'],
+    ['STRAVA_CLIENT_SECRET=client-marker-5678', 'client-marker-5678'],
+  ])('masks a secret written with a prefix joined by an underscore: %s', (written, secret) => {
+    const out = scrub({ message: `failed ${written} attempts=3` })!;
+    expect(JSON.stringify(out)).not.toContain(secret);
   });
 
   it('survives circular structures', () => {
