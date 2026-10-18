@@ -18,8 +18,12 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 export const ACTIVE_KEY_ENV = 'TOKEN_ENCRYPTION_KEY';
 export const RETIRED_KEYS_ENV = 'TOKEN_ENCRYPTION_KEYS_RETIRED';
 
-/** The only detail a failure carries. The first five are the internal causes of ADR 013 decision 9; `bad_aad` is a caller bug (never data). */
-export const SECRET_BOX_ERROR_CODES = ['key_missing', 'key_invalid', 'unknown_key_id', 'bad_format', 'auth_failed', 'bad_aad'] as const;
+/**
+ * The only detail a failure carries. The first five are the internal causes of ADR 013 decision 9. `bad_aad` and `bad_input` are caller
+ * bugs (an AAD that is not one `buildSecretAad` could produce, a plaintext that is not a well-formed string), never configuration or data,
+ * so they stay out of the "check the key" track.
+ */
+export const SECRET_BOX_ERROR_CODES = ['key_missing', 'key_invalid', 'unknown_key_id', 'bad_format', 'auth_failed', 'bad_aad', 'bad_input'] as const;
 export type SecretBoxErrorCode = (typeof SECRET_BOX_ERROR_CODES)[number];
 
 export class SecretBoxError extends Error {
@@ -77,7 +81,8 @@ function parseKeyEntry(entry: string): { kid: string; key: Buffer } {
 /**
  * Reads and validates the key configuration. Called when a key is needed, never on import. Throws `key_missing` when there is no active
  * key and `key_invalid` for anything malformed: a bad kid, a key that is not 32 bytes of standard base64, an empty list entry or a kid
- * used twice. Whitespace around an entry is ignored; a blank retired variable means no retired keys.
+ * used twice. Leading and trailing whitespace (including a newline pasted into the Railway UI) is trimmed from the variable and from each
+ * entry; whitespace inside an entry is invalid. A blank retired variable means no retired keys.
  */
 export function parseKeyRing(env: Readonly<Record<string, string | undefined>> = process.env): KeyRing {
   const active = env[ACTIVE_KEY_ENV]?.trim();
@@ -98,13 +103,30 @@ export function parseKeyRing(env: Readonly<Record<string, string | undefined>> =
   return new KeyRing(keys, activeKid);
 }
 
-/** `rq:v1:<table>:<column>:<user_id>`. The parts are constants or ids and may not be empty or contain `:`, which would make two places collide. */
-export function buildSecretAad(parts: { table: string; column: string; userId: string }): string {
+/** The context a value is bound to. Only `buildSecretAad` creates one, so a raw or empty string cannot be passed by mistake. */
+export type SecretAad = string & { readonly __brand: 'SecretAad' };
+
+// Table and column names and ids (UUIDs): no `:` (two places could collide), no empty part, and nothing outside ASCII (a lone surrogate
+// encodes to the same bytes as every other lone surrogate).
+const AAD_PART = /^[A-Za-z0-9_.-]+$/;
+
+/** `rq:v1:<table>:<column>:<user_id>`. Each part must match `^[A-Za-z0-9_.-]+$`, otherwise `bad_aad`. */
+export function buildSecretAad(parts: { table: string; column: string; userId: string }): SecretAad {
   const { table, column, userId } = parts;
   for (const part of [table, column, userId]) {
-    if (typeof part !== 'string' || part === '' || part.includes(':')) throw new SecretBoxError('bad_aad');
+    if (typeof part !== 'string' || !AAD_PART.test(part)) throw new SecretBoxError('bad_aad');
   }
-  return `rq:v1:${table}:${column}:${userId}`;
+  return `rq:v1:${table}:${column}:${userId}` as SecretAad;
+}
+
+// A lone surrogate encodes to U+FFFD in UTF-8, so different strings would share bytes. (String#isWellFormed needs lib es2024.)
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+const isWellFormed = (value: string): boolean => !LONE_SURROGATE.test(value);
+
+/** Runtime guard behind the type: the AAD must be a non-empty, well-formed string (the brand cannot be checked, a cast can lie). */
+function aadBytes(aad: unknown): Buffer {
+  if (typeof aad !== 'string' || aad === '' || !isWellFormed(aad)) throw new SecretBoxError('bad_aad');
+  return Buffer.from(aad, 'utf8');
 }
 
 function bytesFromField(field: string, expectedLength?: number): Buffer {
@@ -118,19 +140,25 @@ function bytesFromField(field: string, expectedLength?: number): Buffer {
 }
 
 /** Encrypts `plain` under the ring's active key and binds it to `aad`. A new random iv is used every call. */
-export function seal(plain: string, aad: string, ring: KeyRing = parseKeyRing()): string {
+export function seal(plain: string, aad: SecretAad, ring: KeyRing = parseKeyRing()): string {
+  // Caller mistakes are rejected first, with their own codes, so they never read as a key problem.
+  if (typeof plain !== 'string' || !isWellFormed(plain)) throw new SecretBoxError('bad_input');
+  const aadBuffer = aadBytes(aad);
   const key = keyBytes.get(ring)?.get(ring.activeKid);
   if (!key) throw new SecretBoxError('key_missing');
+
+  const iv = randomBytes(IV_BYTES);
+  let cipher;
   try {
-    const iv = randomBytes(IV_BYTES);
-    const cipher = createCipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
-    cipher.setAAD(Buffer.from(aad, 'utf8'));
-    const ciphertext = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    return [PREFIX, ring.activeKid, iv.toString('base64url'), ciphertext.toString('base64url'), tag.toString('base64url')].join(':');
+    cipher = createCipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
   } catch {
-    throw new SecretBoxError('key_invalid');
+    throw new SecretBoxError('key_invalid'); // only the cipher initialisation says something about the key
   }
+  // With validated input, update/final/getAuthTag do not throw and their errors would not echo the input.
+  cipher.setAAD(aadBuffer);
+  const ciphertext = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [PREFIX, ring.activeKid, iv.toString('base64url'), ciphertext.toString('base64url'), tag.toString('base64url')].join(':');
 }
 
 /**
@@ -138,7 +166,8 @@ export function seal(plain: string, aad: string, ring: KeyRing = parseKeyRing())
  * `enc:v1:` string, `unknown_key_id` when the ring holds no such kid, and `auth_failed` when the tag does not verify (wrong key, changed
  * bytes or a different `aad`). GCM verifies the tag inside node:crypto's `final()`, so no value of ours is compared by hand.
  */
-export function open(stored: string, aad: string, ring: KeyRing = parseKeyRing()): string {
+export function open(stored: string, aad: SecretAad, ring: KeyRing = parseKeyRing()): string {
+  const aadBuffer = aadBytes(aad);
   if (typeof stored !== 'string') throw new SecretBoxError('bad_format');
   const parts = stored.split(':');
   if (parts.length !== 6 || `${parts[0]}:${parts[1]}` !== PREFIX) throw new SecretBoxError('bad_format');
@@ -152,7 +181,7 @@ export function open(stored: string, aad: string, ring: KeyRing = parseKeyRing()
   if (!key) throw new SecretBoxError('unknown_key_id');
   try {
     const decipher = createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
-    decipher.setAAD(Buffer.from(aad, 'utf8'));
+    decipher.setAAD(aadBuffer);
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
   } catch {

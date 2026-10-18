@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { inspect } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -9,6 +9,7 @@ import {
   open,
   parseKeyRing,
   seal,
+  type SecretAad,
   type SecretBoxErrorCode,
 } from '../secretBox.js';
 import { errorCode } from '../errorCode.js';
@@ -99,7 +100,7 @@ describe('secretBox wrong key', () => {
     expect(codeOf(() => open(sealed, AAD, ringFrom(`stg-1:${newKey()}`)))).toBe('unknown_key_id');
   });
 
-  it('reports no key as key_missing when sealing or opening from an empty environment', () => {
+  it('parseKeyRing reports a missing, blank or retired-only configuration as key_missing', () => {
     expect(codeOf(() => parseKeyRing({}))).toBe('key_missing');
     expect(codeOf(() => parseKeyRing({ [ACTIVE_KEY_ENV]: '' }))).toBe('key_missing');
     expect(codeOf(() => parseKeyRing({ [ACTIVE_KEY_ENV]: '   ' }))).toBe('key_missing');
@@ -109,6 +110,7 @@ describe('secretBox wrong key', () => {
   it('reads the process environment when no ring is passed, and only when called', () => {
     vi.stubEnv(ACTIVE_KEY_ENV, '');
     expect(codeOf(() => seal('x', AAD))).toBe('key_missing');
+    expect(codeOf(() => open('enc:v1:env-1:AAAAAAAAAAAAAAAA::AAAAAAAAAAAAAAAAAAAAAA', AAD))).toBe('key_missing');
     vi.stubEnv(ACTIVE_KEY_ENV, `env-1:${newKey()}`);
     expect(open(seal('x', AAD), AAD)).toBe('x');
   });
@@ -138,6 +140,30 @@ describe('secretBox tampered ciphertext', () => {
       });
       expect(['auth_failed', 'bad_format']).toContain(codeOf(() => open(tampered, AAD, ring)));
     }
+  });
+
+  it('an iv that is not 12 bytes (canonical 8 or 16 byte spellings) fails with bad_format, not auth_failed', () => {
+    for (const bytes of [0, 8, 11, 13, 16]) {
+      const iv = randomBytes(bytes).toString('base64url');
+      expect(codeOf(() => open(withField(stored, 3, () => iv), AAD, ring))).toBe('bad_format');
+    }
+  });
+
+  it('a tag truncated to 12 bytes fails with bad_format, since GCM would otherwise accept a short tag', () => {
+    const truncated = withField(stored, 5, (tag) => Buffer.from(tag, 'base64url').subarray(0, 12).toString('base64url'));
+    expect(Buffer.from(truncated.split(':')[5], 'base64url')).toHaveLength(12);
+    expect(codeOf(() => open(truncated, AAD, ring))).toBe('bad_format');
+  });
+
+  it('node:crypto itself rejects a short tag when the tag length is pinned, which is the second layer behind the format check', () => {
+    const key = randomBytes(32);
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
+    const ciphertext = Buffer.concat([cipher.update('x', 'utf8'), cipher.final()]);
+    const shortTag = cipher.getAuthTag().subarray(0, 12);
+    const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
+    expect(() => decipher.setAuthTag(shortTag)).toThrow();
+    expect(ciphertext).toHaveLength(1);
   });
 
   it('a non-canonical spelling of the same bytes (set spare bits in the last character) fails with bad_format', () => {
@@ -221,9 +247,40 @@ describe('secretBox AAD binding', () => {
     expect(codeOf(() => open(stored, aadFor('other_secrets', 'refresh_token', 'user-a'), ring))).toBe('auth_failed');
   });
 
-  it('opening without the AAD that sealed it fails', () => {
+  it('an empty, missing or non-string AAD is rejected as bad_aad by seal and open, not as a key or authentication problem', () => {
     const stored = seal('t', aadFor('strava_tokens', 'refresh_token', 'user-a'), ring);
-    expect(codeOf(() => open(stored, '', ring))).toBe('auth_failed');
+    for (const bad of ['', undefined, null, 42, {}, '\ud800']) {
+      expect(codeOf(() => seal('t', bad as unknown as SecretAad, ring))).toBe('bad_aad');
+      expect(codeOf(() => open(stored, bad as unknown as SecretAad, ring))).toBe('bad_aad');
+    }
+  });
+});
+
+describe('secretBox caller mistakes are not key problems', () => {
+  const ring = ringFrom(`k-1:${newKey()}`);
+
+  it('a plaintext that is not a well-formed string is rejected as bad_input by seal', () => {
+    for (const bad of [undefined, null, 42, {}, Buffer.from('x'), '\ud800', 'ok\udc00']) {
+      expect(codeOf(() => seal(bad as unknown as string, AAD, ring))).toBe('bad_input');
+    }
+  });
+});
+
+describe('secretBox AAD parts', () => {
+  it('only accepts letters, digits, underscore, dot and hyphen in each part', () => {
+    const ok = { table: 'strava_tokens', column: 'refresh_token', userId: '123e4567-e89b-12d3-a456-426614174000' };
+    expect(buildSecretAad(ok)).toBe('rq:v1:strava_tokens:refresh_token:123e4567-e89b-12d3-a456-426614174000');
+    for (const bad of ['a b', 'a/b', 'a\nb', 'åäö', 'a:b', '', '\ud800', '\ud801', '🏃']) {
+      for (const field of ['table', 'column', 'userId'] as const) {
+        expect(codeOf(() => buildSecretAad({ ...ok, [field]: bad }))).toBe('bad_aad');
+      }
+    }
+  });
+
+  it('two lone surrogates can no longer produce the same AAD', () => {
+    const make = (userId: string) => () => buildSecretAad({ table: 't', column: 'c', userId });
+    expect(codeOf(make('\ud800'))).toBe('bad_aad');
+    expect(codeOf(make('\ud801'))).toBe('bad_aad');
   });
 });
 
@@ -327,8 +384,14 @@ describe('secretBox key configuration', () => {
     expect(codeOf(() => ringFrom(`k-1:${a}`, `K-2:${b}`))).toBe('key_invalid');
   });
 
-  it('does not touch the environment on import: a missing key only fails when the parser is called', () => {
-    expect(() => parseKeyRing({})).toThrow(SecretBoxError);
+  it('does not read or validate the environment on import, only when a key is needed', async () => {
+    vi.resetModules();
+    vi.stubEnv(ACTIVE_KEY_ENV, 'this is not a valid key');
+    vi.stubEnv(RETIRED_KEYS_ENV, ',,garbage');
+    const fresh = await import('../secretBox.js');
+    expect(fresh.parseKeyRing).toBeTypeOf('function');
+    // The invalid values are only noticed when a key is asked for.
+    expect(() => fresh.parseKeyRing()).toThrow(fresh.SecretBoxError);
   });
 });
 
