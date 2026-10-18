@@ -89,7 +89,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   (390 px). Måtten ligger i temafilens sektion 1.27 (desktopvärdena är designens). Avvikelser från designen, alla ägarbeslut 2026-10-13: knappar (en guldknapp,
   "Join the waitlist"), siffror (sanna, se nedan), exempelgruppen ("Sample pack"), footern och funktionsrutnätet (se de följande raderna).
 - **Siffrorna är sanna:** "4 551 km logged · 6 runners · 4 challenges" kommer från `GET /api/public/stats` (landningens enda anrop, ADR 006-addendum 2026-10-13).
-  Ingen uppräkning, inga reservsiffror: laddar visas "—" (aria-busy), vid fel döljs hela raden. "Packs running" visas först när grupperna är fler än en.
+  Ingen uppräkning, inga reservsiffror: laddar visas "—" (aria-busy); vid fel står raden kvar osynlig (aria-hidden, visibility: hidden) med samma höjd, så ingenting flyttas (ADR 006-addendum 2026-10-19, ägarbeslut B). "Packs running" visas först när grupperna är fler än en.
   Svaret cachas i backenden i 5 min (`PUBLIC_STATS_TTL_MS`); klienten speglar tiden i `PUBLIC_STATS_MAX_AGE_MS` (shared) och hämtar en gång per sidvisning.
 - **Exempelgruppen är påhittad och märkt "Example", inte "Live":** kortet heter "Sample pack" och återanvänder den påhittade flocken från `/preview`
   (Anna, Erik, Maria …; bara förnamn). Designens "Wolfpack · week 34", "Göteborgsvarvet", nedräkningen och foten "Next event" är borta. Guldringen och sweepen
