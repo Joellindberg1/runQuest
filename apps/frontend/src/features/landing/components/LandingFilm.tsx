@@ -163,12 +163,17 @@ function FilmVideo({ player, stepsId, toggleOnClick }: { player: FilmPlayer; ste
   );
 }
 
-/** Postern: mobilen hämtar bara 480-filen. Dekor — knappens etikett beskriver filmen. */
-function FilmPoster() {
+/**
+ * Postern: mobilen hämtar bara 480-filen. Dekor — knappens etikett beskriver filmen. Mobilpostern är LCP-elementet på mobil (mätt i RUN-328:
+ * 71–77 % av LCP var väntan på att den begärdes), så den hämtas direkt; på desktop är LCP-elementet h1, så desktopens förblir lat som förut.
+ * Ingen fetchpriority här: prioriteten sätts av <link rel="preload"> med mobil media-fråga i landing.html (ADR 006-addendum 2026-10-19), så att
+ * den dolda mobilpostern på desktop inte tar prioritet från desktopens LCP (h1).
+ */
+function FilmPoster({ eager }: { eager: boolean }) {
   return (
     <picture className="rq-film__poster">
       <source media={DESKTOP_MEDIA} srcSet={POSTER_720} />
-      <img src={POSTER_480} alt="" width={POSTER_480_WIDTH} height={POSTER_480_HEIGHT} loading="lazy" decoding="async" />
+      <img src={POSTER_480} alt="" width={POSTER_480_WIDTH} height={POSTER_480_HEIGHT} loading={eager ? 'eager' : 'lazy'} decoding="async" />
     </picture>
   );
 }
@@ -223,7 +228,7 @@ function DesktopFilm() {
         <span className="rq-film__corner" data-corner="br" aria-hidden="true" />
         <div className="rq-film__stage">
           <FilmVideo player={player} stepsId={stepsId} toggleOnClick />
-          {showPoster && <FilmPoster />}
+          {showPoster && <FilmPoster eager={false} />}
           {showPoster && (
             <button type="button" className="rq-film__overlay" data-film-play aria-label={DESKTOP_POSTER_LABEL} aria-busy={status === 'loading'} onClick={player.play}>
               <span className="rq-film__play-box" aria-hidden="true">
@@ -276,7 +281,7 @@ function MobileFilm() {
     <div id={FILM_MOBILE_ID} ref={player.rootRef as RefObject<HTMLDivElement>} className="rq-film rq-film--mobile">
       <div className="rq-film__stage">
         <FilmVideo player={player} stepsId={stepsId} toggleOnClick={false} />
-        {showPoster && <FilmPoster />}
+        {showPoster && <FilmPoster eager={true} />}
         {/* En enda knapp över hela rutan: tryck på filmen pausar och startar, och knappen finns kvar medan filmen spelar. */}
         <button
           type="button"

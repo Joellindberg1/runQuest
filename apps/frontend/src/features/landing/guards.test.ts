@@ -99,6 +99,28 @@ describe('Landing — varianterna väljs av CSS, aldrig av JS', () => {
 
 });
 
+describe('Landing — sifferraden flyttar inget när talen anländer', () => {
+  // jsdom har ingen layout: att inget annat än talen flyttas (±1 px, 360 och 1440 px) är mätt i Chromium. Här vaktas reservationen som gör det,
+  // eftersom ingen roll- eller texttest ser den: varje tal har en minsta bredd i ch, och km (det bredaste talet) reserverar mer än de två andra.
+  const reservedCh = (stat: string) => {
+    let value: string | undefined;
+    postcss.parse(css).walkRules((rule) => {
+      if (!rule.selectors.includes(`.rq-landing-stat[data-stat="${stat}"] .rq-landing-stat__value`)) return;
+      rule.walkDecls('min-width', (decl) => { value = decl.value; });
+    });
+    return Number(value?.match(/^(\d+(?:\.\d+)?)ch$/)?.[1]);
+  };
+
+  it.each(['km', 'runners', 'challenges'])('%s reserverar bredd i ch', (stat) => {
+    expect(reservedCh(stat)).toBeGreaterThan(0);
+  });
+
+  it('km reserverar mer än löpare och utmaningar', () => {
+    expect(reservedCh('km')).toBeGreaterThan(reservedCh('runners'));
+    expect(reservedCh('km')).toBeGreaterThan(reservedCh('challenges'));
+  });
+});
+
 describe('Landing — fast header', () => {
   // jsdom har ingen layout: att headern sitter kvar, att ankarna landar under den och att safe-area-remsan är fylld är mätt i Chromium (390 och 1440 px).
   // Här vaktas de regler som får det att fungera och som lätt går sönder tyst: sticky mot fönstret (ingen förfader med egen scrollbehållare),

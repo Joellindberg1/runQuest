@@ -100,6 +100,13 @@ describe('filmen: innan den startar', () => {
     }
   });
 
+  it('mobilpostern hämtas direkt (den är LCP-elementet på mobil) medan desktopens förblir lat', () => {
+    const { container: mobile } = render(<LandingFilm variant="mobile" />);
+    expect(mobile.querySelector('picture img')).toHaveAttribute('loading', 'eager');
+    const { container: desktop } = render(<LandingFilm variant="desktop" />);
+    expect(desktop.querySelector('picture img')).toHaveAttribute('loading', 'lazy');
+  });
+
   it('postern hämtas i mobilstorlek under 1024 px', () => {
     for (const variant of ['mobile', 'desktop'] as const) {
       const { container, unmount } = render(<LandingFilm variant={variant} />);

@@ -39,7 +39,7 @@ Rörelsepreferensen vid klick läses via `shared/utils/prefersReducedMotion`. En
   (App-skalet hämtar nivåtabellen via backenden, `GET /api/config/levels` (`useLevelRequirements`, `enabled: !!user`, anropad från `useAppInit`), bara när användaren är inloggad.
   Utloggad — inklusive `/` — görs inget annat anrop och shareds fallback-tabell används. Inget av det är Landing.)
 - **Siffrorna är sanna.** "4 551 km logged · 6 runners · 4 challenges", i den ordningen (km i guld), med `formatInt` (smalt mellanslag) och singular för ental. Ingen uppräkning och inga
-  reservsiffror: medan svaret laddas står "—" (`aria-busy="true"`), vid fel (nätverk, 5xx, ogiltigt svar) döljs hela raden utan meddelande, noll visas som 0. Varje tal läses som en
+  reservsiffror: medan svaret laddas står "—" (`aria-busy="true"`), vid fel (nätverk, 5xx, ogiltigt svar) står raden kvar som en tom, osynlig remsa (`aria-hidden` + `visibility: hidden`, samma höjd, inget meddelande), noll visas som 0. Varje tal reserverar sin bredd i CSS (km 5,5 ch, löpare och utmaningar 3 ch), så talen som anländer inte flyttar något. Varje tal läses som en
   enhet ("4 551 km logged"); ingen live-region. Ingen "packs running" förrän grupperna är fler (inte i v0.6.2).
 - **Previewn återanvänder `features/leaderboard/previewUsers`** — samma påhittade flock som `/preview` (LeaderboardPreviewPage importerar därifrån). Kortet heter "Sample pack", är märkt
   "Example" (inte "Live") och har ingen nedräkning. Bara förnamn visas. Radens delta-pil är Boards `DeltaMark`/`deltaView`. Topp fem sorteras som Board (nivå, sedan XP).

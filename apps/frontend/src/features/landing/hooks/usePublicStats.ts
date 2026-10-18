@@ -10,7 +10,7 @@ const CLIENT_ERROR = /^HTTP 4\d\d$/;
 
 /**
  * Landningens tre tal (GET /public/stats, ADR 006-addendum 2026-10-13): landningens enda anrop, en gång per sidvisning.
- * Ingen inloggning. Ett fel kastas så att sifferraden döljs; en tom rad får aldrig bli svaret på att läsningen föll.
+ * Ingen inloggning. Ett fel kastas så att sifferraden gömmer sig (aria-hidden + visibility: hidden, raden behåller sin höjd); en tom rad får aldrig bli svaret på att läsningen föll.
  * Inga fönsterfokus- eller återanslutningshämtningar: sidan hämtar en gång, även om fliken ligger kvar längre än cachen.
  */
 export function usePublicStats() {
