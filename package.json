@@ -20,7 +20,7 @@
     "loadtest:staging": "node scripts/loadtest/run.mjs",
     "loadtest:cleanup": "node scripts/loadtest/run.mjs --cleanup",
     "loadtest:local": "node scripts/loadtest/local.mjs",
-    "clean":"rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist"
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist"
   },
   "devDependencies": {
     "@types/node": "^20.5.9",

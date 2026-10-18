@@ -56,6 +56,7 @@ export function loadConfig(env) {
     loginBudget,
     runBudget: integerFrom(env, 'LOADTEST_RUN_BUDGET', 30, { min: 0, max: 200 }),
     keepRuns: env.LOADTEST_KEEP_RUNS === '1',
+    ignoreLoginLedger: env.LOADTEST_IGNORE_LOGIN_LEDGER === '1',
     outDir: env.LOADTEST_OUT_DIR || undefined,
   };
 }

@@ -61,10 +61,21 @@ Efter belastningen raderas de skapade rundorna (`DELETE /api/runs/:id`, en i tag
   en runda som lasttestet loggar har `source: 'manual'`, så den väcker varken Strava-importen eller webhook-arbetaren. Strava är dessutom
   avstängt i staging. Rutterna för inloggning, topplista, news och rundor gör ingen extern HTTP-förfrågan (bara Supabase): väder-API:t anropas bara av
   Strava-flödena och av schemaläggarens Storm Chaser-kontroll, och backend skickar varken e-post eller push.
+- **localhost bara mot fejkservern.** Vakten släpper igenom `localhost` och `127.0.0.1` eftersom `npm run loadtest:local` och testerna behöver dem, men
+  vakten kan inte veta vad som lyssnar där: en lokalt startad backend kan vara kopplad till prod-Supabase via sin `.env`. Rikta därför
+  aldrig `LOADTEST_BASE_URL` mot en lokal backend; använd bara `npm run loadtest:local` (fejkserver) och stagingvärden.
 - **Aldrig i CI.** `run.mjs` vägrar när `CI` är satt.
 - **Inloggningsuppgifter bara ur miljön.** `LOADTEST_USERS`; inget hårdkodas, inget loggas, inget skrivs i rapportfilen
   (felmeddelanden om en felaktig `LOADTEST_USERS` citerar aldrig innehållet, eftersom ett JSON-fel annars kan visa ett utdrag).
 - **Budgetar före anrop.** Inloggnings- och rundbudgeten dras ner innan anropet, så samtidiga användare aldrig tillsammans överskrider dem.
+- **Städningen raderar bara det lasttestet skapat.** `loadtest:cleanup` prövar *varje* post i rapportfilen innan en enda inloggning görs:
+  id är en uuid, nyckeln börjar med `10ad7e57-` och användarindexet finns i `LOADTEST_USERS`. Räcker en post inte vägras hela rapporten
+  och ingenting raderas (rapportfilen är indata från disk).
+- **Ctrl-C städar.** SIGINT/SIGTERM avbryter belastningen, raderar de skapade rundorna och skriver rapporten (märkt avbruten, utgångskod 3).
+  En andra signal avslutar direkt utan städning; kör då `loadtest:cleanup` med rapportfilen eller använd SQL-reserven nedan.
+  Ett fel under körningen (eller en misslyckad förberedelse) ger också en rapport med felet, och städningen körs ändå.
+- **Testerna rör inget riktigt.** De använder fejkservern och `.invalid`-värdar; de enda riktiga värdnamnen i testerna är strängar som
+  vakten ska nekas eller släppas igenom i rena enhetstester utan nätverk (`guard.test.mjs`).
 
 ## Rate-limits
 
@@ -81,8 +92,13 @@ Hur lasttestet förhåller sig till dem:
   token (en riktig app gör likadant: token gäller i sju dagar).
 - Slår ändå ett 429 till på inloggningen slutar lasttestet logga in resten av körningen i stället för att hamra på gränsen, och
   rapporten visar 429-antalet. Målet är noll.
-- **Vänta 15 minuter mellan körningar**, eller sätt `LOADTEST_LOGIN_BUDGET=0` för en körning till. Ägarens egna inloggningar i appen från
-  samma IP delar räknaren. En omstart/deploy av backend nollställer den (in-memory).
+- **Loggboken vägrar en ny körning för tidigt.** Före första anropet reserverar skriptet sina inloggningar i
+  `scripts/loadtest/out/login-ledger.json` (tidpunkt, antal och värd; aldrig konton) och vägrar starta om de senaste 15 minuternas
+  inloggningar plus den nya körningens skulle passera 15. Efter körningen justeras posten till det antal som faktiskt gjordes. Städning
+  med `loadtest:cleanup` (en inloggning per berört konto) räknas på samma sätt. Loggboken gäller bara stagingvärden, inte fejkservern. Ägarens
+  egna inloggningar i appen från samma IP syns inte i loggboken men delar backendens räknare; därför är taket 15 av 20.
+  Har backend startats om sedan senaste körningen (in-memory-räknaren är nollställd) kan du gå förbi kontrollen med
+  `LOADTEST_IGNORE_LOGIN_LEDGER=1`; inloggningarna bokförs ändå.
 - Gränsen är en uppgiven kandidat till fynd: in-memory-räknare gäller bara en instans (appen kör en replika, kommentaren i `rateLimit.ts`),
   nollställs vid varje deploy och kan låsa ut en hel grupp om `trust proxy` inte stämmer så att alla delar proxyns IP. Lasttestet
   *bevisar* inget av det; det är något att titta efter om ett 429 dyker upp (se Att titta efter).
@@ -97,8 +113,8 @@ Att logga runda skapar riktig data i stagingdatabasen. Lasttestet gör det på t
 2. **Automatisk städning.** När belastningen är slut raderas varje skapad runda med `DELETE /api/runs/:id`, den vanliga vägen, som även räknar
    om användarens XP, streak och totaler. Det är därför städningen går via API:t och inte via SQL.
 3. **Rapport över det som blev kvar.** Rapporten och rapportfilen (`scripts/loadtest/out/loadtest-*.json`, ignorerad av git) listar skapade
-   rundors id och nycklar, vilka som inte gick att radera, och nycklarna till anrop som inte gav något id tillbaka (ett 500 med
-   `written: true` kan ha lämnat en runda).
+   rundors id och nycklar, vilka som inte gick att radera, och nycklarna till rundanrop som kan ha skrivit en runda utan att ge något id
+   tillbaka (nätverksfel, timeout, 5xx som ett 500 med `written: true`, eller ett 2xx utan id). Svar som inte skapat något (400, 401, 429) listas inte.
 
 Det som städningen **inte** tar bort (kontrollera i staging efter första körningen och komplettera listan här):
 
@@ -138,22 +154,31 @@ Förutsättningar:
 
 Kommandon från repo-roten (Node 20+, inga beroenden att installera):
 
+Lägg **aldrig** lösenorden på kommandoraden: de hamnar i skalets historik. Läs `LOADTEST_USERS` från en fil utanför repot (skapad
+med `{"login": "...", "password": "..."}`-poster, åtkomst bara för dig) eller skriv in den dolt:
+
 ```bash
+# Alternativ A: ur en fil utanför repot
+export LOADTEST_USERS="$(cat /sökväg/utanför/repot/loadtest-users.json)"
+# Alternativ B: inskrivet och dolt (syns varken på skärmen eller i historiken)
+read -rs -p 'LOADTEST_USERS (JSON): ' LOADTEST_USERS && export LOADTEST_USERS
+
 # 0. Rökprov mot fejkserver på 127.0.0.1 (ingen riktig tjänst, påhittade konton): visar utskriften och bevisar verktyget
 npm run loadtest:local
 
-# 1. Rökprov mot staging: 3 användare, 20 s (ger inte mätningen, men bekräftar att kontona och vakten fungerar)
-LOADTEST_USERS='[{"login":"<konto1>","password":"<lösen1>"},{"login":"<konto2>","password":"<lösen2>"}]' \
+# 1. Rökprov mot staging: 3 användare, 20 s (ger inte mätningen, men bekräftar att kontona och vakten fungerar; utgångskod 3)
 LOADTEST_VUS=3 LOADTEST_DURATION_S=20 npm run loadtest:staging
 
 # 2. Mätningen: 20 användare, 120 s (standardvärdena)
-LOADTEST_USERS='[...]' npm run loadtest:staging
+npm run loadtest:staging
+
+unset LOADTEST_USERS
 ```
 
 PowerShell:
 
 ```powershell
-$env:LOADTEST_USERS = '[{"login":"<konto1>","password":"<lösen1>"},{"login":"<konto2>","password":"<lösen2>"}]'
+$env:LOADTEST_USERS = Get-Content -Raw 'C:\sökväg\utanför\repot\loadtest-users.json'
 npm run loadtest:staging
 Remove-Item Env:LOADTEST_USERS
 ```
@@ -172,9 +197,17 @@ accepterar bara de värden vakten tillåter.
 | `LOADTEST_LOGIN_BUDGET` | 10 | Inloggningar under belastningen (konton + budget högst 15). |
 | `LOADTEST_RUN_BUDGET` | 30 | Rundor som får loggas under körningen (0–200). `0` stänger av det skrivande scenariot. |
 | `LOADTEST_KEEP_RUNS` | – | `1` lämnar rundorna kvar (för att granska dem), städa sedan med `loadtest:cleanup`. |
-| `LOADTEST_OUT_DIR` | `scripts/loadtest/out` | Var rapportfilen skrivs. |
+| `LOADTEST_IGNORE_LOGIN_LEDGER` | – | `1` hoppar över loggbokens kontroll (inte bokföringen). Bara om backend startats om sedan senaste körningen. |
+| `LOADTEST_OUT_DIR` | `scripts/loadtest/out` | Var rapportfilen och loggboken skrivs. |
 
-Utgångskod: 0 målen nåddes, 2 målen missades, 1 felaktig konfiguration, nekad bas-URL eller misslyckad förberedelse.
+Utgångskod:
+
+| Kod | Betydelse |
+|---|---|
+| 0 | En hel mätning (minst 20 användare i 120 s), oavbruten, som nådde alla mål. Rapporten säger GODKÄND. |
+| 1 | Felaktig konfiguration, nekad bas-URL, loggboken full, misslyckad förberedelse eller fel under körningen. |
+| 2 | Minst ett mål missades i en oavbruten körning. |
+| 3 | Rökprov: en avgränsad (färre än 20 användare eller kortare än 120 s) körning där inget gick fel, eller en avbruten körning. Rapporten säger RÖKPROV/AVBRUTEN, aldrig GODKÄND, och rapportfilen har `measurement: false`. |
 
 Tips för att se orsaken till ett missat mål: öppna Sentry (`runquest-backend`, miljö `staging`, Performance) för tidsfönstret i
 rapporten; transaktionerna heter som rutterna (`POST /api/runs`) och visar vilka Supabase-anrop tiden gick till.

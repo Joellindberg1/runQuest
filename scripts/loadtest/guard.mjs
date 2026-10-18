@@ -41,6 +41,11 @@ export function resolveBaseUrl(raw) {
   throw new BaseUrlRefused(`värden ${url.hostname} är inte stagingbackenden eller en lokal server`);
 }
 
+/** Sant för en (redan prövad) bas-URL som pekar på den egna datorn. Den riktiga stagingvärden har sin egen inloggningsgräns; fejkservern har ingen. */
+export function isLocalBase(baseOrigin) {
+  return LOCAL_HOSTS.has(new URL(baseOrigin).hostname);
+}
+
 /** Kastar om `absoluteUrl` inte ligger på samma origin som den prövade bas-URL:en (skydd mot att en sökväg eller en omdirigering byter värd). */
 export function assertWithinBase(baseOrigin, absoluteUrl) {
   if (new URL(absoluteUrl).origin !== baseOrigin) throw new BaseUrlRefused('ett anrop skulle lämna den prövade värden');

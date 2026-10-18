@@ -20,6 +20,11 @@ export function todayStockholm(clock = () => new Date()) {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(clock());
 }
 
+/** Ett rundanrop utan id i svaret kan ändå ha skrivit en runda bara om servern kan ha hunnit skriva: nätverksfel/timeout, 5xx eller ett 2xx utan id. */
+export function mayHaveWritten(result) {
+  return result.status === null || result.status >= 500 || result.outcome === 'ok';
+}
+
 export async function loginUser(client, user) {
   const result = await client.request({ scenario: 'login', method: 'POST', path: '/api/auth/login', body: { name: user.login, password: user.password } });
   if (result.outcome === 'ok' && typeof result.json?.token === 'string') user.token = result.json.token;
@@ -64,7 +69,8 @@ export function createScenarios({ client, newKey, today }) {
           });
           const id = result.json?.run?.id;
           if (result.outcome === 'ok' && typeof id === 'string') state.createdRuns.push({ id, userIndex: user.index, key });
-          else state.unresolvedKeys.push(key); // ett 500 med written: true kan ha lämnat en runda utan id i svaret
+          // Ett 500 med written: true kan ha lämnat en runda utan id i svaret; ett 400/401/429 har inte skapat något och listas inte.
+          else if (mayHaveWritten(result)) state.unresolvedKeys.push(key);
         } finally {
           state.busy.delete(user.login);
         }

@@ -19,6 +19,11 @@ export const TARGETS = {
   },
 };
 
+/** Sant för en körning som är stor nog att räknas som mätningen. Mindre körningar är rökprov. */
+export function isMeasurementRun(config) {
+  return config.vus >= TARGETS.concurrentUsers && config.durationSeconds >= TARGETS.durationSeconds;
+}
+
 /** Scenariernas vikt i blandningen (heltal, summan spelar ingen roll). Inloggning och rundloggning begränsas dessutom av var sin budget. */
 export const SCENARIO_WEIGHTS = {
   leaderboard: 45,

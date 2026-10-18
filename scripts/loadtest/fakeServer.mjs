@@ -16,9 +16,9 @@ function today() {
 }
 
 /**
- * @param {{ users?: Array<{login: string, password: string}>, loginLimit?: number, latencyMs?: number, failRuns?: boolean, lockAllRuns?: boolean }} options
+ * @param {{ users?: Array<{login: string, password: string}>, loginLimit?: number, latencyMs?: number, failRuns?: boolean, lockAllRuns?: boolean, rejectRunsWith?: number }} options
  */
-export async function startFakeServer({ users = [], loginLimit = 20, latencyMs = 0, failRuns = false, lockAllRuns = false } = {}) {
+export async function startFakeServer({ users = [], loginLimit = 20, latencyMs = 0, failRuns = false, lockAllRuns = false, rejectRunsWith = null } = {}) {
   const accounts = new Map(users.map((u, index) => [u.login, { id: `user-${index + 1}`, password: u.password }]));
   const state = {
     requests: [],
@@ -87,6 +87,7 @@ export async function startFakeServer({ users = [], loginLimit = 20, latencyMs =
       const key = req.headers['idempotency-key'];
       const body = await readBody(req);
       if (typeof key !== 'string' || !UUID_V4.test(key)) return send(res, 400, { error: 'Idempotency-Key must be a UUID v4' });
+      if (rejectRunsWith) return send(res, rejectRunsWith, { error: 'rejected before writing anything' });
       if (failRuns) return send(res, 500, { error: 'Run was created but XP recalculation failed', written: true });
       if (!(Number(body.distance) >= 1)) return send(res, 400, { error: 'Distance must be at least 1.0 km' });
       if (typeof body.date !== 'string' || body.date > today()) return send(res, 400, { error: 'Cannot log runs for future dates' });

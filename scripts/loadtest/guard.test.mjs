@@ -1,7 +1,7 @@
 // Vakten på lasttestets bas-URL: bara stagingbackenden och localhost/127.0.0.1 får träffas. Ren logik, inget nätverk.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { BaseUrlRefused, STAGING_BACKEND_URL, assertWithinBase, resolveBaseUrl } from './guard.mjs';
+import { BaseUrlRefused, STAGING_BACKEND_URL, assertWithinBase, isLocalBase, resolveBaseUrl } from './guard.mjs';
 
 const refused = (raw) => assert.throws(() => resolveBaseUrl(raw), BaseUrlRefused);
 
@@ -40,6 +40,18 @@ describe('resolveBaseUrl', () => {
     refused('http://runquest-backend-staging-staging.up.railway.app:80@api.runquest.dev');
   });
 
+  it('refuses hosts that extend the staging or local name at either end, so no suffix or prefix match can sneak in', () => {
+    refused('https://x-runquest-backend-staging-staging.up.railway.app');
+    refused('https://x.runquest-backend-staging-staging.up.railway.app');
+    refused('https://evil-runquest-backend-staging-staging.up.railway.app');
+    refused('https://runquest-backend-staging-staging.up.railway.app.x');
+    refused('http://xlocalhost');
+    refused('http://localhostx');
+    refused('http://x.localhost');
+    refused('http://127.0.0.11');
+    refused('http://1127.0.0.1');
+  });
+
   it('refuses plain http to the staging host, odd ports on it and a trailing dot', () => {
     refused('http://runquest-backend-staging-staging.up.railway.app');
     refused('https://runquest-backend-staging-staging.up.railway.app:8443');
@@ -66,10 +78,18 @@ describe('resolveBaseUrl', () => {
   });
 });
 
+describe('isLocalBase', () => {
+  it('is true only for the local hosts', () => {
+    assert.equal(isLocalBase('http://127.0.0.1:4010'), true);
+    assert.equal(isLocalBase('http://localhost:3001'), true);
+    assert.equal(isLocalBase(STAGING_BACKEND_URL), false);
+  });
+});
+
 describe('assertWithinBase', () => {
   it('passes a URL on the same origin and refuses any other origin, including a redirect target', () => {
     assert.doesNotThrow(() => assertWithinBase('http://127.0.0.1:4010', 'http://127.0.0.1:4010/api/news?limit=20'));
-    assert.throws(() => assertWithinBase('http://127.0.0.1:4010', 'https://api.runquest.dev/api/news'), BaseUrlRefused);
+    assert.throws(() => assertWithinBase('http://127.0.0.1:4010', 'https://other.invalid/api/news'), BaseUrlRefused);
     assert.throws(() => assertWithinBase('http://127.0.0.1:4010', 'http://127.0.0.1:4011/api/news'), BaseUrlRefused);
   });
 });

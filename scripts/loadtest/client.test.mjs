@@ -42,15 +42,15 @@ describe('createClient allowed routes', () => {
     const { calls, fetchImpl } = recordingFetch();
     const client = createClient({ baseUrl: BASE, fetchImpl });
     await assert.rejects(client.request({ scenario: 'x', method: 'DELETE', path: '/api/news' }), RouteNotAllowed);
-    await assert.rejects(client.request({ scenario: 'x', method: 'GET', path: 'https://api.runquest.dev/api/news' }), RouteNotAllowed);
-    await assert.rejects(client.request({ scenario: 'x', method: 'GET', path: '//api.runquest.dev/api/news' }), RouteNotAllowed);
+    await assert.rejects(client.request({ scenario: 'x', method: 'GET', path: 'https://backend.invalid/api/news' }), RouteNotAllowed);
+    await assert.rejects(client.request({ scenario: 'x', method: 'GET', path: '//backend.invalid/api/news' }), RouteNotAllowed);
     await assert.rejects(client.request({ scenario: 'x', method: 'PUT', path: `/api/runs/${RUN_ID}` }), RouteNotAllowed);
     await assert.rejects(client.request({ scenario: 'x', method: 'GET', path: '/api/admin/waitlist' }), RouteNotAllowed);
     assert.equal(calls.length, 0);
   });
 
   it('refuses to be built for a production base URL', () => {
-    assert.throws(() => createClient({ baseUrl: 'https://api.runquest.dev', fetchImpl: async () => new Response('') }));
+    assert.throws(() => createClient({ baseUrl: 'https://backend.invalid', fetchImpl: async () => new Response('') }));
   });
 });
 

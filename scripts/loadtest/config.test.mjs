@@ -21,7 +21,7 @@ describe('loadConfig', () => {
   });
 
   it('refuses a production base URL before anything else is read', () => {
-    assert.throws(() => loadConfig({ LOADTEST_BASE_URL: 'https://api.runquest.dev' }), BaseUrlRefused);
+    assert.throws(() => loadConfig({ LOADTEST_BASE_URL: 'https://backend.invalid' }), BaseUrlRefused);
   });
 
   it('requires users and reads them as login/password pairs', () => {
@@ -53,6 +53,11 @@ describe('loadConfig', () => {
     assert.throws(() => loadConfig(env({ LOADTEST_VUS: '500' })), /LOADTEST_VUS/);
     assert.throws(() => loadConfig(env({ LOADTEST_DURATION_S: 'abc' })), /LOADTEST_DURATION_S/);
     assert.throws(() => loadConfig(env({ LOADTEST_RUN_BUDGET: '-1' })), /LOADTEST_RUN_BUDGET/);
+  });
+
+  it('skips the login ledger only when explicitly told to', () => {
+    assert.equal(loadConfig(env()).ignoreLoginLedger, false);
+    assert.equal(loadConfig(env({ LOADTEST_IGNORE_LOGIN_LEDGER: '1' })).ignoreLoginLedger, true);
   });
 
   it('keeps created runs only when asked to', () => {
