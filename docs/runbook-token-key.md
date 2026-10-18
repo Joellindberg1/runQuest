@@ -164,7 +164,13 @@ rätt databas innan du fortsätter.
    mitt i en tung synk eller en bakgrundskörning, och kör om senare om skriptet säger att budgeten är slut (det listar vilka som återstår).
 
    Utfall per användare i rapporten:
-   - `refresh_rejected`: användaren har återkallat behörigheten hos Strava och måste koppla om.
+   - `refresh_rejected`: Strava avvisade refresh-token. Det kan betyda att användaren återkallat behörigheten (då måste de koppla om), men
+     också att backendens egen förnyelse (webhook-worker, reservpolling, användarens synk) hann förnya samma token strax före skriptet.
+     **Kör om innan du drar slutsatsen att användaren återkallat**: ger omkörningen `refresh_rejected` igen är det på riktigt.
+     (Förnyelsevägen kontrollerar att raden fortfarande håller den avvisade token innan den räknar det som en avvisning, men en förnyelse
+     i samma ögonblick kan ändå ge ett falskt utslag.) Krockar skriptets omkryptering med en pågående förnyelse i backend följer
+     backenden raden till dess nya sträng och sparar de nya tokens där; lyckas inte det loggas `🚨 KRITISKT` och användaren kan behöva
+     koppla om.
    - `refresh_failed`: Strava eller nätverket svarade inte som väntat. **Det är inte alltid "kör om".** Svarade Strava med ett fel (5xx, 429)
      har inget ersatts hos Strava och det är säkert att köra om. Men har Strava kanske redan ersatt refresh-token utan att vi fick eller kunde
      spara den nya (svaret förlorades, var oanvändbart, eller sparandet misslyckades) skriver skriptet `STRAVA MAY HAVE REPLACED THIS USER'S

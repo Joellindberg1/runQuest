@@ -488,6 +488,10 @@ describe('--refresh-tokens', () => {
     expect(report.after).toMatchObject({ plaintext: 0, encryptedActive: 3 });
     expect(output()).toMatch(/u1: new tokens saved/);
     expect(output()).toMatch(/Renewed at Strava: 3/);
+    // The shared path logs why it renews; for the backfill that is not "Strava rejected the access token".
+    const info = vi.mocked(logger.info).mock.calls.map((call) => String(call[0]));
+    expect(info.some((line) => line.includes('rejected the access token'))).toBe(false);
+    expect(info.filter((line) => line === '🔄 The token backfill renews the tokens, refreshing...')).toHaveLength(3);
     expect(exitCodeFor(report)).toBe(0);
   });
 
