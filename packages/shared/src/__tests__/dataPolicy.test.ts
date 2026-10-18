@@ -20,7 +20,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-18', sha256: '3c7235e8909f94020994b9e7f943cf9eb7ca020d85d3d3c181ae41642c846269' };
+const PINNED_POLICY = { version: '2026-10-18', sha256: 'eca7822dd10c8aa8ddf0d27f3d9e29ddba5022d5550cfbd4d30c3733283ae242' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -292,7 +292,7 @@ describe('dataPolicy', () => {
     expectSentence(text, /where you came from/i, /name of the website/i, /never the full link/i, /screen size/i, /browser language/i, /approximate location/i);
     // Kampanjtaggar är en vitlista: besökarens egen sträng skickas aldrig (RUN-291).
     expectSentence(text, /(query|fragment)/i, /landing page/i, /utm_source/i, /one of a few fixed values RunQuest has chosen/i, /any other value is dropped/i);
-    expectSentence(text, /no user ID/i, /no name/i, /no email address/i, /runs/i);
+    expectSentence(text, /no user ID/i, /no name/i, /no email address/i, /no figures, places, times or IDs from your runs/i);
     expectSentence(text, /not linked to your account/i);
     expectSentence(text, /IP address/i, /not stored/i);
     expectSentence(text, /one-way code/i, /changes regularly/i, /cannot be traced back to you/i);
