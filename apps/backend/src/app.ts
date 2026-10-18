@@ -15,6 +15,7 @@ import challengeRoutes from './routes/challenges.js';
 import configRoutes from './routes/config.js';
 import eventRoutes from './routes/events.js';
 import groupRoutes from './routes/groups.js';
+import groupSettingsRoutes from './routes/groupSettings.js';
 import leaderboardRoutes from './routes/leaderboard.js';
 import newsRoutes from './routes/news.js';
 import onboardingRoutes from './routes/onboarding.js';
@@ -108,6 +109,7 @@ export function createApp(): express.Express {
   app.use('/api/challenges', challengeRoutes);
   app.use('/api/config', configRoutes);
   app.use('/api/events', eventRoutes);
+  app.use('/api/groups/settings', groupSettingsRoutes);
   app.use('/api/groups', groupRoutes);
   app.use('/api/leaderboard', leaderboardRoutes);
   app.use('/api/news', newsRoutes);

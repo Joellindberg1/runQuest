@@ -63,7 +63,12 @@
 //     med group_id som nyckel, eller SQL-text som gör det). Pekaren sätts av join_group/create_group_with_admin via utils/membership.ts, i en transaktion med
 //     raden i group_members. Textbaserad (se checkUsersGroupIdWrites för vad den inte fångar).
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
+// 15. group_settings skrivs bara efter gruppbehörighet (ADR 012 beslut 6.4): varje backendfil som skriver till `group_settings` måste anropa
+//     `actingGroupForWriteOrRespond`/`resolveActingGroupForWrite` (utils/groupAccess.ts), och gruppen till skrivningen hämtas aldrig ur `req.params`,
+//     `req.body`, `req.query`, `req.headers` eller `req.user`. Textbaserad (se checkGroupSettingsWrites för vad den inte fångar); undantag i
+//     GROUP_SETTINGS_EXEMPT_FILES med motivering (tom).
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -407,6 +412,73 @@ export function checkUsersGroupIdWrites(files) {
   return errors;
 }
 
+// Filer som får skriva group_settings utan att gå via grindfunktionen, med skäl. Tom: varje skrivning går via grinden. Varje rad här kräver
+// ett skäl och en ticket som tar bort den (som USERS_GROUP_ID_EXEMPT_FILES).
+export const GROUP_SETTINGS_EXEMPT_FILES = new Map();
+const GROUP_SETTINGS_FROM_LITERAL = String.raw`(['"\`])group_settings\1`;
+// `const TABLE = 'group_settings'` (valfri typannotation): tabellen anges då av en konstant i samma fil.
+const GROUP_SETTINGS_CONSTANT = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*(['"`])group_settings\2/g;
+const WRITE_METHOD = /\.(?:upsert|insert|update|delete)\s*\(/;
+const GROUP_SETTINGS_SQL_WRITE = /\b(?:insert\s+into|update|delete\s+from)\s+(?:"?public"?\.)?"?group_settings"?(?![\w$])/gi;
+// Grinden: ett anrop med det rena namnet (inte en definition, import, medlemsanrop `x.actingGroup…(` eller kommentar) av en av de två funktionerna i utils/groupAccess.ts.
+const GROUP_ACCESS_GATE_CALL = /(?<![\w$.])(?<!function\s+)(?:actingGroupForWriteOrRespond|resolveActingGroupForWrite)\s*\(/;
+// Var en request bär användarstyrd data: req/request .params|body|query|headers|header()|get()|cookies|user.
+const REQUEST_SOURCE = /(?<![\w$])(?<![^.]\.)req(?:uest)?\s*\??\.\s*(?:params|body|query|headers?|get|cookies|user)\b/;
+const GROUP_ID_WORD = /group[_-]?id/i;
+
+/**
+ * Regel 15 (ADR 012 beslut 6.4). Gruppinställningar skrivs bara efter en rollkontroll mot det AKTIVA medlemskapet: varje backendfil som skriver
+ * till group_settings måste anropa `actingGroupForWriteOrRespond` eller `resolveActingGroupForWrite` (utils/groupAccess.ts), och gruppen till
+ * skrivningen får aldrig hämtas ur `req.params`, `req.body`, `req.query`, `req.headers` (eller `req.header()`/`req.get()`) eller `req.user` (JWT:ns group_id är inaktuell
+ * efter join, och resten styr anroparen själv). Annars kan en admin rikta en skrivning mot en annan grupp (IDOR) eller en medlem skriva alls.
+ * Fångas: `.from('group_settings')` (eller en konstant i samma fil som är satt till 'group_settings') följt av `.upsert/.insert/.update/.delete` i
+ * frågekedjan, och SQL-text med `insert into / update / delete from [public.]group_settings`; en sådan fil utan grind-anrop; en frågekedja som nämner
+ * request-data; och en sats (mellan `;`) som nämner både `group_id`/`groupId` och request-data (`const groupId = req.user!.group_id;`).
+ * `files`: [{ path, content }]; `exempt`: filer som släpps igenom (standard: GROUP_SETTINGS_EXEMPT_FILES). Bara apps/backend/src, utan tester och
+ * testhjälpare. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: att grindens resultat faktiskt är det som skickas till skrivningen (ett grind-anrop någonstans i
+ * filen räcker), en tabell som importeras som konstant från en annan fil (`.from(GROUP_SETTINGS_TABLE)`; skriv tabellnamnet som en bokstavlig sträng på
+ * skrivstället), en fråga som byggs i flera satser, ett gruppid som går via en mellanvariabel utan "group_id" i namnet (`const g = req.body.x`), satser utan
+ * semikolon, och ett grind-anrop som bara står i en sträng. Granskning täcker de formerna.
+ */
+export function checkGroupSettingsWrites(files, exempt = GROUP_SETTINGS_EXEMPT_FILES) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!BACKEND_SOURCE.test(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path) || exempt.has(path)) continue;
+    const code = withoutComments(content);
+    const lineAt = (index) => code.slice(0, index).split(/\r?\n/).length;
+
+    const tableNames = [GROUP_SETTINGS_FROM_LITERAL];
+    for (const constant of code.matchAll(GROUP_SETTINGS_CONSTANT)) tableNames.push(constant[1].replace(/\$/g, '\\$'));
+    const fromTable = new RegExp(String.raw`\.from\(\s*(?:${tableNames.join('|')})\s*\)`, 'g');
+
+    const writes = []; // { line, requestInChain }
+    for (const match of code.matchAll(fromTable)) {
+      const chain = queryChainText(code, match.index + match[0].length);
+      if (WRITE_METHOD.test(chain)) writes.push({ line: lineAt(match.index), requestInChain: REQUEST_SOURCE.test(chain) });
+    }
+    for (const match of code.matchAll(GROUP_SETTINGS_SQL_WRITE)) writes.push({ line: lineAt(match.index), requestInChain: false });
+    if (writes.length === 0) continue;
+
+    const problems = new Map(); // line -> text
+    const gated = GROUP_ACCESS_GATE_CALL.test(code);
+    for (const { line, requestInChain } of writes) {
+      if (!gated) problems.set(line, 'group_settings skrivs utan att filen anropar actingGroupForWriteOrRespond/resolveActingGroupForWrite (utils/groupAccess.ts) — gruppen och rollen prövas där, färskt ur medlemskapet (ADR 012 beslut 6.4)');
+      else if (requestInChain) problems.set(line, 'frågekedjan som skriver group_settings nämner req.params/body/query/headers/user — gruppen kommer bara ur actingGroupForWriteOrRespond (ADR 012 beslut 6.4)');
+    }
+    let offset = 0;
+    for (const statement of code.split(';')) {
+      if (GROUP_ID_WORD.test(statement) && REQUEST_SOURCE.test(statement)) {
+        problems.set(lineAt(offset + statement.search(REQUEST_SOURCE)),'ett gruppid hämtas ur req.params/body/query/headers/user i en fil som skriver group_settings — gruppen kommer bara ur actingGroupForWriteOrRespond (ADR 012 beslut 6.4)');
+      }
+      offset += statement.length + 1;
+    }
+
+    for (const [line, text] of [...problems].sort((a, b) => a[0] - b[0])) errors.push(`${path}:${line}: ${text}`);
+  }
+  return errors;
+}
+
 const SERVER_FILE = 'apps/backend/src/server.ts';
 const RATE_BUDGET_HOOK_CALL = /^registerStravaRateBudget\s*\(\s*\)/m;
 
@@ -632,8 +704,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -648,7 +720,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -673,6 +745,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'users-group-id') {
       errors.push(...checkUsersGroupIdWrites(files));
       summary.push('users.group_id skrivs bara av join_group/create_group_with_admin');
+    }
+    if (mode === 'all' || mode === 'group-settings-writes') {
+      errors.push(...checkGroupSettingsWrites(files));
+      summary.push('group_settings skrivs bara efter gruppbehörighet (actingGroupForWriteOrRespond)');
     }
     if (mode === 'all' || mode === 'webhook-scheduler-start') {
       errors.push(...checkWebhookSchedulerStart(files));

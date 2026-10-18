@@ -12,6 +12,7 @@ import {
   checkEmptySuites,
   checkFontFiles,
   checkGroupRoleMapping,
+  checkGroupSettingsWrites,
   checkGitignoreForVideo,
   checkMediaFiles,
   checkNoTrackedVideoOriginals,
@@ -24,6 +25,7 @@ import {
   checkTestNames,
   checkTodos,
   checkUsersGroupIdWrites,
+  GROUP_SETTINGS_EXEMPT_FILES,
   isEntryPoint,
   listWorkspaces,
   walkFiles,
@@ -358,6 +360,129 @@ describe('checkUsersGroupIdWrites', () => {
     const sql = 'sql += `insert into public.users (id, name, group_id) values (1, 2, 3);`;';
     assert.deepEqual(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedGroup.ts'), []);
     assert.equal(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedOther.ts').length, 1);
+  });
+});
+
+describe('checkGroupSettingsWrites', () => {
+  const GATE = 'const groupId = await actingGroupForWriteOrRespond(req, res);\nif (!groupId) return;\n';
+  const scan = (content, path = 'apps/backend/src/routes/groupSettings.ts', exempt) => checkGroupSettingsWrites([{ path, content }], exempt);
+
+  it('flags a write to group_settings in a file that never asks for the acting group', () => {
+    for (const code of [
+      "await supabase.from('group_settings').upsert(rows, { onConflict: 'group_id,key' });",
+      "await supabase.from('group_settings').insert({ group_id: groupId, key, value });",
+      "await supabase.from('group_settings').update({ value }).eq('group_id', groupId).eq('key', key);",
+      "await supabase.from('group_settings').delete().eq('group_id', groupId);",
+      'await supabase\n  .from(`group_settings`)\n  .upsert(rows);',
+      'await db.from("group_settings").upsert(rows);',
+      "const TABLE = 'group_settings';\nawait db.from(TABLE).upsert(rows);",
+      'const TABLE: string = "group_settings";\nawait db.from( TABLE ).delete().eq(\'key\', k);',
+      'await client.query("insert into public.group_settings (group_id, key, value) values ($1, $2, $3)");',
+      "const sql = 'UPDATE group_settings SET value = $1 WHERE group_id = $2';",
+      'const sql = `delete from public."group_settings" where group_id = $1`;',
+    ]) {
+      const errors = scan(code);
+      assert.equal(errors.length, 1, code);
+      assert.match(errors[0], /apps\/backend\/src\/routes\/groupSettings\.ts:\d+: .*actingGroupForWriteOrRespond/);
+    }
+  });
+
+  it('passes a write in a file that goes through actingGroupForWriteOrRespond or resolveActingGroupForWrite', () => {
+    const write = "await supabase.from('group_settings').upsert(rows, { onConflict: 'group_id,key' });\n";
+    assert.deepEqual(scan(GATE + write), []);
+    assert.deepEqual(scan('const acting = await resolveActingGroupForWrite(userId);\nif (!acting.allowed) return;\n' + write), []);
+    assert.deepEqual(scan("const TABLE = 'group_settings';\n" + GATE + "await db.from(TABLE).delete().eq('group_id', groupId);\n"), []);
+  });
+
+  it('does not count a mention, a definition or a call in a comment as the gate', () => {
+    const write = "await supabase.from('group_settings').upsert(rows);\n";
+    for (const gate of [
+      '// await actingGroupForWriteOrRespond(req, res)\n',
+      '/* resolveActingGroupForWrite(userId) */\n',
+      "import { actingGroupForWriteOrRespond } from '../utils/groupAccess.js';\n",
+      'export async function actingGroupForWriteOrRespond(req, res) { return null; }\n',
+      'const gate = obj.actingGroupForWriteOrRespond(req, res);\n',
+    ]) {
+      assert.equal(scan(gate + write).length, 1, gate);
+    }
+  });
+
+  it('flags a group id taken from the request, even in a file that has the gate', () => {
+    for (const source of [
+      "await supabase.from('group_settings').upsert({ group_id: req.body.group_id, key, value });",
+      "await supabase.from('group_settings').delete().eq('group_id', req.params.groupId);",
+      "await supabase.from('group_settings').upsert({ ...req.body });",
+      "await supabase.from('group_settings').delete().eq('group_id', req.query.group);",
+      "await supabase.from('group_settings').delete().eq('group_id', req.headers['x-group-id']);",
+      "await supabase.from('group_settings').upsert({ group_id: req.user!.group_id, key });",
+      "await supabase.from('group_settings').upsert({ group_id: req.user?.group_id, key });",
+      "const groupId = req.user!.group_id;\nawait supabase.from('group_settings').upsert({ group_id: groupId, key });",
+      "const groupId = req.params.groupId;\nawait supabase.from('group_settings').upsert({ group_id: groupId, key });",
+      "const { group_id } = req.body;\nawait supabase.from('group_settings').upsert({ group_id, key });",
+      "const gid = req.header('x-group-id'); const group_id = gid;\nawait supabase.from('group_settings').upsert({ group_id, key });",
+      "const groupId = request.body.groupId;\nawait supabase.from('group_settings').delete().eq('group_id', groupId);",
+    ]) {
+      const errors = scan(GATE + source);
+      assert.ok(errors.length >= 1, source);
+      assert.match(errors[0], /apps\/backend\/src\/routes\/groupSettings\.ts:\d+: .*req/);
+    }
+  });
+
+  it('passes request values that are not a group id: the actor and the body that is validated', () => {
+    const code = GATE
+      + 'const actorId = req.user!.user_id;\n'
+      + "const patch = sanitizePatch(req.body, 'group', registry());\n"
+      + "logger.info('saved', { user_id: actorId, group_id: groupId });\n"
+      + "await supabase.from('group_settings').upsert(rows, { onConflict: 'group_id,key' });\n"
+      + "await supabase.from('group_settings').delete().eq('group_id', groupId).in('key', patch.reset);\n";
+    assert.deepEqual(scan(code), []);
+  });
+
+  it('ignores reads of group_settings and writes to other tables, with or without the gate', () => {
+    for (const code of [
+      "const { data } = await db.from('group_settings').select('key, value').eq('group_id', groupId);",
+      "await db.from('user_settings').upsert(rows, { onConflict: 'user_id,key' });",
+      "await db.from('groups').update({ name }).eq('id', groupId);",
+      "const TABLE = 'user_settings';\nawait db.from(TABLE).delete().eq('user_id', userId);",
+      "await db.from('group_settings').select('key').eq('group_id', req.params.groupId);",
+      "// await db.from('group_settings').upsert(rows);\nconst a = 1;",
+      "const sql = 'select * from group_settings where group_id = $1';",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('reads the query chain of group_settings, not what follows after it', () => {
+    const code = "await db.from('group_settings').select('key');\nawait db.from('runs').insert({ group_id: groupId });\n";
+    assert.deepEqual(scan(code), []);
+  });
+
+  it('reports each offending write with its own line number', () => {
+    const errors = scan("a;\nawait db.from('group_settings').upsert(a);\nb;\nawait db.from('group_settings').delete().eq('k', 1);\n");
+    assert.equal(errors.length, 2);
+    assert.match(errors[0], /:2:/);
+    assert.match(errors[1], /:4:/);
+  });
+
+  it('checks all backend source including scripts, and skips tests, test support, and other workspaces', () => {
+    const bad = "await db.from('group_settings').upsert(rows);";
+    assert.equal(scan(bad, 'apps/backend/src/scripts/seedSomething.ts').length, 1);
+    assert.equal(scan(bad, 'apps/backend/src/services/groupSettings.ts').length, 1);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/__tests__/helpers/fakeDb.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/group-settings.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/frontend/src/shared/x.ts'), []);
+    assert.deepEqual(scan(bad, 'packages/shared/src/x.ts'), []);
+  });
+
+  it('lets a file on the allowlist through, by exact name, and nothing else', () => {
+    const bad = "await db.from('group_settings').upsert(rows);";
+    const exempt = new Map([['apps/backend/src/scripts/seedSomething.ts', 'seeds the staging pretend group; no acting user exists']]);
+    assert.deepEqual(scan(bad, 'apps/backend/src/scripts/seedSomething.ts', exempt), []);
+    assert.equal(scan(bad, 'apps/backend/src/scripts/seedOther.ts', exempt).length, 1);
+  });
+
+  it('has no files on the real allowlist: every write goes through the gate', () => {
+    assert.equal(GROUP_SETTINGS_EXEMPT_FILES.size, 0);
   });
 });
 
@@ -1031,6 +1156,33 @@ describe('CLI', () => {
       assert.match(result.stderr, /apps\/backend\/src\/utils\/planted\.ts:1: .*join_group/);
     }
     assert.equal(runCli('users-group-id', makeBackend('ugid-good', "export const f = (db) => db.rpc('join_group', {});\n")).status, 0);
+  });
+
+  it('exits 1 on a group_settings write that skips the acting-group gate (also under all) and 0 once it goes through it', () => {
+    const makeBackend = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'routes'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'routes', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeBackend('gsw-bad', "export const f = (db) => db.from('group_settings').upsert([]);\n");
+    for (const mode of ['group-settings-writes', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/planted\.ts:1: .*actingGroupForWriteOrRespond/);
+    }
+    const good = makeBackend('gsw-good', "export const f = async (db, req, res) => { const g = await actingGroupForWriteOrRespond(req, res); return db.from('group_settings').upsert([{ group_id: g }]); };\n");
+    assert.equal(runCli('group-settings-writes', good).status, 0);
+  });
+
+  it('exits 0 on the current repo in group-settings-writes mode', () => {
+    const result = runCli('group-settings-writes');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /group_settings/);
   });
 
   it('exits 0 on the current repo in users-group-id mode', () => {

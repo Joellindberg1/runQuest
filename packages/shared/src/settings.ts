@@ -2,11 +2,13 @@
 //
 // Delas av backend (GET/PUT /api/settings) och klienten (och en framtida mobilapp), så att inställningar tolkas
 // likadant överallt. Sparse lagring: bara uttryckligen satta värden finns lagrade; resten är default.
-// `scope` finns från start så att gruppinställningarna (RUN-94) kan återanvända registret; bara user är byggt.
+// `scope` finns från start så att gruppinställningarna (RUN-94) kan återanvända registret. v0.8.0 registrerar inga gruppnycklar
+// (ADR 012 beslut 6.2); route och tester för scope 'group' finns, med ett test-register.
 //
 // En källa med notisslagen: definitionerna för `notify.<slag>` härleds ur NOTIFICATION_KINDS, och värderegeln
 // (settingsCore.ts) används även av isKindEnabled i notifications.ts. Beroendet går bara åt ett håll:
 // settings.ts -> notifications.ts -> settingsCore.ts.
+import { ACTIVITY_TYPES } from './activity.js';
 import { NOTIFICATION_KINDS } from './notifications.js';
 import type { SettingsValue } from './contracts/settings.js';
 import {
@@ -85,6 +87,48 @@ export function customisedKeys(
       return present && isValidSettingValue(def, value);
     })
     .map((def) => def.key);
+}
+
+/** En effektiv ändring av ett upplöst värde. */
+export interface SettingChange {
+  key: string;
+  from: SettingsValue;
+  to: SettingsValue;
+}
+
+/**
+ * Skillnaden mellan två upplösta värdeobjekt (resolveSettings före och efter en skrivning): bara nycklar som finns på båda sidor och
+ * vars värde skiljer sig, i `after`:s ordning (= registrets ordning). Jämför UPPLÖSTA värden, så att en skrivning som sätter det värde
+ * nyckeln redan hade (också default) inte är en ändring. Underlag för sömmen `onGroupSettingsChanged` (ADR 012 beslut 6.5).
+ */
+export function diffResolvedSettings(
+  before: Readonly<Record<string, SettingsValue>>,
+  after: Readonly<Record<string, SettingsValue>>,
+): SettingChange[] {
+  const changes: SettingChange[] = [];
+  for (const key of Object.keys(after)) {
+    const was = readOwn(before, key);
+    if (was.present && was.value !== after[key]) changes.push({ key, from: was.value as SettingsValue, to: after[key] });
+  }
+  return changes;
+}
+
+/**
+ * Aktivitetstypen som en gruppinställnings ändring ska bli (ADR 012 beslut 6.5, ägarbeslut F4). Namnet är reserverat; typen läggs i
+ * ACTIVITY_TYPES (+ CHECK-migration, klassificering, newsModel, notisslag) av den story som registrerar den första gruppnyckeln.
+ */
+export const GROUP_SETTING_EVENT_TYPE = 'group_setting_changed';
+
+/**
+ * Gruppnycklarna i registret som saknar eventtypen `group_setting_changed` i `activityTypes`. Tom lista = i ordning. Ett test kör den
+ * mot det riktiga registret och fäller bygget så fort en gruppnyckel registreras utan att ändringarna kan gå ut till gruppen (F4).
+ */
+export function groupSettingsMissingEventType(
+  definitions: readonly SettingDefinition[] = SETTING_DEFINITIONS,
+  activityTypes: readonly string[] = ACTIVITY_TYPES,
+): string[] {
+  if (activityTypes.includes(GROUP_SETTING_EVENT_TYPE)) return [];
+  return definitions.filter((def) => def.scope === 'group').map((def) => def.key);
 }
 
 export type SanitizedPatch =

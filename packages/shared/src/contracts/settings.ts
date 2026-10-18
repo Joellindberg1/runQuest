@@ -21,3 +21,16 @@ export interface UpdateSettingsRequest {
   /** Högst 40 nycklar. `null` = återställ nyckeln till default (raden raderas). */
   values: Record<string, SettingsValue | null>;
 }
+
+// ─── GET /api/groups/settings och PUT /api/groups/settings (ADR 012 beslut 6.3) ────────────────────────────
+
+export interface GroupSettingsMeta extends SettingsMeta {
+  /** Får anroparen ändra gruppens inställningar (admin-rollen i det aktiva medlemskapet)? Styr bara UI:t; servern prövar om vid PUT. */
+  can_edit: boolean;
+}
+
+/** Utan aktivt medlemskap: `values` är tomt, `customised` tomt och `can_edit` false. */
+export type GroupSettingsApiResponse = ApiSuccess<SettingsResponse, GroupSettingsMeta>;
+
+/** Samma form som användarens PUT: `{ values: { <nyckel>: värde | null } }`, men bara nycklar med scope 'group'. */
+export type UpdateGroupSettingsRequest = UpdateSettingsRequest;

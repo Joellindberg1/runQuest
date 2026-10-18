@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
+import { ACTIVITY_TYPES } from '../activity.js';
 import { NOTIFICATION_KINDS, isKindEnabled } from '../notifications.js';
 import {
+  GROUP_SETTING_EVENT_TYPE,
   MAX_PATCH_KEYS,
   SETTING_DEFINITIONS,
   customisedKeys,
+  diffResolvedSettings,
+  groupSettingsMissingEventType,
   notificationSettingDefinitions,
   resolveSettings,
   sanitizePatch,
@@ -271,5 +275,51 @@ describe('en källa för notisslagens på/av', () => {
         expect(isKindEnabled(def.kind, stored(bad)), `${def.kind} ${String(bad)}`).toBe(def.default);
       }
     }
+  });
+});
+
+describe('diffResolvedSettings', () => {
+  it('lists only keys whose resolved value differs, in the order of the after-object', () => {
+    const before = { 'group.a': true, 'group.b': 'x', 'group.c': false };
+    const after = { 'group.a': false, 'group.b': 'x', 'group.c': true };
+    expect(diffResolvedSettings(before, after)).toEqual([
+      { key: 'group.a', from: true, to: false },
+      { key: 'group.c', from: false, to: true },
+    ]);
+  });
+
+  it('gives no changes when the values are identical', () => {
+    const values = { 'group.a': true, 'group.b': 'x' };
+    expect(diffResolvedSettings(values, { ...values })).toEqual([]);
+  });
+
+  it('ignores keys that exist on only one side', () => {
+    expect(diffResolvedSettings({ 'group.a': true }, { 'group.b': true })).toEqual([]);
+  });
+
+  it('does not read inherited properties', () => {
+    withPollutedPrototype('group.a', false, () => {
+      expect(diffResolvedSettings({}, { 'group.a': true })).toEqual([]);
+    });
+  });
+});
+
+describe('groupSettingsMissingEventType', () => {
+  const GROUP_FLAG: SettingDefinition = { key: 'group.digest', scope: 'group', type: 'boolean', default: false };
+
+  it('fails the build when a group key is registered and group_setting_changed is not an activity type', () => {
+    expect(groupSettingsMissingEventType([...SETTING_DEFINITIONS, GROUP_FLAG], ACTIVITY_TYPES)).toEqual(['group.digest']);
+  });
+
+  it('passes when the event type exists', () => {
+    expect(groupSettingsMissingEventType([GROUP_FLAG], [...ACTIVITY_TYPES, GROUP_SETTING_EVENT_TYPE])).toEqual([]);
+  });
+
+  it('passes with only user keys, whether or not the event type exists', () => {
+    expect(groupSettingsMissingEventType(SETTING_DEFINITIONS, ACTIVITY_TYPES)).toEqual([]);
+  });
+
+  it('holds for the production registry, which is the guard that fails the build', () => {
+    expect(groupSettingsMissingEventType()).toEqual([]);
   });
 });
