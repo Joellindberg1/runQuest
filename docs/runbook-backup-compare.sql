@@ -1,14 +1,18 @@
--- Återställningsövningen (docs/runbook-backup.md, steg 5): jämför radantal mellan prod och den återställda kopian.
+-- Återställningsövningen (docs/runbook-backup.md, avsnitt 5): jämför radantal mellan prod och den återställda kopian.
 --
--- ENDAST LÄSNING. Varje block börjar med `begin read only` och slutar med `rollback`: Postgres vägrar då varje skrivning i
--- transaktionen, och ingenting sparas. Filen innehåller bara SELECT, och scripts/runbook-backup-sql.test.mjs fäller bygget om
--- något annat dyker upp. Raderna läser aldrig innehåll ur strava_tokens (inga tokens, inga id:n), bara antalet.
+-- ENDAST LÄSNING. Den verkliga garantin är att filen BARA innehåller SELECT/WITH-satser med funktioner från en vitlista (count, max,
+-- min, coalesce, now, cast, current_database, pg_database_size, pg_size_pretty, to_char): scripts/runbook-backup-sql.test.mjs
+-- fäller bygget i CI om något annat dyker upp. `begin read only` och `rollback` runt varje block är ett extra lager; det gäller
+-- bara om klienten inte redan har öppnat en egen transaktion, så lita inte på det ensamt. Kör filen i Supabase SQL Editor
+-- (inte i psql med autocommit av eller i ett verktyg som lägger en egen transaktion runt). Filen läser aldrig innehåll ur
+-- strava_tokens (inga tokens, inga id:n), bara antalet.
 --
 -- Så här körs den (SQL-editorn i Supabase visar bara resultatet av det SISTA blocket, så ett block i taget):
 --   1. Markera BLOCK A, kör det i den ÅTERSTÄLLDA kopian (det tillfälliga projektet). Skriv av resultatet i runbookens logg.
 --   2. Markera BLOCK A igen, kör det i PROD (SQL-editorn eller MCP-läsning är båda läsning). Skriv av resultatet.
 --   3. Fyll i återställningspunkten i BLOCK B (tidpunkten för backupen du återställde), kör det i PROD. Kolumnen
 --      forvantat_i_kopian är hur många rader prod hade vid den tidpunkten; den ska stämma med kopians antal i steg 1.
+--   4. BLOCK C mäter databasens storlek (kör i prod, och i kopian om du vill jämföra); det underlag RTO-antagandet saknar.
 -- Skillnaden mellan prod och kopian i steg 1 och 2 är normalt det som skapats efter backupen. Rader som RADERATS i prod efter
 -- backupen finns kvar i kopian och gör att kopian kan ha FLER rader än forvantat_i_kopian; det är inget fel i backupen.
 
@@ -57,5 +61,13 @@ from (
   union all select 'event_entries', count(*) filter (where created_at <= (select t from punkt)), count(*) from public.event_entries
 ) as prod_vid_punkten
 order by tabell;
+
+rollback;
+
+-- ===================================== BLOCK C: databasens storlek ======================================================
+-- Underlag för RTO: en återställnings tid beror på storleken. Kör i prod (och gärna i kopian).
+begin read only;
+
+select pg_database_size(current_database()) as bytes, pg_size_pretty(pg_database_size(current_database())) as storlek;
 
 rollback;
