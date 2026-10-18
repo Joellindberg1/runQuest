@@ -40,13 +40,45 @@ const people = (): Row[] => [
 ];
 
 function useDb(users: Row[] = people()) {
-  const db = createFakeDb({ users }, { autoIds: true });
+  const tables: Record<string, Row[]> = { users };
+  const db = createFakeDb(tables, { autoIds: true });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
-  return { ...db, users };
+  return { ...db, tables };
 }
 
 const writesTo = (db: { queries: Array<{ table: string; mutation?: string }> }, table: string) =>
   db.queries.filter((q) => q.table === table && q.mutation);
+
+describe('POST /api/auth/users (admin)', () => {
+  const create = (token: string, body: Record<string, unknown> = { name: 'Newbie', email: 'newbie@example.com', password: 'secret123' }) =>
+    server.request('POST', '/api/auth/users', { token, body });
+
+  it('creates the user in the admin\'s own group', async () => {
+    const db = useDb();
+    const res = await create(adminToken(GROUP_A));
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    const created = db.tables.users.find((u) => u.email === 'newbie@example.com');
+    expect(created?.group_id).toBe(GROUP_A);
+  });
+
+  it('answers 403 and creates no user when the admin token has no group', async () => {
+    const db = useDb();
+    const res = await create(adminToken(null));
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBeTruthy();
+    expect(writesTo(db, 'users')).toEqual([]);
+    expect(db.tables.users).toHaveLength(3);
+    expect(db.tables.users.some((u) => u.group_id == null)).toBe(false);
+  });
+
+  it('answers 403 for a groupless admin before it validates the body', async () => {
+    const db = useDb();
+    const res = await create(adminToken(null), { name: 'Newbie' });
+    expect(res.status).toBe(403);
+    expect(writesTo(db, 'users')).toEqual([]);
+  });
+});
 
 describe('PUT /api/auth/users/:id/password (admin)', () => {
   const reset = (id: string, token: string) =>
@@ -57,7 +89,7 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
     const res = await reset('member-a', adminToken(GROUP_A));
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    const member = db.users.find((u) => u.id === 'member-a')!;
+    const member = db.tables.users.find((u) => u.id === 'member-a')!;
     expect(await bcrypt.compare('brand-new-secret', member.password_hash)).toBe(true);
   });
 
@@ -66,7 +98,7 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
     const res = await reset('member-b', adminToken(GROUP_A));
     expect(res.status).toBe(404);
     expect(writesTo(db, 'users')).toEqual([]);
-    expect(db.users.find((u) => u.id === 'member-b')!.password_hash).toBe(OLD_HASH);
+    expect(db.tables.users.find((u) => u.id === 'member-b')!.password_hash).toBe(OLD_HASH);
   });
 
   it('answers the same 404 for a user in another group as for a user that does not exist', async () => {
@@ -85,6 +117,6 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
     expect(writesTo(db, 'users')).toEqual([]);
     // requireAdmin slår upp is_admin; målanvändaren får inte ens läsas
     expect(db.queries.filter((q) => q.table === 'users' && q.select !== 'is_admin')).toEqual([]);
-    expect(db.users.find((u) => u.id === 'member-a')!.password_hash).toBe(OLD_HASH);
+    expect(db.tables.users.find((u) => u.id === 'member-a')!.password_hash).toBe(OLD_HASH);
   });
 });

@@ -233,6 +233,11 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
 router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     logger.info('👤 Admin request to create new user');
+
+    // Aldrig ett konto utan grupp: en admin utan grupp får 403 innan något annat prövas eller skrivs.
+    const groupId = groupIdOrRespondForbidden(req, res);
+    if (!groupId) return;
+
     const { name, email, password } = req.body;
 
     if (!name || !email || !password || typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
@@ -282,7 +287,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
         current_streak: 0,
         longest_streak: 0,
         total_km: 0.0,
-        group_id: req.user!.group_id ?? null
+        group_id: groupId
       })
       .select('id, name, email, total_xp, current_level, current_streak, created_at')
       .single();
