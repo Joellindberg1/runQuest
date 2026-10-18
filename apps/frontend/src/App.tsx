@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { AppProviders } from '@/providers/AppProviders';
 import { useAuth } from '@/providers/authContext';
 import { useAppInit } from '@/shared/hooks/useAppInit';
+import { usePageviewTracking } from '@/shared/analytics/usePageviewTracking';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
 import { AppRoutes } from './routes';
 // Touren (driver.js) behövs först för inloggade användare, så den ligger i en egen chunk.
@@ -24,6 +25,7 @@ const AppContent = () => {
   const path = window.location.pathname;
 
   useAppInit();
+  usePageviewTracking({ paused: loading });
 
   // Strava popup-sidan hanteras som en separat HTML-fil utanför React
   if (path === '/strava-popup.html') {

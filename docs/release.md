@@ -206,6 +206,45 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
   jobbens `npm ci` och cache inte växer. Uppgradera `@lhci/cli` medvetet: en ny Lighthouse-version kan flytta poängen, så läs
   tabellen före och efter och justera inte budgeten för att dölja det.
 
+#### Webbanalys: Umami Cloud (RUN-291, epic RUN-19)
+
+Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbeslut 2026-10-16. Koden ligger i
+`apps/frontend/src/shared/analytics/`.
+
+- **Variabeln:** `VITE_UMAMI_WEBSITE_ID` (webbplatsens id, inte hemligt) är en **byggvariabel** på frontend-tjänsten i **prod**
+  (`runquest-frontend`); den bakas in vid bygget, så efter att den satts krävs en ny build. Värdet står i Umami-panelen (webbplatsens
+  inställningar). **Staging får den inte**, och saknas den laddas inget skript: staging, lokal utveckling och CI:s byggen
+  skickar ingenting. Som extra skydd är skriptet låst till `www.runquest.dev` och `runquest.dev` (`data-domains`), och ett bygge
+  med `VITE_APP_ENV=staging` ignorerar variabeln även om den satts av misstag. Lead sätter variabeln efter ägarens ja (Railway-variabler
+  ändras bara så); ingen Railway-variabel är satt av koden eller av den här PR:en.
+- **Vad som skickas:** bara sidvisningar, och bara en normaliserad adress: routens mönster (`/runner/:id`, `/board`, `/login`), aldrig
+  den riktiga adressen. Query och fragment tas bort; på landningen behålls `utm_source`, `utm_medium`, `utm_campaign` och
+  `utm_content` (Umami läser kampanjerna ur adressen, annars blir kampanjvyn tom), men bara värden som står på **vitlistan**
+  (`apps/frontend/src/shared/analytics/utmAllowlist.ts`). Jämförelsen ignorerar skiftläge och det som skickas är listans eget värde,
+  aldrig besökarens sträng; okända värden och `utm_term` tas bort. Ett fritt värde kunde annars bära ett id eller ett namn. Okända adresser skickas som `/(not-found)`. Sidans titel ersätts av samma adress och hänvisningen skickas bara som
+  ursprung (`https://www.google.com`) eller, inne i appen, som föregående sidas normaliserade adress. Inga händelser, ingen
+  rundata, inga distanser, inga namn och inget användar-id (Stravas API-policy 5.4 förbjuder analys på Strava-data).
+- **Lägga till en kampanjtagg:** när ägaren ska dela en länk, välj en kort etikett (ett ord, små bokstäver, inget som pekar ut en person),
+  lägg den i `utm_campaign` (kampanjen) eller `utm_content` (varianten) i `utmAllowlist.ts`, och använd exakt den i länken
+  (`https://www.runquest.dev/?utm_source=instagram&utm_medium=social&utm_campaign=<tagg>`). Ändringen är en liten PR med ett
+  tillägg i listan och släpps som vanligt; en tagg som inte står på listan visas som ingen kampanj alls. Källor och medier som redan
+  finns: `utm_source` instagram, facebook, messenger, whatsapp, sms, email, linkedin, x, reddit, strava, qr; `utm_medium` social,
+  referral, email, sms, qr, organic. Listorna för `utm_campaign` och `utm_content` börjar tomma.
+- **Cookiefritt:** Umami sätter inga cookies och koden skriver varken till cookies eller localStorage/sessionStorage (testat i
+  `umamiPageviews.test.ts`). `data-do-not-track="true"` är påslaget: besökare som skickar Do Not Track räknas inte. Valet kostar
+  några procent av sidvisningarna och stämmer med att tjänsten ska vara integritetsvänlig; det stör inte målet (trender, inte exakta tal).
+- **Laddningen:** skriptet läggs in från koden (inte från `index.html`) som `<script async defer>` först när dokumentet laddats klart,
+  med automatisk spårning avstängd (`data-auto-track="false"`); koden skickar själv en sidvisning per ny sida efter att adressen legat
+  still en kort stund (så att en omdirigering inte räknas som en sidvisning). En blockerad eller misslyckad laddning tystas.
+- **Lighthouse:** CI:s Lighthouse-jobb bygger frontend utan `VITE_UMAMI_WEBSITE_ID` (jobbet sätter ingen) och mäter mot 127.0.0.1, så
+  skriptet laddas aldrig där och budgeten (RUN-259) påverkas bara av den lilla koden i huvudbunten (ca 0,9 kB gzip). Bygg inte med
+  variabeln när budgeten mäts lokalt (`scripts/lighthouse/run.sh`): skriptet hämtas då utifrån och mätningen slutar vara hermetisk.
+- **Kontroll efter att variabeln satts i prod (Lead och ägaren):** öppna `https://www.runquest.dev` i ett privat fönster med DevTools →
+  Application: *Cookies* ska vara tomma och *Local/Session storage* utan Umami-nycklar; Network ska visa `script.js` från
+  `cloud.umami.is` och en POST till Umamis `/api/send` vars payload har `url` som routemönster (till exempel `/login`, inte en adress
+  med id). Gå sedan in i appen och öppna en löpare: payloaden ska visa `/runner/:id`. Ägaren bekräftar att sidvisningarna syns i
+  Umami-panelen. Integritetstexten på `/legal` uppdateras i en egen story i samma epic (S3), inte här.
+
 ### 4. Rök mot de kritiska flödena
 
 Kör rök-raden för varje kritiskt flöde i `STATE.md` ("Kritiska flöden", nio stycken) som releasen rör, och alltid
