@@ -7,6 +7,7 @@ import {
   checkSealingReady,
   openStravaToken,
   readStoredTokenRow,
+  recordUnreadableToken,
   saveRotatedTokens,
   sealStravaTokenPair,
   storedRefreshTokenEquals,
@@ -381,6 +382,7 @@ export async function refreshAccessToken(userId: string): Promise<AccessTokenRes
  * decision 9), and this line comes with every poll and every webhook event until it is fixed.
  */
 function unreadable(userId: string, code: string, column?: StravaTokenColumn): { ok: false; reason: 'token_unreadable' } {
+  recordUnreadableToken();
   logger.error(`❌ Strava token unreadable for user ${userId} (${code}${column ? `, ${column}` : ''}); Strava was not called`);
   return { ok: false, reason: 'token_unreadable' };
 }

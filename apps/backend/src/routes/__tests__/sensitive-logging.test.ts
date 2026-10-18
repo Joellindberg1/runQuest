@@ -22,6 +22,8 @@ import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createStravaRateBudget } from '../../services/stravaRateBudget.js';
+import { reportTokenKeyAtStartup } from '../../services/tokenKeyStartup.js';
+import { syncAllStravaUsers } from '../strava.js';
 import { buildSecretAad, parseKeyRing, seal } from '../../utils/secretBox.js';
 import { createFakeDb } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
@@ -172,6 +174,62 @@ describe('strava routes', () => {
     expect(out).toMatch(/Strava token unreadable for user user-1 \(bad_format, refresh_token\)/);
     expect(out).toMatch(/Strava token unreadable for user user-1 \(auth_failed, refresh_token\)/);
     expect(out).toMatch(/Strava token unreadable for user user-1 \(key_missing\)/);
+  });
+});
+
+describe('token key configuration', () => {
+  it('never logs a token, a stored value or any part of a key at startup without a key, with an invalid key, with a refused key id, in skipped runs and through the health endpoint', async () => {
+    const goodKey = randomBytes(32).toString('base64');
+    const testKey = randomBytes(32).toString('base64');
+    const retiredKey = randomBytes(32).toString('base64');
+    const invalidValues = [`prod-1:${goodKey.slice(0, 20)}`, `prod-1:${goodKey}:extra`, `NOKIDJUSTAVALUE${goodKey}`];
+    const stored = { access: 'STOREDACCESS0123456789', refresh: 'STOREDREFRESH9876543210' };
+    const sealingRing = parseKeyRing({ TOKEN_ENCRYPTION_KEY: `prod-1:${goodKey}` });
+    const sealed = {
+      user_id: 'user-secret-uuid-1',
+      access_token: seal(stored.access, buildSecretAad({ table: 'strava_tokens', column: 'access_token', userId: 'user-secret-uuid-1' }), sealingRing),
+      refresh_token: seal(stored.refresh, buildSecretAad({ table: 'strava_tokens', column: 'refresh_token', userId: 'user-secret-uuid-1' }), sealingRing),
+      expires_at: 9999999999,
+      sync_paused: false,
+      users: { name: 'x' },
+    };
+    useDb({ users: [{ id: 'admin-1', is_admin: true }], strava_tokens: [sealed], strava_webhook_events: [] });
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('SENTRY_ENVIRONMENT', '');
+    vi.stubEnv('TOKEN_ENCRYPTION_KEYS_RETIRED', '');
+    const startWith = (active: string, retired = '') => {
+      vi.stubEnv('TOKEN_ENCRYPTION_KEY', active);
+      vi.stubEnv('TOKEN_ENCRYPTION_KEYS_RETIRED', retired);
+      reportTokenKeyAtStartup();
+    };
+
+    // 1. No key. 2. Invalid keys. 3. A key id the environment refuses, active and retired. 4. A working key.
+    startWith('');
+    for (const value of invalidValues) startWith(value);
+    startWith(`test-1:${testKey}`);
+    startWith(`prod-2:${goodKey}`, `test-1:${testKey}`);
+    startWith(`prod-1:${goodKey}`, `prod-0:${retiredKey}`);
+    // 5. The runs that are skipped for want of a key, 6. the health endpoint with a key, without one and with a refused one.
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+    expect((await syncAllStravaUsers()).unavailable).toBe(true);
+    const health = async () => (await server.request('GET', '/api/strava/webhook/health', { token: mintToken({ user_id: 'admin-1' }) })).body;
+    const bodies = [await health()];
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', `prod-1:${goodKey}`);
+    bodies.push(await health());
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', `test-1:${testKey}`);
+    bodies.push(await health());
+
+    const out = `${logged()}\n${JSON.stringify(bodies)}`;
+    const secrets = [goodKey, testKey, retiredKey, ...invalidValues, stored.access, stored.refresh, sealed.access_token, sealed.refresh_token, 'user-secret-uuid-1'];
+    for (const secret of secrets) {
+      expect(out, secret).not.toContain(secret);
+      expect(out, `start of ${secret}`).not.toContain(secret.slice(0, 12));
+    }
+    expect(out).not.toContain('enc:v1');
+    // Sanity: what is meant to be there is there (the alarms name the problem and the key ids, and the health names the key ids).
+    expect(out).toContain('KRITISKT');
+    expect(out).toContain('test-1');
+    expect(bodies[1].data.token_encryption).toMatchObject({ configured: true, active_kid: 'prod-1', encrypted_rows: 1 });
   });
 });
 

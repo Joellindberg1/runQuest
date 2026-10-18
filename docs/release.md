@@ -223,6 +223,10 @@ Beslutas av ägaren; snabbast först. Varje releases egen "Rollback" i `CHANGELO
 4. **Data som den nya koden skrivit** (t.ex. nya händelsetyper i `activity_log`) kan behöva raderas innan den gamla
    frontenden tas tillbaka. Radering i prod kräver ägar-ja med exakt omfattning.
 5. Railway-variabler ändras bara efter ägar-ja; hemliga värden klistras aldrig i chatten, ägaren lägger in dem i Railway-UI:t.
+   Tokennyckeln (`TOKEN_ENCRYPTION_KEY`, `TOKEN_ENCRYPTION_KEYS_RETIRED`) har en egen handbok för att skapa, sätta, rotera, förlora och
+   läcka den: [`docs/runbook-token-key.md`](runbook-token-key.md). En release som deployar tokenkrypteringen kräver att nyckeln är satt
+   i Railway **före** deployen (ADR 013 beslut 13); utan den startar appen men Strava-synken är avstängd och Sentry får ett
+   `🚨 KRITISKT`-larm med `source:token_key`.
 6. **Data som gått förlorad** (databasen, profilbilder, hemligheter): koden rullas inte tillbaka för det. Vad Pro-backupen täcker och
    inte täcker, återställningsövningen och RPO/RTO står i [`docs/runbook-backup.md`](runbook-backup.md).
 

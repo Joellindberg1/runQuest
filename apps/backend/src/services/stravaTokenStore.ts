@@ -12,7 +12,7 @@
  */
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
-import { buildSecretAad, open, parseKeyRing, seal, SecretBoxError, type KeyRing, type SecretAad, type SecretBoxErrorCode } from '../utils/secretBox.js';
+import { buildSecretAad, kidOfStored, open, parseKeyRing, seal, SecretBoxError, type KeyRing, type SecretAad, type SecretBoxErrorCode } from '../utils/secretBox.js';
 
 const TABLE = 'strava_tokens';
 
@@ -31,17 +31,75 @@ function codeOf(error: unknown): SecretBoxErrorCode {
 
 export type SealingReadiness = { ok: true; ring: KeyRing } | { ok: false; code: TokenUnreadableCode };
 
+/** The key id prefix of the environment this process runs in (ADR 013 decision 3: `prod-1`, `stg-1`). */
+export type KidPrefix = 'prod-' | 'stg-';
+
+/**
+ * Which key ids this process accepts, as a prefix, or null where any id is accepted. Only in production (NODE_ENV=production) is a
+ * prefix required: `stg-` when SENTRY_ENVIRONMENT says staging (docs/staging.md gives staging its own value there), `prod-` otherwise,
+ * so an unset variable means the strictest rule. That keeps the open test key (`test-1`, vitest.config.ts) and a key of the other
+ * environment out of a deployed backend: a test key that opens values lets anyone who can write to the database plant tokens, and a
+ * staging key in production (or the reverse) is a mix-up.
+ */
+export function requiredKidPrefix(env: Readonly<Record<string, string | undefined>> = process.env): KidPrefix | null {
+  if (env.NODE_ENV !== 'production') return null;
+  return env.SENTRY_ENVIRONMENT?.trim().toLowerCase() === 'staging' ? 'stg-' : 'prod-';
+}
+
+/** What is wrong with the key configuration: nothing usable, malformed, or a key id this environment does not accept. */
+export type TokenKeyProblem = 'key_missing' | 'key_invalid' | 'kid_not_allowed';
+
+export type TokenKeyConfig =
+  | { ok: true; ring: KeyRing }
+  | { ok: false; problem: 'key_missing' | 'key_invalid' }
+  | { ok: false; problem: 'kid_not_allowed'; ring: KeyRing; requiredPrefix: KidPrefix; offendingKids: string[] };
+
+/**
+ * The key configuration as this process would use it, with the reason when it is not usable. Key ids (never key material) are all the
+ * answer names. Every key in the ring must carry the environment's prefix, the retired ones too: they open values just as the active one.
+ */
+export function inspectTokenKeyConfig(): TokenKeyConfig {
+  let ring: KeyRing;
+  try {
+    ring = parseKeyRing();
+  } catch (error) {
+    return { ok: false, problem: codeOf(error) === 'key_missing' ? 'key_missing' : 'key_invalid' };
+  }
+  const requiredPrefix = requiredKidPrefix();
+  const offendingKids = requiredPrefix ? ring.kids.filter((kid) => !kid.startsWith(requiredPrefix)) : [];
+  if (requiredPrefix && offendingKids.length > 0) return { ok: false, problem: 'kid_not_allowed', ring, requiredPrefix, offendingKids };
+  return { ok: true, ring };
+}
+
 /**
  * Is the key configuration usable? Called before anything is read and, above all, before Strava's token endpoint is called: Strava
  * rotates the refresh token when it answers, so a refresh made without being able to save the answer would lose the connection
- * (ADR 013 decision 5.5). The ring it returns is the one to use for the whole operation. Never throws for a key problem.
+ * (ADR 013 decision 5.5). The ring it returns is the one to use for the whole operation. Never throws for a key problem. A key id the
+ * environment does not accept (requiredKidPrefix) is `key_invalid`, the same fail-closed answer as a malformed key; the startup alarm
+ * says which of the two it is.
  */
 export function checkSealingReady(): SealingReadiness {
-  try {
-    return { ok: true, ring: parseKeyRing() };
-  } catch (error) {
-    return { ok: false, code: codeOf(error) };
-  }
+  const config = inspectTokenKeyConfig();
+  if (config.ok) return { ok: true, ring: config.ring };
+  return { ok: false, code: config.problem === 'key_missing' ? 'key_missing' : 'key_invalid' };
+}
+
+// Token reads that ended in token_unreadable since this process started (the health block's `unreadable_since_start`). A count of
+// results, not of users: a poll that meets the same user twice counts twice. It is memory, not a record; a restart starts at zero.
+let unreadableCount = 0;
+
+/** One token read ended in `token_unreadable` (stravaClient says so, once per result). */
+export function recordUnreadableToken(): void {
+  unreadableCount += 1;
+}
+
+export function unreadableSinceStart(): number {
+  return unreadableCount;
+}
+
+/** For tests. */
+export function resetUnreadableCount(): void {
+  unreadableCount = 0;
 }
 
 /** Encrypts a token for its row and column. Throws a `SecretBoxError` (key or input problem). */
@@ -187,4 +245,78 @@ export async function upsertStravaConnection(
     .from(TABLE)
     .upsert({ user_id: userId, ...sealed, expires_at: tokens.expiresAt, ...columns });
   return { error };
+}
+
+/** What the token columns of the table look like and whether this process can use its key: the `token_encryption` block of the webhook health. */
+export interface TokenEncryptionHealth {
+  /** The key configuration is usable and accepted in this environment (checkSealingReady is ok). */
+  configured: boolean;
+  /** Why not, when it is not. */
+  config_error: TokenKeyProblem | null;
+  /** The key id writes use. Null when no key could be parsed. */
+  active_kid: string | null;
+  /** The key ids that only open (TOKEN_ENCRYPTION_KEYS_RETIRED). */
+  retired_kids: string[];
+  /** Rows whose every stored token column is a well-formed enc:v1 value. */
+  encrypted_rows: number;
+  /** Rows with a legacy plaintext column and no unrecognised one (until the backfill has run). The invariant after it is 0. */
+  plaintext_rows: number;
+  /** Rows with a column that is neither: a broken enc: value, or a value of no known shape. */
+  unrecognised_rows: number;
+  /** Of the encrypted rows, those with a column on a key id other than the active one (a retired key, or one the configuration does not hold). Null without a key. */
+  rows_on_other_kid: number | null;
+  /** Token reads that ended in token_unreadable since this process started. */
+  unreadable_since_start: number;
+}
+
+type TokenColumnForm = { form: 'empty' } | { form: 'encrypted'; kid: string } | { form: 'plaintext' } | { form: 'unrecognised' };
+
+function formOfStored(stored: unknown): TokenColumnForm {
+  if (stored === null || stored === undefined) return { form: 'empty' };
+  if (typeof stored === 'string' && stored.startsWith('enc:')) {
+    const kid = kidOfStored(stored);
+    return kid ? { form: 'encrypted', kid } : { form: 'unrecognised' };
+  }
+  return typeof stored === 'string' && LEGACY_PLAINTEXT.test(stored) ? { form: 'plaintext' } : { form: 'unrecognised' };
+}
+
+/**
+ * Counts for the admin health endpoint (ADR 013 decision 9): is the key usable, which key ids, and how many rows are in which form.
+ * Every row's token columns are read here, in memory, and only the counts leave: no value, no user id. The rows are classified by shape
+ * and by the key id they name; nothing is decrypted, so this says nothing about whether a value opens (`unreadable_since_start` does,
+ * for the reads that happened). THROWS on a database error: a health check that says 0 when the read failed lies.
+ */
+export async function readTokenEncryptionHealth(): Promise<TokenEncryptionHealth> {
+  const config = inspectTokenKeyConfig();
+  const ring = config.ok || config.problem === 'kid_not_allowed' ? config.ring : null;
+
+  const { data, error } = await getSupabaseClient().from(TABLE).select('user_id, access_token, refresh_token');
+  if (error) throw error;
+
+  let encrypted = 0;
+  let plaintext = 0;
+  let unrecognised = 0;
+  let onOtherKid = 0;
+  for (const row of data ?? []) {
+    const forms = [formOfStored(row.access_token), formOfStored(row.refresh_token)].filter((form) => form.form !== 'empty');
+    if (forms.length === 0) continue;
+    if (forms.some((form) => form.form === 'unrecognised')) unrecognised += 1;
+    else if (forms.some((form) => form.form === 'plaintext')) plaintext += 1;
+    else {
+      encrypted += 1;
+      if (forms.some((form) => form.form === 'encrypted' && form.kid !== ring?.activeKid)) onOtherKid += 1;
+    }
+  }
+
+  return {
+    configured: config.ok,
+    config_error: config.ok ? null : config.problem,
+    active_kid: ring?.activeKid ?? null,
+    retired_kids: ring ? ring.kids.filter((kid) => kid !== ring.activeKid) : [],
+    encrypted_rows: encrypted,
+    plaintext_rows: plaintext,
+    unrecognised_rows: unrecognised,
+    rows_on_other_kid: ring ? onOtherKid : null,
+    unreadable_since_start: unreadableCount,
+  };
 }

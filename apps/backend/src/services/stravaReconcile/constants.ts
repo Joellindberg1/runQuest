@@ -60,5 +60,8 @@ export const RECONCILE_MAX_LIST_PAGES = 5;
  */
 export const RECONCILE_LIST_RESERVE_PER_USER = 1;
 
-/** Why a night ended before every user was done: its own request budget is spent, or Strava's read budget is over its soft limit (or answered 429). */
-export type ReconcileStopReason = 'budget' | 'rate_limit';
+/**
+ * Why a night ended before every user was done: its own request budget is spent, Strava's read budget is over its soft limit (or answered
+ * 429), or the key that reads Strava tokens is not usable (ADR 013: then the night never starts and no user is tried).
+ */
+export type ReconcileStopReason = 'budget' | 'rate_limit' | 'token_key';

@@ -12,6 +12,7 @@ import { startStreakScheduler } from './scheduler/streakScheduler.js';
 import { startStravaWebhookScheduler } from './scheduler/stravaWebhookScheduler.js';
 import { startStravaReconcileScheduler } from './scheduler/stravaReconcileScheduler.js';
 import { registerStravaRateBudget } from './services/stravaRateBudget.js';
+import { reportTokenKeyAtStartup } from './services/tokenKeyStartup.js';
 import { flushSentry, initSentry } from './observability/sentry.js';
 import { createShutdown, exitAfterFlush } from './utils/shutdown.js';
 
@@ -56,6 +57,10 @@ logger.info('✅ Step 1 Complete: Environment loaded successfully\n');
 // Rate budget: counts every Strava call for the whole process (ADR 010 decision 9). Registered here, once, before any
 // request or scheduler can call Strava; in createApp() it would also leak into every test that builds the app.
 registerStravaRateBudget();
+
+// Token key (ADR 013 decision 9): a missing or refused key is a KRITISKT alarm and the Strava track stays off (fail-closed); the process
+// goes on, since the rest of the app does not need the key. Called at the top level so that the CI guard (rule 12) can see it.
+reportTokenKeyAtStartup();
 
 // 📋 Step 2: Create app (måste importeras EFTER dotenv.config — dynamisk import)
 logger.info('🔧 Step 2: Creating Express app...');

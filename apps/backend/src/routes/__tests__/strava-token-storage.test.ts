@@ -224,7 +224,7 @@ describe('the polling when tokens cannot be read', () => {
     vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) => realSetTimeout(fn, ms && ms >= 1000 ? 0 : ms)) as typeof setTimeout);
   }
 
-  it('polling without a key reports "Strava is temporarily unavailable" per user, calls Strava for nothing, runs every user and leaves the tables alone', async () => {
+  it('polling without a key is skipped as a whole: one error line for the run, none per user, no Strava request and the tables left alone', async () => {
     skipLongPauses();
     strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse(), athleteActivities: [] });
     const { t, db } = use({ strava_tokens: [userRow('user-1'), userRow('user-2')] });
@@ -233,14 +233,49 @@ describe('the polling when tokens cannot be read', () => {
 
     const result = await syncAllStravaUsers();
 
-    expect(result).toMatchObject({ success: true, syncedUsers: 0, totalUsers: 2, totalNewRuns: 0 });
-    expect(result.results).toEqual([
-      { userId: 'user-1', userName: 'user-1', error: 'Strava is temporarily unavailable' },
-      { userId: 'user-2', userName: 'user-2', error: 'Strava is temporarily unavailable' }, // the next user is still tried
-    ]);
+    expect(result).toEqual({
+      success: false,
+      unavailable: true,
+      message: 'Strava is temporarily unavailable',
+      syncedUsers: 0,
+      totalUsers: 0,
+      totalNewRuns: 0,
+      results: [],
+    });
     expect(strava.requests).toHaveLength(0);
     expect(JSON.stringify(t)).toBe(before);
-    expect(db.queries.filter((q) => q.mutation)).toEqual([]);
+    expect(db.queries).toEqual([]); // not even the list of users is read
+    const errors = vi.mocked(logger.error).mock.calls.map((call) => String(call[0]));
+    expect(errors).toHaveLength(1); // one alarm for the run, not one per user
+    expect(errors[0]).toMatch(/Strava sync skipped.*key_missing/);
+    expect(logLines.join('\n')).not.toMatch(/user-1|user-2/);
+    expect(logLines.join('\n')).not.toContain('KRITISKT'); // the startup alarm is the critical one
+  });
+
+  it('polling with a key the environment refuses is skipped the same way', async () => {
+    skipLongPauses();
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse(), athleteActivities: [] });
+    const { db } = use({ strava_tokens: [userRow('user-1')] });
+    vi.stubEnv('NODE_ENV', 'production'); // the open test key (test-1) is not accepted in production
+
+    const result = await syncAllStravaUsers();
+
+    expect(result).toMatchObject({ success: false, unavailable: true, totalUsers: 0 });
+    expect(strava.requests).toHaveLength(0);
+    expect(db.queries).toEqual([]);
+    expect(vi.mocked(logger.error).mock.calls.map((call) => String(call[0])).join('\n')).toMatch(/Strava sync skipped.*key_invalid/);
+  });
+
+  it('GET /sync-all answers 503 for a skipped run, with no detail', async () => {
+    strava = installFakeStravaFetch({ athleteActivities: [] });
+    use();
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+
+    const res = await server.request('GET', '/api/strava/sync-all', { token: token() });
+
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ error: 'Strava is temporarily unavailable' });
+    expect(strava.requests).toHaveLength(0);
   });
 
   it('one user whose token cannot be read does not stop the next user from syncing', async () => {

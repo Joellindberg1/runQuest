@@ -162,6 +162,21 @@ export function seal(plain: string, aad: SecretAad, ring: KeyRing = parseKeyRing
 }
 
 /**
+ * The key id of a stored value, or null when it is not a well-formed `enc:v1:<kid>:<iv>:<ciphertext>:<tag>` string (six fields, a valid
+ * kid, base64url fields). Reads the name only: nothing is decrypted and no key is needed, so a report can say which key a row is on
+ * without being able to read it. It does not prove the value opens.
+ */
+export function kidOfStored(stored: unknown): string | null {
+  if (typeof stored !== 'string') return null;
+  const parts = stored.split(':');
+  if (parts.length !== 6 || `${parts[0]}:${parts[1]}` !== PREFIX) return null;
+  const [, , kid, iv, ciphertext, tag] = parts;
+  // The ciphertext of an empty plaintext is empty; the iv and the tag never are.
+  const shaped = iv !== '' && tag !== '' && [iv, ciphertext, tag].every((field) => BASE64URL.test(field));
+  return KID_PATTERN.test(kid) && shaped ? kid : null;
+}
+
+/**
  * Decrypts a stored value with the key its kid names (active or retired). Throws `bad_format` for anything that is not a well-formed
  * `enc:v1:` string, `unknown_key_id` when the ring holds no such kid, and `auth_failed` when the tag does not verify (wrong key, changed
  * bytes or a different `aad`). GCM verifies the tag inside node:crypto's `final()`, so no value of ours is compared by hand.

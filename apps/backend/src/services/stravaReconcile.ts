@@ -52,6 +52,7 @@ import { nightIndex, planUser, reconcileWindow, rotationSlice, type ListedActivi
 import type { ReconcilePorts, ReconcileUser } from './stravaReconcile/ports.js';
 import type { RateBudget, Recompute, RunStore, StravaApi, WebhookEventRow } from './stravaWebhook/ports.js';
 import { createActivityUpdateHandler } from './stravaWebhook/handlers/activityUpdate.js';
+import { checkSealingReady } from './stravaTokenStore.js';
 import type { WebhookHandler } from './stravaWebhookWorker.js';
 
 export interface ReconcileDeps {
@@ -209,6 +210,16 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
   async function run(): Promise<ReconcileSummary> {
     const started = now();
     const summary: ReconcileSummary = { users: 0, pausedUsers: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 0, requests: 0, stopped: null };
+
+    // Without a usable token key no user can get a token (ADR 013, fail-closed): the night does not start. One line for the night instead
+    // of a warning and an error per user; the startup alarm (tokenKeyStartup) is the critical one and this is its nightly reminder.
+    const sealing = checkSealingReady();
+    if (!sealing.ok) {
+      summary.stopped = 'token_key';
+      logger.error(`❌ Strava reconcile skipped: the token key is not usable (${sealing.code}); no user was tried tonight`);
+      return summary;
+    }
+
     const ledger = createLedger(requestBudget);
     const strava = countedStrava(deps.strava, ledger);
     const night = nightIndex(started);
