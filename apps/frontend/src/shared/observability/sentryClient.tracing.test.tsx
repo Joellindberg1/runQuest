@@ -17,17 +17,24 @@ interface TransactionPayload {
   measurements?: Record<string, { value: number }>;
   release?: string;
 }
+interface EnvelopeHeader {
+  trace?: Record<string, unknown>;
+  [key: string]: unknown;
+}
 type Envelope = [unknown, Array<[{ type: string }, TransactionPayload]>];
 type FetchCall = { url: string; headers: Headers };
 
 let transactions: TransactionPayload[];
 let errorEvents: TransactionPayload[];
+/** Kuvertens egna headers: där spårningens "trace" (dynamic sampling context) ligger. */
+let envelopeHeaders: Array<EnvelopeHeader>;
 let requests: FetchCall[];
 let report: ((error: unknown) => void) | undefined;
 
 /** Varje klient skriver till sina egna listor: en sidladdning från ett tidigare test kan avslutas först när nästa test pågår. */
-const transportInto = (transactionSink: TransactionPayload[], eventSink: TransactionPayload[]) => () => ({
+const transportInto = (transactionSink: TransactionPayload[], eventSink: TransactionPayload[], headerSink: Array<EnvelopeHeader>) => () => ({
   send: async (envelope: Envelope) => {
+    headerSink.push(envelope[0] as EnvelopeHeader);
     for (const [header, payload] of envelope[1]) {
       if (header.type === 'transaction') transactionSink.push(payload);
       if (header.type === 'event') eventSink.push(payload);
@@ -42,13 +49,14 @@ async function startFresh(options: { documentPath: string; tracesSampleRate?: nu
   vi.resetModules();
   transactions = [];
   errorEvents = [];
+  envelopeHeaders = [];
   window.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     requests.push({ url: String(input), headers: new Headers(init?.headers) });
     return new Response('{}', { status: 200 });
   }) as unknown as typeof fetch;
   const Sentry = await import('@sentry/react');
   const { startSentry } = await import('./sentryClient');
-  report = startSentry({ dsn: DSN, environment: 'test', transport: transportInto(transactions, errorEvents) as never, ...options });
+  report = startSentry({ dsn: DSN, environment: 'test', transport: transportInto(transactions, errorEvents, envelopeHeaders) as never, ...options });
   return Sentry;
 }
 
@@ -72,6 +80,10 @@ afterEach(async () => {
   Sentry?.getActiveSpan()?.end();
   await Sentry?.flush(1000);
   await Sentry?.close(1000);
+  // Scopen delas mellan modulinstanser (SDK:ts globala bärare): en trace-kontext från ett tidigare test med annan release får inte leva kvar.
+  const freshTrace = { traceId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', sampleRand: 0.5 };
+  Sentry?.getCurrentScope().setPropagationContext(freshTrace);
+  Sentry?.getIsolationScope().setPropagationContext(freshTrace);
   Sentry = undefined;
   vi.restoreAllMocks();
   window.history.replaceState({}, '', '/');
@@ -96,6 +108,22 @@ describe('API calls while performance tracing is on', () => {
 });
 
 describe('error reports while performance tracing is on', () => {
+  it('have an envelope trace header with the right release and no personal data', async () => {
+    window.history.replaceState({}, '', '/board');
+    Sentry = await startFresh({ documentPath: '/', release: 'runquest@0.8.0+abcdef1' });
+    Sentry.setUser({ id: 'u1', email: 'anna@example.com' });
+
+    report?.(new Error('boom'));
+    await Sentry.flush(1000);
+    await waitFor(() => errorEvents.length >= 1);
+
+    const trace = envelopeHeaders.find((header) => header.trace)?.trace;
+    expect(trace?.release).toBe('runquest@0.8.0+abcdef1');
+    expect(JSON.stringify(trace)).not.toContain('[Filtered]');
+    expect(JSON.stringify(envelopeHeaders)).not.toContain('anna@example.com');
+  });
+
+
   it('are not labelled with the page the tracing started on, since the error can have happened on another', async () => {
     window.history.replaceState({}, '', '/board');
     Sentry = await startFresh({ documentPath: '/' });
@@ -138,6 +166,24 @@ describe('page load transaction', () => {
     await waitFor(() => transactions.length >= 1);
 
     expect(transactions[0]?.release).toBe('runquest@0.8.0+abcdef1');
+  });
+
+  it('has an envelope trace header with the right release, the route and no personal data', async () => {
+    window.history.replaceState({}, '', `/runner/${RUNNER_ID}?tab=runs`);
+    Sentry = await startFresh({ documentPath: `/runner/${RUNNER_ID}`, release: 'runquest@0.8.0+abcdef1' });
+    Sentry.setUser({ id: 'u1', email: 'anna@example.com', username: 'Anna Andersson', segment: 'vip' } as never);
+
+    await waitFor(() => transactions.length >= 1);
+
+    const trace = envelopeHeaders.find((header) => header.trace)?.trace;
+    expect(trace).toBeDefined();
+    expect(trace?.release).toBe('runquest@0.8.0+abcdef1');
+    expect(trace?.environment).toBe('test');
+    expect(trace?.public_key).toBe('key');
+    expect(trace?.transaction).toBe('/runner/:id');
+    const json = JSON.stringify(envelopeHeaders);
+    for (const leaked of ['[Filtered]', 'anna@example.com', 'Anna', RUNNER_ID, 'vip', 'tab=runs']) expect(json).not.toContain(leaked);
+    expect(trace).not.toHaveProperty('user_segment');
   });
 
   it('is not measured when the page was loaded on the landing page, since it would be the landing page that was measured', async () => {

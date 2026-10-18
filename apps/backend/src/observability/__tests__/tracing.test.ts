@@ -87,7 +87,8 @@ beforeAll(async () => {
   upstream = http.createServer((req, res) => {
     upstreamHeaders.push(req.headers);
     res.setHeader('content-type', 'application/json');
-    res.end('[]');
+    if (req.url?.startsWith('/slow')) setTimeout(() => res.end('[]'), 150);
+    else res.end('[]');
   });
   await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', () => resolve()));
   upstreamBase = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
@@ -138,6 +139,11 @@ function buildApp(): express.Express {
   app.get('/api/titles/user/:id', (_req, res) => {
     logger.error('lookup failed', new Error('boom'));
     res.status(500).json({ error: 'failed' });
+  });
+  // Svarar medan ett anrop fortfarande pågår (som en Promise.all där ett anrop felar): anropet avslutas efter servertransaktionen.
+  app.get('/api/early', (_req, res) => {
+    void fetch(`${upstreamBase}/slow`).catch(() => undefined);
+    res.json({ ok: true });
   });
   app.get('/health', (_req, res) => {
     res.json({ status: 'OK' });
@@ -304,6 +310,19 @@ describe('outgoing requests', () => {
     expect((own()[0].spans as unknown[]).length).toBeGreaterThanOrEqual(1);
   });
 
+  it('that finish after the response was sent are not sent as transactions of their own', async () => {
+    start();
+    const server = await startServer(buildApp());
+    await server.request('GET', '/api/early');
+    await waitFor(() => own().length >= 1);
+    await sleep(400);
+    await flushSentry();
+    await server.close();
+
+    expect(own().map((t) => t.transaction)).toEqual(['GET /api/early']);
+    expect(transactions.filter((t) => t.contexts?.trace?.op !== 'http.server')).toEqual([]);
+  });
+
   it('have no span when they run outside a request (schedulers, workers)', async () => {
     start();
     await fetch(`${upstreamBase}/upstream/background`);
@@ -374,6 +393,13 @@ describe('scrubTransaction', () => {
       },
     },
     spans: [] as Array<Record<string, any>>,
+  });
+
+  it('drops a transaction whose root is not a server request, such as a call that ended after the response', () => {
+    const late = { ...baseTransaction(), transaction: 'GET (no route)', contexts: { trace: { op: 'http.client', parent_span_id: 'p1', data: {} } } };
+    expect(scrubTransaction(late, [])).toBeNull();
+    expect(scrubTransaction({ ...baseTransaction(), contexts: {} }, [])).toBeNull();
+    expect(scrubTransaction(baseTransaction(), [])).not.toBeNull();
   });
 
   it('names an unrouted transaction by its method only', () => {
@@ -449,6 +475,8 @@ describe('scrubTransaction', () => {
       fingerprint: ['Anna Andersson'],
       measurements: { custom: { value: 1 } },
       sdkProcessingMetadata: { anything: 'Anna Andersson' },
+      modules: { express: '5.3.0' },
+      server_name: 'a1b2c3-container',
       contexts: {
         ...baseTransaction().contexts,
         response: { status_code: 200, headers: { 'set-cookie': 'a=b' } },
@@ -461,7 +489,7 @@ describe('scrubTransaction', () => {
 
     expect(JSON.stringify(scrubbed)).not.toContain('Anna');
     expect(JSON.stringify(scrubbed)).not.toContain('3f2b8c1e');
-    for (const field of ['tags', 'extra', 'fingerprint', 'sdkProcessingMetadata', 'measurements']) expect(scrubbed).not.toHaveProperty(field);
+    for (const field of ['tags', 'extra', 'fingerprint', 'sdkProcessingMetadata', 'measurements', 'modules', 'server_name']) expect(scrubbed).not.toHaveProperty(field);
     expect(Object.keys(scrubbed.contexts).sort()).toEqual(['response', 'runtime', 'trace']);
     expect(scrubbed.contexts.response).toEqual({ status_code: 200 });
     expect(scrubbed.contexts.runtime).toEqual({ name: 'node', version: 'v24.0.0' });
@@ -470,7 +498,7 @@ describe('scrubTransaction', () => {
 
 describe('path segments of outgoing calls', () => {
   const describeCall = (url: string) => {
-    const event = { type: 'transaction', transaction: 'GET /x', transaction_info: { source: 'route' }, spans: [{ op: 'http.client', data: { 'url.full': url, 'http.request.method': 'GET' } }] };
+    const event = { type: 'transaction', transaction: 'GET /x', contexts: { trace: { op: 'http.server' } }, transaction_info: { source: 'route' }, spans: [{ op: 'http.client', data: { 'url.full': url, 'http.request.method': 'GET' } }] };
     return (scrubTransaction(event, [])!.spans as Array<{ description: string }>)[0]!.description;
   };
 
