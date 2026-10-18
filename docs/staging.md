@@ -122,18 +122,20 @@ databasfunktionen `create_group_with_admin` (migration 053): gruppen, adminrolle
 Skriptet skapar inget konto och läser eller skriver aldrig `staging-testkonton.seed`.
 
 **1. Ett testkonto utan medlemskap.** Skaparen måste vara en befintlig användare utan aktivt medlemskap (ett aktivt medlemskap per
-användare i v0.8.0). Adminvägen i appen (`POST /auth/users`) lägger alltid kontot i adminens grupp, så den går inte; Lead gör kontot i
-STAGING med `execute_sql` mot `supabase-staging` (aldrig mot prod), utan `group_id`:
+användare i v0.8.0). Adminvägen i appen (`POST /auth/users`) lägger alltid kontot i adminens grupp, så den går inte. **Ägaren skapar låtsasgruppens adminkonto i
+staging**, till exempel i Supabase-dashboardens SQL-editor för stagingprojektet `aormctqrmguvncxrigwy` (aldrig i prod), med en insert
+utan `group_id`:
 
 ```sql
 insert into public.users (name, email, password_hash)
 values ('Andra Admin', 'andra-admin@staging.runquest.test', '<bcrypt-hash>');
 ```
 
-Lösenordet slumpas av Lead, hashas lokalt med bcrypt (10 rundor, samma som `staging:seed-group`) och skrivs inte i chatten, i ett
-ärende eller i en spårad fil; hashen är det enda som lämnar Lead. Kolumnerna har standardvärden för resten (poäng, nivå, streak).
-Om en sida i flergruppstestet än så länge kräver den globala flaggan `users.is_admin` (kvar för systemrutter, ADR 012), sätts den för
-kontot i samma sats; gruppens adminroll kommer av medlemskapet, inte av flaggan.
+Ägaren väljer lösenordet och hashar det själv med bcrypt (10 rundor, samma som `staging:seed-group`); lösenordet och hashen skrivs inte
+i chatten, i ett ärende eller i en spårad fil. Lead (agenten) skapar inga konton och sätter inga lösenord i en icke-lokal miljö; Lead
+får bara e-postadressen eller id:t. Kolumnerna har standardvärden för resten (poäng, nivå, streak). Om en sida i flergruppstestet än så
+länge kräver den globala flaggan `users.is_admin` (kvar för systemrutter, ADR 012), sätter ägaren den i samma sats; gruppens adminroll
+kommer av medlemskapet, inte av flaggan. **Därefter** kör Lead `create:group` med `--owner-email` eller `--owner-id` (steg 2).
 
 **2. Dry-run, sedan `--apply`.** Målet avgörs av den anslutnings-URL skriptet faktiskt använder (`SUPABASE_URL`), aldrig av en flagga.
 Miljön kommer från skalet; ingen `.env` läses, så en kvarglömd lokal fil kan inte välja mål. Lead kör med stagingtjänstens
