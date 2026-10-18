@@ -1,0 +1,122 @@
+name: E2E (staging)
+
+# Playwright-röken (apps/e2e, docs/e2e.md) mot stagingmiljön. Körs för hand (workflow_dispatch) och varje natt, och ALDRIG mot prod: adresserna står här
+# i klartext och prövas dessutom av E2E-vakten (scripts/e2e-guard.mjs), som vägrar starta mot allt utom staging och localhost.
+# Sviten blockerar inga PR:ar mot main (ingen pull_request-trigger); ägaren avgör om den ska bli ett krav senare.
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:20 UTC = 05:20 svensk sommartid, 04:20 vintertid: före dagen, efter att stagingtjänsterna hunnit deploya nattens push.
+    - cron: '20 3 * * *'
+
+# Sviten delar ett testkonto och en stagingdatabas: aldrig två körningar samtidigt, och en pågående körning avbryts inte (den städar efter sig).
+concurrency:
+  group: e2e-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright smoke against staging
+    runs-on: ubuntu-latest
+    # Sviten har en egen gräns på 4,5 minuter (playwright.config.ts); resten är installation av webbläsaren och beroenden.
+    timeout-minutes: 15
+    env:
+      E2E_BASE_URL: https://runquest-frontend-staging-staging.up.railway.app
+      E2E_API_URL: https://runquest-backend-staging-staging.up.railway.app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Testkontots uppgifter är GitHub-secrets som ägaren lägger in (docs/e2e.md). Utan dem kan sviten inte logga in: en manuell körning fäller tydligt,
+      # en nattlig hoppar över med en notis så att schemat inte blir rött varje natt innan secrets finns.
+      - name: Check the test account secrets
+        id: account
+        env:
+          E2E_USER_LOGIN: ${{ secrets.E2E_USER_LOGIN }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+        run: |
+          if [ -n "$E2E_USER_LOGIN" ] && [ -n "$E2E_USER_PASSWORD" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "::error::The secrets E2E_USER_LOGIN and E2E_USER_PASSWORD are not set. See docs/e2e.md."
+            exit 1
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::E2E skipped: the secrets E2E_USER_LOGIN and E2E_USER_PASSWORD are not set yet (docs/e2e.md)."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.account.outputs.ready == 'true'
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        if: steps.account.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Typecheck the suite
+        if: steps.account.outputs.ready == 'true'
+        run: npx tsc --noEmit -p apps/e2e
+
+      # Negativt bevis i varje körning: konfigurationen ska vägra läsas när adressen är prod, och med vakten egna ord. Går kommandot igenom är vakten bruten.
+      - name: The guard refuses production
+        if: steps.account.outputs.ready == 'true'
+        run: |
+          output=$(E2E_BASE_URL=https://www.runquest.dev E2E_API_URL=https://api.runquest.dev npm run test:e2e:list --workspace=@runquest/e2e 2>&1) && {
+            echo "::error::The E2E guard let a production address through."
+            exit 1
+          }
+          echo "$output" | grep -q "E2E refuses to run" || {
+            echo "::error::The configuration failed, but not with the guard's refusal:"
+            echo "$output"
+            exit 1
+          }
+
+      - name: Install the browser
+        if: steps.account.outputs.ready == 'true'
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/e2e
+
+      - name: Run the smoke suite
+        if: steps.account.outputs.ready == 'true'
+        run: npm run test:e2e --workspace=@runquest/e2e
+        env:
+          CI: 'true'
+          E2E_USER_LOGIN: ${{ secrets.E2E_USER_LOGIN }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+
+      # Repot är publikt, så artefakten får inte kunna bära något som går att använda. Playwright skriver vid varje fel test-results/**/error-context.md med en
+      # ARIA-ögonblicksbild där ett ifyllt lösenordsfälts värde står i klartext, och ett spår (trace.zip) bär sessionens JWT i Authorization-huvudena. Ingen av
+      # dem laddas upp: bara skärmbilderna (PNG; lösenordsfältet visas som prickar) kopieras till en egen mapp, och mappen söks igenom efter kontots uppgifter
+      # innan något laddas upp. Träff = inget laddas upp och körningen fäller. Felmeddelandet i loggen räcker för felsökning; spår får man genom att köra lokalt.
+      - name: Keep screenshots only
+        if: failure() && steps.account.outputs.ready == 'true'
+        run: |
+          mkdir -p e2e-artifacts
+          find apps/e2e/test-results -name '*.png' -exec cp --parents {} e2e-artifacts/ \;
+
+      - name: Verify the artifact carries no credentials
+        if: failure() && steps.account.outputs.ready == 'true'
+        env:
+          E2E_USER_LOGIN: ${{ secrets.E2E_USER_LOGIN }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+        run: |
+          if grep -rlaF -e "$E2E_USER_PASSWORD" -e "$E2E_USER_LOGIN" e2e-artifacts; then
+            echo "::error::A file in the E2E artifact contains the test account's credentials. Nothing is uploaded."
+            rm -rf e2e-artifacts
+            exit 1
+          fi
+
+      - name: Upload screenshots
+        if: failure() && steps.account.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: e2e-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
