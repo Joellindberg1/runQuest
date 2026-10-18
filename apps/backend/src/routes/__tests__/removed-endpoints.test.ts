@@ -82,5 +82,6 @@ describe('removed endpoints', () => {
 
     expect(res.status).toBe(200);
     expect(mockPopulateTitleLeaderboard).toHaveBeenCalledTimes(1);
+    expect(mockPopulateTitleLeaderboard).toHaveBeenCalledWith('group-1');
   });
 });
