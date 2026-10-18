@@ -40,7 +40,7 @@ const EMAILS = ['zebulon.quux@example.com', 'ottoline.brandt@example.com', 'newc
 
 const users = (): Row[] => [
   { id: 'admin-1', name: NAMES[0], email: EMAILS[0], is_admin: true, group_id: GROUP, password_hash: bcrypt.hashSync(PASSWORD, 4) },
-  { id: 'u2', name: NAMES[1], email: EMAILS[1], is_admin: false, group_id: GROUP, password_hash: bcrypt.hashSync(PASSWORD, 4) },
+  { id: '00000000-0000-4000-8000-0000000000c3', name: NAMES[1], email: EMAILS[1], is_admin: false, group_id: GROUP, password_hash: bcrypt.hashSync(PASSWORD, 4) },
 ];
 
 function useDb() {
@@ -60,15 +60,15 @@ describe('auth routes log ids, not names or e-mail addresses', () => {
     useDb();
     const res = await server.request('POST', '/api/auth/login', { body: { email: EMAILS[1], password: PASSWORD } });
     expect(res.status).toBe(200);
-    expect(logged()).toContain('u2');
+    expect(logged()).toContain('00000000-0000-4000-8000-0000000000c3');
     expectNoIdentity();
   });
 
   it('change-password logs the user id and not the name', async () => {
     useDb();
-    const res = await server.request('POST', '/api/auth/change-password', { token: mintToken({ user_id: 'u2', group_id: GROUP }), body: { currentPassword: PASSWORD, newPassword: 'another-secret' } });
+    const res = await server.request('POST', '/api/auth/change-password', { token: mintToken({ user_id: '00000000-0000-4000-8000-0000000000c3', group_id: GROUP }), body: { currentPassword: PASSWORD, newPassword: 'another-secret' } });
     expect(res.status).toBe(200);
-    expect(logged()).toContain('u2');
+    expect(logged()).toContain('00000000-0000-4000-8000-0000000000c3');
     expectNoIdentity();
   });
 
@@ -82,17 +82,17 @@ describe('auth routes log ids, not names or e-mail addresses', () => {
 
   it('password reset logs the target user id and not the name', async () => {
     useDb();
-    const res = await server.request('PUT', '/api/auth/users/u2/password', { token: adminToken(), body: { newPassword: 'another-secret' } });
+    const res = await server.request('PUT', '/api/auth/users/00000000-0000-4000-8000-0000000000c3/password', { token: adminToken(), body: { newPassword: 'another-secret' } });
     expect(res.status).toBe(200);
-    expect(logged()).toContain('u2');
+    expect(logged()).toContain('00000000-0000-4000-8000-0000000000c3');
     expectNoIdentity();
   });
 
   it('updating the displayed titles logs the user id and not the title ids', async () => {
     useDb();
-    const res = await server.request('PUT', '/api/auth/me/displayed-titles', { token: mintToken({ user_id: 'u2', group_id: GROUP }), body: { title_ids: ['title-marker-aaa', 'title-marker-bbb'] } });
+    const res = await server.request('PUT', '/api/auth/me/displayed-titles', { token: mintToken({ user_id: '00000000-0000-4000-8000-0000000000c3', group_id: GROUP }), body: { title_ids: ['title-marker-aaa', 'title-marker-bbb'] } });
     expect(res.status).toBe(200);
-    expect(logged()).toContain('u2');
+    expect(logged()).toContain('00000000-0000-4000-8000-0000000000c3');
     expect(logged()).not.toContain('title-marker');
   });
 });

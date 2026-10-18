@@ -42,7 +42,7 @@ const CURRENT_PASSWORD = 'current-secret';
 
 const users = (): Row[] => [
   { id: 'admin-1', name: 'Admin', email: 'admin@example.com', is_admin: true, group_id: GROUP, password_hash: bcrypt.hashSync(CURRENT_PASSWORD, 4) },
-  { id: 'u2', name: 'Member', email: 'member@example.com', is_admin: false, group_id: GROUP, password_hash: bcrypt.hashSync(CURRENT_PASSWORD, 4) },
+  { id: '00000000-0000-4000-8000-0000000000c3', name: 'Member', email: 'member@example.com', is_admin: false, group_id: GROUP, password_hash: bcrypt.hashSync(CURRENT_PASSWORD, 4) },
 ];
 
 const adminToken = () => mintToken({ user_id: 'admin-1', group_id: GROUP });
@@ -62,8 +62,8 @@ const databaseErrorCases: Case[] = [
   { name: 'change-password update', method: 'POST', path: '/api/auth/change-password', body: { currentPassword: CURRENT_PASSWORD, newPassword: 'another-secret' }, fails: (q) => q.mutation === 'update', status: 500 },
   { name: 'user list', method: 'GET', path: '/api/auth/users', fails: readsUsers, status: 500 },
   { name: 'user create', method: 'POST', path: '/api/auth/users', body: { name: 'Newbie', email: 'newbie@example.com', password: 'secret123' }, fails: (q) => q.mutation === 'insert', status: 500 },
-  { name: 'password reset lookup', method: 'PUT', path: '/api/auth/users/u2/password', body: { newPassword: 'another-secret' }, fails: readsUsers, status: 500 },
-  { name: 'password reset update', method: 'PUT', path: '/api/auth/users/u2/password', body: { newPassword: 'another-secret' }, fails: (q) => q.mutation === 'update', status: 500 },
+  { name: 'password reset lookup', method: 'PUT', path: '/api/auth/users/00000000-0000-4000-8000-0000000000c3/password', body: { newPassword: 'another-secret' }, fails: readsUsers, status: 500 },
+  { name: 'password reset update', method: 'PUT', path: '/api/auth/users/00000000-0000-4000-8000-0000000000c3/password', body: { newPassword: 'another-secret' }, fails: (q) => q.mutation === 'update', status: 500 },
   { name: 'displayed titles', method: 'PUT', path: '/api/auth/me/displayed-titles', body: { title_ids: ['t1'] }, fails: (q) => q.mutation === 'update', status: 500 },
   { name: 'users with runs', method: 'GET', path: '/api/auth/users-with-runs', fails: readsUsers, status: 500 },
   { name: 'admin settings read', method: 'GET', path: '/api/auth/admin-settings', fails: (q) => q.table === 'admin_settings', status: 500 },

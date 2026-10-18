@@ -25,6 +25,10 @@ const JWT_ERROR_NAMES = new Set(['JsonWebTokenError', 'TokenExpiredError', 'NotB
  * Är ett loggat fel ett JWT-fel, alltså ett 401 vi själva svarat på en klients ogiltiga token?
  * Bara det räknas som klientfel bland loggade fel. En status på ett loggat fel i övrigt (ett svar från Supabase eller Strava,
  * t.ex. 401 av fel nyckel eller 404 av en saknad migration) är vårt fel och ska till Sentry.
+ *
+ * Extra försvar, inte den primära spärren: authenticateJWT loggar sedan RUN-324 en ogiltig token som `logger.warn` med bara felnamnet
+ * i texten (aldrig felobjektet), och en `warn` når aldrig Sentry. Därför matchar den här funktionen inget verkligt `logger.error`-anrop
+ * i dag. Den ligger kvar ifall ett JWT-fel av misstag åter skickas som objekt till `logger.error`: då fortsätter det att filtreras bort.
  */
 export function isClientAuthError(args: readonly unknown[]): boolean {
   return args.some((arg) => typeof (arg as { name?: unknown } | null)?.name === 'string' && JWT_ERROR_NAMES.has((arg as { name: string }).name));

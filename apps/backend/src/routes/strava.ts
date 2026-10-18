@@ -103,7 +103,7 @@ router.get('/config', async (_req, res): Promise<void> => {
 router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
-    logger.info('🔍 Checking Strava status for user:', req.user!.name);
+    logger.info(`🔍 Checking Strava status for user ${req.user!.user_id}`);
     
     const token = await getValidAccessToken(userId);
 
@@ -191,9 +191,9 @@ function startSyncInBackground(userId: string): void {
   void (async () => {
     try {
       const result = await syncUserStravaActivities(userId);
-      if (!result.success) logger.warn(`⚠️ Sync after resume did not complete for user ${userId}: ${result.error}`);
+      if (!result.success) logger.warn(`⚠️ Sync after resume did not complete for user ${userId}`);
     } catch (error) {
-      logger.error(`❌ Sync after resume failed for user ${userId}: ${error instanceof Error ? error.name : typeof error}`);
+      logger.error(`❌ Sync after resume failed for user ${userId} (${errorCode(error)})`);
     }
   })();
 }
@@ -267,7 +267,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Consent required' }); return;
     }
     
-    logger.info(`🔗 Processing Strava callback for user: ${req.user!.name}`);
+    logger.info(`🔗 Processing Strava callback for user ${req.user!.user_id}`);
     
     // Exchange code for access token
     const clientId = process.env.STRAVA_CLIENT_ID;
@@ -402,7 +402,7 @@ router.delete('/disconnect', authenticateJWT, disconnectLimiter, async (req, res
 router.post('/sync', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user!.user_id;
-    logger.info(`🔄 Manual Strava sync requested for user: ${req.user!.name}`);
+    logger.info(`🔄 Manual Strava sync requested for user ${req.user!.user_id}`);
 
     // Kontrollen sker FÖRE låset/synken; runUserStravaSync kontrollerar igen inne i låset (kö bakom en annan synk).
     // Kan pausen inte läsas (kastar) blir svaret 500: en pausad användare får aldrig synkas på ett gissat "inte pausad".
@@ -481,12 +481,12 @@ export async function syncAllStravaUsers(): Promise<{
 
     for (const user of connectedUsers) {
       try {
-        logger.info(`🔄 Syncing user: ${user.users.name}`);
+        logger.info(`🔄 Syncing user ${user.user_id}`);
         const result = await syncUserStravaActivities(user.user_id);
 
         if (result.paused) {
           // Pausades medan synken stod i kö bakom låset: hoppas över som om användaren aldrig valts.
-          logger.info(`⏸️ Skipping ${user.users.name}: sync was paused while waiting`);
+          logger.info(`⏸️ Skipping user ${user.user_id}: sync was paused while waiting`);
           continue;
         }
 
@@ -499,9 +499,9 @@ export async function syncAllStravaUsers(): Promise<{
             newRuns: result.newRuns,
             totalActivities: result.totalActivities
           });
-          logger.info(`✅ Synced ${result.newRuns} new runs for ${user.users.name}`);
+          logger.info(`✅ Synced ${result.newRuns} new runs for user ${user.user_id}`);
         } else {
-          logger.error(`❌ Failed to sync user ${user.user_id}: ${result.error}`);
+          logger.error(`❌ Failed to sync user ${user.user_id}`);
           results.push({ userId: user.user_id, userName: user.users.name, error: result.error });
         }
 
@@ -593,7 +593,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
 
         totalUpdated += userUpdated;
         summary.push({ user: (user.users as any).name, updated: userUpdated });
-        logger.info(`✅ Backfilled ${userUpdated} runs for ${(user.users as any).name}`);
+        logger.info(`✅ Backfilled ${userUpdated} runs for user ${user.user_id}`);
       } catch (userErr) {
         logger.error(`❌ Backfill failed for user ${user.user_id} (${errorCode(userErr)})`);
         summary.push({ user: (user.users as any).name, updated: 0, error: 'Failed' });

@@ -11,6 +11,7 @@ import { invalidateXpConfigCache } from '../services/xpConfig.js';
 import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
 import { compareXpStandings } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { isUuid } from '../utils/uuid.js';
 
 const router = express.Router();
 
@@ -331,6 +332,12 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
     if (newPassword.length < 6) {
       logger.info('❌ New password too short');
       res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
+    }
+
+    // Ett id som inte är ett uuid kan inte finnas: samma 404 som för en saknad rad, före frågan (annars svarar databasen 22P02 och det blir ett 500).
+    if (!isUuid(id)) {
+      logger.info('❌ User not found (id is not a uuid)');
+      res.status(404).json({ error: 'User not found' }); return;
     }
 
     logger.info(`🔍 Resetting password for user ID: ${id}`);

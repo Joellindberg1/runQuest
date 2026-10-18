@@ -26,6 +26,9 @@ import ts from 'typescript';
 const SRC = fileURLToPath(new URL('..', import.meta.url));
 
 const LOGGER_METHODS = new Set(['error', 'warn', 'info', 'debug']);
+const CONSOLE_METHODS = new Set(['error', 'warn', 'info', 'debug', 'log']);
+/** Den enda filen som får skriva till console och som äger loggern. */
+const LOGGER_FILE = 'utils/logger.ts';
 /** Alltid förbjudna i en loggrad. `.name` räknas bara på en person eller grupp (se PERSON_OR_GROUP): en titelmall eller en händelsemall har namn som är konfiguration. */
 const LOGGER_FORBIDDEN_PROPERTIES = new Set(['message', 'details', 'hint', 'stack', 'email', 'username']);
 const PERSON_OR_GROUP = /^(user|users|u|me|member|members|owner|athlete|group|profile|author|newUser|winner|loser|challenger|opponent|runner|\w+User|\w+Member)$/;
@@ -38,13 +41,8 @@ const SAFE_WRAPPERS = new Set(['errorCode', 'errorName', 'shortCode']);
 /** Läsningar av ett felobjekt som är säkra: `error.code`, `error.status`. */
 const SAFE_ERROR_PROPERTIES = new Set(['code', 'status']);
 
-/**
- * Filer som får vänta, med motivering. RUN-311 (ej mergad) skriver om routes/strava.ts; dess loggrader bär fortfarande användarnamn
- * (`req.user!.name`, `user.users.name`) och `error.name`. Raden tas bort här när RUN-311 är mergad och raderna är rättade.
- */
-const EXEMPT_FILES: Record<string, string> = {
-  'routes/strava.ts': 'RUN-311 rewrites this file; its log lines still carry user names',
-};
+/** Filer som får vänta, med motivering. Tom: inga undantag. Varje rad här kräver en motivering och en ticket som tar bort den. */
+const EXEMPT_FILES: Record<string, string> = {};
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -60,17 +58,47 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
+/** `logger.error(...)` och `console.error(...)`: samma regler, console når Railway-loggen lika väl. */
 function isLoggerCall(node: ts.CallExpression): boolean {
   const callee = node.expression;
   return ts.isPropertyAccessExpression(callee)
     && ts.isIdentifier(callee.expression)
-    && callee.expression.text === 'logger'
-    && LOGGER_METHODS.has(callee.name.text);
+    && ((callee.expression.text === 'logger' && LOGGER_METHODS.has(callee.name.text))
+      || (callee.expression.text === 'console' && CONSOLE_METHODS.has(callee.name.text)));
 }
 
-function isJsonCall(node: ts.CallExpression): boolean {
+/** `res.json(...)` och `res.send(...)`. */
+function isResponseCall(node: ts.CallExpression): boolean {
   const callee = node.expression;
-  return ts.isPropertyAccessExpression(callee) && callee.name.text === 'json';
+  return ts.isPropertyAccessExpression(callee) && (callee.name.text === 'json' || callee.name.text === 'send');
+}
+
+/** Tar bort parentes, `as`, `!` (och `<T>x`) runt ett uttryck: `(error as Error)` blir `error`. */
+function unwrap(expression: ts.Expression): ts.Expression {
+  let e = expression;
+  while (ts.isNonNullExpression(e) || ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isTypeAssertionExpression(e) || ts.isSatisfiesExpression(e)) e = e.expression;
+  return e;
+}
+
+/**
+ * Är `logger` (utom i sin egen fil) något annat än `logger.<metod>(...)`? `const log = logger`, `const { error } = logger`,
+ * `.forEach(logger.error)`, `logger['error'](...)` och `foo(logger)` går förbi anropsmönstret som resten av vakten läser.
+ */
+function loggerAliases(file: ts.SourceFile): ts.Node[] {
+  const found: ts.Node[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && node.text === 'logger') {
+      const parent = node.parent;
+      const isImport = ts.isImportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent);
+      const isMemberName = (ts.isPropertyAccessExpression(parent) && parent.name === node) || (ts.isPropertyAssignment(parent) && parent.name === node);
+      const isPlainCall = ts.isPropertyAccessExpression(parent) && parent.expression === node
+        && ts.isCallExpression(parent.parent) && parent.parent.expression === parent && LOGGER_METHODS.has(parent.name.text);
+      if (!isImport && !isMemberName && !isPlainCall) found.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
 }
 
 function catchVariables(file: ts.SourceFile): Set<string> {
@@ -87,8 +115,7 @@ function catchVariables(file: ts.SourceFile): Set<string> {
 
 /** Sista namnet i ett uttryck: `req.user!` ger `user`, `user.users` ger `users`, `group` ger `group`. */
 function lastNameOf(expression: ts.Expression): string {
-  let e: ts.Expression = expression;
-  while (ts.isNonNullExpression(e) || ts.isParenthesizedExpression(e) || ts.isAsExpression(e)) e = e.expression;
+  const e = unwrap(expression);
   if (ts.isPropertyAccessExpression(e)) return e.name.text;
   if (ts.isIdentifier(e)) return e.text;
   return '';
@@ -109,7 +136,7 @@ function isSafeErrorUse(node: ts.Node): boolean {
   return false;
 }
 
-function violationsIn(file: ts.SourceFile, text: string): string[] {
+function violationsIn(file: ts.SourceFile, text: string, rel: string): string[] {
   const catchNames = catchVariables(file);
   const found: string[] = [];
   const where = (node: ts.Node): string => `${file.getLineAndCharacterOfPosition(node.getStart()).line + 1}: ${text.slice(node.getStart(), node.getEnd()).replace(/\s+/g, ' ').slice(0, 110)}`;
@@ -147,10 +174,32 @@ function violationsIn(file: ts.SourceFile, text: string): string[] {
     visit(arg);
   };
 
+  /** Ett svar bär varken felets text (`.message`, `.details`, ..) eller felobjektet självt (`res.json(error)`, `String(error)`, `${error}`). */
   const inspectResponse = (arg: ts.Node): void => {
+    const shadowed = new Set<string>();
+    const collectParameters = (node: ts.Node): void => {
+      if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+        for (const p of node.parameters) if (ts.isIdentifier(p.name)) shadowed.add(p.name.text);
+      }
+      ts.forEachChild(node, collectParameters);
+    };
+    collectParameters(arg);
+    const isErrorName = (name: string): boolean => !shadowed.has(name) && (ERRORISH.test(name) || catchNames.has(name));
+
     const visit = (node: ts.Node): void => {
-      if (ts.isPropertyAccessExpression(node) && RESPONSE_FORBIDDEN_PROPERTIES.has(node.name.text) && ts.isIdentifier(node.expression) && (ERRORISH.test(node.expression.text) || catchNames.has(node.expression.text))) {
-        found.push(`response: ${node.name.text} of an error in ${where(node)}`);
+      if (ts.isPropertyAccessExpression(node)) {
+        const base = unwrap(node.expression);
+        if (RESPONSE_FORBIDDEN_PROPERTIES.has(node.name.text) && ts.isIdentifier(base) && isErrorName(base.text)) {
+          found.push(`response: ${node.name.text} of an error in ${where(node)}`);
+        }
+      } else if (ts.isShorthandPropertyAssignment(node)) {
+        if (isErrorName(node.name.text)) found.push(`response: error object { ${node.name.text} } in ${where(node)}`);
+      } else if (ts.isIdentifier(node)) {
+        const parent = node.parent;
+        const isKeyOrMember = (ts.isPropertyAssignment(parent) && parent.name === node)
+          || (ts.isPropertyAccessExpression(parent) && parent.name === node)
+          || ts.isShorthandPropertyAssignment(parent);
+        if (!isKeyOrMember && isErrorName(node.text) && !isSafeErrorUse(node)) found.push(`response: error object ${node.text} in ${where(node)}`);
       }
       ts.forEachChild(node, visit);
     };
@@ -160,16 +209,19 @@ function violationsIn(file: ts.SourceFile, text: string): string[] {
   const walk = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       if (isLoggerCall(node)) node.arguments.forEach(inspectLogger);
-      else if (isJsonCall(node)) node.arguments.forEach(inspectResponse);
+      else if (isResponseCall(node)) node.arguments.forEach(inspectResponse);
     }
     ts.forEachChild(node, walk);
   };
-  walk(file);
+  if (rel !== LOGGER_FILE) {
+    walk(file);
+    for (const alias of loggerAliases(file)) found.push(`logger: alias or non-call use of logger in ${where(alias.parent ?? alias)}`);
+  }
   return found;
 }
 
 function scan(source: string, name = 'sample.ts'): string[] {
-  return violationsIn(ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true), source);
+  return violationsIn(ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true), source, name);
 }
 
 describe('the log hygiene guard itself', () => {
@@ -189,6 +241,30 @@ describe('the log hygiene guard itself', () => {
     ["logger.info(`Looking up ${req.user!.name}`)"],
     ["logger.error('x', { error: error ?? 'user not found', userId })"],
     ["logger.error(`x ${err}`)"],
+    // Svar: parentes, as, ! och ?. ger samma träff som en rak läsning
+    ["res.status(500).json({ error: (error as Error).message })"],
+    ["res.status(500).json({ error: error?.message })"],
+    ["res.status(500).json({ error: (err as any)!.message })"],
+    ["res.status(500).json({ error: (error as { details: string }).details })"],
+    // Svar: send, hela felobjektet, String(error) och mallsträng
+    ["res.status(500).send(error.message)"],
+    ["res.status(500).send(error)"],
+    ["res.json(error)"],
+    ["res.status(500).json({ error: String(error) })"],
+    ["res.status(500).json({ error: `Failed: ${error}` })"],
+    ["try {} catch (boom) { res.status(500).json({ boom }); }"],
+    // console i src går lika illa till Railway-loggen
+    ["console.error('x', error)"],
+    ["console.warn(error.message)"],
+    ["console.log(`Login for ${user.name}`)"],
+    // alias och destrukturering av logger går förbi anropsmönstret
+    ["const log = logger; log.error('x', error);"],
+    ["const { error: logError } = logger;"],
+    ["const { error } = logger;"],
+    ["const write = logger.error;"],
+    ["[1].forEach(logger.error);"],
+    ["logger['error']('x', err);"],
+    ["doSomething(logger);"],
   ])('flags %s', (source) => {
     expect(scan(source).length).toBeGreaterThan(0);
   });
@@ -206,6 +282,13 @@ describe('the log hygiene guard itself', () => {
     ["logger.info(`Checking title ${title.name}`)"],
     ["res.status(500).json({ error: 'Failed to fetch titles' })"],
     ["res.json({ success: true, message: 'Password changed successfully' })"],
+    ["res.status(400).json({ error: page.error })"],
+    ["res.status(500).json({ error: errorCode(error) })"],
+    ["res.status(500).json({ code: error.code })"],
+    ["res.status(500).send('Internal server error')"],
+    ["console.log('plain text')"],
+    ["import { logger } from '../utils/logger.js'; logger.info('x');"],
+    ["export default function f(logger2: unknown) { return logger2; }"],
   ])('lets %s through', (source) => {
     expect(scan(source)).toEqual([]);
   });
@@ -228,7 +311,7 @@ describe('log hygiene in apps/backend/src', () => {
     for (const { path, rel } of files) {
       if (rel in EXEMPT_FILES) continue;
       const text = readFileSync(path, 'utf8');
-      for (const v of violationsIn(ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true), text)) violations.push(`${rel}:${v}`);
+      for (const v of violationsIn(ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true), text, rel)) violations.push(`${rel}:${v}`);
     }
     expect(violations).toEqual([]);
   });
