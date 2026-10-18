@@ -10,10 +10,11 @@
  *    `.username`, `.name` på en person eller grupp (user.name, group.name), en variabel `name`/`email`, eller ett felobjekt (en variabel
  *    som heter error/err/e/..Error, en catch-variabel eller en `.error`-egenskap) som inte går genom `errorCode(...)` eller läses som
  *    `.code`/`.status`. Namn på titel- och händelsemallar är konfiguration och får loggas;
- *  - ett anrop till `.json(...)` vars argument innehåller `.message`, `.details`, `.hint` eller `.stack` från ett fel.
- *
- * Ingår inte: meddelandet i ett kastat `new Error(\`...${error.message}\`)` i tjänsterna. Det loggas aldrig (alla fångstställen loggar
- * `errorCode(...)`), och att ändra dem rör sex testfiler som kontrollerar texten; det är en uppföljning.
+ *  - ett anrop till `.json(...)` vars argument innehåller `.message`, `.details`, `.hint` eller `.stack` från ett fel;
+ *  - ett kastat fel (`new Error(...)`, `new TypeError(...)`) eller en samlad felrad (`failures.push(...)`) som bär databasens text:
+ *    `${error.message}`, `${error}`, `JSON.stringify(error)` eller `String(error)`. Ett kastat fel har ett fast meddelande (vad som
+ *    misslyckades plus id) och databasens kod i `code` (`errorWithCode(...)` i utils/errorCode.ts); texten får inte ligga i
+ *    meddelandet, för då hänger skyddet på att varje fångställe kommer ihåg att logga koden.
  *
  * Skripten i `src/scripts` skriver med console till operatörens terminal och ingår inte (inget av det når loggaggregatorn eller Sentry).
  */
@@ -38,6 +39,8 @@ const RESPONSE_FORBIDDEN_PROPERTIES = new Set(['message', 'details', 'hint', 'st
 const ERRORISH = /^(e|err|error|exception|cause)$|(Err|Error)$/;
 /** Funktioner som gör ett fel till en kort kod eller ett namn (utils/errorCode.ts och de små hjälparna i Strava-filerna). */
 const SAFE_WRAPPERS = new Set(['errorCode', 'errorName', 'shortCode']);
+/** Egna felklasser som tar ett databasfel som argument men bara behåller dess kod (`errorCode(source)`), aldrig texten eller objektet. */
+const SAFE_ERROR_CLASSES = new Set(['BadgeReadError']);
 /** Läsningar av ett felobjekt som är säkra: `error.code`, `error.status`. */
 const SAFE_ERROR_PROPERTIES = new Set(['code', 'status']);
 
@@ -71,6 +74,11 @@ function isLoggerCall(node: ts.CallExpression): boolean {
 function isResponseCall(node: ts.CallExpression): boolean {
   const callee = node.expression;
   return ts.isPropertyAccessExpression(callee) && (callee.name.text === 'json' || callee.name.text === 'send');
+}
+
+/** `new Error(..)`, `new TypeError(..)`, `new WebhookHealthReadError(..)`: a constructor named ...Error. */
+function isErrorConstructor(node: ts.NewExpression): boolean {
+  return ts.isIdentifier(node.expression) && /Error$/.test(node.expression.text) && !SAFE_ERROR_CLASSES.has(node.expression.text);
 }
 
 /** Tar bort parentes, `as`, `!` (och `<T>x`) runt ett uttryck: `(error as Error)` blir `error`. */
@@ -119,6 +127,13 @@ function lastNameOf(expression: ts.Expression): string {
   if (ts.isPropertyAccessExpression(e)) return e.name.text;
   if (ts.isIdentifier(e)) return e.text;
   return '';
+}
+
+/** `failures.push(..)`, `payoutFailures.push(..)`, `postClaimErrors.push(..)`: rader som sedan sätts ihop till ett kastat meddelande. */
+function isFailureCollector(node: ts.CallExpression): boolean {
+  const callee = node.expression;
+  return ts.isPropertyAccessExpression(callee) && callee.name.text === 'push'
+    && /(failures?|errors?|failed\w*)$/i.test(lastNameOf(callee.expression));
 }
 
 /** Är identifieraren en säker användning av ett felobjekt (kod eller status, `errorCode(...)`, ett villkor)? */
@@ -206,10 +221,49 @@ function violationsIn(file: ts.SourceFile, text: string, rel: string): string[] 
     visit(arg);
   };
 
+  /** Ett kastat fel eller en samlad felrad bär aldrig felets text eller felobjektet i sin sträng. */
+  const inspectThrown = (arg: ts.Node, what: string): void => {
+    const shadowed = new Set<string>();
+    const collectParameters = (node: ts.Node): void => {
+      if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+        for (const p of node.parameters) if (ts.isIdentifier(p.name)) shadowed.add(p.name.text);
+      }
+      ts.forEachChild(node, collectParameters);
+    };
+    collectParameters(arg);
+    const isErrorName = (name: string): boolean => !shadowed.has(name) && name !== 'Error' && (ERRORISH.test(name) || catchNames.has(name));
+    /** `error`, `usedError`, `res.error`, `failedUpdates[0].error!`. */
+    const isErrorExpression = (expression: ts.Expression): boolean => {
+      const base = unwrap(expression);
+      if (ts.isIdentifier(base)) return isErrorName(base.text);
+      return ts.isPropertyAccessExpression(base) && ERRORISH.test(base.name.text);
+    };
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isPropertyAccessExpression(node)) {
+        if (RESPONSE_FORBIDDEN_PROPERTIES.has(node.name.text) && isErrorExpression(node.expression)) {
+          found.push(`${what}: .${node.name.text} of an error in ${where(node)}`);
+        }
+      } else if (ts.isIdentifier(node)) {
+        const parent = node.parent;
+        const isKeyOrMember = (ts.isPropertyAssignment(parent) && parent.name === node)
+          || (ts.isPropertyAccessExpression(parent) && parent.name === node)
+          || ts.isShorthandPropertyAssignment(parent)
+          || (ts.isPropertyAccessExpression(parent) && parent.expression === node); // `error.message` is reported by the property branch above
+        if (!isKeyOrMember && isErrorName(node.text) && !isSafeErrorUse(node)) found.push(`${what}: error object ${node.text} in ${where(node)}`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(arg);
+  };
+
   const walk = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       if (isLoggerCall(node)) node.arguments.forEach(inspectLogger);
       else if (isResponseCall(node)) node.arguments.forEach(inspectResponse);
+      else if (isFailureCollector(node)) node.arguments.forEach((arg) => inspectThrown(arg, 'collected failure'));
+    } else if (ts.isNewExpression(node) && isErrorConstructor(node)) {
+      node.arguments?.forEach((arg) => inspectThrown(arg, 'thrown error'));
     }
     ts.forEachChild(node, walk);
   };
@@ -265,6 +319,17 @@ describe('the log hygiene guard itself', () => {
     ["[1].forEach(logger.error);"],
     ["logger['error']('x', err);"],
     ["doSomething(logger);"],
+    // kastade fel och samlade felrader bär inte databasens text
+    ["throw new Error(`Failed to fetch runs (user ${userId}): ${error.message}`)"],
+    ["if (usedError) throw new Error(`Failed: ${usedError.message}`)"],
+    ["throw new Error(`Failed to recalculate titles: ${error}`)"],
+    ["throw new Error(error.message)"],
+    ["try {} catch (e) { throw new Error(`x: ${e instanceof Error ? e.message : String(e)}`); }"],
+    ["throw new Error(`x: ${failedUpdates[0].error!.message}`)"],
+    ["throw new Error(`read failed: ${JSON.stringify(error ?? 'user not found')}`)"],
+    ["throw new TypeError(`x ${res.error.details}`)"],
+    ["failures.push(`increment_event_xp failed: ${xpErr.message}`)"],
+    ["postClaimErrors.push(`reset failed: ${res.error.message}`)"],
   ])('flags %s', (source) => {
     expect(scan(source).length).toBeGreaterThan(0);
   });
@@ -287,6 +352,12 @@ describe('the log hygiene guard itself', () => {
     ["res.status(500).json({ code: error.code })"],
     ["res.status(500).send('Internal server error')"],
     ["console.log('plain text')"],
+    ["throw Object.assign(new Error(`Failed to fetch runs (user ${userId})`), { code: errorCode(error) })"],
+    ["throw new Error(`${failed} of ${total} auto-declines failed`)"],
+    ["throw new Error('Missing Supabase environment variables')"],
+    ["failures.push(`increment_event_xp failed for event ${event.id} (${errorCode(xpErr)})`)"],
+    ["failures.push(`x ${error.code}`)"],
+    ["rows.push(`row ${item.message}`)"],
     ["import { logger } from '../utils/logger.js'; logger.info('x');"],
     ["export default function f(logger2: unknown) { return logger2; }"],
   ])('lets %s through', (source) => {

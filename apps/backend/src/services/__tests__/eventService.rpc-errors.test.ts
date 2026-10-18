@@ -27,7 +27,7 @@ type RpcImpl = NonNullable<NonNullable<Parameters<typeof createFakeDb>[1]>['rpc'
 
 function use(tables: Record<string, Row[]>, failFor: string[] = []) {
   const grant: RpcImpl = ({ p_user_id, p_xp }) => {
-    if (failFor.includes(p_user_id)) return { error: { message: 'rpc exploded' } };
+    if (failFor.includes(p_user_id)) return { error: { message: 'rpc exploded: row secret-9876', code: '23514' } };
     const u = tables.users.find((x) => x.id === p_user_id);
     if (u) { u.event_xp = (u.event_xp ?? 0) + p_xp; u.total_xp = (u.total_xp ?? 0) + p_xp; }
     return { data: null };
@@ -77,6 +77,17 @@ describe('checkEventQualification — increment_event_xp', () => {
     expect(infoText()).not.toMatch(/qualified for participation/);
     expect(tables.users[0]).toMatchObject({ total_xp: 40, current_level: 1 });
     expect(tables.activity_log).toHaveLength(0); // ingen level_up för XP som aldrig gick in
+  });
+
+  it('the thrown qualification error carries the database code and none of the database text', async () => {
+    use(participationTables(), ['a']);
+
+    const failure = await checkEventQualification(qualifyParams).catch((error: Error & { code?: string }) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as { code?: string }).code).toBe('23514');
+    expect((failure as Error).message).toBe('Event qualification failed for user a: increment_event_xp failed for event e1 (23514)');
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('secret-9876');
   });
 
   it('entryn tas bort när XP:n inte gick in, så att nästa kvalificering kan försöka igen', async () => {
@@ -144,6 +155,30 @@ describe('settleCompetitionEvents — increment_event_xp', () => {
     expect(infoText()).not.toMatch(/User a rank 1/);
     expect(tables.users.find((u) => u.id === 'a')).toMatchObject({ total_xp: 40, current_level: 1 });
     expect(tables.activity_log.filter((r) => r.type === 'level_up' && r.actor_user_id === 'a')).toHaveLength(0);
+  });
+
+  it('the thrown settlement error carries the code of the first failure and none of the database text', async () => {
+    use(competitionTables(), ['a']);
+
+    const failure = await settleCompetitionEvents().catch((error: Error) => error);
+
+    expect((failure as { code?: string }).code).toBe('23514');
+    expect((failure as Error).message).toBe('Competition settlement had failures: event e9: increment_event_xp failed for user a (+75 XP) (23514)');
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('secret-9876');
+  });
+
+  it('an unexpected error while settling an event is reported by its code, never its message', async () => {
+    const tables = competitionTables();
+    const db = createFakeDb(tables, { autoIds: true, numericIds: ['activity_log'], rpc: { increment_event_xp: () => ({ data: null }) } });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    const { getLevelFromXP } = await import('../levelService.js');
+    vi.mocked(getLevelFromXP).mockRejectedValueOnce(Object.assign(new Error('socket hang up near secret-9876'), { code: 'ECONNRESET' }));
+
+    const failure = await settleCompetitionEvents().catch((error: Error) => error);
+
+    expect((failure as { code?: string }).code).toBe('ECONNRESET');
+    expect((failure as Error).message).toBe('Competition settlement had failures: event e9: unexpected error (ECONNRESET)');
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('secret-9876');
   });
 
   it('en misslyckad utbetalning hindrar inte de övriga placeringarna', async () => {

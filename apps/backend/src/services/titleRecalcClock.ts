@@ -1,7 +1,7 @@
 import { supabase } from '../config/database';
 import { logger } from '../utils/logger.js';
 import type { TitleContext } from '../titleEngines/types';
-import { errorCode } from '../utils/errorCode.js';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 /**
  * Klockan som group-eligibility räknar med (RUN-141): tidpunkten för senaste titelomräkningen, så att "Best so far"
@@ -36,7 +36,7 @@ export async function getTitleRecalcContext(): Promise<TitleContext> {
       .order('updated_at', { ascending: false })
       .limit(1);
 
-    if (error) throw new Error(error.message);
+    if (error) throw errorWithCode('Failed to read the last title recalculation time', error);
 
     const latest = data?.[0]?.updated_at;
     const parsed = latest ? new Date(latest) : null;

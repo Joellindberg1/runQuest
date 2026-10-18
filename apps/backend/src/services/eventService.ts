@@ -6,7 +6,11 @@ import { toStockholmDate, tomorrowStockholm } from '../utils/dateUtils.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
 import { recordRankPassesForXp } from './rankNews.js';
 import { buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
-import { errorCode } from '../utils/errorCode.js';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
+
+/** A failure that is collected and thrown after the loop: what failed (ids written by us) and its code, never the database text. */
+interface Failure { what: string; code: string }
+const describeFailures = (failures: Failure[]): string => failures.map((f) => `${f.what} (${f.code})`).join('; ');
 
 // ─── Pack News-hjälpare (ADR 008) ─────────────────────────────────────────────
 // Loggen skrivs EFTER den underliggande skrivningen och är icke-kastande (activityLog).
@@ -234,7 +238,7 @@ export async function checkEventQualification(params: {
 
   if (error || !events?.length) return;
 
-  const failures: string[] = [];
+  const failures: Failure[] = [];
 
   for (const event of events) {
     try {
@@ -276,7 +280,7 @@ export async function checkEventQualification(params: {
               .eq('event_id', event.id)
               .eq('user_id', params.userId);
             if (rollbackErr) logger.error(`❌ [EventQual] Could not roll back entry for event ${event.id}, user ${params.userId} (${errorCode(rollbackErr)})`);
-            failures.push(`increment_event_xp failed for event ${event.id}: ${xpErr.message}`);
+            failures.push({ what: `increment_event_xp failed for event ${event.id}`, code: errorCode(xpErr) });
             continue;
           }
 
@@ -327,7 +331,7 @@ export async function checkEventQualification(params: {
 
   // Kastas först efter loopen så att ett fallerat event inte hindrar de övriga; anroparna loggar via .catch.
   if (failures.length > 0) {
-    throw new Error(`Event qualification failed for user ${params.userId}: ${failures.join('; ')}`);
+    throw errorWithCode(`Event qualification failed for user ${params.userId}: ${describeFailures(failures)}`, failures[0]);
   }
 }
 
@@ -366,7 +370,7 @@ export async function settleCompetitionEvents(): Promise<void> {
     return;
   }
 
-  const failedEvents: string[] = [];
+  const failedEvents: Failure[] = [];
 
   for (const event of events) {
     try {
@@ -439,7 +443,7 @@ export async function settleCompetitionEvents(): Promise<void> {
       scored.sort((a, b) => b.totalValue - a.totalValue);
 
       // Dela ut XP per placering
-      const payoutFailures: string[] = [];
+      const payoutFailures: Failure[] = [];
       const paidOut: Array<{ userId: string; groupId: string | null; prevXp: number }> = [];
       for (let i = 0; i < scored.length; i++) {
         const { entryId, userId, totalValue } = scored[i];
@@ -452,7 +456,7 @@ export async function settleCompetitionEvents(): Promise<void> {
           .eq('id', entryId);
         if (rankErr) {
           logger.error(`❌ [Settlement] Failed to save rank ${rank} for user ${userId}, event ${event.id} (${errorCode(rankErr)})`);
-          payoutFailures.push(`entry update failed for user ${userId}: ${rankErr.message}`);
+          payoutFailures.push({ what: `entry update failed for user ${userId}`, code: errorCode(rankErr) });
         }
 
         if (xp > 0) {
@@ -461,7 +465,7 @@ export async function settleCompetitionEvents(): Promise<void> {
           const { error: xpErr } = await supabase.rpc('increment_event_xp', { p_user_id: userId, p_xp: xp });
           if (xpErr) {
             logger.error(`❌ [Settlement] increment_event_xp failed for user ${userId} (+${xp} XP owed, rank ${rank}) in event ${event.id} (${errorCode(xpErr)})`);
-            payoutFailures.push(`increment_event_xp failed for user ${userId} (+${xp} XP): ${xpErr.message}`);
+            payoutFailures.push({ what: `increment_event_xp failed for user ${userId} (+${xp} XP)`, code: errorCode(xpErr) });
             continue;
           }
           // Räkna om level baserat på ny total_xp
@@ -502,20 +506,20 @@ export async function settleCompetitionEvents(): Promise<void> {
       }
 
       if (payoutFailures.length > 0) {
-        failedEvents.push(`event ${event.id}: ${payoutFailures.join('; ')}`);
+        failedEvents.push({ what: `event ${event.id}: ${describeFailures(payoutFailures)}`, code: payoutFailures[0].code });
         continue;
       }
 
       logger.info(`✅ [Settlement] Competition event ${event.id} settled (${scored.length} participants)`);
     } catch (e) {
       logger.error(`❌ [Settlement] Unexpected error settling event ${event.id} (${errorCode(e)})`);
-      failedEvents.push(`event ${event.id}: ${e instanceof Error ? e.message : String(e)}`);
+      failedEvents.push({ what: `event ${event.id}: unexpected error (${errorCode(e)})`, code: errorCode(e) });
     }
   }
 
   // Efter loopen, så att ett event med fel inte hindrar de övriga; schedulern loggar felet.
   if (failedEvents.length > 0) {
-    throw new Error(`Competition settlement had failures: ${failedEvents.join(' | ')}`);
+    throw errorWithCode(`Competition settlement had failures: ${failedEvents.map((e) => e.what).join(' | ')}`, failedEvents[0]);
   }
 }
 

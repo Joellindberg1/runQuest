@@ -60,7 +60,7 @@ const run = (over: Row = {}): Row => ({
   id: 'run-1', user_id: 'user-1', date: '2026-10-01', distance: 4, streak_day: 1, xp_gained: 0, ...over,
 });
 
-function use(failWhen?: (q: RecordedQuery) => { message: string } | null, tables: Record<string, Row[]> = {}) {
+function use(failWhen?: (q: RecordedQuery) => { message: string; code?: string } | null, tables: Record<string, Row[]> = {}) {
   const t: Record<string, Row[]> = { runs: [run(), run({ id: 'run-2', date: '2026-10-02' })], user_boosts: [], ...tables };
   const db = createFakeDb(t, { autoIds: true, failWhen });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
@@ -86,33 +86,33 @@ describe('reprocessRunsFromDate — fel syns', () => {
   });
 
   it('läsfel på de berörda rundorna kastas (inte en tyst tidig return)', async () => {
-    use((q) => (q.table === 'runs' && q.select === 'id, date, distance' ? { message: 'read failed' } : null));
+    use((q) => (q.table === 'runs' && q.select === 'id, date, distance' ? { message: 'read failed: secret', code: '57014' } : null));
 
-    await expect(reprocessRunsFromDate('user-1', '2026-10-01')).rejects.toThrow(/read failed/);
+    await expect(reprocessRunsFromDate('user-1', '2026-10-01')).rejects.toMatchObject({ code: '57014', message: 'Failed to fetch runs to reprocess (user user-1)' });
     expect(reprocessedLogged()).toBe(false);
   });
 
   it('läsfel på föregående runda (streak-seed) kastas — annars räknas streaken från fel utgångspunkt', async () => {
-    const tables = use((q) => (q.table === 'runs' && q.select === 'date, streak_day' ? { message: 'seed failed' } : null));
+    const tables = use((q) => (q.table === 'runs' && q.select === 'date, streak_day' ? { message: 'seed failed: secret', code: '42P01' } : null));
 
-    await expect(reprocessRunsFromDate('user-1', '2026-10-02')).rejects.toThrow(/seed failed/);
+    await expect(reprocessRunsFromDate('user-1', '2026-10-02')).rejects.toMatchObject({ code: '42P01', message: 'Failed to fetch previous run for reprocess (user user-1)' });
     expect(tables.runs.every((r) => r.xp_gained === 0)).toBe(true);
   });
 
   it('läsfel på användarens boostar kastas — annars räknas XP om utan boosten', async () => {
-    const tables = use((q) => (q.table === 'user_boosts' ? { message: 'boosts failed' } : null));
+    const tables = use((q) => (q.table === 'user_boosts' ? { message: 'boosts failed: secret', code: '42501' } : null));
 
-    await expect(reprocessRunsFromDate('user-1', '2026-10-01')).rejects.toThrow(/boosts failed/);
+    await expect(reprocessRunsFromDate('user-1', '2026-10-01')).rejects.toMatchObject({ code: '42501', message: 'Failed to fetch boosts for reprocess (user user-1)' });
     expect(tables.runs.every((r) => r.xp_gained === 0)).toBe(true);
   });
 
   it('läsfel på förbrukade multiplier_runs-laddningar kastas', async () => {
     use(
-      (q) => (q.table === 'runs' && q.select === 'id' ? { message: 'count failed' } : null),
+      (q) => (q.table === 'runs' && q.select === 'id' ? { message: 'count failed: secret', code: '53300' } : null),
       { user_boosts: [{ user_id: 'user-1', type: 'multiplier_runs', delta: 0.2, remaining: 3, created_at: '2026-09-01T10:00:00Z', expires_at: null }] },
     );
 
-    await expect(reprocessRunsFromDate('user-1', '2026-10-01')).rejects.toThrow(/count failed/);
+    await expect(reprocessRunsFromDate('user-1', '2026-10-01')).rejects.toMatchObject({ code: '53300', message: 'Failed to count used boost charges for reprocess (user user-1)' });
   });
 });
 

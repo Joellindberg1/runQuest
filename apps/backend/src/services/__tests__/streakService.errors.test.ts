@@ -52,14 +52,14 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
-const runsReadFails = (q: RecordedQuery) => (q.table === 'runs' ? { message: 'runs read failed' } : null);
+const runsReadFails = (q: RecordedQuery) => (q.table === 'runs' ? { message: 'runs read failed: row 123456789 secret', code: '57014' } : null);
 
 describe('StreakService — läsfel', () => {
   it('streak job never writes 0/0 after a read failure', async () => {
     const tables = brokenStreakTables();
     use(tables, runsReadFails);
 
-    await expect(StreakService.updateUserStreak('u1')).rejects.toThrow(/runs read failed/);
+    await expect(StreakService.updateUserStreak('u1')).rejects.toMatchObject({ code: '57014', message: expect.not.stringContaining('secret') });
 
     expect(tables.users[0]).toMatchObject({ current_streak: 7, longest_streak: 7 });
   });
@@ -74,14 +74,14 @@ describe('StreakService — läsfel', () => {
 
   it('calculateUserStreaks kastar vid läsfel i stället för att returnera 0/0', async () => {
     use(brokenStreakTables(), runsReadFails);
-    await expect(StreakService.calculateUserStreaks('u1')).rejects.toThrow(/runs read failed/);
+    await expect(StreakService.calculateUserStreaks('u1')).rejects.toMatchObject({ code: '57014', message: expect.not.stringContaining('secret') });
   });
 
   it('läsfel på föregående streak (users) kastas — annars försvinner streak_broken tyst', async () => {
     const tables = brokenStreakTables();
-    use(tables, (q) => (q.table === 'users' && q.select ? { message: 'users read failed' } : null));
+    use(tables, (q) => (q.table === 'users' && q.select ? { message: 'users read failed: secret', code: '42501' } : null));
 
-    await expect(StreakService.updateUserStreak('u1')).rejects.toThrow(/users read failed/);
+    await expect(StreakService.updateUserStreak('u1')).rejects.toMatchObject({ code: '42501', message: expect.not.stringContaining('secret') });
     expect(tables.users[0].current_streak).toBe(7);
   });
 });
@@ -89,9 +89,9 @@ describe('StreakService — läsfel', () => {
 describe('StreakService — uppdateringsfel', () => {
   it('uppdateringsfel kastas så att schedulern ser det, och ingen streak_broken loggas', async () => {
     const tables = brokenStreakTables();
-    use(tables, (q) => (q.table === 'users' && q.mutation === 'update' ? { message: 'update failed' } : null));
+    use(tables, (q) => (q.table === 'users' && q.mutation === 'update' ? { message: 'update failed: secret', code: '23514' } : null));
 
-    await expect(StreakService.updateUserStreak('u1')).rejects.toThrow(/update failed/);
+    await expect(StreakService.updateUserStreak('u1')).rejects.toMatchObject({ code: '23514', message: expect.not.stringContaining('secret') });
     expect(tables.users[0].current_streak).toBe(7);
     expect(tables.activity_log).toHaveLength(0);
   });

@@ -1,7 +1,8 @@
 /**
- * reprocessRunsFromDate logs the user id, a count and the error CODE of a failed read or write, never the database error object:
- * a Postgres error can carry the row's values (Strava id, coordinates) in message and details (ADR 010 decision 8.6). The message
- * of the thrown Error is a different thing: the callers and runs-reprocess-errors.test.ts rely on it, so it is pinned here too.
+ * A failed read or write in reprocessRunsFromDate throws an error with a fixed message (user id, counts) and the database CODE in
+ * `code`, never the database text: a Postgres error can carry the row's values (Strava id, coordinates) in message and details
+ * (ADR 010 decision 8.6). The function logs nothing itself; the callers that catch it log `errorCode(error)`, one Sentry event
+ * per failure.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -39,12 +40,16 @@ const LEAK = 'failed for external_id 987654321 at 59.3293,18.0686 "My secret mor
 const SECRETS = ['987654321', '59.3293', '18.0686', 'secret morning'];
 
 let lines: string[];
+let errorLines: string[];
 beforeEach(() => {
   vi.clearAllMocks();
   lines = [];
+  errorLines = [];
   for (const level of ['info', 'warn', 'error', 'debug'] as const) {
     vi.spyOn(logger, level).mockImplementation((...args: unknown[]) => {
-      lines.push(args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg, Object.getOwnPropertyNames(Object(arg))))).join(' '));
+      const line = args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg, Object.getOwnPropertyNames(Object(arg))))).join(' ');
+      lines.push(line);
+      if (level === 'error') errorLines.push(line);
     });
   }
 });
@@ -62,44 +67,41 @@ function use(failWhen: (q: RecordedQuery) => { message: string } | null) {
 const isAffectedRunsRead = (q: RecordedQuery) => q.table === 'runs' && !q.mutation && q.select === 'id, date, distance';
 const leaky = (code: string) => ({ message: LEAK, code }) as never;
 
-describe('reprocessRunsFromDate error logs', () => {
-  it('logs only the user id and the code when the read of the runs to reprocess fails', async () => {
+describe('reprocessRunsFromDate thrown errors', () => {
+  it('throws a code and the user id, and logs nothing, when the read of the runs to reprocess fails', async () => {
     use((q) => (isAffectedRunsRead(q) ? leaky('57014') : null));
 
     const failure = await reprocessRunsFromDate('user-1', '2026-10-01').catch((error: Error) => error);
 
     expect(failure).toBeInstanceOf(Error);
-    const text = lines.join('\n');
-    expect(text).toContain('user-1');
-    expect(text).toContain('57014');
-    for (const secret of SECRETS) expect(text).not.toContain(secret);
+    expect((failure as Error).message).toBe('Failed to fetch runs to reprocess (user user-1)');
+    expect((failure as { code?: string }).code).toBe('57014');
+    for (const secret of SECRETS) expect((failure as Error).message).not.toContain(secret);
+    expect(errorLines).toEqual([]);
   });
 
-  it('logs only the count, the user id and the code when run updates fail', async () => {
+  it('throws the count, the user id and the code of the first failure, and logs nothing, when run updates fail', async () => {
     use((q) => (q.table === 'runs' && q.mutation === 'update' ? leaky('23514') : null));
 
-    await reprocessRunsFromDate('user-1', '2026-10-01').catch(() => undefined);
+    const failure = await reprocessRunsFromDate('user-1', '2026-10-01').catch((error: Error) => error);
 
-    const text = lines.join('\n');
-    expect(text).toContain('2 of 2');
-    expect(text).toContain('user-1');
-    expect(text).toContain('23514');
-    for (const secret of SECRETS) expect(text).not.toContain(secret);
-  });
-});
-
-describe('reprocessRunsFromDate thrown messages', () => {
-  it('names the number of failed updates, the user and the database message of the first failure', async () => {
-    use((q) => (q.table === 'runs' && q.mutation === 'update' ? { message: 'update failed' } : null));
-
-    await expect(reprocessRunsFromDate('user-1', '2026-10-01')).rejects.toThrow(
-      '2 of 2 run updates failed during reprocess (user user-1): update failed',
-    );
+    expect((failure as Error).message).toBe('2 of 2 run updates failed during reprocess (user user-1)');
+    expect((failure as { code?: string }).code).toBe('23514');
+    for (const secret of SECRETS) expect((failure as Error).message).not.toContain(secret);
+    expect(errorLines).toEqual([]);
   });
 
-  it('names the user and the database message when the runs cannot be read', async () => {
-    use((q) => (isAffectedRunsRead(q) ? { message: 'read failed' } : null));
+  it('names the supabase-js network cause when the database cannot be reached', async () => {
+    const networkError = {
+      message: 'TypeError: fetch failed',
+      details: 'TypeError: fetch failed\n\nCaused by: Error: read ECONNRESET (ECONNRESET)',
+      hint: '',
+      code: '',
+    };
+    use((q) => (isAffectedRunsRead(q) ? (networkError as never) : null));
 
-    await expect(reprocessRunsFromDate('user-1', '2026-10-01')).rejects.toThrow('Failed to fetch runs to reprocess (user user-1): read failed');
+    const failure = await reprocessRunsFromDate('user-1', '2026-10-01').catch((error: Error) => error);
+
+    expect((failure as { code?: string }).code).toBe('ECONNRESET');
   });
 });

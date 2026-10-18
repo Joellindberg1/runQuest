@@ -7,7 +7,7 @@ import { retractChallengeReceived } from '../services/activityLog.js';
 import { MS_DAY, addDays } from '@runquest/shared';
 import { todayStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { summarizeSettled } from './settledSummary.js';
-import { errorCode } from '../utils/errorCode.js';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 // ─── Settle ended challenges ─────────────────────────────────────────────────
 
@@ -44,10 +44,8 @@ async function autoStartLegendaryChallenges(): Promise<void> {
     .eq('tier', 'legendary')
     .lte('legendary_sent_at', cutoff);
 
-  if (error) {
-    logger.error(`❌ Error fetching legendary challenges to auto-start (${errorCode(error)})`);
-    throw new Error(`Failed to fetch legendary challenges to auto-start: ${error.message}`);
-  }
+  // Kastar utan egen logg: tickens sammanfattning (startChallengeScheduler) loggar felet en gång, med koden.
+  if (error) throw errorWithCode('Failed to fetch legendary challenges to auto-start', error);
   if (!challenges?.length) return;
 
   logger.info(`⚔️ Auto-starting ${challenges.length} legendary challenge(s)...`);
@@ -63,12 +61,12 @@ async function autoStartLegendaryChallenges(): Promise<void> {
         .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
         .eq('id', c.id);
       if (startError) {
-        throw new Error(`Failed to auto-start legendary challenge ${c.id}: ${startError.message}`);
+        throw errorWithCode(`Failed to auto-start legendary challenge ${c.id}`, startError);
       }
     })
   );
-  const { failed, total } = summarizeSettled('[ChallengeScheduler] Auto-starting legendary challenges', results);
-  if (failed > 0) throw new Error(`${failed} of ${total} legendary auto-starts failed`);
+  // Felen på enskilda utmaningar loggas här, en gång och med sina koder. De kastas inte vidare: då loggade tickens sammanfattning samma fel igen.
+  summarizeSettled('[ChallengeScheduler] Auto-starting legendary challenges', results);
 }
 
 // ─── Auto-decline minor/major (after 3 days no response) ────────────────────
@@ -84,10 +82,7 @@ export async function autoDeclinePendingChallenges(): Promise<void> {
     .in('tier', ['minor', 'major'])
     .lte('created_at', cutoff);
 
-  if (error) {
-    logger.error(`❌ Error fetching pending challenges to auto-decline (${errorCode(error)})`);
-    throw new Error(`Failed to fetch pending challenges to auto-decline: ${error.message}`);
-  }
+  if (error) throw errorWithCode('Failed to fetch pending challenges to auto-decline', error);
   if (!challenges?.length) return;
 
   logger.info(`🚫 Auto-declining ${challenges.length} unanswered challenge(s)...`);
@@ -109,15 +104,14 @@ export async function autoDeclinePendingChallenges(): Promise<void> {
       // Båda stegen är idempotenta, så nästa körning försöker igen.
       const restoreError = tokenRes.error ?? usersRes.error;
       if (restoreError) {
-        throw new Error(`Failed to restore token/challenge_active for auto-declined challenge ${c.id}: ${restoreError.message}`);
+        throw errorWithCode(`Failed to restore token/challenge_active for auto-declined challenge ${c.id}`, restoreError);
       }
       const { error: deleteError } = await supabase.from('challenges').delete().eq('id', c.id);
       if (deleteError) logger.error(`❌ Failed to delete auto-declined challenge ${c.id} (${errorCode(deleteError)})`);
       else await retractChallengeReceived(c.id);
     })
   );
-  const { failed, total } = summarizeSettled('[ChallengeScheduler] Auto-declining challenges', results);
-  if (failed > 0) throw new Error(`${failed} of ${total} auto-declines failed`);
+  summarizeSettled('[ChallengeScheduler] Auto-declining challenges', results);
 }
 
 // ─── Scheduler entry point ───────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { wallClockToInstantMs } from '@runquest/shared';
-import { errorCode } from '../utils/errorCode.js';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 interface RunForWeather {
   id: string;
@@ -219,7 +219,7 @@ export class WeatherService {
       .upsert({ run_id: runId, ...weather, fetched_at: new Date().toISOString() }, { onConflict: 'run_id' });
 
     if (error) {
-      throw new Error(`Failed to save weather: ${error.message}`);
+      throw errorWithCode(`Failed to save weather for run ${runId}`, error);
     }
   }
 }
