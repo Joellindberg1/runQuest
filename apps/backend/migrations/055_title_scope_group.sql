@@ -41,8 +41,10 @@
 --  10. Vyn title_leaderboard_view återskapas med security_invoker = true och group_id sist.
 --  11. select update_all_title_leaderboards(): bygger om alla grupper och titlar med de nya funktionerna (bevisar att tillståndet är konsekvent).
 --  12. $postcheck$: 0 rader utan group_id, ingen unik nyckel på de två tabellerna utan group_id kvar, och på första körningen jämförs före-snapshoten
---      med tillståndet efter ombyggnaden med EXCEPT i båda riktningarna (innehavare, positioner, värden, earned_at); ett avvikande resultat stoppar
---      och rullar tillbaka. Därefter släpps snapshot-tabellerna (de enda drop table-satserna i filen; de är temporära och skapas av den här körningen).
+--      med tillståndet efter ombyggnaden med EXCEPT i båda riktningarna: (a) mängden (title_id, user_id, value, earned_at) i listan, (b) innehavaren
+--      (position 1) per titel, (c) positionen för rader vars (title_id, value, earned_at) är unik i titeln och (d) mängden positioner per grupp av exakt
+--      lika rader; user_titles jämförs som mängd. Exakt lika rader (samma title_id, value, earned_at) FÅR byta plats med varandra (ägarbeslut 2026-10-19);
+--      allt annat avvikande stoppar och rullar tillbaka. Därefter släpps snapshot-tabellerna (de enda drop table-satserna i filen; de är temporära och skapas av den här körningen).
 --
 -- FUNKTIONERNA
 --   update_group_title_leaderboard(p_group_id uuid, p_title_id uuid) returns void   -- NY
@@ -88,6 +90,10 @@
 --     (den är idempotent) och rankingen byggs om. Release-röken kör konsistenskontrollen från 053.
 --   * Ny kod mot gammal databas fungerar inte (kolumn och funktioner saknas): därför före deploy.
 --
+-- STAGING: 055 är redan applicerad i staging med den äldre slutkontrollen (strikt EXCEPT inklusive position, ledgern har bara namnet 055_title_scope_group).
+-- Filen ändrades efter det (ägarbeslut 2026-10-19: exakt lika rader får byta plats). Staging har inga lika rader, så beteendet där är oförändrat och
+-- ingen omkörning behövs. I prod körs den nya texten.
+--
 -- KÖR NÄR INGET ANNAT SKRIVER TITLAR: 055 ska köras när ingen Strava-synk, cron eller titelomräkning pågår (rundloggning och synk skriver
 -- user_titles, och update_all i slutet tar alla titellås). Får migrationen 40P01 (deadlock) eller lock_timeout (55P03) rullas hela
 -- transaktionen tillbaka utan att något ändrats: vänta en stund och KÖR OM filen, ingen annan åtgärd behövs.
@@ -115,8 +121,11 @@
 --   union all select 'materialized view ' || m.matviewname from pg_matviews m where m.schemaname = 'public' and m.definition ~ 'current_holder_id'
 --   union all select 'policy ' || pol.policyname from pg_policies pol where pol.schemaname = 'public' and coalesce(pol.qual, '') || coalesce(pol.with_check, '') ~ 'current_holder_id'
 --   union all select 'trigger ' || t.tgname from pg_trigger t where not t.tgisinternal and pg_get_triggerdef(t.oid) ~ 'current_holder_id';
---   -- A7. FÖRE: exakt lika (title_id, value, earned_at) i user_titles (förväntat: 0 rader). Rebuilden bryter nu lika med user_id; den gamla funktionen
---   -- hade ingen bestämd ordning vid lika. Finns sådana kan positionerna byta plats, och migrationens EXCEPT-kontroll stoppar då (rullar tillbaka): fråga ägaren.
+--   -- A7. FÖRE: exakt lika (title_id, value, earned_at) i user_titles (förväntat: normalt 0 rader). Rebuilden bryter nu lika med user_id; den gamla funktionen
+--   -- hade ingen bestämd ordning vid lika. Finns sådana kan exakt lika rader byta plats med varandra: tillåtet enligt ägarbeslut 2026-10-19 om bara exakt
+--   -- lika rader byter plats. Slutkontrollen stoppar fortfarande en ändrad innehavare (position 1), ett ändrat värde och en omordning mellan OLIKA värden.
+--   -- Prod 2026-10-19: titeln The Hamster har fyra rader med samma (title_id, value 7, earned_at) på position 2-5; positionerna 2 och 3 byter plats.
+--   -- Notera vilka grupper som finns och vilka som ligger vid position 1 (en lika-grupp som innehåller position 1 byter innehavare och stoppar).
 --   select title_id, value, earned_at, count(*) as antal from public.user_titles where value is not null group by title_id, value, earned_at having count(*) > 1;
 --   -- A3. FÖRE: innehavare (position 1) i klartext, spara utfallet och jämför med D1 efter apply (förväntat: identiskt)
 --   select t.name as titel, u.name as innehavare, tl.value from public.title_leaderboard tl join public.titles t on t.id = tl.title_id join public.users u on u.id = tl.user_id where tl."position" = 1 order by t.name;
@@ -124,18 +133,27 @@
 --   select jsonb_agg(to_jsonb(s) order by s.title_id, s."position") as fore_title_leaderboard from (select title_id, user_id, "position", value, earned_at from public.title_leaderboard) s;
 --   -- A5. FÖRE: user_titles som JSON. Spara värdet; det klistras in som <FORE_UT_JSON> i B2
 --   select jsonb_agg(to_jsonb(s) order by s.user_id, s.title_id) as fore_user_titles from (select user_id, title_id, value, earned_at from public.user_titles) s;
---   -- A6. FÖRE: radantal och fingeravtryck (jämförs med C1 efter apply, förväntat identiskt)
---   select (select count(*) from public.title_leaderboard) as leaderboard_rader, (select count(*) from public.user_titles) as user_titles_rader, (select md5(string_agg(concat_ws('|', title_id, user_id, "position", value, earned_at), ',' order by title_id, "position")) from public.title_leaderboard) as leaderboard_md5, (select md5(string_agg(concat_ws('|', user_id, title_id, value, earned_at), ',' order by user_id, title_id)) from public.user_titles) as user_titles_md5;
---   -- B1. EFTER: EXCEPT i båda riktningarna mot A4 (förväntat: 0 och 0). Byt <FORE_TL_JSON> mot A4:s värde
+--   -- A6. FÖRE: radantal och fingeravtryck utan position (jämförs med C1 efter apply, förväntat identiskt; positioner bland exakt lika rader får ändras)
+--   select (select count(*) from public.title_leaderboard) as leaderboard_rader, (select count(*) from public.user_titles) as user_titles_rader, (select md5(string_agg(concat_ws('|', title_id, user_id, value, earned_at), ',' order by title_id, user_id)) from public.title_leaderboard) as leaderboard_md5, (select md5(string_agg(concat_ws('|', user_id, title_id, value, earned_at), ',' order by user_id, title_id)) from public.user_titles) as user_titles_md5;
+--   -- B1. EFTER: mängden rader i listan utan position, EXCEPT i båda riktningarna mot A4 (förväntat: 0 och 0). Byt <FORE_TL_JSON> mot A4:s värde
 --   with fore as (select * from jsonb_to_recordset('<FORE_TL_JSON>'::jsonb) as f(title_id uuid, user_id uuid, "position" integer, value numeric, earned_at timestamptz))
---   select 'efter minus fore' as riktning, count(*) as avvikande_rader from (select title_id, user_id, "position", value, earned_at from public.title_leaderboard except select title_id, user_id, "position", value, earned_at from fore) d
---   union all select 'fore minus efter', count(*) from (select title_id, user_id, "position", value, earned_at from fore except select title_id, user_id, "position", value, earned_at from public.title_leaderboard) d;
+--   select 'efter minus fore' as riktning, count(*) as avvikande_rader from (select title_id, user_id, value, earned_at from public.title_leaderboard except select title_id, user_id, value, earned_at from fore) d
+--   union all select 'fore minus efter', count(*) from (select title_id, user_id, value, earned_at from fore except select title_id, user_id, value, earned_at from public.title_leaderboard) d;
+--   -- B3. EFTER: innehavaren (position 1) per titel identisk mot A4 (förväntat: 0 och 0). Byt <FORE_TL_JSON>
+--   with fore as (select * from jsonb_to_recordset('<FORE_TL_JSON>'::jsonb) as f(title_id uuid, user_id uuid, "position" integer, value numeric, earned_at timestamptz))
+--   select 'efter minus fore' as riktning, count(*) as avvikande_innehavare from (select title_id, user_id from public.title_leaderboard where "position" = 1 except select title_id, user_id from fore where "position" = 1) d
+--   union all select 'fore minus efter', count(*) from (select title_id, user_id from fore where "position" = 1 except select title_id, user_id from public.title_leaderboard where "position" = 1) d;
+--   -- B4. EFTER: ordningen mellan OLIKA värden oförändrad mot A4 (förväntat: 0, 0, 0). Rader med unik (title_id, value, earned_at) behåller sin position, och varje grupp av exakt lika rader har samma mängd positioner
+--   with fore as (select * from jsonb_to_recordset('<FORE_TL_JSON>'::jsonb) as f(title_id uuid, user_id uuid, "position" integer, value numeric, earned_at timestamptz))
+--   select 'unika rader med ändrad position' as kontroll, count(*) as antal from fore b where (select count(*) from fore c where c.title_id = b.title_id and c.value = b.value and c.earned_at = b.earned_at) = 1 and not exists (select 1 from public.title_leaderboard t where t.title_id = b.title_id and t.user_id = b.user_id and t."position" = b."position")
+--   union all select 'positionsmängd per lika-grupp, efter minus fore', count(*) from (select title_id, value, earned_at, "position" from public.title_leaderboard except select title_id, value, earned_at, "position" from fore) d
+--   union all select 'positionsmängd per lika-grupp, fore minus efter', count(*) from (select title_id, value, earned_at, "position" from fore except select title_id, value, earned_at, "position" from public.title_leaderboard) d;
 --   -- B2. EFTER: samma för user_titles mot A5 (förväntat: 0 och 0). Byt <FORE_UT_JSON> mot A5:s värde
 --   with fore as (select * from jsonb_to_recordset('<FORE_UT_JSON>'::jsonb) as f(user_id uuid, title_id uuid, value numeric, earned_at timestamptz))
 --   select 'efter minus fore' as riktning, count(*) as avvikande_rader from (select user_id, title_id, value, earned_at from public.user_titles except select user_id, title_id, value, earned_at from fore) d
 --   union all select 'fore minus efter', count(*) from (select user_id, title_id, value, earned_at from fore except select user_id, title_id, value, earned_at from public.user_titles) d;
---   -- C1. EFTER: radantal och fingeravtryck, samma som A6 (förväntat identiskt)
---   select (select count(*) from public.title_leaderboard) as leaderboard_rader, (select count(*) from public.user_titles) as user_titles_rader, (select md5(string_agg(concat_ws('|', title_id, user_id, "position", value, earned_at), ',' order by title_id, "position")) from public.title_leaderboard) as leaderboard_md5, (select md5(string_agg(concat_ws('|', user_id, title_id, value, earned_at), ',' order by user_id, title_id)) from public.user_titles) as user_titles_md5;
+--   -- C1. EFTER: radantal och fingeravtryck utan position, samma som A6 (förväntat identiskt)
+--   select (select count(*) from public.title_leaderboard) as leaderboard_rader, (select count(*) from public.user_titles) as user_titles_rader, (select md5(string_agg(concat_ws('|', title_id, user_id, value, earned_at), ',' order by title_id, user_id)) from public.title_leaderboard) as leaderboard_md5, (select md5(string_agg(concat_ws('|', user_id, title_id, value, earned_at), ',' order by user_id, title_id)) from public.user_titles) as user_titles_md5;
 --   -- C2. EFTER: inga rader utan grupp, en grupp i listan, längsta lista högst 10 (förväntat: 0, 0, 1, högst 10)
 --   select (select count(*) from public.user_titles where group_id is null) as user_titles_utan_grupp, (select count(*) from public.title_leaderboard where group_id is null) as leaderboard_utan_grupp, (select count(distinct group_id) from public.title_leaderboard) as grupper_i_leaderboard, (select max(c) from (select count(*) as c from public.title_leaderboard group by group_id, title_id) x) as storsta_lista;
 --   -- D1. EFTER: innehavare (position 1) i klartext, samma som A3 (förväntat identiskt)
@@ -547,6 +565,9 @@ declare
   v_holder_fk    integer;
   v_diff_tl      integer := 0;
   v_diff_ut      integer := 0;
+  v_diff_holder  integer := 0;
+  v_diff_pos     integer := 0;
+  v_diff_grp     integer := 0;
 begin
   select count(*) into v_null_ut from public.user_titles where group_id is null;
   select count(*) into v_null_tl from public.title_leaderboard where group_id is null;
@@ -566,20 +587,36 @@ begin
     raise exception 'migration 055 failed: titles_current_holder_id_fkey is not ON DELETE SET NULL. Nothing was changed.';
   end if;
 
-  -- Beteendeneutralt med en grupp: innehavare, positioner, värden och earned_at identiska före och efter (första körningen).
+  -- Beteendeneutralt med en grupp (första körningen). Ägarbeslut 2026-10-19: exakt lika rader, alltså samma (title_id, value, earned_at), får byta plats
+  -- med varandra (den nya ordningen bryter lika med user_id). Allt annat stoppar: (a) mängden rader (title_id, user_id, value, earned_at) i listan, (b) innehavaren
+  -- (position 1) per titel, (c) positionen för varje rad vars (title_id, value, earned_at) är unik i titeln, (d) mängden positioner per grupp av
+  -- lika rader (en omordning mellan OLIKA värden ändrar den). user_titles jämförs som förut: oförändrad mängd.
   if (select first_run from pg_temp.mig055_run) then
     select count(*) into v_diff_tl from (
-      (select title_id, user_id, "position", value, earned_at from public.title_leaderboard except select title_id, user_id, "position", value, earned_at from pg_temp.mig055_before_tl)
+      (select title_id, user_id, value, earned_at from public.title_leaderboard except select title_id, user_id, value, earned_at from pg_temp.mig055_before_tl)
       union all
-      (select title_id, user_id, "position", value, earned_at from pg_temp.mig055_before_tl except select title_id, user_id, "position", value, earned_at from public.title_leaderboard)
+      (select title_id, user_id, value, earned_at from pg_temp.mig055_before_tl except select title_id, user_id, value, earned_at from public.title_leaderboard)
     ) d;
     select count(*) into v_diff_ut from (
       (select user_id, title_id, value, earned_at from public.user_titles except select user_id, title_id, value, earned_at from pg_temp.mig055_before_ut)
       union all
       (select user_id, title_id, value, earned_at from pg_temp.mig055_before_ut except select user_id, title_id, value, earned_at from public.user_titles)
     ) d;
-    if v_diff_tl > 0 or v_diff_ut > 0 then
-      raise exception 'migration 055 failed: the title holders or values changed (% rows differ in title_leaderboard, % in user_titles). Nothing was changed; ask the owner before continuing.', v_diff_tl, v_diff_ut;
+    select count(*) into v_diff_holder from (
+      (select title_id, user_id from public.title_leaderboard where "position" = 1 except select title_id, user_id from pg_temp.mig055_before_tl where "position" = 1)
+      union all
+      (select title_id, user_id from pg_temp.mig055_before_tl where "position" = 1 except select title_id, user_id from public.title_leaderboard where "position" = 1)
+    ) d;
+    select count(*) into v_diff_pos from pg_temp.mig055_before_tl b
+     where (select count(*) from pg_temp.mig055_before_tl c where c.title_id = b.title_id and c.value = b.value and c.earned_at = b.earned_at) = 1
+       and not exists (select 1 from public.title_leaderboard t where t.title_id = b.title_id and t.user_id = b.user_id and t."position" = b."position");
+    select count(*) into v_diff_grp from (
+      (select title_id, value, earned_at, "position" from public.title_leaderboard except select title_id, value, earned_at, "position" from pg_temp.mig055_before_tl)
+      union all
+      (select title_id, value, earned_at, "position" from pg_temp.mig055_before_tl except select title_id, value, earned_at, "position" from public.title_leaderboard)
+    ) d;
+    if v_diff_tl > 0 or v_diff_ut > 0 or v_diff_holder > 0 or v_diff_pos > 0 or v_diff_grp > 0 then
+      raise exception 'migration 055 failed: the title holders, values or the order between different values changed (% rows differ in title_leaderboard, % in user_titles, % holder differences, % unique-row position differences, % tie-group position differences). Only rows with exactly equal (title_id, value, earned_at) may swap places (owner decision 2026-10-19). Nothing was changed; ask the owner before continuing.', v_diff_tl, v_diff_ut, v_diff_holder, v_diff_pos, v_diff_grp;
     end if;
   end if;
 

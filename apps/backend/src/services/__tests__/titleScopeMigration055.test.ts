@@ -464,17 +464,57 @@ describe(`migration ${file}: trigger avstängd medan group_id fylls, före/efter
 
   it('slutkontrollen jämför före och efter med EXCEPT i båda riktningarna, bara första körningen, och stoppar annars', () => {
     expect(postcheckBody).toContain('if (select first_run from pg_temp.mig055_run) then');
+    // (a) mängden rader utan position, och user_titles som mängd, EXCEPT åt båda håll.
     for (const [snap, cols, table] of [
-      ['mig055_before_tl', 'title_id, user_id, "position", value, earned_at', 'public.title_leaderboard'],
+      ['mig055_before_tl', 'title_id, user_id, value, earned_at', 'public.title_leaderboard'],
       ['mig055_before_ut', 'user_id, title_id, value, earned_at', 'public.user_titles'],
+      ['mig055_before_tl', 'title_id, value, earned_at, "position"', 'public.title_leaderboard'], // (d)
     ] as const) {
       expect(postcheckBody).toContain(`(select ${cols} from ${table} except select ${cols} from pg_temp.${snap})`);
       expect(postcheckBody).toContain(`(select ${cols} from pg_temp.${snap} except select ${cols} from ${table})`);
     }
-    expect(postcheckBody).toMatch(
-      /if v_diff_tl > 0 or v_diff_ut > 0 then raise exception 'migration 055 failed: the title holders or values changed \(% rows differ in title_leaderboard, % in user_titles\)[^']*', v_diff_tl, v_diff_ut; end if;/,
+    // (b) innehavaren (position 1) per titel, åt båda håll.
+    expect(postcheckBody).toContain(
+      '(select title_id, user_id from public.title_leaderboard where "position" = 1 except select title_id, user_id from pg_temp.mig055_before_tl where "position" = 1)',
     );
+    expect(postcheckBody).toContain(
+      '(select title_id, user_id from pg_temp.mig055_before_tl where "position" = 1 except select title_id, user_id from public.title_leaderboard where "position" = 1)',
+    );
+    // (c) rader med unik (title_id, value, earned_at) i titeln behåller sin position.
+    expect(postcheckBody).toContain(
+      'select count(*) into v_diff_pos from pg_temp.mig055_before_tl b where (select count(*) from pg_temp.mig055_before_tl c where c.title_id = b.title_id and c.value = b.value and c.earned_at = b.earned_at) = 1 and not exists (select 1 from public.title_leaderboard t where t.title_id = b.title_id and t.user_id = b.user_id and t."position" = b."position");',
+    );
+    // Stoppvillkoret har alla fem kontroller, och felet visar varje räknare. Position får INTE ingå i mängdjämförelsen (a): då skulle exakt lika rader inte kunna byta plats.
+    expect(postcheckBody).toMatch(
+      /if v_diff_tl > 0 or v_diff_ut > 0 or v_diff_holder > 0 or v_diff_pos > 0 or v_diff_grp > 0 then raise exception 'migration 055 failed: the title holders, values or the order between different values changed \(% rows differ in title_leaderboard, % in user_titles, % holder differences, % unique-row position differences, % tie-group position differences\)\. Only rows with exactly equal \(title_id, value, earned_at\) may swap places \(owner decision 2026-10-19\)[^']*', v_diff_tl, v_diff_ut, v_diff_holder, v_diff_pos, v_diff_grp; end if;/i,
+    );
+    expect(postcheckBody).not.toContain('select title_id, user_id, "position", value, earned_at from public.title_leaderboard except');
     expect(at(code, /do \$postcheck\$/i)).toBeGreaterThan(at(code, /select public\.update_all_title_leaderboards\(\)/i));
+  });
+
+  it('platsbyte mellan exakt lika rader är tillåtet enligt ägarbeslut 2026-10-19, och headern säger det i stället för "fråga ägaren"', () => {
+    expect(sql).toMatch(/A7\. FÖRE:[\s\S]*tillåtet enligt ägarbeslut 2026-10-19 om bara exakt\s+--\s+-- lika rader byter plats/);
+    expect(sql).not.toMatch(/EXCEPT-kontroll stoppar då \(rullar tillbaka\): fråga ägaren/);
+    // Prod-fallet och att en lika-grupp med innehavaren fortfarande stoppar.
+    expect(sql).toMatch(/The Hamster[\s\S]*position 2-5/);
+    expect(sql).toMatch(/innehåller position 1 byter innehavare och stoppar/);
+    // Staging har redan körts med den äldre texten.
+    expect(sql).toMatch(/STAGING: 055 är redan applicerad i staging med den äldre slutkontrollen[\s\S]*ledgern har bara namnet[\s\S]*Staging har inga lika rader/);
+  });
+
+  it('B1 jämför mängden utan position och B3/B4 jämför innehavare och ordning mellan olika värden, så att Lead kan bevisa samma sak efter apply', () => {
+    const queries = headerBlock('QUERIES').join('\n');
+    const b1 = queries.slice(queries.indexOf("<FORE_TL_JSON>'::jsonb) as f(title_id uuid"), queries.indexOf('<FORE_UT_JSON>'));
+    expect(b1).toContain('select title_id, user_id, value, earned_at from public.title_leaderboard except select title_id, user_id, value, earned_at from fore');
+    expect(b1).not.toMatch(/select title_id, user_id, "position", value, earned_at from public\.title_leaderboard except/);
+    expect(queries).toContain('select title_id, user_id from public.title_leaderboard where "position" = 1 except select title_id, user_id from fore where "position" = 1');
+    expect(queries).toContain('select title_id, user_id from fore where "position" = 1 except select title_id, user_id from public.title_leaderboard where "position" = 1');
+    expect(queries).toContain('select title_id, value, earned_at, "position" from public.title_leaderboard except select title_id, value, earned_at, "position" from fore');
+    expect(queries).toContain('select title_id, value, earned_at, "position" from fore except select title_id, value, earned_at, "position" from public.title_leaderboard');
+    expect(queries).toMatch(/unika rader med ändrad position[\s\S]*c\.title_id = b\.title_id and c\.value = b\.value and c\.earned_at = b\.earned_at\) = 1/);
+    // Fingeravtrycket för listan innehåller ingen position (lika rader får byta plats).
+    expect(queries).not.toMatch(/leaderboard_md5[\s\S]{0,0}concat_ws\('\|', title_id, user_id, "position"/);
+    expect(queries).not.toMatch(/concat_ws\('\|', title_id, user_id, "position"/);
   });
 
   it('slutkontrollen kräver 0 rader utan group_id, att varje unik nyckel på tabellerna har group_id, och släpper snapshot-tabellerna', () => {
@@ -573,7 +613,7 @@ describe(`migration ${file}: form, idempotens och rollback`, () => {
     expect(queries).toMatch(/jsonb_agg\(to_jsonb\(s\) order by s\.title_id, s\."position"\)[\s\S]*from public\.title_leaderboard/);
     expect(queries).toMatch(/jsonb_agg\(to_jsonb\(s\) order by s\.user_id, s\.title_id\)[\s\S]*from public\.user_titles/);
     // EXCEPT i båda riktningarna för båda tabellerna.
-    expect(queries.match(/\bexcept\b/gi)!.length).toBeGreaterThanOrEqual(4);
+    expect(queries.match(/\bexcept\b/gi)!.length).toBeGreaterThanOrEqual(8);
     // A7: exakt lika (title_id, value, earned_at) kan ge annan ordning med nya tie-breaken.
     expect(queries).toMatch(/group by title_id, value, earned_at having count\(\*\) > 1/);
     // Katalogfrågor: index, trigger, funktioners signatur/search_path/grants och vyns security_invoker + kolumner.

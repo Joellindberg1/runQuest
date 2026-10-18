@@ -342,8 +342,9 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
      `users.group_id` mellan apply och deploy är filen idempotent: kör om den.
    - **054:** efter apply bevisfrågorna i huvudet (RLS på, 0 policyer, ingen klientåtkomst, tabellen tom) och `get_advisors` (security).
    - **055** körs när ingen Strava-synk, cron eller titelomräkning pågår (den tar ACCESS EXCLUSIVE på `user_titles`/`title_leaderboard` och alla
-     titellås i slutet). Kör före-frågorna A1–A7 i filens huvud först och spara A4/A5; efter apply B1/B2, C1/C2, D1 och E1–E6, och `get_advisors`
-     (security). Får den `40P01` (deadlock) eller `lock_timeout` (55P03) har allt rullats tillbaka: vänta en stund och kör om hela filen. Stannar en av
+     titellås i slutet). Kör före-frågorna A1–A7 i filens huvud först och spara A4/A5; efter apply B1–B4, C1/C2, D1 och E1–E6, och `get_advisors`
+     (security). Exakt lika rader (A7) får byta plats (ägarbeslut 2026-10-19); B3 och B4 bevisar att innehavare och ordningen mellan olika värden är
+     oförändrade. Får den `40P01` (deadlock) eller `lock_timeout` (55P03) har allt rullats tillbaka: vänta en stund och kör om hela filen. Stannar en av
      migrationens egna kontroller (`migration 055 stopped/failed`) ändras ingenting; fråga ägaren, ändra ingen data för att få den att gå igenom.
    - **056:** kör katalogfrågan (`QUERY-START` i huvudet) FÖRE apply i varje miljö och spara `proacl` per funktion: rollbacken ska ge exakt
      utgångsläget tillbaka, och miljöerna skiljer sig (staging har PUBLIC-execute, prod saknar det). Efter apply samma fråga igen (förväntat: public_execute,
