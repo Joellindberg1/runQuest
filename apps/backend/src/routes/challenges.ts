@@ -20,6 +20,7 @@ import {
 } from '../services/challengeHistory.js';
 import type { ChallengeGroupHistoryApiResponse, HeadToHeadApiResponse } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { isUuid } from '../utils/uuid.js';
 
 const router = express.Router();
 
@@ -167,6 +168,10 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     if (!token_id || !opponent_id) {
       res.status(400).json({ error: 'token_id and opponent_id are required' }); return;
     }
+    // Före första databasfrågan: opponent_id kommer ur request-body och når aldrig ett filter som icke-uuid.
+    if (!isUuid(opponent_id)) {
+      res.status(400).json({ error: 'opponent_id must be a valid uuid' }); return;
+    }
     if (opponent_id === userId) {
       res.status(400).json({ error: 'You cannot challenge yourself' }); return;
     }
@@ -208,6 +213,10 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     if (!opponent) {
       res.status(404).json({ error: 'Opponent not found' }); return;
     }
+    // isUuid släpper igenom versaler och databasen jämför uuid skiftlägesokänsligt: kontrollera även mot det riktiga id:t.
+    if (opponent.id === userId) {
+      res.status(400).json({ error: 'You cannot challenge yourself' }); return;
+    }
     // Fail-closed (ADR 007 A6): en token utan group_id får inte utmana någon över gruppgränsen.
     if (!groupId || opponent.group_id !== groupId) {
       res.status(400).json({ error: 'Opponent is not in your group' }); return;
@@ -218,7 +227,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
       .from('challenges')
       .select('id, challenger_id, opponent_id')
       .in('status', ['pending', 'active'])
-      .or(`challenger_id.eq.${userId},opponent_id.eq.${userId},challenger_id.eq.${opponent_id},opponent_id.eq.${opponent_id}`);
+      .or(`challenger_id.eq.${userId},opponent_id.eq.${userId},challenger_id.eq.${opponent.id},opponent_id.eq.${opponent.id}`);
 
     const userBusy = existingChallenges?.some(
       (c: { id: string; challenger_id: string; opponent_id: string }) =>
@@ -226,7 +235,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     );
     const opponentBusy = existingChallenges?.some(
       (c: { id: string; challenger_id: string; opponent_id: string }) =>
-        c.challenger_id === opponent_id || c.opponent_id === opponent_id
+        c.challenger_id === opponent.id || c.opponent_id === opponent.id
     );
 
     if (userBusy) {
@@ -257,7 +266,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
         group_id: groupId,
         tier: token.tier,
         challenger_id: userId,
-        opponent_id,
+        opponent_id: opponent.id,
         metric: token.metric,
         duration_days: token.duration_days,
         winner_type: reward.winner_type,
@@ -511,7 +520,6 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
 
 // ─── GET /api/challenges/head-to-head/:userId[?limit=] ───────────────────────
 // Anroparens uppgörelser mot en annan gruppmedlem (ADR 007 B6).
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEAD_TO_HEAD_MAX_LIMIT = 20;
 
 router.get('/head-to-head/:userId', authenticateJWT, async (req, res): Promise<void> => {
@@ -519,7 +527,7 @@ router.get('/head-to-head/:userId', authenticateJWT, async (req, res): Promise<v
     const me = req.user!.user_id;
     const otherId = req.params.userId;
 
-    if (!UUID_RE.test(otherId)) { res.status(400).json({ error: 'userId must be a valid uuid' }); return; }
+    if (!isUuid(otherId)) { res.status(400).json({ error: 'userId must be a valid uuid' }); return; }
     if (otherId === me) { res.status(400).json({ error: 'Cannot compare with yourself' }); return; }
 
     const page = parseOffsetPage({ limit: req.query.limit }, { defaultLimit: 5, maxLimit: HEAD_TO_HEAD_MAX_LIMIT });
