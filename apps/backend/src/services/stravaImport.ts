@@ -1,5 +1,6 @@
 // Strava import: the shared rules and row shape, so polling and the webhook worker write identical rows (ADR 010 decision 7).
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 import { getSupabaseClient } from '../config/database.js';
 import { isTreadmillActivity } from '../utils/stravaActivity.js';
 import { fetchDetailedActivityResult } from './stravaClient.js';
@@ -140,7 +141,7 @@ export async function insertStravaRun(userId: string, activity: any, detailed?: 
   if (error) {
     // Our user id and the error code only (ADR 010 8.6): no Strava id, no coordinates or heart rate, and not the message, which
     // can carry the values of the row (a unique violation prints its key).
-    logger.error(`❌ Failed to insert a Strava run for user ${userId} (${error.code ?? 'no code'})`);
+    logger.error(`❌ Failed to insert a Strava run for user ${userId} (${errorCode(error)})`);
     throw error;
   }
   return { status: 'imported', run: data as ImportedRun };

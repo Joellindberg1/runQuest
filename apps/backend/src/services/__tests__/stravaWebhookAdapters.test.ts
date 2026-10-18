@@ -67,6 +67,27 @@ describe('Supabase event store', () => {
     expect(rows).toEqual([{ id: 1, owner_id: 5001 }]);
   });
 
+  it('a claim that fails because the connection broke throws the network cause, not "unknown" (supabase-js gives code "")', async () => {
+    // The error postgrest-js returns instead of throwing when fetch fails: code '', no name, the cause only in the text.
+    const networkError = {
+      message: 'TypeError: fetch failed',
+      details: 'TypeError: fetch failed\n\nCaused by: Error: read ECONNRESET (ECONNRESET)\n    at jane@example.com',
+      hint: '',
+      code: '',
+    };
+    useDb({}, { rpc: { claim_strava_webhook_events: () => ({ error: networkError as any }) } });
+
+    const failure = await createWebhookEventStore().claim(300, 25).catch((error: Error & { code?: string }) => error);
+
+    expect((failure as Error & { code?: string }).code).toBe('ECONNRESET');
+    expect((failure as Error).message).toBe('claim failed (ECONNRESET)');
+
+    // A write on a claimed row goes through the same helper.
+    useDb({ [EVENTS]: [{ id: 1, status: 'processing' }] }, { errors: { [EVENTS]: networkError as never } });
+    const writeFailure = await createWebhookEventStore().markDone(claimed(1), 'imported', AT).catch((error: Error & { code?: string }) => error);
+    expect((writeFailure as Error & { code?: string }).code).toBe('ECONNRESET');
+  });
+
   it('an empty claim is an empty list and a failed claim throws with the code only', async () => {
     useDb({}, { rpc: { claim_strava_webhook_events: () => ({ data: null }) } });
     await expect(createWebhookEventStore().claim(300, 25)).resolves.toEqual([]);

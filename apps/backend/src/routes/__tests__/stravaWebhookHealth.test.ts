@@ -229,6 +229,16 @@ describe('GET /api/strava/webhook/health', () => {
     expect(logged).not.toContain('918273645');
   });
 
+  it('health logs the network cause, not "unknown", when the connection broke (supabase-js gives code "")', async () => {
+    const networkError = { message: 'TypeError: fetch failed', details: 'Caused by: Error: read ECONNRESET (ECONNRESET)', hint: '', code: '' };
+    useDb({ [EVENTS]: [event('pending')] }, { failWhen: (q) => (q.table === EVENTS ? networkError as any : null) });
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+    expect(res.status).toBe(500);
+    const logged = errorLog.mock.calls.flat().map(String).join(' ');
+    expect(logged).toContain('ECONNRESET');
+    expect(logged).not.toContain('unknown');
+  });
+
   it('health fails with 500 and logs the code only when a timestamp read fails', async () => {
     const server = await serve();
     for (const column of ['received_at', 'processed_at']) {

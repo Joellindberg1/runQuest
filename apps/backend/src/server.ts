@@ -2,6 +2,7 @@
 // All http-wiring bor i app.ts (createApp, ADR 003); här finns bara det som
 // hör till PROCESSEN: env-laddning/validering, listen, schedulers, shutdown.
 import { logger } from './utils/logger.js';
+import { errorCode } from './utils/errorCode.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -78,7 +79,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 server.on('error', async (error: NodeJS.ErrnoException) => {
-  logger.error('❌ Server error:', error.code);
+  logger.error('❌ Server error:', errorCode(error));
   if (error.code === 'EADDRINUSE') {
     logger.error(`❌ Port ${PORT} is already in use`);
   }

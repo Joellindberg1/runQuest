@@ -7,6 +7,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { getSupabaseClient } from '../config/database.js';
 import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 import {
   WAITLIST_CONSENT_VERSION,
   WAITLIST_EMAIL_MAX_LENGTH,
@@ -59,7 +60,7 @@ router.post('/', waitlistRateLimiter, express.json({ limit: BODY_LIMIT }), async
 
   if (error) {
     // Bara felkoden: PostgREST-meddelandet och details kan innehålla adressen.
-    logger.error(`❌ Waitlist signup failed (code ${error.code ?? 'unknown'})`);
+    logger.error(`❌ Waitlist signup failed (${errorCode(error)})`);
     // 23514 = CHECK-villkoren i 044 (normaliserad, ≤ 254): adressen kan inte lagras, oavsett vad den är -> inte en serverstörning.
     if (error.code === '23514') { res.status(400).json({ error: 'A valid email address is required' }); return; }
     res.status(500).json({ error: 'Failed to join the waitlist' });

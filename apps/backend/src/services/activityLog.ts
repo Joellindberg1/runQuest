@@ -49,7 +49,7 @@ export async function recordActivities(entries: ReadonlyArray<ActivityDraft>): P
       .upsert(entries.map(toActivityRow), { onConflict: 'dedupe_key', ignoreDuplicates: true });
     if (error) {
       // Bara koden: PostgREST-felets details/message kan innehålla hela den felande raden (payload).
-      logger.error('❌ [ActivityLog] Failed to write activity rows:', { code: error.code ?? null, types: entries.map((e) => e.type) });
+      logger.error('❌ [ActivityLog] Failed to write activity rows:', { code: errorCode(error), types: entries.map((e) => e.type) });
     }
   } catch (e) {
     logger.error('❌ [ActivityLog] Unexpected error writing activity rows:', { code: errorCode(e) });
@@ -64,7 +64,7 @@ export async function recordActivity(entry: ActivityDraft): Promise<void> {
 export async function retractActivity(dedupeKey: string): Promise<void> {
   try {
     const { error } = await getSupabaseClient().from(ACTIVITY_LOG_TABLE).delete().eq('dedupe_key', dedupeKey);
-    if (error) logger.error('❌ [ActivityLog] Failed to retract activity row:', { code: error.code ?? null, dedupeKey });
+    if (error) logger.error('❌ [ActivityLog] Failed to retract activity row:', { code: errorCode(error), dedupeKey });
   } catch (e) {
     logger.error('❌ [ActivityLog] Unexpected error retracting activity row:', { code: errorCode(e), dedupeKey });
   }
