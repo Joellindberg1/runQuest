@@ -39,9 +39,9 @@ const people = (): Row[] => [
   { id: 'member-b', name: 'Member B', email: 'member-b@example.com', is_admin: false, group_id: GROUP_B, password_hash: OLD_HASH },
 ];
 
-function useDb(users: Row[] = people()) {
+function useDb(users: Row[] = people(), options: Parameters<typeof createFakeDb>[1] = {}) {
   const tables: Record<string, Row[]> = { users };
-  const db = createFakeDb(tables, { autoIds: true });
+  const db = createFakeDb(tables, { autoIds: true, ...options });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return { ...db, tables };
 }
@@ -108,6 +108,32 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
     expect(missing.status).toBe(404);
     expect(otherGroup.status).toBe(missing.status);
     expect(otherGroup.body).toEqual(missing.body);
+  });
+
+  it('answers 404 and keeps the password when the user moves to another group between the lookup and the update', async () => {
+    // failWhen körs före radfiltreringen i updaten: precis då flyttas målet till en annan grupp, som vid ett samtidigt anrop.
+    const db = useDb(people(), {
+      failWhen: (q) => {
+        if (q.table === 'users' && q.mutation === 'update') {
+          db.tables.users.find((u) => u.id === 'member-a')!.group_id = GROUP_B;
+        }
+        return null;
+      },
+    });
+    const res = await reset('member-a', adminToken(GROUP_A));
+    const missing = await reset('no-such-user', adminToken(GROUP_A));
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(missing.body);
+    expect(db.tables.users.find((u) => u.id === 'member-a')!.password_hash).toBe(OLD_HASH);
+  });
+
+  it('answers 403 before it validates the body when the admin token has no group', async () => {
+    const db = useDb();
+    const noPassword = await server.request('PUT', '/api/auth/users/member-a/password', { token: adminToken(null), body: {} });
+    const tooShort = await server.request('PUT', '/api/auth/users/member-a/password', { token: adminToken(null), body: { newPassword: '123' } });
+    expect(noPassword.status).toBe(403);
+    expect(tooShort.status).toBe(403);
+    expect(writesTo(db, 'users')).toEqual([]);
   });
 
   it('answers 403 and touches no user when the admin token has no group', async () => {

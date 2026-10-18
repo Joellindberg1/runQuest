@@ -314,6 +314,12 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res): Promise<void> => {
   try {
     logger.info('🔐 Admin request to reset user password');
+
+    // Admin utan grupp får inte röra något (403), före bodyvalideringen som i POST /users. Målet måste ligga i adminens grupp;
+    // annars svarar vi 404 som för ett id som saknas, så att svaret inte avslöjar att användaren finns i en annan grupp.
+    const groupId = groupIdOrRespondForbidden(req, res);
+    if (!groupId) return;
+
     const { id } = req.params;
     const { newPassword } = req.body;
 
@@ -326,11 +332,6 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       logger.info('❌ New password too short');
       res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
     }
-
-    // Admin utan grupp får inte röra något (403). Målet måste ligga i adminens grupp; annars svarar vi 404 som för ett id som saknas,
-    // så att svaret inte avslöjar att användaren finns i en annan grupp.
-    const groupId = groupIdOrRespondForbidden(req, res);
-    if (!groupId) return;
 
     logger.info(`🔍 Resetting password for user ID: ${id}`);
 
@@ -356,15 +357,23 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password in database
-    const { error: updateError } = await supabase
+    // Filtret på grupp sitter även här: målet kan ha bytt grupp sedan uppslaget. select('id') visar hur många rader som uppdaterades;
+    // noll rader (flyttad eller borttagen under tiden) är ett 404 som för ett id som saknas, aldrig ett falskt "Password reset successfully".
+    const { data: updated, error: updateError } = await supabase
       .from('users')
       .update({ password_hash: newPasswordHash })
       .eq('id', id)
-      .eq('group_id', groupId);
+      .eq('group_id', groupId)
+      .select('id');
 
     if (updateError) {
       logger.info(`❌ Error updating password (${errorCode(updateError)})`);
       res.status(500).json({ error: 'Failed to update password' }); return;
+    }
+
+    if (!updated?.length) {
+      logger.info('❌ User not found when updating the password (moved or removed since the lookup)');
+      res.status(404).json({ error: 'User not found' }); return;
     }
 
     logger.info(`🎉 Password successfully reset for user: ${user.name}`);
