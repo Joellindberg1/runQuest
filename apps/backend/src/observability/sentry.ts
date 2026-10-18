@@ -98,7 +98,7 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
   if (!dsn) return false;
 
   const secrets = secretsFromEnv(env);
-  // Före Sentry.init: SDK:ts egen prenumeration på inkommande förfrågningar ska aldrig se anroparens spårningshuvuden.
+  // Först, av försiktighet: SDK:ts egen prenumeration på inkommande förfrågningar ska aldrig se anroparens spårningshuvuden.
   stripIncomingTraceContext();
   const withProcessHandlers = testOptions.processHandlers !== false;
 

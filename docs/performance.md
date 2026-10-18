@@ -25,7 +25,8 @@ och 3xx skickas inte (SDK:ts standard), inte heller 429 (vår rensning).
 `SENTRY_TRACES_SAMPLE_RATE` (backend, runtime) och `VITE_SENTRY_TRACES_SAMPLE_RATE` (frontend, byggtid) kan bara sänka talet;
 `0` stänger av spårningen utan kodändring. Backend tar bort `sentry-trace`, `baggage`, `traceparent` och `tracestate` ur varje
 inkommande förfrågan innan SDK:t läser dem (`stripIncomingTraceContext`), så ingen utifrån kan tvinga fram spårning, äta kvoten
-eller lägga egna trace-id och fria textfält i våra transaktioner och kuvertets trace-header.
+eller lägga egna trace-id och fria textfält i våra transaktioner och kuvertets trace-header. (I SDK 11.8 läser SDK:t huvudena först
+när spanen startar, så anropet behöver inte ligga före `Sentry.init`; det görs först av försiktighet inför en senare SDK-version.)
 
 **SDK v12:** `traceLifecycle: 'static'`, `beforeSendTransaction` och SDK:ts standardfilter för statuskoder (`ignoreStatusCodes`, som
 släpper 401–404 och 3xx) försvinner i v12, där strömmande spans är enda läget. Uppgradera inte Sentry-SDK:t till v12 utan att gå

@@ -82,6 +82,15 @@ describe('scrubTransaction', () => {
     expect(JSON.stringify(scrubTransaction(event, [TOKEN]))).not.toContain(TOKEN);
   });
 
+  it('keeps the release and the debug ids that the source maps are matched on, and masks anything else that is not in that form', () => {
+    const debugId = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+    const event = { ...pageloadTransaction(), release: 'runquest@0.8.0+abcdef1', debug_meta: { images: [{ type: 'sourcemap', debug_id: debugId, code_file: 'https://runquest.dev/assets/index-abc.js' }] } };
+    const scrubbed = scrubTransaction(event, [])! as unknown as { release?: string; debug_meta?: unknown };
+    expect(scrubbed.release).toBe('runquest@0.8.0+abcdef1');
+    expect(scrubbed.debug_meta).toEqual({ images: [{ type: 'sourcemap', debug_id: debugId, code_file: 'https://runquest.dev/assets/index-abc.js' }] });
+    expect((scrubTransaction({ ...pageloadTransaction(), release: 'someone@example.com' }, [])! as unknown as { release?: string }).release).toBeUndefined();
+  });
+
   it('drops an event for a stale chunk after a deploy, like every other event', () => {
     const event = { ...pageloadTransaction(), message: 'Failed to fetch dynamically imported module: https://runquest.dev/assets/x.js' };
     expect(scrubTransaction(event, [])).toBeNull();

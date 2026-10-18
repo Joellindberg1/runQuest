@@ -91,8 +91,10 @@ export function sentryRouteNaming(): RequestHandler {
  * Tar bort spårningshuvudena från en inkommande förfrågan innan SDK:t läser dem. SDK:t fortsätter annars anroparens trace (id,
  * föräldra-span, provtagningsslump och "baggage" med fria textfält), och de värdena hamnar i vår transaktion och i kuvertets
  * trace-header. Ingen av våra anropare skickar dem (frontend sätter inga), så alla som finns kommer utifrån.
- * SDK:t läser huvudena i sin prenumeration på kanalen `http.server.request.start`; prenumerationer anropas i den ordning de gjordes,
- * så den här måste registreras före `Sentry.init`. Registreras en gång per process.
+ * I SDK 11.8 läser SDK:t huvudena först när servern startar en förfrågans span (efter sin prenumeration på kanalen
+ * `http.server.request.start`), så ordningen mot `Sentry.init` spelar ingen roll där. Den här prenumerationen anropas ändå före
+ * SDK:ts egen eftersom den registreras först; det är en försiktighet som gör att en senare SDK-version som läser huvudena i
+ * prenumerationen fortfarande inte ser dem. Registreras en gång per process.
  */
 const TRACE_HEADERS = ['sentry-trace', 'baggage', 'traceparent', 'tracestate'];
 let incomingTraceContextStripped = false;

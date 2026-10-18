@@ -23,10 +23,13 @@ const KEEP_KEYS_IN = new Set(['contexts', 'sdk']);
  * objekt, en text med mellanslag, ett e-postlikt värde) får nyckeln struken i stället för tvättad. release har ett @ i sin form
  * (runquest@<version>+<sha7>), så mönstret är exakt det och inget bredare; dist har inget @ alls.
  */
+/** Releasens enda form. Byggets namn kommer från scripts/sentry-build.mjs; sentryReleasePattern.test.ts låser de två mot varandra. */
+export const RELEASE_PATTERN = /^runquest@\d+\.\d+\.\d+(\.\d+)?(\+[0-9a-f]{7})?$/;
+
 const SDK_METADATA_VALID: Record<string, (value: unknown) => boolean> = {
-  release: (value) => typeof value === 'string' && /^runquest@\d+\.\d+\.\d+(\.\d+)?(\+[0-9a-f]{7})?$/.test(value),
+  release: (value) => typeof value === 'string' && RELEASE_PATTERN.test(value),
   dist: (value) => typeof value === 'string' && /^[\w.-]{1,64}$/.test(value),
-  environment: (value) => typeof value === 'string' && /^[a-z][a-z-]{0,31}$/.test(value),
+  environment: (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(value),
   event_id: (value) => typeof value === 'string' && /^[0-9a-f]{32}$/i.test(value),
   platform: (value) => typeof value === 'string' && /^[a-z]{1,32}$/.test(value),
   level: (value) => typeof value === 'string' && ['fatal', 'error', 'warning', 'log', 'info', 'debug'].includes(value),

@@ -15,6 +15,7 @@ interface TransactionPayload {
   breadcrumbs?: unknown;
   user?: unknown;
   measurements?: Record<string, { value: number }>;
+  release?: string;
 }
 type Envelope = [unknown, Array<[{ type: string }, TransactionPayload]>];
 type FetchCall = { url: string; headers: Headers };
@@ -37,7 +38,7 @@ const transportInto = (transactionSink: TransactionPayload[], eventSink: Transac
 });
 
 /** Nytt SDK och ny sentryClient per test: SDK:ts fetch-instrumentering installeras bara en gång per modulinstans. */
-async function startFresh(options: { documentPath: string; tracesSampleRate?: number }) {
+async function startFresh(options: { documentPath: string; tracesSampleRate?: number; release?: string }) {
   vi.resetModules();
   transactions = [];
   errorEvents = [];
@@ -128,6 +129,15 @@ describe('page load transaction', () => {
     expect(transaction?.user).toBeUndefined();
     const json = JSON.stringify(transaction);
     for (const leaked of [RUNNER_ID, 'tab=runs', '#top', '/api/runs']) expect(json).not.toContain(leaked);
+  });
+
+  it('carries the release the build baked in, after both scrubbers, so the source maps match', async () => {
+    window.history.replaceState({}, '', '/board');
+    Sentry = await startFresh({ documentPath: '/board', release: 'runquest@0.8.0+abcdef1' });
+
+    await waitFor(() => transactions.length >= 1);
+
+    expect(transactions[0]?.release).toBe('runquest@0.8.0+abcdef1');
   });
 
   it('is not measured when the page was loaded on the landing page, since it would be the landing page that was measured', async () => {
