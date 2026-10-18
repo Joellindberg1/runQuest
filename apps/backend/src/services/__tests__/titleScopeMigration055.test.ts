@@ -590,5 +590,8 @@ describe(`migration ${file}: form, idempotens och rollback`, () => {
     // Körvillkor: ingen synk/cron/omräkning pågår, och 40P01 eller lock_timeout betyder kör om.
     expect(sql).toMatch(/KÖR NÄR INGET ANNAT SKRIVER TITLAR[\s\S]*Strava-synk[\s\S]*40P01[\s\S]*lock_timeout[\s\S]*KÖR OM/);
     expect(sql).toMatch(/EN transaktion[\s\S]*lock_timeout/);
+    // Låsbeskrivningen nämner FK-bytet på titles och users, och att ombyggnader av en titel serialiseras över grupper.
+    expect(sql).toMatch(/LÅS OCH TID:[\s\S]*ACCESS EXCLUSIVE på titles och SHARE ROW EXCLUSIVE på users/);
+    expect(sql).toMatch(/SAMMA titel köar, även över grupper/);
   });
 });

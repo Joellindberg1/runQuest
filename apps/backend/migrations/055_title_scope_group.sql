@@ -48,7 +48,8 @@
 --   update_group_title_leaderboard(p_group_id uuid, p_title_id uuid) returns void   -- NY
 --     Kräver båda argumenten (22004). Tar först radlåset på titles-raden (select ... for no key update; hittas ingen rad är titeln borta och
 --     funktionen återvänder), sedan pg_advisory_xact_lock på 'title_leaderboard:<grupp>:<titel>' (som 042, men per grupp och titel): samtidiga
---     ombyggnader av SAMMA lista köar, olika listor blockerar inte varandra, låsen släpps vid transaktionens slut. Lämnar en
+--     ombyggnader av SAMMA titel köar, även över grupper (titles-radlåset serialiserar alla ombyggnader av en titel; advisory-låset per grupp och titel
+--     tillför i praktiken inget utöver det, men behålls som 042:s mönster). Ombyggnader av OLIKA titlar blockerar inte varandra. Låsen släpps vid transaktionens slut. Lämnar en
 --     grupp som inte längre finns ifred (kaskadraderar en grupp sina user_titles utlöser triggern en ombyggnad för en grupp som redan är borta;
 --     utan den kontrollen skulle insatsen bryta mot främmande nyckeln). Raderar och bygger om BARA den gruppens lista för titeln: topp 10 ur
 --     user_titles med group_id = gruppen, value inte null och ett aktivt medlemskap (group_members.left_at is null), ordning value desc,
@@ -92,8 +93,9 @@
 -- transaktionen tillbaka utan att något ändrats: vänta en stund och KÖR OM filen, ingen annan åtgärd behövs.
 --
 -- LÅS OCH TID: alter table tar ACCESS EXCLUSIVE på user_titles och title_leaderboard under migrationen (tabellerna har tiotals rader), så skrivningar
--- till titlar väntar i millisekunder. Främmande nycklarna tar SHARE ROW EXCLUSIVE på groups. lock_timeout (steg 1) gör att den misslyckas i stället
--- för att köa.
+-- till titlar väntar i millisekunder. Främmande nycklarna tar SHARE ROW EXCLUSIVE på groups. Bytet av titles_current_holder_id_fkey (drop/add constraint)
+-- tar ACCESS EXCLUSIVE på titles och SHARE ROW EXCLUSIVE på users, också millisekunder, och kräver samma körvillkor som ovan (KÖR NÄR INGET ANNAT
+-- SKRIVER TITLAR). lock_timeout (steg 1) gör att den misslyckas i stället för att köa.
 --
 -- IDEMPOTENS: add column if not exists, create or replace, drop ... if exists, nycklarna bara om de saknas, create index if not exists. En omkörning
 -- ger samma slutläge; på en omkörning hoppas stoppen (b)-(d) och före/efter-jämförelsen över (första körningen), medan (a) och (e) och de övriga
