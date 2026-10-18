@@ -1,12 +1,15 @@
-// Test av Lighthouse-verktygen: det falska API:et, medianraden i sammanfattningen och att budgeten täcker det den ska.
-// Körs med `node --test scripts/lighthouse-ci.test.mjs` (CI: frontend-jobbet, som kör alla scripts/*.test.mjs).
+// Test av Lighthouse-verktygen: det falska API:et, medianraden och felraderna i sammanfattningen, skriptets vakter och att budgeten är fäst.
+// Körs med `node --test scripts/lighthouse-ci.test.mjs`. CI: frontend-jobbets egna steg "Lighthouse tooling" (en namngiven fil, inga
+// beroenden, före npm ci); frontend-jobbet kör inte scripts/*.test.mjs som helhet.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createMockApi, MOCK_STATS } from './lighthouse/mock-api.mjs';
-import { formatTable, median, summarizeLhrs } from './lighthouse/summarize.mjs';
+import { formatFailures, formatTable, median, summarizeLhrs, toAnnotation } from './lighthouse/summarize.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -115,16 +118,113 @@ describe('lighthouserc budget', () => {
     assert.equal(rc.ci.assert.aggregationMethod, 'median');
   });
 
-  it('has a minimum score for every category and a ceiling for LCP, CLS, TBT, JS, CSS and total weight', () => {
-    for (const category of ['performance', 'accessibility', 'best-practices', 'seo']) {
-      assert.ok(assertions[`categories:${category}`]?.[1]?.minScore > 0, `categories:${category} saknar minScore`);
+  // BUDGETEN ÄR FÄST HÄR. Golven och taken nedan är ägarens budget (docs/release.md, "Lighthouse-budget"); lighthouserc.json får vara
+  // lika med eller strängare, aldrig lättare. Det här testet får därför BARA ändras när budgeten SKÄRPS (högre golv, lägre tak).
+  // Att lätta en gräns, ta bort en rad eller höja ett tak kräver ägarens uttryckliga ok, och ska stå i PR-beskrivningen.
+  const FLOORS = {
+    'categories:performance': 0.75,
+    'categories:accessibility': 0.95,
+    'categories:best-practices': 0.9,
+    'categories:seo': 0.95,
+  };
+  const CEILINGS = {
+    'largest-contentful-paint': 5000,
+    'cumulative-layout-shift': 0.05,
+    'total-blocking-time': 200,
+    'resource-summary:script:size': 275000,
+    'resource-summary:stylesheet:size': 50000,
+    'resource-summary:total:size': 500000,
+  };
+
+  it('keeps every score floor at or above the owner-approved minimum', () => {
+    for (const [name, floor] of Object.entries(FLOORS)) {
+      const minScore = assertions[name]?.[1]?.minScore;
+      assert.ok(typeof minScore === 'number' && minScore >= floor, `${name}: minScore ${minScore} är lättare än ${floor}`);
     }
-    for (const audit of ['largest-contentful-paint', 'cumulative-layout-shift', 'total-blocking-time', 'resource-summary:script:size', 'resource-summary:stylesheet:size', 'resource-summary:total:size']) {
-      assert.ok(assertions[audit]?.[1]?.maxNumericValue > 0, `${audit} saknar maxNumericValue`);
+  });
+
+  it('keeps every ceiling at or below the owner-approved maximum', () => {
+    for (const [name, ceiling] of Object.entries(CEILINGS)) {
+      const max = assertions[name]?.[1]?.maxNumericValue;
+      assert.ok(typeof max === 'number' && max <= ceiling, `${name}: maxNumericValue ${max} är lättare än ${ceiling}`);
     }
+  });
+
+  it('has no budget line beyond the pinned ones, so a new line is a conscious change of this test', () => {
+    assert.deepEqual(Object.keys(assertions).sort(), [...Object.keys(FLOORS), ...Object.keys(CEILINGS)].sort());
   });
 
   it('is not weakened into warnings: every budget line fails the run', () => {
     for (const [name, [level]] of Object.entries(assertions)) assert.equal(level, 'error', name);
+  });
+});
+
+describe('formatFailures', () => {
+  const results = [
+    { url: 'http://127.0.0.1:18090/', auditId: 'categories', auditProperty: 'performance', name: 'minScore', operator: '>=', expected: 0.75, actual: 0.6, passed: false },
+    { url: 'http://127.0.0.1:18090/', auditId: 'cumulative-layout-shift', name: 'maxNumericValue', operator: '<=', expected: 0.05, actual: 0.01, passed: true },
+    { url: 'http://127.0.0.1:18090/legal', auditId: 'largest-contentful-paint', name: 'maxNumericValue', operator: '<=', expected: 5000, actual: 6925.6415, passed: false },
+  ];
+
+  it('names the page, the failing line, the found value and the limit, and skips lines that held', () => {
+    assert.deepEqual(formatFailures(results), [
+      '/ categories.performance minScore: found 0.6, expected >= 0.75',
+      '/legal largest-contentful-paint maxNumericValue: found 6925.642, expected <= 5000',
+    ]);
+  });
+
+  it('has nothing to report when every line held', () => {
+    assert.deepEqual(formatFailures([results[1]]), []);
+    assert.deepEqual(formatFailures([]), []);
+  });
+
+  it('turns a line into a GitHub annotation at the given level, on one line', () => {
+    assert.equal(toAnnotation('warning', 'a\nb'), '::warning title=Lighthouse budget::a b');
+    assert.equal(toAnnotation('error', 'x'), '::error title=Lighthouse budget::x');
+  });
+});
+
+describe('run.sh guards', () => {
+  const repoRoot = join(here, '..');
+  let dist;
+  before(() => {
+    dist = mkdtempSync(join(tmpdir(), 'lh-dist-'));
+    writeFileSync(join(dist, 'index.html'), '<!doctype html>');
+  });
+  after(() => rmSync(dist, { recursive: true, force: true }));
+
+  const run = (env) => spawnSync('bash', ['scripts/lighthouse/run.sh'], { cwd: repoRoot, encoding: 'utf8', env: { ...process.env, ...env } });
+
+  it('refuses an unknown STATS_MODE', () => {
+    const res = run({ STATS_MODE: 'bogus', DIST_DIR: dist });
+    assert.equal(res.status, 1);
+    assert.match(res.stdout, /STATS_MODE ska vara error eller mock/);
+  });
+
+  it('refuses to run without a built dist', () => {
+    const res = run({ STATS_MODE: 'error', DIST_DIR: join(dist, 'saknas') });
+    assert.equal(res.status, 1);
+    assert.match(res.stdout, /index\.html saknas/);
+  });
+
+  // spawnSync blockerar händelseslingan, så den upptagna servern måste leva i en egen process medan skriptet kör.
+  it('refuses to measure while something else already answers on the API port', async () => {
+    const busy = spawn(process.execPath, ['-e', "const s=require('node:http').createServer((q,r)=>r.end('ok'));s.listen(0,'127.0.0.1',()=>console.log(s.address().port))"], { stdio: ['ignore', 'pipe', 'inherit'] });
+    try {
+      const port = await new Promise((resolve) => busy.stdout.once('data', (d) => resolve(String(d).trim())));
+      const res = run({ STATS_MODE: 'error', DIST_DIR: dist, API_PORT: port });
+      assert.equal(res.status, 1);
+      assert.match(res.stdout, /svarar redan på port/);
+    } finally {
+      busy.kill();
+    }
+  });
+});
+
+describe('install-caddy.sh', () => {
+  it('reads the Caddy version from verify-static-serving.sh, so a changed format there fails here', () => {
+    const res = spawnSync('bash', ['scripts/lighthouse/install-caddy.sh', '--print-version'], { cwd: join(here, '..'), encoding: 'utf8' });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout.trim(), /^\d+\.\d+\.\d+$/);
   });
 });

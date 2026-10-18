@@ -53,7 +53,31 @@ export function formatTable(rows) {
   return lines.join('\n');
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+const round3 = (n) => Math.round(n * 1000) / 1000;
+
+/** En läsbar rad per budgetrad som inte hölls, ur lhci:s assertion-results.json: sida, rad, uppmätt värde och gräns. */
+export function formatFailures(results) {
+  return results
+    .filter((r) => !r.passed)
+    .map((r) => {
+      const line = r.auditProperty ? `${r.auditId}.${r.auditProperty}` : r.auditId;
+      return `${new URL(r.url).pathname} ${line} ${r.name}: found ${round3(r.actual)}, expected ${r.operator} ${r.expected}`;
+    });
+}
+
+/** GitHub Actions-anteckning (syns i PR:en) på en rad. */
+export function toAnnotation(level, text) {
+  return `::${level} title=Lighthouse budget::${text.replace(/[\r\n]+/g, ' ')}`;
+}
+
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+
+// node summarize.mjs --failures <katalog> <warning|error>: skriver felraderna (som anteckningar i GitHub Actions, annars som vanlig text).
+if (isMain && process.argv[2] === '--failures') {
+  const [dir, level = 'error'] = process.argv.slice(3);
+  const results = JSON.parse(readFileSync(join(dir, 'assertion-results.json'), 'utf8'));
+  for (const line of formatFailures(results)) console.log(process.env.GITHUB_ACTIONS === 'true' ? toAnnotation(level, line) : line);
+} else if (isMain) {
   const dir = process.argv[2] ?? '.lighthouseci';
   const lhrs = readdirSync(dir)
     .filter((f) => /^lhr-.*\.json$/.test(f))

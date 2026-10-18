@@ -120,6 +120,12 @@ jobs:
         run: node --test scripts/loadtest/*.test.mjs
         working-directory: .
 
+      # Lighthouse-verktygen (RUN-259): det falska API:et, felraderna, skriptets vakter och att budgeten i lighthouserc.json är fäst
+      # (en lättad gräns fäller). Prövar inte själva Lighthouse-mätningen, den körs i jobbet "Lighthouse". Inga beroenden, före npm ci.
+      - name: Lighthouse tooling
+        run: node --test scripts/lighthouse-ci.test.mjs
+        working-directory: .
+
       - name: Install dependencies
         run: npm ci
         working-directory: .

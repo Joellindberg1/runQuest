@@ -19,11 +19,10 @@ STATS_MODE="${STATS_MODE:-error}"
 DIST_DIR="${DIST_DIR:-apps/frontend/dist}"
 OUT_DIR=".lighthouseci"
 PORT="18090" # samma port som urlerna i lighthouserc.json
-API_PORT="3001"
-WORK="$(mktemp -d)"
+API_PORT="${API_PORT:-3001}" # måste vara porten bygget pekar på (VITE_API_URL, annars localhost:3001)
 LHCI="$HERE/node_modules/.bin/lhci"
 
-if [[ ! -x "$LHCI" ]]; then echo "FAIL lhci saknas: kör npm ci i scripts/lighthouse"; exit 1; fi
+# Vakterna först och utan beroenden, så att de kan provas utan att lhci är installerat (scripts/lighthouse-ci.test.mjs).
 if [[ ! -f "$DIST_DIR/index.html" ]]; then echo "FAIL $DIST_DIR/index.html saknas: bygg frontend först"; exit 1; fi
 case "$STATS_MODE" in error|mock) ;; *) echo "FAIL STATS_MODE ska vara error eller mock, inte '$STATS_MODE'"; exit 1 ;; esac
 
@@ -32,6 +31,9 @@ case "$STATS_MODE" in error|mock) ;; *) echo "FAIL STATS_MODE ska vara error ell
 if curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$API_PORT/"; then
   echo "FAIL något svarar redan på port $API_PORT; stoppa det innan Lighthouse körs"; exit 1
 fi
+if [[ ! -x "$LHCI" ]]; then echo "FAIL lhci saknas: kör npm ci i scripts/lighthouse"; exit 1; fi
+
+WORK="$(mktemp -d)"
 
 # Windows (Git Bash): Caddy och Chrome vill ha C:/-sökvägar.
 DIST="$(cd "$DIST_DIR" && (pwd -W 2>/dev/null || pwd))"
@@ -76,6 +78,13 @@ echo "Lighthouse mot $DIST (STATS_MODE=$STATS_MODE, Caddy på 127.0.0.1:$PORT)"
 "$LHCI" collect --config "$HERE/lighthouserc.json"
 node "$HERE/summarize.mjs" "$OUT_DIR"
 
-# assert avslutar med fel om en budgetrad inte hålls; cleanup stoppar servrarna oavsett.
-"$LHCI" assert --config "$HERE/lighthouserc.json"
+# assert avslutar med fel om en budgetrad inte hålls; cleanup stoppar servrarna oavsett. Raden som föll skrivs som anteckning i
+# GitHub Actions (varning i icke-blockerande läge, annars fel) så att den syns i PR:en även när steget inte fäller jobbet.
+rc=0
+"$LHCI" assert --config "$HERE/lighthouserc.json" || rc=$?
+if (( rc != 0 )); then
+  level="warning"; if [[ "${LIGHTHOUSE_BLOCKING:-false}" == "true" ]]; then level="error"; fi
+  node "$HERE/summarize.mjs" --failures "$OUT_DIR" "$level" || true
+  exit "$rc"
+fi
 echo "Lighthouse: budgeten hålls."

@@ -5,9 +5,11 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEST="${1:?ange katalogen Caddy ska hamna i}"
 CADDY_VERSION="$(sed -n 's/^CADDY_VERSION="\(.*\)"$/\1/p' "$HERE/../verify-static-serving.sh")"
 if [[ -z "$CADDY_VERSION" ]]; then echo "FAIL hittade ingen CADDY_VERSION i scripts/verify-static-serving.sh" >&2; exit 1; fi
+# --print-version: skriv bara versionen (prövas i scripts/lighthouse-ci.test.mjs, så att ett ändrat format i verify-static-serving.sh syns).
+if [[ "${1:-}" == "--print-version" ]]; then echo "$CADDY_VERSION"; exit 0; fi
+DEST="${1:?ange katalogen Caddy ska hamna i}"
 
 archive="caddy_${CADDY_VERSION}_linux_amd64.tar.gz"
 base="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}"

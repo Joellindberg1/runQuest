@@ -157,30 +157,38 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
 
   | Mått | Gräns | Utgångsvärde kommer från |
   |---|---|---|
-  | Prestanda (poäng) | minst 0,75 | RUN-212, prod: 85 (lokal körning 81 och 91), ca 10 poängs marginal |
+  | Prestanda (poäng) | minst 0,75 | RUN-212, prod: 85. Lokalt `/` 0,80–0,81 (knappt 5 poängs marginal) och `/legal` 0,91–0,92 (ca 16 poäng) |
   | Tillgänglighet / SEO | minst 0,95 | RUN-212, prod: 100 |
   | Best practices | minst 0,90 | RUN-212, prod: 100; lokalt 96 när API:et ger fel (konsolfelet från anslutningen) |
-  | LCP | högst 5 000 ms | lokal körning: 4,4 s (prod 3,5 s i RUN-212; lokalt mäts ca 0,9 s högre), ca 13 % marginal |
+  | LCP | högst 5 000 ms | lokalt `/` ca 4,36 s (4,32–4,44), alltså ca 0,64 s (ca 13 %) under taket; `/legal` ca 2,9 s. Prod i RUN-212: 3,5 s (lokalt mäts ca 0,9 s högre) |
   | CLS | högst 0,05 | RUN-212, prod: 0 (lokalt högst 0,018 när API:et ger fel) |
   | TBT | högst 200 ms | RUN-212, prod: 0 ms; 200 ms är Googles gräns för "bra" |
   | JS (överförd storlek) | högst 275 kB | lokal körning: 237 kB, ca 15 % marginal (RUN-212 mätte inte vikt) |
   | CSS (överförd storlek) | högst 50 kB | lokal körning: 42 kB, ca 18 % marginal |
   | Totalvikt | högst 500 kB | lokal körning: 428 kB (`/`), 303 kB (`/legal`), ca 17 % marginal |
 
-  Utgångsvärdena är mätta lokalt (Lighthouse 12.6, Chromium-webbläsare, medianen av 3) eftersom RUN-212 bara noterade prod-poäng,
-  FCP, LCP, TBT och CLS, inte vikter. Taken kalibreras mot CI-körningarnas siffror under den icke-blockerande veckan (nedan).
+  **Baslinjen är mätt på en Windows-dator med Microsoft Edge** (Lighthouse 12.6.1, medianen av 3), inte på GitHub-runnern
+  (Linux, Chrome): RUN-212 noterade bara prod-poäng, FCP, LCP, TBT och CLS, inte vikter, och en körning på prod ger andra
+  tider än en lokal. Överförda vikter är i princip oberoende av maskinen, men poäng och tider är det inte. **Kalibreringen mot
+  CI-körningarnas siffror måste göras under den icke-blockerande veckan, före omslaget till blockerande** (nedan): ligger en ren
+  `main` nära eller över ett tak på runnern justeras det först då, med ägarens ok om det lättas.
 - **Budgeten får aldrig sänkas utan ägarens ok.** "Sänkas" betyder att kravet lättas: en lägre minpoäng, ett högre tak för
   LCP/CLS/TBT/vikt, en borttagen rad eller en sida som tas ur mätningen. Att skärpa budgeten (högre minpoäng, lägre tak) kräver
-  inget ok och är önskvärt när CI-värdena visar utrymme. En PR som lättar en rad ska ange ägarens ja i beskrivningen. En ny funktion
+  inget ok och är önskvärt när CI-värdena visar utrymme. Budgeten är dessutom fäst i `scripts/lighthouse-ci.test.mjs` (golv och
+  tak, körs i frontend-jobbet): ett lättat värde i `lighthouserc.json` fäller det testet, och testet får bara ändras vid skärpning.
+  En PR som lättar en rad ska ange ägarens ja i beskrivningen. En ny funktion
   som kostar vikt eller tid löses genom att optimera (kodsplittring, bildmått, lat laddning), inte genom att höja taket.
 - **Icke-blockerande första veckan.** `LIGHTHOUSE_BLOCKING: 'false'` överst i jobbet gör att ett budgetbrott märker steget orange (och
-  syns i loggen, sammanfattningen och artefakten) utan att fälla PR:en. **Slå om till blockerande:** tidigast sju dygn efter att
+  syns i loggen, sammanfattningen och artefakten) utan att fälla PR:en. Raden som föll skrivs också som en `::warning::`-anteckning
+  (i blockerande läge `::error::`), så att den syns på PR:ens sida med sida, rad, uppmätt värde och gräns. Anteckningarna kommer ur
+  lhci:s `assertion-results.json` (`scripts/lighthouse/summarize.mjs --failures`). **Slå om till blockerande:** tidigast sju dygn efter att
   jobbet första gången körts på `main` och efter att Lead jämfört veckans siffror med taken (en ren `main` ska ligga under taken med
   marginal), ändra värdet till `'true'` i en liten PR och lägg `Lighthouse — prestandabudget` bland required checks i branch
   protection. Därefter fäller ett budgetbrott PR:en. **Tillbaka till icke-blockerande** är samma rad (kräver ägarens ja, eftersom det
   lättar kontrollen).
 - **Köra lokalt:** `npm ci` i `scripts/lighthouse`, bygg frontend, och kör sedan `bash scripts/lighthouse/run.sh` från repo-roten
-  (`STATS_MODE=error|mock`, `DIST_DIR`, `CADDY_BIN`, `CHROME_PATH`, se skriptets huvud). Rapporterna hamnar i `lighthouse-reports/`.
+  (`STATS_MODE=error|mock`, `DIST_DIR`, `CADDY_BIN`, `CHROME_PATH`, `API_PORT`, se skriptets huvud). Är port 3001 upptagen: bygg
+  frontend med `VITE_API_URL=http://localhost:<port>/api` och kör med `API_PORT=<port>`. Rapporterna hamnar i `lighthouse-reports/`.
   Skriptet vägrar köra om något redan svarar på port 3001 (ett riktigt lokalt backend ska aldrig mätas).
 - **Fäller budgeten:** öppna HTML-rapporten i artefakten för sidan och körningen som avviker. Vanliga orsaker: ny blockerande
   resurs i `<head>`, bild utan `width`/`height` (CLS), en stor ny beroende i entry-chunken (JS-vikt, LCP) eller ett nytt typsnitt.
