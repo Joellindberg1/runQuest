@@ -3,6 +3,7 @@
  * fakeDb tolkar .or() som PostgREST, så ett injicerat villkor skulle ge en falsk 409 här om koden interpolerade indata.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import { inspect } from 'node:util';
 
 process.env.JWT_SECRET = 'test-jwt-secret-for-integration-tests';
 process.env.SUPABASE_URL = 'http://localhost:54321';
@@ -116,6 +117,29 @@ describe('POST /api/auth/users', () => {
       expect(JSON.stringify(res.body)).not.toContain('secret db detail');
       expect(db.tables.users).toHaveLength(2);
     });
+
+    it('logs only the error code, never the database message', async () => {
+      const spies = (['log', 'info', 'warn', 'error'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+      try {
+        useDb(baseUsers(), {
+          failWhen: (q) => (q.table === 'users' && !q.mutation && q.filters.some((f) => f.op === 'eq' && f.column === column)
+            ? { message: 'secret db detail', code: '42P01' } as { message: string } : null),
+        });
+        const res = await create({ name: 'Fresh', email: 'fresh@example.com', password: 'secret123' });
+        expect(res.status).toBe(500);
+        const out = spies.flatMap((s) => s.mock.calls).map((args: unknown[]) => args.map((a) => (typeof a === 'string' ? a : inspect(a, { depth: 6 }))).join(' ')).join('\n');
+        expect(out).toContain('42P01');
+        expect(out).not.toContain('secret db detail');
+      } finally {
+        spies.forEach((s) => s.mockRestore());
+      }
+    });
+  });
+
+  it('returns 400 when the password is not a string', async () => {
+    useDb(baseUsers());
+    const res = await create({ name: 'Fresh', email: 'fresh@example.com', password: 123456789 });
+    expect(res.status).toBe(400);
   });
 
   it('returns 400 when the password is too short', async () => {
