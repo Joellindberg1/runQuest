@@ -332,9 +332,9 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
    finns) och, efter RLS- eller policyändring, `get_advisors` (security). Filen ligger redan i release-PR:en.
 4. Backfill- och omräkningsskript (`backfill:*`, `reveal:badges`, `convert:wind-ms`): dry-run fritt, `--apply` kräver
    ägar-ja med dry-run-rapporten som underlag. Skripten skriver ut måldatabasens host.
-5. **Migrationerna 053–056 i v0.8.0 (ADR 012)** körs i den här ordningen, först i staging och sedan i prod med ett ja per migration:
-   053 `group_members`, 054 `group_settings`, 055 `title_scope_group`, 056 `revoke_legacy_title_function_execute`. 053, 054 och 055 är additiva
-   och körs FÖRE backend-deployen (ny kod mot gammal databas fungerar inte); ingen av dem körs efter deployen. 056 kan köras före eller efter
+5. **Migrationerna 053–057 i v0.8.0 (ADR 012; 057 är RUN-322)** körs i den här ordningen, först i staging och sedan i prod med ett ja per migration:
+   053 `group_members`, 054 `group_settings`, 055 `title_scope_group`, 056 `revoke_legacy_title_function_execute`, 057 `create_recalculation_marks`.
+   053, 054, 055 och 057 är additiva och körs FÖRE backend-deployen (ny kod mot gammal databas fungerar inte); ingen av dem körs efter deployen. 056 kan köras före eller efter
    deployen (backend använder service role, som behåller execute) men alltid efter 055. Bevisfrågorna står i varje filhuvud; kör dem i staging och i prod.
    - **053:** stannar migrationens egna förkontroller (fler än en grupp, användare utan grupp, oklar admin) ändras ingenting; fråga ägaren, ändra ingen
      data för att få den att gå igenom. Efter apply: bevisfrågorna 1–7 i huvudet (aktiva medlemskap = användare med grupp, 0 avvikelser mot `users.group_id`,
@@ -349,6 +349,10 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
      utgångsläget tillbaka, och miljöerna skiljer sig (staging har PUBLIC-execute, prod saknar det). Efter apply samma fråga igen (förväntat: public_execute,
      anon och authenticated false, service_role true), triggerkontrollen i huvudet och `get_advisors` (security). Rök: en runda som bygger om topplistan
      och en event-utbetalning går igenom. När 056 är applicerad i båda miljöerna tas den tillfälliga schemadiff-regeln bort (`docs/staging.md`, avsnitt 4).
+   - **057 `create_recalculation_marks`** (RUN-322, återhämtning av omräkning efter en radering) är additiv och körs FÖRE backend-deployen, efter 056
+     (ny kod anropar `mark_recalculation`; saknas den raderar avstämningen ingenting). Efter apply: katalogfrågorna Q1–Q5 och Q4b i huvudet (RLS på,
+     0 policyer, ingen klientåtkomst till tabellen, funktionerna och sekvensen bara för `service_role`, Q5 = 0 rader) och `get_advisors` (security).
+     Rollbacken står i huvudet och kräver att koden är tillbakarullad först.
    - **Release-röken** kör konsistenskontrollen från 053 (inga avvikelser mellan `users.group_id` och aktivt medlemskap) och, efter 055, att en runda i
      en grupp inte ändrar en annan grupps topplista (staging, `create:group`).
 

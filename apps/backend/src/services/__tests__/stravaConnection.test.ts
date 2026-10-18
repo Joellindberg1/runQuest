@@ -22,6 +22,8 @@ import { withUserLock } from '../../utils/keyedMutex.js';
 import { withRunForeignKeys } from '../../test-utils/runForeignKeys.js';
 import { createFakeDb, type FakeDbOptions, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { removeStravaConnection } from '../stravaConnection.js';
+import { createRecalculationRecovery } from '../recalculationMarks/recovery.js';
+import { createInMemoryMarkStore } from '../../test-utils/inMemoryRecalculationMarks.js';
 
 const run = (over: Row = {}): Row => ({ id: 'r', user_id: 'user-1', source: 'strava', external_id: '1001', date: '2026-10-01', distance: 5, ...over });
 const token = (over: Row = {}): Row => ({
@@ -238,6 +240,20 @@ describe('removeStravaConnection', () => {
     expect(tables.strava_tokens).toHaveLength(1);
   });
 
+  it('an unfinished earlier attempt with no run left throws when the totals are not written, so the token row stays and a rerun carries on', async () => {
+    const { tables } = setup({ runs: [] });
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(false); // calculateUserTotals never throws: a failure is a returned false
+
+    await expect(removeStravaConnection('user-1', { reason: 'deauthorized' })).rejects.toMatchObject({ code: 'totals_not_written' });
+
+    expect(tables.strava_tokens).toHaveLength(1);
+
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(true);
+    await removeStravaConnection('user-1', { reason: 'deauthorized' });
+    expect(tables.strava_tokens).toEqual([]);
+    expect(calculateUserTotals).toHaveBeenCalledTimes(2);
+  });
+
   it('an unfinished earlier attempt with no run left only recalculates the totals', async () => {
     const { tables } = setup({ runs: [] });
 
@@ -302,6 +318,153 @@ describe('removeStravaConnection', () => {
     await expect(
       withUserLock('user-1', () => removeStravaConnection('user-1', { reason: 'deauthorized' })),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('the recalculation marks of a disconnect', () => {
+  const twoRuns = () => [run({ id: 'a', external_id: '1', date: '2026-10-05' }), run({ id: 'b', external_id: '2', date: '2026-09-01' })];
+
+  it('marks the user from the oldest Strava run before the delete, and clears the mark when the recalculation worked', async () => {
+    const marks = createInMemoryMarkStore();
+    let markedWhenDeleting: unknown = 'the delete was never seen';
+    setup({
+      runs: twoRuns(),
+      options: {
+        failWhen: (q) => {
+          if (q.table === 'runs' && q.mutation === 'delete') markedWhenDeleting = marks.rows(); // seen before the delete is applied
+          return null;
+        },
+      },
+    });
+
+    await removeStravaConnection('user-1', { reason: 'user_disconnect', marks });
+
+    expect(markedWhenDeleting).toEqual([{ userId: 'user-1', fromDate: '2026-09-01', version: 1 }]);
+    expect(marks.calls).toEqual(['mark:user-1:2026-09-01', 'clear:user-1:1']);
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('leaves the mark when the reprocess fails, so the recovery job finishes what the rerun would', async () => {
+    const marks = createInMemoryMarkStore();
+    setup({ runs: twoRuns() });
+    vi.mocked(reprocessRunsFromDate).mockRejectedValueOnce(Object.assign(new Error('boom'), { code: 'XX000' }));
+
+    await expect(removeStravaConnection('user-1', { reason: 'user_disconnect', marks })).rejects.toThrow('boom');
+
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-09-01', version: 1 }]);
+  });
+
+  it('leaves the mark when only the totals fail, which the disconnect itself does not throw for, and the recovery job recalculates', async () => {
+    const marks = createInMemoryMarkStore();
+    const { tables } = setup({ runs: twoRuns() });
+    vi.mocked(calculateUserTotals).mockRejectedValueOnce(Object.assign(new Error('boom'), { code: '57014' }));
+
+    await removeStravaConnection('user-1', { reason: 'user_disconnect', marks });
+
+    expect(tables.strava_tokens).toEqual([]); // the connection is gone: nothing else will ever come back to this user
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-09-01', version: 1 }]);
+
+    vi.mocked(reprocessRunsFromDate).mockClear();
+    vi.mocked(calculateUserTotals).mockClear();
+    const recovered = await createRecalculationRecovery({
+      store: marks,
+      recompute: { reprocessFrom: reprocessRunsFromDate, recalculateTotals: async (userId) => { await calculateUserTotals(userId); } },
+    }).run();
+
+    expect(recovered).toEqual({ found: 1, recalculated: 1, failed: 0 });
+    expect(reprocessRunsFromDate).toHaveBeenCalledWith('user-1', '2026-09-01');
+    expect(calculateUserTotals).toHaveBeenCalledTimes(1);
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('leaves the mark when the totals run RETURNS false, which is how calculateUserTotals reports that it failed, and the recovery job finishes', async () => {
+    const marks = createInMemoryMarkStore();
+    const { tables } = setup({ runs: twoRuns() });
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(false);
+
+    await removeStravaConnection('user-1', { reason: 'user_disconnect', marks });
+
+    expect(tables.strava_tokens).toEqual([]);
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-09-01', version: expect.any(Number) }]);
+
+    vi.mocked(calculateUserTotals).mockResolvedValue(true);
+    const recovered = await createRecalculationRecovery({
+      store: marks,
+      recompute: { reprocessFrom: reprocessRunsFromDate, recalculateTotals: (userId) => calculateUserTotals(userId) },
+    }).run();
+    expect(recovered).toEqual({ found: 1, recalculated: 1, failed: 0 });
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('only logs and finishes when the mark cannot be cleared: the connection is still removed', async () => {
+    const marks = createInMemoryMarkStore();
+    marks.failClear = Object.assign(new Error('clear failed for user abc@example.com'), { code: '57P01' });
+    const { tables } = setup({ runs: twoRuns() });
+
+    await expect(removeStravaConnection('user-1', { reason: 'user_disconnect', marks })).resolves.toBeUndefined();
+
+    expect(tables.runs).toEqual([]);
+    expect(tables.strava_tokens).toEqual([]);
+    expect(marks.rows()).toHaveLength(1); // the recovery job repeats the recalculation once
+    const log = lines.join('\n');
+    expect(log).toContain('57P01');
+    expect(log).not.toContain('abc@example.com');
+  });
+
+  it('does not let a mark that cannot be written stop the disconnect, which has its own recovery and a deadline of its own', async () => {
+    const marks = createInMemoryMarkStore();
+    marks.failMark = Object.assign(new Error('function does not exist for user abc@example.com'), { code: '42883' });
+    const { tables } = setup({ runs: twoRuns() });
+
+    await removeStravaConnection('user-1', { reason: 'deauthorized', marks });
+
+    expect(tables.runs).toEqual([]);
+    expect(tables.strava_tokens).toEqual([]);
+    expect(reprocessRunsFromDate).toHaveBeenCalledWith('user-1', '2026-09-01');
+    const log = lines.join('\n');
+    expect(log).toContain('42883');
+    expect(log).not.toContain('abc@example.com');
+  });
+
+  it('does not clear a mark that a newer change wrote during the recalculation', async () => {
+    const marks = createInMemoryMarkStore();
+    setup({ runs: twoRuns() });
+    vi.mocked(reprocessRunsFromDate).mockImplementationOnce(async (userId) => {
+      await marks.mark(userId, '2026-08-01');
+    });
+
+    await removeStravaConnection('user-1', { reason: 'user_disconnect', marks });
+
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-08-01', version: 2 }]);
+  });
+
+  it('marks from the earliest run of any source when it finishes an earlier attempt, and clears the mark afterwards', async () => {
+    const marks = createInMemoryMarkStore();
+    setup({ runs: [run({ id: 'm', source: 'manual', external_id: null, date: '2026-09-20' })] });
+
+    await removeStravaConnection('user-1', { reason: 'user_disconnect', marks });
+
+    expect(marks.calls).toEqual(['mark:user-1:2026-09-20', 'clear:user-1:1']);
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('writes no mark when there is nothing to recalculate: a user without Strava runs and without a connection row', async () => {
+    const marks = createInMemoryMarkStore();
+    setup({ runs: [run({ id: 'manual', source: 'manual', external_id: null, date: '2026-08-01' })], tokens: [] });
+
+    await removeStravaConnection('user-1', { reason: 'deauthorized', marks });
+
+    expect(marks.calls).toEqual([]);
+  });
+
+  it('writes no mark for a connection row with no run at all, where only the totals are recalculated', async () => {
+    const marks = createInMemoryMarkStore();
+    setup({ runs: [] });
+
+    await removeStravaConnection('user-1', { reason: 'deauthorized', marks });
+
+    expect(marks.calls).toEqual([]);
+    expect(calculateUserTotals).toHaveBeenCalledTimes(1);
   });
 });
 

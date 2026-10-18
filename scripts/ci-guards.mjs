@@ -68,7 +68,11 @@
 //     `req.body`, `req.query`, `req.headers` eller `req.user`. Textbaserad (se checkGroupSettingsWrites för vad den inte fångar); undantag i
 //     GROUP_SETTINGS_EXEMPT_FILES med motivering (tom).
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
+// 16. Omräkningsåterhämtningen startas i produktionsblocket (RUN-322, migration 057): `startRecalculationRecoveryScheduler()` direkt i samma
+//     `if (process.env.NODE_ENV === 'production') { … }` som regel 9 och 10 (samma vakt, samma begränsningar). Utan anropet plockar ingenting upp
+//     en omräkning som en kraschad avstämning eller ett fel lämnade efter en radering.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -528,6 +532,7 @@ export function checkTokenKeyStartupCheck(files) {
 const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
 const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
 const RECONCILE_SCHEDULER_CALL = /(?<![\w.])startStravaReconcileScheduler\s*\(\s*\)/;
+const RECOVERY_SCHEDULER_CALL = /(?<![\w.])startRecalculationRecoveryScheduler\s*\(\s*\)/;
 
 /**
  * Texten direkt i första `if (process.env.NODE_ENV === 'production') { … }`-blocket: utan kommentarer och utan innehållet i
@@ -581,6 +586,20 @@ export function checkReconcileSchedulerStart(files) {
     call: RECONCILE_SCHEDULER_CALL,
     missingFile: 'den nattliga Strava-avstämningen startas aldrig',
     missingCall: 'startStravaReconcileScheduler() måste anropas direkt i produktionsblocket — annars körs aldrig den nattliga avstämningen av Strava-rundor, eller så startar den i dev och tester (ADR 010 beslut 13)',
+  });
+}
+
+/**
+ * Regel 16. Samma form som regel 9 och 10, för återhämtningen av omräkningsmarkeringar (RUN-322, migration 057):
+ * `startRecalculationRecoveryScheduler();` direkt i produktionsblocket. Utan anropet plockar ingenting upp en omräkning som en kraschad
+ * avstämning eller ett fel lämnade efter en radering (rundan är borta, XP och streak för senare rundor står fel); utanför blocket
+ * startar jobbet i dev och i tester.
+ */
+export function checkRecoverySchedulerStart(files) {
+  return checkSchedulerStart(files, {
+    call: RECOVERY_SCHEDULER_CALL,
+    missingFile: 'omräkningsåterhämtningen startas aldrig',
+    missingCall: 'startRecalculationRecoveryScheduler() måste anropas direkt i produktionsblocket — annars plockar ingenting upp en omräkning som blev ogjord efter en radering, eller så startar jobbet i dev och tester (RUN-322)',
   });
 }
 
@@ -713,8 +732,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -729,7 +748,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -766,6 +785,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'reconcile-scheduler-start') {
       errors.push(...checkReconcileSchedulerStart(files));
       summary.push('den nattliga Strava-avstämningen startas i produktionsblocket i server.ts');
+    }
+    if (mode === 'all' || mode === 'recovery-scheduler-start') {
+      errors.push(...checkRecoverySchedulerStart(files));
+      summary.push('omräkningsåterhämtningen startas i produktionsblocket i server.ts');
     }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));

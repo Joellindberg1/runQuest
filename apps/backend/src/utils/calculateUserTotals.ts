@@ -18,8 +18,15 @@ export interface CalculateUserTotalsOptions {
   emitRankNews?: boolean;
 }
 
-export async function calculateUserTotals(userId: string, options: CalculateUserTotalsOptions = {}) {
+/**
+ * Räknar om användarens totaler och skriver dem (enda skribenten, ADR 005). Kastar ALDRIG: alla fel fångas och loggas.
+ * Returnerar om uppdateringen av `users` lyckades (true) eller inte (false: en läsning eller skrivning föll, eller något kastade före
+ * skrivningen). Badges, titlar och Pack News som felar EFTER en lyckad skrivning ändrar inte svaret. Anropare som bara vill ha den gamla
+ * best-effort-beteendet ignorerar värdet; en omräkning som ska kunna återhämtas (RUN-322) rensar sin markering bara på `true`.
+ */
+export async function calculateUserTotals(userId: string, options: CalculateUserTotalsOptions = {}): Promise<boolean> {
   const { emitRankNews = true } = options;
+  let totalsWritten = false;
   try {
     const startTime = Date.now();
     const supabase = getSupabaseClient();
@@ -33,7 +40,7 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
 
     if (error) {
       logger.error(`Error fetching user runs (${errorCode(error)})`);
-      return;
+      return false;
     }
 
     // OBS: ingen tidig return vid noll rundor (bugg #3). Raderas sista rundan
@@ -90,6 +97,7 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
     if (updateError) {
       logger.error(`Error updating user totals (${errorCode(updateError)})`);
     } else {
+      totalsWritten = true;
       logger.info(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
 
       // Pack News: loggen skrivs EFTER att totalerna sparats och rör aldrig deras beräkning (ADR 005/008).
@@ -162,4 +170,5 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
   } catch (error) {
     logger.error(`Error in calculateUserTotals (${errorCode(error)})`);
   }
+  return totalsWritten;
 }

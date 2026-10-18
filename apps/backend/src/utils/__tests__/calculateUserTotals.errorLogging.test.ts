@@ -77,26 +77,26 @@ async function expectOnlyTheCode(code: string) {
 
 describe('calculateUserTotals when the database returns an error', () => {
   it.each([
-    ['the runs read', 'g1', { failWhen: (q: RecordedQuery) => (totalsRead(q) ? dbError() : null) }],
-    ['the totals write', 'g1', { failWhen: (q: RecordedQuery) => (totalsWrite(q) ? dbError() : null) }],
-    ['the title leaderboard refresh', 'g1', { rpc: { update_group_title_leaderboards: () => ({ error: dbError() }) } }],
-    ['the membership read', 'g1', { failWhen: (q: RecordedQuery) => (q.table === 'group_members' ? dbError() : null) }],
-  ])('logs and reports only the error code (%s)', async (_label, groupId, options) => {
+    ['the runs read', 'g1', { failWhen: (q: RecordedQuery) => (totalsRead(q) ? dbError() : null) }, false],
+    ['the totals write', 'g1', { failWhen: (q: RecordedQuery) => (totalsWrite(q) ? dbError() : null) }, false],
+    ['the title leaderboard refresh', 'g1', { rpc: { update_group_title_leaderboards: () => ({ error: dbError() }) } }, true],
+    ['the membership read', 'g1', { failWhen: (q: RecordedQuery) => (q.table === 'group_members' ? dbError() : null) }, true],
+  ])('logs and reports only the error code (%s)', async (_label, groupId, options, written) => {
     useDb(groupId, options as never);
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(written); // never throws; the answer says whether the totals were written
     await expectOnlyTheCode('23505');
   });
 });
 
 describe('calculateUserTotals when a step throws', () => {
   it.each([
-    ['the badge evaluation', 'g1', () => mocks.evaluateBadges.mockRejectedValueOnce(thrown())],
-    ['the group title run', 'g1', () => mocks.processGroupTitles.mockRejectedValueOnce(thrown())],
-    ['the level lookup', 'g1', () => mocks.getLevelFromXP.mockRejectedValueOnce(thrown())],
-  ])('logs and reports only the error code (%s)', async (_label, groupId, arrange) => {
+    ['the badge evaluation', 'g1', () => mocks.evaluateBadges.mockRejectedValueOnce(thrown()), true],
+    ['the group title run', 'g1', () => mocks.processGroupTitles.mockRejectedValueOnce(thrown()), true],
+    ['the level lookup', 'g1', () => mocks.getLevelFromXP.mockRejectedValueOnce(thrown()), false],
+  ])('logs and reports only the error code (%s)', async (_label, groupId, arrange, written) => {
     arrange();
     useDb(groupId);
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(written); // never throws; the answer says whether the totals were written
     await expectOnlyTheCode('ECONNRESET');
   });
 });

@@ -127,7 +127,7 @@ describe('fel i titelkedjan fäller inte totalerna', () => {
     const t = tables('g1');
     use(t);
     processGroupTitles.mockRejectedValueOnce(new Error('boom'));
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(true); // kastar aldrig; totalerna skrevs före felet
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
     expect(groupRefresh).not.toHaveBeenCalled();
   });
@@ -137,7 +137,7 @@ describe('fel i titelkedjan fäller inte totalerna', () => {
     use(t, { failWhen: (q) => (q.table === 'group_members' ? { message: 'LEAKMARKER jane@example.com', code: '57014' } : null) });
     const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
 
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(true); // kastar aldrig; totalerna skrevs före felet
 
     expect(processGroupTitles).not.toHaveBeenCalled();
     expect(groupRefresh).not.toHaveBeenCalled();

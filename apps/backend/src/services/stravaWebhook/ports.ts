@@ -125,8 +125,12 @@ export interface WebhookImportedRun extends ImportedRun {
 export interface Recompute {
   /** reprocessRunsFromDate: streak and XP from this date on. Throws on failure. */
   reprocessFrom(userId: string, fromDate: string): Promise<void>;
-  /** calculateUserTotals: totals, level, badges, titles. */
-  recalculateTotals(userId: string): Promise<void>;
+  /**
+   * calculateUserTotals: totals, level, badges, titles. calculateUserTotals never throws, so the answer is what tells a caller whether the
+   * totals were written: true = written, false = not (RUN-322: a recalculation mark is cleared only on a reprocess that worked AND totals
+   * that were written). The webhook worker ignores the value, as before. Only an explicit false counts as not written.
+   */
+  recalculateTotals(userId: string): Promise<boolean>;
   /** WeatherService.fetchAndSaveWeatherForRuns for the runs imported in a batch. Best-effort for the worker: a throw is logged. */
   fetchWeather(runs: WebhookImportedRun[]): Promise<void>;
   /** checkEventQualification for each newly imported run. The worker does not wait for it and never fails an event on it. */

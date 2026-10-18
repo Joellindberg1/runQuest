@@ -49,13 +49,43 @@ describe('calculateUserTotals — streak-läsfel', () => {
     const db = createFakeDb(t, { numericIds: ['activity_log'], failWhen: streakReadFails });
     vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
 
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined(); // kastar aldrig (yttre try/catch)
+    await expect(calculateUserTotals('u1')).resolves.toBe(false); // kastar aldrig (yttre try/catch), men säger att totalerna inte skrevs
 
     expect(t.users[0]).toMatchObject({ total_xp: 10, current_level: 1, current_streak: 5, longest_streak: 9 });
     expect(db.queries.filter((q) => q.table === 'users' && q.mutation)).toHaveLength(0);
     expect(reconcileTokensForLevel).not.toHaveBeenCalled();
     expect(t.activity_log).toHaveLength(0);
     expect(vi.mocked(logger.error).mock.calls.some((c: unknown[]) => /calculateUserTotals/.test(String(c[0])))).toBe(true);
+  });
+
+  it('returns true when the totals were written, false when they were not, and never throws', async () => {
+    // Återhämtningen av en omräkning rensar sin markering bara på det här svaret (RUN-322): ett fel som fångas inuti får inte se ut som en lyckad körning.
+    const cases: Array<{ label: string; failWhen?: (q: RecordedQuery) => { message: string } | null; expected: boolean; setup?: () => void }> = [
+      { label: 'the totals are written', expected: true },
+      { label: 'the runs cannot be read', failWhen: (q) => (q.table === 'runs' && q.select === 'xp_gained, distance' ? { message: 'down' } : null), expected: false },
+      { label: 'the streak cannot be read', failWhen: streakReadFails, expected: false },
+      { label: 'the update of users fails', failWhen: (q) => (q.table === 'users' && q.mutation === 'update' ? { message: 'down' } : null), expected: false },
+      { label: 'the token reconciliation throws', expected: false, setup: () => vi.mocked(reconcileTokensForLevel).mockRejectedValueOnce(new Error('boom')) },
+    ];
+    for (const { label, failWhen, expected, setup } of cases) {
+      const t = tables();
+      const db = createFakeDb(t, { numericIds: ['activity_log'], failWhen });
+      vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+      setup?.();
+
+      await expect(calculateUserTotals('u1'), label).resolves.toBe(expected);
+    }
+  });
+
+  it('still returns true when only the badges or the titles fail after the totals were written', async () => {
+    const t = tables();
+    const db = createFakeDb(t, { numericIds: ['activity_log'] });
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+    const { evaluateBadges } = await import('../../services/badgeService.js');
+    vi.mocked(evaluateBadges).mockRejectedValueOnce(new Error('boom'));
+
+    await expect(calculateUserTotals('u1')).resolves.toBe(true);
+    expect(t.users[0]).toMatchObject({ total_xp: 105 });
   });
 
   it('lyckad väg oförändrad: totaler och streak skrivs', async () => {

@@ -173,10 +173,20 @@ describe('recomputeAfterRemoval', () => {
     expect(calculateUserTotals).toHaveBeenCalledTimes(1);
   });
 
-  it('does not fail when the totals fail: they are best-effort', async () => {
+  it('says that the totals were recalculated when they were', async () => {
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(true);
+    await expect(recomputeAfterRemoval('user-1', '2026-09-01')).resolves.toBe(true);
+  });
+
+  it('says that the totals were not recalculated when calculateUserTotals returns false, which is how it reports a failure', async () => {
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(false);
+    await expect(recomputeAfterRemoval('user-1', '2026-09-01')).resolves.toBe(false);
+  });
+
+  it('does not fail when the totals fail: they are best-effort, but it says they were not recalculated', async () => {
     vi.mocked(calculateUserTotals).mockRejectedValueOnce(Object.assign(new Error('totals down for 987654321'), { code: 'XX001' }));
 
-    await expect(recomputeAfterRemoval('user-1', '2026-09-01')).resolves.toBeUndefined();
+    await expect(recomputeAfterRemoval('user-1', '2026-09-01')).resolves.toBe(false);
 
     const text = lines.join('\n');
     expect(text).toContain('XX001');

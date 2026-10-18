@@ -120,7 +120,7 @@ describe('calculateUserTotals → activity_log', () => {
   it('en trasig logg fäller inte beräkningen: totaler sparas och titlar bearbetas ändå', async () => {
     const t = tables();
     use(t, { errors: { activity_log: { message: 'relation "activity_log" does not exist' } } });
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(true); // kastar aldrig; totalerna skrevs före felet
     expect(t.users[0]).toMatchObject({ total_xp: 105, current_level: 3 });
     expect(processGroupTitles).toHaveBeenCalledWith('g1');
   });
@@ -161,7 +161,7 @@ describe('calculateUserTotals → recordRankPassesForXp', () => {
     use(t);
     vi.mocked(recordRankPassesForXp).mockRejectedValueOnce(new Error('rank news down'));
 
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(true); // kastar aldrig; totalerna skrevs före felet
 
     expect(t.users[0]).toMatchObject({ total_xp: 105, current_level: 3 });
     expect(t.activity_log.filter((r) => r.type === 'level_up').map((r) => r.payload.level)).toEqual([2, 3]);
