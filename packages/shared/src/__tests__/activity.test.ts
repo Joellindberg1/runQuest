@@ -229,6 +229,30 @@ describe('diffTitleHolders', () => {
     expect(seen).toEqual([['t1', 'a', 'g2']]);
   });
 
+  describe('tvåan i bilden', () => {
+    const withRunnerUp = (h: TitleHolder, user_id: string, value: number): TitleHolder => ({ ...h, runner_up: { user_id, value } });
+
+    it('en ändrad eller ny tvåa med samma innehavare ger ingen händelse (diffen går bara på position 1)', () => {
+      const out = diffTitleHolders(
+        [withRunnerUp(holder('t1', 'a', 10), 'b', 8)],
+        [withRunnerUp(holder('t1', 'a', 10), 'c', 9)],
+        always,
+      );
+      expect(out).toEqual([]);
+    });
+
+    it('ett innehavarbyte bär inte tvåan i ändringen (payload och nycklar oförändrade)', () => {
+      const out = diffTitleHolders(
+        [withRunnerUp(holder('t1', 'a', 10), 'b', 8)],
+        [withRunnerUp(holder('t1', 'b', 12), 'a', 10)],
+        always,
+      );
+      expect(out).toEqual([
+        { kind: 'taken', group_id: 'g1', title_id: 't1', new_holder_id: 'b', old_holder_id: 'a', value: 12, previous_value: 10, reason: 'overtaken' },
+      ]);
+    });
+  });
+
   describe('två grupper', () => {
     it('samma titel i två grupper är två oberoende innehavare: ett byte i grupp 2 rör inte grupp 1', () => {
       const out = diffTitleHolders(
