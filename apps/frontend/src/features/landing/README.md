@@ -6,17 +6,23 @@ nya routes). `pages/LandingPage.tsx` är tunn. Login är en popup ovanpå Landin
 sida med dialogen redan öppen (ADR 006 beslut 1, addendum 2026-10-11; `/` och `/login` ligger utanför `RequireAuth`).
 
 Mobil = App Prototypens landing i en kolumn (390 px). Desktop (≥ 1024 px) är Landing-designen (`docs/design/claude-design/RunQuest Landing.dc.html`, rutan "Landing page",
-1440 px): text | bana i hjälten, band med hårlinjer, fyra stegkolumner, tre kortkolumner. Brytpunkten är skalets (`useIsDesktop`); det som skiljer i DOM (headerns nav, banans
-geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten är CSS och token-värden.
+1440 px): text | bana i hjälten, band med hårlinjer, fyra stegkolumner, tre kortkolumner. Brytpunkten är skalets (1024 px), men landningen väljer aldrig variant i JS
+(ADR 006-addendum 2026-10-19, punkt 5: den förrenderade sidan vet inte bredden). Det som skiljer (headerns nav, banans geometri, ingressens längd,
+ögonbrynet och de tre förklaringarna, sektionsrubrikernas synlighet, filmens vy) ligger i HTML i båda varianterna och CSS visar en med
+`@media (min-width: 1024px)`; den dolda är `display: none` (utanför tillgänglighetsträdet och tab-ordningen, och utan animationer). Ett undantag från
+skalets beslut 5 ("exakt EN variant i DOM") som bara gäller landningen. ESLint (`LANDING_NO_VIEWPORT_OR_LOCALE` i `eslint.config.js`) förbjuder
+`useIsDesktop`, `matchMedia`, `Intl` och `toLocaleString` i featuren; tal formateras med `formatInt` (regex med NBSP, samma text på server och klient).
+Rörelsepreferensen vid klick läses via `shared/utils/prefersReducedMotion`. En ny variant får alltså en regel i `landing.css`/`landingFilm.css`
+(grundregeln mobil, desktop i `@media (min-width: 1024px)`) och en rad i listan i `guards.test.ts`.
 
 ## Struktur
 
 - **components/**
   - `LandingScreen` — sidan: rutnät, glöd och headerns ton (dekor), header, `main`, footer. Inget annat än sammansättning, inklusive filmen och väntelistan (se nedan).
-  - `LandingHeader` — wordmark, `nav aria-label="Sections"` (bara desktop: The game → `#film`, XP & levels → `#how-it-works`, Titles → `#features`) och Sign in (`rq-btn--secondary`)
+  - `LandingHeader` — wordmark, `nav aria-label="Sections"` (visas bara från 1024 px: The game → `#film`, XP & levels → `#how-it-works`, Titles → `#features`) och Sign in (`rq-btn--secondary`)
   - `LandingParts` — `LandingHero` (h1 · bana · ingress · knappar · film (mobil) · sifferrad; **h1 `id="landing-title"` ligger här**), `PackPreview`, `HowItWorks` (stegen och XP-formeln)
   - `LandingStats` — sifferraden; `LandingFeatures` — de sex korten; `LandingFooter` — Privacy, Legal, Strava, versionen
-  - `ArenaTrack` — banan: desktop fem banor och sex löpare med XP-pop (−31°), mobil tre banor och tre löpare (−72°). Ren dekor (`aria-hidden`)
+  - `ArenaTrack` — banan: två SVG i samma ruta (`data-arena="mobile|desktop"`), desktop fem banor och sex löpare med XP-pop (−31°), mobil tre banor och tre löpare (−72°). Ren dekor (`aria-hidden`)
 - **hooks/usePublicStats.ts** — landningens enda anrop: `GET /api/public/stats` via `backendApi.getPublicStats()`, react-query, `staleTime = PUBLIC_STATS_MAX_AGE_MS`
 - **landingModel.ts** — vymodellen: ankar-id:n, `buildStatViews`, `buildPreviewRows`, `buildHowItWorks`, `buildXpFormula`, `buildFeatures` och banans geometri (`ARENA`)
 - `landing.css` — enda stilfilen; mått (`--rq-landing-*`) i temafilen, sektion 1.27 (index.css + docs/design/temafil-forslag.css)
@@ -24,7 +30,7 @@ geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten 
 ## Film och väntelista
 
 - `LandingHero` tar `watchFilm` (`<WatchFilmButton />`) och `mobileFilm` (`<LandingFilm variant="mobile" />`). Ordning i textspalten: knappraden (Join the waitlist + Watch the film), filmen (mobil), sifferraden.
-- `<LandingFilm variant="desktop" />` ligger mellan hjälten och previewn och `<LandingWaitlist />` efter funktionsrutnätet, före footern. Komponenterna bär själva ankar-id:t (`#film`, `#waitlist`); filmen renderar bara den variant som passar bredden, så `#film` finns exakt en gång.
+- `<LandingFilm variant="desktop" />` ligger mellan hjälten och previewn och `<LandingWaitlist />` efter funktionsrutnätet, före footern. Komponenterna bär själva ankar-id:t: desktopfilmen `#film`, mobilfilmen `#film-mobile` (båda ligger i HTML, CSS döljer den som inte passar; ett id får bara finnas en gång) och `#waitlist`. "Watch the film" scrollar till den film vars ankare har rutor (`getClientRects`), alltså den CSS visar, och faller annars tillbaka på länkens `#film`.
 
 ## Regler värda att komma ihåg
 

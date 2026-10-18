@@ -60,7 +60,20 @@ const LANDING_IMPORTS = [
   { regex: "backendApi|(^|/)services/|react-query|supabase|axios", message: "Landings enda anrop (GET /public/stats) ligger i hooks/usePublicStats.ts; övriga landningsfiler importerar varken klienten eller react-query." },
   LANDING_AUTH_IMPORT,
 ];
+// Förrenderingen (ADR 006-addendum 2026-10-19, punkt 5 och 9) vet varken skärmbredd eller språk: landningens första rendering på klienten måste
+// vara identisk med serverns. Breddval görs av CSS (båda varianterna ligger i HTML), tal formateras utan Intl (formatInt är regex med NBSP).
+const LANDING_NO_VIEWPORT_OR_LOCALE = [
+  {
+    selector: "Identifier[name=/^(useIsDesktop|matchMedia)$/]",
+    message: "Landningen väljer aldrig variant på bredd i JS (förrenderingen vet inte bredden): rendera båda varianterna och låt CSS (@media (min-width: 1024px)) dölja den ena. Rörelsepreferensen läses via shared/utils/prefersReducedMotion.",
+  },
+  {
+    selector: "Identifier[name=/^(Intl|toLocale(Date|Time)?String)$/]",
+    message: "Landningen formaterar inte tal eller datum med Intl/toLocaleString (olika svar på byggdatorn och i webbläsaren ger hydreringsfel): använd formatInt.",
+  },
+];
 const LANDING_SYNTAX = [
+  ...LANDING_NO_VIEWPORT_OR_LOCALE,
   { selector: "CallExpression[callee.name='fetch']", message: "Landing gör bara ett anrop (GET /public/stats), och det går via backendApi i hooks/usePublicStats.ts." },
   {
     selector: "Identifier[name=/^(useUsersWithRuns|useXpConfig|useGroupName|useQuery|useMutation|useAuth)$/]",
@@ -74,6 +87,7 @@ const LANDING_STATS_HOOK_IMPORTS = [
   LANDING_AUTH_IMPORT,
 ];
 const LANDING_STATS_HOOK_SYNTAX = [
+  ...LANDING_NO_VIEWPORT_OR_LOCALE,
   { selector: "CallExpression[callee.name='fetch']", message: "Anropet går via backendApi.getPublicStats(), inte en egen fetch." },
   {
     selector: "Identifier[name=/^(useUsersWithRuns|useXpConfig|useGroupName|useMutation|useAuth)$/]",

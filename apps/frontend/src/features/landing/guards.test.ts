@@ -44,6 +44,61 @@ describe('Landing — layout som inte får gå sönder', () => {
   });
 });
 
+describe('Landing — varianterna väljs av CSS, aldrig av JS', () => {
+  // Förrenderingen vet inte bredden (ADR 006-addendum 2026-10-19, punkt 5): båda varianterna ligger i HTML och `display: none` döljer den ena. jsdom har
+  // ingen layout och kör ingen CSS, så vilken variant som syns vid 390 respektive 1440 px är mätt i Chromium; här vaktas att varje par har sin
+  // väljarregel, med samma brytpunkt som skalet (1024 px). Att JS inte väljer variant vaktas av ESLint (LANDING_NO_VIEWPORT_OR_LOCALE).
+  const BREAKPOINT = '(min-width: 1024px)';
+  const sheets = [css, readFromDisk('./landingFilm.css')].map((text) => postcss.parse(text));
+
+  /** Deklarationen `property` på väljaren, antingen i sin grundregel (mobil först) eller i desktopens `@media (min-width: 1024px)`. */
+  const valueOf = (selector: string, property: string, scope: 'base' | 'desktop') => {
+    const values: string[] = [];
+    for (const sheet of sheets) {
+      sheet.walkRules((rule) => {
+        if (!rule.selectors.some((candidate) => candidate.trim() === selector)) return;
+        const parent = rule.parent;
+        const inDesktop = parent?.type === 'atrule' && (parent as postcss.AtRule).name === 'media' && (parent as postcss.AtRule).params === BREAKPOINT;
+        const inBase = parent?.type === 'root';
+        if ((scope === 'desktop' && !inDesktop) || (scope === 'base' && !inBase)) return;
+        rule.walkDecls(property, (decl) => { values.push(decl.value); });
+      });
+    }
+    return values.at(-1);
+  };
+
+  const DESKTOP_ONLY = [
+    '.rq-landing-nav',
+    '.rq-landing-eyebrow--desktop',
+    '.rq-landing-notes',
+    '.rq-landing-lead__long',
+    '.rq-landing-arena__svg[data-arena="desktop"]',
+    '.rq-film--desktop',
+  ];
+  const MOBILE_ONLY = [
+    '.rq-landing-lead__short',
+    '.rq-landing-arena__svg[data-arena="mobile"]',
+    '.rq-film--mobile',
+    '.rq-landing-hero__film',
+  ];
+
+  it.each(DESKTOP_ONLY)('%s är dold i grundregeln (mobil) och visas från 1024 px', (selector) => {
+    expect(valueOf(selector, 'display', 'base')).toBe('none');
+    expect(valueOf(selector, 'display', 'desktop')).toMatch(/^(?:block|flex|inline)$/);
+  });
+
+  it.each(MOBILE_ONLY)('%s visas som standard (mobil) och döljs från 1024 px', (selector) => {
+    expect(valueOf(selector, 'display', 'base')).not.toBe('none');
+    expect(valueOf(selector, 'display', 'desktop')).toBe('none');
+  });
+
+  it('rubriker som bara syns på desktop är visuellt gömda (men kvar för skärmläsare) på mobil', () => {
+    expect(valueOf('.rq-landing-h2--desktop', 'position', 'base')).toBe('absolute');
+    expect(valueOf('.rq-landing-h2--desktop', 'position', 'desktop')).toBe('static');
+  });
+
+});
+
 describe('Landing — fast header', () => {
   // jsdom har ingen layout: att headern sitter kvar, att ankarna landar under den och att safe-area-remsan är fylld är mätt i Chromium (390 och 1440 px).
   // Här vaktas de regler som får det att fungera och som lätt går sönder tyst: sticky mot fönstret (ingen förfader med egen scrollbehållare),

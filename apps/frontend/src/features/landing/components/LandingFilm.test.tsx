@@ -22,13 +22,18 @@ let pauseSpy: ReturnType<typeof vi.spyOn>;
 let loadSpy: ReturnType<typeof vi.spyOn>;
 let currentTime = 0;
 
-function stubViewport(width: number, { reducedMotion = false }: { reducedMotion?: boolean } = {}) {
-  vi.stubGlobal('matchMedia', (query: string) => {
-    const min = /min-width:\s*(\d+)px/.exec(query);
-    const matches = /prefers-reduced-motion:\s*reduce/.test(query) ? reducedMotion : min ? width >= Number(min[1]) : false;
-    return { matches, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() };
-  });
+/** Komponenten väljer inte variant på bredd; det enda den frågar webbläsaren om är rörelsepreferensen (vid klick på Watch the film). */
+function stubReducedMotion(reducedMotion: boolean) {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: /prefers-reduced-motion:\s*reduce/.test(query) && reducedMotion, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   window.matchMedia = globalThis.matchMedia;
+}
+
+/** jsdom har ingen layout: ett element som CSS döljer (display: none) har inga rutor. Testet säger vilken film som "syns". */
+function showOnlyFilm(visibleId: 'film' | 'film-mobile') {
+  for (const id of ['film', 'film-mobile']) {
+    const rects = id === visibleId ? [new DOMRect(0, 0, 100, 100)] : [];
+    vi.spyOn(document.getElementById(id) as HTMLElement, 'getClientRects').mockReturnValue(rects as unknown as DOMRectList);
+  }
 }
 
 beforeEach(() => {
@@ -43,7 +48,7 @@ beforeEach(() => {
       currentTime = value;
     },
   });
-  stubViewport(1440);
+  stubReducedMotion(false);
 });
 
 afterEach(() => {
@@ -85,7 +90,6 @@ describe('filmen: innan den startar', () => {
 
   it('filmen väljer 720p från 1024 px och 480p under', () => {
     for (const variant of ['desktop', 'mobile'] as const) {
-      stubViewport(variant === 'desktop' ? 1440 : 390);
       const { container, unmount } = render(<LandingFilm variant={variant} />);
       const sources = Array.from(container.querySelectorAll('video > source'));
       expect(sources.map((source) => [source.getAttribute('src'), source.getAttribute('media'), source.getAttribute('type')])).toEqual([
@@ -97,8 +101,7 @@ describe('filmen: innan den startar', () => {
   });
 
   it('postern hämtas i mobilstorlek under 1024 px', () => {
-    for (const [variant, width] of [['mobile', 390], ['desktop', 1440]] as const) {
-      stubViewport(width);
+    for (const variant of ['mobile', 'desktop'] as const) {
       const { container, unmount } = render(<LandingFilm variant={variant} />);
       const picture = container.querySelector('picture') as HTMLElement;
       const source = picture.querySelector('source') as HTMLSourceElement;
@@ -113,8 +116,7 @@ describe('filmen: innan den startar', () => {
   });
 
   it('spelaren saknar ljudknapp och texten sound on', () => {
-    for (const [variant, width] of [['desktop', 1440], ['mobile', 390]] as const) {
-      stubViewport(width);
+    for (const variant of ['desktop', 'mobile'] as const) {
       const { container, unmount } = render(<LandingFilm variant={variant} />);
       startFilm(container);
       expect(container.textContent).not.toMatch(/sound on/i);
@@ -124,8 +126,7 @@ describe('filmen: innan den startar', () => {
   });
 
   it('play-knappens tillgängliga namn börjar med dess synliga text', () => {
-    for (const [variant, width] of [['desktop', 1440], ['mobile', 390]] as const) {
-      stubViewport(width);
+    for (const variant of ['desktop', 'mobile'] as const) {
       const { unmount } = render(<LandingFilm variant={variant} />);
       const button = playButton();
       const visibleText = (button.textContent ?? '').trim();
@@ -137,8 +138,7 @@ describe('filmen: innan den startar', () => {
   });
 
   it('spelaren och play-knappen har etiketter med filmens längd', () => {
-    for (const [variant, width] of [['desktop', 1440], ['mobile', 390]] as const) {
-      stubViewport(width);
+    for (const variant of ['desktop', 'mobile'] as const) {
       const { container, unmount } = render(<LandingFilm variant={variant} />);
       const video = getVideo(container);
       expect(playButton()).toBeInTheDocument();
@@ -236,7 +236,6 @@ describe('filmen: att spela', () => {
   });
 
   it('på mobilen pausar och startar tryck på filmen, och knappen går att nå medan den spelar', () => {
-    stubViewport(390);
     const { container } = render(<LandingFilm variant="mobile" />);
     const video = getVideo(container);
     expect(screen.queryByRole('slider')).toBeNull();
@@ -291,7 +290,6 @@ describe('filmen: fel', () => {
   });
 
   it('en avvisad play() ger samma felläge, men en avbruten gör det inte', async () => {
-    stubViewport(390);
     const { container } = render(<LandingFilm variant="mobile" />);
     playSpy.mockRejectedValueOnce(new DOMException('interrupted', 'AbortError'));
     fireEvent.click(playButton());
@@ -305,29 +303,42 @@ describe('filmen: fel', () => {
   });
 });
 
-describe('filmen: en spelare per skärmbredd', () => {
-  it('bara en spelare finns i tillgänglighetsträdet per skärmbredd', () => {
-    for (const [width, expected] of [[1440, 'desktop'], [390, 'mobile']] as const) {
-      stubViewport(width);
-      const { container, unmount } = render(
-        <>
-          <LandingFilm variant="mobile" />
-          <LandingFilm variant="desktop" />
-        </>,
-      );
-      expect(container.querySelectorAll('#film')).toHaveLength(1);
-      expect(container.querySelectorAll('video')).toHaveLength(1);
-      expect(screen.getAllByRole('button', { name: POSTER_BUTTON_NAME })).toHaveLength(1);
-      expect(container.querySelector('#film')?.tagName).toBe(expected === 'desktop' ? 'SECTION' : 'DIV');
-      unmount();
-    }
+describe('filmen: båda varianterna ligger i HTML', () => {
+  function renderBoth() {
+    return render(
+      <>
+        <LandingFilm variant="mobile" />
+        <LandingFilm variant="desktop" />
+      </>,
+    );
+  }
+
+  it('desktopfilmen är #film och mobilfilmen #film-mobile, och varje ankar-id finns en gång', () => {
+    const { container } = renderBoth();
+    expect(container.querySelectorAll('#film')).toHaveLength(1);
+    expect(container.querySelectorAll('#film-mobile')).toHaveLength(1);
+    expect(container.querySelector('#film')?.tagName).toBe('SECTION');
+    expect(container.querySelector('#film-mobile')?.tagName).toBe('DIV');
+    expect(container.querySelectorAll('video')).toHaveLength(2);
   });
 
-  it('renderar ingenting innan skärmbredden är känd', () => {
-    vi.stubGlobal('matchMedia', undefined);
-    window.matchMedia = undefined as unknown as typeof window.matchMedia;
-    const { container } = render(<LandingFilm variant="desktop" />);
-    expect(container).toBeEmptyDOMElement();
+  it('varje variant har sin egen spelare: att starta den ena rör inte den andra', () => {
+    const { container } = renderBoth();
+    const mobile = within(container.querySelector('#film-mobile') as HTMLElement);
+    const desktop = within(container.querySelector('#film') as HTMLElement);
+    fireEvent.click(desktop.getByRole('button', { name: POSTER_BUTTON_NAME }));
+    expect(desktop.getByRole('button', { name: POSTER_BUTTON_NAME })).toHaveAttribute('aria-busy', 'true');
+    expect(mobile.getByRole('button', { name: POSTER_BUTTON_NAME })).toHaveAttribute('aria-busy', 'false');
+    expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('ingen variant hämtar något innan play: båda har preload none', () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const { container } = renderBoth();
+    for (const video of container.querySelectorAll('video')) expect(video).toHaveAttribute('preload', 'none');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(loadSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -349,9 +360,8 @@ describe('filmen: desktopvyn och mobilvyn', () => {
   });
 
   it('mobil: liten play-ruta, ingen rubrik och stegen bara för skärmläsare', () => {
-    stubViewport(390);
     const { container } = render(<LandingFilm variant="mobile" />);
-    expect(container.querySelector('#film')?.tagName).toBe('DIV');
+    expect(container.querySelector('#film-mobile')?.tagName).toBe('DIV');
     expect(screen.getByText('WATCH THE FILM — 0:49')).toBeInTheDocument();
     expect(screen.queryByRole('heading')).toBeNull();
     const steps = document.getElementById(getVideo(container).getAttribute('aria-describedby') as string) as HTMLElement;
@@ -360,37 +370,63 @@ describe('filmen: desktopvyn och mobilvyn', () => {
 });
 
 describe('Watch the film', () => {
-  it('Watch the film flyttar fokus till filmens play-knapp utan att starta filmen', () => {
-    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
-    render(
-      <>
-        <WatchFilmButton />
-        <LandingFilm variant="desktop" />
-      </>,
-    );
-    const link = screen.getByRole('link', { name: 'Watch the film — 0:49' });
-    expect(link).toHaveAttribute('href', '#film');
-    expect(link).toHaveClass('rq-btn', 'rq-btn--ghost', 'rq-btn--lg');
+  let scrollSpy: ReturnType<typeof vi.spyOn>;
 
-    expect(fireEvent.click(link)).toBe(false); // preventDefault: ingen hashnavigering
-    expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
-    expect(playButton()).toHaveFocus();
-    expect(playSpy).not.toHaveBeenCalled();
+  beforeEach(() => {
+    scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
+    scrollSpy.mockClear();
   });
 
-  it('scrollar direkt vid reducerad rörelse', () => {
-    stubViewport(390, { reducedMotion: true });
-    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
-    render(
+  function renderWithBothFilms() {
+    return render(
       <>
         <WatchFilmButton />
         <LandingFilm variant="mobile" />
+        <LandingFilm variant="desktop" />
       </>,
     );
-    fireEvent.click(screen.getByRole('link', { name: 'Watch the film — 0:49' }));
-    expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'auto' }));
-    expect(playButton()).toHaveFocus();
+  }
+  const watchLink = () => screen.getByRole('link', { name: 'Watch the film — 0:49' });
+
+  it('Watch the film flyttar fokus till den synliga filmens play-knapp utan att starta filmen', () => {
+    const { container } = renderWithBothFilms();
+    showOnlyFilm('film');
+    expect(watchLink()).toHaveAttribute('href', '#film');
+
+    expect(fireEvent.click(watchLink())).toBe(false); // preventDefault: ingen hashnavigering
+    expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    expect(container.querySelector('#film [data-film-play]')).toHaveFocus();
     expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['1440 px', 'film'],
+    ['390 px', 'film-mobile'],
+  ] as const)('scrollar till filmen som syns och fokuserar dess play-knapp (%s)', (_width, visibleId) => {
+    const { container } = renderWithBothFilms();
+    showOnlyFilm(visibleId);
+
+    fireEvent.click(watchLink());
+
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    expect((scrollSpy.mock.contexts[0] as HTMLElement).id).toBe(visibleId);
+    expect(container.querySelector(`#${visibleId} [data-film-play]`)).toHaveFocus();
+  });
+
+  it('scrollar direkt vid reducerad rörelse', () => {
+    stubReducedMotion(true);
+    const { container } = renderWithBothFilms();
+    showOnlyFilm('film-mobile');
+    fireEvent.click(watchLink());
+    expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'auto' }));
+    expect(container.querySelector('#film-mobile [data-film-play]')).toHaveFocus();
+    expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it('lämnar länkens egen hashnavigering ifred om ingen film syns', () => {
+    renderWithBothFilms();
+    expect(fireEvent.click(watchLink())).toBe(true);
+    expect(scrollSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -430,7 +466,6 @@ describe('filmen: webbanalys', () => {
   });
 
   it('reports on the mobile layout too', async () => {
-    stubViewport(390);
     const { container } = render(<LandingFilm variant="mobile" />);
     await userEvent.click(playButton());
     fireEvent.playing(getVideo(container));

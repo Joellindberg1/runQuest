@@ -1,38 +1,34 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import { setViewportWidth } from '@/test/viewport';
 import { ArenaTrack } from './ArenaTrack';
 
-const renderArena = (width: number) => {
-  setViewportWidth(width);
-  return render(<ArenaTrack />);
-};
+const count = (root: Element, selector: string) => root.querySelectorAll(selector).length;
+const popLabels = (root: Element) => [...root.querySelectorAll('text[data-runner]')].map((text) => text.textContent);
 
-const count = (container: HTMLElement, selector: string) => container.querySelectorAll(selector).length;
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+/** Båda geometrierna ligger i HTML (förrenderingen vet inte skärmbredden); CSS visar en. Testet hittar dem på sin variant, inte på bredd. */
+function renderArena() {
+  const { container } = render(<ArenaTrack />);
+  const desktop = container.querySelector('svg[data-arena="desktop"]') as SVGElement;
+  const mobile = container.querySelector('svg[data-arena="mobile"]') as SVGElement;
+  return { container, desktop, mobile };
+}
 
 describe('ArenaTrack', () => {
-  it('desktopbanan har fem banor och sex löpare och mobilbanan tre', () => {
-    const desktop = renderArena(1440);
-    expect(count(desktop.container, 'path[data-lane]')).toBe(5);
-    expect(count(desktop.container, 'circle[data-runner]')).toBe(6);
-    expect(count(desktop.container, 'text[data-runner]')).toBe(6);
-    expect([...desktop.container.querySelectorAll('text[data-runner]')].map((text) => text.textContent)).toEqual([
-      '+50 XP', '+35 XP', '+25 XP', '+107 XP', '+30 XP', '+19 XP',
-    ]);
-    desktop.unmount();
+  it('renderar båda banorna oavsett skärmbredd: desktop med fem banor och sex löpare, mobil med tre', () => {
+    const { container, desktop, mobile } = renderArena();
+    expect(count(container, 'svg')).toBe(2);
 
-    const mobile = renderArena(390);
-    expect(count(mobile.container, 'path[data-lane]')).toBe(3);
-    expect(count(mobile.container, 'circle[data-runner]')).toBe(3);
-    expect([...mobile.container.querySelectorAll('text[data-runner]')].map((text) => text.textContent)).toEqual(['+50 XP']);
+    expect(count(desktop, 'path[data-lane]')).toBe(5);
+    expect(count(desktop, 'circle[data-runner]')).toBe(6);
+    expect(popLabels(desktop)).toEqual(['+50 XP', '+35 XP', '+25 XP', '+107 XP', '+30 XP', '+19 XP']);
+
+    expect(count(mobile, 'path[data-lane]')).toBe(3);
+    expect(count(mobile, 'circle[data-runner]')).toBe(3);
+    expect(popLabels(mobile)).toEqual(['+50 XP']);
   });
 
   it('är ren dekor: gömd för skärmläsare och utan egna bilder eller fokuserbara delar', () => {
-    const { container } = renderArena(1440);
+    const { container } = renderArena();
     const root = container.firstElementChild as HTMLElement;
     expect(root).toHaveAttribute('aria-hidden', 'true');
     expect(root.querySelector('[tabindex], a, button')).toBeNull();
