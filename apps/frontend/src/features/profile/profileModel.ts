@@ -1,8 +1,8 @@
-import type { Run, UserTitle } from '@runquest/types';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
+import type { Run } from '@runquest/types';
 import { buildHero, buildStatCells, buildTitleRows, xpToNextText, type RunnerHero, type StatCell, type TitleRows } from '@/features/runner/runnerModel';
 import { parseKm, validateDate, validateDistance, type FieldErrors } from '@/features/log/logModel';
 import { formatDay, formatInt, formatKm, formatMultiplier } from './profileFormat';
+import type { TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 
 // Profilens vymodeller: hjältekort, titlar, rundhistorik och redigering. Hjälte-, cell- och titellogiken är Runner cards
 // (en definition i runnerModel — samma siffror på båda korten); resten är profilens egen. Ren logik, ingen DOM.
@@ -27,7 +27,7 @@ export interface MyTitlesView {
   showAllLabel: string | null;
 }
 
-export function buildMyTitles(userTitles: UserTitle[], board: TitleLeaderboard[], gender: string | null | undefined, compact: boolean, expanded: boolean): MyTitlesView {
+export function buildMyTitles(userTitles: UserTitleEntry[], board: TitleLeaderboardEntry[], gender: string | null | undefined, compact: boolean, expanded: boolean): MyTitlesView {
   const rows = buildTitleRows(userTitles, board, gender);
   const total = rows.held.length + rows.runnersUp.length;
   const collapsed = compact && !expanded;

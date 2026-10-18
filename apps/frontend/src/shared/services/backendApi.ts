@@ -1,5 +1,5 @@
 // 🔗 Backend API Service - Production Ready
-import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
+import type { Run, User, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
   PublicStatsData, PublicStatsApiResponse,
@@ -9,9 +9,11 @@ import type {
   AdminWaitlistData,
   WaitlistSignupRequest,
   StravaCallbackRequest, StravaStatusResponse, StravaSyncPausedRequest, StravaSyncPausedResponse,
+  GroupEligibilityEntry, TitleLeaderboardEntry, UserTitleEntry,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 
+const HTTP_NOT_FOUND = 404;
 const HTTP_SERVER_ERROR = 500;
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -48,32 +50,6 @@ interface TitleData {
   icon?: string;
 }
 
-/** Shape of GET /titles/leaderboard (title_leaderboard-vyn per titel). */
-export interface TitleLeaderboard {
-  id: string;
-  name: string;
-  description: string;
-  unlock_requirement: number;
-  metric_key?: string;
-  holder: {
-    user_id: string;
-    user_name: string;
-    user_gender?: string | null;
-    profile_picture?: string;
-    value: number;
-    earned_at: string;
-  } | null;
-  runners_up: Array<{
-    position: number;
-    user_id: string;
-    user_name: string;
-    user_gender?: string | null;
-    profile_picture?: string;
-    value: number;
-    earned_at: string;
-  }>;
-}
-
 /** Shape of GET /auth/users (admin user list). */
 export interface AdminUser {
   id: string;
@@ -86,14 +62,6 @@ export interface AdminUser {
   longest_streak: number;
   created_at: string;
   total_runs: number;
-}
-
-/** Shape of each row from GET /titles/group-eligibility. */
-export interface GroupEligibilityEntry {
-  userId: string;
-  name: string;
-  gender: string | null;
-  values: Record<string, number>;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -312,7 +280,8 @@ class BackendApiService {
   }
 
   // Nya endpoints (ADR 007) svarar { success, data, meta? } / { error }; typerna ligger i @runquest/shared.
-  private async getEnvelope<T>(path: string, failure: string): Promise<ApiResponse<T>> {
+  // `notFoundData`: svaret på ett 404 som ska läsas som "inget att visa" i stället för ett fel (se getUserTitles).
+  private async getEnvelope<T>(path: string, failure: string, notFoundData?: T): Promise<ApiResponse<T>> {
     try {
       const token = this.getToken();
       if (!token) return { success: false, error: 'Not authenticated' };
@@ -328,6 +297,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        if (response.status === HTTP_NOT_FOUND && notFoundData !== undefined) return { success: true, data: notFoundData };
         logHttpFailure(failure, response.status, body.error);
         return { success: false, error: body.error || failure };
       }
@@ -684,34 +654,22 @@ class BackendApiService {
   }
 
   // 🏆 Title System Methods
-  async getTitleLeaderboard(): Promise<ApiResponse<TitleLeaderboard[]>> {
-    const response = await this.authenticatedRequest<{ data: TitleLeaderboard[] }>('/titles/leaderboard');
-
-    // Extract the actual data from the nested response structure
-    if (response.success && response.data && response.data.data) {
-      return { success: true, data: response.data.data };
-    }
-
-    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
+  /** GET /titles/leaderboard — katalogen med anroparens grupps innehavare; tom lista utan grupp (contracts/titles). */
+  async getTitleLeaderboard(): Promise<ApiResponse<TitleLeaderboardEntry[]>> {
+    return this.getEnvelope<TitleLeaderboardEntry[]>('/titles/leaderboard', 'Failed to fetch title leaderboard');
   }
 
-  async getUserTitles(userId: string): Promise<ApiResponse<UserTitle[]>> {
-    const response = await this.authenticatedRequest<{ data: UserTitle[] }>(`/titles/user/${userId}`);
-
-    // Extract the actual data from the nested response structure
-    if (response.success && response.data && response.data.data) {
-      return { success: true, data: response.data.data };
-    }
-
-    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
+  /**
+   * GET /titles/user/:id. En användare utanför anroparens grupp ger 404 ("User not found"); det läses som en tom lista så att ingen vy
+   * (Runner card) visar ett fel som avslöjar att personen finns i en annan grupp, och så att react-query inte försöker igen.
+   */
+  async getUserTitles(userId: string): Promise<ApiResponse<UserTitleEntry[]>> {
+    return this.getEnvelope<UserTitleEntry[]>(`/titles/user/${encodeURIComponent(userId)}`, 'Failed to fetch user titles', []);
   }
 
+  /** GET /titles/group-eligibility — gruppens värden per måttnyckel (camelCase-fält, contracts/titles). */
   async getTitleGroupEligibility(): Promise<ApiResponse<GroupEligibilityEntry[]>> {
-    const response = await this.authenticatedRequest<{ data: GroupEligibilityEntry[] }>('/titles/group-eligibility');
-    if (response.success && response.data && response.data.data) {
-      return { success: true, data: response.data.data };
-    }
-    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
+    return this.getEnvelope<GroupEligibilityEntry[]>('/titles/group-eligibility', 'Failed to fetch title progress');
   }
 
   async getAllTitles(): Promise<ApiResponse<TitleData[]>> {

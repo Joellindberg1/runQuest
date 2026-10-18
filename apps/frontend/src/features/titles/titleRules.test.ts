@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import { buildTitleRuleRows } from './titleRules';
+import type { TitleLeaderboardEntry } from '@runquest/shared';
 
-const title = (id: string, name: string, metric_key: string | undefined, unlock_requirement = 0): TitleLeaderboard => ({
+const title = (id: string, name: string, metric_key: string | undefined, unlock_requirement = 0): TitleLeaderboardEntry => ({
   id, name, description: `${name}: regeln ur databasen.`, unlock_requirement, metric_key, holder: null, runners_up: [],
 });
 

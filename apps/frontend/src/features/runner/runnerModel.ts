@@ -1,10 +1,9 @@
-import type { Run, User, UserTitle } from '@runquest/types';
-import type { ChallengeHistoryItem, HeadToHeadResponse, XpConfigResponse } from '@runquest/shared';
+import type { Run, User } from '@runquest/types';
+import type { ChallengeHistoryItem, HeadToHeadResponse, XpConfigResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 import { calculateStreakMultiplier, dayOfWeek, stockholmClock } from '@runquest/shared';
 import { formatDecimal, formatInt } from '@/features/leaderboard/boardFormat';
 import { buildStreakRow, formatMultiplier } from '@/features/leaderboard/streakModel';
 import { hasLinearGap, resolveGenderedTitle, titleValueText } from '@/features/titles/titleFormat';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
 // Runner cardens vymodeller: allt kortet visar, härlett ur users-with-runs + titlar + head-to-head + XP-config.
@@ -217,16 +216,17 @@ export interface TitleRows {
 
 const RUNNER_UP_POSITIONS = [2, 3];
 
-export function buildTitleRows(userTitles: UserTitle[], board: TitleLeaderboard[], gender: string | null | undefined): TitleRows {
-  const entryFor = (title: UserTitle) => board.find((entry) => entry.id === title.title_id);
-  const nameOf = (title: UserTitle) => resolveGenderedTitle(title.title_name, gender);
+export function buildTitleRows(userTitles: UserTitleEntry[], board: TitleLeaderboardEntry[], gender: string | null | undefined): TitleRows {
+  const entryFor = (title: UserTitleEntry) => board.find((entry) => entry.id === title.title_id);
+  const nameOf = (title: UserTitleEntry) => resolveGenderedTitle(title.title_name, gender);
 
   const held = userTitles
     .filter((title) => title.is_current_holder)
     .map((title) => ({ id: title.title_id, name: nameOf(title), value: titleValueText(entryFor(title)?.metric_key, title.value ?? 0) }));
 
   const runnersUp = userTitles
-    .filter((title) => !title.is_current_holder && RUNNER_UP_POSITIONS.includes(title.position))
+    .filter((title): title is UserTitleEntry & { position: number } =>
+      !title.is_current_holder && title.position !== null && RUNNER_UP_POSITIONS.includes(title.position))
     .sort((a, b) => a.position - b.position)
     .map((title) => {
       const entry = entryFor(title);

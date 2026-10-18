@@ -17,7 +17,7 @@ const MOCK_CURRENT_USER = MOCK_USERS[0];
 // Förhandsvisningen ritar de RIKTIGA Board-komponenterna (SeasonBoard) med mockdata.
 
 // Mock titles for preview — tests display of 3 titles + overflow label
-const makeTitle = (title_id: string, title_name: string): import('@runquest/types').UserTitle => ({
+const makeTitle = (title_id: string, title_name: string): import('@runquest/shared').UserTitleEntry => ({
   title_id,
   title_name,
   title_description: '',
@@ -28,7 +28,7 @@ const makeTitle = (title_id: string, title_name: string): import('@runquest/type
   status: 'holder',
 });
 
-const MOCK_TITLE_OVERRIDES: Record<string, import('@runquest/types').UserTitle[]> = {
+const MOCK_TITLE_OVERRIDES: Record<string, import('@runquest/shared').UserTitleEntry[]> = {
   'u1': [makeTitle('t0', 'The Iron Queen')],
   'u2': [
     makeTitle('t1', 'The Daaaaaviiiiiid GOGGINGS'),

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Run, User, UserTitle } from '@runquest/types';
+import type { Run, User } from '@runquest/types';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { badgeShowcaseMap, buildSeasonRows, displayedTitleNames, rankDeltaMap, titleLine } from './seasonModel';
+import type { UserTitleEntry } from '@runquest/shared';
 
 const NOW = new Date('2026-10-04T10:00:00Z');
 
@@ -14,7 +15,7 @@ const user = (over: Partial<User> & Pick<User, 'id' | 'name' | 'total_xp'>): Use
   current_level: 1, total_km: 100, current_streak: 0, longest_streak: 0, runs: [], challenge_counts: {}, displayed_title_ids: [], ...over,
 });
 
-const title = (id: string, name: string, holder = true): UserTitle => ({
+const title = (id: string, name: string, holder = true): UserTitleEntry => ({
   title_id: id, title_name: name, title_description: '', position: 1, value: 0, earned_at: '', is_current_holder: holder, status: 'holder',
 });
 

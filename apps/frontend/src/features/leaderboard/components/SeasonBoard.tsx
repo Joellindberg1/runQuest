@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import type { User, UserTitle } from '@runquest/types';
-import type { BadgeShowcaseEntry } from '@runquest/shared';
+import type { User } from '@runquest/types';
+import type { BadgeShowcaseEntry, UserTitleEntry } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { buildSeasonRows } from '../seasonModel';
@@ -11,7 +11,7 @@ const PODIUM_SIZE = 3;
 
 interface SeasonBoardProps {
   users: User[];
-  titlesByUser: Record<string, UserTitle[]>;
+  titlesByUser: Record<string, UserTitleEntry[]>;
   rankDeltaByUser: Record<string, number | null>;
   /** user_id → visade badges (minis i raderna). Utelämnad = inga minis; preview-sidan och landningen behöver ingen badge-hämtning. */
   badgesByUser?: Record<string, BadgeShowcaseEntry[]>;

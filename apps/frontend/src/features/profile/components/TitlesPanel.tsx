@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
-import type { User, UserTitle } from '@runquest/types';
+import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import { buildMyTitles } from '../profileModel';
 import { PanelHead, PanelLoading } from './ProfileParts';
+import type { TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 
 interface TitlesPanelProps {
   user: User;
-  titles: { data: UserTitle[] | undefined; isError: boolean; isFetching: boolean; refetch: () => unknown };
-  board: { data: TitleLeaderboard[] | undefined; isLoading: boolean };
+  titles: { data: UserTitleEntry[] | undefined; isError: boolean; isFetching: boolean; refetch: () => unknown };
+  board: { data: TitleLeaderboardEntry[] | undefined; isLoading: boolean };
   isDesktop: boolean;
 }
 
