@@ -173,7 +173,7 @@ export class EnhancedTitleService {
    *
    * Fail-closed: utan groupId kastas det innan något läses.
    *
-   * Pack News (ADR 008 beslut 6): innehavarna (position 1) ögonblicksfotograferas före och efter
+   * Pack News (ADR 008 beslut 6, ADR 012 beslut 5.3): gruppens position 1–2 ögonblicksfotograferas före och efter
    * och skillnaden loggas (title_unlocked/_taken/_revoked, endast framåt). `emitNews: false` för
    * regel-/data-underhåll (admin /titles/reprocess-all) så att flödet inte spammas.
    *
@@ -188,7 +188,7 @@ export class EnhancedTitleService {
       throw new Error('processGroupTitles kräver groupId');
     }
     const emitNews = options.emitNews ?? true;
-    const holdersBefore = emitNews ? await snapshotTitleHolders() : null;
+    const holdersBefore = emitNews ? await snapshotTitleHolders(groupId) : null;
 
     logger.info(`🏆 Processing titles for the members of group ${groupId}...`);
 
@@ -251,8 +251,8 @@ export class EnhancedTitleService {
     logger.info(`✅ Processed titles for ${processedCount}/${activeMembers.length} members in ${Date.now() - startTime}ms`);
 
     if (holdersBefore) {
-      const holdersAfter = await snapshotTitleHolders();
-      if (holdersAfter) await emitTitleNews(holdersBefore, holdersAfter);
+      const holdersAfter = await snapshotTitleHolders(groupId);
+      if (holdersAfter) await emitTitleNews(groupId, holdersBefore, holdersAfter);
     }
 
     return { total: activeMembers.length, processed: processedCount, failed: failedCount };

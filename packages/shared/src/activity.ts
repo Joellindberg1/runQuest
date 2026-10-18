@@ -290,12 +290,17 @@ export function streakBrokenOccurredAt(lastRunDate: string): string {
 
 // ─── Titeldetektion (snapshot-diff, ADR 008 beslut 6) ────────────────────────────────────────────
 
-/** Innehavaren (position 1) av en titel I EN GRUPP (ADR 012): samma titel har en innehavare per grupp. */
+/**
+ * Innehavaren (position 1) av en titel I EN GRUPP (ADR 012): samma titel har en innehavare per grupp.
+ * `runner_up` är position 2 i samma grupp (null = ingen tvåa). Den bärs med i före-bilden så att "låg tvåa"
+ * (ADR 011 beslut 7) kan läsa R ur B:s grupps bild; diffTitleHolders använder den inte (byte går bara på position 1).
+ */
 export interface TitleHolder {
   group_id: string;
   title_id: string;
   user_id: string;
   value: number;
+  runner_up?: { user_id: string; value: number } | null;
 }
 
 export type TitleHolderChange =
