@@ -270,7 +270,8 @@ export interface TokenEncryptionHealth {
   unreadable_since_start: number;
 }
 
-type TokenColumnForm = { form: 'empty' } | { form: 'encrypted'; kid: string } | { form: 'plaintext' } | { form: 'unrecognised' };
+/** What a stored column holds, by shape alone (nothing is decrypted): no value, `enc:v1` under a key id, legacy plaintext, or neither. */
+export type TokenColumnForm = { form: 'empty' } | { form: 'encrypted'; kid: string } | { form: 'plaintext' } | { form: 'unrecognised' };
 
 function formOfStored(stored: unknown): TokenColumnForm {
   if (stored === null || stored === undefined) return { form: 'empty' };
@@ -285,26 +286,29 @@ function formOfStored(stored: unknown): TokenColumnForm {
 const TOKEN_ROWS_PAGE_SIZE = 1000;
 
 /**
- * Every row's token columns, and nothing else (no user id), in pages: one request would silently stop at the server's row limit and
- * the health would undercount. The first page asks for the exact count, so no page is requested past the end (PostgREST answers 416 for
- * that). Ordered by the key so that pages do not overlap. THROWS on a database error.
+ * The named columns of every row, in pages: one request would silently stop at the server's row limit and the answer would undercount.
+ * The first page asks for the exact count, so no page is requested past the end (PostgREST answers 416 for that). Ordered by the key so
+ * that pages do not overlap. THROWS on a database error.
  */
-async function readAllTokenColumns(pageSize: number): Promise<Array<{ access_token: unknown; refresh_token: unknown }>> {
-  const rows: Array<{ access_token: unknown; refresh_token: unknown }> = [];
+async function readAllRows<T>(columns: string, pageSize: number): Promise<T[]> {
+  const rows: T[] = [];
   let total = Infinity;
   for (let from = 0; from < total; from += pageSize) {
     const { data, error, count } = await getSupabaseClient()
       .from(TABLE)
-      .select('access_token, refresh_token', { count: 'exact' })
+      .select(columns, { count: 'exact' })
       .order('user_id', { ascending: true })
       .range(from, from + pageSize - 1);
     if (error) throw error;
     if (typeof count !== 'number') throw Object.assign(new Error('no count'), { code: 'no_count' });
     total = count;
-    rows.push(...(data ?? []));
+    rows.push(...((data ?? []) as unknown as T[]));
   }
   return rows;
 }
+
+/** Every row's token columns, and nothing else (no user id): the health counts need no more. */
+const readAllTokenColumns = (pageSize: number) => readAllRows<{ access_token: unknown; refresh_token: unknown }>('access_token, refresh_token', pageSize);
 
 /**
  * Counts for the admin health endpoint (ADR 013 decision 9): is the key usable, which key ids, and how many rows are in which form.
@@ -344,4 +348,189 @@ export async function readTokenEncryptionHealth(pageSize: number = TOKEN_ROWS_PA
     rows_on_other_kid: ring ? onOtherKid : null,
     unreadable_since_start: unreadableCount,
   };
+}
+
+// ─── Rewriting whole rows: the backfill (ADR 013 decision 7) ────────────────────────────────────────────────────────────────────────
+//
+// The backfill script moves every row to the active key (or, as the emergency exit, back to plaintext). The plaintext of a token is only
+// ever a local variable in this section; the script gets forms, codes and counts, so it has nothing to print by accident.
+
+// The stored strings of a listed row live here, not on the object, so a row cannot print or serialise them by accident (the KeyRing way).
+const listedStrings = new WeakMap<ListedTokenRow, { accessRaw: string | null; refreshRaw: string | null }>();
+
+/** A row as listed: who, and the form of each token column. The stored strings are inside; only `rewriteTokenRow` can use them. */
+export class ListedTokenRow {
+  readonly userId: string;
+  readonly access: TokenColumnForm;
+  readonly refresh: TokenColumnForm;
+
+  constructor(userId: string, accessRaw: unknown, refreshRaw: unknown) {
+    this.userId = userId;
+    this.access = formOfStored(accessRaw);
+    this.refresh = formOfStored(refreshRaw);
+    // A column that is not a string is `unrecognised` and is never written, so it needs no stored string.
+    listedStrings.set(this, {
+      accessRaw: typeof accessRaw === 'string' ? accessRaw : null,
+      refreshRaw: typeof refreshRaw === 'string' ? refreshRaw : null,
+    });
+  }
+
+  toJSON(): { userId: string; access: TokenColumnForm; refresh: TokenColumnForm } {
+    return { userId: this.userId, access: this.access, refresh: this.refresh };
+  }
+}
+
+/** Every token row, in pages, as `ListedTokenRow`s. THROWS on a database error: a failed listing is never an empty table. */
+export async function listTokenRows(pageSize: number = TOKEN_ROWS_PAGE_SIZE): Promise<ListedTokenRow[]> {
+  const rows = await readAllRows<{ user_id: string; access_token: unknown; refresh_token: unknown }>('user_id, access_token, refresh_token', pageSize);
+  return rows.map((row) => new ListedTokenRow(row.user_id, row.access_token, row.refresh_token));
+}
+
+/** The shape a plaintext token must have to be read back as one (decision 6), so that a decrypted value is never one the reader refuses. */
+export const isLegacyPlaintextShape = (value: string): boolean => LEGACY_PLAINTEXT.test(value);
+
+export type TokenRewriteMode = 'encrypt' | 'decrypt';
+
+/**
+ * Why a row was not rewritten or not verified. The first group are the codes of `openStravaToken`/secretBox (the value or the key);
+ * `unrecognised` is a column of no known shape; `plaintext_shape` (decrypt) a token the reader would not take for plaintext;
+ * `roundtrip_failed` a sealing that did not open to its own input; `write_failed` a database error on the write; `verify_read_failed`
+ * a read-back that failed; `verify_failed` a stored value that does not open after the write. None carries a value.
+ */
+export type TokenRewriteFailure = TokenUnreadableCode | 'unrecognised' | 'plaintext_shape' | 'roundtrip_failed' | 'write_failed' | 'verify_read_failed' | 'verify_failed';
+
+export type TokenRewriteOutcome =
+  | { status: 'nothing_to_do' }
+  /** Dry run: the rewrite is possible and the round trip holds in memory. Nothing was written. */
+  | { status: 'ready' }
+  /** Written, read back and opened to the same plaintext. */
+  | { status: 'written' }
+  /** No row held both stored strings the listing saw (a refresh landed, the user reconnected or disconnected). Nothing was written. */
+  | { status: 'conflict' }
+  /** Written, but the row held something else readable when read back (a refresh landed right after). */
+  | { status: 'superseded' }
+  | { status: 'failed'; code: TokenRewriteFailure; column?: StravaTokenColumn };
+
+const TOKEN_COLUMNS: readonly StravaTokenColumn[] = ['access_token', 'refresh_token'];
+
+type RewritePlan =
+  | { ok: true; changes: Partial<Record<StravaTokenColumn, string>>; plains: Partial<Record<StravaTokenColumn, string>> }
+  | { ok: false; failure: TokenRewriteOutcome };
+
+const failedOutcome = (code: TokenRewriteFailure, column?: StravaTokenColumn): TokenRewriteOutcome =>
+  column ? { status: 'failed', code, column } : { status: 'failed', code };
+
+/** Decides, for every column, what the row should hold, working it out entirely in memory (including the sealing round trip). */
+function planRewrite(row: ListedTokenRow, strings: { accessRaw: string | null; refreshRaw: string | null }, mode: TokenRewriteMode, ring: KeyRing): RewritePlan {
+  const changes: Partial<Record<StravaTokenColumn, string>> = {};
+  const plains: Partial<Record<StravaTokenColumn, string>> = {};
+  for (const column of TOKEN_COLUMNS) {
+    const form = column === 'access_token' ? row.access : row.refresh;
+    const stored = column === 'access_token' ? strings.accessRaw : strings.refreshRaw;
+    if (form.form === 'empty') continue;
+    if (form.form === 'unrecognised' || stored === null) return { ok: false, failure: failedOutcome('unrecognised', column) };
+
+    if (mode === 'encrypt') {
+      if (form.form === 'encrypted' && form.kid === ring.activeKid) {
+        // Not rewritten, but it must open: a ciphertext that belongs to another row, or was damaged, is a finding and not "done".
+        const check = openStravaToken(row.userId, column, stored, ring);
+        if (!check.ok) return { ok: false, failure: failedOutcome(check.code, column) };
+        continue;
+      }
+      let plain = stored;
+      if (form.form === 'encrypted') {
+        const opened = openStravaToken(row.userId, column, stored, ring);
+        if (!opened.ok) return { ok: false, failure: failedOutcome(opened.code, column) };
+        plain = opened.token;
+      }
+      let sealed: string;
+      try {
+        sealed = sealStravaToken(row.userId, column, plain, ring);
+      } catch (error) {
+        return { ok: false, failure: failedOutcome(codeOf(error), column) };
+      }
+      // The sealing must open to its own input before anything is written.
+      const back = openStravaToken(row.userId, column, sealed, ring);
+      if (!back.ok || back.token !== plain) return { ok: false, failure: failedOutcome('roundtrip_failed', column) };
+      changes[column] = sealed;
+      plains[column] = plain;
+    } else {
+      if (form.form === 'plaintext') continue;
+      const opened = openStravaToken(row.userId, column, stored, ring);
+      if (!opened.ok) return { ok: false, failure: failedOutcome(opened.code, column) };
+      if (!isLegacyPlaintextShape(opened.token)) return { ok: false, failure: failedOutcome('plaintext_shape', column) };
+      changes[column] = opened.token;
+      plains[column] = opened.token;
+    }
+  }
+  return { ok: true, changes, plains };
+}
+
+/** Can this stored value be read (decrypted, or a plaintext of the legacy shape) with the ring? Never warns. */
+function isReadable(userId: string, column: StravaTokenColumn, stored: unknown, ring: KeyRing): boolean {
+  const form = formOfStored(stored);
+  if (form.form === 'empty' || form.form === 'plaintext') return true;
+  if (form.form === 'unrecognised' || typeof stored !== 'string') return false;
+  try {
+    open(stored, aadFor(userId, column), ring);
+    return true;
+  } catch (error) {
+    codeOf(error); // only a SecretBoxError means "cannot be read"; anything else is a bug and goes on
+    return false;
+  }
+}
+
+/**
+ * Rewrites one listed row (ADR 013 decision 7):
+ *   - `encrypt`: every column that is legacy plaintext or on a key id other than the active one is sealed under the active key
+ *     (a column already on the active key is left as it is);
+ *   - `decrypt`: every encrypted column is written back as plaintext, the emergency exit before a rollback to code that reads no `enc:`.
+ * The new strings are worked out and proved in memory first. The write is a compare-and-swap on BOTH stored strings the listing saw
+ * (`null` matches `is null`), so a refresh that landed since, a reconnect or a disconnect is never overwritten; that is `conflict` and
+ * the row is left for the next run. After the write the row is read back and each written column is checked. `dryRun` stops after the
+ * in-memory proof. Does not throw for a row or a database problem; the answer is a status and a code, never a value.
+ */
+export async function rewriteTokenRow(row: ListedTokenRow, mode: TokenRewriteMode, ring: KeyRing, options: { dryRun: boolean }): Promise<TokenRewriteOutcome> {
+  const strings = listedStrings.get(row);
+  if (!strings) throw new Error('rewriteTokenRow needs a row from listTokenRows');
+
+  const plan = planRewrite(row, strings, mode, ring);
+  if (!plan.ok) return plan.failure;
+  const { changes, plains } = plan;
+  if (Object.keys(changes).length === 0) return { status: 'nothing_to_do' };
+  if (options.dryRun) return { status: 'ready' };
+
+  let query = getSupabaseClient().from(TABLE).update(changes).eq('user_id', row.userId);
+  query = strings.accessRaw === null ? query.is('access_token', null) : query.eq('access_token', strings.accessRaw);
+  query = strings.refreshRaw === null ? query.is('refresh_token', null) : query.eq('refresh_token', strings.refreshRaw);
+  const { data, error } = await query.select('user_id');
+  if (error) return failedOutcome('write_failed');
+  if (!Array.isArray(data) || data.length === 0) return { status: 'conflict' };
+
+  let now: StoredTokenRow | null;
+  try {
+    now = await readStoredTokenRow(row.userId);
+  } catch {
+    return failedOutcome('verify_read_failed');
+  }
+  if (!now) return { status: 'superseded' }; // disconnected right after the write
+
+  const expected = { access: changes.access_token ?? strings.accessRaw, refresh: changes.refresh_token ?? strings.refreshRaw };
+  if (now.accessRaw === expected.access && now.refreshRaw === expected.refresh) {
+    // Exactly what we wrote: every column we wrote must open to the plaintext it was made from.
+    for (const column of TOKEN_COLUMNS) {
+      const plain = plains[column];
+      if (plain === undefined) continue;
+      const stored = column === 'access_token' ? now.accessRaw : now.refreshRaw;
+      const back = mode === 'encrypt' ? openStravaToken(row.userId, column, stored, ring) : { ok: true as const, token: stored };
+      if (!back.ok || back.token !== plain) return failedOutcome('verify_failed', column);
+    }
+    return { status: 'written' };
+  }
+
+  // Something else is stored now. Readable: a refresh landed after our write. Not readable: the write damaged the row.
+  for (const column of TOKEN_COLUMNS) {
+    if (!isReadable(row.userId, column, column === 'access_token' ? now.accessRaw : now.refreshRaw, ring)) return failedOutcome('verify_failed', column);
+  }
+  return { status: 'superseded' };
 }

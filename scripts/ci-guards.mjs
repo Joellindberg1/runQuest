@@ -209,11 +209,9 @@ export function checkRawStravaFetch(files) {
   return errors;
 }
 
-// Filerna som får röra tokenkolumnerna i strava_tokens: lagret och (när det finns) skriptet som krypterar om raderna (ADR 013 S4).
-const STRAVA_TOKEN_STORE_FILES = new Set([
-  'apps/backend/src/services/stravaTokenStore.ts',
-  'apps/backend/src/scripts/backfillStravaTokenEncryption.ts',
-]);
+// Filen som får röra tokenkolumnerna i strava_tokens: lagret. Backfillskriptet (ADR 013 S4, scripts/backfillStravaTokenEncryption.ts) går
+// också via lagret (listTokenRows, rewriteTokenRow) och är därför inte undantaget: vakten ska fälla ett skript som läser kolumnerna själv.
+const STRAVA_TOKEN_STORE_FILES = new Set(['apps/backend/src/services/stravaTokenStore.ts']);
 const STRAVA_TOKENS_FROM = /\.from\(\s*(['"`])strava_tokens\1\s*\)/g;
 const TOKEN_COLUMN = /\b(?:access_token|refresh_token)\b/;
 // "Raden har en token": ett filter på nullvärde läser ingen token och är det enda tillåtna omnämnandet av kolumnerna.
