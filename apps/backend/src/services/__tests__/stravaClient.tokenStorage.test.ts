@@ -269,6 +269,114 @@ describe('the row is encrypted again while a refresh is under way (the backfill 
     expect(vi.mocked(logger.error).mock.calls.some((call) => String(call[0]).includes('KRITISKT'))).toBe(true);
   });
 
+  /** Every argument of every log call as text (objects such as CriticalAlert as JSON), to search for tokens. */
+  const loggedText = () =>
+    [logger.info, logger.warn, logger.error]
+      .flatMap((spy) => vi.mocked(spy).mock.calls)
+      .flatMap((call) => call.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))))
+      .join('\n');
+  const kritiskt = () => vi.mocked(logger.error).mock.calls.filter((call) => String(call[0]).includes('KRITISKT'));
+  const expectNoTokensLogged = () => {
+    const text = loggedText();
+    for (const secret of ['old-rt', 'old-at', 'new-rt', 'new-at', 'enc:v1:']) expect(text, secret).not.toContain(secret);
+  };
+
+  it.each([
+    ['broken', () => 'enc:v1:test-1:AAAA:BBBB:CCCC'],
+    ['sealed for another user', () => storedToken('user-2', 'refresh_token', 'old-rt')],
+    ['sealed under a key that is not configured', () => sealedUnder(`other-1:${newKey()}`, 'user-1', 'refresh_token', 'old-rt')],
+  ])('a row sealed again into a value that cannot be opened (%s) is a lost rotation, critical, and not "superseded"', async (_name, unreadable) => {
+    const value = unreadable();
+    const { result, t } = await refreshWhile([{ ...TOKEN_ROW, expires_at: 100 }], (tables) => {
+      tables.strava_tokens[0].refresh_token = value;
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed', mayHaveRotated: true });
+    expect(kritiskt()).toHaveLength(1);
+    expect(kritiskt()[0][1]).toMatchObject({ source: 'token_write' });
+    expect(vi.mocked(logger.warn).mock.calls.some((call) => String(call[0]).includes('superseded'))).toBe(false);
+    expect(t.strava_tokens[0].refresh_token).toBe(value); // nothing of ours was written over it
+    expectNoTokensLogged();
+  });
+
+  it('a save that fails while following the row is a lost rotation, critical, and not "superseded"', async () => {
+    let updates = 0;
+    const rows: Row[] = [{ ...TOKEN_ROW, expires_at: 100 }];
+    const { result } = await refreshWhile(
+      rows,
+      (tables) => {
+        Object.assign(tables.strava_tokens[0], { refresh_token: storedToken('user-1', 'refresh_token', 'old-rt') }); // sealed again
+      },
+      (q) => {
+        if (q.table !== 'strava_tokens' || q.mutation !== 'update') return null;
+        updates += 1;
+        return updates === 1 ? null : { message: 'the database is read-only: Key (refresh_token)=(old-rt)' }; // the first save misses, the follow-up errors
+      },
+    );
+
+    expect(updates).toBe(2);
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed', mayHaveRotated: true });
+    expect(kritiskt()).toHaveLength(1);
+    expect(vi.mocked(logger.warn).mock.calls.some((call) => String(call[0]).includes('superseded'))).toBe(false);
+    expectNoTokensLogged();
+  });
+
+  it('the search for tokens in the log finds one in a message and in an alert object (so an empty result means something)', () => {
+    logger.error('🚨 KRITISKT: example with old-rt in the text');
+    logger.error('🚨 KRITISKT: example', { source: 'token_write', leaked: 'new-at' });
+
+    const text = loggedText();
+    expect(text).toContain('old-rt');
+    expect(text).toContain('new-at');
+    expect(() => expectNoTokensLogged()).toThrow();
+  });
+
+  it('the critical line and everything else logged carry no token, old or new, and no stored value, in any of the failing scenarios', async () => {
+    // The row keeps changing: the longest path through the follow-up (three tries) and then the alarm.
+    const rows: Row[] = [{ ...TOKEN_ROW, expires_at: 100 }];
+    await refreshWhile(rows, () => {}, (q) => {
+      if (q.table === 'strava_tokens' && q.mutation === 'update') Object.assign(rows[0], { refresh_token: storedToken('user-1', 'refresh_token', 'old-rt') });
+      return null;
+    });
+
+    expect(kritiskt()).toHaveLength(1);
+    expect(loggedText()).toContain('user-1'); // the user is named, which is what the owner needs
+    expectNoTokensLogged();
+  });
+
+  it('an earlier save of ours that landed (its answer lost) counts as saved when the follow-up finds the new tokens in the row', async () => {
+    let updates = 0;
+    const rows: Row[] = [{ ...TOKEN_ROW, expires_at: 100 }];
+    const { result, db } = await refreshWhile(
+      rows,
+      () => {},
+      (q) => {
+        if (q.table !== 'strava_tokens' || q.mutation !== 'update') return null;
+        updates += 1;
+        // The row holds our new tokens under another sealing; this save (on the string it started from) matches nothing.
+        Object.assign(rows[0], { access_token: storedToken('user-1', 'access_token', 'new-at'), refresh_token: storedToken('user-1', 'refresh_token', 'new-rt'), expires_at: 9999999990 });
+        return null;
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
+    expect(updates).toBe(1); // nothing was written again over the tokens that were already there
+    expect(tokenWrites(db)).toHaveLength(1);
+    expect(kritiskt()).toHaveLength(0);
+  });
+
+  it('a row that has no refresh token any more when read again is not ours to save into: the answer is dropped without an alarm', async () => {
+    const { result, t } = await refreshWhile([{ ...TOKEN_ROW, expires_at: 100 }], (tables) => {
+      tables.strava_tokens[0].refresh_token = null;
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'refresh_failed' });
+    expect(result).not.toHaveProperty('mayHaveRotated');
+    expect(t.strava_tokens[0].refresh_token).toBeNull();
+    expect(kritiskt()).toHaveLength(0);
+    expect(vi.mocked(logger.warn).mock.calls.some((call) => String(call[0]).includes('superseded'))).toBe(true);
+  });
+
   it('is unsure, and says so as critical, when the row cannot be read again after the save missed', async () => {
     let updated = false;
     const { result } = await refreshWhile(
