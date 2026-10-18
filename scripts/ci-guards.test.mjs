@@ -384,6 +384,34 @@ describe('checkStravaTokenPath', () => {
     assert.equal(scan("await db.from('strava_tokens').select('access_token');\nawait db.from('strava_tokens').select('refresh_token');").length, 2);
   });
 
+  it('flags a star anywhere in the select list, a select argument that is not a literal, and a spread into a write', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select('user_id, *');",
+      "await db.from('strava_tokens').select('*, users(name)');",
+      "await db.from('strava_tokens').select(\"user_id,*\");",
+      "await db.from('strava_tokens').select(columns);",
+      "await db.from('strava_tokens').select(COLUMNS.join(', '));",
+      "await db.from('strava_tokens').select(`user_id, ${extra}`);",
+      "await db.from('strava_tokens').upsert({ user_id: id, ...tokens });",
+      "await db.from('strava_tokens').insert({ ...tokens, user_id: id });",
+      "await db.from('strava_tokens').update({ ...next, sync_paused: false }).eq('user_id', id);",
+      "await db.from('strava_tokens').upsert([{ user_id: id, ...tokens }]);",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('passes a literal template select, a star inside a string that is not the select, and writes without a spread', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select(`\n  user_id,\n  users!inner(name)\n`).eq('sync_paused', false);",
+      "await db.from('strava_tokens').select('user_id').eq('note', '*');",
+      "await db.from('strava_tokens').update({ sync_paused: true, paused_at: now }).eq('user_id', id);",
+      "await db.from('strava_tokens').delete().eq('user_id', id);",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
   it('passes reads of other columns, the has-a-token filter, writes of other columns, and chains on other tables', () => {
     for (const code of [
       "await db.from('strava_tokens').select('user_id, sync_paused, paused_at').eq('user_id', id).maybeSingle();",

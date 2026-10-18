@@ -243,13 +243,49 @@ function queryChainText(code, start) {
   return text;
 }
 
+/** Texten i varje `.method(…)`-anrop i en kedja (mellan de yttre parenteserna). Strängar räknas som text, så en parentes i dem stänger inget. */
+function methodArguments(chain, method) {
+  const found = [];
+  const opening = new RegExp(`\\.${method}\\s*\\(`, 'g');
+  for (const match of chain.matchAll(opening)) {
+    let depth = 1;
+    let i = match.index + match[0].length;
+    const begin = i;
+    for (; i < chain.length && depth > 0; i += 1) {
+      const char = chain[i];
+      if (char === "'" || char === '"' || char === '`') {
+        i += 1;
+        while (i < chain.length && chain[i] !== char) { if (chain[i] === '\\') i += 1; i += 1; }
+      } else if (char === '(' || char === '[' || char === '{') depth += 1;
+      else if (char === ')' || char === ']' || char === '}') depth -= 1;
+    }
+    found.push(chain.slice(begin, i - 1));
+  }
+  return found;
+}
+
+const SINGLE_STRING = /^(['"`])(?:\\[\s\S]|(?!\1)[\s\S])*\1$/;
+
+/** Ett select-argument som kan hämta en tokenkolumn utan att nämna den: tomt, `*` var som helst, eller något annat än en enda sträng utan `${}`. */
+function selectArgumentReadsUnknownColumns(argument) {
+  const text = argument.trim();
+  if (text === '') return true;
+  if (!SINGLE_STRING.test(text)) return true;
+  const inner = text.slice(1, -1);
+  return inner.includes('*') || (text[0] === '`' && inner.includes('${')) || inner.trim() === '';
+}
+
 /**
  * Regel 11 (ADR 013 beslut 4). Strava-tokens läses och skrivs bara i services/stravaTokenStore.ts, den enda platsen som krypterar och
  * dekrypterar dem. En frågekedja på `strava_tokens` i någon annan backendfil får inte nämna access_token eller refresh_token (select,
- * filter, update, upsert, insert), och får inte hämta alla kolumner (`select('*')`, `select()`). Undantag: filtret
- * `.not('access_token', 'is', null)`, som inte läser något värde. `files`: [{ path, content }]. Returnerar "path:rad: text".
- * Vakten är textbaserad och förstår inte kod. Fångas INTE: en tabell som anges med en konstant (`.from(TABLE)`), eller en fråga som byggs
- * i flera satser (`const q = db.from('strava_tokens'); q.select('access_token')`).
+ * filter, update, upsert, insert), och får inte hämta alla kolumner (`*` var som helst i select-listan, `select()`), välja med ett argument
+ * som inte är en enda sträng utan `${}` (en variabel, ett anrop, en mallsträng med `${}`), eller skriva med spridning
+ * (`upsert({ ...tokens })`, även insert och update). Undantag: filtret `.not('access_token', 'is', null)`, som inte läser något värde.
+ * `files`: [{ path, content }]. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: en tabell som anges med en konstant (`.from(TABLE)`), en fråga som byggs i flera
+ * satser (`const q = db.from('strava_tokens'); q.select('access_token')`), ett skrivargument som är en variabel eller ett anrop utan
+ * spridning (`.upsert(row)`), en kolumn vars namn byggs ihop av delar i en sträng, och en `*` i en relation inuti listan räknas som träff
+ * (vilket är avsiktligt, men kan ge falsklarm).
  */
 export function checkStravaTokenPath(files) {
   const errors = [];
@@ -257,8 +293,9 @@ export function checkStravaTokenPath(files) {
     if (!BACKEND_SOURCE.test(path) || STRAVA_TOKEN_STORE_FILES.has(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
     for (const match of content.matchAll(STRAVA_TOKENS_FROM)) {
       const chain = queryChainText(content, match.index + match[0].length).replace(HAS_TOKEN_FILTER, '');
-      const readsEverything = /\.select\(\s*(?:(['"`])\s*\*?\s*\1\s*)?\)/.test(chain);
-      if (!TOKEN_COLUMN.test(chain) && !readsEverything) continue;
+      const readsEverything = methodArguments(chain, 'select').some(selectArgumentReadsUnknownColumns);
+      const spreadsIntoWrite = ['upsert', 'insert', 'update'].some((method) => methodArguments(chain, method).some((argument) => argument.includes('...')));
+      if (!TOKEN_COLUMN.test(chain) && !readsEverything && !spreadsIntoWrite) continue;
       const line = content.slice(0, match.index).split(/\r?\n/).length;
       errors.push(`${path}:${line}: tokenkolumnerna i strava_tokens används utanför stravaTokenStore — läs och skriv dem bara via services/stravaTokenStore.ts (ADR 013 beslut 4)`);
     }
