@@ -45,7 +45,7 @@
 -- UTGÅNGSLÄGE OCH ROLLBACK
 --   Staging (verifierat 2026-10-18): PUBLIC, anon, authenticated och service_role har execute på de tre.
 --   Prod: PUBLIC har tappat execute på de tre (drift utanför repot, RUN-226, Leads läsning 2026-10-17; samma fyra funktioner som
---   KNOWN_DIFFERENCES i schemaFingerprint.ts räknar upp med increment_event_xp). Kör fråga A före apply i varje miljö och spara proacl
+--   KNOWN_DIFFERENCES i schemaFingerprint.ts räknade upp tillsammans med increment_event_xp). Kör fråga A före apply i varje miljö och spara proacl
 --   per funktion; rollbacken ska ge exakt det utgångsläget tillbaka, och skillnaden mellan miljöerna är PUBLIC.
 --   Kör ETT av de två blocken, som en transaktion (ett apply_migration-anrop eller begin; ... commit;). Rollback ger tillbaka yta som
 --   rpc-vägen exponerar för anon-nyckeln, så kräv ägar-ja i prod.
@@ -82,9 +82,10 @@
 --   select tgname, tgenabled from pg_trigger where tgrelid = 'public.user_titles'::regclass and tgname = 'title_leaderboard_update_trigger';
 -- Efter apply: get_advisors (security) i varje miljö. Förväntat: inga nya fynd (inga nya objekt; antalet funktioner som anon och
 -- authenticated kan köra via /rpc minskar med tre). Röken: en runda som service_role (backend) bygger om topplistan som förut.
--- Följdeffekt för schemaFingerprint.ts: regeln prod-missing-public-execute förutsätter att EXAKT de fyra funktionerna saknar PUBLIC execute i
--- prod men har det i staging. När den här migrationen ligger i staging men inte i prod (och när den ligger i båda) stämmer mängden inte
--- längre; Lead justerar KNOWN_DIFFERENCES (se builderns rapport).
+-- Följdeffekt för schemaFingerprint.ts (justerat i samma leverans): efter 056 saknar de tre PUBLIC execute i båda projekten, så
+-- PROD_WITHOUT_PUBLIC_EXECUTE innehåller bara increment_event_xp. Mellan staging-apply och prod-apply skiljer anon- och authenticated-execute
+-- (staging utan, prod med); den tillfälliga regeln temporary-056-client-execute-in-prod förklarar de sex posterna och tas bort när 056 är
+-- applicerad i prod.
 -- Statiskt test: revokeTitleFunctionExecuteMigration056.test.ts.
 
 set local lock_timeout = '5s';
