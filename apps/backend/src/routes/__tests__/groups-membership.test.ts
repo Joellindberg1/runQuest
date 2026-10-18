@@ -166,6 +166,17 @@ describe('POST /api/groups/join', () => {
     expect(calls).toEqual([]);
   });
 
+  it('answers 404 when join_group says the group or the user does not exist', async () => {
+    use({ groups: groups(), users: [{ id: 'user-1', group_id: null }] }, {
+      rpc: { join_group: () => ({ error: { code: 'P0002', message: 'join_group: group_not_found' } }) },
+    });
+
+    const res = await join(INVITE);
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'Group or user not found' });
+  });
+
   it('answers 500 with a generic body and logs only the code when join_group fails for another reason', async () => {
     use({ groups: groups(), users: [{ id: 'user-1', group_id: null }] }, {
       rpc: { join_group: () => ({ error: { code: '40P01', message: `deadlock detected for ${INVITE}`, details: `invite ${INVITE}` } }) },
@@ -296,5 +307,27 @@ describe('POST /api/auth/users', () => {
     expect(JSON.stringify(res.body)).not.toContain('newbie@example.com');
     expect(logged.join('\n')).toContain('40P01');
     expect(logged.join('\n')).not.toContain('newbie@example.com');
+  });
+
+  it('answers 500 with a generic body, logs both codes and leaves the group-less account when join_group and the removal both fail', async () => {
+    const { tables } = use(base(), {
+      rpc: { join_group: () => ({ error: { code: '40P01', message: 'deadlock detected for newbie@example.com' } }) },
+      failWhen: (q) => (q.table === 'users' && q.mutation === 'delete' ? { code: '23503', message: 'delete failed for newbie@example.com', details: 'Key (id)=(secret-row) is still referenced' } : null),
+    });
+
+    const res = await create();
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to create user' });
+    const out = logged.join('\n');
+    expect(out).toContain('40P01');
+    expect(out).toContain('23503');
+    expect(out).not.toContain('newbie@example.com');
+    expect(out).not.toContain('secret-row');
+    expect(JSON.stringify(res.body)).not.toMatch(/newbie|secret-row|23503/);
+    const orphan = tables.users.find((u) => u.email === 'newbie@example.com');
+    expect(orphan).toBeDefined();
+    expect(orphan!.group_id ?? null).toBeNull();
+    expect(tables.group_members.some((m) => m.user_id === orphan!.id)).toBe(false);
   });
 });

@@ -225,9 +225,11 @@ const TOKEN_COLUMN = /\b(?:access_token|refresh_token)\b/;
 const HAS_TOKEN_FILTER = /\.not\(\s*(['"`])access_token\1\s*,\s*(['"`])is\2\s*,\s*null\s*\)/g;
 
 /**
- * Texten i en frågekedja som börjar vid `start`: till slutet av satsen (`;` på nivå 0) eller till den parentes som stänger det anrop
- * kedjan sitter i. Citerade strängar (och mallsträngar) räknas som text; kommentarer tas bort så att ett ord i dem inte blir en träff.
+ * Texten i en frågekedja som börjar vid `start`: till slutet av satsen (`;` på nivå 0), till nästa `,` på nivå 0 (nästa element i en
+ * `Promise.all([…, …])` eller nästa deklaration), till en radbrytning som inte följs av ett kedjat anrop (`.x(…)`, `?.x(…)`; en sats utan semikolon),
+ * eller till den parentes som stänger det anrop kedjan sitter i. Citerade strängar (och mallsträngar) räknas som text; kommentarer tas bort så att ett ord i dem inte blir en träff.
  */
+const CHAIN_CONTINUES = /^\s*\??\./;
 function queryChainText(code, start) {
   let depth = 0;
   let text = '';
@@ -246,7 +248,8 @@ function queryChainText(code, start) {
     }
     if (char === '(' || char === '[' || char === '{') depth += 1;
     else if (char === ')' || char === ']' || char === '}') { depth -= 1; if (depth < 0) return text; }
-    else if (char === ';' && depth === 0) return text;
+    else if ((char === ';' || char === ',') && depth === 0) return text;
+    else if (char === '\n' && depth === 0 && !CHAIN_CONTINUES.test(code.slice(i + 1, i + 200))) return text;
     text += char;
   }
   return text;

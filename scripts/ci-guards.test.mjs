@@ -336,6 +336,29 @@ describe('checkUsersGroupIdWrites', () => {
     assert.deepEqual(scan(code), []);
   });
 
+  it('ends the chain at the next element of a Promise.all and at a statement without a semicolon', () => {
+    for (const code of [
+      "await Promise.all([db.from('users').select('id'), db.from('runs').insert({ user_id, group_id: g })]);",
+      "const [a, b] = await Promise.all([\n  db.from('users').select('id'),\n  db.from('runs').insert({ user_id, group_id: g }),\n]);",
+      "const users = db.from('users').select('id'), runs = db.from('runs').insert({ group_id: g });",
+      "await db.from('users').select('id')\nawait db.from('runs').insert({ user_id, group_id: g })\n",
+      "const { data } = await db.from('users').select('id')\n\nconst next = { group_id: g }\n",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('still reads a chain that continues on following lines and a write inside a Promise.all', () => {
+    for (const code of [
+      "await db\n  .from('users')\n  .select('id')\n  .update({ group_id: g });",
+      "await db.from('users')\n  ?.update({ group_id: g });",
+      "await Promise.all([db.from('users').select('id'), db.from('users').update({ group_id: g }).eq('id', 1)]);",
+      "await db.from('users').update({ name })\n  .eq('id', 1)\n  .update({ group_id: g })\n",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
   it('reports each offending write with its own line number', () => {
     const errors = scan("a;\nawait db.from('users').update({ group_id: a }).eq('id', 1);\nb;\nawait db.from('users').insert({ group_id: b });\n");
     assert.equal(errors.length, 2);
@@ -541,6 +564,14 @@ describe('checkStravaTokenPath', () => {
     const errors = scan("a;\nconst { data } = await db.from('strava_tokens').select('user_id, access_token').eq('user_id', id);\n");
     assert.equal(errors.length, 1);
     assert.match(errors[0], /apps\/backend\/src\/routes\/x\.ts:2: .*stravaTokenStore/);
+  });
+
+  it('still flags a token read inside a Promise.all or before a following statement, and ignores what comes after the chain', () => {
+    assert.equal(scan("await Promise.all([db.from('strava_tokens').select('access_token'), db.from('users').select('id')]);").length, 1);
+    assert.equal(scan("await Promise.all([db.from('users').select('id'), db.from('strava_tokens').select('refresh_token').eq('user_id', id)]);").length, 1);
+    assert.equal(scan("await db.from('strava_tokens').select('access_token')\nawait other()\n").length, 1);
+    assert.deepEqual(scan("await Promise.all([db.from('strava_tokens').select('user_id'), db.from('x').select('access_token')]);"), []);
+    assert.deepEqual(scan("await db.from('strava_tokens').select('user_id')\nconst t = { access_token: 1 }\n"), []);
   });
 
   it('flags the variants: refresh_token, a multi-line template select, select(*) and select(), a filter, an update, an upsert, an insert', () => {

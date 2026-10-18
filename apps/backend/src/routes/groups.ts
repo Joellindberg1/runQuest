@@ -124,6 +124,7 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
       res.status(500).json({ error: 'Failed to join group' }); return;
     }
 
+    // TODO(RUN-299): bygg om gruppens ranking efter en lyckad join (update_group_title_leaderboards ur migration 055, utan titelnyheter; ADR 012 beslut 2.4).
     logger.info(`✅ User ${userId} joined group ${group.id}`);
 
     const body: JoinGroupResponse = {

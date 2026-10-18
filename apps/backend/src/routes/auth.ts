@@ -306,6 +306,10 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 
     // Medlemskapet i adminens grupp (rollen member; första medlemskapet räknar hela historiken). Misslyckas det tas kontot bort igen:
     // supabase-js har inga flerstegstransaktioner, och ett konto utan grupp får aldrig bli kvar (F2, ADR 007 A6).
+    // Misslyckas även borttagningen blir kontot kvar utan group_id och utan rad i group_members; loggen har då båda felkoderna och användar-id:t.
+    // Manuell städning (Lead/ägaren, prod-radering kräver ägarens ja): verifiera i läsfråga att id:t saknar aktivt medlemskap och group_id
+    // (`select id from users u where u.id = '<id>' and u.group_id is null and not exists (select 1 from group_members m where m.user_id = u.id)`),
+    // radera sedan exakt den raden (`delete from users where id = '<id>'`; inget annat följer med, kontot har inga rundor eller medlemskap).
     try {
       await joinGroup({ userId: newUser.id, groupId, role: 'member' }, supabase);
     } catch (joinError) {

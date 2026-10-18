@@ -79,6 +79,12 @@ describe('joinGroup', () => {
     expect(calls).toEqual([{ name: 'join_group', args: { p_user_id: 'u1', p_group_id: 'g1', p_role: 'member', p_today: '2026-07-01' } }]);
   });
 
+  it('reads the row also when the function answers with a one-element array', async () => {
+    const row = { id: 'm1', user_id: 'u1', group_id: 'g1', role: 'member', starts_on: null, joined_at: '2026-10-18T10:00:00Z', left_at: null };
+    const { db } = setup(tables(), { join_group: () => ({ data: [row] }) });
+    expect(await joinGroup({ userId: 'u1', groupId: 'g1', role: 'member', today: '2026-07-01' }, db)).toEqual(row);
+  });
+
   it('returns the membership row the function made', async () => {
     const { db } = setup(tables());
     const row = await joinGroup({ userId: 'u1', groupId: 'g1', role: 'member', today: '2026-07-01' }, db);
@@ -153,6 +159,12 @@ describe('createGroupWithAdmin', () => {
     const { db, calls } = setup(tables());
     await createGroupWithAdmin({ name: 'Pack', inviteCode: 'FRESH1', ownerId: 'owner', today: '2026-07-01' }, db);
     expect(calls).toEqual([{ name: 'create_group_with_admin', args: { p_name: 'Pack', p_invite_code: 'FRESH1', p_owner_id: 'owner', p_today: '2026-07-01' } }]);
+  });
+
+  it('reads the group also when the function answers with a one-element array', async () => {
+    const group = { id: 'g9', name: 'Pack', invite_code: 'FRESH1', owner_id: 'owner', created_at: '2026-10-18T10:00:00Z' };
+    const { db } = setup(tables(), { create_group_with_admin: () => ({ data: [group] }) });
+    expect(await createGroupWithAdmin({ name: 'Pack', inviteCode: 'FRESH1', ownerId: 'owner', today: '2026-07-01' }, db)).toEqual(group);
   });
 
   it('returns the group, makes the owner admin and points the owner at the group', async () => {
