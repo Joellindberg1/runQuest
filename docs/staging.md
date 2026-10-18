@@ -90,6 +90,13 @@ ordning). Migrationer som staging har registrerat men repot saknar listas som va
 En ny migration i repot kommer med automatiskt vid nästa körning. Lead provar den i staging före prod
 (`docs/release.md`, "Migrationer provas i staging före prod").
 
+**v0.8.0:s migrationer 053–056** körs i filnamnsordning, vilket är rätt ordning (053 före 055, 056 sist). Skriptet kör dem i ett svep, så:
+vill du ha bevisen, kör före-frågorna för 055 (A1–A7) och katalogfrågan för 056 (sparar `proacl`) i filhuvudena FÖRE `--apply` på en
+stagingdatabas som har data, och efterfrågorna efteråt. 055 ska köras när ingen synk, cron eller titelomräkning pågår; i staging är Strava
+avstängt, så det räcker att ingen cron kör. Stoppar en av 053:s eller 055:s egna kontroller ändras ingenting; åtgärda orsaken (fråga ägaren om
+den rör data) och kör om. Vid `40P01` eller `55P03` är allt rullat tillbaka: kör om. På en helt ny stagingdatabas (efter `000_baseline`) finns
+inga titelinnehavare ännu, så kontrollerna går rakt igenom. Därefter kan `staging:seed-group` (kräver 053) och `create:group` köras (avsnitt 3 och 5).
+
 ### 2. `staging:seed-reference`
 
 Kopierar de här tabellerna från prod (och inget annat):

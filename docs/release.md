@@ -248,11 +248,25 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
    finns) och, efter RLS- eller policyändring, `get_advisors` (security). Filen ligger redan i release-PR:en.
 4. Backfill- och omräkningsskript (`backfill:*`, `reveal:badges`, `convert:wind-ms`): dry-run fritt, `--apply` kräver
    ägar-ja med dry-run-rapporten som underlag. Skripten skriver ut måldatabasens host.
-5. **Titelmigrationen 055 (`055_title_scope_group`)** körs när ingen Strava-synk, cron eller titelomräkning pågår (den tar
-   ACCESS EXCLUSIVE på `user_titles`/`title_leaderboard` och alla titellås i slutet). Kör före-frågorna A1–A7 i filens huvud
-   först och spara A4/A5; efter apply B1/B2, C1/C2, D1 och E1–E6, och `get_advisors` (security). Får den `40P01` (deadlock)
-   eller `lock_timeout` (55P03) har allt rullats tillbaka: vänta en stund och kör om hela filen. Stannar en av migrationens egna
-   kontroller (`migration 055 stopped/failed`) ändras ingenting; fråga ägaren, ändra ingen data för att få den att gå igenom.
+5. **Migrationerna 053–056 i v0.8.0 (ADR 012)** körs i den här ordningen, först i staging och sedan i prod med ett ja per migration:
+   053 `group_members`, 054 `group_settings`, 055 `title_scope_group`, 056 `revoke_legacy_title_function_execute`. 053, 054 och 055 är additiva
+   och körs FÖRE backend-deployen (ny kod mot gammal databas fungerar inte); ingen av dem körs efter deployen. 056 kan köras före eller efter
+   deployen (backend använder service role, som behåller execute) men alltid efter 055. Bevisfrågorna står i varje filhuvud; kör dem i staging och i prod.
+   - **053:** stannar migrationens egna förkontroller (fler än en grupp, användare utan grupp, oklar admin) ändras ingenting; fråga ägaren, ändra ingen
+     data för att få den att gå igenom. Efter apply: bevisfrågorna 1–7 i huvudet (aktiva medlemskap = användare med grupp, 0 avvikelser mot `users.group_id`,
+     exakt en admin per grupp och det är gruppens skapare, RLS på utan policyer, execute bara för `service_role`, främmande nycklar med cascade) och `get_advisors` (security). Skrev äldre kod
+     `users.group_id` mellan apply och deploy är filen idempotent: kör om den.
+   - **054:** efter apply bevisfrågorna i huvudet (RLS på, 0 policyer, ingen klientåtkomst, tabellen tom) och `get_advisors` (security).
+   - **055** körs när ingen Strava-synk, cron eller titelomräkning pågår (den tar ACCESS EXCLUSIVE på `user_titles`/`title_leaderboard` och alla
+     titellås i slutet). Kör före-frågorna A1–A7 i filens huvud först och spara A4/A5; efter apply B1/B2, C1/C2, D1 och E1–E6, och `get_advisors`
+     (security). Får den `40P01` (deadlock) eller `lock_timeout` (55P03) har allt rullats tillbaka: vänta en stund och kör om hela filen. Stannar en av
+     migrationens egna kontroller (`migration 055 stopped/failed`) ändras ingenting; fråga ägaren, ändra ingen data för att få den att gå igenom.
+   - **056:** kör katalogfrågan (`QUERY-START` i huvudet) FÖRE apply i varje miljö och spara `proacl` per funktion: rollbacken ska ge exakt
+     utgångsläget tillbaka, och miljöerna skiljer sig (staging har PUBLIC-execute, prod saknar det). Efter apply samma fråga igen (förväntat: public_execute,
+     anon och authenticated false, service_role true), triggerkontrollen i huvudet och `get_advisors` (security). Rök: en runda som bygger om topplistan
+     och en event-utbetalning går igenom. När 056 är applicerad i båda miljöerna tas den tillfälliga schemadiff-regeln bort (`docs/staging.md`, avsnitt 4).
+   - **Release-röken** kör konsistenskontrollen från 053 (inga avvikelser mellan `users.group_id` och aktivt medlemskap) och, efter 055, att en runda i
+     en grupp inte ändrar en annan grupps topplista (staging, `create:group`).
 
 ### 6. `announce:release`
 
