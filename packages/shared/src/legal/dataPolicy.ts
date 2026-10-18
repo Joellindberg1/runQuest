@@ -31,13 +31,12 @@ export interface LegalDocument {
 }
 
 /** Version av integritetstexten, 'YYYY-MM-DD[.N]'. Höjs vid varje innehållsändring. Väntelistans samtyckesversion är samma värde. */
-export const DATA_POLICY_VERSION = '2026-10-18';
+export const DATA_POLICY_VERSION = '2026-10-19';
 
 /**
- * Var Umami Cloud lagrar statistiken. PLATSHÅLLARE: ägaren kontrollerar regionen i Umami-kontot och skriver in den (t.ex. "the EU")
- * före release. Repot säger inte var, så ingen region får antas här. Ändringen höjer versionen igen (snapshotvakten).
+ * Var Umami Cloud lagrar statistiken: EU, Frankfurt (ägaren bekräftade regionen i Umami-kontot 2026-10-19).
  */
-const UMAMI_DATA_LOCATION = '[REGION: the owner fills in where Umami Cloud stores the data, before release]';
+const UMAMI_DATA_LOCATION = 'the EU, in Frankfurt (Germany)';
 
 /** Personuppgiftsansvarig (ägarbeslut 2026-10-13, publik visning godkänd av ägaren). */
 export const DATA_CONTROLLER: DataController = {
