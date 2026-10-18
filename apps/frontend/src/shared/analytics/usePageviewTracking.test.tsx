@@ -47,6 +47,14 @@ describe('page view tracking', () => {
     expect(send.mock.calls.map(([url]) => url)).toEqual(['/board', '/duels', '/runner/:id']);
   });
 
+  it('counts moving from one runner to another as a new page view, although both normalize to the same address', () => {
+    mount('/runner/anna');
+    settle();
+    act(() => go('/runner/bertil'));
+    settle();
+    expect(send.mock.calls.map(([url]) => url)).toEqual(['/runner/:id', '/runner/:id']);
+  });
+
   it('does not count a redirect as a page view: only the page the user lands on', () => {
     mount('/board');
     act(() => go('/login?next=%2Fboard', { replace: true }));
@@ -63,9 +71,9 @@ describe('page view tracking', () => {
   });
 
   it('keeps utm_ parameters on the landing page and sends nothing else from the query', () => {
-    mount('/?utm_source=newsletter&ref=anna');
+    mount('/?utm_source=email&ref=anna');
     settle();
-    expect(send).toHaveBeenCalledWith('/?utm_source=newsletter');
+    expect(send).toHaveBeenCalledWith('/?utm_source=email');
   });
 
   it('counts no page while the app is still deciding what to show, then counts the page it ends up on', () => {

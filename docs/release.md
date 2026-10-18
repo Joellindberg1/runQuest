@@ -218,11 +218,18 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
   med `VITE_APP_ENV=staging` ignorerar variabeln även om den satts av misstag. Lead sätter variabeln efter ägarens ja (Railway-variabler
   ändras bara så); ingen Railway-variabel är satt av koden eller av den här PR:en.
 - **Vad som skickas:** bara sidvisningar, och bara en normaliserad adress: routens mönster (`/runner/:id`, `/board`, `/login`), aldrig
-  den riktiga adressen. Query och fragment tas bort; på landningen behålls `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`
-  och `utm_term` (Umami läser kampanjerna ur adressen, annars blir kampanjvyn tom) om värdet är en enkel tagg (högst 64 tecken, inga
-  id-former). Okända adresser skickas som `/(not-found)`. Sidans titel ersätts av samma adress och hänvisningen skickas bara som
+  den riktiga adressen. Query och fragment tas bort; på landningen behålls `utm_source`, `utm_medium`, `utm_campaign` och
+  `utm_content` (Umami läser kampanjerna ur adressen, annars blir kampanjvyn tom), men bara värden som står på **vitlistan**
+  (`apps/frontend/src/shared/analytics/utmAllowlist.ts`). Jämförelsen ignorerar skiftläge och det som skickas är listans eget värde,
+  aldrig besökarens sträng; okända värden och `utm_term` tas bort. Ett fritt värde kunde annars bära ett id eller ett namn. Okända adresser skickas som `/(not-found)`. Sidans titel ersätts av samma adress och hänvisningen skickas bara som
   ursprung (`https://www.google.com`) eller, inne i appen, som föregående sidas normaliserade adress. Inga händelser, ingen
   rundata, inga distanser, inga namn och inget användar-id (Stravas API-policy 5.4 förbjuder analys på Strava-data).
+- **Lägga till en kampanjtagg:** när ägaren ska dela en länk, välj en kort etikett (ett ord, små bokstäver, inget som pekar ut en person),
+  lägg den i `utm_campaign` (kampanjen) eller `utm_content` (varianten) i `utmAllowlist.ts`, och använd exakt den i länken
+  (`https://www.runquest.dev/?utm_source=instagram&utm_medium=social&utm_campaign=<tagg>`). Ändringen är en liten PR med ett
+  tillägg i listan och släpps som vanligt; en tagg som inte står på listan visas som ingen kampanj alls. Källor och medier som redan
+  finns: `utm_source` instagram, facebook, messenger, whatsapp, sms, email, linkedin, x, reddit, strava, qr; `utm_medium` social,
+  referral, email, sms, qr, organic. Listorna för `utm_campaign` och `utm_content` börjar tomma.
 - **Cookiefritt:** Umami sätter inga cookies och koden skriver varken till cookies eller localStorage/sessionStorage (testat i
   `umamiPageviews.test.ts`). `data-do-not-track="true"` är påslaget: besökare som skickar Do Not Track räknas inte. Valet kostar
   några procent av sidvisningarna och stämmer med att tjänsten ska vara integritetsvänlig; det stör inte målet (trender, inte exakta tal).

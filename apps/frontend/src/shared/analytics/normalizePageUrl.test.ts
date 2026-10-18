@@ -36,23 +36,22 @@ describe('normalizePageUrl', () => {
     expect(normalizePageUrl(paths.duels, `?send=1&opponent=${UUID}`)).toBe('/duels');
     expect(normalizePageUrl(`/runner/${UUID}`, '?from=board&token=abc')).toBe('/runner/:id');
     expect(normalizePageUrl(paths.login, `?next=%2Frunner%2F${UUID}`)).toBe('/login');
-    expect(normalizePageUrl(paths.legal, '?utm_source=newsletter')).toBe('/legal');
+    expect(normalizePageUrl(paths.legal, '?utm_source=email&utm_medium=social')).toBe('/legal');
   });
 
-  it('keeps only the utm_ campaign parameters on the landing page', () => {
-    expect(normalizePageUrl(paths.landing, '?utm_source=newsletter&utm_medium=email&utm_campaign=launch&utm_content=hero&utm_term=run'))
-      .toBe('/?utm_source=newsletter&utm_medium=email&utm_campaign=launch&utm_content=hero&utm_term=run');
-    expect(normalizePageUrl(paths.landing, `?utm_source=friends&next=%2Frunner%2F${UUID}&token=abc&id=${UUID}`)).toBe('/?utm_source=friends');
+  it('keeps only allow-listed utm_ campaign values on the landing page', () => {
+    expect(normalizePageUrl(paths.landing, '?utm_source=instagram&utm_medium=social&utm_term=run')).toBe('/?utm_source=instagram&utm_medium=social');
+    expect(normalizePageUrl(paths.landing, `?utm_source=whatsapp&next=%2Frunner%2F${UUID}&token=abc&id=${UUID}`)).toBe('/?utm_source=whatsapp');
     expect(normalizePageUrl(paths.landing, '?fbclid=abc&ref=anna')).toBe('/');
   });
 
-  it('drops a utm_ value that is not a plain campaign tag', () => {
-    expect(normalizePageUrl(paths.landing, `?utm_source=${UUID}&utm_campaign=${'x'.repeat(65)}&utm_medium=social`)).toBe('/?utm_medium=social');
+  it('drops a utm_ value that is not on the allow-list', () => {
+    expect(normalizePageUrl(paths.landing, `?utm_source=${UUID}&utm_medium=social`)).toBe('/?utm_medium=social');
     expect(normalizePageUrl(paths.landing, '?utm_source=a%2Fb&utm_medium=%3Cscript%3E&utm_campaign=')).toBe('/');
   });
 
   it('never carries the fragment', () => {
     expect(normalizePageUrl(paths.legal, '#privacy')).toBe('/legal');
-    expect(normalizePageUrl(paths.landing, '?utm_source=x#section')).toBe('/?utm_source=x');
+    expect(normalizePageUrl(paths.landing, '?utm_source=email#section')).toBe('/?utm_source=email');
   });
 });

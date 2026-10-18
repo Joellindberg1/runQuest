@@ -42,6 +42,15 @@ describe('page views in the app', () => {
     expect(umamiScript()!.dataset.websiteId).toBe(WEBSITE_ID);
   });
 
+  it('loads no script for a staging build, even if the website id is set by mistake', async () => {
+    vi.stubEnv('VITE_UMAMI_WEBSITE_ID', WEBSITE_ID);
+    vi.stubEnv('VITE_APP_ENV', 'staging');
+    render(<App />);
+    await screen.findByRole('heading', { level: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(umamiScript()).toBeNull();
+  });
+
   it('loads no script for a build without a website id', async () => {
     vi.stubEnv('VITE_UMAMI_WEBSITE_ID', '');
     render(<App />);

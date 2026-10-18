@@ -48,6 +48,9 @@ interface UmamiTracker {
 
 const trackerOf = (win: Window): UmamiTracker | undefined => (win as Window & { umami?: UmamiTracker }).umami;
 
+/** Så många sidvisningar får vänta på skriptet; fler än så och de äldsta kastas, så minnet växer aldrig om skriptet aldrig blir klart. */
+const MAX_QUEUED = 50;
+
 const pathOnly = (url: string): string => url.split('?')[0] ?? url;
 
 /**
@@ -86,6 +89,11 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
     }
   };
 
+  const giveUp = () => {
+    broken = true;
+    queue.length = 0;
+  };
+
   const loadScript = () => {
     const script = doc.createElement('script');
     script.src = UMAMI_SCRIPT_SRC;
@@ -95,8 +103,9 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
     script.dataset.autoTrack = 'false';
     script.dataset.doNotTrack = 'true';
     script.dataset.domains = UMAMI_DOMAINS;
-    script.addEventListener('load', flush);
-    script.addEventListener('error', () => { broken = true; queue.length = 0; });
+    // Ett skript som laddats utan att ge oss en tracker (en annan fil bakom samma adress, ett tomt svar) kan inte användas: ge upp.
+    script.addEventListener('load', () => (trackerOf(win) ? flush() : giveUp()));
+    script.addEventListener('error', giveUp);
     doc.head.appendChild(script);
   };
 
@@ -114,6 +123,7 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
       const referrer = previousUrl === null ? externalReferrer() : `${win.location.origin}${pathOnly(previousUrl)}`;
       previousUrl = url;
       queue.push({ url, referrer });
+      if (queue.length > MAX_QUEUED) queue.shift();
       request();
       flush();
     },
