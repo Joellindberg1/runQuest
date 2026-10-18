@@ -993,6 +993,22 @@ describe('nightly reconcile and the recalculation marks', () => {
     expect(marks.rows()).toEqual([]);
   });
 
+  it('reconcile marks the old date, not the new one, before it moves a run to a later day', async () => {
+    // The days from the old date on are the ones that change: the run leaves its old day.
+    const marks = createInMemoryMarkStore();
+    const movedLater = activityOf(7345001, D14);
+    const { t, reconciler } = build({
+      tables: { runs: [storedRun(activityOf(7345001, D12))] },
+      routes: { athleteActivities: [movedLater], activities: { 7345001: movedLater } },
+      marks,
+    });
+
+    await reconciler.run();
+
+    expect(t.runs[0]).toMatchObject({ date: '2026-10-14' });
+    expect(marks.calls).toEqual(['mark:user-1:2026-10-12', 'clear:user-1:1']);
+  });
+
   it('reconcile marks the stored date before it changes only the distance of a run', async () => {
     const marks = createInMemoryMarkStore();
     const { reconciler } = build({
