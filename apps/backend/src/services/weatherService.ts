@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { wallClockToInstantMs } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 interface RunForWeather {
   id: string;
@@ -74,7 +75,7 @@ export class WeatherService {
       logger.info(`[WeatherService] Saved weather for run ${run.id}`);
       return true;
     } catch (err) {
-      logger.warn(`[WeatherService] Failed to fetch weather for run ${run.id}:`, err);
+      logger.warn(`[WeatherService] Failed to fetch weather for run ${run.id} (${errorCode(err)})`);
       return false;
     }
   }
@@ -92,7 +93,7 @@ export class WeatherService {
       .not('start_time', 'is', null);
 
     if (error || !runs || runs.length === 0) {
-      if (error) logger.warn('[WeatherService] backfill query failed:', error);
+      if (error) logger.warn(`[WeatherService] backfill query failed (${errorCode(error)})`);
       return 0;
     }
 

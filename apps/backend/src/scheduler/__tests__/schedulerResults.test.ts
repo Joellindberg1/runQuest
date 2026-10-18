@@ -75,9 +75,10 @@ describe('streakScheduler', () => {
     await recalculateAllStreaks();
 
     expect(errorLines().some((l) => /StreakScheduler.*2 of 3/.test(l))).toBe(true);
-    // orsakerna följer med som kontext
+    // orsakernas felkoder följer med i texten, aldrig meddelandena (de kan bära radvärden)
     const call = errorSpy.mock.calls.find((c: unknown[]) => /2 of 3/.test(String(c[0])))!;
-    expect(JSON.stringify(call.slice(1), (_k, v) => (v instanceof Error ? v.message : v))).toMatch(/boom u1.*boom u3/);
+    expect(String(call[0])).toContain('(Error)');
+    expect(JSON.stringify(call)).not.toMatch(/boom/);
   });
 
   it('lyckad körning: bara info-raden, inget error', async () => {

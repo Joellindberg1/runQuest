@@ -1,6 +1,7 @@
 import { supabase } from '../config/database';
 import { logger } from '../utils/logger.js';
 import type { TitleContext } from '../titleEngines/types';
+import { errorCode } from '../utils/errorCode.js';
 
 /**
  * Klockan som group-eligibility räknar med (RUN-141): tidpunkten för senaste titelomräkningen, så att "Best so far"
@@ -43,7 +44,7 @@ export async function getTitleRecalcContext(): Promise<TitleContext> {
     // Aldrig framåt i tiden: en klocka före request-tiden är poängen, en efter den vore ett fel i data.
     return { now: parsed < requestTime ? parsed : requestTime };
   } catch (error) {
-    logger.warn('⚠️ Could not read last title recalculation time; using request time:', error);
+    logger.warn(`⚠️ Could not read last title recalculation time; using request time (${errorCode(error)})`);
     return { now: requestTime };
   }
 }

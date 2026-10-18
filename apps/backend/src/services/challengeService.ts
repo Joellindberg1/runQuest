@@ -6,6 +6,7 @@ import { recordChallengeSettled } from './activityLog.js';
 import { recordRankPassesForChallenge } from './rankNews.js';
 import { MS_DAY } from '@runquest/shared';
 import { todayStockholm } from '../utils/dateUtils.js';
+import { errorCode } from '../utils/errorCode.js';
 
 // Boost-tillämpningen bor i @runquest/shared (boostDeltasForRuns) och anropas
 // från reprocessRunsFromDate. multiplier_runs är statelös — `remaining` på
@@ -81,7 +82,7 @@ export async function reconcileTokensForLevel(
         .delete()
         .in('id', (orphaned as any[]).map((t) => t.id));
       if (error) {
-        logger.error('❌ Failed to remove orphaned tokens:', error);
+        logger.error(`❌ Failed to remove orphaned tokens (${errorCode(error)})`);
       } else {
         logger.info(`🗑️ Removed ${orphaned.length} orphaned token(s) for user ${userId} (regression to level ${newLevel})`);
       }
@@ -144,7 +145,7 @@ async function awardTokenForLevel(userId: string, level: number, tier: string): 
   });
 
   if (error) {
-    logger.error(`❌ Failed to award ${tier} token at level ${level}:`, error);
+    logger.error(`❌ Failed to award ${tier} token at level ${level} (${errorCode(error)})`);
     throw new Error(`Failed to award ${tier} token at level ${level}: ${error.message}`);
   }
 
@@ -311,7 +312,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     const { error: boostError } = await supabase.from('user_boosts').insert([winnerBoost, loserBoost]);
 
     if (boostError) {
-      logger.error(`❌ Boost insert failed for challenge ${challengeId}:`, boostError);
+      logger.error(`❌ Boost insert failed for challenge ${challengeId} (${errorCode(boostError)})`);
       const { error: releaseError } = await supabase
         .from('challenges')
         .update({ status: 'active', winner_id: null, outcome: null, challenger_final_value: null, opponent_final_value: null })
@@ -323,8 +324,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
         // avgjort resultat finns inte förrän någon rättat boostarna manuellt.
         logger.error(
           `🚨 KRITISK: challenge ${challengeId} is completed WITHOUT boosts and the claim could not be released — manual repair needed ` +
-          `(insert winner/loser rows in user_boosts or set the challenge back to active):`,
-          { boostError, releaseError },
+          `(insert winner/loser rows in user_boosts or set the challenge back to active) [boost insert: ${errorCode(boostError)}, release: ${errorCode(releaseError)}]`,
           new CriticalAlert('challenge_repair'),
         );
         const { error: freeError } = await supabase
@@ -332,7 +332,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
           .update({ challenge_active: false })
           .in('id', [challenge.challenger_id, challenge.opponent_id]);
         if (freeError) {
-          logger.error(`🚨 KRITISK: could not reset challenge_active for the players of challenge ${challengeId} either:`, freeError, new CriticalAlert('challenge_repair'));
+          logger.error(`🚨 KRITISK: could not reset challenge_active for the players of challenge ${challengeId} either (${errorCode(freeError)})`, new CriticalAlert('challenge_repair'));
         }
         throw new Error(
           `Failed to create boosts for challenge ${challengeId}: ${boostError.message}; ` +
@@ -353,7 +353,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     .update({ challenge_active: false })
     .in('id', [challenge.challenger_id, challenge.opponent_id]);
   if (activeError) {
-    logger.error(`❌ Failed to reset challenge_active after settling ${challengeId}:`, activeError);
+    logger.error(`❌ Failed to reset challenge_active after settling ${challengeId} (${errorCode(activeError)})`);
     postClaimErrors.push(`challenge_active reset failed: ${activeError.message}`);
   }
 
@@ -366,7 +366,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     .in('id', [challenge.challenger_id, challenge.opponent_id]);
 
   if (usersError) {
-    logger.error(`❌ Failed to read W/D/L after settling ${challengeId}:`, usersError);
+    logger.error(`❌ Failed to read W/D/L after settling ${challengeId} (${errorCode(usersError)})`);
     postClaimErrors.push(`W/D/L read failed: ${usersError.message}`);
   } else if (users) {
     const wdlResults = await Promise.all(
@@ -384,7 +384,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     );
     for (const res of wdlResults) {
       if (res.error) {
-        logger.error(`❌ Failed to update W/D/L after settling ${challengeId}:`, res.error);
+        logger.error(`❌ Failed to update W/D/L after settling ${challengeId} (${errorCode(res.error)})`);
         postClaimErrors.push(`W/D/L update failed: ${res.error.message}`);
       }
     }
