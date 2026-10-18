@@ -231,6 +231,25 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **News-radens ikonkolumn är 30 px på mobil men övriga rader har 26 px** (spec §5: `--rq-badge-news-icon-w`, "när den bär ett sm-emblem"), så texten på badge-rader börjar 4 px längre in än på övriga rader. Tokenen heter `--rq-news-row-icon-badge-w` (news-vakten läser `--rq-news-*`; badges-vakten läser bara `badges.css`). Desktop 34 px = som övriga rader. Vill ägaren ha utlinjering bör `--rq-news-row-cols` (26 px) höjas till 30 px för alla rader.
 - **Flavor-storleken är `--rq-fs-body`** (15 px mobil, 17 desktop): första `--rq-fs-*`-steget ≥ 14 px som inte är en knappstorlek (`--rq-fs-btn-sm` = 14 px finns men är en knappkonstant).
 - **Skelettet är en loop (`infinite`)** — F8 anger `rqSkel` 1.6 s och det är en laddare som pulserar tills datan kommer. Vakttestet "inget infinite i badges.css" gäller bara emblemreglerna (undantag för `.rq-badge-skel`).
+## Grupper och titlar per grupp (v0.8.0, ADR 012)
+
+- **`onGroupSettingsChanged` loggar bara.** Sömmen i `PUT /api/groups/settings` anropas en gång per effektiv ändring men gör inget utöver att logga. Utskicket till
+  gruppen (Pack News och notis, ägarbeslut F4) kopplas av en senare story, som ska deduplicera på innehåll (groupId + nyckel + från→till), eftersom två
+  samtidiga PUT kan ge meddelanden i omvänd ordning. Blir fel om den storyn dedupar på tid eller på anrop.
+- **Inga gruppnycklar är registrerade i `SETTING_DEFINITIONS`** (ägarbeslut F1: infrastrukturen byggs nu, inte nycklarna). Varje PUT med en nyckel ger 400 och
+  `group_settings` är tom i prod. Blir fel om något räknar med att en gruppinställning har effekt innan första nyckeln är registrerad.
+- **Eventtypen `group_setting_changed` är reserverad men inte i `ACTIVITY_TYPES` eller CHECK-constrainten.** Den story som registrerar första nyckeln lägger typ,
+  CHECK-migration (efter deploy, som 050), klassificering, newsModel och notisslag; ett vakttest fäller bygget om en gruppnyckel registreras utan typen.
+- **Att gå med i en grupp har ingen UI.** `POST /api/groups/join` finns och ger 409 vid aktivt medlemskap, men ingen skärm anropar den (ADR 012 N3). Flera medlemskap,
+  lämna grupp och gruppbyte hör till RUN-95.
+- **JWT:s `group_id` är inaktuell efter join.** Titelrutterna och `GET /api/groups/my` tar gruppen ur token tills ny inloggning (`/groups/my` kontrollerar dessutom
+  färskt att medlemskapet finns i just den gruppen och ger annars 404). Skrivvägarna (`resolveActingGroupForWrite`, gruppinställningar) läser medlemskapet
+  färskt. Blir fel om en användare går med utan att logga in igen: hen ser tomt tills dess.
+- **Låtsasgruppens admin har rollen `admin` i `group_members` men inte `users.is_admin`** (N6, ADR 012 beslut 2.6). `requireAdmin`-rutterna och admin-UI:t visas därför inte för
+  det kontot; `PUT /api/groups/settings` fungerar. Ägaren sätter `is_admin` i staging om en test behöver det. Löses när gruppnära rutter flyttas till rollen (RUN-267/RUN-95).
+- **`activity_log.dedupe_key` saknar grupp.** Nyckeln för `title_taken`, `title_unlocked` och `title_revoked` bär användare, titel, värde och dag men inte gruppen. Med flera
+  medlemskap (RUN-95) kan samma användare, titel, värde och dag i två grupper kollidera och den andra raden tappas. Ofarligt med ett medlemskap per användare i v0.8.0.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
