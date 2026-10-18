@@ -677,6 +677,57 @@ describe('a seam that never answers', () => {
   });
 });
 
+describe('the seam runs after the group lock is released', () => {
+  it('a hanging seam does not delay the next write on the same group, even with a long timeout', async () => {
+    let calls = 0;
+    let release!: () => void;
+    const hang = new Promise<void>((resolve) => { release = resolve; });
+    const app = express();
+    app.use(express.json());
+    app.use('/api/groups/settings', createGroupSettingsRouter(REGISTRY, {
+      // Bara det första anropet hänger; det andra svarar direkt. Gränsen är lång, så det är låset och inte tidsgränsen som skulle fördröja.
+      onGroupSettingsChanged: () => (++calls === 1 ? hang : undefined),
+      announceTimeoutMs: 5000,
+    }));
+    const local = await startServer(app);
+    try {
+      use();
+      const first = local.request('PUT', '/api/groups/settings', { token: token(ADMIN), body: { values: { [DIGEST.key]: true } } });
+      while (calls < 1) await sleep(5);
+      const second = local.request('PUT', '/api/groups/settings', { token: token(ADMIN), body: { values: { [PACE.key]: 'hard' } } });
+      const answered = await Promise.race([second.then((res) => res.status), sleep(1000).then(() => 'still waiting' as const)]);
+      expect(answered).toBe(200);
+      release();
+      expect((await first).status).toBe(200);
+    } finally {
+      release();
+      await local.close();
+    }
+  });
+});
+
+describe('updatedAt of a write', () => {
+  it('is the time of the request, on the rows and in the event', async () => {
+    const { tables } = use();
+    await sleep(10);
+    const startedAt = Date.now();
+    await put(ADMIN, { values: { [DIGEST.key]: true } });
+    const finishedAt = Date.now();
+    const written = Date.parse(tables.group_settings[0].updated_at);
+    expect(written).toBeGreaterThanOrEqual(startedAt);
+    expect(written).toBeLessThanOrEqual(finishedAt);
+    expect(changes[0].updatedAt).toBe(tables.group_settings[0].updated_at);
+  });
+
+  it('is later for a later write, so a changed value gets a new timestamp', async () => {
+    use();
+    await put(ADMIN, { values: { [DIGEST.key]: true } });
+    await sleep(10);
+    await put(ADMIN, { values: { [DIGEST.key]: false } });
+    expect(Date.parse(changes[1].updatedAt)).toBeGreaterThan(Date.parse(changes[0].updatedAt));
+  });
+});
+
 describe('PUT /api/groups/settings rate limit', () => {
   it('stops PUT with 429 after 60 requests per minute and leaves GET alone', async () => {
     use();
