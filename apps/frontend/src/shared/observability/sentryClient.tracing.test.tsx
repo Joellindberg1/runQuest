@@ -186,6 +186,16 @@ describe('page load transaction', () => {
     expect(trace).not.toHaveProperty('user_segment');
   });
 
+  it('has the sampling number in the envelope trace header as Math.random gave it, with all its decimals', async () => {
+    window.history.replaceState({}, '', '/board');
+    vi.spyOn(Math, 'random').mockReturnValue(0.07102618656499637);
+    Sentry = await startFresh({ documentPath: '/board' });
+
+    await waitFor(() => transactions.length >= 1);
+
+    expect(envelopeHeaders.find((header) => header.trace)?.trace?.sample_rand).toBe('0.07102618656499637');
+  });
+
   it('is not measured when the page was loaded on the landing page, since it would be the landing page that was measured', async () => {
     window.history.replaceState({}, '', '/board');
     Sentry = await startFresh({ documentPath: '/' });

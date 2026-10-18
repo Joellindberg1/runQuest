@@ -355,6 +355,14 @@ describe('the trace context that goes into the envelope header', () => {
     expect(scrubbed).not.toHaveProperty('trace_id');
   });
 
+  it.each(['0.07102618656499637', '0.08335781411790813', '5e-7', '1e-10', '0', '1', '0.5'])('keeps the sampling number %s that Math.random can give', (sampleRand) => {
+    expect(scrubbedDsc({ sample_rand: sampleRand })).toHaveProperty('sample_rand', sampleRand);
+  });
+
+  it.each(['1.5', '-0.1', 'abc', '0.1x', '', '2e-0', '0.5 anna@example.com', '1e5'])('drops the sampling number %j', (sampleRand) => {
+    expect(scrubbedDsc({ sample_rand: sampleRand })).not.toHaveProperty('sample_rand');
+  });
+
   it('sends nothing else from the processing metadata', () => {
     const scrubbed = scrubSentryEvent({ message: 'x', sdkProcessingMetadata: { dynamicSamplingContext: dsc(), normalizedRequest: { url: 'https://runquest.dev/board?token=abc' }, ipAddress: '1.2.3.4' } } as never, []);
     expect(Object.keys((scrubbed! as { sdkProcessingMetadata: object }).sdkProcessingMetadata)).toEqual(['dynamicSamplingContext']);

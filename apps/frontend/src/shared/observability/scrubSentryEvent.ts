@@ -175,13 +175,21 @@ function rebuildDebugMeta(value: unknown, storageValues: readonly string[]): { i
   return { images };
 }
 
+/**
+ * Ett tal mellan 0 och 1 skrivet som JavaScript skriver det: decimaler (Math.random ger ofta 17) eller exponentform (`5e-7`).
+ * Formen och värdet kontrolleras båda, så ett annat tal eller en text med ett tal i går aldrig igenom.
+ */
+function isUnitFraction(value: unknown): boolean {
+  return typeof value === 'string' && /^\d(\.\d+)?(e-\d{1,3})?$/.test(value) && Number(value) >= 0 && Number(value) <= 1;
+}
+
 const DSC_VALID: Record<string, (value: unknown) => boolean> = {
   release: SDK_METADATA_VALID.release as (value: unknown) => boolean,
   environment: SDK_METADATA_VALID.environment as (value: unknown) => boolean,
   public_key: (value) => typeof value === 'string' && /^[\w-]{1,64}$/.test(value),
   trace_id: (value) => typeof value === 'string' && /^[0-9a-f]{32}$/i.test(value),
-  sample_rate: (value) => typeof value === 'string' && /^(0|1|0\.\d{1,6})$/.test(value),
-  sample_rand: (value) => typeof value === 'string' && /^(0|1|0\.\d{1,16})$/.test(value),
+  sample_rate: isUnitFraction,
+  sample_rand: isUnitFraction,
   sampled: (value) => value === 'true' || value === 'false',
   org_id: (value) => typeof value === 'string' && /^\d{1,20}$/.test(value),
 };
