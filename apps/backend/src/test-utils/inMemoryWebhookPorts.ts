@@ -223,6 +223,7 @@ export function createInMemoryRecompute(): InMemoryRecompute {
     async recalculateTotals(userId) {
       recompute.calls.push({ kind: 'totals', userId });
       if (recompute.totalsError) throw recompute.totalsError;
+      return true;
     },
     async fetchWeather(runs) {
       recompute.calls.push({ kind: 'weather', runIds: runs.map((run) => run.id) });

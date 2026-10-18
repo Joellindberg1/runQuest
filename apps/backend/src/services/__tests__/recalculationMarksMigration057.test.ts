@@ -39,9 +39,10 @@ describe(`migration ${file}`, () => {
     expect(createTable.match(/\breferences\b/g)).toHaveLength(1);
   });
 
-  it('has the date, a version that starts at 1 and a timestamp, all not null', () => {
+  it('has the date, a version from a sequence and a timestamp, all not null', () => {
     expect(createTable).toContain('from_date date not null');
-    expect(createTable).toContain('version bigint not null default 1');
+    expect(createTable).toContain("version bigint not null default nextval('public.recalculation_mark_version_seq')");
+    expect(createTable).not.toMatch(/version bigint not null default \d/);
     expect(createTable).toContain('marked_at timestamptz not null default now()');
   });
 
@@ -54,12 +55,27 @@ describe(`migration ${file}`, () => {
     expect(normalizedCode.indexOf('revoke all on public.recalculation_marks')).toBeGreaterThan(normalizedCode.indexOf('create table'));
   });
 
-  it('mark_recalculation is an idempotent upsert that keeps the earliest date and raises the version by one', () => {
+  it('the version sequence is created before the table, usable by service_role only, and proven by the postcheck', () => {
+    expect(statements).toContain('create sequence if not exists public.recalculation_mark_version_seq');
+    expect(statements.indexOf('create sequence if not exists public.recalculation_mark_version_seq')).toBeLessThan(statements.findIndex((s) => s.startsWith('create table')));
+    expect(statements).toContain('revoke all on sequence public.recalculation_mark_version_seq from public, anon, authenticated');
+    expect(statements).toContain('grant usage on sequence public.recalculation_mark_version_seq to service_role');
+    expect(normalizedCode).not.toMatch(/grant [^;]* on sequence [^;]* to [^;]*\b(anon|authenticated|public)\b/);
+    const postcheck = normalize(code.match(/do \$postcheck\$[\s\S]*?\$postcheck\$;/i)?.[0] ?? '');
+    expect(postcheck).toContain("has_sequence_privilege('anon'");
+    expect(postcheck).toContain("has_sequence_privilege('authenticated'");
+    expect(postcheck).toContain("has_sequence_privilege('service_role'");
+  });
+
+  it('mark_recalculation is an idempotent upsert that keeps the earliest date and takes a new version from the sequence on both paths', () => {
     const body = fnBody('mark_recalculation');
     expect(body).toContain('create or replace function public.mark_recalculation(p_user_id uuid, p_from_date date) returns bigint');
     expect(body).toContain('on conflict (user_id) do update');
     expect(body).toContain('from_date = least(m.from_date, excluded.from_date)');
-    expect(body).toContain('version = m.version + 1');
+    // Insert och update tar var sitt nextval: en version som räknas om från raden (m.version + 1) börjar om när raden rensats (ABA).
+    expect(body).toContain("values (p_user_id, p_from_date, nextval('public.recalculation_mark_version_seq'))");
+    expect(body).toContain("version = nextval('public.recalculation_mark_version_seq')");
+    expect(body).not.toMatch(/m\.version \+ 1/);
     expect(body).toContain('returning m.version into v_version');
     expect(body).toContain('return v_version');
     // Ett NULL-argument är ett fel, inte en markering utan datum.
@@ -116,7 +132,7 @@ describe(`migration ${file}`, () => {
     expect(postcheck).toContain('raise exception');
   });
 
-  it('header has a commented rollback that drops the two functions and the table, and nothing else', () => {
+  it('header has a commented rollback that drops the two functions, the table and the sequence, in that order, and nothing else', () => {
     const rollback = sql
       .split('\n')
       .filter((l) => /^--\s+drop\b/i.test(l))
@@ -125,6 +141,7 @@ describe(`migration ${file}`, () => {
       'drop function if exists public.clear_recalculation_mark(uuid, bigint);',
       'drop function if exists public.mark_recalculation(uuid, date);',
       'drop table if exists public.recalculation_marks;',
+      'drop sequence if exists public.recalculation_mark_version_seq;',
     ]);
   });
 });

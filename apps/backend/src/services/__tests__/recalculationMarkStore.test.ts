@@ -122,17 +122,41 @@ describe('recalculation mark store', () => {
     await expect(store.read('user-2')).resolves.toBeNull();
   });
 
-  it('the in-memory store used by the other tests follows the same contract: least date, version + 1, clear only on the same version', async () => {
+  it('the in-memory store used by the other tests follows the same contract: least date, a rising version, clear only on the same version', async () => {
     const memory = createInMemoryMarkStore();
 
-    expect(await memory.mark('user-1', '2026-10-13')).toBe(1);
-    expect(await memory.mark('user-1', '2026-10-20')).toBe(2); // a later date does not move the mark later
-    expect(await memory.read('user-1')).toEqual({ userId: 'user-1', fromDate: '2026-10-13', version: 2 });
-    expect(await memory.mark('user-1', '2026-10-05')).toBe(3);
-    expect(await memory.read('user-1')).toEqual({ userId: 'user-1', fromDate: '2026-10-05', version: 3 });
-    expect(await memory.clear('user-1', 2)).toBe(false); // an old version clears nothing
-    expect(await memory.clear('user-1', 3)).toBe(true);
+    const first = await memory.mark('user-1', '2026-10-13');
+    const second = await memory.mark('user-1', '2026-10-20'); // a later date does not move the mark later
+    expect(second).toBeGreaterThan(first);
+    expect(await memory.read('user-1')).toEqual({ userId: 'user-1', fromDate: '2026-10-13', version: second });
+    const third = await memory.mark('user-1', '2026-10-05');
+    expect(third).toBeGreaterThan(second);
+    expect(await memory.read('user-1')).toEqual({ userId: 'user-1', fromDate: '2026-10-05', version: third });
+    expect(await memory.clear('user-1', second)).toBe(false); // an old version clears nothing
+    expect(await memory.clear('user-1', third)).toBe(true);
     expect(await memory.read('user-1')).toBeNull();
-    expect(await memory.clear('user-1', 3)).toBe(false);
+    expect(await memory.clear('user-1', third)).toBe(false);
+  });
+
+  it('a version is never used twice, also after the mark was cleared and written again, so a late clear with the old version does nothing', async () => {
+    // The ABA case: the job reads version v, a recalculation clears v (the row is gone), a new deletion marks the user again, and the job
+    // clears "v". With a version that starts over on a new row the new mark would be deleted without a recalculation.
+    const memory = createInMemoryMarkStore();
+    const old = await memory.mark('user-1', '2026-10-13');
+    expect(await memory.clear('user-1', old)).toBe(true);
+
+    const fresh = await memory.mark('user-1', '2026-10-20');
+
+    expect(fresh).not.toBe(old);
+    expect(fresh).toBeGreaterThan(old);
+    expect(await memory.clear('user-1', old)).toBe(false);
+    expect(await memory.read('user-1')).toEqual({ userId: 'user-1', fromDate: '2026-10-20', version: fresh });
+  });
+
+  it('versions are one sequence over all users, not one counter per user', async () => {
+    const memory = createInMemoryMarkStore();
+    const a = await memory.mark('user-1', '2026-10-13');
+    const b = await memory.mark('user-2', '2026-10-13');
+    expect(b).toBeGreaterThan(a);
   });
 });

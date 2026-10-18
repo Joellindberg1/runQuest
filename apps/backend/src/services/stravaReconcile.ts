@@ -60,6 +60,7 @@ import {
 import { nightIndex, planUser, reconcileWindow, rotationSlice, type ListedActivity, type StoredRun } from './stravaReconcile/plan.js';
 import type { ReconcilePorts, ReconcileUser } from './stravaReconcile/ports.js';
 import { tryClear } from './recalculationMarks/bestEffort.js';
+import { assertTotalsWritten } from './recalculationMarks/totals.js';
 import type { RecalculationMarkStore } from './recalculationMarks/ports.js';
 import type { RateBudget, Recompute, RunStore, StravaApi, WebhookEventRow } from './stravaWebhook/ports.js';
 import { createActivityUpdateHandler } from './stravaWebhook/handlers/activityUpdate.js';
@@ -214,7 +215,8 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
         await recompute.reprocessFrom(userId, from);
-        await recompute.recalculateTotals(userId);
+        // calculateUserTotals never throws: a failed totals run is a returned false, which counts as a failed try (and keeps the mark).
+        assertTotalsWritten(await recompute.recalculateTotals(userId));
         return true;
       } catch (error) {
         logger.error(`❌ Strava reconcile: the recalculation for user ${userId} failed, try ${attempt} of 2 (${errorCode(error)})`);
@@ -223,15 +225,26 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
     return false;
   }
 
+  /** What the marks of one user's checks have come to: the newest version written, and the error of the first mark that could not be. */
+  interface MarkState {
+    version: number | null;
+    failure: unknown;
+  }
+
   /**
    * The handler's RunStore with the mark written first. `stored` is the run as it is right now (read under the lock, so the handler sees
    * the same): a removal marks its date; an update marks the earlier of its date and the new one, since a run moved to an earlier day
    * makes the days from there on wrong. A mark that fails throws before anything is written, and the caller counts the check as
    * failed. `latest` is the newest version the marks returned: the clear after the recalculation uses it.
    */
-  function markedRuns(userId: string, stored: { date: string }, latest: { version: number | null }): RunStore {
+  function markedRuns(userId: string, stored: { date: string }, latest: MarkState): RunStore {
     const mark = async (fromDate: string) => {
-      latest.version = await marks.mark(userId, fromDate);
+      try {
+        latest.version = await marks.mark(userId, fromDate);
+      } catch (error) {
+        latest.failure = error; // checkRuns ends this user's checks: marks.mark does not work, and every further check would fail the same way
+        throw error;
+      }
     };
     return {
       ...runs,
@@ -306,7 +319,7 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
 
       let recalculateFrom: string | null = null;
       let removedForUser = 0;
-      const latestMark: { version: number | null } = { version: null };
+      const latestMark: MarkState = { version: null, failure: undefined };
       for (const externalId of externalIds) {
         if (stopBeforeRequest()) break;
         if (removedForUser >= RECONCILE_MAX_REMOVALS_PER_USER) {
@@ -338,6 +351,14 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
           });
         } catch (error) {
           summary.failed += 1;
+          if (latestMark.failure !== undefined) {
+            // The mark could not be written, so nothing was changed. Every further check of this user would ask Strava and then fail the
+            // same way: stop here, say it once, and leave the rest for the next night instead of spending the budget every night.
+            logger.warn(
+              `⚠️ Strava reconcile: the recalculation mark of user ${userId} could not be written (${errorCode(latestMark.failure)}); nothing was changed and the rest of the user's checks wait for the next night`,
+            );
+            break;
+          }
           logger.warn(`⚠️ Strava reconcile: a run of user ${userId} could not be checked (${errorCode(error)}); it stays`);
           continue;
         }

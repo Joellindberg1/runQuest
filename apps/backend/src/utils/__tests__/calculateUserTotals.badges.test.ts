@@ -97,7 +97,7 @@ describe('calculateUserTotals → evaluateBadges', () => {
     const t = tables();
     use(t);
     vi.mocked(evaluateBadges).mockRejectedValue(new Error('badges boom'));
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(true); // kastar aldrig; totalerna skrevs före felet
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12, current_level: 2 });
     expect(processGroupTitles).toHaveBeenCalledWith('g1');
   });
@@ -105,7 +105,7 @@ describe('calculateUserTotals → evaluateBadges', () => {
   it('evaluateBadges som kastar synkront (inte bara avvisar) fäller heller inte kedjan', async () => {
     use(tables());
     vi.mocked(evaluateBadges).mockImplementation(() => { throw new Error('sync boom'); });
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(true); // kastar aldrig; totalerna skrevs före felet
     expect(processGroupTitles).toHaveBeenCalledWith('g1');
   });
 });

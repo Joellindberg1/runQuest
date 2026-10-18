@@ -1,7 +1,7 @@
 /**
  * In-memory version of the recalculation mark store (migration 057, RUN-322). Only for tests: server.ts never imports this folder.
- * It mirrors the SQL functions: `mark` is the upsert with least(from_date) and version + 1, `clear` deletes only when the version is
- * the caller's. The real SQL is proved against PGlite; these rules are the same ones.
+ * It mirrors the SQL functions: `mark` is the upsert with least(from_date) and a version from a sequence (nextval), `clear` deletes only
+ * when the version is the caller's. The real SQL is proved against PGlite; these rules are the same ones.
  */
 import type { PendingMark, RecalculationMarkStore } from '../services/recalculationMarks/ports.js';
 
@@ -21,6 +21,9 @@ export interface InMemoryMarkStore extends RecalculationMarkStore {
 export function createInMemoryMarkStore(): InMemoryMarkStore {
   const table = new Map<string, { fromDate: string; version: number; seq: number }>();
   let seq = 0;
+  // recalculation_mark_version_seq: one counter for all users that only goes up, so a version is never used twice, not even after the
+  // row was cleared and written again (the ABA case: version + 1 on the row would start over at 1).
+  let versionSequence = 0;
 
   const store: InMemoryMarkStore = {
     calls: [],
@@ -34,7 +37,8 @@ export function createInMemoryMarkStore(): InMemoryMarkStore {
       store.calls.push(`mark:${userId}:${fromDate}`);
       if (store.failMark) throw store.failMark;
       const existing = table.get(userId);
-      const version = existing ? existing.version + 1 : 1;
+      versionSequence += 1;
+      const version = versionSequence;
       seq += 1;
       table.set(userId, { fromDate: existing && existing.fromDate < fromDate ? existing.fromDate : fromDate, version, seq });
       const hook = store.afterNextMark;

@@ -90,12 +90,18 @@ ordning). Migrationer som staging har registrerat men repot saknar listas som va
 En ny migration i repot kommer med automatiskt vid nästa körning. Lead provar den i staging före prod
 (`docs/release.md`, "Migrationer provas i staging före prod").
 
-**v0.8.0:s migrationer 053–056** körs i filnamnsordning, vilket är rätt ordning (053 före 055, 056 sist). Skriptet kör dem i ett svep, så:
+**v0.8.0:s migrationer 053–056** körs i filnamnsordning, vilket är rätt ordning (053 före 055, 056 efter 055; 057 är oberoende av dem). Skriptet kör dem i ett svep, så:
 vill du ha bevisen, kör före-frågorna för 055 (A1–A7) och katalogfrågan för 056 (sparar `proacl`) i filhuvudena FÖRE `--apply` på en
 stagingdatabas som har data, och efterfrågorna efteråt. 055 ska köras när ingen synk, cron eller titelomräkning pågår; i staging är Strava
 avstängt, så det räcker att ingen cron kör. Stoppar en av 053:s eller 055:s egna kontroller ändras ingenting; åtgärda orsaken (fråga ägaren om
 den rör data) och kör om. Vid `40P01` eller `55P03` är allt rullat tillbaka: kör om. På en helt ny stagingdatabas (efter `000_baseline`) finns
 inga titelinnehavare ännu, så kontrollerna går rakt igenom. Därefter kan `staging:seed-group` (kräver 053) och `create:group` köras (avsnitt 3 och 5).
+
+**057 `create_recalculation_marks`** (RUN-322) följer med i samma svep (efter 056) och är additiv: tabellen `recalculation_marks`, sekvensen
+`recalculation_mark_version_seq` och funktionerna `mark_recalculation` och `clear_recalculation_mark`, alla bara för `service_role`. Den ska ligga på
+plats FÖRE backend-deployen: ny kod markerar före varje radering i avstämningen, och utan funktionerna raderas ingenting (säkert, men loggas). Bevisfrågorna
+Q1–Q5 (och Q4b för sekvensen) står i filhuvudet; efter apply ska Q5 ge 0 rader. Strava är avstängt i staging, så flödet bevisas i tester och PGlite,
+inte där.
 
 ### 2. `staging:seed-reference`
 

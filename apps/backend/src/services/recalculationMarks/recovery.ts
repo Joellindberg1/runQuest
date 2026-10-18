@@ -8,7 +8,8 @@
  * Per marked user, inside the user lock (the one the polling, the webhook batch, the reconcile and the disconnect take):
  *   1. the mark is read AGAIN under the lock: someone who held the lock may have recalculated and cleared it, or marked an earlier
  *      date, since the list was read;
- *   2. reprocessFrom(date), then recalculateTotals: the same two steps and the same order as every other recalculation;
+ *   2. reprocessFrom(date), then recalculateTotals: the same two steps and the same order as every other recalculation. The totals
+ *      step is only done when it RETURNS true: calculateUserTotals never throws, so a false answer is turned into a failure here;
  *   3. clear(version): removes the mark only if nothing has marked the user since step 1. A change that marked the user meanwhile
  *      keeps its mark, and the next run takes it.
  * A failure leaves the mark and costs nothing but a retry on the next run. Without a mark the job reads one (empty) table and does
@@ -22,6 +23,7 @@ import { withUserLock } from '../../utils/keyedMutex.js';
 import type { Recompute } from '../stravaWebhook/ports.js';
 import { RECOVERY_MAX_PER_RUN } from './constants.js';
 import type { RecalculationMarkStore } from './ports.js';
+import { assertTotalsWritten } from './totals.js';
 
 export interface RecoveryDeps {
   store: RecalculationMarkStore;
@@ -55,7 +57,7 @@ export function createRecalculationRecovery(deps: RecoveryDeps): RecalculationRe
     if (!mark) return 'gone';
 
     await recompute.reprocessFrom(userId, mark.fromDate);
-    await recompute.recalculateTotals(userId);
+    assertTotalsWritten(await recompute.recalculateTotals(userId)); // a false answer is a failure: the mark stays
     // false = a newer mark was written during the recalculation: it stays, and the next run takes it.
     await store.clear(userId, mark.version);
     return 'recalculated';

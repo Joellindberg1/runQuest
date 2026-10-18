@@ -153,7 +153,9 @@ export async function recomputeAfterRemoval(userId: string, fromDate: string): P
   let totalsDone = true;
   try {
     // A bulk path (the disconnect and the deauthorize purge): no rank_passed is written or retracted (ADR 011 decision 6, mass recalculation).
-    await calculateUserTotals(userId, { emitRankNews: false });
+    // calculateUserTotals never throws; it returns false when the totals were not written (RUN-322), which is a failure here too.
+    totalsDone = (await calculateUserTotals(userId, { emitRankNews: false })) !== false;
+    if (!totalsDone) logger.error(`❌ Strava removal: the totals were not written for user ${userId}`);
   } catch (error) {
     totalsDone = false;
     logger.error(`❌ Strava removal: the totals could not be recalculated for user ${userId} (${errorCode(error)})`);

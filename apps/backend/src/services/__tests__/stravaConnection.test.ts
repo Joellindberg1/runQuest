@@ -363,6 +363,40 @@ describe('the recalculation marks of a disconnect', () => {
     expect(marks.rows()).toEqual([]);
   });
 
+  it('leaves the mark when the totals run RETURNS false, which is how calculateUserTotals reports that it failed, and the recovery job finishes', async () => {
+    const marks = createInMemoryMarkStore();
+    const { tables } = setup({ runs: twoRuns() });
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(false);
+
+    await removeStravaConnection('user-1', { reason: 'user_disconnect', marks });
+
+    expect(tables.strava_tokens).toEqual([]);
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-09-01', version: expect.any(Number) }]);
+
+    vi.mocked(calculateUserTotals).mockResolvedValue(true);
+    const recovered = await createRecalculationRecovery({
+      store: marks,
+      recompute: { reprocessFrom: reprocessRunsFromDate, recalculateTotals: (userId) => calculateUserTotals(userId) },
+    }).run();
+    expect(recovered).toEqual({ found: 1, recalculated: 1, failed: 0 });
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('only logs and finishes when the mark cannot be cleared: the connection is still removed', async () => {
+    const marks = createInMemoryMarkStore();
+    marks.failClear = Object.assign(new Error('clear failed for user abc@example.com'), { code: '57P01' });
+    const { tables } = setup({ runs: twoRuns() });
+
+    await expect(removeStravaConnection('user-1', { reason: 'user_disconnect', marks })).resolves.toBeUndefined();
+
+    expect(tables.runs).toEqual([]);
+    expect(tables.strava_tokens).toEqual([]);
+    expect(marks.rows()).toHaveLength(1); // the recovery job repeats the recalculation once
+    const log = lines.join('\n');
+    expect(log).toContain('57P01');
+    expect(log).not.toContain('abc@example.com');
+  });
+
   it('does not let a mark that cannot be written stop the disconnect, which has its own recovery and a deadline of its own', async () => {
     const marks = createInMemoryMarkStore();
     marks.failMark = Object.assign(new Error('function does not exist for user abc@example.com'), { code: '42883' });

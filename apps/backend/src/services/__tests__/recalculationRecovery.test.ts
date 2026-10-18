@@ -31,15 +31,16 @@ afterEach(() => {
 });
 
 /** A recompute that writes down what it was asked to do, and fails where the test says so. */
-function recomputeWith(over: { reprocess?: (userId: string, from: string) => Promise<void>; totals?: (userId: string) => Promise<void> } = {}) {
+function recomputeWith(over: { reprocess?: (userId: string, from: string) => Promise<void>; totals?: (userId: string) => Promise<void | boolean> } = {}) {
   return {
     async reprocessFrom(userId: string, from: string) {
       calls.push(`reprocess:${userId}:${from}`);
       await over.reprocess?.(userId, from);
     },
+    // calculateUserTotals never throws: a failure is a RETURNED false. A fake that returns nothing is a success, as the real one is.
     async recalculateTotals(userId: string) {
       calls.push(`totals:${userId}`);
-      await over.totals?.(userId);
+      return (await over.totals?.(userId)) !== false;
     },
   };
 }
@@ -103,6 +104,24 @@ describe('recalculation recovery', () => {
     expect(store.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-10-13', version: 1 }]);
   });
 
+  it('keeps the mark when the totals are not written, which calculateUserTotals reports by returning false and not by throwing', async () => {
+    await store.mark('user-1', '2026-10-13');
+    let written = false;
+    const job = recovery({ totals: async () => written });
+
+    const first = await job.run();
+
+    expect(first).toEqual({ found: 1, recalculated: 0, failed: 1 });
+    expect(store.rows()).toHaveLength(1);
+    expect(logLines.join('\n')).toContain('totals_not_written');
+
+    written = true;
+    calls.length = 0;
+    expect(await job.run()).toEqual({ found: 1, recalculated: 1, failed: 0 });
+    expect(calls).toEqual(['reprocess:user-1:2026-10-13', 'totals:user-1']);
+    expect(store.rows()).toEqual([]);
+  });
+
   it('does not clear a mark that a newer change wrote while it was recalculating, and takes it on the next run from the earliest date', async () => {
     await store.mark('user-1', '2026-10-13');
     let marked = false;
@@ -123,6 +142,31 @@ describe('recalculation recovery', () => {
     calls.length = 0;
     await job.run();
     expect(calls).toEqual(['reprocess:user-1:2026-10-05', 'totals:user-1']);
+    expect(store.rows()).toEqual([]);
+  });
+
+  it('does not clear a mark that was cleared and written again during its recalculation (the version never repeats)', async () => {
+    const first = await store.mark('user-1', '2026-10-13');
+    let done = false;
+    const job = recovery({
+      reprocess: async (userId) => {
+        if (done) return;
+        done = true;
+        // Another writer finishes the same recalculation and clears the mark, then a new deletion marks the user again.
+        await store.clear(userId, first);
+        await store.mark(userId, '2026-10-20');
+      },
+    });
+
+    const summary = await job.run();
+
+    expect(summary.failed).toBe(0);
+    expect(store.rows()).toHaveLength(1); // the new mark is still there for the next run
+    expect(store.rows()[0]).toMatchObject({ userId: 'user-1', fromDate: '2026-10-20' });
+
+    calls.length = 0;
+    await job.run();
+    expect(calls).toEqual(['reprocess:user-1:2026-10-20', 'totals:user-1']);
     expect(store.rows()).toEqual([]);
   });
 

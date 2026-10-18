@@ -1,4 +1,4 @@
--- 057: recalculation_marks — en beständig markering per användare: "behöver omräkning från datum X" (RUN-322, ADR 010 beslut 13, v0.8.0).
+-- 057: recalculation_marks — en beständig markering per användare: "behöver omräkning från datum X" (RUN-322, ADR 010 beslut 8.5 och D12, v0.8.0).
 -- Datum: 2026-10-18. EJ APPLICERAD. Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
 -- (yrrqaxdngayakcivfrck). Körs av Lead via Supabase MCP apply_migration, name: 057_create_recalculation_marks, aldrig av en builder.
 -- Lead uppdaterar den här raden till APPLICERAD med datum och miljö.
@@ -19,12 +19,22 @@
 -- TABELLEN recalculation_marks (en rad per användare)
 --   user_id    primärnyckel; främmande nyckel mot users, on delete cascade (en raderad användare tar sin markering med sig).
 --   from_date  tidigaste datum som behöver räknas om från. Flera markeringar för samma användare slås ihop till det TIDIGASTE (least).
---   version    börjar på 1 och ökar med 1 vid varje mark_recalculation. Är det som gör att en markering aldrig rensas av misstag: se nedan.
+--   version    ett nummer ur sekvensen recalculation_mark_version_seq (nextval) vid VARJE mark_recalculation, både när raden skapas och när den
+--              uppdateras. Sekvensen går bara framåt och återanvänder aldrig ett nummer, så versionen är unik över hela livstiden, även när
+--              raden rensas och senare skapas på nytt. Det är det som gör att en markering aldrig rensas av misstag (se nedan). Luckor i
+--              numren är normala (en rullad transaktion eller en konflikt tar ett nummer) och betyder ingenting.
 --   marked_at  när raden senast skrevs (default now()); jobbet tar äldsta först.
+--
+-- SEKVENSEN recalculation_mark_version_seq
+--   Varför inte "version + 1": en räknare som börjar om på 1 när raden raderats ger ett ABA-fel. Jobbet läser version 1, en omräkning rensar
+--   version 1 (raden är borta), en ny radering markerar och får en NY rad med version 1, och jobbet rensar "version 1" och tar bort den nya
+--   markeringen utan att räkna om. Med en sekvens är den nya markeringens version alltid högre än alla tidigare.
+--   Rättigheter: usage bara för service_role; revoke all från public, anon och authenticated (funktionerna är INVOKER, så anroparen
+--   behöver usage). Sekvensen har inget eget upplägg i övrigt och rörs bara av mark_recalculation.
 --
 -- FUNKTIONERNA (plpgsql, set search_path to '', säkerhetsläge INVOKER, bara service_role får köra dem; som claim_strava_webhook_events, 046)
 --   mark_recalculation(p_user_id uuid, p_from_date date) returns bigint
---     Idempotent upsert: ny rad med version 1, annars from_date = least(gammal, ny) och version + 1. Returnerar den nya versionen.
+--     Idempotent upsert: ny rad, annars from_date = least(gammal, ny). Båda vägarna sätter version = nextval(sekvensen). Returnerar versionen.
 --     Ett NULL-argument ger 22004; en användare som inte finns ger 23503 (främmande nyckeln).
 --   clear_recalculation_mark(p_user_id uuid, p_version bigint) returns boolean
 --     Raderar raden BARA om versionen fortfarande är p_version, alltså om ingen nyare markering skrivits sedan koden fick sin version.
@@ -50,6 +60,7 @@
 --   drop function if exists public.clear_recalculation_mark(uuid, bigint);
 --   drop function if exists public.mark_recalculation(uuid, date);
 --   drop table if exists public.recalculation_marks;
+--   drop sequence if exists public.recalculation_mark_version_seq;
 -- ROLLBACK-END
 --
 -- KATALOGFRÅGOR (Lead kör efter apply i varje miljö)
@@ -62,7 +73,7 @@
 --          (select count(*) from public.recalculation_marks) as rader
 --     from pg_class c where c.oid = 'public.recalculation_marks'::regclass;
 -- Q1-END
--- Q2. Kolumnerna. Förväntat: user_id uuid, from_date date, version bigint (default 1), marked_at timestamptz (default now()), alla not null.
+-- Q2. Kolumnerna. Förväntat: user_id uuid, from_date date, version bigint (default nextval('recalculation_mark_version_seq'::regclass)), marked_at timestamptz (default now()), alla not null.
 -- Q2-START
 --   select column_name, data_type, is_nullable, column_default
 --     from information_schema.columns where table_schema = 'public' and table_name = 'recalculation_marks' order by ordinal_position;
@@ -83,8 +94,17 @@
 --     from pg_proc p
 --    where p.pronamespace = 'public'::regnamespace and p.proname in ('mark_recalculation', 'clear_recalculation_mark') order by 1;
 -- Q4-END
+-- Q4b. Sekvensens rättigheter. Förväntat: en rad; public_usage, anon, authenticated false; service_role true.
+-- Q4b-START
+--   select c.oid::regclass::text as seq,
+--          exists (select 1 from aclexplode(coalesce(c.relacl, acldefault('S', c.relowner))) a where a.grantee = 0 and a.privilege_type = 'USAGE') as public_usage,
+--          has_sequence_privilege('anon', c.oid, 'usage') as anon,
+--          has_sequence_privilege('authenticated', c.oid, 'usage') as authenticated,
+--          has_sequence_privilege('service_role', c.oid, 'usage') as service_role
+--     from pg_class c where c.oid = 'public.recalculation_mark_version_seq'::regclass;
+-- Q4b-END
 -- Q5. Efter att jobbet kört (eller i vanlig drift): markeringar som blivit kvar. Förväntat: 0 rader i normal drift; en rad äldre än
--- några minuter betyder att en omräkning inte har lyckats än (jobbet försöker vid start och varje natt 04:00 Europe/Stockholm).
+-- några minuter betyder att en omräkning inte har lyckats än (jobbet försöker vid start och varje natt 04:05 Europe/Stockholm).
 -- Q5-START
 --   select user_id, from_date, version, marked_at, now() - marked_at as age from public.recalculation_marks order by marked_at;
 -- Q5-END
@@ -93,10 +113,15 @@
 
 set local lock_timeout = '5s';
 
+create sequence if not exists public.recalculation_mark_version_seq;
+
+revoke all on sequence public.recalculation_mark_version_seq from public, anon, authenticated;
+grant usage on sequence public.recalculation_mark_version_seq to service_role;
+
 create table if not exists public.recalculation_marks (
   user_id   uuid        primary key references public.users(id) on delete cascade,
   from_date date        not null,
-  version   bigint      not null default 1,
+  version   bigint      not null default nextval('public.recalculation_mark_version_seq'),
   marked_at timestamptz not null default now()
 );
 
@@ -116,11 +141,12 @@ begin
     raise exception 'mark_recalculation: p_user_id and p_from_date are required' using errcode = '22004';
   end if;
 
-  insert into public.recalculation_marks as m (user_id, from_date)
-  values (p_user_id, p_from_date)
+  -- version ur sekvensen på båda vägarna: aldrig ett återanvänt nummer, även när raden rensats och skapas på nytt (ABA).
+  insert into public.recalculation_marks as m (user_id, from_date, version)
+  values (p_user_id, p_from_date, nextval('public.recalculation_mark_version_seq'))
   on conflict (user_id) do update
      set from_date = least(m.from_date, excluded.from_date),
-         version   = m.version + 1,
+         version   = nextval('public.recalculation_mark_version_seq'),
          marked_at = now()
   returning m.version into v_version;
 
@@ -161,6 +187,20 @@ begin
   if has_table_privilege('anon', 'public.recalculation_marks', 'select,insert,update,delete')
      or has_table_privilege('authenticated', 'public.recalculation_marks', 'select,insert,update,delete') then
     v_problem := v_problem || ' anon or authenticated can reach the table;';
+  end if;
+  if exists (
+    select 1
+      from pg_class c, aclexplode(coalesce(c.relacl, acldefault('S', c.relowner))) a
+     where c.oid = 'public.recalculation_mark_version_seq'::regclass and a.grantee = 0
+  ) then
+    v_problem := v_problem || ' PUBLIC can use the version sequence;';
+  end if;
+  if has_sequence_privilege('anon', 'public.recalculation_mark_version_seq', 'usage,select,update')
+     or has_sequence_privilege('authenticated', 'public.recalculation_mark_version_seq', 'usage,select,update') then
+    v_problem := v_problem || ' anon or authenticated can use the version sequence;';
+  end if;
+  if not has_sequence_privilege('service_role', 'public.recalculation_mark_version_seq', 'usage') then
+    v_problem := v_problem || ' service_role cannot use the version sequence;';
   end if;
 
   foreach v_fn in array array[

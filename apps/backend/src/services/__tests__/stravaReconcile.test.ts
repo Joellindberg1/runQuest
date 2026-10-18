@@ -938,6 +938,113 @@ describe('nightly reconcile and the recalculation marks', () => {
     expect(marks.rows()).toEqual([]);
   });
 
+  it('reconcile leaves the mark when the totals run RETURNS false twice, which calculateUserTotals does instead of throwing', async () => {
+    const { t, reconciler, marks, recovery, reprocessCalls } = build({
+      ...threeDays(),
+      recompute: (real) => ({ ...real, recalculateTotals: async () => false }),
+    });
+
+    const night = await reconciler.run();
+
+    expect(night).toMatchObject({ removed: 1, failed: 1 });
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-10-13', version: 1 }]);
+    expect(logLines.join('\n')).toContain('totals_not_written');
+    expect(reprocessCalls).toHaveLength(2); // both tries were made
+
+    // The recovery job (a working totals run) finishes the user and clears the mark.
+    reprocessCalls.length = 0;
+    expect(await recovery.run()).toEqual({ found: 1, recalculated: 1, failed: 0 });
+    expect(marks.rows()).toEqual([]);
+    expect(t.runs.find((r) => r.external_id === '7345003')).toMatchObject({ streak_day: 1 });
+  });
+
+  it('reconcile clears the mark when the second try of the totals run is the one that writes them', async () => {
+    let tries = 0;
+    const { reconciler, marks } = build({
+      ...threeDays(),
+      recompute: (real) => ({
+        ...real,
+        recalculateTotals: async (userId) => {
+          tries += 1;
+          if (tries === 1) return false;
+          return real.recalculateTotals(userId);
+        },
+      }),
+    });
+
+    const night = await reconciler.run();
+
+    expect(night).toMatchObject({ removed: 1, failed: 0 });
+    expect(tries).toBe(2);
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('reconcile only logs and goes on when the mark cannot be cleared', async () => {
+    const marks = createInMemoryMarkStore();
+    marks.failClear = Object.assign(new Error('clear failed for user abc@example.com'), { code: '57P01' });
+    const { t, reconciler } = build({ ...threeDays(), marks });
+
+    const night = await reconciler.run();
+
+    expect(night).toMatchObject({ removed: 1, failed: 0 }); // the recalculation worked: nothing failed
+    expect(ids(t.runs)).toEqual(['7345001', '7345003']);
+    expect(marks.rows()).toHaveLength(1); // the recovery job repeats the recalculation once
+    const log = logLines.join('\n');
+    expect(log).toContain('57P01');
+    expect(log).toContain('could not be cleared');
+    expect(log).not.toContain('abc@example.com');
+  });
+
+  it('reconcile stops checking a user at the first mark that cannot be written, so the Strava budget is not spent every night', async () => {
+    const marks = createInMemoryMarkStore();
+    marks.failMark = Object.assign(new Error('function mark_recalculation does not exist'), { code: '42883' });
+    const first = activityOf(7345001, D12);
+    const second = activityOf(7345002, D13);
+    const third = activityOf(7345003, D14);
+    const { t, reconciler, strava } = build({
+      tables: { runs: [storedRun(first), storedRun(second), storedRun(third)] },
+      routes: { athleteActivities: [], activities: {} }, // none is listed and every detail call answers 404: all three are in doubt
+      marks,
+    });
+
+    const summary = await reconciler.run();
+
+    expect(ids(t.runs)).toEqual(['7345001', '7345002', '7345003']);
+    expect(marks.calls).toEqual(['mark:user-1:2026-10-12']); // one attempt, not three
+    expect(strava.calls.activity).toBe(1); // the other two were never asked about
+    expect(summary).toMatchObject({ removed: 0, failed: 1 });
+    const failures = logLines.filter((line) => line.includes('42883'));
+    expect(failures.length).toBeGreaterThanOrEqual(1);
+    expect(logLines.filter((line) => line.includes('mark of user') && line.includes('42883'))).toHaveLength(1); // said once
+  });
+
+  it('reconcile stops only the user whose mark failed: the next user is still checked', async () => {
+    const marks = createInMemoryMarkStore();
+    const original = marks.mark.bind(marks);
+    marks.mark = async (userId, fromDate) => {
+      if (userId === 'user-1') throw Object.assign(new Error('x'), { code: '08006' });
+      return original(userId, fromDate);
+    };
+    const { t, reconciler } = build({
+      tables: {
+        strava_tokens: [tokenRow('user-1'), tokenRow('user-2')],
+        runs: [
+          storedRun(activityOf(7345001, D13), 'user-1'),
+          storedRun(activityOf(7345002, D14), 'user-1'),
+          storedRun(activityOf(7345003, D13), 'user-2'),
+        ],
+      },
+      routes: { athleteActivities: [], activities: {} },
+      marks,
+    });
+
+    const summary = await reconciler.run();
+
+    expect(t.runs.filter((r) => r.user_id === 'user-1')).toHaveLength(2);
+    expect(t.runs.filter((r) => r.user_id === 'user-2')).toHaveLength(0);
+    expect(summary).toMatchObject({ removed: 1, failed: 1 });
+  });
+
   it('reconcile does not clear a mark that a newer change wrote during its recalculation', async () => {
     const { reconciler, marks } = build({
       ...threeDays(),

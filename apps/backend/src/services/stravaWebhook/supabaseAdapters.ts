@@ -147,9 +147,7 @@ export function createRunStore(): RunStore {
 export function createRecompute(): Recompute {
   return {
     reprocessFrom: (userId, fromDate) => reprocessRunsFromDate(userId, fromDate),
-    recalculateTotals: async (userId) => {
-      await calculateUserTotals(userId);
-    },
+    recalculateTotals: (userId) => calculateUserTotals(userId),
     fetchWeather: (runs) => WeatherService.fetchAndSaveWeatherForRuns(runs),
     async qualifyEvents(userId, runs) {
       // The polling's arguments (routes/strava.ts): the runs are independent, so one failing does not stop the others.
