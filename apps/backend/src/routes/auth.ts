@@ -234,7 +234,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     logger.info('👤 Admin request to create new user');
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || typeof name !== 'string' || typeof email !== 'string') {
       logger.info('❌ Missing required fields');
       res.status(400).json({ error: 'Name, email, and password are required' }); return;
     }
@@ -248,14 +248,18 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     
     const supabase = getSupabaseClient();
     
-    // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .or(`name.eq.${name},email.eq.${email}`)
-      .single();
+    // Check if user already exists. Två parametriserade .eq-frågor (aldrig ett .or() byggt av body-strängar: kommatecken och
+    // operatorer i namnet skulle annars ändra filtret). limit(1) i stället för single(), som svarar fel när båda träffar olika rader.
+    const [byName, byEmail] = await Promise.all([
+      supabase.from('users').select('id').eq('name', name).limit(1),
+      supabase.from('users').select('id').eq('email', email).limit(1),
+    ]);
+    if (byName.error || byEmail.error) {
+      logger.error('❌ Error checking for existing user:', byName.error?.message ?? byEmail.error?.message);
+      res.status(500).json({ error: 'Internal server error' }); return;
+    }
 
-    if (existingUser) {
+    if ((byName.data?.length ?? 0) > 0 || (byEmail.data?.length ?? 0) > 0) {
       logger.info('❌ User already exists');
       res.status(409).json({ error: 'User with this name or email already exists' }); return;
     }
