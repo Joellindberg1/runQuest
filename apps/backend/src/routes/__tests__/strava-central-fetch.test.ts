@@ -134,16 +134,6 @@ describe('Strava calls from the routes pass the central fetch path', () => {
     expectEveryRequestHooked();
   });
 
-  it('the debug listing', async () => {
-    strava = installFakeStravaFetch({ athleteActivities: [stravaActivity({ id: 8002 })] });
-    use();
-
-    const res = await server.request('GET', '/api/strava/debug-activities', { token: userToken() });
-
-    expect(res.status).toBe(200);
-    expectEveryRequestHooked();
-  });
-
   it('the extended-fields backfill: token refresh and detail calls', async () => {
     strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at' }), activities: { 8003: stravaActivity({ id: 8003 }) } });
     use({

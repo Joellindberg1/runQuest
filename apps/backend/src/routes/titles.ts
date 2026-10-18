@@ -101,34 +101,6 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
 });
 
 /**
- * POST /api/titles/refresh/:titleId
- * Refresh leaderboard for a specific title
- */
-router.post('/refresh/:titleId', authenticateJWT, async (req, res) => {
-  try {
-    const { titleId } = req.params;
-    logger.info(`🔄 API: Refreshing leaderboard for title ${titleId}...`);
-    
-    await titleLeaderboardService.refreshTitleLeaderboard(titleId);
-    
-    res.json({
-      success: true,
-      message: `Title leaderboard refreshed for ${titleId}`,
-      title_id: titleId,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    logger.error(`❌ API Error in /titles/refresh/${req.params.titleId}:`, error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to refresh title leaderboard',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-/**
  * POST /api/titles/populate
  * Manually populate title leaderboards from user data (admin only)
  */
