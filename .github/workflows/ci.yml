@@ -126,6 +126,11 @@ jobs:
         run: node --test scripts/lighthouse-ci.test.mjs
         working-directory: .
 
+      # E2E-vakten (RUN-290): Playwright-sviten får bara köras mot staging eller localhost. Rena funktioner, inget nätverk, inga beroenden.
+      - name: E2E target guard
+        run: node --test scripts/e2e-guard.test.mjs
+        working-directory: .
+
       - name: Install dependencies
         run: npm ci
         working-directory: .
@@ -142,6 +147,17 @@ jobs:
       # 0 fel/0 varningar är baslinjen och får inte regressa.
       - name: Typecheck
         run: npx tsc -b
+
+      # E2E-sviten (apps/e2e) körs aldrig här: den går mot staging i e2e-staging.yml. Men dess kod ska kompilera och listas även i PR-flödet, annars
+      # märks ett fel först på nattkörningen. Ingen webbläsare och inget nätverk; adresserna är localhost, som vakten tillåter.
+      - name: E2E suite (typecheck and listing)
+        run: |
+          npx tsc --noEmit -p apps/e2e
+          npm run test:e2e:list --workspace=@runquest/e2e
+        working-directory: .
+        env:
+          E2E_BASE_URL: http://localhost:8080
+          E2E_API_URL: http://localhost:3001
 
       - name: Lint
         run: npx eslint . --max-warnings 0

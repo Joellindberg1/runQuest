@@ -126,6 +126,9 @@ stället för mot prod-databasen:
 Hur stagingdatabasen byggs om från noll (migrationer, spelregler, testgrupp, schemajämförelse mot prod) står i
 [`docs/staging.md`](staging.md).
 
+Playwright-röken mot staging (inloggning, logga runda, topplista, Pack News; körs manuellt och nattligt i CI, aldrig mot prod, och blockerar inte
+PR:ar) beskrivs i [`docs/e2e.md`](e2e.md), med de secrets ägaren ska skapa. Lead kör den gärna efter previewn av en release.
+
 Den gamla vägen med `railway run` mot prod-databasen (ovan) finns kvar som alternativ, till exempel när något bara
 går att visa med prod-data.
 
