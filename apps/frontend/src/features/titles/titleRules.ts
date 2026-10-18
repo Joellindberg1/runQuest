@@ -1,7 +1,7 @@
 import type { RQIconName } from '@/shared/components/icons';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import { TITLE_CATEGORIES, categoryOf, iconOf } from './titleCategories';
 import { unlockText } from './titleFormat';
+import type { TitleLeaderboardEntry } from '@runquest/shared';
 
 // Titlarnas regler som text — namn, regel och låsgräns ur databasen (GET /titles/leaderboard, samma rader som Titles-skärmen),
 // utan innehavare och värden. Delas av Playbook (kapitlet Titles) och Admin (Titles). Ren logik.
@@ -22,7 +22,7 @@ const categoryOrder = (metricKey: string | undefined): number => {
 };
 
 /** Kategorins ordning som på Titles-skärmen; inom en kategori behålls databasens ordning (stabil sortering). */
-export function buildTitleRuleRows(board: readonly TitleLeaderboard[]): TitleRuleRow[] {
+export function buildTitleRuleRows(board: readonly TitleLeaderboardEntry[]): TitleRuleRow[] {
   return board
     .map((title, position) => ({ title, position }))
     .sort((a, b) => categoryOrder(a.title.metric_key) - categoryOrder(b.title.metric_key) || a.position - b.position)

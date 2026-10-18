@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import type { UserTitle } from '@runquest/types';
 import { useNow } from '@/app-shell/useNow';
 import { useGroupBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { useAuth } from '@/providers/authContext';
@@ -13,9 +12,10 @@ import { paths } from '@/paths';
 import { useRankDelta } from '../hooks/useBoardQueries';
 import { badgeShowcaseMap, rankDeltaMap } from '../seasonModel';
 import { SeasonBoard } from './SeasonBoard';
+import type { UserTitleEntry } from '@runquest/shared';
 
 const LOADING_ROWS = 6;
-const NO_TITLES: Record<string, UserTitle[]> = {};
+const NO_TITLES: Record<string, UserTitleEntry[]> = {};
 
 /**
  * All-time/Season-vyn (?view=season): hämtar gruppen, titlarna och rank-delta och ritar SeasonBoard.

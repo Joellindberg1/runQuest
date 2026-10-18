@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
-import type { Run, User, UserTitle } from '@runquest/types';
-import type { ChallengeHistoryItem, HeadToHeadResponse } from '@runquest/shared';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
+import type { Run, User } from '@runquest/types';
+import type { ChallengeHistoryItem, HeadToHeadResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { AppRoutes } from '@/routes';
 import RunnerRoute from './RunnerPage';
@@ -53,20 +52,20 @@ const KARL = runner({
 const ADAM = runner({ id: 'u-adam', name: 'Adam Einstein', total_xp: 4736, total_km: 988.4, current_streak: 0, longest_streak: 19 });
 const PACK = [ME, KARL, ADAM];
 
-const ut = (over: Partial<UserTitle> & Pick<UserTitle, 'title_id' | 'title_name'>): UserTitle => ({
+const ut = (over: Partial<UserTitleEntry> & Pick<UserTitleEntry, 'title_id' | 'title_name'>): UserTitleEntry => ({
   title_description: '', position: 1, value: 0, earned_at: '', is_current_holder: true, status: 'holder', ...over,
 });
-const entry = (id: string, metric: string, holder: { name: string; value: number }): TitleLeaderboard => ({
+const entry = (id: string, metric: string, holder: { name: string; value: number }): TitleLeaderboardEntry => ({
   id, name: id, description: '', unlock_requirement: 0, metric_key: metric,
   holder: { user_id: 'h', user_name: holder.name, value: holder.value, earned_at: '' }, runners_up: [],
 });
 
-const KARL_TITLES: UserTitle[] = [
+const KARL_TITLES: UserTitleEntry[] = [
   ut({ title_id: 't-rooster', title_name: 'The Rooster', value: 56 }),
   ut({ title_id: 't-long', title_name: 'The Longest Run', value: 32.8 }),
   ut({ title_id: 't-batman', title_name: 'The Batman', value: 11, position: 2, is_current_holder: false, status: 'runner_up' }),
 ];
-const TITLE_BOARD: TitleLeaderboard[] = [
+const TITLE_BOARD: TitleLeaderboardEntry[] = [
   entry('t-rooster', 'earlyRunCount', { name: 'Karl Persson', value: 56 }),
   entry('t-long', 'longestRun', { name: 'Karl Persson', value: 32.8 }),
   entry('t-batman', 'nightRunCount', { name: 'Nicklas von Elling', value: 18 }),

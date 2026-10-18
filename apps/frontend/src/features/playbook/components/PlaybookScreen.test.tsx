@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import PlaybookPage from '@/pages/PlaybookPage';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import { XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import type { TitleLeaderboardEntry } from '@runquest/shared';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 
@@ -18,7 +18,7 @@ const CONFIG = {
   streak_multipliers: XP_CONFIG.streak_multipliers,
 };
 
-const title = (id: string, name: string, metric_key: string, unlock_requirement = 0): TitleLeaderboard => ({
+const title = (id: string, name: string, metric_key: string, unlock_requirement = 0): TitleLeaderboardEntry => ({
   id, name, description: `${name}: regeln ur databasen.`, unlock_requirement, metric_key, holder: null, runners_up: [],
 });
 const BOARD = [title('t-batman', 'The Batman', 'nightRunCount', 7), title('t-ultra', 'The Ultra Man', 'totalKm', 100)];

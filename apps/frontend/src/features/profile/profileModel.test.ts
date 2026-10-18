@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { UserTitle } from '@runquest/types';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
 import {
   COMPACT_TITLE_COUNT, HISTORY_PREVIEW_COUNT, MAX_PICTURE_BYTES, buildMyTitles, buildRunRow, buildRunRows, buildUpdate, buildXpParts,
   STRAVA_DELETE_HINT, deleteNotice, editFormFor, isDirty, isStravaRun, showAllLabel, sortRuns, updateNotice, validateEdit, validatePicture,
 } from './profileModel';
 import { run } from './profile.fixture';
+import type { TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 
 const TODAY = '2026-10-04';
 
@@ -130,10 +129,10 @@ describe('profilbild', () => {
 });
 
 describe('my titles', () => {
-  const title = (id: string, over: Partial<UserTitle> = {}): UserTitle => ({
+  const title = (id: string, over: Partial<UserTitleEntry> = {}): UserTitleEntry => ({
     title_id: id, title_name: `Title ${id}`, title_description: '', position: 1, value: 10, earned_at: '', is_current_holder: true, status: 'holder', ...over,
   });
-  const board: TitleLeaderboard[] = [];
+  const board: TitleLeaderboardEntry[] = [];
   const held = ['a', 'b', 'c', 'd', 'e'].map((id) => title(id));
   const runnersUp = [title('x', { is_current_holder: false, position: 2, status: 'runner_up' }), title('y', { is_current_holder: false, position: 3, status: 'runner_up' })];
 

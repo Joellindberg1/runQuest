@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { backendApi, type GroupEligibilityEntry, type TitleLeaderboard } from '@/shared/services/backendApi';
+import type { GroupEligibilityEntry, TitleLeaderboardEntry } from '@runquest/shared';
+import { backendApi } from '@/shared/services/backendApi';
 import { titleQueryKeys } from '@/shared/hooks/useTitleQueries';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 
@@ -20,7 +21,7 @@ export const TITLES_QUERY_KEYS = {
 export function useTitleBoard(enabled = true) {
   return useQuery({
     queryKey: TITLES_QUERY_KEYS.board,
-    queryFn: async (): Promise<TitleLeaderboard[]> => {
+    queryFn: async (): Promise<TitleLeaderboardEntry[]> => {
       const res = await backendApi.getTitleLeaderboard();
       if (!res.success || !res.data) throw new Error(res.error || 'Failed to load titles');
       return res.data;

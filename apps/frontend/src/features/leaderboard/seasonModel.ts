@@ -1,9 +1,10 @@
-import type { User, UserTitle } from '@runquest/types';
+import type { User } from '@runquest/types';
 import { BADGE_SERIES, MAX_SHOWCASE, type BadgeGroupMember, type BadgeShowcaseEntry } from '@runquest/shared';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import { MAX_LEVEL } from '@/constants/appConstants';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import { deltaView, formatDecimal, formatInt, formatRunAge, latestRunOf, type DeltaView } from './boardFormat';
+import type { UserTitleEntry } from '@runquest/shared';
 
 // Season-/All-time-vyns vymodell: allt som korten visar, härlett ur users-with-runs + titlar + rank-delta.
 // Ren logik — rendering och datahämtning ligger i komponenterna/hooks.
@@ -43,7 +44,7 @@ export interface SeasonRow {
 
 export interface SeasonInput {
   now: Date;
-  titlesByUser: Record<string, UserTitle[]>;
+  titlesByUser: Record<string, UserTitleEntry[]>;
   /** user_id → rank_delta ur /api/leaderboard/rank-delta (positivt = klättrat). */
   rankDeltaByUser: Record<string, number | null>;
   /** user_id → visade badges ur /api/badges/group (badgeShowcaseMap). Utelämnad = inga minis (laddar/fel). */
@@ -53,11 +54,11 @@ export interface SeasonInput {
 const MAX_DISPLAYED_TITLES = 3;
 
 /** Titlarna som visas på kortet: användarens valda i vald ordning, annars de innehavda (max 3). */
-export function displayedTitleNames(user: User, titles: UserTitle[]): { names: string[]; heldCount: number } {
+export function displayedTitleNames(user: User, titles: UserTitleEntry[]): { names: string[]; heldCount: number } {
   const held = titles.filter((title) => title.is_current_holder);
   const chosenIds = user.displayed_title_ids ?? [];
   const ordered = chosenIds.length > 0
-    ? chosenIds.map((id) => held.find((title) => title.title_id === id)).filter((title): title is UserTitle => !!title)
+    ? chosenIds.map((id) => held.find((title) => title.title_id === id)).filter((title): title is UserTitleEntry => !!title)
     : held;
   return { names: ordered.slice(0, MAX_DISPLAYED_TITLES).map((title) => title.title_name), heldCount: held.length };
 }

@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
-import type { Run, User, UserTitle } from '@runquest/types';
+import type { Run, User } from '@runquest/types';
 import BoardPage from './BoardPage';
 import { PENNANT_PATH, PENNANT_VIEW_BOX } from '@/shared/components/challengeMark';
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
 import { ME, RANK_DELTA, WEEK, XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import type { UserTitleEntry } from '@runquest/shared';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Gruppens badges (minis i Season-raderna): varje test väljer själv vad GET /badges/group svarar. Standard = felar, dvs Board som förut.
@@ -97,7 +98,7 @@ describe('Season-vyn (default) — mobil', () => {
     handlers.getUserTitles = (id: unknown) => ({
       success: true,
       data: id === 'u-karl'
-        ? [{ title_id: 't1', title_name: 'The Double Trouble', title_description: '', position: 1, value: 14, earned_at: '', is_current_holder: true, status: 'holder' } satisfies UserTitle]
+        ? [{ title_id: 't1', title_name: 'The Double Trouble', title_description: '', position: 1, value: 14, earned_at: '', is_current_holder: true, status: 'holder' } satisfies UserTitleEntry]
         : [],
     });
     renderBoard();
@@ -117,7 +118,7 @@ describe('Season-vyn (default) — mobil', () => {
   });
 
   it('mobilkorten visar alla visade titlar, inte bara den första — på podiet och från plats 4', async () => {
-    const held = (id: string, name: string): UserTitle => ({
+    const held = (id: string, name: string): UserTitleEntry => ({
       title_id: id, title_name: name, title_description: '', position: 1, value: 1, earned_at: '', is_current_holder: true, status: 'holder',
     });
     handlers.getUserTitles = (id: unknown) => ({

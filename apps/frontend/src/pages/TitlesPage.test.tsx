@@ -3,9 +3,9 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import TitlesPage from './TitlesPage';
 import { TOUR_TITLES_V2 } from '@/features/onboarding/featureTourSteps';
-import type { GroupEligibilityEntry, TitleLeaderboard } from '@/shared/services/backendApi';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import type { GroupEligibilityEntry, TitleLeaderboardEntry } from '@runquest/shared';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turen startar driver.js efter en timer; ankar-vakten nedan kollar DOM:en i stället.
@@ -24,7 +24,7 @@ const location = () => screen.getByTestId('location').textContent;
 const holder = (user_id: string, user_name: string, value: number, extra: object = {}) => ({ user_id, user_name, value, earned_at: '', ...extra });
 const ru = (position: number, user_id: string, user_name: string, value: number) => ({ position, ...holder(user_id, user_name, value) });
 
-const title = (id: string, name: string, metric_key: string | undefined, over: Partial<TitleLeaderboard> = {}): TitleLeaderboard => ({
+const title = (id: string, name: string, metric_key: string | undefined, over: Partial<TitleLeaderboardEntry> = {}): TitleLeaderboardEntry => ({
   id, name, description: `${name}: regeln ur databasen.`, unlock_requirement: 0, metric_key, holder: null, runners_up: [], ...over,
 });
 
