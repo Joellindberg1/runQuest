@@ -41,7 +41,7 @@ type Db = ReturnType<typeof getSupabaseClient>;
 type DbResult = { data?: unknown; error?: { code?: string } | null; count?: number | null };
 
 function unwrap(result: DbResult): DbResult {
-  if (result.error) throw new WebhookHealthReadError(result.error.code ?? 'unknown');
+  if (result.error) throw new WebhookHealthReadError(errorCode(result.error));
   return result;
 }
 

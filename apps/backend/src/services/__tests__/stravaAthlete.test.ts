@@ -28,10 +28,10 @@ describe('findUserByAthleteId', () => {
   });
 
   it('throws on a database error instead of answering null, so a failure is never read as "unknown owner"', async () => {
-    const db = createFakeDb({ strava_tokens: [] }, { errors: { strava_tokens: { message: 'connection lost' } } });
+    const db = createFakeDb({ strava_tokens: [] }, { errors: { strava_tokens: { message: 'connection lost to jane@example.com', code: '08006' } } });
     vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
 
-    await expect(findUserByAthleteId(111)).rejects.toThrow(/connection lost/);
+    await expect(findUserByAthleteId(111)).rejects.toMatchObject({ code: '08006', message: expect.not.stringContaining('jane@example.com') });
   });
 
   it('returns null without a query for an id that cannot be a Strava athlete id', async () => {

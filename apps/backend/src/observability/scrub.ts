@@ -63,9 +63,11 @@ const UNTOUCHED_TOP_LEVEL = new Set(['sdk', 'modules', 'release', 'environment',
 
 const JWT_LIKE = /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g;
 const BEARER = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
-const KEY_VALUE = /\b((?:access|refresh|id)[_-]?token|client[_-]?secret|api[_-]?key|password|passwd|secret|token|authorization)(=|["']\s*:\s*)["']?([^\s"'&,;}]+)/gi;
+// Lookbehind och inte \b av samma skäl som STRAVA_ID nedan: `strava_access_token=...` och `db_password=...` ska också maskas.
+const KEY_VALUE = /(?<![A-Za-z0-9])((?:access|refresh|id)[_-]?token|client[_-]?secret|api[_-]?key|password|passwd|secret|token|authorization)(=|["']\s*:\s*)["']?([^\s"'&,;}]+)/gi;
 // Strava-id (ADR 010 beslut 8.6): en andra försvarslinje om en rad som skrivits som `object_id=123` ändå skulle hamna i en händelse.
-const STRAVA_ID = /\b((?:object|owner|athlete)_id)(\s*[=:]\s*)\d+/gi;
+// Lookbehind och inte \b: `_` är ett ordtecken, så det fanns ingen ordgräns före `athlete_id` i `strava_athlete_id=123`.
+const STRAVA_ID = /(?<![A-Za-z0-9])((?:object|owner|athlete)_id)(\s*[=:]\s*)\d+/gi;
 const HEX_40 = /\b[0-9a-f]{40}\b/gi;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 

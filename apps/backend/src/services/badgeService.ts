@@ -27,7 +27,7 @@ import {
   type BadgeRun,
   type ExistingBadgeRow,
 } from '@runquest/shared';
-import { errorCode } from '../utils/errorCode.js';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 export const USER_BADGES_TABLE = 'user_badges';
 
@@ -59,12 +59,16 @@ export interface EvaluateBadgesResult {
   complete: boolean;
 }
 
-/** Läsfel som ska avbryta utvärderingen (fångas av evaluateBadges, aldrig utåt). */
+/**
+ * Läsfel som ska avbryta utvärderingen (fångas av evaluateBadges, aldrig utåt). Bär databasens kod i `code`, inte felet självt som
+ * `cause`: loggern serialiserar `cause`, och ett databasfel kan bära radvärden i sin text.
+ */
 class BadgeReadError extends Error {
-  constructor(what: string, cause: unknown) {
+  readonly code: string;
+  constructor(what: string, source: unknown) {
     super(`read ${what} failed`);
     this.name = 'BadgeReadError';
-    this.cause = cause;
+    this.code = errorCode(source);
   }
 }
 
@@ -108,12 +112,12 @@ export async function readRuns(userId: string): Promise<BadgeRun[]> {
     runs.push(...page.map(toBadgeRun));
     if (page.length < RUNS_PAGE_SIZE) return runs;
   }
-  throw new BadgeReadError('runs', `page limit ${MAX_RUNS_PAGES} reached`);
+  throw new BadgeReadError('runs', { code: 'page_limit_reached' });
 }
 
 async function readLongestStreak(userId: string): Promise<number> {
   const { data, error } = await getSupabaseClient().from('users').select('longest_streak').eq('id', userId).single();
-  if (error || !data) throw new BadgeReadError('users.longest_streak', error ?? 'user not found');
+  if (error || !data) throw new BadgeReadError('users.longest_streak', error ?? { code: 'user_not_found' });
   const streak = Number(data.longest_streak ?? 0);
   return Number.isFinite(streak) ? streak : 0;
 }
@@ -272,7 +276,7 @@ export async function applyBadgeDiff(
 /** users.group_id för news-raderna (ADR 009 beslut 5); null = ingen grupp. Kastar vid läsfel (fångas av writeBadgeNews). */
 async function readGroupId(userId: string): Promise<string | null> {
   const { data, error } = await getSupabaseClient().from('users').select('group_id').eq('id', userId).single();
-  if (error || !data) throw new Error(`read users.group_id failed: ${JSON.stringify(error ?? 'user not found')}`);
+  if (error || !data) throw errorWithCode(`read users.group_id of user ${userId} failed`, error ?? { code: 'user_not_found' });
   return data.group_id ?? null;
 }
 

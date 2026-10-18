@@ -144,8 +144,14 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
       .eq('id', userId)
       .single();
 
-    if (error || !user) {
-      logger.info(`❌ User not found or database error (${error ? errorCode(error) : 'no row'})`);
+    // PGRST116 = .single() fann ingen rad: användaren finns inte (JWT:n är giltig men raden borta), inget serverfel. Varje annat fel är
+    // databasen som felar: 500 och en felhändelse med koden, aldrig ett 404 som döljer avbrottet.
+    if (error && error.code !== 'PGRST116') {
+      logger.error(`❌ Could not read the user for a password change (${errorCode(error)})`);
+      res.status(500).json({ error: 'Failed to change password' }); return;
+    }
+    if (!user) {
+      logger.info('❌ User not found for password change');
       res.status(404).json({ error: 'User not found' }); return;
     }
 

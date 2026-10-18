@@ -6,7 +6,7 @@ import { recordChallengeSettled } from './activityLog.js';
 import { recordRankPassesForChallenge } from './rankNews.js';
 import { MS_DAY } from '@runquest/shared';
 import { todayStockholm } from '../utils/dateUtils.js';
-import { errorCode } from '../utils/errorCode.js';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 // Boost-tillämpningen bor i @runquest/shared (boostDeltasForRuns) och anropas
 // från reprocessRunsFromDate. multiplier_runs är statelös — `remaining` på
@@ -146,7 +146,7 @@ async function awardTokenForLevel(userId: string, level: number, tier: string): 
 
   if (error) {
     logger.error(`❌ Failed to award ${tier} token at level ${level} (${errorCode(error)})`);
-    throw new Error(`Failed to award ${tier} token at level ${level}: ${error.message}`);
+    throw errorWithCode(`Failed to award ${tier} token at level ${level}`, error);
   }
 
   logger.info(`🎁 Awarded ${tier} token to user ${userId} at level ${level}`);
@@ -173,7 +173,7 @@ export async function getProgressForChallenge(challengeId: string): Promise<Prog
     .single();
 
   if (error && error.code !== 'PGRST116') {
-    throw new Error(`Failed to read challenge ${challengeId} for progress: ${error.message}`);
+    throw errorWithCode(`Failed to read challenge ${challengeId} for progress`, error);
   }
   if (!challenge || !challenge.start_date) return null;
 
@@ -189,7 +189,7 @@ export async function getProgressForChallenge(challengeId: string): Promise<Prog
         .eq('user_id', userId)
         .gte('date', startDate)
         .lte('date', endDate);
-      if (countError) throw new Error(`Failed to read run count for challenge ${challengeId} (user ${userId}): ${countError.message}`);
+      if (countError) throw errorWithCode(`Failed to read run count for challenge ${challengeId} (user ${userId})`, countError);
       return count ?? 0;
     }
 
@@ -200,7 +200,7 @@ export async function getProgressForChallenge(challengeId: string): Promise<Prog
       .eq('user_id', userId)
       .gte('date', startDate)
       .lte('date', endDate);
-    if (runsError) throw new Error(`Failed to read runs for challenge ${challengeId} (user ${userId}): ${runsError.message}`);
+    if (runsError) throw errorWithCode(`Failed to read runs for challenge ${challengeId} (user ${userId})`, runsError);
 
     return (data ?? []).reduce((sum: number, r: any) => sum + (Number(r[col]) || 0), 0);
   };
@@ -233,7 +233,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
 
   // PGRST116 = utmaningen finns inte → inget att avgöra. Andra läsfel är inte "klart": de ska synas, och schedulern tar om.
   if (error && error.code !== 'PGRST116') {
-    throw new Error(`Failed to read challenge ${challengeId} for settling: ${error.message}`);
+    throw errorWithCode(`Failed to read challenge ${challengeId} for settling`, error);
   }
   if (!challenge || challenge.status !== 'active') return;
 
@@ -272,7 +272,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
 
   if (claimError) {
     // Ett fel är inte "redan avgjord": ingen annan instans har vunnit claimen, ingenting är skrivet, schedulern tar om.
-    throw new Error(`Failed to claim challenge ${challengeId} for settling: ${claimError.message}`);
+    throw errorWithCode(`Failed to claim challenge ${challengeId} for settling`, claimError);
   }
   if (!claimed?.length) {
     logger.info(`↷ Challenge ${challengeId} already settled by another instance`);
@@ -312,7 +312,6 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     const { error: boostError } = await supabase.from('user_boosts').insert([winnerBoost, loserBoost]);
 
     if (boostError) {
-      logger.error(`❌ Boost insert failed for challenge ${challengeId} (${errorCode(boostError)})`);
       const { error: releaseError } = await supabase
         .from('challenges')
         .update({ status: 'active', winner_id: null, outcome: null, challenger_final_value: null, opponent_final_value: null })
@@ -334,18 +333,18 @@ export async function settleChallenge(challengeId: string): Promise<void> {
         if (freeError) {
           logger.error(`🚨 KRITISK: could not reset challenge_active for the players of challenge ${challengeId} either (${errorCode(freeError)})`, new CriticalAlert('challenge_repair'));
         }
-        throw new Error(
-          `Failed to create boosts for challenge ${challengeId}: ${boostError.message}; ` +
-          `the claim could not be released either (challenge stays completed without boosts): ${releaseError.message}`,
+        throw errorWithCode(
+          `Failed to create boosts for challenge ${challengeId} (the claim could not be released either; challenge stays completed without boosts)`,
+          boostError,
         );
       }
-      throw new Error(`Failed to create boosts for challenge ${challengeId}: ${boostError.message} (claim released, will be retried)`);
+      throw errorWithCode(`Failed to create boosts for challenge ${challengeId} (claim released, will be retried)`, boostError);
     }
   }
 
   // Från och med här är boostarna utdelade: avgörandet släpps inte längre (ett omförsök skulle dela ut dem igen).
   // Delfel samlas, resten körs, och felet kastas efteråt så att det syns i schedulern/anroparen.
-  const postClaimErrors: string[] = [];
+  const postClaimErrors: Array<{ what: string; code: string }> = []; // what failed and its code, never the database text; each is also logged where it happens
 
   // 3. Reset challenge_active for both users
   const { error: activeError } = await supabase
@@ -354,7 +353,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     .in('id', [challenge.challenger_id, challenge.opponent_id]);
   if (activeError) {
     logger.error(`❌ Failed to reset challenge_active after settling ${challengeId} (${errorCode(activeError)})`);
-    postClaimErrors.push(`challenge_active reset failed: ${activeError.message}`);
+    postClaimErrors.push({ what: 'challenge_active reset failed', code: errorCode(activeError) });
   }
 
   // 4. Update W/D/L
@@ -367,7 +366,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
 
   if (usersError) {
     logger.error(`❌ Failed to read W/D/L after settling ${challengeId} (${errorCode(usersError)})`);
-    postClaimErrors.push(`W/D/L read failed: ${usersError.message}`);
+    postClaimErrors.push({ what: 'W/D/L read failed', code: errorCode(usersError) });
   } else if (users) {
     const wdlResults = await Promise.all(
       users.map((user: any) => {
@@ -385,7 +384,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
     for (const res of wdlResults) {
       if (res.error) {
         logger.error(`❌ Failed to update W/D/L after settling ${challengeId} (${errorCode(res.error)})`);
-        postClaimErrors.push(`W/D/L update failed: ${res.error.message}`);
+        postClaimErrors.push({ what: 'W/D/L update failed', code: errorCode(res.error) });
       }
     }
     wdlWritten = users.length === 2 && wdlResults.every((res) => !res.error);
@@ -405,7 +404,11 @@ export async function settleChallenge(challengeId: string): Promise<void> {
   if (wdlWritten) await recordRankPassesForChallenge(challengeId);
 
   if (postClaimErrors.length > 0) {
-    throw new Error(`Challenge ${challengeId} settled with errors: ${postClaimErrors.join('; ')}`);
+    // Koden på felet som kastas är den första delfelets, så att fångstället loggar en kod och inte "(Error)".
+    throw errorWithCode(
+      `Challenge ${challengeId} settled with errors: ${postClaimErrors.map((e) => `${e.what} (${e.code})`).join('; ')}`,
+      postClaimErrors[0],
+    );
   }
 
   if (outcome === 'draw') {

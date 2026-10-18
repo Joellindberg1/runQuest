@@ -114,3 +114,25 @@ describe('getUserTitles when the leaderboard read returns a database error', () 
     expectOnlyTheCode('23505');
   });
 });
+
+describe('one failure in the titles path is one Sentry event', () => {
+  // The route is the place that catches, so the route logs; the services under it rethrow without logging (a failed read of
+  // /api/titles used to be three events: getAllTitles twice and the route).
+  it.each(cases.filter((c) => c.name !== 'GET /api/titles/user/:userId'))('$name sends exactly one event for a database error', async (c) => {
+    useDb(c.fails, dbError, c.rpc);
+    const res = await server.request(c.method, c.path, { token: token() });
+
+    expect(res.status).toBe(500);
+    const events = await sentry.drain();
+    expect(events).toHaveLength(1);
+    expect(JSON.stringify(events)).toContain('23505');
+  });
+
+  it.each(cases.filter((c) => !c.rpc))('$name sends exactly one event when the call throws', async (c) => {
+    useDb(c.fails, () => { throw Object.assign(new Error(`socket hang up near ${LEAK}`), { code: 'ECONNRESET' }); });
+    const res = await server.request(c.method, c.path, { token: token() });
+
+    expect(res.status).toBe(500);
+    expect(await sentry.drain()).toHaveLength(1);
+  });
+});

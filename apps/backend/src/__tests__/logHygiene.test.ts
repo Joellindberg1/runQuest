@@ -8,12 +8,23 @@
  * Vakten läser källfilerna som syntaxträd och fäller:
  *  - ett anrop till `logger.error|warn|info|debug` vars argument innehåller `.message`, `.details`, `.hint`, `.stack`, `.email`,
  *    `.username`, `.name` på en person eller grupp (user.name, group.name), en variabel `name`/`email`, eller ett felobjekt (en variabel
- *    som heter error/err/e/..Error, en catch-variabel eller en `.error`-egenskap) som inte går genom `errorCode(...)` eller läses som
- *    `.code`/`.status`. Namn på titel- och händelsemallar är konfiguration och får loggas;
- *  - ett anrop till `.json(...)` vars argument innehåller `.message`, `.details`, `.hint` eller `.stack` från ett fel.
+ *    som heter error/err/e/..Error, en catch-variabel eller en `.error`-egenskap) som inte går genom `errorCode(...)`. Koden läses
+ *    ALDRIG direkt (`error.code`, `error.code ?? 'unknown'`): supabase-js ger `code: ''` vid nätverksfel, så en direkt läsning ger
+ *    "(code )" eller "(unknown)", medan `errorCode(...)` ger orsakens kod. Bara `.status` får läsas rakt. Namn på titel- och
+ *    händelsemallar är konfiguration och får loggas;
+ *  - en handskriven kodreserv var som helst: `x.code ?? 'literal'` eller `x.code || 'literal'`;
+ *  - `.toString()` på ett fel (loggrad, svar, kastat fel);
+ *  - ett anrop till `.json(...)` vars argument innehåller `.message`, `.details`, `.hint` eller `.stack` från ett fel;
+ *  - ett kastat fel (`new Error(...)`, `new TypeError(...)`) eller en samlad felrad (`failures.push(...)`) som bär databasens text:
+ *    `${error.message}`, `${error}`, `JSON.stringify(error)` eller `String(error)`. Ett kastat fel har ett fast meddelande (vad som
+ *    misslyckades plus id) och databasens kod i `code` (`errorWithCode(...)` i utils/errorCode.ts); texten får inte ligga i
+ *    meddelandet, för då hänger skyddet på att varje fångställe kommer ihåg att logga koden.
  *
- * Ingår inte: meddelandet i ett kastat `new Error(\`...${error.message}\`)` i tjänsterna. Det loggas aldrig (alla fångstställen loggar
- * `errorCode(...)`), och att ändra dem rör sex testfiler som kontrollerar texten; det är en uppföljning.
+ *    Gäller också `Object.assign(new Error(..), { code })` och samlare som heter failures/errors/errs/issues/problems/failed*.
+ *
+ * Vad vakten INTE fångar (ett syntaxträd följer inte data): en mellanvariabel (`const text = error.message; logger.error(text)`),
+ * en samlare med ett annat namn, ett rått `throw error` av ett databasfel (felet kastas då som ett objekt med text, men ingen
+ * sträng byggs av det), och text som byggs i en hjälpfunktion som får felet som argument. Där hjälper bara granskning.
  *
  * Skripten i `src/scripts` skriver med console till operatörens terminal och ingår inte (inget av det når loggaggregatorn eller Sentry).
  */
@@ -34,10 +45,12 @@ const LOGGER_FORBIDDEN_PROPERTIES = new Set(['message', 'details', 'hint', 'stac
 const PERSON_OR_GROUP = /^(user|users|u|me|member|members|owner|athlete|group|profile|author|newUser|winner|loser|challenger|opponent|runner|\w+User|\w+Member)$/;
 /** Variabler som bär en persons namn eller e-post. */
 const PERSONAL_IDENTIFIERS = new Set(['name', 'email', 'username', 'userName', 'displayName']);
-const RESPONSE_FORBIDDEN_PROPERTIES = new Set(['message', 'details', 'hint', 'stack']);
+const RESPONSE_FORBIDDEN_PROPERTIES = new Set(['message', 'details', 'hint', 'stack', 'toString']);
 const ERRORISH = /^(e|err|error|exception|cause)$|(Err|Error)$/;
 /** Funktioner som gör ett fel till en kort kod eller ett namn (utils/errorCode.ts och de små hjälparna i Strava-filerna). */
 const SAFE_WRAPPERS = new Set(['errorCode', 'errorName', 'shortCode']);
+/** Egna felklasser som tar ett databasfel som argument men bara behåller dess kod (`errorCode(source)`), aldrig texten eller objektet. */
+const SAFE_ERROR_CLASSES = new Set(['BadgeReadError']);
 /** Läsningar av ett felobjekt som är säkra: `error.code`, `error.status`. */
 const SAFE_ERROR_PROPERTIES = new Set(['code', 'status']);
 
@@ -71,6 +84,11 @@ function isLoggerCall(node: ts.CallExpression): boolean {
 function isResponseCall(node: ts.CallExpression): boolean {
   const callee = node.expression;
   return ts.isPropertyAccessExpression(callee) && (callee.name.text === 'json' || callee.name.text === 'send');
+}
+
+/** `new Error(..)`, `new TypeError(..)`, `new WebhookHealthReadError(..)`: a constructor named ...Error. */
+function isErrorConstructor(node: ts.NewExpression): boolean {
+  return ts.isIdentifier(node.expression) && /Error$/.test(node.expression.text) && !SAFE_ERROR_CLASSES.has(node.expression.text);
 }
 
 /** Tar bort parentes, `as`, `!` (och `<T>x`) runt ett uttryck: `(error as Error)` blir `error`. */
@@ -121,18 +139,33 @@ function lastNameOf(expression: ts.Expression): string {
   return '';
 }
 
+/** `Object.assign(new Error(..), { code: .. })`: koden på ett kastat fel. */
+function isObjectAssignOnError(node: ts.CallExpression): boolean {
+  const callee = node.expression;
+  const first = node.arguments[0] ? unwrap(node.arguments[0]) : undefined;
+  return ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === 'Object' && callee.name.text === 'assign'
+    && first !== undefined && ts.isNewExpression(first) && ts.isIdentifier(first.expression) && /Error$/.test(first.expression.text);
+}
+
+/** `failures.push(..)`, `payoutFailures.push(..)`, `postClaimErrors.push(..)`: rader som sedan sätts ihop till ett kastat meddelande. */
+function isFailureCollector(node: ts.CallExpression): boolean {
+  const callee = node.expression;
+  return ts.isPropertyAccessExpression(callee) && callee.name.text === 'push'
+    && /(failures?|errors?|errs?|issues?|problems?|failed\w*)$/i.test(lastNameOf(callee.expression));
+}
+
 /** Är identifieraren en säker användning av ett felobjekt (kod eller status, `errorCode(...)`, ett villkor)? */
-function isSafeErrorUse(node: ts.Node): boolean {
+function isSafeErrorUse(node: ts.Node, allowCode = false): boolean {
   const parent = node.parent;
   if (ts.isCallExpression(parent) && ts.isIdentifier(parent.expression) && SAFE_WRAPPERS.has(parent.expression.text)) return true;
-  if (ts.isPropertyAccessExpression(parent) && parent.expression === node && SAFE_ERROR_PROPERTIES.has(parent.name.text)) return true;
+  if (ts.isPropertyAccessExpression(parent) && parent.expression === node && SAFE_ERROR_PROPERTIES.has(parent.name.text) && (allowCode || parent.name.text !== 'code')) return true;
   if (ts.isConditionalExpression(parent) && parent.condition === node) return true;
   if (ts.isPrefixUnaryExpression(parent)) return true;
   if (ts.isBinaryExpression(parent) && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.InstanceOfKeyword, ts.SyntaxKind.AmpersandAmpersandToken].includes(parent.operatorToken.kind) && parent.left === node) return true;
   // `errorCode(byName.error ?? byEmail.error)`, `errorCode(x!)`, `errorCode((e))`: säkert om hela uttrycket ligger i ett säkert anrop.
-  if (ts.isNonNullExpression(parent) || ts.isParenthesizedExpression(parent)) return isSafeErrorUse(parent);
-  if (ts.isBinaryExpression(parent) && [ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.BarBarToken].includes(parent.operatorToken.kind)) return isSafeErrorUse(parent);
-  if (ts.isConditionalExpression(parent) && parent.condition !== node) return isSafeErrorUse(parent);
+  if (ts.isNonNullExpression(parent) || ts.isParenthesizedExpression(parent)) return isSafeErrorUse(parent, allowCode);
+  if (ts.isBinaryExpression(parent) && [ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.BarBarToken].includes(parent.operatorToken.kind)) return isSafeErrorUse(parent, allowCode);
+  if (ts.isConditionalExpression(parent) && parent.condition !== node) return isSafeErrorUse(parent, allowCode);
   return false;
 }
 
@@ -156,7 +189,9 @@ function violationsIn(file: ts.SourceFile, text: string, rel: string): string[] 
     const visit = (node: ts.Node): void => {
       if (ts.isPropertyAccessExpression(node)) {
         const property = node.name.text;
-        if (LOGGER_FORBIDDEN_PROPERTIES.has(property) || (property === 'name' && PERSON_OR_GROUP.test(lastNameOf(node.expression)))) {
+        const base = unwrap(node.expression);
+        const baseIsError = (ts.isIdentifier(base) && isErrorName(base.text)) || (ts.isPropertyAccessExpression(base) && ERRORISH.test(base.name.text));
+        if (LOGGER_FORBIDDEN_PROPERTIES.has(property) || (property === 'name' && PERSON_OR_GROUP.test(lastNameOf(node.expression))) || (property === 'toString' && baseIsError)) {
           found.push(`logger: .${property} in ${where(node)}`);
         } else if (ERRORISH.test(property) && !isSafeErrorUse(node)) found.push(`logger: error object .${property} in ${where(node)}`);
       } else if (ts.isShorthandPropertyAssignment(node)) {
@@ -199,7 +234,43 @@ function violationsIn(file: ts.SourceFile, text: string, rel: string): string[] 
         const isKeyOrMember = (ts.isPropertyAssignment(parent) && parent.name === node)
           || (ts.isPropertyAccessExpression(parent) && parent.name === node)
           || ts.isShorthandPropertyAssignment(parent);
-        if (!isKeyOrMember && isErrorName(node.text) && !isSafeErrorUse(node)) found.push(`response: error object ${node.text} in ${where(node)}`);
+        if (!isKeyOrMember && isErrorName(node.text) && !isSafeErrorUse(node, true)) found.push(`response: error object ${node.text} in ${where(node)}`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(arg);
+  };
+
+  /** Ett kastat fel eller en samlad felrad bär aldrig felets text eller felobjektet i sin sträng. */
+  const inspectThrown = (arg: ts.Node, what: string): void => {
+    const shadowed = new Set<string>();
+    const collectParameters = (node: ts.Node): void => {
+      if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+        for (const p of node.parameters) if (ts.isIdentifier(p.name)) shadowed.add(p.name.text);
+      }
+      ts.forEachChild(node, collectParameters);
+    };
+    collectParameters(arg);
+    const isErrorName = (name: string): boolean => !shadowed.has(name) && name !== 'Error' && (ERRORISH.test(name) || catchNames.has(name));
+    /** `error`, `usedError`, `res.error`, `failedUpdates[0].error!`. */
+    const isErrorExpression = (expression: ts.Expression): boolean => {
+      const base = unwrap(expression);
+      if (ts.isIdentifier(base)) return isErrorName(base.text);
+      return ts.isPropertyAccessExpression(base) && ERRORISH.test(base.name.text);
+    };
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isPropertyAccessExpression(node)) {
+        if (RESPONSE_FORBIDDEN_PROPERTIES.has(node.name.text) && isErrorExpression(node.expression)) {
+          found.push(`${what}: .${node.name.text} of an error in ${where(node)}`);
+        }
+      } else if (ts.isIdentifier(node)) {
+        const parent = node.parent;
+        const isKeyOrMember = (ts.isPropertyAssignment(parent) && parent.name === node)
+          || (ts.isPropertyAccessExpression(parent) && parent.name === node)
+          || ts.isShorthandPropertyAssignment(parent)
+          || (ts.isPropertyAccessExpression(parent) && parent.expression === node && RESPONSE_FORBIDDEN_PROPERTIES.has(parent.name.text)); // `error.message` is reported by the property branch above
+        if (!isKeyOrMember && isErrorName(node.text) && !isSafeErrorUse(node)) found.push(`${what}: error object ${node.text} in ${where(node)}`);
       }
       ts.forEachChild(node, visit);
     };
@@ -207,9 +278,22 @@ function violationsIn(file: ts.SourceFile, text: string, rel: string): string[] 
   };
 
   const walk = (node: ts.Node): void => {
+    // `error.code ?? 'unknown'`, `error?.code || 'no code'`: en handskriven errorCode. supabase-js ger `code: ''` vid nätverksfel (inte
+    // undefined), så `??` släpper igenom den tomma koden och loggen visar "(code )". Vägen är errorCode(error) i utils/errorCode.ts.
+    if (ts.isBinaryExpression(node) && [ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.BarBarToken].includes(node.operatorToken.kind)) {
+      const left = unwrap(node.left);
+      const right = unwrap(node.right);
+      if (ts.isPropertyAccessExpression(left) && left.name.text === 'code' && (ts.isStringLiteral(right) || ts.isNoSubstitutionTemplateLiteral(right))) {
+        found.push(`hand-written code fallback (use errorCode) in ${where(node)}`);
+      }
+    }
     if (ts.isCallExpression(node)) {
       if (isLoggerCall(node)) node.arguments.forEach(inspectLogger);
       else if (isResponseCall(node)) node.arguments.forEach(inspectResponse);
+      else if (isFailureCollector(node)) node.arguments.forEach((arg) => inspectThrown(arg, 'collected failure'));
+      else if (isObjectAssignOnError(node)) node.arguments.slice(1).forEach((arg) => inspectThrown(arg, 'thrown error code'));
+    } else if (ts.isNewExpression(node) && isErrorConstructor(node)) {
+      node.arguments?.forEach((arg) => inspectThrown(arg, 'thrown error'));
     }
     ts.forEachChild(node, walk);
   };
@@ -265,6 +349,35 @@ describe('the log hygiene guard itself', () => {
     ["[1].forEach(logger.error);"],
     ["logger['error']('x', err);"],
     ["doSomething(logger);"],
+    // kastade fel och samlade felrader bär inte databasens text
+    ["throw new Error(`Failed to fetch runs (user ${userId}): ${error.message}`)"],
+    ["if (usedError) throw new Error(`Failed: ${usedError.message}`)"],
+    ["throw new Error(`Failed to recalculate titles: ${error}`)"],
+    ["throw new Error(error.message)"],
+    ["try {} catch (e) { throw new Error(`x: ${e instanceof Error ? e.message : String(e)}`); }"],
+    ["throw new Error(`x: ${failedUpdates[0].error!.message}`)"],
+    ["throw new Error(`read failed: ${JSON.stringify(error ?? 'user not found')}`)"],
+    ["throw new TypeError(`x ${res.error.details}`)"],
+    ["failures.push(`increment_event_xp failed: ${xpErr.message}`)"],
+    ["postClaimErrors.push(`reset failed: ${res.error.message}`)"],
+    // koden läses med errorCode(...), aldrig direkt: supabase-js ger code '' vid nätverksfel, och `??` släpper igenom den
+    ["logger.error(`x (${error.code ?? 'no code'})`)"],
+    ["logger.error(`x (code ${countError?.code ?? 'unknown'})`)"],
+    ["logger.error('x', { code: error.code ?? null, userId })"],
+    ["logger.error(`x (${error.code})`)"],
+    ["logger.error(`x (${result.error.code})`)"],
+    ["const code = error.code ?? 'unknown';"],
+    ["const code = String((result.reason as { code?: unknown } | null)?.code ?? 'unknown');"],
+    ["if (result.error) throw new WebhookHealthReadError(result.error.code ?? 'unknown');"],
+    ["throw Object.assign(new Error('x'), { code: error.code })"],
+    ["failures.push(`x ${error.code}`)"],
+    // toString och samlarnamn
+    ["logger.error(`x ${err.toString()}`)"],
+    ["throw new Error(`x ${error.toString()}`)"],
+    ["res.status(500).json({ error: error.toString() })"],
+    ["issues.push(`x ${error.message}`)"],
+    ["errs.push(`x ${error}`)"],
+    ["problems.push(`x ${e.message}`)"],
   ])('flags %s', (source) => {
     expect(scan(source).length).toBeGreaterThan(0);
   });
@@ -272,8 +385,6 @@ describe('the log hygiene guard itself', () => {
   it.each([
     ["logger.error(`x (${errorCode(error)})`)"],
     ["logger.error(`x (${error ? errorCode(error) : 'no row'})`)"],
-    ["logger.error(`x (${error.code ?? 'no code'})`)"],
-    ["logger.error('x', { code: error.code ?? null, userId })"],
     ["logger.error('x', new CriticalAlert('token_write'))"],
     ["logger.info(`User ${userId} did ${count} things`)"],
     ["logger.error(`x (${errorCode(byName.error ?? byEmail.error)})`)"],
@@ -287,6 +398,16 @@ describe('the log hygiene guard itself', () => {
     ["res.status(500).json({ code: error.code })"],
     ["res.status(500).send('Internal server error')"],
     ["console.log('plain text')"],
+    ["throw Object.assign(new Error(`Failed to fetch runs (user ${userId})`), { code: errorCode(error) })"],
+    ["throw new Error(`${failed} of ${total} auto-declines failed`)"],
+    ["throw new Error('Missing Supabase environment variables')"],
+    ["failures.push(`increment_event_xp failed for event ${event.id} (${errorCode(xpErr)})`)"],
+    ["logger.error(`x (${errorCode(error)})`, { code: errorCode(res.error) })"],
+    ["const code = errorCode(error);"],
+    ["if (sealing.code === 'x') logger.error(`x (${sealing.code})`)"],
+    ["throw Object.assign(new Error('x'), { code: errorCode(error) })"],
+    ["failures.push(`x ${errorCode(error)}`)"],
+    ["rows.push(`row ${item.message}`)"],
     ["import { logger } from '../utils/logger.js'; logger.info('x');"],
     ["export default function f(logger2: unknown) { return logger2; }"],
   ])('lets %s through', (source) => {

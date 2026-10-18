@@ -75,6 +75,17 @@ describe('reconcile ports: users', () => {
   });
 });
 
+describe('reconcile ports: a broken connection', () => {
+  it('throws the network cause as the code when supabase-js gives code "" (not "unknown")', async () => {
+    const networkError = { message: 'TypeError: fetch failed', details: 'Caused by: Error: connect ECONNREFUSED 10.0.0.4:443 (ECONNREFUSED)', hint: '', code: '' };
+    database({ strava_tokens: [] }, { errors: { strava_tokens: networkError as never } });
+
+    const failure = await createReconcilePorts().listConnectedUsers().catch((error) => error);
+
+    expect(failure.code).toBe('ECONNREFUSED');
+  });
+});
+
 describe('reconcile ports: runs', () => {
   const run = (over: Row): Row => ({ user_id: 'user-1', source: 'strava', external_id: '1', date: '2026-10-01', distance: 5, ...over });
 

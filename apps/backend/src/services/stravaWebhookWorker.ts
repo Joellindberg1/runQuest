@@ -69,6 +69,7 @@ import { MS_DAY, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } fr
 import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { withUserLock } from '../utils/keyedMutex.js';
+import { errorCode } from '../utils/errorCode.js';
 import type { AccessTokenFailureReason } from './stravaClient.js';
 import {
   LEASE_SECONDS,
@@ -204,12 +205,6 @@ function isCalendarDay(value: unknown): value is string {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 const isOutcome = (value: unknown): value is WebhookOutcome => (WEBHOOK_OUTCOMES as readonly unknown[]).includes(value);
-
-/** A short, safe label for an error: its code or its name, characters limited. Never the message (it can carry values). */
-function errorCode(error: unknown): string {
-  const raw = (error as { code?: unknown } | null)?.code ?? (error as { name?: unknown } | null)?.name ?? 'unknown';
-  return String(raw).replace(/[^\w.:-]/g, '').slice(0, 40) || 'unknown';
-}
 
 /** A handler's error string is stored as last_error: filtered like an error code (no spaces, quotes or braces) and cut. */
 const shortError = (value: string): string => value.replace(/[^\w.:-]/g, '').slice(0, WEBHOOK_LAST_ERROR_MAX_LENGTH) || 'unknown';

@@ -5,6 +5,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 import type { AdminWaitlistApiResponse, AdminWaitlistEntry } from '@runquest/shared';
 
 const router = express.Router();
@@ -22,7 +23,7 @@ router.get('/waitlist', authenticateJWT, requireAdmin, async (_req, res): Promis
     .limit(WAITLIST_LIST_LIMIT);
 
   if (error) {
-    logger.error(`❌ Admin waitlist read failed (code ${error.code ?? 'unknown'})`);
+    logger.error(`❌ Admin waitlist read failed (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to load the waitlist' });
     return;
   }
