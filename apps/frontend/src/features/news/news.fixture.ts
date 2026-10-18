@@ -161,8 +161,10 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null, 
     if (invalid) return { success: false as const, error: invalid };
     const types = query.type !== undefined ? query.type.split(',').map((t) => t.trim()) : null;
     const involvesViewer = (row: NewsItem) => {
-      const entrants = (row.payload as { entrant_ids?: unknown }).entrant_ids;
-      return row.actor?.id === viewerId || row.target?.id === viewerId || (row.type === 'event_closed' && Array.isArray(entrants) && entrants.includes(viewerId));
+      const payload = row.payload as { entrant_ids?: unknown; runner_up_user_id?: unknown };
+      return row.actor?.id === viewerId || row.target?.id === viewerId
+        || (row.type === 'event_closed' && Array.isArray(payload.entrant_ids) && payload.entrant_ids.includes(viewerId))
+        || (row.type === 'title_taken' && payload.runner_up_user_id === viewerId);
     };
     const matching = server.rows.filter(
       (row) =>

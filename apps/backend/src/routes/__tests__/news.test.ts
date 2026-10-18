@@ -478,10 +478,11 @@ describe('GET /api/news', () => {
         rowOf(1, { actor_user_id: lowerId }),
         rowOf(2, { type: 'event_closed', actor_user_id: null, payload: { event_name: 'Spring', entrant_ids: [lowerId, KARL] } }),
         rowOf(3, { actor_user_id: KARL }),
+        rowOf(4, { type: 'title_taken', actor_user_id: KARL, target_user_id: LISA, payload: { title_name: 'X', runner_up_user_id: lowerId } }),
       ], [user(upper, 'Me upper', 'g1')]));
       const res = await get('/api/news?involves=me', { user_id: upper });
       expect(res.status).toBe(200);
-      expect(idsOf(res)).toEqual([2, 1]);
+      expect(idsOf(res)).toEqual([4, 2, 1]);
     });
 
     it('utan involves påverkas inget av filtret (id:n som inte är UUID fungerar som förut)', async () => {
