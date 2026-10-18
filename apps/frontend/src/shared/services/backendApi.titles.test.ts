@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TitleLeaderboardResponse, UserTitlesResponse } from '@runquest/shared';
+import type { GroupEligibilityResponse, TitleLeaderboardResponse, UserTitlesResponse } from '@runquest/shared';
 import { backendApi } from './backendApi';
 
 // Titelendpointsen (ADR 012 beslut 8): svaren följer contracts/titles, och 404 från /titles/user/:id betyder
@@ -8,6 +8,9 @@ import { backendApi } from './backendApi';
 const json = (status: number, body: unknown) => ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
 
 let fetchMock: ReturnType<typeof vi.fn>;
+
+/** Sökvägen efter API-basen i det första fetch-anropet (hela raden, så att ett tillägg som "/titles/leaderboardX" fångas). */
+const requestedPath = () => new URL(String(fetchMock.mock.calls[0][0])).pathname.replace(/^\/api(?=\/)/, '');
 
 beforeEach(() => {
   localStorage.setItem('runquest_token', 'tok-123');
@@ -33,7 +36,7 @@ describe('getUserTitles', () => {
     const result = await backendApi.getUserTitles('u1');
 
     expect(result).toEqual({ success: true, data: body.data });
-    expect(String(fetchMock.mock.calls[0][0]).endsWith('/titles/user/u1')).toBe(true);
+    expect(requestedPath()).toBe('/titles/user/u1');
   });
 
   it('404 (användaren finns utanför gruppen) blir en tom titellista, inte ett fel', async () => {
@@ -80,11 +83,37 @@ describe('getTitleLeaderboard', () => {
     fetchMock.mockResolvedValue(json(200, body));
 
     expect(await backendApi.getTitleLeaderboard()).toEqual({ success: true, data: body.data });
+    expect(requestedPath()).toBe('/titles/leaderboard');
   });
 
   it('en tom lista (anroparen saknar grupp) är en lyckad tom lista', async () => {
     fetchMock.mockResolvedValue(json(200, { success: true, data: [], meta: { total_titles: 0, timestamp: '', cache_optimized: true } }));
 
     expect(await backendApi.getTitleLeaderboard()).toEqual({ success: true, data: [] });
+  });
+});
+
+describe('getTitleGroupEligibility', () => {
+  it('packar upp gruppens värden med camelCase-fälten', async () => {
+    const body: GroupEligibilityResponse = {
+      success: true,
+      data: [{ userId: 'u1', name: 'Karl', gender: null, values: { nightRunCount: 7 } }],
+    };
+    fetchMock.mockResolvedValue(json(200, body));
+
+    expect(await backendApi.getTitleGroupEligibility()).toEqual({ success: true, data: body.data });
+    expect(requestedPath()).toBe('/titles/group-eligibility');
+  });
+
+  it('en tom lista (anroparen saknar grupp) är en lyckad tom lista', async () => {
+    fetchMock.mockResolvedValue(json(200, { success: true, data: [] }));
+
+    expect(await backendApi.getTitleGroupEligibility()).toEqual({ success: true, data: [] });
+  });
+
+  it('serverfel blir ett fel med serverns meddelande', async () => {
+    fetchMock.mockResolvedValue(json(500, { error: 'Internal server error' }));
+
+    expect(await backendApi.getTitleGroupEligibility()).toEqual({ success: false, error: 'Internal server error' });
   });
 });
