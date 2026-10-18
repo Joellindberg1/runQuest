@@ -195,11 +195,11 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     id: 'statistics',
     title: 'Visitor statistics (Umami)',
     paragraphs: [
-      'RunQuest counts visits with Umami Cloud, a visitor statistics service that uses no cookies. It is loaded only on the live site, not while the app is built or tested.',
-      'What is counted is which page was opened, as the page type and never the exact address (for example /runner/:id for a runner card), together with the kind of browser, operating system and device and the country, which Umami works out from the request. The address never carries a query or a fragment into the statistics, with one exception: campaign tags in the link to the landing page (such as utm_source) are counted there, so that RunQuest can see which links bring visitors.',
+      "RunQuest counts visits with Umami Cloud, a visitor statistics service that, according to Umami, uses no cookies; RunQuest's own code stores nothing in your browser for it. It is loaded only on the live site, not while the app is built or tested.",
+      'What is counted is which page was opened, as the page type and never the exact address (for example /runner/:id for a runner card), together with where you came from (only the name of the website that linked to RunQuest, never the full link), your screen size and browser language, and the kind of browser, operating system and device and the approximate location (such as the country), which Umami works out from the request. The address never carries a query or a fragment into the statistics, with one exception: on the landing page, a campaign tag in the link (such as utm_source) is counted if it is one of a few fixed values RunQuest has chosen, such as the name of the site where the link was shared; any other value is dropped.',
       'Nothing that identifies you is sent: no user ID, no name, no email address and nothing about your runs or your Strava data. A visit is not linked to your account.',
-      'Your IP address reaches Umami as part of every request, as with any web page; according to Umami it is not stored.',
-      'A few actions in the app are counted as events; an event carries only a value from a fixed list, never text you typed or anything about you or your runs.',
+      'Your IP address reaches Umami as part of every request, as with any web page; according to Umami it is not stored. According to Umami, visits are told apart by a one-way code made from details of the request, which changes regularly and cannot be traced back to you.',
+      'A few actions on the site are counted as events, such as pressing a button or changing a setting. An event is a fixed name chosen by RunQuest, sometimes with the name of the setting that was changed, never the value you chose and never anything you typed. It is counted without any link to you or your account.',
       'If your browser sends the Do Not Track signal, nothing is counted.',
       `The statistics are used only to see how many people visit and which pages are used. Umami Cloud stores the statistics in ${UMAMI_DATA_LOCATION}.`,
     ],
@@ -210,8 +210,9 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     paragraphs: [
       'When something breaks in the app or on the server, a report is sent to Sentry so that the error can be found and fixed. In the app, reporting starts when you log in.',
       'A report holds the type of error, its message, where in the code it happened, the version of RunQuest, the kind of browser and operating system, and the name of the page or route (such as /runner/:id), never an address with an ID, a query or a fragment.',
-      'Reports do not hold your name, email address or tokens. RunQuest does not attach them, and it removes email addresses, tokens and passwords it finds in the text of a report before the report is sent.',
-      'RunQuest adds no cookies, no request contents and no IP address to a report.',
+      'Reports do not hold your name, email address or tokens. RunQuest does not attach them, and it removes email addresses, login tokens and passwords it recognises in the text of a report before the report is sent.',
+      // PLATSHÅLLARE: slår ägaren på "Prevent Storing of IP Addresses" i båda Sentry-projekten blir andra meningen "Sentry is set not to store it." (Lead ändrar då texten och versionen.)
+      'RunQuest adds no cookies, no request contents and no IP address to a report. Your IP address reaches Sentry as part of every request, as with any web page; Sentry may store it under its own rules.',
       'A report about an error on the server can carry your RunQuest user ID, an internal identifier that is not your name or email, so that the fault can be traced.',
       'To follow how fast the app is, Sentry also receives timings for a sample of page loads and server requests (at most one in ten), labelled with the page name or route and never with an ID.',
       'There are no session recordings.',

@@ -5,6 +5,7 @@ import {
   DATA_POLICY_SECTIONS,
   DATA_POLICY_VERSION,
   STRAVA_CONSENT_VERSION,
+  MAX_TRACES_SAMPLE_RATE,
   STRAVA_IMPORTED_FIELDS,
   TERMS_SECTION,
   WAITLIST_CONSENT_LABEL,
@@ -19,7 +20,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-18', sha256: '2184942319a2a984d6370d4951b010cc508c8ec643c6a5876da02c701bf18387' };
+const PINNED_POLICY = { version: '2026-10-18', sha256: '3c7235e8909f94020994b9e7f943cf9eb7ca020d85d3d3c181ae41642c846269' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -285,14 +286,19 @@ describe('dataPolicy', () => {
   it('statistics section describes Umami as cookieless, personal-data-free and ID-free, with normalized addresses, Do Not Track and fixed event values', () => {
     const section = getDataPolicySection('statistics');
     const text = textOf(section);
-    expectSentence(text, /Umami Cloud/, /no cookies/i);
+    expectSentence(text, /Umami Cloud/, /according to Umami/i, /no cookies/i, /stores nothing in your browser/i);
     expectSentence(text, /live site/i);
     expectSentence(text, /page type/i, /never the exact address/i, /\/runner\/:id/);
-    expectSentence(text, /(query|fragment)/i, /utm_source/i, /landing page/i);
+    expectSentence(text, /where you came from/i, /name of the website/i, /never the full link/i, /screen size/i, /browser language/i, /approximate location/i);
+    // Kampanjtaggar är en vitlista: besökarens egen sträng skickas aldrig (RUN-291).
+    expectSentence(text, /(query|fragment)/i, /landing page/i, /utm_source/i, /one of a few fixed values RunQuest has chosen/i, /any other value is dropped/i);
     expectSentence(text, /no user ID/i, /no name/i, /no email address/i, /runs/i);
     expectSentence(text, /not linked to your account/i);
     expectSentence(text, /IP address/i, /not stored/i);
-    expectSentence(text, /events/i, /fixed list/i, /never/i);
+    expectSentence(text, /one-way code/i, /changes regularly/i, /cannot be traced back to you/i);
+    expectSentence(text, /events/i, /pressing a button|changing a setting/i);
+    expectSentence(text, /event is a fixed name chosen by RunQuest/i, /never the value you chose/i, /never anything you typed/i);
+    expectSentence(text, /counted without any link to you or your account/i);
     expectSentence(text, /Do Not Track/, /nothing is counted/i);
   });
 
@@ -300,15 +306,23 @@ describe('dataPolicy', () => {
     expectSentence(textOf(getDataPolicySection('statistics')), /Umami Cloud stores the statistics in/i);
   });
 
+  // Releasegrinden (docs/release.md, steg 1): körs med RUNQUEST_RELEASE_CHECK=1. Vanlig CI hoppar över den, så integrationen blir inte röd av platshållaren.
+  it.skipIf(!process.env.RUNQUEST_RELEASE_CHECK)('the policy text has no unfilled owner placeholder left', () => {
+    expect(policyText()).not.toMatch(/\[[A-Z]{3,}:[^\]]*\]/);
+  });
+
   it('errors section describes Sentry reports without name, email address or tokens, without session recordings, stored in the EU', () => {
     const text = textOf(getDataPolicySection('errors'));
     expectSentence(text, /report/i, /Sentry/, /found and fixed/i);
     expectSentence(text, /after you log in|when you log in/i);
     expectSentence(text, /do not hold/i, /name/i, /email address/i, /tokens/i);
-    expectSentence(text, /removes? email addresses, tokens and passwords/i);
+    expectSentence(text, /removes? email addresses, login tokens and passwords it recognises/i);
     expectSentence(text, /no cookies/i, /no IP address/i);
+    expectSentence(text, /IP address reaches Sentry/i, /may store it under its own rules/i);
     expectSentence(text, /server/i, /user ID/i, /not your name or email/i);
     expectSentence(text, /one in ten/i, /never with an ID/i);
+    // "one in ten" i texten är taket för provtagningen; ändras taket ska texten följa.
+    expect(Math.round(1 / MAX_TRACES_SAMPLE_RATE)).toBe(10);
     expectSentence(text, /no session recordings/i);
     expectSentence(text, /Sentry stores/i, /EU/);
   });
