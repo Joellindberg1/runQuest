@@ -128,7 +128,7 @@ export interface Recompute {
   /**
    * calculateUserTotals: totals, level, badges, titles. calculateUserTotals never throws, so the answer is what tells a caller whether the
    * totals were written: true = written, false = not (RUN-322: a recalculation mark is cleared only on a reprocess that worked AND totals
-   * that were written). The webhook worker ignores the value, as before. Only an explicit false counts as not written.
+   * that were written). The webhook worker treats a false as a failed recalculation (RUN-327), so the events are retried like after a throw. Only an explicit false counts as not written.
    */
   recalculateTotals(userId: string): Promise<boolean>;
   /** WeatherService.fetchAndSaveWeatherForRuns for the runs imported in a batch. Best-effort for the worker: a throw is logged. */

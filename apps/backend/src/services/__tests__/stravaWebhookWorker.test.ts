@@ -559,6 +559,34 @@ describe('recalculation', () => {
     expect(recompute.calls.some((call) => call.kind === 'totals')).toBe(false);
   });
 
+  it('an explicit false from the totals recalculation retries the events, and a later true finishes them', async () => {
+    const { store, worker, recompute } = setup(async () => changed('2026-10-10'));
+    recompute.totalsAnswer = false;
+    store.seed();
+    store.seed();
+
+    await worker.drain();
+
+    expect(store.row(1)).toMatchObject({ status: 'pending', attempts: 1, last_error: 'recompute_failed' });
+    expect(store.row(2)).toMatchObject({ status: 'pending', attempts: 1, last_error: 'recompute_failed' });
+
+    recompute.totalsAnswer = true;
+    clock = new Date(START.getTime() + 2 * MINUTE);
+    await worker.drain();
+
+    expect(store.rows().map((row) => row.status)).toEqual(['done', 'done']);
+  });
+
+  it('a recalculation that answers nothing (a fake) counts as written', async () => {
+    const { store, worker, recompute } = setup(async () => changed('2026-10-10'));
+    recompute.totalsAnswer = undefined;
+    store.seed();
+
+    await worker.drain();
+
+    expect(store.row(1).status).toBe('done');
+  });
+
   it('a failing earliest-run lookup is a failed recompute: the event is retried, not done', async () => {
     const { store, worker, runs } = setup(async () => done('noop', null, { recalculateUnknown: true }));
     runs.earliestError = new Error('db down');
