@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ACTIVE_KEY_ENV,
   RETIRED_KEYS_ENV,
+  KeyRing,
   SecretBoxError,
   buildSecretAad,
   open,
@@ -155,15 +156,18 @@ describe('secretBox tampered ciphertext', () => {
     expect(codeOf(() => open(truncated, AAD, ring))).toBe('bad_format');
   });
 
-  it('node:crypto itself rejects a short tag when the tag length is pinned, which is the second layer behind the format check', () => {
+  // An assumption about Node, not about secretBox: open() pins authTagLength as a second layer behind the format check, and this test
+  // documents that the pin is what makes node:crypto refuse a truncated tag (without it Node accepts one, with a deprecation warning).
+  // It cannot be reached through open(), where the format check answers first.
+  it('assumption about node:crypto: a decipher with a pinned authTagLength refuses a 12 byte tag', () => {
     const key = randomBytes(32);
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
-    const ciphertext = Buffer.concat([cipher.update('x', 'utf8'), cipher.final()]);
+    cipher.update('x', 'utf8');
+    cipher.final();
     const shortTag = cipher.getAuthTag().subarray(0, 12);
     const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
     expect(() => decipher.setAuthTag(shortTag)).toThrow();
-    expect(ciphertext).toHaveLength(1);
   });
 
   it('a non-canonical spelling of the same bytes (set spare bits in the last character) fails with bad_format', () => {
@@ -263,6 +267,13 @@ describe('secretBox caller mistakes are not key problems', () => {
     for (const bad of [undefined, null, 42, {}, Buffer.from('x'), '\ud800', 'ok\udc00']) {
       expect(codeOf(() => seal(bad as unknown as string, AAD, ring))).toBe('bad_input');
     }
+  });
+});
+
+describe('secretBox cipher initialisation', () => {
+  it('seal reports key_invalid when the ring holds a key of the wrong length', () => {
+    const ring = new KeyRing(new Map([['k-1', Buffer.alloc(5)]]), 'k-1');
+    expect(codeOf(() => seal('t', AAD, ring))).toBe('key_invalid');
   });
 });
 
@@ -407,7 +418,7 @@ describe('secretBox never carries key material', () => {
       () => open(withField(stored, 4, flipFirstChar), AAD, ring),
       () => open(withField(stored, 2, () => 'k-9'), AAD, ring),
       () => open(stored.replace('enc:v1:', 'enc:v2:'), AAD, ring),
-      () => open(stored, 'other-aad', ring),
+      () => open(stored, buildSecretAad({ table: 'other', column: 'aad', userId: 'x' }), ring),
       () => open(stored, AAD, ringFrom(`k-1:${newKey()}`)),
       () => parseKeyRing({ [ACTIVE_KEY_ENV]: `k-1:${keyB64.slice(0, 20)}` }),
       () => parseKeyRing({ [ACTIVE_KEY_ENV]: `K 1:${keyB64}` }),
