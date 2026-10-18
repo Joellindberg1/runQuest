@@ -10,7 +10,7 @@ samma sak på två ställen.
 | Publik | Dokument | Språk | Ägare |
 |---|---|---|---|
 | **Gruppen** (användarna) | `apps/frontend/src/data/changelog.json` → Feature & Version-sidan och popupen "What's new" | Enkel engelska, vad *du* märker | Lead vid release |
-| **Utvecklare** | `CHANGELOG.md` (tekniskt, varje release) · `STATE.md` (nuläget) · `docs/adr/` (beslut) · `docs/release.md` (releasekedjan) · `docs/staging.md` (bygga om staging) · `docs/performance.md` (prestandaövervakning: trösklar och Sentry-alerts) · `docs/runbook-backup.md` (backup, återställningsövning, RPO/RTO) · `docs/loadtest.md` (lasttest mot staging: mål, körning, rapportmall) · `docs/open-assumptions.md` · feature-READMEs i `apps/frontend/src/features/*/README.md` | Svenska | Lead / respektive builder |
+| **Utvecklare** | `CHANGELOG.md` (tekniskt, varje release) · `STATE.md` (nuläget) · `docs/adr/` (beslut) · `docs/release.md` (releasekedjan) · `docs/staging.md` (bygga om staging) · `docs/performance.md` (prestandaövervakning: trösklar och Sentry-alerts) · `docs/runbook-backup.md` (backup, återställningsövning, RPO/RTO) · `docs/loadtest.md` (lasttest mot staging: mål, körning, rapportmall) · `docs/runbook-token-key.md` (krypteringsnyckeln för Strava-tokens: generera, rotera, förlust, läcka) · `docs/open-assumptions.md` · feature-READMEs i `apps/frontend/src/features/*/README.md` | Svenska | Lead / respektive builder |
 | **Ägaren** | Notion (idéer, roadmap, monetisering — hålls utanför det publika repot) | Fritt | Ägaren |
 
 `docs/archive/` innehåller äldre dokument som inte längre uppdateras.
