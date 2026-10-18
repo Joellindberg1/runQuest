@@ -1,5 +1,5 @@
 -- 057: recalculation_marks — en beständig markering per användare: "behöver omräkning från datum X" (RUN-322, ADR 010 beslut 8.5 och D12, v0.8.0).
--- Datum: 2026-10-18. EJ APPLICERAD. Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
+-- Datum: 2026-10-18. APPLICERAD i staging 2026-10-18 och i prod 2026-10-19 (ägar-ja i chatten). Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
 -- (yrrqaxdngayakcivfrck). Körs av Lead via Supabase MCP apply_migration, name: 057_create_recalculation_marks, aldrig av en builder.
 -- Lead uppdaterar den här raden till APPLICERAD med datum och miljö.
 --

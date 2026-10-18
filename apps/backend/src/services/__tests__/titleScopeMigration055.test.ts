@@ -623,7 +623,8 @@ describe(`migration ${file}: form, idempotens och rollback`, () => {
   });
 
   it('huvudet anger ordningen 053 -> 054 -> 055, att inget körs mot prod av en builder, och att detta är ägar-ja per miljö', () => {
-    expect(sql).toMatch(/EJ APPLICERAD/);
+    // Applikationsstatus står i headern (EJ APPLICERAD före prod, APPLICERAD i prod efter).
+    expect(sql).toMatch(/APPLICERAD/);
     expect(sql).toMatch(/053/);
     expect(sql).toMatch(/054/);
     expect(sql).toMatch(/aldrig av en builder/);

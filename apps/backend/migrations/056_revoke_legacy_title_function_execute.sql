@@ -1,6 +1,6 @@
 -- 056: stäng EXECUTE på de tre gamla titelfunktionerna och på increment_event_xp för public, anon och authenticated; service_role behåller det
 -- (ADR 012, ADR 002, v0.8.0).
--- Datum: 2026-10-18. EJ APPLICERAD. Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
+-- Datum: 2026-10-18. APPLICERAD i staging 2026-10-18 och i prod 2026-10-19 (ägar-ja i chatten). Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
 -- (yrrqaxdngayakcivfrck). Körs av Lead via Supabase MCP apply_migration, name: 056_revoke_legacy_title_function_execute, aldrig av en builder.
 -- Lead uppdaterar den här raden till APPLICERAD med datum och miljö.
 --

@@ -1,5 +1,5 @@
 -- 055: titelscope per grupp — user_titles och title_leaderboard får group_id; topp 10 per grupp; omslagsfunktioner, shim och vy. ADR 012 beslut 1 och 3 (RUN-295, S2, v0.8.0).
--- Datum: 2026-10-18. EJ APPLICERAD. Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
+-- Datum: 2026-10-18. APPLICERAD i staging 2026-10-18 och i prod 2026-10-19 (ägar-ja i chatten). Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
 -- (yrrqaxdngayakcivfrck). Körs av Lead via Supabase MCP apply_migration, name: 055_title_scope_group, aldrig av en builder.
 -- Lead uppdaterar den här raden till APPLICERAD med datum och miljö.
 --
