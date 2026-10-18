@@ -1,0 +1,119 @@
+# E2E-rök med Playwright (mot staging)
+
+Intern förvaltningsdokumentation (svenska, för Lead och ägaren). ADR 001 sköt Playwright tills en miljö skild från prod fanns; sedan
+2026-10-17 finns staging ([`docs/release.md`](release.md), "Preview på staging"), och sviten bor i `apps/e2e`. Den är en rök, inte en
+regressionssvit: sju specfiler, kortaste kedjan som bevisar att flödena i `STATE.md` ("Kritiska flöden") lever.
+
+## Det viktigaste: sviten körs aldrig mot prod
+
+Sviten loggar in, loggar en runda och raderar den. Mot prod vore det verkliga användare och verkliga totaler. Skyddet har tre lager och
+bor i `scripts/e2e-guard.mjs` (testat i `scripts/e2e-guard.test.mjs`, körs i CI):
+
+1. **Adresserna.** `E2E_BASE_URL` och `E2E_API_URL` måste vara exakt stagingtjänsterna (en tillåtelselista, inte en spärrlista över prod) eller
+   localhost. Allt annat vägrar startet, också en adress som bara liknar staging (`...up.railway.app.evil.example`, inloggning i adressen,
+   `http` mot staging, en port). Konfigurationen (`apps/e2e/playwright.config.ts`) anropar vakten när den läses, så varken `playwright test`
+   eller `playwright test --list` startar mot fel miljö. Byter stagingtjänsterna adress ändras konstanterna överst i `e2e-guard.mjs`, i en PR.
+2. **Stagingbygget.** Före första testet läser `support/global-setup.ts` `robots.txt` från frontenden: ett stagingbygge svarar `Disallow: /`
+   (`apps/frontend/stagingGuard.ts`), ett prodbygge släpper in sökrobotar. Det fångar en stagingadress som i själva verket serverar prod.
+3. **Förfrågningarna.** Varje test avbryter alla förfrågningar till `runquest.dev` (med subdomäner) och prodtjänsternas Railway-adresser och
+   fäller sig självt om någon gjordes (`support/test.ts`). Pekar stagingfrontenden av misstag på prodens API når ingen skrivning fram.
+
+Workflowen bevisar dessutom i varje körning att konfigurationen vägrar prod (steget "The guard refuses production").
+
+## Vad specerna bevisar
+
+| Fil | Flöde i STATE.md | Bevisar |
+|---|---|---|
+| `tests/auth.setup.ts` | 1 Login | Testkontot loggar in genom dialogen och sessionen sparas för övriga specer |
+| `tests/login.spec.ts` | 1 Login | Fel lösenord lämnar dialogen öppen med felet; utloggad på en skyddad sida → `/login?next=…` och tillbaka efter inloggning, och inloggningsanropet går till stagingbackenden; sessionen överlever omladdning; Log out → `/` och token borta |
+| `tests/access.spec.ts` | 1 Login | Ett vanligt konto som öppnar `/admin` skickas till Board; stagingbannern syns (hoppas över mot localhost) |
+| `tests/board.spec.ts` | 4 Leaderboard | Board visar hela gruppen i den ordning servern rankar (podiet och tabellen "Rest of the pack" mot `GET /auth/users-with-runs`), antalet löpare i rubriken stämmer, flikarna Week/Streaks/All-time öppnas |
+| `tests/log-run.spec.ts` | 2 Logga runda | 1,5 km i formuläret ger bekräftelsen, ökar XP och distans (mätt mot API:t), syns i Group history med "mine"-markering; radering återställer totalerna exakt; under minimidistans skickas ingenting |
+| `tests/news.spec.ts` | 8 Pack News | Sju chips i rätt ordning som slås av och på via `?type=` (ADR 011 B7); läst-vid-hover med riktig pekare: fokus ensam markerar inget, en pekare som rör sig in över raden gör den läst (`POST /news/read`) och det består efter omladdning (ADR 011 addendum 2026-10-14) |
+| `tests/news-chips.mobile.spec.ts` | 8 Pack News | Playwright-kandidaten ur ADR 011 och `features/news/README.md`: på 412 px scrollar de sju chipsen sidledes i sin rad (`scrollWidth > clientWidth`) utan att göra sidan bredare, och sista chipet nås med tangentbordet |
+
+Flöde 5 (utmaningar), 6 (events), 7 (profilbild), Strava (3, 10) och badges (9) ingår inte: Strava är avstängt i staging, och resten är inte en del av
+första röken (AC: inloggning, logga runda, topplista, Pack News).
+
+Spåren är verifierade mot den riktiga frontenden på localhost med en fejkad backend (se "Hur sviten provades" nedan); mot staging har de inte körts av byggaren.
+
+## Testkonto och secrets
+
+Sviten använder ETT dedikerat staging-testkonto (gruppmedlem, inte admin). Uppgifterna finns bara i miljön, aldrig i repot:
+
+| GitHub-secret (Settings → Secrets and variables → Actions) | Innehåll |
+|---|---|
+| `E2E_USER_LOGIN` | Det man skriver i Username-fältet: användarnamn eller e-post |
+| `E2E_USER_PASSWORD` | Lösenordet |
+
+Stagingadresserna är inga secrets: de står i `.github/workflows/e2e-staging.yml`. Kontot skapas av Lead i stagingdatabasen (inte i prod) och ska:
+
+- vara medlem i en grupp (annars har det ingen Board, ingen Group history och inga nyheter: ADR 012),
+- inte vara admin,
+- helst ha minst en **oläst** Pack News-rad (en rad från en annan löpare, skapad efter kontot): utan den hoppar läst-vid-hover-testet över sig och säger
+  varför i körningens sammanfattning. En rad förbrukas varje gång testet kör, så staging-seeden bör fylla på (till exempel genom att testgruppens
+  seedlöpare får nivåhöjningar eller milstolpar efter kontots skapande). Läs-testet är det enda som är beroende av data som sviten själv inte skapar.
+
+Ett andra konto behövs inte.
+
+## Städning och idempotens
+
+Bara `log-run.spec.ts` skriver data. Testrundan har distansen **1,5 km** (`E2E_RUN_KM` i `support/api.ts`) på testkontot:
+
+- Före testet raderas alla manuella rundor med exakt den distansen på kontot, och kontots totaler räknas om (`POST /auth/recalculate-totals`), så en gammal
+  avvikelse i seeddatan inte ser ut som ett fel i jämförelsen före/efter.
+- Testet raderar rundan själv (`DELETE /runs/:id`) och jämför totalerna med före-läget.
+- `afterEach` raderar igen om testet föll på vägen. En körning som dör mitt i städas av nästa körning.
+- Använd aldrig 1,5 km för riktiga rundor på testkontot. Kvalificerar en 1,5 km-runda ett event raderas den inte (409: en kvalificerande runda kan inte raderas, se
+  `routes/runs.ts`); ett stagingevent med så låg distansgräns får då inte vara öppet, annars faller testet med det felet och rundan måste tas bort för hand.
+
+Strava är avstängt i staging, så rundan loggas manuellt i appen.
+
+## Köra mot staging
+
+### I CI
+
+Workflowen `.github/workflows/e2e-staging.yml`: manuellt (Actions → "E2E (staging)" → Run workflow) och varje natt 03:20 UTC. Den
+
+1. kontrollerar att secrets finns (saknas de fäller en manuell körning tydligt; en nattlig hoppar över med en notis, så schemat inte blir rött innan de skapats),
+2. kör `npm ci`, typkontrollerar sviten, bevisar att vakten vägrar prod,
+3. kör `npx playwright install --with-deps chromium`,
+4. kör sviten (egen gräns 4,5 min, jobbet 15 min) och laddar vid fel upp `apps/e2e/test-results/` (spår och skärmbilder, 7 dagar).
+
+Spåret bär ifyllda värden, så specerna som skriver in lösenordet (`auth.setup.ts`, `login.spec.ts`) spelar inte in något spår eller någon skärmbild. Hemligheterna maskas i loggen av GitHub.
+
+`workflow_dispatch` kan bara startas när workflowfilen finns på standardbranchen (`main`); före merge provas den inte på en gren. PR-flödet (`ci.yml`) kör bara
+den delen som inte behöver staging: vaktens test, typkontroll och `playwright test --list` av sviten (ingen webbläsare, inget nätverk).
+
+### Lokalt mot staging
+
+Installera webbläsaren en gång (`npx playwright install chromium`; i CI görs det av workflowen) och kör från repo-roten:
+
+```bash
+export E2E_BASE_URL=https://runquest-frontend-staging-staging.up.railway.app
+export E2E_API_URL=https://runquest-backend-staging-staging.up.railway.app
+export E2E_USER_LOGIN=...      # sätts i skalet, aldrig i en fil i repot
+export E2E_USER_PASSWORD=...
+npm run test:e2e --workspace=@runquest/e2e
+```
+
+Bara lista specerna (ingen webbläsare, inga uppgifter): `E2E_BASE_URL=http://localhost:8080 E2E_API_URL=http://localhost:3001 npm run test:e2e:list --workspace=@runquest/e2e`.
+Adresser till localhost går också att köra mot, till exempel en lokal frontend med `VITE_API_URL` mot stagingbackenden; vakten tillåter localhost för
+frontenden och backenden var för sig. `apps/e2e/.auth/` (sparad session, en giltig JWT) och `test-results/` är gitignorerade.
+
+### Hur sviten provades
+
+Byggaren körde aldrig mot staging. Specerna provades mot den riktiga frontenden (Vite på localhost) med en fejkad backend som imiterar svarsformerna ur
+`apps/backend/src/routes` (login, `users-with-runs`, `runs`, `news`), i den redan installerade Edge-webbläsaren: alla specer gröna. Två avsiktliga fel i frontendkoden fångades (chip-radens `position: relative` borttagen
+gav sidled scroll på hela sidan; hover-gesten avstängd gjorde att raden aldrig blev läst). Ett tredje, borttagen fokus-scroll i `NewsFilters`, fångades
+inte, eftersom webbläsaren själv scrollar ett fokuserat element i bild; testet av sista chipet bevisar därför nåbarhet, inte den hanteraren. Det hela bevisar
+locatorerna och flödena, inte stagingdatan.
+
+## Känt och medvetet
+
+- Tourer och popuper (välkomstturen, sidoturerna, "What's new", badge-popupen) lägger sig över sidan för ett konto som inte sett dem. `support/overlays.ts` stänger
+  dem med Escape efter varje sidladdning, och det markerar dem sedda på servern. Ett nytt testkonto möter dem en gång (första körningen blir något längre); en ny
+  release med `announce` ger en "What's new"-popup en gång. Nya slag av popuper som inte är en dialog eller en tur måste läggas till i hjälpen.
+- Bell-popovern och flera andra delar av appen ingår inte. Sviten är avsiktligt smal och ska hållas under fem minuter.
+- Strava-flödena (3, 10), utmaningar, events, profilbild och badges har ingen E2E ännu; de täcks av enhets- och kontraktstesterna samt Leads rök vid release.
+- Sviten körs inte som krav på PR:ar mot main. Ägaren avgör senare om den ska bli det (då behövs en pull_request-trigger och en staging som följer PR:ens kod).
