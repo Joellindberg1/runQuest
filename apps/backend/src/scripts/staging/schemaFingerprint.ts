@@ -180,7 +180,7 @@ export function diffFingerprints(prod: SideFingerprint, staging: SideFingerprint
 
 /**
  * Known, explained differences. A rule names the exact keys it explains. It applies only when the set of entries of its kind (here: every
- * PUBLIC EXECUTE grant that exists only in staging) is EXACTLY that set: one more difference of the same kind, or one of them having been fixed,
+ * anon or authenticated EXECUTE grant that exists only in prod) is EXACTLY that set: one more difference of the same kind, or one of them having been fixed,
  * means that none of them is treated as known and the person reading the diff has to look again.
  */
 export interface KnownRule {
@@ -192,16 +192,12 @@ export interface KnownRule {
 }
 
 /**
- * The one function on which prod has lost PUBLIC execute while staging, built from the repo, still has it (verified by Lead 2026-10-17;
- * drift outside the repo, RUN-226). The three title functions (trigger_update_title_leaderboard, update_all_title_leaderboards,
- * update_title_leaderboard) were on this list until migration 056 closed PUBLIC execute on them in both projects.
+ * The four functions that migration 056 closes for public, anon and authenticated (RUN-326). Used by the temporary rule below.
+ * (Until 056, prod lacked PUBLIC execute on exactly these four while staging had it: drift outside the repo, RUN-226. 056 closes PUBLIC in both,
+ * so that permanent rule is gone.)
  */
-export const PROD_WITHOUT_PUBLIC_EXECUTE: readonly string[] = ['public.increment_event_xp(p_user_id uuid, p_xp integer)'];
-
-/**
- * The three old title functions that migration 056 closes for public, anon and authenticated. Used by the temporary rule below.
- */
-const LEGACY_TITLE_FUNCTIONS: readonly string[] = [
+const CLOSED_BY_056: readonly string[] = [
+  'public.increment_event_xp(p_user_id uuid, p_xp integer)',
   'public.trigger_update_title_leaderboard()',
   'public.update_all_title_leaderboards()',
   'public.update_title_leaderboard(p_title_id uuid)',
@@ -209,22 +205,16 @@ const LEGACY_TITLE_FUNCTIONS: readonly string[] = [
 const CLIENT_ROLES: readonly string[] = ['anon', 'authenticated'];
 
 export const KNOWN_DIFFERENCES: readonly KnownRule[] = [
-  {
-    id: 'prod-missing-public-execute',
-    explanation: 'Known 2026-10-17 (RUN-226): prod has lost the default PUBLIC execute on this function (drift outside the repo); staging, built from the repo, still has it.',
-    candidate: (e) => e.category === 'function_grants' && e.kind === 'only_in_staging' && e.key.endsWith(' -> PUBLIC EXECUTE'),
-    expectedKeys: PROD_WITHOUT_PUBLIC_EXECUTE.map((signature) => `${signature} -> PUBLIC EXECUTE`),
-  },
-  // TEMPORARY, removed when 056 is applied in prod (RUN-326). Migration 056 revokes execute from anon and authenticated on the three
-  // title functions. Between its apply in staging and its apply in prod, only prod still has those six grants. The rule needs exactly
-  // those six keys: if prod already lost one, or has a seventh, none is treated as known. When 056 is in both, the rule has no
-  // candidates and stays silent; delete it and LEGACY_TITLE_FUNCTIONS then.
+  // TEMPORARY, removed when 056 is applied in prod (RUN-326). Migration 056 revokes execute from anon and authenticated on the four
+  // functions. Between its apply in staging and its apply in prod, only prod still has those eight grants. The rule needs exactly those
+  // eight keys: if prod already lost one, or has a ninth, none is treated as known. When 056 is in both, the rule has no candidates and
+  // stays silent; delete it, CLOSED_BY_056 and CLIENT_ROLES then.
   {
     id: 'temporary-056-client-execute-in-prod',
     explanation:
-      'Temporary (RUN-326): migration 056 has closed anon and authenticated execute on the three old title functions in staging but not yet in prod. This rule is removed when 056 is applied in prod.',
+      'Temporary (RUN-326): migration 056 has closed anon and authenticated execute on increment_event_xp and the three old title functions in staging but not yet in prod. This rule is removed when 056 is applied in prod.',
     candidate: (e) => e.category === 'function_grants' && e.kind === 'only_in_prod' && CLIENT_ROLES.some((role) => e.key.endsWith(` -> ${role} EXECUTE`)),
-    expectedKeys: LEGACY_TITLE_FUNCTIONS.flatMap((signature) => CLIENT_ROLES.map((role) => `${signature} -> ${role} EXECUTE`)),
+    expectedKeys: CLOSED_BY_056.flatMap((signature) => CLIENT_ROLES.map((role) => `${signature} -> ${role} EXECUTE`)),
   },
 ];
 

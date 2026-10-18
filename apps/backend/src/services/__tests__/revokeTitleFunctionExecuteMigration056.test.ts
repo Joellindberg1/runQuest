@@ -1,9 +1,9 @@
 /**
- * Static test: migration 056 closes EXECUTE on the three old title functions for public, anon and authenticated and makes sure
+ * Static test: migration 056 closes EXECUTE on the three old title functions and on increment_event_xp for public, anon and authenticated and makes sure
  * service_role holds it (ADR 012, ADR 002). Reads the SQL file from disk, no database.
  *
  * Why the behaviour is only read here and not run: privileges, the trigger and the wrappers exist only in Postgres, and staging and
- * prod are off limits for a builder. The tests therefore pin what makes the behaviour: the three full signatures, the revoke from
+ * prod are off limits for a builder. The tests therefore pin what makes the behaviour: the four full signatures, the revoke from
  * exactly the three client grantees, the grant to service_role, that nothing else is touched, the self-check that stops the
  * migration if a privilege is left, and the rollback block in the header. The proof in a real Postgres is the PGlite run in the
  * builder's report (anon and authenticated denied with 42501, service_role calls the wrappers, an insert fires the trigger) and the
@@ -30,6 +30,7 @@ const SIGNATURES = [
   'public.update_title_leaderboard(uuid)',
   'public.update_all_title_leaderboards()',
   'public.trigger_update_title_leaderboard()',
+  'public.increment_event_xp(uuid, integer)',
 ] as const;
 
 /** Lines of the header between two markers that are executable SQL: `--` followed by at least three spaces. */
@@ -50,23 +51,23 @@ describe(`migration ${file}`, () => {
     expect(statements[0]).toBe("set local lock_timeout = '5s'");
   });
 
-  it('revokes execute from public, anon and authenticated on each of the three functions with the full signature', () => {
+  it('revokes execute from public, anon and authenticated on each of the four functions with the full signature', () => {
     for (const signature of SIGNATURES) {
       expect(statements, signature).toContain(`revoke execute on function ${signature} from public, anon, authenticated`);
     }
-    expect(statements.filter((s) => s.startsWith('revoke'))).toHaveLength(3);
+    expect(statements.filter((s) => s.startsWith('revoke'))).toHaveLength(4);
   });
 
-  it('grants execute to service_role on each of the three functions, so the backend works whatever the default privileges are', () => {
+  it('grants execute to service_role on each of the four functions, so the backend works whatever the default privileges are', () => {
     for (const signature of SIGNATURES) {
       expect(statements, signature).toContain(`grant execute on function ${signature} to service_role`);
     }
-    expect(statements.filter((s) => s.startsWith('grant'))).toHaveLength(3);
+    expect(statements.filter((s) => s.startsWith('grant'))).toHaveLength(4);
   });
 
-  it('touches nothing but those three functions and only their execute privilege', () => {
-    // Exactly the six privilege statements plus lock_timeout: no create, drop, alter, table or data statement.
-    expect(statements).toHaveLength(7);
+  it('touches nothing but those four functions and only their execute privilege', () => {
+    // Exactly the eight privilege statements plus lock_timeout: no create, drop, alter, table or data statement.
+    expect(statements).toHaveLength(9);
     const named = [...code.matchAll(/\bpublic\.[a-z_]+\s*\([^)]*\)/gi)].map((m) => normalize(m[0]));
     expect(new Set(named)).toEqual(new Set(SIGNATURES));
     expect(code).not.toMatch(/\b(create|drop|alter|insert|update|delete|truncate)\b/i);
@@ -93,7 +94,7 @@ describe(`migration ${file}`, () => {
     expect(postcheckBody).toContain('raise exception');
   });
 
-  it('has a rollback in the header that grants execute back on the three functions, for staging with PUBLIC and for prod without', () => {
+  it('has a rollback in the header that grants execute back on the four functions, for staging with PUBLIC and for prod without', () => {
     const rollback = headerBlock('ROLLBACK').map(normalize);
     const grantBack = (grantees: string) => SIGNATURES.map((s) => `grant execute on function ${s} to ${grantees};`);
     expect(rollback).toEqual([
@@ -108,7 +109,7 @@ describe(`migration ${file}`, () => {
     for (const word of ["p.pronamespace = 'public'::regnamespace", 'a.grantee = 0', "has_function_privilege('anon'", "has_function_privilege('authenticated'", "has_function_privilege('service_role'", 'proacl']) {
       expect(query, word).toContain(word);
     }
-    for (const name of ['update_title_leaderboard', 'update_all_title_leaderboards', 'trigger_update_title_leaderboard']) {
+    for (const name of ['update_title_leaderboard', 'update_all_title_leaderboards', 'trigger_update_title_leaderboard', 'increment_event_xp']) {
       expect(query, name).toContain(`'${name}'`);
     }
   });
@@ -118,5 +119,14 @@ describe(`migration ${file}`, () => {
     expect(sql).toMatch(/Prod/);
     expect(sql).toMatch(/055/);
     expect(sql).toMatch(/title_leaderboard_update_trigger/);
+  });
+
+  it('names the migrations that rewrote the bodies correctly and points at the catalog query, not at a report', () => {
+    // create or replace keeps grants: 042 and 055 rewrote the title functions, 052 rewrote increment_event_xp (fixed search_path).
+    expect(sql).toMatch(/042 och 055 skrev om de tre titelfunktionerna/);
+    expect(sql).toMatch(/052 skrev om increment_event_xp/);
+    expect(sql).not.toMatch(/042, 052 och 055/);
+    expect(sql).not.toMatch(/builderns rapport/i);
+    expect(sql).toMatch(/Leads katalogfråga efter apply/);
   });
 });
