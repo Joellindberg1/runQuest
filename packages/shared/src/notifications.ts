@@ -6,7 +6,7 @@
 // används av både servern (räknare, is_unread) och klienten (popover) — inget SQL-predikat dubblerar den.
 //
 // Våg 1 är registrerad sedan tidigare; våg 2 läggs till slag för slag tillsammans med sin skrivpunkt (ADR 011 beslut 1.3:
-// inga reglage utan fakta bakom). Hittills: challenge_accepted_me och rank_passed_* (RUN-191) samt event_closed_me (med entrant_ids).
+// inga reglage utan fakta bakom). Hittills: challenge_accepted_me och rank_passed_* (RUN-191), event_closed_me (med entrant_ids) och title_taken_runner_up (våg 3, med runner_up_user_id).
 // En ny ActivityType utan klassificering fäller bygget (Record nedan) och kontraktstestet.
 
 import { isActivityType, type ActivityType } from './activity.js';
@@ -28,7 +28,7 @@ interface NotificationKindDefinition<K extends string> {
   role: NotificationRole;
   default: boolean;
   /** Vilken våg slaget levereras i (ADR 011 beslut 12). */
-  wave: 1 | 2;
+  wave: 1 | 2 | 3;
 }
 
 function defineKind<K extends string>(
@@ -36,7 +36,7 @@ function defineKind<K extends string>(
   group: NotificationGroup,
   role: NotificationRole,
   label: string,
-  wave: 1 | 2 = 1,
+  wave: 1 | 2 | 3 = 1,
   defaultOn = true,
 ): NotificationKindDefinition<K> {
   return { kind, key: `notify.${kind}`, label, group, role, default: defaultOn, wave };
@@ -44,6 +44,7 @@ function defineKind<K extends string>(
 
 export const NOTIFICATION_KINDS = [
   defineKind('title_taken_from_me', 'Titles', 'you', 'Someone takes a title from you'),
+  defineKind('title_taken_runner_up', 'Titles', 'you', 'Someone sneaks past you and takes a title you were chasing as runner-up', 3),
   defineKind('title_others', 'Titles', 'others', 'Other title changes in the pack'),
   defineKind('challenge_received_me', 'Challenges', 'you', 'Someone challenges you'),
   defineKind('challenge_accepted_me', 'Challenges', 'you', 'Someone accepts your challenge', 2),
@@ -83,7 +84,7 @@ export interface ClassifiableRow {
 export type NotificationClassification = NotificationKind | 'own' | null;
 
 /** En raderad användare är null i loggen; null (och tomt id) är aldrig betraktaren. */
-function isViewer(id: string | null | undefined, viewerId: string): boolean {
+function isViewer(id: unknown, viewerId: string): boolean {
   return typeof id === 'string' && id !== '' && id === viewerId;
 }
 
@@ -120,10 +121,20 @@ function entrantsInclude(payload: unknown, viewerId: string): boolean {
   return ids.some((id) => id === me);
 }
 
+/**
+ * Är betraktaren "låg tvåa" i en title_taken (payload.runner_up_user_id, ADR 011 beslut 7)? Fail-safe som entrantsInclude:
+ * saknat eller felformat fält ger false och raden faller under de övriga slagen. Exakt id-jämförelse som aktör och mål.
+ */
+function isRunnerUp(payload: unknown, viewerId: string): boolean {
+  if (typeof payload !== 'object' || payload === null) return false;
+  return isViewer((payload as { runner_up_user_id?: unknown }).runner_up_user_id, viewerId);
+}
+
 // Record<ActivityType, …> är kompileringsgrinden: en ny typ i ACTIVITY_TYPES utan post här ger ett typfel.
 const CLASSIFIERS: Record<ActivityType, Classifier> = {
   title_taken: (row, viewerId) => {
     if (isViewer(row.targetId, viewerId)) return 'title_taken_from_me';
+    if (!isViewer(row.actorId, viewerId) && isRunnerUp(row.payload, viewerId)) return 'title_taken_runner_up';
     if (isViewer(row.actorId, viewerId)) return 'own';
     return 'title_others';
   },

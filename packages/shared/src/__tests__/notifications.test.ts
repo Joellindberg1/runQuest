@@ -49,6 +49,8 @@ const WAVE_2_KINDS: NotificationKind[] = [
   'event_closed_me',
 ];
 
+const WAVE_3_KINDS: NotificationKind[] = ['title_taken_runner_up'];
+
 describe('NOTIFICATION_KINDS', () => {
   it('slagnycklarna är unika och varje slag har etikett, sektion, roll och default', () => {
     const kinds = NOTIFICATION_KINDS.map((k) => k.kind);
@@ -63,7 +65,7 @@ describe('NOTIFICATION_KINDS', () => {
       expect(NOTIFICATION_GROUPS).toContain(def.group);
       expect(['you', 'others', 'everyone']).toContain(def.role);
       expect(typeof def.default).toBe('boolean');
-      expect([1, 2]).toContain(def.wave);
+      expect([1, 2, 3]).toContain(def.wave);
     }
 
     // Våg 1 är hela den här storyns omfång; alla börjar påslagna (ADR 011 beslut 3, Ö1).
@@ -78,6 +80,7 @@ describe('NOTIFICATION_KINDS', () => {
       [...WAVE_1_KINDS].sort(),
     );
     expect(NOTIFICATION_KINDS.filter((k) => k.wave === 2).map((k) => k.kind).sort()).toEqual([...WAVE_2_KINDS].sort());
+    expect(NOTIFICATION_KINDS.filter((k) => k.wave === 3).map((k) => k.kind).sort()).toEqual([...WAVE_3_KINDS].sort());
   });
 
   it('rank_passed_others är avstängd som default och övriga nya slag är påslagna', () => {
@@ -102,6 +105,7 @@ describe('NOTIFICATION_KINDS', () => {
   it('varje slags sektion, roll och etikett är låsta mot ADR 011 beslut 3 och designerns förslag', () => {
     const expected: Array<[NotificationKind, string, string, string]> = [
       ['title_taken_from_me', 'Titles', 'you', 'Someone takes a title from you'],
+      ['title_taken_runner_up', 'Titles', 'you', 'Someone sneaks past you and takes a title you were chasing as runner-up'],
       ['title_others', 'Titles', 'others', 'Other title changes in the pack'],
       ['challenge_received_me', 'Challenges', 'you', 'Someone challenges you'],
       ['challenge_accepted_me', 'Challenges', 'you', 'Someone accepts your challenge'],
@@ -137,6 +141,36 @@ describe('classifyNotification', () => {
     for (const [r, expected] of table) {
       expect(classifyNotification(r, ME), JSON.stringify(r)).toBe(expected);
     }
+  });
+
+  it('title_taken med runner_up_user_id = jag ger title_taken_runner_up, aktör = jag ger own', () => {
+    const withRunnerUp = (runnerUp: unknown) => ({ runner_up_user_id: runnerUp, reason: 'overtaken' });
+    const table: Array<[ClassifiableRow, ReturnType<typeof classifyNotification>]> = [
+      [row('title_taken', OTHER, THIRD, withRunnerUp(ME)), 'title_taken_runner_up'],
+      // Aktör = jag går före: egna handlingar är aldrig en notis.
+      [row('title_taken', ME, THIRD, withRunnerUp(ME)), 'own'],
+      // Personliga slag i ordning: tas titeln från mig vinner title_taken_from_me över tvåan.
+      [row('title_taken', OTHER, ME, withRunnerUp(ME)), 'title_taken_from_me'],
+      // En annan tvåa, eller inget fält, är en vanlig titelhändelse mellan andra.
+      [row('title_taken', OTHER, THIRD, withRunnerUp(OTHER)), 'title_others'],
+      [row('title_taken', OTHER, THIRD, {}), 'title_others'],
+    ];
+    for (const [r, expected] of table) {
+      expect(classifyNotification(r, ME), JSON.stringify(r)).toBe(expected);
+    }
+    // Saknat, tomt eller felformat fält ger aldrig slaget (fail-safe).
+    for (const payload of [undefined, null, 'text', 7, [], withRunnerUp(null), withRunnerUp(''), withRunnerUp([ME]), withRunnerUp(5)]) {
+      expect(classifyNotification(row('title_taken', OTHER, THIRD, payload), ME), JSON.stringify(payload)).toBe('title_others');
+    }
+    // En raderad aktör (null) är aldrig jag.
+    expect(classifyNotification(row('title_taken', null, THIRD, withRunnerUp(ME)), ME)).toBe('title_taken_runner_up');
+    // Bara title_taken bär fältet: andra titelrader med samma fält är fortsatt title_others.
+    for (const type of ['title_unlocked', 'title_revoked']) {
+      expect(classifyNotification(row(type, OTHER, null, withRunnerUp(ME)), ME), type).toBe('title_others');
+    }
+    // Slaget har eget reglage och startar påslaget.
+    expect(isKindEnabled('title_taken_runner_up', {})).toBe(true);
+    expect(isKindEnabled('title_taken_runner_up', { [notifyKey('title_taken_runner_up')]: false })).toBe(false);
   });
 
   it('title_unlocked och title_revoked: egen är own, andras är title_others', () => {

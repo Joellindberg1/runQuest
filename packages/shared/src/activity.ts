@@ -63,6 +63,13 @@ export interface TitleTakenPayload {
   value: number;
   previous_value: number;
   reason: 'overtaken' | 'revoked';
+  /**
+   * "Låg tvåa" (ADR 011 beslut 7): användaren som låg på plats 2 i gruppen precis före bytet och nu blivit förbigången av
+   * den nya innehavaren. Additivt i payload v1 och inte med i dedupe-nyckeln. Klassificeringen (`title_taken_runner_up`)
+   * läser fältet exakt, så formatet får inte ändras utan att båda följer med. Saknas när ingen tvåa fanns, när den nya
+   * innehavaren själv var tvåa, vid reason 'revoked' och hos rader från före fältet.
+   */
+  runner_up_user_id?: string;
 }
 
 export interface TitleRevokedPayload {
@@ -293,7 +300,7 @@ export function streakBrokenOccurredAt(lastRunDate: string): string {
 /**
  * Innehavaren (position 1) av en titel I EN GRUPP (ADR 012): samma titel har en innehavare per grupp.
  * `runner_up` är position 2 i samma grupp (null = ingen tvåa). Den bärs med i före-bilden så att "låg tvåa"
- * (ADR 011 beslut 7) kan läsa R ur B:s grupps bild; diffTitleHolders använder den inte (byte går bara på position 1).
+ * (ADR 011 beslut 7) kan läsa R ur B:s grupps bild; buildTitleDrafts läser den, diffTitleHolders använder den inte (byte går bara på position 1).
  */
 export interface TitleHolder {
   group_id: string;
@@ -375,13 +382,17 @@ export interface TitleMeta {
  * Titeländringar → rader. Gruppen kommer ur ändringen själv, dvs. ur hållaren i snapshoten (ADR 012 beslut 5.3);
  * ingen uppslagning av users.group_id. Saknas grupp eller titelmeta hoppas raden över (ADR 008 beslut 6).
  * `occurredAt` = ISO nu; `day` = Stockholm-dag för title_revoked-nyckeln.
+ * `before` = före-bilden (ADR 012 beslut 5.4): en title_taken med reason 'overtaken' bär tvåan i SAMMA grupp och titel som
+ * `runner_up_user_id`, om det fanns en tvåa och den inte är den nya innehavaren. Utan före-bild skrivs aldrig fältet.
  */
 export function buildTitleDrafts(
   changes: ReadonlyArray<TitleHolderChange>,
   titles: ReadonlyMap<string, TitleMeta>,
   occurredAt: string,
   day: string,
+  before: ReadonlyArray<TitleHolder> = [],
 ): ActivityDraft[] {
+  const beforeBy = new Map(before.map((h) => [JSON.stringify([h.group_id, h.title_id]), h]));
   const drafts: ActivityDraft[] = [];
   for (const c of changes) {
     const meta = titles.get(c.title_id);
@@ -395,11 +406,13 @@ export function buildTitleDrafts(
         dedupe_key: activityKeys.titleUnlocked(c.title_id, c.user_id, c.value, day),
       });
     } else if (c.kind === 'taken') {
+      const runnerUp = c.reason === 'overtaken' ? beforeBy.get(JSON.stringify([c.group_id, c.title_id]))?.runner_up?.user_id : undefined;
       drafts.push({
         ...base, type: 'title_taken', group_id: c.group_id, actor_user_id: c.new_holder_id, target_user_id: c.old_holder_id,
         payload: {
           title_id: c.title_id, title_name: meta.name, metric_key: meta.metric_key,
           value: c.value, previous_value: c.previous_value, reason: c.reason,
+          ...(runnerUp && runnerUp !== c.new_holder_id ? { runner_up_user_id: runnerUp } : {}),
         },
         dedupe_key: activityKeys.titleTaken(c.title_id, c.new_holder_id, c.old_holder_id, c.value, day),
       });
