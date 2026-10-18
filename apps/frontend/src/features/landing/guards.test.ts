@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import postcss, { type Declaration } from 'postcss';
 import { describe, expect, it } from 'vitest';
+import { buildStatViews } from './landingModel';
 
 // Designreglerna för Landing (tokens, skarpa hörn, ikoner, inga emojis, rörelse, att CSS-måtten finns i temafilen, en guldknapp i
 // LandingScreen.test) och att landningen bara gör ETT anrop (GET /public/stats, ADR 006-addendum 2026-10-13) vaktas av lint: eslint.config.js,
@@ -97,6 +98,44 @@ describe('Landing — varianterna väljs av CSS, aldrig av JS', () => {
     expect(valueOf('.rq-landing-h2--desktop', 'position', 'desktop')).toBe('static');
   });
 
+});
+
+describe('Landing — sifferraden flyttar inget när talen anländer', () => {
+  // jsdom har ingen layout: att inget annat än talen flyttas (±1 px, 360 och 1440 px) är mätt i Chromium. Här vaktas reservationen som gör det,
+  // eftersom ingen roll- eller texttest ser den: varje tal har en minsta bredd i ch, och km (det bredaste talet) reserverar mer än de två andra.
+  const reservedCh = (stat: string) => {
+    let value: string | undefined;
+    postcss.parse(css).walkRules((rule) => {
+      if (!rule.selectors.includes(`.rq-landing-stat[data-stat="${stat}"] .rq-landing-stat__value`)) return;
+      rule.walkDecls('min-width', (decl) => { value = decl.value; });
+    });
+    return Number(value?.match(/^(\d+(?:\.\d+)?)ch$/)?.[1]);
+  };
+
+  it.each(['km', 'runners', 'challenges'])('%s reserverar bredd i ch', (stat) => {
+    expect(reservedCh(stat)).toBeGreaterThan(0);
+  });
+
+  // Etiketten byter form mellan ental och plural ("1 runner" / "6 runners"); ett osynligt pseudoelement med pluralformen håller postens bredd. Texten
+  // står i CSS och måste vara samma som modellens plural, annars reserverar den fel bredd utan att något annat larmar.
+  const reservedLabel = (stat: string) => {
+    let value: string | undefined;
+    postcss.parse(css).walkRules((rule) => {
+      if (!rule.selectors.includes(`.rq-landing-stat[data-stat="${stat}"] .rq-landing-stat__label::after`)) return;
+      rule.walkDecls('content', (decl) => { value = decl.value.replace(/^["']|["']$/g, ''); });
+    });
+    return value;
+  };
+  const pluralLabel = (stat: 'runners' | 'challenges') => buildStatViews({ runners: 2, challenges: 2, km: 0 }).find((view) => view.key === stat)?.label;
+
+  it.each(['runners', 'challenges'] as const)('%s reserverar pluraletikettens bredd så att ental inte gör posten smalare', (stat) => {
+    expect(reservedLabel(stat)).toBe(pluralLabel(stat));
+  });
+
+  it('km reserverar mer än löpare och utmaningar', () => {
+    expect(reservedCh('km')).toBeGreaterThan(reservedCh('runners'));
+    expect(reservedCh('km')).toBeGreaterThan(reservedCh('challenges'));
+  });
 });
 
 describe('Landing — fast header', () => {

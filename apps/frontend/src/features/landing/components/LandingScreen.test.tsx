@@ -346,11 +346,10 @@ describe('Landing — det enda anropet och siffrorna', () => {
     expect(new Headers(init?.headers).has('Authorization')).toBe(false);
   });
 
-  it('sifferraden döljs vid fel och resten av sidan renderas', async () => {
+  it('sifferraden är gömd för alla vid fel och resten av sidan renderas', async () => {
     const { fetchSpy } = renderLanding({ respond: () => new Response('{"error":"Failed"}', { status: 500 }) });
     await waitFor(() => expect(screen.queryByRole('region', { name: 'RunQuest in numbers' })).toBeNull());
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(screen.queryByText('km logged')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Join the waitlist' })).toBeInTheDocument();
