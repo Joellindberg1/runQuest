@@ -14,7 +14,7 @@
  *   - staging (aormctqrmguvncxrigwy):  dry-run and --apply allowed.
  *   - production (yrrqaxdngayakcivfrck): even a DRY-RUN is refused without --allow-prod, because it reads users and memberships there (a read in
  *     prod is an ask). --apply needs BOTH --allow-prod and --confirm-prod=<PROD_CONFIRMATION>. They are used only after the owner's explicit yes
- *     (docs/staging.md, "5. create:group"; the matching row in docs/permissions.md waits for the owner's OK); a test group never goes to production
+ *     (docs/staging.md, "5. create:group"; and the matching row in docs/permissions.md); a test group never goes to production
  *     (F5). A URL that names the production ref anywhere counts as production.
  *   - anything else (another project, a local stack, a custom domain, a URL that cannot be read): a dry-run is allowed, --apply is refused,
  *     because it cannot be told apart from prod.

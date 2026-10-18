@@ -23,6 +23,14 @@ att sänka kraven.
 | Backfill-skript mot produktion (`backfill:activity-log`, `backfill:strava-athlete` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
 | Stravas webhook-prenumeration (`strava:webhook create` och `strava:webhook delete`, `--apply`) | **ask**. Prenumerationen är EN per Strava-app och gemensam för alla miljöer, så en `create` eller `delete` gäller även de andra miljöerna; en `delete` stoppar alla nya händelser. Utan `--apply` är båda dry-run (fritt) och `view` är bara läsning. Skriptet skriver ut vad det gör och sätter aldrig en Railway-variabel |
 | Staging-skripten (`staging:migrate`, `staging:seed-reference`, `staging:seed-group`, `staging:schema-diff`) | Skriver bara till staging (projekt `aormctqrmguvncxrigwy`, hårdkodat), `--apply` fritt, inget ägar-ja. Prod läses bara med `--read-prod`, med en egen token (`RUNQUEST_PROD_READ_TOKEN`), via Management-API:ts skrivskyddade endpoint och ur en fast lista av SELECT-satser (konfigurationstabellerna och katalogfrågorna). Läsning av annat i prod = ask. Skripten körs aldrig av CI eller av builders mot riktiga projekt, bara av Lead |
+| Skriptet `create:group` (`apps/backend/src/scripts/createGroup.ts`, ADR 012) | Går mot den databas som `SUPABASE_URL` pekar på, så målet avgörs av URL:en, inte av en flagga. Staging (`aormctqrmguvncxrigwy`): dry-run och `--apply` fritt, bara för Lead. Prod (`yrrqaxdngayakcivfrck`): **ask** för både dry-run och `--apply`, eftersom även en dry-run läser användare och medlemskap där. Båda vägras utan `--allow-prod`, och `--apply` kräver dessutom `--confirm-prod=I-HAVE-THE-OWNERS-YES-FOR-yrrqaxdngayakcivfrck`. Lead använder flaggorna först efter ägarens uttryckliga ja i den aktuella tråden, och **aldrig för en testgrupp i prod** (ägarbeslut F5). Skriptet skriver ut måldatabasens host, skriver aldrig ut inbjudningskoden utan `--show-invite-code` och körs aldrig av CI eller av builders |
+| Tokennyckeln `TOKEN_ENCRYPTION_KEY` / `TOKEN_ENCRYPTION_KEYS_RETIRED` i Railway (ADR 013) | **ask**. Värdet skapas och läggs in av ägaren ([`runbook-token-key.md`](runbook-token-key.md)). Det skrivs aldrig i chatt, kod, commit, Jira eller logg; systemet loggar bara nyckel-id (`kid`) |
+| Backfill-skriptet `backfill:strava-token-encryption` (ADR 013 S4) | dry-run fritt, men skriver aldrig ut miljön; **`--apply`, `--refresh-tokens` och `--decrypt` = ask** med dry-run-rapporten som underlag |
+| CHECK-migrationen som får databasen att vägra okrypterade tokens (ADR 013 S6) | **ask**, som alla prod-migrationer |
+| Radera en tokenrad som inte går att läsa (`token_unreadable`) | **ask**, alltid med exakt omfattning (vilka användare) |
+| Misstänkt läckt tokennyckel | Ägaren roterar enligt runbooken och anmäler till developers@strava.com snarast och senast inom 24 timmar (Stravas API Agreement §1.2) |
+| Agenter och ett riktigt nyckelvärde | **never_allowed**: läsa, skriva ut eller föreslå ett riktigt värde för tokennyckeln |
+| `railway run` med ett skript som skriver ut miljövariabler | Räknas som exponering av hemligheterna: **never_allowed** |
 | Force-push | **never_allowed** |
 | Hemligheter i kod eller committade filer | **never_allowed** — env-variabler är enda vägen (lärdom: PAT- och service role-läckorna, åtgärdade 2026-10-03/04) |
 
@@ -31,8 +39,8 @@ att sänka kraven.
 - Backend använder secret-nyckeln (env i Railway). Frontend har ingen
   Supabase-klient och inga Supabase-nycklar (RUN-105) — den pratar bara med
   backenden (`VITE_API_URL`) med backend-JWT.
-- RLS-baslinje efter migration 030 + 031 + 038 + 039 + 040 + 051 (040 och 051 från och med att de
-  applicerats i prod): anon läser ingenting. Det finns INGA policyer för rollerna
+- RLS-baslinje efter migration 030 + 031 + 038 + 039 + 040 + 051 + 053 + 054 + 055 + 056 + 057 (055 och 056
+  från och med att de applicerats i prod; 052, 053, 054 och 057 applicerades i prod 2026-10-19): anon läser ingenting. Det finns INGA policyer för rollerna
   anon, authenticated eller public (038, 040) och ingen klientroll kan läsa
   `title_leaderboard_view` (039). RunQuest använder inte Supabase Auth (egen
   backend-JWT); en ny policy för anon eller authenticated = avvikelse →
@@ -58,6 +66,45 @@ att sänka kraven.
   och `revoke all` från anon och authenticated; de läses och skrivs bara av backend
   (service role). Funktionen `claim_strava_webhook_events` får bara köras av
   `service_role` (execute är indraget från public, anon och authenticated).
+- v0.8.0 (ADR 012) lägger till två tabeller på samma baslinje: `group_members` (migration 053, medlemskap,
+  roll och fönster) och `group_settings` (migration 054, gruppinställningar). Båda har RLS på, inga
+  policyer och `revoke all` från anon och authenticated; de läses och skrivs bara av backend (service
+  role). Migration 055 (titlar per grupp) lägger `group_id` på `user_titles` och `title_leaderboard` och
+  rör inte RLS-ytan. Funktionerna `join_group`, `create_group_with_admin`, `update_group_title_leaderboard`,
+  `update_group_title_leaderboards` och `user_titles_fill_group_id` (053 och 055) får bara köras av
+  `service_role` (execute är indraget från public, anon och authenticated). Migration 056 stänger samma sak
+  på de fyra äldre funktionerna `update_title_leaderboard`, `update_all_title_leaderboards`,
+  `trigger_update_title_leaderboard` och `increment_event_xp`, som tidigare gick att anropa via
+  `/rest/v1/rpc` med anon-nyckeln (verkningslöst, men onödig yta). Migration 057 (RUN-322) lägger till
+  `recalculation_marks` och sekvensen `recalculation_mark_version_seq` med samma baslinje; funktionerna
+  `mark_recalculation` och `clear_recalculation_mark` bara för `service_role`. Migration 052 tog bort
+  pg_net och det döda cron-jobbet i prod. En ny funktion i schemat `public` utan indraget execute, eller
+  en ny tabell utan RLS, räknas som avvikelse och eskaleras.
+- Rollmodell för grupper (ADR 012 beslut 2 och 6). Gruppadmin är en roll i ett aktivt medlemskap
+  (`group_members.role = 'admin'`, `left_at is null`), inte flaggan `users.is_admin`. En grupp har högst en
+  admin (partiellt unikt index) och admin är gruppens skapare. Rollen läses alltid färskt ur databasen,
+  aldrig ur JWT, URL, body eller header. Vad en roll får göra avgörs på ett enda ställe, `groupRoleCan`
+  i `packages/shared` (i dag bara `settings.write` för `admin`), och vilken grupp en användare får skriva
+  i avgörs på ett enda ställe, `resolveActingGroupForWrite` i `utils/groupAccess.ts`. Funktionen tar bara
+  användarens id, aldrig en grupp, så en admin kan inte rikta en skrivning mot en annan grupp. Saknat
+  medlemskap, fel roll och databasfel ger nekad skrivning (fail-closed). CI-vakter i `scripts/ci-guards.mjs`
+  fäller bygget om `users.group_id` skrivs utanför `join_group` och `create_group_with_admin` (regel 14), om
+  en rolljämförelse dyker upp utanför `groupRoleCan` (regel 13) eller om `group_settings` skrivs utan den
+  vägen (regel 15).
+- `users.is_admin` finns kvar i v0.8.0 och betyder i praktiken "systemadmin": den styr de befintliga
+  `requireAdmin`-rutterna (väntelista, `admin-settings`, `streak-multipliers`, Strava-admin,
+  `strava/webhook/health`, `titles/reprocess-all`, `/auth/users`). `titles/populate` och `titles/refresh`
+  är `requireAdmin` men bygger bara om anroparens egen grupp. Någon supportroll för alla grupper byggs inte
+  nu (ägarbeslut 2026-10-19, RUN-267 i backloggen): support sker som utvecklare, med databasen och skripten
+  och ägarens ja där reglerna ovan kräver det. Byggs rollen senare ska den vara uttrycklig, aldrig härledas
+  ur att en användare saknar grupp.
+- `GET /api/groups/settings` läses av varje medlem i gruppen (utan grupp: 200 med tomma värden och
+  `can_edit: false`). `PUT /api/groups/settings` kräver admin-rollen och skriver bara anroparens egen grupp.
+  Inga produktionsnycklar är registrerade i v0.8.0, så `group_settings` är tom.
+- Titelrutterna är gruppavgränsade (ADR 012 beslut 5): `GET /api/titles/leaderboard` och
+  `GET /api/titles/group-eligibility` ger anroparens grupp (utan grupp: tom lista), och
+  `GET /api/titles/user/:userId` ger 404 för en löpare utanför anroparens grupp, med samma svar som för en
+  som inte finns. `POST /api/titles/refresh/:titleId` är borttagen (404).
 - `POST /api/strava/webhook` är appens första oautentiserade, skrivande endpoint som
   anropas av en extern tjänst (väntelistans `POST /api/waitlist` är också publik, men
   anropas av besökarens webbläsare). Strava signerar inte händelserna, så skyddet är

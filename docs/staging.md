@@ -217,7 +217,7 @@ loggas aldrig och går aldrig till Sentry. Adminen ser den i appen (`GET /api/gr
   aldrig för en testgrupp (F5). Utan flaggorna är standarden vägran, och ingen databasklient byggs ens.
 - `--allow-prod` eller `--confirm-prod` mot staging vägras också, i en dry-run med: flaggan på fel URL är ett tecken på att fel miljö
   är vald.
-- Raden i `docs/permissions.md` för det här skriptet väntar på ägarens OK; tills dess gäller det som står här.
+- Regeln står i `docs/permissions.md` (Produktionsgränser, ägarens OK 2026-10-19).
 - Skriptet körs bara av Lead, aldrig av CI eller av en builder (`main()` vägrar om `CI` eller `VITEST` är satt).
 - Svarar databasen inte efter `--apply` (nätverksfel, timeout) skriver skriptet att utfallet är okänt, eftersom gruppen kan ha skapats
   innan svaret gick förlorat. Kör då en dry-run: har ägaren redan ett aktivt medlemskap finns gruppen. Kör inte `--apply` igen före det.
