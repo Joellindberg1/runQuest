@@ -10,6 +10,7 @@ import { loginRateLimiter } from '../middleware/rateLimit.js';
 import { invalidateXpConfigCache } from '../services/xpConfig.js';
 import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 import { compareXpStandings } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -234,7 +235,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     logger.info('👤 Admin request to create new user');
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password || typeof name !== 'string' || typeof email !== 'string') {
+    if (!name || !email || !password || typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
       logger.info('❌ Missing required fields');
       res.status(400).json({ error: 'Name, email, and password are required' }); return;
     }
@@ -255,7 +256,8 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       supabase.from('users').select('id').eq('email', email).limit(1),
     ]);
     if (byName.error || byEmail.error) {
-      logger.error('❌ Error checking for existing user:', byName.error?.message ?? byEmail.error?.message);
+      // Bara felkoden: PostgREST-meddelandet kan bära radvärden och går via Sentry-kopplingen vidare som log_detail.
+      logger.error(`❌ Error checking for existing user (${errorCode(byName.error ?? byEmail.error)})`);
       res.status(500).json({ error: 'Internal server error' }); return;
     }
 
