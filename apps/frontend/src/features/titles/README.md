@@ -30,8 +30,10 @@ En titel tillhör en (användare, grupp). Frontend ritar bara det backend ger; r
   dagens spelare räknas som förut). Ett senare medlemskap räknar bara rundor från och med joindagen, så man börjar från noll i den nya gruppen.
   `titleWindow` och `runsInWindow` i `packages/shared` är den enda källan; omräkningen och `/titles/group-eligibility` ("Best so far") använder samma fönster,
   så siffrorna på korten stämmer med de lagrade innehavarna. Fönstret gäller bara titlarna: XP, nivå, streak och Board är fortfarande per användare.
-- **Tomläge utan grupp.** Man kan inte spela utan grupp, så en användare utan aktivt medlemskap har inga titlar. `/titles/leaderboard`,
-  `/titles/user/:id` och `/titles/group-eligibility` svarar då med en tom lista, och Titles-skärmen visar tomläget "No titles yet". Det är inget fel.
+- **Tomläge utan grupp.** Man kan inte spela utan grupp, så en användare utan aktivt medlemskap har inga titlar. Rutterna tar gruppen ur
+  token (`group_id` i JWT): `/titles/leaderboard`, `/titles/user/:id` och `/titles/group-eligibility` svarar med en tom lista när token saknar grupp,
+  och Titles-skärmen visar då tomläget "No titles yet". Det är inget fel. Token uppdateras först vid ny inloggning, så någon som gått med i en
+  grupp efter inloggningen ser tomläget tills hen loggar in igen.
 - **404 för löpare utanför gruppen.** `/titles/user/:userId` ger 404 när löparen inte är aktiv medlem i anroparens grupp, med samma svar som för en
   användare som inte finns. `getUserTitles` läser 404 som en tom lista, så Runner card visar sitt tomläge utan felkort och utan omförsök.
 - **Typer ur shared.** Svaren typas av `TitleLeaderboardEntry`, `UserTitleEntry` och `GroupEligibilityEntry` i `packages/shared/src/contracts/titles.ts`;
