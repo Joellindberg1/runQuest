@@ -1,5 +1,6 @@
 import { isStaleChunkError, isStaleReloadOrdered } from '@/shared/utils/staleChunkReload';
 import { isNetworkFailure } from './networkFailure';
+import { routeNameOf } from './routeNames';
 
 // beforeSend för felspårningen: ren funktion utan Sentry-import, så att den testas utan SDK:t och aldrig drar in det i en tidig chunk.
 // Princip: rapporten ska säga var och vad som gick sönder, aldrig vem det hände för. Allt som kan identifiera en person (användare,
@@ -174,6 +175,41 @@ function rebuildDebugMeta(value: unknown, storageValues: readonly string[]): { i
   return { images };
 }
 
+/**
+ * Ett tal mellan 0 och 1 skrivet som JavaScript skriver det: decimaler (Math.random ger ofta 17) eller exponentform (`5e-7`).
+ * Formen och värdet kontrolleras båda, så ett annat tal eller en text med ett tal i går aldrig igenom.
+ */
+function isUnitFraction(value: unknown): boolean {
+  return typeof value === 'string' && /^\d(\.\d+)?(e-\d{1,3})?$/.test(value) && Number(value) >= 0 && Number(value) <= 1;
+}
+
+const DSC_VALID: Record<string, (value: unknown) => boolean> = {
+  release: SDK_METADATA_VALID.release as (value: unknown) => boolean,
+  environment: SDK_METADATA_VALID.environment as (value: unknown) => boolean,
+  public_key: (value) => typeof value === 'string' && /^[\w-]{1,64}$/.test(value),
+  trace_id: (value) => typeof value === 'string' && /^[0-9a-f]{32}$/i.test(value),
+  sample_rate: isUnitFraction,
+  sample_rand: isUnitFraction,
+  sampled: (value) => value === 'true' || value === 'false',
+  org_id: (value) => typeof value === 'string' && /^\d{1,20}$/.test(value),
+};
+
+/**
+ * Det SDK:t bygger kuvertens trace-header av (dynamic sampling context) ligger i sdkProcessingMetadata. Rensas det som en vanlig text
+ * maskeras releasen (`runquest@…` ser ut som en e-postadress). Därför byggs det om: varje fält släpps bara igenom i sin kända form och
+ * allt annat (user_segment, replay_id, normalizedRequest, ipAddress, ...) kastas. `transaction` blir routenamnet.
+ */
+function rebuildProcessingMetadata(value: unknown): { dynamicSamplingContext: Record<string, string> } | null {
+  if (!isPlainObject(value) || !isPlainObject(value.dynamicSamplingContext)) return null;
+  const dsc: Record<string, string> = {};
+  for (const [key, valid] of Object.entries(DSC_VALID)) {
+    const field = value.dynamicSamplingContext[key];
+    if (valid(field)) dsc[key] = field as string;
+  }
+  if (typeof value.dynamicSamplingContext.transaction === 'string') dsc.transaction = routeNameOf(value.dynamicSamplingContext.transaction);
+  return { dynamicSamplingContext: dsc };
+}
+
 function isUnreportableEvent(event: SentryEventLike): boolean {
   if (isStaleReloadOrdered()) return true;
   if (event.message && (isStaleChunkError(event.message) || isNetworkFailure(event.message))) return true;
@@ -192,6 +228,11 @@ export function scrubSentryEvent<T extends SentryEventLike>(event: T, storageVal
     if (key === 'user') continue;
     if (Object.prototype.hasOwnProperty.call(SDK_METADATA_VALID, key)) {
       if (SDK_METADATA_VALID[key]?.(value)) scrubbed[key] = value;
+      continue;
+    }
+    if (key === 'sdkProcessingMetadata') {
+      const metadata = rebuildProcessingMetadata(value);
+      if (metadata) scrubbed[key] = metadata;
       continue;
     }
     if (key === 'debug_meta') {

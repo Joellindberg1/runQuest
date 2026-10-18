@@ -157,6 +157,10 @@ export function resultForTokenFailure(reason: AccessTokenFailureReason): Webhook
     // The row could not be read: nothing is known about the connection, so it is never an unknown owner.
     case 'token_read_failed':
       return { status: 'retry', error: 'token_read_failed' };
+    // The stored token cannot be read, or the key is missing or invalid (ADR 013 decision 9). Our fault, not Strava's: a retry (the
+    // worker's backoff, then the 48 h alarm), never an unknown owner, never a removal, never a confirmed deauthorize.
+    case 'token_unreadable':
+      return { status: 'retry', error: 'token_unreadable' };
   }
 }
 

@@ -18,6 +18,7 @@ import {
   type SeenApiResponse,
   type ShowcaseApiResponse,
 } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -90,7 +91,7 @@ router.get('/user/:userId', authenticateJWT, async (req, res): Promise<void> => 
     const body: BadgeUserApiResponse = { success: true, data: { items, showcase } };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error fetching user badges:', error);
+    logger.error(`❌ Error fetching user badges (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to fetch badges' });
   }
 });
@@ -149,7 +150,7 @@ router.get('/group', authenticateJWT, async (req, res): Promise<void> => {
     };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error fetching group badges:', error);
+    logger.error(`❌ Error fetching group badges (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to fetch badges' });
   }
 });
@@ -198,7 +199,7 @@ router.put('/showcase', authenticateJWT, async (req, res): Promise<void> => {
     const body: ShowcaseApiResponse = { success: true, data: { showcase: series } };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error saving badge showcase:', error);
+    logger.error(`❌ Error saving badge showcase (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to save showcase' });
   }
 });
@@ -249,7 +250,7 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     const body: SeenApiResponse = { success: true, data: { updated } };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error marking badges as seen:', error);
+    logger.error(`❌ Error marking badges as seen (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to mark badges as seen' });
   }
 });

@@ -86,7 +86,9 @@ alter table public.title_leaderboard add constraint title_leaderboard_group_titl
 --   update_group_title_leaderboards(p_group_id): loopar alla titlar.
 --   OFÖRÄNDRADE signaturer som omslag för äldre kod: update_title_leaderboard(p_title_id) och update_all_title_leaderboards() loopar över alla grupper.
 --   trigger_update_title_leaderboard(): tar gruppen direkt ur NEW/OLD.group_id (ingen uppslagning, kaskadradering av en användare fungerar).
--- vy: create or replace view public.title_leaderboard_view — samma kolumner i samma ordning + group_id sist (behåller behörigheterna från 039).
+-- vy: create or replace view public.title_leaderboard_view with (security_invoker = true) — samma kolumner i samma ordning + group_id sist (behåller behörigheterna från 039).
+--   MÅSTE ha `with (security_invoker = true)`: CREATE OR REPLACE VIEW ersätter vyns alternativ med de som anges i satsen, så utan det
+--   förlorar vyn alternativet som migration 052 (RUN-226) satte. Ett statiskt test (advisorFixesMigration052.test.ts) kräver det i varje migration över 052.
 select public.update_all_title_leaderboards();
 ```
 **Bevis (obligatoriskt):** före: `select title_id, user_id, position, value from title_leaderboard order by 1,3`, `count(distinct group_id)` bland användare = 1, `user_titles`-rader utan användares grupp = 0; efter: samma urval identiskt (EXCEPT i båda riktningarna = 0 rader), `group_id is null` = 0 i båda tabellerna, 0 policyer, ingen anon/authenticated-åtkomst. Finns fler grupper med medlemmar, eller någon titelinnehavare utan grupp, STOPPAR körningen och frågan går till ägaren.
@@ -237,6 +239,8 @@ Spår: **data** = databas/migration, **logik** = backend/shared/skript, **kompon
 | S16 | data/logik | **v0.8.1:** contract-migration `<nr4>` (släpp omslag, shim-trigger, `titles.current_holder_id/current_value`), slå ihop trippeluppdateringen, bedöm alternativ B, lista kvarvarande `requireAdmin`-rutter för fas 2 | efter S1–S15 verifierade | Inte v0.8.0 |
 
 Ordning i versionen: S1 ∥ S3 ∥ S4 → S2, S5, S10, S12 → S6, S11 → S7, S8, S9 → S13 → S14 → S15. Release: migrationerna S1, S2, S3 före deploy (i staging först), rök, ingen migration efter deploy.
+
+**Not 2026-10-18 (RUN-278):** `POST /titles/refresh/:titleId` är borttagen (endpointen var oanvänd och kunde trigga omräkning med bara inloggning; den svarar 404). Det gäller överallt ovan där den nämns (rad om bygg om-vägar, steg 3 i Rebuild per grupp, zon 8-punkterna i Konsekvenser och STATE-ändring 3). S7 utgår för den routen: gruppfilter behövs inte, men `/titles/leaderboard`, `/titles/user/:id` och admin `populate/refresh` gäller som förut. `refreshTitleLeaderboard(titleId)` finns kvar i tjänsten för `enhancedTitleService`. Beslutstexten i övrigt är oförändrad.
 
 ## Föreslagen STATE.md-indexrad
 ```

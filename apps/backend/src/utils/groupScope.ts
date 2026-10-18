@@ -19,3 +19,18 @@ export function groupIdOrRespondEmpty(req: Request, res: Response, emptyBody: un
   res.json(emptyBody);
   return null;
 }
+
+/**
+ * Admin-skrivningar: gruppen admin agerar i, eller null efter att ha svarat 403 (utan att röra databasen).
+ * Skrivningar svarar inte "tomt" som läsningarna: en admin utan grupp ska få veta att det inte går, och inget får skrivas.
+ * Det här är det enda stället som avgör vilken grupp en admin agerar i (i dag gruppen i token).
+ *
+ *   const groupId = groupIdOrRespondForbidden(req, res);
+ *   if (!groupId) return;
+ */
+export function groupIdOrRespondForbidden(req: Request, res: Response): string | null {
+  const groupId = req.user?.group_id;
+  if (groupId) return groupId;
+  res.status(403).json({ error: 'Admin must belong to a group' });
+  return null;
+}

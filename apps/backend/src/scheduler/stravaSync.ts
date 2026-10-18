@@ -104,7 +104,9 @@ async function runPoll(): Promise<void> {
     syncState.usersSynced = result.syncedUsers;
     syncState.totalUsers = result.totalUsers;
     syncState.newRuns = result.totalNewRuns;
-    logger.info(`✅ Scheduled sync completed: ${result.message}`);
+    // A run skipped for want of a usable token key has already said so (one error line from syncAllStravaUsers).
+    if (result.unavailable) logger.info('⏭️ Scheduled sync skipped: the Strava token key is not usable');
+    else logger.info(`✅ Scheduled sync completed: ${result.syncedUsers} of ${result.totalUsers} users, ${result.totalNewRuns} new runs`);
   } catch (error) {
     syncState.lastSyncStatus = 'error';
     logger.error(`❌ Scheduled sync error (${errorCode(error)})`);

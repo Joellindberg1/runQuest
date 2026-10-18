@@ -42,6 +42,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols, plainRow } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createFakeDb, type Row, type RecordedQuery } from './helpers/fakeDb.js';
@@ -65,7 +66,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const TOKEN_ROW = { user_id: 'user-1', access_token: 'old-at', refresh_token: 'old-rt', expires_at: 9999999999, connection_date: '2026-09-01' };
+const TOKEN_ROW = { user_id: 'user-1', ...tokenCols('user-1', 'old-at', 'old-rt'), expires_at: 9999999999, connection_date: '2026-09-01' };
 
 function use(tables: Partial<Record<string, Row[]>> = {}, failWhen?: (q: RecordedQuery) => { message: string } | null) {
   const t: Record<string, Row[]> = {
@@ -192,7 +193,7 @@ describe('Strava sync (characterisation)', () => {
     expect(res.status).toBe(200);
     expect(strava.calls.oauthToken).toBe(1);
     expect(strava.requests.find((r) => r.route === 'oauthToken')?.body).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'old-rt' });
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 });
     expect(strava.requests.find((r) => r.route === 'athleteActivities')?.headers.authorization).toBe('Bearer new-at');
   });
 

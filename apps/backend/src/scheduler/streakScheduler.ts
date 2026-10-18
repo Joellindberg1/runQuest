@@ -11,13 +11,14 @@ import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { StreakService } from '../services/streakService.js';
 import { summarizeSettled } from './settledSummary.js';
+import { errorCode } from '../utils/errorCode.js';
 
 export async function recalculateAllStreaks(): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: users, error } = await supabase.from('users').select('id');
 
   if (error || !users?.length) {
-    if (error) logger.error('❌ [StreakScheduler] Fetch users error:', error);
+    if (error) logger.error(`❌ [StreakScheduler] Fetch users error (${errorCode(error)})`);
     return;
   }
 
@@ -36,7 +37,7 @@ export function startStreakScheduler(): void {
     try {
       await recalculateAllStreaks();
     } catch (e) {
-      logger.error('❌ [StreakScheduler] Recalculation error:', e);
+      logger.error(`❌ [StreakScheduler] Recalculation error (${errorCode(e)})`);
     }
   }, { timezone: 'Europe/Stockholm' });
 

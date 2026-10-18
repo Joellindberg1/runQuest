@@ -20,6 +20,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols, plainRow } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { installFakeStravaFetch, stravaAthlete, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
@@ -55,7 +56,7 @@ const connect = (body: Record<string, unknown>, user_id = 'user-1') =>
   server.request('POST', '/api/strava/callback', { token: mintToken({ user_id }), body });
 
 const existing = (user_id: string, over: Row = {}): Row => ({
-  user_id, access_token: 'old-at', refresh_token: 'old-rt', expires_at: 1, connection_date: '2026-09-01T00:00:00.000Z', sync_paused: false, ...over,
+  user_id, ...tokenCols(user_id, 'old-at', 'old-rt'), expires_at: 1, connection_date: '2026-09-01T00:00:00.000Z', sync_paused: false, ...over,
 });
 
 describe('POST /api/strava/callback — consent', () => {
@@ -71,7 +72,8 @@ describe('POST /api/strava/callback — consent', () => {
   });
 
   it('callback with a consent_version that differs from the current one returns 400 and does not call Strava', async () => {
-    const t = use([existing('user-1')]);
+    const stored = existing('user-1');
+    const t = use([{ ...stored }]);
 
     for (const consent_version of ['2020-01-01', '', null, 7, true, {}, [STRAVA_CONSENT_VERSION], ` ${STRAVA_CONSENT_VERSION}`, `${STRAVA_CONSENT_VERSION} `]) {
       const res = await connect({ code: 'auth-code', consent_version });
@@ -80,7 +82,7 @@ describe('POST /api/strava/callback — consent', () => {
     }
 
     expect(strava.calls.oauthToken).toBe(0);
-    expect(t.strava_tokens).toEqual([existing('user-1')]); // en befintlig koppling lämnas orörd
+    expect(t.strava_tokens).toEqual([stored]); // en befintlig koppling lämnas orörd
   });
 
   it('callback with the current consent_version stores consent_version and consented_at', async () => {
@@ -92,7 +94,7 @@ describe('POST /api/strava/callback — consent', () => {
     expect(res.status).toBe(200);
     expect(strava.calls.oauthToken).toBe(1);
     expect(t.strava_tokens).toHaveLength(1);
-    expect(t.strava_tokens[0]).toMatchObject({
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({
       user_id: 'user-1',
       access_token: 'fake-access-token',
       consent_version: STRAVA_CONSENT_VERSION,
@@ -184,7 +186,7 @@ describe('GET /api/strava/status — consent', () => {
 
     expect(res.body).toMatchObject({ connected: true, expired: false, auto_refreshed: true, consent_version: STRAVA_CONSENT_VERSION });
     expect(strava.calls.oauthToken).toBe(1);
-    expect(t.strava_tokens[0]).toMatchObject({
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({
       access_token: 'fake-access-token', // förnyelsen skrev nya tokens
       consent_version: STRAVA_CONSENT_VERSION,
       consented_at: '2026-10-14T09:30:00.000Z', // men rörde inte samtyckesloggen
@@ -198,7 +200,7 @@ describe('GET /api/strava/status — consent', () => {
 
     expect(res.body).toMatchObject({ connected: true, auto_refreshed: true });
     expect(res.body.consent_version).toBeNull();
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'fake-access-token', consent_version: null, consented_at: null });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'fake-access-token', consent_version: null, consented_at: null });
   });
 
   it('status includes consent_version when refreshing the expired token fails', async () => {
@@ -209,7 +211,7 @@ describe('GET /api/strava/status — consent', () => {
     const res = await status();
 
     expect(res.body).toMatchObject({ connected: true, expired: true, refresh_failed: true, consent_version: STRAVA_CONSENT_VERSION });
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'old-at', consent_version: STRAVA_CONSENT_VERSION, consented_at: '2026-10-14T09:30:00.000Z' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'old-at', consent_version: STRAVA_CONSENT_VERSION, consented_at: '2026-10-14T09:30:00.000Z' });
   });
 
   it('status leaves consent_version null when refreshing the expired token of an older connection fails', async () => {

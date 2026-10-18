@@ -39,11 +39,15 @@ function use(tables: Record<string, Row[]>, failWhen?: (q: RecordedQuery) => { m
 }
 
 const fail = (message: string) => ({ message });
+// Riktiga uuid: /send avvisar opponent_id som inte är ett uuid.
+const A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const B_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
 
 const sendTables = (): Record<string, Row[]> => ({
   activity_log: [],
-  user_challenge_tokens: [{ id: 't1', user_id: 'a', tier: 'major', metric: 'km', duration_days: 5, reward_id: 'rw1', sent_at: null, challenge_id: null }],
-  users: [{ id: 'a', current_level: 6, group_id: 'g1' }, { id: 'b', current_level: 7, group_id: 'g1' }],
+  user_challenge_tokens: [{ id: 't1', user_id: A_ID, tier: 'major', metric: 'km', duration_days: 5, reward_id: 'rw1', sent_at: null, challenge_id: null }],
+  users: [{ id: A_ID, current_level: 6, group_id: 'g1' }, { id: B_ID, current_level: 7, group_id: 'g1' }],
   challenges: [],
   challenge_rewards: [{
     id: 'rw1', winner_type: 'multiplier_days', winner_delta: 0.2, winner_duration: 3,
@@ -55,20 +59,20 @@ const pendingTables = (): Record<string, Row[]> => ({
   activity_log: [
     { id: 1, dedupe_key: 'challenge_received:c1', type: 'challenge_received' },
   ],
-  challenges: [{ id: 'c1', status: 'pending', tier: 'minor', duration_days: 3, challenger_id: 'a', opponent_id: 'b' }],
+  challenges: [{ id: 'c1', status: 'pending', tier: 'minor', duration_days: 3, challenger_id: A_ID, opponent_id: B_ID }],
   user_challenge_tokens: [{ id: 't1', challenge_id: 'c1', sent_at: '2026-10-05T10:00:00.000Z' }],
-  users: [{ id: 'a', challenge_active: true }, { id: 'b', challenge_active: true }],
+  users: [{ id: A_ID, challenge_active: true }, { id: B_ID, challenge_active: true }],
 });
 
-const asA = () => mintToken({ user_id: 'a', group_id: 'g1' });
-const asB = () => mintToken({ user_id: 'b', group_id: 'g1' });
+const asA = () => mintToken({ user_id: A_ID, group_id: 'g1' });
+const asB = () => mintToken({ user_id: B_ID, group_id: 'g1' });
 
 describe('POST /api/challenges/send', () => {
   it('challenge routes return 500 when the write fails (token mark)', async () => {
     const tables = sendTables();
     use(tables, (q) => (q.table === 'user_challenge_tokens' && q.mutation === 'update' ? fail('token update failed') : null));
 
-    const res = await server.request('POST', '/api/challenges/send', { token: asA(), body: { token_id: 't1', opponent_id: 'b' } });
+    const res = await server.request('POST', '/api/challenges/send', { token: asA(), body: { token_id: 't1', opponent_id: B_ID } });
 
     expect(res.status).toBe(500);
     // Utmaningen som inte kunde knytas till sin token lämnas inte kvar: tokenen förblir oskickad OCH utan utmaning.
@@ -81,7 +85,7 @@ describe('POST /api/challenges/send', () => {
     const tables = sendTables();
     use(tables);
 
-    const res = await server.request('POST', '/api/challenges/send', { token: asA(), body: { token_id: 't1', opponent_id: 'b' } });
+    const res = await server.request('POST', '/api/challenges/send', { token: asA(), body: { token_id: 't1', opponent_id: B_ID } });
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ success: true, data: { challenge_id: 'gen-1' } });

@@ -18,6 +18,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createFakeDb } from './helpers/fakeDb.js';
@@ -41,7 +42,7 @@ function use() {
   const db = createFakeDb(
     {
       users: [{ id: 'user-1' }],
-      strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } }],
+      strava_tokens: [{ user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } }],
       runs: [{ id: 'r1', user_id: 'user-1', source: 'strava', date: '2026-10-01', created_at: '2026-10-02T08:00:00.000Z' }],
       strava_webhook_events: [{ id: 1, dedupe_key: 'k1', owner_id: OTHER_OWNER_ID, object_id: 987654321, status: 'done', received_at: OTHER_GROUPS_EVENT_AT }],
     },

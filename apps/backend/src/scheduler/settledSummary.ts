@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js';
+import { errorCode } from '../utils/errorCode.js';
 
 export interface SettledSummary {
   total: number;
@@ -13,10 +14,10 @@ export interface SettledSummary {
 export function summarizeSettled(label: string, results: PromiseSettledResult<unknown>[]): SettledSummary {
   const reasons = results
     .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-    .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
+    .map((r) => errorCode(r.reason));
   const summary: SettledSummary = { total: results.length, failed: reasons.length, succeeded: results.length - reasons.length };
   if (summary.failed > 0) {
-    logger.error(`❌ ${label}: ${summary.failed} of ${summary.total} failed`, reasons);
+    logger.error(`❌ ${label}: ${summary.failed} of ${summary.total} failed (${[...new Set(reasons)].join(', ')})`);
   }
   return summary;
 }

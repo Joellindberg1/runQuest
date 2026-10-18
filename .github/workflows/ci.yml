@@ -108,6 +108,18 @@ jobs:
         run: node --test scripts/sentry-build.test.mjs
         working-directory: .
 
+      # Återställningsövningens jämförelse-SQL (docs/runbook-backup-compare.sql) körs av ägaren mot prod: filen får bara innehålla
+      # SELECT. Inga beroenden, inget nätverk.
+      - name: Backup runbook SQL guard
+        run: node --test scripts/runbook-backup-sql.test.mjs
+        working-directory: .
+
+      # Lasttestets skript (RUN-289): vakten på bas-URL:en (bara staging och localhost), rutt-listan (aldrig Strava), budgetar och städning,
+      # prövade mot en fejkserver på 127.0.0.1. Själva lasttestet körs aldrig i CI; run.mjs vägrar när CI är satt.
+      - name: Loadtest script
+        run: node --test scripts/loadtest/*.test.mjs
+        working-directory: .
+
       - name: Install dependencies
         run: npm ci
         working-directory: .

@@ -16,6 +16,7 @@ vi.mock('../../config/database.js', () => ({
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row, type RecordedQuery } from '../../routes/__tests__/helpers/fakeDb.js';
+import { encryptedRow, plainRow, storedToken } from '../../test-utils/stravaTokens.js';
 import { installFakeStravaFetch, stravaActivity, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
 import { STRAVA_API_TIMEOUT_MS, STRAVA_TOKEN_TIMEOUT_MS, fetchAthleteActivities, fetchDetailedActivity, fetchDetailedActivityResult, getValidAccessToken, refreshAccessToken, setStravaRequestHooks, stravaFetch } from '../stravaClient.js';
 
@@ -33,7 +34,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const TOKEN_ROW = { user_id: 'user-1', access_token: 'old-at', refresh_token: 'old-rt', expires_at: 9999999999, connection_date: '2026-09-01' };
+// The row as the database holds it (ADR 013): both tokens encrypted. `plainRow` reads one back for an assertion.
+const TOKEN_ROW = encryptedRow({ user_id: 'user-1', expires_at: 9999999999, connection_date: '2026-09-01' }, { access: 'old-at', refresh: 'old-rt' });
 
 function use(tokens: Row[], failWhen?: (q: RecordedQuery) => { message: string } | null) {
   const t: Record<string, Row[]> = { strava_tokens: tokens };
@@ -55,7 +57,7 @@ describe('getValidAccessToken', () => {
     expect(strava.calls.oauthToken).toBe(1);
     expect(strava.requests[0].body).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'old-rt', client_id: 'client-id', client_secret: 'client-secret' });
     expect(tokenWrites(db)).toHaveLength(1);
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 });
   });
 
   it('getValidAccessToken logs a critical error when saving refreshed tokens keeps failing', async () => {
@@ -112,7 +114,7 @@ describe('getValidAccessToken', () => {
 
     expect(result).toMatchObject({ ok: false, reason: 'refresh_failed', expiresAt: 100, connectionDate: '2026-09-01' });
     expect(tokenWrites(db)).toHaveLength(0);
-    expect(t.strava_tokens[0].access_token).toBe('old-at');
+    expect(plainRow(t.strava_tokens[0]).access_token).toBe('old-at');
   });
 
   it('getValidAccessToken reports an expired token without a refresh token without calling Strava', async () => {
@@ -136,7 +138,7 @@ describe('refreshAccessToken', () => {
     expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true, connectionDate: '2026-09-01' });
     expect(strava.calls.oauthToken).toBe(1);
     expect(strava.requests[0].body).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'old-rt' });
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
   });
 
   it('refreshAccessToken reports a user without a connection, and a connection without a refresh token, without calling Strava', async () => {
@@ -154,7 +156,7 @@ describe('refreshAccessToken', () => {
     const { t } = use([{ ...TOKEN_ROW }]);
 
     expect(await refreshAccessToken('user-1')).toMatchObject({ ok: false, reason: 'refresh_failed' });
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
   });
 });
 
@@ -182,7 +184,7 @@ describe('why a token refresh failed', () => {
       expect(await getValidAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_rejected', ...STATE });
       expect(await refreshAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_rejected', ...STATE });
       expect(tokenWrites(db), label).toHaveLength(0);
-      expect(t.strava_tokens[0], label).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
+      expect(plainRow(t.strava_tokens[0]), label).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
 
       strava.restore();
       strava = undefined;
@@ -190,21 +192,23 @@ describe('why a token refresh failed', () => {
   });
 
   it('a network error, 5xx or 429 on token refresh stays refresh_failed', async () => {
-    const answers: Array<[string, () => ReturnType<typeof stravaError> | never]> = [
-      ['network error', () => { throw new Error('connect ECONNRESET'); }],
-      ['500', () => stravaError(500)],
-      ['502', () => stravaError(502, { body: { message: 'Bad Gateway' } })],
-      ['503 naming the refresh token', () => stravaError(503, { body: { message: 'Unavailable', errors: [REFRESH_TOKEN_INVALID] } })],
-      ['429', () => stravaError(429)],
+    // `mayHaveRotated`: a network error may have come after Strava answered, so the old refresh token may be replaced. An answer with an
+    // error status means Strava did nothing.
+    const answers: Array<[string, () => ReturnType<typeof stravaError> | never, { mayHaveRotated?: true }]> = [
+      ['network error', () => { throw new Error('connect ECONNRESET'); }, { mayHaveRotated: true }],
+      ['500', () => stravaError(500), {}],
+      ['502', () => stravaError(502, { body: { message: 'Bad Gateway' } }), {}],
+      ['503 naming the refresh token', () => stravaError(503, { body: { message: 'Unavailable', errors: [REFRESH_TOKEN_INVALID] } }), {}],
+      ['429', () => stravaError(429), {}],
     ];
-    for (const [label, answer] of answers) {
+    for (const [label, answer, extra] of answers) {
       strava = installFakeStravaFetch({ oauthToken: answer });
       const { t, db } = use([{ ...EXPIRED }]);
 
-      expect(await getValidAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...STATE });
-      expect(await refreshAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...STATE });
+      expect(await getValidAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...extra, ...STATE });
+      expect(await refreshAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...extra, ...STATE });
       expect(tokenWrites(db), label).toHaveLength(0);
-      expect(t.strava_tokens[0].refresh_token, label).toBe('old-rt');
+      expect(plainRow(t.strava_tokens[0]).refresh_token, label).toBe('old-rt');
 
       strava.restore();
       strava = undefined;
@@ -260,7 +264,7 @@ describe('why a token refresh failed', () => {
 
     expect(await getValidAccessToken('user-1')).toMatchObject({ ok: false, reason: 'refresh_failed' });
     expect(tokenWrites(db)).toHaveLength(0);
-    expect(t.strava_tokens[0].refresh_token).toBe('old-rt');
+    expect(plainRow(t.strava_tokens[0]).refresh_token).toBe('old-rt');
   });
 
   it('a database error while reading the token row is not reported as not connected', async () => {
@@ -294,7 +298,7 @@ describe('why a token refresh failed', () => {
   it('a late token refresh never overwrites a newer connection', async () => {
     strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'late-at', refresh_token: 'late-rt', expires_at: 9999999990 }) });
     const { t } = use([{ ...EXPIRED }]);
-    const reconnected: Row = { user_id: 'user-1', access_token: 'reconnect-at', refresh_token: 'reconnect-rt', expires_at: 9999999000, connection_date: '2026-10-15' };
+    const reconnected: Row = encryptedRow({ user_id: 'user-1', expires_at: 9999999000, connection_date: '2026-10-15' }, { access: 'reconnect-at', refresh: 'reconnect-rt' });
     const hold = holdTheTokenRequest();
     try {
       // The refresh hangs at Strava while the user reconnects.
@@ -323,11 +327,11 @@ describe('why a token refresh failed', () => {
     try {
       const second = getValidAccessToken('user-1');
       await hold.reached;
-      Object.assign(t.strava_tokens[0], { access_token: 'first-at', refresh_token: 'first-rt', expires_at: 9999999990 });
+      Object.assign(t.strava_tokens[0], { access_token: storedToken('user-1', 'access_token', 'first-at'), refresh_token: storedToken('user-1', 'refresh_token', 'first-rt'), expires_at: 9999999990 });
       hold.release();
 
       expect(await second).toMatchObject({ ok: false, reason: 'refresh_failed' });
-      expect(t.strava_tokens[0]).toMatchObject({ access_token: 'first-at', refresh_token: 'first-rt' });
+      expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'first-at', refresh_token: 'first-rt' });
     } finally {
       hold.restore();
     }
@@ -360,14 +364,14 @@ describe('why a token refresh failed', () => {
 
   it('a save lost after it was applied, followed by a reconnect, is a failed refresh that leaves the new connection alone', async () => {
     strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'late-at', refresh_token: 'late-rt', expires_at: 9999999990 }) });
-    const reconnected: Row = { user_id: 'user-1', access_token: 'reconnect-at', refresh_token: 'reconnect-rt', expires_at: 9999999000, connection_date: '2026-10-15' };
+    const reconnected: Row = encryptedRow({ user_id: 'user-1', expires_at: 9999999000, connection_date: '2026-10-15' }, { access: 'reconnect-at', refresh: 'reconnect-rt' });
     const rows: Row[] = [{ ...EXPIRED }];
     let first = true;
     use(rows, (q) => {
       if (q.table !== 'strava_tokens' || q.mutation !== 'update' || !first) return null;
       first = false;
       // The first save is applied, its answer is lost, and the user reconnects before the retry.
-      Object.assign(rows[0], { access_token: 'late-at', refresh_token: 'late-rt', expires_at: 9999999990 });
+      Object.assign(rows[0], { access_token: storedToken('user-1', 'access_token', 'late-at'), refresh_token: storedToken('user-1', 'refresh_token', 'late-rt'), expires_at: 9999999990 });
       rows.splice(0, 1, { ...reconnected });
       return { message: 'connection lost' };
     });
@@ -403,12 +407,12 @@ describe('why a token refresh failed', () => {
     use(rows, (q) => {
       if (q.table !== 'strava_tokens' || q.mutation !== 'update' || !first) return null;
       first = false;
-      Object.assign(rows[0], { access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }); // committed, then the answer was lost
+      Object.assign(rows[0], { access_token: storedToken('user-1', 'access_token', 'new-at'), refresh_token: storedToken('user-1', 'refresh_token', 'new-rt'), expires_at: 9999999990 }); // committed, then the answer was lost
       return { message: 'connection lost' };
     });
 
     expect(await getValidAccessToken('user-1')).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
-    expect(rows[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+    expect(plainRow(rows[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
   });
 });
 
@@ -613,7 +617,7 @@ describe('timeouts and the shared token refresh', () => {
     const older = getValidAccessToken('user-1');
     await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
     // The user reconnects while the old refresh is under way: the row now holds another refresh token.
-    t.strava_tokens.splice(0, 1, { ...TOKEN_ROW, access_token: 'reconnect-at', refresh_token: 'reconnect-rt', expires_at: 100 });
+    t.strava_tokens.splice(0, 1, encryptedRow({ user_id: 'user-1', expires_at: 100, connection_date: '2026-09-01' }, { access: 'reconnect-at', refresh: 'reconnect-rt' }));
     const newer = await getValidAccessToken('user-1');
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -621,7 +625,7 @@ describe('timeouts and the shared token refresh', () => {
     expect(newer).toMatchObject({ ok: true, accessToken: 'new-at' });
     releaseOld();
     expect(await older).toMatchObject({ ok: false, reason: 'refresh_failed' });
-    expect(t.strava_tokens[0]).toMatchObject({ refresh_token: 'new-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ refresh_token: 'new-rt' });
   });
 
   it('a timed-out token refresh is not classified as refresh_rejected', async () => {
@@ -636,7 +640,7 @@ describe('timeouts and the shared token refresh', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ ok: false, reason: 'refresh_failed' });
     expect(tokenWrites(db)).toHaveLength(0);
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'old-at', refresh_token: 'old-rt' });
   });
 
   it('concurrent refreshes for the same user share one request to Strava', async () => {
@@ -648,12 +652,12 @@ describe('timeouts and the shared token refresh', () => {
     expect(strava.calls.oauthToken).toBe(1);
     for (const result of [first, second, forced]) expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
     expect(tokenWrites(db)).toHaveLength(1);
-    expect(t.strava_tokens[0]).toMatchObject({ refresh_token: 'new-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ refresh_token: 'new-rt' });
   });
 
   it('refreshes for different users do not share a request', async () => {
     strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }) });
-    use([{ ...TOKEN_ROW, expires_at: 100 }, { ...TOKEN_ROW, user_id: 'user-2', refresh_token: 'other-rt', expires_at: 100 }]);
+    use([{ ...TOKEN_ROW, expires_at: 100 }, encryptedRow({ user_id: 'user-2', expires_at: 100, connection_date: '2026-09-01' }, { access: 'old-at', refresh: 'other-rt' })]);
 
     const results = await Promise.all([getValidAccessToken('user-1'), getValidAccessToken('user-2')]);
 

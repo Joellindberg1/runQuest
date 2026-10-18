@@ -2,6 +2,7 @@
 import { logger } from '../utils/logger.js';
 import { Request, Response, NextFunction } from 'express';
 import { getSupabaseClient } from '../config/database.js';
+import { errorCode } from '../utils/errorCode.js';
 
 export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -25,7 +26,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
       .single();
 
     if (error) {
-      logger.error('❌ Error checking admin status:', error.message);
+      logger.error(`❌ Error checking admin status (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to verify admin status' });
       return;
     }
@@ -40,7 +41,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     next();
     
   } catch (error) {
-    logger.error('❌ Admin middleware error:', error);
+    logger.error(`❌ Admin middleware error (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

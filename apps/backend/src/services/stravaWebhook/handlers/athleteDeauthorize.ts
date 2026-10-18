@@ -16,6 +16,8 @@
 //        token path says no_refresh_token     -> RETRY: nothing to renew with, so nothing to verify; ends in the worker's 48 h alarm
 //        token path says refresh_failed       -> RETRY, not confirmed (see below)
 //        token path says token_read_failed    -> RETRY: the token row could not be read, which proves nothing
+//        token path says token_unreadable     -> RETRY: the stored token cannot be read or the key is missing (ADR 013). Our fault, never
+//                                                Strava's refusal: nothing is verified, nothing is removed, nothing is confirmed
 //        token path says not_connected        -> ignored_unknown_owner, but only after the connection is read AGAIN and is gone
 //
 // Only refresh_rejected counts as Strava's refusal on the token path. stravaClient gives it only for a 400/401 from the token

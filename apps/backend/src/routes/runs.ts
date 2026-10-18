@@ -327,9 +327,9 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Date and distance are required' }); return;
     }
 
-    const { error: validationError, distanceNum } = validateRunInput(date, distance);
-    if (validationError) {
-      res.status(400).json({ error: validationError }); return;
+    const { error: invalidInput, distanceNum } = validateRunInput(date, distance);
+    if (invalidInput) {
+      res.status(400).json({ error: invalidInput }); return;
     }
 
     // Utelämnat → NULL (dagens beteende för manuella rundor); event-/väderlogik skiljer på false och NULL.
@@ -458,9 +458,9 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Distance is required' }); return;
     }
 
-    const { error: validationError, distanceNum: newDistance } = validateRunInput(date, distance);
-    if (validationError) {
-      res.status(400).json({ error: validationError }); return;
+    const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance);
+    if (invalidInput) {
+      res.status(400).json({ error: invalidInput }); return;
     }
 
     logger.info(`🔄 Updating run ${id} for user ${userId}`);

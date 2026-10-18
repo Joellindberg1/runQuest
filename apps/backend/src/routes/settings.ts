@@ -22,6 +22,7 @@ import {
   type SettingDefinition,
   type SettingsApiResponse,
 } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 const TABLE = USER_SETTINGS_TABLE;
 
@@ -60,7 +61,7 @@ export function createSettingsRouter(definitions?: readonly SettingDefinition[])
     try {
       res.json(await currentSettings(req.user!.user_id));
     } catch (e) {
-      logger.error('❌ GET /api/settings misslyckades:', e);
+      logger.error(`❌ GET /api/settings misslyckades (${errorCode(e)})`);
       res.status(500).json({ error: 'Failed to fetch settings' });
     }
   });
@@ -91,7 +92,7 @@ export function createSettingsRouter(definitions?: readonly SettingDefinition[])
       }
       res.json(await currentSettings(userId));
     } catch (e) {
-      logger.error('❌ PUT /api/settings misslyckades:', e);
+      logger.error(`❌ PUT /api/settings misslyckades (${errorCode(e)})`);
       res.status(500).json({ error: 'Failed to save settings' });
     }
   });

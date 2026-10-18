@@ -16,6 +16,8 @@ import {
   checkNoTrackedVideoOriginals,
   checkRateBudgetHook,
   checkReconcileSchedulerStart,
+  checkStravaTokenPath,
+  checkTokenKeyStartupCheck,
   checkWebhookSchedulerStart,
   checkRawStravaFetch,
   checkTestNames,
@@ -283,6 +285,37 @@ describe('checkReconcileSchedulerStart', () => {
   });
 });
 
+describe('checkTokenKeyStartupCheck', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+
+  it('passes when server.ts calls reportTokenKeyAtStartup() at the top level', () => {
+    assert.deepEqual(checkTokenKeyStartupCheck(server("import { x } from './x.js';\nreportTokenKeyAtStartup();\nconst app = 1;\n")), []);
+    assert.deepEqual(checkTokenKeyStartupCheck(server('reportTokenKeyAtStartup()\r\n')), []);
+  });
+
+  it('flags a server.ts without the call', () => {
+    const errors = checkTokenKeyStartupCheck(server("import { reportTokenKeyAtStartup } from './services/tokenKeyStartup.js';\nconst app = 1;\n"));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: saknar ett anrop av reportTokenKeyAtStartup\(\)/);
+  });
+
+  it('flags a call that is only in a comment, indented inside a block or callback, or a different function', () => {
+    for (const code of [
+      '// reportTokenKeyAtStartup();\n',
+      "if (process.env.NODE_ENV === 'production') {\n  reportTokenKeyAtStartup();\n}\n",
+      "server.on('listening', () => {\n  reportTokenKeyAtStartup();\n});\n",
+      'reportTokenKeyAtStartupLater();\n',
+    ]) {
+      assert.equal(checkTokenKeyStartupCheck(server(code)).length, 1, code);
+    }
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkTokenKeyStartupCheck([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkTokenKeyStartupCheck([{ path: 'apps/one/src/a.ts', content: '' }]), []);
+  });
+});
+
 describe('checkRateBudgetHook', () => {
   const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
 
@@ -354,6 +387,97 @@ describe('checkRawStravaFetch', () => {
 
   it('only reads the backend', () => {
     assert.deepEqual(scan("await fetch('https://www.strava.com/oauth/token');", 'apps/frontend/src/x.ts'), []);
+  });
+});
+
+describe('checkStravaTokenPath', () => {
+  const scan = (content, path = 'apps/backend/src/routes/x.ts') => checkStravaTokenPath([{ path, content }]);
+
+  it('flags a select of a token column on strava_tokens outside stravaTokenStore and reports file:line', () => {
+    const errors = scan("a;\nconst { data } = await db.from('strava_tokens').select('user_id, access_token').eq('user_id', id);\n");
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/routes\/x\.ts:2: .*stravaTokenStore/);
+  });
+
+  it('flags the variants: refresh_token, a multi-line template select, select(*) and select(), a filter, an update, an upsert, an insert', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select('refresh_token').eq('user_id', id);",
+      "await db\n  .from('strava_tokens')\n  .select(`\n    user_id,\n    access_token,\n    users!inner(name)\n  `)\n  .eq('sync_paused', false);",
+      "await db.from('strava_tokens').select('*');",
+      "await db.from('strava_tokens').select();",
+      "await db.from(\"strava_tokens\").select(\"\");",
+      "await db.from('strava_tokens').select('user_id').eq('refresh_token', old);",
+      "await db.from('strava_tokens').update({ refresh_token: next }).eq('user_id', id);",
+      "await db.from('strava_tokens').upsert({ user_id: id, access_token: a });",
+      "await db.from('strava_tokens').insert({ user_id: id, access_token: a });",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+    assert.equal(scan("await db.from('strava_tokens').select('access_token');\nawait db.from('strava_tokens').select('refresh_token');").length, 2);
+  });
+
+  it('flags a star anywhere in the select list, a select argument that is not a literal, and a spread into a write', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select('user_id, *');",
+      "await db.from('strava_tokens').select('*, users(name)');",
+      "await db.from('strava_tokens').select(\"user_id,*\");",
+      "await db.from('strava_tokens').select(columns);",
+      "await db.from('strava_tokens').select(COLUMNS.join(', '));",
+      "await db.from('strava_tokens').select(`user_id, ${extra}`);",
+      "await db.from('strava_tokens').upsert({ user_id: id, ...tokens });",
+      "await db.from('strava_tokens').insert({ ...tokens, user_id: id });",
+      "await db.from('strava_tokens').update({ ...next, sync_paused: false }).eq('user_id', id);",
+      "await db.from('strava_tokens').upsert([{ user_id: id, ...tokens }]);",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('passes a literal template select, a star inside a string that is not the select, and writes without a spread', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select(`\n  user_id,\n  users!inner(name)\n`).eq('sync_paused', false);",
+      "await db.from('strava_tokens').select('user_id').eq('note', '*');",
+      "await db.from('strava_tokens').update({ sync_paused: true, paused_at: now }).eq('user_id', id);",
+      "await db.from('strava_tokens').delete().eq('user_id', id);",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('passes reads of other columns, the has-a-token filter, writes of other columns, and chains on other tables', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select('user_id, sync_paused, paused_at').eq('user_id', id).maybeSingle();",
+      "await db.from('strava_tokens').select('user_id, users!inner(name)').not('access_token', 'is', null).eq('sync_paused', false);",
+      "await db.from('strava_tokens').update({ sync_paused: true }).eq('user_id', id);",
+      "await db.from('strava_tokens').delete().eq('user_id', id);",
+      "await db.from('strava_webhook_events').select('access_token');",
+      "const token = tokenData.access_token;\nawait db.from('runs').select('id');",
+      "// the old code read access_token and refresh_token here\nawait db.from('strava_tokens').select('user_id'); // not access_token",
+      "await db.from('strava_tokens').select('user_id');\nconst body = { access_token: x };",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('does not exempt the token backfill: it goes through stravaTokenStore like everything else', () => {
+    const raw = "await db.from('strava_tokens').select('access_token, refresh_token');";
+    assert.equal(scan(raw, 'apps/backend/src/scripts/backfillStravaTokenEncryption.ts').length, 1);
+  });
+
+  it('lets stravaTokenStore.ts, tests and test-utils touch the token columns', () => {
+    const raw = "await db.from('strava_tokens').select('access_token, refresh_token');";
+    assert.deepEqual(scan(raw, 'apps/backend/src/services/stravaTokenStore.ts'), []);
+    assert.deepEqual(scan(raw, 'apps/backend/src/services/__tests__/x.test.ts'), []);
+    assert.deepEqual(scan(raw, 'apps/backend/src/test-utils/fakeStrava.ts'), []);
+  });
+
+  it('only reads the backend', () => {
+    assert.deepEqual(scan("await db.from('strava_tokens').select('access_token');", 'apps/frontend/src/x.ts'), []);
+  });
+
+  it('stops a chain at the end of its statement, so a later token mention on its own is not blamed on it', () => {
+    assert.deepEqual(scan("await db.from('strava_tokens').select('user_id');\nawait other.update({ refresh_token: x });"), []);
+    assert.deepEqual(scan("const rows = await readAll('l', (from, to) =>\n  db.from('strava_tokens').select('user_id').range(from, to),\n);\nconst refresh_token = 1;"), []);
   });
 });
 
@@ -582,6 +706,31 @@ describe('CLI', () => {
     assert.equal(runCli('strava-fetch', makeBackend('fetch-good', "await stravaFetch('https://www.strava.com/oauth/token');\n")).status, 0);
   });
 
+  it('exits 1 on a token column read outside stravaTokenStore (also under all) and 0 once it is gone', () => {
+    const makeBackend = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'routes'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'routes', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeBackend('token-path-bad', "await db.from('strava_tokens').select('user_id, access_token');\n");
+    for (const mode of ['strava-token-path', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/planted\.ts:1: .*stravaTokenStore/);
+    }
+    assert.equal(runCli('strava-token-path', makeBackend('token-path-good', "await db.from('strava_tokens').select('user_id');\n")).status, 0);
+  });
+
+  it('exits 0 on the current repo in strava-token-path mode', () => {
+    const result = runCli('strava-token-path');
+    assert.equal(result.status, 0, result.stderr);
+  });
+
   it('exits 1 when server.ts lacks the rate budget call (also under all) and 0 once it is planted', () => {
     const makeBackend = (name, serverContent) => {
       const root = join(temp, name);
@@ -600,6 +749,32 @@ describe('CLI', () => {
       assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av registerStravaRateBudget/);
     }
     assert.equal(runCli('rate-budget-hook', makeBackend('hook-good', 'registerStravaRateBudget();\n')).status, 0);
+  });
+
+  it('exits 1 when server.ts lacks the token key check (also under all) and 0 once it is planted', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('key-check-bad', 'registerStravaRateBudget();\n');
+    for (const mode of ['token-key-startup', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av reportTokenKeyAtStartup/);
+    }
+    assert.equal(runCli('token-key-startup', makeBackend('key-check-good', 'reportTokenKeyAtStartup();\n')).status, 0);
+  });
+
+  it('exits 0 on the current repo in token-key-startup mode', () => {
+    const result = runCli('token-key-startup');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /tokennyckeln/);
   });
 
   it('exits 1 when server.ts does not start the webhook worker in the production block (also under all) and 0 once it does', () => {

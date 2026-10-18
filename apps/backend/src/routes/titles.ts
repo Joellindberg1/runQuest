@@ -6,6 +6,7 @@ import { getTitleRecalcContext } from '../services/titleRecalcClock';
 import { supabase } from '../config/database';
 import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -29,11 +30,10 @@ router.get('/', authenticateJWT, async (_req, res) => {
     });
     
   } catch (error) {
-    logger.error('❌ API Error in /titles:', error);
+    logger.error(`❌ API Error in /titles (${errorCode(error)})`);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch titles',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to fetch titles'
     });
   }
 });
@@ -59,11 +59,10 @@ router.get('/leaderboard', authenticateJWT, async (_req, res) => {
     });
     
   } catch (error) {
-    logger.error('❌ API Error in /titles/leaderboard:', error);
+    logger.error(`❌ API Error in /titles/leaderboard (${errorCode(error)})`);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch title leaderboard',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to fetch title leaderboard'
     });
   }
 });
@@ -91,39 +90,10 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
     });
     
   } catch (error) {
-    logger.error(`❌ API Error in /titles/user/${req.params.userId}:`, error);
+    logger.error(`❌ API Error in /titles/user/:userId (${errorCode(error)})`);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch user titles',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-/**
- * POST /api/titles/refresh/:titleId
- * Refresh leaderboard for a specific title
- */
-router.post('/refresh/:titleId', authenticateJWT, async (req, res) => {
-  try {
-    const { titleId } = req.params;
-    logger.info(`🔄 API: Refreshing leaderboard for title ${titleId}...`);
-    
-    await titleLeaderboardService.refreshTitleLeaderboard(titleId);
-    
-    res.json({
-      success: true,
-      message: `Title leaderboard refreshed for ${titleId}`,
-      title_id: titleId,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    logger.error(`❌ API Error in /titles/refresh/${req.params.titleId}:`, error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to refresh title leaderboard',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to fetch user titles'
     });
   }
 });
@@ -144,11 +114,10 @@ router.post('/populate', authenticateJWT, requireAdmin, async (_req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('❌ API Error in /titles/populate:', error);
+    logger.error(`❌ API Error in /titles/populate (${errorCode(error)})`);
     res.status(500).json({
       success: false,
-      error: 'Failed to populate title leaderboards',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to populate title leaderboards'
     });
   }
 });
@@ -169,11 +138,10 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('❌ API Error in /titles/refresh:', error);
+    logger.error(`❌ API Error in /titles/refresh (${errorCode(error)})`);
     res.status(500).json({
       success: false,
-      error: 'Failed to refresh title leaderboards',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to refresh title leaderboards'
     });
   }
 });
@@ -207,7 +175,7 @@ router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) =
     }
     res.status(207).json({ success: false, message: `${failed} of ${total} users failed; the rest were recalculated`, ...counts });
   } catch (error) {
-    logger.error('❌ API Error in /titles/reprocess-all:', error);
+    logger.error(`❌ API Error in /titles/reprocess-all (${errorCode(error)})`);
     res.status(500).json({ success: false, error: 'Failed to reprocess titles' });
   }
 });
@@ -275,7 +243,7 @@ router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
 
     res.json({ success: true, data: eligibilityResults });
   } catch (error) {
-    logger.error('❌ API Error in /titles/group-eligibility:', error);
+    logger.error(`❌ API Error in /titles/group-eligibility (${errorCode(error)})`);
     res.status(500).json({ success: false, error: 'Failed to calculate group eligibility' });
   }
 });

@@ -33,10 +33,14 @@ function use(tables: Record<string, Row[]>) {
   return db;
 }
 
+// Riktiga uuid: /send avvisar opponent_id som inte är ett uuid.
+const SENDER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const TARGET_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
 const sendTables = (): Record<string, Row[]> => ({
   activity_log: [],
-  user_challenge_tokens: [{ id: 't1', user_id: 'a', tier: 'major', metric: 'km', duration_days: 5, reward_id: 'rw1', sent_at: null }],
-  users: [{ id: 'a', current_level: 6, group_id: 'g1' }, { id: 'b', current_level: 7, group_id: 'g1' }],
+  user_challenge_tokens: [{ id: 't1', user_id: SENDER_ID, tier: 'major', metric: 'km', duration_days: 5, reward_id: 'rw1', sent_at: null }],
+  users: [{ id: SENDER_ID, current_level: 6, group_id: 'g1' }, { id: TARGET_ID, current_level: 7, group_id: 'g1' }],
   challenges: [],
   challenge_rewards: [{
     id: 'rw1', winner_type: 'multiplier_days', winner_delta: 0.2, winner_duration: 3,
@@ -49,15 +53,15 @@ describe('POST /api/challenges/send → challenge_received', () => {
     const tables = sendTables();
     use(tables);
     const res = await server.request('POST', '/api/challenges/send', {
-      token: mintToken({ user_id: 'a', group_id: 'g1' }),
-      body: { token_id: 't1', opponent_id: 'b' },
+      token: mintToken({ user_id: SENDER_ID, group_id: 'g1' }),
+      body: { token_id: 't1', opponent_id: TARGET_ID },
     });
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ success: true, data: { challenge_id: 'gen-1' } });
     expect(tables.activity_log).toHaveLength(1);
     expect(tables.activity_log[0]).toMatchObject({
-      group_id: 'g1', type: 'challenge_received', actor_user_id: 'a', target_user_id: 'b', is_backfill: false,
+      group_id: 'g1', type: 'challenge_received', actor_user_id: SENDER_ID, target_user_id: TARGET_ID, is_backfill: false,
       dedupe_key: 'challenge_received:gen-1',
       payload: { challenge_id: 'gen-1', tier: 'major', metric: 'km', duration_days: 5 },
     });
@@ -68,8 +72,8 @@ describe('POST /api/challenges/send → challenge_received', () => {
     const db = createFakeDb(tables, { autoIds: true, errors: { activity_log: { message: 'relation does not exist' } } });
     vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
     const res = await server.request('POST', '/api/challenges/send', {
-      token: mintToken({ user_id: 'a', group_id: 'g1' }),
-      body: { token_id: 't1', opponent_id: 'b' },
+      token: mintToken({ user_id: SENDER_ID, group_id: 'g1' }),
+      body: { token_id: 't1', opponent_id: TARGET_ID },
     });
     expect(res.status).toBe(201);
     expect(tables.challenges).toHaveLength(1);
@@ -80,8 +84,8 @@ describe('POST /api/challenges/send → challenge_received', () => {
     tables.users[1].group_id = 'other-group';
     use(tables);
     const res = await server.request('POST', '/api/challenges/send', {
-      token: mintToken({ user_id: 'a', group_id: 'g1' }),
-      body: { token_id: 't1', opponent_id: 'b' },
+      token: mintToken({ user_id: SENDER_ID, group_id: 'g1' }),
+      body: { token_id: 't1', opponent_id: TARGET_ID },
     });
     expect(res.status).toBe(400);
     expect(tables.activity_log).toHaveLength(0);
