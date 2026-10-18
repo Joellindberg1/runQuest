@@ -18,10 +18,22 @@ const PII_KEYS = new Set([
 /** Delar av händelsen som SDK:t själv fyller med tekniska namn (webbläsare, OS, SDK-paket); där tas bara text maskas, inte nycklar. */
 const KEEP_KEYS_IN = new Set(['contexts', 'sdk']);
 /**
- * SDK:ts egen metadata på toppnivå (sätts i prepareEvent före beforeSend) som aldrig bär användardata: bygget och miljön, händelsens id, tid och nivå.
- * De passerar orörda, för release matchar annars e-postregexen och källkartorna hittas inte. Bara strängar och tal släpps igenom.
+ * SDK:ts egen metadata på toppnivå (sätts i prepareEvent före beforeSend): bygget och miljön, händelsens id, tid och nivå. De passerar orörda,
+ * för release matchar annars e-postregexen och källkartorna hittas inte. Varje fält släpps bara igenom i sin kända form; allt annat (ett
+ * objekt, en text med mellanslag, ett e-postlikt värde) får nyckeln struken i stället för tvättad. release har ett @ i sin form
+ * (runquest@<version>+<sha7>), så mönstret är exakt det och inget bredare; dist har inget @ alls.
  */
-const SDK_METADATA_KEYS = new Set(['release', 'dist', 'environment', 'event_id', 'platform', 'timestamp', 'level']);
+const SDK_METADATA_VALID: Record<string, (value: unknown) => boolean> = {
+  release: (value) => typeof value === 'string' && /^runquest@\d+\.\d+\.\d+(\.\d+)?(\+[0-9a-f]{7})?$/.test(value),
+  dist: (value) => typeof value === 'string' && /^[\w.-]{1,64}$/.test(value),
+  environment: (value) => typeof value === 'string' && /^[a-z][a-z-]{0,31}$/.test(value),
+  event_id: (value) => typeof value === 'string' && /^[0-9a-f]{32}$/i.test(value),
+  platform: (value) => typeof value === 'string' && /^[a-z]{1,32}$/.test(value),
+  level: (value) => typeof value === 'string' && ['fatal', 'error', 'warning', 'log', 'info', 'debug'].includes(value),
+  timestamp: (value) => typeof value === 'number' && Number.isFinite(value),
+};
+/** Fler bilder än så har ingen frontendbunt; taket hindrar att debug_meta blir en stor last. */
+const MAX_DEBUG_IMAGES = 200;
 /** Brödsmulor som kan bära inskriven text eller visningsnamn: konsolrader och klick/inmatning i gränssnittet. */
 const DROPPED_BREADCRUMB_CATEGORY = /^(console|ui\..*)$/;
 
@@ -149,7 +161,7 @@ function scrubValue(value: unknown, storageValues: readonly string[], keepKeys: 
 function rebuildDebugMeta(value: unknown, storageValues: readonly string[]): { images: Array<Record<string, string>> } | null {
   if (!isPlainObject(value) || !Array.isArray(value.images)) return null;
   const images: Array<Record<string, string>> = [];
-  for (const image of value.images) {
+  for (const image of value.images.slice(0, MAX_DEBUG_IMAGES)) {
     if (!isPlainObject(image) || typeof image.debug_id !== 'string' || !DEBUG_ID.test(image.debug_id)) continue;
     const rebuilt: Record<string, string> = { debug_id: image.debug_id };
     if (image.type === 'sourcemap') rebuilt.type = image.type;
@@ -175,8 +187,8 @@ export function scrubSentryEvent<T extends SentryEventLike>(event: T, storageVal
   const scrubbed: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(event)) {
     if (key === 'user') continue;
-    if (SDK_METADATA_KEYS.has(key)) {
-      if (typeof value === 'string' || typeof value === 'number') scrubbed[key] = value;
+    if (Object.prototype.hasOwnProperty.call(SDK_METADATA_VALID, key)) {
+      if (SDK_METADATA_VALID[key]?.(value)) scrubbed[key] = value;
       continue;
     }
     if (key === 'debug_meta') {

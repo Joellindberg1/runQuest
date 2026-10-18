@@ -236,6 +236,76 @@ describe('frontend sentry beforeSend and source map metadata', () => {
     expect(JSON.stringify(scrubbed?.debug_meta)).not.toContain('anna');
   });
 
+  it('drops SDK metadata that is not a plain value, so an object cannot carry text past the scrub', () => {
+    const scrubbed = scrubSentryEvent(
+      { ...sdkShapedEvent(), release: { a: 'x@y.se' } as never, environment: ['a@b.se'] as never, platform: null as never },
+      [],
+    );
+
+    expect(scrubbed).not.toHaveProperty('release');
+    expect(scrubbed).not.toHaveProperty('environment');
+    expect(scrubbed).not.toHaveProperty('platform');
+    expect(JSON.stringify(scrubbed)).not.toContain('@y.se');
+    expect(JSON.stringify(scrubbed)).not.toContain('@b.se');
+  });
+
+  it.each([
+    ['release', 'user@mail.com'],
+    ['release', 'runquest@0.8.0+abcdef1 anna'],
+    ['release', 'runquest@0.8.0+abcdef1\n'],
+    ['dist', 'user@mail.com'],
+    ['dist', 'two words'],
+    ['environment', 'a@b.se'],
+    ['environment', 'Anna Andersson'],
+    ['platform', 'a@b.se'],
+    ['level', 'a@b.se'],
+    ['level', 'critical'],
+    ['event_id', 'a@b.se'],
+    ['event_id', '0123456789abcdef0123456789abcde'],
+    ['timestamp', '2026-10-17'],
+  ])('drops %s when the value is %j', (key, value) => {
+    const scrubbed = scrubSentryEvent({ ...sdkShapedEvent(), [key]: value }, []);
+
+    expect(scrubbed).not.toHaveProperty(key);
+  });
+
+  it.each([
+    ['release', 'runquest@0.8.0'],
+    ['release', 'runquest@0.8.0.1+abcdef1'],
+    ['dist', '1'],
+    ['environment', 'production'],
+    ['environment', 'staging-eu'],
+    ['platform', 'node'],
+    ['level', 'fatal'],
+    ['level', 'warning'],
+    ['level', 'log'],
+    ['level', 'info'],
+    ['level', 'debug'],
+    ['timestamp', 0],
+  ])('keeps %s when the value is %j', (key, value) => {
+    const scrubbed = scrubSentryEvent({ ...sdkShapedEvent(), [key]: value }, []);
+
+    expect(scrubbed).toHaveProperty(key, value);
+  });
+
+  it('drops a timestamp that is not a finite number', () => {
+    expect(scrubSentryEvent({ ...sdkShapedEvent(), timestamp: Number.NaN }, [])).not.toHaveProperty('timestamp');
+  });
+
+  it('keeps at most 200 debug images', () => {
+    const images = Array.from({ length: 250 }, (_, index) => ({
+      type: 'sourcemap',
+      debug_id: `3f2504e0-4f89-11d3-9a0c-${String(index).padStart(12, '0')}`,
+      code_file: SCRIPT,
+    }));
+
+    const scrubbed = scrubSentryEvent({ ...sdkShapedEvent(), debug_meta: { images } }, []);
+
+    const kept = (scrubbed?.debug_meta as { images: Array<{ debug_id: string }> }).images;
+    expect(kept).toHaveLength(200);
+    expect(kept[0]?.debug_id).toBe(images[0]?.debug_id);
+  });
+
   it('drops a debug_meta that is not the shape the SDK creates', () => {
     expect(scrubSentryEvent({ ...sdkShapedEvent(), debug_meta: 'anna@example.com' }, [])).not.toHaveProperty('debug_meta');
     expect(scrubSentryEvent({ ...sdkShapedEvent(), debug_meta: { images: 'anna@example.com' } }, [])).not.toHaveProperty('debug_meta');

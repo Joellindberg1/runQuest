@@ -24,7 +24,7 @@ type DebugIdRegistry = { _sentryDebugIds?: Record<string, string> };
 
 beforeEach(() => {
   sent.events.length = 0;
-  vi.stubGlobal('window', { localStorage: { length: 0, key: () => null, getItem: () => null } });
+  vi.stubGlobal('window', { localStorage: { length: 0, key: () => null, getItem: () => null }, location: { pathname: '/board' } });
 });
 
 afterEach(async () => {
