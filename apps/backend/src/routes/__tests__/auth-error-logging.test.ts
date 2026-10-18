@@ -58,7 +58,7 @@ const readsUsers: FailWhen = (q) => q.table === 'users' && !q.mutation && !isAdm
 /** Varje väg där routen loggar ett fel från databasen (felobjekt med meddelande + kod) och svarar generiskt. */
 const databaseErrorCases: Case[] = [
   { name: 'login lookup', method: 'POST', path: '/api/auth/login', body: { email: 'member@example.com', password: 'x' }, fails: readsUsers, status: 401 },
-  { name: 'change-password lookup', method: 'POST', path: '/api/auth/change-password', body: { currentPassword: CURRENT_PASSWORD, newPassword: 'another-secret' }, fails: readsUsers, status: 404 },
+  { name: 'change-password lookup', method: 'POST', path: '/api/auth/change-password', body: { currentPassword: CURRENT_PASSWORD, newPassword: 'another-secret' }, fails: readsUsers, status: 500 },
   { name: 'change-password update', method: 'POST', path: '/api/auth/change-password', body: { currentPassword: CURRENT_PASSWORD, newPassword: 'another-secret' }, fails: (q) => q.mutation === 'update', status: 500 },
   { name: 'user list', method: 'GET', path: '/api/auth/users', fails: readsUsers, status: 500 },
   { name: 'user create', method: 'POST', path: '/api/auth/users', body: { name: 'Newbie', email: 'newbie@example.com', password: 'secret123' }, fails: (q) => q.mutation === 'insert', status: 500 },
@@ -112,6 +112,51 @@ describe('auth routes when a call throws', () => {
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toContain(LEAK);
     expectOnlyTheCodeWasLogged('ECONNRESET');
+  });
+});
+
+describe('POST /api/auth/change-password tells a database failure from a missing user', () => {
+  const body = { currentPassword: CURRENT_PASSWORD, newPassword: 'another-secret' };
+
+  it('answers 500 with a generic message and one error event with the code when the user lookup fails', async () => {
+    const sentry = startFakeSentry();
+    try {
+      useDb(readsUsers, () => ({ message: `connection to ${LEAK} lost`, code: '08006' }));
+      const res = await server.request('POST', '/api/auth/change-password', { token: adminToken(), body });
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ error: 'Failed to change password' });
+      const events = await sentry.drain();
+      expect(events).toHaveLength(1);
+      expect(JSON.stringify(events)).toContain('08006');
+      expect(JSON.stringify(events)).not.toContain(LEAK);
+    } finally {
+      await sentry.stop();
+    }
+  });
+
+  it('names the network cause when the lookup fails without a code (supabase-js lost the connection)', async () => {
+    useDb(readsUsers, () => ({ message: 'TypeError: fetch failed', details: `TypeError: fetch failed\n\nCaused by: Error: read ECONNRESET (ECONNRESET) ${LEAK}`, hint: '', code: '' }));
+    const res = await server.request('POST', '/api/auth/change-password', { token: adminToken(), body });
+
+    expect(res.status).toBe(500);
+    expect(logged()).toContain('ECONNRESET');
+    expect(logged()).not.toContain(LEAK);
+    expect(logged()).not.toMatch(/\((unknown|Error)\)/);
+  });
+
+  it('answers 404, and sends no error event, when the user does not exist', async () => {
+    const sentry = startFakeSentry();
+    try {
+      useDb(() => false, () => null);
+      const res = await server.request('POST', '/api/auth/change-password', { token: mintToken({ user_id: 'no-such-user', group_id: GROUP }), body });
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: 'User not found' });
+      expect(await sentry.drain()).toHaveLength(0);
+    } finally {
+      await sentry.stop();
+    }
   });
 });
 
