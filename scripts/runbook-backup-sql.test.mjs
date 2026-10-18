@@ -51,16 +51,22 @@ export function stripSql(rawSql) {
           closed = true;
           i += 1;
           break;
-        } else i += 1;
+        } else {
+          if (sql[i] === '\\') problems.push('snedstreck (\\) är inte tillåtet, inte heller inuti en sträng');
+          i += 1;
+        }
       }
       if (!closed) problems.push('osluten sträng');
       out += "'s'";
     } else {
+      // Utanför strängar och kommentarer: bara ASCII. Homoglyfer och hårda blanksteg kan annars få ett ord att se ut som ett annat.
+      if (ch.charCodeAt(0) > 0x7f) problems.push(`tecken utanför ASCII (U+${ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}) utanför en sträng`);
       out += ch;
       i += 1;
     }
   }
-  return { code: out.replace(/\s+/g, ' ').toLowerCase(), problems };
+  // Blanksteg runt punkter tas bort så att `public . count(` läses som `public.count(` (schemaprefixregeln).
+  return { code: out.replace(/\s+/g, ' ').replace(/ ?\. ?/g, '.').toLowerCase(), problems };
 }
 
 /** Satserna i en SQL-text efter stripSql, utan tomma. */
@@ -78,23 +84,44 @@ const WRITE_OR_ADMIN_WORDS =
 // Vitlista: de enda funktionerna som får anropas. Allt annat (pg_terminate_backend, set_config, dblink_*, pg_sleep, lo_*, egna) fäller.
 const ALLOWED_FUNCTIONS = new Set(['count', 'max', 'min', 'coalesce', 'now', 'cast', 'current_database', 'pg_database_size', 'pg_size_pretty', 'to_char']);
 
-// Ord som får stå direkt före en parentes utan att vara ett funktionsanrop.
-const KEYWORDS_BEFORE_PAREN = new Set(['as', 'from', 'filter', 'in', 'over', 'and', 'or', 'not', 'on', 'where', 'union', 'all', 'select', 'with', 'exists', 'by', 'then', 'else', 'when', 'case', 'values', 'join', 'using', 'any', 'some', 'between', 'like', 'is', 'distinct', 'having', 'group', 'order', 'limit', 'by']);
+// Ord som får stå direkt före en parentes utan att vara ett funktionsanrop. Bara RESERVERADE ord, som inte kan vara funktionsnamn
+// och därför inte kan dölja ett anrop. Icke-reserverade ord (by, over, like …) står inte här: ett användardefinierat `over(` ska fällas.
+// `filter` är icke-reserverat men filen behöver `count(*) filter (where …)`; det släpps därför bara igenom i exakt den formen.
+const KEYWORDS_BEFORE_PAREN = new Set(['as', 'from', 'in', 'and', 'or', 'not', 'on', 'where', 'union', 'all', 'select', 'with', 'exists', 'then', 'else', 'when', 'case', 'values', 'join', 'using', 'any', 'some', 'between', 'is', 'distinct', 'having', 'group', 'order', 'limit']);
 
 function functionViolations(statement) {
   const violations = [];
   for (const match of statement.matchAll(/([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*)\s*\(/g)) {
     const name = match[1];
+    const afterParen = statement.slice(match.index + match[0].length);
     if (name.includes('.')) violations.push(`funktion med schema: ${name}(`);
+    else if (name === 'filter' && afterParen.startsWith('where ')) continue;
     else if (!ALLOWED_FUNCTIONS.has(name) && !KEYWORDS_BEFORE_PAREN.has(name)) violations.push(`funktionen ${name}( finns inte på vitlistan`);
   }
   return violations;
+}
+
+// Känsliga kolumner får aldrig nämnas i filen (inte ens i kommentarer): filen läser antal, aldrig innehåll.
+const SENSITIVE_COLUMNS = /(access_token|refresh_token|password_hash|email)/i;
+
+// strava_tokens får bara förekomma i dessa två former (BLOCK A och BLOCK B). Allt som blir kvar av namnet när de tagits bort fäller.
+const STRAVA_TOKENS_FORMS = [
+  /select 's'(?: as \w+)?, count\(\*\)(?: as \w+)?, max\(created_at\)::text(?: as \w+)? from public\.strava_tokens/g,
+  /select 's', count\(\*\) filter \(where created_at <= \(select t from punkt\)\)(?: as \w+)?, count\(\*\)(?: as \w+)? from public\.strava_tokens/g,
+];
+
+function stravaTokensViolations(statement) {
+  if (!statement.includes('strava_tokens')) return [];
+  const remainder = STRAVA_TOKENS_FORMS.reduce((text, form) => text.replace(form, ''), statement);
+  return remainder.includes('strava_tokens') ? ['strava_tokens används på annat sätt än count(*) och max(created_at)'] : [];
 }
 
 /** Tomma listan = filen är skrivskyddad enligt vakten. */
 export function readOnlyViolations(sql) {
   const { problems } = stripSql(sql);
   const violations = [...problems];
+  const sensitive = sql.match(SENSITIVE_COLUMNS);
+  if (sensitive) violations.push(`känslig kolumn "${sensitive[1]}" får inte nämnas i filen`);
   const statements = statementsOf(sql);
   let open = false;
   for (const statement of statements) {
@@ -108,7 +135,7 @@ export function readOnlyViolations(sql) {
       if (!open) violations.push(`sats utanför begin read only: ${statement.slice(0, 40)}`);
       const word = statement.match(WRITE_OR_ADMIN_WORDS);
       if (word) violations.push(`förbjudet ord "${word[0]}" i: ${statement.slice(0, 60)}`);
-      violations.push(...functionViolations(statement));
+      violations.push(...functionViolations(statement), ...stravaTokensViolations(statement));
     } else {
       violations.push(`oväntad sats: ${statement.slice(0, 60)}`);
     }
@@ -169,6 +196,46 @@ describe('readOnlyViolations: försök att smuggla in en skrivning', () => {
   it('accepterar tillåtna funktioner och strängar med -- och semikolon i', () => {
     const statement = "select coalesce(max(created_at)::text, 'a -- b; c'), pg_database_size(current_database()) from public.users";
     assert.deepEqual(readOnlyViolations(block(statement)), []);
+  });
+});
+
+describe('readOnlyViolations: lexern och vitlistan', () => {
+  const block = (statement) => `begin read only;\n${statement};\nrollback;`;
+  const rejected = [
+    ['schemaprefix med blanksteg runt punkten', 'select public . count(*) from public.users'],
+    ['schemaprefix med radbrytning runt punkten', 'select public\n.\ncount(*) from public.users'],
+    ['homoglyf (icke-ASCII) utanför en sträng', 'select count(*) frоm public.users'],
+    ['hårt blanksteg (icke-ASCII) utanför en sträng', 'select count(*) from public.users'],
+    ['snedstreck inuti en sträng', "select 'a\\b' from public.users"],
+    ['filter som funktionsnamn', 'select filter(1) from public.users'],
+    ['over som funktionsnamn', 'select over(1) from public.users'],
+    ['filter utan where', 'select count(*) filter (1) from public.users'],
+    ['kolumnen access_token', 'select access_token from public.strava_tokens'],
+    ['kolumnen refresh_token', 'select refresh_token from public.strava_tokens'],
+    ['kolumnen password_hash', 'select password_hash from public.users'],
+    ['kolumnen email', 'select email from public.users'],
+    ['strava_tokens med stjärna', 'select * from public.strava_tokens'],
+    ['strava_tokens med en annan kolumn', 'select user_id from public.strava_tokens'],
+    ['strava_tokens i en CTE', 'with t as (select * from public.strava_tokens) select count(*) from t'],
+    ['strava_tokens utan schema', "select 'x', count(*), max(created_at)::text from strava_tokens"],
+  ];
+  for (const [name, statement] of rejected) {
+    it(`fäller: ${name}`, () => {
+      assert.notDeepEqual(readOnlyViolations(block(statement)), []);
+    });
+  }
+
+  it('fäller en förbjuden kolumn även i en kommentar', () => {
+    assert.notDeepEqual(readOnlyViolations('-- vi läser aldrig password_hash\nbegin read only;\nselect 1;\nrollback;'), []);
+  });
+
+  it('accepterar icke-ASCII i kommentarer och strängar', () => {
+    assert.deepEqual(readOnlyViolations("-- Återställning\nbegin read only;\nselect 'Ärende' as etikett;\nrollback;"), []);
+  });
+
+  it('accepterar count med filter (where …) och bara antalet och senaste skapad ur strava_tokens', () => {
+    assert.deepEqual(readOnlyViolations(block('select count(*) filter (where created_at is not null) from public.users')), []);
+    assert.deepEqual(readOnlyViolations(block("select 'strava_tokens (bara antal)', count(*), max(created_at)::text from public.strava_tokens")), []);
   });
 });
 

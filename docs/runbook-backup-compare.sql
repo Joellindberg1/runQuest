@@ -9,7 +9,7 @@
 --
 -- Så här körs den (SQL-editorn i Supabase visar bara resultatet av det SISTA blocket, så ett block i taget):
 --   1. Markera BLOCK A, kör det i den ÅTERSTÄLLDA kopian (det tillfälliga projektet). Skriv av resultatet i runbookens logg.
---   2. Markera BLOCK A igen, kör det i PROD (SQL-editorn eller MCP-läsning är båda läsning). Skriv av resultatet.
+--   2. Markera BLOCK A igen, kör det i PROD, i SQL Editor. Skriv av resultatet.
 --   3. Fyll i återställningspunkten i BLOCK B (tidpunkten för backupen du återställde), kör det i PROD. Kolumnen
 --      forvantat_i_kopian är hur många rader prod hade vid den tidpunkten; den ska stämma med kopians antal i steg 1.
 --   4. BLOCK C mäter databasens storlek (kör i prod, och i kopian om du vill jämföra); det underlag RTO-antagandet saknar.

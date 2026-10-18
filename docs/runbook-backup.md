@@ -127,66 +127,88 @@ OneDrive-mappen som repot ligger i, och radera den i Städning. Vad filen inneh�
 V2.2. Skapa ett tomt tillfälligt projekt `runquest-restore-test` (gratis-organisationen om en plats är ledig, annars Pro-organisationen;
 kostnaden är ägarens val). Skriv upp dess **namn och ref** i loggen som `TEMP_REF` (som i V1.2).
 
-V2.3. **STOPP-kontroll 1: anslutningssträngen.** Hämta det tillfälliga projektets anslutningssträng (Dashboard → Connect) och lägg den i
-en variabel i *ditt eget skal* utan att den hamnar i historiken eller chatten (`read -rs TEMP_DB_URL`, klistra, Enter). Kör sedan
-raden nedan. Den ska skriva `ok`; skriver den `STOPP`, gå inte vidare:
+V2.3. **STOPP-kontroll 1: anslutningssträngen.** Kommandona i väg 2 körs i **Git Bash eller WSL** (ägaren sitter på Windows; PowerShell och cmd
+förstår inte syntaxen). `psql` och `pg_restore` ingår i PostgreSQL-klientverktygen, som ägaren installerar själv; Lead och agenter laddar
+inte ner något. Hämta det tillfälliga projektets anslutningssträng (Dashboard → Connect) och lägg den i en variabel i *ditt eget skal* utan
+att den hamnar i historiken eller chatten (`read -rs TEMP_DB_URL`, klistra, Enter). Klistra in funktionen nedan och sätt `TEMP_REF` till
+refen från loggen (en Supabase-ref är 20 tecken: båda projektens refer i det här repot är det). Funktionen skriver `ok` och ger exit-kod 0,
+eller skriver `STOPP` och ger exit-kod 1 (den stänger inte terminalen). Gå inte vidare om den skriver `STOPP`:
 
 ```bash
-TEMP_REF=<ref från loggen>
-case "$TEMP_DB_URL" in
-  *yrrqaxdngayakcivfrck*|*aormctqrmguvncxrigwy*) echo "STOPP: strängen pekar på prod eller staging" ;;
-  *"$TEMP_REF"*) echo "ok: strängen innehåller det tillfälliga projektets ref" ;;
-  *) echo "STOPP: strängen innehåller inte det tillfälliga projektets ref" ;;
-esac
+TEMP_REF="<ref från loggen>"
+check_temp_target() {
+  if [ "${#TEMP_REF}" -ne 20 ]; then
+    echo "STOPP: TEMP_REF saknas eller har fel längd"; return 1
+  fi
+  case "$TEMP_DB_URL" in
+    *yrrqaxdngayakcivfrck*|*aormctqrmguvncxrigwy*) echo "STOPP: strängen pekar på prod eller staging"; return 1 ;;
+    *"$TEMP_REF"*) echo "ok: strängen innehåller det tillfälliga projektets ref"; return 0 ;;
+    *) echo "STOPP: strängen innehåller inte det tillfälliga projektets ref"; return 1 ;;
+  esac
+}
+check_temp_target
 ```
 
-V2.4. **STOPP-kontroll 2: projektet är tomt.** Kör `psql "$TEMP_DB_URL" -c "select count(*) from public.users"`. Svaret ska vara `0`
-eller felet `relation "public.users" does not exist`. Är det större än 0 är det inte ett tomt tillfälligt projekt: **STOPP**.
+V2.4. **STOPP-kontroll 2: projektet är tomt.** Kör `check_temp_target && psql "$TEMP_DB_URL" -c "select count(*) from public.users"`. Svaret
+ska vara `0` eller felet `relation "public.users" does not exist`. Är det större än 0 är det inte ett tomt tillfälligt projekt: **STOPP**.
 
 V2.5. **Återställ**, först efter att V2.3 och V2.4 gått igenom, med en enda transaktion så att ett fel inte lämnar ett halvfärdigt
-projekt (Lead går igenom exakt kommando i chatten utan att se strängen; formen är):
+projekt (Lead går igenom exakt kommando i chatten utan att se strängen). Kontrollen körs **i samma kommando**, direkt före `psql`, så att
+en variabel som ändrats sedan V2.3 inte passerar. Formen beror på filen:
 
 ```bash
-gunzip -c <nedladdad-fil>.gz | psql "$TEMP_DB_URL" --single-transaction -v ON_ERROR_STOP=1
+# Platt SQL, gzippad (.gz): läs filen med "gunzip -c <fil>.gz | head" först och se att det är SQL-text
+check_temp_target && { gunzip -c <nedladdad-fil>.gz | psql "$TEMP_DB_URL" --single-transaction -v ON_ERROR_STOP=1; }
+
+# Platt SQL, ogzippad
+check_temp_target && psql "$TEMP_DB_URL" --single-transaction -v ON_ERROR_STOP=1 -f <nedladdad-fil>.sql
 ```
 
-Med `ON_ERROR_STOP` avbryts allt vid första felet. Ger dumpen fel på roller eller objekt som ett nytt Supabase-projekt redan har
-(väntat enligt [SUPABASE-DOKUMENTATIONEN]), stannar återställningen: skriv felet i loggen och be Lead om ett alternativ (till exempel
-att ta bort `--single-transaction`/`ON_ERROR_STOP` mot just det **verifierat tomma** tillfälliga projektet). Målet kan inte bytas ut mot
-något annat än den kontrollerade variabeln. **Dumpen körs aldrig i en SQL Editor.**
+Är filen **inte** platt SQL (ett pg_dump-arkiv i custom-, directory- eller tar-format; `pg_restore --list <fil>` läser den utan att
+skriva något) gäller `pg_restore` i stället för `psql`, med samma kontroll före:
+
+```bash
+check_temp_target && pg_restore --single-transaction --exit-on-error --no-owner -d "$TEMP_DB_URL" <nedladdad-fil>
+```
+
+Vilket format Supabases nedladdning har är [SUPABASE-DOKUMENTATIONEN] och **[ÄGAREN BEKRÄFTAR]** (V2.1). Med `ON_ERROR_STOP` /
+`--exit-on-error` avbryts allt vid första felet. Ger dumpen fel på roller eller objekt som ett nytt Supabase-projekt redan har (väntat
+enligt [SUPABASE-DOKUMENTATIONEN]), stannar återställningen: skriv felet i loggen och be Lead om ett alternativ (till exempel att ta bort
+`--single-transaction` och felstoppet mot just det **verifierat tomma** tillfälliga projektet, med `check_temp_target` kvar före kommandot).
+**Dumpen körs aldrig i en SQL Editor.**
 
 ### Kontrollera (gäller båda vägarna)
 
 4. Kör BLOCK A i det **tillfälliga projektet** (SQL Editor) och skriv av resultatet i loggen, kolumnen "kopia".
 5. Kör BLOCK B i **prod** med backupens tidpunkt ifylld och skriv av kolumnen `forvantat_i_kopian`.
-6. Bedöm varje tabell i en av tre klasser och skriv klassen i loggen:
+6. Klassa varje tabell i loggen som **Lika** eller **Förklarad avvikelse** (nedan), eller som **Fynd** (nästa steg):
    - **Lika**: kopians antal (steg 4) är lika med `forvantat_i_kopian` (steg 5). Förväntat för users, runs, events, event_entries,
      strava_tokens (bara antal) och activity_log.
    - **Förklarad avvikelse**: kopian har **fler** rader än `forvantat_i_kopian`. Det förklaras av rader som raderats i prod efter
      backupen (de finns kvar i kopian), till exempel en borttagen löpning eller användare. **`user_titles` förväntas avvika**: titlar
      tilldelas och återkallas hela tiden och en återtagen titel får ett nytt `earned_at`, så `forvantat_i_kopian` är där bara en grov
      indikator, inte ett facit. Skriv ändå upp skillnaden.
-   - **Fynd**: kopian har **färre** rader än `forvantat_i_kopian`, eller migrationsantalet/senaste versionen skiljer sig, eller en
-     tabell saknas. Data som borde finnas saknas: skriv upp tabell och skillnad, öppna ett Jira-ärende, och resultatet är
-     "lyckades med anmärkning" eller "misslyckades".
-   - `storage.objects (profile-pictures)` har rader i kopian, men **filerna** finns inte nödvändigtvis: öppna en profilbilds-URL från
-     kopian om du vill se det. Det är gapet från avsnitt 3.
-   - "Senaste" per tabell i kopian ligger inte senare än backupens tidpunkt.
-7. **Raderad persondata kan ha kommit tillbaka.** Kopian innehåller även det som raderats i prod efter backupen: bortkopplade eller
+7. **Fynd** är allt som inte är Lika eller en Förklarad avvikelse: kopian har **färre** rader än `forvantat_i_kopian`, migrationsantalet
+   eller senaste versionen skiljer sig, eller en tabell saknas. Data som borde finnas saknas. Skriv upp tabell och skillnad och öppna ett
+   Jira-ärende; resultatet i steg 10 blir då "lyckades med anmärkning" eller "misslyckades".
+8. Titta även på: `storage.objects (profile-pictures)` har rader i kopian, men **filerna** finns inte nödvändigtvis (öppna en
+   profilbilds-URL från kopian om du vill se det; det är gapet från avsnitt 3), och "Senaste" per tabell i kopian ligger inte senare än
+   backupens tidpunkt.
+9. **Raderad persondata kan ha kommit tillbaka.** Kopian innehåller även det som raderats i prod efter backupen: bortkopplade eller
    raderade användare, Strava-raderingar som kom via webhook (`strava_webhook_events`, ADR 010), borttagna löpningar. Skriv i loggen vilka
    sådana raderingar som skett sedan backupens tidpunkt (så långt prods händelselogg och ägarens minne räcker). I övningen raderas kopian i
    Städning och ingenting mer behövs. I en **verklig** återställning (avsnitt 7) ska exakt de raderingarna göras om i den återställda
    databasen *innan* appen tas i bruk, med ägarens ja för omfattningen, och loggas.
-8. Skriv sluttid för hela övningen (för RTO) och resultatet: **lyckades / lyckades med anmärkning / misslyckades**.
+10. Skriv sluttid för hela övningen (för RTO) och resultatet: **lyckades / lyckades med anmärkning / misslyckades**.
 
 ### Städning
 
-9. **STOPP-kontroll 3: rätt projekt raderas.** Öppna det tillfälliga projektet och gå till Settings → General. **Projektnamnet ska vara
-   `runquest-restore-test` och refen ska vara exakt `TEMP_REF` ur loggen.** Är refen `yrrqaxdngayakcivfrck` eller `aormctqrmguvncxrigwy`,
-   eller avviker namn eller ref från loggen: **STOPP, radera inget.** Först när båda stämmer: Delete project, och skriv projektnamnet
-   som dialogen ber om (det ska vara `runquest-restore-test`; ber dialogen om ett annat namn är det fel projekt). Detta är det enda
-   raderingssteget i övningen.
-10. Radera den nedladdade filen om väg 2 användes, och rensa `TEMP_DB_URL` ur skalet (`unset TEMP_DB_URL`). Bekräfta i organisationens
+11. **STOPP-kontroll 3: rätt projekt raderas.** Öppna det tillfälliga projektet och gå till Settings → General. **Projektnamnet ska vara
+    `runquest-restore-test` och refen ska vara exakt `TEMP_REF` ur loggen.** Är refen `yrrqaxdngayakcivfrck` eller `aormctqrmguvncxrigwy`,
+    eller avviker namn eller ref från loggen: **STOPP, radera inget.** Först när båda stämmer: Delete project, och skriv projektnamnet
+    som dialogen ber om (det ska vara `runquest-restore-test`; ber dialogen om ett annat namn är det fel projekt). Detta är det enda
+    raderingssteget i övningen.
+12. Radera den nedladdade filen om väg 2 användes, och rensa `TEMP_DB_URL` ur skalet (`unset TEMP_DB_URL`). Bekräfta i organisationens
     Billing-vy att inget extra projekt ligger kvar. Skriv i loggen att det är gjort och när (kopian ska inte ha funnits längre än samma dag).
 
 ### Efter övningen
@@ -258,7 +280,7 @@ Kopiera tabellen för varje övning. Skriv klockslag med tidszon.
 | `TEMP_REF` och namn på det tillfälliga projektet | |
 | STOPP-kontroll 1 och 2 (väg 2): ok / STOPP | |
 | Databasens storlek i prod (BLOCK C) | |
-| Raderingar i prod sedan backupen (steg 7) | |
+| Raderingar i prod sedan backupen (steg 9) | |
 | STOPP-kontroll 3 före radering: namn och ref stämde | |
 | Kostnad som dialogen visade | |
 | Starttid återställningen | |
