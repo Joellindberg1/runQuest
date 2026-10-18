@@ -18,9 +18,10 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { captureTestEvent, flushSentry, initSentry } from '../observability/sentry.js';
+import { backendEnvFile } from './lib/backendEnvFile.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+// Rätt .env både från src/scripts (tsx) och från dist/sentryTest.js (bygget): se backendEnvFile.
+dotenv.config({ path: backendEnvFile(path.dirname(fileURLToPath(import.meta.url))) });
 
 const FLUSH_TIMEOUT_MS = 10_000;
 

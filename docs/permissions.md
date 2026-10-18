@@ -22,6 +22,7 @@ att sänka kraven.
 | Radera data i produktion (users/runs/etc.) | **ask**, alltid med exakt omfattning angiven |
 | Backfill-skript mot produktion (`backfill:activity-log`, `backfill:strava-athlete` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
 | Stravas webhook-prenumeration (`strava:webhook create` och `strava:webhook delete`, `--apply`) | **ask**. Prenumerationen är EN per Strava-app och gemensam för alla miljöer, så en `create` eller `delete` gäller även de andra miljöerna; en `delete` stoppar alla nya händelser. Utan `--apply` är båda dry-run (fritt) och `view` är bara läsning. Skriptet skriver ut vad det gör och sätter aldrig en Railway-variabel |
+| Staging-skripten (`staging:migrate`, `staging:seed-reference`, `staging:seed-group`, `staging:schema-diff`) | Skriver bara till staging (projekt `aormctqrmguvncxrigwy`, hårdkodat), `--apply` fritt, inget ägar-ja. Prod läses bara med `--read-prod`, med en egen token (`RUNQUEST_PROD_READ_TOKEN`), via Management-API:ts skrivskyddade endpoint och ur en fast lista av SELECT-satser (konfigurationstabellerna och katalogfrågorna). Läsning av annat i prod = ask. Skripten körs aldrig av CI eller av builders mot riktiga projekt, bara av Lead |
 | Force-push | **never_allowed** |
 | Hemligheter i kod eller committade filer | **never_allowed** — env-variabler är enda vägen (lärdom: PAT- och service role-läckorna, åtgärdade 2026-10-03/04) |
 
@@ -30,13 +31,24 @@ att sänka kraven.
 - Backend använder secret-nyckeln (env i Railway). Frontend har ingen
   Supabase-klient och inga Supabase-nycklar (RUN-105) — den pratar bara med
   backenden (`VITE_API_URL`) med backend-JWT.
-- RLS-baslinje efter migration 030 + 031 + 038 + 039 + 040 (040 från och med att den
+- RLS-baslinje efter migration 030 + 031 + 038 + 039 + 040 + 051 (040 och 051 från och med att de
   applicerats i prod): anon läser ingenting. Det finns INGA policyer för rollerna
   anon, authenticated eller public (038, 040) och ingen klientroll kan läsa
   `title_leaderboard_view` (039). RunQuest använder inte Supabase Auth (egen
   backend-JWT); en ny policy för anon eller authenticated = avvikelse →
-  eskaleras. Kvar med avsikt: storage-SELECT på `profile-pictures` (publika
-  profilbilds-URL:er). Frontend läser inte `level_requirements` direkt
+  eskaleras. Storage (migration 051, RUN-276, applicerad i prod 2026-10-18):
+  `storage.objects` har inga policyer alls, så anon och authenticated nekas både
+  skrivning och listning via API:t. Prod hade fyra policyer för rollen public
+  (SELECT på bucketen, samt INSERT/UPDATE/DELETE som krävde
+  `auth.role() = 'authenticated'`); alla är borttagna. Bucketen `profile-pictures`
+  är publik och dess bilder nås via den publika URL:en
+  (`/storage/v1/object/public/...`), som inte går genom RLS. Uppladdning,
+  ersättning och radering sker bara i backend med service role
+  (`POST /api/users/profile-picture`). Bucketen har `file_size_limit` 5 MB och
+  `allowed_mime_types` jpeg, png, webp och gif, i takt med `routes/users.ts`. En
+  ny storage-policy för anon eller authenticated, eller en ny bucket, räknas som
+  avvikelse och eskaleras. En rollback av 051 öppnar skrivning för varje Supabase
+  Auth-session igen och kräver ägar-ja. Frontend läser inte `level_requirements` direkt
   (`GET /api/config/levels`, RUN-110/111); migration 040 (RUN-112, ägar-ja
   2026-10-12) tar bort den sista anonpolicyn. En frontend-rollback till v0.5.3
   eller äldre kräver att 040 rullas tillbaka (rollback-SQL i filhuvudet).
