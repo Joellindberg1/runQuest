@@ -7,7 +7,7 @@ import {
   E2eTargetError,
   assertStagingFrontendServes,
   assertStagingTarget,
-  isProdRequestUrl,
+  isBlockedRequestUrl,
   resolveE2eTargets,
 } from './e2e-guard.mjs';
 
@@ -19,8 +19,8 @@ const PROD_URLS = [
   'https://www.runquest.dev',
   'https://api.runquest.dev',
   'https://api.runquest.dev/api',
-  'https://runquest-backend-production.up.railway.app',
-  'https://runquest-frontend-production.up.railway.app',
+  'https://runquest-production-1866.up.railway.app',
+  'https://spectacular-rebirth-production-186c.up.railway.app',
 ];
 
 describe('assertStagingTarget', () => {
@@ -123,10 +123,25 @@ describe('resolveE2eTargets', () => {
   });
 });
 
-describe('isProdRequestUrl', () => {
+describe('isBlockedRequestUrl', () => {
+  it('blocks every Railway address except the two staging services, so an unknown production host is blocked too', () => {
+    for (const url of [
+      'https://runquest-production-1866.up.railway.app/api/runs',
+      'https://spectacular-rebirth-production-186c.up.railway.app/',
+      'https://a-host-nobody-listed.up.railway.app/',
+      'https://up.railway.app/',
+      `https://x.${E2E_STAGING_FRONTEND_HOST}/`,
+      'https://RUNQUEST-PRODUCTION-1866.UP.RAILWAY.APP/',
+    ]) {
+      assert.equal(isBlockedRequestUrl(url), true, url);
+    }
+    assert.equal(isBlockedRequestUrl(`${STAGING_FRONTEND}/`), false);
+    assert.equal(isBlockedRequestUrl(`${STAGING_BACKEND}/api/news`), false);
+  });
+
   it('recognises production hosts, including subdomains', () => {
     for (const url of [...PROD_URLS, 'https://cdn.runquest.dev/x.js', 'https://API.RunQuest.dev/api/runs']) {
-      assert.equal(isProdRequestUrl(url), true, url);
+      assert.equal(isBlockedRequestUrl(url), true, url);
     }
   });
 
@@ -139,12 +154,19 @@ describe('isProdRequestUrl', () => {
       'https://notrunquest.dev/',
       'https://runquest.dev.evil.example/',
     ]) {
-      assert.equal(isProdRequestUrl(url), false, url);
+      assert.equal(isBlockedRequestUrl(url), false, url);
     }
   });
 
   it('treats an unreadable address as not production, so the guard never throws inside a route handler', () => {
-    assert.equal(isProdRequestUrl('not a url'), false);
+    assert.equal(isBlockedRequestUrl('not a url'), false);
+  });
+});
+
+describe('the staging hosts', () => {
+  it('share the backend address with the load test guard', async () => {
+    const { STAGING_BACKEND_URL } = await import('./loadtest/guard.mjs');
+    assert.equal(STAGING_BACKEND, STAGING_BACKEND_URL);
   });
 });
 
@@ -162,6 +184,15 @@ describe('assertStagingFrontendServes', () => {
       return new Response('User-agent: *\nDisallow: /\n');
     });
     assert.deepEqual(asked, [`${STAGING_FRONTEND}/robots.txt`]);
+  });
+
+  it('does not wait forever for a frontend that does not answer', async () => {
+    let signal;
+    await assertStagingFrontendServes(STAGING_FRONTEND, async (_url, init) => {
+      signal = init?.signal;
+      return new Response('User-agent: *\nDisallow: /\n');
+    });
+    assert.ok(signal instanceof AbortSignal, 'the robots.txt request must carry a timeout signal');
   });
 
   it('refuses a frontend that lets crawlers in, which is what a production build serves', async () => {

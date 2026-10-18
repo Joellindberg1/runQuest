@@ -12,5 +12,5 @@ export interface E2eTargets {
 
 export function assertStagingTarget(raw: unknown, role: 'frontend' | 'backend'): string;
 export function resolveE2eTargets(env: Record<string, string | undefined>): E2eTargets;
-export function isProdRequestUrl(raw: string): boolean;
-export function assertStagingFrontendServes(baseUrl: string, fetchImpl?: (input: string) => Promise<Response>): Promise<void>;
+export function isBlockedRequestUrl(raw: string): boolean;
+export function assertStagingFrontendServes(baseUrl: string, fetchImpl?: (input: string, init?: { signal?: AbortSignal }) => Promise<Response>): Promise<void>;

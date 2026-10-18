@@ -1,17 +1,27 @@
 import { expect, test as base } from '@playwright/test';
-import { isProdRequestUrl } from '../../../scripts/e2e-guard.mjs';
+import { isBlockedRequestUrl } from '../../../scripts/e2e-guard.mjs';
+import { trackOnboardingStatus } from './overlays';
 
 /**
  * Alla specer importerar `test` härifrån, inte från @playwright/test. Den automatiska fixturen `productionGuard` är tredje lagret i E2E-vakten:
  * varje förfrågan till en prodadress avbryts, och testet fäller sig självt om någon gjordes. Pekar ett stagingbygge av misstag på prodens API
  * når alltså ingen läsning eller skrivning fram.
  */
-export const test = base.extend<{ productionGuard: void }>({
+export const test = base.extend<{ productionGuard: void; onboardingTracker: void }>({
+  // Håller reda på onboarding-statusens svar åt dismissOverlays (support/overlays.ts).
+  onboardingTracker: [
+    async ({ page }, use) => {
+      trackOnboardingStatus(page);
+      await use();
+    },
+    { auto: true },
+  ],
+
   productionGuard: [
     async ({ context }, use) => {
       const blocked: string[] = [];
       await context.route(
-        (url) => isProdRequestUrl(url.href),
+        (url) => isBlockedRequestUrl(url.href),
         (route) => {
           blocked.push(new URL(route.request().url()).host);
           return route.abort('blockedbyclient');

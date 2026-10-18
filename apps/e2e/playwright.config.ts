@@ -4,6 +4,10 @@ import { targets } from './support/targets';
 
 // Importen av `targets` kör E2E-vakten: konfigurationen kan inte läsas om adressen inte är staging eller localhost.
 
+// Playwright skriver vid varje fel test-results/**/error-context.md med en ARIA-ögonblicksbild av sidan, och en bild av ett ifyllt lösenordsfält bär lösenordet i klartext.
+// Variabeln stänger av ögonblicksbilden (felmeddelandet finns kvar). Sätts här, före arbetarna startar, så att den gäller även lokalt; workflowen städar dessutom artefakten.
+process.env.PLAYWRIGHT_NO_COPY_PROMPT = '1';
+
 const MINUTE_MS = 60_000;
 const isCI = !!process.env.CI;
 

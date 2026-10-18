@@ -15,8 +15,11 @@ bor i `scripts/e2e-guard.mjs` (testat i `scripts/e2e-guard.test.mjs`, körs i CI
    eller `playwright test --list` startar mot fel miljö. Byter stagingtjänsterna adress ändras konstanterna överst i `e2e-guard.mjs`, i en PR.
 2. **Stagingbygget.** Före första testet läser `support/global-setup.ts` `robots.txt` från frontenden: ett stagingbygge svarar `Disallow: /`
    (`apps/frontend/stagingGuard.ts`), ett prodbygge släpper in sökrobotar. Det fångar en stagingadress som i själva verket serverar prod.
-3. **Förfrågningarna.** Varje test avbryter alla förfrågningar till `runquest.dev` (med subdomäner) och prodtjänsternas Railway-adresser och
-   fäller sig självt om någon gjordes (`support/test.ts`). Pekar stagingfrontenden av misstag på prodens API når ingen skrivning fram.
+3. **Förfrågningarna.** Varje test avbryter alla förfrågningar till `runquest.dev` (med subdomäner) och till **varje** `*.up.railway.app` utom de två
+   stagingvärdarna, och fäller sig självt om någon gjordes (`support/test.ts`, `isBlockedRequestUrl`). Det är en tillåtelselista för Railway: prodens värdnamn
+   (`runquest-production-1866…`, `spectacular-rebirth-production-186c…`) går inte att gissa, och en ny prodvärd är blockerad redan innan någon listat den.
+   Pekar stagingfrontenden av misstag på prodens API når ingen skrivning fram. Backendens stagingadress delas med lasttestets vakt
+   (`scripts/loadtest/guard.mjs`, `STAGING_BACKEND_URL`; ett test låser att de är samma).
 
 Workflowen bevisar dessutom i varje körning att konfigurationen vägrar prod (steget "The guard refuses production").
 
@@ -50,11 +53,24 @@ Stagingadresserna är inga secrets: de står i `.github/workflows/e2e-staging.ym
 
 - vara medlem i en grupp (annars har det ingen Board, ingen Group history och inga nyheter: ADR 012),
 - inte vara admin,
-- helst ha minst en **oläst** Pack News-rad (en rad från en annan löpare, skapad efter kontot): utan den hoppar läst-vid-hover-testet över sig och säger
-  varför i körningens sammanfattning. En rad förbrukas varje gång testet kör, så staging-seeden bör fylla på (till exempel genom att testgruppens
-  seedlöpare får nivåhöjningar eller milstolpar efter kontots skapande). Läs-testet är det enda som är beroende av data som sviten själv inte skapar.
+- ha **olästa Pack News-rader** (se nästa avsnitt).
 
 Ett andra konto behövs inte.
+
+### Fylla på olästa rader (Lead)
+
+Läst-vid-hover-testet (`tests/news.spec.ts`) behöver en oläst rad i testkontots flöde och **förbrukar en per körning**. Finns ingen **fäller testet**, med
+meddelandet "staging needs new unread Pack News rows for the test account"; det hoppar inte över sig, eftersom ett tyst grönt test vore ett test som slutat
+bevisa något. Nattkörningen blir alltså röd tills Lead fyllt på. En rad räknas som oläst för kontot bara om den:
+
+- kommer från en annan löpare i gruppen (kontots egna handlingar räknas aldrig),
+- skapades efter att kontot skapades och inte är backfill,
+- är av ett slag som är påslaget för kontot (standard: alla utom "Rank changes between others"), och
+- ligger över kontots golv och inte i `news_read` (golvet höjs av "Mark all read", så tryck aldrig det med testkontot).
+
+Praktiskt: låt staging-gruppens seedlöpare (testgruppen "Staging Pack", `staging:seed-group`) få händelser efter kontots skapande, till exempel nivåhöjningar,
+milstolpar (100 km), badges eller titelbyten (`level_up_others`, `run_milestone_others`, `badge_earned_others`, `title_others`), några per vecka. Mät med
+`GET /api/news` som testkontot: `meta.unread_count`. Räcker det med tio rader klarar sviten tio nätter.
 
 ## Städning och idempotens
 
@@ -78,9 +94,21 @@ Workflowen `.github/workflows/e2e-staging.yml`: manuellt (Actions → "E2E (stag
 1. kontrollerar att secrets finns (saknas de fäller en manuell körning tydligt; en nattlig hoppar över med en notis, så schemat inte blir rött innan de skapats),
 2. kör `npm ci`, typkontrollerar sviten, bevisar att vakten vägrar prod,
 3. kör `npx playwright install --with-deps chromium`,
-4. kör sviten (egen gräns 4,5 min, jobbet 15 min) och laddar vid fel upp `apps/e2e/test-results/` (spår och skärmbilder, 7 dagar).
+4. kör sviten (egen gräns 4,5 min, jobbet 15 min) och laddar vid fel upp **bara skärmbilderna** (PNG, 7 dagar).
 
-Spåret bär ifyllda värden, så specerna som skriver in lösenordet (`auth.setup.ts`, `login.spec.ts`) spelar inte in något spår eller någon skärmbild. Hemligheterna maskas i loggen av GitHub.
+**Vad som aldrig laddas upp, och varför (repot är publikt).** Playwright skriver vid varje fel `test-results/**/error-context.md` med en ARIA-ögonblicksbild av
+sidan, och ett ifyllt lösenordsfälts värde står där i klartext (det sker vid varje misslyckat `expect`, oavsett trace/screenshot/video; `PLAYWRIGHT_NO_COPY_PROMPT`
+stänger bara av den variant som inte kommer från en matcher). `fill("<värde>")` skriver dessutom värdet i anropsloggen i varje timeoutfel. Ett spår (`trace.zip`) bär
+sessionens JWT i `Authorization`-huvudena. Därför:
+
+- `error-context.md` och `trace.zip` laddas aldrig upp. Steget "Keep screenshots only" kopierar bara `*.png` till en egen mapp; lösenordsfältet visas som prickar.
+- Steget "Verify the artifact carries no credentials" söker igenom mappen efter `E2E_USER_PASSWORD` och `E2E_USER_LOGIN`; träff = inget laddas upp och körningen fäller.
+  (Ett mycket kort användarnamn kan teoretiskt matcha slumpmässiga bytes i en PNG; då fäller steget i onödan, vilket är den säkra riktningen.)
+- Inloggningen sätter fältvärdena med `evaluate` (`support/signIn.ts`), så värdena inte hamnar i Playwrights anropslogg, och tömmer lösenordsfältet direkt efter klicket.
+- Specerna som skriver in lösenordet (`auth.setup.ts`, `login.spec.ts`) spelar dessutom inte in något spår, skärmbild eller video.
+- Hemligheterna maskas i körningsloggen av GitHub.
+
+För felsökning räcker felmeddelandet i loggen och skärmbilden; vill man ha ett spår kör man lokalt (`npx playwright show-trace`).
 
 `workflow_dispatch` kan bara startas när workflowfilen finns på standardbranchen (`main`); före merge provas den inte på en gren. PR-flödet (`ci.yml`) kör bara
 den delen som inte behöver staging: vaktens test, typkontroll och `playwright test --list` av sviten (ingen webbläsare, inget nätverk).
@@ -111,8 +139,8 @@ locatorerna och flödena, inte stagingdatan.
 
 ## Känt och medvetet
 
-- Tourer och popuper (välkomstturen, sidoturerna, "What's new", badge-popupen) lägger sig över sidan för ett konto som inte sett dem. `support/overlays.ts` stänger
-  dem med Escape efter varje sidladdning, och det markerar dem sedda på servern. Ett nytt testkonto möter dem en gång (första körningen blir något längre); en ny
+- Tourer och popuper (välkomstturen, sidoturerna, "What's new", badge-popupen) lägger sig över sidan för ett konto som inte sett dem. `support/overlays.ts` väntar
+  först ut svaret från `/onboarding/status` och stänger sedan det som dyker upp med Escape (och väntar en lugn stund på nästa), vilket markerar dem sedda på servern. Ett nytt testkonto möter dem en gång (första körningen blir något längre); en ny
   release med `announce` ger en "What's new"-popup en gång. Nya slag av popuper som inte är en dialog eller en tur måste läggas till i hjälpen.
 - Bell-popovern och flera andra delar av appen ingår inte. Sviten är avsiktligt smal och ska hållas under fem minuter.
 - Strava-flödena (3, 10), utmaningar, events, profilbild och badges har ingen E2E ännu; de täcks av enhets- och kontraktstesterna samt Leads rök vid release.

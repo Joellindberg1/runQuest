@@ -47,10 +47,11 @@ test.describe('Pack News', () => {
 
     const unreadRows = page.getByRole('button', { name: UNREAD_ROW });
     const unreadBefore = await unreadRows.count();
-    test.skip(
-      unreadBefore === 0,
-      'The test account has no unread Pack News rows. The staging seed must leave at least one (a row from another runner, created after the account), see docs/e2e.md.',
-    );
+    // Ingen oläst rad är ett fel, inte ett hopp över: ett tyst grönt test vore ett test som slutat bevisa något. Staging fylls på av Lead (docs/e2e.md).
+    expect(
+      unreadBefore,
+      'staging needs new unread Pack News rows for the test account: one is used up on every run. Lead seeds them, see "Fylla på olästa rader" in docs/e2e.md.',
+    ).toBeGreaterThan(0);
 
     const reads: string[] = [];
     page.on('request', (request) => {

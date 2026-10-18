@@ -6,18 +6,22 @@
 //     `resolveE2eTargets` vid inläsningen, så varken `playwright test` eller `playwright test --list` startar mot fel miljö.
 //  2. Före första testet frågar `assertStagingFrontendServes` efter robots.txt: ett stagingbygge svarar `Disallow: /` (apps/frontend/stagingGuard.ts), ett
 //     prodbygge släpper in sökrobotar. Det fångar en stagingadress som i själva verket serverar ett prodbygge.
-//  3. Under körningen avbryter webbläsarkontexten varje förfrågan till en prodadress (`isProdRequestUrl`). Pekar ett stagingbygge av misstag på prodens
-//     API når alltså ingen skrivning fram.
+//  3. Under körningen avbryter webbläsarkontexten varje förfrågan till runquest.dev och till varje Railway-adress utom de två
+//     stagingtjänsterna (`isBlockedRequestUrl`). Pekar ett stagingbygge av misstag på prodens API når alltså ingen skrivning fram.
 //
-// Inga beroenden: filen läses av node:test och av Playwright-konfigurationen. Alla funktioner är rena (nätverket injiceras).
+// Inga beroenden utöver lasttestets vakt (en ren modul utan beroenden): filen läses av node:test och av Playwright-konfigurationen. Alla funktioner är rena (nätverket injiceras).
+
+import { STAGING_BACKEND_URL } from './loadtest/guard.mjs';
 
 export const E2E_STAGING_FRONTEND_HOST = 'runquest-frontend-staging-staging.up.railway.app';
-export const E2E_STAGING_BACKEND_HOST = 'runquest-backend-staging-staging.up.railway.app';
+// Backendens adress delas med lasttestets vakt (en källa); frontendens står bara här.
+export const E2E_STAGING_BACKEND_HOST = new URL(STAGING_BACKEND_URL).hostname;
 
 const STAGING_HOST = { frontend: E2E_STAGING_FRONTEND_HOST, backend: E2E_STAGING_BACKEND_HOST };
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 const PROD_DOMAIN = 'runquest.dev';
-const PROD_RAILWAY = /^runquest[a-z0-9-]*-production\.up\.railway\.app$/;
+const RAILWAY_DOMAIN = 'up.railway.app';
+const FETCH_TIMEOUT_MS = 10_000;
 
 export class E2eTargetError extends Error {
   constructor(message) {
@@ -89,15 +93,21 @@ export function resolveE2eTargets(env) {
   return { baseUrl, apiUrl, isLocal };
 }
 
-/** Sant för en adress som hör till produktionen: runquest.dev med subdomäner och prodtjänsternas Railway-adresser. Oläsbar adress ger false. */
-export function isProdRequestUrl(raw) {
+/**
+ * Sant för en adress som sviten aldrig får nå: runquest.dev med subdomäner och varje Railway-adress (*.up.railway.app) utom de två stagingtjänsterna.
+ * Det är en tillåtelselista för Railway: prodtjänsternas värdnamn (runquest-production-…, spectacular-rebirth-production-… m.fl.) går inte att gissa,
+ * och en ny prodvärd är blockerad redan innan någon hunnit lista den. Oläsbar adress ger false (den kan ändå inte skickas).
+ */
+export function isBlockedRequestUrl(raw) {
   let host;
   try {
     host = new URL(raw).hostname.toLowerCase();
   } catch {
     return false;
   }
-  return host === PROD_DOMAIN || host.endsWith(`.${PROD_DOMAIN}`) || PROD_RAILWAY.test(host);
+  if (host === PROD_DOMAIN || host.endsWith(`.${PROD_DOMAIN}`)) return true;
+  const isRailway = host === RAILWAY_DOMAIN || host.endsWith(`.${RAILWAY_DOMAIN}`);
+  return isRailway && host !== E2E_STAGING_FRONTEND_HOST && host !== E2E_STAGING_BACKEND_HOST;
 }
 
 /**
@@ -108,7 +118,7 @@ export async function assertStagingFrontendServes(baseUrl, fetchImpl = fetch) {
   if (LOCAL_HOSTS.has(new URL(baseUrl).hostname)) return;
   let body;
   try {
-    const response = await fetchImpl(`${baseUrl}/robots.txt`);
+    const response = await fetchImpl(`${baseUrl}/robots.txt`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!response.ok) throw new Error(`status ${response.status}`);
     body = await response.text();
   } catch {

@@ -90,12 +90,33 @@ jobs:
           E2E_USER_LOGIN: ${{ secrets.E2E_USER_LOGIN }}
           E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
 
-      # Spår och skärmbilder sparas bara vid fel (retain-on-failure). Specerna som skriver in lösenordet spelar inte in något spår, så artefakten bär inga uppgifter.
-      - name: Upload traces and screenshots
+      # Repot är publikt, så artefakten får inte kunna bära något som går att använda. Playwright skriver vid varje fel test-results/**/error-context.md med en
+      # ARIA-ögonblicksbild där ett ifyllt lösenordsfälts värde står i klartext, och ett spår (trace.zip) bär sessionens JWT i Authorization-huvudena. Ingen av
+      # dem laddas upp: bara skärmbilderna (PNG; lösenordsfältet visas som prickar) kopieras till en egen mapp, och mappen söks igenom efter kontots uppgifter
+      # innan något laddas upp. Träff = inget laddas upp och körningen fäller. Felmeddelandet i loggen räcker för felsökning; spår får man genom att köra lokalt.
+      - name: Keep screenshots only
+        if: failure() && steps.account.outputs.ready == 'true'
+        run: |
+          mkdir -p e2e-artifacts
+          find apps/e2e/test-results -name '*.png' -exec cp --parents {} e2e-artifacts/ \;
+
+      - name: Verify the artifact carries no credentials
+        if: failure() && steps.account.outputs.ready == 'true'
+        env:
+          E2E_USER_LOGIN: ${{ secrets.E2E_USER_LOGIN }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+        run: |
+          if grep -rlaF -e "$E2E_USER_PASSWORD" -e "$E2E_USER_LOGIN" e2e-artifacts; then
+            echo "::error::A file in the E2E artifact contains the test account's credentials. Nothing is uploaded."
+            rm -rf e2e-artifacts
+            exit 1
+          fi
+
+      - name: Upload screenshots
         if: failure() && steps.account.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results
-          path: apps/e2e/test-results/
+          name: e2e-screenshots
+          path: e2e-artifacts/
           retention-days: 7
           if-no-files-found: ignore
