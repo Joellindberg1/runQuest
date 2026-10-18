@@ -17,6 +17,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type RecordedQuery, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
@@ -44,7 +45,7 @@ afterEach(() => {
   strava = undefined;
 });
 
-const EXPIRED: Row = { user_id: 'user-1', access_token: 'AT-old-7f3', refresh_token: 'RT-old-7f3', expires_at: 100, connection_date: '2026-09-01' };
+const EXPIRED: Row = { user_id: 'user-1', ...tokenCols('user-1', 'AT-old-7f3', 'RT-old-7f3'), expires_at: 100, connection_date: '2026-09-01' };
 
 function use(rows: Row[], failWhen?: (q: RecordedQuery) => { message: string } | null) {
   const db = createFakeDb({ strava_tokens: rows }, { failWhen, primaryKeys: { strava_tokens: ['user_id'] } });

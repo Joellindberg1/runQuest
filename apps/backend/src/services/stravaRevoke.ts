@@ -15,7 +15,7 @@
 //     before the first delete.
 //
 // Error codes (never a message, a body or a token): strava_<status> for a non-2xx answer, strava_timeout, strava_network,
-// strava_refresh_failed, strava_refresh_rejected, strava_no_refresh_token, strava_token_read_failed.
+// strava_refresh_failed, strava_refresh_rejected, strava_no_refresh_token, strava_token_read_failed, strava_token_unreadable.
 import { getValidAccessToken, stravaFetch, type AccessTokenFailureReason } from './stravaClient.js';
 
 const STRAVA_DEAUTHORIZE_URL = 'https://www.strava.com/oauth/deauthorize';
@@ -42,6 +42,9 @@ function revokeCodeForTokenFailure(reason: Exclude<AccessTokenFailureReason, 'no
     case 'no_refresh_token': return 'strava_no_refresh_token';
     // The row could not be read, so the revoke could not even be tried. It must not look like "nothing to revoke".
     case 'token_read_failed': return 'strava_token_read_failed';
+    // The token cannot be read (ADR 013): the revoke could not be tried. Like a failed read it is a failure to revoke and never
+    // "nothing to revoke" or "already revoked"; Strava was not called.
+    case 'token_unreadable': return 'strava_token_unreadable';
   }
 }
 

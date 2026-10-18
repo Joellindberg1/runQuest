@@ -41,6 +41,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 
 import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { setStravaRequestHooks } from '../../services/stravaClient.js';
@@ -82,7 +83,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const TOKEN_ROW = { user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } };
+const TOKEN_ROW = { user_id: 'user-1', ...tokenCols('user-1', 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } };
 
 function use(tables: Record<string, Row[]> = {}) {
   const t: Record<string, Row[]> = { strava_tokens: [{ ...TOKEN_ROW }], runs: [], user_boosts: [], users: [{ id: 'user-1', is_admin: true }], ...tables };

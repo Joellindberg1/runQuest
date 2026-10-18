@@ -21,6 +21,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
@@ -31,10 +32,10 @@ beforeAll(async () => { server = await startServer(app); });
 afterAll(async () => { await server.close(); });
 
 const EXPIRED_TOKENS: Row = {
-  user_id: 'user-1', access_token: 'old-access', refresh_token: 'old-refresh', expires_at: 1_000, connection_date: '2026-01-01T00:00:00.000Z',
+  user_id: 'user-1', ...tokenCols('user-1', 'old-access', 'old-refresh'), expires_at: 1_000, connection_date: '2026-01-01T00:00:00.000Z',
 };
 const OTHER_USERS_TOKENS: Row = {
-  user_id: 'user-2', access_token: 'other-access', refresh_token: 'other-refresh', expires_at: 9_999_999_999, connection_date: '2026-02-01T00:00:00.000Z',
+  user_id: 'user-2', ...tokenCols('user-2', 'other-access', 'other-refresh'), expires_at: 9_999_999_999, connection_date: '2026-02-01T00:00:00.000Z',
 };
 const stravaRun = (over: Row): Row => ({
   user_id: 'user-1', source: 'strava', date: '2026-09-01', distance: 5, xp_gained: 55, streak_day: 1, ...over,
@@ -75,7 +76,7 @@ describe('POST /api/strava/callback — omkoppling', () => {
 
     const own = tables.strava_tokens.filter((t) => t.user_id === 'user-1');
     expect(own).toHaveLength(1); // ersatt, inte tillagd vid sidan av
-    expect(own[0]).toMatchObject({ access_token: 'new-access', refresh_token: 'new-refresh', expires_at: 9_999_999_999 });
+    expect(plainRow(own[0])).toMatchObject({ access_token: 'new-access', refresh_token: 'new-refresh', expires_at: 9_999_999_999 });
     expect(own[0].connection_date).not.toBe(EXPIRED_TOKENS.connection_date);
     expect(tables.strava_tokens.find((t) => t.user_id === 'user-2')).toEqual(OTHER_USERS_TOKENS);
 

@@ -15,6 +15,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type RecordedQuery, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import {
@@ -50,8 +51,7 @@ afterEach(() => {
 
 const token = (userId: string, over: Row = {}): Row => ({
   user_id: userId,
-  access_token: `access-${userId}`,
-  refresh_token: `refresh-${userId}`,
+  ...tokenCols(userId, `access-${userId}`, `refresh-${userId}`),
   expires_at: FAR_FUTURE,
   connection_date: '2026-09-01',
   consent_version: null,
@@ -348,7 +348,7 @@ describe('backfill dry-run with an expired token', () => {
 
     const report = await runBackfill({ db: db.client as any, apply: false, host: HOST, log });
 
-    expect(tables.strava_tokens[0]).toEqual({ ...before, access_token: 'fresh-access', refresh_token: 'fresh-refresh', expires_at: FAR_FUTURE - 5 });
+    expect(plainRow(tables.strava_tokens[0])).toEqual(plainRow({ ...before, access_token: 'fresh-access', refresh_token: 'fresh-refresh', expires_at: FAR_FUTURE - 5 }));
     expect(tables.strava_tokens[0].strava_athlete_id).toBeNull();
     expect(report.wouldWrite).toEqual([{ userId: 'u1', athleteId: 5001 }]);
     expect(output()).toMatch(/token was renewed and saved/);

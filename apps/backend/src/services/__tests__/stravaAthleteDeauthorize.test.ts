@@ -47,6 +47,7 @@ vi.mock('../xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { reprocessRunsFromDate } from '../../routes/runs.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
@@ -94,8 +95,7 @@ const ATHLETE_ID = 424242;
 const tokenRow = (over: Row = {}): Row => ({
   user_id: 'user-1',
   strava_athlete_id: ATHLETE_ID,
-  access_token: 'SECRET-ACCESS',
-  refresh_token: 'SECRET-REFRESH',
+  ...tokenCols('user-1', 'SECRET-ACCESS', 'SECRET-REFRESH'),
   expires_at: 9_999_999_999,
   connection_date: '2026-09-01T09:00:00+00:00',
   consent_version: '2026-10-14',
@@ -239,6 +239,38 @@ describe('athlete deauthorize', () => {
       expect(strava!.calls.oauthDeauthorize, label).toBe(0);
       expect(reprocessRunsFromDate, label).not.toHaveBeenCalled();
       strava!.restore();
+      vi.clearAllMocks();
+    }
+  });
+
+  // ADR 013 decision 9: a token we cannot read (a missing or wrong key, a damaged or moved value) is our fault. It is never the proof
+  // of a withdrawn authorisation, so a deauthorize event met by it is retried with nothing deleted and nothing asked of Strava.
+  it('deauthorize event with a token that cannot be read is retried as token_unreadable and deletes nothing', async () => {
+    const noKey = () => vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+    const cases: Array<{ label: string; setup: Setup; before?: () => void }> = [
+      { label: 'no key, a token that has not expired', setup: { tokens: [tokenRow()], strava: { athlete: stravaError(401) } }, before: noKey },
+      { label: 'no key, an expired token', setup: { tokens: [tokenRow({ expires_at: 1 })], strava: { oauthToken: stravaError(400, { body: { message: 'Bad Request', errors: [{ resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' }] } }) } }, before: noKey },
+      { label: 'a damaged refresh token on an expired token', setup: { tokens: [tokenRow({ expires_at: 1, refresh_token: 'enc:v1:test-1:AAAA' })], strava: { athlete: stravaError(401) } } },
+      { label: 'a refresh token sealed for another user', setup: { tokens: [tokenRow({ expires_at: 1, refresh_token: tokenCols('user-2', 'x', 'y').refresh_token })], strava: { athlete: stravaError(401) } } },
+      { label: 'a damaged access token on a token that has not expired', setup: { tokens: [tokenRow({ access_token: 'enc:v2:something' })], strava: { athlete: stravaError(401) } } },
+      { label: 'a plaintext of the wrong shape', setup: { tokens: [tokenRow({ access_token: 'short' })], strava: { athlete: stravaError(401) } } },
+    ];
+
+    for (const { label, setup, before } of cases) {
+      const c = build(setup);
+      before?.(); // after the rows are sealed
+      c.seedDeauthorize();
+
+      await c.worker.drain();
+
+      expect(c.store.row(1), label).toMatchObject({ status: 'pending', attempts: 1, last_error: 'token_unreadable' });
+      expect(c.tables.runs, label).toHaveLength(3);
+      expect(c.tables.strava_tokens, label).toHaveLength(1);
+      expect(c.writes(), label).toBe(0);
+      expect(strava!.requests, label).toHaveLength(0); // not even the token endpoint: nothing was asked of Strava
+      expect(reprocessRunsFromDate, label).not.toHaveBeenCalled();
+      strava!.restore();
+      vi.unstubAllEnvs();
       vi.clearAllMocks();
     }
   });

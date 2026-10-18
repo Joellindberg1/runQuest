@@ -108,6 +108,12 @@ jobs:
         run: node --test scripts/sentry-build.test.mjs
         working-directory: .
 
+      # Återställningsövningens jämförelse-SQL (docs/runbook-backup-compare.sql) körs av ägaren mot prod: filen får bara innehålla
+      # SELECT. Inga beroenden, inget nätverk.
+      - name: Backup runbook SQL guard
+        run: node --test scripts/runbook-backup-sql.test.mjs
+        working-directory: .
+
       - name: Install dependencies
         run: npm ci
         working-directory: .

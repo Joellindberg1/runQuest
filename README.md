@@ -89,6 +89,7 @@ npm run test:watch --workspace=apps/frontend
 # Repo guards (no dependencies needed)
 node scripts/check-versions.mjs && node --test scripts/check-versions.test.mjs
 node scripts/ci-guards.mjs && node --test scripts/ci-guards.test.mjs
+node --test scripts/runbook-backup-sql.test.mjs
 ```
 
 The counts were measured on 2026-10-12 on `release/v0.6.1.1` and change with the code; CI is the source of truth.
