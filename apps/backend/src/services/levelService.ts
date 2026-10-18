@@ -7,6 +7,7 @@ import {
   FALLBACK_LEVEL_REQUIREMENTS,
   type LevelRequirement, type LevelProgress,
 } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 // Fallback ska vara tillfälligt: utan nytt försök sitter en process med ett engångsfel kvar på
 // fallback-nivåerna tills den startas om (RUN-137).
@@ -35,7 +36,7 @@ class LevelService {
         .order('level', { ascending: true });
 
       if (error || !data?.length) {
-        if (error) logger.error('Error fetching level requirements:', error);
+        if (error) logger.error(`Error fetching level requirements (${errorCode(error)})`);
         this.useFallback();
         logger.warn('⚠️ Level service using fallback values');
         return;
@@ -46,7 +47,7 @@ class LevelService {
       this.retryAfter = null;
       logger.info(`✅ Level service initialized with ${this.levelRequirements.length} levels`);
     } catch (error) {
-      logger.error('Error initializing level service:', error);
+      logger.error(`Error initializing level service (${errorCode(error)})`);
       this.useFallback();
     }
   }

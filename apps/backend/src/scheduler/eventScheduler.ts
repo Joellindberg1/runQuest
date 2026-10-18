@@ -13,6 +13,7 @@ import {
   getEventPool,
 } from '../services/eventService.js';
 import { summarizeSettled } from './settledSummary.js';
+import { errorCode } from '../utils/errorCode.js';
 
 /** Skapar events för alla grupper för ett givet template och tidsfönster. */
 async function createForAllGroups(
@@ -227,7 +228,7 @@ export function startEventScheduler(): void {
     try {
       await scheduleDailyParticipationEvent();
     } catch (e) {
-      logger.error('❌ [EventScheduler] Daily participation draw error:', e);
+      logger.error(`❌ [EventScheduler] Daily participation draw error (${errorCode(e)})`);
     }
   }, { timezone: 'Europe/Stockholm' });
 
@@ -237,7 +238,7 @@ export function startEventScheduler(): void {
     try {
       await scheduleHangoverRun();
     } catch (e) {
-      logger.error('❌ [EventScheduler] Hangover Run draw error:', e);
+      logger.error(`❌ [EventScheduler] Hangover Run draw error (${errorCode(e)})`);
     }
   }, { timezone: 'Europe/Stockholm' });
 
@@ -247,7 +248,7 @@ export function startEventScheduler(): void {
     try {
       await scheduleFridayEvent();
     } catch (e) {
-      logger.error('❌ [EventScheduler] 5K Friday draw error:', e);
+      logger.error(`❌ [EventScheduler] 5K Friday draw error (${errorCode(e)})`);
     }
   }, { timezone: 'Europe/Stockholm' });
 
@@ -257,7 +258,7 @@ export function startEventScheduler(): void {
     try {
       await scheduleWeeklyCompetitions();
     } catch (e) {
-      logger.error('❌ [EventScheduler] Weekly competition error:', e);
+      logger.error(`❌ [EventScheduler] Weekly competition error (${errorCode(e)})`);
     }
   }, { timezone: 'Europe/Stockholm' });
 
@@ -268,7 +269,7 @@ export function startEventScheduler(): void {
     try {
       await settleCompetitionEvents();
     } catch (e) {
-      logger.error('❌ [EventScheduler] Competition settlement error:', e);
+      logger.error(`❌ [EventScheduler] Competition settlement error (${errorCode(e)})`);
     }
   }, { timezone: 'Europe/Stockholm' });
 
@@ -278,7 +279,7 @@ export function startEventScheduler(): void {
       await activateScheduledEvents();
       await settleExpiredParticipationEvents();
     } catch (e) {
-      logger.error('❌ [EventScheduler] Lifecycle tick error:', e);
+      logger.error(`❌ [EventScheduler] Lifecycle tick error (${errorCode(e)})`);
     }
   });
 

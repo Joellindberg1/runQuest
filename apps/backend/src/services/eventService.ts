@@ -6,6 +6,7 @@ import { toStockholmDate, tomorrowStockholm } from '../utils/dateUtils.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
 import { recordRankPassesForXp } from './rankNews.js';
 import { buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 // ─── Pack News-hjälpare (ADR 008) ─────────────────────────────────────────────
 // Loggen skrivs EFTER den underliggande skrivningen och är icke-kastande (activityLog).
@@ -110,7 +111,7 @@ export async function maybeCreateEvent(
     .single();
 
   if (insertErr) {
-    logger.error(`❌ [EventService] Failed to create "${templateName}" for group ${groupId}:`, insertErr);
+    logger.error(`❌ [EventService] Failed to create "${templateName}" for group ${groupId} (${errorCode(insertErr)})`);
     return false;
   }
 
@@ -162,7 +163,7 @@ export async function getActiveParticipationEventsOnDates(
     .gte('ends_at', earliest);
 
   if (error) {
-    logger.error('❌ [EventService] getActiveParticipationEventsOnDates error:', error);
+    logger.error(`❌ [EventService] getActiveParticipationEventsOnDates error (${errorCode(error)})`);
     return [];
   }
 
@@ -261,20 +262,20 @@ export async function checkEventQualification(params: {
             xp_awarded: rewardXp,
           });
         if (insertErr && insertErr.code !== '23505') { // 23505 = unique_violation
-          logger.error(`❌ [EventQual] Failed to insert participation entry:`, insertErr);
+          logger.error(`❌ [EventQual] Failed to insert participation entry (${errorCode(insertErr)})`);
         } else if (!insertErr) {
           // Lägg till XP (ökar både event_xp och total_xp via RPC)
           const { error: xpErr } = await supabase.rpc('increment_event_xp', { p_user_id: params.userId, p_xp: rewardXp });
           if (xpErr) {
             // Entryn säger xp_awarded men ingen XP gick in, och UNIQUE gör att ett omförsök annars bara får 23505.
             // Ta bort den så att nästa kvalificering (t.ex. en redigering av rundan) kan försöka igen.
-            logger.error(`❌ [EventQual] increment_event_xp failed for user ${params.userId}, event ${event.id}:`, xpErr);
+            logger.error(`❌ [EventQual] increment_event_xp failed for user ${params.userId}, event ${event.id} (${errorCode(xpErr)})`);
             const { error: rollbackErr } = await supabase
               .from('event_entries')
               .delete()
               .eq('event_id', event.id)
               .eq('user_id', params.userId);
-            if (rollbackErr) logger.error(`❌ [EventQual] Could not roll back entry for event ${event.id}, user ${params.userId}:`, rollbackErr);
+            if (rollbackErr) logger.error(`❌ [EventQual] Could not roll back entry for event ${event.id}, user ${params.userId} (${errorCode(rollbackErr)})`);
             failures.push(`increment_event_xp failed for event ${event.id}: ${xpErr.message}`);
             continue;
           }
@@ -314,13 +315,13 @@ export async function checkEventQualification(params: {
             { onConflict: 'event_id,user_id', ignoreDuplicates: true }
           );
         if (upsertErr) {
-          logger.error(`❌ [EventQual] Failed to upsert competition entry:`, upsertErr);
+          logger.error(`❌ [EventQual] Failed to upsert competition entry (${errorCode(upsertErr)})`);
         } else {
           logger.info(`✅ [EventQual] User ${params.userId} registered for competition event ${event.id}`);
         }
       }
     } catch (e) {
-      logger.error(`❌ [EventQual] Unexpected error for event ${event.id}:`, e);
+      logger.error(`❌ [EventQual] Unexpected error for event ${event.id} (${errorCode(e)})`);
     }
   }
 
@@ -357,7 +358,7 @@ export async function settleCompetitionEvents(): Promise<void> {
     .lte('ends_at', now);
 
   if (error) {
-    logger.error('❌ [Settlement] Fetch competition events error:', error);
+    logger.error(`❌ [Settlement] Fetch competition events error (${errorCode(error)})`);
     return;
   }
   if (!events?.length) {
@@ -399,7 +400,7 @@ export async function settleCompetitionEvents(): Promise<void> {
         .eq('event_id', event.id);
 
       if (entryErr) {
-        logger.error(`❌ [Settlement] Fetch entries for event ${event.id}:`, entryErr);
+        logger.error(`❌ [Settlement] Fetch entries for event ${event.id} (${errorCode(entryErr)})`);
         continue;
       }
 
@@ -450,7 +451,7 @@ export async function settleCompetitionEvents(): Promise<void> {
           .update({ rank, xp_awarded: xp, total_value: totalValue })
           .eq('id', entryId);
         if (rankErr) {
-          logger.error(`❌ [Settlement] Failed to save rank ${rank} for user ${userId}, event ${event.id}:`, rankErr);
+          logger.error(`❌ [Settlement] Failed to save rank ${rank} for user ${userId}, event ${event.id} (${errorCode(rankErr)})`);
           payoutFailures.push(`entry update failed for user ${userId}: ${rankErr.message}`);
         }
 
@@ -459,7 +460,7 @@ export async function settleCompetitionEvents(): Promise<void> {
           // användare/belopp för manuell rättning och kastas efter loopen — aldrig som "+XP" i loggen.
           const { error: xpErr } = await supabase.rpc('increment_event_xp', { p_user_id: userId, p_xp: xp });
           if (xpErr) {
-            logger.error(`❌ [Settlement] increment_event_xp failed for user ${userId} (+${xp} XP owed, rank ${rank}) in event ${event.id}:`, xpErr);
+            logger.error(`❌ [Settlement] increment_event_xp failed for user ${userId} (+${xp} XP owed, rank ${rank}) in event ${event.id} (${errorCode(xpErr)})`);
             payoutFailures.push(`increment_event_xp failed for user ${userId} (+${xp} XP): ${xpErr.message}`);
             continue;
           }
@@ -507,7 +508,7 @@ export async function settleCompetitionEvents(): Promise<void> {
 
       logger.info(`✅ [Settlement] Competition event ${event.id} settled (${scored.length} participants)`);
     } catch (e) {
-      logger.error(`❌ [Settlement] Unexpected error settling event ${event.id}:`, e);
+      logger.error(`❌ [Settlement] Unexpected error settling event ${event.id} (${errorCode(e)})`);
       failedEvents.push(`event ${event.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
@@ -535,7 +536,7 @@ export async function activateScheduledEvents(): Promise<void> {
     .lte('starts_at', now);
 
   if (error) {
-    logger.error('❌ [Activation] Fetch scheduled events error:', error);
+    logger.error(`❌ [Activation] Fetch scheduled events error (${errorCode(error)})`);
     return;
   }
   if (!events?.length) return;
@@ -551,7 +552,7 @@ export async function activateScheduledEvents(): Promise<void> {
     .select('id, group_id, type, starts_at, ends_at, event_templates ( name, icon, reward_xp, reward_xp_1st )');
 
   if (updateErr) {
-    logger.error('❌ [Activation] Failed to activate events:', updateErr);
+    logger.error(`❌ [Activation] Failed to activate events (${errorCode(updateErr)})`);
     return;
   }
 
@@ -583,7 +584,7 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
     .lte('ends_at', now);
 
   if (error) {
-    logger.error('❌ [Settlement] Fetch expired participation events error:', error);
+    logger.error(`❌ [Settlement] Fetch expired participation events error (${errorCode(error)})`);
     return;
   }
   if (!events?.length) return;
@@ -599,7 +600,7 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
     .select('id, group_id, type, starts_at, ends_at, event_templates ( name, icon, reward_xp, reward_xp_1st )');
 
   if (updateErr) {
-    logger.error('❌ [Settlement] Failed to settle participation events:', updateErr);
+    logger.error(`❌ [Settlement] Failed to settle participation events (${errorCode(updateErr)})`);
     return;
   }
 
@@ -638,7 +639,7 @@ export async function settleExpiredParticipationEvents(): Promise<void> {
     }
     await recordActivities(drafts);
   } catch (e) {
-    logger.error('❌ [Settlement] Failed to record event_closed news:', e);
+    logger.error(`❌ [Settlement] Failed to record event_closed news (${errorCode(e)})`);
   }
 }
 
@@ -712,7 +713,7 @@ export async function checkStormChaserForecast(): Promise<boolean> {
     logger.info(`🌩️ [StormChaser] Tomorrow ${tomorrowStr}: ${stormyHours} stormy hours (≥3?), ${gustyHours} gusty hours ≥15m/s (≥4?) → ${qualifies ? 'TRIGGER' : 'no event'}`);
     return qualifies;
   } catch (err) {
-    logger.error('❌ [StormChaser] Forecast check failed:', err);
+    logger.error(`❌ [StormChaser] Forecast check failed (${errorCode(err)})`);
     return false;
   }
 }
@@ -724,7 +725,7 @@ export async function getAllGroupIds(): Promise<string[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('groups').select('id');
   if (error) {
-    logger.error('❌ [EventService] getAllGroupIds error:', error);
+    logger.error(`❌ [EventService] getAllGroupIds error (${errorCode(error)})`);
     return [];
   }
   return (data ?? []).map((g: any) => g.id);
@@ -768,7 +769,7 @@ export async function getEventPool(poolName: string): Promise<EventPool | null> 
     .eq('event_templates.active', true);
 
   if (error) {
-    logger.error(`❌ [EventService] getEventPool(${poolName}) error:`, error);
+    logger.error(`❌ [EventService] getEventPool(${poolName}) error (${errorCode(error)})`);
     return null;
   }
   if (!data?.length) return null;

@@ -4,6 +4,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -51,7 +52,7 @@ router.post(
         .upload(fileName, req.body, { contentType, cacheControl: '3600', upsert: true });
 
       if (uploadError) {
-        logger.error('❌ Profile picture upload failed:', uploadError.message);
+        logger.error(`❌ Profile picture upload failed (${errorCode(uploadError)})`);
         res.status(500).json({ error: 'Failed to upload profile picture' });
         return;
       }
@@ -66,7 +67,7 @@ router.post(
         .eq('id', userId);
 
       if (updateError) {
-        logger.error('❌ Profile picture user update failed:', updateError.message);
+        logger.error(`❌ Profile picture user update failed (${errorCode(updateError)})`);
         res.status(500).json({ error: 'Failed to update profile picture' });
         return;
       }
@@ -78,7 +79,7 @@ router.post(
       logger.info(`🖼️ Profile picture updated for user ${userId}`);
       res.json({ success: true, data: { profile_picture: publicUrlData.publicUrl } });
     } catch (error) {
-      logger.error('❌ Profile picture error:', error);
+      logger.error(`❌ Profile picture error (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to upload profile picture' });
     }
   }

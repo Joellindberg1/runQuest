@@ -5,6 +5,7 @@ import { titleEngineRegistry } from '../titleEngines/index';
 import { emitTitleNews, snapshotTitleHolders } from './titleNews.js';
 import { toRunData } from '../titleEngines/_utils';
 import type { RunData, TitleContext, UserStats } from '../titleEngines/types';
+import { errorCode } from '../utils/errorCode.js';
 
 /**
  * Enhanced title processing service that integrates with the new optimized system
@@ -63,7 +64,7 @@ export class EnhancedTitleService {
       logger.info(`✅ Processed ${titles.length} titles, updated ${titlesToUpdate.length} leaderboards`);
 
     } catch (error) {
-      logger.error('❌ Error processing user titles:', error);
+      logger.error(`❌ Error processing user titles (${errorCode(error)})`);
       throw error;
     }
   }
@@ -145,7 +146,7 @@ export class EnhancedTitleService {
 
     } catch (error) {
       // Kastas vidare (RUN-157): en misslyckad skrivning ska räknas som fel, inte som "ingen ändring".
-      logger.error(`❌ Error checking title "${title.name}":`, error);
+      logger.error(`❌ Error checking title "${title.name}" (${errorCode(error)})`);
       throw error;
     }
   }
@@ -211,7 +212,7 @@ export class EnhancedTitleService {
           processedCount++;
         } catch (error) {
           failedCount++;
-          logger.error(`❌ Title processing failed for user ${user.id}:`, error);
+          logger.error(`❌ Title processing failed for user ${user.id} (${errorCode(error)})`);
         }
       }
 
@@ -226,7 +227,7 @@ export class EnhancedTitleService {
 
       return { total: users.length, processed: processedCount, failed: failedCount };
     } catch (error) {
-      logger.error('❌ Error processing all users titles:', error);
+      logger.error(`❌ Error processing all users titles (${errorCode(error)})`);
       throw error;
     }
   }

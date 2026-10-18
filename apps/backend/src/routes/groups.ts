@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (groupError || !group) {
-      logger.error('❌ Error fetching group:', groupError);
+      logger.error(`❌ Error fetching group (${errorCode(groupError)})`);
       res.status(404).json({ error: 'Group not found' }); return;
     }
 
@@ -38,13 +39,13 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
       .order('total_xp', { ascending: false });
 
     if (membersError) {
-      logger.error('❌ Error fetching group members:', membersError);
+      logger.error(`❌ Error fetching group members (${errorCode(membersError)})`);
       res.status(500).json({ error: 'Failed to fetch group members' }); return;
     }
 
     const isOwner = group.owner_id === userId;
 
-    logger.info(`✅ Fetched group "${group.name}" with ${members?.length || 0} members`);
+    logger.info(`✅ Fetched group ${group.id} with ${members?.length || 0} members`);
 
     res.json({
       success: true,
@@ -60,7 +61,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    logger.error('❌ Error fetching group:', error);
+    logger.error(`❌ Error fetching group (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });
@@ -98,11 +99,11 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
       .eq('id', userId);
 
     if (updateError) {
-      logger.error('❌ Error joining group:', updateError);
+      logger.error(`❌ Error joining group (${errorCode(updateError)})`);
       res.status(500).json({ error: 'Failed to join group' }); return;
     }
 
-    logger.info(`✅ User ${userId} joined group "${group.name}" (${group.id})`);
+    logger.info(`✅ User ${userId} joined group ${group.id}`);
 
     res.json({
       success: true,
@@ -114,7 +115,7 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
     });
 
   } catch (error) {
-    logger.error('❌ Error joining group:', error);
+    logger.error(`❌ Error joining group (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' }); return;
   }
 });

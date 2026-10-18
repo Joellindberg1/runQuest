@@ -15,6 +15,7 @@ import {
   type NotifiableRow,
   type NotifyViewer,
 } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 // Taket bor i shared (fejken i frontend delar det); återexporteras här för de som redan importerar det härifrån.
 export { UNREAD_CAP };
@@ -109,7 +110,7 @@ async function readSettings(userId: string): Promise<Record<string, unknown>> {
   try {
     stored = await readStoredSettings(getSupabaseClient(), userId);
   } catch (error) {
-    logger.error('❌ Kunde inte läsa user_settings, använder defaults för oläst-räknaren:', error);
+    logger.error(`❌ Kunde inte läsa user_settings, använder defaults för oläst-räknaren (${errorCode(error)})`);
   }
   return resolveSettings(stored, 'user', undefined, ({ key, reason }) =>
     logger.warn(`⚠️ Lagrad inställning ignoreras (${reason}): ${key}`),

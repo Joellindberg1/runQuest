@@ -7,6 +7,7 @@ import { retractChallengeReceived } from '../services/activityLog.js';
 import { MS_DAY, addDays } from '@runquest/shared';
 import { todayStockholm, at3amStockholm } from '../utils/dateUtils.js';
 import { summarizeSettled } from './settledSummary.js';
+import { errorCode } from '../utils/errorCode.js';
 
 // ─── Settle ended challenges ─────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ async function settleEndedChallenges(): Promise<void> {
     .lte('determine_at', now);
 
   if (error) {
-    logger.error('❌ Error fetching challenges to settle:', error); return;
+    logger.error(`❌ Error fetching challenges to settle (${errorCode(error)})`); return;
   }
   if (!challenges?.length) return;
 
@@ -44,7 +45,7 @@ async function autoStartLegendaryChallenges(): Promise<void> {
     .lte('legendary_sent_at', cutoff);
 
   if (error) {
-    logger.error('❌ Error fetching legendary challenges to auto-start:', error);
+    logger.error(`❌ Error fetching legendary challenges to auto-start (${errorCode(error)})`);
     throw new Error(`Failed to fetch legendary challenges to auto-start: ${error.message}`);
   }
   if (!challenges?.length) return;
@@ -84,7 +85,7 @@ export async function autoDeclinePendingChallenges(): Promise<void> {
     .lte('created_at', cutoff);
 
   if (error) {
-    logger.error('❌ Error fetching pending challenges to auto-decline:', error);
+    logger.error(`❌ Error fetching pending challenges to auto-decline (${errorCode(error)})`);
     throw new Error(`Failed to fetch pending challenges to auto-decline: ${error.message}`);
   }
   if (!challenges?.length) return;
@@ -111,7 +112,7 @@ export async function autoDeclinePendingChallenges(): Promise<void> {
         throw new Error(`Failed to restore token/challenge_active for auto-declined challenge ${c.id}: ${restoreError.message}`);
       }
       const { error: deleteError } = await supabase.from('challenges').delete().eq('id', c.id);
-      if (deleteError) logger.error(`❌ Failed to delete auto-declined challenge ${c.id}:`, deleteError);
+      if (deleteError) logger.error(`❌ Failed to delete auto-declined challenge ${c.id} (${errorCode(deleteError)})`);
       else await retractChallengeReceived(c.id);
     })
   );
@@ -127,7 +128,7 @@ export function startChallengeScheduler(): void {
   // Settle ended challenges — every hour
   cron.schedule('5 * * * *', async () => {
     logger.info('⏰ [ChallengeScheduler] Checking for ended challenges...');
-    try { await settleEndedChallenges(); } catch (e) { logger.error('❌ settleEndedChallenges error:', e); }
+    try { await settleEndedChallenges(); } catch (e) { logger.error(`❌ settleEndedChallenges error (${errorCode(e)})`); }
   });
 
   // Auto-start legendary + auto-decline minor/major — every 6 hours
@@ -137,7 +138,7 @@ export function startChallengeScheduler(): void {
       const results = await Promise.allSettled([autoStartLegendaryChallenges(), autoDeclinePendingChallenges()]);
       summarizeSettled('[ChallengeScheduler] Auto-manage tick', results);
     } catch (e) {
-      logger.error('❌ Challenge auto-manage error:', e);
+      logger.error(`❌ Challenge auto-manage error (${errorCode(e)})`);
     }
   });
 
