@@ -76,6 +76,9 @@ interface UmamiTracker {
 
 const trackerOf = (win: Window): UmamiTracker | undefined => (win as Window & { umami?: UmamiTracker }).umami;
 
+/** Så många sidvisningar får vänta på skriptet; fler än så och de äldsta kastas, så minnet växer aldrig om skriptet aldrig blir klart. */
+const MAX_QUEUED = 50;
+
 const pathOnly = (url: string): string => url.split('?')[0] ?? url;
 
 /**
@@ -119,6 +122,11 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
     }
   };
 
+  const giveUp = () => {
+    broken = true;
+    queue.length = 0;
+  };
+
   const loadScript = () => {
     const script = doc.createElement('script');
     script.src = UMAMI_SCRIPT_SRC;
@@ -128,8 +136,9 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
     script.dataset.autoTrack = 'false';
     script.dataset.doNotTrack = 'true';
     script.dataset.domains = UMAMI_DOMAINS;
-    script.addEventListener('load', flush);
-    script.addEventListener('error', () => { broken = true; queue.length = 0; });
+    // Ett skript som laddats utan att ge oss en tracker (en annan fil bakom samma adress, ett tomt svar) kan inte användas: ge upp.
+    script.addEventListener('load', () => (trackerOf(win) ? flush() : giveUp()));
+    script.addEventListener('error', giveUp);
     doc.head.appendChild(script);
   };
 
@@ -140,24 +149,37 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
     else win.addEventListener('load', loadScript, { once: true });
   };
 
+  // Sidvisningar och händelser delar kön och taket: de äldsta går först om skriptet aldrig kommer.
+  const enqueue = (item: QueuedItem) => {
+    queue.push(item);
+    if (queue.length > MAX_QUEUED) queue.shift();
+    try {
+      request();
+      flush();
+    } catch {
+      // Att lägga in skriptet (appendChild) kan kasta; statistiken får aldrig fälla appen.
+    }
+  };
+
   return {
     send(url) {
       if (broken) return;
       // Första sidan: bara en utomstående hänvisnings ursprung. Efterföljande: föregående sida i appen (normaliserad, utan query).
       const referrer = previousUrl === null ? externalReferrer() : `${win.location.origin}${pathOnly(previousUrl)}`;
       previousUrl = url;
-      queue.push({ kind: 'pageview', url, referrer });
-      request();
-      flush();
+      enqueue({ kind: 'pageview', url, referrer });
     },
     sendEvent(event, ...props) {
       if (broken) return;
-      const clean = sanitizeAnalyticsEvent(event, props[0]);
-      if (!clean) return;
-      // Sidan händelsen hände på, normaliserad nu och inte när skriptet hunnit ladda: köade händelser följer med den sida de kom från.
-      queue.push({ kind: 'event', url: normalizePageUrl(win.location.pathname, win.location.search), name: clean.name, data: clean.data });
-      request();
-      flush();
+      // Hela kroppen är kastfri: statistiken får aldrig fälla en lyckad handling i appen (en mutation, en klick) som anropar den.
+      try {
+        const clean = sanitizeAnalyticsEvent(event, props[0]);
+        if (!clean) return;
+        // Sidan händelsen hände på, normaliserad nu och inte när skriptet hunnit ladda: köade händelser följer med den sida de kom från.
+        enqueue({ kind: 'event', url: normalizePageUrl(win.location.pathname, win.location.search), name: clean.name, data: clean.data });
+      } catch {
+        // Tystas.
+      }
     },
   };
 }

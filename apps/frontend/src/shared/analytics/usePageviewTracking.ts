@@ -30,5 +30,6 @@ export function usePageviewTracking({ paused = false, sender }: PageviewTracking
     if (paused) return undefined;
     const timer = window.setTimeout(() => activeSender.send(url), PAGEVIEW_SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [activeSender, url, paused]);
+    // Den råa sökvägen är med så att ett byte mellan två löpare (samma normaliserade adress) räknas som en ny sidvisning.
+  }, [activeSender, url, pathname, paused]);
 }

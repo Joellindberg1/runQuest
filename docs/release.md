@@ -217,13 +217,19 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
   skickar ingenting. Som extra skydd är skriptet låst till `www.runquest.dev` och `runquest.dev` (`data-domains`), och ett bygge
   med `VITE_APP_ENV=staging` ignorerar variabeln även om den satts av misstag. Lead sätter variabeln efter ägarens ja (Railway-variabler
   ändras bara så); ingen Railway-variabel är satt av koden eller av den här PR:en.
-- **Vad som skickas:** sidvisningar och de nio egna händelserna i avsnittet "Egna händelser och trattar" nedan, och bara med en
-  normaliserad adress: routens mönster (`/runner/:id`, `/board`, `/login`), aldrig
-  den riktiga adressen. Query och fragment tas bort; på landningen behålls `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`
-  och `utm_term` (Umami läser kampanjerna ur adressen, annars blir kampanjvyn tom) om värdet är en enkel tagg (högst 64 tecken, inga
-  id-former). Okända adresser skickas som `/(not-found)`. Sidans titel ersätts av samma adress och hänvisningen skickas bara som
+- **Vad som skickas:** sidvisningar och de åtta egna händelserna i avsnittet "Egna händelser och trattar" nedan, och bara med en normaliserad adress: routens mönster (`/runner/:id`, `/board`, `/login`), aldrig
+  den riktiga adressen. Query och fragment tas bort; på landningen behålls `utm_source`, `utm_medium`, `utm_campaign` och
+  `utm_content` (Umami läser kampanjerna ur adressen, annars blir kampanjvyn tom), men bara värden som står på **vitlistan**
+  (`apps/frontend/src/shared/analytics/utmAllowlist.ts`). Jämförelsen ignorerar skiftläge och det som skickas är listans eget värde,
+  aldrig besökarens sträng; okända värden och `utm_term` tas bort. Ett fritt värde kunde annars bära ett id eller ett namn. Okända adresser skickas som `/(not-found)`. Sidans titel ersätts av samma adress och hänvisningen skickas bara som
   ursprung (`https://www.google.com`) eller, inne i appen, som föregående sidas normaliserade adress. Ingen
   rundata, inga distanser, inga tider, inga namn, ingen e-post, inga id:n och inget användar-id (Stravas API-policy 5.4 förbjuder analys på Strava-data).
+- **Lägga till en kampanjtagg:** när ägaren ska dela en länk, välj en kort etikett (ett ord, små bokstäver, inget som pekar ut en person),
+  lägg den i `utm_campaign` (kampanjen) eller `utm_content` (varianten) i `utmAllowlist.ts`, och använd exakt den i länken
+  (`https://www.runquest.dev/?utm_source=instagram&utm_medium=social&utm_campaign=<tagg>`). Ändringen är en liten PR med ett
+  tillägg i listan och släpps som vanligt; en tagg som inte står på listan visas som ingen kampanj alls. Källor och medier som redan
+  finns: `utm_source` instagram, facebook, messenger, whatsapp, sms, email, linkedin, x, reddit, strava, qr; `utm_medium` social,
+  referral, email, sms, qr, organic. Listorna för `utm_campaign` och `utm_content` börjar tomma.
 - **Cookiefritt:** Umami sätter inga cookies och koden skriver varken till cookies eller localStorage/sessionStorage (testat i
   `umamiPageviews.test.ts`). `data-do-not-track="true"` är påslaget: besökare som skickar Do Not Track räknas inte. Valet kostar
   några procent av sidvisningarna och stämmer med att tjänsten ska vara integritetsvänlig; det stör inte målet (trender, inte exakta tal).
@@ -257,8 +263,10 @@ enstaka gemena ord. En ny händelse eller ett nytt värde kräver en ändring i 
 | `notifications-opened` | Klockan i headern öppnas | inga |
 | `setting-changed` | En inställning är sparad (servern har svarat ok); en händelse per nyckel, även vid återställning | `setting`: inställningens nyckel ur registret (`notify.<slag>`) |
 | `strava-connected` | Strava-kopplingen har godkänts av servern | inga |
-| `run-logged-manual` | En runda är sparad för hand i loggformuläret (Stravaimporterade rundor räknas inte) | inga |
 
+- **Medvetet utelämnad: `run-logged-manual` (runda loggad manuellt).** Förslaget i RUN-292 hade den, men en händelse som räknar loggade
+  rundor ligger för nära ägarens gräns "ingen rundata" och Stravas API-policy 5.4 för att tas med utan ett uttryckligt beslut.
+  Den kan läggas till i `analytics.ts` (med koppling i `useCreateRun` och test) efter ägarens beslut.
 - **Aldrig i händelserna:** rundata, distanser, tider, namn, e-post, id:n, athlete-id, användar-id eller några fria strängar och tal
   (Stravas API-policy 5.4, ägarbeslut i RUN-19). `setting-changed` skickar vilken inställning som ändrades men **aldrig värdet**: värdet
   är användarens personliga val och blir, när gruppinställningar och enumvärden kommer (ADR 012), något som kan peka ut en grupps regler.

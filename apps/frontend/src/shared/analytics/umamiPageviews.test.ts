@@ -64,7 +64,8 @@ describe('the Umami loader', () => {
     createPageviewSender(WEBSITE_ID, window).send('/');
     const [script] = umamiScripts();
     expect(umamiScripts()).toHaveLength(1);
-    expect(script!.src).toBe(UMAMI_SCRIPT_SRC);
+    expect(UMAMI_SCRIPT_SRC).toBe('https://cloud.umami.is/script.js');
+    expect(script!.src).toBe('https://cloud.umami.is/script.js');
     expect(script!.async).toBe(true);
     expect(script!.defer).toBe(true);
     expect(script!.dataset.websiteId).toBe(WEBSITE_ID);
@@ -141,7 +142,7 @@ describe('the Umami loader', () => {
 
   it('keeps the utm_ parameters out of the referrer path', () => {
     const sender = createPageviewSender(WEBSITE_ID, window);
-    sender.send('/?utm_source=newsletter');
+    sender.send('/?utm_source=email');
     sender.send('/login');
     scriptLoaded();
     expect(sentPayload(1).referrer).toBe(`${ORIGIN}/`);
@@ -155,6 +156,25 @@ describe('the Umami loader', () => {
     expect(() => sender.send('/board')).not.toThrow();
     expect(umamiScripts()).toHaveLength(1);
     expect(track).not.toHaveBeenCalled();
+  });
+
+  it('keeps at most 50 page views waiting for the script and drops the oldest', () => {
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    for (let page = 0; page < 60; page += 1) sender.send(`/p${page}`);
+    scriptLoaded();
+    expect(track).toHaveBeenCalledTimes(50);
+    expect(sentPayload(0).url).toBe('/p10');
+    expect(sentPayload(49).url).toBe('/p59');
+  });
+
+  it('gives up when the script loads without providing a tracker: nothing is sent, now or later', () => {
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    sender.send('/');
+    umamiScripts()[0]!.dispatchEvent(new Event('load'));
+    installTracker();
+    sender.send('/board');
+    expect(track).not.toHaveBeenCalled();
+    expect(umamiScripts()).toHaveLength(1);
   });
 
   it('survives a tracker that throws', () => {
