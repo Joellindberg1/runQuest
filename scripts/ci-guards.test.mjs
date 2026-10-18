@@ -359,6 +359,22 @@ describe('checkUsersGroupIdWrites', () => {
     }
   });
 
+  it('keeps reading the chain across a line comment, a block comment, blank lines and CRLF between its lines', () => {
+    const write = ".update({ group_id: g }).eq('id', 1);";
+    for (const code of [
+      `await db\n  .from('users')\n  // only active ones\n  ${write}`,
+      `await db\n  .from('users')\n  /* only active ones */\n  ${write}`,
+      `await db\n  .from('users')\n  /*\n   * several\n   * lines\n   */\n  ${write}`,
+      `await db\r\n  .from('users')\r\n  // only active ones\r\n  ${write}`,
+      `await db\r\n  .from('users')\r\n  /* only active ones */\r\n  ${write}`,
+      `await db\n  .from('users')\n\n\n  ${write}`,
+      `await db\n  .from('users')\n  /* ${'x'.repeat(400)} */\n  ${write}`,
+      `await db\n  .from('users')\n${' '.repeat(400)}${write}`,
+    ]) {
+      assert.equal(scan(code).length, 1, JSON.stringify(code));
+    }
+  });
+
   it('reports each offending write with its own line number', () => {
     const errors = scan("a;\nawait db.from('users').update({ group_id: a }).eq('id', 1);\nb;\nawait db.from('users').insert({ group_id: b });\n");
     assert.equal(errors.length, 2);
@@ -564,6 +580,38 @@ describe('checkStravaTokenPath', () => {
     const errors = scan("a;\nconst { data } = await db.from('strava_tokens').select('user_id, access_token').eq('user_id', id);\n");
     assert.equal(errors.length, 1);
     assert.match(errors[0], /apps\/backend\/src\/routes\/x\.ts:2: .*stravaTokenStore/);
+  });
+
+  it('keeps reading the chain across a line comment, a block comment, blank lines and CRLF between its lines, and reports the right line', () => {
+    const reads = [
+      ".select('access_token')",
+      ".select('*')",
+      '.select()',
+      ".select('user_id').not('refresh_token', 'is', 'x')",
+      '.upsert({ ...tokens })',
+      '.update({ ...tokens })',
+      ".insert({ user_id, access_token: 'x' })",
+    ];
+    for (const read of reads) {
+      for (const code of [
+        `await db\n  .from('strava_tokens')\n  // only active ones\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /* only active ones */\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /*\n   * several\n   * lines\n   */\n  ${read};`,
+        `await db\r\n  .from('strava_tokens')\r\n  // only active ones\r\n  ${read};`,
+        `await db\r\n  .from('strava_tokens')\r\n  /* only active ones */\r\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n\n\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /* ${'x'.repeat(400)} */\n  ${read};`,
+      ]) {
+        const errors = scan(code);
+        assert.equal(errors.length, 1, JSON.stringify(code));
+        assert.match(errors[0], /x\.ts:2:/);
+      }
+    }
+  });
+
+  it('does not let a comment mentioning a token column flag a chain that reads none', () => {
+    assert.deepEqual(scan("await db\n  .from('strava_tokens')\n  // never select access_token here\n  .select('user_id');"), []);
+    assert.deepEqual(scan("await db.from('strava_tokens').select('user_id'); // access_token is in the store\n"), []);
   });
 
   it('still flags a token read inside a Promise.all or before a following statement, and ignores what comes after the chain', () => {

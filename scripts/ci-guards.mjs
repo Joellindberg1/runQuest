@@ -229,7 +229,12 @@ const HAS_TOKEN_FILTER = /\.not\(\s*(['"`])access_token\1\s*,\s*(['"`])is\2\s*,\
  * `Promise.all([…, …])` eller nästa deklaration), till en radbrytning som inte följs av ett kedjat anrop (`.x(…)`, `?.x(…)`; en sats utan semikolon),
  * eller till den parentes som stänger det anrop kedjan sitter i. Citerade strängar (och mallsträngar) räknas som text; kommentarer tas bort så att ett ord i dem inte blir en träff.
  */
-const CHAIN_CONTINUES = /^\s*\??\./;
+// Sticky: prövas exakt vid lastIndex, hur långt (blanka rader, kommentarer som blivit blanka) det än är till nästa icke-blanka tecken.
+const CHAIN_CONTINUES = /\s*\??\./y;
+function chainContinuesAt(code, index) {
+  CHAIN_CONTINUES.lastIndex = index;
+  return CHAIN_CONTINUES.test(code);
+}
 function queryChainText(code, start) {
   let depth = 0;
   let text = '';
@@ -249,7 +254,7 @@ function queryChainText(code, start) {
     if (char === '(' || char === '[' || char === '{') depth += 1;
     else if (char === ')' || char === ']' || char === '}') { depth -= 1; if (depth < 0) return text; }
     else if ((char === ';' || char === ',') && depth === 0) return text;
-    else if (char === '\n' && depth === 0 && !CHAIN_CONTINUES.test(code.slice(i + 1, i + 200))) return text;
+    else if (char === '\n' && depth === 0 && !chainContinuesAt(code, i + 1)) return text;
     text += char;
   }
   return text;
@@ -303,12 +308,14 @@ export function checkStravaTokenPath(files) {
   const errors = [];
   for (const { path, content } of files) {
     if (!BACKEND_SOURCE.test(path) || STRAVA_TOKEN_STORE_FILES.has(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
-    for (const match of content.matchAll(STRAVA_TOKENS_FROM)) {
-      const chain = queryChainText(content, match.index + match[0].length).replace(HAS_TOKEN_FILTER, '');
+    // Kommentarer bort (radnumren bevaras): en kommentarsrad mellan kedjans rader får inte klippa kedjan i queryChainText.
+    const code = withoutComments(content);
+    for (const match of code.matchAll(STRAVA_TOKENS_FROM)) {
+      const chain = queryChainText(code, match.index + match[0].length).replace(HAS_TOKEN_FILTER, '');
       const readsEverything = methodArguments(chain, 'select').some(selectArgumentReadsUnknownColumns);
       const spreadsIntoWrite = ['upsert', 'insert', 'update'].some((method) => methodArguments(chain, method).some((argument) => argument.includes('...')));
       if (!TOKEN_COLUMN.test(chain) && !readsEverything && !spreadsIntoWrite) continue;
-      const line = content.slice(0, match.index).split(/\r?\n/).length;
+      const line = code.slice(0, match.index).split(/\r?\n/).length;
       errors.push(`${path}:${line}: tokenkolumnerna i strava_tokens används utanför stravaTokenStore — läs och skriv dem bara via services/stravaTokenStore.ts (ADR 013 beslut 4)`);
     }
   }
