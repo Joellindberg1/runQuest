@@ -44,6 +44,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { syncAllStravaUsers } from '../strava.js';
+import { resetUnreadableLogThrottle } from '../../services/stravaClient.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 import { installFakeStravaFetch, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
@@ -276,6 +277,25 @@ describe('the polling when tokens cannot be read', () => {
     expect(res.status).toBe(503);
     expect(res.body).toEqual({ error: 'Strava is temporarily unavailable' });
     expect(strava.requests).toHaveLength(0);
+  });
+
+  it('users whose tokens cannot be read are one error for the cause, not one per user and poll', async () => {
+    skipLongPauses();
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse(), athleteActivities: [] });
+    const damaged = (userId: string) => userRow(userId, { access_token: 'enc:v1:test-1:AAAA' });
+    use({ strava_tokens: [damaged('user-1'), damaged('user-2'), damaged('user-3')] });
+    resetUnreadableLogThrottle();
+
+    const first = await syncAllStravaUsers();
+    await syncAllStravaUsers();
+
+    expect(first.results.map((r) => r.error)).toEqual(Array(3).fill('Strava is temporarily unavailable'));
+    const errors = vi.mocked(logger.error).mock.calls.map((call) => String(call[0]));
+    expect(errors).toHaveLength(1); // 6 failed reads, one Sentry event
+    expect(errors[0]).toContain('Strava token unreadable for user user-1 (bad_format, access_token)');
+    const warnings = vi.mocked(logger.warn).mock.calls.map((call) => String(call[0]));
+    expect(warnings.filter((line) => line.includes('Strava token unreadable'))).toHaveLength(5);
+    expect(warnings.filter((line) => line.includes('Failed to sync user'))).toHaveLength(6); // still in the log, per user
   });
 
   it('one user whose token cannot be read does not stop the next user from syncing', async () => {

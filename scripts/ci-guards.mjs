@@ -344,7 +344,7 @@ export function checkTokenKeyStartupCheck(files) {
     : [`${SERVER_FILE}: saknar ett anrop av reportTokenKeyAtStartup() på översta nivån — utan det larmar ingenting när tokennyckeln saknas eller är fel och Strava-synken står stilla (ADR 013 beslut 9)`];
 }
 
-const PRODUCTION_BLOCK_START =/if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
+const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
 const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
 const RECONCILE_SCHEDULER_CALL = /(?<![\w.])startStravaReconcileScheduler\s*\(\s*\)/;
 

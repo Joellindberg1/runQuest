@@ -395,10 +395,14 @@ function unreadable(userId: string, code: string, column?: StravaTokenColumn): {
   const line = `Strava token unreadable for user ${userId} (${code}${column ? `, ${column}` : ''}); Strava was not called`;
   // An error (a Sentry event) once per code and process, then a warning (a log line only): without this every poll, every webhook
   // retry and every status check of every user is an event (ADR 013 decision 9). The count of all of them is in the health block.
-  if (announcedUnreadable.has(code)) {
+  // auth_failed (a ciphertext that does not belong to its row, or the wrong key under a known id) can mean tampering, so it is announced
+  // once per user and column rather than once per process: a moved ciphertext on a second row is a second signal, while the repeats of
+  // one row (every poll) are not.
+  const announceKey = code === 'auth_failed' ? `${code}:${userId}:${column ?? ''}` : code;
+  if (announcedUnreadable.has(announceKey)) {
     logger.warn(`⚠️ ${line}`);
   } else {
-    announcedUnreadable.add(code);
+    announcedUnreadable.add(announceKey);
     logger.error(`❌ ${line}`);
   }
   return { ok: false, reason: 'token_unreadable' };

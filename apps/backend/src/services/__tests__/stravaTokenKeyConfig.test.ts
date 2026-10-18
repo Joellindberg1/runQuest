@@ -178,6 +178,24 @@ describe('the log line for a token that could not be read', () => {
     expect(lines(logger.warn as never)).toHaveLength(1);
   });
 
+  it('auth_failed, a ciphertext that does not belong to its row, is an error once per user and column, because it can mean tampering', async () => {
+    const ring = parseKeyRing();
+    // u1 and u2 each hold the other's access token; u3 holds its own refresh token in the access column.
+    useRows([
+      row('u1', { access_token: sealStravaToken('u2', 'access_token', 'moved-access-0123456789', ring) }),
+      row('u2', { access_token: sealStravaToken('u1', 'access_token', 'moved-access-0123456789', ring) }),
+      row('u3', { access_token: sealStravaToken('u3', 'refresh_token', 'moved-access-0123456789', ring) }),
+    ]);
+
+    for (const userId of ['u1', 'u2', 'u3', 'u1', 'u2', 'u3']) await getValidAccessToken(userId);
+
+    const errors = lines(logger.error as never);
+    expect(errors).toHaveLength(3); // each row once, whichever came first
+    expect(errors.every((line) => line.includes('(auth_failed, access_token)'))).toBe(true);
+    expect(errors.map((line) => /user (u\d)/.exec(line)?.[1]).sort()).toEqual(['u1', 'u2', 'u3']);
+    expect(lines(logger.warn as never)).toHaveLength(3); // the repeats
+  });
+
   it('a missing key is one error for the process, however many users meet it', async () => {
     useRows([row('u1'), row('u2')]);
     vi.stubEnv(ACTIVE_KEY_ENV, '');
@@ -273,6 +291,29 @@ describe('the health read of the token rows', () => {
 
     for (const secret of [active.split(':')[1], retired.split(':')[1], rows[0].access_token as string, rows[0].refresh_token as string, legacyToken('legacy-a'), 'user-secret-uuid', 'enc:v1']) {
       expect(rendered).not.toContain(secret);
+    }
+  });
+
+  it('reads no user id, and every row of a table larger than one page', async () => {
+    configure({ active });
+    const legacy = (n: number): Row => ({ user_id: `u${String(n).padStart(5, '0')}`, access_token: legacyToken(`a${n}`), refresh_token: legacyToken(`r${n}`) });
+    const db = useRows(Array.from({ length: 2503 }, (_, n) => legacy(n)));
+
+    const health = await readTokenEncryptionHealth();
+
+    expect(health.plaintext_rows).toBe(2503); // PostgREST answers at most 1000 rows per request; none may be missed
+    const reads = db.queries.filter((q) => q.table === 'strava_tokens');
+    expect(reads.length).toBeGreaterThanOrEqual(3);
+    expect(reads.every((q) => q.select === 'access_token, refresh_token')).toBe(true);
+  });
+
+  it('pages of any size give the same counts, with a table that ends exactly on a page', async () => {
+    configure({ active, retired });
+    const rows = [sealedBy(ringOf(active), 'u1', 'a'), sealedBy(ringOf(retired), 'u2', 'b'), { user_id: 'u3', access_token: legacyToken('legacy-a'), refresh_token: legacyToken('legacy-r') }, { user_id: 'u4', access_token: null, refresh_token: null }];
+    useRows(rows);
+
+    for (const pageSize of [1, 2, 4, 5, 1000]) {
+      expect(await readTokenEncryptionHealth(pageSize), `page size ${pageSize}`).toMatchObject({ encrypted_rows: 2, plaintext_rows: 1, rows_on_other_kid: 1 });
     }
   });
 

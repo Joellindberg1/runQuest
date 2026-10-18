@@ -10,8 +10,9 @@
  * without a key is normal, and nothing alarms for it. The line names the problem and, for a refused key id, the id (never a secret);
  * it never carries a key value, a token or a stored value.
  *
- * Once per start is once per cause and process. The reads that fail afterwards are ordinary error lines without the prefix
- * (stravaClient), and the scheduled runs say once per run that they were skipped (syncAllStravaUsers, the reconcile).
+ * Once per start is once per cause and process. The reads that fail afterwards are logged without the prefix by stravaClient: an error
+ * (a Sentry event) the first time per cause code and process, a warning after that. The scheduled runs say once per run that they were
+ * skipped (syncAllStravaUsers, the reconcile).
  */
 import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
@@ -28,7 +29,10 @@ function alarmText(problem: Exclude<TokenKeyConfig, { ok: true }>): string {
     case 'key_invalid':
       return `${head} har en ogiltig nyckelkonfiguration (${ACTIVE_KEY_ENV} eller ${RETIRED_KEYS_ENV}: fel format, fel längd eller samma nyckel-id två gånger). ${CONSEQUENCE}`;
     case 'kid_not_allowed':
-      return `${head} godtar inte nyckel-id ${problem.offendingKids.join(', ')} i den här miljön (kräver prefixet "${problem.requiredPrefix}"). ${CONSEQUENCE}`;
+      return (
+        `${head} godtar inte nyckel-id ${problem.offendingKids.join(', ')} i den här miljön (kräver prefixet "${problem.requiredPrefix}" med ` +
+        `NODE_ENV=production och SENTRY_ENVIRONMENT${problem.requiredPrefix === 'stg-' ? '=staging' : ' som inte är staging'}; kontrollera båda variablerna). ${CONSEQUENCE}`
+      );
   }
 }
 

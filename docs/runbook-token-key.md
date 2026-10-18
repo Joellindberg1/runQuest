@@ -107,7 +107,10 @@ nyckel tillsammans med en läckt databas, dump eller backup ger tokens i klartex
 2. **Gör de gamla tokens värdelösa**: kör backfillen med `--refresh-tokens` (ADR 013 beslut 7 och Ö4). Strava ger då nya tokens och
    den gamla refresh-token slutar gälla, så en läckt nyckel plus gammal chiffertext ger bara döda tokens. Tills S4 är byggt: be de
    anslutna användarna koppla bort och koppla om Strava, vilket också ger nya tokens.
-3. **Anmäl till Strava inom 24 timmar** om en API-token kan ha nåtts. Enligt ADR 013 (Ö6, Stravas API Agreement §1.2) ska misstänkt
+3. **Anmäl till Strava inom 24 timmar** om en API-token kan ha nåtts. Värsta-fallsantagandet ovan gäller här: så länge det inte är
+   uteslutet att databasen, en dump eller en backup också har nåtts räknas det som att Stravas tokens kan ha nåtts, och anmälan görs. Den
+   kan bara utebli när det är visat att ingen kopia av chiffertexten har lämnat Supabase och Railway. Avtalet säger "snarast"; vänta därför inte på
+   att utredningen är klar. Enligt ADR 013 (Ö6, Stravas API Agreement §1.2) ska misstänkt
    obehörig åtkomst till en API-token anmälas till developers@strava.com snarast och senast inom 24 timmar. Runbooken har inte avtalets
    egen lydelse; kontrollera §1.2 i avtalet. E-postmeddelandet skickas av ägaren (extern kommunikation är `ask`) och innehåller vad som
    hände, när det upptäcktes, vilka användare som kan vara berörda (antal, inga id eller tokens) och vad som gjorts. Aldrig nyckel,

@@ -281,24 +281,48 @@ function formOfStored(stored: unknown): TokenColumnForm {
   return typeof stored === 'string' && LEGACY_PLAINTEXT.test(stored) ? { form: 'plaintext' } : { form: 'unrecognised' };
 }
 
+/** PostgREST answers at most 1000 rows per request (the project default); a table larger than that is read in pages of this size. */
+const TOKEN_ROWS_PAGE_SIZE = 1000;
+
+/**
+ * Every row's token columns, and nothing else (no user id), in pages: one request would silently stop at the server's row limit and
+ * the health would undercount. The first page asks for the exact count, so no page is requested past the end (PostgREST answers 416 for
+ * that). Ordered by the key so that pages do not overlap. THROWS on a database error.
+ */
+async function readAllTokenColumns(pageSize: number): Promise<Array<{ access_token: unknown; refresh_token: unknown }>> {
+  const rows: Array<{ access_token: unknown; refresh_token: unknown }> = [];
+  let total = Infinity;
+  for (let from = 0; from < total; from += pageSize) {
+    const { data, error, count } = await getSupabaseClient()
+      .from(TABLE)
+      .select('access_token, refresh_token', { count: 'exact' })
+      .order('user_id', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (typeof count !== 'number') throw Object.assign(new Error('no count'), { code: 'no_count' });
+    total = count;
+    rows.push(...(data ?? []));
+  }
+  return rows;
+}
+
 /**
  * Counts for the admin health endpoint (ADR 013 decision 9): is the key usable, which key ids, and how many rows are in which form.
  * Every row's token columns are read here, in memory, and only the counts leave: no value, no user id. The rows are classified by shape
  * and by the key id they name; nothing is decrypted, so this says nothing about whether a value opens (`unreadable_since_start` does,
  * for the reads that happened). THROWS on a database error: a health check that says 0 when the read failed lies.
  */
-export async function readTokenEncryptionHealth(): Promise<TokenEncryptionHealth> {
+export async function readTokenEncryptionHealth(pageSize: number = TOKEN_ROWS_PAGE_SIZE): Promise<TokenEncryptionHealth> {
   const config = inspectTokenKeyConfig();
   const ring = config.ok || config.problem === 'kid_not_allowed' ? config.ring : null;
 
-  const { data, error } = await getSupabaseClient().from(TABLE).select('user_id, access_token, refresh_token');
-  if (error) throw error;
+  const rows = await readAllTokenColumns(pageSize);
 
   let encrypted = 0;
   let plaintext = 0;
   let unrecognised = 0;
   let onOtherKid = 0;
-  for (const row of data ?? []) {
+  for (const row of rows) {
     const forms = [formOfStored(row.access_token), formOfStored(row.refresh_token)].filter((form) => form.form !== 'empty');
     if (forms.length === 0) continue;
     if (forms.some((form) => form.form === 'unrecognised')) unrecognised += 1;

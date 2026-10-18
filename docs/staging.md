@@ -39,6 +39,14 @@ med `--read-prod`.
     satser. **Endpointen är Beta** och kan ändras eller tas bort av Supabase; skulle den försvinna lämnar skripten inte över
     till den vanliga skrivbara endpointen, de slutar fungera. Förvara tokenen därefter: sätt den bara i det skal du kör
     skriptet i, och ta bort den efteråt.
+- Backendens Railway-variabler i stagingmiljön (tjänsten `runquest-backend-staging`) som styr tokenkrypteringen (ADR 013,
+  [`runbook-token-key.md`](runbook-token-key.md)):
+  - `NODE_ENV=production` och `SENTRY_ENVIRONMENT=staging` (Lead har verifierat båda i Railway 2026-10-18). Backend väljer nyckel-id-prefix
+    ur dem: i `NODE_ENV=production` krävs `stg-` när `SENTRY_ENVIRONMENT=staging`, annars `prod-`. Saknas `SENTRY_ENVIRONMENT=staging`
+    avvisas en `stg-`-nyckel med ett `🚨 KRITISKT`-larm (källa `token_key`) och Strava-synken står still.
+  - `TOKEN_ENCRYPTION_KEY=stg-1:<base64 av 32 byte>`: ett eget värde för staging, aldrig prodnyckeln, och aldrig `test-1` (avvisas i
+    produktionsläge). Ägaren skapar och sätter den i Railway-UI:t; värdet står aldrig i chatten, i en fil eller i ett ärende.
+    `TOKEN_ENCRYPTION_KEYS_RETIRED` används bara under en rotation.
 
 ## Bygga om från noll
 

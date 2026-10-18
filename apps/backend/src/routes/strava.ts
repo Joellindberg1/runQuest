@@ -512,7 +512,10 @@ export async function syncAllStravaUsers(): Promise<{
           });
           logger.info(`✅ Synced ${result.newRuns} new runs for user ${user.user_id}`);
         } else {
-          logger.error(`❌ Failed to sync user ${user.user_id}`);
+          // A token that could not be read was already logged by the token client (an error once per cause, then warnings): a second
+          // error here would make every user and every poll a Sentry event of its own.
+          if (result.unavailable) logger.warn(`⚠️ Failed to sync user ${user.user_id}`);
+          else logger.error(`❌ Failed to sync user ${user.user_id}`);
           results.push({ userId: user.user_id, userName: user.users.name, error: result.error });
         }
 

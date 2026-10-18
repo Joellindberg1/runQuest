@@ -81,6 +81,7 @@ describe('the token key check at startup', () => {
     expect(line.startsWith('🚨 KRITISKT')).toBe(true);
     expect(line).toContain('test-1');
     expect(line).toContain('"prod-"');
+    expect(line).toContain('SENTRY_ENVIRONMENT som inte är staging'); // the prefix follows from it, so the line says what to check
     expect(line).not.toContain(testKey.split(':')[1]);
     expect(alertOf(error.mock.calls[0])?.source).toBe('token_key');
   });
@@ -100,6 +101,7 @@ describe('the token key check at startup', () => {
     reportTokenKeyAtStartup();
 
     expect(text(error)).toContain('"stg-"');
+    expect(text(error)).toContain('SENTRY_ENVIRONMENT=staging');
   });
 
   it('a usable key logs one info line with the key ids and no alarm', () => {
