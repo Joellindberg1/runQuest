@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { WAITLIST_CONSENT_LABEL, WAITLIST_CONSENT_LINK_TEXT, WAITLIST_EMAIL_MAX_LENGTH } from '@runquest/shared';
 import { legalPrivacyPath } from '@/paths';
+import { track } from '@/shared/analytics/track';
 import { TextField } from '@/shared/components/form/TextField';
 import { useJoinWaitlist } from '../hooks/useJoinWaitlist';
 import '../landingWaitlist.css';
@@ -61,7 +62,7 @@ export function LandingWaitlist() {
     if (nextConsentError) { consentRef.current?.focus(); return; }
 
     const outcome = await join({ email: trimmed, website });
-    if (outcome === 'joined') setDone(true);
+    if (outcome === 'joined') { track('waitlist-joined'); setDone(true); }
     else if (outcome === 'invalid') { setEmailError(MESSAGES.emailInvalid); emailRef.current?.focus(); }
     else if (outcome === 'rate-limited') setFormError(MESSAGES.rateLimited);
     else if (outcome === 'failed') setFormError(MESSAGES.failed);

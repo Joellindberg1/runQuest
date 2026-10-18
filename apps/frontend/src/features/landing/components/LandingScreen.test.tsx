@@ -2,8 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import userEvent from '@testing-library/user-event';
+import { track } from '@/shared/analytics/track';
 import { setViewportWidth } from '@/test/viewport';
 import { LandingScreen } from './LandingScreen';
+
+vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 
 const MOBILE = 390;
 const DESKTOP = 1440;
@@ -38,6 +42,7 @@ const headingOutline = () => screen.getAllByRole('heading').map((heading) => [Nu
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.mocked(track).mockClear();
 });
 
 describe('Landing — struktur och tillgänglighet', () => {
@@ -112,6 +117,30 @@ describe('Landing — struktur och tillgänglighet', () => {
     expect(decor.map((node) => node.getAttribute('data-decor')).sort()).toEqual(['arena', 'fade', 'glow', 'grid']);
     for (const node of decor) expect(node).toHaveAttribute('aria-hidden', 'true');
     expect(within(decor.find((node) => node.getAttribute('data-decor') === 'arena') as HTMLElement).queryByRole('img')).toBeNull();
+  });
+});
+
+describe('Landing — webbanalys', () => {
+  it.each([[MOBILE], [DESKTOP]])('reports waitlist-click when the Join the waitlist button in the hero is clicked, at %i px', async (width) => {
+    renderLanding({ width });
+    await loaded();
+    expect(track).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole('region', { name: 'Your group chat deserves a leaderboard' })).getByRole('link', { name: 'Join the waitlist' }));
+    expect(track).toHaveBeenCalledExactlyOnceWith('waitlist-click');
+  });
+
+  it.each([[MOBILE], [DESKTOP]])('reports login-click when Sign in in the header is clicked, at %i px', async (width) => {
+    renderLanding({ width });
+    await loaded();
+    await userEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Sign in' }));
+    expect(track).toHaveBeenCalledExactlyOnceWith('login-click');
+  });
+
+  it('reports nothing for the other links in the header', async () => {
+    renderLanding({ width: DESKTOP });
+    await loaded();
+    await userEvent.click(within(screen.getByRole('navigation', { name: 'Sections' })).getByRole('link', { name: 'Titles' }));
+    expect(track).not.toHaveBeenCalled();
   });
 });
 

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { FROM_LANDING_STATE, paths } from '@/paths';
+import { track } from '@/shared/analytics/track';
 import { RQLogo } from '@/shared/components/icons';
 import { LANDING_NAV } from '../landingModel';
 
@@ -23,7 +24,7 @@ export function LandingHeader() {
             ))}
           </nav>
         )}
-        <Link to={paths.login} state={FROM_LANDING_STATE} className="rq-btn rq-btn--secondary rq-btn--sm" aria-haspopup="dialog">Sign in</Link>
+        <Link to={paths.login} state={FROM_LANDING_STATE} className="rq-btn rq-btn--secondary rq-btn--sm" aria-haspopup="dialog" onClick={() => track('login-click')}>Sign in</Link>
       </div>
     </header>
   );

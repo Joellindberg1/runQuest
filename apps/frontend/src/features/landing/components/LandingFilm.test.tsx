@@ -3,7 +3,11 @@ import { fileURLToPath } from 'node:url';
 import postcss from 'postcss';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { track } from '@/shared/analytics/track';
 import { LandingFilm, WatchFilmButton } from './LandingFilm';
+
+vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 
 // Spelaren gör inga anrop och startar aldrig av sig själv. jsdom spelar ingen video, så play/pause/load är spioner och mediehändelserna
 // (playing, pause, ended, timeupdate, error) skickas för hand, i samma ordning som webbläsaren skickar dem.
@@ -387,6 +391,57 @@ describe('Watch the film', () => {
     expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'auto' }));
     expect(playButton()).toHaveFocus();
     expect(playSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('filmen: webbanalys', () => {
+  beforeEach(() => {
+    vi.mocked(track).mockClear();
+  });
+
+  it('reports film-started once the film begins playing from the poster, and nothing at the click itself', async () => {
+    const { container } = render(<LandingFilm variant="desktop" />);
+    await userEvent.click(playButton());
+    expect(track).not.toHaveBeenCalled();
+    fireEvent.playing(getVideo(container));
+    expect(track).toHaveBeenCalledExactlyOnceWith('film-started');
+  });
+
+  it('does not report again when the film is paused and resumed, or when it plays on after a seek', async () => {
+    const { container } = render(<LandingFilm variant="desktop" />);
+    await userEvent.click(playButton());
+    fireEvent.playing(getVideo(container));
+    await userEvent.click(screen.getByRole('button', { name: PAUSE_LABEL }));
+    fireEvent.pause(getVideo(container));
+    await userEvent.click(screen.getByRole('button', { name: PLAY_LABEL }));
+    fireEvent.playing(getVideo(container));
+    fireEvent.playing(getVideo(container));
+    expect(track).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports again when the film is started anew after it has ended', async () => {
+    const { container } = render(<LandingFilm variant="desktop" />);
+    await userEvent.click(playButton());
+    fireEvent.playing(getVideo(container));
+    fireEvent.ended(getVideo(container));
+    await userEvent.click(playButton());
+    fireEvent.playing(getVideo(container));
+    expect(track).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports on the mobile layout too', async () => {
+    stubViewport(390);
+    const { container } = render(<LandingFilm variant="mobile" />);
+    await userEvent.click(playButton());
+    fireEvent.playing(getVideo(container));
+    expect(track).toHaveBeenCalledExactlyOnceWith('film-started');
+  });
+
+  it('reports nothing when the film cannot be loaded', async () => {
+    playSpy.mockRejectedValue(new DOMException('no source', 'NotSupportedError'));
+    render(<LandingFilm variant="desktop" />);
+    await userEvent.click(playButton());
+    expect(track).not.toHaveBeenCalled();
   });
 });
 

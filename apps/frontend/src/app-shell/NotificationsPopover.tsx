@@ -6,6 +6,7 @@ import { useUnreadAnnouncement } from '@/features/news/hooks/useUnreadAnnounceme
 import { useUserSettings } from '@/features/settings/hooks/useUserSettings';
 import { badgeText } from '@/features/news/newsModel';
 import { useAuth } from '@/providers/authContext';
+import { track } from '@/shared/analytics/track';
 import { RQIcon } from '@/shared/components/icons';
 
 const ICON_HEADER = 17;
@@ -36,7 +37,13 @@ export function NotificationsPopover({ variant }: NotificationsPopoverProps) {
       {/* EN polite live-region för räknaren (klockan finns alltid i headern; /news och popovern har ingen egen): permanent i trädet så att nästa
           text annonseras, tom tills räknaren minskat. Knappens namn bär siffran för den som navigerar dit; regionen är för den som läser en rad. */}
       <span role="status" aria-live="polite" className="sr-only">{announcement}</span>
-      <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (next) track('notifications-opened');
+          setOpen(next);
+        }}
+      >
         <Popover.Trigger asChild>
           <button
             type="button"

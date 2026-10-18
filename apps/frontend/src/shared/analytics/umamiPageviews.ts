@@ -4,10 +4,20 @@
 // Skriptet läggs in från koden, inte från index.html, så att en build utan webbplats-id inte laddar något alls (staging, lokalt, CI:s
 // Lighthouse-bygge). Samma laddare går att återanvända av en framtida landing.html. Allt som skickas är en adress som normalizePageUrl redan
 // gjort om till ett routemönster; ingen rundata, inga namn, inget användar-id.
+//
+// Händelserna (RUN-292) delar kön, laddaren och webbplats-id-grinden med sidvisningarna: EN sändare, EN skripttagg. Varje händelse går genom
+// sanitizeAnalyticsEvent (packages/shared) innan den köas, så vakten går inte att gå förbi från en anropsplats.
+import { sanitizeAnalyticsEvent, type AnalyticsEventName, type AnalyticsTrackArgs } from '@runquest/shared';
+import { normalizePageUrl } from './normalizePageUrl';
 
 /** Tar emot normaliserade sidvisningar (se normalizePageUrl). Hooken känner bara till det här gränssnittet, inte Umami. */
 export interface PageviewSender {
   send: (url: string) => void;
+}
+
+/** Tar emot händelser ur den fasta listan i shared. Typerna är samma som `track`; vakten körs ändå här, vid enda utgången mot Umami. */
+export interface EventSender {
+  sendEvent: <E extends AnalyticsEventName>(event: E, ...props: AnalyticsTrackArgs<E>) => void;
 }
 
 /** Hänvisning utan känt ursprung: Umami tolkar tomt som direktbesök. */
@@ -38,10 +48,28 @@ const readEnv = (): UmamiEnv => ({
   VITE_APP_ENV: import.meta.env.VITE_APP_ENV,
 });
 
-/** Sändaren för den här sidladdningen, med id:t ur bygget. */
-export const createDefaultPageviewSender = (): PageviewSender => createPageviewSender(umamiWebsiteIdOf(readEnv()), window);
+// EN sändare per webbplats-id och sidladdning: sidvisningarna (hooken) och händelserna (track) delar kö och skripttagg. Nyckeln är id:t, så ett
+// bygge utan id (eller med ett annat) aldrig återanvänder en sändare som redan har ett skript.
+let defaultSender: { websiteId: string | undefined; sender: PageviewSender & EventSender } | undefined;
+
+/** Sändaren för den här sidladdningen, med id:t ur bygget. Samma sändare vid varje anrop så länge id:t är detsamma. */
+export const createDefaultPageviewSender = (): PageviewSender & EventSender => {
+  const websiteId = umamiWebsiteIdOf(readEnv());
+  if (!defaultSender || defaultSender.websiteId !== websiteId) {
+    defaultSender = { websiteId, sender: createPageviewSender(websiteId, window) };
+  }
+  return defaultSender.sender;
+};
+
+/** För tester: glöm den delade sändaren, så att nästa anrop bygger en ny (och lägger in ett nytt skript). */
+export const resetDefaultPageviewSender = (): void => {
+  defaultSender = undefined;
+};
 
 type Payload = Record<string, unknown>;
+type QueuedItem =
+  | { kind: 'pageview'; url: string; referrer: string }
+  | { kind: 'event'; url: string; name: string; data?: Record<string, string> };
 interface UmamiTracker {
   track: (mapPayload: (props: Payload) => Payload) => void;
 }
@@ -55,11 +83,11 @@ const pathOnly = (url: string): string => url.split('?')[0] ?? url;
  * och först när dokumentet laddats klart så att det aldrig konkurrerar med sidans egna resurser. Sidor som kommer innan skriptet är klart köas.
  * Blockeras skriptet (annonsblockerare, nätfel) tystas allt: appen går före statistiken.
  */
-export function createPageviewSender(websiteId: string | undefined, win: Window): PageviewSender {
-  if (!websiteId) return { send: () => {} };
+export function createPageviewSender(websiteId: string | undefined, win: Window): PageviewSender & EventSender {
+  if (!websiteId) return { send: () => {}, sendEvent: () => {} };
 
   const doc = win.document;
-  const queue: Array<{ url: string; referrer: string }> = [];
+  const queue: QueuedItem[] = [];
   let requested = false;
   let broken = false;
   let previousUrl: string | null = null;
@@ -76,10 +104,15 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
   const flush = () => {
     const tracker = trackerOf(win);
     if (!tracker) return;
-    for (const view of queue.splice(0)) {
+    for (const item of queue.splice(0)) {
       // Adressen, titeln och hänvisningen ersätts: det riktiga värdet på sidan (adress med id, titel, hänvisning med query) lämnar aldrig webbläsaren.
+      // En händelse bär ingen hänvisning (sessionens kommer från första sidvisningen); namnet och datat är redan prövade av vakten.
       try {
-        tracker.track((props) => ({ ...props, url: view.url, title: view.url, referrer: view.referrer }));
+        tracker.track((props) =>
+          item.kind === 'pageview'
+            ? { ...props, url: item.url, title: item.url, referrer: item.referrer }
+            : { ...props, url: item.url, title: item.url, referrer: PAGEVIEW_REFERRER_NONE, name: item.name, ...(item.data ? { data: item.data } : {}) },
+        );
       } catch {
         // Statistiken får aldrig fälla appen.
       }
@@ -113,7 +146,16 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
       // Första sidan: bara en utomstående hänvisnings ursprung. Efterföljande: föregående sida i appen (normaliserad, utan query).
       const referrer = previousUrl === null ? externalReferrer() : `${win.location.origin}${pathOnly(previousUrl)}`;
       previousUrl = url;
-      queue.push({ url, referrer });
+      queue.push({ kind: 'pageview', url, referrer });
+      request();
+      flush();
+    },
+    sendEvent(event, ...props) {
+      if (broken) return;
+      const clean = sanitizeAnalyticsEvent(event, props[0]);
+      if (!clean) return;
+      // Sidan händelsen hände på, normaliserad nu och inte när skriptet hunnit ladda: köade händelser följer med den sida de kom från.
+      queue.push({ kind: 'event', url: normalizePageUrl(win.location.pathname, win.location.search), name: clean.name, data: clean.data });
       request();
       flush();
     },

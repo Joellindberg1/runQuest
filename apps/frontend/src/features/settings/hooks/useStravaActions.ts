@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateAfterRunChange } from '@/features/runs/runEffects';
+import { track } from '@/shared/analytics/track';
 import { backendApi } from '@/shared/services/backendApi';
 import { rememberStravaConsent, takeStravaConsent } from '../stravaConsent';
 import { DISCONNECTED_STATUS, DISCONNECT_FAILED, PAUSED_STATUS, PAUSE_FAILED, RESUMED_STATUS, RESUME_FAILED } from '../stravaConnectionCopy';
@@ -53,6 +54,8 @@ export function useStravaActions({ clientId }: UseStravaActionsInput) {
         try {
           const result = await backendApi.connectStrava(code, consentVersion);
           if (result.success) {
+            // Bara att kopplingen skedde: aldrig athlete-id, kod eller vad som importeras (Stravas API-policy 5.4).
+            track('strava-connected');
             setError(null);
             setStatus('Strava connected. Your runs will start syncing.');
             void refreshStrava();

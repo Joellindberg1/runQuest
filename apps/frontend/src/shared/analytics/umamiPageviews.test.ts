@@ -177,3 +177,107 @@ describe('the Umami loader', () => {
     expect(sessionStorage).toHaveLength(0);
   });
 });
+
+describe('the Umami loader, events', () => {
+  type EventPayload = Payload & { name?: string; data?: Record<string, string> };
+  const sentEvent = (call: number): EventPayload => track.mock.calls[call]![0](realPayload) as EventPayload;
+
+  afterEach(() => {
+    window.history.pushState({}, '', '/');
+  });
+
+  it('loads nothing and sends nothing without a website id', () => {
+    createPageviewSender(undefined, window).sendEvent('waitlist-click');
+    expect(umamiScripts()).toHaveLength(0);
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it('shares the one script and the one queue with the page views, and keeps the order', () => {
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    sender.send('/');
+    sender.sendEvent('film-started');
+    sender.send('/login');
+    expect(umamiScripts()).toHaveLength(1);
+    expect(track).not.toHaveBeenCalled();
+    scriptLoaded();
+    expect(track).toHaveBeenCalledTimes(3);
+    expect(sentEvent(0).url).toBe('/');
+    expect(sentEvent(0).name).toBeUndefined();
+    expect(sentEvent(1).name).toBe('film-started');
+    expect(sentEvent(2).url).toBe('/login');
+  });
+
+  it('sends an event straight away once the script is loaded, with its name and data', () => {
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    sender.send('/');
+    scriptLoaded();
+    sender.sendEvent('setting-changed', { setting: 'notify.title_taken_from_me' });
+    expect(track).toHaveBeenCalledTimes(2);
+    expect(sentEvent(1)).toMatchObject({ website: WEBSITE_ID, name: 'setting-changed', data: { setting: 'notify.title_taken_from_me' } });
+  });
+
+  it('drops an event the guard rejects, and requests no script for it', () => {
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    const loose = sender.sendEvent as (name: string, props?: unknown) => void;
+    loose('page-viewed-by-anna');
+    loose('waitlist-click', { email: 'anna@example.com' });
+    loose('setting-changed', { setting: 'notify.title_taken_from_me', distance: 5.2 });
+    loose('setting-changed', { setting: '3f2b8c1e-5d4a-4b9e-8c1f-2a7d6e9b0c11' });
+    expect(umamiScripts()).toHaveLength(0);
+    sender.send('/');
+    scriptLoaded();
+    expect(track).toHaveBeenCalledTimes(1);
+    expect(sentEvent(0).name).toBeUndefined();
+  });
+
+  it('sends no data field for an event without props', () => {
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    sender.sendEvent('waitlist-click');
+    scriptLoaded();
+    expect('data' in sentEvent(0)).toBe(false);
+  });
+
+  it('replaces the real address, title and referrer, so an event on a runner page leaves no id or name behind', () => {
+    window.history.pushState({}, '', '/runner/3f2b8c1e-9d4a-4e7b-8a61-5c0d2e9f7a14?token=secret');
+    setReferrer('https://www.google.com/search?q=anna+runquest');
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    sender.sendEvent('challenge-accepted');
+    scriptLoaded();
+    const payload = sentEvent(0);
+    expect(payload).toMatchObject({ url: '/runner/:id', title: '/runner/:id', referrer: '', name: 'challenge-accepted' });
+    expect(JSON.stringify(payload)).not.toMatch(/3f2b8c1e|token|secret|Anna|google/);
+  });
+
+  it('tags an event on the landing page with the landing address', () => {
+    window.history.pushState({}, '', '/');
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    sender.sendEvent('waitlist-joined');
+    scriptLoaded();
+    expect(sentEvent(0).url).toBe('/');
+  });
+
+  it('survives a blocked script and a tracker that throws', () => {
+    const blocked = createPageviewSender(WEBSITE_ID, window);
+    blocked.sendEvent('film-started');
+    installTracker();
+    umamiScripts()[0]!.dispatchEvent(new Event('error'));
+    expect(() => blocked.sendEvent('film-started')).not.toThrow();
+    expect(track).not.toHaveBeenCalled();
+
+    umamiScripts().forEach((script) => script.remove());
+    const broken = createPageviewSender(WEBSITE_ID, window);
+    broken.sendEvent('film-started');
+    track.mockImplementation(() => { throw new Error('tracker broke'); });
+    expect(() => scriptLoaded()).not.toThrow();
+  });
+
+  it('stores nothing in cookies or browser storage', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const sender = createPageviewSender(WEBSITE_ID, window);
+    sender.sendEvent('film-started');
+    scriptLoaded();
+    sender.sendEvent('waitlist-click');
+    expect(document.cookie).toBe('');
+    expect(setItem).not.toHaveBeenCalled();
+  });
+});

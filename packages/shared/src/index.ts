@@ -20,3 +20,4 @@ export * from './settings.js';
 export * from './tracingRate.js';
 export * from './titleWindow.js';
 export * from './groupRoles.js';
+export * from './analytics.js';

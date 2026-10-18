@@ -7,7 +7,10 @@ import { BADGE_QUERY_KEYS } from '@/features/badges/hooks/useBadgeQueries';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 import { STRAVA_QUERY_KEYS } from '@/shared/hooks/useStravaQueries';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
+import { track } from '@/shared/analytics/track';
 import { useStravaActions } from './useStravaActions';
+
+vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 
 const api = vi.hoisted(() => ({
   isAuthenticated: vi.fn(), connectStrava: vi.fn(), syncStrava: vi.fn(), setStravaSyncPaused: vi.fn(), disconnectStrava: vi.fn(),
@@ -77,6 +80,52 @@ describe('useStravaActions callback', () => {
     await waitFor(() => expect(result.current.error).toBe('Authentication required'));
     expect(sessionStorage.getItem(CONSENT_KEY)).toBeNull();
     expect(api.connectStrava).not.toHaveBeenCalled();
+  });
+});
+
+describe('useStravaActions web analytics', () => {
+  const CODE = 'abc-athlete-code';
+
+  beforeEach(() => {
+    vi.mocked(track).mockClear();
+    api.syncStrava.mockReset().mockResolvedValue({ success: true, data: { newRuns: 2 } });
+    api.setStravaSyncPaused.mockReset().mockResolvedValue({ success: true });
+    api.disconnectStrava.mockReset().mockResolvedValue({ success: true });
+  });
+
+  it('reports strava-connected, and nothing about the athlete or the code, once the server has accepted the connection', async () => {
+    const { result } = renderHook(() => useStravaActions({ clientId: '12345' }), { wrapper });
+
+    await callback({ stravaCode: CODE });
+
+    await waitFor(() => expect(result.current.status).toBe('Strava connected. Your runs will start syncing.'));
+    expect(track).toHaveBeenCalledExactlyOnceWith('strava-connected');
+  });
+
+  it('reports nothing when the server refuses the connection, throws, or the authorisation fails', async () => {
+    const { result } = renderHook(() => useStravaActions({ clientId: '12345' }), { wrapper });
+
+    api.connectStrava.mockResolvedValue({ success: false, error: 'Consent required' });
+    await callback({ stravaCode: CODE });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+
+    api.connectStrava.mockRejectedValue(new Error('offline'));
+    await callback({ stravaCode: CODE });
+    await callback({ error: 'access_denied' });
+
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it('reports nothing for sync, pause, resume and disconnect, and nothing when only the Strava window is opened', async () => {
+    const { result } = renderHook(() => useStravaActions({ clientId: '12345' }), { wrapper });
+
+    await act(async () => { await result.current.connect(true); });
+    await act(async () => { await result.current.sync(); });
+    await act(async () => { await result.current.pause(); });
+    await act(async () => { await result.current.resume(); });
+    await act(async () => { await result.current.disconnect(); });
+
+    expect(track).not.toHaveBeenCalled();
   });
 });
 
