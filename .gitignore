@@ -98,5 +98,9 @@ README_API.md
 docs/design/*.mp4
 docs/design/landing-media/
 
+# Lighthouse (RUN-259): rapporterna från scripts/lighthouse/run.sh
+.lighthouseci/
+lighthouse-reports/
+
 # Lasttestets rapportfiler (scripts/loadtest): bär rundornas id och nycklar, hör inte hemma i git
 scripts/loadtest/out/
