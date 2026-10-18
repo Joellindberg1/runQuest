@@ -134,6 +134,24 @@ describe('encrypting a row', () => {
     );
   });
 
+  it.each([
+    ['refresh_token', 'access_token'],
+    ['access_token', 'refresh_token'],
+  ] as const)('an empty %s is part of the condition: another writer filling it after the listing makes the write a conflict', async (empty, other) => {
+    const { tables, db } = use([legacyRow('u1', { [empty]: null })]);
+    const [row] = await listTokenRows();
+    // A reconnect (or any other writer) fills the empty column before our write.
+    const filled = sealStravaToken('u1', empty, legacyToken('filled-meanwhile'), ACTIVE);
+    rowOf(tables, 'u1')[empty] = filled;
+
+    const outcome = await rewriteTokenRow(row, 'encrypt', ACTIVE, { dryRun: false });
+
+    expect(outcome).toEqual({ status: 'conflict' });
+    expect(rowOf(tables, 'u1')[empty]).toBe(filled);
+    expect(rowOf(tables, 'u1')[other]).toBe(legacyToken(`${other === 'access_token' ? 'access' : 'refresh'}-u1`)); // still plaintext: nothing was written
+    expect(writes(db)[0].filters).toContainEqual({ op: 'is', column: empty, value: null });
+  });
+
   it('a row removed after the listing is a conflict, not an error', async () => {
     const { tables } = use([legacyRow('u1')]);
     const [row] = await listTokenRows();

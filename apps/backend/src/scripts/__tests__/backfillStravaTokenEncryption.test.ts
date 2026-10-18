@@ -23,7 +23,7 @@ import { installFakeStravaFetch, stravaError, stravaTokenResponse, type FakeStra
 import { legacyToken, plainOfStored, storedToken } from '../../test-utils/stravaTokens.js';
 import { resetUnreadableLogThrottle } from '../../services/stravaClient.js';
 import { resetLegacyTokenWarnings } from '../../services/stravaTokenStore.js';
-import { exitCodeFor, parseArgs, runBackfill, type BackfillOptions, type BackfillReport } from '../backfillStravaTokenEncryption.js';
+import { exitCodeFor, parseArgs, runBackfill, runCli, type BackfillOptions, type BackfillReport, type RefreshReport } from '../backfillStravaTokenEncryption.js';
 
 const HOST = 'abcdef.supabase.co';
 const FAR_FUTURE = 9_999_999_999;
@@ -524,14 +524,103 @@ describe('--refresh-tokens', () => {
     expect(report.refresh?.failed).toEqual([
       { userId: 'u1', code: 'refresh_rejected' },
       { userId: 'u2', code: 'refresh_failed' },
-      { userId: 'u4', code: 'no_refresh_token' },
     ]);
-    expect(report.refresh?.failedByCode).toEqual({ refresh_rejected: 1, refresh_failed: 1, no_refresh_token: 1 });
+    expect(report.refresh?.failedByCode).toEqual({ refresh_rejected: 1, refresh_failed: 1 });
+    // A connection with no refresh token has nothing to renew: told apart from the failures.
+    expect(report.refresh?.noRefreshToken).toEqual(['u4']);
+    expect(output()).toMatch(/Nothing to renew \(no refresh token stored; not a failure\): u4/);
+    expect(output()).toMatch(/u4: nothing to renew/);
     // The encryption part is done for all of them regardless: a failed renewal is not a failed encryption.
     expect(report.after).toMatchObject({ plaintext: 0, encryptedActive: 4 });
     expect(plainOf(tables, 'u1', 'refresh_token')).toBe(legacyToken('refresh-u1'));
-    expect(output()).toMatch(/Renewal failures by reason: refresh_rejected 1, refresh_failed 1, no_refresh_token 1/);
+    expect(output()).toMatch(/Renewal failures by reason: refresh_rejected 1, refresh_failed 1/);
     expect(exitCodeFor(report)).toBe(1);
+  });
+
+  it('a connection with no refresh token alone does not make the run fail', async () => {
+    strava = installFakeStravaFetch({ oauthToken: renewal });
+    world([legacyRow('u1'), legacyRow('u2', { refresh_token: null })]);
+
+    const report = await run({ apply: true, refreshTokens: true }, { rateGuard: { isOverSoftLimit: () => false } });
+
+    expect(report.refresh).toMatchObject({ renewed: ['u1'], failed: [], noRefreshToken: ['u2'] });
+    expect(exitCodeFor(report)).toBe(0);
+  });
+
+  it('stops at the first user whose token Strava may have replaced without it being saved, says so, and asks nobody else', async () => {
+    // Strava answers with 200 and a body nobody can use: the token may be replaced, and we hold nothing new.
+    strava = installFakeStravaFetch({ oauthToken: (call) => ((call.body as { refresh_token: string }).refresh_token === legacyToken('refresh-u1') ? ({ unexpected: 'shape' } as never) : renewal(call)) });
+    world([legacyRow('u1'), legacyRow('u2'), legacyRow('u3')]);
+
+    const report = await run({ apply: true, refreshTokens: true }, { rateGuard: { isOverSoftLimit: () => false } });
+
+    expect(strava.calls.oauthToken).toBe(1);
+    expect(report.refresh).toMatchObject({
+      renewed: [],
+      failed: [{ userId: 'u1', code: 'refresh_failed' }],
+      mayHaveLost: ['u1'],
+      stoppedBeforeAsking: ['u2', 'u3'],
+    });
+    expect(output()).toMatch(/u1: STRAVA MAY HAVE REPLACED THIS USER'S REFRESH TOKEN WITHOUT IT BEING SAVED.*reconnect Strava.*KRITISKT/);
+    expect(output()).toMatch(/MAY HAVE LOST THEIR STRAVA CONNECTION.*: u1/);
+    expect(output()).toMatch(/Not asked because the run stopped early: u2, u3/);
+    expect(exitCodeFor(report)).toBe(1);
+  });
+
+  it('stops when the new tokens cannot be saved (the KRITISKT line is logged), before the next user loses theirs too', async () => {
+    strava = installFakeStravaFetch({ oauthToken: renewal });
+    // The three updates of the encryption step succeed; every update after them (the saves of the renewal) fails.
+    let updates = 0;
+    world([legacyRow('u1'), legacyRow('u2'), legacyRow('u3')], (q) => (q.mutation === 'update' && ++updates > 3 ? { message: 'the database is read-only', code: '25006' } : null));
+
+    const report = await run({ apply: true, refreshTokens: true }, { rateGuard: { isOverSoftLimit: () => false } });
+
+    expect(strava.calls.oauthToken).toBe(1);
+    expect(report.refresh).toMatchObject({ mayHaveLost: ['u1'], stoppedBeforeAsking: ['u2', 'u3'] });
+    expect(vi.mocked(logger.error).mock.calls.some((call) => String(call[0]).includes('KRITISKT: kunde inte spara roterad Strava-token'))).toBe(true);
+    expect(exitCodeFor(report)).toBe(1);
+  });
+
+  it('stops after two failed renewals in a row', async () => {
+    strava = installFakeStravaFetch({ oauthToken: (call) => (['refresh-u1', 'refresh-u2'].some((id) => (call.body as { refresh_token: string }).refresh_token === legacyToken(id)) ? stravaError(500) : renewal(call)) });
+    world([1, 2, 3, 4].map((n) => legacyRow(`u${n}`)));
+
+    const report = await run({ apply: true, refreshTokens: true }, { rateGuard: { isOverSoftLimit: () => false } });
+
+    // u1 and u2 fail in a row (Strava answered 500: nothing was replaced): the run stops there.
+    expect(strava.calls.oauthToken).toBe(2);
+    expect(report.refresh).toMatchObject({ failed: [{ userId: 'u1', code: 'refresh_failed' }, { userId: 'u2', code: 'refresh_failed' }], mayHaveLost: [] });
+    expect(report.refresh?.stoppedBeforeAsking).toEqual(['u3', 'u4']);
+    expect(output()).toMatch(/Stopped after 2 failed renewals in a row/);
+    expect(exitCodeFor(report)).toBe(1);
+  });
+
+  it('does not stop for failures that a success separates: the count starts again after a success', async () => {
+    strava = installFakeStravaFetch({ oauthToken: (call) => (['refresh-u1', 'refresh-u3'].some((id) => (call.body as { refresh_token: string }).refresh_token === legacyToken(id)) ? stravaError(500) : renewal(call)) });
+    world([1, 2, 3, 4].map((n) => legacyRow(`u${n}`)));
+
+    const report = await run({ apply: true, refreshTokens: true }, { rateGuard: { isOverSoftLimit: () => false } });
+
+    expect(strava.calls.oauthToken).toBe(4);
+    expect(report.refresh).toMatchObject({ renewed: ['u2', 'u4'], stoppedBeforeAsking: [] });
+    expect(report.refresh?.failed.map((f) => f.userId)).toEqual(['u1', 'u3']);
+  });
+
+  it('says which rows were not renewed because of an error in the row, and that their old refresh token stays alive', async () => {
+    strava = installFakeStravaFetch({ oauthToken: renewal });
+    world([legacyRow('u1', { access_token: 'enc:v1:broken' }), legacyRow('u2')]);
+
+    await run({ apply: true, refreshTokens: true }, { rateGuard: { isOverSoftLimit: () => false } });
+
+    expect(output()).toMatch(/Not renewed because of an error in the row: u1\. Their old refresh token stays alive at Strava/);
+  });
+
+  it('the dry-run says the same in the conditional', async () => {
+    world([legacyRow('u1', { access_token: 'enc:v1:broken' }), legacyRow('u2')]);
+
+    await run({ refreshTokens: true });
+
+    expect(output()).toMatch(/Would not be renewed because of an error in the row: u1/);
   });
 
   it('does not ask Strava for a row it could not encrypt or read', async () => {
@@ -543,6 +632,99 @@ describe('--refresh-tokens', () => {
     expect(strava.calls.oauthToken).toBe(1);
     expect(report.refresh?.renewed).toEqual(['u2']);
     expect(report.refresh?.notAttempted).toEqual(['u1']);
+  });
+});
+
+describe('when the table cannot be read', () => {
+  it('says that strava_tokens could not be read, with the error code and the HTTP status, and nothing of the database message', async () => {
+    world([legacyRow('u1')], () => ({ message: 'permission denied: Key (access_token)=(row-value-in-message)', code: 'PGRST301', status: 401 } as never));
+
+    const failure = await run({ apply: true }).catch((error: Error) => error);
+
+    expect((failure as Error).message).toMatch(/Could not read strava_tokens \(PGRST301, HTTP 401\)/);
+    expect((failure as Error).message).not.toContain('row-value-in-message');
+    expect(output()).toBe('');
+  });
+
+  it('a database error with no code is still named by its status and not as a bare "unknown"', async () => {
+    world([legacyRow('u1')], () => ({ message: 'bad gateway', code: '', status: 503 } as never));
+
+    const failure = await run().catch((error: Error) => error);
+
+    expect((failure as Error).message).toMatch(/Could not read strava_tokens \(unknown, HTTP 503\)/);
+  });
+});
+
+describe('a row that fails in a way nobody foresaw', () => {
+  it('is counted as unexpected_error with the kind of error only, never the message, and the other rows go on', async () => {
+    const { tables } = world([legacyRow('u1'), legacyRow('u2')], (q) => {
+      if (q.mutation === 'update' && q.filters.some((f) => f.column === 'user_id' && f.value === 'u1')) {
+        throw new Error('exploded while holding access-u1000 and Key (refresh_token)=(refresh-value-in-message)');
+      }
+      return null;
+    });
+
+    const report = await run({ apply: true });
+
+    expect(report.errors).toEqual([{ userId: 'u1', code: 'unexpected_error:Error' }]);
+    expect(report.rewritten).toEqual(['u2']);
+    expect(rowOf(tables, 'u1').access_token).toBe(legacyToken('access-u1'));
+    const everything = [output(), JSON.stringify(report)].join('\n');
+    expect(everything).not.toContain('exploded');
+    expect(everything).not.toContain('refresh-value-in-message');
+    expect(everything).not.toContain('access-u1000');
+    expect(exitCodeFor(report)).toBe(1);
+  });
+});
+
+describe('runCli', () => {
+  const deps = (over: Partial<Parameters<typeof runCli>[1]> = {}) => ({
+    env: { STRAVA_CLIENT_ID: 'id', STRAVA_CLIENT_SECRET: 'secret' } as NodeJS.ProcessEnv,
+    host: HOST,
+    log,
+    initSentry: vi.fn(() => true),
+    flushSentry: vi.fn(async () => true),
+    registerRateBudget: vi.fn(),
+    ...over,
+  });
+
+  it('starts Sentry before the run, so a KRITISKT line reaches it, and flushes it after; returns the exit code', async () => {
+    world([legacyRow('u1')]);
+    const calls: string[] = [];
+    const d = deps({ initSentry: vi.fn(() => (calls.push('init'), true)), flushSentry: vi.fn(async () => (calls.push('flush'), true)) });
+    const logWithOrder = (line: string) => {
+      if (calls[calls.length - 1] !== 'run') calls.push('run');
+      log(line);
+    };
+
+    expect(await runCli(['--apply'], { ...d, log: logWithOrder })).toBe(0);
+    expect(calls).toEqual(['init', 'run', 'flush']);
+  });
+
+  it('flushes Sentry even when the run is stopped by an exception', async () => {
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+    world([legacyRow('u1')]);
+    const d = deps();
+
+    await expect(runCli(['--apply'], d)).rejects.toThrow(/key_missing/);
+    expect(d.flushSentry).toHaveBeenCalledTimes(1);
+  });
+
+  it('registers the shared rate budget and needs the Strava credentials only for --apply --refresh-tokens', async () => {
+    strava = installFakeStravaFetch({ oauthToken: renewal });
+    world([legacyRow('u1')]);
+    const d = deps();
+
+    await runCli(['--apply', '--refresh-tokens'], d);
+    expect(d.registerRateBudget).toHaveBeenCalledTimes(1);
+
+    const none = deps({ env: {} });
+    await expect(runCli(['--apply', '--refresh-tokens'], none)).rejects.toThrow(/STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET must be set/);
+    expect(none.registerRateBudget).not.toHaveBeenCalled();
+
+    const dry = deps({ env: {} });
+    await runCli([], dry);
+    expect(dry.registerRateBudget).not.toHaveBeenCalled();
   });
 });
 
@@ -627,6 +809,25 @@ describe('exitCodeFor', () => {
 
   it('a superseded row is not a failure: a refresh landed after the write and the row is readable', () => {
     expect(exitCodeFor({ ...base, superseded: ['u1'] })).toBe(0);
+  });
+
+  it('a renewal run is clean only when nothing was left undone, and "no refresh token" is not something left undone', () => {
+    const refresh: RefreshReport = {
+      wouldAttempt: 0,
+      renewed: ['u1'],
+      failed: [],
+      failedByCode: {},
+      noRefreshToken: ['u2'],
+      mayHaveLost: [],
+      stoppedBeforeAsking: [],
+      skippedForRateLimit: [],
+      notAttempted: [],
+    };
+    expect(exitCodeFor({ ...base, refresh })).toBe(0);
+    expect(exitCodeFor({ ...base, refresh: { ...refresh, failed: [{ userId: 'u3', code: 'refresh_failed' }] } })).toBe(1);
+    expect(exitCodeFor({ ...base, refresh: { ...refresh, mayHaveLost: ['u3'] } })).toBe(1);
+    expect(exitCodeFor({ ...base, refresh: { ...refresh, stoppedBeforeAsking: ['u3'] } })).toBe(1);
+    expect(exitCodeFor({ ...base, refresh: { ...refresh, skippedForRateLimit: ['u3'] } })).toBe(1);
   });
 
   it('the emergency exit is done when no encrypted column is left', () => {

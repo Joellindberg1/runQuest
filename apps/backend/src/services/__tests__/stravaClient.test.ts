@@ -192,19 +192,21 @@ describe('why a token refresh failed', () => {
   });
 
   it('a network error, 5xx or 429 on token refresh stays refresh_failed', async () => {
-    const answers: Array<[string, () => ReturnType<typeof stravaError> | never]> = [
-      ['network error', () => { throw new Error('connect ECONNRESET'); }],
-      ['500', () => stravaError(500)],
-      ['502', () => stravaError(502, { body: { message: 'Bad Gateway' } })],
-      ['503 naming the refresh token', () => stravaError(503, { body: { message: 'Unavailable', errors: [REFRESH_TOKEN_INVALID] } })],
-      ['429', () => stravaError(429)],
+    // `mayHaveRotated`: a network error may have come after Strava answered, so the old refresh token may be replaced. An answer with an
+    // error status means Strava did nothing.
+    const answers: Array<[string, () => ReturnType<typeof stravaError> | never, { mayHaveRotated?: true }]> = [
+      ['network error', () => { throw new Error('connect ECONNRESET'); }, { mayHaveRotated: true }],
+      ['500', () => stravaError(500), {}],
+      ['502', () => stravaError(502, { body: { message: 'Bad Gateway' } }), {}],
+      ['503 naming the refresh token', () => stravaError(503, { body: { message: 'Unavailable', errors: [REFRESH_TOKEN_INVALID] } }), {}],
+      ['429', () => stravaError(429), {}],
     ];
-    for (const [label, answer] of answers) {
+    for (const [label, answer, extra] of answers) {
       strava = installFakeStravaFetch({ oauthToken: answer });
       const { t, db } = use([{ ...EXPIRED }]);
 
-      expect(await getValidAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...STATE });
-      expect(await refreshAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...STATE });
+      expect(await getValidAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...extra, ...STATE });
+      expect(await refreshAccessToken('user-1'), label).toEqual({ ok: false, reason: 'refresh_failed', ...extra, ...STATE });
       expect(tokenWrites(db), label).toHaveLength(0);
       expect(plainRow(t.strava_tokens[0]).refresh_token, label).toBe('old-rt');
 

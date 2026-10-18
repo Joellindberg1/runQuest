@@ -29,6 +29,7 @@
  */
 import { pathToFileURL } from 'node:url';
 import { errorCode } from '../utils/errorCode.js';
+import { flushSentry, initSentry } from '../observability/sentry.js';
 import { refreshAccessToken } from '../services/stravaClient.js';
 import { isOverSoftLimit, registerStravaRateBudget } from '../services/stravaRateBudget.js';
 import {
@@ -111,14 +112,26 @@ export interface RefreshReport {
   /** Dry-run: how many calls to Strava's token endpoint --apply would make. */
   wouldAttempt: number;
   renewed: string[];
-  /** The reason Strava or the token path gave (`refresh_rejected`, `refresh_failed`, `no_refresh_token`, ...). */
+  /** The reason Strava or the token path gave (`refresh_rejected`, `refresh_failed`, `token_unreadable`, ...). Not `no_refresh_token`. */
   failed: Array<{ userId: string; code: string }>;
   failedByCode: Record<string, number>;
+  /** The row holds no refresh token, so there is nothing to renew. Not a failure; kept apart from `failed`. */
+  noRefreshToken: string[];
+  /**
+   * Strava may have replaced the refresh token without us holding the new one (the answer was lost or unusable, or the save failed): the
+   * user may have to reconnect Strava. The run stops at the first such user.
+   */
+  mayHaveLost: string[];
+  /** Left unasked because the run stopped early (after `mayHaveLost`, or after two renewals in a row that failed). */
+  stoppedBeforeAsking: string[];
   /** Left unasked because the shared rate guard said the budget was used up. */
   skippedForRateLimit: string[];
-  /** Rows with an error in the encryption step: Strava is not asked for them. */
+  /** Rows with an error in the encryption step: Strava is not asked for them, so their old refresh token stays alive at Strava. */
   notAttempted: string[];
 }
+
+/** Two renewals in a row that fail say that Strava or the network is the problem, and every further call risks the same. */
+const STOP_AFTER_CONSECUTIVE_FAILURES = 2;
 
 export interface BackfillReport {
   host: string;
@@ -167,6 +180,12 @@ function keyProblemMessage(config: Exclude<TokenKeyConfig, { ok: true }>): strin
   const base = `The token key is not usable (${config.problem}): nothing was read or written. Check TOKEN_ENCRYPTION_KEY and TOKEN_ENCRYPTION_KEYS_RETIRED in this environment (docs/runbook-token-key.md).`;
   if (config.problem !== 'kid_not_allowed') return base;
   return `${base} This environment accepts only key ids starting with "${config.requiredPrefix}"; refused: ${config.offendingKids.join(', ')}.`;
+}
+
+/** A database error as a code and, when it has one, an HTTP status (`42501`, `PGRST301, HTTP 401`, `unknown, HTTP 503`). Never its message. */
+function describeDbError(error: unknown): string {
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === 'number' ? `${errorCode(error)}, HTTP ${status}` : errorCode(error);
 }
 
 const labelOf = (form: TokenColumnForm): string => {
@@ -235,7 +254,13 @@ export async function runBackfill({ options, host, log, signal, rateGuard = { is
   const ring = config.ring;
   const retiredKids = ring.kids.filter((kid) => kid !== ring.activeKid);
 
-  const rows = await listTokenRows();
+  let rows: ListedTokenRow[];
+  try {
+    rows = await listTokenRows();
+  } catch (error) {
+    // Say what failed and how (a code, an HTTP status), never the database's message: it can carry row values.
+    throw new BackfillAbort(`Could not read strava_tokens (${describeDbError(error)}): nothing was written. Check the connection and the service role key.`);
+  }
   const before = countClasses(rows, ring.activeKid);
 
   const mode = options.decrypt
@@ -317,7 +342,17 @@ export async function runBackfill({ options, host, log, signal, rateGuard = { is
   // Step 2 (--refresh-tokens): new tokens from Strava, through the shared token path and the shared rate guard.
   if (options.refreshTokens) {
     const withError = new Set(report.errors.map((error) => error.userId));
-    const refresh: RefreshReport = { wouldAttempt: 0, renewed: [], failed: [], failedByCode: {}, skippedForRateLimit: [], notAttempted: [...withError] };
+    const refresh: RefreshReport = {
+      wouldAttempt: 0,
+      renewed: [],
+      failed: [],
+      failedByCode: {},
+      noRefreshToken: [],
+      mayHaveLost: [],
+      stoppedBeforeAsking: [],
+      skippedForRateLimit: [],
+      notAttempted: [...withError],
+    };
     report.refresh = refresh;
     const candidates = rows.filter((row) => !withError.has(row.userId));
     if (!options.apply) {
@@ -327,6 +362,7 @@ export async function runBackfill({ options, host, log, signal, rateGuard = { is
           'nothing is asked in a dry-run.',
       );
     } else if (!report.interrupted) {
+      let consecutiveFailures = 0;
       for (const [index, row] of candidates.entries()) {
         if (signal?.aborted) {
           report.interrupted = true;
@@ -343,12 +379,37 @@ export async function runBackfill({ options, host, log, signal, rateGuard = { is
         const result = await refreshAccessToken(row.userId);
         if (result.ok && result.refreshed) {
           refresh.renewed.push(row.userId);
+          consecutiveFailures = 0;
           log(`  ${row.userId}: new tokens saved (encrypted)`);
-        } else {
-          const code = result.ok ? 'not_renewed' : result.reason;
-          refresh.failed.push({ userId: row.userId, code });
-          tally(refresh.failedByCode, code);
-          log(`  ${row.userId}: renewal failed (${code})`);
+          continue;
+        }
+        const code = result.ok ? 'not_renewed' : result.reason;
+        if (code === 'no_refresh_token') {
+          refresh.noRefreshToken.push(row.userId);
+          log(`  ${row.userId}: nothing to renew (no refresh token is stored)`);
+          continue;
+        }
+        refresh.failed.push({ userId: row.userId, code });
+        tally(refresh.failedByCode, code);
+        log(`  ${row.userId}: renewal failed (${code})`);
+        consecutiveFailures = code === 'refresh_failed' ? consecutiveFailures + 1 : 0;
+
+        const lost = !result.ok && result.reason === 'refresh_failed' && result.mayHaveRotated === true;
+        if (lost) {
+          refresh.mayHaveLost.push(row.userId);
+          log(
+            `  ${row.userId}: STRAVA MAY HAVE REPLACED THIS USER'S REFRESH TOKEN WITHOUT IT BEING SAVED. The user may have to reconnect Strava. ` +
+              'Look in the log for "🚨 KRITISKT: kunde inte spara roterad Strava-token" (or a "Token refresh" error line) for this user.',
+          );
+        }
+        if (lost || consecutiveFailures >= STOP_AFTER_CONSECUTIVE_FAILURES) {
+          refresh.stoppedBeforeAsking = candidates.slice(index + 1).map((left) => left.userId);
+          log(
+            lost
+              ? `Stopped: not asking Strava for the other ${refresh.stoppedBeforeAsking.length} connection(s), because the same cause (a failing save, a lost answer) would lose their tokens too.`
+              : `Stopped after ${consecutiveFailures} failed renewals in a row: Strava or the network is the problem. ${refresh.stoppedBeforeAsking.length} connection(s) not asked.`,
+          );
+          break;
         }
       }
     }
@@ -359,7 +420,7 @@ export async function runBackfill({ options, host, log, signal, rateGuard = { is
     try {
       report.after = countClasses(await listTokenRows(), ring.activeKid);
     } catch (error) {
-      fail('(all rows)', `recount_failed:${errorCode(error)}`);
+      fail('(all rows)', `recount_failed:${describeDbError(error)}`);
     }
   }
 
@@ -377,8 +438,20 @@ function printSummary(report: BackfillReport, log: (line: string) => void): void
   );
   log(`Errors by code: ${describeTally(report.errorsByCode)}`);
   if (report.refresh && report.apply) {
-    log(`Renewed at Strava: ${report.refresh.renewed.length}`);
-    log(`Renewal failures by reason: ${describeTally(report.refresh.failedByCode)}`);
+    const refresh = report.refresh;
+    log(`Renewed at Strava: ${refresh.renewed.length}`);
+    log(`Renewal failures by reason: ${describeTally(refresh.failedByCode)}`);
+    if (refresh.noRefreshToken.length > 0) log(`Nothing to renew (no refresh token stored; not a failure): ${refresh.noRefreshToken.join(', ')}`);
+    if (refresh.mayHaveLost.length > 0) {
+      log(`MAY HAVE LOST THEIR STRAVA CONNECTION (Strava may have replaced the token without it being saved; they must reconnect): ${refresh.mayHaveLost.join(', ')}`);
+    }
+    if (refresh.stoppedBeforeAsking.length > 0) log(`Not asked because the run stopped early: ${refresh.stoppedBeforeAsking.join(', ')}`);
+  }
+  if (report.refresh && report.refresh.notAttempted.length > 0) {
+    log(
+      `${report.apply ? 'Not renewed' : 'Would not be renewed'} because of an error in the row: ${report.refresh.notAttempted.join(', ')}. Their old refresh token stays alive at Strava; ` +
+        'fix the row (or have the user reconnect) and run again with --apply --refresh-tokens.',
+    );
   }
   if (report.after) log(`After: ${describeCounts(report.after)}`);
   log(`Plaintext rows left: ${(report.after ?? report.before).plaintext}`);
@@ -409,7 +482,11 @@ function printSummary(report: BackfillReport, log: (line: string) => void): void
 export function exitCodeFor(report: BackfillReport): 0 | 1 {
   if (report.rows === 0 || report.interrupted) return 1;
   if (report.errors.length > 0 || report.conflicts.length > 0) return 1;
-  if (report.refresh && (report.refresh.failed.length > 0 || report.refresh.skippedForRateLimit.length > 0)) return 1;
+  // A connection with no refresh token (`noRefreshToken`) has nothing to renew and is not a reason to fail. Everything else left undone is.
+  if (report.refresh) {
+    const { failed, mayHaveLost, stoppedBeforeAsking, skippedForRateLimit } = report.refresh;
+    if (failed.length + mayHaveLost.length + stoppedBeforeAsking.length + skippedForRateLimit.length > 0) return 1;
+  }
   const after = report.after;
   if (after) {
     if (after.unrecognised > 0 || after.encryptedOtherKid > 0) return 1;
@@ -419,21 +496,52 @@ export function exitCodeFor(report: BackfillReport): 0 | 1 {
   return 0;
 }
 
+export interface CliDeps {
+  env: NodeJS.ProcessEnv;
+  host: string;
+  log: (line: string) => void;
+  signal?: AbortSignal;
+  /** Starts Sentry when SENTRY_DSN is set, so a `🚨 KRITISKT` line of the token path reaches Sentry as it does from the server. */
+  initSentry: () => boolean;
+  /** Sends what is queued before the process ends. */
+  flushSentry: () => Promise<boolean>;
+  registerRateBudget: () => void;
+}
+
+/** The whole run as the command line does it, returning the exit code. Sentry is flushed whatever happens. */
+export async function runCli(argv: string[], deps: CliDeps): Promise<0 | 1> {
+  const options = parseArgs(argv);
+  if (options.apply && options.refreshTokens) {
+    const missing = missingStravaCredentials(deps.env);
+    if (missing.length > 0) throw new BackfillAbort(`${missing.join(' and ')} must be set: without them no token can be renewed`);
+    deps.registerRateBudget(); // the shared budget hears every Strava answer of this run, a 429 included
+  }
+  deps.initSentry();
+  try {
+    const report = await runBackfill({ options, host: deps.host, log: deps.log, signal: deps.signal });
+    return exitCodeFor(report);
+  } finally {
+    await deps.flushSentry();
+  }
+}
+
 async function main() {
   await import('dotenv/config'); // only here: importing the module (tests) must not read .env
-  const options = parseArgs(process.argv.slice(2));
-  if (options.apply && options.refreshTokens) {
-    const missing = missingStravaCredentials(process.env);
-    if (missing.length > 0) throw new BackfillAbort(`${missing.join(' and ')} must be set: without them no token can be renewed`);
-    registerStravaRateBudget(); // the shared budget hears every Strava answer of this run, a 429 included
-  }
   const controller = new AbortController();
+  // The first Ctrl-C finishes the row in hand (and a renewal in hand, with its save). A second one ends the process at once.
   process.once('SIGINT', () => {
-    console.log('Interrupt received: finishing the row in hand, then stopping. Run again to finish.');
+    console.log('Interrupt received: finishing the row in hand, then stopping. Run again to finish. (A second Ctrl-C kills the process at once.)');
     controller.abort();
   });
-  const report = await runBackfill({ options, host: supabaseHost(), log: (line) => console.log(line), signal: controller.signal });
-  process.exitCode = exitCodeFor(report);
+  process.exitCode = await runCli(process.argv.slice(2), {
+    env: process.env,
+    host: supabaseHost(),
+    log: (line) => console.log(line),
+    signal: controller.signal,
+    initSentry: () => initSentry(),
+    flushSentry: () => flushSentry(),
+    registerRateBudget: () => void registerStravaRateBudget(),
+  });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

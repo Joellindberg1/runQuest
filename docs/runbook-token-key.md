@@ -141,7 +141,9 @@ rätt databas innan du fortsätter.
    Per rad: kryptera, bevisa i minnet, skriv med villkor på **båda** lagrade strängar (en tokenförnyelse som hann emellan skrivs aldrig över;
    raden visas som `CONFLICT` och tas vid omkörning), läs tillbaka och öppna. Raden räknas som klar först då. Ett fel på en rad stoppar
    inte de andra. Ctrl-C avslutar raden i händerna och stoppar; omkörning tar resten (skriptet är idempotent, en rad på aktiv nyckel
-   skrivs inte). Efter körningen läser skriptet om tabellen och skriver `After: ...` och `Plaintext rows left: N`. Sista raden är
+   skrivs inte). **Tryck bara Ctrl-C en gång.** Ett andra Ctrl-C dödar processen direkt; sker det mitt i en förnyelse (efter att Strava
+   svarat, före att den nya token sparats) kan användarens token vara ersatt hos Strava utan att vi har den nya, och användaren måste
+   koppla om. En enskild rads skrivning är atomär och en avbruten `--apply` är därför alltid säker att köra om. Efter körningen läser skriptet om tabellen och skriver `After: ...` och `Plaintext rows left: N`. Sista raden är
    `Done: every token row is encrypted under key <kid>` när allt är rent, annars `Not done: ...` och utgångskod 1: kör om tills det står
    `Done`. En rad märkt `replaced by a newer save` är inget fel (en förnyelse sparade nya tokens strax efter skrivningen).
 
@@ -151,13 +153,31 @@ rätt databas innan du fortsätter.
    railway run --service runQuest-backend -- npm run backfill:strava-token-encryption --workspace=@runquest/backend -- --apply --refresh-tokens
    ```
 
-   Ett anrop till Stravas token-endpoint per kopplad användare (sex i dag), genom samma tokenväg och samma delade ratebudget som övrig
-   Strava-kod; skriptet stannar och säger vilka som återstår om budgeten är slut (kör om senare). De nya tokens sparas krypterade, och de
-   gamla (i äldre databasbackuper och Postgres-historik) blir värdelösa hos Strava. Används vid misstänkt läcka (avsnitt 6) och när klartexten
-   funnits i en backup som ska göras ofarlig. `STRAVA_CLIENT_ID` och `STRAVA_CLIENT_SECRET` måste finnas i tjänstens miljö. Utan `--apply`
-   anropas ingen Strava: dry-run skriver bara ut hur många anrop som skulle göras.
-   Felskälen per användare: `refresh_rejected` (användaren har återkallat behörigheten: de måste koppla om), `refresh_failed` (nätverk, 5xx
-   eller 429: kör om), `no_refresh_token`, `token_unreadable`.
+   Ett anrop till Stravas token-endpoint per kopplad användare (sex i dag), genom samma tokenväg som övrig Strava-kod. De nya tokens sparas
+   krypterade, och de gamla (i äldre databasbackuper och Postgres-historik) blir värdelösa hos Strava. Används vid misstänkt läcka (avsnitt 6)
+   och när klartexten funnits i en backup som ska göras ofarlig. `STRAVA_CLIENT_ID` och `STRAVA_CLIENT_SECRET` måste finnas i tjänstens
+   miljö. Utan `--apply` anropas ingen Strava: dry-run skriver bara ut hur många anrop som skulle göras.
+
+   **Ratebudgeten är delad i kodvägen, inte mellan processer.** Skriptet frågar samma budget som resten av backend (`isOverSoftLimit()` före
+   varje anrop; en 429 stoppar det), men budgeten är minne i den process som kör: skriptet är en egen process och ser inte hur mycket den
+   körande servern har använt, och servern ser inte skriptets anrop. Sex anrop är försumbart mot gränsen; kör ändå inte `--refresh-tokens`
+   mitt i en tung synk eller en bakgrundskörning, och kör om senare om skriptet säger att budgeten är slut (det listar vilka som återstår).
+
+   Utfall per användare i rapporten:
+   - `refresh_rejected`: användaren har återkallat behörigheten hos Strava och måste koppla om.
+   - `refresh_failed`: Strava eller nätverket svarade inte som väntat. **Det är inte alltid "kör om".** Svarade Strava med ett fel (5xx, 429)
+     har inget ersatts hos Strava och det är säkert att köra om. Men har Strava kanske redan ersatt refresh-token utan att vi fick eller kunde
+     spara den nya (svaret förlorades, var oanvändbart, eller sparandet misslyckades) skriver skriptet `STRAVA MAY HAVE REPLACED THIS USER'S
+     REFRESH TOKEN WITHOUT IT BEING SAVED`: den användaren har kanske tappat kopplingen och måste koppla om Strava (avsnitt 7 punkt 3).
+     Leta i loggen efter `🚨 KRITISKT: kunde inte spara roterad Strava-token` för användaren (den blir en `fatal`-händelse i Sentry med
+     `source:token_write`; skriptet startar Sentry om `SENTRY_DSN` finns i miljön) eller en `Token refresh`-felrad.
+   - **Skriptet stannar** vid första sådana användare (samma orsak, till exempel en databas som inte tar emot skrivningar, skulle annars
+     förlora nästa användares token också) och efter två misslyckade förnyelser i rad (då är det Strava eller nätverket). De som inte hann
+     frågas listas under `Not asked because the run stopped early`; åtgärda orsaken och kör om.
+   - `no_refresh_token`: raden har ingen refresh-token, alltså inget att förnya. Redovisas som `Nothing to renew` och är inget fel.
+   - `token_unreadable`: raden går inte att läsa (avsnitt 7 och 9).
+   - Rader som fick ett fel i krypteringssteget (`Not renewed because of an error in the row`) frågas inte hos Strava. Deras gamla
+     refresh-token lever kvar tills raden är lagad och förnyelsen körd (avsnitt 6).
 
 4. **Verifiera via hälsoblocket** (avsnitt 4, `GET /api/strava/webhook/health`, admin): `configured: true`, `plaintext_rows: 0`,
    `unrecognised_rows: 0`, `rows_on_other_kid: 0` (efter en rotation), `unreadable_since_start` står still. Blocket klassar efter form och
@@ -192,7 +212,11 @@ nyckel tillsammans med en läckt databas, dump eller backup ger tokens i klartex
 2. **Gör de gamla tokens värdelösa**: kör backfillen med `--apply --refresh-tokens` (avsnitt 5a; ADR 013 beslut 7 och Ö4). Strava ger då
    nya tokens och den gamla refresh-token slutar gälla, så en läckt nyckel plus gammal chiffertext ger bara döda tokens. Räcker inte
    Stravas gräns (skriptet stannar och säger vilka som återstår) körs det om senare; alternativet är att de anslutna användarna kopplar
-   bort och kopplar om Strava, vilket också ger nya tokens.
+   bort och kopplar om Strava, vilket också ger nya tokens. **Läs slutet av rapporten:** en rad som fick ett fel i krypteringssteget
+   (`Not renewed because of an error in the row`, till exempel en oläsbar eller flyttad chiffertext) frågas inte hos Strava, så **den
+   användarens gamla refresh-token lever kvar** och är inte gjord värdelös. Lägg dem på att lagas (avsnitt 7) eller be dem koppla om
+   Strava; en användare som inte får en ny token är fortfarande exponerad. Det gäller också de som skriptet inte hann fråga innan det
+   stoppade (`Not asked because the run stopped early`) och de som budgeten stoppade.
 3. **Anmäl till Strava inom 24 timmar** om en API-token kan ha nåtts. Värsta-fallsantagandet ovan gäller här: så länge det inte är
    uteslutet att databasen, en dump eller en backup också har nåtts räknas det som att Stravas tokens kan ha nåtts, och anmälan görs. Den
    kan bara utebli när det är visat att ingen kopia av chiffertexten har lämnat Supabase och Railway. Avtalet säger "snarast"; vänta därför inte på
