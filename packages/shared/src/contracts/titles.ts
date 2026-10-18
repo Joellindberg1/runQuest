@@ -9,7 +9,8 @@ export interface TitleStanding {
   user_id: string;
   user_name: string;
   user_gender?: string | null;
-  profile_picture?: string;
+  /** Databasen ger null för den som saknar profilbild. */
+  profile_picture?: string | null;
   value: number;
   earned_at: string;
 }

@@ -7,6 +7,8 @@ import { supabase } from '../config/database';
 import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { errorCode } from '../utils/errorCode.js';
+import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
+import type { TitleLeaderboardResponse, UserTitlesResponse } from '@runquest/shared';
 
 const router = express.Router();
 
@@ -40,15 +42,24 @@ router.get('/', authenticateJWT, async (_req, res) => {
 
 /**
  * GET /api/titles/leaderboard
- * Returns optimized title leaderboard with holders and runners-up
+ * Returns the title catalog with the caller's group as holders and runners-up (ADR 012 beslut 5.1).
+ * A caller without a group gets an empty list (ADR 007 A6, fail-closed).
  */
-router.get('/leaderboard', authenticateJWT, async (_req, res) => {
+router.get('/leaderboard', authenticateJWT, async (req, res) => {
   try {
+    const emptyBody: TitleLeaderboardResponse = {
+      success: true,
+      data: [],
+      meta: { total_titles: 0, timestamp: new Date().toISOString(), cache_optimized: true },
+    };
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
+
     logger.info('📊 API: Fetching title leaderboard...');
-    
-    const leaderboard = await titleLeaderboardService.getTitleLeaderboard();
-    
-    res.json({
+
+    const leaderboard = await titleLeaderboardService.getTitleLeaderboard(groupId);
+
+    const body: TitleLeaderboardResponse = {
       success: true,
       data: leaderboard,
       meta: {
@@ -56,7 +67,8 @@ router.get('/leaderboard', authenticateJWT, async (_req, res) => {
         timestamp: new Date().toISOString(),
         cache_optimized: true
       }
-    });
+    };
+    res.json(body);
     
   } catch (error) {
     logger.error(`❌ API Error in /titles/leaderboard (${errorCode(error)})`);
@@ -69,16 +81,30 @@ router.get('/leaderboard', authenticateJWT, async (_req, res) => {
 
 /**
  * GET /api/titles/user/:userId
- * Returns titles for a specific user with their rankings
+ * Returns titles for a user in the caller's group with their rankings in the group (ADR 012 beslut 5.2).
+ * 404 for a user outside the caller's group, with the same answer as for a user that does not exist, so the answer never reveals
+ * who exists in another group. A caller without a group gets an empty list (ADR 007 A6, fail-closed).
  */
 router.get('/user/:userId', authenticateJWT, async (req, res) => {
   try {
     const { userId } = req.params;
+    const emptyBody: UserTitlesResponse = {
+      success: true,
+      data: [],
+      meta: { user_id: userId, total_titles: 0, current_holder_count: 0, timestamp: new Date().toISOString() },
+    };
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
+
     logger.info(`📊 API: Fetching titles for user ${userId}...`);
-    
-    const userTitles = await titleLeaderboardService.getUserTitles(userId);
-    
-    res.json({
+
+    const userTitles = await titleLeaderboardService.getUserTitles(groupId, userId);
+    if (!userTitles) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    const body: UserTitlesResponse = {
       success: true,
       data: userTitles,
       meta: {
@@ -87,7 +113,8 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
         current_holder_count: userTitles.filter(t => t.is_current_holder).length,
         timestamp: new Date().toISOString()
       }
-    });
+    };
+    res.json(body);
     
   } catch (error) {
     logger.error(`❌ API Error in /titles/user/:userId (${errorCode(error)})`);
@@ -100,13 +127,16 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
 
 /**
  * POST /api/titles/populate
- * Manually populate title leaderboards from user data (admin only)
+ * Manually populate the title leaderboards of the admin's own group from user data (admin only; never other groups, ADR 012 beslut 4.3)
  */
-router.post('/populate', authenticateJWT, requireAdmin, async (_req, res) => {
+router.post('/populate', authenticateJWT, requireAdmin, async (req, res) => {
   try {
+    const groupId = groupIdOrRespondForbidden(req, res);
+    if (!groupId) return;
+
     logger.info('🔄 API: Manual title leaderboard population requested...');
-    
-    await titleLeaderboardService.populateTitleLeaderboard();
+
+    await titleLeaderboardService.populateTitleLeaderboard(groupId);
     
     res.status(200).json({
       success: true,
@@ -124,13 +154,16 @@ router.post('/populate', authenticateJWT, requireAdmin, async (_req, res) => {
 
 /**
  * POST /api/titles/refresh
- * Refresh title leaderboards - can be called automatically when data changes
+ * Refresh the title leaderboards of the admin's own group (admin only; never other groups, ADR 012 beslut 4.3)
  */
-router.post('/refresh', authenticateJWT, requireAdmin, async (_req, res) => {
+router.post('/refresh', authenticateJWT, requireAdmin, async (req, res) => {
   try {
+    const groupId = groupIdOrRespondForbidden(req, res);
+    if (!groupId) return;
+
     logger.info('🔄 API: Title leaderboard refresh requested...');
-    
-    await titleLeaderboardService.populateTitleLeaderboard();
+
+    await titleLeaderboardService.populateTitleLeaderboard(groupId);
     
     res.status(200).json({
       success: true,

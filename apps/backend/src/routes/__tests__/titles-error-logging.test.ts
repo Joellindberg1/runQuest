@@ -43,12 +43,12 @@ const logged = () => spies.flatMap((s) => s.mock.calls).map((args: unknown[]) =>
 const loggedObjects = () => spies.flatMap((s) => s.mock.calls).flat().filter((a: unknown) => a !== null && typeof a === 'object');
 
 const isAdminLookup = (q: RecordedQuery) => q.table === 'users' && q.select === 'is_admin';
-const tables = (): Record<string, Row[]> => ({ users: [{ id: 'admin-1', is_admin: true, group_id: 'g1' }], titles: [], title_leaderboard_view: [], user_titles: [] });
+const tables = (): Record<string, Row[]> => ({ users: [{ id: 'admin-1', is_admin: true, group_id: 'g1' }], titles: [], title_leaderboard_view: [], user_titles: [], group_members: [{ user_id: 'u2', group_id: 'g1', role: 'member', left_at: null }] });
 
 function useDb(fails: (q: RecordedQuery) => boolean, failure: () => unknown, rpcFails = false) {
   const db = createFakeDb(tables(), {
     failWhen: (q) => (!isAdminLookup(q) && fails(q) ? (failure() as { message: string }) : null),
-    ...(rpcFails ? { rpc: { update_all_title_leaderboards: () => ({ error: dbError() }) } } : {}),
+    ...(rpcFails ? { rpc: { update_group_title_leaderboards: () => ({ error: dbError() }) } } : {}),
   });
   holder.client = db.client;
 }
