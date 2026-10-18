@@ -19,6 +19,7 @@ import {
   type UserSummary,
 } from '../services/challengeHistory.js';
 import type { ChallengeGroupHistoryApiResponse, HeadToHeadApiResponse } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -150,7 +151,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
       },
     });
   } catch (err) {
-    logger.error('❌ Error fetching challenges:', err);
+    logger.error(`❌ Error fetching challenges (${errorCode(err)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -273,7 +274,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (challengeError || !challenge) {
-      logger.error('❌ Failed to create challenge:', challengeError);
+      logger.error(`❌ Failed to create challenge (${errorCode(challengeError)})`);
       res.status(500).json({ error: 'Failed to create challenge' }); return;
     }
 
@@ -285,9 +286,9 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
 
     if (tokenError) {
       // Utmaningen utan markerad token är ett halvt utskick (token kan skickas igen): ta bort den nyss skapade raden.
-      logger.error('❌ Failed to mark token as sent:', tokenError);
+      logger.error(`❌ Failed to mark token as sent (${errorCode(tokenError)})`);
       const { error: rollbackError } = await supabase.from('challenges').delete().eq('id', challenge.id);
-      if (rollbackError) logger.error(`❌ Could not roll back challenge ${challenge.id} after failed token update:`, rollbackError);
+      if (rollbackError) logger.error(`❌ Could not roll back challenge ${challenge.id} after failed token update (${errorCode(rollbackError)})`);
       res.status(500).json({ error: 'Failed to send challenge' }); return;
     }
 
@@ -309,7 +310,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
 
     res.status(201).json({ success: true, data: { challenge_id: challenge.id } });
   } catch (err) {
-    logger.error('❌ Error sending challenge:', err);
+    logger.error(`❌ Error sending challenge (${errorCode(err)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -349,12 +350,12 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       const restoreError = await restoreAfterDecline(supabase, id, challenge.challenger_id, challenge.opponent_id);
       if (restoreError) {
         // Utmaningen raderas inte med en token som fortfarande pekar på den; båda stegen är idempotenta, så klienten kan försöka igen.
-        logger.error(`❌ Failed to restore token/challenge_active for declined challenge ${id}:`, restoreError);
+        logger.error(`❌ Failed to restore token/challenge_active for declined challenge ${id} (${errorCode(restoreError)})`);
         res.status(500).json({ error: 'Failed to decline challenge' }); return;
       }
       const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
       // Raden i flödet tas bara bort om utmaningen faktiskt raderades — annars visar flödet en utmaning som finns.
-      if (deleteError) logger.error(`❌ Failed to delete declined challenge ${id}:`, deleteError);
+      if (deleteError) logger.error(`❌ Failed to delete declined challenge ${id} (${errorCode(deleteError)})`);
       else await retractChallengeReceived(id);
 
       logger.info(`❌ Challenge ${id} declined by ${userId} — token restored to challenger`);
@@ -377,7 +378,7 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       .eq('status', 'pending')
       .select('id');
     if (activateError) {
-      logger.error(`❌ Failed to activate challenge ${id}:`, activateError);
+      logger.error(`❌ Failed to activate challenge ${id} (${errorCode(activateError)})`);
       res.status(500).json({ error: 'Failed to accept challenge' }); return;
     }
     // supabase-js ger alltid en array efter .select() utan fel; en tom array = ingen rad aktiverades.
@@ -390,12 +391,12 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       .update({ challenge_active: true })
       .in('id', [challenge.challenger_id, challenge.opponent_id]);
     if (flagError) {
-      logger.error(`❌ Failed to set challenge_active for challenge ${id}:`, flagError);
+      logger.error(`❌ Failed to set challenge_active for challenge ${id} (${errorCode(flagError)})`);
       const { error: revertError } = await supabase
         .from('challenges')
         .update({ status: 'pending', start_date: null, end_date: null, determine_at: null })
         .eq('id', id);
-      if (revertError) logger.error(`❌ Could not revert activation of challenge ${id}:`, revertError);
+      if (revertError) logger.error(`❌ Could not revert activation of challenge ${id} (${errorCode(revertError)})`);
       res.status(500).json({ error: 'Failed to accept challenge' }); return;
     }
 
@@ -406,7 +407,7 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
 
     res.json({ success: true, message: 'Challenge accepted', data: { start_date: startDate, end_date: endDate } });
   } catch (err) {
-    logger.error('❌ Error responding to challenge:', err);
+    logger.error(`❌ Error responding to challenge (${errorCode(err)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -437,17 +438,17 @@ router.put('/:id/withdraw', authenticateJWT, async (req, res): Promise<void> => 
 
     const restoreError = await restoreAfterDecline(supabase, id, challenge.challenger_id, challenge.opponent_id);
     if (restoreError) {
-      logger.error(`❌ Failed to restore token/challenge_active for withdrawn challenge ${id}:`, restoreError);
+      logger.error(`❌ Failed to restore token/challenge_active for withdrawn challenge ${id} (${errorCode(restoreError)})`);
       res.status(500).json({ error: 'Failed to withdraw challenge' }); return;
     }
     const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
-    if (deleteError) logger.error(`❌ Failed to delete withdrawn challenge ${id}:`, deleteError);
+    if (deleteError) logger.error(`❌ Failed to delete withdrawn challenge ${id} (${errorCode(deleteError)})`);
     else await retractChallengeReceived(id);
 
     logger.info(`↩️ Challenge ${id} withdrawn by challenger ${userId} — token restored`);
     res.json({ success: true, message: 'Challenge withdrawn' });
   } catch (err) {
-    logger.error('❌ Error withdrawing challenge:', err);
+    logger.error(`❌ Error withdrawing challenge (${errorCode(err)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -503,7 +504,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
     };
     res.json(body);
   } catch (err) {
-    logger.error('❌ Error fetching challenge group history:', err);
+    logger.error(`❌ Error fetching challenge group history (${errorCode(err)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -579,7 +580,7 @@ router.get('/head-to-head/:userId', authenticateJWT, async (req, res): Promise<v
     };
     res.json(body);
   } catch (err) {
-    logger.error('❌ Error fetching head-to-head:', err);
+    logger.error(`❌ Error fetching head-to-head (${errorCode(err)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -612,7 +613,7 @@ router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => 
       try {
         await settleChallenge(id);
       } catch (settleError) {
-        logger.error(`❌ Auto-settle of challenge ${id} failed:`, settleError);
+        logger.error(`❌ Auto-settle of challenge ${id} failed (${errorCode(settleError)})`);
       }
     }
 
@@ -629,7 +630,7 @@ router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => 
       },
     });
   } catch (err) {
-    logger.error('❌ Error fetching challenge progress:', err);
+    logger.error(`❌ Error fetching challenge progress (${errorCode(err)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -657,7 +658,7 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
     ]);
 
     if (error) {
-      logger.error('❌ Error fetching group stats:', error);
+      logger.error(`❌ Error fetching group stats (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to fetch group stats' }); return;
     }
 
@@ -694,7 +695,7 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
 
     res.json({ success: true, data: stats });
   } catch (err) {
-    logger.error('❌ Error fetching group stats:', err);
+    logger.error(`❌ Error fetching group stats (${errorCode(err)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
