@@ -711,5 +711,44 @@ describe('evaluateBadges — säkerhetsgräns i sid-loopen', () => {
     expect(ranges).toHaveLength(MAX_RUNS_PAGES);
     expect(mutations).toEqual([]);
     expect(errorSpy).toHaveBeenCalled();
+    expect(String(errorSpy.mock.calls[0][0])).toContain('(page_limit_reached)');
+  });
+});
+
+describe('evaluateBadges — the code of a failed read reaches the log (BadgeReadError.code)', () => {
+  const loggedLine = () => String(errorSpy.mock.calls[0]?.[0]);
+
+  it('a failed read of the runs logs the database code, not the class name', async () => {
+    setup({}, { failWhen: (q) => (q.table === 'runs' ? { message: 'row 987654 leaked', code: '57014' } : null) });
+
+    expect(await evaluateBadges(USER, { now: NOW })).toBeNull();
+
+    expect(loggedLine()).toContain('(57014)');
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('987654');
+  });
+
+  it('a failed read of users.longest_streak logs the database code', async () => {
+    setup({}, { failWhen: (q) => (q.table === 'users' && !q.mutation ? { message: 'boom', code: '42501' } : null) });
+
+    expect(await evaluateBadges(USER, { now: NOW })).toBeNull();
+
+    expect(loggedLine()).toContain('(42501)');
+  });
+
+  it('a user that does not exist logs the PGRST116 of .single()', async () => {
+    setup({ users: [] });
+
+    expect(await evaluateBadges(USER, { now: NOW })).toBeNull();
+
+    expect(loggedLine()).toContain('(PGRST116)');
+  });
+
+  it('a broken connection (supabase-js code "") logs the network cause', async () => {
+    const networkError = { message: 'TypeError: fetch failed', details: 'Caused by: Error: read ECONNRESET (ECONNRESET)', hint: '', code: '' };
+    setup({}, { failWhen: (q) => (q.table === 'runs' ? networkError : null) });
+
+    expect(await evaluateBadges(USER, { now: NOW })).toBeNull();
+
+    expect(loggedLine()).toContain('(ECONNRESET)');
   });
 });

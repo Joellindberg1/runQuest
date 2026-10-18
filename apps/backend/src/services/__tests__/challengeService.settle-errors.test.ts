@@ -22,6 +22,7 @@ vi.mock('@runquest/shared', async (importOriginal) => {
 import { detectRankPasses } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
+import { errorCode } from '../../utils/errorCode.js';
 import { settleChallenge } from '../challengeService.js';
 import { recordRankPassesForChallenge } from '../rankNews.js';
 import { createFakeDb, type Row, type RecordedQuery } from '../../routes/__tests__/helpers/fakeDb.js';
@@ -130,6 +131,24 @@ describe('settleChallenge — fel efter claim', () => {
 
       await expect(settleChallenge('c1')).rejects.toMatchObject({ code: '40001', message: expect.stringContaining('Failed to create boosts for challenge c1') });
       expect(vi.mocked(logger.error).mock.calls.some((c: unknown[]) => /KRITISK/.test(String(c[0])))).toBe(true);
+    });
+
+    it('the thrown error carries the boost insert code when the claim was released (will be retried)', async () => {
+      use(baseTables(), (q) => (q.table === 'user_boosts' && q.mutation === 'insert' ? fail('boost insert failed: secret', '40001') : null));
+
+      const failure = await settleChallenge('c1').catch((error: Error) => error);
+
+      expect(errorCode(failure)).toBe('40001');
+      expect((failure as Error).message).toBe('Failed to create boosts for challenge c1 (claim released, will be retried)');
+    });
+
+    it('the thrown error carries the boost insert code, not the release code, when the claim could not be released either', async () => {
+      use(baseTables(), bothFail);
+
+      const failure = await settleChallenge('c1').catch((error: Error) => error);
+
+      expect(errorCode(failure)).toBe('40001');
+      expect((failure as Error).message).toBe('Failed to create boosts for challenge c1 (the claim could not be released either; challenge stays completed without boosts)');
     });
 
     it('a released claim (only the boost insert fails) logs no KRITISK line and leaves challenge_active alone', async () => {
