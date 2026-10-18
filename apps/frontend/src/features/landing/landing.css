@@ -114,6 +114,13 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
 .rq-landing-stat[data-stat="km"] .rq-landing-stat__value { min-width: 5.5ch; }
 .rq-landing-stat[data-stat="runners"] .rq-landing-stat__value,
 .rq-landing-stat[data-stat="challenges"] .rq-landing-stat__value { min-width: 3ch; }
+/* Etiketten byter form mellan ental och plural ("1 runner" / "6 runners"). Ett osynligt, höjdlöst pseudoelement med pluralformen (samma typsnitt, versaler och
+   teckenavstånd som etiketten, så bredden är exakt) håller postens bredd. Utanför tillgänglighetsträdet och textinnehållet (visibility: hidden). guards.test.ts
+   kräver att texten är modellens plural. */
+.rq-landing-stat[data-stat="runners"] .rq-landing-stat__label::after,
+.rq-landing-stat[data-stat="challenges"] .rq-landing-stat__label::after { display: block; height: 0; overflow: hidden; visibility: hidden; }
+.rq-landing-stat[data-stat="runners"] .rq-landing-stat__label::after { content: "runners"; }
+.rq-landing-stat[data-stat="challenges"] .rq-landing-stat__label::after { content: "challenges"; }
 /* Vid fel står raden kvar som en tom remsa (ägarbeslut B): samma höjd, inget syns. aria-hidden sätts av komponenten i samma läge. */
 .rq-landing-stats[aria-hidden="true"] { visibility: hidden; }
 
