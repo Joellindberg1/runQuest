@@ -45,6 +45,11 @@
 --     P0002  join_group: user_not_found | group_not_found | create_group_with_admin: owner_not_found   (API: 404)
 --     22023  join_group: invalid_role | create_group_with_admin: name_required | invite_code_required   (ogiltig indata)
 --     22004  join_group: today_required (senare medlemskap utan p_today) | create_group_with_admin: owner_required
+--   OBS för medlemskapslagret (S5): vid ett race mellan två samtidiga anrop kan 23505 komma från indexet eller unika nyckeln i stället för
+--   från funktionens egen kontroll, då med Postgres eget meddelande och constraint-namnet satt. Mappa därför 23505 OCKSÅ på constraint-
+--   namnen group_members_one_active_per_user (-> already_member, 409), group_members_one_admin_per_group (-> group_has_admin, 409) och
+--   groups_invite_code_key (-> inbjudningskoden används, 409), inte bara på meddelandetexten. DETAIL för groups_invite_code_key innehåller
+--   själva inbjudningskoden ("Key (invite_code)=(...) already exists"): den får inte loggas eller skickas till klienten.
 --   Säkerhetsläge INVOKER är medvetet (som claim_strava_webhook_events, 046): service_role kringgår RLS ändå, så en definer-funktion
 --   skulle bara kunna HÖJA rättigheterna om en grant någonsin gled. Execute dras in från public, anon och authenticated och ges bara
 --   till service_role (ADR 012; docs/permissions.md).

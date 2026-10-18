@@ -132,10 +132,23 @@ describe('join_group (ADR 012 beslut 2.2 och 2.3)', () => {
   });
 
   it('avvisar okänd användare och grupp, ogiltig roll och en andra admin med tydliga fel', () => {
-    expect(joinBody).toMatch(/raise exception 'join_group: user_not_found' using errcode = 'p0002'/);
-    expect(joinBody).toMatch(/raise exception 'join_group: group_not_found' using errcode = 'p0002'/);
-    expect(joinBody).toMatch(/p_role is null or p_role not in \('admin', 'member'\) then raise exception 'join_group: invalid_role' using errcode = '22023'/);
-    expect(joinBody).toMatch(/raise exception 'join_group: group_has_admin' using errcode = '23505'/);
+    // Varje låsning följs direkt av sin "if not found then raise", annars blir en okänd användare eller grupp tyst.
+    expect(joinBody).toMatch(
+      /perform 1 from public\.users where id = p_user_id for update; if not found then raise exception 'join_group: user_not_found' using errcode = 'p0002'; end if;/,
+    );
+    expect(joinBody).toMatch(
+      /perform 1 from public\.groups where id = p_group_id for key share; if not found then raise exception 'join_group: group_not_found' using errcode = 'p0002'; end if;/,
+    );
+    expect(joinBody).toMatch(
+      /^begin if p_user_id is null or p_group_id is null then raise exception 'join_group: user_and_group_required' using errcode = '22004'; end if;/,
+    );
+    expect(joinBody).toMatch(
+      /if p_role is null or p_role not in \('admin', 'member'\) then raise exception 'join_group: invalid_role' using errcode = '22023'; end if;/,
+    );
+    // En andra admin: villkoret (roll admin OCH gruppen har redan en aktiv admin) hör ihop med sin raise.
+    expect(joinBody).toMatch(
+      /if p_role = 'admin' and exists \(select 1 from public\.group_members where group_id = p_group_id and role = 'admin' and left_at is null\) then raise exception 'join_group: group_has_admin' using errcode = '23505'; end if;/,
+    );
   });
 
   it('starts_on blir null för första medlemskapet och p_today för varje senare; p_today saknas ger fel i stället för null', () => {
@@ -158,11 +171,12 @@ describe('join_group (ADR 012 beslut 2.2 och 2.3)', () => {
 
 describe('create_group_with_admin (ADR 012 beslut 2.2)', () => {
   it('kräver namn, inbjudningskod och ägare och avvisar okänd ägare', () => {
-    expect(createBody).toMatch(/p_name is null or btrim\(p_name\) = '' then raise exception 'create_group_with_admin: name_required' using errcode = '22023'/);
-    expect(createBody).toMatch(/p_invite_code is null or btrim\(p_invite_code\) = '' then raise exception 'create_group_with_admin: invite_code_required' using errcode = '22023'/);
-    expect(createBody).toMatch(/p_owner_id is null then raise exception 'create_group_with_admin: owner_required' using errcode = '22004'/);
-    expect(createBody).toMatch(/perform 1 from public\.users where id = p_owner_id for update;/);
-    expect(createBody).toMatch(/raise exception 'create_group_with_admin: owner_not_found' using errcode = 'p0002'/);
+    expect(createBody).toMatch(/if p_name is null or btrim\(p_name\) = '' then raise exception 'create_group_with_admin: name_required' using errcode = '22023'; end if;/);
+    expect(createBody).toMatch(/if p_invite_code is null or btrim\(p_invite_code\) = '' then raise exception 'create_group_with_admin: invite_code_required' using errcode = '22023'; end if;/);
+    expect(createBody).toMatch(/if p_owner_id is null then raise exception 'create_group_with_admin: owner_required' using errcode = '22004'; end if;/);
+    expect(createBody).toMatch(
+      /perform 1 from public\.users where id = p_owner_id for update; if not found then raise exception 'create_group_with_admin: owner_not_found' using errcode = 'p0002'; end if;/,
+    );
   });
 
   it('skapar gruppen med owner_id och ger skaparen rollen admin via join_group (som sätter pekaren)', () => {
@@ -179,16 +193,27 @@ describe('create_group_with_admin (ADR 012 beslut 2.2)', () => {
 describe('förkontroll och backfill (ADR 012 beslut 3, N5)', () => {
   it('förkontrollen stoppar migrationen vid flera grupper, grupplösa användare eller oklar admin', () => {
     expect(preflight).not.toBe('');
-    expect(preflightBody).toMatch(/raise exception 'migration 053 stopped: % groups have members, expected exactly 1/);
-    expect(preflightBody).toMatch(/raise exception 'migration 053 stopped: % users have no group/);
-    expect(preflightBody).toMatch(/raise exception 'migration 053 stopped: group % has no unambiguous admin/);
-    // Räknar bara användare med grupp resp. utan grupp, och väljer admin på ägaren först, annars den enda is_admin i gruppen.
-    expect(preflightBody).toMatch(/count\(distinct group_id\) into v_groups from public\.users where group_id is not null/);
-    expect(preflightBody).toMatch(/count\(\*\) into v_ungrouped from public\.users where group_id is null/);
-    expect(preflightBody).toMatch(/o\.id = g\.owner_id and o\.group_id = g\.id/);
-    expect(preflightBody).toMatch(/coalesce\(a\.is_admin, false\)/);
-    // Stoppen gäller första körningen (tom group_members); en omkörning efter att fler grupper eller ett supportkonto tillkommit fäller inte.
+    // Varje villkor är fäst tillsammans med sin raise, så att ett ändrat villkor (if false, fel jämförelse) fäller testet.
+    expect(preflightBody).toMatch(
+      /if v_groups > 1 then raise exception 'migration 053 stopped: % groups have members, expected exactly 1 [^']*', v_groups; end if;/,
+    );
+    expect(preflightBody).toMatch(
+      /if v_ungrouped > 0 then select string_agg\(x\.id::text, ', ' order by x\.id\) into v_ungrouped_ids from \(select id from public\.users where group_id is null order by id limit 10\) x; raise exception 'migration 053 stopped: % users have no group [^']*', v_ungrouped, v_ungrouped_ids; end if;/,
+    );
+    expect(preflightBody).toMatch(
+      /if not r\.owner_is_member and r\.admin_flags <> 1 then raise exception 'migration 053 stopped: group % has no unambiguous admin [^']*', r\.group_id, coalesce\(r\.owner_id::text, 'null'\), r\.admin_flags; end if;/,
+    );
+    // Räknar bara användare med grupp resp. utan grupp.
+    expect(preflightBody).toMatch(/select count\(distinct group_id\) into v_groups from public\.users where group_id is not null;/);
+    expect(preflightBody).toMatch(/select count\(\*\) into v_ungrouped from public\.users where group_id is null;/);
+    // Admin-urvalet: ägaren räknas bara om den är medlem i just den gruppen, annars måste gruppen ha exakt en is_admin-medlem;
+    // bara grupper med medlemmar och utan aktiv admin prövas.
+    expect(preflightBody).toMatch(
+      /exists \(select 1 from public\.users o where o\.id = g\.owner_id and o\.group_id = g\.id\) as owner_is_member, \(select count\(\*\) from public\.users a where a\.group_id = g\.id and coalesce\(a\.is_admin, false\)\) as admin_flags from public\.groups g where exists \(select 1 from public\.users u where u\.group_id = g\.id\) and not exists \(select 1 from public\.group_members m where m\.group_id = g\.id and m\.role = 'admin' and m\.left_at is null\) loop/,
+    );
+    // Stoppen 1 och 2 gäller första körningen (tom group_members); en omkörning efter att fler grupper eller ett supportkonto tillkommit fäller inte.
     expect(preflightBody).toMatch(/v_first_run := not exists \(select 1 from public\.group_members\);/);
+    expect(preflightBody).toMatch(/if v_first_run then select count\(distinct group_id\) into v_groups .*? end if; end if; for r in /);
   });
 
   it('förkontrollen raderar eller ändrar ingenting och stoppar före backfillen', () => {
@@ -206,17 +231,22 @@ describe('förkontroll och backfill (ADR 012 beslut 3, N5)', () => {
     expect(backfill).toMatch(/where u\.group_id is not null and not exists \(select 1 from public\.group_members m where m\.user_id = u\.id and m\.left_at is null\)$/);
     expect(backfill).toMatch(/case when ap\.admin_id = u\.id then 'admin' else 'member' end/);
     // Ägaren gäller bara om den är medlem i gruppen; annars den enda is_admin-användaren i gruppen.
-    expect(backfill).toMatch(/\(select o\.id from public\.users o where o\.id = g\.owner_id and o\.group_id = g\.id\)/);
-    expect(backfill).toMatch(/\(select \(array_agg\(a\.id order by a\.id\)\)\[1\] from public\.users a where a\.group_id = g\.id and coalesce\(a\.is_admin, false\)\)/);
+    // Ordningen är ett beslut: ägaren först, is_admin-användaren bara som reserv. Båda leden i EN coalesce, i den ordningen.
+    expect(backfill).toMatch(
+      /coalesce\(\(select o\.id from public\.users o where o\.id = g\.owner_id and o\.group_id = g\.id\), \(select \(array_agg\(a\.id order by a\.id\)\)\[1\] from public\.users a where a\.group_id = g\.id and coalesce\(a\.is_admin, false\)\)\) as admin_id/,
+    );
     // Grupper som redan har en aktiv admin får inget admin_pick, så en omkörning lägger bara till medlemmar.
     expect(backfill).toMatch(/not exists \(select 1 from public\.group_members m where m\.group_id = g\.id and m\.role = 'admin' and m\.left_at is null\)/);
   });
 
   it('slutkontroll i migrationen: varje användare med grupp har ett aktivt medlemskap i samma grupp och varje grupp med medlemmar exakt en admin', () => {
     const check = normalize(postcheck);
-    expect(check).toMatch(/raise exception 'migration 053 failed: % users have no active membership in their group/);
-    expect(check).toMatch(/m\.group_id = u\.group_id/);
-    expect(check).toMatch(/raise exception 'migration 053 failed: % groups with members have no active admin/);
+    expect(check).toMatch(
+      /select count\(\*\) into v_missing from public\.users u where u\.group_id is not null and not exists \(select 1 from public\.group_members m where m\.user_id = u\.id and m\.group_id = u\.group_id and m\.left_at is null\); if v_missing > 0 then raise exception 'migration 053 failed: % users have no active membership in their group [^']*', v_missing; end if;/,
+    );
+    expect(check).toMatch(
+      /select count\(\*\) into v_no_admin from public\.groups g where exists \(select 1 from public\.group_members m where m\.group_id = g\.id and m\.left_at is null\) and not exists \(select 1 from public\.group_members m where m\.group_id = g\.id and m\.role = 'admin' and m\.left_at is null\); if v_no_admin > 0 then raise exception 'migration 053 failed: % groups with members have no active admin [^']*', v_no_admin; end if;/,
+    );
     expect(code.search(/do \$postcheck\$/i)).toBeGreaterThan(code.search(/insert into public\.group_members/i));
   });
 
@@ -236,6 +266,13 @@ describe(`migration ${file}: form och rollback`, () => {
     expect(code).not.toMatch(/\b(begin;|commit|rollback)\b/i);
     expect(statements[0]).toBe("set local lock_timeout = '5s'");
     expect(code).not.toMatch(/\bset\s+(session\s+)?lock_timeout\b/i);
+  });
+
+  it('huvudet säger att 23505 vid race ska mappas på constraint-namnen och att invite_code-detaljen inte får loggas', () => {
+    for (const name of ['group_members_one_active_per_user', 'group_members_one_admin_per_group', 'groups_invite_code_key']) {
+      expect(sql, name).toContain(name);
+    }
+    expect(sql).toMatch(/får inte loggas/);
   });
 
   it('rollback i huvudet: funktionerna släpps före tabellen och inget annat', () => {
