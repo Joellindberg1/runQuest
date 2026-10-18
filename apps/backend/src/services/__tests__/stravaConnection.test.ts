@@ -240,6 +240,20 @@ describe('removeStravaConnection', () => {
     expect(tables.strava_tokens).toHaveLength(1);
   });
 
+  it('an unfinished earlier attempt with no run left throws when the totals are not written, so the token row stays and a rerun carries on', async () => {
+    const { tables } = setup({ runs: [] });
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(false); // calculateUserTotals never throws: a failure is a returned false
+
+    await expect(removeStravaConnection('user-1', { reason: 'deauthorized' })).rejects.toMatchObject({ code: 'totals_not_written' });
+
+    expect(tables.strava_tokens).toHaveLength(1);
+
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(true);
+    await removeStravaConnection('user-1', { reason: 'deauthorized' });
+    expect(tables.strava_tokens).toEqual([]);
+    expect(calculateUserTotals).toHaveBeenCalledTimes(2);
+  });
+
   it('an unfinished earlier attempt with no run left only recalculates the totals', async () => {
     const { tables } = setup({ runs: [] });
 

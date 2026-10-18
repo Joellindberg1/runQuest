@@ -257,6 +257,17 @@ describe('recalculation', () => {
     expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
   });
 
+  it('recalculateTotals passes calculateUserTotals\' answer on unchanged, true and false', async () => {
+    // calculateUserTotals never throws: the answer is the only way a caller learns that the totals were not written.
+    const recompute = createRecompute();
+
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(false);
+    await expect(recompute.recalculateTotals('user-1')).resolves.toBe(false);
+
+    vi.mocked(calculateUserTotals).mockResolvedValueOnce(true);
+    await expect(recompute.recalculateTotals('user-1')).resolves.toBe(true);
+  });
+
   const newRun = (over: Partial<WebhookImportedRun> = {}): WebhookImportedRun => ({
     id: 'run-1', external_id: '9001', date: '2026-10-12', distance_km: 5.2, start_lat: 59.3, start_lng: 18.1,
     start_time: '2026-10-12T07:30:00Z', moving_time: 1500, is_treadmill: false, ...over,

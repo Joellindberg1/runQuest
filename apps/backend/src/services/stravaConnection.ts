@@ -21,6 +21,7 @@ import {
 import { tryClear, tryMark } from './recalculationMarks/bestEffort.js';
 import type { RecalculationMarkStore } from './recalculationMarks/ports.js';
 import { createRecalculationMarkStore } from './recalculationMarks/supabaseStore.js';
+import { TOTALS_NOT_WRITTEN } from './recalculationMarks/totals.js';
 
 /** 'deauthorized': Strava already revoked, so we never revoke again (S17). 'user_disconnect': the user chose it in Settings (S19). */
 export type RemoveConnectionReason = 'deauthorized' | 'user_disconnect';
@@ -118,7 +119,11 @@ export async function removeStravaConnection(userId: string, options: RemoveConn
       logger.info(`🔁 Strava disconnect: finishing an earlier attempt for user ${userId}, reprocessing from the earliest run`);
       await recomputeMarked(from, await tryMark(marks, userId, from, who));
     } else {
-      await calculateUserTotals(userId, { emitRankNews: false }); // the bulk deletion: no rank_passed (ADR 011 decision 6)
+      // The bulk deletion: no rank_passed (ADR 011 decision 6). calculateUserTotals never throws and returns false when it did not write the
+      // totals; here no mark exists to finish it later, so the row stays (the evidence of an unfinished removal) and a rerun carries on.
+      if ((await calculateUserTotals(userId, { emitRankNews: false })) === false) {
+        throw Object.assign(new Error('the totals were not written'), { code: TOTALS_NOT_WRITTEN });
+      }
     }
   }
 
