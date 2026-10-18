@@ -45,7 +45,7 @@ beforeEach(() => {
   vi.spyOn(logger, 'warn').mockImplementation(() => {});
   vi.spyOn(logger, 'error').mockImplementation(() => {});
   const db = createFakeDb(
-    { strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01' }], runs: [], users: [{ id: 'user-1', is_admin: true }] },
+    { strava_tokens: [{ user_id: 'user-1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01' }], runs: [], users: [{ id: 'user-1', is_admin: true }, { id: 'user-2', is_admin: false }] },
     { autoIds: true },
   );
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
@@ -66,6 +66,14 @@ describe('removed endpoints', () => {
     expect(debugActivities.status).toBe(404);
     expect(refreshOneTitle.status).toBe(404);
     expect(strava.requests).toHaveLength(0);
+    expect(mockRefreshTitleLeaderboard).not.toHaveBeenCalled();
+  });
+
+  it('the refresh of all title leaderboards is refused for a user who is not an admin', async () => {
+    const res = await server.request('POST', '/api/titles/refresh', { token: mintToken({ user_id: 'user-2', group_id: 'group-1' }) });
+
+    expect(res.status).toBe(403);
+    expect(mockPopulateTitleLeaderboard).not.toHaveBeenCalled();
     expect(mockRefreshTitleLeaderboard).not.toHaveBeenCalled();
   });
 
