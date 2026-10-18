@@ -13,10 +13,15 @@ import { recordActivities } from './activityLog.js';
 import { buildTitleDrafts, diffTitleHolders, type TitleHolder, type TitleMeta } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 
-/** Nuvarande innehavare (position 1) per titel, ~21 rader. null om läsningen felar (då hoppas diffen över). */
+/**
+ * Nuvarande innehavare (position 1) per titel, ~21 rader. Varje hållare bär sin grupp (ADR 012): tills title_leaderboard
+ * har group_id (egen migration) tas den ur användarens users.group_id. Den som saknar grupp lämnas utanför (ingen spelar
+ * utan grupp, ingen gruppavgränsad plats i loggen). null om läsningen felar (då hoppas diffen över).
+ */
 export async function snapshotTitleHolders(): Promise<TitleHolder[] | null> {
   try {
-    const { data, error } = await getSupabaseClient()
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
       .from('title_leaderboard')
       .select('title_id, user_id, value')
       .eq('position', 1);
@@ -24,7 +29,21 @@ export async function snapshotTitleHolders(): Promise<TitleHolder[] | null> {
       logger.error(`❌ [TitleNews] Could not snapshot title holders (${errorCode(error)})`);
       return null;
     }
-    return (data ?? []).map((r: any) => ({ title_id: r.title_id, user_id: r.user_id, value: Number(r.value) }));
+    const rows = data ?? [];
+    if (rows.length === 0) return [];
+
+    const userIds = [...new Set(rows.map((r: any) => r.user_id as string))];
+    const { data: users, error: usersError } = await supabase.from('users').select('id, group_id').in('id', userIds);
+    if (usersError) {
+      logger.error(`❌ [TitleNews] Could not read the holders' groups (${errorCode(usersError)})`);
+      return null;
+    }
+    const groupByUser = new Map<string, string | null>((users ?? []).map((u: any) => [u.id, u.group_id ?? null]));
+
+    return rows.flatMap((r: any) => {
+      const groupId = groupByUser.get(r.user_id);
+      return groupId ? [{ group_id: groupId, title_id: r.title_id, user_id: r.user_id, value: Number(r.value) }] : [];
+    });
   } catch (e) {
     logger.error(`❌ [TitleNews] Unexpected error snapshotting title holders (${errorCode(e)})`);
     return null;
@@ -61,21 +80,12 @@ export async function emitTitleNews(before: TitleHolder[], after: TitleHolder[])
     }
     const changes = diffTitleHolders(before, after, (titleId, userId) => stillHeld.has(`${titleId}:${userId}`));
 
-    // Steg 3: titelnamn (ögonblicksbild i payloaden) och nya innehavarens grupp (vid revoked den förras).
-    const userIds = [...new Set(changes.flatMap((c) =>
-      c.kind === 'taken' ? [c.new_holder_id] : [c.user_id],
-    ))];
-    const [titlesRes, usersRes] = await Promise.all([
-      supabase.from('titles').select('id, name, metric_key').in('id', titleIds),
-      supabase.from('users').select('id, group_id').in('id', userIds),
-    ]);
+    // Steg 3: titelnamn (ögonblicksbild i payloaden). Gruppen följer med hållaren i changes.
+    const titlesRes = await supabase.from('titles').select('id, name, metric_key').in('id', titleIds);
     if (titlesRes.error) throw titlesRes.error;
-    if (usersRes.error) throw usersRes.error;
-
     const titles = new Map<string, TitleMeta>((titlesRes.data ?? []).map((t: any) => [t.id, t]));
-    const groups = new Map<string, string | null>((usersRes.data ?? []).map((u: any) => [u.id, u.group_id ?? null]));
 
-    await recordActivities(buildTitleDrafts(changes, titles, groups, new Date().toISOString(), todayStockholm()));
+    await recordActivities(buildTitleDrafts(changes, titles, new Date().toISOString(), todayStockholm()));
   } catch (e) {
     logger.error(`❌ [TitleNews] Failed to emit title news (${errorCode(e)})`);
   }

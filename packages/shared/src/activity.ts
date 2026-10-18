@@ -290,16 +290,19 @@ export function streakBrokenOccurredAt(lastRunDate: string): string {
 
 // ─── Titeldetektion (snapshot-diff, ADR 008 beslut 6) ────────────────────────────────────────────
 
+/** Innehavaren (position 1) av en titel I EN GRUPP (ADR 012): samma titel har en innehavare per grupp. */
 export interface TitleHolder {
+  group_id: string;
   title_id: string;
   user_id: string;
   value: number;
 }
 
 export type TitleHolderChange =
-  | { kind: 'unlocked'; title_id: string; user_id: string; value: number }
+  | { kind: 'unlocked'; group_id: string; title_id: string; user_id: string; value: number }
   | {
       kind: 'taken';
+      group_id: string;
       title_id: string;
       new_holder_id: string;
       old_holder_id: string;
@@ -307,43 +310,50 @@ export type TitleHolderChange =
       previous_value: number;
       reason: 'overtaken' | 'revoked';
     }
-  | { kind: 'revoked'; title_id: string; user_id: string };
+  | { kind: 'revoked'; group_id: string; title_id: string; user_id: string };
 
 /**
- * Jämför innehavare (position 1) före/efter en titelbearbetning.
+ * Jämför innehavare (position 1) före/efter en titelbearbetning, en jämförelse per (grupp, titel) — en ändring i en
+ * grupp rör aldrig en annan grupps innehavare (ADR 012 beslut 5.3).
  *  - ingen → någon  = unlocked
  *  - A → B          = taken (reason 'revoked' om A inte längre har en user_titles-rad, annars 'overtaken')
  *  - någon → ingen  = revoked (den förra innehavaren)
  *  - samma innehavare (även med ändrat värde) = ingen händelse
- * `stillHolds(titleId, userId)` = har användaren fortfarande en user_titles-rad för titeln?
+ * `stillHolds(titleId, userId, groupId)` = har användaren fortfarande en user_titles-rad för titeln i gruppen?
+ * Ordningen är deterministisk: grupp först, sedan titel.
  */
 export function diffTitleHolders(
   before: ReadonlyArray<TitleHolder>,
   after: ReadonlyArray<TitleHolder>,
-  stillHolds: (titleId: string, userId: string) => boolean,
+  stillHolds: (titleId: string, userId: string, groupId: string) => boolean,
 ): TitleHolderChange[] {
-  const beforeBy = new Map(before.map((h) => [h.title_id, h]));
-  const afterBy = new Map(after.map((h) => [h.title_id, h]));
-  const titleIds = [...new Set([...beforeBy.keys(), ...afterBy.keys()])].sort();
+  const slotKey = (groupId: string, titleId: string) => JSON.stringify([groupId, titleId]);
+  const beforeBy = new Map(before.map((h) => [slotKey(h.group_id, h.title_id), h]));
+  const afterBy = new Map(after.map((h) => [slotKey(h.group_id, h.title_id), h]));
+  const byCodeUnits = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  const slots = [...new Map([...before, ...after].map((h) => [slotKey(h.group_id, h.title_id), h])).values()]
+    .sort((a, b) => byCodeUnits(a.group_id, b.group_id) || byCodeUnits(a.title_id, b.title_id));
 
   const changes: TitleHolderChange[] = [];
-  for (const titleId of titleIds) {
-    const was = beforeBy.get(titleId);
-    const now = afterBy.get(titleId);
+  for (const { group_id, title_id } of slots) {
+    const key = slotKey(group_id, title_id);
+    const was = beforeBy.get(key);
+    const now = afterBy.get(key);
 
     if (!was && now) {
-      changes.push({ kind: 'unlocked', title_id: titleId, user_id: now.user_id, value: Number(now.value) });
+      changes.push({ kind: 'unlocked', group_id, title_id, user_id: now.user_id, value: Number(now.value) });
     } else if (was && !now) {
-      changes.push({ kind: 'revoked', title_id: titleId, user_id: was.user_id });
+      changes.push({ kind: 'revoked', group_id, title_id, user_id: was.user_id });
     } else if (was && now && was.user_id !== now.user_id) {
       changes.push({
         kind: 'taken',
-        title_id: titleId,
+        group_id,
+        title_id,
         new_holder_id: now.user_id,
         old_holder_id: was.user_id,
         value: Number(now.value),
         previous_value: Number(was.value),
-        reason: stillHolds(titleId, was.user_id) ? 'overtaken' : 'revoked',
+        reason: stillHolds(title_id, was.user_id, group_id) ? 'overtaken' : 'revoked',
       });
     }
   }
@@ -357,36 +367,31 @@ export interface TitleMeta {
 }
 
 /**
- * Titeländringar → rader. `groupByUser` ger användarens users.group_id (nya innehavaren; vid
- * revoked den förras). Saknas grupp eller titelmeta hoppas raden över (ADR 008 beslut 6).
+ * Titeländringar → rader. Gruppen kommer ur ändringen själv, dvs. ur hållaren i snapshoten (ADR 012 beslut 5.3);
+ * ingen uppslagning av users.group_id. Saknas grupp eller titelmeta hoppas raden över (ADR 008 beslut 6).
  * `occurredAt` = ISO nu; `day` = Stockholm-dag för title_revoked-nyckeln.
  */
 export function buildTitleDrafts(
   changes: ReadonlyArray<TitleHolderChange>,
   titles: ReadonlyMap<string, TitleMeta>,
-  groupByUser: ReadonlyMap<string, string | null>,
   occurredAt: string,
   day: string,
 ): ActivityDraft[] {
   const drafts: ActivityDraft[] = [];
   for (const c of changes) {
     const meta = titles.get(c.title_id);
-    if (!meta) continue;
+    if (!meta || !c.group_id) continue;
     const base = { payload_version: ACTIVITY_PAYLOAD_VERSION, occurred_at: occurredAt, is_backfill: false };
 
     if (c.kind === 'unlocked') {
-      const group = groupByUser.get(c.user_id);
-      if (!group) continue;
       drafts.push({
-        ...base, type: 'title_unlocked', group_id: group, actor_user_id: c.user_id, target_user_id: null,
+        ...base, type: 'title_unlocked', group_id: c.group_id, actor_user_id: c.user_id, target_user_id: null,
         payload: { title_id: c.title_id, title_name: meta.name, metric_key: meta.metric_key, value: c.value },
         dedupe_key: activityKeys.titleUnlocked(c.title_id, c.user_id, c.value, day),
       });
     } else if (c.kind === 'taken') {
-      const group = groupByUser.get(c.new_holder_id);
-      if (!group) continue;
       drafts.push({
-        ...base, type: 'title_taken', group_id: group, actor_user_id: c.new_holder_id, target_user_id: c.old_holder_id,
+        ...base, type: 'title_taken', group_id: c.group_id, actor_user_id: c.new_holder_id, target_user_id: c.old_holder_id,
         payload: {
           title_id: c.title_id, title_name: meta.name, metric_key: meta.metric_key,
           value: c.value, previous_value: c.previous_value, reason: c.reason,
@@ -394,10 +399,8 @@ export function buildTitleDrafts(
         dedupe_key: activityKeys.titleTaken(c.title_id, c.new_holder_id, c.old_holder_id, c.value, day),
       });
     } else {
-      const group = groupByUser.get(c.user_id);
-      if (!group) continue;
       drafts.push({
-        ...base, type: 'title_revoked', group_id: group, actor_user_id: c.user_id, target_user_id: null,
+        ...base, type: 'title_revoked', group_id: c.group_id, actor_user_id: c.user_id, target_user_id: null,
         payload: { title_id: c.title_id, title_name: meta.name, metric_key: meta.metric_key },
         dedupe_key: activityKeys.titleRevoked(c.title_id, c.user_id, day),
       });

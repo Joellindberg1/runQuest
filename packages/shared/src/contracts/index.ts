@@ -11,3 +11,4 @@ export * from './waitlist.js';
 export * from './publicStats.js';
 export * from './settings.js';
 export * from './strava.js';
+export * from './titles.js';
