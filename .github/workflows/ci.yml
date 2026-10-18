@@ -70,6 +70,13 @@ jobs:
       - name: Run tests
         run: npm test -w packages/shared
 
+      # Release-PR:n (integration/* mot main) får inte släppa integritetstexten med en ägarplatshållare kvar (RUN-293).
+      - name: Release check (data policy placeholders)
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'integration/')
+        run: npm test -w packages/shared -- dataPolicy
+        env:
+          RUNQUEST_RELEASE_CHECK: '1'
+
   frontend:
     name: Frontend — build, typecheck & lint
     runs-on: ubuntu-latest
