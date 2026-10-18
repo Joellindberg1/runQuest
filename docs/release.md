@@ -86,7 +86,8 @@ stället för mot prod-databasen:
   produktionstjänsterna deployar bara `main`. När versionen släpps pekar Lead om stagingtjänsterna till nästa
   `integration/<version>`-gren.
 - **Staging delar ingen hemlighet med prod.** Varje variabel i stagingmiljön har ett eget värde (egen
-  `JWT_SECRET`, eget Supabase-projekt och egna nycklar, egen `TOKEN_ENCRYPTION_KEY`, egen Sentry-miljö), och ingen
+  `JWT_SECRET`, eget Supabase-projekt och egna nycklar, egen `TOKEN_ENCRYPTION_KEY` med nyckel-id `stg-1` (backend godtar `stg-` bara när `SENTRY_ENVIRONMENT=staging`, annars `prod-`; se
+  [`runbook-token-key.md`](runbook-token-key.md)), egen Sentry-miljö), och ingen
   hemlighet kopieras från prod. Lead jämför de två variabellistorna före första previewn.
 - **Skydd mot förväxling och utspridning** (RUN-273). Stagingfrontenden byggs med `VITE_APP_ENV=staging`
   (variabeln sätts bara på stagingtjänsten, aldrig i prod; saknas den, eller har den något annat värde, är bygget ett
@@ -223,6 +224,10 @@ Beslutas av ägaren; snabbast först. Varje releases egen "Rollback" i `CHANGELO
 4. **Data som den nya koden skrivit** (t.ex. nya händelsetyper i `activity_log`) kan behöva raderas innan den gamla
    frontenden tas tillbaka. Radering i prod kräver ägar-ja med exakt omfattning.
 5. Railway-variabler ändras bara efter ägar-ja; hemliga värden klistras aldrig i chatten, ägaren lägger in dem i Railway-UI:t.
+   Tokennyckeln (`TOKEN_ENCRYPTION_KEY`, `TOKEN_ENCRYPTION_KEYS_RETIRED`) har en egen handbok för att skapa, sätta, rotera, förlora och
+   läcka den: [`docs/runbook-token-key.md`](runbook-token-key.md). En release som deployar tokenkrypteringen kräver att nyckeln är satt
+   i Railway **före** deployen av S1–S4 tillsammans (ADR 013 beslut 13); utan den startar appen men Strava-synken är avstängd och Sentry får ett
+   `🚨 KRITISKT`-larm med `source:token_key`.
 6. **Data som gått förlorad** (databasen, profilbilder, hemligheter): koden rullas inte tillbaka för det. Vad Pro-backupen täcker och
    inte täcker, återställningsövningen och RPO/RTO står i [`docs/runbook-backup.md`](runbook-backup.md).
 

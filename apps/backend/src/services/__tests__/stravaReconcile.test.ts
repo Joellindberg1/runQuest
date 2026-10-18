@@ -85,6 +85,7 @@ beforeEach(() => {
 afterEach(() => {
   restoreHooks?.();
   restoreHooks = undefined;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   strava?.restore(); // throws when the code reached a Strava URL the test did not configure
   strava = undefined;
@@ -801,5 +802,53 @@ describe('nightly reconcile', () => {
     expect(attempts).toBe(2);
     expect(reprocessCalls).toHaveLength(1); // the failing wrapper sits in front of the counting one: only the second try got through
     expect(calculateUserTotals).toHaveBeenCalledTimes(1); // totals only after a reprocess that worked
+  });
+});
+
+describe('nightly reconcile when the token key cannot be used', () => {
+  const twoUsers = () => ({
+    tables: {
+      strava_tokens: [tokenRow('user-1'), tokenRow('user-2')],
+      runs: [storedRun(activityOf(7345001), 'user-1'), storedRun(activityOf(7345002), 'user-2')],
+    },
+    routes: { athleteActivities: [activityOf(7345001), activityOf(7345002)] },
+  });
+
+  it('reconcile without a key skips the night as a whole: one error line, none per user, nothing read, nothing asked of Strava, nothing deleted', async () => {
+    const { t, db, reconciler, strava } = build(twoUsers());
+    const runsBefore = JSON.stringify(t.runs);
+    db.queries.length = 0;
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', ''); // after the rows are sealed
+
+    const summary = await reconciler.run();
+
+    expect(summary).toEqual({ users: 0, pausedUsers: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 0, requests: 0, stopped: 'token_key' });
+    expect(db.queries).toEqual([]);
+    expect(strava.requests).toHaveLength(0);
+    expect(JSON.stringify(t.runs)).toBe(runsBefore);
+    const errors = vi.mocked(logger.error).mock.calls.map((call) => String(call[0]));
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/Strava reconcile skipped.*key_missing/);
+    expect(logLines.join('\n')).not.toMatch(/user-1|user-2/);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+  });
+
+  it('reconcile with a key the environment refuses skips the night the same way', async () => {
+    const { db, reconciler, strava } = build(twoUsers());
+    db.queries.length = 0;
+    vi.stubEnv('NODE_ENV', 'production'); // the open test key (test-1) is not accepted in production
+
+    const summary = await reconciler.run();
+
+    expect(summary).toMatchObject({ users: 0, stopped: 'token_key' });
+    expect(db.queries).toEqual([]);
+    expect(strava.requests).toHaveLength(0);
+    expect(logLines.join('\n')).toMatch(/Strava reconcile skipped.*key_invalid/);
+  });
+
+  it('reconcile with a working key is not stopped', async () => {
+    const { reconciler } = build(twoUsers());
+
+    expect((await reconciler.run()).stopped).toBeNull();
   });
 });

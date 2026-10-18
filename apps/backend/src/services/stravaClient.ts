@@ -7,6 +7,7 @@ import {
   checkSealingReady,
   openStravaToken,
   readStoredTokenRow,
+  recordUnreadableToken,
   saveRotatedTokens,
   sealStravaTokenPair,
   storedRefreshTokenEquals,
@@ -375,13 +376,35 @@ export async function refreshAccessToken(userId: string): Promise<AccessTokenRes
   return accessToken(userId, true);
 }
 
+// The codes already announced as an error by this process.
+const announcedUnreadable = new Set<string>();
+
+/** For tests: the announcement is once per process, so a test that counts errors starts from here. */
+export function resetUnreadableLogThrottle(): void {
+  announcedUnreadable.clear();
+}
+
 /**
  * Logs why a token could not be read: the user, the column when a stored value is at fault, and the code. Never the value, never a
- * message from the crypto layer. A plain error without the KRITISKT prefix: a missing key is announced once at startup (ADR 013
- * decision 9), and this line comes with every poll and every webhook event until it is fixed.
+ * message from the crypto layer. Not a KRITISKT line: a missing, malformed or refused key is announced as one at startup
+ * (services/tokenKeyStartup.ts, ADR 013 decision 9); this line is for the reads that fail afterwards, one error per code and process
+ * and a warning for the rest.
  */
 function unreadable(userId: string, code: string, column?: StravaTokenColumn): { ok: false; reason: 'token_unreadable' } {
-  logger.error(`❌ Strava token unreadable for user ${userId} (${code}${column ? `, ${column}` : ''}); Strava was not called`);
+  recordUnreadableToken();
+  const line = `Strava token unreadable for user ${userId} (${code}${column ? `, ${column}` : ''}); Strava was not called`;
+  // An error (a Sentry event) once per code and process, then a warning (a log line only): without this every poll, every webhook
+  // retry and every status check of every user is an event (ADR 013 decision 9). The count of all of them is in the health block.
+  // auth_failed (a ciphertext that does not belong to its row, or the wrong key under a known id) can mean tampering, so it is announced
+  // once per user and column rather than once per process: a moved ciphertext on a second row is a second signal, while the repeats of
+  // one row (every poll) are not.
+  const announceKey = code === 'auth_failed' ? `${code}:${userId}:${column ?? ''}` : code;
+  if (announcedUnreadable.has(announceKey)) {
+    logger.warn(`⚠️ ${line}`);
+  } else {
+    announcedUnreadable.add(announceKey);
+    logger.error(`❌ ${line}`);
+  }
   return { ok: false, reason: 'token_unreadable' };
 }
 

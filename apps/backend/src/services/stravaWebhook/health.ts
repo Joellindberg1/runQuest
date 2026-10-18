@@ -1,9 +1,13 @@
 // The read behind GET /api/strava/webhook/health (ADR 010 decision 11): counters and two timestamps for the webhook queue, nothing
-// else. No owner, object, user or token ever leaves this module, and no row is fetched except the two timestamps below.
+// else, plus the `token_encryption` block (ADR 013 decision 9: key ids and row counts, read through stravaTokenStore). No owner, object,
+// user, token, ciphertext or key ever leaves this module, and no row is fetched except the two timestamps below (the token store reads
+// its rows itself and returns counts).
 //
 // A read error is NOT swallowed. A health check that says 0 when the database is down lies, so any failed read throws and the route
 // answers 500.
 import { getSupabaseClient } from '../../config/database.js';
+import { errorCode } from '../../utils/errorCode.js';
+import { readTokenEncryptionHealth, type TokenEncryptionHealth } from '../stravaTokenStore.js';
 import type { WebhookStatus } from './constants.js';
 
 const EVENTS_TABLE = 'strava_webhook_events';
@@ -21,6 +25,8 @@ export interface WebhookHealth {
   /** Connections without a strava_athlete_id: webhook events for them cannot be matched to anyone. */
   unmapped_tokens: number;
   paused_users: number;
+  /** Is the token key usable, which key ids, and the rows by form (ADR 013 decision 9). Counts and key ids only; see stravaTokenStore. */
+  token_encryption: TokenEncryptionHealth;
 }
 
 /** A read that failed. Carries the database error's code only, never its message (it can quote row values). */
@@ -57,7 +63,7 @@ const countStatus = async (db: Db, status: WebhookStatus): Promise<DbResult> =>
   db.from(EVENTS_TABLE).select('id', { count: 'exact', head: true }).eq('status', status);
 
 /**
- * Seven small reads, no cache (an admin endpoint). `now` is read once so the age and anything else time-based agree.
+ * Seven small reads and the token store's one (the token_encryption block), no cache (an admin endpoint). `now` is read once so the age and anything else time-based agree.
  * strava_tokens has no id column (its key is user_id), so its counts select user_id.
  */
 export async function readWebhookHealth(subscriptionConfigured: boolean, now: number = Date.now()): Promise<WebhookHealth> {
@@ -73,6 +79,15 @@ export async function readWebhookHealth(subscriptionConfigured: boolean, now: nu
     db.from(TOKENS_TABLE).select('user_id', { count: 'exact', head: true }).eq('sync_paused', true),
   ]);
 
+  // The token columns are the store's alone (CI guard rule 11), so the token_encryption counts come from it. A failed read is a failed
+  // health like the others, with the error's code only.
+  let tokenEncryption: TokenEncryptionHealth;
+  try {
+    tokenEncryption = await readTokenEncryptionHealth();
+  } catch (error) {
+    throw new WebhookHealthReadError(errorCode(error));
+  }
+
   const oldest = unwrapTimestamp(oldestPending, 'received_at');
   const lastProcessedAt = unwrapTimestamp(lastProcessed, 'processed_at');
   return {
@@ -85,5 +100,6 @@ export async function readWebhookHealth(subscriptionConfigured: boolean, now: nu
     last_processed_at: lastProcessedAt ? lastProcessedAt.toISOString() : null,
     unmapped_tokens: unwrapCount(unmapped),
     paused_users: unwrapCount(paused),
+    token_encryption: tokenEncryption,
   };
 }

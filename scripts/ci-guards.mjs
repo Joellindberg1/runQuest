@@ -52,7 +52,11 @@
 //     undantaget: det läser inget värde. Vakten är textbaserad: den läser frågekedjan till slutet av satsen. Fångas INTE: en tabell som anges
 //     med en konstant (`.from(TABLE)`) eller en fråga som byggs upp i flera satser.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
+// 12. Tokennyckeln kontrolleras vid start (ADR 013 beslut 9): `apps/backend/src/server.ts` måste anropa `reportTokenKeyAtStartup()` på översta nivån.
+//     Utan anropet blir en saknad eller felaktig nyckel inget larm, och inget test märker det (server.ts går inte att importera i ett test).
+//     Samma vakt och samma begränsningar som regel 8: raden måste börja i kolumn 0.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -322,6 +326,24 @@ export function checkRateBudgetHook(files) {
     : [`${SERVER_FILE}: saknar ett anrop av registerStravaRateBudget() på översta nivån — utan det räknas inga Strava-anrop och mjukgränsen slår aldrig till (ADR 010 beslut 9)`];
 }
 
+const TOKEN_KEY_STARTUP_CALL = /^reportTokenKeyAtStartup\s*\(\s*\)/m;
+
+/**
+ * Regel 12. `files`: [{ path, content }]. Backendens server.ts måste anropa reportTokenKeyAtStartup() på översta nivån (ADR 013 beslut 9).
+ * Ett repo utan någon backendkälla har inget att kontrollera.
+ */
+export function checkTokenKeyStartupCheck(files) {
+  const server = files.find(({ path }) => path === SERVER_FILE);
+  if (!server) {
+    return files.some(({ path }) => BACKEND_SOURCE.test(path))
+      ? [`${SERVER_FILE}: filen saknas, så tokennyckeln kontrolleras aldrig vid start`]
+      : [];
+  }
+  return TOKEN_KEY_STARTUP_CALL.test(server.content)
+    ? []
+    : [`${SERVER_FILE}: saknar ett anrop av reportTokenKeyAtStartup() på översta nivån — utan det larmar ingenting när tokennyckeln saknas eller är fel och Strava-synken står stilla (ADR 013 beslut 9)`];
+}
+
 const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
 const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
 const RECONCILE_SCHEDULER_CALL = /(?<![\w.])startStravaReconcileScheduler\s*\(\s*\)/;
@@ -510,8 +532,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -526,7 +548,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -539,6 +561,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'rate-budget-hook') {
       errors.push(...checkRateBudgetHook(files));
       summary.push('ratebudgetens krok registreras i server.ts');
+    }
+    if (mode === 'all' || mode === 'token-key-startup') {
+      errors.push(...checkTokenKeyStartupCheck(files));
+      summary.push('tokennyckeln kontrolleras vid start i server.ts');
     }
     if (mode === 'all' || mode === 'webhook-scheduler-start') {
       errors.push(...checkWebhookSchedulerStart(files));

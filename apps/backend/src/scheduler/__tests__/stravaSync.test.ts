@@ -91,3 +91,19 @@ describe('misslyckade användare i titelomräkningen efter väder syns i loggen'
     warn.mockRestore();
   });
 });
+
+describe('Strava-pollingen när tokennyckeln inte går att använda', () => {
+  it('ett överhoppat pass är status error och loggas inte som genomfört', async () => {
+    const info = vi.spyOn(logger, 'info').mockImplementation(() => {});
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    h.syncAllStravaUsers.mockResolvedValue({ success: false, unavailable: true, message: 'Strava is temporarily unavailable', syncedUsers: 0, totalUsers: 0, totalNewRuns: 0, results: [] });
+
+    await h.pollCallback!();
+
+    expect(getSyncInfo().lastSyncStatus).toBe('error');
+    expect(info.mock.calls.map((call) => String(call[0])).join('\n')).not.toContain('completed');
+    expect(error).not.toHaveBeenCalled(); // larmet för passet kommer från syncAllStravaUsers, inte en andra rad härifrån
+    info.mockRestore();
+    error.mockRestore();
+  });
+});

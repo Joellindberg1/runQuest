@@ -7,6 +7,7 @@ import {
   KeyRing,
   SecretBoxError,
   buildSecretAad,
+  kidOfStored,
   open,
   parseKeyRing,
   seal,
@@ -456,5 +457,25 @@ describe('secretBox never carries key material', () => {
     expect(rendered).not.toContain(retiredB64);
     expect(rendered).not.toContain(Buffer.from(keyB64, 'base64').toString('hex'));
     expect(rendered).toContain('k-1');
+  });
+});
+
+describe('the key id of a stored value', () => {
+  const ring = ringFrom(`prod-1:${newKey()}`);
+  const stored = seal('a-secret-value', AAD, ring);
+
+  it('kidOfStored names the key of a well-formed enc:v1 value without opening it', () => {
+    expect(kidOfStored(stored)).toBe('prod-1');
+    expect(kidOfStored(seal('x', AAD, ringFrom(`ab-2:${newKey()}`)))).toBe('ab-2');
+  });
+
+  it('kidOfStored is null for anything that is not a well-formed enc:v1 value', () => {
+    const [, , , iv, ciphertext, tag] = stored.split(':');
+    const cases: unknown[] = [
+      '', 'plain-legacy-token-value-0123456789', 'enc:', 'enc:v1', `enc:v2:prod-1:${iv}:${ciphertext}:${tag}`,
+      `enc:v1:Prod-1:${iv}:${ciphertext}:${tag}`, `enc:v1::${iv}:${ciphertext}:${tag}`, `enc:v1:prod-1:${iv}:${ciphertext}`,
+      `${stored}:extra`, `enc:v1:prod-1:${iv}:${ciphertext}:ta g`, null, undefined, 42,
+    ];
+    for (const value of cases) expect(kidOfStored(value), String(value)).toBeNull();
   });
 });

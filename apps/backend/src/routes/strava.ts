@@ -446,7 +446,18 @@ export async function syncAllStravaUsers(): Promise<{
   totalUsers: number;
   totalNewRuns: number;
   results: Array<{ userId: string; userName: string; newRuns?: number; totalActivities?: number; error?: string }>;
+  /** The key that reads and saves Strava tokens is missing or refused (ADR 013): the whole run was skipped, nobody was tried. */
+  unavailable?: true;
 }> {
+  // Without a usable key no user can be synced (checkSealingReady is fail-closed), so the run is skipped as a whole: one line for the
+  // run instead of an error per user and a Sentry event for each of them. The alarm that matters is the startup one (tokenKeyStartup);
+  // this is the reminder that comes with every run until the key is fixed.
+  const sealing = checkSealingReady();
+  if (!sealing.ok) {
+    logger.error(`❌ Strava sync skipped: the token key is not usable (${sealing.code}); no user was tried`);
+    return { success: false, unavailable: true, message: TOKEN_STORAGE_UNAVAILABLE, syncedUsers: 0, totalUsers: 0, totalNewRuns: 0, results: [] };
+  }
+
   const supabase = getSupabaseClient();
 
   try {
@@ -501,7 +512,10 @@ export async function syncAllStravaUsers(): Promise<{
           });
           logger.info(`✅ Synced ${result.newRuns} new runs for user ${user.user_id}`);
         } else {
-          logger.error(`❌ Failed to sync user ${user.user_id}`);
+          // A token that could not be read was already logged by the token client (an error once per cause, then warnings): a second
+          // error here would make every user and every poll a Sentry event of its own.
+          if (result.unavailable) logger.warn(`⚠️ Failed to sync user ${user.user_id}`);
+          else logger.error(`❌ Failed to sync user ${user.user_id}`);
           results.push({ userId: user.user_id, userName: user.users.name, error: result.error });
         }
 
@@ -614,6 +628,10 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
 router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
   try {
     const result = await syncAllStravaUsers();
+    if (result.unavailable) {
+      // The key is missing or refused (ADR 013): the same temporary error as the other endpoints, not a result list.
+      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE }); return;
+    }
     res.json(result);
   } catch (error) {
     logger.error(`❌ API Error in /strava/sync-all (${errorCode(error)})`);
