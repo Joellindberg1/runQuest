@@ -60,6 +60,8 @@ export async function snapshotTitleHolders(groupId: string): Promise<TitleHolder
  * Jämför gruppens före/efter och skriver title_unlocked / title_taken / title_revoked i den gruppen.
  * Samma innehavare (även med ändrat värde) ger ingen rad. Hållare från en annan grupp än `groupId` ignoreras.
  * Nycklarna (activityKeys) skyddar mot att två samtidiga bearbetningar upptäcker samma byte.
+ * En title_taken bär tvåan ur gruppens före-bild som `runner_up_user_id` (ADR 011 beslut 7, ADR 012 beslut 5.4); den som
+ * anropar med `emitNews:false` kommer aldrig hit, så inget fält skrivs vid tyst omräkning.
  */
 export async function emitTitleNews(groupId: string, before: TitleHolder[], after: TitleHolder[]): Promise<void> {
   try {
@@ -102,7 +104,7 @@ export async function emitTitleNews(groupId: string, before: TitleHolder[], afte
     if (titlesRes.error) throw titlesRes.error;
     const titles = new Map<string, TitleMeta>((titlesRes.data ?? []).map((t: any) => [t.id, t]));
 
-    await recordActivities(buildTitleDrafts(changes, titles, new Date().toISOString(), todayStockholm()));
+    await recordActivities(buildTitleDrafts(changes, titles, new Date().toISOString(), todayStockholm(), groupBefore));
   } catch (e) {
     logger.error(`❌ [TitleNews] Failed to emit title news (${errorCode(e)})`);
   }

@@ -192,6 +192,55 @@ describe('emitTitleNews', () => {
     expect(db.queries).toHaveLength(0);
   });
 
+  describe('låg tvåa', () => {
+    const withSecond = (h: ReturnType<typeof holderOf>, user_id: string, value: number) => ({ ...h, runner_up: { user_id, value } });
+
+    it('tvåan ur före-bilden bärs som runner_up_user_id på title_taken; nyckeln är oförändrad', async () => {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 15)];
+      use(tables);
+      await emitTitleNews('g1', [withSecond(holderOf('t1', 'a', 12), 'r', 10)], [holderOf('t1', 'b', 15)]);
+      expect(tables.activity_log).toHaveLength(1);
+      expect(tables.activity_log[0]).toMatchObject({
+        type: 'title_taken', actor_user_id: 'b', target_user_id: 'a', dedupe_key: 'title_taken:t1:b:a:15:2026-10-05',
+        payload: { reason: 'overtaken', runner_up_user_id: 'r' },
+      });
+    });
+
+    it('samma byte upptäckt två gånger med tvåa → fortfarande exakt en rad', async () => {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
+      use(tables);
+      const before = [withSecond(holderOf('t1', 'a', 12), 'r', 10)];
+      await emitTitleNews('g1', before, [holderOf('t1', 'b', 15)]);
+      await emitTitleNews('g1', before, [holderOf('t1', 'b', 15)]);
+      expect(tables.activity_log).toHaveLength(1);
+    });
+
+    it('en tvåa i en annan grupp än den omräknade används aldrig', async () => {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
+      use(tables);
+      await emitTitleNews(
+        'g1',
+        [holderOf('t1', 'a', 12), withSecond(holderOf('t1', 'c', 8, 'g2'), 'x', 6)],
+        [holderOf('t1', 'b', 15)],
+      );
+      expect(tables.activity_log).toHaveLength(1);
+      expect('runner_up_user_id' in (tables.activity_log[0].payload as object)).toBe(false);
+    });
+
+    it('revoked och title_unlocked ger inget fält ens med tvåa i före-bilden', async () => {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'b', 3)];
+      use(tables);
+      await emitTitleNews('g1', [withSecond(holderOf('t1', 'a', 12), 'r', 10)], [holderOf('t1', 'b', 3)]);
+      await emitTitleNews('g1', [], [withSecond(holderOf('t2', 'a', 4), 'r', 2)]);
+      expect(tables.activity_log.map((r) => r.type)).toEqual(['title_taken', 'title_unlocked']);
+      for (const r of tables.activity_log) expect('runner_up_user_id' in (r.payload as object)).toBe(false);
+    });
+  });
+
   it('samma byte upptäckt två gånger (samtidiga skrivningar) → exakt en rad', async () => {
     const tables = baseTables();
     tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
@@ -332,6 +381,39 @@ describe('EnhancedTitleService.processGroupTitles — snapshot-orkestrering', ()
     expect(tables.activity_log.map((r) => [r.type, r.actor_user_id])).toEqual([['title_revoked', 'a']]);
   });
 
+  it('tvåa på leaderboarden före bearbetningen ger runner_up_user_id på title_taken', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 9)];
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'r', 10, 2), lb('t1', 'b', 9, 3)];
+    use(tables);
+    const service = new EnhancedTitleService();
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 15)];
+      tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'r', 10, 3)];
+    });
+    await service.processGroupTitles('g1');
+    expect(tables.activity_log).toHaveLength(1);
+    expect(tables.activity_log[0]).toMatchObject({
+      type: 'title_taken', actor_user_id: 'b', target_user_id: 'a', payload: { reason: 'overtaken', runner_up_user_id: 'r' },
+    });
+  });
+
+  it('B som själv var tvåa på leaderboarden före bearbetningen ger inget runner_up_user_id', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 10), ut('t1', 'r', 9)];
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'b', 10, 2), lb('t1', 'r', 9, 3)];
+    use(tables);
+    const service = new EnhancedTitleService();
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15), ut('t1', 'r', 9)];
+      tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'r', 9, 3)];
+    });
+    await service.processGroupTitles('g1');
+    expect(tables.activity_log).toHaveLength(1);
+    expect(tables.activity_log[0]).toMatchObject({ type: 'title_taken', actor_user_id: 'b', target_user_id: 'a' });
+    expect('runner_up_user_id' in (tables.activity_log[0].payload as object)).toBe(false);
+  });
+
   it('emitNews:false (admin /titles/reprocess-all) → ingen rad och ingen snapshot-query', async () => {
     const tables = baseTables();
     const db = use(tables);
@@ -339,6 +421,21 @@ describe('EnhancedTitleService.processGroupTitles — snapshot-orkestrering', ()
     simulate(service, () => {
       tables.user_titles = [ut('t1', 'a', 7)];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
+    });
+    await service.processAllGroupsTitles({ emitNews: false });
+    expect(tables.activity_log).toHaveLength(0);
+    expect(db.queries.some((q) => q.table === 'title_leaderboard')).toBe(false);
+  });
+
+  it('emitNews:false undertrycker även ett byte som hade gett en låg tvåa', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 9)];
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'r', 10, 2), lb('t1', 'b', 9, 3)];
+    const db = use(tables);
+    const service = new EnhancedTitleService();
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 15)];
+      tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'r', 10, 3)];
     });
     await service.processAllGroupsTitles({ emitNews: false });
     expect(tables.activity_log).toHaveLength(0);

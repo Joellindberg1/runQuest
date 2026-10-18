@@ -115,7 +115,8 @@ export const parseInvolvesParam = (raw: string | null | undefined): boolean => r
 export const serializeInvolvesParam = (on: boolean): string | null => (on ? INVOLVES_VALUE : null);
 
 /**
- * Speglar serverns villkor (ADR 011 beslut 9): jag är aktör eller target, eller deltar i ett event (`event_closed` med mig i `payload.entrant_ids`).
+ * Speglar serverns villkor (ADR 011 beslut 9): jag är aktör eller target, deltar i ett event (`event_closed` med mig i `payload.entrant_ids`)
+ * eller var låg tvåa i ett titelbyte (`title_taken` med mig som `payload.runner_up_user_id`).
  * Används bara för siffran på knappen (rader i det laddade fönstret, som chip-räknarna); raderna som visas kommer alltid ur serverns filter.
  * Fältet skrivs av event-avräkningen (settle) men saknas på äldre rader och backfill, och kan vara trasigt — då är raden inte "min".
  */
@@ -124,6 +125,7 @@ export function involvesMe(item: Pick<WireNewsItem, 'type' | 'actor' | 'target' 
   // Som servern: betraktarens id i gemener mot det som ligger lagrat, utan att gemenisera det lagrade (jsonb-containment är exakt).
   const me = viewerId.toLowerCase();
   if (item.actor?.id === me || item.target?.id === me) return true;
+  if (item.type === 'title_taken') return (item.payload as { runner_up_user_id?: unknown } | null)?.runner_up_user_id === me;
   if (item.type !== 'event_closed') return false;
   const entrants = (item.payload as { entrant_ids?: unknown } | null)?.entrant_ids;
   return Array.isArray(entrants) && entrants.includes(me);
@@ -558,7 +560,10 @@ export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | n
       const from = payload.reason === 'revoked'
         ? viewerIsTarget ? 'from you, as you no longer qualify' : `from ${object(target, ctx)}, who no longer qualifies`
         : `from ${object(target, ctx)}`;
-      return { kind: 'Title taken', text: withValue(`${subject(actor, ctx)} took ${title} ${from}`, titleValueText(payload.metric_key, payload.value)) };
+      // Låg tvåa (ADR 011 beslut 7): bara för den som tittar och varken tog titeln eller förlorade den.
+      const wasRunnerUp = !viewerIsActor && !viewerIsTarget && !!ctx.viewerId && payload.runner_up_user_id === ctx.viewerId;
+      const text = withValue(`${subject(actor, ctx)} took ${title} ${from}`, titleValueText(payload.metric_key, payload.value));
+      return { kind: 'Title taken', text: wasRunnerUp ? `${text} — you were runner-up` : text };
     }
     case 'title_revoked': {
       const title = titleText(item.payload.title_name, actor, ctx);

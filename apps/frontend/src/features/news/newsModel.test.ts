@@ -452,6 +452,25 @@ describe('texterna ur typ + payload + vem som tittar', () => {
       expect(describeNews(titleTaken(1, { target: ADAM }, { reason: 'revoked' }), ctx()).text).toBe('Karl took The Longest Run from Adam, who no longer qualifies — 32.8 km');
     });
 
+    it('title_taken: den som var låg tvåa får tillägget "you were runner-up", ingen annan', () => {
+      const asRunnerUp = titleTaken(1, { actor: KARL, target: ADAM }, { runner_up_user_id: ME.id });
+      expect(describeNews(asRunnerUp, ctx())).toEqual({ kind: 'Title taken', text: 'Karl took The Longest Run from Adam — 32.8 km — you were runner-up' });
+      // Servern skriver aldrig fältet vid "revoked", men en sådan rad ska ändå läsas rent.
+      expect(describeNews(titleTaken(1, { actor: KARL, target: ADAM }, { runner_up_user_id: ME.id, reason: 'revoked' }), ctx()).text)
+        .toBe('Karl took The Longest Run from Adam, who no longer qualifies — 32.8 km — you were runner-up');
+      // Andra tittare ser raden som förut: någon annans tvåa, ingen tvåa, och de som är aktör eller mål själva.
+      expect(describeNews(titleTaken(1, { actor: KARL, target: ADAM }, { runner_up_user_id: DAN.id }), ctx()).text).toBe('Karl took The Longest Run from Adam — 32.8 km');
+      expect(describeNews(titleTaken(1, { actor: KARL, target: ADAM }), ctx()).text).toBe('Karl took The Longest Run from Adam — 32.8 km');
+      expect(describeNews(titleTaken(1, { actor: KARL, target: ME }, { runner_up_user_id: ME.id }), ctx()).text).toBe('Karl took The Longest Run from you — 32.8 km');
+      expect(describeNews(titleTaken(1, { actor: ME, target: ADAM }, { runner_up_user_id: ME.id }), ctx()).text).toBe('You took The Longest Run from Adam — 32.8 km');
+      // Ett trasigt fält (tomt, lista, tal) och en betraktare utan id ger aldrig tillägget.
+      for (const bad of ['', [ME.id], 5, null]) {
+        expect(describeNews(titleTaken(1, { actor: KARL, target: ADAM }, { runner_up_user_id: bad as never }), ctx()).text, JSON.stringify(bad)).not.toContain('runner-up');
+      }
+      expect(describeNews(asRunnerUp, ctx({ viewerId: null })).text).not.toContain('runner-up');
+      expect(describeNews(titleTaken(1, { actor: KARL, target: ADAM }, { runner_up_user_id: '' }), ctx({ viewerId: '' })).text).not.toContain('runner-up');
+    });
+
     it('title_unlocked och title_revoked', () => {
       const unlocked = item('title_unlocked', 2, { title_id: 't', title_name: 'The Commuter', metric_key: 'earlyRunCount', value: 20 }, { actor: KARL });
       expect(describeNews(unlocked, ctx())).toEqual({ kind: 'Title unlocked', text: 'Karl unlocked The Commuter — 20 runs' });
@@ -978,6 +997,21 @@ describe('Involves me (vyfilter vid sidan av typchipsen)', () => {
     // Bara event_closed bär deltagarlistan, och utan betraktare är inget "mitt".
     expect(involvesMe({ ...eventOpen(5), payload: { entrant_ids: [ME.id] } } as never, ME.id)).toBe(false);
     expect(involvesMe(levelUp(6, 5, { actor: ME }), null)).toBe(false);
+  });
+
+  it('involvesMe: en title_taken där jag är låg tvåa räknas, någon annans tvåa och andra typer gör det inte', () => {
+    const taken = (runnerUp: unknown) => titleTaken(1, { actor: KARL, target: ADAM }, { runner_up_user_id: runnerUp as never });
+    expect(involvesMe(taken(ME.id), ME.id)).toBe(true);
+    expect(involvesMe(taken(DAN.id), ME.id)).toBe(false);
+    expect(involvesMe(taken(undefined), ME.id)).toBe(false);
+    // Fältet är ett id, inte en lista, och bara title_taken bär det.
+    expect(involvesMe(taken([ME.id]), ME.id)).toBe(false);
+    expect(involvesMe({ ...levelUp(2, 5, { actor: KARL }), payload: { level: 5, runner_up_user_id: ME.id } } as never, ME.id)).toBe(false);
+    // Som servern: betraktarens id i gemener mot det lagrade, exakt; utan betraktare är inget "mitt".
+    expect(involvesMe(taken('u-me'), 'U-ME')).toBe(true);
+    expect(involvesMe(taken('U-ME'), 'u-me')).toBe(false);
+    expect(involvesMe(taken(ME.id), null)).toBe(false);
+    expect(involvesMe(taken(''), '')).toBe(false);
   });
 
   it('involvesMe matchar som servern: betraktarens id i gemener mot det lagrade, exakt', () => {

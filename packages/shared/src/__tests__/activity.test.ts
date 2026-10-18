@@ -349,6 +349,87 @@ describe('buildTitleDrafts', () => {
   });
 });
 
+// Låg tvåa (ADR 011 beslut 7, ADR 012 beslut 5.4): R = position 2 i FÖRE-bilden för B:s grupp. Diffen och bilderna går genom
+// de riktiga rena funktionerna; bara titelnamn och dag är fasta.
+const lowTitles = new Map([['t1', { id: 't1', name: 'The Marathoner', metric_key: 'fastest_marathon' }]]);
+const lowAt = '2026-10-05T10:00:00.000Z';
+const lowDay = '2026-10-05';
+const withSecond = (h: TitleHolder, user_id: string, value: number): TitleHolder => ({ ...h, runner_up: { user_id, value } });
+const draftsFor = (before: TitleHolder[], after: TitleHolder[], stillHolds: () => boolean = always) =>
+  buildTitleDrafts(diffTitleHolders(before, after, stillHolds), lowTitles, lowAt, lowDay, before);
+
+it('tvåan ur före-bilden i nya innehavarens grupp får runner_up_user_id', () => {
+  const [draft] = draftsFor([withSecond(holder('t1', 'a', 10), 'r', 8)], [holder('t1', 'b', 12)]);
+  expect(draft).toMatchObject({
+    type: 'title_taken', group_id: 'g1', actor_user_id: 'b', target_user_id: 'a',
+    payload: { value: 12, previous_value: 10, reason: 'overtaken', runner_up_user_id: 'r' },
+  });
+  // R ingår inte i nyckeln: samma byte upptäckt två gånger ger fortfarande en rad.
+  expect(draft.dedupe_key).toBe('title_taken:t1:b:a:12:2026-10-05');
+});
+
+it('en tvåa i annan grupp ignoreras', () => {
+  const before = [withSecond(holder('t1', 'a', 10, 'g1'), 'r1', 8), withSecond(holder('t1', 'c', 5, 'g2'), 'r2', 3)];
+  const both = draftsFor(before, [holder('t1', 'b', 12, 'g1'), holder('t1', 'd', 6, 'g2')]);
+  expect(both.map((d) => [d.group_id, (d.payload as { runner_up_user_id?: string }).runner_up_user_id]))
+    .toEqual([['g1', 'r1'], ['g2', 'r2']]);
+
+  // Grupp 1 saknar tvåa: grupp 2:s tvåa läcker inte över.
+  const onlyG2 = draftsFor(
+    [holder('t1', 'a', 10, 'g1'), withSecond(holder('t1', 'c', 5, 'g2'), 'r2', 3)],
+    [holder('t1', 'b', 12, 'g1'), holder('t1', 'c', 5, 'g2')],
+  );
+  expect(onlyG2).toHaveLength(1);
+  expect('runner_up_user_id' in onlyG2[0].payload).toBe(false);
+});
+
+it('om B själv var tvåa sätts inget fält', () => {
+  const [draft] = draftsFor([withSecond(holder('t1', 'a', 10), 'b', 9)], [holder('t1', 'b', 12)]);
+  expect(draft.type).toBe('title_taken');
+  expect('runner_up_user_id' in draft.payload).toBe(false);
+});
+
+it('title_unlocked och reason revoked ger inget fält', () => {
+  const second = (h: TitleHolder) => withSecond(h, 'r', 8);
+  const unlocked = draftsFor([], [second(holder('t1', 'a', 10))]);
+  const revokedReason = draftsFor([second(holder('t1', 'a', 10))], [holder('t1', 'b', 3)], never);
+  const revokedRow = draftsFor([second(holder('t1', 'a', 10))], []);
+  expect(unlocked.map((d) => d.type)).toEqual(['title_unlocked']);
+  expect(revokedReason.map((d) => [d.type, (d.payload as { reason?: string }).reason])).toEqual([['title_taken', 'revoked']]);
+  expect(revokedRow.map((d) => d.type)).toEqual(['title_revoked']);
+  for (const draft of [...unlocked, ...revokedReason, ...revokedRow]) {
+    expect('runner_up_user_id' in draft.payload, draft.type).toBe(false);
+  }
+});
+
+it('bara en gruppmedlem på listan ger inget fält', () => {
+  for (const lone of [holder('t1', 'a', 10), { ...holder('t1', 'a', 10), runner_up: null }]) {
+    const [draft] = draftsFor([lone], [holder('t1', 'b', 12)]);
+    expect(draft.type).toBe('title_taken');
+    expect('runner_up_user_id' in draft.payload).toBe(false);
+  }
+  // Utan före-bild alls (befintliga anropare) skrivs aldrig fältet.
+  const changes = diffTitleHolders([withSecond(holder('t1', 'a', 10), 'r', 8)], [holder('t1', 'b', 12)], always);
+  const [legacy] = buildTitleDrafts(changes, lowTitles, lowAt, lowDay);
+  expect('runner_up_user_id' in legacy.payload).toBe(false);
+});
+
+it('diffTitleHolders har oförändrat beteende för befintliga fall (regressionssviten grön)', () => {
+  // Samma före/efter med och utan tvåor i bilderna ger identiska ändringar: tvåan är bara bagage för buildTitleDrafts.
+  const cases: Array<[TitleHolder[], TitleHolder[], () => boolean]> = [
+    [[], [holder('t1', 'a', 10)], always],
+    [[holder('t1', 'a', 10)], [holder('t1', 'b', 12)], always],
+    [[holder('t1', 'a', 10)], [holder('t1', 'b', 3)], never],
+    [[holder('t1', 'a', 10)], [], never],
+    [[holder('t1', 'a', 10)], [holder('t1', 'a', 14)], always],
+    [[holder('t1', 'a', 10, 'g1'), holder('t1', 'c', 5, 'g2')], [holder('t1', 'a', 11, 'g1'), holder('t1', 'd', 8, 'g2')], always],
+  ];
+  const decorate = (list: TitleHolder[]) => list.map((h) => withSecond(h, 'r', 1));
+  for (const [before, after, stillHolds] of cases) {
+    expect(diffTitleHolders(decorate(before), decorate(after), stillHolds)).toEqual(diffTitleHolders(before, after, stillHolds));
+  }
+});
+
 describe('level-/milstolpe-/streakbyggare', () => {
   it('buildLevelUpDrafts: en rad per nivå med level_up:<user>:<level>', () => {
     const drafts = buildLevelUpDrafts('u1', 'g1', 3, 5, '2026-10-05T10:00:00.000Z');
