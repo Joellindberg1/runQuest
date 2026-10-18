@@ -46,7 +46,13 @@
 // 10. Den nattliga Strava-avstämningen startas i produktionsblocket: `startStravaReconcileScheduler()` direkt i samma `if (process.env.NODE_ENV === 'production') { … }`
 //     som regel 9 (samma vakt, samma begränsningar). Utan anropet körs avstämningen aldrig och en missad radering upptäcks bara av 48 h-larmet.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|rate-budget-hook|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
+// 11. Strava-tokens går via stravaTokenStore (ADR 013): tokenkolumnerna i `strava_tokens` (access_token, refresh_token) läses och skrivs bara i
+//     `apps/backend/src/services/stravaTokenStore.ts`. En frågekedja på `.from('strava_tokens')` någon annanstans får inte nämna dem
+//     (select, filter, update, upsert, insert) och inte välja alla kolumner (`select('*')`). Filtret `.not('access_token', 'is', null)` är
+//     undantaget: det läser inget värde. Vakten är textbaserad: den läser frågekedjan till slutet av satsen. Fångas INTE: en tabell som anges
+//     med en konstant (`.from(TABLE)`) eller en fråga som byggs upp i flera satser.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -194,6 +200,67 @@ export function checkRawStravaFetch(files) {
     for (const match of content.matchAll(FETCH_CALL)) {
       const line = content.slice(0, match.index).split(/\r?\n/).length;
       errors.push(`${path}:${line}: anrop mot Strava utanför stravaClient — använd stravaFetch (services/stravaClient.ts) så kroken för ratebudgeten ser anropet`);
+    }
+  }
+  return errors;
+}
+
+// Filerna som får röra tokenkolumnerna i strava_tokens: lagret och (när det finns) skriptet som krypterar om raderna (ADR 013 S4).
+const STRAVA_TOKEN_STORE_FILES = new Set([
+  'apps/backend/src/services/stravaTokenStore.ts',
+  'apps/backend/src/scripts/backfillStravaTokenEncryption.ts',
+]);
+const STRAVA_TOKENS_FROM = /\.from\(\s*(['"`])strava_tokens\1\s*\)/g;
+const TOKEN_COLUMN = /\b(?:access_token|refresh_token)\b/;
+// "Raden har en token": ett filter på nullvärde läser ingen token och är det enda tillåtna omnämnandet av kolumnerna.
+const HAS_TOKEN_FILTER = /\.not\(\s*(['"`])access_token\1\s*,\s*(['"`])is\2\s*,\s*null\s*\)/g;
+
+/**
+ * Texten i en frågekedja som börjar vid `start`: till slutet av satsen (`;` på nivå 0) eller till den parentes som stänger det anrop
+ * kedjan sitter i. Citerade strängar (och mallsträngar) räknas som text; kommentarer tas bort så att ett ord i dem inte blir en träff.
+ */
+function queryChainText(code, start) {
+  let depth = 0;
+  let text = '';
+  for (let i = start; i < code.length; i += 1) {
+    const char = code[i];
+    const next = code[i + 1];
+    if (char === '/' && next === '/') { while (i < code.length && code[i] !== '\n') i += 1; text += '\n'; continue; }
+    if (char === '/' && next === '*') { const end = code.indexOf('*/', i + 2); i = end === -1 ? code.length : end + 1; continue; }
+    if (char === "'" || char === '"' || char === '`') {
+      const quote = char;
+      text += char;
+      i += 1;
+      while (i < code.length && code[i] !== quote) { if (code[i] === '\\') { text += code[i]; i += 1; } text += code[i]; i += 1; }
+      text += quote;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') depth += 1;
+    else if (char === ')' || char === ']' || char === '}') { depth -= 1; if (depth < 0) return text; }
+    else if (char === ';' && depth === 0) return text;
+    text += char;
+  }
+  return text;
+}
+
+/**
+ * Regel 11 (ADR 013 beslut 4). Strava-tokens läses och skrivs bara i services/stravaTokenStore.ts, den enda platsen som krypterar och
+ * dekrypterar dem. En frågekedja på `strava_tokens` i någon annan backendfil får inte nämna access_token eller refresh_token (select,
+ * filter, update, upsert, insert), och får inte hämta alla kolumner (`select('*')`, `select()`). Undantag: filtret
+ * `.not('access_token', 'is', null)`, som inte läser något värde. `files`: [{ path, content }]. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: en tabell som anges med en konstant (`.from(TABLE)`), eller en fråga som byggs
+ * i flera satser (`const q = db.from('strava_tokens'); q.select('access_token')`).
+ */
+export function checkStravaTokenPath(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!BACKEND_SOURCE.test(path) || STRAVA_TOKEN_STORE_FILES.has(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
+    for (const match of content.matchAll(STRAVA_TOKENS_FROM)) {
+      const chain = queryChainText(content, match.index + match[0].length).replace(HAS_TOKEN_FILTER, '');
+      const readsEverything = /\.select\(\s*(?:(['"`])\s*\*?\s*\1\s*)?\)/.test(chain);
+      if (!TOKEN_COLUMN.test(chain) && !readsEverything) continue;
+      const line = content.slice(0, match.index).split(/\r?\n/).length;
+      errors.push(`${path}:${line}: tokenkolumnerna i strava_tokens används utanför stravaTokenStore — läs och skriv dem bara via services/stravaTokenStore.ts (ADR 013 beslut 4)`);
     }
   }
   return errors;
@@ -406,8 +473,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'rate-budget-hook', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | rate-budget-hook | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -422,11 +489,15 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'rate-budget-hook' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
       summary.push('inga Strava-anrop förbi stravaFetch');
+    }
+    if (mode === 'all' || mode === 'strava-token-path') {
+      errors.push(...checkStravaTokenPath(files));
+      summary.push('Strava-tokenkolumnerna används bara i stravaTokenStore');
     }
     if (mode === 'all' || mode === 'rate-budget-hook') {
       errors.push(...checkRateBudgetHook(files));
