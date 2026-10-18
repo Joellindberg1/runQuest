@@ -70,7 +70,8 @@ describe('beforeSend strips tokens and PII', () => {
     expect(out.request.cookies).toBeUndefined();
     expect(out.request.query_string).toBeUndefined();
     expect(out.request.headers).toEqual({ 'content-type': 'application/json', 'user-agent': 'vitest' });
-    expect(out.request.url).toBe('https://api.runquest.dev/api/strava/callback');
+    // Ingen route i fixturen: bara värden, aldrig den råa sökvägen (den kan bära ett id som inget mönster känner igen).
+    expect(out.request.url).toBe('https://api.runquest.dev');
   });
 
   it('keeps only user.id on the user', () => {
@@ -132,6 +133,28 @@ describe('expected client statuses', () => {
 
   it('beforeSend keeps an event with status 500', () => {
     expect(scrubSentryEvent({ contexts: { response: { status_code: 500 } } } as never, [])).not.toBeNull();
+  });
+});
+
+describe('ids in the address of an error event', () => {
+  const USER = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+
+  it('become :id in the transaction name and the request address, and the query is gone', () => {
+    const scrubbed = scrubSentryEvent({
+      transaction: `GET /api/titles/user/${USER}`,
+      request: { method: 'GET', url: `https://api.runquest.dev/api/titles/user/${USER}?week=2026-10-12#top` },
+    }, [])! as { transaction: string; request: { url: string } };
+
+    expect(scrubbed.transaction).toBe('GET /api/titles/user/:id');
+    expect(scrubbed.request.url).toBe('https://api.runquest.dev/api/titles/user/:id');
+    expect(JSON.stringify(scrubbed)).not.toContain(USER);
+  });
+
+  it('also turn a numeric segment into :id, and take the path of the address from the route name, never from the raw path', () => {
+    const scrubbed = scrubSentryEvent({ transaction: 'GET /api/strava/activities/987654321', request: { url: 'https://api.runquest.dev/api/users/anna-andersson' } }, [])! as { transaction: string; request: { url: string } };
+    expect(scrubbed.transaction).toBe('GET /api/strava/activities/:id');
+    expect(scrubbed.request.url).toBe('https://api.runquest.dev/api/strava/activities/:id');
+    expect(JSON.stringify(scrubbed)).not.toContain('anna-andersson');
   });
 });
 

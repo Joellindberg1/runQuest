@@ -84,6 +84,14 @@ function scrubString(value: string, secrets: readonly string[]): string {
     .replace(EMAIL, FILTERED);
 }
 
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+const NUMERIC_SEGMENT = /(?<=\/)\d+(?=\/|$)/g;
+
+/** Ett id i en sökväg eller ett routenamn (UUID eller ren siffra mellan snedstreck) blir `:id`. Mallar från koden (`/:id`) berörs inte. */
+export function normalizeIds(path: string): string {
+  return path.replace(UUID, ':id').replace(NUMERIC_SEGMENT, ':id');
+}
+
 const MAX_DEPTH = 12;
 
 function walk(value: unknown, secrets: readonly string[], ancestors: object[], key?: string): unknown {
@@ -125,7 +133,20 @@ export function scrubSentryEvent<T extends object>(event: T, secrets: readonly s
     if (request.headers && typeof request.headers === 'object') {
       request.headers = Object.fromEntries(Object.entries(request.headers as Json).filter(([name]) => SAFE_HEADERS.has(name.toLowerCase())));
     }
-    if (typeof request.url === 'string') request.url = request.url.split(/[?#]/)[0];
+  }
+
+  // Namnet på transaktionen som en felhändelse hör till: routemallen (sentryRouteNaming), men en rå sökväg med ett id ska aldrig gå ut.
+  if (typeof out.transaction === 'string') out.transaction = normalizeIds(out.transaction);
+
+  // Adressen: värden och routemallen, aldrig den råa sökvägen. Ett id som inte är ett UUID eller ett tal (ett användarnamn) går inte
+  // att känna igen i en sökväg, så sökvägen tas från routenamnet; saknas det blir det bara värden.
+  if (out.request && typeof out.request === 'object' && typeof out.request.url === 'string') {
+    const route = typeof out.transaction === 'string' ? /^[A-Z]+ (\/\S*)$/.exec(out.transaction)?.[1] : undefined;
+    try {
+      out.request.url = `${new URL(out.request.url).origin}${route ?? ''}`;
+    } catch {
+      delete out.request.url;
+    }
   }
 
   if (out.user && typeof out.user === 'object') {

@@ -146,6 +146,8 @@ flöde 1 (login → JWT → skyddade anrop). Minst: frontend laddar utan vit sid
 
 **Sentry-alertregeln för kritiska larm** (en gång per Sentry-projekt, `runquest-backend`): villkor `alert:critical` (tagg, `level:fatal`), åtgärd "mejla ägaren", och **notifiera för varje händelse** (inte bara nya issues). Frekvensen begränsas av spärren i koden (högst en händelse per källa och fingeravtryck per 10 minuter, `extra.suppressed_since_last` visar hur många som hölls tillbaka), så regeln behöver ingen egen throttle. Källor och Strava-id-regeln: ADR 010, Addendum 2026-10-17 (RUN-283).
 
+**Prestandaalerts** (p95 per route i backend, Web Vitals i frontend): trösklar, filter och hur de verifieras i staging står i [`docs/performance.md`](performance.md) (RUN-287).
+
 **Källkartor till Sentry** (RUN-285). Både frontend- och backendbygget laddar upp sin källkarta till Sentry (org `joel-lindberg`,
 EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`), så stackar i Sentry visar `src/`-rader.
 - **Token:** `SENTRY_AUTH_TOKEN` sätts som byggvariabel på varje Railway-tjänst som bygger (prod och staging, frontend och

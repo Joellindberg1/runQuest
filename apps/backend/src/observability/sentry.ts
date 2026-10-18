@@ -1,13 +1,15 @@
 /**
- * Sentry i backend (felrapportering, ingen tracing).
+ * Sentry i backend (felrapportering och prestandaspårning).
  *
  * Upplägg:
  *  - `initSentry()` anropas en gång tidigt i server.ts, efter att .env laddats. Utan SENTRY_DSN gör den ingenting alls
  *    (dev, tester och CI skickar aldrig något).
- *  - ESM utan `--import`: SDK:ts auto-instrumentering (HTTP, Express, databas) behöver `--import @sentry/node/import` och ett
- *    ändrat startkommando, men ger bara spans. Här behövs bara felrapportering, och den fungerar med `node dist/server.js` som förut.
- *    Därför är auto-instrumenteringen avstängd (`enableRuntimeChannelInjection: false`) och ingen `tracesSampleRate` är satt.
- *    Tracing (en egen story) tar beslutet om `--import` då.
+ *  - ESM utan `--import`: SDK:ts modul-instrumentering (Express, databasklienter) behöver `--import @sentry/node/import` och ett
+ *    ändrat startkommando. Den är avstängd (`enableRuntimeChannelInjection: false`) och `node dist/server.js` är oförändrat.
+ *    Spårningen (RUN-287, tracing.ts) behöver den inte: server- och fetch-spans går via Nodes diagnostics_channel och routenamnen
+ *    sätts av en egen middleware. Avvägningarna står i tracing.ts.
+ *  - Spårning: högst `MAX_TRACES_SAMPLE_RATE` (0,1, packages/shared) av förfrågningarna; `SENTRY_TRACES_SAMPLE_RATE` kan bara sänka (0 = av).
+ *    Transaktioner går genom `scrubTransaction` på samma sätt som fel går genom `scrubSentryEvent`.
  *  - Kopplingspunkten för fel är loggern: `logger.error` lämnar varje rad till `captureLoggedError` (via `setErrorSink`).
  *    Handlers ändras inte. Fel som aldrig når en logger.error fångas av `installSentryErrorHandler` (Express) och av
  *    process-hanterarna för unhandledRejection/uncaughtException.
@@ -27,6 +29,8 @@ import * as Sentry from '@sentry/node';
 import type { Express, NextFunction, Request, Response } from 'express';
 import { CriticalAlert, criticalAlertOf } from '../utils/criticalAlert.js';
 import { setErrorSink } from '../utils/logger.js';
+import { tracesSampleRateOf } from '@runquest/shared';
+import { isUntracedRequest, stripIncomingTraceContext, tracingOptions } from './tracing.js';
 import { fingerprintOf, isClientAuthError, isDroppedBreadcrumb, isExpectedClientStatus, scrubSentryEvent, secretsFromEnv, statusOfExpressError } from './scrub.js';
 
 const MAX_DETAIL_LENGTH = 300;
@@ -85,12 +89,17 @@ function withoutCriticalAlerts(dedupe: SentryIntegration): SentryIntegration {
   };
 }
 
+/** Namnen på integrationerna SDK:t har utan spårning (se `integrations` i initSentry). */
+const BASE_INTEGRATION_NAMES: ReadonlySet<string> = new Set(Sentry.getDefaultIntegrations({}).map((i) => i.name));
+
 /** Startar Sentry om `SENTRY_DSN` är satt. Returnerar om den startades. */
 export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: InitSentryTestOptions = {}): boolean {
   const dsn = env.SENTRY_DSN?.trim();
   if (!dsn) return false;
 
   const secrets = secretsFromEnv(env);
+  // Först, av försiktighet: SDK:ts egen prenumeration på inkommande förfrågningar ska aldrig se anroparens spårningshuvuden.
+  stripIncomingTraceContext();
   const withProcessHandlers = testOptions.processHandlers !== false;
 
   Sentry.init({
@@ -100,8 +109,14 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env, testOptions: In
     dataCollection: NO_DATA_COLLECTION,
     enableRuntimeChannelInjection: false,
     tracePropagationTargets: [],
+    ...tracingOptions(tracesSampleRateOf(env.SENTRY_TRACES_SAMPLE_RATE), secrets),
     ...(testOptions.transport ? { transport: testOptions.transport } : {}),
     integrations: (defaults) => defaults
+      // Bara det SDK:t har utan spårning. Tilläggen som spårning ger (Express, Koa, databasklienter, ...) hör till modul-
+      // instrumenteringen ovan och gör ingenting utan den; de ska inte stå som aktiva i varje händelse.
+      .filter((i) => BASE_INTEGRATION_NAMES.has(i.name))
+      // Hälsokontrollen spåras aldrig; i övrigt samma inställningar som standardintegrationen.
+      .map((i) => (i.name === 'Http' ? Sentry.httpIntegration({ ignoreIncomingRequests: isUntracedRequest }) : i))
       // Konsolrader bär namn och annat som inte ska med; breadcrumbs behövs inte för att hitta felet.
       .filter((i) => i.name !== 'Console')
       .filter((i) => withProcessHandlers || (i.name !== 'OnUncaughtException' && i.name !== 'OnUnhandledRejection'))
