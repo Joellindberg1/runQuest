@@ -9,7 +9,6 @@ import {
   FINGERPRINT_QUERIES,
   KNOWN_DIFFERENCES,
   NOT_COMPARED,
-  PROD_WITHOUT_PUBLIC_EXECUTE,
   buildFingerprint,
   diffFingerprints,
   formatDiff,
@@ -115,56 +114,82 @@ describe('the fingerprint diff', () => {
 });
 
 describe('known differences', () => {
-  const grantKey = (signature: string) => `${signature} -> PUBLIC EXECUTE`;
-  const stagingOnly = (signatures: readonly string[]) => side({ function_grants: signatures.map((s) => ({ key: grantKey(s), value: '{"grantable":false}' })) });
+  const grantKey = (signature: string, grantee = 'PUBLIC') => `${signature} -> ${grantee} EXECUTE`;
+  const grantRows = (signatures: readonly string[], grantee = 'PUBLIC'): Row[] => signatures.map((s) => ({ key: grantKey(s, grantee), value: '{"grantable":false}' }));
+  const FOUR_FUNCTIONS = [
+    'public.increment_event_xp(p_user_id uuid, p_xp integer)',
+    'public.trigger_update_title_leaderboard()',
+    'public.update_all_title_leaderboards()',
+    'public.update_title_leaderboard(p_title_id uuid)',
+  ];
+  const clientGrants = (): Row[] => [...grantRows(FOUR_FUNCTIONS, 'anon'), ...grantRows(FOUR_FUNCTIONS, 'authenticated')];
+  /** What a project has on the four functions after 056: the owner and service_role only. */
+  const after056 = (): Row[] => [...grantRows(FOUR_FUNCTIONS, 'postgres'), ...grantRows(FOUR_FUNCTIONS, 'service_role')];
 
-  it('names exactly the four functions Lead verified', () => {
-    expect([...PROD_WITHOUT_PUBLIC_EXECUTE].sort()).toEqual([
-      'public.increment_event_xp(p_user_id uuid, p_xp integer)',
-      'public.trigger_update_title_leaderboard()',
-      'public.update_all_title_leaderboards()',
-      'public.update_title_leaderboard(p_title_id uuid)',
-    ]);
-  });
-
-  it('lists the four PUBLIC-execute grants that prod lacks as known, with the reason', () => {
-    const diff = diffFingerprints(side({}), stagingOnly(PROD_WITHOUT_PUBLIC_EXECUTE));
-    const marked = markKnown(diff.entries);
-    expect(marked).toHaveLength(4);
-    expect(marked.every((e) => e.known?.includes('RUN-226'))).toBe(true);
-    expect(hasUnexplainedDifferences(diff)).toBe(false);
-    const text = formatDiff(diff).join('\n');
-    expect(text).toContain('Unexplained differences: none.');
-    expect(text).toContain('Known differences: 4');
-  });
-
-  it('does not treat four other functions as known', () => {
-    const others = ['public.a()', 'public.b()', 'public.c()', 'public.d()'];
-    const diff = diffFingerprints(side({}), stagingOnly(others));
+  it('has no permanent rule: PUBLIC execute that only staging has is unexplained, since 056 closes it on the four functions in both projects', () => {
+    const diff = diffFingerprints(side({}), side({ function_grants: grantRows(FOUR_FUNCTIONS) }));
+    expect(diff.entries).toHaveLength(4);
     expect(markKnown(diff.entries).every((e) => !e.known)).toBe(true);
     expect(hasUnexplainedDifferences(diff)).toBe(true);
-    expect(formatDiff(diff).join('\n')).toContain('Not on the list: ');
-  });
-
-  it('does not hide a fifth missing grant behind the rule written for four', () => {
-    const diff = diffFingerprints(side({}), stagingOnly([...PROD_WITHOUT_PUBLIC_EXECUTE, 'public.fifth()']));
-    expect(markKnown(diff.entries).every((e) => !e.known)).toBe(true);
-    expect(hasUnexplainedDifferences(diff)).toBe(true);
-    expect(formatDiff(diff).join('\n')).toContain('Not on the list: public.fifth() -> PUBLIC EXECUTE');
-  });
-
-  it('treats none as known when one of the four has been fixed in prod', () => {
-    const diff = diffFingerprints(side({}), stagingOnly(PROD_WITHOUT_PUBLIC_EXECUTE.slice(0, 3)));
-    expect(markKnown(diff.entries).every((e) => !e.known)).toBe(true);
-    expect(formatDiff(diff).join('\n')).toContain(`Not found: ${grantKey(PROD_WITHOUT_PUBLIC_EXECUTE[3])}`);
+    expect(KNOWN_DIFFERENCES.map((r) => r.id)).toEqual(['temporary-056-client-execute-in-prod']);
   });
 
   it('does not treat the opposite direction, or another privilege, as known', () => {
-    const prodOnly = diffFingerprints(stagingOnly(PROD_WITHOUT_PUBLIC_EXECUTE), side({}));
-    expect(hasUnexplainedDifferences(prodOnly)).toBe(true);
-    const other = diffFingerprints(side({}), side({ function_grants: PROD_WITHOUT_PUBLIC_EXECUTE.map((s) => ({ key: `${s} -> anon EXECUTE`, value: '{}' })) }));
-    expect(hasUnexplainedDifferences(other)).toBe(true);
-    expect(KNOWN_DIFFERENCES).toHaveLength(1);
+    const prodOnlyPublic = diffFingerprints(side({ function_grants: grantRows(FOUR_FUNCTIONS) }), side({}));
+    expect(hasUnexplainedDifferences(prodOnlyPublic)).toBe(true);
+    const stagingOnlyAnon = diffFingerprints(side({}), side({ function_grants: grantRows(FOUR_FUNCTIONS, 'anon') }));
+    expect(hasUnexplainedDifferences(stagingOnlyAnon)).toBe(true);
+  });
+
+  describe('temporary: anon and authenticated execute on the four functions, between the staging apply and the prod apply of 056', () => {
+    it('marks the eight client grants that only prod still has as known, with the reason and the removal condition', () => {
+      const diff = diffFingerprints(side({ function_grants: clientGrants() }), side({}));
+      const marked = markKnown(diff.entries);
+      expect(marked).toHaveLength(8);
+      expect(marked.every((e) => e.kind === 'only_in_prod' && e.known?.includes('RUN-326') && e.known.includes('056'))).toBe(true);
+      expect(hasUnexplainedDifferences(diff)).toBe(false);
+      expect(formatDiff(diff).join('\n')).toContain('Known differences: 8');
+    });
+
+    it('is silent when prod has 056 too: two projects in the state after 056 give no entries, no known differences and no note about the rule', () => {
+      const staging = side({ function_grants: after056() });
+      const prod = side({ function_grants: after056() });
+      expect(prod.raw.function_grants.size).toBe(8);
+      const diff = diffFingerprints(prod, staging);
+      expect(diff.entries).toHaveLength(0);
+      expect(hasUnexplainedDifferences(diff)).toBe(false);
+      const text = formatDiff(diff).join('\n');
+      expect(text).toContain('Unexplained differences: none.');
+      expect(text).not.toContain('Known differences');
+      expect(text).not.toContain('Note: rule');
+      expect(text).not.toContain('temporary-056');
+    });
+
+    it('explains the client grants while the other grants (owner, service_role) are equal on both sides', () => {
+      const diff = diffFingerprints(side({ function_grants: [...after056(), ...clientGrants()] }), side({ function_grants: after056() }));
+      expect(diff.entries).toHaveLength(8);
+      expect(markKnown(diff.entries).every((e) => e.known)).toBe(true);
+      expect(hasUnexplainedDifferences(diff)).toBe(false);
+    });
+
+    it('does not hide a client grant on another function, or a missing one of the eight', () => {
+      const extra = diffFingerprints(side({ function_grants: [...clientGrants(), ...grantRows(['public.other()'], 'anon')] }), side({}));
+      expect(markKnown(extra.entries).every((e) => !e.known)).toBe(true);
+      expect(hasUnexplainedDifferences(extra)).toBe(true);
+      const missing = diffFingerprints(side({ function_grants: clientGrants().slice(1) }), side({}));
+      expect(markKnown(missing.entries).every((e) => !e.known)).toBe(true);
+      expect(formatDiff(missing).join('\n')).toContain(`Not found: ${grantKey(FOUR_FUNCTIONS[0], 'anon')}`);
+    });
+
+    it('does not mark a grant that only staging has, or service_role on the four functions, as known', () => {
+      expect(hasUnexplainedDifferences(diffFingerprints(side({}), side({ function_grants: clientGrants() })))).toBe(true);
+      expect(hasUnexplainedDifferences(diffFingerprints(side({ function_grants: grantRows(FOUR_FUNCTIONS, 'service_role') }), side({})))).toBe(true);
+    });
+
+    it('is the only rule, and its text says when it is removed', () => {
+      expect(KNOWN_DIFFERENCES).toHaveLength(1);
+      expect(KNOWN_DIFFERENCES[0].explanation).toContain('removed when 056 is applied in prod');
+    });
   });
 });
 

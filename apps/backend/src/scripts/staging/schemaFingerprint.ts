@@ -180,7 +180,7 @@ export function diffFingerprints(prod: SideFingerprint, staging: SideFingerprint
 
 /**
  * Known, explained differences. A rule names the exact keys it explains. It applies only when the set of entries of its kind (here: every
- * PUBLIC EXECUTE grant that exists only in staging) is EXACTLY that set: a fifth missing grant, or one of the four having been fixed in prod,
+ * anon or authenticated EXECUTE grant that exists only in prod) is EXACTLY that set: one more difference of the same kind, or one of them having been fixed,
  * means that none of them is treated as known and the person reading the diff has to look again.
  */
 export interface KnownRule {
@@ -191,20 +191,30 @@ export interface KnownRule {
   expectedKeys: readonly string[];
 }
 
-/** The four functions on which prod has lost PUBLIC execute (verified by Lead 2026-10-17; drift outside the repo, RUN-226). */
-export const PROD_WITHOUT_PUBLIC_EXECUTE: readonly string[] = [
+/**
+ * The four functions that migration 056 closes for public, anon and authenticated (RUN-326). Used by the temporary rule below.
+ * (Until 056, prod lacked PUBLIC execute on exactly these four while staging had it: drift outside the repo, RUN-226. 056 closes PUBLIC in both,
+ * so that permanent rule is gone.)
+ */
+const CLOSED_BY_056: readonly string[] = [
   'public.increment_event_xp(p_user_id uuid, p_xp integer)',
   'public.trigger_update_title_leaderboard()',
   'public.update_all_title_leaderboards()',
   'public.update_title_leaderboard(p_title_id uuid)',
 ];
+const CLIENT_ROLES: readonly string[] = ['anon', 'authenticated'];
 
 export const KNOWN_DIFFERENCES: readonly KnownRule[] = [
+  // TEMPORARY, removed when 056 is applied in prod (RUN-326). Migration 056 revokes execute from anon and authenticated on the four
+  // functions. Between its apply in staging and its apply in prod, only prod still has those eight grants. The rule needs exactly those
+  // eight keys: if prod already lost one, or has a ninth, none is treated as known. When 056 is in both, the rule has no candidates and
+  // stays silent; delete it, CLOSED_BY_056 and CLIENT_ROLES then.
   {
-    id: 'prod-missing-public-execute',
-    explanation: 'Known 2026-10-17 (RUN-226): prod has lost the default PUBLIC execute on this function (drift outside the repo); staging, built from the repo, still has it.',
-    candidate: (e) => e.category === 'function_grants' && e.kind === 'only_in_staging' && e.key.endsWith(' -> PUBLIC EXECUTE'),
-    expectedKeys: PROD_WITHOUT_PUBLIC_EXECUTE.map((signature) => `${signature} -> PUBLIC EXECUTE`),
+    id: 'temporary-056-client-execute-in-prod',
+    explanation:
+      'Temporary (RUN-326): migration 056 has closed anon and authenticated execute on increment_event_xp and the three old title functions in staging but not yet in prod. This rule is removed when 056 is applied in prod.',
+    candidate: (e) => e.category === 'function_grants' && e.kind === 'only_in_prod' && CLIENT_ROLES.some((role) => e.key.endsWith(` -> ${role} EXECUTE`)),
+    expectedKeys: CLOSED_BY_056.flatMap((signature) => CLIENT_ROLES.map((role) => `${signature} -> ${role} EXECUTE`)),
   },
 ];
 
@@ -269,7 +279,7 @@ export function formatDiff(diff: SchemaDiff): string[] {
   lines.push(`Not compared: ${NOT_COMPARED.join('; ')}.`);
   for (const { rule, missing, extra } of unmatchedRules(diff.entries)) {
     lines.push(
-      `Note: rule "${rule.id}" explains exactly ${rule.expectedKeys.length} functions, so none of the matching entries is treated as known.` +
+      `Note: rule "${rule.id}" explains exactly ${rule.expectedKeys.length} grants, so none of the matching entries is treated as known.` +
         `${missing.length > 0 ? ` Not found: ${missing.join('; ')}.` : ''}${extra.length > 0 ? ` Not on the list: ${extra.join('; ')}.` : ''}`,
     );
   }
