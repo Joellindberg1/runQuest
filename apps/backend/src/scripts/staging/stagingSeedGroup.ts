@@ -9,12 +9,15 @@
  * Run:  npm run staging:seed-group --workspace=@runquest/backend -- [--apply]
  *   Without --apply it is a DRY-RUN: it reads staging, prints what it would create, writes no row and no file.
  * Needs SUPABASE_STAGING_ACCESS_TOKEN in the shell. The target is hard-coded to the staging project.
+ * The group and the memberships are made by create_group_with_admin / join_group (migration 053), never by rows written here, so migration 053
+ * must be applied first (staging:migrate does that). A second group for the multi-group tests is made with create:group (scripts/createGroup.ts).
  */
 import bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { chmodSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { todayStockholm } from '../../utils/dateUtils.js';
 import {
   MissingEnvError,
   STAGING_PROJECT_REF,
@@ -50,19 +53,30 @@ export const TEST_PEOPLE: readonly TestPerson[] = [
 const escapeLiteral = (text: string) => text.replace(/'/g, "''");
 
 export interface SeedGroupIds {
-  groupId: string;
   userIds: string[];
   inviteCode: string;
   passwordHash: string;
+  /** The Stockholm day (YYYY-MM-DD) the memberships start on; the database never works it out itself. */
+  today: string;
 }
 
+/**
+ * The first person creates the group (create_group_with_admin makes them its admin and sets their pointer users.group_id); the others
+ * join as members (join_group). The users are inserted WITHOUT group_id: the pointer is written only by the two functions of
+ * migration 053 (ADR 012 decision 2.2), so staging:migrate must have run first.
+ */
 export function buildSeedGroupSql(ids: SeedGroupIds): string {
-  const adminId = ids.userIds[0];
-  let sql = `begin;\ninsert into public.groups (id, name, invite_code, owner_id) values ('${ids.groupId}', '${escapeLiteral(STAGING_GROUP_NAME)}', '${escapeLiteral(ids.inviteCode)}', null);\n`;
+  const code = escapeLiteral(ids.inviteCode);
+  const day = escapeLiteral(ids.today);
+  let sql = 'begin;\n';
   TEST_PEOPLE.forEach((person, i) => {
-    sql += `insert into public.users (id, name, email, password_hash, is_admin, group_id) values ('${ids.userIds[i]}', '${escapeLiteral(person.name)}', '${person.email}', '${escapeLiteral(ids.passwordHash)}', ${person.admin}, '${ids.groupId}');\n`;
+    sql += `insert into public.users (id, name, email, password_hash, is_admin) values ('${ids.userIds[i]}', '${escapeLiteral(person.name)}', '${person.email}', '${escapeLiteral(ids.passwordHash)}', ${person.admin});\n`;
   });
-  return `${sql}update public.groups set owner_id = '${adminId}' where id = '${ids.groupId}';\ncommit;`;
+  sql += `select public.create_group_with_admin('${escapeLiteral(STAGING_GROUP_NAME)}', '${code}', '${ids.userIds[0]}', '${day}');\n`;
+  TEST_PEOPLE.slice(1).forEach((_person, i) => {
+    sql += `select public.join_group('${ids.userIds[i + 1]}', (select id from public.groups where invite_code = '${code}'), 'member', '${day}');\n`;
+  });
+  return `${sql}commit;`;
 }
 
 export function formatSeedFile(input: { inviteCode: string; password: string }): string {
@@ -108,6 +122,8 @@ export interface RunSeedGroupInput {
   generatePassword?: () => string;
   writeSeedFile?: (path: string, content: string) => void;
   removeSeedFile?: (path: string) => void;
+  /** The Stockholm day the memberships start on. Default: today. */
+  today?: string;
 }
 
 export function exitCodeFor(report: Pick<SeedGroupReport, 'outcome'>): 0 | 1 {
@@ -192,10 +208,10 @@ export async function runSeedGroup(input: RunSeedGroupInput): Promise<SeedGroupR
   }
 
   const ids: SeedGroupIds = {
-    groupId: randomUUID(),
     userIds: TEST_PEOPLE.map(() => randomUUID()),
     inviteCode: `STG${randomBytes(3).toString('hex').toUpperCase()}`,
     passwordHash,
+    today: input.today ?? todayStockholm(),
   };
   // The file is written first so that the password cannot be lost after the rows exist; it is removed again if the insert fails.
   try {

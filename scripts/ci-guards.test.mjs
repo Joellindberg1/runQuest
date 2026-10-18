@@ -354,10 +354,10 @@ describe('checkUsersGroupIdWrites', () => {
     assert.deepEqual(scan(bad, 'packages/shared/src/x.ts'), []);
   });
 
-  it('lets the staging seed script through, by name, until create_group_with_admin replaces it', () => {
+  it('no longer lets any script through by name: the staging seed script goes through the database functions too', () => {
     const sql = 'sql += `insert into public.users (id, name, group_id) values (1, 2, 3);`;';
-    assert.deepEqual(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedGroup.ts'), []);
-    assert.equal(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedOther.ts').length, 1);
+    assert.equal(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedGroup.ts').length, 1);
+    assert.equal(scan(sql, 'apps/backend/src/scripts/createGroup.ts').length, 1);
   });
 });
 

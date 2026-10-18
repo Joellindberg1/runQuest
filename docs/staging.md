@@ -106,12 +106,61 @@ i `apps/backend/src/scripts/staging/stagingSeedReference.ts` fortfarande bara l�
 ### 3. `staging:seed-group`
 
 Skapar gruppen "Staging Pack" med fyra användare (`admin@`, `sixten@`, `lova@`, `kim@staging.runquest.test`); admin är
-gruppens skapare. Lösenordet genereras slumpmässigt vid `--apply` och skrivs **bara** till `staging-testkonton.seed` i
+gruppens skapare. Gruppen och medlemskapen görs av databasfunktionerna `create_group_with_admin` och `join_group` (migration 053;
+skriptet skriver aldrig `users.group_id` själv), så migrationen måste vara körd först (steg 1). Lösenordet genereras slumpmässigt vid `--apply` och skrivs **bara** till `staging-testkonton.seed` i
 repo-roten (gitignorerad via `*.seed`), aldrig till terminalen; varken lösenordet eller dess hash kan dyka upp i en
 utskrift. Finns gruppen redan görs inget och den gamla filen lämnas orörd. Finns någon av e-postadresserna utanför gruppen
 vägrar skriptet. Misslyckas inserten tas seed-filen bort bara om en ny kontroll visar att gruppen inte finns; annars (svaret
 gick förlorat men raderna kan ha skapats, eller kontrollen misslyckas) behålls filen, eftersom den då är enda kopian av
 lösenordet. Vill du ha ett nytt lösenord: radera gruppen och dess användare i staging och kör om.
+
+### En andra låtsasgrupp: `create:group` (flergruppstest, ADR 012 S12/S14)
+
+`staging:seed-group` ger gruppen "Staging Pack". Flergruppstestet (ägarbeslut F5: flergrupp testas i staging med en låtsasgrupp, aldrig
+en testgrupp i prod) behöver en andra grupp. Den skapas av `apps/backend/src/scripts/createGroup.ts` (`npm run create:group`), som anropar
+databasfunktionen `create_group_with_admin` (migration 053): gruppen, adminrollen och pekaren `users.group_id` skrivs i en transaktion.
+Skriptet skapar inget konto och läser eller skriver aldrig `staging-testkonton.seed`.
+
+**1. Ett testkonto utan medlemskap.** Skaparen måste vara en befintlig användare utan aktivt medlemskap (ett aktivt medlemskap per
+användare i v0.8.0). Adminvägen i appen (`POST /auth/users`) lägger alltid kontot i adminens grupp, så den går inte; Lead gör kontot i
+STAGING med `execute_sql` mot `supabase-staging` (aldrig mot prod), utan `group_id`:
+
+```sql
+insert into public.users (name, email, password_hash)
+values ('Andra Admin', 'andra-admin@staging.runquest.test', '<bcrypt-hash>');
+```
+
+Lösenordet slumpas av Lead, hashas lokalt med bcrypt (10 rundor, samma som `staging:seed-group`) och skrivs inte i chatten, i ett
+ärende eller i en spårad fil; hashen är det enda som lämnar Lead. Kolumnerna har standardvärden för resten (poäng, nivå, streak).
+Om en sida i flergruppstestet än så länge kräver den globala flaggan `users.is_admin` (kvar för systemrutter, ADR 012), sätts den för
+kontot i samma sats; gruppens adminroll kommer av medlemskapet, inte av flaggan.
+
+**2. Dry-run, sedan `--apply`.** Målet avgörs av den anslutnings-URL skriptet faktiskt använder (`SUPABASE_URL`), aldrig av en flagga.
+Miljön kommer från skalet; ingen `.env` läses, så en kvarglömd lokal fil kan inte välja mål. Lead kör med stagingtjänstens
+miljövariabler:
+
+```bash
+railway run --environment staging --service runquest-backend-staging -- \
+  npm run create:group --workspace=@runquest/backend -- --owner-email=andra-admin@staging.runquest.test --name="Andra gruppen"
+# dry-run: skriver ut måldatabasens host, läser kontot, skapar ingenting. Lägg till --apply för att skapa gruppen.
+```
+
+Flaggor: `--owner-email=` eller `--owner-id=<uuid>` (exakt en), `--name=` (standard "Staging Second Pack"), `--invite-code=`
+(`A-Z0-9`, 6 till 32 tecken; annars slumpas en med `crypto.randomBytes`), `--show-invite-code`, `--apply`.
+
+**Inbjudningskoden** ger tillträde till gruppen och skrivs inte ut om inte `--show-invite-code` ges (då på en egen rad, en gång). Den
+loggas aldrig och går aldrig till Sentry. Adminen ser den i appen (`GET /api/groups/my`); den som ska gå med får den av Lead.
+
+**Vakterna** (avgör mål ur `SUPABASE_URL`):
+- staging (`aormctqrmguvncxrigwy`): `--apply` tillåts.
+- prod (`yrrqaxdngayakcivfrck`; en URL som nämner prod-refen var som helst räknas som prod): `--apply` vägras. Det går bara med BÅDE
+  `--allow-prod` och `--confirm-prod=I-HAVE-THE-OWNERS-YES-FOR-yrrqaxdngayakcivfrck`. **Lead använder paret bara efter ägarens uttryckliga
+  ja i den aktuella tråden**, och aldrig för en testgrupp (F5). Utan paret är standarden vägran, och ingen databasklient byggs ens.
+- alla andra mål (annat projekt, lokal stack, eget domännamn, URL som inte går att läsa): `--apply` vägras, eftersom de inte går att skilja
+  från prod. `--allow-prod` mot staging vägras också (flaggan på fel URL är ett tecken på att fel miljö är vald).
+- En dry-run läser bara (kontot och dess medlemskap) och får köras mot vilket mål som helst.
+
+Skriptet körs bara av Lead, aldrig av CI eller av en builder (`main()` vägrar om `CI` eller `VITEST` är satt).
 
 ### 4. `staging:schema-diff`
 
