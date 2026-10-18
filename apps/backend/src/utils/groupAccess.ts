@@ -39,6 +39,12 @@ export async function resolveActingGroupForWrite(userId: string, db?: SupabaseCl
     return { allowed: false, reason: 'unavailable' };
   }
   if (!membership || !groupRoleCan(membership.role, 'settings.write')) return { allowed: false, reason: 'forbidden' };
+  // Försvar på djupet: group_id är NOT NULL i databasen, men en tom eller felaktig grupp får aldrig bli en "tillåten" grupp
+  // (route-formen skulle då returnera ett falskt värde utan att ha svarat).
+  if (typeof membership.group_id !== 'string' || membership.group_id === '') {
+    logger.error('❌ Membership without a usable group id (invalid_group_id)');
+    return { allowed: false, reason: 'unavailable' };
+  }
   return { allowed: true, groupId: membership.group_id };
 }
 

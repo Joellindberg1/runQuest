@@ -6,6 +6,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { Request, Response } from 'express';
 import { createFakeDb, type FakeDbOptions, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { actingGroupForWriteOrRespond, resolveActingGroupForWrite } from '../groupAccess.js';
+import { logger } from '../logger.js';
 
 const NOW = '2026-10-01T10:00:00Z';
 
@@ -65,6 +66,60 @@ describe('resolveActingGroupForWrite', () => {
       failWhen: () => ({ message: 'TypeError: fetch failed', code: '' }),
     });
     expect(await resolveActingGroupForWrite('admin-1', db)).toEqual({ allowed: false, reason: 'unavailable' });
+  });
+
+  it('treats two active memberships (the database should hold one) as denied, reported as unavailable', async () => {
+    const { db } = setup([
+      membership({ user_id: 'admin-1', group_id: 'g1', role: 'admin' }),
+      membership({ user_id: 'admin-1', group_id: 'g2', role: 'admin' }),
+    ]);
+    expect(await resolveActingGroupForWrite('admin-1', db)).toEqual({ allowed: false, reason: 'unavailable' });
+  });
+
+  it.each([
+    ['an empty string', ''],
+    ['null', null],
+    ['a number', 7],
+  ])('denies an admin membership whose group id is %s, instead of handing out a group that is not one', async (_name, groupId) => {
+    const { db } = setup([membership({ user_id: 'admin-1', group_id: groupId, role: 'admin' })]);
+    expect(await resolveActingGroupForWrite('admin-1', db)).toEqual({ allowed: false, reason: 'unavailable' });
+  });
+
+  it('answers 500 through the route form, exactly once, for a membership without a usable group id', async () => {
+    const { db } = setup([membership({ user_id: 'admin-1', group_id: '', role: 'admin' })]);
+    const res = resMock();
+    expect(await actingGroupForWriteOrRespond(reqFor({ user_id: 'admin-1' }), res, db)).toBeNull();
+    expect(res.status).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs the database code on a failed read, and neither the user id nor the database text', async () => {
+    const errorLog = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    try {
+      const { db } = setup([], { failWhen: () => ({ message: 'row for admin-1 holds secret 4711', code: '57P01', details: 'Key (user_id)=(admin-1)' }) });
+      await resolveActingGroupForWrite('admin-1', db);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      const logged = JSON.stringify(errorLog.mock.calls);
+      expect(logged).toContain('57P01');
+      expect(logged).not.toMatch(/admin-1|4711|secret/);
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it('logs only a label, never the text, when the client itself throws', async () => {
+    const errorLog = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    try {
+      const throwing = { from: () => { throw Object.assign(new Error('client for admin-1 holds secret 4711'), { code: 'CLIENT_DOWN' }); } } as any;
+      await resolveActingGroupForWrite('admin-1', throwing);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      const logged = JSON.stringify(errorLog.mock.calls);
+      expect(logged).toContain('CLIENT_DOWN');
+      expect(logged).not.toMatch(/admin-1|4711|secret/);
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it('treats a role the database should never hold as denied, not as a guess', async () => {
@@ -138,7 +193,9 @@ describe('actingGroupForWriteOrRespond', () => {
       const { db } = setup(rows);
       const res = resMock();
       expect(await actingGroupForWriteOrRespond(reqFor({ user_id: 'u1', group_id: 'g-b' }), res, db)).toBeNull();
+      expect(res.status).toHaveBeenCalledTimes(1);
       expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledTimes(1);
       bodies.push(res.json.mock.calls[0]![0]);
     }
     expect(bodies).toEqual([{ error: 'Forbidden' }, { error: 'Forbidden' }, { error: 'Forbidden' }]);
@@ -148,7 +205,9 @@ describe('actingGroupForWriteOrRespond', () => {
     const { db } = setup([], { failWhen: () => ({ message: 'boom for g1', code: '57P01' }) });
     const res = resMock();
     expect(await actingGroupForWriteOrRespond(reqFor({ user_id: 'admin-1', group_id: 'g1' }), res, db)).toBeNull();
+    expect(res.status).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledTimes(1);
     expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
   });
 
@@ -156,7 +215,9 @@ describe('actingGroupForWriteOrRespond', () => {
     const { db, queries } = setup([membership({ user_id: 'admin-1', group_id: 'g1', role: 'admin' })]);
     const res = resMock();
     expect(await actingGroupForWriteOrRespond(reqFor(undefined), res, db)).toBeNull();
+    expect(res.status).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledTimes(1);
     expect(queries).toHaveLength(0);
   });
 });
