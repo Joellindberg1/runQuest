@@ -2,13 +2,12 @@ import express from 'express';
 import { logger } from '../utils/logger.js';
 import { titleLeaderboardService } from '../services/titleLeaderboardService';
 import { enhancedTitleService } from '../services/enhancedTitleService';
-import { getTitleRecalcContext } from '../services/titleRecalcClock';
-import { supabase } from '../config/database';
+import { getGroupEligibility } from '../services/groupEligibility';
 import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { errorCode } from '../utils/errorCode.js';
 import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
-import type { TitleLeaderboardResponse, UserTitlesResponse } from '@runquest/shared';
+import type { GroupEligibilityResponse, TitleLeaderboardResponse, UserTitlesResponse } from '@runquest/shared';
 
 const router = express.Router();
 
@@ -215,66 +214,18 @@ router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) =
 
 /**
  * GET /api/titles/group-eligibility
- * Returns server-calculated title achievement values for all users in the caller's group.
+ * Returns server-calculated title achievement values for the active members of the caller's group, counted on each membership's
+ * window (ADR 012 beslut 5.7) with the group's own recalculation clock (beslut 5.6).
  * Single source of truth — frontend should display these values, not recalculate locally.
+ * A caller without a group gets an empty list (ADR 007 A6, fail-closed).
  */
-router.get('/group-eligibility', authenticateJWT, async (req: any, res) => {
+router.get('/group-eligibility', authenticateJWT, async (req, res) => {
   try {
-    const callerId: string = req.user.user_id;
+    const groupId = groupIdOrRespondEmpty(req, res);
+    if (!groupId) return;
 
-    // Get caller's group_id
-    const { data: caller, error: callerError } = await supabase.client
-      .from('users')
-      .select('group_id')
-      .eq('id', callerId)
-      .single();
-
-    if (callerError || !caller?.group_id) {
-      res.status(400).json({ success: false, error: 'No group found for user' });
-      return;
-    }
-
-    // Get all non-admin users in the group
-    const { data: users, error: usersError } = await supabase.client
-      .from('users')
-      .select('id, name, total_km, longest_streak, gender')
-      .eq('group_id', caller.group_id)
-      .neq('name', 'Admin');
-
-    if (usersError || !users) {
-      res.status(500).json({ success: false, error: 'Failed to fetch group users' });
-      return;
-    }
-
-    // For each user, fetch runs and calculate values. Ett gemensamt "nu" för hela svaret: senaste omräkningens klocka,
-    // så att winterKm räknar samma vinter som de lagrade innehavarna (RUN-141).
-    const ctx = await getTitleRecalcContext();
-    const eligibilityResults = await Promise.all(
-      users.map(async (user: any) => {
-        const { data: runs } = await supabase.client
-          .from('runs')
-          .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
-          .eq('user_id', user.id)
-          .order('date', { ascending: true });
-
-        const runsWithAlias = (runs ?? []).map((r: any) => ({ ...r, distance_km: r.distance }));
-        const values = enhancedTitleService.calculateUserValues(
-          runsWithAlias,
-          user.total_km || 0,
-          user.longest_streak || 0,
-          ctx
-        );
-
-        return {
-          userId: user.id,
-          name: user.name,
-          gender: user.gender ?? null,
-          values,
-        };
-      })
-    );
-
-    res.json({ success: true, data: eligibilityResults });
+    const body: GroupEligibilityResponse = { success: true, data: await getGroupEligibility(groupId) };
+    res.json(body);
   } catch (error) {
     logger.error(`❌ API Error in /titles/group-eligibility (${errorCode(error)})`);
     res.status(500).json({ success: false, error: 'Failed to calculate group eligibility' });

@@ -4,36 +4,39 @@ import type { TitleContext } from '../titleEngines/types';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 /**
- * Klockan som group-eligibility räknar med (RUN-141): tidpunkten för senaste titelomräkningen, så att "Best so far"
+ * Klockan som group-eligibility räknar med (RUN-141): tidpunkten för gruppens senaste titelomräkning, så att "Best so far"
  * använder samma vinterfönster som de lagrade innehavarna (user_titles) i stället för request-tidens. Fönstret
  * byter nämligen först vid nästa omräkning efter 1 december (ingen cron), och lagrade värden byter då med det.
  *
- * Tidsstämpeln är max(titles.updated_at): update_group_title_leaderboard stämplar titeln varje gång en grupps topplista
- * byggs om, och calculateUserTotals kör alltid update_group_title_leaderboards efter gruppens titelomräkning, så varje
- * omräkning stämplar alla titlar — även en där inga värden ändrades. Saknas en giltig tidsstämpel, eller går
- * läsningen fel, används request-tiden (förra beteendet): eligibility är en bonus och får aldrig fälla svaret.
- * Klockan klampas till högst request-tiden.
+ * Klockan är GRUPPENS (ADR 012 beslut 5.6): max(title_leaderboard.updated_at) för gruppen. Raderna skrivs om av
+ * update_group_title_leaderboard (DELETE + INSERT, så updated_at får kolumnens default now()) varje gång gruppens topplista för en titel
+ * byggs om, och calculateUserTotals kör alltid update_group_title_leaderboards efter gruppens titelomräkning, så varje omräkning stämplar
+ * gruppens alla topplistor med innehavare. En annan grupps omräkning rör inte gruppens rader. titles.updated_at, som alla grupper delar,
+ * duger därför inte som källa (migration 055 stämplar den kvar bara för äldre kod). Saknas en giltig tidsstämpel (gruppen har ingen
+ * innehavare i någon titel, alltså inga lagrade värden att stämma av mot), eller går läsningen fel, används request-tiden (förra beteendet):
+ * eligibility är en bonus och får aldrig fälla svaret. Klockan klampas till högst request-tiden.
+ *
+ * Fail-closed (ADR 007 A6): utan groupId kastas det innan något läses. Det finns ingen global klocka att falla tillbaka på.
  *
  * Kända glapp (klockan är en approximation, inte en exakt omräkningstid):
  * - Midnattsglipan: en omräkning som korsar Stockholmsmidnatt (30 nov -> 1 dec) använder ett "nu" från körningens
- *   start (ctx delas av alla användare), medan titles.updated_at stämplas när respektive topplista byggs, kanske efter
+ *   start (ctx delas av alla användare), medan title_leaderboard.updated_at stämplas när respektive topplista byggs, kanske efter
  *   midnatt. Klockan kan då visa den nya vintern fast de lagrade värdena räknades med den förra.
  * - Partiell omräkning: en gruppkörning med failed > 0 lämnar
  *   en del lagrade värden räknade med äldre fönster, trots att topplistorna ändå stämplas.
- * - Andra skrivningar av titles.updated_at (manuell populate/refresh, admin-SQL, migrationer) flyttar klockan utan
+ * - Andra ombyggnader av gruppens topplista (manuell populate/refresh, ombyggnad efter join, admin-SQL, migrationer) flyttar klockan utan
  *   att några användare räknats om.
- *
- * Flera grupper (antagande, att se över inför RUN-95): klockan är GLOBAL (max över alla titlar), medan topplistorna och
- * omräkningen är per grupp (processGroupTitles(groupId), update_group_title_leaderboard). Stämplingen av titles.updated_at
- * ligger dock på en titelrad som alla grupper delar, så en grupps omräkning kan flytta klockan för en annan grupp vars
- * användare ännu inte räknats om med det nya fönstret. Klockan per grupp byggs i en senare story (ADR 012 beslut 5.6).
  */
-export async function getTitleRecalcContext(): Promise<TitleContext> {
+export async function getTitleRecalcContext(groupId: string): Promise<TitleContext> {
+  if (typeof groupId !== 'string' || groupId === '') throw new Error('getTitleRecalcContext kräver groupId');
   const requestTime = new Date();
   try {
+    // Utan NULL-raderna: Postgres sorterar NULL först vid desc, och kolumnen är nullbar.
     const { data, error } = await supabase.client
-      .from('titles')
+      .from('title_leaderboard')
       .select('updated_at')
+      .eq('group_id', groupId)
+      .not('updated_at', 'is', null)
       .order('updated_at', { ascending: false })
       .limit(1);
 

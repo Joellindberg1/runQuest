@@ -57,6 +57,12 @@ function seed() {
       { id: 'admin', name: 'Admin', group_id: 'group-1', total_km: 0, longest_streak: 0, gender: null },
       { id: 'user-3', name: 'Carol', group_id: 'group-2', total_km: 99, longest_streak: 9, gender: 'female' },
     ],
+    group_members: [
+      { group_id: 'group-1', user_id: 'user-1', starts_on: null, left_at: null },
+      { group_id: 'group-1', user_id: 'user-2', starts_on: null, left_at: null },
+      { group_id: 'group-1', user_id: 'admin', starts_on: null, left_at: null },
+      { group_id: 'group-2', user_id: 'user-3', starts_on: null, left_at: null },
+    ],
     runs: [
       { id: 'r1', user_id: 'user-1', date: '2026-12-01', distance: 8.5, start_time: null, total_elevation_gain: 20,
         pace_std_dev: null, moving_time: 3000, run_weather: { temperature_c: -4, wind_speed_ms: 12, wind_gusts_ms: 19 } },
@@ -113,10 +119,72 @@ describe('GET /api/titles/group-eligibility', () => {
     expect(bobRuns[0]).toMatchObject({ temperature_c: 3, wind_speed_ms: 1, wind_gusts_ms: 2 });
   });
 
-  it('400 när anroparen saknar grupp (oförändrat)', async () => {
-    holder.client = createFakeDb({ users: [{ id: 'user-9', group_id: null }], runs: [] }).client;
-    const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-9' }) });
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ success: false, error: 'No group found for user' });
+  it('en anropare utan grupp får tom lista och databasen rörs inte (fail-closed)', async () => {
+    const db = createFakeDb({ users: [{ id: 'user-9', group_id: null }], group_members: [], runs: [] });
+    holder.client = db.client;
+    const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-9', group_id: null }) });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true, data: [] });
+    expect(db.queries).toEqual([]);
+  });
+});
+
+describe('GET /api/titles/group-eligibility — medlemmar och fönster', () => {
+  // Rundor 1 dec (8.5 km) och 2 dec (5 km); lagrade totaler (100 km, streak 7) gäller all historik och skiljer sig medvetet från rundorna.
+  const RUNS = [
+    { id: 'r1', user_id: 'user-1', date: '2026-12-01', distance: 8.5, start_time: null, total_elevation_gain: null, pace_std_dev: null, moving_time: null, run_weather: null },
+    { id: 'r2', user_id: 'user-1', date: '2026-12-02', distance: 5, start_time: null, total_elevation_gain: null, pace_std_dev: null, moving_time: null, run_weather: null },
+  ];
+
+  function seedWindow(starts_on: string | null) {
+    const db = createFakeDb({
+      users: [{ id: 'user-1', name: 'Alice', group_id: 'group-1', total_km: 100, longest_streak: 7, gender: 'female' }],
+      group_members: [{ group_id: 'group-1', user_id: 'user-1', starts_on, left_at: null }],
+      runs: RUNS,
+    });
+    holder.client = db.client;
+    return db;
+  }
+
+  async function aliceValues() {
+    const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-1' }) });
+    expect(res.status).toBe(200);
+    return res.body.data[0].values;
+  }
+
+  it('utan startdag räknas alla rundor och de lagrade totalerna, som förut', async () => {
+    seedWindow(null);
+    expect(await aliceValues()).toMatchObject({ longestRun: 8.5, totalKm: 100, longestStreak: 7 });
+  });
+
+  it('med startdag räknas bara rundorna i medlemskapets fönster, och km och streak ur dem', async () => {
+    seedWindow('2026-12-02');
+    expect(await aliceValues()).toMatchObject({ longestRun: 5, totalKm: 5, longestStreak: 1 });
+  });
+
+  it('medlemmarna läses ur group_members, inte ur users.group_id: en som lämnat är med inte, en aktiv medlem med föråldrad pekare är med', async () => {
+    const db = createFakeDb({
+      users: [
+        { id: 'user-1', name: 'Alice', group_id: 'group-1', total_km: 1, longest_streak: 1, gender: null },
+        { id: 'user-left', name: 'Left', group_id: 'group-1', total_km: 1, longest_streak: 1, gender: null },
+        { id: 'user-stale', name: 'Stale', group_id: null, total_km: 1, longest_streak: 1, gender: null },
+        { id: 'user-other', name: 'Other', group_id: 'group-1', total_km: 1, longest_streak: 1, gender: null },
+        { id: 'admin', name: 'Admin', group_id: 'group-1', total_km: 0, longest_streak: 0, gender: null },
+      ],
+      group_members: [
+        { group_id: 'group-1', user_id: 'user-1', starts_on: null, left_at: null },
+        { group_id: 'group-1', user_id: 'user-left', starts_on: null, left_at: '2026-10-01T00:00:00Z' },
+        { group_id: 'group-1', user_id: 'user-stale', starts_on: null, left_at: null },
+        { group_id: 'group-2', user_id: 'user-other', starts_on: null, left_at: null },
+        { group_id: 'group-1', user_id: 'admin', starts_on: null, left_at: null },
+      ],
+      runs: [],
+    });
+    holder.client = db.client;
+
+    const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-1' }) });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((e: any) => e.userId).sort()).toEqual(['user-1', 'user-stale']);
   });
 });
