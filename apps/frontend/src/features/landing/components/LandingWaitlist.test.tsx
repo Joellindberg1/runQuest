@@ -1,6 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { hydrateRoot, type Root } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
+import { StaticRouter } from 'react-router-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WAITLIST_CONSENT_LABEL, WAITLIST_CONSENT_LINK_TEXT, WAITLIST_EMAIL_MAX_LENGTH } from '@runquest/shared';
 import { legalPrivacyPath } from '@/paths';
@@ -306,5 +310,66 @@ describe('LandingWaitlist: webbanalys', () => {
     await userEvent.click(submitButton());
     expect(await screen.findAllByRole('alert')).not.toHaveLength(0);
     expect(track).not.toHaveBeenCalled();
+  });
+});
+
+// Formuläret ligger i den förrenderade HTML:en och syns innan landningens JS hydrerat det. Före hydreringen får det inte gå att fylla i eller skicka (värdena
+// skulle skrivas över av tomt state, och Enter i fältet ger en nativ GET till /?website=): serverns markup är inert, och inerten släpps när komponenten monterats.
+// Att det håller i en riktig webbläsare med riktig laddning prövas i apps/e2e/tests/landing-waitlist.spec.ts.
+describe('LandingWaitlist: before and during hydration', () => {
+  const withQueries = (children: ReactNode) => (
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>{children}</QueryClientProvider>
+  );
+  const serverTree = () => withQueries(<StaticRouter location="/"><LandingWaitlist /></StaticRouter>);
+  const clientTree = () => withQueries(<MemoryRouter><LandingWaitlist /></MemoryRouter>);
+
+  let container: HTMLElement;
+  let root: Root | undefined;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    container.innerHTML = renderToString(serverTree());
+  });
+
+  afterEach(() => {
+    act(() => root?.unmount());
+    root = undefined;
+    container.remove();
+    vi.restoreAllMocks();
+  });
+
+  it('is inert in the server markup, so nothing can be typed in or submitted until the page has hydrated', () => {
+    expect(container.querySelector('form')).toHaveAttribute('inert');
+  });
+
+  it('becomes usable when it hydrates, with the same DOM nodes and no hydration errors', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const recoverable = vi.fn();
+    const nodesBefore = Array.from(container.querySelectorAll('*'));
+
+    await act(async () => {
+      root = hydrateRoot(container, clientTree(), { onRecoverableError: recoverable });
+    });
+
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(recoverable).not.toHaveBeenCalled();
+    const nodesAfter = Array.from(container.querySelectorAll('*'));
+    expect(nodesAfter).toHaveLength(nodesBefore.length);
+    expect(nodesAfter.every((node, index) => node === nodesBefore[index])).toBe(true);
+    expect(container.querySelector('form')).not.toHaveAttribute('inert');
+
+    const hydrated = within(container);
+    await userEvent.type(hydrated.getByLabelText('Email'), 'anna@example.com');
+    await userEvent.click(hydrated.getByRole('checkbox', { name: WAITLIST_CONSENT_LABEL }));
+    await userEvent.click(hydrated.getByRole('button', { name: 'Join the waitlist' }));
+    await hydrated.findByText("You're on the list.");
+    expect(joinWaitlist).toHaveBeenCalledWith({ email: 'anna@example.com', consent: true, website: '', elapsedMs: expect.any(Number) });
+  });
+
+  it('is never inert when it is rendered on the client only', () => {
+    container.remove();
+    renderForm();
+    expect(form()).not.toHaveAttribute('inert');
   });
 });
