@@ -15,6 +15,7 @@ import {
   isBlankFrame,
   isBoardWithoutStandings,
   logFrames,
+  measureLoader,
   watchForLanding,
   type FrameLog,
   type HeldResponse,
@@ -50,6 +51,9 @@ const LOADER_CAP_MS = 8_000;
 const LOADER_CAP_MARGIN_MS = 4_000;
 /** Laddaren ska ge vika vid första misslyckade försöket: långt före omförsökens slut (ca 7 s), så den här gränsen skiljer "släpper vid första felet" från "väntar ut omförsöken". */
 const FIRST_FAILURE_MS = 5_000;
+/** Laddarens omslutande rektangel: en 192 px bred ruta (3 x 64) med höjden 0,62 x bredden, lutad -16 grader. Mått med lutningen, i px. */
+const LOADER_WIDTH_PX = 217.4;
+const LOADER_HEIGHT_PX = 167.3;
 /** Antal Tab-tryck som kritikern använde för att nå tourens stängknapp (driver.js lägger fokus i popovern). */
 const TAB_PRESSES_TO_CLOSE_BUTTON = 6;
 
@@ -267,6 +271,46 @@ test.describe('a signed-in visitor', () => {
     await expectBoardDrawnWithStandings(page, log, standings);
     expectNoBlankFrames(log, script, '/board');
   });
+
+  // Laddaren är tre gånger så stor som förut (192 px bred ruta, lutad -16 grader: omslutande rektangel 217,4 x 167,3 px) och står på exakt samma plats i index.html före
+  // JS som i gaten efter React. 320 px är den smalaste mobilen: ovalen ryms utan sidled scroll.
+  for (const width of [320, 390, 1440]) {
+    test.describe(`at ${width} px`, () => {
+      test.use({ viewport: { width, height: 900 } });
+
+      test('the loader is three times its former size and keeps its rectangle from index.html to the gate', async ({ page }) => {
+        const script = await delayAppScript(page, STANDINGS_HOLD_MAX_MS);
+        const standings = await holdStandings(page, STANDINGS_HOLD_MAX_MS);
+        await page.goto('/board', { waitUntil: 'commit' });
+
+        await expectLoaderWhileAppLoads(page, script);
+        const inIndexHtml = await measureLoader(page);
+        script.release();
+        await expect.poll(() => isHydrated(page), { message: 'the app never mounted' }).toBe(true);
+        // Appen har bett om topplistan men svaret hålls: det som syns nu är gatens laddare, inte skalet.
+        await expect.poll(() => standings.requestedAt(), { message: 'the app never asked for the standings' }).not.toBeNull();
+        await page.waitForTimeout(STANDINGS_WAIT_MS);
+        await expect(shellOf(page)).toHaveCount(0);
+        const inGate = await measureLoader(page);
+        standings.release();
+
+        expect(inIndexHtml, 'the loader in index.html').not.toBeNull();
+        expect(inGate, 'the loader in the gate').not.toBeNull();
+        const [before, after] = [inIndexHtml!, inGate!];
+        expect(Math.abs(before.width - LOADER_WIDTH_PX), `width ${before.width} px`).toBeLessThanOrEqual(1);
+        expect(Math.abs(before.height - LOADER_HEIGHT_PX), `height ${before.height} px`).toBeLessThanOrEqual(1);
+        expect(Math.abs(after.width - before.width), 'width, index.html vs gate').toBeLessThanOrEqual(1);
+        expect(Math.abs(after.height - before.height), 'height, index.html vs gate').toBeLessThanOrEqual(1);
+        expect(Math.abs(after.x - before.x), 'left edge, index.html vs gate').toBeLessThanOrEqual(1);
+        // Ett prodbygge har ingen banner (noll): kanten står stilla. Ett stagingbygge ritar den först i React och flyttar ovalen en halv bannerhöjd ned.
+        expect(Math.abs(after.y - before.y - after.stagingBannerHeight / 2), 'top edge, index.html vs gate (less half the staging banner)').toBeLessThanOrEqual(1);
+        // Ryms i fönstret och gör inte sidan bredare: ingen sidled scroll, ingen överlappning mot kanten.
+        expect(before.x).toBeGreaterThanOrEqual(0);
+        expect(before.x + before.width).toBeLessThanOrEqual(width);
+        expect(before.overflowsX || after.overflowsX, 'the page scrolls sideways').toBe(false);
+      });
+    });
+  }
 
   test('the loader stays after the standings arrive until the titles have arrived too, and nothing is fetched twice', async ({ page }) => {
     test.skip(!apiIsStubbed(), 'Needs the stubbed answers that give every podium card its title, rank arrow and badge mini.');
