@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { waitForStylesApplied } from './stylesApplied';
 
 // Hjälpare som mäter var stadion-ovalens löparprickar står jämfört med sina banlinjer (TrackLoader, loaders/track-geometry.ts).
 
@@ -18,9 +19,11 @@ export const LAP_PHASES = [0, 0.25, 0.5, 0.75] as const;
 /**
  * Pausar prickarnas animationer i varje fas och mäter avståndet från prickens mitt till banans path. Banans punkter tas med `getPointAtLength` och förs till
  * skärmens koordinater med `getScreenCTM()`, som räknar med SVG:ns viewBox och laddarens lutning. Prickens mitt är mitten av dess rektangel (en cirkel, så rotationen
- * längs banan flyttar den inte). `scope` pekar ut laddarens `role="status"`. Animationerna lämnas pausade: anropa bara på en sida som sedan lämnas.
+ * längs banan flyttar den inte). `scope` pekar ut laddarens `role="status"`. Mäter först när sidans stil är tillämpad (`waitForStylesApplied`): före stilmallen ligger prickarna i
+ * flödet i stället för absolut placerade på sin `offset-path`. Animationerna lämnas pausade: anropa bara på en sida som sedan lämnas.
  */
-export function measureRunnerDeviations(page: Page, scope: string, phases: readonly number[] = LAP_PHASES): Promise<RunnerDeviation[]> {
+export async function measureRunnerDeviations(page: Page, scope: string, phases: readonly number[] = LAP_PHASES): Promise<RunnerDeviation[]> {
+  await waitForStylesApplied(page);
   return page.evaluate(
     ({ scope: scopeSelector, phases: lapPhases }) => {
       const status = document.querySelector(scopeSelector);

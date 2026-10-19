@@ -8,6 +8,7 @@ import { stylesheetTransferBytes } from '../support/transfer';
 import { apiIsStubbed } from '../support/stubApi';
 import {
   delayAppScript,
+  delayStylesheets,
   failStandings,
   holdLandingScript,
   holdStandings,
@@ -54,6 +55,8 @@ const FIRST_FAILURE_MS = 5_000;
 /** Laddarens omslutande rektangel: en 192 px bred ruta (3 x 64) med höjden 0,62 x bredden, lutad -16 grader. Mått med lutningen, i px. */
 const LOADER_WIDTH_PX = 217.4;
 const LOADER_HEIGHT_PX = 167.3;
+/** Hur mycket en ritad bildruta får avvika från laddarens slutliga rektangel, i px (samma marginal som provet av index.html mot gaten). */
+const FRAME_RECT_TOLERANCE_PX = 1;
 /** Antal Tab-tryck som kritikern använde för att nå tourens stängknapp (driver.js lägger fokus i popovern). */
 const TAB_PRESSES_TO_CLOSE_BUTTON = 6;
 
@@ -279,6 +282,7 @@ test.describe('a signed-in visitor', () => {
       test.use({ viewport: { width, height: 900 } });
 
       test('the loader is three times its former size and keeps its rectangle from index.html to the gate', async ({ page }) => {
+        await delayStylesheets(page);
         const script = await delayAppScript(page, STANDINGS_HOLD_MAX_MS);
         const standings = await holdStandings(page, STANDINGS_HOLD_MAX_MS);
         await page.goto('/board', { waitUntil: 'commit' });
@@ -311,6 +315,38 @@ test.describe('a signed-in visitor', () => {
       });
     });
   }
+
+  // Webbläsaren målar inte förrän stilmallarna är laddade, så en bildruta med laddaren i ett ostylat läge ska inte finnas. Loggen tar laddarens mått bara i sidans egna
+  // ritade bildrutor (rAF) och jämför dem med slutläget, med stilmallarna försenade så att ett ostylat läge hade hunnit synas om det målades.
+  test('no painted frame shows the loader outside its final rectangle while the stylesheets arrive late', async ({ page }) => {
+    await delayStylesheets(page);
+    const log = await logFrames(page);
+    const script = await delayAppScript(page, STANDINGS_HOLD_MAX_MS);
+    const standings = await holdStandings(page, STANDINGS_HOLD_MAX_MS);
+    await page.goto('/board', { waitUntil: 'commit' });
+
+    await expectLoaderWhileAppLoads(page, script);
+    const final = await measureLoader(page);
+    expect(final, 'the loader in index.html').not.toBeNull();
+    script.release();
+    await expect.poll(() => standings.requestedAt(), { message: 'the app never asked for the standings' }).not.toBeNull();
+    standings.release();
+    await expect(shellOf(page)).toBeVisible();
+
+    const withLoader = log.frames().filter((frame) => frame.painted && frame.loaderRect);
+    const releasedAt = script.releasedAt() ?? Number.POSITIVE_INFINITY;
+    expect(withLoader.filter((frame) => frame.at < releasedAt).length, 'painted frames with the loader from index.html').toBeGreaterThan(0);
+    const near = (a: number, b: number) => Math.abs(a - b) <= FRAME_RECT_TOLERANCE_PX;
+    const misplaced = withLoader.filter(({ loaderRect, at }) => {
+      const rect = loaderRect!;
+      // I höjdled flyttar stagingbannern ovalen en halv bannerhöjd när appen ritat gaten: före det står den stilla, i sidled och storlek hela vägen.
+      return !(near(rect.x, final!.x) && near(rect.width, final!.width) && near(rect.height, final!.height) && (at >= releasedAt || near(rect.y, final!.y)));
+    });
+    expect(
+      misplaced.map(({ loaderRect, at }) => ({ ...loaderRect, msBeforeScript: Math.round(releasedAt - at) })),
+      'painted frames with the loader outside its final rectangle',
+    ).toEqual([]);
+  });
 
   test('the loader stays after the standings arrive until the titles have arrived too, and nothing is fetched twice', async ({ page }) => {
     test.skip(!apiIsStubbed(), 'Needs the stubbed answers that give every podium card its title, rank arrow and badge mini.');

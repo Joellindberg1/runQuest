@@ -1,6 +1,7 @@
 import { expect, test as base } from '@playwright/test';
 import { isBlockedRequestUrl } from '../../../scripts/e2e-guard.mjs';
 import { trackOnboardingStatus } from './overlays';
+import { delayStylesheets } from './loadingView';
 import { installStubApi, stubApiRequested } from './stubApi';
 
 /**
@@ -8,7 +9,16 @@ import { installStubApi, stubApiRequested } from './stubApi';
  * varje förfrågan till en prodadress avbryts, och testet fäller sig självt om någon gjordes. Pekar ett stagingbygge av misstag på prodens API
  * når alltså ingen läsning eller skrivning fram.
  */
-export const test = base.extend<{ productionGuard: void; onboardingTracker: void; stubbedApi: void }>({
+export const test = base.extend<{ productionGuard: void; onboardingTracker: void; stubbedApi: void; slowStylesheets: void }>({
+  // Valfri fördröjning av alla stilmallar (E2E_STYLESHEET_DELAY_MS, millisekunder) för att köra hela sviten som mot ett långsamt nät. Utan variabeln händer ingenting.
+  slowStylesheets: [
+    async ({ page }, use) => {
+      await delayStylesheets(page, Number(process.env.E2E_STYLESHEET_DELAY_MS) || 0);
+      await use();
+    },
+    { auto: true },
+  ],
+
   // Valfritt fejkat API för lokala körningar (E2E_STUB_API=1, se support/stubApi.ts). Utan variabeln händer ingenting: mot staging är API:et alltid det riktiga.
   stubbedApi: [
     async ({ context }, use) => {
