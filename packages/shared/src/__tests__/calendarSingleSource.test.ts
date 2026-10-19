@@ -42,9 +42,9 @@ const UTC_TODAY = /new Date\(\s*(?:Date\.now\(\))?\s*\)\s*\.toISOString\(\)\s*\.
 // som heter `state` skulle alltså slinka igenom.
 //
 // KÄNDA LUCKOR (heuristik, inte bevis): vakten ser inte `getFullYear`/`setFullYear`, `getDay`, `getHours`/`getMinutes`
-// (visning av lokal enhetstid, t.ex. settingsModel), `getTime() + n * MS_DAY` (dygnsaritmetik på ögonblick), eller lokala
-// midnattstolkningar som `new Date(`${day}T00:00:00`)` (t.ex. app-shell/rightNowItems.ts duel-fönstret). Sådant fångas
-// bara i granskning tills en träffsäkrare regel finns.
+// (visning av lokal enhetstid, t.ex. settingsModel) eller `getTime() + n * MS_DAY` (dygnsaritmetik på ögonblick). Sådant
+// fångas bara i granskning tills en träffsäkrare regel finns. Lokala midnattstolkningar (`new Date(`${day}T00:00:00`)`) fångas
+// av LOCAL_WALL_CLOCK_TEMPLATE nedan.
 const DATE_ARITHMETIC_SOURCE =
   '(?<!\\bstate)\\.(?:setDate|getDate|setUTCDate|getUTCDate|setMonth|getMonth|setUTCMonth|getUTCMonth|setHours|setUTCHours)\\(';
 
@@ -68,6 +68,11 @@ const dateArithmeticDeviations = (files = SOURCES) =>
     const allowed = DATE_ARITHMETIC_EXCEPTIONS[path]?.hits ?? 0;
     return found === allowed ? [] : [{ path, found, allowed }];
   });
+
+// En mallsträng som bygger ett klockslag på en kalenderdag utan Z eller offset — `${day}T00:00:00` — tolkas av `new Date(...)` i
+// processens/webbläsarens tidszon, inte i gruppens (duellfönstret räknades så i rightNowItems). Ett klockslag på en kalenderdag
+// ska gå via stockholmWallClockToInstant/groupNextMidnight; mallsträngar med Z (`${day}T00:00:00Z`, UTC) är något annat.
+const LOCAL_WALL_CLOCK_TEMPLATE = /\$\{[^}]*\}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?`/;
 
 const offenders = (pattern: RegExp, files = SOURCES) => files.filter(({ code }) => pattern.test(code)).map(({ path }) => path);
 
@@ -95,6 +100,19 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
     expect(Object.keys(DATE_ARITHMETIC_EXCEPTIONS).filter((path) => !SOURCES.some((s) => s.path === path))).toEqual([]);
   });
 
+  it('ingen mallsträng `${dag}T00:00:00` utan Z/offset (webbläsarens midnatt i stället för gruppens)', () => {
+    expect(offenders(LOCAL_WALL_CLOCK_TEMPLATE)).toEqual([]);
+  });
+
+  it('vakten för lokala klockslag träffar den gamla duellformen men inte UTC-mallar med Z', () => {
+    expect(LOCAL_WALL_CLOCK_TEMPLATE.test('new Date(`${duel.startDate}T00:00:00`)')).toBe(true);
+    expect(LOCAL_WALL_CLOCK_TEMPLATE.test('new Date(`${day} 07:30`)')).toBe(true);
+    expect(LOCAL_WALL_CLOCK_TEMPLATE.test('`${day}T00:00:00.000`')).toBe(true);
+    expect(LOCAL_WALL_CLOCK_TEMPLATE.test('`${day}T00:00:00Z`')).toBe(false);
+    expect(LOCAL_WALL_CLOCK_TEMPLATE.test('`${addDays(asOf, -14)}T00:00:00Z`')).toBe(false);
+    expect(LOCAL_WALL_CLOCK_TEMPLATE.test('`${start}T00:00:00+02:00`')).toBe(false);
+  });
+
   it('konsumenterna importerar calendar-funktionerna från @runquest/shared', () => {
     const importsFromShared = (path: string) => {
       const source = SOURCES.find((s) => s.path === path)!;
@@ -104,6 +122,8 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
     const expected: Record<string, string[]> = {
       'apps/backend/src/utils/dateUtils.ts': ['addDays', 'mondayOf', 'stockholmDay', 'stockholmWallClockToInstant'],
       'apps/backend/src/scheduler/eventScheduler.ts': ['addDays', 'stockholmWallClockToInstant'],
+      'apps/backend/src/routes/challenges.ts': ['groupNextMidnight'],
+      'apps/frontend/src/app-shell/rightNowItems.ts': ['addDays', 'stockholmWallClockToInstant'],
       'apps/backend/src/titleEngines/maxRunsOneWeek.ts': ['mondayOf'],
       'apps/backend/src/titleEngines/weekendAvg.ts': ['dayOfWeek', 'mondayOf'],
       'apps/backend/src/titleEngines/earlyRunCount.ts': ['wallClockMinutes'],

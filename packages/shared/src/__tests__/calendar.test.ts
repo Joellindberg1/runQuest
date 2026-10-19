@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  MS_DAY, addDays, dayOfWeek, daysBetween, mondayOf, stockholmClock, stockholmDay, stockholmMidnightIso, stockholmWallClockToInstant,
+  MS_DAY, addDays, dayOfWeek, daysBetween, groupNextMidnight, mondayOf, stockholmClock, stockholmDay, stockholmMidnightIso, stockholmWallClockToInstant,
   wallClockMinutes, wallClockMsAt, wallClockToInstantMs, zoneOffsetMs,
 } from '../calendar.js';
 
@@ -221,6 +221,70 @@ describe('stockholmMidnightIso', () => {
   it('är stockholmWallClockToInstant(dag, 0) som ISO', () => {
     for (const day of ['2026-01-15', '2026-03-29', '2026-07-01', '2026-10-25', '2027-01-01']) {
       expect(stockholmMidnightIso(day)).toBe(stockholmWallClockToInstant(day, 0).toISOString());
+    }
+  });
+});
+
+describe('groupNextMidnight — gruppens nästa midnatt (en duell startar aldrig i samma ögonblick som den accepteras)', () => {
+  const at = (iso: string) => groupNextMidnight(new Date(iso));
+  const instantOf = (iso: string) => at(iso).instant.toISOString();
+
+  it('23:59 Stockholm: startdagen är nästa dag och fönstret börjar 00:00 Stockholm, en minut senare', () => {
+    const next = at('2026-07-04T21:59:00Z'); // 23:59 sommartid
+    expect(next.day).toBe('2026-07-05');
+    expect(next.instant.toISOString()).toBe('2026-07-04T22:00:00.000Z');
+  });
+
+  it('00:01 Stockholm: startar vid nästa midnatt, inte samma dag', () => {
+    const next = at('2026-07-03T22:01:00Z'); // 2026-07-04 00:01 sommartid
+    expect(next.day).toBe('2026-07-05');
+    expect(next.instant.toISOString()).toBe('2026-07-04T22:00:00.000Z');
+  });
+
+  it('exakt 00:00:00 räknas som redan passerad midnatt: nästa midnatt är dagen efter', () => {
+    const next = at('2026-07-03T22:00:00Z');
+    expect(next.day).toBe('2026-07-05');
+    expect(next.instant.toISOString()).toBe('2026-07-04T22:00:00.000Z');
+  });
+
+  it('vintertid: 23:59 Stockholm (22:59 UTC) ger midnatt 23:00 UTC', () => {
+    expect(at('2026-01-10T22:59:00Z').day).toBe('2026-01-11');
+    expect(instantOf('2026-01-10T22:59:00Z')).toBe('2026-01-10T23:00:00.000Z');
+  });
+
+  it('sommartidsbyten flyttar midnatten rätt: dygnet är 23 respektive 25 timmar långt', () => {
+    expect(instantOf('2026-03-28T22:30:00Z')).toBe('2026-03-28T23:00:00.000Z'); // 23:30 vintertid, midnatten är ännu vintertid
+    expect(instantOf('2026-03-28T23:30:00Z')).toBe('2026-03-29T22:00:00.000Z'); // 00:30 på omställningsdygnet; nästa midnatt är sommartid
+    expect(instantOf('2026-10-24T21:30:00Z')).toBe('2026-10-24T22:00:00.000Z'); // 23:30 sommartid
+    expect(instantOf('2026-10-24T22:30:00Z')).toBe('2026-10-25T23:00:00.000Z'); // 00:30 på det 25 timmar långa dygnet; nästa midnatt är vintertid
+    expect(at('2026-10-24T22:30:00Z').day).toBe('2026-10-26');
+  });
+
+  it('årsskifte: 23:59 på nyårsafton startar 1 januari', () => {
+    expect(at('2026-12-31T22:59:00Z').day).toBe('2027-01-01');
+  });
+
+  it('en annan tidszon räknar dagen och midnatten i den zonen, inte i Stockholm', () => {
+    // 2026-07-04 23:30 i New York (EDT, UTC-4) = 2026-07-05 03:30 UTC. I Stockholm är det redan 05:30 den 5:e.
+    const next = groupNextMidnight(new Date('2026-07-05T03:30:00Z'), 'America/New_York');
+    expect(next.day).toBe('2026-07-05');
+    expect(next.instant.toISOString()).toBe('2026-07-05T04:00:00.000Z');
+  });
+
+  describe('oberoende av processens tidszon', () => {
+    const original = process.env.TZ;
+    afterEach(() => {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    });
+
+    for (const tz of ['America/New_York', 'Asia/Tokyo', 'Europe/Stockholm']) {
+      it(`TZ=${tz}`, () => {
+        process.env.TZ = tz;
+        const next = at('2026-07-04T21:59:00Z');
+        expect(next.day).toBe('2026-07-05');
+        expect(next.instant.toISOString()).toBe('2026-07-04T22:00:00.000Z');
+      });
     }
   });
 });

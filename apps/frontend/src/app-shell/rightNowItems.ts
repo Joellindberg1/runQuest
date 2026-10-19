@@ -1,4 +1,4 @@
-import { MS_DAY, stockholmClock, streakStatus } from '@runquest/shared';
+import { MS_DAY, addDays, stockholmClock, stockholmWallClockToInstant, streakStatus } from '@runquest/shared';
 import { paths } from '@/paths';
 import type { RQIconName } from '@/shared/components/icons';
 
@@ -135,12 +135,25 @@ function eventItems(input: RightNowInput): RightNowItem[] {
     .map(({ item }) => item);
 }
 
+/**
+ * Ögonblicket då duellens kalenderdag `day` börjar, 00:00 i gruppens tid (Stockholm). Inte `new Date(`${day}T00:00:00`)`: det är
+ * webbläsarens midnatt. NaN för ogiltigt datum.
+ */
+function groupDayStartMs(day: string, plusDays = 0): number {
+  try {
+    return stockholmWallClockToInstant(addDays(day, plusDays), 0).getTime();
+  } catch {
+    return NaN;
+  }
+}
+
 function duelItem(input: RightNowInput): RightNowItem | null {
   const { duel, now } = input;
   if (!duel || !duel.endDate) return null;
   const nowMs = now.getTime();
-  const startMs = duel.startDate ? new Date(`${duel.startDate}T00:00:00`).getTime() : null;
-  const endMs = new Date(`${duel.endDate}T00:00:00`).getTime() + MS_DAY;
+  const startMs = duel.startDate ? groupDayStartMs(duel.startDate) : null;
+  // Fönstret slutar när slutdagen är över: 00:00 dagen efter, som kalenderdag (inte +24 h, dygnet kan vara 23 eller 25 h).
+  const endMs = groupDayStartMs(duel.endDate, 1);
   if (Number.isNaN(endMs)) return null;
   const pending = startMs !== null && startMs > nowMs;
   return {

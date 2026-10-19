@@ -7,8 +7,8 @@ import {
   getProgressForChallenge,
   settleChallenge,
 } from '../services/challengeService.js';
-import { addDays, challengeScore, compareChallengeStandings } from '@runquest/shared';
-import { tomorrowStockholm, at3amStockholm } from '../utils/dateUtils.js';
+import { addDays, challengeScore, compareChallengeStandings, groupNextMidnight } from '@runquest/shared';
+import { at3amStockholm } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 import { recordChallengeAccepted, recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
@@ -371,8 +371,9 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       res.json({ success: true, message: 'Challenge declined' }); return;
     }
 
-    // Accept: activate challenge — always starts next midnight Stockholm time
-    const startDate = tomorrowStockholm();
+    // Accept: aktivera utmaningen. Den startar vid gruppens nästa midnatt (Stockholm tills tidszon per grupp finns, RUN-21) och
+    // aldrig i samma ögonblick som den accepteras; rundor från acceptansdagen räknas därför aldrig (ägarens regel 2026-10-19).
+    const { day: startDate } = groupNextMidnight(new Date());
     const endDate = addDays(startDate, challenge.duration_days);
     const determineAt = at3amStockholm(addDays(startDate, challenge.duration_days + 1)).toISOString();
 
