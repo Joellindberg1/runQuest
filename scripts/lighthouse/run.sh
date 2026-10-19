@@ -73,8 +73,11 @@ for _ in $(seq 1 50); do
 done
 if (( up == 0 )); then echo "FAIL Caddy svarade aldrig på /health"; tail -40 "$WORK/caddy.log"; exit 1; fi
 # Samma vakt mot det som faktiskt serveras: Caddyfilen ska ge landningen på / (inte en tom #root) och laddningsvyn på /legal.
-curl -fs "http://127.0.0.1:$PORT/" | grep -q "landing-title" || { echo "FAIL / serveras inte som den förrenderade landningen (saknar landing-title): kontrollera Caddyfilens regel för /"; exit 1; }
-curl -fs "http://127.0.0.1:$PORT/legal" | grep -q "rq-shell__pending" || { echo "FAIL /legal serveras inte som index.html med laddningsvyn"; exit 1; }
+# Kroppen läses först och prövas sedan: `curl | grep -q` med pipefail ger falskt FAIL när grep avslutar före curl skrivit klart (svar över ca 64 KiB, SIGPIPE).
+root_body="$(curl -fs "http://127.0.0.1:$PORT/")"
+grep -q "landing-title" <<<"$root_body" || { echo "FAIL / serveras inte som den förrenderade landningen (saknar landing-title): kontrollera Caddyfilens regel för /"; exit 1; }
+legal_body="$(curl -fs "http://127.0.0.1:$PORT/legal")"
+grep -q "rq-shell__pending" <<<"$legal_body" || { echo "FAIL /legal serveras inte som index.html med laddningsvyn"; exit 1; }
 if [[ "$STATS_MODE" == "mock" ]]; then
   curl -fs "http://127.0.0.1:$API_PORT/api/public/stats" > /dev/null || { echo "FAIL det falska API:et svarade aldrig"; cat "$WORK/mock-api.log"; exit 1; }
 fi
