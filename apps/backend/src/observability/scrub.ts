@@ -64,20 +64,26 @@ const UNTOUCHED_TOP_LEVEL = new Set(['sdk', 'modules', 'release', 'environment',
 // Alla mönster nedan körs synkront i `beforeSend` på text vi inte styr. Därför har varje kvantifierare en övre gräns (`{0,8}` i stället för `*`
 // där ett mellanrum kan upprepas, `[^\]]{0,200}` i stället för `[^\]]*`), och inget mönster nästlar eller överlappar kvantifierare. Strängarna kapas
 // dessutom till MAX_SCRUBBED_STRING_LENGTH innan något mönster körs, som skydd för mönster som läggs till senare.
-const JWT_LIKE = /\beyJ[A-Za-z0-9_-]{5,256}\.[A-Za-z0-9_-]{5,2048}\.[A-Za-z0-9_-]{0,1024}/g;
+// Payloaden får vara lika lång som en hel kapad sträng (MAX_SCRUBBED_STRING_LENGTH): en längre payload hade annars inte maskats alls.
+const JWT_LIKE = /\beyJ[A-Za-z0-9_-]{5,256}\.[A-Za-z0-9_-]{5,8192}\.[A-Za-z0-9_-]{0,1024}/g;
+// Början av en JWT som kapningen skurit av (utan andra punkten, så JWT_LIKE ser den inte): header och en bit av payloaden (sub, e-post) ska inte följa med.
+// Körs bara på den kapade delen, ankrad i slutet, och med samma längdgränser som JWT_LIKE. Hela JWT:er maskas först (JWT_LIKE), annars skulle svansen
+// ta payloaden i en JWT som kapats efter sin andra punkt och lämna headern kvar.
+const OPEN_JWT_TAIL = /\beyJ[A-Za-z0-9_-]{0,256}(?:\.[A-Za-z0-9_-]{0,8192})?$/;
 const BEARER = /\bBearer\s{1,8}[A-Za-z0-9._~+/=-]+/gi;
 // Lookbehind och inte \b av samma skäl som STRAVA_ID nedan: `strava_access_token=...` och `db_password=...` ska också maskas.
 const KEY_VALUE = /(?<![A-Za-z0-9])((?:access|refresh|id)[_-]?token|client[_-]?secret|api[_-]?key|password|passwd|secret|token|authorization)(=|["']\s{0,8}:\s{0,8})["']?([^\s"'&,;}]+)/gi;
 // Strava-id (ADR 010 beslut 8.6): en andra försvarslinje om en rad som skrivits som `object_id=123` ändå skulle hamna i en händelse.
 // Lookbehind och inte \b: `_` är ett ordtecken, så det fanns ingen ordgräns före `athlete_id` i `strava_athlete_id=123`. Också med citattecken före
 // separatorn (`"object_id":123` i en JSON-text) och i camelCase (`objectId=123`, `stravaActivityId: 123`). Slutvillkoret hindrar att början av ett UUID
-// (`owner_id=7c9e…`) tas för ett nummer. En grupps `activity_id` utan `strava`-prefix hör till STRAVA_WORD_ID, som kräver minst sju siffror.
-const STRAVA_ID = /(?<![A-Za-z0-9])((?:strava[_-]?)?(?:object|owner|athlete)[_-]?id|strava[_-]?activity[_-]?id)(["']?\s{0,8}[=:]\s{0,8}["']?)\d+(?![A-Za-z0-9-])/gi;
+// (`owner_id=7c9e…`, `athlete 12345678-1234-…`) tas för ett nummer; det släpper bara igenom när resten verkligen är ett UUID (högst sju tecken, sedan
+// `-hhhh-hhhh-hhhh-hhhhhhhhhhhh`), så `12345678901-retry` och `12345678901abc` maskas som förut. Samma villkor sitter på STRAVA_WORD_ID och STRAVA_PATH_ID. En grupps `activity_id` utan `strava`-prefix hör till STRAVA_WORD_ID, som kräver minst sju siffror.
+const STRAVA_ID = /(?<![A-Za-z0-9])((?:strava[_-]?)?(?:object|owner|athlete)[_-]?id|strava[_-]?activity[_-]?id)(["']?\s{0,8}[=:]\s{0,8}["']?)\d+(?![0-9a-f]{0,7}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
 // Strava-aktivitets- och atletnummer i löpande text (`activity 12345678901 not found`, `activity "1…"`, `activity (1…)`, `activities [1…, 2…]`, `activity_id=1…`,
 // `activityId: 1…`). Minst sju siffror: Stravas nummer är nio till elva siffror, och våra egna löpnummer (t.ex. nyhetsraders activity_id) ska inte maskas.
-const STRAVA_WORD_ID = /(?<![A-Za-z0-9])(activit(?:y|ies)(?:[_-]?id)?|athletes?(?:[_-]?id)?)(["']?(?:\s{1,8}id\b)?\s{0,8}(?:[=:]\s{0,8})?[#"'(\[]{0,2})(\d{7,}(?:["')\]]?\s{0,4}(?:,|and|&)\s{0,4}[#"'(\[]?\d{7,})*)/gi;
+const STRAVA_WORD_ID = /(?<![A-Za-z0-9])(activit(?:y|ies)(?:[_-]?id)?|athletes?(?:[_-]?id)?)(["']?(?:\s{1,8}id\b)?\s{0,8}(?:[=:]\s{0,8})?[#"'(\[]{0,2})(\d{7,}(?:["')\]]?\s{0,4}(?:,|and|&|-)\s{0,4}[#"'(\[]?\d{7,})*)(?![0-9a-f]{0,7}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
 // Numret i en Strava-URL eller ett routeanrop (`GET /activities/123`). Blir `:id` som routemönstren, så transaktionsnamnen fortsätter att stämma.
-const STRAVA_PATH_ID = /(?<=\/(?:activities|athletes)\/)\d+/g;
+const STRAVA_PATH_ID = /(?<=\/(?:activities|athletes)\/)\d+(?![0-9a-f]{0,7}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
 // Postgres-detaljen `Key (strava_activity_id)=(12345678901) already exists.` (också med flera kolumner): värdena maskas om någon kolumn är ett Strava-nummer.
 const PG_KEY_DETAIL = /\bKey \(([^()]{0,200})\)=\(([^()]{0,300})\)/g;
 const STRAVA_COLUMN = /(?:^|[,\s])(?:strava[_-]?(?:activity|athlete)[_-]?id|athlete[_-]?id)(?:$|[,\s])/i;
@@ -163,7 +169,7 @@ const TRUNCATED = '…[truncated]';
 export function scrubString(value: string, secrets: readonly string[], maxLength: number = MAX_SCRUBBED_STRING_LENGTH): string {
   let out = value;
   for (const secret of secrets) out = out.split(secret).join(FILTERED);
-  if (out.length > maxLength) out = `${out.slice(0, maxLength)}${TRUNCATED}`;
+  if (out.length > maxLength) out = `${out.slice(0, maxLength).replace(JWT_LIKE, FILTERED).replace(OPEN_JWT_TAIL, FILTERED)}${TRUNCATED}`;
   return out
     .replace(ENCRYPTED_VALUE, FILTERED)
     .replace(BEARER, `Bearer ${FILTERED}`)
