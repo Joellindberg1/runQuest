@@ -1,7 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
-import { TooltipProvider } from '@/shared/components/ui/tooltip';
 import { Toaster as Sonner } from '@/shared/components/ui/sonner';
 import { AuthProvider } from './AuthProvider';
 
@@ -12,12 +11,10 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <ThemeProvider attribute="data-theme" defaultTheme="dark" enableSystem={false}>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <AuthProvider>
-            {children}
-            <Sonner />
-          </AuthProvider>
-        </TooltipProvider>
+        <AuthProvider>
+          {children}
+          <Sonner />
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
