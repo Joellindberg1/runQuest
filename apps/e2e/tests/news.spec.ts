@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { dismissOverlays } from '../support/overlays';
+import { apiIsStubbed } from '../support/stubApi';
 
 const CHIPS = ['Titles', 'Challenges', 'Ranks', 'Events', 'Levels', 'Badges', 'Streaks'] as const;
 /** Oläst rad: knappens namn bär en dold "(unread)"-text, så färgen inte är det enda tecknet. */
@@ -21,6 +22,8 @@ async function openNews(page: Page, search = ''): Promise<void> {
 }
 
 test.describe('Pack News', () => {
+  test.skip(apiIsStubbed(), 'Needs the real news feed; the stubbed API has none.');
+
   test('the filter has seven chips that turn on and off through the address', async ({ page }) => {
     // ?type= gör filterkortet synligt även när kontot inte har några nyhetsrader än.
     await openNews(page, '?type=levels');

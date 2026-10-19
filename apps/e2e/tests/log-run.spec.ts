@@ -1,11 +1,14 @@
 import { expect, test } from '../support/test';
 import { E2E_RUN_KM, deleteRun, ownTestRuns, ownTotals, readSession, recalculateOwnTotals, removeTestRuns } from '../support/api';
 import { dismissOverlays } from '../support/overlays';
+import { apiIsStubbed } from '../support/stubApi';
 
 const KM_TEXT = String(E2E_RUN_KM);
 const KM_LABEL = `${E2E_RUN_KM.toFixed(1)} km`;
 
 test.describe('logging a run', () => {
+  test.skip(apiIsStubbed(), 'Logs and deletes a run through the real API with Node fetch (support/api.ts); the stubbed API has no runs.');
+
   // Rundan raderas i testet; det här är nätet om testet faller på vägen, så att inget blir kvar på kontot och nästa körning börjar rent.
   test.afterEach(async () => {
     await removeTestRuns(readSession());

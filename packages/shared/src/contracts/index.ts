@@ -13,3 +13,4 @@ export * from './settings.js';
 export * from './strava.js';
 export * from './titles.js';
 export * from './groups.js';
+export * from './onboarding.js';

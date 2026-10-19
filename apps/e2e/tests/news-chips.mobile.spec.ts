@@ -1,11 +1,14 @@
 import { expect, test } from '../support/test';
 import { dismissOverlays } from '../support/overlays';
+import { apiIsStubbed } from '../support/stubApi';
 
 const CHIP_COUNT = 7;
 /** Några pixlar marginal för subpixelavrundning i mätningarna. */
 const TOLERANCE_PX = 2;
 
 test.describe('Pack News on a phone', () => {
+  test.skip(apiIsStubbed(), 'Needs the real news feed; the stubbed API has none.');
+
   test('the seven filter chips scroll sideways inside their row without widening the page', async ({ page }) => {
     // ?type= gör filterkortet synligt även när kontot inte har några nyhetsrader än.
     await page.goto('/news?type=levels');
