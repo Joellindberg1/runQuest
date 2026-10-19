@@ -166,7 +166,8 @@ test.describe('the prerendered landing page', () => {
   });
 
   test('/landing.html/ with a trailing slash ends on / without a reload loop', async ({ page }) => {
-    // Caddy omdirigerar bara /landing och /landing.html; med avslutande snedstreck serveras index.html, och adressen ska ändå landa på landningen utan att sidan laddar om sig själv.
+    // Caddy kedjar två omdirigeringar: filservern tar bort snedstrecket på filen (308 från /landing.html/ till /landing.html), och Caddyfilens regel skickar den vidare (307 till /).
+    // Adressen ska landa på landningen utan att sidan laddar om sig själv; tre dokumentbegäranden är taket (/landing.html/, /landing.html, /).
     const documents: string[] = [];
     page.on('request', (request) => {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents.push(new URL(request.url()).pathname);

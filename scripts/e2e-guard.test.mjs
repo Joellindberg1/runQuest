@@ -7,6 +7,7 @@ import {
   E2eTargetError,
   assertStagingFrontendServes,
   assertStagingTarget,
+  assertStubApiAllowed,
   isBlockedRequestUrl,
   resolveE2eTargets,
 } from './e2e-guard.mjs';
@@ -213,5 +214,26 @@ describe('assertStagingFrontendServes', () => {
     await assertStagingFrontendServes('http://localhost:8080', async () => {
       assert.fail('a local frontend must not be fetched');
     });
+  });
+});
+
+describe('assertStubApiAllowed', () => {
+  const local = resolveE2eTargets({ E2E_BASE_URL: 'http://localhost:8080', E2E_API_URL: 'http://localhost:3001' });
+
+  it('lets the stubbed API run when both addresses are localhost', () => {
+    assert.doesNotThrow(() => assertStubApiAllowed(local, 'E2E_STUB_API'));
+  });
+
+  it('refuses the stubbed API against staging, so a skipped spec can never hide a staging run', () => {
+    const staging = resolveE2eTargets({ E2E_BASE_URL: STAGING_FRONTEND, E2E_API_URL: STAGING_BACKEND });
+    assert.throws(() => assertStubApiAllowed(staging, 'E2E_STUB_API'), E2eTargetError);
+    assert.throws(() => assertStubApiAllowed(staging, 'E2E_STUB_API'), /E2E_STUB_API=1 is only allowed/);
+  });
+
+  it('refuses the stubbed API when only one of the two addresses is localhost', () => {
+    const localFrontend = resolveE2eTargets({ E2E_BASE_URL: 'http://localhost:8080', E2E_API_URL: STAGING_BACKEND });
+    const localApi = resolveE2eTargets({ E2E_BASE_URL: STAGING_FRONTEND, E2E_API_URL: 'http://localhost:3001' });
+    assert.throws(() => assertStubApiAllowed(localFrontend, 'E2E_STUB_API'), E2eTargetError);
+    assert.throws(() => assertStubApiAllowed(localApi, 'E2E_STUB_API'), E2eTargetError);
   });
 });

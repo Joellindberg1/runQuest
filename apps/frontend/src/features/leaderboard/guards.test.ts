@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -37,8 +36,8 @@ describe('Board — hjälpare för dynamiska värden', () => {
 describe('podiets minis och vimpeln (F12/F13)', () => {
   it('podiets minis är högerställda via --rq-board-minis-inset (28 px mobil, 46 px desktop), identiskt i båda temafilerna', () => {
     expect(css).toMatch(/\.rq-board-podium \.rq-badge-minis\s*\{[^}]*margin-left:\s*auto;[^}]*margin-right:\s*var\(--rq-board-minis-inset\)/);
-    for (const file of ['src/index.css', '../../docs/design/temafil-forslag.css']) {
-      const text = readFileSync(resolve(process.cwd(), file), 'utf8');
+    for (const file of ['../../index.css', '../../../../../docs/design/temafil-forslag.css']) {
+      const text = readFromDisk(file);
       const declarations = [...text.matchAll(/^\s*--rq-board-minis-inset:\s*([^;]+);/gm)].map((m) => m[1]);
       expect({ file, declarations }).toEqual({ file, declarations: ['28px', '46px'] });
       // desktopvärdet ligger i min-width: 1024px-blocket, efter mobilvärdet
