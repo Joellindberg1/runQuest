@@ -17,13 +17,6 @@ const ROOTS = ['apps/backend/src', 'apps/frontend/src', 'packages/shared/src', '
 const SKIPPED_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage', '__tests__', '.git']);
 const EXTENSIONS = /\.(ts|tsx|mts|cts|js|mjs|cjs)$/;
 
-/**
- * Filer som får nämna namnen och varför. schemaFingerprint.ts har en TILLFÄLLIG regel (RUN-326) som beskriver 056:s fyra funktioner som data
- * för schemajämförelsen mellan staging och prod; den läser inte funktionerna och tas bort av Lead när 056 är applicerad i båda (den är det i prod
- * sedan 2026-10-19).
- */
-const ALLOWED = new Set(['apps/backend/src/scripts/staging/schemaFingerprint.ts']);
-
 const RETIRED = [
   'update_title_leaderboard',
   'update_all_title_leaderboards',
@@ -56,16 +49,8 @@ describe('objekt som migration 058 släpper', () => {
 
   it('inget i koden nämner omslagsfunktionerna, triggrarna, shim-funktionen eller kolumnerna current_holder_id/current_value', () => {
     const hits = files
-      .filter((f) => !ALLOWED.has(f.rel))
       .flatMap((f) => readFileSync(f.path, 'utf8').split(/\r?\n/).flatMap((line, i) => (RETIRED_RE.test(line) ? [`${f.rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [])));
     expect(hits).toEqual([]);
-  });
-
-  it('undantaget är fortfarande ett undantag: schemaFingerprint.ts nämner namnen bara som data i den tillfälliga regeln', () => {
-    const text = readFileSync(join(REPO, 'apps/backend/src/scripts/staging/schemaFingerprint.ts'), 'utf8');
-    expect(text).toContain('temporary-056-client-execute-in-prod');
-    const lines = text.split(/\r?\n/).filter((l) => RETIRED_RE.test(l));
-    expect(lines.every((l) => /public\.(trigger_update_title_leaderboard|update_all_title_leaderboards|update_title_leaderboard)\(/.test(l) || /056|migration/i.test(l))).toBe(true);
   });
 
   it('appen anropar bara update_group_title_leaderboards (hela gruppen), aldrig det enskilda update_group_title_leaderboard', () => {
