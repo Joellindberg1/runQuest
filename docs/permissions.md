@@ -85,6 +85,50 @@ att sänka kraven.
   `mark_recalculation` och `clear_recalculation_mark` bara för `service_role`. Migration 052 tog bort
   pg_net och det döda cron-jobbet i prod. En ny funktion i schemat `public` utan indraget execute, eller
   en ny tabell utan RLS, räknas som avvikelse och eskaleras.
+- Contract-migration 058 (RUN-309, v0.8.1, ADR 012 addendum 2026-10-19; ask per miljö, inte applicerad förrän
+  Lead gjort det) släpper det 055 lämnade för äldre kod: `update_title_leaderboard`, `update_all_title_leaderboards`,
+  `trigger_update_title_leaderboard` och `user_titles_fill_group_id` (och därmed bara `update_group_title_leaderboard`
+  och `update_group_title_leaderboards` kvar i RPC-ytan, båda bara för `service_role`), triggrarna
+  `title_leaderboard_update_trigger` och `user_titles_group_id_shim` på `user_titles`, samt kolumnerna
+  `titles.current_holder_id`/`current_value` (destruktivt: värdena är frusna och oläsbara för appen, men går förlorade).
+  Ingen ny tabell, funktion, policy eller grant. Efter 058 skriver appen `title_leaderboard` bara via
+  `update_group_title_leaderboards` (en gång per gruppomräkning); en skrivning till `user_titles` utanför appen
+  bygger inte längre om rankingen automatiskt.
+
+## Kvarvarande `requireAdmin`-rutter (underlag för fas 2: RUN-267 och RUN-95)
+
+`requireAdmin` (`middleware/admin.ts`) slår upp `users.is_admin` färskt per anrop och prövar ingen grupp. Listan
+är hämtad ur koden 2026-10-19 (v0.8.1); `is_admin` läses i övrigt bara av inloggningen (`/api/auth/login` ger
+`is_admin` till frontendens AuthProvider, som styr admin-ytan) och av stagingens seed-skript. Fas 2 (ADR 012 beslut 2.6):
+gruppnära rutter flyttas till rollen (`group_members.role` via `groupRoleCan`, grupp färskt ur databasen,
+`resolveActingGroupForWrite`), systemnära och globala rutter flyttas till den uttryckliga supportrollen (vald grupp,
+auditlogg), därefter tas `users.is_admin` bort i en contract-migration. Supportrollen får aldrig härledas ur att en
+användare saknar grupp.
+
+| # | Rutt | Vad den gör idag | Gruppavgränsning idag | Mål i fas 2 |
+|---|---|---|---|---|
+| 1 | `GET /api/auth/users` | Listar användarna i adminens grupp | `group_id` ur JWT (`groupIdOrRespondEmpty`), alltså inaktuell efter join | Roll (ny capability, t.ex. `members.read`), grupp färskt ur databasen |
+| 2 | `POST /api/auth/users` | Skapar konto och medlemskap (`join_group`) i adminens grupp | `group_id` ur JWT, 403 utan grupp | Roll (t.ex. `members.create`) via `resolveActingGroupForWrite` |
+| 3 | `PUT /api/auth/users/:id/password` | Återställer lösenord för en användare i adminens grupp | Målet måste ligga i JWT-gruppen, annars 404 | Roll (t.ex. `members.reset_password`); målet kontrolleras mot den färska gruppen |
+| 4 | `POST /api/titles/populate` | Bygger om adminens grupps ranking | `group_id` ur JWT | Roll (gruppnära underhåll) eller support |
+| 5 | `POST /api/titles/refresh` | Samma som `populate` | `group_id` ur JWT | Samma som 4; slå ihop 4 och 5 (identiska) |
+| 6 | `POST /api/titles/reprocess-all` | Räknar om titlarna för alla grupper | Ingen: alla grupper | Support (systemnära) |
+| 7 | `GET /api/admin/waitlist` | Listar väntelistan | Ingen: global tabell | Support (systemnära) |
+| 8 | `GET /api/auth/admin-settings` | Läser de globala XP-reglerna | Ingen: gäller alla grupper | Support tills RUN-94 gör reglerna gruppvisa (`group_settings`), därefter roll |
+| 9 | `PUT /api/auth/admin-settings` | Ändrar de globala XP-reglerna | Ingen: ändrar poängen för alla grupper | Som 8, med auditlogg |
+| 10 | `GET /api/auth/streak-multipliers` | Läser den globala streaktrappan | Ingen | Som 8 |
+| 11 | `PUT /api/auth/streak-multipliers` | Ändrar den globala streaktrappan | Ingen | Som 9 |
+| 12 | `POST /api/events/admin/trigger-daily-draw` | Kör dagens eventlottning manuellt | Ingen | Support (systemnära, testverktyg) |
+| 13 | `POST /api/strava/backfill-extended` | Hämtar om Stravaaktiviteter för alla anslutna användare | Ingen: alla grupper | Support |
+| 14 | `GET /api/strava/sync-all` | Synkar alla anslutna användare | Ingen | Support |
+| 15 | `GET /api/strava/webhook/health` | Visar globala köräknare | Ingen (bara räknare, ingen gruppdata) | Support (redan markerad ovan) |
+
+Fem av femton är gruppnära (1–5) och ska bli roll; tio är systemnära (6–15) och ska bli support. Idag räcker flaggan
+för alla femton, och eftersom det finns en admin (ägaren) i en grupp är skillnaden osynlig tills grupp två finns.
+Med flera grupper skulle varje gruppadmin med `is_admin` nå alla tio systemrutterna: därför får `is_admin` inte ges
+till någon utan att RUN-267/RUN-95 är gjorda. `titles/populate` och `titles/refresh` är redan gruppavgränsade
+(de bygger bara anroparens egen grupp), `GET /api/groups/settings` och `PUT /api/groups/settings` använder redan
+rollen och inte `requireAdmin`.
 - Rollmodell för grupper (ADR 012 beslut 2 och 6). Gruppadmin är en roll i ett aktivt medlemskap
   (`group_members.role = 'admin'`, `left_at is null`), inte flaggan `users.is_admin`. En grupp har högst en
   admin (partiellt unikt index) och admin är gruppens skapare. Rollen läses alltid färskt ur databasen,

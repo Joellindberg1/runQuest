@@ -11,7 +11,6 @@ vi.mock('../../config/database.js', () => ({
   supabase: { get client() { return holder.client; } },
   getSupabaseClient: vi.fn(() => holder.client),
 }));
-vi.mock('../titleLeaderboardService', () => ({ titleLeaderboardService: { refreshTitleLeaderboard: vi.fn() } }));
 const MEMBER = { userId: 'u1', groupId: 'g1', window: { from: null } };
 
 import { EnhancedTitleService } from '../enhancedTitleService.js';

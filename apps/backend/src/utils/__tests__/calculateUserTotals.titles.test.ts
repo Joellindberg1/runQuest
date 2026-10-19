@@ -53,14 +53,15 @@ function tables(groupId: string | null, over: { pointer?: string | null; leftAt?
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe('calculateUserTotals → titelomräkning', () => {
-  it('Strava-vägen anropar processGroupTitles med användarens aktiva medlemskap och bygger om just den gruppens ranking', async () => {
+  it('Strava-vägen anropar processGroupTitles med användarens aktiva medlemskap; rankingen byggs av processGroupTitles, inte av calculateUserTotals', async () => {
     use(tables('g1'));
     await calculateUserTotals('u1'); // ingen groupId-parameter (Strava-importen)
     expect(processGroupTitles).toHaveBeenCalledTimes(1);
     expect(processGroupTitles).toHaveBeenCalledWith('g1');
     expect(processUserTitlesAfterRun).not.toHaveBeenCalled();
-    expect(groupRefresh).toHaveBeenCalledTimes(1);
-    expect(groupRefresh).toHaveBeenCalledWith({ p_group_id: 'g1' });
+    // processGroupTitles (mockad här) bygger gruppens ranking EN gång (migration 058); calculateUserTotals bygger den inte själv.
+    expect(groupRefresh).not.toHaveBeenCalled();
+    expect(globalRefresh).not.toHaveBeenCalled();
   });
 
   it('ingen global ombyggnad av rankingen i skrivvägen', async () => {
@@ -73,7 +74,6 @@ describe('calculateUserTotals → titelomräkning', () => {
     use(tables('g-member', { pointer: 'g-pointer' }));
     await calculateUserTotals('u1');
     expect(processGroupTitles).toHaveBeenCalledWith('g-member');
-    expect(groupRefresh).toHaveBeenCalledWith({ p_group_id: 'g-member' });
   });
 
   it('en extra, inaktuell grupp-parameter ignoreras: det färska medlemskapet styr (JWT-gruppen blir inaktuell)', async () => {
@@ -123,7 +123,7 @@ describe('användare utan aktivt medlemskap', () => {
 });
 
 describe('fel i titelkedjan fäller inte totalerna', () => {
-  it('ett fel i titelbearbetningen fäller inte totalerna och hoppar över ombyggnaden', async () => {
+  it('ett fel i titelbearbetningen (inklusive ombyggnaden av rankingen, som hör till den) fäller inte totalerna', async () => {
     const t = tables('g1');
     use(t);
     processGroupTitles.mockRejectedValueOnce(new Error('boom'));
@@ -160,7 +160,6 @@ describe('misslyckade användare i gruppomräkningen syns i loggen', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0][0])).toMatch(/2.*6/);
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
-    expect(groupRefresh).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
 

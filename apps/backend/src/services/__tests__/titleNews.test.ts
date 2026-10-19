@@ -13,8 +13,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 // Titelmotorerna/leaderboard-tjänsten behövs inte: processUserTitlesAfterRun ersätts i testen
-// (den skriver user_titles; DB-triggern uppdaterar title_leaderboard — här simulerat direkt).
-vi.mock('../titleLeaderboardService', () => ({ titleLeaderboardService: { refreshTitleLeaderboard: vi.fn() } }));
+// (den skriver user_titles; gruppens ombyggnad uppdaterar title_leaderboard — här simulerat direkt).
 
 import { EnhancedTitleService } from '../enhancedTitleService.js';
 import { emitTitleNews, snapshotTitleHolders } from '../titleNews.js';
@@ -298,7 +297,7 @@ describe('emitTitleNews', () => {
 });
 
 describe('EnhancedTitleService.processGroupTitles — snapshot-orkestrering', () => {
-  /** Ersätter titelbearbetningen: skriver user_titles + title_leaderboard som DB-triggern skulle göra. */
+  /** Ersätter titelbearbetningen: skriver user_titles + title_leaderboard som gruppens ombyggnad skulle göra. */
   function simulate(service: EnhancedTitleService, mutate: () => void) {
     return vi.spyOn(service, 'processUserTitlesAfterRun').mockImplementation(async (member: { userId: string }) => {
       if (member.userId === 'a' || member.userId === 'c') mutate(); // en gång per bearbetning räcker
@@ -356,6 +355,29 @@ describe('EnhancedTitleService.processGroupTitles — snapshot-orkestrering', ()
     simulate(service, () => {});
     await service.processGroupTitles('g1');
     expect(tables.activity_log).toHaveLength(0);
+  });
+
+  it('efter-ögonblicksbilden tas EFTER gruppens ombyggnad: nyheten bygger på rankingen som ombyggnaden gav', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 9)];
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'b', 9, 2)];
+    // Medlemsbearbetningen skriver bara user_titles; rankingen ändras först när gruppens ombyggnad (rpc) körs.
+    use(tables, {
+      rpc: {
+        update_group_title_leaderboards: () => {
+          tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2)];
+          return { data: null };
+        },
+      },
+    });
+    const service = new EnhancedTitleService();
+    vi.spyOn(service, 'processUserTitlesAfterRun').mockImplementation(async (member: { userId: string }) => {
+      if (member.userId === 'b') tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
+    });
+
+    await service.processGroupTitles('g1');
+
+    expect(tables.activity_log.map((r) => [r.type, r.actor_user_id, r.target_user_id])).toEqual([['title_taken', 'b', 'a']]);
   });
 
   it('första innehavaren av en titel → title_unlocked', async () => {

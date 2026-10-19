@@ -1,6 +1,6 @@
 import { supabase } from '../config/database';
 import { logger } from '../utils/logger.js';
-import { titleLeaderboardService } from './titleLeaderboardService';
+import { rebuildGroupTitleRanking } from './groupRanking.js';
 import { titleEngineRegistry } from '../titleEngines/index';
 import { emitTitleNews, snapshotTitleHolders } from './titleNews.js';
 import { titleInputs, type StoredTotals } from './titleInputs.js';
@@ -30,7 +30,8 @@ export class EnhancedTitleService {
 
   /**
    * Process titles for one member of a group after run updates. `runs` är ALLA användarens rundor; medlemmens fönster
-   * avgör vilka som räknas (titleInputs). user_titles skrivs med gruppen och gruppens ranking byggs om för de titlar som ändrats.
+   * avgör vilka som räknas (titleInputs). user_titles skrivs med gruppen. Rankingen byggs INTE om här: det görs en gång per
+   * gruppomräkning i processGroupTitles, efter att alla medlemmar skrivits (ADR 012 beslut 4.4, migration 058).
    */
   async processUserTitlesAfterRun(
     member: TitleMember,
@@ -60,29 +61,14 @@ export class EnhancedTitleService {
       titles.map((title: any) => this.checkAndUpdateTitle(title, member, runData, userStats, earnedAt, ctx))
     );
 
-    const titlesToUpdate: string[] = titles
-      .filter((_: any, i: number) =>
-        titleCheckResults[i].status === 'fulfilled' &&
-        (titleCheckResults[i] as PromiseFulfilledResult<boolean>).value
-      )
-      .map((t: any) => t.id);
-
-    // Olika titlar har olika topplistor, så inom EN användare krockar ombyggnaderna inte. Mellan användare gör de det,
-    // därför räknar processGroupTitles användarna en i taget (RUN-157).
-    const refreshResults = await Promise.allSettled(
-      titlesToUpdate.map((titleId: string) => titleLeaderboardService.refreshTitleLeaderboard(groupId, titleId))
-    );
-
     // Alla titlar har försökts; ett enda fel gör ändå användarens omräkning misslyckad (förr loggat och sväljt, RUN-157).
     // Felet som kastas bär koden från det första som föll, så att den som fångar loggar en kod och inte "(Error)".
-    const rejected = [...titleCheckResults, ...refreshResults].filter((r): r is PromiseRejectedResult => r.status === 'rejected');
-    const failedChecks = titleCheckResults.filter(r => r.status === 'rejected').length;
-    const failedRefreshes = refreshResults.filter(r => r.status === 'rejected').length;
+    const rejected = titleCheckResults.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
     if (rejected.length > 0) {
-      throw errorWithCode(`${failedChecks} title check(s) and ${failedRefreshes} leaderboard refresh(es) failed (user ${userId})`, rejected[0].reason);
+      throw errorWithCode(`${rejected.length} title check(s) failed (user ${userId})`, rejected[0].reason);
     }
 
-    logger.info(`✅ Processed ${titles.length} titles, updated ${titlesToUpdate.length} leaderboards`);
+    logger.info(`✅ Processed ${titles.length} titles`);
   }
 
   /**
@@ -100,8 +86,8 @@ export class EnhancedTitleService {
   }
 
   /**
-   * Check and update a specific title for a member of a group. Databasfel kastas — i prod kan även triggern på user_titles,
-   * som bygger om title_leaderboard, ge 23505 här.
+   * Check and update a specific title for a member of a group. Databasfel kastas (en dubbel rad ger 23505 på (user_id, group_id, title_id)).
+   * Rankingen rörs inte här: den byggs om i processGroupTitles när alla medlemmar är skrivna.
    */
   private async checkAndUpdateTitle(
     title: any,
@@ -110,12 +96,12 @@ export class EnhancedTitleService {
     userStats: UserStats,
     earnedAt: string,
     ctx: TitleContext
-  ): Promise<boolean> {
+  ): Promise<void> {
     const { userId, groupId } = member;
     const engine = titleEngineRegistry.get(title.metric_key);
     if (!engine) {
       logger.warn(`⚠️ No engine registered for metric_key: "${title.metric_key}" (title: "${title.name}")`);
-      return false;
+      return;
     }
 
     const userValue = engine.calculate(runs, userStats, ctx);
@@ -142,9 +128,8 @@ export class EnhancedTitleService {
         const { error } = await supabase.client.from('user_titles').delete().eq('id', existingTitle.id);
         if (error) throw errorWithCode(`Failed to revoke ${titleLabel}`, error);
         logger.info(`🗑️ Revoked "${title.name}" from user ${userId} (${userValue} < ${title.unlock_requirement})`);
-        return true; // leaderboarden måste uppdateras
       }
-      return false;
+      return;
     }
 
     const titleData = { user_id: userId, group_id: groupId, title_id: title.id, value: userValue, earned_at: earnedAt };
@@ -162,8 +147,6 @@ export class EnhancedTitleService {
       if (error) throw errorWithCode(`Failed to award ${titleLabel}`, error);
       logger.info(`🆕 Awarded "${title.name}" to user ${userId} with value ${userValue}`);
     }
-
-    return true;
   }
 
   /**
@@ -177,8 +160,13 @@ export class EnhancedTitleService {
    * och skillnaden loggas (title_unlocked/_taken/_revoked, endast framåt). `emitNews: false` för
    * regel-/data-underhåll (admin /titles/reprocess-all) så att flödet inte spammas.
    *
+   * Rankingen (ADR 012 beslut 4.4, migration 058): gruppens title_leaderboard byggs om EN gång, efter att alla medlemmar skrivits och före
+   * efter-ögonblicksbilden — den enda skrivaren av rankingen i en titelomräkning (förr: trigger på user_titles + ett rpc per titel och
+   * användare + ett avslutande rpc i calculateUserTotals). Ombyggnaden stämplar title_leaderboard.updated_at för hela gruppen, vilket är klockan
+   * som titleRecalcClock läser. Ett fel i ombyggnaden kastas med databasens kod (gruppomräkningen är misslyckad, inga nyheter skickas).
+   *
    * Returnerar hur många medlemmar som räknades om och hur många som misslyckades (RUN-157) — ett fel hos en
-   * användare kastar inte, så att övriga medlemmar och den avslutande ombyggnaden av gruppens ranking ändå körs.
+   * användare kastar inte, så att övriga medlemmar och ombyggnaden av gruppens ranking ändå körs.
    */
   async processGroupTitles(
     groupId: string,
@@ -216,9 +204,9 @@ export class EnhancedTitleService {
     const startTime = Date.now();
     const ctx: TitleContext = { now: new Date() }; // ett "nu" för hela körningen, delat av alla användare
 
-    // En användare i taget (RUN-157): varje användares omräkning bygger om gruppens topplistor per titel
-    // (update_group_title_leaderboard och triggern på user_titles: DELETE + INSERT). Parallella ombyggnader av samma
-    // (grupp, titel) krockade på (group_id, title_id, position) med 23505. Ett fel hos en användare stoppar inte de övriga.
+    // En användare i taget (RUN-157): skrivningarna till user_titles görs sekventiellt, och rankingen byggs om först när alla är gjorda
+    // (parallella ombyggnader av samma (grupp, titel) krockade på (group_id, title_id, position) med 23505). Ett fel hos en användare
+    // stoppar inte de övriga.
     let processedCount = 0;
     let failedCount = 0;
     for (const member of activeMembers) {
@@ -249,6 +237,10 @@ export class EnhancedTitleService {
     }
 
     logger.info(`✅ Processed titles for ${processedCount}/${activeMembers.length} members in ${Date.now() - startTime}ms`);
+
+    // EN ombyggnad av gruppens ranking (alla titlar), efter alla skrivningar och före efter-ögonblicksbilden. Kastar med databasens kod.
+    await rebuildGroupTitleRanking(groupId, supabase.client);
+    logger.info(`✅ Title ranking of group ${groupId} rebuilt`);
 
     if (holdersBefore) {
       const holdersAfter = await snapshotTitleHolders(groupId);

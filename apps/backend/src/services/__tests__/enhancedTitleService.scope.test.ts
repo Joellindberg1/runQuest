@@ -62,15 +62,21 @@ function tables(): Record<string, Row[]> {
   };
 }
 
-interface RpcCall { name: string; args: any }
+/** `seen`: user_titles (user:titel) som fanns när anropet gjordes, för att visa att ombyggnaden kom efter alla skrivningar. */
+interface RpcCall { name: string; args: any; seen: string[] }
 
 function setup(data: Record<string, Row[]> = tables()) {
   const rpcCalls: RpcCall[] = [];
-  const rpc = (name: string) => (args: any) => { rpcCalls.push({ name, args }); return { data: null }; };
+  const rpc = (name: string) => (args: any) => { rpcCalls.push({ name, args, seen: data.user_titles.map((r) => `${r.user_id}:${r.title_id}`).sort() }); return { data: null }; };
   const db = createFakeDb(data, {
     autoIds: true,
     numericIds: ['activity_log'],
-    rpc: { update_group_title_leaderboard: rpc('update_group_title_leaderboard'), update_group_title_leaderboards: rpc('update_group_title_leaderboards') },
+    rpc: {
+      update_group_title_leaderboard: rpc('update_group_title_leaderboard'),
+      update_group_title_leaderboards: rpc('update_group_title_leaderboards'),
+      update_title_leaderboard: rpc('update_title_leaderboard'),
+      update_all_title_leaderboards: rpc('update_all_title_leaderboards'),
+    },
   });
   holder.client = db.client;
   return { data, db, rpcCalls, service: new EnhancedTitleService() };
@@ -157,15 +163,31 @@ describe('grupp A:s skrivning bygger inte om grupp B', () => {
 
     expect(data.user_titles.filter((r) => r.group_id === 'g1').map((r) => [r.user_id, r.title_id, r.value]).sort()).toEqual([['u1', 't-spy', 1], ['u2', 't-spy', 1]]);
     expect(data.user_titles.find((r) => r.id === 'ut-b')).toEqual({ id: 'ut-b', user_id: 'u3', group_id: 'g2', title_id: 't-spy', value: 99, earned_at: '2026-01-01T00:00:00Z' });
-    expect(rpcCalls.length).toBeGreaterThan(0);
-    expect(rpcCalls.every((c) => c.name === 'update_group_title_leaderboard' && c.args.p_group_id === 'g1')).toBe(true);
+    expect(rpcCalls.map((c) => [c.name, c.args])).toEqual([['update_group_title_leaderboards', { p_group_id: 'g1' }]]);
     expect(db.queries.filter((q) => q.table === 'runs').flatMap((q) => q.filters.map((f) => f.value))).not.toContain('u3');
   });
 
-  it('en ändrad titel i A bygger A:s lista för den titeln en gång, med gruppen och titeln som argument', async () => {
+  it('rankingen byggs om EN gång per gruppomräkning (hela gruppen), efter att alla medlemmar skrivits — inte per medlem eller per titel', async () => {
     const { service, rpcCalls } = setup();
     await service.processGroupTitles('g1', { emitNews: false });
-    expect(rpcCalls.map((c) => c.args)).toEqual([{ p_group_id: 'g1', p_title_id: 't-spy' }, { p_group_id: 'g1', p_title_id: 't-spy' }]); // en per medlem, som förut
+    expect(rpcCalls.map((c) => [c.name, c.args])).toEqual([['update_group_title_leaderboards', { p_group_id: 'g1' }]]);
+    expect(rpcCalls[0].seen).toEqual(['u1:t-spy', 'u2:t-spy']); // båda medlemmarnas rader fanns redan
+  });
+
+  it('ombyggnaden körs även när några medlemmar misslyckades, så att de som lyckades syns i rankingen', async () => {
+    const { service, rpcCalls } = setup();
+    vi.spyOn(service, 'processUserTitlesAfterRun').mockRejectedValue(new Error('boom'));
+    await expect(service.processGroupTitles('g1', { emitNews: false })).resolves.toEqual({ total: 2, processed: 0, failed: 2 });
+    expect(rpcCalls.map((c) => c.name)).toEqual(['update_group_title_leaderboards']);
+  });
+
+  it('processAllGroupsTitles bygger varje grupp en gång med gruppens id, aldrig alla grupper på en gång', async () => {
+    const { service, rpcCalls } = setup();
+    await service.processAllGroupsTitles({ emitNews: false });
+    expect(rpcCalls.map((c) => [c.name, c.args])).toEqual([
+      ['update_group_title_leaderboards', { p_group_id: 'g1' }],
+      ['update_group_title_leaderboards', { p_group_id: 'g2' }],
+    ]);
   });
 
   it('användare som finns i två grupper över tid håller sina titelrader per grupp: samma användare, olika grupp, två rader', async () => {

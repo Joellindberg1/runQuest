@@ -41,11 +41,12 @@ function tables(): Record<string, Row[]> {
 
 type RpcError = { code: string; message: string };
 
-/** fakeDb + en update_group_title_leaderboard som beter sig som plpgsql-funktionen under samtidighet. */
+/** fakeDb + en update_group_title_leaderboards som beter sig som plpgsql-funktionerna under samtidighet. */
 function setup(opts: { failRpc?: RpcError; failInsertFor?: string } = {}) {
   const data = tables();
   const db = createFakeDb(data, { autoIds: true });
   const rpcErrors: RpcError[] = [];
+  const rpcCalls: string[] = [];
 
   async function updateGroupTitleLeaderboard(groupId: string, titleId: string): Promise<RpcError | null> {
     if (opts.failRpc) return opts.failRpc;
@@ -73,7 +74,7 @@ function setup(opts: { failRpc?: RpcError; failInsertFor?: string } = {}) {
     from(table: string) {
       const builder = db.client.from(table);
       if (table !== 'user_titles' || !opts.failInsertFor) return builder;
-      // I prod bygger triggern på user_titles om topplistan i samma sats — 23505 kan alltså komma redan vid skrivningen.
+      // En skrivning till user_titles kan ge 23505 på (user_id, group_id, title_id) när två omräkningar av samma grupp möts.
       const insert = builder.insert;
       builder.insert = (values: Row) => values.user_id === opts.failInsertFor
         ? Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key value' } })
@@ -81,25 +82,31 @@ function setup(opts: { failRpc?: RpcError; failInsertFor?: string } = {}) {
       return builder;
     },
     async rpc(name: string, args: any) {
-      if (name !== 'update_group_title_leaderboard') return { data: null, error: null };
-      const error = await updateGroupTitleLeaderboard(args.p_group_id, args.p_title_id);
+      if (name !== 'update_group_title_leaderboards') return { data: null, error: null };
+      rpcCalls.push(args.p_group_id);
+      let error: RpcError | null = null;
+      for (const title of data.titles) {
+        error = await updateGroupTitleLeaderboard(args.p_group_id, title.id);
+        if (error) break;
+      }
       if (error) rpcErrors.push(error);
       return { data: null, error };
     },
   };
 
-  return { data, rpcErrors, service: new EnhancedTitleService() };
+  return { data, rpcErrors, rpcCalls, service: new EnhancedTitleService() };
 }
 
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe('processGroupTitles — gruppens title_leaderboard', () => {
-  it('flera användare som tar samma titel ger ingen 23505 och rätt slutlig topplista', async () => {
-    const { data, rpcErrors, service } = setup();
+  it('flera användare som tar samma titel ger ingen 23505 och rätt slutlig topplista, byggd en gång efter alla skrivningar', async () => {
+    const { data, rpcErrors, rpcCalls, service } = setup();
 
     await service.processGroupTitles('g1', { emitNews: false });
 
     expect(rpcErrors).toEqual([]);
+    expect(rpcCalls).toEqual(['g1']);
     const board = data.title_leaderboard
       .filter((r) => r.title_id === TITLE.id)
       .sort((a, b) => a.position - b.position)
@@ -107,12 +114,16 @@ describe('processGroupTitles — gruppens title_leaderboard', () => {
     expect(board).toEqual([[1, 'u2', 30], [2, 'u3', 20], [3, 'u1', 10]]);
   });
 
-  it('ett fel i topplistebygget räknas som misslyckad användare, inte som klar', async () => {
-    const { service } = setup({ failRpc: { code: '23505', message: 'duplicate key value' } });
+  it('ett fel i topplistebygget gör gruppomräkningen misslyckad med databasens kod, inte klar', async () => {
+    const { data, service } = setup({ failRpc: { code: '23505', message: 'LEAKMARKER duplicate key value' } });
 
-    const result = await service.processGroupTitles('g1', { emitNews: false });
+    const failure = await service.processGroupTitles('g1', { emitNews: false }).catch((error: Error) => error);
 
-    expect(result).toEqual({ total: 3, processed: 0, failed: 3 });
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe('Failed to rebuild the title ranking of group g1');
+    expect((failure as { code?: string }).code).toBe('23505');
+    expect(JSON.stringify(failure)).not.toContain('LEAKMARKER');
+    expect(data.user_titles).toHaveLength(3); // skrivningarna är gjorda; nästa omräkning bygger om
   });
 
   it('ett skrivfel i user_titles räknas som misslyckad användare och stoppar inte de övriga', async () => {
