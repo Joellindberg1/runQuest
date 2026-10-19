@@ -154,7 +154,10 @@ går att visa med prod-data.
 CI-jobbet `Lighthouse — prestandabudget` (`.github/workflows/ci.yml`) mäter de publika sidorna på varje PR mot `main` och på varje
 push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
 
-- **Vad som mäts:** `/` och `/legal` i det byggda `apps/frontend/dist`, serverat av samma Caddy och Caddyfile som
+- **Vad som mäts:** `/` och `/legal` i det byggda `apps/frontend/dist`. Sedan v0.8.0 (RUN-333) är `/` den förrenderade landningen
+  (`landing.html`, Caddyfilens regel för exakt `/`) och `/legal` fullappens `index.html` med laddningsvyn i `#root`. `run.sh` vägrar mäta om
+  `landing.html` saknas i `dist` eller om `/` inte ger `landing-title` via Caddy (annars hade `/` fallit tillbaka på `index.html` och mätningen gällt
+  laddningsvyn). Serverat av samma Caddy och Caddyfile som
   `scripts/verify-static-serving.sh` (samma Caddy-version, hämtad med kontrollsumma). Lighthouse mobil (mobilemulering, simulerad
   långsam 4G och 4x CPU-bromsning), 3 körningar per sida, **medianen** prövas. Mätningen går bara mot `127.0.0.1`: ingen prod, ingen
   Railway, ingen extern rapporttjänst (inte `temporary-public-storage`). Bygget saknar `VITE_API_URL` och pekar då på
@@ -297,6 +300,29 @@ Kör rök-raden för varje kritiskt flöde i `STATE.md` ("Kritiska flöden", nio
 flöde 1 (login → JWT → skyddade anrop). Minst: frontend laddar utan vit sida (inklusive en direktladdad djup länk som
 `/board`), `GET /health` svarar, nya endpoints svarar 401 utan token, och den nya funktionen syns. Muterande rök i prod
 (loggad runda, utmaning) görs bara om ägaren säger ja, eftersom det är den riktiga gruppens data.
+
+**Förrenderad landning och laddningsvy (v0.8.0, RUN-333, ADR 006 addendum 2026-10-19).** `/` serveras av `landing.html` (Caddyfilen, exakt `/` med valfri
+fråga; `/landing` och `/landing.html` omdirigeras till `/` med 307; utan `landing.html` faller `/` tillbaka på `index.html`), alla andra adresser av `index.html`
+vars `#root` bara har laddningsvyn. Det automatiska beviset:
+- `scripts/verify-static-serving.sh` (CI, mot det byggda `dist` med Caddy): `/`, `/?tab=titles` och `/?utm_source=x` ger landningen; `/titles`, `/login`,
+  `/runner/x`, `/board` och `/legal` ger bara laddningsvyn; bygge utan `landing.html` ger 200 på `/`. Lokalt utan nätverk: `CADDY_BIN=<sökväg till Caddy 2.11.4>`.
+- `apps/e2e/tests/landing.spec.ts` (e2e-staging-jobbet, nattligt eller manuellt, mot staging): utan JavaScript syns landningens h1; animationernas starttid är
+  oförändrad efter hydrering; en inloggad besökare på `/` hamnar på `/board` utan att landningen någonsin fanns i DOM; inloggning från `/`, en inloggad besökare på `/`
+  och direktladdning av `/board` och `/legal` visar laddaren (`role="status"`, texten "Loading") inom 500 ms medan fullappens JS är fördröjd 2 s, utan en enda blank
+  bildruta; landningen står kvar med blockerad lagring; stilmallarna på `/` och `/legal` är under 50 000 överförda bytes; tourens stängknapp har fokusring. Sidvisningsproven
+  hoppas över mot staging (stagingbygget skickar ingen webbanalys) och körs bara lokalt mot ett bygge med webbplats-id (`docs/e2e.md`). Provet av `/board` och inloggningen från `/` kräver testkontot; `login.spec.ts` ska vara grön oförändrad.
+- Lighthouse-artefakten (`lighthouse-reports`) ska visa `/` som den förrenderade landningen (dokumentet ca 7 kB, `landing-title` i HTML:en).
+
+**Manuell kontroll i Safari och Firefox på staging (ägaren; kan inte automatiseras, risk 10 i ADR 006).** Laddningsvyn målas först när CSS:en laddats, och Chromium
+behåller det gamla dokumentet tills det nya kan ritas, men Safari och Firefox kan visa en kort tom ram. Gör för varje webbläsare på
+`https://runquest-frontend-staging-staging.up.railway.app`, helst med nätverket strypt till "Slow 4G"/"Fast 3G" i utvecklarverktygen:
+1. Utloggad: öppna `/`. Landningen ritas direkt (rubriken syns innan allt annat har hunnit laddas). Klicka Sign in, skriv in testkontot och logga in.
+   **Förväntat:** laddaren (guldoval med löpare, texten "Loading" för skärmläsare) står kvar mellan Sign in och Board; ingen blank vit eller svart ram.
+2. Inloggad: öppna `/` i en ny flik. **Förväntat:** laddaren, sedan Board; landningen syns aldrig, inte ens som blixt.
+3. Direktladda `/board` och `/legal` (Ctrl/Cmd+Shift+R). **Förväntat:** laddaren före allt annat; `/legal` utloggad går sedan till sin sida.
+4. Skärmläsare eller tillgänglighetsträdet: laddaren är en `status` med texten "Loading".
+5. Notera webbläsare och version. Ser du en blank ram trots allt: skriv ner var (steg 1–3), om den är vit eller har sidans bakgrund, och hur lång den är. Det
+   är då ett noterat undantag enligt risk 10, och åtgärden är en liten inline `<style>` med bakgrund per `prefers-color-scheme` (eget beslut).
 
 **Sentry-alertregeln för kritiska larm** (en gång per Sentry-projekt, `runquest-backend`): villkor `alert:critical` (tagg, `level:fatal`), åtgärd "mejla ägaren", och **notifiera för varje händelse** (inte bara nya issues). Frekvensen begränsas av spärren i koden (högst en händelse per källa och fingeravtryck per 10 minuter, `extra.suppressed_since_last` visar hur många som hölls tillbaka), så regeln behöver ingen egen throttle. Källor och Strava-id-regeln: ADR 010, Addendum 2026-10-17 (RUN-283).
 

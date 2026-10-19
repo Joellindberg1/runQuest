@@ -2,7 +2,7 @@
 
 Intern förvaltningsdokumentation (svenska, för Lead och ägaren). ADR 001 sköt Playwright tills en miljö skild från prod fanns; sedan
 2026-10-17 finns staging ([`docs/release.md`](release.md), "Preview på staging"), och sviten bor i `apps/e2e`. Den är en rök, inte en
-regressionssvit: sju specfiler, kortaste kedjan som bevisar att flödena i `STATE.md` ("Kritiska flöden") lever.
+regressionssvit: åtta specfiler, kortaste kedjan som bevisar att flödena i `STATE.md` ("Kritiska flöden") lever.
 
 ## Det viktigaste: sviten körs aldrig mot prod
 
@@ -33,6 +33,7 @@ Workflowen bevisar dessutom i varje körning att konfigurationen vägrar prod (s
 | `tests/board.spec.ts` | 4 Leaderboard | Board visar hela gruppen i den ordning servern rankar (podiet och tabellen "Rest of the pack" mot `GET /auth/users-with-runs`), antalet löpare i rubriken stämmer, flikarna Week/Streaks/All-time öppnas |
 | `tests/log-run.spec.ts` | 2 Logga runda | 1,5 km i formuläret ger bekräftelsen, ökar XP och distans (mätt mot API:t), syns i Group history med "mine"-markering; radering återställer totalerna exakt; under minimidistans skickas ingenting |
 | `tests/news.spec.ts` | 8 Pack News | Sju chips i rätt ordning som slås av och på via `?type=` (ADR 011 B7); läst-vid-hover med riktig pekare: fokus ensam markerar inget, en pekare som rör sig in över raden gör den läst (`POST /news/read`) och det består efter omladdning (ADR 011 addendum 2026-10-14) |
+| `tests/landing.spec.ts` | 1 Login | Den förrenderade `/` och laddningsvyn (ADR 006 addendum 2026-10-19): utan JavaScript syns landningens h1; animationernas starttid är oförändrad efter hydrering; `/login` ger landning med dialogen öppen; en inloggad besökare på `/` hamnar på `/board` (exakt två dokumentbegäranden) utan att landningen någonsin fanns i DOM; landningen står kvar när lagringen är blockerad; stilmallarna på `/` och `/legal` ligger under 50 000 överförda bytes (loggas); tourens stängknapp har fokusring vid sex Tab-tryck; sidvisningarna (utloggad med utm = 1 visning med bara vitlistade värden, inloggad = bara `/board`, inloggning från landningen = `/`, `/login`, `/board` utan dubbel; **hoppas över mot staging**, se nedan). Med fullappens JS fördröjd 2 s (`support/loadingView.ts`) visar inloggning från `/`, en inloggad besökare på `/` och direktladdning av `/board` och `/legal` laddaren (`role="status"`, texten "Loading") inom 500 ms och loggen över bildrutor och DOM-ändringar har aldrig en tom ruta |
 | `tests/news-chips.mobile.spec.ts` | 8 Pack News | Playwright-kandidaten ur ADR 011 och `features/news/README.md`: på 412 px scrollar de sju chipsen sidledes i sin rad (`scrollWidth > clientWidth`) utan att göra sidan bredare, och sista chipet nås med tangentbordet |
 
 Flöde 5 (utmaningar), 6 (events), 7 (profilbild), Strava (3, 10) och badges (9) ingår inte: Strava är avstängt i staging, och resten är inte en del av
@@ -129,13 +130,27 @@ Bara lista specerna (ingen webbläsare, inga uppgifter): `E2E_BASE_URL=http://lo
 Adresser till localhost går också att köra mot, till exempel en lokal frontend med `VITE_API_URL` mot stagingbackenden; vakten tillåter localhost för
 frontenden och backenden var för sig. `apps/e2e/.auth/` (sparad session, en giltig JWT) och `test-results/` är gitignorerade.
 
+### Köra mot ett lokalt bygge med fejkat API (valfritt)
+
+För att bevisa landningens och laddningsvyns specer utan staging: bygg frontend (`VITE_APP_ENV=staging npm run build --workspace=@runquest/frontend` ger ett stagingbygge, ett vanligt bygge går också), servera `apps/frontend/dist` med repo-rotens `Caddyfile` (så att regeln för `/` gäller; rendera `{{.DIST_DIR}}` som `scripts/verify-static-serving.sh` gör) och kör sviten med `E2E_STUB_API=1`:
+
+```bash
+export E2E_BASE_URL=http://localhost:18100 E2E_API_URL=http://localhost:3001 E2E_STUB_API=1
+export E2E_USER_LOGIN=stub-login E2E_USER_PASSWORD=any-made-up-value   # fejkkontot; inget riktigt konto
+cd apps/e2e && npx playwright test tests/landing.spec.ts tests/login.spec.ts --project=desktop
+```
+
+Sidvisningsproven (`pageviews`) kräver ett bygge med webbplats-id: ett stagingbygge laddar aldrig Umami-skriptet (`umamiWebsiteIdOf`), så de hoppas över om inte `E2E_UMAMI_BUILD=1` är satt. Bygg då utan `VITE_APP_ENV=staging` men med `VITE_UMAMI_WEBSITE_ID=<ett påhittat uuid>`; skriptet `https://cloud.umami.is/script.js` ersätts i webbläsaren av en stub (`support/analytics.ts`) och ingenting når Umami. Nattkörningen mot staging kör alltså inte dessa prov.
+
+`E2E_STUB_API=1` (`support/stubApi.ts`) besvarar alla förfrågningar till API-adressen i webbläsaren med fejkade svar och vägrar köra om inte både frontenden och API:et är localhost (vakten). Utan variabeln är API:et alltid det riktiga, så mot staging händer ingenting nytt. Stuben räcker för inloggning, Board och landningen; sidor som behöver mer data (logga runda, nyheter) hör till körningen mot staging.
+
 ### Hur sviten provades
 
 Byggaren körde aldrig mot staging. Specerna provades mot den riktiga frontenden (Vite på localhost) med en fejkad backend som imiterar svarsformerna ur
 `apps/backend/src/routes` (login, `users-with-runs`, `runs`, `news`), i den redan installerade Edge-webbläsaren: alla specer gröna. Två avsiktliga fel i frontendkoden fångades (chip-radens `position: relative` borttagen
 gav sidled scroll på hela sidan; hover-gesten avstängd gjorde att raden aldrig blev läst). Ett tredje, borttagen fokus-scroll i `NewsFilters`, fångades
 inte, eftersom webbläsaren själv scrollar ett fokuserat element i bild; testet av sista chipet bevisar därför nåbarhet, inte den hanteraren. Det hela bevisar
-locatorerna och flödena, inte stagingdatan.
+locatorerna och flödena, inte stagingdatan. `landing.spec.ts` (RUN-333) provades mot ett lokalt stagingbygge serverat av repo-rotens Caddyfile med `E2E_STUB_API=1` (se ovan), tillsammans med planterade regressioner som fällde sina test: en tom `#root` i `index.html`, en bortplockad `landing.html`, ett hydreringsfel (extra element på klienten) och en överlämning som renderar null i stället för laddningsvyn. Mot staging har de inte körts av byggaren.
 
 ## Känt och medvetet
 
