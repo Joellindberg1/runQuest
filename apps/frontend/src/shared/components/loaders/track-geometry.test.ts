@@ -49,6 +49,18 @@ describe("laneStrokeWidth", () => {
     expect(laneStrokeWidth(33)).toBe(1.4);
     expect(laneStrokeWidth(34)).toBe(2);
   });
+
+  it("keeps the design's 2 px up to the largest size the Loaders design draws (100 px)", () => {
+    expect(laneStrokeWidth(64)).toBe(2);
+    expect(laneStrokeWidth(88)).toBe(2);
+    expect(laneStrokeWidth(100)).toBe(2);
+  });
+
+  it("grows steadily beyond the design's range, from 2 px at 100 px to 6 px at 192 px, with no jump at 101 px", () => {
+    expect(laneStrokeWidth(101)).toBeCloseTo(2.04, 2);
+    expect(laneStrokeWidth(128)).toBeCloseTo(3.22, 2);
+    expect(laneStrokeWidth(192)).toBeCloseTo(6, 10);
+  });
 });
 
 describe("ovalPath inner lanes", () => {

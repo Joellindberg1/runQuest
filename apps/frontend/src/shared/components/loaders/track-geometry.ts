@@ -34,8 +34,20 @@ export function runnerRadius(size: number): number {
   return Math.max(2, size * 0.055);
 }
 
+/** Största storleken Loaders-förlagan ritar (trackLg 88; kortet 72). Upp till dit är banlinjen förlagans 2 px, oavsett storlek. */
+const TRACK_DESIGN_MAX_SIZE = 100;
+const TRACK_DESIGN_STROKE = 2;
+/** Över förlagans spann växer linjen jämnt (ingen hoppande tjocklek) från 2 px vid 100 px till 6 px vid 192 px, så att en förstorad oval (laddningsvyn, 192 px) behåller 64 px-ovalens
+ * förhållande mellan linje och prickar i stället för att få en hårfin linje. */
+const LARGE_TRACK_SIZE = 192;
+const LARGE_TRACK_STROKE = 6;
+
 export function laneStrokeWidth(size: number): number {
-  return size < 34 ? 1.4 : 2;
+  if (size > TRACK_DESIGN_MAX_SIZE) {
+    const growth = (LARGE_TRACK_STROKE - TRACK_DESIGN_STROKE) / (LARGE_TRACK_SIZE - TRACK_DESIGN_MAX_SIZE);
+    return TRACK_DESIGN_STROKE + (size - TRACK_DESIGN_MAX_SIZE) * growth;
+  }
+  return size < 34 ? 1.4 : TRACK_DESIGN_STROKE;
 }
 
 /**
