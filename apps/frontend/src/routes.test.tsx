@@ -84,6 +84,42 @@ describe('varje route renderar utan krasch inne i skalet', () => {
   });
 });
 
+describe('första laddningen av /board', () => {
+  const boardWithoutPodium = (container: HTMLElement) =>
+    container.querySelector('.rq-board') !== null && container.querySelector('[data-testid^="podium-"]') === null;
+
+  it('visar laddningsvyn tills topplistan svarat och ritar sedan Board med podiet ifyllt, utan en enda bildruta med Board utan podium', async () => {
+    let answer!: (value: unknown) => void;
+    handlers.getUsersWithRuns = () => new Promise((resolve) => { answer = resolve; });
+    const { container } = renderWithApp(<AppRoutes />, { entry: '/board', width: DESKTOP });
+
+    // Varje DOM-ändring prövas, inte bara slutläget: en bildruta med tomma platser räcker för att provet ska falla.
+    const withoutPodium: boolean[] = [];
+    const watcher = new MutationObserver(() => withoutPodium.push(boardWithoutPodium(container)));
+    watcher.observe(container, { childList: true, subtree: true });
+
+    await waitFor(() => expect(answer).toBeDefined());
+    expect(screen.getByText('Loading')).toBeInTheDocument();
+    expect(container.querySelector('[data-shell]')).toBeNull();
+
+    answer({ success: true, data: [ME, OTHER] });
+    expect(await screen.findByTestId('podium-1')).toBeInTheDocument();
+    watcher.disconnect();
+
+    expect(withoutPodium).not.toContain(true);
+    expect(screen.queryByText('Loading')).not.toBeInTheDocument();
+  });
+
+  it('ersätter laddningsvyn med Boards felvy när topplistan inte går att hämta', async () => {
+    handlers.getUsersWithRuns = () => ({ success: false, error: 'boom' });
+    renderWithApp(<AppRoutes />, { entry: '/board', width: MOBILE });
+
+    expect(await screen.findByText("Couldn't load the standings")).toBeInTheDocument();
+    expect(screen.queryByText('Loading')).not.toBeInTheDocument();
+  });
+
+});
+
 describe('redirects (ADR 006 beslut 7) — gamla länkar 404:ar aldrig', () => {
   it.each([
     ['/', '/board'],

@@ -45,6 +45,45 @@ export function holdLandingScript(page: Page, maxMs: number): Promise<HeldScript
   return hold(page, LANDING_ENTRY, maxMs);
 }
 
+/** Ett svar som hålls tillbaka tills `release()` anropas (eller `maxMs` gått). Tidpunkterna är väggklockan, jämförbar med `FrameSample.at`. */
+export interface HeldResponse {
+  requestedAt: () => number | null;
+  releasedAt: () => number | null;
+  release: () => void;
+}
+
+/** Svarsvägen för gruppens topplista (`GET /auth/users-with-runs`), som Board väntar på. Utan stub går förfrågan till det riktiga API:et när den släppts. */
+const STANDINGS_URL = '**/auth/users-with-runs';
+
+/** Topplistans svar hålls tillbaka: förfrågan når API:et (eller stuben) först när `release()` anropas. Provar att laddningsvyn står kvar medan appen väntar på datan. */
+export async function holdStandings(page: Page, maxMs: number): Promise<HeldResponse> {
+  let requestedAt: number | null = null;
+  let releasedAt: number | null = null;
+  let open!: () => void;
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  await page.route(STANDINGS_URL, async (route) => {
+    requestedAt ??= Date.now();
+    const timer = setTimeout(open, maxMs);
+    await opened;
+    clearTimeout(timer);
+    releasedAt ??= Date.now();
+    await route.fallback();
+  });
+  return { requestedAt: () => requestedAt, releasedAt: () => releasedAt, release: open };
+}
+
+/** Topplistans svar blir ett serverfel (500) i stället för data: provar felvägen i appen. */
+export async function failStandings(page: Page): Promise<void> {
+  await page.route(STANDINGS_URL, (route) =>
+    // Förhandsfrågan (OPTIONS) går vidare till stuben/API:et; bara själva hämtningen fäller.
+    route.request().method() === 'OPTIONS'
+      ? route.fallback()
+      : route.fulfill({ status: 500, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }, body: JSON.stringify({ error: 'Standings failed on purpose' }) }),
+  );
+}
+
 /** En bildruta ur sidans egen requestAnimationFrame-slinga. */
 export interface FrameSample {
   /** Väggklocka (ms) när rutan ritades, jämförbar med `HeldScript.releasedAt`. */
@@ -62,11 +101,20 @@ export interface FrameSample {
   shell: boolean;
   /** Landningen (`.rq-landing`) i #root. */
   landing: boolean;
+  /** Board (`.rq-board`, sidans rot) i #root. */
+  board: boolean;
+  /** Antal podiekort (`data-testid="podium-<plats>"`) i #root: topplistans ifyllda platser. */
+  podium: number;
 }
 
 /** En bildruta är blank om #root inte har något, eller bara tomma element utan text. Laddningsvyn har texten "Loading" för skärmläsare, så den räknas som innehåll. */
 export function isBlankFrame(frame: FrameSample): boolean {
   return frame.rootChildren === 0 || frame.textLength === 0;
+}
+
+/** Board är ritad men podiet saknas: de tomma platserna som aldrig ska synas på första laddningen. */
+export function isBoardWithoutStandings(frame: FrameSample): boolean {
+  return frame.board && frame.podium === 0;
 }
 
 export interface FrameLog {
@@ -98,6 +146,8 @@ export async function logFrames(page: Page): Promise<FrameLog> {
         loader: root?.querySelector('.rq-shell__pending [role="status"]') != null,
         shell: root?.querySelector('.rq-shell[data-shell]') != null,
         landing: root?.querySelector('.rq-landing') != null,
+        board: root?.querySelector('.rq-board') != null,
+        podium: root?.querySelectorAll('[data-testid^="podium-"]').length ?? 0,
       });
     };
     // Varje bildruta, och varje ändring av DOM:en: en commit som tömmer #root kan ritas innan nästa bildruta provas, och just den tomma rutan ska synas i loggen.

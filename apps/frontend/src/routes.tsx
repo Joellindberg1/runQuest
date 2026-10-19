@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/providers/authContext';
 import { paths } from '@/paths';
 import { AppShell } from '@/app-shell/AppShell';
+import { FirstBoardGate } from '@/app-shell/FirstBoardGate';
 import { RequireAuth } from '@/app-shell/RequireAuth';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { legacyChallengesTarget } from '@/app-shell/legacyRedirects';
@@ -70,21 +71,24 @@ export const AppRoutes: React.FC = () => {
           <Route path={paths.legal} element={<LegalPage />} />
 
           <Route element={<RequireAuth />}>
-            <Route element={<AppShell />}>
-              <Route path={paths.board} element={<BoardPage />} />
-              <Route path={paths.titles} element={<TitlesPage />} />
-              <Route path={paths.duels} element={<DuelsPage />} />
-              <Route path={paths.events} element={<EventsPage />} />
-              <Route path={paths.news} element={<NewsPage />} />
-              <Route path={paths.log} element={<LogPage />} />
-              <Route path={paths.profile} element={<ProfilePage />} />
-              <Route path={paths.badges} element={<BadgesPage />} />
-              <Route path={paths.runnerPattern} element={<RunnerRoute presentation="page" />} />
-              <Route path={paths.playbook} element={<PlaybookPage />} />
-              <Route path={paths.features} element={<FeaturesPage />} />
-              <Route path={paths.settings} element={<SettingsPage />} />
-              <Route path={paths.admin} element={<AdminRoute />} />
-              <Route path="*" element={<NotFound />} />
+            {/* Håller laddningsvyn kvar på första laddningen av /board tills topplistan svarat; på alla andra vägar är den en genomgång. */}
+            <Route element={<FirstBoardGate />}>
+              <Route element={<AppShell />}>
+                <Route path={paths.board} element={<BoardPage />} />
+                <Route path={paths.titles} element={<TitlesPage />} />
+                <Route path={paths.duels} element={<DuelsPage />} />
+                <Route path={paths.events} element={<EventsPage />} />
+                <Route path={paths.news} element={<NewsPage />} />
+                <Route path={paths.log} element={<LogPage />} />
+                <Route path={paths.profile} element={<ProfilePage />} />
+                <Route path={paths.badges} element={<BadgesPage />} />
+                <Route path={paths.runnerPattern} element={<RunnerRoute presentation="page" />} />
+                <Route path={paths.playbook} element={<PlaybookPage />} />
+                <Route path={paths.features} element={<FeaturesPage />} />
+                <Route path={paths.settings} element={<SettingsPage />} />
+                <Route path={paths.admin} element={<AdminRoute />} />
+                <Route path="*" element={<NotFound />} />
+              </Route>
             </Route>
           </Route>
         </Routes>
