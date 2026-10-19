@@ -663,10 +663,11 @@ describe('a seam that never answers', () => {
     try {
       const { tables } = use();
       const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
-      const started = Date.now();
+      // Counts the timer instead of measuring wall time: the seam is cut off at the limit the router was given (40 ms), never at the default.
+      const timers = vi.spyOn(globalThis, 'setTimeout');
       const first = await local.request('PUT', '/api/groups/settings', { token: token(ADMIN), body: { values: { [DIGEST.key]: true } } });
       expect(first.status).toBe(200);
-      expect(Date.now() - started).toBeLessThan(2000);
+      expect(timers).toHaveBeenCalledWith(expect.any(Function), 40);
       expect(JSON.stringify(error.mock.calls)).toContain('seam_timeout');
       const second = await local.request('PUT', '/api/groups/settings', { token: token(ADMIN), body: { values: { [PACE.key]: 'hard' } } });
       expect(second.status).toBe(200);

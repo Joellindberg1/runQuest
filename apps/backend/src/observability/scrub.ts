@@ -61,15 +61,40 @@ export function isDroppedBreadcrumb(breadcrumb: { category?: unknown; type?: unk
 // Delar av en händelse som är SDK:ns egen metadata och aldrig bär användardata.
 const UNTOUCHED_TOP_LEVEL = new Set(['sdk', 'modules', 'release', 'environment', 'event_id', 'platform', 'timestamp', 'level']);
 
-const JWT_LIKE = /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g;
-const BEARER = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
+// Alla mönster nedan körs synkront i `beforeSend` på text vi inte styr. Därför har varje kvantifierare en övre gräns (`{0,8}` i stället för `*`
+// där ett mellanrum kan upprepas, `[^\]]{0,200}` i stället för `[^\]]*`), och inget mönster nästlar eller överlappar kvantifierare. Strängarna kapas
+// dessutom till MAX_SCRUBBED_STRING_LENGTH innan något mönster körs, som skydd för mönster som läggs till senare.
+const JWT_LIKE = /\beyJ[A-Za-z0-9_-]{5,256}\.[A-Za-z0-9_-]{5,2048}\.[A-Za-z0-9_-]{0,1024}/g;
+const BEARER = /\bBearer\s{1,8}[A-Za-z0-9._~+/=-]+/gi;
 // Lookbehind och inte \b av samma skäl som STRAVA_ID nedan: `strava_access_token=...` och `db_password=...` ska också maskas.
-const KEY_VALUE = /(?<![A-Za-z0-9])((?:access|refresh|id)[_-]?token|client[_-]?secret|api[_-]?key|password|passwd|secret|token|authorization)(=|["']\s*:\s*)["']?([^\s"'&,;}]+)/gi;
+const KEY_VALUE = /(?<![A-Za-z0-9])((?:access|refresh|id)[_-]?token|client[_-]?secret|api[_-]?key|password|passwd|secret|token|authorization)(=|["']\s{0,8}:\s{0,8})["']?([^\s"'&,;}]+)/gi;
 // Strava-id (ADR 010 beslut 8.6): en andra försvarslinje om en rad som skrivits som `object_id=123` ändå skulle hamna i en händelse.
-// Lookbehind och inte \b: `_` är ett ordtecken, så det fanns ingen ordgräns före `athlete_id` i `strava_athlete_id=123`.
-const STRAVA_ID = /(?<![A-Za-z0-9])((?:object|owner|athlete)_id)(\s*[=:]\s*)\d+/gi;
+// Lookbehind och inte \b: `_` är ett ordtecken, så det fanns ingen ordgräns före `athlete_id` i `strava_athlete_id=123`. Också med citattecken före
+// separatorn (`"object_id":123` i en JSON-text) och i camelCase (`objectId=123`, `stravaActivityId: 123`). Slutvillkoret hindrar att början av ett UUID
+// (`owner_id=7c9e…`) tas för ett nummer. En grupps `activity_id` utan `strava`-prefix hör till STRAVA_WORD_ID, som kräver minst sju siffror.
+const STRAVA_ID = /(?<![A-Za-z0-9])((?:strava[_-]?)?(?:object|owner|athlete)[_-]?id|strava[_-]?activity[_-]?id)(["']?\s{0,8}[=:]\s{0,8}["']?)\d+(?![A-Za-z0-9-])/gi;
+// Strava-aktivitets- och atletnummer i löpande text (`activity 12345678901 not found`, `activity "1…"`, `activity (1…)`, `activities [1…, 2…]`, `activity_id=1…`,
+// `activityId: 1…`). Minst sju siffror: Stravas nummer är nio till elva siffror, och våra egna löpnummer (t.ex. nyhetsraders activity_id) ska inte maskas.
+const STRAVA_WORD_ID = /(?<![A-Za-z0-9])(activit(?:y|ies)(?:[_-]?id)?|athletes?(?:[_-]?id)?)(["']?(?:\s{1,8}id\b)?\s{0,8}(?:[=:]\s{0,8})?[#"'(\[]{0,2})(\d{7,}(?:["')\]]?\s{0,4}(?:,|and|&)\s{0,4}[#"'(\[]?\d{7,})*)/gi;
+// Numret i en Strava-URL eller ett routeanrop (`GET /activities/123`). Blir `:id` som routemönstren, så transaktionsnamnen fortsätter att stämma.
+const STRAVA_PATH_ID = /(?<=\/(?:activities|athletes)\/)\d+/g;
+// Postgres-detaljen `Key (strava_activity_id)=(12345678901) already exists.` (också med flera kolumner): värdena maskas om någon kolumn är ett Strava-nummer.
+const PG_KEY_DETAIL = /\bKey \(([^()]{0,200})\)=\(([^()]{0,300})\)/g;
+const STRAVA_COLUMN = /(?:^|[,\s])(?:strava[_-]?(?:activity|athlete)[_-]?id|athlete[_-]?id)(?:$|[,\s])/i;
+// PostgREST-filter i en URL: `strava_activity_id=eq.123`, `strava_activity_id.eq.123`, `strava_athlete_id.in.(1,2)`.
+const POSTGREST_FILTER = /(?<![A-Za-z0-9])((?:strava[_-]?(?:activity|athlete)[_-]?id|(?:object|athlete)[_-]?id)[.=](?:eq|neq|gt|gte|lt|lte|in)\.)(?:\d+|\([\d,\s]{0,300}\))/gi;
+// Koordinater i text: `lat 57.7, lng 11.9`, `"longitude":11.9`, `start_latlng=[57.7, 11.9]`, `startLatLng: [..]` och ett löst par `57.70887, 11.97456`.
+const COORDINATE_KEYWORD = /(?<![A-Za-z0-9])(lat(?:itude)?|lng|lon(?:gitude)?)(["']?\s{0,8}(?:[=:]\s{0,8})?["']?)-?\d{1,3}\.\d+/gi;
+const LATLNG_PAIR = /(?<![A-Za-z0-9])((?:start[_-]?|end[_-]?)?lat[_-]?lng)(["']?\s{0,8}[=:]\s{0,8})\[[^\]]{0,200}\]/gi;
+const COORDINATE_PAIR = /(?<![\d.])(-?\d{1,3}\.\d{4,})\s{0,4},\s{0,4}(-?\d{1,3}\.\d{4,})(?![\d.])/g;
+// Fält som bär ett Strava-nummer eller en koordinat. `owner_id` på en grupp är ett UUID (en sträng med bokstäver) och rensas därför bara när värdet är siffror.
+// `activity`, `athlete` och `activity_id` utan `strava`-prefix kräver minst sju siffror (nyhetsraders activity_id är ett litet löpnummer).
+const STRAVA_NUMBER_KEY = /^(?:(?:strava[_-]?)?(?:object|owner|athlete)[_-]?id|strava[_-]?activity[_-]?id)$/i;
+const STRAVA_LONG_NUMBER_KEY = /^(?:activity|athlete)(?:[_-]?id)?$/i;
+const COORDINATE_KEY = /^(?:lat|lng|lon|latitude|longitude|(?:start[_-]?|end[_-]?)?lat[_-]?lng)$/i;
 const HEX_40 = /\b[0-9a-f]{40}\b/gi;
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+// Lokaldelen och domänen har den längd RFC 5321 tillåter; utan gränserna var mönstret kvadratiskt på en lång sträng utan snabel-a.
+const EMAIL = /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24}/g;
 
 const MIN_SECRET_LENGTH = 8;
 
@@ -111,15 +136,47 @@ export function secretsFromEnv(env: NodeJS.ProcessEnv): string[] {
   return [...secrets];
 }
 
-function scrubString(value: string, secrets: readonly string[]): string {
+/** Ett löst decimalpar är en koordinat bara om det ryms på jorden; annars är det två tal som råkar stå intill varandra. */
+function isCoordinate(lat: string, lng: string): boolean {
+  return Math.abs(Number(lat)) <= 90 && Math.abs(Number(lng)) <= 180;
+}
+
+function digitsOf(value: unknown): string | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return String(value);
+  return typeof value === 'string' && /^\d{1,30}$/.test(value) ? value : null;
+}
+
+function isStravaNumberField(key: string, value: unknown): boolean {
+  const digits = digitsOf(value);
+  if (digits === null) return false;
+  return STRAVA_NUMBER_KEY.test(key) || (STRAVA_LONG_NUMBER_KEY.test(key) && digits.length >= 7);
+}
+
+/** Längsta text som lämnar processen (efter att hemligheterna maskats). Längre strängar kapas innan något mönster körs. */
+export const MAX_SCRUBBED_STRING_LENGTH = 8192;
+const TRUNCATED = '…[truncated]';
+
+/**
+ * Rensar en sträng. Hemligheterna ur miljön maskas först, på hela texten (en hemlighet som korsar kapgränsen ska inte lämna ett skäl),
+ * därefter kapas texten till `maxLength` och först då körs mönstren. `maxLength` kan stängas av (`Infinity`) för att pröva mönstren för sig.
+ */
+export function scrubString(value: string, secrets: readonly string[], maxLength: number = MAX_SCRUBBED_STRING_LENGTH): string {
   let out = value;
   for (const secret of secrets) out = out.split(secret).join(FILTERED);
+  if (out.length > maxLength) out = `${out.slice(0, maxLength)}${TRUNCATED}`;
   return out
     .replace(ENCRYPTED_VALUE, FILTERED)
     .replace(BEARER, `Bearer ${FILTERED}`)
     .replace(JWT_LIKE, FILTERED)
     .replace(KEY_VALUE, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
     .replace(STRAVA_ID, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(STRAVA_WORD_ID, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(PG_KEY_DETAIL, (detail: string, columns: string) => (STRAVA_COLUMN.test(columns) ? `Key (${columns})=(${FILTERED})` : detail))
+    .replace(POSTGREST_FILTER, (_m, filter: string) => `${filter}${FILTERED}`)
+    .replace(STRAVA_PATH_ID, ':id')
+    .replace(LATLNG_PAIR, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(COORDINATE_KEYWORD, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(COORDINATE_PAIR, (pair: string, lat: string, lng: string) => (isCoordinate(lat, lng) ? FILTERED : pair))
     .replace(HEX_40, FILTERED)
     .replace(EMAIL, FILTERED);
 }
@@ -136,6 +193,7 @@ const MAX_DEPTH = 12;
 
 function walk(value: unknown, secrets: readonly string[], ancestors: object[], key?: string): unknown {
   if (key !== undefined && SENSITIVE_KEY.test(key)) return value === null || value === undefined ? value : FILTERED;
+  if (key !== undefined && (COORDINATE_KEY.test(key) || isStravaNumberField(key, value))) return value === null || value === undefined ? value : FILTERED;
   if (typeof value === 'string') return scrubString(value, secrets);
   if (value === null || typeof value !== 'object') return value;
   if (value instanceof Date) return value;
