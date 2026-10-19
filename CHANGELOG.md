@@ -71,7 +71,7 @@ Användarversion (minor). What's new-posten i `changelog.json` har ingen `announ
 - Nya schemalagda jobb: återhämtningen 04:05 Europe/Stockholm och vid start.
 - Integritetstexten och samtyckesversionen är `2026-10-19`. Redan kopplade användare berörs inte; en ny koppling skickar den nya versionen.
 - `engines.node` är `>=20.19.0`. Backendens bygge går via `apps/backend/build.mjs` (samma esbuild-inställningar, releasen inbakad).
-- Nya miljövariabler: backend `TOKEN_ENCRYPTION_KEY`, `TOKEN_ENCRYPTION_KEYS_RETIRED` (valfri), `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE` (valfri); frontend (bygget) `VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_UMAMI_WEBSITE_ID` (bara prod), `VITE_APP_ENV` (bara staging); båda byggena `SENTRY_AUTH_TOKEN`. Se `.env.example`.
+- Nya miljövariabler: backend `TOKEN_ENCRYPTION_KEY`, `TOKEN_ENCRYPTION_KEYS_RETIRED` (valfri), `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE` (valfri); frontend (bygget) `VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_UMAMI_WEBSITE_ID` (bara prod), `VITE_APP_ENV` (bara staging, står därför inte i `.env.example`); båda byggena `SENTRY_AUTH_TOKEN`. Se `.env.example`.
 
 ### Borttaget
 - `GET /api/strava/debug-activities` och `POST /api/titles/refresh/:titleId` (RUN-278): oanvända, och de gick att anropa med bara inloggning. Båda svarar 404.
@@ -102,12 +102,14 @@ Ett ägar-ja per migration, per skrivande skript och per Railway-variabel (`docs
    - Umami-scriptet (`cloud.umami.is/script.js`) laddas på www, utan cookies och lagring (kontrollen i `docs/release.md`, "Webbanalys");
    - `GET /api/groups/settings` ger 401 utan token och gruppens värden inloggad;
    - titlar per grupp: `/titles` och Runner card visar samma innehavare som före deployen;
-   - Sentry: provet `sentry:test:built` (`docs/release.md`, "Källkartor till Sentry") visar `src/`-rader.
+   - Sentry i frontend: frontendens JS-chunkar innehåller `ingest.de.sentry.io` (byggvariablerna `VITE_SENTRY_DSN` och `VITE_SENTRY_ENVIRONMENT` är satta på `runquest-frontend`; saknas de är frontend-Sentry tyst av). Källkartsprovet `sentry:test:built` (`docs/release.md`, "Källkartor till Sentry") görs mot det bygge som laddade upp kartorna, inte mot en lokal `dist`;
+   - Sentry-alertregeln för kritiska larm skapas i projektet `runquest-backend` enligt `docs/release.md` ("Sentry-alertregeln för kritiska larm": `alert:critical`, mejl till ägaren, varje händelse) och provas en gång, så att ett `🚨 KRITISKT` med `source:token_key` når ägaren.
 5. Kör workflowen `e2e-staging.yml` (manuellt). Den finns på `main` först nu och kunde därför inte köras före releasen.
 6. Prod-delen av RUN-307: konsistenskontrollen från 053 (inga avvikelser mellan `users.group_id` och aktivt medlemskap) och release-röken enligt `docs/release.md` avsnitt 5. Ingen testgrupp i prod.
 7. `announce:release --version=0.8.0` (dry-run, sedan `--apply` med ägar-ja), bara om posten i `changelog.json` har fått `"announce": true`.
 8. Tagg `v0.8.0` på merge-commiten.
 9. Peka om stagingtjänsterna till `integration/v0.8.1`.
+10. Docs-PR "live" (`docs/release.md` steg 8): STATE och CHANGELOG med deploydatum och utfall per steg.
 
 Senare, enligt ägarens beslut (inte en del av deployen):
 - Tokenutrullningen RUN-314–316: några dygn utan `token_unreadable`, därefter `backfill:strava-token-encryption` dry-run → ägar-ja → `--apply`, verifiering (`plaintext_rows: 0`), CHECK-migrationen och borttagen klartextläsning (ADR 013 beslut 13, `docs/runbook-token-key.md`).
@@ -118,7 +120,7 @@ Senare, enligt ägarens beslut (inte en del av deployen):
 
 ### Rollback
 - Kod: redeploya v0.7.1 i Railway (frontend och backend) och revert-PR. v0.7.1 fungerar mot den nya databasen (055:s shim och omslagsfunktioner, 053:s pekare `users.group_id`). Caddyfilen följer frontendens deploy, så `/` går tillbaka till `index.html`.
-- **Tokens:** från deployen skriver backend varje ny eller förnyad Strava-token krypterat (`stravaTokenStore` har ingen väg som skriver klartext), även innan backfillen körts. v0.7.1 kan inte läsa `enc:v1:`-värden. Har en token förnyats eller en koppling gjorts efter deployen ska `backfill:strava-token-encryption -- --decrypt` köras (dry-run, sedan `--apply --confirm-write-plaintext` med ägar-ja) FÖRE kodrollbacken (ADR 013 beslut 13.5, `docs/runbook-token-key.md` avsnitt 5); annars får de användarna koppla Strava igen. Läget syns i `token_encryption`-blocket i webhook-health.
+- **Tokens:** från deployen skriver backend varje ny eller förnyad Strava-token krypterat (`stravaTokenStore` har ingen väg som skriver klartext), även innan backfillen körts. v0.7.1 kan inte läsa `enc:v1:`-värden. Har en token förnyats eller en koppling gjorts efter deployen ska `backfill:strava-token-encryption -- --decrypt` köras (dry-run, sedan `--apply --confirm-write-plaintext` med ägar-ja) FÖRE kodrollbacken (ADR 013 beslut 13.5, `docs/runbook-token-key.md` avsnitt 5a, punkt 5); annars får de användarna koppla Strava igen. Kör `--decrypt` som dry-run igen direkt efter kodrollbacken (förväntat 0 rader): en förnyelse mellan körningen och rollbacken skriver `enc:v1:` på nytt. Läget syns i `token_encryption`-blocket i webhook-health.
 - Skapar en admin ett konto under rollbacken skriver v0.7.1 `users.group_id` utan medlemskap: kör om 053 (idempotent) före v0.8.0 deployas igen.
 - Migrationerna rullas normalt inte tillbaka; rollback-SQL står i varje filhuvud och kräver ägarens ja. 057:s rollback kräver att koden är tillbakarullad först.
 - Railway-variablerna (`TOKEN_ENCRYPTION_KEY`, Sentry, `VITE_UMAMI_WEBSITE_ID`) ignoreras av v0.7.1 och kan stå kvar.

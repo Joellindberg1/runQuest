@@ -70,9 +70,9 @@ jobs:
       - name: Run tests
         run: npm test -w packages/shared
 
-      # Release-PR:n (integration/* mot main) får inte släppa integritetstexten med en ägarplatshållare kvar (RUN-293).
+      # Release-PR:n (integration/* eller release/* mot main) får inte släppa integritetstexten med en ägarplatshållare kvar (RUN-293).
       - name: Release check (data policy placeholders)
-        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'integration/')
+        if: github.event_name == 'pull_request' && (startsWith(github.head_ref, 'integration/') || startsWith(github.head_ref, 'release/'))
         run: npm test -w packages/shared -- dataPolicy
         env:
           RUNQUEST_RELEASE_CHECK: '1'
