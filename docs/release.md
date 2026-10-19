@@ -245,6 +245,7 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
   `cloud.umami.is` och en POST till Umamis `/api/send` vars payload har `url` som routemönster (till exempel `/login`, inte en adress
   med id). Gå sedan in i appen och öppna en löpare: payloaden ska visa `/runner/:id`. Ägaren bekräftar att sidvisningarna syns i
   Umami-panelen. Integritetstexten på `/legal` uppdateras i en egen story i samma epic (S3), inte här.
+- **Två ingångar (v0.8.0, RUN-335):** den förrenderade `landing.html` räknar sina egna sidvisningar (`/`, `/legal`, `/login` via lean routern) med samma sändare och normalisering som appen; `/landing` och `/landing.html` rapporteras som `/`. Vid överlämningen till appen (inloggning, sessionstipset, okänd adress) skickar landningen ingen visning, så samma besök räknas inte två gånger. Kontrollen ovan görs därför på både `/` och `/board`.
 
 #### Egna händelser och trattar (RUN-292, epic RUN-19)
 
