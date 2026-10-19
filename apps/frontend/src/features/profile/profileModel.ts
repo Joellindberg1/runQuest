@@ -2,7 +2,7 @@ import type { Run } from '@runquest/types';
 import { buildHero, buildStatCells, buildTitleRows, xpToNextText, type RunnerHero, type StatCell, type TitleRows } from '@/features/runner/runnerModel';
 import { parseKm, validateDate, validateDistance, type FieldErrors } from '@/features/log/logModel';
 import { formatDay, formatInt, formatKm, formatMultiplier } from './profileFormat';
-import type { TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
+import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, type TitleLeaderboardEntry, type UserTitleEntry } from '@runquest/shared';
 
 // Profilens vymodeller: hjältekort, titlar, rundhistorik och redigering. Hjälte-, cell- och titellogiken är Runner cards
 // (en definition i runnerModel — samma siffror på båda korten); resten är profilens egen. Ren logik, ingen DOM.
@@ -167,16 +167,11 @@ export function buildXpParts(run: Run): XpPart[] {
 
 // ─── Profilbild ───────────────────────────────────────────────────────────────
 
-export const MAX_PICTURE_BYTES = 5 * 1024 * 1024;
-
-/** Typerna servern tar emot (apps/backend/src/routes/users.ts, ALLOWED_IMAGE_TYPES). */
-export const ACCEPTED_PICTURE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
-
 /** Samma regler som POST /users/profile-picture: JPEG, PNG, WebP eller GIF, högst 5 MB. */
 export function validatePicture(file: Pick<File, 'size' | 'type'> | undefined): string | null {
   if (!file) return 'Choose an image to upload';
-  if (file.size > MAX_PICTURE_BYTES) return 'The image must be smaller than 5 MB';
-  if (!(ACCEPTED_PICTURE_TYPES as readonly string[]).includes(file.type)) return 'Only JPEG, PNG, WebP or GIF images are allowed';
+  if (file.size > PROFILE_PICTURE_MAX_BYTES) return 'The image must be smaller than 5 MB';
+  if (!PROFILE_PICTURE_MIME_TYPES.includes(file.type)) return 'Only JPEG, PNG, WebP or GIF images are allowed';
   return null;
 }
 

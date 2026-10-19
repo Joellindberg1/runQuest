@@ -1,4 +1,4 @@
-import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, TIER_NAMES, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, MS_HOUR, MS_MINUTE, TIER_NAMES, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/types';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
@@ -353,8 +353,6 @@ export function unreadSummary(unreadCount: number): string {
 
 // ─── Tider och dag-gruppering ───────────────────────────────────────────────
 
-const MS_MINUTE = 60_000;
-const MS_HOUR = 3_600_000;
 const DAYS_BEFORE_DATE = 7;
 
 const dayNumbers = (day: string): [number, number, number] => {

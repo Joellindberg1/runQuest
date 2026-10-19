@@ -1,5 +1,5 @@
 import type { User } from '@runquest/types';
-import { BADGE_SERIES, MAX_SHOWCASE, type BadgeGroupMember, type BadgeShowcaseEntry } from '@runquest/shared';
+import { BADGE_SERIES, MAX_DISPLAYED_TITLES, MAX_SHOWCASE, type BadgeGroupMember, type BadgeShowcaseEntry } from '@runquest/shared';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import { MAX_LEVEL } from '@/constants/appConstants';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
@@ -50,8 +50,6 @@ export interface SeasonInput {
   /** user_id → visade badges ur /api/badges/group (badgeShowcaseMap). Utelämnad = inga minis (laddar/fel). */
   badgesByUser?: Record<string, BadgeShowcaseEntry[]>;
 }
-
-const MAX_DISPLAYED_TITLES = 3;
 
 /** Titlarna som visas på kortet: användarens valda i vald ordning, annars de innehavda (max 3). */
 export function displayedTitleNames(user: User, titles: UserTitleEntry[]): { names: string[]; heldCount: number } {

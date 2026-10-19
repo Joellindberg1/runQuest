@@ -1,5 +1,5 @@
 import { useRef, type FormEvent } from 'react';
-import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
+import { MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE } from '@runquest/shared';
 import type { LogFormState } from '../hooks/useLogForm';
 import { formatKm, formatLongDate } from '../logFormat';
 import { QUICK_KM, parseKm, type Surface } from '../logModel';
@@ -78,7 +78,7 @@ export function RunForm({ state, isDesktop, today }: RunFormProps) {
             onChange={(event) => state.setDistance(event.target.value)}
           />
           <p id="log-distance-note" className={noteClass(errors.distance)} data-tone={errors.distance ? 'error' : undefined}>
-            {errors.distance ?? `Minimum ${formatKm(MIN_RUN_DISTANCE_KM)} km to count`}
+            {errors.distance ?? `Minimum ${formatKm(MANUAL_RUN_MIN_DISTANCE_KM)} km to count`}
           </p>
         </div>
       </div>

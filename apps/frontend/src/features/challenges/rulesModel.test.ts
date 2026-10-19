@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LEGENDARY_AUTO_START_DAYS, UNANSWERED_CHALLENGE_LAPSE_DAYS } from '@runquest/shared';
 import { DEFAULT_STAKES, HOW_IT_WORKS, buildTierRules, observedStakes, sampleFromHistory } from './rulesModel';
 import { STAKES, historyItem } from './duels.fixture';
 
@@ -45,6 +46,12 @@ describe('regeltexter', () => {
     const legendary = buildTierRules(observedStakes([]))[2].body;
     expect(legendary).toMatch(/can't be declined/);
     expect(legendary).toMatch(/four days/);
+  });
+
+  it('dagarna i texterna är de scheduler och duellvyn använder (konstanterna i shared)', () => {
+    const word: Record<number, string> = { 3: 'three', 4: 'four' };
+    expect(buildTierRules(observedStakes([]))[2].body).toContain(`within ${word[LEGENDARY_AUTO_START_DAYS]} days`);
+    expect(HOW_IT_WORKS.find((item) => item.title === 'Unanswered')?.body).toContain(`after ${word[UNANSWERED_CHALLENGE_LAPSE_DAYS]} days`);
   });
 
   it('påstår inget om en boost-gräns som koden inte har', () => {

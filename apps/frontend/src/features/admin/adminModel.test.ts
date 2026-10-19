@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { MIN_RUN_DATE } from '@runquest/shared';
 import type { AdminUser } from '@/shared/services/backendApi';
 import {
-  MULTIPLIER_MAX, MULTIPLIER_MIN, XP_GROUPS, fieldValue, findSettingsProblem, memberCountText, memberMeta, multiplierRows, parseField,
+  XP_GROUPS, fieldValue, findSettingsProblem, memberCountText, memberMeta, multiplierRows, parseField,
 } from './adminModel';
 import type { AdminSettings } from './hooks/useAdminData';
 
 const SETTINGS: AdminSettings = {
   xpPerRun: 15, xpPerKm: 2, bonus5km: 5, bonus10km: 15, bonus15km: 25, bonus20km: 50, minKmForRun: 1,
-  minRunDate: '2025-06-01', streakBonuses: {}, multipliers: { 21: 2, 3: 1.3, 7: 1.5 },
+  minRunDate: MIN_RUN_DATE, multipliers: { 21: 2, 3: 1.3, 7: 1.5 },
 };
 
 describe('XP_GROUPS', () => {
@@ -48,10 +49,6 @@ describe('multiplierRows', () => {
 
   it('en dag är singular', () => {
     expect(multiplierRows({ 1: 1.1 })[0].label).toBe('1 day');
-  });
-
-  it('gränserna speglar backend (numeric(3,2): 1–9.99)', () => {
-    expect([MULTIPLIER_MIN, MULTIPLIER_MAX]).toEqual([1, 9.99]);
   });
 });
 

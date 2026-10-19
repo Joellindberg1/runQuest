@@ -1,10 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react';
+import { MULTIPLIER_MAX, MULTIPLIER_MIN } from '@runquest/shared';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { FormNotices } from '@/shared/components/form/FormNotices';
 import { TextField } from '@/shared/components/form/TextField';
 import { RQIcon } from '@/shared/components/icons';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
-import { MULTIPLIER_MAX, MULTIPLIER_MIN, XP_GROUPS, fieldValue, multiplierRows, parseField, type XpFieldDef } from '../adminModel';
+import { XP_GROUPS, fieldValue, multiplierRows, parseField, type XpFieldDef } from '../adminModel';
 import type { AdminNotice, AdminSettings } from '../hooks/useAdminData';
 
 const LOADER_SIZE = 64;

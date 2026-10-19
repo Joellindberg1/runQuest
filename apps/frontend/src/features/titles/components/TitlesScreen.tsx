@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { TITLES_TOUR_SLUG } from '@runquest/shared';
+import { MAX_DISPLAYED_TITLES, TITLES_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_TITLES_V2 } from '@/features/onboarding/featureTourSteps';
@@ -15,7 +15,7 @@ import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useDisplaySelection } from '../hooks/useDisplaySelection';
 import { useGroupEligibility, useTitleBoard } from '../hooks/useTitlesQueries';
 import {
-  MAX_DISPLAYED, TITLE_FILTERS, TITLE_FILTER_PARAM, buildChases, buildDisplayedRows, buildTitlesView, heldTitleIds, summaryText,
+  TITLE_FILTERS, TITLE_FILTER_PARAM, buildChases, buildDisplayedRows, buildTitlesView, heldTitleIds, summaryText,
   type TitleFilter,
 } from '../titlesModel';
 import '../titles.css';
@@ -114,7 +114,7 @@ export function TitlesScreen() {
             showChevron={isDesktop}
             displayPositions={displayPositions}
             canPick={selectionReady}
-            selectionFull={selection.selected.length >= MAX_DISPLAYED}
+            selectionFull={selection.selected.length >= MAX_DISPLAYED_TITLES}
             onTogglePick={selection.toggle}
           />
         ))}

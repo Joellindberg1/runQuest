@@ -1,3 +1,4 @@
+import { MULTIPLIER_MAX, MULTIPLIER_MIN, isValidMultiplier } from '@runquest/shared';
 import { formatInt } from '@/features/log/logFormat';
 import type { AdminUser } from '@/shared/services/backendApi';
 import type { AdminSettings } from './hooks/useAdminData';
@@ -61,10 +62,6 @@ export const XP_GROUPS: readonly XpGroupDef[] = [
   },
 ];
 
-/** Backendens gräns för en multiplikator (numeric(3,2)): 1–9.99 med högst två decimaler. */
-export const MULTIPLIER_MIN = 1;
-export const MULTIPLIER_MAX = 9.99;
-
 export function parseField(raw: string, kind: 'int' | 'decimal'): number {
   if (raw.trim() === '') return Number.NaN;
   return kind === 'int' ? parseInt(raw, 10) : parseFloat(raw);
@@ -85,11 +82,6 @@ export function multiplierRows(multipliers: AdminSettings['multipliers']): Multi
     .map(([days, multiplier]) => ({ days: Number(days), multiplier }))
     .sort((a, b) => a.days - b.days)
     .map(({ days, multiplier }) => ({ days, multiplier, label: `${days} ${days === 1 ? 'day' : 'days'}` }));
-}
-
-/** En multiplikator som servern tar emot: 1–9.99 med högst två decimaler (numeric(3,2)). */
-export function isValidMultiplier(value: number): boolean {
-  return Number.isFinite(value) && value >= MULTIPLIER_MIN && value <= MULTIPLIER_MAX && Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
 }
 
 /**

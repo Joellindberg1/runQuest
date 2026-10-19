@@ -1,8 +1,7 @@
 import type { User } from '@runquest/types';
-import { calculateCompleteRunXP, MAX_LEVEL, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
+import { MANUAL_RUN_MIN_DISTANCE_KM, MAX_LEVEL, calculateCompleteRunXP, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
 import { nextCheckpointInfo } from '@/features/profile/frodoModel';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 import { formatInt, formatKm, formatTimes } from './logFormat';
 import { streakOutlook, validateDate, type StreakOutlook } from './logModel';
 
@@ -61,7 +60,7 @@ function breakdownRows(input: PreviewInput, outlook: StreakOutlook): { rows: Bre
   const { km, rules } = input;
   const streakLabel = `Streak · day ${outlook.day}`;
 
-  if (km === null || km < MIN_RUN_DISTANCE_KM) {
+  if (km === null || km < MANUAL_RUN_MIN_DISTANCE_KM) {
     return {
       totalXp: null,
       rows: [
@@ -157,7 +156,7 @@ export function buildXpPreview(input: PreviewInput): XpPreview {
       total: DASH,
       totalXp: null,
       rows,
-      effects: [{ key: 'hint', label: 'Enter a distance', value: `min ${formatKm(MIN_RUN_DISTANCE_KM)} km`, tone: 'muted' }],
+      effects: [{ key: 'hint', label: 'Enter a distance', value: `min ${formatKm(MANUAL_RUN_MIN_DISTANCE_KM)} km`, tone: 'muted' }],
     };
   }
 

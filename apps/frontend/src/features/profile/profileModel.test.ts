@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  COMPACT_TITLE_COUNT, HISTORY_PREVIEW_COUNT, MAX_PICTURE_BYTES, buildMyTitles, buildRunRow, buildRunRows, buildUpdate, buildXpParts,
+  COMPACT_TITLE_COUNT, HISTORY_PREVIEW_COUNT, buildMyTitles, buildRunRow, buildRunRows, buildUpdate, buildXpParts,
   STRAVA_DELETE_HINT, deleteNotice, editFormFor, isDirty, isStravaRun, showAllLabel, sortRuns, updateNotice, validateEdit, validatePicture,
 } from './profileModel';
 import { run } from './profile.fixture';
-import type { TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
+import { PROFILE_PICTURE_MAX_BYTES, type TitleLeaderboardEntry, type UserTitleEntry } from '@runquest/shared';
 
 const TODAY = '2026-10-04';
 
@@ -121,8 +121,9 @@ describe('profilbild', () => {
 
   it('bild, högst 5 MB', () => {
     expect(validatePicture({ size: 1000, type: 'image/png' })).toBeNull();
-    expect(validatePicture({ size: MAX_PICTURE_BYTES, type: 'image/jpeg' })).toBeNull();
-    expect(validatePicture({ size: MAX_PICTURE_BYTES + 1, type: 'image/png' })).toBe('The image must be smaller than 5 MB');
+    expect(validatePicture({ size: PROFILE_PICTURE_MAX_BYTES, type: 'image/jpeg' })).toBeNull();
+    expect(validatePicture({ size: PROFILE_PICTURE_MAX_BYTES + 1, type: 'image/png' })).toBe('The image must be smaller than 5 MB');
+    expect(PROFILE_PICTURE_MAX_BYTES / (1024 * 1024)).toBe(5); // the text above names the limit in MB
     expect(validatePicture({ size: 10, type: 'application/pdf' })).toBe('Only JPEG, PNG, WebP or GIF images are allowed');
     expect(validatePicture(undefined)).toBe('Choose an image to upload');
   });

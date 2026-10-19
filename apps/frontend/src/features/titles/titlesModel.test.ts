@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { TITLE_ENGINE_METRIC_KEYS } from './titleMetricKeys.fixture';
-import type { GroupEligibilityEntry, TitleLeaderboardEntry } from '@runquest/shared';
+import { MAX_DISPLAYED_TITLES, type GroupEligibilityEntry, type TitleLeaderboardEntry } from '@runquest/shared';
 import {
-  MAX_DISPLAYED, bestSoFar, buildChases, buildDisplayedRows, buildTitleRow, buildTitlesView, cleanSelection, formatDisplayPreview,
+  bestSoFar, buildChases, buildDisplayedRows, buildTitleRow, buildTitlesView, cleanSelection, formatDisplayPreview,
   heldTitleIds, sameSelection, summaryText, toggleDisplayed,
 } from './titlesModel';
 
@@ -229,7 +229,7 @@ describe('visning på leaderboarden', () => {
     expect(toggleDisplayed(['b', 'a'], held, 'b')).toEqual(['a']);
   });
 
-  it(`stannar vid ${MAX_DISPLAYED}: en fjärde läggs inte till`, () => {
+  it(`stannar vid ${MAX_DISPLAYED_TITLES}: en fjärde läggs inte till`, () => {
     expect(toggleDisplayed(['a', 'b', 'c'], held, 'd')).toEqual(['a', 'b', 'c']);
   });
 
