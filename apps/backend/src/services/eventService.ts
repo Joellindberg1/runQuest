@@ -133,52 +133,6 @@ export async function maybeCreateEvent(
   return true;
 }
 
-// ─── hasActiveParticipationEventOnDate ───────────────────────────────────────
-
-/**
- * Returnerar en map { eventId → templateName } för alla aktiva participation-events
- * för gruppen som är öppna på någon av de givna datumen (ISO "YYYY-MM-DD").
- * Används av run logging för att avgöra om ett pass kvalificerar sig.
- */
-export async function getActiveParticipationEventsOnDates(
-  groupId: string,
-  dates: string[]   // ["YYYY-MM-DD", ...]
-): Promise<Array<{ eventId: string; templateName: string; minKm: number; endsAt: string }>> {
-  if (!dates.length) return [];
-
-  const supabase = getSupabaseClient();
-
-  // Vi kontrollerar om events.starts_at <= sista datumet och events.ends_at >= första datumet
-  const earliest = dates[0] + 'T00:00:00Z';
-  const latest   = dates[dates.length - 1] + 'T23:59:59Z';
-
-  const { data, error } = await supabase
-    .from('events')
-    .select(`
-      id,
-      starts_at,
-      ends_at,
-      event_templates ( name, min_km )
-    `)
-    .eq('group_id', groupId)
-    .eq('type', 'participation')
-    .in('status', ['active', 'scheduled'])
-    .lte('starts_at', latest)
-    .gte('ends_at', earliest);
-
-  if (error) {
-    logger.error(`❌ [EventService] getActiveParticipationEventsOnDates error (${errorCode(error)})`);
-    return [];
-  }
-
-  return (data ?? []).map((e: any) => ({
-    eventId: e.id,
-    templateName: e.event_templates.name,
-    minKm: Number(e.event_templates.min_km ?? 0),
-    endsAt: e.ends_at,
-  }));
-}
-
 // ─── checkEventQualification ─────────────────────────────────────────────────
 
 /**
