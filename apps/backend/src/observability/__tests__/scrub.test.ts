@@ -367,6 +367,23 @@ describe('Strava numbers in JSON text, camelCase, quotes and database errors', (
     expect(out).toContain('Key (');
   });
 
+  it.each([
+    'activity 12345678-1234-5678-9abc-def012345678 not found',
+    'athlete 12345678-1234-5678-9abc-def012345678 not found',
+    'athlete_id=12345678-1234-5678-9abc-def012345678 not found',
+    'activity_id: 12345678-1234-5678-9abc-def012345678 not found',
+    '"activityId":"12345678-1234-5678-9abc-def012345678" not found',
+    'GET /athletes/12345678-1234-5678-9abc-def012345678/stats not found',
+  ])('leaves the start of a UUID alone: %s', (text) => {
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it('still masks a real number next to a UUID in the same text', () => {
+    const out = messageOf('activity 12345678901 and athlete_id=424242424 belong to 12345678-1234-5678-9abc-def012345678');
+    expect(out).not.toMatch(/12345678901|424242424/);
+    expect(out).toContain('12345678-1234-5678-9abc-def012345678');
+  });
+
   it('keeps the values of a Postgres key detail that does not name a Strava column', () => {
     const text = 'Key (invite_code)=(WOLF42) already exists.';
     expect(messageOf(text)).toBe(text);
@@ -440,6 +457,28 @@ describe('the scrubber is bounded in time and size', () => {
     const exact = 'y'.repeat(MAX_SCRUBBED_STRING_LENGTH);
     expect(scrubString(exact, [])).toBe(exact);
     expect(scrubString(`attempt 2 key=hunter2-long-secret ${'z'.repeat(MAX_SCRUBBED_STRING_LENGTH * 2)}`, ['hunter2-long-secret'])).toContain('key=[Filtered]');
+  });
+
+  describe('a bare JWT that crosses the cut', () => {
+    const HEADER = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+    const PAYLOAD = 'eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoiamFuZS5kb2VAZXhhbXBsZS5jb20ifQ';
+    const SIGNATURE = 'c2lnbmF0dXJlLXNpZ25hdHVyZS1zaWduYXR1cmUtc2lnbmF0dXJl';
+    const JWT = `${HEADER}.${PAYLOAD}.${SIGNATURE}`;
+    // How many characters of the token are kept: in the header, at the first dot, in the payload, at the second dot, in the signature.
+    const KEPT = [3, 10, HEADER.length, HEADER.length + 1, HEADER.length + 8, HEADER.length + 1 + PAYLOAD.length, HEADER.length + PAYLOAD.length + 2, HEADER.length + PAYLOAD.length + 12];
+    const text = (kept: number) => `${' '.repeat(MAX_SCRUBBED_STRING_LENGTH - kept)}${JWT} and the rest`;
+    const leaks = (out: string) => /eyJ|zdWIi|bGciOi|aGFuZ|ZXhhbXBsZ|c2lnbmF0/.test(out);
+
+    it.each(KEPT)('masks all of it when %i characters of the token are inside the cut (scrubString)', (kept) => {
+      const out = scrubString(text(kept), []);
+      expect(leaks(out)).toBe(false);
+      expect(out.endsWith('…[truncated]')).toBe(true);
+    });
+
+    it.each(KEPT)('masks all of it when %i characters of the token are inside the cut (whole event)', (kept) => {
+      const event = scrubSentryEvent({ message: text(kept), extra: { note: text(kept) } } as never, []) as any;
+      expect(leaks(JSON.stringify(event))).toBe(false);
+    });
   });
 
   it('does not let a secret that lies beyond the cut survive in a shortened string', () => {
