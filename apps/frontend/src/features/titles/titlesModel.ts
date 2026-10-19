@@ -1,7 +1,7 @@
 import type { RQIconName } from '@/shared/components/icons';
 import { TITLE_CATEGORIES, categoryOf, iconOf, type TitleCategoryId } from './titleCategories';
 import { hasLinearGap, resolveGenderedTitle, titleValueText, unlockText } from './titleFormat';
-import type { GroupEligibilityEntry, TitleLeaderboardEntry } from '@runquest/shared';
+import { MAX_DISPLAYED_TITLES, type GroupEligibilityEntry, type TitleLeaderboardEntry } from '@runquest/shared';
 
 // Titles-skärmens vymodeller: allt skärmen visar, härlett ur /titles/leaderboard + /titles/group-eligibility.
 // Titelnamn, regler och värden kommer ur databasen. Ren logik — ingen DOM, ingen datahämtning.
@@ -10,7 +10,6 @@ export const TITLE_FILTERS = ['all', 'mine', 'unclaimed'] as const;
 export type TitleFilter = (typeof TITLE_FILTERS)[number];
 export const TITLE_FILTER_PARAM = 'filter';
 
-export const MAX_DISPLAYED = 3;
 const CHASE_LIMIT = 3;
 
 // ─── Titelrader ───────────────────────────────────────────────────────────────
@@ -150,14 +149,14 @@ export function heldTitleIds(board: TitleLeaderboardEntry[], meId: string | null
 /** Valet städat: bara titlar jag fortfarande håller, högst tre, utan dubbletter, i vald ordning. */
 export function cleanSelection(selected: readonly string[], heldIds: readonly string[]): string[] {
   const held = new Set(heldIds);
-  return selected.filter((id, index) => held.has(id) && selected.indexOf(id) === index).slice(0, MAX_DISPLAYED);
+  return selected.filter((id, index) => held.has(id) && selected.indexOf(id) === index).slice(0, MAX_DISPLAYED_TITLES);
 }
 
 /** Lägger till (om det finns plats) eller tar bort en titel i valet. */
 export function toggleDisplayed(selected: readonly string[], heldIds: readonly string[], id: string): string[] {
   const clean = cleanSelection(selected, heldIds);
   if (clean.includes(id)) return clean.filter((candidate) => candidate !== id);
-  if (!heldIds.includes(id) || clean.length >= MAX_DISPLAYED) return clean;
+  if (!heldIds.includes(id) || clean.length >= MAX_DISPLAYED_TITLES) return clean;
   return [...clean, id];
 }
 
@@ -179,7 +178,7 @@ export function formatDisplayPreview(names: readonly string[], totalHeld: number
   if (names.length === 0) return 'No titles selected';
   const last = names[names.length - 1];
   const init = names.slice(0, -1);
-  if (totalHeld > MAX_DISPLAYED) {
+  if (totalHeld > MAX_DISPLAYED_TITLES) {
     return names.length === 1 ? `${last} & ${OVERFLOW_NAME}` : `${init.join(', ')}, ${last} & ${OVERFLOW_NAME}`;
   }
   return names.length === 1 ? last : `${init.join(', ')} & ${last}`;

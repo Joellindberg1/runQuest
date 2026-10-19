@@ -1,4 +1,4 @@
-import { MS_DAY } from '@runquest/shared';
+import { MS_DAY, MS_HOUR, MS_MINUTE } from '@runquest/shared';
 import type { RQIconName } from '@/shared/components/icons';
 
 // Rena formatterare för Log. Engelskt UI: egna månadsnamn (Intl:s förkortningar skiljer mellan ICU-versioner)
@@ -6,8 +6,6 @@ import type { RQIconName } from '@/shared/components/icons';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] as const;
 
-const MS_MINUTE = 60_000;
-const MS_HOUR = 3_600_000;
 
 const NBSP = ' ';
 

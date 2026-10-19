@@ -24,6 +24,7 @@ import {
   type NewsUserRef,
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { isUuid } from '../utils/uuid.js';
 
 const router = express.Router();
 
@@ -68,8 +69,6 @@ async function fetchUserRefs(ids: string[]): Promise<Map<string, NewsUserRef>> {
   for (const u of data ?? []) map.set(u.id, { id: u.id, name: u.name, profile_picture: u.profile_picture ?? null });
   return map;
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** PostgREST-citering av ett värde i ett filteruttryck: omslutet av " med " och \ escapade (så att kommatecken, klamrar och citat inte delar villkoret). */
 function postgrestQuote(value: string): string {
@@ -155,7 +154,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     // Id:t kommer ur JWT men interpoleras i filtersträngen nedan: bara ett riktigt UUID släpps igenom.
-    if (involvesMe && !UUID.test(userId)) {
+    if (involvesMe && !isUuid(userId)) {
       res.status(400).json({ error: 'involves requires a valid user id' }); return;
     }
 

@@ -9,7 +9,9 @@ import { requireAdmin } from '../middleware/admin.js';
 import { loginRateLimiter } from '../middleware/rateLimit.js';
 import { invalidateXpConfigCache } from '../services/xpConfig.js';
 import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
-import { compareXpStandings } from '@runquest/shared';
+import {
+  DEFAULT_ADMIN_SETTINGS, MAX_DISPLAYED_TITLES, MULTIPLIER_MAX, MULTIPLIER_MIN, PASSWORD_MIN_LENGTH, compareXpStandings, multiplierProblem,
+} from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { joinGroup } from '../utils/membership.js';
@@ -124,9 +126,9 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
       res.status(400).json({ error: 'Current password and new password required' }); return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ New password too short');
-      res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
+      res.status(400).json({ error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters long` }); return;
     }
 
     logger.info(`🔍 Looking up user for password change: ${userId}`);
@@ -248,9 +250,9 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
       res.status(400).json({ error: 'Name, email, and password are required' }); return;
     }
 
-    if (password.length < 6) {
+    if (password.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ Password too short');
-      res.status(400).json({ error: 'Password must be at least 6 characters long' }); return;
+      res.status(400).json({ error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long` }); return;
     }
 
     logger.info('🔍 Creating a new user');
@@ -347,9 +349,9 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
       res.status(400).json({ error: 'New password is required' }); return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ New password too short');
-      res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
+      res.status(400).json({ error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters long` }); return;
     }
 
     // Ett id som inte är ett uuid kan inte finnas: samma 404 som för en saknad rad, före frågan (annars svarar databasen 22P02 och det blir ett 500).
@@ -456,8 +458,9 @@ function validateMultipliers(input: unknown): string | null {
     const multiplier = (step as { multiplier?: unknown })?.multiplier;
     if (typeof days !== 'number' || !Number.isInteger(days) || days < 1) return 'days must be a whole number of at least 1';
     // Kolumnen är numeric(3,2): över 9.99 ger överflöd, fler decimaler avrundas tyst.
-    if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier < 1 || multiplier > 9.99) return 'multiplier must be a number between 1 and 9.99';
-    if (Math.round(multiplier * 100) / 100 !== multiplier) return 'multiplier can have at most two decimals';
+    const problem = multiplierProblem(multiplier);
+    if (problem === 'range') return `multiplier must be a number between ${MULTIPLIER_MIN} and ${MULTIPLIER_MAX}`;
+    if (problem === 'decimals') return 'multiplier can have at most two decimals';
     if (seen.has(days)) return `days ${days} appears more than once`;
     seen.add(days);
   }
@@ -544,11 +547,11 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
       .update({
         base_xp,
         xp_per_km,
-        bonus_5km: bonus_5km ?? 5,
-        bonus_10km: bonus_10km ?? 15,
-        bonus_15km: bonus_15km ?? 25,
-        bonus_20km: bonus_20km ?? 50,
-        min_run_distance: min_run_distance ?? 1.0,
+        bonus_5km: bonus_5km ?? DEFAULT_ADMIN_SETTINGS.bonus_5km,
+        bonus_10km: bonus_10km ?? DEFAULT_ADMIN_SETTINGS.bonus_10km,
+        bonus_15km: bonus_15km ?? DEFAULT_ADMIN_SETTINGS.bonus_15km,
+        bonus_20km: bonus_20km ?? DEFAULT_ADMIN_SETTINGS.bonus_20km,
+        min_run_distance: min_run_distance ?? DEFAULT_ADMIN_SETTINGS.min_run_distance,
         updated_at: new Date().toISOString()
       })
       .eq('id', current.id)
@@ -657,8 +660,8 @@ router.put('/me/displayed-titles', authenticateJWT, async (req, res): Promise<vo
     const userId = req.user!.user_id;
     const { title_ids } = req.body;
 
-    if (!Array.isArray(title_ids) || title_ids.length > 3) {
-      res.status(400).json({ error: 'title_ids must be an array of up to 3 IDs' }); return;
+    if (!Array.isArray(title_ids) || title_ids.length > MAX_DISPLAYED_TITLES) {
+      res.status(400).json({ error: `title_ids must be an array of up to ${MAX_DISPLAYED_TITLES} IDs` }); return;
     }
 
     const supabase = getSupabaseClient();

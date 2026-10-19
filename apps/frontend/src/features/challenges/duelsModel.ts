@@ -1,5 +1,5 @@
 import type { Challenge, ChallengeMetric, ChallengeTier, ChallengeToken, Run, UserBoost } from '@runquest/types';
-import { MS_DAY, compareChallengeStandings, stockholmClock, type ChallengeHistoryItem, type ChallengeStanding } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, MS_DAY, MS_HOUR, compareChallengeStandings, stockholmClock, type ChallengeHistoryItem, type ChallengeStanding } from '@runquest/shared';
 import {
   TIERS, durationLongText, durationText, firstName, formatDayMonth, formatMetricValue, metricLabel, metricUnit,
   startsInText, stakeOf, tierLabel, timeLeft, type Stake, type StakeSource, type TimeLeft,
@@ -144,8 +144,7 @@ export interface IncomingCard {
   note: string | null;
 }
 
-const LEGENDARY_AUTO_START_MS = 4 * MS_DAY;
-const MS_HOUR = 3_600_000;
+const LEGENDARY_AUTO_START_MS = LEGENDARY_AUTO_START_DAYS * MS_DAY;
 const HOURS_PER_DAY = 24;
 
 /** "Auto-starts in 2 d 5 h" — legendary startar av sig själv fyra dagar efter att den skickats (challengeScheduler). */

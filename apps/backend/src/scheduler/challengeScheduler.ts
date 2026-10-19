@@ -4,7 +4,7 @@ import cron from 'node-cron';
 import { getSupabaseClient } from '../config/database.js';
 import { settleChallenge } from '../services/challengeService.js';
 import { retractChallengeReceived } from '../services/activityLog.js';
-import { MS_DAY, challengeWindow, groupNextMidnight } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, MS_DAY, UNANSWERED_CHALLENGE_LAPSE_DAYS, challengeWindow, groupNextMidnight } from '@runquest/shared';
 import { summarizeSettled } from './settledSummary.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
@@ -34,7 +34,7 @@ async function settleEndedChallenges(): Promise<void> {
 
 async function autoStartLegendaryChallenges(): Promise<void> {
   const supabase = getSupabaseClient();
-  const cutoff = new Date(Date.now() - 4 * MS_DAY).toISOString();
+  const cutoff = new Date(Date.now() - LEGENDARY_AUTO_START_DAYS * MS_DAY).toISOString();
 
   const { data: challenges, error } = await supabase
     .from('challenges')
@@ -76,7 +76,7 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
 export async function autoDeclinePendingChallenges(): Promise<void> {
   const supabase = getSupabaseClient();
-  const cutoff = new Date(Date.now() - 3 * MS_DAY).toISOString();
+  const cutoff = new Date(Date.now() - UNANSWERED_CHALLENGE_LAPSE_DAYS * MS_DAY).toISOString();
 
   const { data: challenges, error } = await supabase
     .from('challenges')

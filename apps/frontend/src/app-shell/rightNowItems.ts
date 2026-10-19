@@ -1,4 +1,4 @@
-import { MS_DAY, addDays, stockholmClock, stockholmWallClockToInstant, streakStatus } from '@runquest/shared';
+import { MS_DAY, MS_HOUR, MS_MINUTE, addDays, stockholmClock, stockholmWallClockToInstant, streakStatus } from '@runquest/shared';
 import { paths } from '@/paths';
 import type { RQIconName } from '@/shared/components/icons';
 
@@ -50,8 +50,6 @@ export interface RightNowInput {
   strava: { connected: boolean } | null;
 }
 
-const MS_MINUTE = 60_000;
-const MS_HOUR = 3_600_000;
 
 const METRIC_LABELS: Record<ShellDuel['metric'], string> = {
   km: 'Most km',

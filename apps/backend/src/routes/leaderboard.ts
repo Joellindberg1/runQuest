@@ -3,13 +3,14 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
-import { isIsoCalendarDate, todayStockholm, toStockholmDate, weekRange } from '../utils/dateUtils.js';
+import { todayStockholm, toStockholmDate, weekRange } from '../utils/dateUtils.js';
 import {
   addDays,
   bestWeekKm,
   buildRankDelta,
   buildWeekLeaderboard,
   buildXpLedger,
+  isCalendarDay,
   mondayOf,
   percentOfBest,
   type LedgerEventEntry,
@@ -64,7 +65,7 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     let weekStart = currentStart;
     const requested = req.query.week_start;
     if (requested !== undefined) {
-      if (typeof requested !== 'string' || !isIsoCalendarDate(requested)) {
+      if (typeof requested !== 'string' || !isCalendarDay(requested)) {
         res.status(400).json({ error: 'week_start must be a date in the format YYYY-MM-DD' }); return;
       }
       if (mondayOf(requested) !== requested) {

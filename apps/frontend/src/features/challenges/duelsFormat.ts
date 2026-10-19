@@ -1,5 +1,5 @@
 import type { ChallengeMetric, ChallengeTier } from '@runquest/types';
-import { daysBetween, stockholmClock } from '@runquest/shared';
+import { MS_HOUR, daysBetween, stockholmClock } from '@runquest/shared';
 
 // Rena formatterare för Duels: tier, mått, insatser, tider. `now` skickas alltid in så att tiderna går att testa.
 // Engelskt UI — tal och datum i en-GB (som resten av redesignen).
@@ -15,7 +15,6 @@ export const metricLabel = (metric: ChallengeMetric): string => METRIC_LABEL[met
 export const metricUnit = (metric: ChallengeMetric): string => METRIC_UNIT[metric];
 
 const MINUS = '−';
-const MS_HOUR = 3_600_000;
 const HOURS_PER_DAY = 24;
 
 const WHOLE = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });

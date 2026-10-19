@@ -5,7 +5,7 @@ import { getLevelFromXP } from './levelService.js';
 import { toStockholmDate, tomorrowStockholm } from '../utils/dateUtils.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
 import { recordRankPassesForXp } from './rankNews.js';
-import { buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
+import { STORM_EVENT_GUST_MS, buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 /** A failure that is collected and thrown after the loop: what failed (ids written by us) and its code, never the database text. */
@@ -624,7 +624,7 @@ function isStormyCode(code: number): boolean {
 /**
  * Kollar imorgondagens timprognos för Stockholm via Open-Meteo (gratis, ingen API-nyckel).
  * Returnerar true om minst 3 timmar av dagen förväntas ha dåligt väder (regn/åska)
- * ELLER om minst 4 dagtimmar har byar >= 15 m/s (ca 54 km/h).
+ * ELLER om minst 4 dagtimmar har byar >= STORM_EVENT_GUST_MS (15 m/s, ca 54 km/h).
  */
 export async function checkStormChaserForecast(): Promise<boolean> {
   try {
@@ -663,12 +663,12 @@ export async function checkStormChaserForecast(): Promise<boolean> {
       const hour = parseInt(times[i].slice(11, 13), 10);
       if (hour < 6 || hour > 21) continue;
       if (isStormyCode(codes[i])) stormyHours++;
-      if ((gusts[i] ?? 0) >= 15) gustyHours++; // Raised from 12 → 15 m/s
+      if ((gusts[i] ?? 0) >= STORM_EVENT_GUST_MS) gustyHours++; // Raised from 12 → 15 m/s
     }
 
     // Require 4+ gusty hours (raised from 3) — 15 m/s gusts for 4h is genuinely rough
     const qualifies = stormyHours >= 3 || gustyHours >= 4;
-    logger.info(`🌩️ [StormChaser] Tomorrow ${tomorrowStr}: ${stormyHours} stormy hours (≥3?), ${gustyHours} gusty hours ≥15m/s (≥4?) → ${qualifies ? 'TRIGGER' : 'no event'}`);
+    logger.info(`🌩️ [StormChaser] Tomorrow ${tomorrowStr}: ${stormyHours} stormy hours (≥3?), ${gustyHours} gusty hours ≥${STORM_EVENT_GUST_MS}m/s (≥4?) → ${qualifies ? 'TRIGGER' : 'no event'}`);
     return qualifies;
   } catch (err) {
     logger.error(`❌ [StormChaser] Forecast check failed (${errorCode(err)})`);

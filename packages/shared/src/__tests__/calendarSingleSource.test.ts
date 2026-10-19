@@ -50,16 +50,7 @@ const DATE_ARITHMETIC_SOURCE =
 
 // Undantagen gäller EXAKT antal träffar per fil, inte hela filen: en ny träff i en undantagen fil fäller testet, och en
 // träff som försvinner gör undantaget inaktuellt (sänk eller ta bort det).
-const DATE_ARITHMETIC_EXCEPTIONS: Record<string, { hits: number; reason: string }> = {
-  'apps/backend/src/utils/dateUtils.ts': {
-    hits: 2,
-    reason: 'isIsoCalendarDate: tur-och-retur-kontroll (getUTCMonth, getUTCDate) av ett YYYY-MM-DD mot Date.UTC — validering, ingen aritmetik, tidszonsfri',
-  },
-  'apps/frontend/src/features/log/logModel.ts': {
-    hits: 2,
-    reason: 'isCalendarDate: samma tur-och-retur-validering (getUTCMonth, getUTCDate) via Date.UTC — ingen aritmetik, tidszonsfri',
-  },
-};
+const DATE_ARITHMETIC_EXCEPTIONS: Record<string, { hits: number; reason: string }> = {};
 
 const hitCount = (code: string) => code.match(new RegExp(DATE_ARITHMETIC_SOURCE, 'g'))?.length ?? 0;
 const dateArithmeticDeviations = (files = SOURCES) =>

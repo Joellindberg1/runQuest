@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { Run } from '@runquest/types';
-import { MIN_RUN_DATE } from '@/constants/appConstants';
+import { MIN_RUN_DATE } from '@runquest/shared';
 import { RUN_DELETED_RECALCULATING, RUN_SAVED_RECALCULATING, RunWrittenError } from '@/features/runs/runEffects';
 import { useDeleteRun, useUpdateRun } from '../hooks/useRunChanges';
 import { formatKm } from '../profileFormat';

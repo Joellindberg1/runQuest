@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ALLOWED_IMAGE_TYPES, MAX_FILE_SIZE } from '../../routes/users.js';
+import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES } from '@runquest/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const sql = readFileSync(resolve(__dirname, '../../../migrations/051_close_profile_picture_write_policies.sql'), 'utf8');
@@ -53,8 +53,8 @@ describe('migration 051_close_profile_picture_write_policies.sql', () => {
 
   it('sätter bucketens gräns och mime-typer lika med backendens uppladdning och lämnar public orörd vid konflikt', () => {
     const body = normalize(code);
-    const mimeTypes = Object.keys(ALLOWED_IMAGE_TYPES).map((type) => `'${type}'`).join(', ');
-    expect(body).toContain(`values ('profile-pictures', 'profile-pictures', true, ${MAX_FILE_SIZE}, array[${mimeTypes}])`);
+    const mimeTypes = PROFILE_PICTURE_MIME_TYPES.map((type) => `'${type}'`).join(', ');
+    expect(body).toContain(`values ('profile-pictures', 'profile-pictures', true, ${PROFILE_PICTURE_MAX_BYTES}, array[${mimeTypes}])`);
     const conflict = body.slice(body.indexOf('on conflict'));
     expect(conflict).toContain('file_size_limit = excluded.file_size_limit');
     expect(conflict).toContain('allowed_mime_types = excluded.allowed_mime_types');

@@ -1,10 +1,8 @@
 import type { Run } from '@runquest/types';
-import { MS_DAY, addDays, dayOfWeek, daysBetween, stockholmClock, wallClockToInstantMs } from '@runquest/shared';
+import { MS_DAY, MS_HOUR, MS_MINUTE, addDays, dayOfWeek, daysBetween, stockholmClock, wallClockToInstantMs } from '@runquest/shared';
 
 // Rena formatterare för Board. `now` skickas alltid in så att tiderna går att testa med fasta klockslag.
 
-const MS_MINUTE = 60_000;
-const MS_HOUR = 3_600_000;
 
 /** "1 126" — heltal med tusentalsmellanrum som designen. */
 export function formatInt(value: number): string {

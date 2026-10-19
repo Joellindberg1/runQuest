@@ -1,11 +1,9 @@
-import { MS_DAY, dayOfWeek, daysBetween, stockholmClock } from '@runquest/shared';
+import { MS_DAY, MS_HOUR, MS_MINUTE, dayOfWeek, daysBetween, stockholmClock } from '@runquest/shared';
 
 // Rena formatterare för Events: tider i Stockholm, nedräkningar, mått. `now` skickas alltid in så att allt går att testa
 // med fasta klockslag. Engelskt UI — tal och datum i en-GB, egna månads- och veckodagsnamn (Intl:s förkortningar skiljer
 // mellan ICU-versioner: "Sept").
 
-const MS_MINUTE = 60_000;
-const MS_HOUR = 3_600_000;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;

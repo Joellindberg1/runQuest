@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  MS_DAY, addDays, dayOfWeek, daysBetween, groupNextMidnight, mondayOf, stockholmClock, stockholmDay, stockholmMidnightIso, stockholmWallClockToInstant,
+  MS_DAY, MS_HOUR, MS_MINUTE, addDays, dayOfWeek, daysBetween, groupNextMidnight, mondayOf, stockholmClock, stockholmDay, stockholmMidnightIso, stockholmWallClockToInstant,
   wallClockMinutes, wallClockMsAt, wallClockToInstantMs, zoneOffsetMs,
 } from '../calendar.js';
 
@@ -95,6 +95,14 @@ describe('wallClockToInstantMs — oberoende av processens tidszon', () => {
 describe('MS_DAY', () => {
   it('är ett dygn i millisekunder', () => {
     expect(MS_DAY).toBe(24 * 60 * 60 * 1000);
+  });
+});
+
+describe('MS_MINUTE och MS_HOUR', () => {
+  it('är en minut och en timme i millisekunder, och ett dygn är 24 timmar', () => {
+    expect(MS_MINUTE).toBe(60_000);
+    expect(MS_HOUR).toBe(60 * MS_MINUTE);
+    expect(MS_DAY).toBe(24 * MS_HOUR);
   });
 });
 

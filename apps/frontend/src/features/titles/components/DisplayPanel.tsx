@@ -1,6 +1,7 @@
 import { RQIcon } from '@/shared/components/icons';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
-import { MAX_DISPLAYED, formatDisplayPreview, type DisplayedRow } from '../titlesModel';
+import { MAX_DISPLAYED_TITLES } from '@runquest/shared';
+import { formatDisplayPreview, type DisplayedRow } from '../titlesModel';
 import type { SaveStatus } from '../hooks/useDisplaySelection';
 
 const LOADER_SIZE = 40;
@@ -25,7 +26,7 @@ export function DisplayPanel({ ready, rows, totalHeld, dirty, saving, status, on
       <header className="rq-titles-side__head">
         <h2 className="rq-title rq-titles-side__title">ON DISPLAY</h2>
         <span className="rq-titles-side__aside">
-          {rows.length} / {MAX_DISPLAYED}
+          {rows.length} / {MAX_DISPLAYED_TITLES}
         </span>
       </header>
 

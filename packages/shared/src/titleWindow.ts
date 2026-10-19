@@ -19,15 +19,22 @@ export interface TitleWindow {
   from: string | null;
 }
 
-function assertCalendarDay(value: string, what: string): void {
-  let ok = false;
+/**
+ * Är värdet en riktig kalenderdag på formen YYYY-MM-DD? DEN enda definitionen: en dag som rullar över (2026-02-30), en tidpunkt, fri
+ * text och allt som inte är en sträng är falskt. addDays(d, 0) går tur och retur via UTC, så en dag som inte finns ger inte tillbaka
+ * samma sträng (eller kastar), och tidszon och systemklocka spelar ingen roll.
+ */
+export function isCalendarDay(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   try {
-    // addDays(d, 0) går tur och retur via UTC; en dag som rullar över (2026-02-30) eller är ogiltig ger inte tillbaka samma sträng.
-    ok = /^\d{4}-\d{2}-\d{2}$/.test(value) && addDays(value, 0) === value;
+    return addDays(value, 0) === value;
   } catch {
-    ok = false;
+    return false;
   }
-  if (!ok) throw new RangeError(`${what} är inte en kalenderdag (YYYY-MM-DD): ${JSON.stringify(value)}`);
+}
+
+function assertCalendarDay(value: string, what: string): void {
+  if (!isCalendarDay(value)) throw new RangeError(`${what} är inte en kalenderdag (YYYY-MM-DD): ${JSON.stringify(value)}`);
 }
 
 /** Fönstret för ett medlemskap. RangeError om `starts_on` är satt men inte en riktig kalenderdag. */

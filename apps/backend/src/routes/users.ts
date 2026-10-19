@@ -5,28 +5,20 @@ import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { errorCode } from '../utils/errorCode.js';
+import { PROFILE_PICTURE_EXTENSIONS, PROFILE_PICTURE_MAX_BYTES } from '@runquest/shared';
 
 const router = express.Router();
-
-// Exporteras så att migrationen som sätter bucketens gränser testas mot samma värden.
-export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — samma gräns som frontend visar
-export const ALLOWED_IMAGE_TYPES: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-};
 
 // POST /api/users/profile-picture — rå bilddata i body, Content-Type avgör format
 router.post(
   '/profile-picture',
   authenticateJWT,
-  express.raw({ type: 'image/*', limit: MAX_FILE_SIZE }),
+  express.raw({ type: 'image/*', limit: PROFILE_PICTURE_MAX_BYTES }),
   async (req, res): Promise<void> => {
     try {
       const userId = req.user!.user_id;
       const contentType = (req.headers['content-type'] ?? '').split(';')[0].trim();
-      const ext = ALLOWED_IMAGE_TYPES[contentType];
+      const ext = PROFILE_PICTURE_EXTENSIONS[contentType];
 
       if (!ext) {
         res.status(400).json({ error: 'Only jpeg, png, webp or gif images are allowed' });

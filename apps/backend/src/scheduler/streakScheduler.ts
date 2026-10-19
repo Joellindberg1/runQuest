@@ -10,6 +10,7 @@ import cron from 'node-cron';
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { StreakService } from '../services/streakService.js';
+import { STOCKHOLM_TZ } from '@runquest/shared';
 import { summarizeSettled } from './settledSummary.js';
 import { errorCode } from '../utils/errorCode.js';
 
@@ -39,7 +40,7 @@ export function startStreakScheduler(): void {
     } catch (e) {
       logger.error(`❌ [StreakScheduler] Recalculation error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   logger.info('✅ Streak scheduler started');
 }

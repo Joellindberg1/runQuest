@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LEGENDARY_AUTO_START_DAYS,
   MANUAL_RUN_MIN_DISTANCE_KM,
+  MAX_DISPLAYED_TITLES,
+  MIN_RUN_DATE,
+  MIN_RUN_DATE_LABEL,
+  MULTIPLIER_MAX,
+  MULTIPLIER_MIN,
+  PASSWORD_MIN_LENGTH,
+  PROFILE_PICTURE_EXTENSIONS,
+  PROFILE_PICTURE_MAX_BYTES,
+  PROFILE_PICTURE_MIME_TYPES,
+  STORM_EVENT_GUST_MS,
+  STORM_GUST_MS,
+  UNANSWERED_CHALLENGE_LAPSE_DAYS,
+  isValidMultiplier,
+  multiplierProblem,
   STRAVA_DISTANCE_MUST_EXCEED_KM,
   STRAVA_LEGACY_RUN_TYPE,
   STRAVA_LOOKBACK_BUFFER_DAYS,
@@ -96,5 +111,64 @@ describe('Strava webhook journal retention', () => {
     const retention = getDataPolicySection('retention')!.paragraphs.join('\n');
     expect(retention).toContain(`${WEBHOOK_RETENTION_DONE_DAYS} days`);
     expect(retention).toContain(`${WEBHOOK_RETENTION_FAILED_DAYS} days`);
+  });
+});
+
+describe('limits and thresholds with one home', () => {
+  it('no run is logged from before 2025-06-01, and the long form used in texts names the same day', () => {
+    expect(MIN_RUN_DATE).toBe('2025-06-01');
+    const longForm = new Date(`${MIN_RUN_DATE}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' });
+    expect(MIN_RUN_DATE_LABEL).toBe(longForm);
+  });
+
+  it('a user shows at most three titles on the leaderboard card', () => {
+    expect(MAX_DISPLAYED_TITLES).toBe(3);
+  });
+
+  it('a password needs at least six characters', () => {
+    expect(PASSWORD_MIN_LENGTH).toBe(6);
+  });
+
+  it('a profile picture is at most 5 MB and JPEG, PNG, WebP or GIF, each with its file extension', () => {
+    expect(PROFILE_PICTURE_MAX_BYTES).toBe(5 * 1024 * 1024);
+    expect(PROFILE_PICTURE_EXTENSIONS).toEqual({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' });
+    expect([...PROFILE_PICTURE_MIME_TYPES]).toEqual(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+  });
+
+  it('the title counts a run as a storm from 12 m/s gusts and the Storm Chaser event counts a gusty hour from 15 m/s', () => {
+    expect(STORM_GUST_MS).toBe(12);
+    expect(STORM_EVENT_GUST_MS).toBe(15);
+  });
+
+  it('a legendary challenge starts on its own after four days and an unanswered minor or major lapses after three', () => {
+    expect(LEGENDARY_AUTO_START_DAYS).toBe(4);
+    expect(UNANSWERED_CHALLENGE_LAPSE_DAYS).toBe(3);
+  });
+});
+
+describe('multiplier validation', () => {
+  it('the range is 1 to 9.99', () => {
+    expect([MULTIPLIER_MIN, MULTIPLIER_MAX]).toEqual([1, 9.99]);
+  });
+
+  it('accepts the ends of the range and values with at most two decimals', () => {
+    for (const ok of [1, 1.1, 1.25, 2, 9.99, 5.05, 1.01]) {
+      expect(multiplierProblem(ok), String(ok)).toBeNull();
+      expect(isValidMultiplier(ok), String(ok)).toBe(true);
+    }
+  });
+
+  it('names a value outside 1 to 9.99, or one that is not a finite number, as a range problem', () => {
+    for (const bad of [0.99, 0, -1, 10, 9.991, Number.NaN, Number.POSITIVE_INFINITY, '2', null, undefined]) {
+      expect(multiplierProblem(bad), String(bad)).toBe('range');
+      expect(isValidMultiplier(bad), String(bad)).toBe(false);
+    }
+  });
+
+  it('names a value in range with more than two decimals as a decimals problem', () => {
+    for (const bad of [1.005, 2.345, 1.001, 9.989]) {
+      expect(multiplierProblem(bad), String(bad)).toBe('decimals');
+      expect(isValidMultiplier(bad), String(bad)).toBe(false);
+    }
   });
 });

@@ -1,5 +1,6 @@
-import { FALLBACK_LEVEL_REQUIREMENTS, calculateCompleteRunXP, calculateRunXP, stravaPollIntervalLabel, type LevelRequirement } from '@runquest/shared';
-import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
+import {
+  FALLBACK_LEVEL_REQUIREMENTS, MANUAL_RUN_MIN_DISTANCE_KM, MAX_DISPLAYED_TITLES, MIN_RUN_DATE, calculateCompleteRunXP, calculateRunXP, stravaPollIntervalLabel, type LevelRequirement,
+} from '@runquest/shared';
 import type { ChallengeTier } from '@runquest/types';
 import { TIERS, tierLabel, type Stake } from '@/features/challenges/duelsFormat';
 import { HOW_IT_WORKS, observedStakes } from '@/features/challenges/rulesModel';
@@ -7,7 +8,6 @@ import { formatInt, formatKm, formatLongDate } from '@/features/log/logFormat';
 import type { XpRules } from '@/features/log/xpPreviewModel';
 import { ALL_WAYPOINTS, JOURNEY_END_KM } from '@/features/profile/frodoModel';
 import type { RQIconName } from '@/shared/components/icons';
-import { MAX_DISPLAYED } from '@/features/titles/titlesModel';
 import { EVENT_FACTS, STRAVA_RUN_TYPES_LABEL, WEEKLY_XP } from './playbookFacts';
 
 // Playbook-skärmens kapitel: spelets regler som text, med siffrorna ur GET /config/xp (bas-XP, XP/km, distansbonusar,
@@ -67,7 +67,7 @@ const times = (multiplier: number): string => `${Number(multiplier.toFixed(2))}�
 // ─── Kapitel ──────────────────────────────────────────────────────────────────
 
 function runChapter(rules: XpRules): Omit<Chapter, 'num'> {
-  const manualMin = formatKm(MIN_RUN_DISTANCE_KM);
+  const manualMin = formatKm(MANUAL_RUN_MIN_DISTANCE_KM);
   return {
     id: 'run', icon: 'plus', label: 'What counts as a run', title: 'What counts as a run',
     lead: `Manual runs need at least ${manualMin} km; runs synced from Strava count at any distance above zero.`,
@@ -178,7 +178,7 @@ function titlesChapter(): Omit<Chapter, 'num'> {
     paras: [
       'Each title belongs to whoever has the best value for its metric right now, and the holders are recalculated after every run. Some titles have to be unlocked first: until someone passes the threshold the title sits empty, with the best attempt on show.',
       'Some titles are seasonal: they count the winter, December to February, by the date of each run. In winter that’s the current winter; the rest of the year it’s the one that just ended, so nothing resets on 1 March. The new winter doesn’t start at midnight on 1 December. It starts the first time the titles are updated after that, which is normally when the next run is logged or synced from Strava. Until then last winter’s numbers stay on the board; after that the new winter starts from zero, and a title can sit empty until someone passes its threshold.',
-      `You can show up to ${MAX_DISPLAYED} titles on your leaderboard card.`,
+      `You can show up to ${MAX_DISPLAYED_TITLES} titles on your leaderboard card.`,
     ],
     table: null,
     showsTitleList: true,

@@ -65,7 +65,7 @@
  * Logging: our own event id, the event type, counts, our user id and error CODES. No Strava id in routine lines (ADR 010 decision
  * 8.6); only the dead alarm names object_id and owner_id (decision 11). Never a token, a title, a body, an error message or `updates`.
  */
-import { MS_DAY, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '@runquest/shared';
+import { MS_DAY, MS_HOUR, MS_MINUTE, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS, isCalendarDay } from '@runquest/shared';
 import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { withUserLock } from '../utils/keyedMutex.js';
@@ -95,9 +95,7 @@ import type {
   WebhookImportedRun,
 } from './stravaWebhook/ports.js';
 
-const QUARTER_HOUR_MS = 15 * 60_000;
-const HOUR_MS = 3_600_000;
-const MINUTE_MS = 60_000;
+const QUARTER_HOUR_MS = 15 * MS_MINUTE;
 
 // ─── The handler contract ──────────────────────────────────────────────────────
 
@@ -199,12 +197,6 @@ interface Finished {
   imported: WebhookImportedRun[];
 }
 
-/** A real calendar day: the round trip through Date catches 2026-02-31, which Date.parse accepts and shifts to March. */
-function isCalendarDay(value: unknown): value is string {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
 const isOutcome = (value: unknown): value is WebhookOutcome => (WEBHOOK_OUTCOMES as readonly unknown[]).includes(value);
 
 /** A handler's error string is stored as last_error: filtered like an error code (no spaces, quotes or braces) and cut. */
@@ -264,7 +256,7 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
     const before = Math.max(0, Math.floor(row.attempts));
     const minutes = WEBHOOK_BACKOFF_MINUTES[Math.min(before, WEBHOOK_BACKOFF_MINUTES.length - 1)];
     return write(row, settled, 'retry', () =>
-      store.release(row, { attempts: before + 1, nextAttemptAt: new Date(now().getTime() + minutes * MINUTE_MS), lastError: shortError(error) }),
+      store.release(row, { attempts: before + 1, nextAttemptAt: new Date(now().getTime() + minutes * MS_MINUTE), lastError: shortError(error) }),
     );
   }
 
@@ -432,7 +424,7 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
   }
 
   async function runBatch(claimed: WebhookEventRow[], settled: Set<number>): Promise<void> {
-    const deadline = now().getTime() - WEBHOOK_DEAD_AFTER_HOURS * HOUR_MS;
+    const deadline = now().getTime() - WEBHOOK_DEAD_AFTER_HOURS * MS_HOUR;
     const byUser = new Map<string, WebhookEventRow[]>();
 
     for (const row of [...claimed].sort(byEventOrder)) {

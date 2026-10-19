@@ -1,6 +1,5 @@
 import type { Run } from '@runquest/types';
-import { advanceStreakDay, isNextDay, stockholmClock } from '@runquest/shared';
-import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
+import { MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, advanceStreakDay, isCalendarDay, isNextDay, stockholmClock } from '@runquest/shared';
 import { formatInt, formatKm, formatLongDate, formatMultiplier } from './logFormat';
 
 // Formulärets ren logik: tillstånd, validering (speglar POST /runs) och streakdagen en ny runda får.
@@ -45,27 +44,18 @@ export function parseKm(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-const DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/;
-
-function isCalendarDate(value: string): boolean {
-  if (!DATE_SHAPE.test(value)) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
-}
-
 /** Vänliga fel med backendens regler: minst 1.0 km. Tomt fält är ett fel först vid inlämning (`allowEmpty`). */
 export function validateDistance(raw: string, { allowEmpty = false } = {}): string | undefined {
   if (raw.trim() === '') return allowEmpty ? undefined : 'Enter a distance in km';
   const km = parseKm(raw);
   if (km === null) return 'Distance must be a number, like 8.4';
-  if (km < MIN_RUN_DISTANCE_KM) return `A run needs at least ${formatKm(MIN_RUN_DISTANCE_KM)} km to count`;
+  if (km < MANUAL_RUN_MIN_DISTANCE_KM) return `A run needs at least ${formatKm(MANUAL_RUN_MIN_DISTANCE_KM)} km to count`;
   return undefined;
 }
 
 /** Backendens datumregler: inte före 2025-06-01 och inte i framtiden. `today` = Stockholm-dagen. */
 export function validateDate(date: string, today: string): string | undefined {
-  if (!isCalendarDate(date)) return 'Pick a date';
+  if (!isCalendarDay(date)) return 'Pick a date';
   if (date < MIN_RUN_DATE) return `Runs can only be logged from ${formatLongDate(MIN_RUN_DATE)}`;
   if (date > today) return 'You cannot log a run for a future date';
   return undefined;
