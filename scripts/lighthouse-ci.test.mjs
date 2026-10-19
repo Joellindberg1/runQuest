@@ -266,7 +266,8 @@ createServer((req, res) => {
     );
     writeFileSync(
       join(work, 'fake-caddy'),
-      `#!/usr/bin/env bash\nif [[ "$1" == "validate" ]]; then exit 0; fi\nexec "${posix(process.execPath)}" "${posix(join(work, 'fake-server.mjs'))}"\n`,
+      // cd /: servern får inte stå i work. På Windows går en katalog inte att radera medan en process har den som arbetskatalog, och servern kan leva en stund efter kill.
+      `#!/usr/bin/env bash\nif [[ "$1" == "validate" ]]; then exit 0; fi\ncd /\nexec "${posix(process.execPath)}" "${posix(join(work, 'fake-server.mjs'))}"\n`,
     );
     chmodSync(join(work, 'fake-caddy'), 0o755);
   });
