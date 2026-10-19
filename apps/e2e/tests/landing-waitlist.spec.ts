@@ -34,6 +34,15 @@ async function openWithLandingScriptHeld(page: Page) {
   return { landingScript, navigations };
 }
 
+/**
+ * Väntar tills formuläret är levande. Reacts rotmarkör sätts redan när hydreringen startar, alltså före att inerten släppts: ett `fill` i det läget träffar ett formulär
+ * som fortfarande är inert. Att inerten släpps är också beviset för att den släpps i en riktig webbläsare.
+ */
+async function waitUntilLive(page: Page): Promise<void> {
+  await expect.poll(() => isHydrated(page), { message: 'the page never hydrated' }).toBe(true);
+  await expect(waitlistForm(page)).not.toHaveAttribute('inert');
+}
+
 /** Försöker använda formuläret som en besökare: klick i fälten, skriv, kryssa i samtycket. `force` hoppar över Playwrights egen väntan på att elementet ska gå att använda. */
 async function tryToFillIn(page: Page): Promise<void> {
   await emailField(page).click({ force: true });
@@ -50,8 +59,7 @@ test.describe('the waitlist form on the landing page before it has hydrated', ()
     const before = { email: await emailField(page).inputValue(), consent: await consentBox(page).isChecked() };
 
     landingScript.release();
-    await expect.poll(() => isHydrated(page), { message: 'the page never hydrated' }).toBe(true);
-    await page.waitForLoadState('networkidle');
+    await waitUntilLive(page);
 
     await expect(emailField(page)).toHaveValue(before.email);
     expect(await consentBox(page).isChecked()).toBe(before.consent);
@@ -87,7 +95,7 @@ test.describe('the waitlist form after the landing page has hydrated', () => {
     });
     const { landingScript } = await openWithLandingScriptHeld(page);
     landingScript.release();
-    await expect.poll(() => isHydrated(page), { message: 'the page never hydrated' }).toBe(true);
+    await waitUntilLive(page);
 
     await emailField(page).fill(EMAIL);
     await consentBox(page).check();

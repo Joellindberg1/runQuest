@@ -73,17 +73,6 @@ describe('hydrating the prerendered landing', () => {
     expect(after.every((node, index) => node === before[index])).toBe(true);
   });
 
-  it('serves the waitlist form inert and turns it live when the page hydrates', async () => {
-    const markup = renderLanding();
-    container.innerHTML = markup;
-    expect(container.querySelector('#waitlist form')).toHaveAttribute('inert');
-
-    const { consoleError } = await hydrate(markup);
-
-    expect(consoleError).not.toHaveBeenCalled();
-    expect(container.querySelector('#waitlist form')).not.toHaveAttribute('inert');
-  });
-
   it('reports no errors when the build has a web analytics website id: the server render needs no window, the page view tracking renders nothing', async () => {
     vi.stubEnv('VITE_UMAMI_WEBSITE_ID', 'f69b618e-a134-4cd9-af69-d4479c418de8');
     const markup = renderLanding();

@@ -465,6 +465,8 @@ Utlöser revisit-triggern i addendum 2026-10-13: "Lighthouse mobil på `/` ger d
    | Webbläsartillägg som ändrar DOM | återställbara fel går till `onRecoverableError` som loggar, rapporterar inte |
 
    **Hydreringstest (Vitest):** renderar SSR-strängen, sätter den i jsdom, kör `hydrateRoot` med spion på `console.error` och `onRecoverableError`, kräver noll anrop, och att DOM-noderna före och efter är identiska objekt (inget byte).
+
+   **Inmatning före hydrering (RUN-336).** Ett formulär i den förrenderade landningen är `inert` tills det hydrerats (`useHydrated`, `useSyncExternalStore` med serverns ögonblicksbild falsk): före hydreringen skrivs inget ifyllt över av tomt state och Enter ger ingen nativ GET-submit som laddar om sidan. Serverns och klientens första rendering är lika, och inerten släpps i omrenderingen direkt efter hydreringen. Se `apps/frontend/src/landing-entry/README.md`.
 10. **Lighthouse CI efter resultatet (S7).** `lighthouserc.json` får per-URL-regler (`assertMatrix`): `/` skärps, `/legal` behåller dagens rader (den serveras fortfarande av hela appen och delar inte landningens vikt). Sättning av taken, i ordning:
     1. Mät `/` på CI-runnern (Linux/Chrome), minst fem gröna körningar av `main` med prerendern på, i båda lägena (API ger fel / falskt API).
     2. LCP-taket = målet 2 500 ms om medianen ligger under 2 250 ms (10 % marginal). Annars: tak = högsta mediansiffran × 1,1 avrundat uppåt till närmaste 100 ms, aldrig över dagens 5 000, och målet 2 500 ms står kvar som öppen rad i `docs/performance.md` tills det nås (RUN-260 är då inte klar mot sitt mål, och det sägs).
