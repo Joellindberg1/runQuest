@@ -1,0 +1,17 @@
+{
+  // Backendens tsconfig.json utesluter testfiler, och vitest typkontrollerar inte. Den här filen typkontrollerar de backendtester som
+  // importerar kod från ett annat paket och därför inte täcks av någon annan tsc: newsFakeParity.test.ts importerar frontendens
+  // news-fixturer. Lägg till fler sådana tester i "include". Resten av testerna har kvarvarande typfel (oanvända importer m.m.)
+  // och ligger utanför; en tsc över alla `src/**/*.test.ts` visar dem när någon vill ta den skulden.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "rootDir": "../.."
+  },
+  "include": ["src/routes/__tests__/newsFakeParity.test.ts"],
+  "exclude": ["node_modules", "dist"]
+}

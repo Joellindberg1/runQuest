@@ -243,7 +243,6 @@ describe('newsServer parity with the unread time of the route', () => {
 });
 
 const sorted = (values: Iterable<number>): number[] => [...values].sort((a, b) => a - b);
-
 describe('newsServer parity with the write endpoints', () => {
   const token = () => mintToken({ user_id: ME.id, group_id: GROUP });
   const realSeen = (body: unknown) => server.request('POST', '/api/news/seen', { token: token(), body });
