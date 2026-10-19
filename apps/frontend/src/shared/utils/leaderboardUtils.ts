@@ -1,6 +1,6 @@
 
 import type { Run, User } from '@runquest/types'
-import { MS_DAY, dayOfWeek, mondayOf } from '@runquest/shared';
+import { MS_DAY, weekendAverageKm } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { MAX_LEVEL } from '@/constants/appConstants';
 export { getInitials, formatXPForDisplay } from '@/shared/utils/formatters';
@@ -72,22 +72,7 @@ export const leaderboardUtils = {
   },
 
   calculateWeekendAverage(runs: Run[]): number {
-    const weekendTotals = new Map<string, number>();
-    
-    runs.forEach(run => {
-      const date = run.date.slice(0, 10);
-      const day = dayOfWeek(date);
-
-      if (day === 0 || day === 6) { // Sunday or Saturday
-        // The Monday of the week containing this weekend day groups Saturday and Sunday together
-        const weekKey = mondayOf(date);
-
-        weekendTotals.set(weekKey, (weekendTotals.get(weekKey) || 0) + run.distance);
-      }
-    });
-
-    const weekends = Array.from(weekendTotals.values());
-    return weekends.length > 0 ? weekends.reduce((sum, total) => sum + total, 0) / weekends.length : 0;
+    return weekendAverageKm(runs.map(run => ({ day: run.date.slice(0, 10), km: run.distance })));
   },
 
   calculateLast14DaysXP(user: User): number {

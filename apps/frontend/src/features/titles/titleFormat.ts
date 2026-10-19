@@ -1,6 +1,7 @@
 // Titelvärden och titelnamn som text. Ren logik — delas av Titles, Runner card och Profile.
 // Måttnyckeln (`metric_key`, ur title-motorerna i backend) avgör enheten; värdena från backend är
-// kodade för sortering (högre = bättre), så tider och spridning avkodas här.
+// kodade för sortering (högre = bättre); kodningen och avkodningen ligger i @runquest/shared (titleMetrics), delad med backend.
+import { MINUTES_PER_HOUR, SECONDS_PER_MINUTE, decodeTitleMetric } from '@runquest/shared';
 
 /** Replace "King/Queen" in a title name based on the holder's gender. */
 export function resolveGenderedTitle(name: string, gender?: string | null): string {
@@ -34,33 +35,29 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     case 'totalElevationGain':
     case 'bestSingleRunElevation':
       return `${Math.round(value)}m`;
-    case 'fastestMarathon': {
-      if (value < -100) return '—';
-      const mins = Math.round(720 - value);
-      return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}m`;
-    }
+    case 'fastestMarathon':
     case 'fastestHalfMarathon': {
-      if (value < -100) return '—';
-      const mins = Math.round(360 - value);
-      return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}m`;
+      const seconds = decodeTitleMetric(metricKey, value);
+      if (seconds === null) return '—';
+      const mins = Math.round(seconds / SECONDS_PER_MINUTE);
+      return `${Math.floor(mins / MINUTES_PER_HOUR)}h${String(mins % MINUTES_PER_HOUR).padStart(2, '0')}m`;
     }
     case 'lowestPaceStdDev':
     case 'avgPaceStdDev': {
-      if (value <= 0) return '—';
-      const stdDev = (10000 / value).toFixed(1);
-      return `${stdDev}s/km std`;
+      const stdDev = decodeTitleMetric(metricKey, value);
+      return stdDev === null ? '—' : `${stdDev.toFixed(1)}s/km std`;
     }
     case 'lastRunOfWeek': {
-      const d = new Date(value * 1000);
+      const d = new Date(decodeTitleMetric(metricKey, value));
       // Värdet är väggklockan kodad som UTC-sekunder (se calendar.ts): läs dagen i UTC, annars glider
       // sena kvällsrundor till nästa dag i zoner öster om UTC.
       return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     }
     case 'fastest5km': {
-      if (value < -100) return '—';
-      const totalSeconds = Math.round((60 - value) * 60);
-      const mins = Math.floor(totalSeconds / 60);
-      const secs = totalSeconds % 60;
+      const totalSeconds = decodeTitleMetric(metricKey, value);
+      if (totalSeconds === null) return '—';
+      const mins = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
+      const secs = totalSeconds % SECONDS_PER_MINUTE;
       return `${mins}:${String(secs).padStart(2, '0')}`;
     }
     case 'longestRun':

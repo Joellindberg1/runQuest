@@ -47,7 +47,8 @@ export const NO_TIME_VALUE = -9999;
 /** Ett tidsvärde under den här gränsen är "ingen tid". En riktigt långsam tid kan ge ett negativt värde men hamnar ovanför gränsen. */
 const NO_TIME_THRESHOLD = -100;
 
-const SECONDS_PER_MINUTE = 60;
+export const SECONDS_PER_MINUTE = 60;
+export const MINUTES_PER_HOUR = 60;
 
 function isTimeMetric(key: EncodedTitleMetric): key is TimeMetric {
   return key in TIME_REFERENCE_MINUTES;
@@ -71,6 +72,8 @@ export function encodeTitleMetric(key: EncodedTitleMetric, x: number): number {
  * Tvärtom mot encodeTitleMetric: tidsmått ger avrundade sekunder, spridningsmått s/km, lastRunOfWeek epok-ms.
  * null = "inget värde" (tidsmått under -100, spridning 0 eller lägre) — visas som tankstreck.
  */
+export function decodeTitleMetric(key: 'lastRunOfWeek', value: number): number;
+export function decodeTitleMetric(key: EncodedTitleMetric, value: number): number | null;
 export function decodeTitleMetric(key: EncodedTitleMetric, value: number): number | null {
   if (isTimeMetric(key)) {
     if (value < NO_TIME_THRESHOLD) return null;

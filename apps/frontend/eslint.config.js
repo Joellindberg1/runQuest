@@ -326,6 +326,18 @@ export default tseslint.config(
     },
   },
 
+  // Titelmåttens kodning (referenstiderna 60/360/720, skalan 10000, minut- och timomvandlingen) ligger i shared/titleMetrics. titleFormat
+  // avkodar via decodeTitleMetric och får inga egna talliteraler för dem, annars blir ett värde tyst fel när backend ändrar kodningen.
+  {
+    files: ["src/features/titles/titleFormat.ts"],
+    rules: {
+      "no-restricted-syntax": ["error", {
+        selector: "Literal[value=60], Literal[value=360], Literal[value=720], Literal[value=10000]",
+        message: "Titelmåttens kodning och tidsenheter hör hemma i @runquest/shared (titleMetrics): använd decodeTitleMetric, SECONDS_PER_MINUTE och MINUTES_PER_HOUR.",
+      }],
+    },
+  },
+
   // Landing: publik, ingen auth, trappan ur shared (DEFAULT_STREAK_MULTIPLIERS är tillåten här men inte streakConstants). Ett enda anrop, i hookfilen nedan.
   {
     files: ["src/features/landing/**/*.{ts,tsx}", "src/pages/LandingPage.tsx"],

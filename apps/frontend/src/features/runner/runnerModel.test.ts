@@ -3,7 +3,7 @@ import type { Run, User } from '@runquest/types';
 import type { ChallengeHistoryItem, HeadToHeadResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import {
-  DOUBLE_RUN_MIN_GAP_MS, buildDistanceRows, buildFunRows, buildHeadToHead, buildHero, buildMeeting, buildStatCells,
+  buildDistanceRows, buildFunRows, buildHeadToHead, buildHero, buildMeeting, buildStatCells,
   buildStreakRows, buildTitleRows, countDoubleRunDays, favouriteWeekday, marathonEquivalents, nextTier,
   xpToNextText,
 } from './runnerModel';
@@ -185,7 +185,6 @@ describe('fun facts', () => {
     });
 
     it('gränsen är inklusive: exakt 4 h räknas, 3 h 59 min räknas inte', () => {
-      expect(DOUBLE_RUN_MIN_GAP_MS).toBe(4 * 3600 * 1000);
       expect(countDoubleRunDays([at('2026-10-01', '06:00'), at('2026-10-01', '10:00')])).toBe(1);
       expect(countDoubleRunDays([at('2026-10-01', '06:00'), at('2026-10-01', '09:59')])).toBe(0);
     });
