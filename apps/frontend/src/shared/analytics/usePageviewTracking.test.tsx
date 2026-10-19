@@ -9,13 +9,16 @@ const send = vi.fn<(url: string) => void>();
 const sender = { send };
 
 let go: (to: string, options?: { replace?: boolean }) => void = () => {};
-const Probe: React.FC<{ paused?: boolean }> = ({ paused }) => {
-  usePageviewTracking({ sender, paused });
+type Normalize = (pathname: string, search: string) => string;
+const Probe: React.FC<{ paused?: boolean; normalize?: Normalize }> = ({ paused, normalize }) => {
+  usePageviewTracking({ sender, paused, normalize });
   const navigate = useNavigate();
   go = (to, options) => navigate(to, options);
   return null;
 };
-const tree = (initial: string, paused = false) => <MemoryRouter initialEntries={[initial]}><Probe paused={paused} /></MemoryRouter>;
+const tree = (initial: string, paused = false, normalize?: Normalize) => (
+  <MemoryRouter initialEntries={[initial]}><Probe paused={paused} normalize={normalize} /></MemoryRouter>
+);
 const mount = (initial: string, paused = false) => render(tree(initial, paused));
 const settle = () => act(() => { vi.advanceTimersByTime(PAGEVIEW_SETTLE_MS); });
 
@@ -90,5 +93,11 @@ describe('page view tracking', () => {
     unmount();
     settle();
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sends the address a given normalizer returns instead of the default one', () => {
+    render(tree('/somewhere?x=1', false, (pathname, search) => `normalized:${pathname}${search}`));
+    settle();
+    expect(send.mock.calls.map(([url]) => url)).toEqual(['normalized:/somewhere?x=1']);
   });
 });

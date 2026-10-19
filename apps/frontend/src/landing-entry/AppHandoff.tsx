@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { RoutePending } from '@/app-shell/RoutePending';
+import { beginHandoff } from './handoffState';
 import { leaveForApp } from './leaveForApp';
 
 /**
@@ -10,7 +11,10 @@ import { leaveForApp } from './leaveForApp';
  */
 export function AppHandoff({ to }: { to: string }) {
   useEffect(() => {
+    // Stänger sidvisningarna innan sidan lämnas: fullappen räknar sin egen första sida (handoffState.ts).
+    const endHandoff = beginHandoff();
     leaveForApp(to);
+    return endHandoff;
   }, [to]);
   return <RoutePending />;
 }

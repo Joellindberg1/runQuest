@@ -245,6 +245,34 @@ describe('the staging build', () => {
   }, BUILD_TIMEOUT_MS);
 });
 
+// Webbanalysen laddas av koden (umamiPageviews.ts) när sidan visats, aldrig av en tagg i HTML-filerna: S5:s krav på exakt två inline-skript och tipset före
+// allt annat påverkas alltså inte av ett webbplats-id, och ett bygge utan id har varken id eller någon Umami-tagg i filerna.
+describe('web analytics in the two HTML files', () => {
+  const FAKE_WEBSITE_ID = '00000000-0000-4000-8000-000000000335';
+  const scriptsOf = (dist: string) =>
+    (readdirSync(dist, { recursive: true }) as string[]).map(normalize).filter((file) => file.endsWith('.js')).map((file) => read(dist, file));
+
+  it('a build without a website id has no Umami tag in either file and no id in any script', async () => {
+    vi.stubEnv('VITE_UMAMI_WEBSITE_ID', '');
+    const dist = await buildApp('no-website-id', '');
+    for (const file of ['index.html', 'landing.html']) expect(read(dist, file)).not.toMatch(/umami/i);
+    expect(scriptsOf(dist).filter((text) => text.includes(FAKE_WEBSITE_ID))).toEqual([]);
+  }, BUILD_TIMEOUT_MS);
+
+  it('a build with a website id adds no tag to either file: landing.html keeps its two inline scripts, the hint first, and its id sits in the scripts only', async () => {
+    vi.stubEnv('VITE_UMAMI_WEBSITE_ID', FAKE_WEBSITE_ID);
+    const dist = await buildApp('with-website-id', '');
+    for (const file of ['index.html', 'landing.html']) expect(read(dist, file)).not.toMatch(/umami/i);
+
+    const html = read(dist, 'landing.html');
+    const scripts = inlineScripts(html);
+    expect(scripts).toHaveLength(2);
+    expect(scripts[0].body).toBe(sessionHintScript());
+    expect(firstIndexOf(html, [/<link\b[^>]*rel="(?:stylesheet|modulepreload|preload)"/, /<script\b[^>]*\bsrc=/])).toBeGreaterThan(scripts[0].index);
+    expect(scriptsOf(dist).some((text) => text.includes(FAKE_WEBSITE_ID))).toBe(true);
+  }, BUILD_TIMEOUT_MS);
+});
+
 describe('the build guards', () => {
   const page = (root: string, head = '') => `<!doctype html><html lang="en"><head>${head}</head><body>${root}</body></html>`;
 

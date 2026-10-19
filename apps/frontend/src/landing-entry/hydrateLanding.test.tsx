@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import type { Root } from 'react-dom/client';
+import { resetDefaultPageviewSender } from '@/shared/analytics/umamiPageviews';
 import { setViewportWidth } from '@/test/viewport';
 
 // Hydreringen av den förrenderade landningen (ADR 006, addendum 2026-10-19, punkt 9). Serversidan är landing-ssr.tsx (samma funktion som bygget kör),
@@ -40,6 +41,8 @@ afterEach(() => {
   container.remove();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+  document.head.querySelector('script[data-website-id]')?.remove();
+  resetDefaultPageviewSender();
 });
 
 /** Hydrerar `markup` och ger tillbaka vad som hände: felrapporter och om noderna byttes ut. */
@@ -64,6 +67,24 @@ describe('hydrating the prerendered landing', () => {
     const { before, after, consoleError, recoverable } = await hydrate(renderLanding());
 
     expect(before.length).toBeGreaterThan(100);
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(recoverable).not.toHaveBeenCalled();
+    expect(after).toHaveLength(before.length);
+    expect(after.every((node, index) => node === before[index])).toBe(true);
+  });
+
+  it('reports no errors when the build has a web analytics website id: the server render needs no window, the page view tracking renders nothing', async () => {
+    vi.stubEnv('VITE_UMAMI_WEBSITE_ID', 'f69b618e-a134-4cd9-af69-d4479c418de8');
+    const markup = renderLanding();
+    expect(markup).not.toContain('umami');
+
+    const { before, consoleError, recoverable } = await hydrate(markup);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, SETTLE_MS * 2));
+    });
+    const after = Array.from(container.querySelectorAll('*'));
+
+    expect(document.head.querySelector('script[data-website-id]')).not.toBeNull();
     expect(consoleError).not.toHaveBeenCalled();
     expect(recoverable).not.toHaveBeenCalled();
     expect(after).toHaveLength(before.length);
