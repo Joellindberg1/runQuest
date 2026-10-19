@@ -34,8 +34,8 @@ export function useHeadToHead(userId: string, enabled = true) {
 }
 
 /**
- * Löparens titlar. Egen hook i stället för `useUserTitles`: den hooken sväljer fel och svarar tomt, och
- * "No titles held yet" vore då en lögn vid nätverksfel — Runner card ska visa felkortet (regel 9).
+ * Löparens titlar. Kastar vid fel i stället för att svara tomt: "No titles held yet" vore en lögn vid
+ * nätverksfel — Runner card ska visa felkortet (regel 9).
  */
 export function useRunnerTitles(userId: string) {
   const { user } = useAuth();

@@ -27,7 +27,7 @@ Mobil/direktladdning = sida i skalet (`variant="page"`, Back-knapp); desktop ini
 - **Streak-trappan** kommer ur `/api/config/xp` (`useXpConfig`), aldrig ur konstanter. Effektiv streak (0 när bruten) delas med Board.
 - **Double-run days** = dagar där två rundors starttider ligger ≥ 4 h isär (samma 4 h-gräns som titeln The Double Trouble; titeln kräver dessutom 5 km per runda och mäter km).
   Rundor utan `start_time` (manuell loggning) kan inte bevisa avståndet och räknas inte.
-- **Titlar** har en egen query (`useRunnerTitles`) som kastar vid fel — `useUserTitles` sväljer fel och skulle ge "No titles".
+- **Titlar** har en egen query (`useRunnerTitles`) som kastar vid fel, så att ett nätverksfel inte blir "No titles".
   Enheten på värdena kommer från `metric_key` i `/titles/leaderboard`; saknas den visas bara talet.
 - `useViewParam` bär med sig router-state, annars tappar overlayn sin `background` när statfliken byts.
 - Dynamiska värden går in via `cssVars()` (`--w`, `--x`, `--rq-ring-p`); inga inline-färger/mått (guards.test).

@@ -7,8 +7,7 @@ const api = vi.hoisted(() => ({
   getToken: vi.fn(() => api.token),
   authenticatedRequest: vi.fn(),
 }));
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
-vi.mock('@/shared/utils/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), success: vi.fn() } }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 
 import { FrontendLevelService } from './levelService';
 
@@ -36,7 +35,7 @@ describe('FrontendLevelService — hämtning via backenden', () => {
     api.authenticatedRequest.mockResolvedValue(ok(SERVER_TABLE));
     const service = new FrontendLevelService();
 
-    await service.initialize();
+    await service.refresh();
 
     expect(api.authenticatedRequest).toHaveBeenCalledTimes(1);
     expect(api.authenticatedRequest).toHaveBeenCalledWith('/config/levels');
@@ -54,39 +53,16 @@ describe('FrontendLevelService — hämtning via backenden', () => {
     expect(rows.map((row) => row.level)).toEqual([1, 2, 3]);
     expect(service.getLevelFromXPSync(120)).toBe(2);
   });
-
-  it('hämtar bara en gång: parallella och senare initialize delar ett anrop', async () => {
-    api.token = 'jwt';
-    api.authenticatedRequest.mockResolvedValue(ok(SERVER_TABLE));
-    const service = new FrontendLevelService();
-
-    await Promise.all([service.initialize(), service.initialize()]);
-    await service.initialize();
-
-    expect(api.authenticatedRequest).toHaveBeenCalledTimes(1);
-  });
-
-  it('async-metoderna väntar in tabellen', async () => {
-    api.token = 'jwt';
-    api.authenticatedRequest.mockResolvedValue(ok(SERVER_TABLE));
-    const service = new FrontendLevelService();
-
-    expect(await service.getLevelFromXP(260)).toBe(3);
-    expect(await service.getXPForNextLevel(1)).toBe(100);
-    expect((await service.getLevelProgress(100)).currentLevel).toBe(2);
-  });
 });
 
 describe('FrontendLevelService — utloggad', () => {
-  it('använder fallback-tabellen utan nätverksanrop', async () => {
+  it('använder fallback-tabellen utan nätverksanrop', () => {
     const service = new FrontendLevelService();
 
-    await service.initialize();
-
-    expect(api.authenticatedRequest).not.toHaveBeenCalled();
-    expect(fetchSpy).not.toHaveBeenCalled();
     expect(service.getXPForLevelSync(30)).toBe(16071);
     expect(service.getLevelFromXPSync(16071)).toBe(30);
+    expect(api.authenticatedRequest).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('refresh() kastar utan anrop (hooken är ändå avstängd utan användare)', async () => {
@@ -96,19 +72,6 @@ describe('FrontendLevelService — utloggad', () => {
 
     expect(api.authenticatedRequest).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it('hämtar först efter inloggning (utloggad initialize låser inte fallback för resten av sessionen)', async () => {
-    const service = new FrontendLevelService();
-    await service.initialize();
-    expect(service.getXPForLevelSync(2)).toBe(50);
-
-    api.token = 'jwt';
-    api.authenticatedRequest.mockResolvedValue(ok(SERVER_TABLE));
-    await service.initialize();
-
-    expect(api.authenticatedRequest).toHaveBeenCalledTimes(1);
-    expect(service.getXPForLevelSync(2)).toBe(100);
   });
 });
 
@@ -121,19 +84,19 @@ describe('FrontendLevelService — fel ger fallback', () => {
     ['data saknas', () => api.authenticatedRequest.mockResolvedValue({ success: true })],
   ];
 
-  it.each(failures)('%s -> fallback-tabellen, och nästa initialize försöker igen', async (_name, arrange) => {
+  it.each(failures)('%s -> refresh() kastar, fallback-tabellen gäller, och nästa refresh() försöker igen', async (_name, arrange) => {
     api.token = 'jwt';
     arrange();
     const service = new FrontendLevelService();
 
-    await expect(service.initialize()).resolves.toBeUndefined();
+    await expect(service.refresh()).rejects.toThrow();
 
     expect(service.getXPForLevelSync(2)).toBe(50);
     expect(service.getXPForLevelSync(30)).toBe(16071);
     expect(service.getLevelFromXPSync(16071)).toBe(30);
 
     api.authenticatedRequest.mockResolvedValue(ok(SERVER_TABLE));
-    await service.initialize();
+    await service.refresh();
     expect(service.getXPForLevelSync(2)).toBe(100);
   });
 

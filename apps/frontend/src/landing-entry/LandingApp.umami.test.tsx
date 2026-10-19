@@ -16,7 +16,7 @@ const api = vi.hoisted(() => ({
   onUnauthorized: undefined as undefined | (() => void),
 }));
 
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 
 import { LandingApp } from './LandingApp';
 

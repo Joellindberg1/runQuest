@@ -50,16 +50,6 @@ export interface AdminSettings {
   min_run_date?: string;
 }
 
-interface TitleData {
-  id: string;
-  name: string;
-  description: string;
-  metric_key?: string;
-  unlock_requirement: number;
-  category?: string;
-  icon?: string;
-}
-
 /** Shape of GET /auth/users (admin user list). */
 export interface AdminUser {
   id: string;
@@ -147,31 +137,6 @@ class BackendApiService {
         success: false,
         error: error instanceof Error ? error.message : 'Network error'
       };
-    }
-  }
-
-  // 🔄 Token refresh (placeholder)
-  async refreshToken(): Promise<ApiResponse> {
-    try {
-      const token = localStorage.getItem(SESSION_TOKEN_KEY);
-      if (!token) {
-        return { success: false, error: 'No token found' };
-      }
-
-      const response = await fetch(`${this.baseUrl}/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-      return { success: response.ok, data };
-
-    } catch (error) {
-      logger.error('Token refresh error:', error);
-      return { success: false, error: 'Token refresh failed' };
     }
   }
 
@@ -682,17 +647,6 @@ class BackendApiService {
     return this.getEnvelope<GroupEligibilityEntry[]>('/titles/group-eligibility', 'Failed to fetch title progress');
   }
 
-  async getAllTitles(): Promise<ApiResponse<TitleData[]>> {
-    const response = await this.authenticatedRequest<{ data: TitleData[] }>('/titles');
-
-    // Extract the actual data from the nested response structure
-    if (response.success && response.data && response.data.data) {
-      return { success: true, data: response.data.data };
-    }
-
-    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
-  }
-
   async updateDisplayedTitles(titleIds: string[]): Promise<ApiResponse<void>> {
     return this.authenticatedRequest<void>('/auth/me/displayed-titles', {
       method: 'PUT',
@@ -1183,5 +1137,3 @@ class BackendApiService {
 
 // Export singleton instance
 export const backendApi = new BackendApiService();
-
-export default backendApi;

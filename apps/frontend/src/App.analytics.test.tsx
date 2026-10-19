@@ -15,7 +15,7 @@ const api = vi.hoisted(() => ({
   onUnauthorized: undefined as undefined | (() => void),
 }));
 
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 vi.mock('@/shared/hooks/useAppInit', () => ({ useAppInit: () => {} }));
 
 const WEBSITE_ID = 'f69b618e-a134-4cd9-af69-d4479c418de8';

@@ -26,7 +26,7 @@ const api = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 vi.mock('@/shared/services/levelService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/shared/services/levelService')>();
   actual.frontendLevelService.refresh = () => Promise.resolve([]);
