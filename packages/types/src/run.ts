@@ -59,25 +59,6 @@ export interface RunData {
   distance: number;
 }
 
-export interface ProcessedRun extends Run {
-  calculatedXP: XPCalculation;
-}
-
-export interface XPCalculation {
-  baseXP: number;
-  distanceXP: number;
-  distanceBonus: number;
-  streakBonus: number;
-  multiplier: number;
-  totalXP: number;
-}
-
-export interface StreakInfo {
-  currentStreak: number;
-  longestStreak: number;
-  multiplier: number;
-}
-
 // ─── Challenge System ──────────────────────────────────────────────────────────
 export type ChallengeTier = 'minor' | 'major' | 'legendary';
 export type ChallengeMetric = 'km' | 'runs' | 'total_xp';
@@ -139,11 +120,4 @@ export interface UserBoost {
   remaining?: number;
   expires_at?: string;
   created_at: string;
-}
-
-export interface ChallengeStats {
-  wins: number;
-  draws: number;
-  losses: number;
-  challenge_active: boolean;
 }

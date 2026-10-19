@@ -41,13 +41,6 @@ export interface XPCalculationResult {
   };
 }
 
-export interface StreakCalculationResult {
-  streakDay: number;
-  multiplier: number;
-  streakBonus: number;
-  calculation: string;
-}
-
 export interface CompleteRunXP {
   baseXP: number;
   kmXP: number;
