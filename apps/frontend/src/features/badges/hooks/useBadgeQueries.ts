@@ -50,7 +50,7 @@ export function useGroupBadges(enabled = true) {
     staleTime: STALE_MS,
     retry: RETRIES,
   });
-  return { data: query.data, isLoading: query.isPending && query.fetchStatus !== 'idle', isError: query.isError, error: query.error, isFetching: query.isFetching, refetch: query.refetch };
+  return { data: query.data, failureCount: query.failureCount, isLoading: query.isPending && query.fetchStatus !== 'idle', isError: query.isError, error: query.error, isFetching: query.isFetching, refetch: query.refetch };
 }
 
 /**
