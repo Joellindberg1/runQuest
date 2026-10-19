@@ -1,5 +1,128 @@
 # Changelog
 
+## v0.8.0 — Titlar per grupp, förrenderad landning, Sentry och Umami (2026-10-19)
+
+Användarversion (minor). What's new-posten i `changelog.json` har ingen `announce` än; ägaren avgör om den ska annonseras (då `"announce": true` och `announce:release`, Prod-steg 7). Releasedatumet sätts till deploydagen om den inte är 2026-10-19. Grundversionen för flera grupper: epic RUN-229 (ADR 012), tokenkrypteringens kod (epic RUN-96, ADR 013; utrullningen RUN-314–316 görs efter deploy), Sentry, Umami, staging med e2e och lasttest, förrendering av landningen (RUN-260, ADR 006 addendum 2026-10-19), säkerhetsfixar och felhygien. Migrationerna 052–057 är redan applicerade och verifierade i prod (Prod-steg 1). RUN-334 (skärpt Lighthouse-budget, S7) är flyttad till v0.8.1.
+
+### Nytt — titlar och inställningar per grupp (RUN-229, ADR 012)
+- Medlemskap med roll (RUN-294, migration 053): tabellen `group_members` (roll `admin` eller `member`, `starts_on`, ett aktivt medlemskap per användare och en admin per grupp) och funktionerna `join_group` och `create_group_with_admin` (bara `service_role`). `users.group_id` är nu en pekare som bara de två funktionerna skriver; ci-guards regel 14 fäller direkta skrivningar i backend. Backfill: en aktiv rad per användare (`starts_on` null = hela historiken), gruppens skapare som admin.
+- Titelscope per grupp (RUN-295, migration 055): `user_titles` och `title_leaderboard` får `group_id` (unika nycklar per grupp, topp 10 per grupp), nya `update_group_title_leaderboard(s)`, omslagsfunktioner med oförändrade signaturer och en BEFORE INSERT-shim så att v0.7.x-koden fungerar mot den nya databasen. Vyn `title_leaderboard_view` får `group_id` och `security_invoker`. Före- och efterbevis i samma transaktion; exakt lika rader (samma titel, värde och `earned_at`) fick byta plats (ägarbeslut 2026-10-19; i prod gällde det The Hamster), innehavare och ordningen mellan olika värden är oförändrade.
+- `group_settings` (RUN-296, migration 054): gles tabell per (grupp, nyckel) med `updated_by`, RLS utan policyer. `GET /api/groups/settings` (medlem läser) och `PUT /api/groups/settings` (admin-rollen skriver; gruppen läses färskt ur medlemskapet, aldrig ur JWT, URL eller body), serialiserade per grupp, med sömmen `onGroupSettingsChanged` för utskick till gruppen (RUN-304). Registret har inga gruppnycklar än; eventtypen `group_setting_changed` är reserverad och ett vakttest fäller bygget om en gruppnyckel registreras utan den. ci-guards regel 15 kräver att varje skrivning går via grinden `resolveActingGroupForWrite` (RUN-303, `utils/groupAccess.ts`, fail-closed, sömmen för supportrollen RUN-267).
+- Delade kontrakt och regler (RUN-297): `contracts/titles.ts` och `contracts/groups.ts`, `titleWindow`/`runsInWindow` (rundor räknas inom medlemskapets fönster), `groupRoleCan` och `GROUP_ROLES`, titeldiff per grupp; ci-guards regel 13.
+- Medlemskapslagret (RUN-298): `POST /groups/join` ger 409 vid aktivt medlemskap, `POST /auth/users` går via `join_group` (kontot tas bort igen om medlemskapet misslyckas), `GET /groups/my` får `my_role`.
+- Omräkning per grupp (RUN-299): `processGroupTitles`/`processAllGroupsTitles` ersätter `processAllUsersTitles`; `calculateUserTotals` räknar bara om användarens grupp och grenen för användare utan grupp är borta; efter en lyckad join byggs gruppens ranking om utan titelnyheter. `reprocessTitles` skickar inga nyheter och ger exit-kod 1 vid fel.
+- Läsvägarna (RUN-300, RUN-302): `GET /titles/leaderboard` ger katalogen ihop med gruppens rader, `GET /titles/user/:id` ger 404 utanför gruppen, admin `populate`/`refresh` bygger om bara adminens grupp, `group-eligibility` räknar på medlemskapets fönster, och titelomräkningsklockan läser gruppens senaste ombyggnad.
+- Titelnyheter per grupp (RUN-301): före- och efterbilden (position 1 och 2) avgränsas till gruppen, så en ändring i en grupp aldrig ger en nyhet i en annan.
+- `create:group` (RUN-305): skapar låtsasgruppen i staging för flergruppstestet. Dry-run som standard; mot prod vägras även dry-run utan `--allow-prod`, och `--apply` kräver dessutom bekräftelsesträngen (ägar-ja).
+- Frontend (RUN-306): titeltyperna kommer ur `@runquest/shared`, och 404 från `titles/user/:id` blir Runner cards tomläge i stället för ett felkort. Ingen visuell ändring.
+- Migration 056 (RUN-326): execute på `update_title_leaderboard`, `update_all_title_leaderboards`, `trigger_update_title_leaderboard` och `increment_event_xp` återkallas för `public`, `anon` och `authenticated`; bara `service_role` behåller det.
+- Dokumentation (RUN-308): titles-README, arkitekturdiagrammet (`group_members`, `group_settings`), `docs/release.md` och `docs/staging.md` med ordning och bevis för 053–057, sju antaganden i `docs/open-assumptions.md`. Flergruppstestet i staging och prod-beviset är RUN-307 (prod-delen i Prod-steg 6).
+- XP, nivå, Board och utmaningar är oförändrade och globala (säsongs-ADR/RUN-95).
+
+### Nytt — låg tvåa i titelnyheter (RUN-256, ADR 011 beslut 7)
+- `title_taken` med `reason` `overtaken` får det additiva fältet `runner_up_user_id` (tvåan i samma grupp och titel, om tvåan inte är den nya innehavaren). Dedupe-nyckel och `payload_version` är oförändrade.
+- Nytt notisslag `title_taken_runner_up` (Titles, påslaget), med i Involves me (server och klient) och i radtexten som " — you were runner-up" för tvåan. Paritetstest mot frontendens fejkade news-server.
+
+### Nytt — Strava-tokens krypteras i vila, koden (ADR 013, RUN-310–313)
+- `utils/secretBox.ts` (RUN-310): AES-256-GCM, format `enc:v1:<kid>:<iv>:<ct>:<tag>`, AAD = tabell, kolumn och användare, nyckelparser för `TOKEN_ENCRYPTION_KEY` och `TOKEN_ENCRYPTION_KEYS_RETIRED`, felkoder i stället för text.
+- `services/stravaTokenStore.ts` (RUN-311): enda läs- och skrivvägen för tokenkolumnerna; skriver alltid krypterat, läser klartext av en strikt form under övergången (dual-read), compare-and-swap på den lagrade strängen och förkontroll av nyckeln före varje Strava-anrop. En token som inte går att läsa ger `token_unreadable`, som aldrig tolkas som återkallad behörighet och aldrig raderar något. ci-guards regel 11.
+- Konfiguration och larm (RUN-312): kontroll vid start (`🔐 Strava token encryption on: active key …` eller `🚨 KRITISKT` med `source:token_key`), nyckel-id-prefix per miljö (`prod-`, och `stg-` bara när `SENTRY_ENVIRONMENT=staging`), blocket `token_encryption` i `GET /api/strava/webhook/health`, ci-guards regel 12, `docs/runbook-token-key.md`. Utan giltig nyckel är Strava-synken avstängd och resten av appen går.
+- `backfill:strava-token-encryption` (RUN-313): dry-run som standard, `--apply` (CAS och tillbakaläsning per rad), `--refresh-tokens` (med stoppregel) och nödutgången `--decrypt`. En förnyelse följer en rad som krypterats om under tiden i stället för att tappa Stravas nya tokens.
+
+### Nytt — Sentry (RUN-282–285, RUN-287)
+- Backend (RUN-282): `@sentry/node` 11.8.0, startas bara med `SENTRY_DSN`. Fel når Sentry via `logger.error` (en kopplingspunkt), `beforeSend` rensar tokens och personuppgifter, klientfel (401/403/404/429, ogiltig JWT) skickas inte, användaren identifieras bara med `user_id`, inga spårningsheaders lämnar processen, flush vid avslut.
+- Kritiska larm (RUN-283): rader med `🚨 KRITISKT` blir `fatal` med taggarna `alert=critical` och `source`; högst en händelse per källa och fingeravtryck per 10 minuter, med en sammanfattning av de tillbakahållna. Inga Strava-id i Sentry-kopian.
+- Frontend (RUN-284): `@sentry/react` som egen chunk som laddas först när det inloggade skalet monterar, bara med `VITE_SENTRY_DSN`. Förväntade fel (4xx, nätverksfel, omladdning efter deploy) rapporteras inte; id i adresser blir `:id`.
+- Källkartor (RUN-285): båda byggena laddar upp sina kartor med `SENTRY_AUTH_TOKEN` (utan den hoppas uppladdningen över), releasen heter `runquest@<version>+<sha7>`. Frontendens kartor tas bort ur `dist/`, och Caddy svarar 404 på alla `*.map`.
+- Prestanda (RUN-287): en transaktion per route i backend och Web Vitals efter inloggning i frontend, högst 10 % provtagning, inga id eller trace-headers. Trösklar och föreslagna alerts i `docs/performance.md`.
+- RUN-281 (kontot, EU-regionen) är klart av ägaren, utom beslutet om Sentrys "Prevent Storing of IP Addresses" (integritetstexten säger att Sentry kan lagra IP-adressen enligt sina egna regler).
+
+### Nytt — Umami (RUN-291–293)
+- Sidvisningar (RUN-291): skriptet laddas från koden efter `load`, bara med `VITE_UMAMI_WEBSITE_ID` och aldrig i ett stagingbygge, låst till `www.runquest.dev` och `runquest.dev`. Cookiefritt, Do Not Track respekteras, adressen skickas som routemönster (`/runner/:id`), och bara vitlistade `utm_`-värden följer med på landningen.
+- Egna händelser (RUN-292): en fast lista med åtta händelser i `packages/shared/src/analytics.ts` och en vakt som avvisar allt utanför den. `setting-changed` skickar bara nyckeln, aldrig värdet; `run-logged-manual` är medvetet utelämnad (ingen rundata).
+- Integritetstexten (RUN-293): avsnitten `statistics` (Umami, EU/Frankfurt) och `errors` (Sentry), `DATA_POLICY_VERSION` och därmed `STRAVA_CONSENT_VERSION` = `2026-10-19`. Releasegrinden `RUNQUEST_RELEASE_CHECK=1` fäller om en ägarplatshållare finns kvar.
+
+### Nytt — förrenderad landning (RUN-260, ADR 006 addendum 2026-10-19)
+- Två HTML-ingångar (RUN-331): `landing.html` med en lean ingång (`landing-main.tsx`, landningen eager, inloggningsdialogen och `/legal` lazy) och `index.html` för hela appen. `npm run build` kör `scripts/prerender-landing.mjs` efter `vite build`: landningen renderas till `landing.html` och laddningsvyn (`RoutePending`, appens enda laddningsvy) till `#root` i `index.html`. Bygget faller om en markör saknas eller en modul rör `window` vid import.
+- Caddy (RUN-333): exakt `/` (med valfri fråga) ger `landing.html` med `no-cache`, `/landing` och `/landing.html` ger 307 till `/`, alla andra adresser (även `//`) ger `index.html` med laddningsvyn. Utan `landing.html` faller `/` tillbaka på `index.html`.
+- Inloggning från landningen är en full sidladdning till appen, med laddningsvyn i stället för en blank sida (ägarbeslut A). En inloggad besökare på `/` skickas vidare av ett sessionstips i `<head>` innan något ritas (RUN-332).
+- Landningen gör inga val på bredd i JS (RUN-329; båda varianterna i HTML, CSS väljer), och sifferraden flyttar inget när talen kommer och behåller sin höjd vid fel (RUN-330, ägarbeslut B).
+- Sidvisningar i lean ingången (RUN-335) utan dubbelräkning vid överlämningen till appen. Väntelistformuläret är `inert` tills landningen hydrerats (RUN-336).
+- Mätt lokalt (Windows/Edge, `docs/performance.md`): `/` prestanda 0,81 → 0,91, LCP 4 347 → 3 011 ms, JS 237 → 141,6 kB, CSS 42 → 23,7 kB, totalt 428 → 319 kB. Målet 2 500 ms nås inte lokalt; CI-taket sätts i RUN-334 (v0.8.1). Baslinjen är RUN-328.
+
+### Nytt — staging, e2e och lasttest (RUN-272–274, RUN-289, RUN-290)
+- Stagingskript (RUN-272): `staging:migrate`, `staging:seed-reference`, `staging:seed-group` och `staging:schema-diff`; skriver bara till staging och läser prod bara med `--read-prod` via den skrivskyddade endpointen. `docs/staging.md`.
+- Stagingskydd (RUN-273): `VITE_APP_ENV=staging` ger STAGING-remsan (egen chunk, finns inte i prodbygget), `noindex` i båda HTML-ingångarna och en `robots.txt` som blockerar allt.
+- E2E-rök med Playwright (RUN-290): ny workspace `apps/e2e` och workflowen `e2e-staging.yml` (manuell och nattlig, mot staging, aldrig mot prod, blockerar inte PR:ar). Vakten `scripts/e2e-guard.mjs` vägrar allt utom staging och localhost. `docs/e2e.md`.
+- Lasttest (RUN-289): `scripts/loadtest/` mot stagingbackenden med vakt mot prod, märkta rundor och städning. `docs/loadtest.md`.
+
+### Nytt — Lighthouse i CI (RUN-259)
+- Jobbet `Lighthouse — prestandabudget` mäter `/` och `/legal` (mobil, 3 körningar, median) mot det byggda `dist/` med Caddy på 127.0.0.1, med API:et både felande och falskt. Budgeten i `scripts/lighthouse/lighthouserc.json` är fäst i `scripts/lighthouse-ci.test.mjs`. Icke-blockerande första veckan (`LIGHTHOUSE_BLOCKING: 'false'`); omslaget står i `docs/release.md`.
+
+### Nytt — avstämningen återhämtar omräkningen (RUN-322, migration 057)
+- `recalculation_marks` med `mark_recalculation`/`clear_recalculation_mark` (bara `service_role`, version ur en sekvens). Avstämningen och Koppla bort markerar före en radering och rensar först när omräkning och totaler lyckats. Ett återhämtningsjobb kör vid start och 04:05 Europe/Stockholm (högst 20 per körning); ci-guards regel 16.
+
+### Ändrat
+- API: `GET /titles/leaderboard` och `GET /titles/user/:id` gruppfiltreras (se ovan); titelsvaren saknar `message`/`details` (RUN-324). `POST /groups/join` ger 409 vid aktivt medlemskap. `GET /groups/my` har `my_role`. Nya `GET`/`PUT /api/groups/settings`. `GET /api/strava/webhook/health` har blocket `token_encryption`. `POST /api/users/profile-picture` svarar 413 som JSON.
+- Admin (RUN-263, RUN-264): `PUT /auth/users/:id/password` gäller bara användare i adminens grupp (404 för annan grupp, saknat id och id som inte är uuid), och en admin utan grupp får 403 på den och på `POST /auth/users`.
+- `POST /api/challenges/send` (RUN-323): `opponent_id` som inte är uuid ger 400 före databasen.
+- `calculateUserTotals` (RUN-327) skriver ingenting och svarar `false` när läsningen av `users` felar; webhook-workern behandlar det som en misslyckad omräkning och försöker igen.
+- Pack News: `title_taken` kan bära `runner_up_user_id`; nytt notisslag (se låg tvåa).
+- Nya schemalagda jobb: återhämtningen 04:05 Europe/Stockholm och vid start.
+- Integritetstexten och samtyckesversionen är `2026-10-19`. Redan kopplade användare berörs inte; en ny koppling skickar den nya versionen.
+- `engines.node` är `>=20.19.0`. Backendens bygge går via `apps/backend/build.mjs` (samma esbuild-inställningar, releasen inbakad).
+- Nya miljövariabler: backend `TOKEN_ENCRYPTION_KEY`, `TOKEN_ENCRYPTION_KEYS_RETIRED` (valfri), `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE` (valfri); frontend (bygget) `VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_UMAMI_WEBSITE_ID` (bara prod), `VITE_APP_ENV` (bara staging); båda byggena `SENTRY_AUTH_TOKEN`. Se `.env.example`.
+
+### Borttaget
+- `GET /api/strava/debug-activities` och `POST /api/titles/refresh/:titleId` (RUN-278): oanvända, och de gick att anropa med bara inloggning. Båda svarar 404.
+- Grenen i `calculateUserTotals` som räknade titlar för en användare utan grupp (ingen spelar utan grupp, ADR 012).
+
+### Säkerhet
+- Migration 052 (RUN-226): Supabases säkerhetsråd: fast `search_path` på `increment_event_xp`, det döda pg_cron-jobbet mot Edge Function `strava-sync` avregistrerat, `pg_net` borttagen där det gick och `security_invoker` på `title_leaderboard_view`.
+- Migration 051 (RUN-276, i prod sedan 2026-10-17): alla policyer på `storage.objects` borta (backend skriver med service role) och gränser på `profile-pictures` (5 MB; jpeg, png, webp, gif).
+- RUN-277: dubblettkontrollen i `POST /auth/users` bygger inget filter av body-strängar (två parametriserade `.eq`); namn, e-post och lösenord typkontrolleras.
+- RUN-323: dubbelutmaningskontrollen bygger `.or()` av databasens id, och självutmaning med versaler stoppas.
+- RUN-263, RUN-264, RUN-278 och 056 ovan.
+- RUN-279: ägarens bekräftelser av reglerna i `docs/permissions.md` (tokennyckeln, grupperna, rollmodellen, `create:group`, 051).
+
+### Kodhälsa
+- Felhygien (RUN-324, RUN-325): hela backend loggar `errorCode(error)` i stället för felobjekt och `error.message`; kastade fel bär databasens kod men aldrig dess text (`errorWithCode`); ett fel loggas en gång, på fångstället (`GET /titles` gav tre Sentry-händelser, nu en). `errorCode` ger orsakens kod vid nätverksfel (supabase-js ger `code: ''`). Vakten `logHygiene.test.ts` läser källan som syntaxträd. Id ur URL och body kontrolleras med `isUuid`. Ogiltig JWT loggas som `warn`.
+- Nya runbooks: `docs/runbook-backup.md` (RUN-286, med skrivskyddad jämförelse-SQL och CI-vakt; övningen görs i slutet av versionen), `docs/runbook-token-key.md`, `docs/performance.md`, `docs/e2e.md`, `docs/loadtest.md`, `docs/staging.md`.
+- ADR 012 och 013 (godkända 2026-10-17) med noter, ADR 006 addendum 2026-10-19, ADR 010 addendum om Sentry och källkartor, `docs/permissions.md`.
+- ci-guards regel 11–16 och CI-steg för Sentry-bygget, backup-SQL:en, lasttestet, Lighthouse-verktyget och e2e-vakten.
+
+### Prod-steg
+Ett ägar-ja per migration, per skrivande skript och per Railway-variabel (`docs/permissions.md`). Hemliga värden klistras aldrig i chatten. Läge före start: v0.7.1 i prod, 1 grupp (Wolfpack), 6 användare.
+1. **KÖRT FÖRE DEPLOY 2026-10-19.** Migrationerna 052, 053, 054, 055, 056 och 057 är applicerade och verifierade i prod (bevisfrågorna i filhuvudena, `list_migrations`, `get_advisors`), efter staging. 055 med ägarbeslutet att exakt lika rader får byta plats (The Hamster). Alla är bakåtkompatibla med v0.7.1-koden (055:s avsnitt BAKÅTKOMPATIBILITET; 053:s pekare och 057 som gammal kod inte känner till). 051 är i prod sedan 2026-10-17.
+2. **KÖRT FÖRE DEPLOY 2026-10-19.** Ägaren har satt `TOKEN_ENCRYPTION_KEY` (nyckel-id `prod-1`), Sentry-DSN och Sentry-miljövariablerna samt `SENTRY_AUTH_TOKEN` i Railway prod. v0.7.1 ignorerar dem.
+3. **Före merge, ägar-ja:** `VITE_UMAMI_WEBSITE_ID` = `f69b618e-a134-4cd9-af69-d4479c418de8` (inte hemligt) som byggvariabel på `runquest-frontend` i prod. v0.7.1 ignorerar den; v0.8.0-bygget bakar in den.
+4. PR release/v0.8.0 → main, grön CI (Backend, Shared och Frontend; titta på Lighthouse-sammanfattningen), merge (= deploy). Vänta tills båda tjänsterna är klara. Därefter rök:
+   - backend `GET /health` 200, och startloggen visar `🔐 Strava token encryption on: active key prod-1, 0 retired key(s)` och `🛰️ Sentry on (environment: production)`, inget `🚨 KRITISKT` med `token_key`;
+   - `/` ger den förrenderade landningen (`landing-title` i HTML:en) med `Cache-Control: no-cache`; `//` och `/board` ger laddningsvyn (`rq-shell__pending`); `/landing` ger 307 till `/`; `/legal` laddar;
+   - Umami-scriptet (`cloud.umami.is/script.js`) laddas på www, utan cookies och lagring (kontrollen i `docs/release.md`, "Webbanalys");
+   - `GET /api/groups/settings` ger 401 utan token och gruppens värden inloggad;
+   - titlar per grupp: `/titles` och Runner card visar samma innehavare som före deployen;
+   - Sentry: provet `sentry:test:built` (`docs/release.md`, "Källkartor till Sentry") visar `src/`-rader.
+5. Kör workflowen `e2e-staging.yml` (manuellt). Den finns på `main` först nu och kunde därför inte köras före releasen.
+6. Prod-delen av RUN-307: konsistenskontrollen från 053 (inga avvikelser mellan `users.group_id` och aktivt medlemskap) och release-röken enligt `docs/release.md` avsnitt 5. Ingen testgrupp i prod.
+7. `announce:release --version=0.8.0` (dry-run, sedan `--apply` med ägar-ja), bara om posten i `changelog.json` har fått `"announce": true`.
+8. Tagg `v0.8.0` på merge-commiten.
+9. Peka om stagingtjänsterna till `integration/v0.8.1`.
+
+Senare, enligt ägarens beslut (inte en del av deployen):
+- Tokenutrullningen RUN-314–316: några dygn utan `token_unreadable`, därefter `backfill:strava-token-encryption` dry-run → ägar-ja → `--apply`, verifiering (`plaintext_rows: 0`), CHECK-migrationen och borttagen klartextläsning (ADR 013 beslut 13, `docs/runbook-token-key.md`).
+- Umami-trattarna (ägaren i Umami-panelen, `docs/release.md`).
+- RUN-270 (Strava-rök del B mot riktig Strava).
+- Backupövningen RUN-286 i slutet av versionen.
+- Valfri Postgres-uppgradering.
+
+### Rollback
+- Kod: redeploya v0.7.1 i Railway (frontend och backend) och revert-PR. v0.7.1 fungerar mot den nya databasen (055:s shim och omslagsfunktioner, 053:s pekare `users.group_id`). Caddyfilen följer frontendens deploy, så `/` går tillbaka till `index.html`.
+- **Tokens:** från deployen skriver backend varje ny eller förnyad Strava-token krypterat (`stravaTokenStore` har ingen väg som skriver klartext), även innan backfillen körts. v0.7.1 kan inte läsa `enc:v1:`-värden. Har en token förnyats eller en koppling gjorts efter deployen ska `backfill:strava-token-encryption -- --decrypt` köras (dry-run, sedan `--apply --confirm-write-plaintext` med ägar-ja) FÖRE kodrollbacken (ADR 013 beslut 13.5, `docs/runbook-token-key.md` avsnitt 5); annars får de användarna koppla Strava igen. Läget syns i `token_encryption`-blocket i webhook-health.
+- Skapar en admin ett konto under rollbacken skriver v0.7.1 `users.group_id` utan medlemskap: kör om 053 (idempotent) före v0.8.0 deployas igen.
+- Migrationerna rullas normalt inte tillbaka; rollback-SQL står i varje filhuvud och kräver ägarens ja. 057:s rollback kräver att koden är tillbakarullad först.
+- Railway-variablerna (`TOKEN_ENCRYPTION_KEY`, Sentry, `VITE_UMAMI_WEBSITE_ID`) ignoreras av v0.7.1 och kan stå kvar.
+
 ## v0.7.1 — Nattlig avstämning mot Strava (2026-10-17)
 
 Användarversion (patch, What's new-posten i `changelog.json` har ingen `announce`: ingen popup och ingen Pack News-rad). Epic RUN-93 (Strava-webhooks, ADR 010 D12). Releasedatumet sätts till deploydagen om den inte är 2026-10-17. Ingen migration, inga nya miljövariabler.
