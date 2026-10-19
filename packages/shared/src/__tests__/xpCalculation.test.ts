@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DEFAULT_ADMIN_SETTINGS,
   calculateRunXP,
   calculateStreakMultiplier,
   calculateCompleteRunXP,
@@ -140,6 +141,13 @@ describe('calculateRunXP', () => {
       const result = calculateRunXP(5, partialSettings);
       // Ska inte krascha, ska använda defaults
       expect(result.totalXP).toBeGreaterThan(0);
+    });
+
+    it('fyller varje saknat inställningsfält med DEFAULT_ADMIN_SETTINGS och ger samma XP som standardvärdena', () => {
+      for (const km of [0.5, 3, 5, 10, 15, 20, 25]) {
+        expect(calculateRunXP(km, {} as AdminSettings)).toEqual(calculateRunXP(km, DEFAULT_ADMIN_SETTINGS));
+      }
+      expect(DEFAULT_ADMIN_SETTINGS).toEqual(DEFAULT_SETTINGS);
     });
   });
 });

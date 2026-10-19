@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runsInWindow, titleWindow } from '../titleWindow.js';
+import { isCalendarDay, runsInWindow, titleWindow } from '../titleWindow.js';
 
 const run = (date: string, distance_km = 5) => ({ date, distance_km });
 
@@ -71,5 +71,25 @@ describe('runsInWindow', () => {
   it('en runda med ogiltigt datum i ett fönster med startdag ger RangeError, och släpps igenom utan startdag', () => {
     expect(() => runsInWindow([run('inte-en-dag')], titleWindow({ starts_on: '2026-10-05' }))).toThrow(RangeError);
     expect(runsInWindow([run('inte-en-dag')], titleWindow({ starts_on: null }))).toHaveLength(1);
+  });
+});
+
+describe('isCalendarDay', () => {
+  it('accepts a real YYYY-MM-DD day, including a leap day', () => {
+    expect(isCalendarDay('2026-10-05')).toBe(true);
+    expect(isCalendarDay('2028-02-29')).toBe(true);
+  });
+
+  it('rejects a day that does not exist, such as 2026-02-30 or month 13', () => {
+    expect(isCalendarDay('2026-02-30')).toBe(false);
+    expect(isCalendarDay('2027-02-29')).toBe(false);
+    expect(isCalendarDay('2026-13-01')).toBe(false);
+    expect(isCalendarDay('2026-00-10')).toBe(false);
+  });
+
+  it('rejects anything that is not exactly a date string: a timestamp, free text, an empty string, a non-string', () => {
+    for (const bad of ['2026-10-05T10:00:00Z', 'igår', '', '2026-1-5', ' 2026-10-05', 20261005, null, undefined, {}]) {
+      expect(isCalendarDay(bad), String(bad)).toBe(false);
+    }
   });
 });

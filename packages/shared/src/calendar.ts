@@ -25,6 +25,8 @@
  * Manuella rundor har start_time = null och berörs inte.
  */
 
+export const MS_MINUTE = 60_000;
+export const MS_HOUR = 3_600_000;
 export const MS_DAY = 86_400_000;
 
 export const STOCKHOLM_TZ = 'Europe/Stockholm';
