@@ -2,25 +2,33 @@
 # Kör repo-rotens Caddyfile med samma Caddy-version som Railpack mot det byggda
 # apps/frontend/dist och kontrollerar cache- och 404-beteendet med riktiga HTTP-anrop.
 # Körs i CI efter frontend-bygget, från repo-roten.
+# CADDY_BIN (valfri): sökväg till en redan hämtad Caddy av samma version. Då hämtas inget; används för körning lokalt utan nätverk.
 set -euo pipefail
 
 CADDY_VERSION="2.11.4"
 PORT="18080"
 WORK="$(mktemp -d)"
-DIST="$(cd apps/frontend/dist && pwd)"
+# Windows (Git Bash): en inbyggd Caddy vill ha C:/-sökvägar i Caddyfilen, inte /tmp/…; på Linux är sökvägen oförändrad.
+native_path() { if command -v cygpath > /dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
+DIST="$(native_path "$(cd apps/frontend/dist && pwd)")"
 
-archive="caddy_${CADDY_VERSION}_linux_amd64.tar.gz"
-base="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}"
-curl -fsSL -o "$WORK/$archive" "$base/$archive"
-curl -fsSL -o "$WORK/checksums.txt" "$base/caddy_${CADDY_VERSION}_checksums.txt"
-(cd "$WORK" && grep " $archive\$" checksums.txt | sha512sum -c -)
-tar -xzf "$WORK/$archive" -C "$WORK" caddy
+if [[ -n "${CADDY_BIN:-}" ]]; then
+  CADDY="$CADDY_BIN"
+else
+  archive="caddy_${CADDY_VERSION}_linux_amd64.tar.gz"
+  base="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}"
+  curl -fsSL -o "$WORK/$archive" "$base/$archive"
+  curl -fsSL -o "$WORK/checksums.txt" "$base/caddy_${CADDY_VERSION}_checksums.txt"
+  (cd "$WORK" && grep " $archive\$" checksums.txt | sha512sum -c -)
+  tar -xzf "$WORK/$archive" -C "$WORK" caddy
+  CADDY="$WORK/caddy"
+fi
 
 # Samma rendering som Railpack gör av {{.DIST_DIR}}.
 sed "s|{{.DIST_DIR}}|$DIST|g" Caddyfile > "$WORK/Caddyfile"
-"$WORK/caddy" validate --config "$WORK/Caddyfile" --adapter caddyfile
+"$CADDY" validate --config "$WORK/Caddyfile" --adapter caddyfile
 
-PORT="$PORT" "$WORK/caddy" run --config "$WORK/Caddyfile" --adapter caddyfile > "$WORK/caddy.log" 2>&1 &
+PORT="$PORT" "$CADDY" run --config "$WORK/Caddyfile" --adapter caddyfile > "$WORK/caddy.log" 2>&1 &
 CADDY_PID=$!
 trap 'kill "$CADDY_PID" 2>/dev/null || true' EXIT
 
@@ -157,9 +165,9 @@ for dir in assets media fonts .; do
   printf '{"version":3,"sources":[],"mappings":""}' > "$PLANT/$dir/planted.js.map"
   printf 'planted' > "$PLANT/$dir/planted.txt"
 done
-sed "s|{{.DIST_DIR}}|$PLANT|g" Caddyfile > "$WORK/Caddyfile.planted"
-"$WORK/caddy" validate --config "$WORK/Caddyfile.planted" --adapter caddyfile
-PORT="$PLANT_PORT" "$WORK/caddy" run --config "$WORK/Caddyfile.planted" --adapter caddyfile > "$WORK/caddy-planted.log" 2>&1 &
+sed "s|{{.DIST_DIR}}|$(native_path "$PLANT")|g" Caddyfile > "$WORK/Caddyfile.planted"
+"$CADDY" validate --config "$WORK/Caddyfile.planted" --adapter caddyfile
+PORT="$PLANT_PORT" "$CADDY" run --config "$WORK/Caddyfile.planted" --adapter caddyfile > "$WORK/caddy-planted.log" 2>&1 &
 PLANT_PID=$!
 trap 'kill "$CADDY_PID" "$PLANT_PID" 2>/dev/null || true' EXIT
 up=0
@@ -180,8 +188,70 @@ check "kontroll: vanlig fil i roten serveras"            "/planted.txt"         
 check "planterad källkarta i roten ger 404, no-store"    "/planted.js.map"      404 "^cache-control: no-store" "content-type: text/html"
 PORT="$MAIN_PORT"
 
+# Förrenderad landning på exakt / (RUN-260, ADR 006 addendum 2026-10-19 punkt 3 och 11). `/` ger landing.html, alla andra adresser index.html vars #root bara har
+# laddningsvyn, och ett bygge utan landing.html faller tillbaka på index.html i stället för 404. body_check läser kroppen (curl -s), same_body jämför två svar.
+body_check() {
+  local desc="$1" path="$2" want_pattern="$3" reject_pattern="${4:-}" body
+  body="$(curl -s "http://127.0.0.1:$PORT$path")"
+  if ! printf '%s' "$body" | grep -qE "$want_pattern"; then
+    echo "FAIL $desc: $path saknar /$want_pattern/ i kroppen"; failures=$((failures + 1)); return
+  fi
+  if [[ -n "$reject_pattern" ]] && printf '%s' "$body" | grep -qE "$reject_pattern"; then
+    echo "FAIL $desc: $path har förbjuden /$reject_pattern/ i kroppen"; failures=$((failures + 1)); return
+  fi
+  echo "ok   $desc"
+}
+same_body() {
+  local desc="$1" path_a="$2" path_b="$3" sum_a sum_b
+  sum_a="$(curl -s "http://127.0.0.1:$PORT$path_a" | sha256sum)"
+  sum_b="$(curl -s "http://127.0.0.1:$PORT$path_b" | sha256sum)"
+  if [[ "$sum_a" != "$sum_b" ]]; then echo "FAIL $desc: $path_a och $path_b gav olika kroppar"; failures=$((failures + 1)); return; fi
+  echo "ok   $desc"
+}
+LOADER_ONLY='<div id="root"><div class="rq-shell__pending"><div role="status"'
+LANDING_MARKUP='landing-title|rq-landing'
+
+check "roten är HTML, no-cache"                           "/"                     200 "^content-type: text/html" "immutable"
+body_check "roten är den förrenderade landningen"          "/"                     "landing-title" '<div id="root"></div>'
+body_check "/?tab=titles ger landningen"                 "/?tab=titles"          "landing-title"
+same_body "/?tab=titles ger samma fil som /"               "/"                     "/?tab=titles"
+body_check "/?utm_source=x ger landningen"               "/?utm_source=x"        "landing-title"
+same_body "/?utm_source=x ger samma fil som /"             "/"                     "/?utm_source=x"
+check "/?utm_source=x är HTML, no-cache"                  "/?utm_source=x"        200 "^cache-control: no-cache"
+for spa in /titles /login /runner/x /board /legal; do
+  body_check "$spa ger index.html med bara laddningsvyn i #root" "$spa" "$LOADER_ONLY" "$LANDING_MARKUP"
+done
+# /landing.html och /landing löses av SPA-blockets try_files till samma fil. De omdirigeras till / (frågan följer med) i stället för att ge en andra adress till landningen.
+host_check "/landing.html omdirigeras till /"              "www.runquest.dev"      "/landing.html"           307 "/"
+host_check "/landing omdirigeras till /"                   "www.runquest.dev"      "/landing"                307 "/"
+host_check "/landing.html behåller frågan i omdirigeringen" "www.runquest.dev"     "/landing.html?utm_source=x" 307 "/?utm_source=x"
+
+# Ett bygge utan landing.html: / faller tillbaka på index.html (200, laddningsvyn), aldrig 404, och omdirigeringarna är kvar. Egen kopia av dist, egen Caddy.
+BARE="$WORK/dist-without-landing"
+BARE_PORT="18082"
+cp -R "$DIST" "$BARE"
+rm "$BARE/landing.html"
+sed "s|{{.DIST_DIR}}|$(native_path "$BARE")|g" Caddyfile > "$WORK/Caddyfile.bare"
+"$CADDY" validate --config "$WORK/Caddyfile.bare" --adapter caddyfile
+PORT="$BARE_PORT" "$CADDY" run --config "$WORK/Caddyfile.bare" --adapter caddyfile > "$WORK/caddy-bare.log" 2>&1 &
+BARE_PID=$!
+trap 'kill "$CADDY_PID" "$PLANT_PID" "$BARE_PID" 2>/dev/null || true' EXIT
+up=0
+for _ in $(seq 1 50); do
+  if curl -fs "http://127.0.0.1:$BARE_PORT/health" > /dev/null; then up=1; break; fi
+  sleep 0.2
+done
+if (( up == 0 )); then
+  echo "FAIL Caddy utan landing.html svarade aldrig på /health"; tail -40 "$WORK/caddy-bare.log"; exit 1
+fi
+PORT="$BARE_PORT"
+check "utan landing.html ger / index.html, inte 404"       "/"                     200 "^cache-control: no-cache"
+body_check "utan landing.html har / bara laddningsvyn"      "/"                     "$LOADER_ONLY" "$LANDING_MARKUP"
+body_check "utan landing.html har /?utm_source=x bara laddningsvyn" "/?utm_source=x" "$LOADER_ONLY" "$LANDING_MARKUP"
+PORT="$MAIN_PORT"
+
 if (( failures > 0 )); then
-  echo "--- caddy-logg ---"; tail -20 "$WORK/caddy.log"; tail -20 "$WORK/caddy-planted.log"
+  echo "--- caddy-logg ---"; tail -20 "$WORK/caddy.log"; tail -20 "$WORK/caddy-planted.log"; tail -20 "$WORK/caddy-bare.log"
   exit 1
 fi
 echo "Statisk servering: alla kontroller gröna."

@@ -8,7 +8,7 @@
   },
   "components": [
     { "id": "browser", "type": "external", "label": "Webbläsare", "sublabel": "6 aktiva användare", "pos": [40, 298], "size": [150, 64] },
-    { "id": "frontend", "type": "frontend", "label": "Frontend (SPA)", "sublabel": "React 18 · Vite 7", "tag": "Railway", "pos": [290, 118], "size": [170, 64] },
+    { "id": "frontend", "type": "frontend", "label": "Frontend (SPA)", "sublabel": "React 18 · Vite 7 · förrenderad landning", "tag": "Railway", "pos": [290, 118], "size": [260, 64] },
     { "id": "backend", "type": "backend", "label": "Backend-API", "sublabel": "Express 5 · :3001", "tag": "Railway", "pos": [560, 298], "size": [170, 64] },
     { "id": "storage", "type": "cloud", "label": "Supabase Storage", "sublabel": "bucket: profile-pictures", "pos": [860, 118], "size": [170, 64] },
     { "id": "strava", "type": "external", "label": "Strava API", "sublabel": "OAuth2 · aktiviteter", "pos": [1150, 298], "size": [150, 64] },

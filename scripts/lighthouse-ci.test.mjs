@@ -190,6 +190,7 @@ describe('run.sh guards', () => {
   before(() => {
     dist = mkdtempSync(join(tmpdir(), 'lh-dist-'));
     writeFileSync(join(dist, 'index.html'), '<!doctype html>');
+    writeFileSync(join(dist, 'landing.html'), '<!doctype html>');
   });
   after(() => rmSync(dist, { recursive: true, force: true }));
 
@@ -205,6 +206,19 @@ describe('run.sh guards', () => {
     const res = run({ STATS_MODE: 'error', DIST_DIR: join(dist, 'saknas') });
     assert.equal(res.status, 1);
     assert.match(res.stdout, /index\.html saknas/);
+  });
+
+  // Utan landing.html faller / tillbaka på index.html: mätningen skulle då gälla laddningsvyn och inte den förrenderade landningen.
+  it('refuses to measure / when the build has no prerendered landing page', () => {
+    const bare = mkdtempSync(join(tmpdir(), 'lh-bare-'));
+    try {
+      writeFileSync(join(bare, 'index.html'), '<!doctype html>');
+      const res = run({ STATS_MODE: 'error', DIST_DIR: bare });
+      assert.equal(res.status, 1);
+      assert.match(res.stdout, /landing\.html saknas/);
+    } finally {
+      rmSync(bare, { recursive: true, force: true });
+    }
   });
 
   // spawnSync blockerar händelseslingan, så den upptagna servern måste leva i en egen process medan skriptet kör.

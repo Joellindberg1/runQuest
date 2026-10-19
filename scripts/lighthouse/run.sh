@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lighthouse CI för de publika sidorna (RUN-259): serverar det byggda apps/frontend/dist med samma Caddy och Caddyfile som
-# scripts/verify-static-serving.sh, mäter / och /legal (mobilprofil, 3 körningar) och prövar budgeten i lighthouserc.json.
+# scripts/verify-static-serving.sh, mäter den förrenderade / (landing.html) och /legal (index.html med laddningsvyn; mobilprofil, 3 körningar) och prövar budgeten i lighthouserc.json.
 # Inget når internet: allt går mot 127.0.0.1, ingen Railway, ingen prod, ingen extern lagring.
 # Körs från repo-roten efter frontend-bygget. Budgeten och hur den ändras: docs/release.md ("Lighthouse-budget").
 #
@@ -24,6 +24,8 @@ LHCI="$HERE/node_modules/.bin/lhci"
 
 # Vakterna först och utan beroenden, så att de kan provas utan att lhci är installerat (scripts/lighthouse-ci.test.mjs).
 if [[ ! -f "$DIST_DIR/index.html" ]]; then echo "FAIL $DIST_DIR/index.html saknas: bygg frontend först"; exit 1; fi
+# / ska mätas som den förrenderade landningen (Caddyfilen serverar landing.html på exakt /). Utan filen faller / tillbaka på index.html och mätningen gäller laddningsvyn.
+if [[ ! -f "$DIST_DIR/landing.html" ]]; then echo "FAIL $DIST_DIR/landing.html saknas: / skulle falla tillbaka på index.html och inte mäta den förrenderade landningen"; exit 1; fi
 case "$STATS_MODE" in error|mock) ;; *) echo "FAIL STATS_MODE ska vara error eller mock, inte '$STATS_MODE'"; exit 1 ;; esac
 
 # Frontend-bygget pekar på http://localhost:3001/api när VITE_API_URL saknas. Något som redan svarar där är ett riktigt backend, inte
@@ -70,6 +72,9 @@ for _ in $(seq 1 50); do
   sleep 0.2
 done
 if (( up == 0 )); then echo "FAIL Caddy svarade aldrig på /health"; tail -40 "$WORK/caddy.log"; exit 1; fi
+# Samma vakt mot det som faktiskt serveras: Caddyfilen ska ge landningen på / (inte en tom #root) och laddningsvyn på /legal.
+curl -fs "http://127.0.0.1:$PORT/" | grep -q "landing-title" || { echo "FAIL / serveras inte som den förrenderade landningen (saknar landing-title): kontrollera Caddyfilens regel för /"; exit 1; }
+curl -fs "http://127.0.0.1:$PORT/legal" | grep -q "rq-shell__pending" || { echo "FAIL /legal serveras inte som index.html med laddningsvyn"; exit 1; }
 if [[ "$STATS_MODE" == "mock" ]]; then
   curl -fs "http://127.0.0.1:$API_PORT/api/public/stats" > /dev/null || { echo "FAIL det falska API:et svarade aldrig"; cat "$WORK/mock-api.log"; exit 1; }
 fi
