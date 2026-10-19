@@ -74,8 +74,8 @@ function setup(data: Record<string, Row[]> = tables()) {
     rpc: {
       update_group_title_leaderboard: rpc('update_group_title_leaderboard'),
       update_group_title_leaderboards: rpc('update_group_title_leaderboards'),
-      update_title_leaderboard: rpc('update_title_leaderboard'),
-      update_all_title_leaderboards: rpc('update_all_title_leaderboards'),
+      rebuild_one_title: rpc('rebuild_one_title'),
+      rebuild_all_groups: rpc('rebuild_all_groups'),
     },
   });
   holder.client = db.client;

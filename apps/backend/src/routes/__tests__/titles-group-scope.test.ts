@@ -75,8 +75,8 @@ function use() {
   const record = (name: string) => (args: unknown) => { rpcCalls.push({ name, args }); return { data: null }; };
   const db = createFakeDb(tables(), { rpc: {
     update_group_title_leaderboards: record('update_group_title_leaderboards'),
-    update_all_title_leaderboards: record('update_all_title_leaderboards'),
-    update_title_leaderboard: record('update_title_leaderboard'),
+    rebuild_all_groups: record('rebuild_all_groups'),
+    rebuild_one_title: record('rebuild_one_title'),
   } });
   holder.client = db.client;
   return { queries: db.queries, rpcCalls };

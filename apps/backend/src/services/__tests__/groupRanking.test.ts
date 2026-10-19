@@ -1,6 +1,6 @@
 /**
- * Gruppens titelranking byggs om per grupp (ADR 012 beslut 4.3): update_group_title_leaderboards(groupId), aldrig den globala
- * update_all_title_leaderboards. Efter en join byggs den om utan att det ger titelnyheter, och ett fel fäller aldrig joinen.
+ * Gruppens titelranking byggs om per grupp (ADR 012 beslut 4.3): update_group_title_leaderboards(groupId), aldrig en global
+ * ombyggnad av alla grupper. Efter en join byggs den om utan att det ger titelnyheter, och ett fel fäller aldrig joinen.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -19,7 +19,7 @@ function fakeRpc(result: { data?: unknown; error?: { message: string; code?: str
   const calls: Array<{ name: string; args: unknown }> = [];
   const rpc = (name: string) => (args: unknown) => { calls.push({ name, args }); return result; };
   const db = createFakeDb({}, {
-    rpc: { update_group_title_leaderboards: rpc('update_group_title_leaderboards'), update_all_title_leaderboards: rpc('update_all_title_leaderboards') },
+    rpc: { update_group_title_leaderboards: rpc('update_group_title_leaderboards'), rebuild_all_groups: rpc('rebuild_all_groups') },
   });
   return { calls, db: db.client as never };
 }

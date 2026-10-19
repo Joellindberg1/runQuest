@@ -118,11 +118,12 @@ describe('the fingerprint diff', () => {
 describe('known differences', () => {
   const grantKey = (signature: string, grantee = 'PUBLIC') => `${signature} -> ${grantee} EXECUTE`;
   const grantRows = (signatures: readonly string[], grantee = 'PUBLIC'): Row[] => signatures.map((s) => ({ key: grantKey(s, grantee), value: '{"grantable":false}' }));
+  // Four example functions that carry the grants of the case. The names stand for any four functions; migration 056 closed such grants on four real ones.
   const FOUR_FUNCTIONS = [
-    'public.increment_event_xp(p_user_id uuid, p_xp integer)',
-    'public.trigger_update_title_leaderboard()',
-    'public.update_all_title_leaderboards()',
-    'public.update_title_leaderboard(p_title_id uuid)',
+    'public.example_award(p_user_id uuid, p_amount integer)',
+    'public.example_trigger()',
+    'public.example_rebuild_all()',
+    'public.example_rebuild_one(p_item_id uuid)',
   ];
   const clientGrants = (): Row[] => [...grantRows(FOUR_FUNCTIONS, 'anon'), ...grantRows(FOUR_FUNCTIONS, 'authenticated')];
   /** What a project has on the four functions after 056: the owner and service_role only. */

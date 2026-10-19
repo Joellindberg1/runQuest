@@ -61,7 +61,7 @@ function use(tables: Record<string, Row[]>, options: FakeDbOptions = {}, beforeR
 function rebuildRpc(order: string[] = [], result: { error?: { code: string; message: string } } = {}): NonNullable<FakeDbOptions['rpc']> {
   return {
     update_group_title_leaderboards: (args: any) => { order.push('rebuild:' + args.p_group_id); return result.error ? { error: result.error } : { data: null }; },
-    update_all_title_leaderboards: () => { order.push('rebuild:ALL'); return { data: null }; },
+    rebuild_all_groups: () => { order.push('rebuild:ALL'); return { data: null }; },
   };
 }
 

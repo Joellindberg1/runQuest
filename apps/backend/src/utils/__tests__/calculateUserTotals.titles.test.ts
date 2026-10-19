@@ -30,7 +30,7 @@ const globalRefresh = vi.fn(() => ({ data: null, error: null }));
 function use(tables: Record<string, Row[]>, options: Partial<FakeDbOptions> = {}) {
   const db = createFakeDb(tables, {
     numericIds: ['activity_log'],
-    rpc: { update_group_title_leaderboards: groupRefresh, update_all_title_leaderboards: globalRefresh },
+    rpc: { update_group_title_leaderboards: groupRefresh, rebuild_all_groups: globalRefresh },
     ...options,
   });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
