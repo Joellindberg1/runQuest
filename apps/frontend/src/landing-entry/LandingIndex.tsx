@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/providers/authContext';
 import LandingPage from '@/pages/LandingPage';
 import { paths } from '@/paths';
@@ -26,6 +26,17 @@ function usePrefetchLoginDialogOnIntent() {
   }, []);
 }
 
+/** Skriver om en filadress (`/landing.html`) till `/` utan omladdning; fråga och fragment behålls. Gör inget för en inloggad besökare, som lämnar sidan. */
+function useCanonicalAddress(enabled: boolean) {
+  const navigate = useNavigate();
+  const { search, hash } = useLocation();
+  const { user } = useAuth();
+  const signedIn = user !== null;
+  useEffect(() => {
+    if (enabled && !signedIn) navigate({ pathname: paths.landing, search, hash }, { replace: true });
+  }, [enabled, signedIn, navigate, search, hash]);
+}
+
 /**
  * `/` och `/login` i lean ingången (ADR 006, addendum 2026-10-19, punkt 8): samma sida som fullappens `pages/Index`, med inloggningsdialogen lazy. Båda
  * routerna renderar detta element på samma plats, så landningen ommonteras inte när dialogen öppnas eller stängs.
@@ -33,10 +44,11 @@ function usePrefetchLoginDialogOnIntent() {
  * En inloggad besökare (lyckad inloggning, eller en session som återställs) går inte via `<Navigate>`: den renderar null i en commit innan
  * navigeringen sker, och containern vore tom. I stället ersätter överlämningen landningen direkt med appens laddningsvy.
  */
-export function LandingIndex({ loginOpen = false }: { loginOpen?: boolean }) {
+export function LandingIndex({ loginOpen = false, canonicalizeAddress = false }: { loginOpen?: boolean; canonicalizeAddress?: boolean }) {
   const { user } = useAuth();
   const { search } = useLocation();
   usePrefetchLoginDialogOnIntent();
+  useCanonicalAddress(canonicalizeAddress);
 
   if (user) return <AppHandoff to={signedInTarget(loginOpen, search)} />;
   return (

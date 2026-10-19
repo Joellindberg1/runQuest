@@ -17,6 +17,11 @@ describe('signedInTarget', () => {
     ['/login?next=/ would reload the landing', true, '?next=%2F', '/board'],
     ['/login?next=/?utm=x would reload the landing', true, '?next=%2F%3Futm%3Dx', '/board'],
     ['/login?next=/#section would reload the landing', true, '?next=%2F%23section', '/board'],
+    ['/login?next=/landing is the landing file', true, '?next=%2Flanding', '/board'],
+    ['/login?next=/landing.html is the landing file', true, '?next=%2Flanding.html', '/board'],
+    ['/login?next=/landing.html?utm=x keeps nothing of it', true, '?next=%2Flanding.html%3Futm%3Dx', '/board'],
+    ['/login?next=/Landing.HTML#top, any case', true, '?next=%2FLanding.HTML%23top', '/board'],
+    ['/login?next=/landing/ with a trailing slash', true, '?next=%2Flanding%2F', '/board'],
   ])('%s', (_name, loginOpen, search, expected) => {
     expect(signedInTarget(loginOpen, search)).toBe(expected);
   });

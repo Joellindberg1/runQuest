@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { setViewportWidth } from '@/test/viewport';
 
 // Den lean landningens träd (ADR 006, addendum 2026-10-19, punkt 1 och 8): `/` och `/login` är samma landning med dialogen lazy ovanpå, `/legal` är lazy,
@@ -25,9 +25,20 @@ import { leaveForApp } from './leaveForApp';
 
 const USER = { id: 'u-anna', name: 'Anna', email: 'anna@example.com' };
 
+/** Adressen som routern står på, med fråga och fragment: det som webbläsarens adressfält skulle visa. */
+function AddressProbe() {
+  const { pathname, search, hash } = useLocation();
+  return <div data-testid="address">{`${pathname}${search}${hash}`}</div>;
+}
+
 const at = (address: string) =>
   function Router({ children }: { children: ReactNode }) {
-    return <MemoryRouter initialEntries={[address]}>{children}</MemoryRouter>;
+    return (
+      <MemoryRouter initialEntries={[address]}>
+        {children}
+        <AddressProbe />
+      </MemoryRouter>
+    );
   };
 
 const renderLanding = (address = '/') => render(<LandingApp Router={at(address)} />);
@@ -93,6 +104,53 @@ describe('the landing and its sign-in dialog', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Privacy & Terms' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: 'Your group chat deserves a leaderboard' })).not.toBeInTheDocument();
   });
+});
+
+describe('the landing file addresses', () => {
+  // Caddys try_files löser /landing.html och /landing till dist/landing.html (och S6:s regel /). Lean routern får inte lämna över dem till fullappen: den
+  // omladdningen ger samma fil igen, i en evig loop. De är landningen, och adressen skrivs om till / utan omladdning och utan att landningen ritas om.
+  it.each([
+    ['/landing', '/'],
+    ['/landing.html', '/'],
+    ['/Landing.HTML', '/'],
+    ['/landing?utm_source=x#top', '/?utm_source=x#top'],
+    ['/landing.html?utm_source=x#top', '/?utm_source=x#top'],
+  ])('%s shows the landing, rewrites the address to %s and never hands over', async (address, canonical) => {
+    const removed: string[] = [];
+    const container = document.body.appendChild(document.createElement('div'));
+    const observer = new MutationObserver((records) => records.forEach((record) => record.removedNodes.forEach((node) => {
+      if (node instanceof Element && node.querySelector('#landing-title')) removed.push('landing');
+      if (node instanceof Element && node.id === 'landing-title') removed.push('h1');
+    })));
+    observer.observe(container, { childList: true, subtree: true });
+
+    render(<LandingApp Router={at(address)} />, { container });
+    await waitFor(() => expect(screen.getByTestId('address')).toHaveTextContent(canonical));
+    observer.disconnect();
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Your group chat deserves a leaderboard');
+    expect(removed).toEqual([]);
+    expect(leaveForApp).not.toHaveBeenCalled();
+  });
+
+  it('a signed-in visitor on /landing.html is sent to the app, never back to a landing file', async () => {
+    api.isAuthenticated.mockReturnValue(true);
+    api.getCurrentUser.mockReturnValue(USER);
+    renderLanding('/landing.html?utm_source=x');
+    await waitFor(() => expect(leaveForApp).toHaveBeenCalledWith('/board?utm_source=x'));
+  });
+
+  it.each(['%2Flanding', '%2Flanding.html', '%2Flanding.html%3Futm%3Dx', '%2FLanding.HTML%23top'])(
+    'signing in from /login?next=%s leaves for /board, never for a landing file',
+    async (next) => {
+      const user = userEvent.setup();
+      api.login.mockResolvedValue({ success: true, user: USER });
+      renderLanding(`/login?next=${next}`);
+      await signIn(user);
+      await waitFor(() => expect(leaveForApp).toHaveBeenCalledWith('/board'));
+      expect(leaveForApp).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe('the hand-over to the full app', () => {

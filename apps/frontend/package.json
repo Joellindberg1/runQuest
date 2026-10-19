@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/prerender-landing.mjs",
-    "build:dev": "vite build --mode development && node scripts/prerender-landing.mjs",
+    "build:dev": "vite build --mode development && node scripts/prerender-landing.mjs --mode development",
     "lint": "eslint .",
     "lint:css": "stylelint \"src/**/*.css\" --max-warnings 0",
     "test": "vitest run",

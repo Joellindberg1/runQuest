@@ -29,11 +29,22 @@ function assertMarker(html, marker, file) {
 
 const fill = (html, marker, markup) => html.replace(rootWith(marker), () => rootWith(markup));
 
+/** Läget ur kommandoraden (`--mode x`, `--mode=x`, `-m x`), samma flaggor som `vite build`; undefined om inget anges. */
+export function modeFromArgs(argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--mode' || arg === '-m') return argv[i + 1];
+    if (arg.startsWith('--mode=')) return arg.slice('--mode='.length);
+  }
+  return undefined;
+}
+
 /**
  * Fyller landing.html och index.html i `distDir`.
- * @param {{ root: string, distDir: string, ssrEntry?: string }} options `root` är frontend-katalogen (vite.config.ts), `ssrEntry` relativt `root`.
+ * @param {{ root: string, distDir: string, ssrEntry?: string, mode?: string }} options `root` är frontend-katalogen (vite.config.ts), `ssrEntry` relativt `root`.
+ *   `mode` är läget klientbygget kördes i: SSR-bygget läser då samma .env.<mode>-filer och förrenderingen kan inte skilja sig från klienten.
  */
-export async function prerenderLanding({ root, distDir, ssrEntry = DEFAULT_SSR_ENTRY }) {
+export async function prerenderLanding({ root, distDir, ssrEntry = DEFAULT_SSR_ENTRY, mode }) {
   const landingPath = join(distDir, 'landing.html');
   const indexPath = join(distDir, 'index.html');
   const landingHtml = readFileSync(landingPath, 'utf8');
@@ -48,6 +59,7 @@ export async function prerenderLanding({ root, distDir, ssrEntry = DEFAULT_SSR_E
   try {
     await build({
       root,
+      mode,
       logLevel: 'warn',
       publicDir: false,
       build: {
@@ -72,7 +84,7 @@ const isCommandLine = process.argv[1] !== undefined && pathToFileURL(resolve(pro
 if (isCommandLine) {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   try {
-    await prerenderLanding({ root, distDir: join(root, 'dist') });
+    await prerenderLanding({ root, distDir: join(root, 'dist'), mode: modeFromArgs(process.argv.slice(2)) });
     console.log('prerender-landing: dist/landing.html har landningen och dist/index.html laddningsvyn i #root');
   } catch (error) {
     console.error(error);

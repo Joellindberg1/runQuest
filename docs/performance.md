@@ -278,7 +278,7 @@ Det som **inte** går att avgöra ur baslinjen: om 2,5 s nås efter förrenderin
 
 ## Lean ingång för landningen (RUN-331, S4)
 
-Mätt 2026-10-19 på bygget av S4 (`npm run build` i `apps/frontend`, prodläge). `dist/landing.html` finns men **serveras inte än** (Caddy-regeln kommer i S6), så det här är bytes ur filerna, inte Lighthouse-tider: LCP/FCP/TBT mäts först i S6. Jämförelsen är mot S1:s tabell "Bytes" ovan (samma metod: rått, och gzip nivå 9 med `zlib`; "överfört" via Caddy kan inte mätas innan `/` serveras). Räknade filer är exakt de som `landing.html` laddar före första målningen: ingångs-JS, dess `modulepreload`-chunkar och dess `<link rel=stylesheet>`.
+Mätt 2026-10-19 på bygget av S4 (`npm run build` i `apps/frontend`, prodläge). `dist/landing.html` finns men **serveras inte på `/` än** (Caddy-regeln kommer i S6; filen nås redan på `/landing.html` och `/landing` via `try_files`, vilket lean ingången hanterar, se `src/landing-entry/README.md`), så det här är bytes ur filerna, inte Lighthouse-tider: LCP/FCP/TBT mäts först i S6. Jämförelsen är mot S1:s tabell "Bytes" ovan (samma metod: rått, och gzip nivå 9 med `zlib`; "överfört" via Caddy kan inte mätas innan `/` serveras). Räknade filer är exakt de som `landing.html` laddar före första målningen: ingångs-JS, dess `modulepreload`-chunkar och dess `<link rel=stylesheet>`.
 
 | Första besöket på `/` | Före (S1, `index.html` + lazy `Index`) | Efter (`landing.html`) | Skillnad |
 |---|---|---|---|

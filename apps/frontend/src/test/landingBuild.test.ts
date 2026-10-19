@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { build, type Plugin } from 'vite';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RoutePending } from '@/app-shell/RoutePending';
-import { LANDING_MARKER, LOADER_MARKER, prerenderLanding } from '../../scripts/prerender-landing.mjs';
+import { LANDING_MARKER, LOADER_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
 
 // Bygget av de två HTML-ingångarna (ADR 006, addendum 2026-10-19, punkt 1, 2 och 11): `vite build` följt av prerender-landing, med samma konfiguration som
 // `npm run build`, mot en tillfällig utkatalog (public/ hoppas över, filmen är stor). Landningens rubrik, stegen och sifferraden prövas i sin modell och
@@ -235,6 +235,25 @@ describe('the build guards', () => {
   it('fails when a marker is outside #root', async () => {
     const distDir = fakeDist('marker-outside-root', { index: `${LOADER_MARKER}<div id="root"></div>`, landing: inRoot(LANDING_MARKER) });
     await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(LOADER_MARKER);
+  });
+
+  it.each([
+    [undefined, 'production'],
+    ['development', 'development'],
+  ])('builds the server render in the mode it is given (%s), the way the client build was run', async (mode, expected) => {
+    const distDir = fakeDist(`mode-${mode ?? 'default'}`, { index: inRoot(LOADER_MARKER), landing: inRoot(LANDING_MARKER) });
+    await prerenderLanding({ root: frontend, distDir, ssrEntry: 'src/test/ssrMode.fixture.ts', mode });
+    expect(readFileSync(join(distDir, 'landing.html'), 'utf8')).toContain(inRoot(expected));
+  }, BUILD_TIMEOUT_MS);
+
+  it.each([
+    [['--mode', 'development'], 'development'],
+    [['--mode=staging'], 'staging'],
+    [['-m', 'development'], 'development'],
+    [[], undefined],
+    [['--other', 'x'], undefined],
+  ])('reads the mode from the command line %j', (argv, expected) => {
+    expect(modeFromArgs(argv)).toBe(expected);
   });
 
   it('fails the build when a landing module touches window at import, and removes its work directory', async () => {
