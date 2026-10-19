@@ -32,10 +32,11 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 vi.mock('../../services/badgeService.js', () => ({ evaluateBadges: vi.fn(async () => null) }));
-const processAllUsersTitles = vi.hoisted(() => vi.fn(async () => ({ total: 0, processed: 0, failed: 0 })));
+const processGroupTitles = vi.hoisted(() => vi.fn(async () => ({ total: 0, processed: 0, failed: 0 })));
+const processAllGroupsTitles = vi.hoisted(() => vi.fn(async () => ({ total: 0, processed: 0, failed: 0 })));
 vi.mock('../../services/enhancedTitleService.js', () => ({
-  EnhancedTitleService: class { processAllUsersTitles = processAllUsersTitles; },
-  enhancedTitleService: { processAllUsersTitles },
+  EnhancedTitleService: class { processGroupTitles = processGroupTitles; processAllGroupsTitles = processAllGroupsTitles; },
+  enhancedTitleService: { processGroupTitles, processAllGroupsTitles },
 }));
 vi.mock('../../services/weatherService.js', () => ({
   WeatherService: { fetchAndSaveWeatherForRuns: vi.fn().mockResolvedValue(undefined), backfillMissingWeather: vi.fn() },
@@ -48,6 +49,7 @@ vi.mock('@runquest/shared', async (importOriginal) => {
 
 import { detectRankPasses, notifyKey } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { createApp } from '../../app.js';
 import { settleChallenge } from '../../services/challengeService.js';
 import { settleCompetitionEvents } from '../../services/eventService.js';
@@ -108,6 +110,8 @@ function world(over: Partial<Tables> = {}): Tables {
  * bort varje rad som routerna skrivit.
  */
 function use(t: Tables, options: Parameters<typeof createFakeDb>[1] = {}) {
+  // Medlemskapet i group_members är sanningen för titelkedjan (ADR 012); fixturen speglar pekaren users.group_id.
+  t.group_members ??= (t.users ?? []).filter((u) => u.group_id).map((u) => ({ id: `m-${u.id}`, user_id: u.id, group_id: u.group_id, role: 'member', starts_on: null, left_at: null }));
   const db = createFakeDb(t, {
     autoIds: true,
     numericIds: ['activity_log'],
@@ -238,7 +242,7 @@ describe('rank_passed i flödet: xp', () => {
     expect(t.activity_log).toEqual([]);
     expect(await unreadCount(M)).toBe(0);
     // Resten av kedjan efter observatören kördes: titlarna omräknades för gruppen.
-    expect(processAllUsersTitles).toHaveBeenCalledWith(G);
+    expect(processGroupTitles).toHaveBeenCalledWith(G);
 
     // Felet var engångs: nästa runda går som vanligt och passeringen skrivs. Bertil har under tiden gått upp till 150 XP, så Anna
     // (som låg bakom honom vid dygnsskiftet och med 140 fortfarande gör det) går förbi honom med en 6 km-runda på 32 XP -> 172.
@@ -253,7 +257,7 @@ describe('rank_passed i flödet: xp', () => {
     // Den riktiga massvägen: Annas FÖRSTA Strava-import (hon har bara manuella rundor) går via POST /api/strava/sync och
     // calculateUserTotals(userId, { emitRankNews: false }). Importen lyfter henne förbi Bertil, men ingen enskild runda orsakade det.
     const t = world({
-      strava_tokens: [{ user_id: W, access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, connection_date: '2026-09-01' }],
+      strava_tokens: [{ user_id: W, ...tokenCols(W, 'at', 'rt'), expires_at: 9999999999, connection_date: '2026-09-01' }],
     });
     use(t);
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {

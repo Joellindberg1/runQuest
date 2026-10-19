@@ -41,6 +41,7 @@ vi.mock('../xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
 import { withUserLock } from '../../utils/keyedMutex.js';
@@ -48,6 +49,8 @@ import { buildStravaRunRow } from '../stravaImport.js';
 import { createStravaRateBudget } from '../stravaRateBudget.js';
 import { setStravaRequestHooks } from '../stravaClient.js';
 import { createStravaReconciler, type ReconcileDeps } from '../stravaReconcile.js';
+import { createRecalculationRecovery } from '../recalculationMarks/recovery.js';
+import { createInMemoryMarkStore, type InMemoryMarkStore } from '../../test-utils/inMemoryRecalculationMarks.js';
 import { createReconcilePorts } from '../stravaReconcile/adapters.js';
 import { nightIndex } from '../stravaReconcile/plan.js';
 import type { ReconcilePorts } from '../stravaReconcile/ports.js';
@@ -84,6 +87,7 @@ beforeEach(() => {
 afterEach(() => {
   restoreHooks?.();
   restoreHooks = undefined;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   strava?.restore(); // throws when the code reached a Strava URL the test did not configure
   strava = undefined;
@@ -91,8 +95,7 @@ afterEach(() => {
 
 const tokenRow = (userId: string, over: Row = {}): Row => ({
   user_id: userId,
-  access_token: 'old-at',
-  refresh_token: 'old-rt',
+  ...tokenCols(userId, 'old-at', 'old-rt'),
   expires_at: 9999999999,
   connection_date: '2026-01-01T09:00:00+00:00',
   sync_paused: false,
@@ -118,6 +121,8 @@ interface Setup {
   recompute?: (real: Recompute) => Recompute;
   ports?: (real: ReconcilePorts) => ReconcilePorts;
   deps?: Partial<ReconcileDeps>;
+  /** The recalculation marks the reconcile writes (migration 057). Default: a fresh in-memory store. */
+  marks?: InMemoryMarkStore;
 }
 
 function build(setup: Setup = {}) {
@@ -150,15 +155,19 @@ function build(setup: Setup = {}) {
     },
   };
   const realPorts = createReconcilePorts();
+  const marks = setup.marks ?? createInMemoryMarkStore();
   const reconciler = createStravaReconciler({
     ports: setup.ports ? setup.ports(realPorts) : realPorts,
     strava: createStravaApi(),
     runs: createRunStore(),
     recompute: setup.recompute ? setup.recompute(counting) : counting,
+    marks,
     now,
     ...setup.deps,
   });
-  return { t, db, reconciler, reprocessCalls, strava: strava! };
+  /** The job that picks up what a night left marked, with the real recalculation (the counting one, so a test sees the dates). */
+  const recovery = createRecalculationRecovery({ store: marks, recompute: counting });
+  return { t, db, reconciler, reprocessCalls, strava: strava!, marks, recovery };
 }
 
 const ids = (rows: Row[]) => rows.map((row) => row.external_id).sort();
@@ -801,5 +810,421 @@ describe('nightly reconcile', () => {
     expect(attempts).toBe(2);
     expect(reprocessCalls).toHaveLength(1); // the failing wrapper sits in front of the counting one: only the second try got through
     expect(calculateUserTotals).toHaveBeenCalledTimes(1); // totals only after a reprocess that worked
+  });
+});
+
+describe('nightly reconcile and the recalculation marks', () => {
+  const D12 = { start_date: '2026-10-12T05:30:00Z', start_date_local: '2026-10-12T07:30:00Z' };
+  const D13 = { start_date: '2026-10-13T05:30:00Z', start_date_local: '2026-10-13T07:30:00Z' };
+  const D14 = { start_date: '2026-10-14T05:30:00Z', start_date_local: '2026-10-14T07:30:00Z' };
+  const boom = () => Object.assign(new Error('boom'), { code: '57014' });
+
+  /** Three runs on three days in a row: the 13th is gone on Strava, and the 14th still holds the streak and XP it had with the 13th. */
+  const threeDays = () => {
+    const first = activityOf(7345001, D12);
+    const gone = activityOf(7345002, D13);
+    const last = activityOf(7345003, D14);
+    return {
+      tables: {
+        runs: [
+          storedRun(first, 'user-1', { streak_day: 1 }),
+          storedRun(gone, 'user-1', { streak_day: 2 }),
+          storedRun(last, 'user-1', { streak_day: 3, xp_gained: 777 }),
+        ],
+      },
+      routes: { athleteActivities: [first, last], activities: {} }, // 7345002 is not listed and answers 404
+    };
+  };
+
+  it('reconcile recalculates after a night that was cut off after the deletion, at the next run of the recovery', async () => {
+    // The process dies (or the database does) between the deletion and the recalculation: the deletion is done, the recalculation is not,
+    // and both tries fail. What is left behind is the same either way: no run, a stale 14th, and the mark.
+    const { t, reconciler, marks, recovery, reprocessCalls } = build({
+      ...threeDays(),
+      recompute: (real) => ({
+        ...real,
+        reprocessFrom: async () => {
+          throw boom();
+        },
+      }),
+    });
+
+    const night = await reconciler.run();
+
+    expect(night).toMatchObject({ removed: 1, failed: 1 });
+    expect(ids(t.runs)).toEqual(['7345001', '7345003']);
+    expect(t.runs.find((r) => r.external_id === '7345003')).toMatchObject({ streak_day: 3, xp_gained: 777 }); // stale: the recalculation never ran
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-10-13', version: 1 }]);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+
+    // The next run of the recovery (at start, or at 04:05): the right recalculation, from the date of the run that went.
+    const recovered = await recovery.run();
+
+    expect(recovered).toEqual({ found: 1, recalculated: 1, failed: 0 });
+    expect(reprocessCalls).toEqual([{ userId: 'user-1', fromDate: '2026-10-13' }]);
+    expect(calculateUserTotals).toHaveBeenCalledTimes(1);
+    expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
+    expect(t.runs.find((r) => r.external_id === '7345003')).toMatchObject({ streak_day: 1 }); // the 13th is gone: the streak starts over
+    expect(t.runs.find((r) => r.external_id === '7345003')!.xp_gained).not.toBe(777);
+    expect(marks.rows()).toEqual([]);
+
+    // And nothing more is done afterwards.
+    reprocessCalls.length = 0;
+    expect(await recovery.run()).toEqual({ found: 0, recalculated: 0, failed: 0 });
+    expect(reprocessCalls).toEqual([]);
+  });
+
+  it('reconcile marks the user before it deletes the run, with the date of the run', async () => {
+    let markedWhenDeleting: unknown = 'the delete was never seen';
+    const marks = createInMemoryMarkStore();
+    const { reconciler } = build({
+      ...threeDays(),
+      marks,
+      failWhen: (query) => {
+        if (query.table === 'runs' && query.mutation === 'delete') markedWhenDeleting = marks.rows();
+        return null;
+      },
+    });
+
+    await reconciler.run();
+
+    expect(markedWhenDeleting).toEqual([{ userId: 'user-1', fromDate: '2026-10-13', version: 1 }]);
+  });
+
+  it('reconcile clears the mark when the recalculation worked, also after a first try that failed', async () => {
+    let attempts = 0;
+    const { t, reconciler, marks } = build({
+      ...threeDays(),
+      recompute: (real) => ({
+        ...real,
+        reprocessFrom: async (userId, from) => {
+          attempts += 1;
+          if (attempts === 1) throw boom();
+          await real.reprocessFrom(userId, from);
+        },
+      }),
+    });
+
+    const summary = await reconciler.run();
+
+    expect(summary).toMatchObject({ removed: 1, failed: 0 });
+    expect(attempts).toBe(2);
+    expect(t.runs.find((r) => r.external_id === '7345003')).toMatchObject({ streak_day: 1 });
+    expect(marks.calls).toEqual(['mark:user-1:2026-10-13', 'clear:user-1:1']);
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('reconcile leaves the mark when the totals fail twice, and the recovery repeats the whole recalculation', async () => {
+    let failing = true;
+    const { reconciler, marks, recovery, reprocessCalls } = build({
+      ...threeDays(),
+      recompute: (real) => ({
+        ...real,
+        recalculateTotals: async (userId) => {
+          if (failing) throw boom();
+          await real.recalculateTotals(userId);
+        },
+      }),
+    });
+
+    expect(await reconciler.run()).toMatchObject({ removed: 1, failed: 1 });
+    expect(marks.rows()).toHaveLength(1);
+
+    failing = false;
+    reprocessCalls.length = 0;
+    // The recovery has its own recompute (the counting one, not the failing wrapper): it finishes the user.
+    expect(await recovery.run()).toEqual({ found: 1, recalculated: 1, failed: 0 });
+    expect(reprocessCalls).toEqual([{ userId: 'user-1', fromDate: '2026-10-13' }]);
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('reconcile leaves the mark when the totals run RETURNS false twice, which calculateUserTotals does instead of throwing', async () => {
+    const { t, reconciler, marks, recovery, reprocessCalls } = build({
+      ...threeDays(),
+      recompute: (real) => ({ ...real, recalculateTotals: async () => false }),
+    });
+
+    const night = await reconciler.run();
+
+    expect(night).toMatchObject({ removed: 1, failed: 1 });
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-10-13', version: 1 }]);
+    expect(logLines.join('\n')).toContain('totals_not_written');
+    expect(reprocessCalls).toHaveLength(2); // both tries were made
+
+    // The recovery job (a working totals run) finishes the user and clears the mark.
+    reprocessCalls.length = 0;
+    expect(await recovery.run()).toEqual({ found: 1, recalculated: 1, failed: 0 });
+    expect(marks.rows()).toEqual([]);
+    expect(t.runs.find((r) => r.external_id === '7345003')).toMatchObject({ streak_day: 1 });
+  });
+
+  it('reconcile clears the mark when the second try of the totals run is the one that writes them', async () => {
+    let tries = 0;
+    const { reconciler, marks } = build({
+      ...threeDays(),
+      recompute: (real) => ({
+        ...real,
+        recalculateTotals: async (userId) => {
+          tries += 1;
+          if (tries === 1) return false;
+          return real.recalculateTotals(userId);
+        },
+      }),
+    });
+
+    const night = await reconciler.run();
+
+    expect(night).toMatchObject({ removed: 1, failed: 0 });
+    expect(tries).toBe(2);
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('reconcile only logs and goes on when the mark cannot be cleared', async () => {
+    const marks = createInMemoryMarkStore();
+    marks.failClear = Object.assign(new Error('clear failed for user abc@example.com'), { code: '57P01' });
+    const { t, reconciler } = build({ ...threeDays(), marks });
+
+    const night = await reconciler.run();
+
+    expect(night).toMatchObject({ removed: 1, failed: 0 }); // the recalculation worked: nothing failed
+    expect(ids(t.runs)).toEqual(['7345001', '7345003']);
+    expect(marks.rows()).toHaveLength(1); // the recovery job repeats the recalculation once
+    const log = logLines.join('\n');
+    expect(log).toContain('57P01');
+    expect(log).toContain('could not be cleared');
+    expect(log).not.toContain('abc@example.com');
+  });
+
+  it('reconcile stops checking a user at the first mark that cannot be written, so the Strava budget is not spent every night', async () => {
+    const marks = createInMemoryMarkStore();
+    marks.failMark = Object.assign(new Error('function mark_recalculation does not exist'), { code: '42883' });
+    const first = activityOf(7345001, D12);
+    const second = activityOf(7345002, D13);
+    const third = activityOf(7345003, D14);
+    const { t, reconciler, strava } = build({
+      tables: { runs: [storedRun(first), storedRun(second), storedRun(third)] },
+      routes: { athleteActivities: [], activities: {} }, // none is listed and every detail call answers 404: all three are in doubt
+      marks,
+    });
+
+    const summary = await reconciler.run();
+
+    expect(ids(t.runs)).toEqual(['7345001', '7345002', '7345003']);
+    expect(marks.calls).toEqual(['mark:user-1:2026-10-12']); // one attempt, not three
+    expect(strava.calls.activity).toBe(1); // the other two were never asked about
+    expect(summary).toMatchObject({ removed: 0, failed: 1 });
+    const failures = logLines.filter((line) => line.includes('42883'));
+    expect(failures.length).toBeGreaterThanOrEqual(1);
+    expect(logLines.filter((line) => line.includes('mark of user') && line.includes('42883'))).toHaveLength(1); // said once
+  });
+
+  it('reconcile stops only the user whose mark failed: the next user is still checked', async () => {
+    const marks = createInMemoryMarkStore();
+    const original = marks.mark.bind(marks);
+    marks.mark = async (userId, fromDate) => {
+      if (userId === 'user-1') throw Object.assign(new Error('x'), { code: '08006' });
+      return original(userId, fromDate);
+    };
+    const { t, reconciler } = build({
+      tables: {
+        strava_tokens: [tokenRow('user-1'), tokenRow('user-2')],
+        runs: [
+          storedRun(activityOf(7345001, D13), 'user-1'),
+          storedRun(activityOf(7345002, D14), 'user-1'),
+          storedRun(activityOf(7345003, D13), 'user-2'),
+        ],
+      },
+      routes: { athleteActivities: [], activities: {} },
+      marks,
+    });
+
+    const summary = await reconciler.run();
+
+    expect(t.runs.filter((r) => r.user_id === 'user-1')).toHaveLength(2);
+    expect(t.runs.filter((r) => r.user_id === 'user-2')).toHaveLength(0);
+    expect(summary).toMatchObject({ removed: 1, failed: 1 });
+  });
+
+  it('reconcile does not clear a mark that a newer change wrote during its recalculation', async () => {
+    const { reconciler, marks } = build({
+      ...threeDays(),
+      recompute: (real) => ({
+        ...real,
+        reprocessFrom: async (userId, from) => {
+          await real.reprocessFrom(userId, from);
+          await marks.mark(userId, '2026-10-02'); // another writer marks the user while this one is recalculating
+        },
+      }),
+    });
+
+    await reconciler.run();
+
+    expect(marks.rows()).toEqual([{ userId: 'user-1', fromDate: '2026-10-02', version: 2 }]);
+  });
+
+  it('reconcile deletes nothing when the mark cannot be written, and says so by code', async () => {
+    const marks = createInMemoryMarkStore();
+    marks.failMark = Object.assign(new Error('function mark_recalculation does not exist for user abc@example.com'), { code: '42883' });
+    const { t, reconciler } = build({ ...threeDays(), marks });
+
+    const summary = await reconciler.run();
+
+    expect(ids(t.runs)).toEqual(['7345001', '7345002', '7345003']);
+    expect(summary).toMatchObject({ removed: 0, failed: 1 });
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+    expect(logLines.join('\n')).toContain('42883');
+    expect(logLines.join('\n')).not.toContain('abc@example.com');
+    expect(logLines.join('\n')).not.toContain('7345002');
+  });
+
+  it('reconcile marks the earlier of the old and the new date before it moves a run to an earlier day', async () => {
+    const marks = createInMemoryMarkStore();
+    let markedWhenUpdating: unknown = 'the update was never seen';
+    const stored = activityOf(7345001, D14);
+    const movedEarlier = activityOf(7345001, D12);
+    const { t, reconciler } = build({
+      tables: { runs: [storedRun(stored)] },
+      routes: { athleteActivities: [movedEarlier], activities: { 7345001: movedEarlier } },
+      marks,
+      failWhen: (query) => {
+        if (query.table === 'runs' && query.mutation === 'update') markedWhenUpdating = marks.rows();
+        return null;
+      },
+    });
+
+    const summary = await reconciler.run();
+
+    expect(summary).toMatchObject({ updated: 1, failed: 0 });
+    expect(t.runs[0]).toMatchObject({ date: '2026-10-12' });
+    expect(markedWhenUpdating).toEqual([{ userId: 'user-1', fromDate: '2026-10-12', version: 1 }]);
+    expect(marks.rows()).toEqual([]);
+  });
+
+  it('reconcile marks the old date, not the new one, before it moves a run to a later day', async () => {
+    // The days from the old date on are the ones that change: the run leaves its old day.
+    const marks = createInMemoryMarkStore();
+    const movedLater = activityOf(7345001, D14);
+    const { t, reconciler } = build({
+      tables: { runs: [storedRun(activityOf(7345001, D12))] },
+      routes: { athleteActivities: [movedLater], activities: { 7345001: movedLater } },
+      marks,
+    });
+
+    await reconciler.run();
+
+    expect(t.runs[0]).toMatchObject({ date: '2026-10-14' });
+    expect(marks.calls).toEqual(['mark:user-1:2026-10-12', 'clear:user-1:1']);
+  });
+
+  it('reconcile marks the stored date before it changes only the distance of a run', async () => {
+    const marks = createInMemoryMarkStore();
+    const { reconciler } = build({
+      tables: { runs: [storedRun(activityOf(7345001, D13))] },
+      routes: { athleteActivities: [activityOf(7345001, { ...D13, distance: 9000 })], activities: { 7345001: activityOf(7345001, { ...D13, distance: 9000 }) } },
+      marks,
+    });
+
+    await reconciler.run();
+
+    expect(marks.calls).toEqual(['mark:user-1:2026-10-13', 'clear:user-1:1']);
+  });
+
+  it('reconcile writes no mark and reads none when nothing is in doubt: a night with nothing to do costs no mark call', async () => {
+    const kept = activityOf(7345001, D12);
+    const { reconciler, marks } = build({
+      tables: { runs: [storedRun(kept)] },
+      routes: { athleteActivities: [kept] },
+    });
+
+    const summary = await reconciler.run();
+
+    expect(summary).toMatchObject({ removed: 0, updated: 0, failed: 0 });
+    expect(marks.calls).toEqual([]);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+  });
+
+  it('reconcile writes no mark for a check that finds nothing to change', async () => {
+    // A run that is not listed but that Strava still has, unchanged: looked at, left alone.
+    const run = activityOf(7345001, D12);
+    const { reconciler, marks, strava } = build({
+      tables: { runs: [storedRun(run)] },
+      routes: { athleteActivities: [], activities: { 7345001: run } },
+    });
+
+    const summary = await reconciler.run();
+
+    expect(strava.activityCalls(7345001)).toBe(1);
+    expect(summary).toMatchObject({ checked: 1, removed: 0, updated: 0 });
+    expect(marks.calls).toEqual([]);
+  });
+
+  it('reconcile finishes another user even when the mark of one user cannot be written', async () => {
+    const marks = createInMemoryMarkStore();
+    const original = marks.mark.bind(marks);
+    marks.mark = async (userId, fromDate) => {
+      if (userId === 'user-1') throw Object.assign(new Error('x'), { code: '08006' });
+      return original(userId, fromDate);
+    };
+    const { t, reconciler } = build({
+      tables: {
+        strava_tokens: [tokenRow('user-1'), tokenRow('user-2')],
+        runs: [storedRun(activityOf(7345001, D13), 'user-1'), storedRun(activityOf(7345002, D13), 'user-2')],
+      },
+      routes: { athleteActivities: [], activities: {} },
+      marks,
+    });
+
+    const summary = await reconciler.run();
+
+    expect(t.runs.map((r) => r.user_id)).toEqual(['user-1']);
+    expect(summary).toMatchObject({ removed: 1, failed: 1 });
+  });
+});
+
+describe('nightly reconcile when the token key cannot be used', () => {
+  const twoUsers = () => ({
+    tables: {
+      strava_tokens: [tokenRow('user-1'), tokenRow('user-2')],
+      runs: [storedRun(activityOf(7345001), 'user-1'), storedRun(activityOf(7345002), 'user-2')],
+    },
+    routes: { athleteActivities: [activityOf(7345001), activityOf(7345002)] },
+  });
+
+  it('reconcile without a key skips the night as a whole: one error line, none per user, nothing read, nothing asked of Strava, nothing deleted', async () => {
+    const { t, db, reconciler, strava } = build(twoUsers());
+    const runsBefore = JSON.stringify(t.runs);
+    db.queries.length = 0;
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', ''); // after the rows are sealed
+
+    const summary = await reconciler.run();
+
+    expect(summary).toEqual({ users: 0, pausedUsers: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 0, requests: 0, stopped: 'token_key' });
+    expect(db.queries).toEqual([]);
+    expect(strava.requests).toHaveLength(0);
+    expect(JSON.stringify(t.runs)).toBe(runsBefore);
+    const errors = vi.mocked(logger.error).mock.calls.map((call) => String(call[0]));
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/Strava reconcile skipped.*key_missing/);
+    expect(logLines.join('\n')).not.toMatch(/user-1|user-2/);
+    expect(calculateUserTotals).not.toHaveBeenCalled();
+  });
+
+  it('reconcile with a key the environment refuses skips the night the same way', async () => {
+    const { db, reconciler, strava } = build(twoUsers());
+    db.queries.length = 0;
+    vi.stubEnv('NODE_ENV', 'production'); // the open test key (test-1) is not accepted in production
+
+    const summary = await reconciler.run();
+
+    expect(summary).toMatchObject({ users: 0, stopped: 'token_key' });
+    expect(db.queries).toEqual([]);
+    expect(strava.requests).toHaveLength(0);
+    expect(logLines.join('\n')).toMatch(/Strava reconcile skipped.*key_invalid/);
+  });
+
+  it('reconcile with a working key is not stopped', async () => {
+    const { reconciler } = build(twoUsers());
+
+    expect((await reconciler.run()).stopped).toBeNull();
   });
 });

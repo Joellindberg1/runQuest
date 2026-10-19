@@ -5,6 +5,12 @@ import type { User } from '@runquest/types';
 /** En cache för gruppens användare + rundor: skalet, sidorna och Runner card delar den. */
 export const USERS_WITH_RUNS_QUERY_KEY = ['users-with-runs'] as const;
 
+/**
+ * Längre än laddningsgatens tak (app-shell/FirstBoardGate, 8 s): sidan som monteras när gaten släpper ska läsa det gaten hämtade och inte starta om hämtningen
+ * (en färsk observatör hämtar annars om en gammal fråga vid montering). Ändringar (en runda, en utmaning, en profilbild) invalideras uttryckligen och påverkas inte.
+ */
+export const USERS_WITH_RUNS_STALE_MS = 10_000;
+
 export function mapApiUser(u: User): User {
   return {
     id: u.id,
@@ -52,5 +58,6 @@ export function useUsersWithRuns(enabled = true) {
       return res.data.map(mapApiUser);
     },
     enabled,
+    staleTime: USERS_WITH_RUNS_STALE_MS,
   });
 }

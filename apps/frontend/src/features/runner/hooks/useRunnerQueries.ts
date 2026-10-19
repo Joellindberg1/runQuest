@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import type { UserTitle } from '@runquest/types';
 import { useAuth } from '@/providers/authContext';
 import { backendApi } from '@/shared/services/backendApi';
 import { titleQueryKeys } from '@/shared/hooks/useTitleQueries';
@@ -45,7 +44,7 @@ export function useRunnerTitles(userId: string) {
     queryFn: async () => {
       const res = await backendApi.getUserTitles(userId);
       if (!res.success) throw new Error(res.error || 'Failed to load titles');
-      return (res.data ?? []) as UserTitle[];
+      return res.data ?? [];
     },
     enabled: !!user,
     staleTime: STALE_MS,

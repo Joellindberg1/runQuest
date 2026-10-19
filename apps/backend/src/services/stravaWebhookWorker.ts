@@ -39,7 +39,7 @@
  * and died before it): a retry always recalculates. noop and ignored_* on a first try need none. `recalculateUnknown`, and an
  * attempts >= 1 result without a date, fall back to the user's EARLIEST run (RunStore.earliestRunDate): always correct,
  * because reprocessing is idempotent and a deleted run can be older than any lookback window. A user with no runs gets
- * only calculateUserTotals (totals must still be zeroed). An event is `done` only after the recalculation ran; if it throws,
+ * only calculateUserTotals (totals must still be zeroed). An event is `done` only after the recalculation ran; if it throws or the totals come back as not written (calculateUserTotals answers false),
  * the events that needed it are retried and the others still finish.
  * After an import (ADR 010 7.1): a `done` result may carry `importedRuns`, the rows it INSERTED. The recalculation of the batch is
  * then, in the polling's order: (1) the one reprocess, (2) weather for ALL runs imported in the batch (one call, best-effort: an
@@ -66,8 +66,11 @@
  * 8.6); only the dead alarm names object_id and owner_id (decision 11). Never a token, a title, a body, an error message or `updates`.
  */
 import { MS_DAY, WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '@runquest/shared';
+import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { withUserLock } from '../utils/keyedMutex.js';
+import { errorCode } from '../utils/errorCode.js';
+import { assertTotalsWritten } from './recalculationMarks/totals.js';
 import type { AccessTokenFailureReason } from './stravaClient.js';
 import {
   LEASE_SECONDS,
@@ -156,6 +159,10 @@ export function resultForTokenFailure(reason: AccessTokenFailureReason): Webhook
     // The row could not be read: nothing is known about the connection, so it is never an unknown owner.
     case 'token_read_failed':
       return { status: 'retry', error: 'token_read_failed' };
+    // The stored token cannot be read, or the key is missing or invalid (ADR 013 decision 9). Our fault, not Strava's: a retry (the
+    // worker's backoff, then the 48 h alarm), never an unknown owner, never a removal, never a confirmed deauthorize.
+    case 'token_unreadable':
+      return { status: 'retry', error: 'token_unreadable' };
   }
 }
 
@@ -199,12 +206,6 @@ function isCalendarDay(value: unknown): value is string {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 const isOutcome = (value: unknown): value is WebhookOutcome => (WEBHOOK_OUTCOMES as readonly unknown[]).includes(value);
-
-/** A short, safe label for an error: its code or its name, characters limited. Never the message (it can carry values). */
-function errorCode(error: unknown): string {
-  const raw = (error as { code?: unknown } | null)?.code ?? (error as { name?: unknown } | null)?.name ?? 'unknown';
-  return String(raw).replace(/[^\w.:-]/g, '').slice(0, 40) || 'unknown';
-}
 
 /** A handler's error string is stored as last_error: filtered like an error code (no spaces, quotes or braces) and cut. */
 const shortError = (value: string): string => value.replace(/[^\w.:-]/g, '').slice(0, WEBHOOK_LAST_ERROR_MAX_LENGTH) || 'unknown';
@@ -295,10 +296,13 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
     // The one place a Strava id is logged (ADR 010 decision 11): the alarm must say which deletion is missing.
     const subject = `${row.object_type} ${row.aspect_type} object_id=${row.object_id} owner_id=${row.owner_id} attempts=${row.attempts}`;
     const isDeletion = row.aspect_type === 'delete' || row.object_type === 'athlete';
+    // The Sentry copy names our own row (strava_webhook_events.id) and no Strava id: the id pair above stays in the Railway log only.
+    const sentryMessage = `🚨 KRITISKT: Strava-webhook ${isDeletion ? 'deletion not completed' : 'event dead'} within ${WEBHOOK_DEAD_AFTER_HOURS} h: events row ${row.id} (${row.object_type} ${row.aspect_type}), attempts=${row.attempts}`;
     logger.error(
       isDeletion
         ? `🚨 KRITISKT: Strava-webhook deletion not completed within Strava's ${WEBHOOK_DEAD_AFTER_HOURS} h deadline: ${subject}. The event is dead and nothing retries it; the data must be removed by hand.`
         : `🚨 KRITISKT: Strava-webhook event dead after ${WEBHOOK_DEAD_AFTER_HOURS} h without being processed: ${subject}.`,
+      new CriticalAlert('webhook_dead', { userId: row.user_id ?? undefined, sentryMessage }),
     );
   }
 
@@ -362,7 +366,7 @@ export function createStravaWebhookWorker(deps: WorkerDeps): StravaWebhookWorker
 
     if (!failure) {
       try {
-        await recompute.recalculateTotals(userId);
+        assertTotalsWritten(await recompute.recalculateTotals(userId)); // false = not written (RUN-327): a failure like a throw, so the retry takes it
       } catch (error) {
         failure = { error };
       }

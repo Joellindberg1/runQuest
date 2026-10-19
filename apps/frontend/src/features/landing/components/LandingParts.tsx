@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { DeltaMark } from '@/features/leaderboard/components/BoardParts';
+import { track } from '@/shared/analytics/track';
 import {
   HOW_IT_WORKS_ID, LEAD_DESKTOP, LEAD_MOBILE, PREVIEW_NOTES, PREVIEW_PACK_NAME, WAITLIST_ID,
   type HowStep, type PreviewRow, type XpFormula as XpFormulaView,
@@ -12,26 +12,29 @@ import { LandingStats } from './LandingStats';
 interface LandingHeroProps {
   /** Knappen bredvid guldknappen: "Watch the film" (Lead byter in filmens knapp här). */
   watchFilm: ReactNode;
-  /** Filmen i hjältens textspalt på mobil, mellan knapparna och sifferraden (Lead byter in den här; null på desktop). */
+  /** Filmen i hjältens textspalt på mobil, mellan knapparna och sifferraden (Lead byter in den här; CSS döljer den från 1024 px). */
   mobileFilm: ReactNode;
 }
 
 /**
  * Rubrik · arena-bana · ingress · knappar · film (mobil) · sifferrad. EN guldknapp på hela sidan: Join the waitlist (formuläret längre ned
  * har samma namn och mål men syns aldrig samtidigt). Radbrytningarna i h1 görs av `<br>` som CSS döljer på mobil, så rubriken flyter där.
+ * Ingressen finns i en kort och en lång variant i samma stycke och CSS visar en av dem (förrenderingen vet inte bredden, ADR 006).
  */
 export function LandingHero({ watchFilm, mobileFilm }: LandingHeroProps) {
-  const isDesktop = useIsDesktop() === true;
-
   return (
     <section className="rq-landing-hero" aria-labelledby="landing-title">
       <h1 id="landing-title" className="rq-display-xl rq-landing-title">
         Your group chat <br className="rq-landing-break" />deserves a <br className="rq-landing-break" /><span className="rq-landing-accent">leaderboard</span>
       </h1>
       <ArenaTrack />
-      <p className="rq-lead rq-landing-lead">{isDesktop ? LEAD_DESKTOP : LEAD_MOBILE}</p>
+      <p className="rq-lead rq-landing-lead">
+        <span className="rq-landing-lead__short">{LEAD_MOBILE}</span>
+        {' '}
+        <span className="rq-landing-lead__long">{LEAD_DESKTOP}</span>
+      </p>
       <div className="rq-landing-cta">
-        <a href={`#${WAITLIST_ID}`} className="rq-btn rq-btn--primary rq-btn--lg">Join the waitlist</a>
+        <a href={`#${WAITLIST_ID}`} className="rq-btn rq-btn--primary rq-btn--lg" onClick={() => track('waitlist-click')}>Join the waitlist</a>
         {watchFilm}
       </div>
       <div className="rq-landing-hero__film">{mobileFilm}</div>
@@ -43,14 +46,13 @@ export function LandingHero({ watchFilm, mobileFilm }: LandingHeroProps) {
 /**
  * Exempelflocken som ett kort med levande ring och sweep: topp fem, förnamn, rank-pilar, staplar som växer en gång. Märkt "Example",
  * inte "Live" — kortet är påhittat. Desktop sätter tre förklaringar bredvid; mobil visar bara kortet (rubriken finns kvar, gömd).
+ * Ögonbrynet och förklaringarna ligger alltid i HTML och CSS visar dem från 1024 px; rubriken är visuellt gömd under det.
  */
 export function PackPreview({ rows }: { rows: PreviewRow[] }) {
-  const isDesktop = useIsDesktop() === true;
-
   return (
     <section className="rq-landing-showcase" aria-labelledby="landing-showcase-title">
-      {isDesktop && <p className="rq-landing-eyebrow">This is what your pack sees</p>}
-      <h2 id="landing-showcase-title" className={isDesktop ? 'rq-landing-h2' : 'sr-only'}>The leaderboard, live</h2>
+      <p className="rq-landing-eyebrow rq-landing-eyebrow--desktop">This is what your pack sees</p>
+      <h2 id="landing-showcase-title" className="rq-landing-h2 rq-landing-h2--desktop">The leaderboard, live</h2>
       <div className="rq-landing-showcase__body">
         <div className="rq-landing-preview">
           <span className="rq-landing-preview__sweep" aria-hidden="true" />
@@ -76,16 +78,14 @@ export function PackPreview({ rows }: { rows: PreviewRow[] }) {
             ))}
           </ol>
         </div>
-        {isDesktop && (
-          <div className="rq-landing-notes">
-            {PREVIEW_NOTES.map((note) => (
-              <div key={note.title} className="rq-landing-note">
-                <h3 className="rq-landing-note__title">{note.title}</h3>
-                <p className="rq-body rq-landing-note__body">{note.body}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="rq-landing-notes">
+          {PREVIEW_NOTES.map((note) => (
+            <div key={note.title} className="rq-landing-note">
+              <h3 className="rq-landing-note__title">{note.title}</h3>
+              <p className="rq-body rq-landing-note__body">{note.body}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -120,12 +120,10 @@ function XpFormula({ formula }: { formula: XpFormulaView }) {
 
 /** De fyra stegen som en lista (mobil: kort med vänsterkant, desktop: fyra kolumner med guldkant upptill) och formeln under. */
 export function HowItWorks({ steps, formula }: { steps: HowStep[]; formula: XpFormulaView }) {
-  const isDesktop = useIsDesktop() === true;
-
   return (
     <section id={HOW_IT_WORKS_ID} className="rq-landing-how" aria-labelledby="landing-how-title">
       <p className="rq-landing-eyebrow">How the game works</p>
-      <h2 id="landing-how-title" className={isDesktop ? 'rq-landing-h2' : 'sr-only'}>Four things decide your rank</h2>
+      <h2 id="landing-how-title" className="rq-landing-h2 rq-landing-h2--desktop">Four things decide your rank</h2>
       <ol className="rq-landing-steps" role="list">
         {steps.map((step) => (
           <li key={step.num} className="rq-landing-step">

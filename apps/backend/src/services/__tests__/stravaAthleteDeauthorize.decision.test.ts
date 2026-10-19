@@ -162,6 +162,14 @@ describe('athlete deauthorize: the token path', () => {
     expect(await run()).toEqual({ status: 'retry', error: 'removal_failed:57P01' });
   });
 
+  it('a token that cannot be read is a retry, asks Strava nothing and removes nothing', async () => {
+    const { run, calls } = build({ token: { ok: false, reason: 'token_unreadable' } });
+
+    expect(await run()).toEqual({ status: 'retry', error: 'token_unreadable' });
+    expect(calls.fetchAthlete).toEqual([]);
+    expect(removeStravaConnection).not.toHaveBeenCalled();
+  });
+
   it('a token row that could not be read is a retry and removes nothing', async () => {
     const { run, calls } = build({ token: { ok: false, reason: 'token_read_failed' } });
 

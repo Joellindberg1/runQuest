@@ -18,7 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { getSupabaseClient } from '../config/database.js';
 import { getValidAccessToken, stravaFetch } from '../services/stravaClient.js';
 import { isValidAthleteId } from '../services/stravaAthlete.js';
-import { supabaseHost } from './backfillActivityLog.js';
+import { supabaseHost } from './lib/supabaseHost.js';
 
 type Client = ReturnType<typeof getSupabaseClient>;
 
@@ -75,6 +75,8 @@ async function resolveAthleteId(userId: string): Promise<Resolved & { refreshed?
   if (!token.ok) {
     // Not a connection that needs to be made again: the row could not be read, and a rerun may well work.
     if (token.reason === 'token_read_failed') return { kind: 'failed', reason: 'the stored token could not be read (a database error)' };
+    // Our fault (the key or the stored value, ADR 013), not a connection that needs to be made again: fix the key and rerun.
+    if (token.reason === 'token_unreadable') return { kind: 'failed', reason: 'the stored token cannot be read (check TOKEN_ENCRYPTION_KEY; the log has the cause)' };
     const reason = {
       not_connected: 'no stored Strava connection',
       no_refresh_token: 'the token has expired and no refresh token is stored',

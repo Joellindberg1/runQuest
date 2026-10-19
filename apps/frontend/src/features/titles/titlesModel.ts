@@ -1,7 +1,7 @@
 import type { RQIconName } from '@/shared/components/icons';
-import type { GroupEligibilityEntry, TitleLeaderboard } from '@/shared/services/backendApi';
 import { TITLE_CATEGORIES, categoryOf, iconOf, type TitleCategoryId } from './titleCategories';
 import { hasLinearGap, resolveGenderedTitle, titleValueText, unlockText } from './titleFormat';
+import type { GroupEligibilityEntry, TitleLeaderboardEntry } from '@runquest/shared';
 
 // Titles-skärmens vymodeller: allt skärmen visar, härlett ur /titles/leaderboard + /titles/group-eligibility.
 // Titelnamn, regler och värden kommer ur databasen. Ren logik — ingen DOM, ingen datahämtning.
@@ -51,7 +51,7 @@ export function bestSoFar(metricKey: string | undefined, eligibility: GroupEligi
   return best;
 }
 
-export function buildTitleRow(title: TitleLeaderboard, eligibility: GroupEligibilityEntry[], meId: string | null): TitleRow {
+export function buildTitleRow(title: TitleLeaderboardEntry, eligibility: GroupEligibilityEntry[], meId: string | null): TitleRow {
   const metric = title.metric_key;
   const holderIsMe = !!title.holder && title.holder.user_id === meId;
 
@@ -112,7 +112,7 @@ function passesFilter(row: TitleRow, filter: TitleFilter): boolean {
 }
 
 export function buildTitlesView(
-  board: TitleLeaderboard[],
+  board: TitleLeaderboardEntry[],
   eligibility: GroupEligibilityEntry[],
   meId: string | null,
   filter: TitleFilter,
@@ -143,7 +143,7 @@ export interface DisplayedRow {
 }
 
 /** Id:n på titlar jag håller. */
-export function heldTitleIds(board: TitleLeaderboard[], meId: string | null): string[] {
+export function heldTitleIds(board: TitleLeaderboardEntry[], meId: string | null): string[] {
   return board.filter((title) => !!meId && title.holder?.user_id === meId).map((title) => title.id);
 }
 
@@ -204,7 +204,7 @@ export interface Chase {
  * ligger precis bakom, och olåsta titlar jag är på väg mot. Närhet = avståndet relativt det jämförda värdet, så "4 runs"
  * och "3.1 km" går att ställa mot varandra. Mått där en differens inte är läsbar (tider, datum) hoppas över.
  */
-export function buildChases(board: TitleLeaderboard[], eligibility: GroupEligibilityEntry[], meId: string | null): Chase[] {
+export function buildChases(board: TitleLeaderboardEntry[], eligibility: GroupEligibilityEntry[], meId: string | null): Chase[] {
   if (!meId) return [];
   const mine = eligibility.find((entry) => entry.userId === meId);
   const candidates: Array<{ chase: Chase; closeness: number }> = [];

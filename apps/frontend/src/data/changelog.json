@@ -89,6 +89,34 @@
   ],
   "releases": [
     {
+      "version": "0.8.0",
+      "type": "minor",
+      "date": "19 October 2026",
+      "title": "A faster start page and a steadier app",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "The start page loads faster: it arrives ready to read instead of waiting for the whole app. When you sign in from it, or open RunQuest while signed in, the running-track loader shows until your page is ready."
+        },
+        {
+          "type": "improvement",
+          "description": "Errors and slow pages in RunQuest are now reported to us automatically, so problems can be found and fixed sooner. What is sent, and what is left out, is described in Privacy & Terms, together with the cookie-free visitor statistics on the site."
+        },
+        {
+          "type": "improvement",
+          "description": "Your runs and your account are better protected: ways into the database and the server that the app never used are now closed."
+        },
+        {
+          "type": "improvement",
+          "description": "Titles now belong to your group: who holds a title and the top 10 are worked out within the group. With one group, nothing changes for you."
+        },
+        {
+          "type": "feature",
+          "description": "When someone takes a title while you were right behind as runner-up, the Pack News row says so and it shows under Involves me. You can switch it off in Settings → Notifications."
+        }
+      ]
+    },
+    {
       "version": "0.7.1",
       "type": "patch",
       "date": "17 October 2026",

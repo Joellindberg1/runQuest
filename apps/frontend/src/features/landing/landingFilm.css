@@ -92,7 +92,7 @@
 }
 
 /* ── Desktopsektionen: rubrikrad, spelare med guldhörn, stegen under ───────────────────────────────────────────────────────────── */
-.rq-film--desktop { padding: var(--rq-sp-40) 0 var(--rq-sp-48); border-top: var(--rq-hair) solid var(--rq-line-2); scroll-margin-top: var(--rq-sp-24); }
+.rq-film--desktop { display: none; padding: var(--rq-sp-40) 0 var(--rq-sp-48); border-top: var(--rq-hair) solid var(--rq-line-2); scroll-margin-top: var(--rq-sp-24); }
 .rq-film__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--rq-sp-10) var(--rq-sp-24); margin-bottom: var(--rq-sp-24); }
 .rq-film__eyebrow { margin: 0 0 var(--rq-sp-6); font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
 .rq-film__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-display-xl); letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
@@ -108,3 +108,9 @@
 .rq-film__steps { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--rq-sp-10) var(--rq-sp-40); margin: var(--rq-sp-24) 0 0; padding: 0; list-style: none; }
 .rq-film__step { display: flex; align-items: baseline; gap: var(--rq-sp-8); font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-film__step-num { font-family: var(--rq-font-mono); color: var(--rq-gold-text); }
+
+/* ── Varianterna väljs av CSS (förrenderingen vet inte bredden): båda ligger i HTML, den som inte passar är display: none ─────────── */
+@media (min-width: 1024px) {
+  .rq-film--desktop { display: block; }
+  .rq-film--mobile { display: none; }
+}

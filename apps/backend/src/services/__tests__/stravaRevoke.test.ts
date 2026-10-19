@@ -15,6 +15,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import { withUserLock } from '../../utils/keyedMutex.js';
 import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
@@ -26,8 +27,7 @@ const NOW = Math.floor(Date.now() / 1000);
 
 const tokenRow = (over: Row = {}): Row => ({
   user_id: 'user-1',
-  access_token: 'SECRET-ACCESS',
-  refresh_token: 'SECRET-REFRESH',
+  ...tokenCols('user-1', 'SECRET-ACCESS', 'SECRET-REFRESH'),
   expires_at: NOW + 3600,
   connection_date: '2026-09-01T09:00:00+00:00',
   consent_version: '2026-10-14',
@@ -83,7 +83,7 @@ describe('revokeStravaAuthorization', () => {
 
     expect(strava.requests.map((call) => call.route)).toEqual(['oauthToken', 'oauthDeauthorize']);
     expect(strava.requests[1].body).toEqual({ access_token: 'NEW-ACCESS' });
-    expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'NEW-ACCESS' });
+    expect(plainRow(tables.strava_tokens[0])).toMatchObject({ access_token: 'NEW-ACCESS' });
   });
 
   it('does not call Strava and resolves when the user has no token row', async () => {
@@ -122,6 +122,22 @@ describe('revokeStravaAuthorization', () => {
     strava = installFakeStravaFetch({ oauthDeauthorize: { access_token: 'x' } });
 
     await expect(revokeStravaAuthorization('user-1')).rejects.toMatchObject({ code: 'strava_token_read_failed' });
+
+    expect(strava.requests).toEqual([]);
+  });
+
+  it('rejects with strava_token_unreadable, not silently and without calling Strava, when the stored token cannot be read', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse(), oauthDeauthorize: { access_token: 'x' } });
+    for (const row of [tokenRow({ access_token: 'enc:v1:test-1:AAAA' }), tokenRow({ expires_at: NOW - 60, refresh_token: 'short' })]) {
+      useTokens([row]);
+
+      await expect(revokeStravaAuthorization('user-1')).rejects.toMatchObject({ code: 'strava_token_unreadable' });
+    }
+
+    useTokens([tokenRow()]);
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+    await expect(revokeStravaAuthorization('user-1')).rejects.toMatchObject({ code: 'strava_token_unreadable' });
+    vi.unstubAllEnvs();
 
     expect(strava.requests).toEqual([]);
   });

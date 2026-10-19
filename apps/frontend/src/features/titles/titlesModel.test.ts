@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { GroupEligibilityEntry, TitleLeaderboard } from '@/shared/services/backendApi';
 import { TITLE_ENGINE_METRIC_KEYS } from './titleMetricKeys.fixture';
+import type { GroupEligibilityEntry, TitleLeaderboardEntry } from '@runquest/shared';
 import {
   MAX_DISPLAYED, bestSoFar, buildChases, buildDisplayedRows, buildTitleRow, buildTitlesView, cleanSelection, formatDisplayPreview,
   heldTitleIds, sameSelection, summaryText, toggleDisplayed,
@@ -14,7 +14,7 @@ const person = (user_id: string, user_name: string, value: number, extra: object
 });
 const runnerUp = (position: number, user_id: string, user_name: string, value: number) => ({ position, ...person(user_id, user_name, value) });
 
-const title = (id: string, name: string, metric_key: string | undefined, over: Partial<TitleLeaderboard> = {}): TitleLeaderboard => ({
+const title = (id: string, name: string, metric_key: string | undefined, over: Partial<TitleLeaderboardEntry> = {}): TitleLeaderboardEntry => ({
   id, name, description: `${name} rule`, unlock_requirement: 0, metric_key, holder: null, runners_up: [], ...over,
 });
 
@@ -105,7 +105,7 @@ describe('buildTitleRow', () => {
   });
 
   it('saknad runners_up i svaret kraschar inte', () => {
-    const odd = { ...BATMAN, runners_up: undefined } as unknown as TitleLeaderboard;
+    const odd = { ...BATMAN, runners_up: undefined } as unknown as TitleLeaderboardEntry;
     expect(buildTitleRow(odd, [], ME).runnersUp).toEqual([]);
   });
 });

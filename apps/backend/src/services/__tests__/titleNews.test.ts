@@ -1,5 +1,5 @@
 /**
- * Titelhändelser (ADR 008 beslut 6): snapshot av innehavarna före/efter processAllUsersTitles,
+ * Titelhändelser (ADR 008 beslut 6, ADR 012 beslut 5.3): snapshot av position 1–2 per grupp före/efter processGroupTitles,
  * ren diff → title_unlocked / title_taken / title_revoked. Endast framåt; emitNews:false för admin-underhåll.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -28,7 +28,9 @@ function use(tables: Record<string, Row[]>, options: Parameters<typeof createFak
   return db;
 }
 
-const lb = (title_id: string, user_id: string, value: number, position = 1): Row => ({ title_id, user_id, value, position });
+const lb = (title_id: string, user_id: string, value: number, position = 1, group_id = 'g1'): Row => ({ group_id, title_id, user_id, value, position });
+const ut = (title_id: string, user_id: string, value: number, group_id = 'g1'): Row => ({ group_id, title_id, user_id, value });
+const holderOf = (title_id: string, user_id: string, value: number, group_id = 'g1') => ({ group_id, title_id, user_id, value });
 
 function baseTables(): Record<string, Row[]> {
   return {
@@ -40,7 +42,14 @@ function baseTables(): Record<string, Row[]> {
     users: [
       { id: 'a', group_id: 'g1', total_km: 10, longest_streak: 2 },
       { id: 'b', group_id: 'g1', total_km: 20, longest_streak: 3 },
-      { id: 'x', group_id: null, total_km: 5, longest_streak: 1 },
+      { id: 'c', group_id: 'g2', total_km: 8, longest_streak: 1 },
+      { id: 'd', group_id: 'g2', total_km: 9, longest_streak: 1 },
+    ],
+    group_members: [
+      { id: 'ma', user_id: 'a', group_id: 'g1', role: 'member', starts_on: null, left_at: null },
+      { id: 'mb', user_id: 'b', group_id: 'g1', role: 'member', starts_on: null, left_at: null },
+      { id: 'mc', user_id: 'c', group_id: 'g2', role: 'member', starts_on: null, left_at: null },
+      { id: 'md', user_id: 'd', group_id: 'g2', role: 'member', starts_on: null, left_at: null },
     ],
     runs: [],
     user_titles: [],
@@ -52,19 +61,64 @@ beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(NOW); });
 afterEach(() => { vi.useRealTimers(); });
 
 describe('snapshotTitleHolders', () => {
-  it('läser bara position 1 och normaliserar numeric till tal', async () => {
+  it('tar position 1 och 2 för gruppen: innehavaren bär tvåan, numeric normaliseras till tal', async () => {
     const tables = baseTables();
     tables.title_leaderboard = [lb('t1', 'a', 12.5), lb('t1', 'b', 9, 2), { ...lb('t2', 'b', 3), value: '3.0000' }];
     use(tables);
-    expect(await snapshotTitleHolders()).toEqual([
-      { title_id: 't1', user_id: 'a', value: 12.5 },
-      { title_id: 't2', user_id: 'b', value: 3 },
+    expect(await snapshotTitleHolders('g1')).toEqual([
+      { group_id: 'g1', title_id: 't1', user_id: 'a', value: 12.5, runner_up: { user_id: 'b', value: 9 } },
+      { group_id: 'g1', title_id: 't2', user_id: 'b', value: 3, runner_up: null },
     ]);
+  });
+
+  it('läser bara den omräknade gruppens rader och aldrig en annan grupps', async () => {
+    const tables = baseTables();
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'b', 9, 2), lb('t1', 'd', 7, 1, 'g2'), lb('t1', 'c', 5, 2, 'g2')];
+    use(tables);
+    expect(await snapshotTitleHolders('g2')).toEqual([
+      { group_id: 'g2', title_id: 't1', user_id: 'd', value: 7, runner_up: { user_id: 'c', value: 5 } },
+    ]);
+  });
+
+  it('position 3 och lägre tas inte med', async () => {
+    const tables = baseTables();
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'b', 9, 2), lb('t1', 'c', 8, 3)];
+    use(tables);
+    expect(await snapshotTitleHolders('g1')).toEqual([
+      { group_id: 'g1', title_id: 't1', user_id: 'a', value: 12, runner_up: { user_id: 'b', value: 9 } },
+    ]);
+  });
+
+  it('en rad på plats 2 utan plats 1 ger ingen innehavare', async () => {
+    const tables = baseTables();
+    tables.title_leaderboard = [lb('t1', 'b', 9, 2)];
+    use(tables);
+    expect(await snapshotTitleHolders('g1')).toEqual([]);
+  });
+
+  it('gruppen kommer ur title_leaderboard.group_id, inget uppslag av användarnas grupp', async () => {
+    const tables = baseTables();
+    tables.title_leaderboard = [lb('t1', 'a', 12)];
+    const db = use(tables);
+    await snapshotTitleHolders('g1');
+    expect(db.queries.some((q) => q.table === 'users')).toBe(false);
+  });
+
+  it('tom ranking → tom lista', async () => {
+    use(baseTables());
+    expect(await snapshotTitleHolders('g1')).toEqual([]);
+  });
+
+  it('utan groupId → null och ingen läsning (ingen global bild)', async () => {
+    const db = use(baseTables());
+    expect(await snapshotTitleHolders('')).toBeNull();
+    expect(await snapshotTitleHolders(undefined as unknown as string)).toBeNull();
+    expect(db.queries).toHaveLength(0);
   });
 
   it('databasfel → null (diffen hoppas över), kastar inte', async () => {
     use(baseTables(), { errors: { title_leaderboard: { message: 'boom' } } });
-    expect(await snapshotTitleHolders()).toBeNull();
+    expect(await snapshotTitleHolders('g1')).toBeNull();
   });
 });
 
@@ -72,7 +126,7 @@ describe('emitTitleNews', () => {
   it('ingen → någon: title_unlocked med titelnamn som ögonblicksbild', async () => {
     const tables = baseTables();
     use(tables);
-    await emitTitleNews([], [{ title_id: 't1', user_id: 'a', value: 12 }]);
+    await emitTitleNews('g1', [], [holderOf('t1', 'a', 12)]);
     expect(tables.activity_log).toHaveLength(1);
     expect(tables.activity_log[0]).toMatchObject({
       type: 'title_unlocked', group_id: 'g1', actor_user_id: 'a', target_user_id: null, is_backfill: false,
@@ -83,27 +137,35 @@ describe('emitTitleNews', () => {
 
   it('A → B där A behåller sin rad: title_taken/overtaken (aktör B, target A)', async () => {
     const tables = baseTables();
-    tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 12 }, { user_id: 'b', title_id: 't1', value: 15 }];
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
     use(tables);
-    await emitTitleNews([{ title_id: 't1', user_id: 'a', value: 12 }], [{ title_id: 't1', user_id: 'b', value: 15 }]);
+    await emitTitleNews('g1', [holderOf('t1', 'a', 12)], [holderOf('t1', 'b', 15)]);
     expect(tables.activity_log[0]).toMatchObject({
-      type: 'title_taken', actor_user_id: 'b', target_user_id: 'a', dedupe_key: 'title_taken:t1:b:a:15:2026-10-05',
+      type: 'title_taken', group_id: 'g1', actor_user_id: 'b', target_user_id: 'a', dedupe_key: 'title_taken:t1:b:a:15:2026-10-05',
       payload: { value: 15, previous_value: 12, reason: 'overtaken', title_name: 'The Marathoner' },
     });
   });
 
   it('A → B där A:s user_titles-rad är borta: reason "revoked"', async () => {
     const tables = baseTables();
-    tables.user_titles = [{ user_id: 'b', title_id: 't1', value: 3 }]; // A återkallad (issue #10)
+    tables.user_titles = [ut('t1', 'b', 3)]; // A återkallad (issue #10)
     use(tables);
-    await emitTitleNews([{ title_id: 't1', user_id: 'a', value: 12 }], [{ title_id: 't1', user_id: 'b', value: 3 }]);
+    await emitTitleNews('g1', [holderOf('t1', 'a', 12)], [holderOf('t1', 'b', 3)]);
     expect(tables.activity_log[0].payload).toMatchObject({ reason: 'revoked', previous_value: 12, value: 3 });
+  });
+
+  it('förra innehavarens rad i en ANNAN grupp räknas inte som att titeln behållits i den här: reason "revoked"', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'b', 3), ut('t1', 'a', 12, 'g2')];
+    use(tables);
+    await emitTitleNews('g1', [holderOf('t1', 'a', 12)], [holderOf('t1', 'b', 3)]);
+    expect(tables.activity_log[0].payload).toMatchObject({ reason: 'revoked' });
   });
 
   it('någon → ingen: title_revoked (aktör = förra innehavaren), dagen i nyckeln är Stockholm-dagen', async () => {
     const tables = baseTables();
     use(tables);
-    await emitTitleNews([{ title_id: 't2', user_id: 'b', value: 4 }], []);
+    await emitTitleNews('g1', [holderOf('t2', 'b', 4)], []);
     expect(tables.activity_log[0]).toMatchObject({
       type: 'title_revoked', group_id: 'g1', actor_user_id: 'b', dedupe_key: 'title_revoked:t2:b:2026-10-05',
       payload: { title_id: 't2', title_name: 'The Early Bird', metric_key: 'early_run_count' },
@@ -113,74 +175,177 @@ describe('emitTitleNews', () => {
   it('samma innehavare med ändrat värde → ingen rad och inga extra queries', async () => {
     const tables = baseTables();
     const db = use(tables);
-    await emitTitleNews([{ title_id: 't1', user_id: 'a', value: 12 }], [{ title_id: 't1', user_id: 'a', value: 14 }]);
+    await emitTitleNews('g1', [holderOf('t1', 'a', 12)], [holderOf('t1', 'a', 14)]);
     expect(tables.activity_log).toHaveLength(0);
     expect(db.queries).toHaveLength(0);
   });
 
+  it('ändrad tvåa med samma innehavare → ingen rad (diffen går bara på position 1)', async () => {
+    const tables = baseTables();
+    const db = use(tables);
+    await emitTitleNews(
+      'g1',
+      [{ ...holderOf('t1', 'a', 12), runner_up: { user_id: 'b', value: 9 } }],
+      [{ ...holderOf('t1', 'a', 12), runner_up: { user_id: 'c', value: 11 } }],
+    );
+    expect(tables.activity_log).toHaveLength(0);
+    expect(db.queries).toHaveLength(0);
+  });
+
+  describe('låg tvåa', () => {
+    const withSecond = (h: ReturnType<typeof holderOf>, user_id: string, value: number) => ({ ...h, runner_up: { user_id, value } });
+
+    it('tvåan ur före-bilden bärs som runner_up_user_id på title_taken; nyckeln är oförändrad', async () => {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 15)];
+      use(tables);
+      await emitTitleNews('g1', [withSecond(holderOf('t1', 'a', 12), 'r', 10)], [holderOf('t1', 'b', 15)]);
+      expect(tables.activity_log).toHaveLength(1);
+      expect(tables.activity_log[0]).toMatchObject({
+        type: 'title_taken', actor_user_id: 'b', target_user_id: 'a', dedupe_key: 'title_taken:t1:b:a:15:2026-10-05',
+        payload: { reason: 'overtaken', runner_up_user_id: 'r' },
+      });
+    });
+
+    it('samma byte upptäckt två gånger med tvåa → fortfarande exakt en rad', async () => {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
+      use(tables);
+      const before = [withSecond(holderOf('t1', 'a', 12), 'r', 10)];
+      await emitTitleNews('g1', before, [holderOf('t1', 'b', 15)]);
+      await emitTitleNews('g1', before, [holderOf('t1', 'b', 15)]);
+      expect(tables.activity_log).toHaveLength(1);
+    });
+
+    it('en tvåa i en annan grupp än den omräknade används aldrig', async () => {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
+      use(tables);
+      await emitTitleNews(
+        'g1',
+        [holderOf('t1', 'a', 12), withSecond(holderOf('t1', 'c', 8, 'g2'), 'x', 6)],
+        [holderOf('t1', 'b', 15)],
+      );
+      expect(tables.activity_log).toHaveLength(1);
+      expect('runner_up_user_id' in (tables.activity_log[0].payload as object)).toBe(false);
+    });
+
+    it('revoked och title_unlocked ger inget fält ens med tvåa i före-bilden', async () => {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'b', 3)];
+      use(tables);
+      await emitTitleNews('g1', [withSecond(holderOf('t1', 'a', 12), 'r', 10)], [holderOf('t1', 'b', 3)]);
+      await emitTitleNews('g1', [], [withSecond(holderOf('t2', 'a', 4), 'r', 2)]);
+      expect(tables.activity_log.map((r) => r.type)).toEqual(['title_taken', 'title_unlocked']);
+      for (const r of tables.activity_log) expect('runner_up_user_id' in (r.payload as object)).toBe(false);
+    });
+  });
+
   it('samma byte upptäckt två gånger (samtidiga skrivningar) → exakt en rad', async () => {
     const tables = baseTables();
-    tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 12 }, { user_id: 'b', title_id: 't1', value: 15 }];
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
     use(tables);
-    const before = [{ title_id: 't1', user_id: 'a', value: 12 }];
-    const after = [{ title_id: 't1', user_id: 'b', value: 15 }];
-    await emitTitleNews(before, after);
-    await emitTitleNews(before, after);
+    const before = [holderOf('t1', 'a', 12)];
+    const after = [holderOf('t1', 'b', 15)];
+    await emitTitleNews('g1', before, after);
+    await emitTitleNews('g1', before, after);
     expect(tables.activity_log).toHaveLength(1);
   });
 
   it('legitim upprepning en ANNAN dag (titeln tappas och vinns tillbaka med samma värde) loggas igen', async () => {
     const tables = baseTables();
     use(tables);
-    const before: Array<{ title_id: string; user_id: string; value: number }> = [];
-    const after = [{ title_id: 't1', user_id: 'a', value: 12 }];
-    await emitTitleNews(before, after);                       // 2026-10-05
+    const after = [holderOf('t1', 'a', 12)];
+    await emitTitleNews('g1', [], after);                       // 2026-10-05
     vi.setSystemTime(new Date('2026-10-07T12:00:00.000Z'));
-    await emitTitleNews(before, after);                       // samma value, två dagar senare
+    await emitTitleNews('g1', [], after);                       // samma value, två dagar senare
     expect(tables.activity_log.map((r) => r.dedupe_key)).toEqual([
       'title_unlocked:t1:a:12:2026-10-05', 'title_unlocked:t1:a:12:2026-10-07',
     ]);
   });
 
-  it('innehavare utan grupp hoppas över (ingen gruppavgränsad plats i loggen)', async () => {
+  it('en hållare som tillhör en annan grupp än den omräknade ger ingen rad', async () => {
     const tables = baseTables();
     use(tables);
-    await emitTitleNews([], [{ title_id: 't1', user_id: 'x', value: 1 }]);
+    await emitTitleNews('g1', [], [holderOf('t1', 'c', 8, 'g2')]);
     expect(tables.activity_log).toHaveLength(0);
+  });
+
+  it('ändringar i en annan grupp än den omräknade loggas inte, ändringen i den egna gör det', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15), ut('t1', 'c', 8, 'g2'), ut('t1', 'd', 9, 'g2')];
+    use(tables);
+    await emitTitleNews(
+      'g1',
+      [holderOf('t1', 'a', 12), holderOf('t1', 'c', 8, 'g2')],
+      [holderOf('t1', 'b', 15), holderOf('t1', 'd', 9, 'g2')],
+    );
+    expect(tables.activity_log.map((r) => [r.type, r.group_id, r.actor_user_id])).toEqual([['title_taken', 'g1', 'b']]);
+  });
+
+  it('utan groupId loggas ingenting', async () => {
+    const tables = baseTables();
+    const db = use(tables);
+    await emitTitleNews('', [], [holderOf('t1', 'a', 12, '')]);
+    expect(tables.activity_log).toHaveLength(0);
+    expect(db.queries).toHaveLength(0);
   });
 
   it('ett databasfel i uppslagen sväljs', async () => {
     use(baseTables(), { errors: { titles: { message: 'boom' } } });
-    await expect(emitTitleNews([], [{ title_id: 't1', user_id: 'a', value: 1 }])).resolves.toBeUndefined();
+    await expect(emitTitleNews('g1', [], [holderOf('t1', 'a', 1)])).resolves.toBeUndefined();
   });
 });
 
-describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering', () => {
+describe('EnhancedTitleService.processGroupTitles — snapshot-orkestrering', () => {
   /** Ersätter titelbearbetningen: skriver user_titles + title_leaderboard som DB-triggern skulle göra. */
-  function simulate(service: EnhancedTitleService, tables: Record<string, Row[]>, mutate: () => void) {
-    return vi.spyOn(service, 'processUserTitlesAfterRun').mockImplementation(async (userId: string) => {
-      if (userId === 'a') mutate(); // en gång per bearbetning räcker
-      void tables;
+  function simulate(service: EnhancedTitleService, mutate: () => void) {
+    return vi.spyOn(service, 'processUserTitlesAfterRun').mockImplementation(async (member: { userId: string }) => {
+      if (member.userId === 'a' || member.userId === 'c') mutate(); // en gång per bearbetning räcker
     });
   }
 
   it('titelbyte under bearbetningen → title_taken loggas, och bara en gång även vid omkörning', async () => {
     const tables = baseTables();
-    tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 12 }, { user_id: 'b', title_id: 't1', value: 9 }];
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 9)];
     tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'b', 9, 2)];
     use(tables);
     const service = new EnhancedTitleService();
-    simulate(service, tables, () => {
-      tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 12 }, { user_id: 'b', title_id: 't1', value: 15 }];
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
       tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2)];
     });
 
-    await service.processAllUsersTitles('g1');
+    await service.processGroupTitles('g1');
     expect(tables.activity_log.map((r) => r.type)).toEqual(['title_taken']);
 
     // omkörning: leaderboarden är oförändrad → inget nytt; och även om samma byte upptäcks igen → dedupe_key
-    await service.processAllUsersTitles('g1');
+    await service.processGroupTitles('g1');
     expect(tables.activity_log).toHaveLength(1);
+  });
+
+  it('en grupp: samma rad (typ, aktörer, payload, dedupe_key) som före gruppsatt snapshot', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 9)];
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'b', 9, 2)];
+    use(tables);
+    const service = new EnhancedTitleService();
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15)];
+      tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2)];
+    });
+    await service.processGroupTitles('g1');
+    expect(tables.activity_log).toHaveLength(1);
+    expect(tables.activity_log[0]).toMatchObject({
+      type: 'title_taken', group_id: 'g1', actor_user_id: 'b', target_user_id: 'a', is_backfill: false,
+      occurred_at: NOW.toISOString(), dedupe_key: 'title_taken:t1:b:a:15:2026-10-05',
+      payload: {
+        title_id: 't1', title_name: 'The Marathoner', metric_key: 'total_km', value: 15, previous_value: 12, reason: 'overtaken',
+      },
+    });
+    expect(Object.keys(tables.activity_log[0].payload as object).sort()).toEqual(
+      ['metric_key', 'previous_value', 'reason', 'title_id', 'title_name', 'value'],
+    );
   });
 
   it('inga ändringar → inga rader (ingen historieflod vid första deploy)', async () => {
@@ -188,8 +353,8 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
     tables.title_leaderboard = [lb('t1', 'a', 12), lb('t2', 'b', 4)];
     use(tables);
     const service = new EnhancedTitleService();
-    simulate(service, tables, () => {});
-    await service.processAllUsersTitles('g1');
+    simulate(service, () => {});
+    await service.processGroupTitles('g1');
     expect(tables.activity_log).toHaveLength(0);
   });
 
@@ -197,34 +362,82 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
     const tables = baseTables();
     use(tables);
     const service = new EnhancedTitleService();
-    simulate(service, tables, () => {
-      tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 7)];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
     });
-    await service.processAllUsersTitles('g1');
+    await service.processGroupTitles('g1');
     expect(tables.activity_log.map((r) => [r.type, r.actor_user_id])).toEqual([['title_unlocked', 'a']]);
   });
 
   it('återkallad titel utan efterträdare → title_revoked', async () => {
     const tables = baseTables();
-    tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
+    tables.user_titles = [ut('t1', 'a', 7)];
     tables.title_leaderboard = [lb('t1', 'a', 7)];
     use(tables);
     const service = new EnhancedTitleService();
-    simulate(service, tables, () => { tables.user_titles = []; tables.title_leaderboard = []; });
-    await service.processAllUsersTitles('g1');
+    simulate(service, () => { tables.user_titles = []; tables.title_leaderboard = []; });
+    await service.processGroupTitles('g1');
     expect(tables.activity_log.map((r) => [r.type, r.actor_user_id])).toEqual([['title_revoked', 'a']]);
+  });
+
+  it('tvåa på leaderboarden före bearbetningen ger runner_up_user_id på title_taken', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 9)];
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'r', 10, 2), lb('t1', 'b', 9, 3)];
+    use(tables);
+    const service = new EnhancedTitleService();
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 15)];
+      tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'r', 10, 3)];
+    });
+    await service.processGroupTitles('g1');
+    expect(tables.activity_log).toHaveLength(1);
+    expect(tables.activity_log[0]).toMatchObject({
+      type: 'title_taken', actor_user_id: 'b', target_user_id: 'a', payload: { reason: 'overtaken', runner_up_user_id: 'r' },
+    });
+  });
+
+  it('B som själv var tvåa på leaderboarden före bearbetningen ger inget runner_up_user_id', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 10), ut('t1', 'r', 9)];
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'b', 10, 2), lb('t1', 'r', 9, 3)];
+    use(tables);
+    const service = new EnhancedTitleService();
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15), ut('t1', 'r', 9)];
+      tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'r', 9, 3)];
+    });
+    await service.processGroupTitles('g1');
+    expect(tables.activity_log).toHaveLength(1);
+    expect(tables.activity_log[0]).toMatchObject({ type: 'title_taken', actor_user_id: 'b', target_user_id: 'a' });
+    expect('runner_up_user_id' in (tables.activity_log[0].payload as object)).toBe(false);
   });
 
   it('emitNews:false (admin /titles/reprocess-all) → ingen rad och ingen snapshot-query', async () => {
     const tables = baseTables();
     const db = use(tables);
     const service = new EnhancedTitleService();
-    simulate(service, tables, () => {
-      tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 7)];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
     });
-    await service.processAllUsersTitles(undefined, { emitNews: false, allGroups: true });
+    await service.processAllGroupsTitles({ emitNews: false });
+    expect(tables.activity_log).toHaveLength(0);
+    expect(db.queries.some((q) => q.table === 'title_leaderboard')).toBe(false);
+  });
+
+  it('emitNews:false undertrycker även ett byte som hade gett en låg tvåa', async () => {
+    const tables = baseTables();
+    tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 9)];
+    tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'r', 10, 2), lb('t1', 'b', 9, 3)];
+    const db = use(tables);
+    const service = new EnhancedTitleService();
+    simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'r', 10), ut('t1', 'b', 15)];
+      tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'r', 10, 3)];
+    });
+    await service.processAllGroupsTitles({ emitNews: false });
     expect(tables.activity_log).toHaveLength(0);
     expect(db.queries.some((q) => q.table === 'title_leaderboard')).toBe(false);
   });
@@ -233,11 +446,11 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
     const tables = baseTables();
     use(tables, { errors: { activity_log: { message: 'relation does not exist' } } });
     const service = new EnhancedTitleService();
-    const spy = simulate(service, tables, () => {
-      tables.user_titles = [{ user_id: 'a', title_id: 't1', value: 7 }];
+    const spy = simulate(service, () => {
+      tables.user_titles = [ut('t1', 'a', 7)];
       tables.title_leaderboard = [lb('t1', 'a', 7)];
     });
-    await expect(service.processAllUsersTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
+    await expect(service.processGroupTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
     expect(spy).toHaveBeenCalled();
   });
 
@@ -245,9 +458,74 @@ describe('EnhancedTitleService.processAllUsersTitles — snapshot-orkestrering',
     const tables = baseTables();
     use(tables, { errors: { title_leaderboard: { message: 'boom' } } });
     const service = new EnhancedTitleService();
-    const spy = simulate(service, tables, () => {});
-    await expect(service.processAllUsersTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
+    const spy = simulate(service, () => {});
+    await expect(service.processGroupTitles('g1')).resolves.toEqual({ total: 2, processed: 2, failed: 0 });
     expect(spy).toHaveBeenCalledTimes(2); // båda gruppmedlemmarna bearbetades
     expect(tables.activity_log).toHaveLength(0);
+  });
+
+  describe('två grupper', () => {
+    function twoGroups() {
+      const tables = baseTables();
+      tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 9), ut('t1', 'c', 5, 'g2'), ut('t1', 'd', 4, 'g2')];
+      tables.title_leaderboard = [lb('t1', 'a', 12), lb('t1', 'b', 9, 2), lb('t1', 'c', 5, 1, 'g2'), lb('t1', 'd', 4, 2, 'g2')];
+      return tables;
+    }
+
+    it('innehavarbyte i grupp 1 ger title_taken bara i grupp 1', async () => {
+      const tables = twoGroups();
+      use(tables);
+      const service = new EnhancedTitleService();
+      simulate(service, () => {
+        tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15), ut('t1', 'c', 5, 'g2'), ut('t1', 'd', 4, 'g2')];
+        tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'c', 5, 1, 'g2'), lb('t1', 'd', 4, 2, 'g2')];
+      });
+      await service.processGroupTitles('g1');
+      expect(tables.activity_log.map((r) => [r.type, r.group_id, r.actor_user_id, r.target_user_id])).toEqual([['title_taken', 'g1', 'b', 'a']]);
+    });
+
+    it('ingen nyhet i grupp B när grupp A ändras', async () => {
+      // grupp 2 räknas om medan grupp 1:s lista ändras av en annan körning: grupp 2:s bild ser det aldrig
+      const tables = twoGroups();
+      use(tables);
+      const service = new EnhancedTitleService();
+      simulate(service, () => {
+        tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'c', 5, 1, 'g2'), lb('t1', 'd', 4, 2, 'g2')];
+      });
+      await service.processGroupTitles('g2');
+      expect(tables.activity_log).toHaveLength(0);
+    });
+
+    it('omräkning av alla grupper: varje grupps byte loggas i sin egen grupp', async () => {
+      const tables = twoGroups();
+      use(tables);
+      const service = new EnhancedTitleService();
+      vi.spyOn(service, 'processUserTitlesAfterRun').mockImplementation(async (member: { userId: string }) => {
+        if (member.userId === 'a') {
+          tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15), ut('t1', 'c', 5, 'g2'), ut('t1', 'd', 4, 'g2')];
+          tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'c', 5, 1, 'g2'), lb('t1', 'd', 4, 2, 'g2')];
+        }
+        if (member.userId === 'c') {
+          tables.user_titles = [ut('t1', 'a', 12), ut('t1', 'b', 15), ut('t1', 'c', 5, 'g2'), ut('t1', 'd', 6, 'g2')];
+          tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'd', 6, 1, 'g2'), lb('t1', 'c', 5, 2, 'g2')];
+        }
+      });
+      await service.processAllGroupsTitles();
+      expect(tables.activity_log.map((r) => [r.type, r.group_id, r.actor_user_id, r.target_user_id])).toEqual([
+        ['title_taken', 'g1', 'b', 'a'],
+        ['title_taken', 'g2', 'd', 'c'],
+      ]);
+    });
+
+    it('omräkning av alla grupper med emitNews:false ger inga nyheter i någon grupp', async () => {
+      const tables = twoGroups();
+      use(tables);
+      const service = new EnhancedTitleService();
+      simulate(service, () => {
+        tables.title_leaderboard = [lb('t1', 'b', 15), lb('t1', 'a', 12, 2), lb('t1', 'd', 6, 1, 'g2'), lb('t1', 'c', 5, 2, 'g2')];
+      });
+      await service.processAllGroupsTitles({ emitNews: false });
+      expect(tables.activity_log).toHaveLength(0);
+    });
   });
 });

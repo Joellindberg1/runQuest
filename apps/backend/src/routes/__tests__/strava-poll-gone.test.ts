@@ -43,6 +43,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
 import { checkEventQualification } from '../../services/eventService.js';
@@ -75,7 +76,7 @@ afterEach(() => {
 });
 
 const TOKEN_ROW = {
-  user_id: 'user-1', access_token: 'old-at', refresh_token: 'old-rt', expires_at: 9999999999,
+  user_id: 'user-1', ...tokenCols('user-1', 'old-at', 'old-rt'), expires_at: 9999999999,
   connection_date: '2026-09-01T09:00:00+00:00', sync_paused: false,
 };
 

@@ -1,7 +1,19 @@
 // Strava client: the one token path and the one fetch path for polling, GET /status and the webhook worker (ADR 010 decision 7).
+import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { errorCode } from '../utils/errorCode.js';
-import { getSupabaseClient } from '../config/database.js';
+import type { KeyRing } from '../utils/secretBox.js';
+import {
+  checkSealingReady,
+  openStravaToken,
+  readStoredTokenRow,
+  recordUnreadableToken,
+  saveRotatedTokens,
+  sealStravaTokenPair,
+  storedRefreshTokenEquals,
+  type SealedTokenPair,
+  type StravaTokenColumn,
+} from './stravaTokenStore.js';
 
 const STRAVA_API = 'https://www.strava.com/api/v3';
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
@@ -182,7 +194,11 @@ type RefreshOutcome =
   /** Strava's token endpoint rejected the refresh token. */
   | { kind: 'rejected' }
   /** Anything else: a network error, 5xx, 429, missing credentials, an unusable answer, a failed or superseded save. */
-  | { kind: 'failed' };
+  /**
+   * `mayHaveRotated`: Strava may already have replaced the refresh token when this failed (it answered and we could not use or save the
+   * answer, or the answer was lost), so the connection may be lost. Not set when Strava was never asked or refused.
+   */
+  | { kind: 'failed'; mayHaveRotated?: true };
 
 function isTokenAnswer(data: unknown): data is { access_token: string; refresh_token: string; expires_at: number } {
   if (typeof data !== 'object' || data === null) return false;
@@ -190,32 +206,77 @@ function isTokenAnswer(data: unknown): data is { access_token: string; refresh_t
   return typeof access_token === 'string' && access_token !== '' && typeof refresh_token === 'string' && refresh_token !== '' && typeof expires_at === 'number';
 }
 
-/** Whether the user's row holds exactly this refresh token. A read that fails is "no": the save then counts as not done. */
-async function rowHoldsRefreshToken(userId: string, refreshToken: string): Promise<boolean> {
-  const { data, error } = await getSupabaseClient().from('strava_tokens').select('refresh_token').eq('user_id', userId).maybeSingle();
-  return !error && data?.refresh_token === refreshToken;
+/** The refresh token as the row held it when the refresh began: its plaintext (what Strava is asked with) and the exact stored string. */
+interface HeldRefreshToken {
+  plain: string;
+  /** What the save is conditional on (ADR 013 decision 5): sealing the same plaintext again would give another string. */
+  raw: string;
 }
 
 // The refresh in progress per user. Strava rotates the refresh token, so two refreshes at once (the webhook worker, the backup poll and
 // the user's own sync can all find the token expired) would make the second ask with a token the first has already replaced. Callers
-// that arrive meanwhile wait for the same answer instead. Keyed on the refresh token as well: a caller that holds another one (the
+// that arrive meanwhile wait for the same answer instead. Keyed on the stored refresh string as well: a caller that holds another one (the
 // user reconnected meanwhile) must not be given the answer of a refresh made with the old one. Per process: the backend runs as one instance.
 const refreshesInProgress = new Map<string, Promise<RefreshOutcome>>();
 
-function refreshStravaToken(refreshToken: string, userId: string): Promise<RefreshOutcome> {
-  const key = `${userId}:${refreshToken}`;
+function refreshStravaToken(held: HeldRefreshToken, userId: string, ring: KeyRing): Promise<RefreshOutcome> {
+  const key = `${userId}:${held.raw}`;
   const running = refreshesInProgress.get(key);
   if (running) return running;
 
   // Removed when it ends, whatever the outcome, so the next call asks Strava again.
-  const started: Promise<RefreshOutcome> = requestNewTokens(refreshToken, userId).finally(() => {
+  const started: Promise<RefreshOutcome> = requestNewTokens(held, userId, ring).finally(() => {
     if (refreshesInProgress.get(key) === started) refreshesInProgress.delete(key);
   });
   refreshesInProgress.set(key, started);
   return started;
 }
 
-async function requestNewTokens(refreshToken: string, userId: string): Promise<RefreshOutcome> {
+/** How many times a save follows a row that was sealed again meanwhile, before it is given up as critical. */
+const MAX_FOLLOWS_OF_A_SEALED_AGAIN_ROW = 3;
+
+/**
+ * The save of a refresh matched no row. If the row still holds the refresh token the refresh started from (`oldPlain`), only under another
+ * string (it was sealed again, plaintext to `enc:` or one key to another), the new tokens are saved there with a new compare-and-swap, a
+ * few times at most (the row can be sealed again once more). Compares plaintexts, never ciphertexts.
+ *   - saved: the new tokens are in the row (by this save, or by an earlier one whose answer was lost).
+ *   - superseded: no row, or a row with another refresh token (a newer connection): nothing to save.
+ *   - unsure: the row could not be read, or its refresh token could not be opened, or it kept changing, or the save failed. Strava has
+ *     rotated, so the caller treats this as a lost rotation.
+ */
+async function followSealedAgain(
+  userId: string,
+  oldPlain: string,
+  newPlain: string,
+  sealed: SealedTokenPair,
+  expiresAt: number,
+  ring: KeyRing,
+): Promise<'saved' | 'superseded' | 'unsure'> {
+  for (let attempt = 0; attempt < MAX_FOLLOWS_OF_A_SEALED_AGAIN_ROW; attempt += 1) {
+    let current;
+    try {
+      current = await readStoredTokenRow(userId);
+    } catch {
+      return 'unsure';
+    }
+    if (!current || current.refreshRaw === null) return 'superseded';
+    const opened = openStravaToken(userId, 'refresh_token', current.refreshRaw, ring);
+    if (!opened.ok) return 'unsure';
+    if (opened.token === newPlain) return 'saved'; // an earlier save of ours landed
+    if (opened.token !== oldPlain) return 'superseded';
+    const { saved, error } = await saveRotatedTokens(userId, current.refreshRaw, sealed, expiresAt);
+    if (error) return 'unsure';
+    if (saved) return 'saved';
+  }
+  return 'unsure';
+}
+
+/**
+ * Asks Strava's token endpoint for new tokens with the held refresh token and saves them encrypted. The caller has already checked that
+ * the key works (`ring` is the key ring that check returned): Strava rotates the refresh token when it answers, so a refresh that could
+ * not be saved afterwards would lose the connection.
+ */
+async function requestNewTokens(held: HeldRefreshToken, userId: string, ring: KeyRing): Promise<RefreshOutcome> {
   try {
     const clientId = process.env.STRAVA_CLIENT_ID;
     const clientSecret = process.env.STRAVA_CLIENT_SECRET;
@@ -230,7 +291,7 @@ async function requestNewTokens(refreshToken: string, userId: string): Promise<R
       body: JSON.stringify({
         client_id: clientId,
         client_secret: clientSecret,
-        refresh_token: refreshToken,
+        refresh_token: held.plain,
         grant_type: 'refresh_token'
       })
     });
@@ -242,7 +303,7 @@ async function requestNewTokens(refreshToken: string, userId: string): Promise<R
         // Only while the row still holds the token we asked with. Another refresh that ran at the same time may have replaced it
         // (Strava then refuses the old one), a reconnect may have, a disconnect may have removed the row: none of that says Strava
         // withdrew the authorisation. A check that cannot be made counts the same way.
-        if (!(await rowHoldsRefreshToken(userId, refreshToken))) {
+        if (!(await storedRefreshTokenEquals(userId, held.plain, ring))) {
           logger.warn(`⚠️ Strava refused a refresh token for user ${userId} (HTTP ${response.status}), but it is no longer the stored one`);
           return { kind: 'failed' };
         }
@@ -255,46 +316,58 @@ async function requestNewTokens(refreshToken: string, userId: string): Promise<R
 
     if (!isTokenAnswer(tokenData)) {
       logger.error(`❌ Token refresh answer for user ${userId} has no usable tokens (HTTP ${response.status})`);
-      return { kind: 'failed' };
+      return { kind: 'failed', mayHaveRotated: true };
     }
 
     // Update tokens in database. Strava har redan roterat refresh-tokenen i
     // och med svaret ovan — misslyckas skrivningen är den gamla tokenen död
     // och kopplingen förlorad. Därför: försök igen en gång och larma HÖGT.
-    const supabase = getSupabaseClient();
-    const newTokens = {
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expires_at: tokenData.expires_at
-    };
+    //
+    // The new tokens are sealed ONCE, here, and the retry saves the same strings (ADR 013 decision 5.3): a second sealing would be a
+    // different string, and "did our first attempt land although its answer was lost?" is then decided on plaintexts below.
+    let sealed;
+    try {
+      sealed = sealStravaTokenPair(userId, { accessToken: tokenData.access_token, refreshToken: tokenData.refresh_token }, ring);
+    } catch (error) {
+      // The key was checked before Strava was asked, so this is an input Strava sent that cannot be stored. The old refresh token is
+      // already replaced at Strava: the same loss as a failed save.
+      logger.error(`🚨 KRITISKT: kunde inte kryptera roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel: ${errorCode(error)}`, new CriticalAlert('token_write', { userId }));
+      return { kind: 'failed', mayHaveRotated: true };
+    }
 
-    // Conditional on the refresh token we used: the row is only ours to change while it still holds it. A reconnect (a new row) or a
-    // disconnect that happened while this call was under way must not be overwritten, or brought back, by a late answer.
-    const save = () => supabase
-      .from('strava_tokens')
-      .update(newTokens)
-      .eq('user_id', userId)
-      .eq('refresh_token', refreshToken)
-      .select('user_id');
+    // Conditional on the stored string we started from: the row is only ours to change while it still holds exactly that. A reconnect
+    // (a new row) or a disconnect that happened while this call was under way must not be overwritten, or brought back, by a late answer.
+    const save = () => saveRotatedTokens(userId, held.raw, sealed, tokenData.expires_at);
 
-    let { data: saved, error } = await save();
+    let { saved, error } = await save();
     const firstAttemptFailed = Boolean(error);
     if (error) {
       logger.error(`⚠️ Token save failed for user ${userId}, retrying once (${errorCode(error)})`);
-      ({ data: saved, error } = await save());
+      ({ saved, error } = await save());
     }
 
     if (error) {
-      logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel: ${errorCode(error)}`);
-      return { kind: 'failed' };
+      logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user ${userId} — användaren måste koppla om Strava. Fel: ${errorCode(error)}`, new CriticalAlert('token_write', { userId }));
+      return { kind: 'failed', mayHaveRotated: true };
     }
 
-    if (!saved || saved.length === 0) {
+    if (!saved) {
       // No row holds the old refresh token any more. After a failed first attempt this can be our own save, applied before its answer
       // was lost: then the row holds the new tokens and all is well.
-      if (firstAttemptFailed && (await rowHoldsRefreshToken(userId, tokenData.refresh_token))) {
+      if (firstAttemptFailed && (await storedRefreshTokenEquals(userId, tokenData.refresh_token, ring))) {
         logger.info('✅ Strava token refreshed successfully');
         return { kind: 'refreshed', accessToken: tokenData.access_token };
+      }
+      // The row may only have been sealed again (the backfill script moves rows to the active key): the same token under another string.
+      // Then the answer is ours to save, on the string the row holds now. Dropping it would lose the connection: Strava has rotated.
+      const followed = await followSealedAgain(userId, held.plain, tokenData.refresh_token, sealed, tokenData.expires_at, ring);
+      if (followed === 'saved') {
+        logger.info('✅ Strava token refreshed successfully');
+        return { kind: 'refreshed', accessToken: tokenData.access_token };
+      }
+      if (followed === 'unsure') {
+        logger.error(`🚨 KRITISKT: kunde inte spara roterad Strava-token för user ${userId} — raden ändrades under förnyelsen och gick inte att följa. Användaren måste kanske koppla om Strava`, new CriticalAlert('token_write', { userId }));
+        return { kind: 'failed', mayHaveRotated: true };
       }
       // Otherwise the connection was replaced or removed meanwhile. The new tokens belong to the old connection: neither used nor saved.
       logger.warn(`⚠️ Token refresh for user ${userId} was superseded by a newer connection; its answer is dropped`);
@@ -306,7 +379,8 @@ async function requestNewTokens(refreshToken: string, userId: string): Promise<R
 
   } catch (error) {
     logger.error(`❌ Token refresh error for user ${userId} (${errorName(error)})`);
-    return { kind: 'failed' };
+    // A network error or a timeout may have come after Strava answered: the answer is lost, the old refresh token may be replaced.
+    return { kind: 'failed', mayHaveRotated: true };
   }
 }
 
@@ -327,13 +401,20 @@ interface StoredTokenState {
  *   - refresh_rejected: Strava's token endpoint rejected the refresh token (revoked or invalid). The only reason that proves Strava
  *     withdrew the authorisation; nothing else may be read as that.
  *   - refresh_failed: any other failure of the renewal (network, 5xx, 429, missing credentials, an unusable answer, a failed or
- *     superseded save). Says nothing about the authorisation; a retry may work.
+ *     superseded save). Says nothing about the authorisation; a retry may work. `mayHaveRotated` is set when Strava may already have
+ *     replaced the refresh token without us holding the new one (a lost answer, an unusable answer, a save that failed): the connection
+ *     may be lost. The backfill script stops on it.
+ *   - token_unreadable (ADR 013): the stored token could not be read, or the key that reads and saves tokens is missing or invalid.
+ *     The fault is ours (configuration or the stored value), not the user's and not Strava's. It NEVER means that Strava withdrew the
+ *     authorisation: no caller may treat it as refresh_rejected or not_connected, delete anything because of it or confirm a
+ *     deauthorize event with it. Strava has not been called when this is the answer. The cause (a code) is in the log.
  */
 export type AccessTokenResult =
   | ({ ok: true; accessToken: string; refreshed: boolean } & StoredTokenState)
   | { ok: false; reason: 'not_connected' }
   | { ok: false; reason: 'token_read_failed' }
-  | ({ ok: false; reason: 'refresh_failed' | 'refresh_rejected' | 'no_refresh_token' } & StoredTokenState);
+  | { ok: false; reason: 'token_unreadable' }
+  | ({ ok: false; reason: 'refresh_failed' | 'refresh_rejected' | 'no_refresh_token'; mayHaveRotated?: true } & StoredTokenState);
 
 export type AccessTokenFailureReason = Extract<AccessTokenResult, { ok: false }>['reason'];
 
@@ -349,44 +430,83 @@ export async function getValidAccessToken(userId: string): Promise<AccessTokenRe
  * A freshly renewed token, even when the stored one has not expired: the answer to a 401 from Strava (ADR 010 7.1, renew once).
  * Same result and same saving as getValidAccessToken; it never reuses the stored access token.
  */
-export async function refreshAccessToken(userId: string): Promise<AccessTokenResult> {
-  return accessToken(userId, true);
+export async function refreshAccessToken(userId: string, options: { reason?: string } = {}): Promise<AccessTokenResult> {
+  return accessToken(userId, true, options.reason ?? 'Strava rejected the access token');
 }
 
-async function accessToken(userId: string, forceRefresh: boolean): Promise<AccessTokenResult> {
-  let tokens: Record<string, any> | null;
+// The codes already announced as an error by this process.
+const announcedUnreadable = new Set<string>();
+
+/** For tests: the announcement is once per process, so a test that counts errors starts from here. */
+export function resetUnreadableLogThrottle(): void {
+  announcedUnreadable.clear();
+}
+
+/**
+ * Logs why a token could not be read: the user, the column when a stored value is at fault, and the code. Never the value, never a
+ * message from the crypto layer. Not a KRITISKT line: a missing, malformed or refused key is announced as one at startup
+ * (services/tokenKeyStartup.ts, ADR 013 decision 9); this line is for the reads that fail afterwards, one error per code and process
+ * and a warning for the rest.
+ */
+function unreadable(userId: string, code: string, column?: StravaTokenColumn): { ok: false; reason: 'token_unreadable' } {
+  recordUnreadableToken();
+  const line = `Strava token unreadable for user ${userId} (${code}${column ? `, ${column}` : ''}); Strava was not called`;
+  // An error (a Sentry event) once per code and process, then a warning (a log line only): without this every poll, every webhook
+  // retry and every status check of every user is an event (ADR 013 decision 9). The count of all of them is in the health block.
+  // auth_failed (a ciphertext that does not belong to its row, or the wrong key under a known id) can mean tampering, so it is announced
+  // once per user and column rather than once per process: a moved ciphertext on a second row is a second signal, while the repeats of
+  // one row (every poll) are not.
+  const announceKey = code === 'auth_failed' ? `${code}:${userId}:${column ?? ''}` : code;
+  if (announcedUnreadable.has(announceKey)) {
+    logger.warn(`⚠️ ${line}`);
+  } else {
+    announcedUnreadable.add(announceKey);
+    logger.error(`❌ ${line}`);
+  }
+  return { ok: false, reason: 'token_unreadable' };
+}
+
+async function accessToken(userId: string, forceRefresh: boolean, forceReason = 'Strava rejected the access token'): Promise<AccessTokenResult> {
+  let row;
   try {
-    const supabase = getSupabaseClient();
-    // maybeSingle: a missing row is data null WITHOUT an error, so a read that failed can be told apart from "not connected".
-    const { data, error } = await supabase
-      .from('strava_tokens')
-      .select('access_token, refresh_token, expires_at, connection_date, consent_version')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (error) {
-      logger.error(`❌ Could not read the Strava token row for user ${userId} (${errorCode(error)})`);
-      return { ok: false, reason: 'token_read_failed' };
-    }
-    tokens = data;
+    // null for a missing row WITHOUT an error, so a read that failed can be told apart from "not connected".
+    row = await readStoredTokenRow(userId);
   } catch (error) {
     logger.error(`❌ Could not read the Strava token row for user ${userId} (${errorCode(error)})`);
     return { ok: false, reason: 'token_read_failed' };
   }
 
-  if (!tokens) return { ok: false, reason: 'not_connected' };
+  if (!row) return { ok: false, reason: 'not_connected' };
 
-  const state: StoredTokenState = { expiresAt: tokens.expires_at ?? null, connectionDate: tokens.connection_date ?? null, consentVersion: tokens.consent_version ?? null };
+  // Fail-closed (ADR 013 decision 9): without a working key no token is read or written, whatever form the row is in, and Strava is
+  // not asked for anything. The ring this returns is used for the whole call, so the key that read the token is the key that saves.
+  const ready = checkSealingReady();
+  if (!ready.ok) return unreadable(userId, ready.code);
+  const { ring } = ready;
+
+  const state: StoredTokenState = { expiresAt: row.expiresAt, connectionDate: row.connectionDate, consentVersion: row.consentVersion };
   const now = Math.floor(Date.now() / 1000);
-  if (!forceRefresh && !(tokens.expires_at && tokens.expires_at < now)) {
-    return { ok: true, accessToken: tokens.access_token, refreshed: false, ...state };
+  const expired = Boolean(row.expiresAt && row.expiresAt < now);
+  // A row with no access token has nothing to hand out; it is renewed like an expired one.
+  if (!forceRefresh && !expired && row.accessRaw) {
+    const access = openStravaToken(userId, 'access_token', row.accessRaw, ring);
+    if (!access.ok) return unreadable(userId, access.code, 'access_token');
+    return { ok: true, accessToken: access.token, refreshed: false, ...state };
   }
 
   // Without a refresh token Strava could only refuse, so do not ask.
-  if (!tokens.refresh_token) return { ok: false, reason: 'no_refresh_token', ...state };
+  if (!row.refreshRaw) return { ok: false, reason: 'no_refresh_token', ...state };
 
-  logger.info(forceRefresh ? '🔄 Strava rejected the access token, refreshing...' : '🔄 Access token expired, refreshing...');
-  const refreshResult = await refreshStravaToken(tokens.refresh_token, userId);
+  // The held refresh token must be readable BEFORE Strava is asked: a value we cannot read is not sent as if it were a token (a refusal of
+  // such a value could be misread as a revoked authorisation), and Strava rotates the token it is asked with.
+  const refresh = openStravaToken(userId, 'refresh_token', row.refreshRaw, ring);
+  if (!refresh.ok) return unreadable(userId, refresh.code, 'refresh_token');
+
+  logger.info(forceRefresh ? `🔄 ${forceReason}, refreshing...` : '🔄 Access token expired, refreshing...');
+  const refreshResult = await refreshStravaToken({ plain: refresh.token, raw: row.refreshRaw }, userId, ring);
   if (refreshResult.kind === 'rejected') return { ok: false, reason: 'refresh_rejected', ...state };
-  if (refreshResult.kind === 'failed') return { ok: false, reason: 'refresh_failed', ...state };
+  if (refreshResult.kind === 'failed') {
+    return { ok: false, reason: 'refresh_failed', ...state, ...(refreshResult.mayHaveRotated ? { mayHaveRotated: true as const } : {}) };
+  }
   return { ok: true, accessToken: refreshResult.accessToken, refreshed: true, ...state };
 }

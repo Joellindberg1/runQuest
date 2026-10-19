@@ -5,6 +5,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { logger } from './utils/logger.js';
+import { installSentryErrorHandler } from './observability/sentry.js';
+import { sentryRouteNaming } from './observability/tracing.js';
 
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
@@ -13,6 +15,7 @@ import challengeRoutes from './routes/challenges.js';
 import configRoutes from './routes/config.js';
 import eventRoutes from './routes/events.js';
 import groupRoutes from './routes/groups.js';
+import groupSettingsRoutes from './routes/groupSettings.js';
 import leaderboardRoutes from './routes/leaderboard.js';
 import newsRoutes from './routes/news.js';
 import onboardingRoutes from './routes/onboarding.js';
@@ -33,6 +36,9 @@ export function createApp(): express.Express {
   // Bakom Railways proxy — krävs för att req.ip ska vara klientens IP
   // (annars delar alla användare proxyns IP i rate limitern)
   app.set('trust proxy', 1);
+
+  // Först av allt: ger prestandaspårningens transaktion routens namn ("GET /api/runs/:id") när en route matchar. Gör inget utan Sentry.
+  app.use(sentryRouteNaming());
 
   // Middleware
   app.use(helmet());
@@ -103,6 +109,7 @@ export function createApp(): express.Express {
   app.use('/api/challenges', challengeRoutes);
   app.use('/api/config', configRoutes);
   app.use('/api/events', eventRoutes);
+  app.use('/api/groups/settings', groupSettingsRoutes);
   app.use('/api/groups', groupRoutes);
   app.use('/api/leaderboard', leaderboardRoutes);
   app.use('/api/news', newsRoutes);
@@ -123,6 +130,9 @@ export function createApp(): express.Express {
       method: req.method
     });
   });
+
+  // Sist: rapporterar fel som kastats i en route utan att fångas (500+), och skickar dem vidare till Expresss svar.
+  installSentryErrorHandler(app);
 
   return app;
 }

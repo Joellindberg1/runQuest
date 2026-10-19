@@ -2,7 +2,9 @@
  * Centralized logging utility
  * - Development: All logs visible
  * - Production: Only warnings and errors
+ * - Errors are also reported to error tracking (shared/observability) when it is switched on
  */
+import { reportError } from '@/shared/observability/errorReporting';
 
 class Logger {
   private isDevelopment = import.meta.env.DEV;
@@ -41,7 +43,12 @@ class Logger {
    */
   error(message: string, error?: unknown) {
     console.error(`❌ [ERROR] ${message}`, error);
-    // Future: Send to error tracking service (Sentry, etc.)
+    if (error instanceof Error) {
+      reportError(error, { message });
+      return;
+    }
+    // Ett värde som inte är ett Error (svarsobjekt, sträng) får inget eget stackspår; felet byggs ur meddelandet och värdet följer som detalj.
+    reportError(new Error(message), error === undefined ? { message } : { message, detail: error });
   }
 
   /**

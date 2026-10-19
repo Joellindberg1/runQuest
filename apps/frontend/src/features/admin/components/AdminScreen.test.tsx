@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import AdminPage from '@/pages/AdminPage';
-import type { AdminUser, TitleLeaderboard } from '@/shared/services/backendApi';
+import type { AdminUser } from '@/shared/services/backendApi';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import type { TitleLeaderboardEntry } from '@runquest/shared';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 
@@ -18,7 +19,7 @@ const member = (id: string, name: string, over: Partial<AdminUser> = {}): AdminU
 const KARL = member('u-karl', 'Karl Persson');
 const JOEL = member('u-joel', 'Joel Lindberg', { total_xp: 5243, total_runs: 133, current_streak: 4 });
 
-const title = (id: string, name: string, metric_key: string, unlock_requirement = 0): TitleLeaderboard => ({
+const title = (id: string, name: string, metric_key: string, unlock_requirement = 0): TitleLeaderboardEntry => ({
   id, name, description: `${name}: regeln ur databasen.`, unlock_requirement, metric_key, holder: null, runners_up: [],
 });
 

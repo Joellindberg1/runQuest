@@ -8,6 +8,41 @@ export const RELOAD_GUARD_MS = 30_000;
 
 type GuardStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
+// Meddelandena webbläsarna och Vite ger när en kodfil från en äldre deploy saknas (Chrome, Firefox, Safari, Vite CSS-preload, webpack-stil).
+const STALE_CHUNK_MESSAGE = /dynamically imported module|importing a module script failed|unable to preload css|loading (css )?chunk [\w-]+ failed/i;
+
+export function errorMessage(error: unknown): string {
+  return typeof error === 'string' ? error : error instanceof Error ? error.message : '';
+}
+
+/** Är felet en saknad kodfil efter en deploy? Då löser en omladdning det och det finns inget att felsöka: felspårningen rapporterar det inte. */
+export function isStaleChunkError(error: unknown): boolean {
+  return STALE_CHUNK_MESSAGE.test(errorMessage(error));
+}
+
+// Valfria chunkar (felspårningen) kan saknas av andra skäl än en deploy, t.ex. en annonsblockerare, och en omladdning hjälper inte då.
+// vite.config.ts ger dem filnamn som börjar med `optional-` (och inget som en blockerare känner igen). Safari nämner ingen adress i felet;
+// där räcker det att en valfri import pågår och att felet inte pekar på någon annan fil.
+const OPTIONAL_CHUNK_URL = /\/assets\/optional-[\w-]+\.js/;
+const ANY_ASSET_ADDRESS = /https?:\/\/|\/assets\//;
+let optionalImportsInFlight = 0;
+
+/** Laddar en valfri chunk. Misslyckas den släpps felet vidare till anroparen och sidan laddas inte om. */
+export async function loadOptionalChunk<T>(load: () => Promise<T>): Promise<T> {
+  optionalImportsInFlight += 1;
+  try {
+    return await load();
+  } finally {
+    optionalImportsInFlight -= 1;
+  }
+}
+
+function isOptionalChunkFailure(payload: unknown): boolean {
+  const message = errorMessage(payload);
+  if (OPTIONAL_CHUNK_URL.test(message)) return true;
+  return optionalImportsInFlight > 0 && !ANY_ASSET_ADDRESS.test(message);
+}
+
 // Utan fungerande lagring går spärren inte att hålla över en omladdning, så då laddas
 // inget om alls (annars oändlig loop vid ett bestående fel) och ErrorBoundary tar felet.
 export function claimStaleChunkReload(now: number, storage: GuardStorage | null): boolean {
@@ -27,13 +62,26 @@ interface ReloadTarget {
   location: { reload(): void };
 }
 
+let staleReloadOrdered = false;
+
+/**
+ * Har en omladdning efter deploy just beställts? Handlern stoppar Vites fel (preventDefault), så React.lazy får `undefined` och kastar ett
+ * följdfel ("reading 'default'") innan sidan hunnit laddas om. Felspårningen frågar här och rapporterar ingenting från en sida som ändå
+ * håller på att försvinna.
+ */
+export function isStaleReloadOrdered(): boolean {
+  return staleReloadOrdered;
+}
+
 export function installStaleChunkReload(
   target: ReloadTarget,
   getStorage: () => GuardStorage | null,
   now: () => number = Date.now,
 ): void {
   target.addEventListener('vite:preloadError', (event) => {
+    if (isOptionalChunkFailure((event as Event & { payload?: unknown }).payload)) return;
     if (!claimStaleChunkReload(now(), getStorage())) return;
+    staleReloadOrdered = true;
     event.preventDefault();
     target.location.reload();
   });

@@ -11,15 +11,22 @@ import {
   checkConditionalGroupFilter,
   checkEmptySuites,
   checkFontFiles,
+  checkGroupRoleMapping,
+  checkGroupSettingsWrites,
   checkGitignoreForVideo,
   checkMediaFiles,
   checkNoTrackedVideoOriginals,
   checkRateBudgetHook,
   checkReconcileSchedulerStart,
+  checkRecoverySchedulerStart,
+  checkStravaTokenPath,
+  checkTokenKeyStartupCheck,
   checkWebhookSchedulerStart,
   checkRawStravaFetch,
   checkTestNames,
   checkTodos,
+  checkUsersGroupIdWrites,
+  GROUP_SETTINGS_EXEMPT_FILES,
   isEntryPoint,
   listWorkspaces,
   walkFiles,
@@ -215,6 +222,320 @@ describe('checkConditionalGroupFilter', () => {
   });
 });
 
+describe('checkGroupRoleMapping', () => {
+  const scan = (content, path = 'apps/backend/src/utils/groupAccess.ts') => checkGroupRoleMapping([{ path, content }]);
+
+  it('flags a role compared with a role name instead of asking groupRoleCan', () => {
+    for (const code of [
+      "if (member.role === 'admin') allow();",
+      'if (role !== "admin") return deny();',
+      "const isAdmin = membership.role == 'admin';",
+      "if ('admin' === membership.role) allow();",
+      "if (role === 'member') hide();",
+      "if (['admin'].includes(membership.role)) allow();",
+      "if (  role   ===\n  'admin') allow();",
+    ]) {
+      const errors = scan(code);
+      assert.equal(errors.length, 1, code);
+      assert.match(errors[0], /apps\/backend\/src\/utils\/groupAccess\.ts:1: .*groupRoleCan/);
+    }
+  });
+
+  it('passes the allowed forms: groupRoleCan, role values as data, database filters and unrelated roles', () => {
+    for (const code of [
+      "if (groupRoleCan(membership.role, 'settings.write')) allow();",
+      "await rpc('join_group', { p_role: 'member' });",
+      "const { data } = await db.from('group_members').select('role').eq('role', 'admin');",
+      "quiet={kind.role === 'others'}",
+      '<nav role="admin-menu" />',
+      "const roleLabel = role === 'viewer' ? 'Viewer' : 'Other';",
+      "// if (role === 'admin') är förbjudet — använd groupRoleCan\nconst x = 1;",
+      "/* role === 'admin' */ const y = 2;",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('reports every offending line with its own line number', () => {
+    const errors = scan("a;\nif (role === 'admin') x();\nb;\nif (m.role !== 'member') y();\n");
+    assert.equal(errors.length, 2);
+    assert.match(errors[0], /:2:/);
+    assert.match(errors[1], /:4:/);
+  });
+
+  it('exempts the one file that maps roles, tests and test support, and ignores other places', () => {
+    const bad = "if (role === 'admin') x();";
+    assert.deepEqual(scan(bad, 'packages/shared/src/groupRoles.ts'), []);
+    assert.deepEqual(scan(bad, 'packages/shared/src/__tests__/groupRoles.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/utils/groupAccess.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/__tests__/helpers/x.ts'), []);
+    assert.equal(scan(bad, 'apps/frontend/src/features/groups/groupModel.ts').length, 1);
+    assert.equal(scan(bad, 'packages/shared/src/other.ts').length, 1);
+    assert.deepEqual(scan(bad, 'apps/backend/migrations/x.ts'), []);
+  });
+});
+
+describe('checkUsersGroupIdWrites', () => {
+  const scan = (content, path = 'apps/backend/src/routes/groups.ts') => checkUsersGroupIdWrites([{ path, content }]);
+
+  it('flags a supabase-js write to users that sets group_id, with or without other fields', () => {
+    for (const code of [
+      "await supabase.from('users').update({ group_id: group.id }).eq('id', userId);",
+      "await supabase.from('users').update({ name, group_id: groupId, total_xp: 0 }).eq('id', userId);",
+      "await supabase.from('users').update({\n  name,\n  group_id: groupId,\n}).eq('id', userId);",
+      "await db.from('users').update({ group_id }).eq('id', id);",
+      "await db.from('users').update({ total_xp: 0, group_id }).eq('id', id);",
+      "await db.from('users').update({ 'group_id': groupId }).eq('id', id);",
+      'await db.from("users").update({ ["group_id"]: groupId }).eq("id", id);',
+      "await db.from('users').insert({ name, email, group_id: groupId }).select('id').single();",
+      "await db.from('users').insert([{ name: 'a', group_id: groupId }, { name: 'b' }]);",
+      "await db.from('users').upsert({ id, group_id: groupId }, { onConflict: 'id' });",
+      "await db\n  .from('users')\n  .update({ group_id: null })\n  .in('id', ids);",
+      "await db.from(`users`).update({ group_id: null }).eq('id', id);",
+    ]) {
+      const errors = scan(code);
+      assert.equal(errors.length, 1, code);
+      assert.match(errors[0], /apps\/backend\/src\/routes\/groups\.ts:\d+: .*join_group/);
+    }
+  });
+
+  it('flags SQL text that updates or inserts users.group_id', () => {
+    for (const code of [
+      'await client.query("update public.users set group_id = $1 where id = $2");',
+      'const sql = `update users set name = $1, group_id = $2 where id = $3`;',
+      "const sql = 'UPDATE public.users u SET group_id = null WHERE u.id = 1';",
+      "sql += `insert into public.users (id, name, email, password_hash, is_admin, group_id) values ($1, $2, $3, $4, $5, $6);`;",
+      "const sql = 'insert into users (id, group_id) values (1, 2)';",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('passes writes that do not set group_id and reads of group_id', () => {
+    for (const code of [
+      "await supabase.from('users').update({ password_hash }).eq('id', id);",
+      "await supabase.from('users').update({ news_last_seen_id: target }).eq('id', id);",
+      "await supabase.from('users').update(update).eq('id', user.id);",
+      "await supabase.from('users').select('id, group_id').eq('group_id', groupId);",
+      "await supabase.from('users').update({ challenge_active: false }).eq('group_id', groupId);",
+      "await supabase.from('users').update({ name: group_id }).eq('id', id);",
+      "await supabase.from('runs').insert({ user_id, group_id: groupId });",
+      "await supabase.from('activity_log').insert({ group_id: groupId, actor_id });",
+      "await supabase.from('group_members').update({ role }).eq('group_id', groupId);",
+      "await supabase.from('users').delete().eq('group_id', groupId);",
+      "await supabase.rpc('join_group', { p_user_id: id, p_group_id: groupId, p_role: 'member', p_today: today });",
+      'const sql = "update public.users set password_hash = $1 where group_id = $2";',
+      "const sql = 'insert into public.users (id, name) values (1, 2)';",
+      "const sql = 'update public.groups set owner_id = $1 where id = $2';",
+      "// await supabase.from('users').update({ group_id: x }) är förbjudet\nconst a = 1;",
+      '/* update users set group_id = 1 */ const b = 2;',
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('reads the query chain of the users table, not what follows after it', () => {
+    const code = "await db.from('users').select('id');\nawait db.from('runs').insert({ group_id: groupId });\n";
+    assert.deepEqual(scan(code), []);
+  });
+
+  it('ends the chain at the next element of a Promise.all and at a statement without a semicolon', () => {
+    for (const code of [
+      "await Promise.all([db.from('users').select('id'), db.from('runs').insert({ user_id, group_id: g })]);",
+      "const [a, b] = await Promise.all([\n  db.from('users').select('id'),\n  db.from('runs').insert({ user_id, group_id: g }),\n]);",
+      "const users = db.from('users').select('id'), runs = db.from('runs').insert({ group_id: g });",
+      "await db.from('users').select('id')\nawait db.from('runs').insert({ user_id, group_id: g })\n",
+      "const { data } = await db.from('users').select('id')\n\nconst next = { group_id: g }\n",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('still reads a chain that continues on following lines and a write inside a Promise.all', () => {
+    for (const code of [
+      "await db\n  .from('users')\n  .select('id')\n  .update({ group_id: g });",
+      "await db.from('users')\n  ?.update({ group_id: g });",
+      "await Promise.all([db.from('users').select('id'), db.from('users').update({ group_id: g }).eq('id', 1)]);",
+      "await db.from('users').update({ name })\n  .eq('id', 1)\n  .update({ group_id: g })\n",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('keeps reading the chain across a line comment, a block comment, blank lines and CRLF between its lines', () => {
+    const write = ".update({ group_id: g }).eq('id', 1);";
+    for (const code of [
+      `await db\n  .from('users')\n  // only active ones\n  ${write}`,
+      `await db\n  .from('users')\n  /* only active ones */\n  ${write}`,
+      `await db\n  .from('users')\n  /*\n   * several\n   * lines\n   */\n  ${write}`,
+      `await db\r\n  .from('users')\r\n  // only active ones\r\n  ${write}`,
+      `await db\r\n  .from('users')\r\n  /* only active ones */\r\n  ${write}`,
+      `await db\n  .from('users')\n\n\n  ${write}`,
+      `await db\n  .from('users')\n  /* ${'x'.repeat(400)} */\n  ${write}`,
+      `await db\n  .from('users')\n${' '.repeat(400)}${write}`,
+    ]) {
+      assert.equal(scan(code).length, 1, JSON.stringify(code));
+    }
+  });
+
+  it('reports each offending write with its own line number', () => {
+    const errors = scan("a;\nawait db.from('users').update({ group_id: a }).eq('id', 1);\nb;\nawait db.from('users').insert({ group_id: b });\n");
+    assert.equal(errors.length, 2);
+    assert.match(errors[0], /:2:/);
+    assert.match(errors[1], /:4:/);
+  });
+
+  it('checks all backend source including scripts, and skips tests, test support, and other workspaces', () => {
+    const bad = "await db.from('users').update({ group_id: g }).eq('id', 1);";
+    assert.equal(scan(bad, 'apps/backend/src/scripts/backfillSomething.ts').length, 1);
+    assert.equal(scan(bad, 'apps/backend/src/services/membershipService.ts').length, 1);
+    assert.equal(scan(bad, 'apps/backend/src/utils/membership.ts').length, 1);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/__tests__/helpers/fakeDb.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/groups.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/frontend/src/shared/x.ts'), []);
+    assert.deepEqual(scan(bad, 'packages/shared/src/x.ts'), []);
+  });
+
+  it('no longer lets any script through by name: the staging seed script goes through the database functions too', () => {
+    const sql = 'sql += `insert into public.users (id, name, group_id) values (1, 2, 3);`;';
+    assert.equal(scan(sql, 'apps/backend/src/scripts/staging/stagingSeedGroup.ts').length, 1);
+    assert.equal(scan(sql, 'apps/backend/src/scripts/createGroup.ts').length, 1);
+  });
+});
+
+describe('checkGroupSettingsWrites', () => {
+  const GATE = 'const groupId = await actingGroupForWriteOrRespond(req, res);\nif (!groupId) return;\n';
+  const scan = (content, path = 'apps/backend/src/routes/groupSettings.ts', exempt) => checkGroupSettingsWrites([{ path, content }], exempt);
+
+  it('flags a write to group_settings in a file that never asks for the acting group', () => {
+    for (const code of [
+      "await supabase.from('group_settings').upsert(rows, { onConflict: 'group_id,key' });",
+      "await supabase.from('group_settings').insert({ group_id: groupId, key, value });",
+      "await supabase.from('group_settings').update({ value }).eq('group_id', groupId).eq('key', key);",
+      "await supabase.from('group_settings').delete().eq('group_id', groupId);",
+      'await supabase\n  .from(`group_settings`)\n  .upsert(rows);',
+      'await db.from("group_settings").upsert(rows);',
+      "const TABLE = 'group_settings';\nawait db.from(TABLE).upsert(rows);",
+      'await db.from(GROUP_SETTINGS_TABLE).upsert(rows);',
+      "import { GROUP_SETTINGS_TABLE } from '../services/groupSettings.js';\nawait db\n  .from(GROUP_SETTINGS_TABLE)\n  .delete()\n  .eq('key', k);",
+      "await db.from('group_settings' as const).upsert(rows);",
+      "await db.from('group_settings' satisfies string).delete().eq('key', k);",
+      "const TABLE = 'group_settings' as const;\nawait db.from(TABLE).delete().eq('key', k);",
+      'const TABLE: string = "group_settings";\nawait db.from( TABLE ).delete().eq(\'key\', k);',
+      'await client.query("insert into public.group_settings (group_id, key, value) values ($1, $2, $3)");',
+      "const sql = 'UPDATE group_settings SET value = $1 WHERE group_id = $2';",
+      'const sql = `delete from public."group_settings" where group_id = $1`;',
+    ]) {
+      const errors = scan(code);
+      assert.equal(errors.length, 1, code);
+      assert.match(errors[0], /apps\/backend\/src\/routes\/groupSettings\.ts:\d+: .*actingGroupForWriteOrRespond/);
+    }
+  });
+
+  it('passes a write in a file that goes through actingGroupForWriteOrRespond or resolveActingGroupForWrite', () => {
+    const write = "await supabase.from('group_settings').upsert(rows, { onConflict: 'group_id,key' });\n";
+    assert.deepEqual(scan(GATE + write), []);
+    assert.deepEqual(scan('const acting = await resolveActingGroupForWrite(userId);\nif (!acting.allowed) return;\n' + write), []);
+    assert.deepEqual(scan("const TABLE = 'group_settings';\n" + GATE + "await db.from(TABLE).delete().eq('group_id', groupId);\n"), []);
+  });
+
+  it('does not count a mention, a definition or a call in a comment as the gate', () => {
+    const write = "await supabase.from('group_settings').upsert(rows);\n";
+    for (const gate of [
+      '// await actingGroupForWriteOrRespond(req, res)\n',
+      '/* resolveActingGroupForWrite(userId) */\n',
+      "import { actingGroupForWriteOrRespond } from '../utils/groupAccess.js';\n",
+      'export async function actingGroupForWriteOrRespond(req, res) { return null; }\n',
+      'const gate = obj.actingGroupForWriteOrRespond(req, res);\n',
+    ]) {
+      assert.equal(scan(gate + write).length, 1, gate);
+    }
+  });
+
+  it('flags a group id taken from the request, even in a file that has the gate', () => {
+    for (const source of [
+      "await supabase.from('group_settings').upsert({ group_id: req.body.group_id, key, value });",
+      "await supabase.from('group_settings').delete().eq('group_id', req.params.groupId);",
+      "await supabase.from('group_settings').upsert({ ...req.body });",
+      "await supabase.from('group_settings').delete().eq('group_id', req.query.group);",
+      "await supabase.from('group_settings').upsert({ key: req.get('x-key') });",
+      "await supabase.from('group_settings').upsert({ key: req.cookies.key });",
+      "const gid = req.get('x-group-id');\nawait supabase.from('group_settings').upsert({ group_id: gid, key });",
+      "await supabase.from('group_settings').delete().eq('group_id', req.headers['x-group-id']);",
+      "await supabase.from('group_settings').upsert({ group_id: req.user!.group_id, key });",
+      "await supabase.from('group_settings').upsert({ group_id: req.user?.group_id, key });",
+      "const groupId = req.user!.group_id;\nawait supabase.from('group_settings').upsert({ group_id: groupId, key });",
+      "const groupId = req.params.groupId;\nawait supabase.from('group_settings').upsert({ group_id: groupId, key });",
+      "const { group_id } = req.body;\nawait supabase.from('group_settings').upsert({ group_id, key });",
+      "const gid = req.header('x-group-id'); const group_id = gid;\nawait supabase.from('group_settings').upsert({ group_id, key });",
+      "const groupId = request.body.groupId;\nawait supabase.from('group_settings').delete().eq('group_id', groupId);",
+    ]) {
+      const errors = scan(GATE + source);
+      assert.ok(errors.length >= 1, source);
+      assert.match(errors[0], /apps\/backend\/src\/routes\/groupSettings\.ts:\d+: .*req/);
+    }
+  });
+
+  it('passes request values that are not a group id: the actor and the body that is validated', () => {
+    const code = GATE
+      + 'const actorId = req.user!.user_id;\n'
+      + "const patch = sanitizePatch(req.body, 'group', registry());\n"
+      + "logger.info('saved', { user_id: actorId, group_id: groupId });\n"
+      + "await supabase.from('group_settings').upsert(rows, { onConflict: 'group_id,key' });\n"
+      + "await supabase.from('group_settings').delete().eq('group_id', groupId).in('key', patch.reset);\n";
+    assert.deepEqual(scan(code), []);
+  });
+
+  it('ignores reads of group_settings and writes to other tables, with or without the gate', () => {
+    for (const code of [
+      "const { data } = await db.from('group_settings').select('key, value').eq('group_id', groupId);",
+      "const { data } = await db.from(GROUP_SETTINGS_TABLE).select('key, value').eq('group_id', groupId);",
+      "const { data } = await db.from('group_settings' as const).select('key');",
+      "await db.from('user_settings').upsert(rows, { onConflict: 'user_id,key' });",
+      "await db.from('groups').update({ name }).eq('id', groupId);",
+      "const TABLE = 'user_settings';\nawait db.from(TABLE).delete().eq('user_id', userId);",
+      "await db.from('group_settings').select('key').eq('group_id', req.params.groupId);",
+      "// await db.from('group_settings').upsert(rows);\nconst a = 1;",
+      "const sql = 'select * from group_settings where group_id = $1';",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('reads the query chain of group_settings, not what follows after it', () => {
+    const code = "await db.from('group_settings').select('key');\nawait db.from('runs').insert({ group_id: groupId });\n";
+    assert.deepEqual(scan(code), []);
+  });
+
+  it('reports each offending write with its own line number', () => {
+    const errors = scan("a;\nawait db.from('group_settings').upsert(a);\nb;\nawait db.from('group_settings').delete().eq('k', 1);\n");
+    assert.equal(errors.length, 2);
+    assert.match(errors[0], /:2:/);
+    assert.match(errors[1], /:4:/);
+  });
+
+  it('checks all backend source including scripts, and skips tests, test support, and other workspaces', () => {
+    const bad = "await db.from('group_settings').upsert(rows);";
+    assert.equal(scan(bad, 'apps/backend/src/scripts/seedSomething.ts').length, 1);
+    assert.equal(scan(bad, 'apps/backend/src/services/groupSettings.ts').length, 1);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/__tests__/helpers/fakeDb.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/backend/src/routes/group-settings.test.ts'), []);
+    assert.deepEqual(scan(bad, 'apps/frontend/src/shared/x.ts'), []);
+    assert.deepEqual(scan(bad, 'packages/shared/src/x.ts'), []);
+  });
+
+  it('lets a file on the allowlist through, by exact name, and nothing else', () => {
+    const bad = "await db.from('group_settings').upsert(rows);";
+    const exempt = new Map([['apps/backend/src/scripts/seedSomething.ts', 'seeds the staging pretend group; no acting user exists']]);
+    assert.deepEqual(scan(bad, 'apps/backend/src/scripts/seedSomething.ts', exempt), []);
+    assert.equal(scan(bad, 'apps/backend/src/scripts/seedOther.ts', exempt).length, 1);
+  });
+
+  it('has no files on the real allowlist: every write goes through the gate', () => {
+    assert.equal(GROUP_SETTINGS_EXEMPT_FILES.size, 0);
+  });
+});
+
 describe('checkWebhookSchedulerStart', () => {
   const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
   const prod = (inside) => `import x from 'x';\nserver.on('listening', () => {\n  if (process.env.NODE_ENV === 'production') {\n${inside}\n  } else {\n    logger.info('dev');\n  }\n});\n`;
@@ -280,6 +601,66 @@ describe('checkReconcileSchedulerStart', () => {
   it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
     assert.equal(checkReconcileSchedulerStart([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
     assert.deepEqual(checkReconcileSchedulerStart([{ path: 'apps/one/src/a.ts', content: '' }]), []);
+  });
+});
+
+describe('checkRecoverySchedulerStart', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+  const prod = (inside) => `import x from 'x';\nserver.on('listening', () => {\n  if (process.env.NODE_ENV === 'production') {\n${inside}\n  }\n});\n`;
+
+  it('passes when the call is directly in the production block, beside the other schedulers', () => {
+    assert.deepEqual(checkRecoverySchedulerStart(server(prod('    startStravaReconcileScheduler();\n    startRecalculationRecoveryScheduler();'))), []);
+  });
+
+  it('flags a server.ts where the start line is removed, and does not take the reconcile scheduler for it', () => {
+    const errors = checkRecoverySchedulerStart(server(prod('    startStravaReconcileScheduler();')));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: startRecalculationRecoveryScheduler\(\) måste anropas direkt i produktionsblocket/);
+  });
+
+  it('flags a call outside the production block, in a nested callback, or only in a comment or string', () => {
+    const cases = [
+      "startRecalculationRecoveryScheduler();\nif (process.env.NODE_ENV === 'production') {\n  startStravaScheduler();\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  setTimeout(() => {\n    startRecalculationRecoveryScheduler();\n  }, 1);\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  // startRecalculationRecoveryScheduler();\n  logger.info('startRecalculationRecoveryScheduler()');\n}\n",
+    ];
+    for (const code of cases) assert.equal(checkRecoverySchedulerStart(server(code)).length, 1, code);
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkRecoverySchedulerStart([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkRecoverySchedulerStart([{ path: 'apps/one/src/a.ts', content: '' }]), []);
+  });
+});
+
+describe('checkTokenKeyStartupCheck', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+
+  it('passes when server.ts calls reportTokenKeyAtStartup() at the top level', () => {
+    assert.deepEqual(checkTokenKeyStartupCheck(server("import { x } from './x.js';\nreportTokenKeyAtStartup();\nconst app = 1;\n")), []);
+    assert.deepEqual(checkTokenKeyStartupCheck(server('reportTokenKeyAtStartup()\r\n')), []);
+  });
+
+  it('flags a server.ts without the call', () => {
+    const errors = checkTokenKeyStartupCheck(server("import { reportTokenKeyAtStartup } from './services/tokenKeyStartup.js';\nconst app = 1;\n"));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: saknar ett anrop av reportTokenKeyAtStartup\(\)/);
+  });
+
+  it('flags a call that is only in a comment, indented inside a block or callback, or a different function', () => {
+    for (const code of [
+      '// reportTokenKeyAtStartup();\n',
+      "if (process.env.NODE_ENV === 'production') {\n  reportTokenKeyAtStartup();\n}\n",
+      "server.on('listening', () => {\n  reportTokenKeyAtStartup();\n});\n",
+      'reportTokenKeyAtStartupLater();\n',
+    ]) {
+      assert.equal(checkTokenKeyStartupCheck(server(code)).length, 1, code);
+    }
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkTokenKeyStartupCheck([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkTokenKeyStartupCheck([{ path: 'apps/one/src/a.ts', content: '' }]), []);
   });
 });
 
@@ -354,6 +735,137 @@ describe('checkRawStravaFetch', () => {
 
   it('only reads the backend', () => {
     assert.deepEqual(scan("await fetch('https://www.strava.com/oauth/token');", 'apps/frontend/src/x.ts'), []);
+  });
+});
+
+describe('checkStravaTokenPath', () => {
+  const scan = (content, path = 'apps/backend/src/routes/x.ts') => checkStravaTokenPath([{ path, content }]);
+
+  it('flags a select of a token column on strava_tokens outside stravaTokenStore and reports file:line', () => {
+    const errors = scan("a;\nconst { data } = await db.from('strava_tokens').select('user_id, access_token').eq('user_id', id);\n");
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/routes\/x\.ts:2: .*stravaTokenStore/);
+  });
+
+  it('keeps reading the chain across a line comment, a block comment, blank lines and CRLF between its lines, and reports the right line', () => {
+    const reads = [
+      ".select('access_token')",
+      ".select('*')",
+      '.select()',
+      ".select('user_id').not('refresh_token', 'is', 'x')",
+      '.upsert({ ...tokens })',
+      '.update({ ...tokens })',
+      ".insert({ user_id, access_token: 'x' })",
+    ];
+    for (const read of reads) {
+      for (const code of [
+        `await db\n  .from('strava_tokens')\n  // only active ones\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /* only active ones */\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /*\n   * several\n   * lines\n   */\n  ${read};`,
+        `await db\r\n  .from('strava_tokens')\r\n  // only active ones\r\n  ${read};`,
+        `await db\r\n  .from('strava_tokens')\r\n  /* only active ones */\r\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n\n\n  ${read};`,
+        `await db\n  .from('strava_tokens')\n  /* ${'x'.repeat(400)} */\n  ${read};`,
+      ]) {
+        const errors = scan(code);
+        assert.equal(errors.length, 1, JSON.stringify(code));
+        assert.match(errors[0], /x\.ts:2:/);
+      }
+    }
+  });
+
+  it('does not let a comment mentioning a token column flag a chain that reads none', () => {
+    assert.deepEqual(scan("await db\n  .from('strava_tokens')\n  // never select access_token here\n  .select('user_id');"), []);
+    assert.deepEqual(scan("await db.from('strava_tokens').select('user_id'); // access_token is in the store\n"), []);
+  });
+
+  it('still flags a token read inside a Promise.all or before a following statement, and ignores what comes after the chain', () => {
+    assert.equal(scan("await Promise.all([db.from('strava_tokens').select('access_token'), db.from('users').select('id')]);").length, 1);
+    assert.equal(scan("await Promise.all([db.from('users').select('id'), db.from('strava_tokens').select('refresh_token').eq('user_id', id)]);").length, 1);
+    assert.equal(scan("await db.from('strava_tokens').select('access_token')\nawait other()\n").length, 1);
+    assert.deepEqual(scan("await Promise.all([db.from('strava_tokens').select('user_id'), db.from('x').select('access_token')]);"), []);
+    assert.deepEqual(scan("await db.from('strava_tokens').select('user_id')\nconst t = { access_token: 1 }\n"), []);
+  });
+
+  it('flags the variants: refresh_token, a multi-line template select, select(*) and select(), a filter, an update, an upsert, an insert', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select('refresh_token').eq('user_id', id);",
+      "await db\n  .from('strava_tokens')\n  .select(`\n    user_id,\n    access_token,\n    users!inner(name)\n  `)\n  .eq('sync_paused', false);",
+      "await db.from('strava_tokens').select('*');",
+      "await db.from('strava_tokens').select();",
+      "await db.from(\"strava_tokens\").select(\"\");",
+      "await db.from('strava_tokens').select('user_id').eq('refresh_token', old);",
+      "await db.from('strava_tokens').update({ refresh_token: next }).eq('user_id', id);",
+      "await db.from('strava_tokens').upsert({ user_id: id, access_token: a });",
+      "await db.from('strava_tokens').insert({ user_id: id, access_token: a });",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+    assert.equal(scan("await db.from('strava_tokens').select('access_token');\nawait db.from('strava_tokens').select('refresh_token');").length, 2);
+  });
+
+  it('flags a star anywhere in the select list, a select argument that is not a literal, and a spread into a write', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select('user_id, *');",
+      "await db.from('strava_tokens').select('*, users(name)');",
+      "await db.from('strava_tokens').select(\"user_id,*\");",
+      "await db.from('strava_tokens').select(columns);",
+      "await db.from('strava_tokens').select(COLUMNS.join(', '));",
+      "await db.from('strava_tokens').select(`user_id, ${extra}`);",
+      "await db.from('strava_tokens').upsert({ user_id: id, ...tokens });",
+      "await db.from('strava_tokens').insert({ ...tokens, user_id: id });",
+      "await db.from('strava_tokens').update({ ...next, sync_paused: false }).eq('user_id', id);",
+      "await db.from('strava_tokens').upsert([{ user_id: id, ...tokens }]);",
+    ]) {
+      assert.equal(scan(code).length, 1, code);
+    }
+  });
+
+  it('passes a literal template select, a star inside a string that is not the select, and writes without a spread', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select(`\n  user_id,\n  users!inner(name)\n`).eq('sync_paused', false);",
+      "await db.from('strava_tokens').select('user_id').eq('note', '*');",
+      "await db.from('strava_tokens').update({ sync_paused: true, paused_at: now }).eq('user_id', id);",
+      "await db.from('strava_tokens').delete().eq('user_id', id);",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('passes reads of other columns, the has-a-token filter, writes of other columns, and chains on other tables', () => {
+    for (const code of [
+      "await db.from('strava_tokens').select('user_id, sync_paused, paused_at').eq('user_id', id).maybeSingle();",
+      "await db.from('strava_tokens').select('user_id, users!inner(name)').not('access_token', 'is', null).eq('sync_paused', false);",
+      "await db.from('strava_tokens').update({ sync_paused: true }).eq('user_id', id);",
+      "await db.from('strava_tokens').delete().eq('user_id', id);",
+      "await db.from('strava_webhook_events').select('access_token');",
+      "const token = tokenData.access_token;\nawait db.from('runs').select('id');",
+      "// the old code read access_token and refresh_token here\nawait db.from('strava_tokens').select('user_id'); // not access_token",
+      "await db.from('strava_tokens').select('user_id');\nconst body = { access_token: x };",
+    ]) {
+      assert.deepEqual(scan(code), [], code);
+    }
+  });
+
+  it('does not exempt the token backfill: it goes through stravaTokenStore like everything else', () => {
+    const raw = "await db.from('strava_tokens').select('access_token, refresh_token');";
+    assert.equal(scan(raw, 'apps/backend/src/scripts/backfillStravaTokenEncryption.ts').length, 1);
+  });
+
+  it('lets stravaTokenStore.ts, tests and test-utils touch the token columns', () => {
+    const raw = "await db.from('strava_tokens').select('access_token, refresh_token');";
+    assert.deepEqual(scan(raw, 'apps/backend/src/services/stravaTokenStore.ts'), []);
+    assert.deepEqual(scan(raw, 'apps/backend/src/services/__tests__/x.test.ts'), []);
+    assert.deepEqual(scan(raw, 'apps/backend/src/test-utils/fakeStrava.ts'), []);
+  });
+
+  it('only reads the backend', () => {
+    assert.deepEqual(scan("await db.from('strava_tokens').select('access_token');", 'apps/frontend/src/x.ts'), []);
+  });
+
+  it('stops a chain at the end of its statement, so a later token mention on its own is not blamed on it', () => {
+    assert.deepEqual(scan("await db.from('strava_tokens').select('user_id');\nawait other.update({ refresh_token: x });"), []);
+    assert.deepEqual(scan("const rows = await readAll('l', (from, to) =>\n  db.from('strava_tokens').select('user_id').range(from, to),\n);\nconst refresh_token = 1;"), []);
   });
 });
 
@@ -582,6 +1094,31 @@ describe('CLI', () => {
     assert.equal(runCli('strava-fetch', makeBackend('fetch-good', "await stravaFetch('https://www.strava.com/oauth/token');\n")).status, 0);
   });
 
+  it('exits 1 on a token column read outside stravaTokenStore (also under all) and 0 once it is gone', () => {
+    const makeBackend = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'routes'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'routes', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeBackend('token-path-bad', "await db.from('strava_tokens').select('user_id, access_token');\n");
+    for (const mode of ['strava-token-path', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/planted\.ts:1: .*stravaTokenStore/);
+    }
+    assert.equal(runCli('strava-token-path', makeBackend('token-path-good', "await db.from('strava_tokens').select('user_id');\n")).status, 0);
+  });
+
+  it('exits 0 on the current repo in strava-token-path mode', () => {
+    const result = runCli('strava-token-path');
+    assert.equal(result.status, 0, result.stderr);
+  });
+
   it('exits 1 when server.ts lacks the rate budget call (also under all) and 0 once it is planted', () => {
     const makeBackend = (name, serverContent) => {
       const root = join(temp, name);
@@ -600,6 +1137,58 @@ describe('CLI', () => {
       assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av registerStravaRateBudget/);
     }
     assert.equal(runCli('rate-budget-hook', makeBackend('hook-good', 'registerStravaRateBudget();\n')).status, 0);
+  });
+
+  it('exits 1 on a role compared with a role name (also under all) and 0 once it asks groupRoleCan', () => {
+    const makeRoleRepo = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'utils'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'utils', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeRoleRepo('role-bad', "if (membership.role === 'admin') allow();\n");
+    for (const mode of ['group-role-mapping', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/utils\/planted\.ts:1: .*groupRoleCan/);
+    }
+    assert.equal(runCli('group-role-mapping', makeRoleRepo('role-good', "if (groupRoleCan(membership.role, 'settings.write')) allow();\n")).status, 0);
+  });
+
+  it('exits 0 on the current repo in group-role-mapping mode', () => {
+    const result = runCli('group-role-mapping');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /groupRoleCan/);
+  });
+
+  it('exits 1 when server.ts lacks the token key check (also under all) and 0 once it is planted', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('key-check-bad', 'registerStravaRateBudget();\n');
+    for (const mode of ['token-key-startup', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av reportTokenKeyAtStartup/);
+    }
+    assert.equal(runCli('token-key-startup', makeBackend('key-check-good', 'reportTokenKeyAtStartup();\n')).status, 0);
+  });
+
+  it('exits 0 on the current repo in token-key-startup mode', () => {
+    const result = runCli('token-key-startup');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /tokennyckeln/);
   });
 
   it('exits 1 when server.ts does not start the webhook worker in the production block (also under all) and 0 once it does', () => {
@@ -644,6 +1233,33 @@ describe('CLI', () => {
     assert.equal(runCli('reconcile-scheduler-start', good).status, 0);
   });
 
+  it('exits 1 when server.ts does not start the recalculation recovery in the production block (also under all) and 0 once it does', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('recovery-bad', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  startStravaReconcileScheduler();\n}\n");
+    for (const mode of ['recovery-scheduler-start', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /startRecalculationRecoveryScheduler\(\) måste anropas direkt i produktionsblocket/);
+    }
+    const good = makeBackend('recovery-good', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  startStravaReconcileScheduler();\n  startRecalculationRecoveryScheduler();\n}\n");
+    assert.equal(runCli('recovery-scheduler-start', good).status, 0);
+  });
+
+  it('exits 0 on the current repo in recovery-scheduler-start mode', () => {
+    const result = runCli('recovery-scheduler-start');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /omräkningsåterhämtningen/);
+  });
+
   it('exits 0 on the current repo in reconcile-scheduler-start mode', () => {
     const result = runCli('reconcile-scheduler-start');
     assert.equal(result.status, 0, result.stderr);
@@ -666,6 +1282,59 @@ describe('CLI', () => {
     const result = runCli('strava-fetch');
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /stravaFetch/);
+  });
+
+  it('exits 1 on a direct write to users.group_id (also under all) and 0 once it goes through join_group', () => {
+    const makeBackend = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'utils'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'utils', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeBackend('ugid-bad', "export const f = (db) => db.from('users').update({ group_id: 1 }).eq('id', 2);\n");
+    for (const mode of ['users-group-id', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/utils\/planted\.ts:1: .*join_group/);
+    }
+    assert.equal(runCli('users-group-id', makeBackend('ugid-good', "export const f = (db) => db.rpc('join_group', {});\n")).status, 0);
+  });
+
+  it('exits 1 on a group_settings write that skips the acting-group gate (also under all) and 0 once it goes through it', () => {
+    const makeBackend = (name, content) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src', 'routes'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'routes', 'planted.ts'), content);
+      return root;
+    };
+    const bad = makeBackend('gsw-bad', "export const f = (db) => db.from('group_settings').upsert([]);\n");
+    for (const mode of ['group-settings-writes', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/planted\.ts:1: .*actingGroupForWriteOrRespond/);
+    }
+    const good = makeBackend('gsw-good', "export const f = async (db, req, res) => { const g = await actingGroupForWriteOrRespond(req, res); return db.from('group_settings').upsert([{ group_id: g }]); };\n");
+    assert.equal(runCli('group-settings-writes', good).status, 0);
+  });
+
+  it('exits 0 on the current repo in group-settings-writes mode', () => {
+    const result = runCli('group-settings-writes');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /group_settings/);
+  });
+
+  it('exits 0 on the current repo in users-group-id mode', () => {
+    const result = runCli('users-group-id');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /group_id/);
   });
 
   it('does not flag the same code outside routes/', () => {

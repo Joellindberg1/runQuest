@@ -15,9 +15,9 @@ vi.mock('../../config/database.js', () => ({
 }));
 vi.mock('../../services/levelService.js', () => ({ getLevelFromXP: vi.fn(async () => 1) }));
 vi.mock('../../services/challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
-const processAllUsersTitles = vi.fn(async (..._args: unknown[]) => undefined);
+const processGroupTitles = vi.fn(async (..._args: unknown[]) => undefined);
 vi.mock('../../services/enhancedTitleService.js', () => ({
-  EnhancedTitleService: class { processAllUsersTitles = processAllUsersTitles; },
+  EnhancedTitleService: class { processGroupTitles = processGroupTitles; },
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
@@ -34,7 +34,7 @@ beforeAll(async () => {
   server = await startServer(app);
 });
 afterAll(async () => { await server.close(); });
-beforeEach(() => { processAllUsersTitles.mockClear(); });
+beforeEach(() => { processGroupTitles.mockClear(); });
 
 describe('a paused user keeps what the imported runs earned', () => {
   it("a paused user's existing runs still count for xp, titles and badges", async () => {
@@ -43,6 +43,7 @@ describe('a paused user keeps what the imported runs earned', () => {
       user_badges: [],
       strava_tokens: [{ user_id: 'u1', access_token: 'at', refresh_token: 'rt', expires_at: 9999999999, sync_paused: false, paused_at: null }],
       users: [{ id: 'u1', group_id: 'g1', event_xp: 0, current_level: 1, total_km: 0, total_xp: 0, current_streak: 0, longest_streak: 0, displayed_badge_series: [] }],
+      group_members: [{ id: 'm1', user_id: 'u1', group_id: 'g1', role: 'member', starts_on: null, left_at: null }],
       runs: [
         { id: 'r1', user_id: 'u1', date: '2020-01-01', distance: 5, xp_gained: 10, source: 'strava', external_id: '1' },
         { id: 'r2', user_id: 'u1', date: '2020-01-02', distance: 7, xp_gained: 14, source: 'strava', external_id: '2' },
@@ -57,6 +58,6 @@ describe('a paused user keeps what the imported runs earned', () => {
     expect(tables.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
     expect(tables.runs).toHaveLength(2); // the pause deletes nothing
     expect(tables.user_badges.filter((badge) => badge.series === 'milestoner')).toHaveLength(1);
-    expect(processAllUsersTitles).toHaveBeenCalledWith('g1');
+    expect(processGroupTitles).toHaveBeenCalledWith('g1');
   });
 });

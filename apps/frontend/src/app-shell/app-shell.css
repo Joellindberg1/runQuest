@@ -3,7 +3,7 @@
 
 /* ── Ram ─────────────────────────────────────────────────────────────────── */
 .rq-shell {
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--rq-staging-banner-h));
   display: flex;
   background: var(--rq-bg-shell);
   color: var(--rq-text-2);
@@ -26,7 +26,6 @@
 .rq-shell--desktop .rq-shell__main { max-width: var(--rq-content-max); padding-block: var(--rq-sp-24) var(--rq-sp-32); }
 /* Desktop: bakgrunden täcker sidan, inte sidnavens genomskinliga yta (Web Prototypen lägger den i <main>). */
 .rq-shell--desktop > .rq-track-bg { left: var(--rq-sidebar-w); }
-.rq-shell__pending { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: var(--rq-bg-shell); }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .rq-header {
@@ -99,7 +98,7 @@
 
 /* ── Sidnav (desktop) ────────────────────────────────────────────────────── */
 .rq-sidenav {
-  flex: none; width: var(--rq-sidebar-w); position: sticky; top: 0; height: 100dvh; overflow-y: auto;
+  flex: none; width: var(--rq-sidebar-w); position: sticky; top: 0; height: calc(100dvh - var(--rq-staging-banner-h)); overflow-y: auto;
   display: flex; flex-direction: column;
   background: var(--rq-bg-sidebar); border-right: var(--rq-hair) solid var(--rq-line-2);
   padding: var(--rq-sp-20) 0 var(--rq-sp-14);

@@ -6,7 +6,10 @@ import { MAX_PATCH_KEYS, resolveSettings } from '@runquest/shared';
 import { AuthContext, type AuthContextType } from '@/providers/authContext';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
 import { ME, levelUp, meta, newsServer } from '@/features/news/news.fixture';
+import { track } from '@/shared/analytics/track';
 import { USER_SETTINGS_QUERY_KEY, useUserSettings } from './useUserSettings';
+
+vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 
 const api = vi.hoisted(() => ({ getSettings: vi.fn(), putSettings: vi.fn(), getNews: vi.fn(), markNewsRead: vi.fn() }));
 vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
@@ -431,5 +434,61 @@ describe('useUserSettings — återställ till standard och ladda om', () => {
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.isError).toBe(false));
     expect(result.current.values[OTHERS]).toBe(false);
+  });
+});
+
+describe('useUserSettings — webbanalys', () => {
+  beforeEach(() => {
+    vi.mocked(track).mockClear();
+  });
+
+  it('reports setting-changed with the registry key and never the new value, once the save has succeeded', async () => {
+    const news = serve();
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const release = holdPut(news);
+    act(() => result.current.toggle(EVENTS));
+    await waitFor(() => expect(result.current.values[EVENTS]).toBe(false));
+    expect(track).not.toHaveBeenCalled();
+
+    await act(async () => { release(); });
+    await waitFor(() => expect(track).toHaveBeenCalledTimes(1));
+    expect(track).toHaveBeenCalledWith('setting-changed', { setting: EVENTS });
+  });
+
+  it('reports when a setting is set to a value directly, and the same event whichever way it goes', async () => {
+    serve();
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.setValue(OTHERS, false));
+    await waitFor(() => expect(track).toHaveBeenCalledTimes(1));
+    act(() => result.current.setValue(OTHERS, true));
+    await waitFor(() => expect(track).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(track).mock.calls).toEqual([['setting-changed', { setting: OTHERS }], ['setting-changed', { setting: OTHERS }]]);
+  });
+
+  it('reports nothing when the save fails', async () => {
+    const news = serve();
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    news.server.failNext = 'Failed to save settings';
+    act(() => result.current.setValue(OTHERS, false));
+    await waitFor(() => expect(result.current.error).toBe('Failed to save settings'));
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it('reports one event per setting in a reset, and none for a key outside the registry', async () => {
+    const news = serve();
+    news.server.settings = { [OTHERS]: false, [EVENTS]: false };
+    const { result } = renderHook(() => useUserSettings(), { wrapper });
+    await waitFor(() => expect(result.current.customised).toHaveLength(2));
+
+    api.putSettings.mockResolvedValue({ success: true, data: { values: DEFAULTS }, meta: { customised: [] } });
+    act(() => result.current.reset([OTHERS, EVENTS, 'notify.not_in_the_registry']));
+    await waitFor(() => expect(track).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(track).mock.calls).toEqual([['setting-changed', { setting: OTHERS }], ['setting-changed', { setting: EVENTS }]]);
   });
 });

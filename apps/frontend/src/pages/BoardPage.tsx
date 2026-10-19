@@ -5,6 +5,7 @@ import { useNow } from '@/app-shell/useNow';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
 import { isoWeekNumber } from '@/features/leaderboard/boardFormat';
+import { BOARD_VIEWS, DEFAULT_BOARD_VIEW, type BoardView } from '@/features/leaderboard/boardViews';
 import { SeasonView } from '@/features/leaderboard/components/SeasonView';
 import { StreaksView } from '@/features/leaderboard/components/StreaksView';
 import { WeekView } from '@/features/leaderboard/components/WeekView';
@@ -15,9 +16,6 @@ import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import '@/features/leaderboard/board.css';
-
-const BOARD_VIEWS = ['season', 'week', 'streaks'] as const;
-type BoardView = (typeof BOARD_VIEWS)[number];
 
 // "Season" finns inte i datamodellen än (ägarbeslut 2): fliken heter All-time, adressen ?view=season (ADR 006).
 const BOARD_TABS: readonly ViewTab<BoardView>[] = [
@@ -30,7 +28,7 @@ const ID_PREFIX = 'board';
 
 /** /board (ADR 006): The Standings med tre delvyer över `?view=` — season (default) · week · streaks. */
 const BoardPage: React.FC = () => {
-  const [view, setView] = useViewParam(BOARD_VIEWS, 'season');
+  const [view, setView] = useViewParam(BOARD_VIEWS, DEFAULT_BOARD_VIEW);
   const { user } = useAuth();
   const isDesktop = useIsDesktop();
   const now = useNow();

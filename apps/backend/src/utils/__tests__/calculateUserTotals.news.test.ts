@@ -16,9 +16,9 @@ vi.mock('../../services/levelService.js', () => ({
 }));
 vi.mock('../../services/challengeService.js', () => ({ reconcileTokensForLevel: vi.fn(async () => undefined) }));
 vi.mock('../../services/badgeService.js', () => ({ evaluateBadges: vi.fn(async () => null) })); // badges testas i calculateUserTotals.badges*.test.ts
-const processAllUsersTitles = vi.fn(async () => undefined);
+const processGroupTitles = vi.fn(async () => undefined);
 vi.mock('../../services/enhancedTitleService.js', () => ({
-  EnhancedTitleService: class { processAllUsersTitles = processAllUsersTitles; },
+  EnhancedTitleService: class { processGroupTitles = processGroupTitles; },
 }));
 
 // Den riktiga observatören, men som spion: testerna styr bara när den ska kasta eller läsa vad den fick.
@@ -44,6 +44,7 @@ function tables(over: Partial<Record<string, Row[]>> = {}): Record<string, Row[]
   return {
     activity_log: [],
     users: [{ id: 'u1', group_id: 'g1', event_xp: 0, current_level: 1, total_km: 90, total_xp: 0, current_streak: 0, longest_streak: 0 }],
+    group_members: [{ id: 'm1', user_id: 'u1', group_id: 'g1', role: 'member', starts_on: null, left_at: null }],
     runs: [run('r1', '2020-01-01', 95, 60), run('r2', '2020-01-03', 10, 45)], // 105 km, 105 XP → nivå 3, passerade 100 km
     ...over,
   } as Record<string, Row[]>;
@@ -119,9 +120,9 @@ describe('calculateUserTotals → activity_log', () => {
   it('en trasig logg fäller inte beräkningen: totaler sparas och titlar bearbetas ändå', async () => {
     const t = tables();
     use(t, { errors: { activity_log: { message: 'relation "activity_log" does not exist' } } });
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(true); // kastar aldrig; totalerna skrevs före felet
     expect(t.users[0]).toMatchObject({ total_xp: 105, current_level: 3 });
-    expect(processAllUsersTitles).toHaveBeenCalledWith('g1');
+    expect(processGroupTitles).toHaveBeenCalledWith('g1');
   });
 
   it('users.total_km (numeric(8,2)) jämförs avrundat: 99.996 km lagras som 100.00 och räknas som passerad nästa gång', async () => {
@@ -160,11 +161,11 @@ describe('calculateUserTotals → recordRankPassesForXp', () => {
     use(t);
     vi.mocked(recordRankPassesForXp).mockRejectedValueOnce(new Error('rank news down'));
 
-    await expect(calculateUserTotals('u1')).resolves.toBeUndefined();
+    await expect(calculateUserTotals('u1')).resolves.toBe(true); // kastar aldrig; totalerna skrevs före felet
 
     expect(t.users[0]).toMatchObject({ total_xp: 105, current_level: 3 });
     expect(t.activity_log.filter((r) => r.type === 'level_up').map((r) => r.payload.level)).toEqual([2, 3]);
-    expect(processAllUsersTitles).toHaveBeenCalledWith('g1'); // kedjan fortsätter förbi observatören
+    expect(processGroupTitles).toHaveBeenCalledWith('g1'); // kedjan fortsätter förbi observatören
   });
 
   it('rank-detektionen anropas efter totalskrivningen och med föregående total_xp', async () => {

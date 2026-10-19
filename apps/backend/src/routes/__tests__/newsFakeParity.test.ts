@@ -25,7 +25,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
-import { item, newsServer } from '../../../../frontend/src/features/news/news.fixture';
+import { item, newsServer, titleTaken } from '../../../../frontend/src/features/news/news.fixture';
 import { newsSamples } from '../../../../frontend/src/features/news/news.samples.fixture';
 
 let server: TestServer;
@@ -46,6 +46,8 @@ const variants: Array<Pick<NewsItem, 'actor' | 'target'>> = [
   { actor: ME, target: KARL },
 ];
 
+const titleTakenRunnerUp = (id: number, runnerUp: string): NewsItem => titleTaken(id, { actor: KARL, target: null }, { runner_up_user_id: runnerUp });
+
 function buildFeed(): NewsItem[] {
   let id = 0;
   const rows: NewsItem[] = [];
@@ -55,6 +57,8 @@ function buildFeed(): NewsItem[] {
   const closed = (entrants: string[]) =>
     item('event_closed', ++id, { event_id: 'e', event_type: 'participation', template_name: '10K', participants: entrants.length, members: 5, entrant_ids: entrants }, { actor: null });
   rows.push(closed([ME.id, KARL.id]), closed([KARL.id]));
+  // Låg tvåa: jag (respektive Karl) är bara runner_up_user_id, varken aktör eller target.
+  rows.push(...[ME.id, KARL.id].map((runnerUp) => titleTakenRunnerUp(++id, runnerUp)));
   rows.push(newsSamples.level_up(++id, { actor: KARL, is_backfill: true }));
   rows.push(newsSamples.level_up(++id, { actor: KARL, occurred_at: '2025-12-01T10:00:00.000Z' }));
   return rows;
@@ -151,6 +155,22 @@ describe('newsServer parity with GET /api/news', () => {
     expect(entrantRow).toBeDefined();
     expect(real.body.data.items.map((row: NewsItem) => row.id)).toContain(entrantRow!.id);
     expect(mine.data.items.map((row: NewsItem) => row.id)).toEqual(real.body.data.items.map((row: NewsItem) => row.id));
+  });
+
+  it('includes a title taken from someone else under involves=me when the viewer was runner-up, and not when someone else was', async () => {
+    const feed = buildFeed();
+    const mineRow = feed.find((row) => row.type === 'title_taken' && row.target === null && row.payload.runner_up_user_id === ME.id);
+    const othersRow = feed.find((row) => row.type === 'title_taken' && row.payload.runner_up_user_id === KARL.id);
+    const fake = useWorld({ feed });
+    const real = await realGet({ involves: 'me', type: 'title_taken', limit: 100 });
+    const mine = wire(await fake.getNews({ involves: 'me', type: 'title_taken', limit: 100 }));
+    const realIds = real.body.data.items.map((row: NewsItem) => row.id);
+
+    expect(mineRow).toBeDefined();
+    expect(othersRow).toBeDefined();
+    expect(realIds).toContain(mineRow!.id);
+    expect(realIds).not.toContain(othersRow!.id);
+    expect(mine.data.items.map((row: NewsItem) => row.id)).toEqual(realIds);
   });
 
   it('reports the same unread state when the floor, read receipts and switched-off kinds apply', async () => {

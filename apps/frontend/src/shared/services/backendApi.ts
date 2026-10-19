@@ -1,5 +1,5 @@
 // 🔗 Backend API Service - Production Ready
-import type { Run, User, UserTitle, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
+import type { Run, User, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
   PublicStatsData, PublicStatsApiResponse,
@@ -9,9 +9,22 @@ import type {
   AdminWaitlistData,
   WaitlistSignupRequest,
   StravaCallbackRequest, StravaStatusResponse, StravaSyncPausedRequest, StravaSyncPausedResponse,
+  GroupEligibilityEntry, TitleLeaderboardEntry, UserTitleEntry,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
+import { SESSION_TOKEN_KEY, SESSION_USER_KEY } from './sessionStorageKeys';
 
+/** Sessionsnyckeln ur localStorage; blockerad lagring (webbläsarinställning, vissa privata lägen) kastar vid åtkomst och räknas som utloggad. */
+function readStoredSession(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+const HTTP_NOT_FOUND = 404;
+const HTTP_SERVER_ERROR = 500;
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export interface LoginResponse {
@@ -47,32 +60,6 @@ interface TitleData {
   icon?: string;
 }
 
-/** Shape of GET /titles/leaderboard (title_leaderboard-vyn per titel). */
-export interface TitleLeaderboard {
-  id: string;
-  name: string;
-  description: string;
-  unlock_requirement: number;
-  metric_key?: string;
-  holder: {
-    user_id: string;
-    user_name: string;
-    user_gender?: string | null;
-    profile_picture?: string;
-    value: number;
-    earned_at: string;
-  } | null;
-  runners_up: Array<{
-    position: number;
-    user_id: string;
-    user_name: string;
-    user_gender?: string | null;
-    profile_picture?: string;
-    value: number;
-    earned_at: string;
-  }>;
-}
-
 /** Shape of GET /auth/users (admin user list). */
 export interface AdminUser {
   id: string;
@@ -87,14 +74,6 @@ export interface AdminUser {
   total_runs: number;
 }
 
-/** Shape of each row from GET /titles/group-eligibility. */
-export interface GroupEligibilityEntry {
-  userId: string;
-  name: string;
-  gender: string | null;
-  values: Record<string, number>;
-}
-
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
@@ -107,6 +86,15 @@ export interface ApiResponse<T = unknown> {
 /** Felsvaret när servern skrev raden men omräkningen föll — `written` följer med så att hookarna kan hålla cachen i takt. */
 function writtenFailure(error: unknown): ApiResponse<never> {
   return { success: false, error: typeof error === 'string' ? error : undefined, written: true };
+}
+
+/**
+ * Svar som inte gick igenom loggas efter vad de betyder. 4xx är väntat (fel lösenord, saknad post, dubblett, spärr) och är inget fel i appen,
+ * så de är en varning och blir ingen felhändelse. 5xx är oväntat och rapporteras. Nätverksfel loggas som fel i respektive catch.
+ */
+function logHttpFailure(message: string, status: number, detail: unknown): void {
+  if (status >= HTTP_SERVER_ERROR) logger.error(message, detail);
+  else logger.warn(message, detail);
 }
 
 class BackendApiService {
@@ -137,14 +125,14 @@ class BackendApiService {
       const data = await response.json();
 
       if (!response.ok) {
-        logger.error('Backend login failed:', data.error);
+        logHttpFailure('Backend login failed:', response.status, data.error);
         return { success: false, error: data.error || 'Login failed' };
       }
 
       // Store JWT token in localStorage
       if (data.token) {
-        localStorage.setItem('runquest_token', data.token);
-        localStorage.setItem('runquest_user', JSON.stringify(data.user));
+        localStorage.setItem(SESSION_TOKEN_KEY, data.token);
+        localStorage.setItem(SESSION_USER_KEY, JSON.stringify(data.user));
       }
 
       return {
@@ -165,7 +153,7 @@ class BackendApiService {
   // 🔄 Token refresh (placeholder)
   async refreshToken(): Promise<ApiResponse> {
     try {
-      const token = localStorage.getItem('runquest_token');
+      const token = localStorage.getItem(SESSION_TOKEN_KEY);
       if (!token) {
         return { success: false, error: 'No token found' };
       }
@@ -211,7 +199,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        logger.error('Password change failed:', data.error);
+        logHttpFailure('Password change failed:', response.status, data.error);
         return { success: false, error: data.error || 'Password change failed' };
       }
 
@@ -249,7 +237,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        logger.error('Failed to fetch users:', data.error);
+        logHttpFailure('Failed to fetch users:', response.status, data.error);
         return { success: false, error: data.error || 'Failed to fetch users' };
       }
 
@@ -302,7 +290,8 @@ class BackendApiService {
   }
 
   // Nya endpoints (ADR 007) svarar { success, data, meta? } / { error }; typerna ligger i @runquest/shared.
-  private async getEnvelope<T>(path: string, failure: string): Promise<ApiResponse<T>> {
+  // `notFoundData`: svaret på ett 404 som ska läsas som "inget att visa" i stället för ett fel (se getUserTitles).
+  private async getEnvelope<T>(path: string, failure: string, notFoundData?: T): Promise<ApiResponse<T>> {
     try {
       const token = this.getToken();
       if (!token) return { success: false, error: 'Not authenticated' };
@@ -318,6 +307,8 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+        if (response.status === HTTP_NOT_FOUND && notFoundData !== undefined) return { success: true, data: notFoundData };
+        logHttpFailure(failure, response.status, body.error);
         return { success: false, error: body.error || failure };
       }
       return { success: true, data: body.data };
@@ -448,7 +439,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        logger.error('Failed to create user:', data.error);
+        logHttpFailure('Failed to create user:', response.status, data.error);
         return { success: false, error: data.error || 'Failed to create user' };
       }
 
@@ -487,7 +478,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { success: false, error: 'Session expired. Please log in again.' };
         }
-        logger.error('Failed to reset password:', data.error);
+        logHttpFailure('Failed to reset password:', response.status, data.error);
         return { success: false, error: data.error || 'Failed to reset password' };
       }
 
@@ -504,20 +495,20 @@ class BackendApiService {
 
   // 🚪 Logout
   logout(): void {
-    localStorage.removeItem('runquest_token');
-    localStorage.removeItem('runquest_user');
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem(SESSION_USER_KEY);
   }
 
   // 🔍 Check if user is authenticated
   isAuthenticated(): boolean {
-    const token = localStorage.getItem('runquest_token');
-    const user = localStorage.getItem('runquest_user');
+    const token = readStoredSession(SESSION_TOKEN_KEY);
+    const user = readStoredSession(SESSION_USER_KEY);
     return !!(token && user);
   }
 
   // 👤 Get current user from localStorage
   getCurrentUser(): { id: string; name: string; email: string } | null {
-    const userStr = localStorage.getItem('runquest_user');
+    const userStr = readStoredSession(SESSION_USER_KEY);
     if (!userStr) return null;
 
     try {
@@ -529,7 +520,7 @@ class BackendApiService {
 
   // 🔑 Get auth token
   getToken(): string | null {
-    return localStorage.getItem('runquest_token');
+    return readStoredSession(SESSION_TOKEN_KEY);
   }
 
   // 📡 Make authenticated API request
@@ -558,6 +549,8 @@ class BackendApiService {
         this.handleUnauthorized();
         return { success: false, error: 'Session expired. Please log in again.' };
       }
+
+      if (!response.ok) logHttpFailure(`Request failed: ${endpoint}`, response.status, data.error);
 
       return {
         success: response.ok,
@@ -606,36 +599,6 @@ class BackendApiService {
   async syncStrava(): Promise<ApiResponse<{ newRuns: number; totalActivities: number; message: string }>> {
     return this.authenticatedRequest('/strava/sync', {
       method: 'POST',
-    });
-  }
-
-  async debugStravaActivities(): Promise<ApiResponse<{
-    connection_date: string;
-    after_timestamp: number;
-    after_date: string;
-    after_calculation_method: string;
-    total_activities: number;
-    running_activities: number;
-    existing_run_ids: string[];
-    existing_runs_count: number;
-    new_runs_count: number;
-    all_activities: Array<{
-      id: number;
-      name: string;
-      type: string;
-      distance: string;
-      date: string;
-      already_imported: boolean;
-    }>;
-    new_runs: Array<{
-      id: number;
-      name: string;
-      distance: string;
-      date: string;
-    }>;
-  }>> {
-    return this.authenticatedRequest('/strava/debug-activities', {
-      method: 'GET',
     });
   }
 
@@ -701,34 +664,22 @@ class BackendApiService {
   }
 
   // 🏆 Title System Methods
-  async getTitleLeaderboard(): Promise<ApiResponse<TitleLeaderboard[]>> {
-    const response = await this.authenticatedRequest<{ data: TitleLeaderboard[] }>('/titles/leaderboard');
-
-    // Extract the actual data from the nested response structure
-    if (response.success && response.data && response.data.data) {
-      return { success: true, data: response.data.data };
-    }
-
-    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
+  /** GET /titles/leaderboard — katalogen med anroparens grupps innehavare; tom lista utan grupp (contracts/titles). */
+  async getTitleLeaderboard(): Promise<ApiResponse<TitleLeaderboardEntry[]>> {
+    return this.getEnvelope<TitleLeaderboardEntry[]>('/titles/leaderboard', 'Failed to fetch title leaderboard');
   }
 
-  async getUserTitles(userId: string): Promise<ApiResponse<UserTitle[]>> {
-    const response = await this.authenticatedRequest<{ data: UserTitle[] }>(`/titles/user/${userId}`);
-
-    // Extract the actual data from the nested response structure
-    if (response.success && response.data && response.data.data) {
-      return { success: true, data: response.data.data };
-    }
-
-    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
+  /**
+   * GET /titles/user/:id. En användare utanför anroparens grupp ger 404 ("User not found"); det läses som en tom lista så att ingen vy
+   * (Runner card) visar ett fel som avslöjar att personen finns i en annan grupp, och så att react-query inte försöker igen.
+   */
+  async getUserTitles(userId: string): Promise<ApiResponse<UserTitleEntry[]>> {
+    return this.getEnvelope<UserTitleEntry[]>(`/titles/user/${encodeURIComponent(userId)}`, 'Failed to fetch user titles', []);
   }
 
+  /** GET /titles/group-eligibility — gruppens värden per måttnyckel (camelCase-fält, contracts/titles). */
   async getTitleGroupEligibility(): Promise<ApiResponse<GroupEligibilityEntry[]>> {
-    const response = await this.authenticatedRequest<{ data: GroupEligibilityEntry[] }>('/titles/group-eligibility');
-    if (response.success && response.data && response.data.data) {
-      return { success: true, data: response.data.data };
-    }
-    return { success: response.success, data: response.data?.data, error: response.error, message: response.message };
+    return this.getEnvelope<GroupEligibilityEntry[]>('/titles/group-eligibility', 'Failed to fetch title progress');
   }
 
   async getAllTitles(): Promise<ApiResponse<TitleData[]>> {
@@ -757,7 +708,7 @@ class BackendApiService {
       });
 
       if (!response.success) {
-        logger.error('Failed to refresh title leaderboards:', response.error);
+        logger.warn('Failed to refresh title leaderboards:', response.error); // 5xx och nätverksfel rapporteras redan av authenticatedRequest
         return { success: false, error: response.error };
       }
 
@@ -1182,6 +1133,7 @@ class BackendApiService {
           this.handleUnauthorized();
           return { ok: false, error: 'Session expired. Please log in again.' };
         }
+        logHttpFailure(failure, response.status, parsed.error);
         return { ok: false, error: parsed.error || failure };
       }
       return { ok: true, body: parsed as T };

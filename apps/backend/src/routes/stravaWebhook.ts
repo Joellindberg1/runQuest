@@ -174,7 +174,7 @@ export function createStravaWebhookRouter({ onEventStored }: StravaWebhookOption
         .eq('owner_id', event.owner_id)
         .in('status', UNPROCESSED_STATUSES);
       if (countError || typeof count !== 'number') {
-        logger.error(`❌ Strava webhook: could not count unprocessed events (code ${countError?.code ?? 'unknown'}, ${label})`);
+        logger.error(`❌ Strava webhook: could not count unprocessed events (${errorCode(countError)}, ${label})`);
         res.status(500).json({ error: 'Failed to store event' });
         return;
       }
@@ -204,7 +204,7 @@ export function createStravaWebhookRouter({ onEventStored }: StravaWebhookOption
         )
         .select('id'); // med ignoreDuplicates ger PostgREST bara de rader som faktiskt sattes in
       if (error) {
-        logger.error(`❌ Strava webhook: could not store event (code ${error.code ?? 'unknown'}, ${label})`);
+        logger.error(`❌ Strava webhook: could not store event (${errorCode(error)}, ${label})`);
         res.status(500).json({ error: 'Failed to store event' });
         return;
       }

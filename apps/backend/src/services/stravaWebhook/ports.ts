@@ -58,7 +58,7 @@ export interface WebhookEventStore {
 
 /** What the handlers need from Strava. Real version: supabaseAdapters.ts (createStravaApi). The worker itself never calls it. */
 export interface StravaApi {
-  /** getValidAccessToken: ok | not_connected | token_read_failed | refresh_failed | refresh_rejected | no_refresh_token. */
+  /** getValidAccessToken: ok | not_connected | token_read_failed | token_unreadable | refresh_failed | refresh_rejected | no_refresh_token. */
   getAccessToken(userId: string): Promise<AccessTokenResult>;
   /** One GET /activities/:id; the status and, on 200, the body. */
   fetchActivity(accessToken: string, activityId: number): Promise<StravaResponse>;
@@ -125,8 +125,12 @@ export interface WebhookImportedRun extends ImportedRun {
 export interface Recompute {
   /** reprocessRunsFromDate: streak and XP from this date on. Throws on failure. */
   reprocessFrom(userId: string, fromDate: string): Promise<void>;
-  /** calculateUserTotals: totals, level, badges, titles. */
-  recalculateTotals(userId: string): Promise<void>;
+  /**
+   * calculateUserTotals: totals, level, badges, titles. calculateUserTotals never throws, so the answer is what tells a caller whether the
+   * totals were written: true = written, false = not (RUN-322: a recalculation mark is cleared only on a reprocess that worked AND totals
+   * that were written). The webhook worker treats a false as a failed recalculation (RUN-327), so the events are retried like after a throw. Only an explicit false counts as not written.
+   */
+  recalculateTotals(userId: string): Promise<boolean>;
   /** WeatherService.fetchAndSaveWeatherForRuns for the runs imported in a batch. Best-effort for the worker: a throw is logged. */
   fetchWeather(runs: WebhookImportedRun[]): Promise<void>;
   /** checkEventQualification for each newly imported run. The worker does not wait for it and never fails an event on it. */

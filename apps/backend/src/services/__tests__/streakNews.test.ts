@@ -132,9 +132,9 @@ describe('StreakService.updateUserStreak → streak_broken', () => {
     const tables: Record<string, Row[]> = {
       activity_log: [], users: [{ id: 'u1', group_id: 'g1', current_streak: 7 }], runs: days('2026-09-01', 7),
     };
-    use(tables, { failWhen: (q) => (q.table === 'users' && q.select === null ? { message: 'update failed' } : null) });
+    use(tables, { failWhen: (q) => (q.table === 'users' && q.select === null ? { message: 'update failed: secret', code: '23514' } : null) });
     // RUN-215: uppdateringsfelet kastas nu (schedulern räknar användaren som misslyckad) i stället för att sväljas.
-    await expect(StreakService.updateUserStreak('u1')).rejects.toThrow(/update failed/);
+    await expect(StreakService.updateUserStreak('u1')).rejects.toMatchObject({ code: '23514', message: expect.not.stringContaining('secret') });
     expect(tables.activity_log).toHaveLength(0);
   });
 });

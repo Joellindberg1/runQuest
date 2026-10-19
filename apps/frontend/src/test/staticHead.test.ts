@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 // Startsidans statiska head (ADR 006-addendum 2026-10-13, alternativ a): index.html serveras oförändrad för varje SPA-adress, så titel, beskrivning,
 // canonical, Open Graph och noscript står som text i filen och läses här från disk. Ikonerna och delningsbilden prövas på mått och storlek
-// (PNG via IHDR, ICO via katalogen, SVG via viewBox) utan bildbibliotek.
+// (PNG via IHDR, ICO via katalogen, SVG via viewBox) utan bildbibliotek. landing.html (förrenderingen av `/`, addendum 2026-10-19) har samma head och
+// jämförs med index.html längst ner: de två filerna får inte driva isär.
 
 // Sökvägarna i variabler: Vite skriver annars om en bokstavlig new URL('./…', import.meta.url) till en asset-URL.
 const FRONTEND_DIR = '../..';
@@ -13,6 +14,7 @@ const frontend = fileURLToPath(new URL(FRONTEND_DIR, import.meta.url));
 const publicDir = join(frontend, 'public');
 const landingDir = join(frontend, 'src', 'features', 'landing');
 const html = readFileSync(join(frontend, 'index.html'), 'utf8');
+const landingHtml = readFileSync(join(frontend, 'landing.html'), 'utf8');
 
 const SITE = 'https://www.runquest.dev';
 const OG_IMAGE_MAX_BYTES = 307_200;
@@ -72,6 +74,8 @@ const title = decodeEntities(/<title>([\s\S]*?)<\/title>/.exec(headSection)?.[1]
 
 const noscriptMarkup = /<noscript>([\s\S]*?)<\/noscript>/.exec(html)?.[1] ?? '';
 const normalize = (text: string) => decodeEntities(text.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+/** Noscript utan stilblocket: texten och märkningen som en besökare utan JavaScript läser. */
+const noscriptContent = noscriptMarkup.replace(/<style\b[\s\S]*?<\/style>/g, '');
 
 /** Landningens h1 ur källtexten: filen hittas på `id="landing-title"`, inte på ett filnamn. */
 function landingHeadline(): string {
@@ -157,8 +161,20 @@ describe('startsidans head', () => {
     expect(html.indexOf('<noscript>')).toBeGreaterThan(html.indexOf('<body>'));
     expect(html.indexOf('<noscript>')).toBeLessThan(html.indexOf('id="root"'));
     expect([...noscriptMarkup.matchAll(/<p\b/g)].length).toBeGreaterThanOrEqual(2);
-    expect(normalize(noscriptMarkup)).toMatch(/JavaScript/);
-    expect(noscriptMarkup).not.toMatch(/\b(?:style|class)=|<style\b/);
+    expect(normalize(noscriptContent)).toMatch(/JavaScript/);
+    expect(noscriptContent).not.toMatch(/\b(?:style|class)=/);
+  });
+
+  // Laddningsvyn i #root (ADR 006-addendum 2026-10-19, punkt 11) snurrar för alltid där inget JavaScript finns, så noscript döljer roten. Stilen står i
+  // noscript och gäller alltså bara utan JavaScript; rubriken och styckena ligger kvar som innehåll.
+  it('noscript hides #root, so the loading view never spins without JavaScript, and keeps its headline', () => {
+    const styles = [...noscriptMarkup.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map((match) => match[1].replace(/\s+/g, ''));
+    expect(styles).toEqual(['#root{display:none}']);
+    expect(noscriptMarkup).toMatch(/<h1\b/);
+  });
+
+  it('#root holds the marker that the build replaces with the loading view', () => {
+    expect(html).toContain('<div id="root"><!--app-loader--></div>');
   });
 
   it('description, og-texterna och noscript innehåller inga siffror', () => {
@@ -171,7 +187,7 @@ describe('startsidans head', () => {
       metaName('twitter:title'),
       metaName('twitter:description'),
       metaName('twitter:image:alt'),
-      normalize(noscriptMarkup),
+      normalize(noscriptContent),
     ];
     for (const text of texts) expect(text, String(text)).not.toMatch(/\d/);
   });
@@ -318,6 +334,48 @@ describe('site.webmanifest', () => {
       expect(icon.type).toBe('image/png');
       expect(existsSync(join(publicDir, icon.src.slice(1))), `${icon.src} finns`).toBe(true);
     }
+  });
+});
+
+// ── landing.html ─────────────────────────────────────────────────────────────
+
+/** Allt i head som delningsbotar och webbläsare läser, i filens ordning: title, alla meta, och länkarna som inte är landningens egna förladdningar. */
+function sharedHead(text: string): string[] {
+  const head = /<head>([\s\S]*?)<\/head>/.exec(text)?.[1] ?? '';
+  const tags = [...head.matchAll(/<title>[\s\S]*?<\/title>|<meta\b[^>]*>|<link\b[^>]*>/g)].map((match) => match[0].replace(/\s+/g, ' ').trim());
+  return tags.filter((tag) => !/rel="preload"[^>]*as="image"/.test(tag));
+}
+
+/** POSTER_480 ur LandingFilm: filnamnet som mobilens förladdning ska peka på ligger på ett ställe, i komponenten. */
+function mobilePosterPath(): string {
+  const source = readFileSync(join(landingDir, 'components', 'LandingFilm.tsx'), 'utf8');
+  const match = /const POSTER_480 = '([^']+)'/.exec(source);
+  expect(match, 'POSTER_480 i LandingFilm.tsx').not.toBeNull();
+  return match![1];
+}
+
+describe('landing.html', () => {
+  it('has the same head as index.html: title, description, canonical, Open Graph, Twitter, icons, theme colour and manifest', () => {
+    expect(sharedHead(landingHtml)).toEqual(sharedHead(html));
+    expect(sharedHead(landingHtml).length).toBeGreaterThan(20);
+  });
+
+  it('preloads the mobile poster for narrow screens only, at high priority', () => {
+    const tags = [...(/<head>([\s\S]*?)<\/head>/.exec(landingHtml)?.[1] ?? '').matchAll(/<link\b[^>]*>/g)].map((match) => match[0]);
+    const preload = tags.filter((tag) => /rel="preload"/.test(tag) && /as="image"/.test(tag));
+    expect(preload).toHaveLength(1);
+    const attrs = attributes(preload[0]);
+    expect(attrs.href).toBe(mobilePosterPath());
+    expect(attrs.media).toBe('(max-width: 1023px)');
+    expect(attrs.fetchpriority).toBe('high');
+    expect(existsSync(join(publicDir, attrs.href.slice(1)))).toBe(true);
+  });
+
+  it('is a separate entry with its own marker in #root, and needs no noscript because the content is in the HTML', () => {
+    expect(landingHtml).toContain('<div id="root"><!--app-landing--></div>');
+    expect(landingHtml).toContain('src="/src/landing-main.tsx"');
+    expect(landingHtml).not.toContain('<noscript');
+    expect(html).not.toContain('landing-main');
   });
 });
 

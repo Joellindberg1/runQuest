@@ -1,0 +1,17 @@
+{
+  "name": "@runquest/e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "RunQuest E2E-rök (Playwright) mot staging. Körs aldrig mot prod, se scripts/e2e-guard.mjs och docs/e2e.md",
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:list": "playwright test --list",
+    "type-check": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.5.5",
+    "typescript": "^5.5.3"
+  }
+}

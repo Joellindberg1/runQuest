@@ -1,14 +1,16 @@
 // 👤 User Routes — profilbild m.m. Skrivningar mot users/storage går via
 // backend (service role); frontend har ingen skrivåtkomst i RLS.
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — samma gräns som frontend visar
-const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+// Exporteras så att migrationen som sätter bucketens gränser testas mot samma värden.
+export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — samma gräns som frontend visar
+export const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
@@ -50,7 +52,7 @@ router.post(
         .upload(fileName, req.body, { contentType, cacheControl: '3600', upsert: true });
 
       if (uploadError) {
-        logger.error('❌ Profile picture upload failed:', uploadError.message);
+        logger.error(`❌ Profile picture upload failed (${errorCode(uploadError)})`);
         res.status(500).json({ error: 'Failed to upload profile picture' });
         return;
       }
@@ -65,7 +67,7 @@ router.post(
         .eq('id', userId);
 
       if (updateError) {
-        logger.error('❌ Profile picture user update failed:', updateError.message);
+        logger.error(`❌ Profile picture user update failed (${errorCode(updateError)})`);
         res.status(500).json({ error: 'Failed to update profile picture' });
         return;
       }
@@ -77,10 +79,16 @@ router.post(
       logger.info(`🖼️ Profile picture updated for user ${userId}`);
       res.json({ success: true, data: { profile_picture: publicUrlData.publicUrl } });
     } catch (error) {
-      logger.error('❌ Profile picture error:', error);
+      logger.error(`❌ Profile picture error (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to upload profile picture' });
     }
   }
 );
+
+// Fel från body-parsern (för stor bild) som JSON i ADR 007-formen i stället för Express HTML-felsida (som väntelistan).
+router.use((err: { type?: string }, _req: Request, res: Response, next: NextFunction): void => {
+  if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' }); return; }
+  next(err);
+});
 
 export default router;

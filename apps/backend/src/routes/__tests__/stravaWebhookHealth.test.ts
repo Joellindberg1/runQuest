@@ -15,8 +15,12 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
+import { randomBytes } from 'node:crypto';
 import { getSupabaseClient } from '../../config/database.js';
 import { createApp } from '../../app.js';
+import { sealStravaToken } from '../../services/stravaTokenStore.js';
+import { legacyToken } from '../../test-utils/stravaTokens.js';
+import { parseKeyRing } from '../../utils/secretBox.js';
 import { STRAVA_WEBHOOK_PATH } from '../../services/stravaWebhook/constants.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type FakeDbOptions, type Row } from './helpers/fakeDb.js';
@@ -71,6 +75,7 @@ afterEach(async () => {
   delete process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
   await Promise.all(servers.map((s) => s.close()));
   servers = [];
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   vi.mocked(getSupabaseClient).mockReset();
 });
@@ -163,9 +168,10 @@ describe('GET /api/strava/webhook/health', () => {
     const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
     expect(res.body.data).toMatchObject({ unmapped_tokens: 3, paused_users: 2 });
     // strava_tokens has no id column (its key is user_id), so a count selecting `id` would be a 400 from PostgREST in production.
-    const tokenSelects = queries.filter((q) => q.table === 'strava_tokens').map((q) => q.select);
-    expect(tokenSelects).toHaveLength(2);
-    expect(tokenSelects.every((s) => s === 'user_id')).toBe(true);
+    // (The token_encryption block reads the token columns too, through the token store; its query is not one of these two.)
+    const countSelects = queries.filter((q) => q.table === 'strava_tokens' && !q.select?.includes('access_token')).map((q) => q.select);
+    expect(countSelects).toHaveLength(2);
+    expect(countSelects.every((s) => s === 'user_id')).toBe(true);
   });
 
   it('health requires an authenticated admin', async () => {
@@ -187,7 +193,10 @@ describe('GET /api/strava/webhook/health', () => {
     expect(res.body.success).toBe(true);
     expect(Object.keys(res.body).sort()).toEqual(['data', 'success']);
     expect(Object.keys(res.body.data).sort()).toEqual([
-      'dead', 'last_processed_at', 'oldest_pending_age_seconds', 'paused_users', 'pending', 'processing', 'subscription_configured', 'unmapped_tokens',
+      'dead', 'last_processed_at', 'oldest_pending_age_seconds', 'paused_users', 'pending', 'processing', 'subscription_configured', 'token_encryption', 'unmapped_tokens',
+    ]);
+    expect(Object.keys(res.body.data.token_encryption).sort()).toEqual([
+      'active_kid', 'config_error', 'configured', 'encrypted_rows', 'plaintext_rows', 'retired_kids', 'rows_on_other_kid', 'unreadable_since_start', 'unrecognised_rows',
     ]);
     expect(typeof res.body.data.subscription_configured).toBe('boolean');
     for (const key of ['pending', 'processing', 'dead', 'unmapped_tokens', 'paused_users']) expect(Number.isInteger(res.body.data[key])).toBe(true);
@@ -220,6 +229,16 @@ describe('GET /api/strava/webhook/health', () => {
     expect(logged).not.toContain('918273645');
   });
 
+  it('health logs the network cause, not "unknown", when the connection broke (supabase-js gives code "")', async () => {
+    const networkError = { message: 'TypeError: fetch failed', details: 'Caused by: Error: read ECONNRESET (ECONNRESET)', hint: '', code: '' };
+    useDb({ [EVENTS]: [event('pending')] }, { failWhen: (q) => (q.table === EVENTS ? networkError as any : null) });
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+    expect(res.status).toBe(500);
+    const logged = errorLog.mock.calls.flat().map(String).join(' ');
+    expect(logged).toContain('ECONNRESET');
+    expect(logged).not.toContain('unknown');
+  });
+
   it('health fails with 500 and logs the code only when a timestamp read fails', async () => {
     const server = await serve();
     for (const column of ['received_at', 'processed_at']) {
@@ -247,6 +266,100 @@ describe('GET /api/strava/webhook/health', () => {
     const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+  });
+});
+
+describe('GET /api/strava/webhook/health, the token_encryption block', () => {
+  const newKey = () => randomBytes(32).toString('base64');
+  const sealedRow = (userId: string, ring: ReturnType<typeof parseKeyRing>): Row => ({
+    user_id: userId,
+    access_token: sealStravaToken(userId, 'access_token', 'SEALED-ACCESS-VALUE-0123456789', ring),
+    refresh_token: sealStravaToken(userId, 'refresh_token', 'SEALED-REFRESH-VALUE-0123456789', ring),
+  });
+
+  it('health reports the key ids and the rows by form, from the store', async () => {
+    const active = `prod-2:${newKey()}`;
+    const retired = `prod-1:${newKey()}`;
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', active);
+    vi.stubEnv('TOKEN_ENCRYPTION_KEYS_RETIRED', retired);
+    const onActive = parseKeyRing({ TOKEN_ENCRYPTION_KEY: active });
+    const onRetired = parseKeyRing({ TOKEN_ENCRYPTION_KEY: retired });
+    useDb({
+      strava_tokens: [
+        sealedRow('u1', onActive),
+        sealedRow('u2', onRetired),
+        { user_id: 'u3', access_token: legacyToken('legacy-a'), refresh_token: legacyToken('legacy-r') },
+        { user_id: 'u4', access_token: 'enc:v1:prod-2:broken', refresh_token: null },
+      ],
+    });
+
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.token_encryption).toEqual({
+      configured: true,
+      config_error: null,
+      active_kid: 'prod-2',
+      retired_kids: ['prod-1'],
+      encrypted_rows: 2,
+      plaintext_rows: 1,
+      unrecognised_rows: 1,
+      rows_on_other_kid: 1,
+      unreadable_since_start: 0,
+    });
+  });
+
+  it('health says so when there is no key, and the rest of the health is still there', async () => {
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+    useDb({ [EVENTS]: [event('pending'), event('dead')], strava_tokens: [{ user_id: 'u3', access_token: legacyToken('legacy-a'), refresh_token: legacyToken('legacy-r') }] });
+
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ pending: 1, dead: 1 });
+    expect(res.body.data.token_encryption).toMatchObject({
+      configured: false, config_error: 'key_missing', active_kid: null, retired_kids: [], plaintext_rows: 1, rows_on_other_kid: null,
+    });
+  });
+
+  it('health shows no token, ciphertext, key or user id, and logs nothing of them', async () => {
+    const active = `prod-1:${newKey()}`;
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', active);
+    const ring = parseKeyRing({ TOKEN_ENCRYPTION_KEY: active });
+    const rows = [sealedRow('user-secret-uuid-1', ring), { user_id: 'user-secret-uuid-2', access_token: legacyToken('legacy-a'), refresh_token: legacyToken('legacy-r') }];
+    useDb({ strava_tokens: rows });
+
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+
+    expect(res.status).toBe(200);
+    const text = JSON.stringify(res.body);
+    const logged = [errorLog, vi.mocked(logger.warn), vi.mocked(logger.info)].flatMap((spy) => spy.mock.calls.flat().map(String)).join('\n');
+    for (const secret of [active.split(':')[1], rows[0].access_token as string, rows[0].refresh_token as string, 'SEALED-ACCESS', 'SEALED-REFRESH', legacyToken('legacy-a'), 'user-secret-uuid', 'enc:v1']) {
+      expect(text, secret).not.toContain(secret);
+      expect(logged, secret).not.toContain(secret);
+    }
+  });
+
+  it('health fails with 500 and logs the code only when the token rows cannot be read', async () => {
+    useDb({}, { failWhen: (q) => (q.table === 'strava_tokens' && q.select?.includes('access_token') ? ({ message: 'boom for LEAKED-ROW-VALUE', code: 'XX003' } as any) : null) });
+
+    const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+    const logged = errorLog.mock.calls.flat().map(String).join(' ');
+    expect(logged).toContain('XX003');
+    expect(logged).not.toContain('LEAKED-ROW-VALUE');
+  });
+
+  it('health is as protected as before: no token, no admin, no block', async () => {
+    useDb();
+    const server = await serve();
+
+    expect((await server.request('GET', HEALTH)).status).toBe(401);
+    const member = await server.request('GET', HEALTH, { token: mintToken({ user_id: MEMBER.id }) });
+    expect(member.status).toBe(403);
+    expect(JSON.stringify(member.body)).not.toContain('token_encryption');
   });
 });
 

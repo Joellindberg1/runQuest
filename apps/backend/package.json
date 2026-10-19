@@ -7,20 +7,29 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --sourcemap --packages=external --alias:@runquest/shared=../../packages/shared/src/index.ts",
+    "build": "node build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "backfill:treadmill": "tsx src/scripts/backfillTreadmill.ts",
     "backfill:activity-log": "tsx src/scripts/backfillActivityLog.ts",
     "convert:wind-ms": "tsx src/scripts/convertWindToMs.ts",
     "backfill:strava-athlete": "tsx src/scripts/backfillStravaAthleteIds.ts",
+    "backfill:strava-token-encryption": "tsx src/scripts/backfillStravaTokenEncryption.ts",
     "strava:webhook": "tsx src/scripts/stravaWebhookSubscription.ts",
     "backfill:badges": "tsx src/scripts/backfillBadges.ts",
     "reveal:badges": "tsx src/scripts/revealBadges.ts",
-    "announce:release": "tsx src/scripts/announceRelease.ts"
+    "announce:release": "tsx src/scripts/announceRelease.ts",
+    "create:group": "tsx src/scripts/createGroup.ts",
+    "staging:migrate": "tsx src/scripts/staging/stagingMigrate.ts",
+    "staging:seed-reference": "tsx src/scripts/staging/stagingSeedReference.ts",
+    "staging:seed-group": "tsx src/scripts/staging/stagingSeedGroup.ts",
+    "staging:schema-diff": "tsx src/scripts/staging/stagingSchemaDiff.ts",
+    "sentry:test": "tsx src/scripts/sentryTest.ts",
+    "sentry:test:built": "node dist/sentryTest.js"
   },
   "dependencies": {
     "@runquest/shared": "file:../../packages/shared",
+    "@sentry/node": "11.8.0",
     "@supabase/supabase-js": "2.105.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -31,6 +40,7 @@
     "node-cron": "^3.0.3"
   },
   "devDependencies": {
+    "@sentry/esbuild-plugin": "^11.8.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",

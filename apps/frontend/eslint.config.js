@@ -26,12 +26,19 @@ const CHANGELOG_JSON = {
   message: "Bara features/changelog/changelogData.ts läser changelog.json; övriga går via changelogData.",
 };
 
+// Felspårningen (RUN-284): Sentry-SDK:t hämtas som egen chunk först när det inloggade skalet monterar. En statisk import av SDK:t eller av
+// sentryClient drar in det i huvudbunten som landningen också laddar. Bara errorReporting.ts når klienten, via dynamisk import().
+const SENTRY_STAYS_LAZY = {
+  regex: "^@sentry/|(^|/)sentryClient$",
+  message: "Sentry-koden hämtas bara via dynamisk import() i shared/observability/errorReporting.ts, annars hamnar den i huvudbunten och landningen laddar den.",
+};
+
 const STREAK_CONSTANTS = {
   regex: "streakConstants",
   message: "Multiplikatortrappan kommer ur config-endpointen (/api/config/xp), inte ur en konstant.",
 };
 
-const GLOBAL_IMPORT_PATTERNS = [LAZY_ONLY, CHANGELOG_JSON];
+const GLOBAL_IMPORT_PATTERNS = [LAZY_ONLY, CHANGELOG_JSON, SENTRY_STAYS_LAZY];
 
 const importRestrictions = (...extraPatterns) => ["error", { patterns: [...GLOBAL_IMPORT_PATTERNS, ...extraPatterns] }];
 
@@ -53,7 +60,20 @@ const LANDING_IMPORTS = [
   { regex: "backendApi|(^|/)services/|react-query|supabase|axios", message: "Landings enda anrop (GET /public/stats) ligger i hooks/usePublicStats.ts; övriga landningsfiler importerar varken klienten eller react-query." },
   LANDING_AUTH_IMPORT,
 ];
+// Förrenderingen (ADR 006-addendum 2026-10-19, punkt 5 och 9) vet varken skärmbredd eller språk: landningens första rendering på klienten måste
+// vara identisk med serverns. Breddval görs av CSS (båda varianterna ligger i HTML), tal formateras utan Intl (formatInt är regex med NBSP).
+const LANDING_NO_VIEWPORT_OR_LOCALE = [
+  {
+    selector: "Identifier[name=/^(useIsDesktop|matchMedia)$/]",
+    message: "Landningen väljer aldrig variant på bredd i JS (förrenderingen vet inte bredden): rendera båda varianterna och låt CSS (@media (min-width: 1024px)) dölja den ena. Rörelsepreferensen läses via shared/utils/prefersReducedMotion.",
+  },
+  {
+    selector: "Identifier[name=/^(Intl|toLocale(Date|Time)?String)$/]",
+    message: "Landningen formaterar inte tal eller datum med Intl/toLocaleString (olika svar på byggdatorn och i webbläsaren ger hydreringsfel): använd formatInt.",
+  },
+];
 const LANDING_SYNTAX = [
+  ...LANDING_NO_VIEWPORT_OR_LOCALE,
   { selector: "CallExpression[callee.name='fetch']", message: "Landing gör bara ett anrop (GET /public/stats), och det går via backendApi i hooks/usePublicStats.ts." },
   {
     selector: "Identifier[name=/^(useUsersWithRuns|useXpConfig|useGroupName|useQuery|useMutation|useAuth)$/]",
@@ -67,6 +87,7 @@ const LANDING_STATS_HOOK_IMPORTS = [
   LANDING_AUTH_IMPORT,
 ];
 const LANDING_STATS_HOOK_SYNTAX = [
+  ...LANDING_NO_VIEWPORT_OR_LOCALE,
   { selector: "CallExpression[callee.name='fetch']", message: "Anropet går via backendApi.getPublicStats(), inte en egen fetch." },
   {
     selector: "Identifier[name=/^(useUsersWithRuns|useXpConfig|useGroupName|useMutation|useAuth)$/]",
@@ -274,7 +295,7 @@ export default tseslint.config(
   // Gränser för all produktionskod: lazy-sidorna och changelog.json (changelogData.ts får läsa JSON-filen).
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: [...NOT_PRODUCTION, "src/features/changelog/changelogData.ts"],
+    ignores: [...NOT_PRODUCTION, "src/features/changelog/changelogData.ts", "src/shared/observability/sentryClient.ts"],
     rules: { "no-restricted-imports": importRestrictions() },
   },
   {

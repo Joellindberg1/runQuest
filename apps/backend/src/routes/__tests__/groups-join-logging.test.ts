@@ -18,6 +18,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
+import { membershipRpc } from './helpers/fakeMembership.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
 let server: TestServer;
@@ -39,7 +40,7 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); });
 
 function use(tables: Record<string, Row[]>) {
-  vi.mocked(getSupabaseClient).mockReturnValue(createFakeDb(tables).client as any);
+  vi.mocked(getSupabaseClient).mockReturnValue(createFakeDb(tables, { rpc: membershipRpc(tables) }).client as any);
 }
 
 const join = (code: string) => server.request('POST', '/api/groups/join', {

@@ -9,7 +9,7 @@
 /* ── Sida: rörligt rutnät och guldglöd bakom allt ─────────────────────────── */
 /* overflow: clip, inte hidden: hidden gör sidan till en scrollbehållare och den fasta headern skulle då fastna mot sidan i stället för mot fönstret. hidden står före clip bara som
    reserv för webbläsare som saknar clip (äldre Safari); där klipps dekoren som förut och headern följer med sidan. Ingen förfader till headern får ha hidden/auto/scroll (guards.test.ts). */
-.rq-landing { position: relative; min-height: 100dvh; overflow: hidden; overflow: clip; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
+.rq-landing { position: relative; min-height: calc(100dvh - var(--rq-staging-banner-h)); overflow: hidden; overflow: clip; background: var(--rq-bg-shell); color: var(--rq-text-2); font-family: var(--rq-font-ui); }
 .rq-landing__grid {
   position: absolute; inset: 0; pointer-events: none; opacity: .7;
   background-image: linear-gradient(rgb(var(--rq-gold-rgb) / .045) var(--rq-hair), transparent var(--rq-hair));
@@ -46,7 +46,7 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
 }
 .rq-landing-logo { width: var(--rq-landing-logo-w); height: auto; flex-shrink: 0; }
 .rq-landing-header__actions { display: flex; align-items: center; gap: var(--rq-sp-32); }
-.rq-landing-nav { display: flex; align-items: center; gap: var(--rq-sp-32); }
+.rq-landing-nav { display: none; align-items: center; gap: var(--rq-sp-32); }
 .rq-landing-nav a { font-size: var(--rq-fs-tab); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-3); }
 .rq-landing-nav a:hover { color: var(--rq-gold-text); }
 
@@ -59,13 +59,13 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
 .rq-landing-break { display: none; }
 .rq-landing-accent { color: var(--rq-gold-text); }
 .rq-landing-lead { grid-area: lead; max-width: var(--rq-landing-lead-max); margin: 0 0 var(--rq-sp-20); }
+.rq-landing-lead__long { display: none; }
 .rq-landing-cta { grid-area: cta; display: flex; flex-direction: column; gap: var(--rq-sp-10); margin-bottom: var(--rq-sp-24); }
 .rq-landing-cta .rq-btn { width: 100%; box-sizing: border-box; }
 /* Watch the film: neutral kontur (vit kant .22), guld vid hover — guldknappen är Join the waitlist och ingen annan */
 .rq-landing-cta .rq-btn--ghost { border-color: var(--rq-line-6); color: var(--rq-text-2); }
 .rq-landing-cta .rq-btn--ghost:hover { border-color: var(--rq-gold); color: var(--rq-gold-text); }
 .rq-landing-hero__film { grid-area: film; margin-bottom: var(--rq-sp-24); }
-.rq-landing-hero__film:empty { display: none; }
 
 /* Arena-banan: en oval i en klippt ruta, vriden efter geometrin i landingModel. Löparna följer ovalen med offset-path. */
 .rq-landing-arena { grid-area: arena; position: relative; width: var(--rq-landing-track-w); height: var(--rq-landing-track-h); overflow: hidden; justify-self: end; }
@@ -73,6 +73,7 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
   position: absolute; top: 50%; left: 50%; width: var(--rq-landing-track-svg-w); height: auto; overflow: visible;
   transform: translate(-50%, -50%) rotate(var(--rq-landing-track-rot));
 }
+.rq-landing-arena__svg[data-arena="desktop"] { display: none; }
 .rq-landing-lane { fill: none; stroke: rgb(var(--rq-gold-rgb) / var(--rq-lane-alpha)); stroke-width: var(--rq-landing-lane-w); }
 .rq-landing-finish { stroke: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); stroke-width: var(--rq-landing-finish-w); }
 .rq-landing-runner { offset-path: var(--rq-lane-path); offset-rotate: 0deg; }
@@ -108,10 +109,27 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
 .rq-landing-stat__value { font-family: var(--rq-font-display); font-size: var(--rq-landing-stat-size); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
 .rq-landing-stat[data-tone="gold"] .rq-landing-stat__value { color: var(--rq-gold-text); }
 .rq-landing-stat__label { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
+/* Talen som anländer får inte flytta grannarna (ADR 006-addendum 2026-10-19, punkt 6): varje tal reserverar bredden av det bredaste rimliga värdet
+   i sin egen teckenbredd (ch i Bebas): km till "99 999" (5,4 ch), löpare och utmaningar till "999". Tankstrecket före svaret står i samma ruta. */
+.rq-landing-stat[data-stat="km"] .rq-landing-stat__value { min-width: 5.5ch; }
+.rq-landing-stat[data-stat="runners"] .rq-landing-stat__value,
+.rq-landing-stat[data-stat="challenges"] .rq-landing-stat__value { min-width: 3ch; }
+/* Etiketten byter form mellan ental och plural ("1 runner" / "6 runners"). Ett osynligt, höjdlöst pseudoelement med pluralformen (samma typsnitt, versaler och
+   teckenavstånd som etiketten, så bredden är exakt) håller postens bredd. Utanför tillgänglighetsträdet och textinnehållet (visibility: hidden). guards.test.ts
+   kräver att texten är modellens plural. */
+.rq-landing-stat[data-stat="runners"] .rq-landing-stat__label::after,
+.rq-landing-stat[data-stat="challenges"] .rq-landing-stat__label::after { display: block; height: 0; overflow: hidden; visibility: hidden; }
+.rq-landing-stat[data-stat="runners"] .rq-landing-stat__label::after { content: "runners"; }
+.rq-landing-stat[data-stat="challenges"] .rq-landing-stat__label::after { content: "challenges"; }
+/* Vid fel står raden kvar som en tom remsa (ägarbeslut B): samma höjd, inget syns. aria-hidden sätts av komponenten i samma läge. */
+.rq-landing-stats[aria-hidden="true"] { visibility: hidden; }
 
 /* ── Sektionsrubriker (desktop): ögonbryn + Bebas-rubrik ─────────────────────── */
 .rq-landing-eyebrow { margin: 0 0 var(--rq-sp-12); font-size: var(--rq-fs-label); font-weight: 400; letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
+.rq-landing-eyebrow--desktop { display: none; }
 .rq-landing-h2 { margin: 0 0 var(--rq-sp-24); font-family: var(--rq-font-display); font-size: var(--rq-fs-number); font-weight: 400; letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
+/* Rubriken som bara syns på desktop är visuellt gömd under 1024 px (kvar i tillgänglighetsträdet, som sr-only) och en vanlig rubrik från 1024 px. */
+.rq-landing-h2--desktop { position: absolute; width: var(--rq-hair); height: var(--rq-hair); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* ── Previewbandet: kortet (och på desktop tre förklaringar) ─────────────────── */
 .rq-landing-showcase { padding-block: var(--rq-landing-showcase-pad-y); }
@@ -153,7 +171,7 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
 .rq-landing-row__xp { font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-3); text-align: right; }
 
 /* Förklaringarna bredvid kortet (desktop): guldkant till vänster, Bebas-titel */
-.rq-landing-notes { display: flex; flex-direction: column; gap: var(--rq-sp-24); }
+.rq-landing-notes { display: none; flex-direction: column; gap: var(--rq-sp-24); }
 .rq-landing-note { border-left: var(--rq-edge-w-thin) solid var(--rq-card-edge-soft); padding-left: var(--rq-sp-18); }
 .rq-landing-note__title { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); font-weight: 400; letter-spacing: var(--rq-ls-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
 .rq-landing-note__body { margin: var(--rq-sp-6) 0 0; }
@@ -220,14 +238,21 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
   .rq-landing__inner { padding-bottom: 0; }
   .rq-landing-hero, .rq-landing-showcase, .rq-landing-how, .rq-landing-features { margin-bottom: 0; }
   .rq-landing-header { border-bottom: var(--rq-hair) solid var(--rq-line-2); padding-block: calc(var(--rq-landing-header-inset) + var(--rq-landing-header-pad-y)) var(--rq-landing-header-pad-y); }
+  .rq-landing-nav { display: flex; }
   .rq-landing-nav a { font-size: var(--rq-fs-tab); }
   .rq-landing-header .rq-btn { padding: var(--rq-btn-pad-md); }
   .rq-landing-break { display: inline; }
   .rq-display-xl.rq-landing-title { margin-bottom: var(--rq-sp-24); }
   .rq-landing-lead { margin-bottom: var(--rq-sp-32); }
+  .rq-landing-lead__short { display: none; }
+  .rq-landing-lead__long { display: inline; }
   .rq-landing-cta { flex-direction: row; align-items: center; gap: var(--rq-sp-14); margin-bottom: var(--rq-sp-32); }
   .rq-landing-cta .rq-btn { width: auto; }
   .rq-landing-arena { justify-self: stretch; }
+  .rq-landing-arena__svg[data-arena="mobile"] { display: none; }
+  .rq-landing-arena__svg[data-arena="desktop"] { display: block; }
+  /* Mobilfilmen döljs här så att hjältens filmrad (marginalen) inte tar plats; den egna regeln i landingFilm.css döljer själva filmen. */
+  .rq-landing-hero__film { display: none; }
   .rq-landing-stats { border-bottom: 0; padding: var(--rq-sp-24) 0 0; }
   .rq-landing-stats__list { justify-content: flex-start; gap: var(--rq-sp-40); }
   .rq-landing-stat__label { font-size: var(--rq-fs-label); }
@@ -242,6 +267,9 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
   .rq-landing-row__xp { font-size: var(--rq-fs-stat-value); }
 
   .rq-landing-eyebrow { margin-bottom: var(--rq-sp-8); }
+  .rq-landing-eyebrow--desktop { display: block; }
+  .rq-landing-h2--desktop { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; }
+  .rq-landing-notes { display: flex; }
   .rq-landing-how .rq-landing-h2 { margin-bottom: var(--rq-sp-40); font-size: var(--rq-landing-how-title-size); }
   .rq-landing-steps { gap: var(--rq-sp-20); }
   .rq-landing-step { padding: var(--rq-sp-24) var(--rq-sp-20) var(--rq-sp-24); border-left: var(--rq-hair) solid var(--rq-line-3); border-top: var(--rq-edge-w-thin) solid var(--rq-card-edge-soft); }

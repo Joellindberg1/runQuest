@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import postcss, { type Declaration } from 'postcss';
 import { describe, expect, it } from 'vitest';
+import { buildStatViews } from './landingModel';
 
 // Designreglerna för Landing (tokens, skarpa hörn, ikoner, inga emojis, rörelse, att CSS-måtten finns i temafilen, en guldknapp i
 // LandingScreen.test) och att landningen bara gör ETT anrop (GET /public/stats, ADR 006-addendum 2026-10-13) vaktas av lint: eslint.config.js,
@@ -41,6 +42,99 @@ describe('Landing — layout som inte får gå sönder', () => {
     // XP-poppen är osynlig (opacity 0), rutnätet börjar på 0 0 och löparna står på sina vilopositioner (testet ovan).
     expect(stripComments(css)).toMatch(/\.rq-landing-xp \{[^}]*opacity: 0;/);
     expect(theme).toMatch(/@keyframes rqGrid\s*\{ from \{ background-position: 0 0; \}/);
+  });
+});
+
+describe('Landing — varianterna väljs av CSS, aldrig av JS', () => {
+  // Förrenderingen vet inte bredden (ADR 006-addendum 2026-10-19, punkt 5): båda varianterna ligger i HTML och `display: none` döljer den ena. jsdom har
+  // ingen layout och kör ingen CSS, så vilken variant som syns vid 390 respektive 1440 px är mätt i Chromium; här vaktas att varje par har sin
+  // väljarregel, med samma brytpunkt som skalet (1024 px). Att JS inte väljer variant vaktas av ESLint (LANDING_NO_VIEWPORT_OR_LOCALE).
+  const BREAKPOINT = '(min-width: 1024px)';
+  const sheets = [css, readFromDisk('./landingFilm.css')].map((text) => postcss.parse(text));
+
+  /** Deklarationen `property` på väljaren, antingen i sin grundregel (mobil först) eller i desktopens `@media (min-width: 1024px)`. */
+  const valueOf = (selector: string, property: string, scope: 'base' | 'desktop') => {
+    const values: string[] = [];
+    for (const sheet of sheets) {
+      sheet.walkRules((rule) => {
+        if (!rule.selectors.some((candidate) => candidate.trim() === selector)) return;
+        const parent = rule.parent;
+        const inDesktop = parent?.type === 'atrule' && (parent as postcss.AtRule).name === 'media' && (parent as postcss.AtRule).params === BREAKPOINT;
+        const inBase = parent?.type === 'root';
+        if ((scope === 'desktop' && !inDesktop) || (scope === 'base' && !inBase)) return;
+        rule.walkDecls(property, (decl) => { values.push(decl.value); });
+      });
+    }
+    return values.at(-1);
+  };
+
+  const DESKTOP_ONLY = [
+    '.rq-landing-nav',
+    '.rq-landing-eyebrow--desktop',
+    '.rq-landing-notes',
+    '.rq-landing-lead__long',
+    '.rq-landing-arena__svg[data-arena="desktop"]',
+    '.rq-film--desktop',
+  ];
+  const MOBILE_ONLY = [
+    '.rq-landing-lead__short',
+    '.rq-landing-arena__svg[data-arena="mobile"]',
+    '.rq-film--mobile',
+    '.rq-landing-hero__film',
+  ];
+
+  it.each(DESKTOP_ONLY)('%s är dold i grundregeln (mobil) och visas från 1024 px', (selector) => {
+    expect(valueOf(selector, 'display', 'base')).toBe('none');
+    expect(valueOf(selector, 'display', 'desktop')).toMatch(/^(?:block|flex|inline)$/);
+  });
+
+  it.each(MOBILE_ONLY)('%s visas som standard (mobil) och döljs från 1024 px', (selector) => {
+    expect(valueOf(selector, 'display', 'base')).not.toBe('none');
+    expect(valueOf(selector, 'display', 'desktop')).toBe('none');
+  });
+
+  it('rubriker som bara syns på desktop är visuellt gömda (men kvar för skärmläsare) på mobil', () => {
+    expect(valueOf('.rq-landing-h2--desktop', 'position', 'base')).toBe('absolute');
+    expect(valueOf('.rq-landing-h2--desktop', 'position', 'desktop')).toBe('static');
+  });
+
+});
+
+describe('Landing — sifferraden flyttar inget när talen anländer', () => {
+  // jsdom har ingen layout: att inget annat än talen flyttas (±1 px, 360 och 1440 px) är mätt i Chromium. Här vaktas reservationen som gör det,
+  // eftersom ingen roll- eller texttest ser den: varje tal har en minsta bredd i ch, och km (det bredaste talet) reserverar mer än de två andra.
+  const reservedCh = (stat: string) => {
+    let value: string | undefined;
+    postcss.parse(css).walkRules((rule) => {
+      if (!rule.selectors.includes(`.rq-landing-stat[data-stat="${stat}"] .rq-landing-stat__value`)) return;
+      rule.walkDecls('min-width', (decl) => { value = decl.value; });
+    });
+    return Number(value?.match(/^(\d+(?:\.\d+)?)ch$/)?.[1]);
+  };
+
+  it.each(['km', 'runners', 'challenges'])('%s reserverar bredd i ch', (stat) => {
+    expect(reservedCh(stat)).toBeGreaterThan(0);
+  });
+
+  // Etiketten byter form mellan ental och plural ("1 runner" / "6 runners"); ett osynligt pseudoelement med pluralformen håller postens bredd. Texten
+  // står i CSS och måste vara samma som modellens plural, annars reserverar den fel bredd utan att något annat larmar.
+  const reservedLabel = (stat: string) => {
+    let value: string | undefined;
+    postcss.parse(css).walkRules((rule) => {
+      if (!rule.selectors.includes(`.rq-landing-stat[data-stat="${stat}"] .rq-landing-stat__label::after`)) return;
+      rule.walkDecls('content', (decl) => { value = decl.value.replace(/^["']|["']$/g, ''); });
+    });
+    return value;
+  };
+  const pluralLabel = (stat: 'runners' | 'challenges') => buildStatViews({ runners: 2, challenges: 2, km: 0 }).find((view) => view.key === stat)?.label;
+
+  it.each(['runners', 'challenges'] as const)('%s reserverar pluraletikettens bredd så att ental inte gör posten smalare', (stat) => {
+    expect(reservedLabel(stat)).toBe(pluralLabel(stat));
+  });
+
+  it('km reserverar mer än löpare och utmaningar', () => {
+    expect(reservedCh('km')).toBeGreaterThan(reservedCh('runners'));
+    expect(reservedCh('km')).toBeGreaterThan(reservedCh('challenges'));
   });
 });
 

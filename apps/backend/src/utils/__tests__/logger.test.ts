@@ -109,3 +109,33 @@ describe('logger (development)', () => {
     expect(errorSpy).toHaveBeenCalledWith('x', err);
   });
 });
+
+describe('logger error sink', () => {
+  it('hands error lines (and only error lines) to the registered sink', async () => {
+    const logger = await loadLogger('production');
+    const { setErrorSink } = await import('../logger.js');
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const sink = vi.fn();
+    setErrorSink(sink);
+
+    const err = new Error('boom');
+    logger.info('i');
+    logger.warn('w');
+    logger.error('e', err, 'more');
+
+    expect(sink).toHaveBeenCalledTimes(1);
+    expect(sink).toHaveBeenCalledWith('e', [err, 'more']);
+  });
+
+  it('keeps logging when the sink throws, and when it is removed', async () => {
+    const logger = await loadLogger('development');
+    const { setErrorSink } = await import('../logger.js');
+    setErrorSink(() => { throw new Error('sink broke'); });
+    expect(() => logger.error('still logged')).not.toThrow();
+    expect(errorSpy).toHaveBeenCalledWith('still logged');
+
+    setErrorSink(null);
+    expect(() => logger.error('no sink')).not.toThrow();
+  });
+});

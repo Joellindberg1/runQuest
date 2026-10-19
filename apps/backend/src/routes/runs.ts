@@ -1,6 +1,6 @@
 // 🏃 Run Management Routes
 import { logger } from '../utils/logger.js';
-import { errorCode } from '../utils/errorCode.js';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
@@ -49,7 +49,7 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     .eq('user_id', userId)
     .in('type', ['multiplier_days', 'multiplier_runs']);
   // Alla läsningar kastar vid fel (RUN-215): en omräkning på ofullständig indata skriver fel XP/streak till rundorna.
-  if (boostsError) throw new Error(`Failed to fetch boosts for reprocess (user ${userId}): ${boostsError.message}`);
+  if (boostsError) throw errorWithCode(`Failed to fetch boosts for reprocess (user ${userId})`, boostsError);
 
   const boostSpecs: BoostSpec[] = await Promise.all(
     (userBoosts ?? []).map(async (b: { type: string; delta: number; remaining: number | null; created_at: string; expires_at: string | null }) => {
@@ -70,7 +70,7 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
         .eq('user_id', userId)
         .gte('date', startDate)
         .lt('date', fromDate);
-      if (usedError) throw new Error(`Failed to count used boost charges for reprocess (user ${userId}): ${usedError.message}`);
+      if (usedError) throw errorWithCode(`Failed to count used boost charges for reprocess (user ${userId})`, usedError);
       return {
         type: 'multiplier_runs' as const,
         delta: Number(b.delta),
@@ -89,7 +89,7 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     .lt('date', fromDate)
     .order('date', { ascending: false })
     .limit(1);
-  if (prevError) throw new Error(`Failed to fetch previous run for reprocess (user ${userId}): ${prevError.message}`);
+  if (prevError) throw errorWithCode(`Failed to fetch previous run for reprocess (user ${userId})`, prevError);
 
   const prevRun = prevRuns?.[0] ?? null;
   let previous: PreviousRunDay | null = prevRun ? { day: prevRun.date, streakDay: prevRun.streak_day ?? 0 } : null;
@@ -102,11 +102,9 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     .gte('date', fromDate)
     .order('date', { ascending: true });
 
-  if (error) {
-    // Kod och användar-id, aldrig felobjektet: ett Postgres-fel kan bära radens värden (Strava-id, koordinater) i message/details (ADR 010 8.6).
-    logger.error(`❌ Error fetching runs to reprocess for user ${userId} (${error.code ?? 'no code'})`);
-    throw new Error(`Failed to fetch runs to reprocess (user ${userId}): ${error.message}`);
-  }
+  // Kastade fel bär koden men aldrig databastexten (ett Postgres-fel kan bära radens värden, ADR 010 8.6). Loggen sker en gång, hos
+  // anroparen som fångar (tryReprocessRunsFromDate, Strava-synken, webhook-workern), så att ett fel inte blir två Sentry-händelser.
+  if (error) throw errorWithCode(`Failed to fetch runs to reprocess (user ${userId})`, error);
   if (!runs?.length) return;
 
   logger.info(`📊 Reprocessing ${runs.length} affected runs (of user's total)`);
@@ -150,10 +148,9 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
     )
   );
   const failedUpdates = updateResults.filter((r: { error: { message: string; code?: string } | null }) => r.error);
+  // Som ovan: antal, användar-id och felkoden för det första felet, aldrig databastexten; fångstället loggar.
   if (failedUpdates.length > 0) {
-    // Som ovan: antal, användar-id och felkod, aldrig felobjektet.
-    logger.error(`❌ ${failedUpdates.length} of ${updates.length} run updates failed during reprocess for user ${userId} (${failedUpdates[0].error!.code ?? 'no code'})`);
-    throw new Error(`${failedUpdates.length} of ${updates.length} run updates failed during reprocess (user ${userId}): ${failedUpdates[0].error!.message}`);
+    throw errorWithCode(`${failedUpdates.length} of ${updates.length} run updates failed during reprocess (user ${userId})`, failedUpdates[0].error);
   }
 
   logger.info(`✅ Reprocessed ${runs.length} runs successfully`);
@@ -327,9 +324,9 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Date and distance are required' }); return;
     }
 
-    const { error: validationError, distanceNum } = validateRunInput(date, distance);
-    if (validationError) {
-      res.status(400).json({ error: validationError }); return;
+    const { error: invalidInput, distanceNum } = validateRunInput(date, distance);
+    if (invalidInput) {
+      res.status(400).json({ error: invalidInput }); return;
     }
 
     // Utelämnat → NULL (dagens beteende för manuella rundor); event-/väderlogik skiljer på false och NULL.
@@ -458,9 +455,9 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Distance is required' }); return;
     }
 
-    const { error: validationError, distanceNum: newDistance } = validateRunInput(date, distance);
-    if (validationError) {
-      res.status(400).json({ error: validationError }); return;
+    const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance);
+    if (invalidInput) {
+      res.status(400).json({ error: invalidInput }); return;
     }
 
     logger.info(`🔄 Updating run ${id} for user ${userId}`);

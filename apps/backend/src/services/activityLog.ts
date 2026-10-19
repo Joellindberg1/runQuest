@@ -21,6 +21,7 @@ import {
   type ActivityDraft,
   type ChallengeActivityRow,
 } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 export const ACTIVITY_LOG_TABLE = 'activity_log';
 
@@ -39,12 +40,6 @@ export function toActivityRow(d: ActivityDraft) {
   };
 }
 
-/** Felkoden ur ett kastat/returnerat fel — aldrig meddelande eller detaljer (kan bära hela raden, ADR 010 §8.6). */
-function errorCode(e: unknown): string | null {
-  const code = (e as { code?: unknown } | null)?.code;
-  return typeof code === 'string' ? code : null;
-}
-
 /** Skriver rader; dubbletter (samma dedupe_key) ignoreras tyst. Kastar aldrig. */
 export async function recordActivities(entries: ReadonlyArray<ActivityDraft>): Promise<void> {
   if (entries.length === 0) return;
@@ -54,7 +49,7 @@ export async function recordActivities(entries: ReadonlyArray<ActivityDraft>): P
       .upsert(entries.map(toActivityRow), { onConflict: 'dedupe_key', ignoreDuplicates: true });
     if (error) {
       // Bara koden: PostgREST-felets details/message kan innehålla hela den felande raden (payload).
-      logger.error('❌ [ActivityLog] Failed to write activity rows:', { code: error.code ?? null, types: entries.map((e) => e.type) });
+      logger.error('❌ [ActivityLog] Failed to write activity rows:', { code: errorCode(error), types: entries.map((e) => e.type) });
     }
   } catch (e) {
     logger.error('❌ [ActivityLog] Unexpected error writing activity rows:', { code: errorCode(e) });
@@ -69,7 +64,7 @@ export async function recordActivity(entry: ActivityDraft): Promise<void> {
 export async function retractActivity(dedupeKey: string): Promise<void> {
   try {
     const { error } = await getSupabaseClient().from(ACTIVITY_LOG_TABLE).delete().eq('dedupe_key', dedupeKey);
-    if (error) logger.error('❌ [ActivityLog] Failed to retract activity row:', { code: error.code ?? null, dedupeKey });
+    if (error) logger.error('❌ [ActivityLog] Failed to retract activity row:', { code: errorCode(error), dedupeKey });
   } catch (e) {
     logger.error('❌ [ActivityLog] Unexpected error retracting activity row:', { code: errorCode(e), dedupeKey });
   }
@@ -82,7 +77,7 @@ export async function recordChallengeReceived(challenge: ChallengeActivityRow, o
   try {
     await recordActivity(buildChallengeReceivedDraft(challenge, occurredAt));
   } catch (e) {
-    logger.error('❌ [ActivityLog] recordChallengeReceived failed:', e);
+    logger.error(`❌ [ActivityLog] recordChallengeReceived failed (${errorCode(e)})`);
   }
 }
 
@@ -115,7 +110,7 @@ export async function recordChallengeSettled(challenge: ChallengeActivityRow, oc
     const draft = buildChallengeSettledDraft(challenge, occurredAt);
     if (draft) await recordActivity(draft);
   } catch (e) {
-    logger.error('❌ [ActivityLog] recordChallengeSettled failed:', e);
+    logger.error(`❌ [ActivityLog] recordChallengeSettled failed (${errorCode(e)})`);
   }
 }
 
@@ -141,7 +136,7 @@ export async function recordLevelUps(
     if (!group) return;
     await recordActivities(buildLevelUpDrafts(userId, group, prevLevel, newLevel, new Date().toISOString()));
   } catch (e) {
-    logger.error('❌ [ActivityLog] recordLevelUps failed:', e);
+    logger.error(`❌ [ActivityLog] recordLevelUps failed (${errorCode(e)})`);
   }
 }
 
@@ -156,6 +151,6 @@ export async function recordRunMilestones(
     if (!group) return;
     await recordActivities(buildRunMilestoneDrafts(userId, group, prevKm, newKm, new Date().toISOString()));
   } catch (e) {
-    logger.error('❌ [ActivityLog] recordRunMilestones failed:', e);
+    logger.error(`❌ [ActivityLog] recordRunMilestones failed (${errorCode(e)})`);
   }
 }

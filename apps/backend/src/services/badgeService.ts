@@ -27,6 +27,7 @@ import {
   type BadgeRun,
   type ExistingBadgeRow,
 } from '@runquest/shared';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 export const USER_BADGES_TABLE = 'user_badges';
 
@@ -58,12 +59,16 @@ export interface EvaluateBadgesResult {
   complete: boolean;
 }
 
-/** Läsfel som ska avbryta utvärderingen (fångas av evaluateBadges, aldrig utåt). */
+/**
+ * Läsfel som ska avbryta utvärderingen (fångas av evaluateBadges, aldrig utåt). Bär databasens kod i `code`, inte felet självt som
+ * `cause`: loggern serialiserar `cause`, och ett databasfel kan bära radvärden i sin text.
+ */
 class BadgeReadError extends Error {
-  constructor(what: string, cause: unknown) {
+  readonly code: string;
+  constructor(what: string, source: unknown) {
     super(`read ${what} failed`);
     this.name = 'BadgeReadError';
-    this.cause = cause;
+    this.code = errorCode(source);
   }
 }
 
@@ -107,12 +112,12 @@ export async function readRuns(userId: string): Promise<BadgeRun[]> {
     runs.push(...page.map(toBadgeRun));
     if (page.length < RUNS_PAGE_SIZE) return runs;
   }
-  throw new BadgeReadError('runs', `page limit ${MAX_RUNS_PAGES} reached`);
+  throw new BadgeReadError('runs', { code: 'page_limit_reached' });
 }
 
 async function readLongestStreak(userId: string): Promise<number> {
   const { data, error } = await getSupabaseClient().from('users').select('longest_streak').eq('id', userId).single();
-  if (error || !data) throw new BadgeReadError('users.longest_streak', error ?? 'user not found');
+  if (error || !data) throw new BadgeReadError('users.longest_streak', error ?? { code: 'user_not_found' });
   const streak = Number(data.longest_streak ?? 0);
   return Number.isFinite(streak) ? streak : 0;
 }
@@ -145,9 +150,9 @@ async function writeDiff(userId: string, diff: BadgeDiff): Promise<EvaluateBadge
     try {
       const { error } = await write();
       if (!error) return true;
-      logger.error(`❌ [Badges] Failed to ${label}:`, { error, userId });
+      logger.error(`❌ [Badges] Failed to ${label} for user ${userId} (${errorCode(error)})`);
     } catch (e) {
-      logger.error(`❌ [Badges] Unexpected error when trying to ${label}:`, e);
+      logger.error(`❌ [Badges] Unexpected error when trying to ${label} (${errorCode(e)})`);
     }
     complete = false;
     return false;
@@ -232,7 +237,7 @@ async function reconcileShowcase(userId: string, present: ReadonlySet<string>): 
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.from('users').select('displayed_badge_series').eq('id', userId).single();
     if (error || !data) {
-      logger.error('❌ [Badges] Failed to read displayed_badge_series:', { error: error ?? 'user not found', userId });
+      logger.error(`❌ [Badges] Failed to read displayed_badge_series for user ${userId} (${error ? errorCode(error) : 'user not found'})`);
       return false;
     }
     const current: string[] = Array.isArray(data.displayed_badge_series) ? data.displayed_badge_series : [];
@@ -243,12 +248,12 @@ async function reconcileShowcase(userId: string, present: ReadonlySet<string>): 
       .update({ displayed_badge_series: next })
       .eq('id', userId);
     if (updateError) {
-      logger.error('❌ [Badges] Failed to clean displayed_badge_series:', { error: updateError, userId });
+      logger.error(`❌ [Badges] Failed to clean displayed_badge_series for user ${userId} (${errorCode(updateError)})`);
       return false;
     }
     return true;
   } catch (e) {
-    logger.error('❌ [Badges] Unexpected error when cleaning displayed_badge_series:', e);
+    logger.error(`❌ [Badges] Unexpected error when cleaning displayed_badge_series (${errorCode(e)})`);
     return false;
   }
 }
@@ -271,7 +276,7 @@ export async function applyBadgeDiff(
 /** users.group_id för news-raderna (ADR 009 beslut 5); null = ingen grupp. Kastar vid läsfel (fångas av writeBadgeNews). */
 async function readGroupId(userId: string): Promise<string | null> {
   const { data, error } = await getSupabaseClient().from('users').select('group_id').eq('id', userId).single();
-  if (error || !data) throw new Error(`read users.group_id failed: ${JSON.stringify(error ?? 'user not found')}`);
+  if (error || !data) throw errorWithCode(`read users.group_id of user ${userId} failed`, error ?? { code: 'user_not_found' });
   return data.group_id ?? null;
 }
 
@@ -289,7 +294,7 @@ async function writeBadgeNews(userId: string, written: BadgeDiff, now: Date): Pr
     await Promise.all(retractKeys.map((key) => retractActivity(key)));
     await recordActivities(drafts);
   } catch (e) {
-    logger.error('❌ [Badges] Failed to write badge news:', { error: e, userId });
+    logger.error(`❌ [Badges] Failed to write badge news for user ${userId} (${errorCode(e)})`);
   }
 }
 
@@ -321,7 +326,7 @@ export async function evaluateBadges(
     if (!opts.markSeen) await writeBadgeNews(userId, result.written, opts.now ?? new Date());
     return result;
   } catch (e) {
-    logger.error('❌ [Badges] evaluateBadges failed:', e);
+    logger.error(`❌ [Badges] evaluateBadges failed (${errorCode(e)})`);
     return null;
   }
 }

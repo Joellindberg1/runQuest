@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Sessionstipset (ADR 006-addendum 2026-10-19, punkt 4): bygget byter markören mot ett litet inline-skript (landing-entry/sessionHint.ts) som skickar en
+         inloggad besökare till appen innan första ritning. Det ska stå före stilar, förladdningar och modulskript. -->
+    <!--app-session-hint-->
+    <title>RunQuest — Run · Rank · Reign</title>
+    <meta name="description" content="Your group chat deserves a leaderboard. Every run earns XP, XP becomes levels, levels become titles. Strava syncs the runs, you bring the arguing." />
+    <meta name="author" content="Joel Lindberg" />
+    <meta name="theme-color" content="#070e09" />
+
+    <!-- Statisk metadata (ADR 006-addendum 2026-10-13): samma head som index.html (staticHead.test.ts låter dem inte driva isär), så adresserna är absoluta
+         mot www och canonical är startsidan. Siffror står aldrig här (de är påhittade exempel och rör sig). -->
+    <link rel="canonical" href="https://www.runquest.dev/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.runquest.dev/" />
+    <meta property="og:site_name" content="RunQuest" />
+    <meta property="og:title" content="RunQuest — Run · Rank · Reign" />
+    <meta property="og:description" content="Your group chat deserves a leaderboard. Every run earns XP, XP becomes levels, levels become titles. Strava syncs the runs, you bring the arguing." />
+    <meta property="og:image" content="https://www.runquest.dev/og-image.v1.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The RunQuest logo: a white running figure beside the word RUNQUEST, with the gold tagline Run, Rank, Reign, on a dark background." />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RunQuest — Run · Rank · Reign" />
+    <meta name="twitter:description" content="Your group chat deserves a leaderboard. Every run earns XP, XP becomes levels, levels become titles. Strava syncs the runs, you bring the arguing." />
+    <meta name="twitter:image" content="https://www.runquest.dev/og-image.v1.png" />
+    <meta name="twitter:image:alt" content="The RunQuest logo: a white running figure beside the word RUNQUEST, with the gold tagline Run, Rank, Reign, on a dark background." />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Typsnitten är självhostade (@font-face i src/index.css). Bara rubrikens typsnitt förladdas; crossorigin krävs även för samma ursprung. -->
+    <link rel="preload" href="/fonts/bebas-neue-400.v1.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Landningen serveras för exakt "/" (ADR 006-addendum 2026-10-19). Mobilens LCP-element är filmens poster: den begärs här, före all JS, men bara på smala
+         skärmar (desktop väljer 720-postern ur <picture> och hämtar den vid sin ordinarie prioritet). Filnamnet följer LandingFilm.tsx (staticHead.test.ts). -->
+    <link rel="preload" as="image" href="/media/landing-film-poster-480.v1.webp" type="image/webp" media="(max-width: 1023px)" fetchpriority="high" />
+  </head>
+
+  <body>
+    <div id="root"><!--app-landing--></div>
+    <script type="module" src="/src/landing-main.tsx"></script>
+  </body>
+</html>

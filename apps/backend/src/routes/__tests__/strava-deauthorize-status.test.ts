@@ -44,6 +44,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols } from '../../test-utils/stravaTokens.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createStravaWebhookWorker } from '../../services/stravaWebhookWorker.js';
@@ -76,7 +77,7 @@ describe('GET /api/strava/status after a deauthorize event', () => {
       runs: [{ id: 'r1', user_id: 'user-1', source: 'strava', external_id: '1001', date: '2026-10-01', distance: 5, xp_gained: 55, streak_day: 1 }],
       strava_tokens: [
         {
-          user_id: 'user-1', strava_athlete_id: 424242, access_token: 'SECRET-ACCESS', refresh_token: 'SECRET-REFRESH', expires_at: 9_999_999_999,
+          user_id: 'user-1', strava_athlete_id: 424242, ...tokenCols('user-1', 'SECRET-ACCESS', 'SECRET-REFRESH'), expires_at: 9_999_999_999,
           connection_date: '2026-09-01T09:00:00+00:00', consent_version: '2026-10-14', sync_paused: false, paused_at: null,
         },
       ],

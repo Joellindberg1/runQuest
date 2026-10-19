@@ -25,8 +25,8 @@
 //  6. Villkorligt gruppfilter i routes (RUN-258): en route får inte lägga på `.eq('group_id', …)` bara när group_id finns
 //     (`if (groupId) { query = query.eq('group_id', groupId); }`). Då ger en token utan group_id ALLA gruppers rader i stället för tom
 //     data (ADR 007 A6, fail-closed). Använd `groupIdOrRespondEmpty` (apps/backend/src/utils/groupScope.ts) och sätt filtret ovillkorligt.
-//     Vakten är textbaserad och avsiktligt smal: den läser bara routes/*.ts (inte services, där `processAllUsersTitles` har ett uttryckligt
-//     `allGroups`-val) och fångar `if (…groupId) { …eq('…group_id' …`. Fångas INTE: ternärer (`groupId ? q.eq(…) : q`), `&&`
+//     Vakten är textbaserad och avsiktligt smal: den läser bara routes/*.ts (inte services, där titelomräkningen `processGroupTitles` alltid tar en
+//     uttrycklig grupp) och fångar `if (…groupId) { …eq('…group_id' …`. Fångas INTE: ternärer (`groupId ? q.eq(…) : q`), `&&`
 //     (`groupId && q.eq(…)`), jämförelser som `if (groupId !== undefined)` / `if (groupId != null)`, eller andra former av samma tanke.
 //
 //  7. Strava-anrop går via stravaFetch (RUN-167): all trafik mot Strava passerar `stravaFetch` i services/stravaClient.ts, den enda platsen
@@ -46,7 +46,33 @@
 // 10. Den nattliga Strava-avstämningen startas i produktionsblocket: `startStravaReconcileScheduler()` direkt i samma `if (process.env.NODE_ENV === 'production') { … }`
 //     som regel 9 (samma vakt, samma begränsningar). Utan anropet körs avstämningen aldrig och en missad radering upptäcks bara av 48 h-larmet.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|rate-budget-hook|webhook-scheduler-start|reconcile-scheduler-start|media|fonts|all]   (standard: all)
+// 11. Strava-tokens går via stravaTokenStore (ADR 013): tokenkolumnerna i `strava_tokens` (access_token, refresh_token) läses och skrivs bara i
+//     `apps/backend/src/services/stravaTokenStore.ts`. En frågekedja på `.from('strava_tokens')` någon annanstans får inte nämna dem
+//     (select, filter, update, upsert, insert) och inte välja alla kolumner (`select('*')`). Filtret `.not('access_token', 'is', null)` är
+//     undantaget: det läser inget värde. Vakten är textbaserad: den läser frågekedjan till slutet av satsen. Fångas INTE: en tabell som anges
+//     med en konstant (`.from(TABLE)`) eller en fråga som byggs upp i flera satser.
+//
+// 12. Tokennyckeln kontrolleras vid start (ADR 013 beslut 9): `apps/backend/src/server.ts` måste anropa `reportTokenKeyAtStartup()` på översta nivån.
+//     Utan anropet blir en saknad eller felaktig nyckel inget larm, och inget test märker det (server.ts går inte att importera i ett test).
+//     Samma vakt och samma begränsningar som regel 8: raden måste börja i kolumn 0.
+//
+// 13. Roll blir rättighet bara i groupRoleCan (ADR 012 beslut 2.5): ingen källfil under apps/* och packages/* utom `packages/shared/src/groupRoles.ts`
+//     jämför en `role` mot rollnamnen 'admin' eller 'member'. Textbaserad (se checkGroupRoleMapping för vad den inte fångar).
+//
+// 14. users.group_id skrivs bara av databasfunktionerna (ADR 012 beslut 2.2): ingen backendkod sätter kolumnen direkt (supabase-js `.from('users').update/insert/upsert`
+//     med group_id som nyckel, eller SQL-text som gör det). Pekaren sätts av join_group/create_group_with_admin via utils/membership.ts, i en transaktion med
+//     raden i group_members. Textbaserad (se checkUsersGroupIdWrites för vad den inte fångar).
+//
+// 15. group_settings skrivs bara efter gruppbehörighet (ADR 012 beslut 6.4): varje backendfil som skriver till `group_settings` måste anropa
+//     `actingGroupForWriteOrRespond`/`resolveActingGroupForWrite` (utils/groupAccess.ts), och gruppen till skrivningen hämtas aldrig ur `req.params`,
+//     `req.body`, `req.query`, `req.headers` eller `req.user`. Textbaserad (se checkGroupSettingsWrites för vad den inte fångar); undantag i
+//     GROUP_SETTINGS_EXEMPT_FILES med motivering (tom).
+//
+// 16. Omräkningsåterhämtningen startas i produktionsblocket (RUN-322, migration 057): `startRecalculationRecoveryScheduler()` direkt i samma
+//     `if (process.env.NODE_ENV === 'production') { … }` som regel 9 och 10 (samma vakt, samma begränsningar). Utan anropet plockar ingenting upp
+//     en omräkning som en kraschad avstämning eller ett fel lämnade efter en radering.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -199,6 +225,273 @@ export function checkRawStravaFetch(files) {
   return errors;
 }
 
+// Filen som får röra tokenkolumnerna i strava_tokens: lagret. Backfillskriptet (ADR 013 S4, scripts/backfillStravaTokenEncryption.ts) går
+// också via lagret (listTokenRows, rewriteTokenRow) och är därför inte undantaget: vakten ska fälla ett skript som läser kolumnerna själv.
+const STRAVA_TOKEN_STORE_FILES = new Set(['apps/backend/src/services/stravaTokenStore.ts']);
+const STRAVA_TOKENS_FROM = /\.from\(\s*(['"`])strava_tokens\1\s*\)/g;
+const TOKEN_COLUMN = /\b(?:access_token|refresh_token)\b/;
+// "Raden har en token": ett filter på nullvärde läser ingen token och är det enda tillåtna omnämnandet av kolumnerna.
+const HAS_TOKEN_FILTER = /\.not\(\s*(['"`])access_token\1\s*,\s*(['"`])is\2\s*,\s*null\s*\)/g;
+
+/**
+ * Texten i en frågekedja som börjar vid `start`: till slutet av satsen (`;` på nivå 0), till nästa `,` på nivå 0 (nästa element i en
+ * `Promise.all([…, …])` eller nästa deklaration), till en radbrytning som inte följs av ett kedjat anrop (`.x(…)`, `?.x(…)`; en sats utan semikolon),
+ * eller till den parentes som stänger det anrop kedjan sitter i. Citerade strängar (och mallsträngar) räknas som text; kommentarer tas bort så att ett ord i dem inte blir en träff.
+ */
+// Sticky: prövas exakt vid lastIndex, hur långt (blanka rader, kommentarer som blivit blanka) det än är till nästa icke-blanka tecken.
+const CHAIN_CONTINUES = /\s*\??\./y;
+function chainContinuesAt(code, index) {
+  CHAIN_CONTINUES.lastIndex = index;
+  return CHAIN_CONTINUES.test(code);
+}
+function queryChainText(code, start) {
+  let depth = 0;
+  let text = '';
+  for (let i = start; i < code.length; i += 1) {
+    const char = code[i];
+    const next = code[i + 1];
+    if (char === '/' && next === '/') { while (i < code.length && code[i] !== '\n') i += 1; text += '\n'; continue; }
+    if (char === '/' && next === '*') { const end = code.indexOf('*/', i + 2); i = end === -1 ? code.length : end + 1; continue; }
+    if (char === "'" || char === '"' || char === '`') {
+      const quote = char;
+      text += char;
+      i += 1;
+      while (i < code.length && code[i] !== quote) { if (code[i] === '\\') { text += code[i]; i += 1; } text += code[i]; i += 1; }
+      text += quote;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') depth += 1;
+    else if (char === ')' || char === ']' || char === '}') { depth -= 1; if (depth < 0) return text; }
+    else if ((char === ';' || char === ',') && depth === 0) return text;
+    else if (char === '\n' && depth === 0 && !chainContinuesAt(code, i + 1)) return text;
+    text += char;
+  }
+  return text;
+}
+
+/** Texten i varje `.method(…)`-anrop i en kedja (mellan de yttre parenteserna). Strängar räknas som text, så en parentes i dem stänger inget. */
+function methodArguments(chain, method) {
+  const found = [];
+  const opening = new RegExp(`\\.${method}\\s*\\(`, 'g');
+  for (const match of chain.matchAll(opening)) {
+    let depth = 1;
+    let i = match.index + match[0].length;
+    const begin = i;
+    for (; i < chain.length && depth > 0; i += 1) {
+      const char = chain[i];
+      if (char === "'" || char === '"' || char === '`') {
+        i += 1;
+        while (i < chain.length && chain[i] !== char) { if (chain[i] === '\\') i += 1; i += 1; }
+      } else if (char === '(' || char === '[' || char === '{') depth += 1;
+      else if (char === ')' || char === ']' || char === '}') depth -= 1;
+    }
+    found.push(chain.slice(begin, i - 1));
+  }
+  return found;
+}
+
+const SINGLE_STRING = /^(['"`])(?:\\[\s\S]|(?!\1)[\s\S])*\1$/;
+
+/** Ett select-argument som kan hämta en tokenkolumn utan att nämna den: tomt, `*` var som helst, eller något annat än en enda sträng utan `${}`. */
+function selectArgumentReadsUnknownColumns(argument) {
+  const text = argument.trim();
+  if (text === '') return true;
+  if (!SINGLE_STRING.test(text)) return true;
+  const inner = text.slice(1, -1);
+  return inner.includes('*') || (text[0] === '`' && inner.includes('${')) || inner.trim() === '';
+}
+
+/**
+ * Regel 11 (ADR 013 beslut 4). Strava-tokens läses och skrivs bara i services/stravaTokenStore.ts, den enda platsen som krypterar och
+ * dekrypterar dem. En frågekedja på `strava_tokens` i någon annan backendfil får inte nämna access_token eller refresh_token (select,
+ * filter, update, upsert, insert), och får inte hämta alla kolumner (`*` var som helst i select-listan, `select()`), välja med ett argument
+ * som inte är en enda sträng utan `${}` (en variabel, ett anrop, en mallsträng med `${}`), eller skriva med spridning
+ * (`upsert({ ...tokens })`, även insert och update). Undantag: filtret `.not('access_token', 'is', null)`, som inte läser något värde.
+ * `files`: [{ path, content }]. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: en tabell som anges med en konstant (`.from(TABLE)`), en fråga som byggs i flera
+ * satser (`const q = db.from('strava_tokens'); q.select('access_token')`), ett skrivargument som är en variabel eller ett anrop utan
+ * spridning (`.upsert(row)`), en kolumn vars namn byggs ihop av delar i en sträng, och en `*` i en relation inuti listan räknas som träff
+ * (vilket är avsiktligt, men kan ge falsklarm).
+ */
+export function checkStravaTokenPath(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!BACKEND_SOURCE.test(path) || STRAVA_TOKEN_STORE_FILES.has(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
+    // Kommentarer bort (radnumren bevaras): en kommentarsrad mellan kedjans rader får inte klippa kedjan i queryChainText.
+    const code = withoutComments(content);
+    for (const match of code.matchAll(STRAVA_TOKENS_FROM)) {
+      const chain = queryChainText(code, match.index + match[0].length).replace(HAS_TOKEN_FILTER, '');
+      const readsEverything = methodArguments(chain, 'select').some(selectArgumentReadsUnknownColumns);
+      const spreadsIntoWrite = ['upsert', 'insert', 'update'].some((method) => methodArguments(chain, method).some((argument) => argument.includes('...')));
+      if (!TOKEN_COLUMN.test(chain) && !readsEverything && !spreadsIntoWrite) continue;
+      const line = code.slice(0, match.index).split(/\r?\n/).length;
+      errors.push(`${path}:${line}: tokenkolumnerna i strava_tokens används utanför stravaTokenStore — läs och skriv dem bara via services/stravaTokenStore.ts (ADR 013 beslut 4)`);
+    }
+  }
+  return errors;
+}
+
+const GROUP_ROLE_FILE = 'packages/shared/src/groupRoles.ts';
+const WORKSPACE_SOURCE = /^(?:apps|packages)\/[^/]+\/src\//;
+const ROLE_NAME = String.raw`['"\`](?:admin|member)['"\`]`;
+const ROLE_OPERAND = String.raw`[\w$.?!]*\brole\b`;
+const GROUP_ROLE_COMPARISONS = [
+  new RegExp(String.raw`\brole\s*[!=]==?\s*${ROLE_NAME}`, 'g'),
+  new RegExp(String.raw`${ROLE_NAME}\s*[!=]==?\s*${ROLE_OPERAND}`, 'g'),
+  new RegExp(String.raw`\[[^\]]*${ROLE_NAME}[^\]]*\]\s*\.includes\(\s*${ROLE_OPERAND}`, 'g'),
+];
+
+/** Kommentarer bort, men radbrytningarna kvar så att radnumren stämmer. */
+function withoutComments(code) {
+  return code
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
+    .replace(/(^|\s)\/\/.*$/gm, '$1');
+}
+
+/**
+ * Regel 13 (ADR 012 beslut 2.5). Roll blir rättighet på ETT ställe: `groupRoleCan(role, capability)` i packages/shared/src/groupRoles.ts.
+ * Ingen annan källfil under apps/* och packages/* (utom tester och testhjälpare) får jämföra en `role` mot rollnamnen 'admin' eller 'member'
+ * (`role === 'admin'`, `'admin' !== m.role`, `['admin'].includes(m.role)`). Annars blir en ny roll (vice admin) eller en ny rättighet
+ * en ändring på många ställen i stället för en rad i tabellen, och en glömd kontroll är en behörighetslucka.
+ * `files`: [{ path, content }]. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: en roll i en variabel med annat namn än `role` (`const r = m.role; r === 'admin'`),
+ * en switch på rollen (`case 'admin':`), ett rollnamn som byggs ihop av delar, och databasfrågor som filtrerar på rollen (`.eq('role', 'admin')`,
+ * medvetet tillåtna: det är ett urval, ingen behörighetsprövning).
+ */
+export function checkGroupRoleMapping(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!WORKSPACE_SOURCE.test(path) || path === GROUP_ROLE_FILE || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
+    const code = withoutComments(content);
+    const lines = new Set();
+    for (const pattern of GROUP_ROLE_COMPARISONS) {
+      for (const match of code.matchAll(pattern)) lines.add(code.slice(0, match.index).split(/\r?\n/).length);
+    }
+    for (const line of [...lines].sort((a, b) => a - b)) {
+      errors.push(`${path}:${line}: en roll jämförs mot ett rollnamn — fråga groupRoleCan(role, capability) (packages/shared/src/groupRoles.ts), den enda platsen som mappar roll till rättighet (ADR 012 beslut 2.5)`);
+    }
+  }
+  return errors;
+}
+
+const USERS_FROM = /\.from\(\s*(['"`])users\1\s*\)/g;
+// `group_id` som nyckel i ett objektliteral: `{ group_id: x`, `, group_id }` (shorthand), `{ 'group_id': x`, `{ ["group_id"]: x`.
+// Värdesidan (`{ name: group_id }`) räknas inte: nyckeln måste stå direkt efter `{` eller `,`.
+const GROUP_ID_KEY = /[{,]\s*(?:group_id|(['"`])group_id\1|\[\s*(['"`])group_id\2\s*\])\s*(?=[:,}])/;
+const USERS_SQL_UPDATE = /\bupdate\s+(?:only\s+)?(?:"?public"?\.)?"?users"?(?:\s+(?:as\s+)?\w+)?\s+set\b([\s\S]*?)(?=\bwhere\b|\bfrom\b|\breturning\b|;|$)/gi;
+const SQL_ASSIGNS_GROUP_ID = /(?:^|[\s,(])group_id\s*=(?!=)/i;
+const USERS_SQL_INSERT = /\binsert\s+into\s+(?:"?public"?\.)?"?users"?\s*\(([^)]*)\)/gi;
+
+/**
+ * Regel 14 (ADR 012 beslut 2.2). Pekaren users.group_id skrivs bara av databasfunktionerna join_group och create_group_with_admin (via
+ * utils/membership.ts), i en transaktion med raden i group_members. Ingen annan backendkod får sätta kolumnen, annars driver pekaren
+ * ifrån medlemskapet (zon 8, "två sanningar"). Fångas: `.from('users')` följt av `.update/.insert/.upsert` vars objektliteral har
+ * `group_id` som nyckel (även bland andra fält, även som shorthand eller citerad nyckel), och SQL-text i källan:
+ * `update [public.]users … set … group_id = …` och `insert into [public.]users (… group_id …)`. Migrationerna (.sql) ingår inte: funktionerna
+ * bor där. `files`: [{ path, content }]. Bara apps/backend/src, utan tester och testhjälpare. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: en skrivning vars argument är en variabel (`.update(fields)`) eller byggs med
+ * spridning (`.update({ ...fields })`), en frågekedja som byggs i flera satser (`const q = db.from('users'); q.update({ group_id })`),
+ * en tabell som anges med en konstant, och SQL som byggs ihop av delar. Granskning täcker de formerna.
+ */
+export function checkUsersGroupIdWrites(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!BACKEND_SOURCE.test(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
+    const code = withoutComments(content);
+    const lines = new Set();
+    const lineAt = (index) => code.slice(0, index).split(/\r?\n/).length;
+
+    for (const match of code.matchAll(USERS_FROM)) {
+      const chain = queryChainText(code, match.index + match[0].length);
+      const writesGroupId = ['update', 'insert', 'upsert'].some((method) => methodArguments(chain, method).some((argument) => GROUP_ID_KEY.test(argument)));
+      if (writesGroupId) lines.add(lineAt(match.index));
+    }
+    for (const match of code.matchAll(USERS_SQL_UPDATE)) {
+      if (SQL_ASSIGNS_GROUP_ID.test(match[1])) lines.add(lineAt(match.index));
+    }
+    for (const match of code.matchAll(USERS_SQL_INSERT)) {
+      if (/\bgroup_id\b/i.test(match[1])) lines.add(lineAt(match.index));
+    }
+
+    for (const line of [...lines].sort((a, b) => a - b)) {
+      errors.push(`${path}:${line}: users.group_id skrivs direkt — pekaren sätts bara av join_group/create_group_with_admin via utils/membership.ts (ADR 012 beslut 2.2)`);
+    }
+  }
+  return errors;
+}
+
+// Filer som får skriva group_settings utan att gå via grindfunktionen, med skäl. Tom: varje skrivning går via grinden. Varje rad här kräver
+// ett skäl och en ticket som tar bort den (som USERS_GROUP_ID_EXEMPT_FILES).
+export const GROUP_SETTINGS_EXEMPT_FILES = new Map();
+const GROUP_SETTINGS_FROM_LITERAL = String.raw`(['"\`])group_settings\1`;
+// Namnet på konstanten i services/groupSettings.ts. Den exporteras inte, men matchas ändå på namn i vilken fil som helst, ifall någon exporterar den igen.
+const GROUP_SETTINGS_TABLE_IDENTIFIER = 'GROUP_SETTINGS_TABLE';
+// `.from('group_settings' as const)`, `… satisfies string`: en typpåstående efter tabellnamnet ändrar inte vilken tabell det är.
+const TYPE_ASSERTION = String.raw`(?:\s+(?:as|satisfies)\s+[\w.]+)?`;
+// `const TABLE = 'group_settings'` (valfri typannotation): tabellen anges då av en konstant i samma fil.
+const GROUP_SETTINGS_CONSTANT = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*(['"`])group_settings\2/g;
+const WRITE_METHOD = /\.(?:upsert|insert|update|delete)\s*\(/;
+const GROUP_SETTINGS_SQL_WRITE = /\b(?:insert\s+into|update|delete\s+from)\s+(?:"?public"?\.)?"?group_settings"?(?![\w$])/gi;
+// Grinden: ett anrop med det rena namnet (inte en definition, import, medlemsanrop `x.actingGroup…(` eller kommentar) av en av de två funktionerna i utils/groupAccess.ts.
+const GROUP_ACCESS_GATE_CALL = /(?<![\w$.])(?<!function\s+)(?:actingGroupForWriteOrRespond|resolveActingGroupForWrite)\s*\(/;
+// Var en request bär användarstyrd data: req/request .params|body|query|headers|header()|get()|cookies|user.
+const REQUEST_SOURCE = /(?<![\w$])(?<![^.]\.)req(?:uest)?\s*\??\.\s*(?:params|body|query|headers?|get|cookies|user)\b/;
+const GROUP_ID_WORD = /group[_-]?id/i;
+
+/**
+ * Regel 15 (ADR 012 beslut 6.4). Gruppinställningar skrivs bara efter en rollkontroll mot det AKTIVA medlemskapet: varje backendfil som skriver
+ * till group_settings måste anropa `actingGroupForWriteOrRespond` eller `resolveActingGroupForWrite` (utils/groupAccess.ts), och gruppen till
+ * skrivningen får aldrig hämtas ur `req.params`, `req.body`, `req.query`, `req.headers` (eller `req.header()`/`req.get()`) eller `req.user` (JWT:ns group_id är inaktuell
+ * efter join, och resten styr anroparen själv). Annars kan en admin rikta en skrivning mot en annan grupp (IDOR) eller en medlem skriva alls.
+ * Fångas: `.from('group_settings')` (också med `as const`/`satisfies`, eller en konstant i samma fil som är satt till 'group_settings', eller identifieraren
+ * `GROUP_SETTINGS_TABLE` i vilken fil som helst) följt av `.upsert/.insert/.update/.delete` i
+ * frågekedjan, och SQL-text med `insert into / update / delete from [public.]group_settings`; en sådan fil utan grind-anrop; en frågekedja som nämner
+ * request-data; och en sats (mellan `;`) som nämner både `group_id`/`groupId` och request-data (`const groupId = req.user!.group_id;`).
+ * `files`: [{ path, content }]; `exempt`: filer som släpps igenom (standard: GROUP_SETTINGS_EXEMPT_FILES). Bara apps/backend/src, utan tester och
+ * testhjälpare. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: att grindens resultat faktiskt är det som skickas till skrivningen (ett grind-anrop någonstans i
+ * filen räcker), en tabell som importeras under ett annat namn än `GROUP_SETTINGS_TABLE` från en annan fil (`import { X as T }`; skriv tabellnamnet som en bokstavlig
+ * sträng på skrivstället), en fråga som byggs i flera satser, ett gruppid som går via en mellanvariabel utan "group_id" i namnet (`const g = req.body.x`), satser utan
+ * semikolon, och ett grind-anrop som bara står i en sträng. Granskning täcker de formerna.
+ */
+export function checkGroupSettingsWrites(files, exempt = GROUP_SETTINGS_EXEMPT_FILES) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!BACKEND_SOURCE.test(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path) || exempt.has(path)) continue;
+    const code = withoutComments(content);
+    const lineAt = (index) => code.slice(0, index).split(/\r?\n/).length;
+
+    const tableNames = [GROUP_SETTINGS_FROM_LITERAL, GROUP_SETTINGS_TABLE_IDENTIFIER];
+    for (const constant of code.matchAll(GROUP_SETTINGS_CONSTANT)) tableNames.push(constant[1].replace(/\$/g, '\\$'));
+    const fromTable = new RegExp(String.raw`\.from\(\s*(?:${tableNames.join('|')})${TYPE_ASSERTION}\s*\)`, 'g');
+
+    const writes = []; // { line, requestInChain }
+    for (const match of code.matchAll(fromTable)) {
+      const chain = queryChainText(code, match.index + match[0].length);
+      if (WRITE_METHOD.test(chain)) writes.push({ line: lineAt(match.index), requestInChain: REQUEST_SOURCE.test(chain) });
+    }
+    for (const match of code.matchAll(GROUP_SETTINGS_SQL_WRITE)) writes.push({ line: lineAt(match.index), requestInChain: false });
+    if (writes.length === 0) continue;
+
+    const problems = new Map(); // line -> text
+    const gated = GROUP_ACCESS_GATE_CALL.test(code);
+    for (const { line, requestInChain } of writes) {
+      if (!gated) problems.set(line, 'group_settings skrivs utan att filen anropar actingGroupForWriteOrRespond/resolveActingGroupForWrite (utils/groupAccess.ts) — gruppen och rollen prövas där, färskt ur medlemskapet (ADR 012 beslut 6.4)');
+      else if (requestInChain) problems.set(line, 'frågekedjan som skriver group_settings nämner req.params/body/query/headers/user — gruppen kommer bara ur actingGroupForWriteOrRespond (ADR 012 beslut 6.4)');
+    }
+    let offset = 0;
+    for (const statement of code.split(';')) {
+      if (GROUP_ID_WORD.test(statement) && REQUEST_SOURCE.test(statement)) {
+        problems.set(lineAt(offset + statement.search(REQUEST_SOURCE)),'ett gruppid hämtas ur req.params/body/query/headers/user i en fil som skriver group_settings — gruppen kommer bara ur actingGroupForWriteOrRespond (ADR 012 beslut 6.4)');
+      }
+      offset += statement.length + 1;
+    }
+
+    for (const [line, text] of [...problems].sort((a, b) => a[0] - b[0])) errors.push(`${path}:${line}: ${text}`);
+  }
+  return errors;
+}
+
 const SERVER_FILE = 'apps/backend/src/server.ts';
 const RATE_BUDGET_HOOK_CALL = /^registerStravaRateBudget\s*\(\s*\)/m;
 
@@ -218,9 +511,28 @@ export function checkRateBudgetHook(files) {
     : [`${SERVER_FILE}: saknar ett anrop av registerStravaRateBudget() på översta nivån — utan det räknas inga Strava-anrop och mjukgränsen slår aldrig till (ADR 010 beslut 9)`];
 }
 
+const TOKEN_KEY_STARTUP_CALL = /^reportTokenKeyAtStartup\s*\(\s*\)/m;
+
+/**
+ * Regel 12. `files`: [{ path, content }]. Backendens server.ts måste anropa reportTokenKeyAtStartup() på översta nivån (ADR 013 beslut 9).
+ * Ett repo utan någon backendkälla har inget att kontrollera.
+ */
+export function checkTokenKeyStartupCheck(files) {
+  const server = files.find(({ path }) => path === SERVER_FILE);
+  if (!server) {
+    return files.some(({ path }) => BACKEND_SOURCE.test(path))
+      ? [`${SERVER_FILE}: filen saknas, så tokennyckeln kontrolleras aldrig vid start`]
+      : [];
+  }
+  return TOKEN_KEY_STARTUP_CALL.test(server.content)
+    ? []
+    : [`${SERVER_FILE}: saknar ett anrop av reportTokenKeyAtStartup() på översta nivån — utan det larmar ingenting när tokennyckeln saknas eller är fel och Strava-synken står stilla (ADR 013 beslut 9)`];
+}
+
 const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
 const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
 const RECONCILE_SCHEDULER_CALL = /(?<![\w.])startStravaReconcileScheduler\s*\(\s*\)/;
+const RECOVERY_SCHEDULER_CALL = /(?<![\w.])startRecalculationRecoveryScheduler\s*\(\s*\)/;
 
 /**
  * Texten direkt i första `if (process.env.NODE_ENV === 'production') { … }`-blocket: utan kommentarer och utan innehållet i
@@ -274,6 +586,20 @@ export function checkReconcileSchedulerStart(files) {
     call: RECONCILE_SCHEDULER_CALL,
     missingFile: 'den nattliga Strava-avstämningen startas aldrig',
     missingCall: 'startStravaReconcileScheduler() måste anropas direkt i produktionsblocket — annars körs aldrig den nattliga avstämningen av Strava-rundor, eller så startar den i dev och tester (ADR 010 beslut 13)',
+  });
+}
+
+/**
+ * Regel 16. Samma form som regel 9 och 10, för återhämtningen av omräkningsmarkeringar (RUN-322, migration 057):
+ * `startRecalculationRecoveryScheduler();` direkt i produktionsblocket. Utan anropet plockar ingenting upp en omräkning som en kraschad
+ * avstämning eller ett fel lämnade efter en radering (rundan är borta, XP och streak för senare rundor står fel); utanför blocket
+ * startar jobbet i dev och i tester.
+ */
+export function checkRecoverySchedulerStart(files) {
+  return checkSchedulerStart(files, {
+    call: RECOVERY_SCHEDULER_CALL,
+    missingFile: 'omräkningsåterhämtningen startas aldrig',
+    missingCall: 'startRecalculationRecoveryScheduler() måste anropas direkt i produktionsblocket — annars plockar ingenting upp en omräkning som blev ogjord efter en radering, eller så startar jobbet i dev och tester (RUN-322)',
   });
 }
 
@@ -406,8 +732,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'rate-budget-hook', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | rate-budget-hook | webhook-scheduler-start | reconcile-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -422,15 +748,35 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'rate-budget-hook' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
       summary.push('inga Strava-anrop förbi stravaFetch');
     }
+    if (mode === 'all' || mode === 'strava-token-path') {
+      errors.push(...checkStravaTokenPath(files));
+      summary.push('Strava-tokenkolumnerna används bara i stravaTokenStore');
+    }
     if (mode === 'all' || mode === 'rate-budget-hook') {
       errors.push(...checkRateBudgetHook(files));
       summary.push('ratebudgetens krok registreras i server.ts');
+    }
+    if (mode === 'all' || mode === 'token-key-startup') {
+      errors.push(...checkTokenKeyStartupCheck(files));
+      summary.push('tokennyckeln kontrolleras vid start i server.ts');
+    }
+    if (mode === 'all' || mode === 'group-role-mapping') {
+      errors.push(...checkGroupRoleMapping(files));
+      summary.push('roller mappas till rättigheter bara i groupRoleCan');
+    }
+    if (mode === 'all' || mode === 'users-group-id') {
+      errors.push(...checkUsersGroupIdWrites(files));
+      summary.push('users.group_id skrivs bara av join_group/create_group_with_admin');
+    }
+    if (mode === 'all' || mode === 'group-settings-writes') {
+      errors.push(...checkGroupSettingsWrites(files));
+      summary.push('group_settings skrivs bara efter gruppbehörighet (actingGroupForWriteOrRespond)');
     }
     if (mode === 'all' || mode === 'webhook-scheduler-start') {
       errors.push(...checkWebhookSchedulerStart(files));
@@ -439,6 +785,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'reconcile-scheduler-start') {
       errors.push(...checkReconcileSchedulerStart(files));
       summary.push('den nattliga Strava-avstämningen startas i produktionsblocket i server.ts');
+    }
+    if (mode === 'all' || mode === 'recovery-scheduler-start') {
+      errors.push(...checkRecoverySchedulerStart(files));
+      summary.push('omräkningsåterhämtningen startas i produktionsblocket i server.ts');
     }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));

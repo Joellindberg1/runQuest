@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { WAITLIST_CONSENT_LABEL, WAITLIST_CONSENT_LINK_TEXT, WAITLIST_EMAIL_MAX_LENGTH } from '@runquest/shared';
 import { legalPrivacyPath } from '@/paths';
+import { track } from '@/shared/analytics/track';
 import { TextField } from '@/shared/components/form/TextField';
+import { useHydrated } from '@/shared/hooks/useHydrated';
 import { useJoinWaitlist } from '../hooks/useJoinWaitlist';
 import '../landingWaitlist.css';
 
@@ -30,9 +32,14 @@ const MESSAGES = {
  * Väntelistans kort på landingen: e-post, samtyckesbock och EN guldknapp. Samma tack för ny och redan anmäld adress (servern svarar 200 för
  * båda) och inget bekräftelsemejl (nivå 1). Felen står vid fältet eller bocken (aria-invalid + aria-describedby + role=alert) och det ifyllda
  * ligger kvar. Honeypot-fältet `website` ligger utanför skärmen och är dolt för tangentbord och skärmläsare. Anropet ligger i useJoinWaitlist.
+ *
+ * Formuläret är med i den förrenderade HTML:en och syns innan JS hydrerat det. Tills komponenten monterats är det `inert`: ingenting går att skriva i eller skicka,
+ * så inget ifyllt skrivs över av tomt state vid hydreringen och Enter i fältet ger ingen nativ GET-submit (som laddar om sidan till /?website=). `inert` ändrar inget
+ * i utseendet (till skillnad från `disabled`, som gråar fälten och guldknappen i några millisekunder för alla). Serverns och klientens första rendering är lika (useHydrated).
  */
 export function LandingWaitlist() {
   const { join, isPending } = useJoinWaitlist();
+  const hydrated = useHydrated();
   const [email, setEmail] = useState('');
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState('');
@@ -61,7 +68,11 @@ export function LandingWaitlist() {
     if (nextConsentError) { consentRef.current?.focus(); return; }
 
     const outcome = await join({ email: trimmed, website });
-    if (outcome === 'joined') setDone(true);
+    if (outcome === 'joined') {
+      // Servern kastar tyst en anmälan med ifyllt honeypot-fält men svarar ändå 200: den räknas inte som en anmälan i statistiken.
+      if (website === '') track('waitlist-joined');
+      setDone(true);
+    }
     else if (outcome === 'invalid') { setEmailError(MESSAGES.emailInvalid); emailRef.current?.focus(); }
     else if (outcome === 'rate-limited') setFormError(MESSAGES.rateLimited);
     else if (outcome === 'failed') setFormError(MESSAGES.failed);
@@ -78,7 +89,14 @@ export function LandingWaitlist() {
       ) : (
         <>
           <p className="rq-lead rq-landing-waitlist__lead">RunQuest is invite-only while in beta. Leave your email and you'll get an invite when a pack can start.</p>
-          <form className="rq-landing-waitlist__form" aria-labelledby={TITLE_ID} aria-busy={isPending} noValidate onSubmit={(event) => void submit(event)}>
+          <form
+            className="rq-landing-waitlist__form"
+            aria-labelledby={TITLE_ID}
+            aria-busy={isPending}
+            noValidate
+            inert={hydrated ? undefined : ''}
+            onSubmit={(event) => void submit(event)}
+          >
             <div className="rq-landing-waitlist__row">
               <TextField
                 ref={emailRef}

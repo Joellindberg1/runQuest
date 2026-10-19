@@ -13,7 +13,9 @@ import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
 // ── Ankare ────────────────────────────────────────────────────────────────
 
+/** Desktopfilmen och mobilfilmen har varsitt ankar-id: båda ligger i HTML och CSS döljer den ena, så ankaret måste vara unikt per variant. */
 export const FILM_ID = 'film';
+export const FILM_MOBILE_ID = 'film-mobile';
 export const HOW_IT_WORKS_ID = 'how-it-works';
 export const FEATURES_ID = 'features';
 export const WAITLIST_ID = 'waitlist';

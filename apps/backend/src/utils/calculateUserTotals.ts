@@ -6,6 +6,8 @@ import { recordLevelUps, recordRunMilestones } from '../services/activityLog.js'
 import { evaluateBadges } from '../services/badgeService.js';
 import { recordRankPassesForXp } from '../services/rankNews.js';
 import { errorCode } from './errorCode.js';
+import { getActiveMembership } from './membership.js';
+import { rebuildGroupTitleRanking } from '../services/groupRanking.js';
 
 export interface CalculateUserTotalsOptions {
   /**
@@ -16,22 +18,29 @@ export interface CalculateUserTotalsOptions {
   emitRankNews?: boolean;
 }
 
-export async function calculateUserTotals(userId: string, options: CalculateUserTotalsOptions = {}) {
+/**
+ * Räknar om användarens totaler och skriver dem (enda skribenten, ADR 005). Kastar ALDRIG: alla fel fångas och loggas.
+ * Returnerar om uppdateringen av `users` lyckades (true) eller inte (false: en läsning (runs, users, streak) eller skrivning föll, eller något kastade före
+ * skrivningen). Badges, titlar och Pack News som felar EFTER en lyckad skrivning ändrar inte svaret. Anropare som bara vill ha den gamla
+ * best-effort-beteendet ignorerar värdet; en omräkning som ska kunna återhämtas (RUN-322) rensar sin markering bara på `true`.
+ */
+export async function calculateUserTotals(userId: string, options: CalculateUserTotalsOptions = {}): Promise<boolean> {
   const { emitRankNews = true } = options;
+  let totalsWritten = false;
   try {
     const startTime = Date.now();
     const supabase = getSupabaseClient();
 
-    // Get all runs for the user
+    // Get all runs for the user (bara XP och distans behövs här; titlarna läser sina egna rundor i processGroupTitles)
     const { data: runs, error } = await supabase
       .from('runs')
-      .select('xp_gained, distance, date, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
+      .select('xp_gained, distance')
       .eq('user_id', userId)
       .order('date', { ascending: true });
 
     if (error) {
-      logger.error('Error fetching user runs:', error);
-      return;
+      logger.error(`Error fetching user runs (${errorCode(error)})`);
+      return false;
     }
 
     // OBS: ingen tidig return vid noll rundor (bugg #3). Raderas sista rundan
@@ -42,13 +51,21 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
 
     // Fetch event_xp separately — accumulated from event settlements.
     // current_level/total_km/group_id läses i SAMMA select och är "föregående värden" för Pack News
-    // (level_up/run_milestone, ADR 008); gruppen (Pack News och titelomräkningen) kommer ur users.group_id, inte ur anroparens JWT.
-    const { data: userData } = await supabase
+    // (level_up/run_milestone, ADR 008); gruppen för Pack News kommer ur users.group_id, inte ur anroparens JWT. Titelomräkningen
+    // använder inte den utan användarens aktiva medlemskap i group_members (längre ner).
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('event_xp, current_level, total_km, total_xp, group_id')
       .eq('id', userId)
       .single();
-    const eventXP: number = userData?.event_xp ?? 0;
+
+    // Utan raden vet vi inte event_xp: en 0 här skulle skriva total_xp och nivå UTAN eventpoängen. Hellre ingen skrivning alls
+    // (som runs- och streakläsningen) än fel totaler; anroparen får false och kan försöka igen.
+    if (userError || !userData) {
+      logger.error(`Error fetching user row for totals (${userError ? errorCode(userError) : 'no_row'})`);
+      return false;
+    }
+    const eventXP: number = userData.event_xp ?? 0;
     const prevLevel: number | null = typeof userData?.current_level === 'number' ? userData.current_level : null;
     const prevTotalKm: number | null = userData?.total_km == null ? null : Number(userData.total_km);
     const prevTotalXp: number | null = userData?.total_xp == null ? null : Number(userData.total_xp);
@@ -85,8 +102,9 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
       .eq('id', userId);
 
     if (updateError) {
-      logger.error('Error updating user totals:', updateError);
+      logger.error(`Error updating user totals (${errorCode(updateError)})`);
     } else {
+      totalsWritten = true;
       logger.info(`✅ Updated user ${userId} totals: ${totalXP} XP, Level ${level}, ${currentStreak} day streak`);
 
       // Pack News: loggen skrivs EFTER att totalerna sparats och rör aldrig deras beräkning (ADR 005/008).
@@ -115,57 +133,49 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
     try {
       await evaluateBadges(userId, { longestStreak });
     } catch (badgeError) {
-      logger.error('❌ Error evaluating badges:', badgeError);
+      logger.error(`❌ Error evaluating badges (${errorCode(badgeError)})`);
     }
 
-    // 🏆 Omräkningen av titlar är gruppavgränsad (RUN-104): bara användarens EGEN grupp, aldrig andra grupper.
-    // Rankingen (update_all_title_leaderboards → title_leaderboard) är däremot GLOBAL: topp 10 per titel över alla grupper.
-    // Gruppen är den färska users.group_id — JWT-gruppen blir inaktuell efter groups/join (STATE zon 8).
-    // Användare utan grupp har inga gruppmedlemmar att rangordna mot: bara de egna titlarna räknas om.
+    // 🏆 Titelomräkningen är gruppavgränsad (ADR 012 beslut 4): användarens AKTIVA medlemskap i group_members, läst färskt (JWT-gruppen blir
+    // inaktuell efter groups/join, och users.group_id är bara en pekare). Bara den gruppens medlemmar räknas om och bara dess ranking byggs om.
+    // Utan aktivt medlemskap finns inga titlar alls (ingen spelar utan grupp, F2): ingen omräkning, ingen ranking.
     try {
-      const { EnhancedTitleService } = await import('../services/enhancedTitleService.js');
-      const titleService = new EnhancedTitleService();
+      const membership = await getActiveMembership(userId, supabase);
 
-      if (userGroupId) {
-        logger.info(`🏆 Processing titles for group ${userGroupId}...`);
-        const titleRun = await titleService.processAllUsersTitles(userGroupId);
-        // RUN-158: processAllUsersTitles kastar inte vid fel hos enskilda användare (RUN-157) — utan varningen
+      if (!membership) {
+        logger.info(`🏆 User ${userId} has no active group membership — no titles to process`);
+      } else {
+        const groupId = membership.group_id;
+        const { EnhancedTitleService } = await import('../services/enhancedTitleService.js');
+        const titleService = new EnhancedTitleService();
+
+        logger.info(`🏆 Processing titles for group ${groupId}...`);
+        const titleRun = await titleService.processGroupTitles(groupId);
+        // RUN-158: processGroupTitles kastar inte vid fel hos enskilda medlemmar (RUN-157) — utan varningen
         // skulle ett delvis misslyckat omräkningspass se lyckat ut i loggen.
         if (titleRun && titleRun.failed > 0) {
-          logger.warn(`⚠️ Group ${userGroupId}: titles failed for ${titleRun.failed} of ${titleRun.total} users`);
+          logger.warn(`⚠️ Group ${groupId}: titles failed for ${titleRun.failed} of ${titleRun.total} users`);
         } else {
           logger.info('✅ Group titles processed successfully');
         }
-      } else {
-        logger.info(`🏆 User ${userId} has no group — processing own titles only...`);
-        const runsWithAlias = userRuns.map((run: any) => ({ ...run, distance_km: run.distance }));
-        // Kastar vid fel (RUN-157); fångas här så att den globala omräkningen nedan ändå körs, som i gruppvägen.
+
+        // Gruppens ranking byggs om ur fullständiga user_titles. Bara den här gruppen: ingen global ombyggnad i skrivvägen.
+        logger.info('🏆 Refreshing group title leaderboard...');
         try {
-          await titleService.processUserTitlesAfterRun(userId, runsWithAlias, Math.round(totalDistance * 100) / 100, longestStreak); // numeric(8,2) som users.total_km i gruppvägen
-          logger.info('✅ Own titles processed successfully');
-        } catch (ownTitlesError) {
-          logger.error('❌ Error processing own titles:', ownTitlesError);
+          await rebuildGroupTitleRanking(groupId, supabase);
+          logger.info('✅ Title leaderboard refreshed successfully');
+        } catch (leaderboardError) {
+          logger.error(`❌ Failed to refresh title leaderboard (${errorCode(leaderboardError)})`);
         }
       }
-      
-      // Now refresh the title leaderboard with complete user_titles data
-      logger.info('🏆 Refreshing title leaderboard...');
-      const supabase = getSupabaseClient();
-      const { error: leaderboardError } = await supabase.rpc('update_all_title_leaderboards');
-      
-      if (leaderboardError) {
-        logger.error('❌ Failed to refresh title leaderboard:', leaderboardError);
-      } else {
-        logger.info('✅ Title leaderboard refreshed successfully');
-      }
-      
     } catch (titleError) {
-      logger.error('❌ Error processing titles:', titleError);
+      logger.error(`❌ Error processing titles (${errorCode(titleError)})`);
       // Don't throw - user totals were saved successfully
     }
 
     logger.info(`✅ calculateUserTotals:${userId} completed in ${Date.now() - startTime}ms`);
   } catch (error) {
-    logger.error('Error in calculateUserTotals:', error);
+    logger.error(`Error in calculateUserTotals (${errorCode(error)})`);
   }
+  return totalsWritten;
 }

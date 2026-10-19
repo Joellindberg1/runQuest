@@ -7,6 +7,9 @@
 #   2. Saknade filer under /assets ger 404 i stället för index.html (HTML som JS = vit sida).
 #   3. Filmen under /media (RUN-257): versionerade filnamn (landing-film-720.v1.mp4) cachas för alltid, saknade filer ger 404, och mp4 komprimeras
 #      inte (encode tar bara text, json, svg m.fl.; Range ger 206 av file_server). .webmanifest får sin typ explicit (RUN-205).
+#   4. Källkartor (.map) ger alltid 404, på alla sökvägar även under /assets, /media och /fonts, också när filen finns (RUN-285). Reglerna ligger i ett route-block för att behålla källordningen.
+#   5. Den förrenderade landningen (RUN-260, ADR 006 addendum 2026-10-19): EXAKT `/` (med valfri query) får landing.html, alla andra adresser index.html (vars #root bara har laddningsvyn).
+#      Saknas landing.html faller `/` tillbaka på index.html. `/landing.html` och `/landing` omdirigeras till `/`, så landningen har en enda adress.
 # Beteendet verifieras i CI mot det byggda dist/ (scripts/verify-static-serving.sh).
 
 {
@@ -50,75 +53,119 @@
 		zstd
 	}
 
-	# Vite-hashade filer byter namn vid varje bygge och får cachas för alltid.
-	# Cache-headern sätts bara på filer som finns: en cachad 404 skulle överleva nästa deploy.
-	handle /assets/* {
-		@exists {
-			file
-			not path */
+	# Alla handle-block ligger i ETT route-block (RUN-285). Utan route sorterar Caddyfile-adaptern handle-block med samma direktiv efter
+	# path-matcherns längd, längst först: `*.map` (5 tecken) hamnade då EFTER /assets/*, /media/* och /fonts/*, och en .map som låg kvar där
+	# serverades med immutable. route behåller källordningen, så .map-regeln prövas före alla andra block. Header, root och encode ligger utanför
+	# och gäller alla svar.
+	# Källkartor (.map) är till för Sentry och serveras aldrig, på någon sökväg. Bygget tar bort dem ur dist; den här regeln gör att en som ändå
+	# råkar ligga kvar inte nås (inte heller under /assets, /media eller /fonts), och att en förfrågan som /foo.js.map får 404 i stället för
+	# index.html via SPA-fallbacken.
+	route {
+		@sourcemap path *.map
+		handle @sourcemap {
+			header Cache-Control "no-store"
+			respond "Not found" 404
 		}
-		header @exists Cache-Control "public, max-age=31536000, immutable"
-		@missing not {
-			file
-			not path */
-		}
-		header @missing Cache-Control "no-store"
-		respond @missing "Not found" 404
-		file_server
-	}
 
-	# Filmens mediefiler: namnet bär versionen (.v1), så en ändrad fil får ett nytt namn och cachen kan vara för alltid. Samma mönster som /assets.
-	handle /media/* {
-		@exists {
-			file
-			not path */
+		# Landningens filadresser: SPA-blockets try_files löser både /landing.html och /landing till landing.html. De skickas till / med frågan kvar (307, inte permanent: ingen
+		# webbläsare ska cacha omdirigeringen om adressen en dag får ett eget innehåll). Lean routern klarar dem också (landingAddress.ts), men då som en andra adress till samma sida.
+		# Två matchare, så att en adress utan fråga inte får ett lösryckt "?" (Caddy har ingen placeholder för frågan med sitt "?").
+		@landingfileq {
+			path /landing /landing.html
+			expression `{query} != ""`
 		}
-		header @exists Cache-Control "public, max-age=31536000, immutable"
-		@missing not {
-			file
-			not path */
-		}
-		header @missing Cache-Control "no-store"
-		respond @missing "Not found" 404
-		file_server
-	}
+		redir @landingfileq /?{query} 307
+		@landingfile path /landing /landing.html
+		redir @landingfile / 307
 
-	# Självhostade typsnitt (OFL, se public/fonts/OFL.txt): namnet bär versionen (bebas-neue-400.v1.woff2), så filerna cachas för alltid. Saknade filer ger 404, aldrig index.html (HTML som typsnitt = tyst reservtypsnitt).
-	# Typen sätts explicit eftersom typtabellen i prodcontainern är okänd; file_server skriver bara över Content-Type när den saknas. Ingen CSP begränsar font-src.
-	handle /fonts/* {
-		@exists {
-			file
-			not path */
+		# Förrenderad landning på exakt / (frågesträngen ignoreras, så /?utm_source=… och gamla /?tab=… får också landningen). Sökvägen jämförs som den kom
+		# (placeholdern {http.request.uri.path}), inte med path-matcharen: den slår ihop snedstreck och rensar punktsegment, så "path /" matchade också //, ///, /./ och /%2f.
+		# De fick då landing.html, och lean routern (landingAddress.ts) kastade på dem och lämnade sidan vit. Nu faller de på SPA-blocket och får index.html som före S6.
+		# `file` gör att ett bygge utan landing.html faller tillbaka på SPA-blocket nedan i stället för att ge 404. no-cache som för index.html: en deploy ska aldrig
+		# fastna bakom en gammal fil som pekar på borttagna kodfiler. encode gäller som för övriga svar.
+		@landing {
+			expression `{http.request.uri.path} == "/"`
+			file /landing.html
 		}
-		header @exists Cache-Control "public, max-age=31536000, immutable"
-		@woff2 {
-			file
-			path *.woff2
+		handle @landing {
+			header Cache-Control "no-cache"
+			rewrite * /landing.html
+			file_server {
+				hide .git
+				hide .env*
+			}
 		}
-		header @woff2 Content-Type "font/woff2"
-		@missing not {
-			file
-			not path */
-		}
-		header @missing Cache-Control "no-store"
-		respond @missing "Not found" 404
-		file_server
-	}
 
-	# Go och Caddy saknar .webmanifest i sin inbyggda typtabell, och typtabellen i prodcontainern är okänd: typen sätts explicit.
-	# file_server skriver bara över Content-Type när den saknas, så den här gäller. Bara om filen finns: en saknad manifestfil faller tillbaka på index.html och ska inte få manifesttypen.
-	@webmanifest {
-		path /site.webmanifest
-		file
-	}
-	header @webmanifest Content-Type "application/manifest+json"
+		# Vite-hashade filer byter namn vid varje bygge och får cachas för alltid.
+		# Cache-headern sätts bara på filer som finns: en cachad 404 skulle överleva nästa deploy.
+		handle /assets/* {
+			@exists {
+				file
+				not path */
+			}
+			header @exists Cache-Control "public, max-age=31536000, immutable"
+			@missing not {
+				file
+				not path */
+			}
+			header @missing Cache-Control "no-store"
+			respond @missing "Not found" 404
+			file_server
+		}
 
-	handle {
-		header Cache-Control "no-cache"
-		try_files {path} {path}.html {path}/index.html /index.html
-		file_server {
-			hide .git
-			hide .env*
+		# Filmens mediefiler: namnet bär versionen (.v1), så en ändrad fil får ett nytt namn och cachen kan vara för alltid. Samma mönster som /assets.
+		handle /media/* {
+			@exists {
+				file
+				not path */
+			}
+			header @exists Cache-Control "public, max-age=31536000, immutable"
+			@missing not {
+				file
+				not path */
+			}
+			header @missing Cache-Control "no-store"
+			respond @missing "Not found" 404
+			file_server
+		}
+
+		# Självhostade typsnitt (OFL, se public/fonts/OFL.txt): namnet bär versionen (bebas-neue-400.v1.woff2), så filerna cachas för alltid. Saknade filer ger 404, aldrig index.html (HTML som typsnitt = tyst reservtypsnitt).
+		# Typen sätts explicit eftersom typtabellen i prodcontainern är okänd; file_server skriver bara över Content-Type när den saknas. Ingen CSP begränsar font-src.
+		handle /fonts/* {
+			@exists {
+				file
+				not path */
+			}
+			header @exists Cache-Control "public, max-age=31536000, immutable"
+			@woff2 {
+				file
+				path *.woff2
+			}
+			header @woff2 Content-Type "font/woff2"
+			@missing not {
+				file
+				not path */
+			}
+			header @missing Cache-Control "no-store"
+			respond @missing "Not found" 404
+			file_server
+		}
+
+		# Go och Caddy saknar .webmanifest i sin inbyggda typtabell, och typtabellen i prodcontainern är okänd: typen sätts explicit.
+		# file_server skriver bara över Content-Type när den saknas, så den här gäller. Bara om filen finns: en saknad manifestfil faller tillbaka på index.html och ska inte få manifesttypen.
+		@webmanifest {
+			path /site.webmanifest
+			file
+		}
+		header @webmanifest Content-Type "application/manifest+json"
+
+		handle {
+			header Cache-Control "no-cache"
+			try_files {path} {path}.html {path}/index.html /index.html
+			file_server {
+				hide .git
+				hide .env*
+			}
 		}
 	}
 }

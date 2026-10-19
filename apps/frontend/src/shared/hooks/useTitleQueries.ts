@@ -1,9 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
-import type { UserTitle } from '@runquest/types';
-
-export type { TitleLeaderboard };
+import type { UserTitleEntry } from '@runquest/shared';
 
 export const titleQueryKeys = {
   all: ['titles'] as const,
@@ -17,7 +14,7 @@ export function useTitleLeaderboard() {
     queryKey: titleQueryKeys.leaderboard(),
     queryFn: async () => {
       const response = await backendApi.getTitleLeaderboard();
-      return response.success ? (response.data as TitleLeaderboard[]) : [];
+      return response.success ? (response.data ?? []) : [];
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -33,7 +30,7 @@ export function useUserTitles(userId: string | null) {
     queryFn: async () => {
       if (!userId) return [];
       const response = await backendApi.getUserTitles(userId);
-      return response.success ? (response.data as UserTitle[]) : [];
+      return response.success ? (response.data ?? []) : [];
     },
     enabled: !!userId,
     staleTime: 2 * 60 * 1000,
@@ -50,10 +47,10 @@ export function useMultipleUserTitles(userIds: string[]) {
       const results = await Promise.all(
         userIds.map(async (userId) => {
           const response = await backendApi.getUserTitles(userId);
-          return response.success ? (response.data as UserTitle[]) : [];
+          return response.success ? (response.data ?? []) : [];
         })
       );
-      const titlesByUser: Record<string, UserTitle[]> = {};
+      const titlesByUser: Record<string, UserTitleEntry[]> = {};
       userIds.forEach((userId, index) => {
         titlesByUser[userId] = results[index];
       });

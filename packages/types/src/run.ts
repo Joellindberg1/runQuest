@@ -72,17 +72,6 @@ export interface XPCalculation {
   totalXP: number;
 }
 
-export interface UserTitle {
-  title_id: string;
-  title_name: string;
-  title_description: string;
-  position: number;
-  value: number;
-  earned_at: string;
-  is_current_holder: boolean;
-  status: 'holder' | 'runner_up' | 'top_10';
-}
-
 export interface StreakInfo {
   currentStreak: number;
   longestStreak: number;

@@ -1,38 +1,29 @@
 import { useMemo } from 'react';
-import type { UserTitle } from '@runquest/types';
 import { useNow } from '@/app-shell/useNow';
-import { useGroupBadges } from '@/features/badges/hooks/useBadgeQueries';
-import { useAuth } from '@/providers/authContext';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
-import { useMultipleUserTitles } from '@/shared/hooks/useTitleQueries';
-import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
-import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import { paths } from '@/paths';
-import { useRankDelta } from '../hooks/useBoardQueries';
+import { useSeasonBoardData } from '../hooks/useSeasonBoardData';
 import { badgeShowcaseMap, rankDeltaMap } from '../seasonModel';
 import { SeasonBoard } from './SeasonBoard';
+import type { UserTitleEntry } from '@runquest/shared';
 
 const LOADING_ROWS = 6;
-const NO_TITLES: Record<string, UserTitle[]> = {};
+const NO_TITLES: Record<string, UserTitleEntry[]> = {};
 
 /**
  * All-time/Season-vyn (?view=season): hämtar gruppen, titlarna och rank-delta och ritar SeasonBoard.
  * Titlar och pilar är dekorativa — saknas de ritas korten ändå; bara själva gruppdatan kan ge felkort.
+ * På första laddningen av /board har laddningsgaten redan väntat in dem (FirstBoardGate), så korten ritas ifyllda.
  */
 export function SeasonView() {
-  const { user } = useAuth();
-  const usersQuery = useUsersWithRuns(!!user);
+  const { usersQuery, ranked, titlesQuery, rankDeltaQuery, groupBadgesQuery } = useSeasonBoardData();
   const users = usersQuery.data;
   const now = useNow();
 
-  const ranked = useMemo(() => leaderboardUtils.filterAndSortUsers(users ?? []), [users]);
-  const titlesQuery = useMultipleUserTitles(useMemo(() => ranked.map((runner) => runner.id), [ranked]));
-  const rankDeltaQuery = useRankDelta(!!users);
   const rankDeltaByUser = useMemo(() => rankDeltaMap(rankDeltaQuery.data?.users), [rankDeltaQuery.data]);
   // Minis är dekor: laddar eller felar gruppens badges ritas Board exakt som förut (inget felkort, ingen spinner).
-  const groupBadgesQuery = useGroupBadges(!!user);
   const badgesByUser = useMemo(() => badgeShowcaseMap(groupBadgesQuery.data?.members), [groupBadgesQuery.data]);
 
   if (usersQuery.isError) {

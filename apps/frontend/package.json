@@ -1,12 +1,12 @@
 {
   "name": "@runquest/frontend",
   "private": true,
-  "version": "0.7.1",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "build": "vite build && node scripts/prerender-landing.mjs",
+    "build:dev": "vite build --mode development && node scripts/prerender-landing.mjs --mode development",
     "lint": "eslint .",
     "lint:css": "stylelint \"src/**/*.css\" --max-warnings 0",
     "test": "vitest run",
@@ -19,6 +19,7 @@
     "@radix-ui/react-tooltip": "^1.1.4",
     "@runquest/shared": "file:../../packages/shared",
     "@runquest/types": "file:../../packages/types",
+    "@sentry/react": "^11.8.0",
     "@tanstack/react-query": "^5.56.2",
     "clsx": "^2.1.1",
     "driver.js": "^1.4.0",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
+    "@sentry/vite-plugin": "^11.8.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",

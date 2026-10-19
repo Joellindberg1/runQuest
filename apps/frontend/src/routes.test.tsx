@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AppRoutes } from './routes';
-import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
+import { ME, OTHER, RANK_DELTA, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { warmLanding } from '@/test/warmLazy';
 
@@ -20,6 +20,12 @@ vi.mock('@/features/runner/components/RunnerCard', async (importOriginal) => {
   };
 });
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
+// Gruppens badges (minis i podiekorten) går genom badges-klienten; alla andra anrop i den lämnas som de är.
+const groupBadges = vi.hoisted(() => ({ get: vi.fn() }));
+vi.mock('@/features/badges/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/badges/api')>();
+  return { ...actual, badgesApi: { ...actual.badgesApi, getGroupBadges: groupBadges.get } };
+});
 
 const MOBILE = 390;
 const DESKTOP = 1280;
@@ -28,6 +34,12 @@ const location = () => screen.getByTestId('location').textContent;
 
 beforeEach(() => {
   resetFakeBackend();
+  groupBadges.get.mockReset();
+  groupBadges.get.mockResolvedValue({
+    members: [ME, OTHER].map((user) => ({ user_id: user.id, showcase: [{ series: 'milestoner', tier: 2 }] })),
+    holders: {},
+    member_count: 2,
+  });
 });
 
 beforeAll(warmLanding);
@@ -81,6 +93,65 @@ describe('varje route renderar utan krasch inne i skalet', () => {
   it('/board visar The Standings med gruppens löpare (Season-vyn är default)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/board', width: MOBILE });
     expect((await screen.findAllByText(OTHER.name)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('första laddningen av /board', () => {
+  const podiumCards = (container: HTMLElement) => Array.from(container.querySelectorAll('[data-testid^="podium-"]'));
+  const boardWithoutPodium = (container: HTMLElement) => container.querySelector('.rq-board') !== null && podiumCards(container).length === 0;
+  // Tomlägena som fylls på: "No titles held yet", en platt pil (—) och ingen badge-mini. Datan i svaren ger alla tre på alla kort.
+  const cardsWithPlaceholders = (container: HTMLElement) =>
+    podiumCards(container).filter(
+      (card) => card.querySelector('.rq-board-titleline[data-empty="true"]') || card.querySelector('.rq-board-delta[data-dir="flat"]') || !card.querySelector('[data-minis]'),
+    ).length;
+
+  it('visar laddningsvyn tills topplistan och korten svarat och ritar sedan Board med podiet helt ifyllt, utan en enda bildruta med tomt podium eller tomlägen', async () => {
+    let answer!: (value: unknown) => void;
+    let answerTitles!: (value: unknown) => void;
+    const titlesAnswer = new Promise((resolve) => { answerTitles = resolve; });
+    const titles = vi.fn(() => titlesAnswer);
+    const standings = vi.fn(() => new Promise((resolve) => { answer = resolve; }));
+    const ranks = vi.fn(() => ({ success: true, data: RANK_DELTA }));
+    handlers.getUsersWithRuns = standings;
+    handlers.getUserTitles = titles;
+    handlers.getRankDelta = ranks;
+    const { container } = renderWithApp(<AppRoutes />, { entry: '/board', width: DESKTOP });
+
+    // Varje DOM-ändring prövas, inte bara slutläget: en bildruta med tomma platser räcker för att provet ska falla.
+    const frames: Array<{ withoutPodium: boolean; placeholders: number }> = [];
+    const watcher = new MutationObserver(() => frames.push({ withoutPodium: boardWithoutPodium(container), placeholders: cardsWithPlaceholders(container) }));
+    watcher.observe(container, { childList: true, subtree: true });
+
+    await waitFor(() => expect(answer).toBeDefined());
+    expect(screen.getByText('Loading')).toBeInTheDocument();
+    expect(container.querySelector('[data-shell]')).toBeNull();
+
+    // Gruppen är framme men titlarna inte: laddaren står kvar, och ingenting ritas.
+    answer({ success: true, data: [ME, OTHER] });
+    await waitFor(() => expect(titles).toHaveBeenCalled());
+    expect(screen.getByText('Loading')).toBeInTheDocument();
+    expect(container.querySelector('[data-shell]')).toBeNull();
+
+    answerTitles({ success: true, data: [{ title_id: 't1', title_name: 'Longest Run', title_description: '', position: 1, value: 1, earned_at: '2026-10-01T00:00:00Z', is_current_holder: true, status: 'holder' }] });
+    expect(await screen.findByTestId('podium-1')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Loading')).not.toBeInTheDocument());
+    watcher.disconnect();
+
+    expect(frames.length).toBeGreaterThan(0);
+    expect(frames.filter((frame) => frame.withoutPodium || frame.placeholders > 0)).toEqual([]);
+    // Allt hämtades en gång: gaten och Board delar frågorna.
+    expect(standings).toHaveBeenCalledTimes(1);
+    expect(titles).toHaveBeenCalledTimes(2);
+    expect(ranks).toHaveBeenCalledTimes(1);
+    expect(groupBadges.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('ersätter laddningsvyn med Boards felvy när topplistan inte går att hämta', async () => {
+    handlers.getUsersWithRuns = () => ({ success: false, error: 'boom' });
+    renderWithApp(<AppRoutes />, { entry: '/board', width: MOBILE });
+
+    expect(await screen.findByText("Couldn't load the standings")).toBeInTheDocument();
+    expect(screen.queryByText('Loading')).not.toBeInTheDocument();
   });
 });
 
@@ -237,7 +308,7 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByRole('heading', { level: 1, name: OTHER.name })).toBeInTheDocument();
     // Bakgrundssidan (Leaderboard) renderas fortfarande under overlayn.
-    expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1);
+    await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
     expect(location()).toBe('/runner/u-karl');
   });
 
@@ -280,14 +351,14 @@ describe('felgräns runt Runner-overlayn (desktop)', () => {
     const alert = await screen.findByRole('alert');
     expect(within(alert).getByText('Something broke')).toBeInTheDocument();
     // Bakgrundssidan (Leaderboard i skalet) står kvar under felkortet.
-    expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1);
+    await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
     expect((await screen.findAllByText(OTHER.name)).length).toBeGreaterThan(0);
 
     crash.runnerCard = false;
     fireEvent.click(within(alert).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
     await waitFor(() => expect(location()).toBe('/board'));
-    expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1);
+    await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
     spy.mockRestore();
   });
 });

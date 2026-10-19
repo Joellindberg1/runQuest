@@ -11,9 +11,12 @@ import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { NewsScreen } from '@/features/news/components/NewsScreen';
 import { POINTER_SETTLE_MS, UNREAD_ANNOUNCE_MS } from '@/features/news/newsModel';
+import { track } from '@/shared/analytics/track';
+import userEvent from '@testing-library/user-event';
 import '@/test/pointerEvent';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
+vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 // Turen startar driver.js efter en timer och hör inte till det som provas här.
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
 
@@ -92,6 +95,36 @@ describe('klockan i headern', () => {
     renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
     await openPopover();
     expect(news.server.calls).toEqual([{ limit: 30, type: undefined }]);
+  });
+});
+
+describe('klockan: webbanalys', () => {
+  beforeEach(() => {
+    vi.mocked(track).mockClear();
+  });
+
+  it('reports notifications-opened, with nothing about the news or the count, each time the popover is opened', async () => {
+    renderWithApp(<Tree />, { entry: '/board', width: DESKTOP });
+    const button = await screen.findByRole('button', { name: /^Pack news, \d+ unread$/ });
+    expect(track).not.toHaveBeenCalled();
+
+    await userEvent.click(button);
+    await screen.findByRole('dialog', { name: 'Pack news' });
+    expect(track).toHaveBeenCalledExactlyOnceWith('notifications-opened');
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pack news' })).toBeNull());
+    expect(track).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(await bell());
+    await screen.findByRole('dialog', { name: 'Pack news' });
+    expect(track).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports nothing for the page behind the bell, such as the unread count loading', async () => {
+    renderWithApp(<Tree />, { entry: '/board', width: MOBILE });
+    await screen.findByRole('button', { name: /^Pack news, \d+ unread$/ });
+    expect(track).not.toHaveBeenCalled();
   });
 });
 

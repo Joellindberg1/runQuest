@@ -789,6 +789,9 @@
   --rq-z-popover-over-modal: 67;
   /* Landingens fasta header: ovanför innehållet och dekoren, under skalets lager (.rq-scrim 65, .rq-modal/.rq-sheet 66), så inloggningsdialogen ritas över den. */
   --rq-z-landing-header: 20;
+  /* Stagingbannern (v0.8.0): höjden på remsan överst, som sidans 100dvh-ytor (skal, landing, legal, sidonavigering) räknar bort så sidan inte blir högre än fönstret. 0 i prod, där remsan inte finns;
+     StagingBanner.tsx sätter den till remsans uppmätta höjd på <html> medan den är monterad. */
+  --rq-staging-banner-h: 0px;
   /* Väntelistans kort (RUN-211, landingen): mått ur Landing-designens kort "Start a pack in a minute", ombyggt till ett e-postfält. Mobil = standard (en kolumn; designen saknar mobil), desktop skriver över i avsnitt 2. Konsument: features/landing/landingWaitlist.css. */
   --rq-landing-waitlist-pad:       24px 20px;                         /* kortets inre marginal (desktop 44 40) */
   --rq-landing-waitlist-title-size: 34px;                             /* Bebas-rubriken (desktop 56) */
@@ -1464,6 +1467,13 @@
 
 .rq-tour-popover .driver-popover-close-btn:hover {
   color: var(--rq-text-2) !important;
+}
+
+/* driver.js nollställer knappen med `all: unset` (lika specificitet som temats globala :focus-visible, så ordningen mellan stilmallarna avgjorde). Egen regel gör
+   fokusringen oberoende av ordning; landingBuild.test.ts prövar både regeln och länkordningen. */
+.rq-tour-popover .driver-popover-close-btn:focus-visible {
+  outline: var(--rq-focus-ring);
+  outline-offset: var(--rq-focus-offset);
 }
 
 .rq-tour-popover .driver-popover-footer {

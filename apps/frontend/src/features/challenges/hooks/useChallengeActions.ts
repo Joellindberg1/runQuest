@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { track } from '@/shared/analytics/track';
 import { backendApi } from '@/shared/services/backendApi';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { HEAD_TO_HEAD_ROOT } from '@/features/runner/hooks/useRunnerQueries';
@@ -40,7 +41,10 @@ export function useChallengeActions() {
 
   const accept = useMutation({
     mutationFn: (challengeId: string) => unwrap(backendApi.respondToChallenge(challengeId, 'accept'), 'Failed to accept challenge'),
-    onSuccess: refresh,
+    onSuccess: () => {
+      track('challenge-accepted');
+      return refresh();
+    },
   });
 
   const decline = useMutation({

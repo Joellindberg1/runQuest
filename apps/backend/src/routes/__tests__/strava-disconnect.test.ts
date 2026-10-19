@@ -55,6 +55,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols, plainRow } from '../../test-utils/stravaTokens.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { withUserLock } from '../../utils/keyedMutex.js';
 import { logger } from '../../utils/logger.js';
@@ -113,8 +114,7 @@ const run = (over: Row = {}): Row => ({
 const tokenRow = (over: Row = {}): Row => ({
   user_id: 'user-1',
   strava_athlete_id: 424242,
-  access_token: 'SECRET-ACCESS',
-  refresh_token: 'SECRET-REFRESH',
+  ...tokenCols('user-1', 'SECRET-ACCESS', 'SECRET-REFRESH'),
   expires_at: 9_999_999_999,
   connection_date: '2026-09-01T09:00:00+00:00',
   consent_version: '2026-10-14',
@@ -218,6 +218,16 @@ describe('DELETE /api/strava/disconnect', () => {
         // Only the token lookup of the revoke selects the refresh token; the removal reads other columns.
         options: { failWhen: (q) => (q.table === 'strava_tokens' && q.select?.includes('refresh_token') ? { message: 'connection reset' } : null) },
       },
+      {
+        // A stored token that cannot be read (ADR 013): the revoke cannot be tried, and Strava is not asked. It is not "nothing to
+        // revoke" and not a rejection; the disconnect the user asked for still completes, as it does for every other failed revoke.
+        expectedCode: 'strava_token_unreadable',
+        options: { tokens: [tokenRow({ access_token: 'enc:v1:test-1:AAAA' })] },
+      },
+      {
+        expectedCode: 'strava_token_unreadable',
+        options: { tokens: [tokenRow({ expires_at: 1, refresh_token: 'short' })], strava: { oauthToken: stravaTokenResponse() } },
+      },
     ];
 
     for (const { expectedCode, options } of cases) {
@@ -234,6 +244,23 @@ describe('DELETE /api/strava/disconnect', () => {
       expect(warning, expectedCode).toContain('user user-1');
       expect(warning, expectedCode).toContain(expectedCode);
       expect(lines.filter((line) => line.includes('SECRET'))).toEqual([]);
+    }
+  });
+
+  it('disconnect without a working key warns with strava_token_unreadable, asks Strava nothing and completes the removal', async () => {
+    try {
+      const { tables } = setup(); // the row is sealed while the key still works
+      vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+
+      const res = await disconnect();
+
+      expect(res.status).toBe(200);
+      expect(strava!.requests).toEqual([]);
+      expect(tables.runs).toEqual([]);
+      expect(tables.strava_tokens).toEqual([]);
+      expect(lines.find((line) => line.includes('revoke at Strava failed'))).toContain('strava_token_unreadable');
+    } finally {
+      vi.unstubAllEnvs();
     }
   });
 
@@ -326,7 +353,7 @@ describe('DELETE /api/strava/disconnect', () => {
   });
 
   it('disconnect logs user id, consent version and consent time but never a token', async () => {
-    setup({ tokens: [tokenRow({ access_token: 'SECRET-ACCESS', refresh_token: 'SECRET-REFRESH' })] });
+    setup({ tokens: [tokenRow()] });
 
     await disconnect();
 
@@ -337,7 +364,7 @@ describe('DELETE /api/strava/disconnect', () => {
   it('disconnect only affects the calling user', async () => {
     const { tables } = setup({
       runs: [run(), run({ id: 'r2', user_id: 'user-2', external_id: '2001', date: '2026-10-03' })],
-      tokens: [tokenRow(), tokenRow({ user_id: 'user-2', strava_athlete_id: 7, access_token: 'SECRET-ACCESS-2', refresh_token: 'SECRET-REFRESH-2' })],
+      tokens: [tokenRow(), tokenRow({ user_id: 'user-2', strava_athlete_id: 7, ...tokenCols('user-2', 'SECRET-ACCESS-2', 'SECRET-REFRESH-2') })],
     });
 
     // The body is ignored: the caller's own row is the only one the route can reach.
@@ -439,7 +466,7 @@ describe('the user lock around a disconnect', () => {
     await settle();
     // Neither has started: not even the code is exchanged, so a new authorisation cannot be revoked by the disconnect in front of it.
     expect(strava!.calls.oauthToken).toBe(0);
-    expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'SECRET-ACCESS' });
+    expect(plainRow(tables.strava_tokens[0])).toMatchObject({ access_token: 'SECRET-ACCESS' });
 
     releaseLock!();
     await holder;
@@ -450,7 +477,7 @@ describe('the user lock around a disconnect', () => {
     expect(strava!.requests.map((call) => call.route)).toEqual(['oauthDeauthorize', 'oauthToken']);
     expect(tables.runs).toEqual([]);
     expect(tables.strava_tokens).toHaveLength(1);
-    expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH' });
+    expect(plainRow(tables.strava_tokens[0])).toMatchObject({ access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH' });
   });
 
   it('a reconnect whose token exchange hangs is cut off after the time limit, releases the user lock and ends as a failed exchange', async () => {
@@ -558,7 +585,7 @@ describe('after a disconnect', () => {
     const reconnected = await server.request('POST', '/api/strava/callback', { token, body: { code: 'fresh-code', consent_version: STRAVA_CONSENT_VERSION } });
     expect(reconnected.status).toBe(200);
     expect(tables.strava_tokens).toHaveLength(1);
-    expect(tables.strava_tokens[0]).toMatchObject({ access_token: 'NEW-ACCESS', sync_paused: false });
+    expect(plainRow(tables.strava_tokens[0])).toMatchObject({ access_token: 'NEW-ACCESS', sync_paused: false });
     expect(stockholmDay(new Date(tables.strava_tokens[0].connection_date))).toBe(connectionDay);
 
     // The first poll asks Strava from the connection day, not from the deleted runs.

@@ -25,7 +25,7 @@ export interface FakeDbOptions {
   /** Tabeller som ska svara med fel (PostgREST-liknande). */
   errors?: Record<string, { message: string }>;
   /** Fel för enskilda queries (t.ex. bara historikfrågan) — utvärderas vid körning, när alla filter är satta. */
-  failWhen?: (q: RecordedQuery) => { message: string } | null;
+  failWhen?: (q: RecordedQuery) => { message: string; code?: string; details?: string } | null;
   /** Ger insatta rader utan `id` ett löpande id ('gen-1', ...) — för routes som läser tillbaka id efter insert. */
   autoIds?: boolean;
   /** Tabeller vars insatta rader utan `id` får ett numeriskt löpande id (1, 2, ...) — som en bigint identity (activity_log). */
@@ -45,7 +45,7 @@ export interface FakeDbOptions {
   /** Anropas precis innan en insert i `table` utvärderas — för att simulera att en annan förfrågan hann före. */
   beforeInsert?: (table: string, tables: Record<string, Row[]>) => void;
   /** Svar för supabase.rpc(namn, args). Okänd rpc → { data: null, error: null }. */
-  rpc?: Record<string, (args: any) => { data?: unknown; error?: { message: string } | null }>;
+  rpc?: Record<string, (args: any) => { data?: unknown; error?: { message: string; code?: string; details?: string; hint?: string } | null }>;
 }
 
 function pick(row: Row, path: string): unknown {

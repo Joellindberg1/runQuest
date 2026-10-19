@@ -6,17 +6,23 @@ nya routes). `pages/LandingPage.tsx` är tunn. Login är en popup ovanpå Landin
 sida med dialogen redan öppen (ADR 006 beslut 1, addendum 2026-10-11; `/` och `/login` ligger utanför `RequireAuth`).
 
 Mobil = App Prototypens landing i en kolumn (390 px). Desktop (≥ 1024 px) är Landing-designen (`docs/design/claude-design/RunQuest Landing.dc.html`, rutan "Landing page",
-1440 px): text | bana i hjälten, band med hårlinjer, fyra stegkolumner, tre kortkolumner. Brytpunkten är skalets (`useIsDesktop`); det som skiljer i DOM (headerns nav, banans
-geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten är CSS och token-värden.
+1440 px): text | bana i hjälten, band med hårlinjer, fyra stegkolumner, tre kortkolumner. Brytpunkten är skalets (1024 px), men landningen väljer aldrig variant i JS
+(ADR 006-addendum 2026-10-19, punkt 5: den förrenderade sidan vet inte bredden). Det som skiljer (headerns nav, banans geometri, ingressens längd,
+ögonbrynet och de tre förklaringarna, sektionsrubrikernas synlighet, filmens vy) ligger i HTML i båda varianterna och CSS visar en med
+`@media (min-width: 1024px)`; den dolda är `display: none` (utanför tillgänglighetsträdet och tab-ordningen, och utan animationer). Ett undantag från
+skalets beslut 5 ("exakt EN variant i DOM") som bara gäller landningen. ESLint (`LANDING_NO_VIEWPORT_OR_LOCALE` i `eslint.config.js`) förbjuder
+`useIsDesktop`, `matchMedia`, `Intl` och `toLocaleString` i featuren; tal formateras med `formatInt` (regex med NBSP, samma text på server och klient).
+Rörelsepreferensen vid klick läses via `shared/utils/prefersReducedMotion`. En ny variant får alltså en regel i `landing.css`/`landingFilm.css`
+(grundregeln mobil, desktop i `@media (min-width: 1024px)`) och en rad i listan i `guards.test.ts`.
 
 ## Struktur
 
 - **components/**
   - `LandingScreen` — sidan: rutnät, glöd och headerns ton (dekor), header, `main`, footer. Inget annat än sammansättning, inklusive filmen och väntelistan (se nedan).
-  - `LandingHeader` — wordmark, `nav aria-label="Sections"` (bara desktop: The game → `#film`, XP & levels → `#how-it-works`, Titles → `#features`) och Sign in (`rq-btn--secondary`)
+  - `LandingHeader` — wordmark, `nav aria-label="Sections"` (visas bara från 1024 px: The game → `#film`, XP & levels → `#how-it-works`, Titles → `#features`) och Sign in (`rq-btn--secondary`)
   - `LandingParts` — `LandingHero` (h1 · bana · ingress · knappar · film (mobil) · sifferrad; **h1 `id="landing-title"` ligger här**), `PackPreview`, `HowItWorks` (stegen och XP-formeln)
   - `LandingStats` — sifferraden; `LandingFeatures` — de sex korten; `LandingFooter` — Privacy, Legal, Strava, versionen
-  - `ArenaTrack` — banan: desktop fem banor och sex löpare med XP-pop (−31°), mobil tre banor och tre löpare (−72°). Ren dekor (`aria-hidden`)
+  - `ArenaTrack` — banan: två SVG i samma ruta (`data-arena="mobile|desktop"`), desktop fem banor och sex löpare med XP-pop (−31°), mobil tre banor och tre löpare (−72°). Ren dekor (`aria-hidden`)
 - **hooks/usePublicStats.ts** — landningens enda anrop: `GET /api/public/stats` via `backendApi.getPublicStats()`, react-query, `staleTime = PUBLIC_STATS_MAX_AGE_MS`
 - **landingModel.ts** — vymodellen: ankar-id:n, `buildStatViews`, `buildPreviewRows`, `buildHowItWorks`, `buildXpFormula`, `buildFeatures` och banans geometri (`ARENA`)
 - `landing.css` — enda stilfilen; mått (`--rq-landing-*`) i temafilen, sektion 1.27 (index.css + docs/design/temafil-forslag.css)
@@ -24,7 +30,8 @@ geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten 
 ## Film och väntelista
 
 - `LandingHero` tar `watchFilm` (`<WatchFilmButton />`) och `mobileFilm` (`<LandingFilm variant="mobile" />`). Ordning i textspalten: knappraden (Join the waitlist + Watch the film), filmen (mobil), sifferraden.
-- `<LandingFilm variant="desktop" />` ligger mellan hjälten och previewn och `<LandingWaitlist />` efter funktionsrutnätet, före footern. Komponenterna bär själva ankar-id:t (`#film`, `#waitlist`); filmen renderar bara den variant som passar bredden, så `#film` finns exakt en gång.
+- `<LandingFilm variant="desktop" />` ligger mellan hjälten och previewn och `<LandingWaitlist />` efter funktionsrutnätet, före footern. Komponenterna bär själva ankar-id:t: desktopfilmen `#film`, mobilfilmen `#film-mobile` (båda ligger i HTML, CSS döljer den som inte passar; ett id får bara finnas en gång) och `#waitlist`. "Watch the film" scrollar till den film vars ankare har rutor (`getClientRects`), alltså den CSS visar, och faller annars tillbaka på länkens `#film`.
+- `LandingWaitlist`s `<form>` är `inert` tills sidan hydrerat (`useHydrated`, `shared/hooks`): formuläret ligger i den förrenderade HTML:en och får varken fyllas i eller skickas före det, se `landing-entry/README.md`. Nya delar av landningen som tar emot inmatning i den förrenderade HTML:en ska göra likadant.
 
 ## Regler värda att komma ihåg
 
@@ -33,7 +40,7 @@ geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten 
   (App-skalet hämtar nivåtabellen via backenden, `GET /api/config/levels` (`useLevelRequirements`, `enabled: !!user`, anropad från `useAppInit`), bara när användaren är inloggad.
   Utloggad — inklusive `/` — görs inget annat anrop och shareds fallback-tabell används. Inget av det är Landing.)
 - **Siffrorna är sanna.** "4 551 km logged · 6 runners · 4 challenges", i den ordningen (km i guld), med `formatInt` (smalt mellanslag) och singular för ental. Ingen uppräkning och inga
-  reservsiffror: medan svaret laddas står "—" (`aria-busy="true"`), vid fel (nätverk, 5xx, ogiltigt svar) döljs hela raden utan meddelande, noll visas som 0. Varje tal läses som en
+  reservsiffror: medan svaret laddas står "—" (`aria-busy="true"`), vid fel (nätverk, 5xx, ogiltigt svar) står raden kvar som en tom, osynlig remsa (`aria-hidden` + `visibility: hidden`, samma höjd, inget meddelande), noll visas som 0. Posterna reserverar sin bredd i CSS: värdet (km 5,5 ch = "99 999", löpare och utmaningar 3 ch) och etiketten (osynligt pseudoelement med pluralformen, så "1 runner" inte gör posten smalare). Mätt i Chromium vid 360 och 1440 px med 4 551 / 6 / 4, 99 999 / 12 / 11, 4 551 / 1 / 1 och 0 / 0 / 0: inget element flyttas (±1 px) när talen anländer, och inget flyttas vid fel. Varje tal läses som en
   enhet ("4 551 km logged"); ingen live-region. Ingen "packs running" förrän grupperna är fler (inte i v0.6.2).
 - **Previewn återanvänder `features/leaderboard/previewUsers`** — samma påhittade flock som `/preview` (LeaderboardPreviewPage importerar därifrån). Kortet heter "Sample pack", är märkt
   "Example" (inte "Live") och har ingen nedräkning. Bara förnamn visas. Radens delta-pil är Boards `DeltaMark`/`deltaView`. Topp fem sorteras som Board (nivå, sedan XP).
@@ -51,7 +58,7 @@ geometri, ingressens längd, de tre förklaringarna) renderas efter den, resten 
 - **Inget pris.** Väntelistans faktarad säger bara "No app to install". Ägaren har inte bestämt något om pris, så inget på sidan får antyda att RunQuest är gratis (`LandingScreen.test.tsx` kräver att ingen text eller etikett innehåller "free").
 - **Tillgänglighet.** `header`/`main`/`footer`; en h1, en h2 per sektion (sifferradens och funktionsrutnätets är `sr-only`, och på mobil även previewns och stegens), h3 per steg, kort och förklaring;
   delta-pilarna läses upp ("Up 1 place"); banan, rutnätet och glöden är `aria-hidden`. Knappar och footerlänkar är minst 44 px höga på mobil; fokusringen är temafilens globala.
-- **Inget `<title>`/SEO-arbete ännu.** ADR 006:s revisit-trigger (statisk rendering av publik `/`) är inte åtgärdad — sidan är fortfarande en klientrenderad SPA-route.
+- **Förrenderad vid bygget (ADR 006, addendum 2026-10-19).** `npm run build` renderar landningen med `react-dom/server` till `dist/landing.html` och en separat, lean ingång hydrerar den (`src/landing-entry/`, se dess README). Sedan S6 (RUN-333) serverar Caddyfilens regel filen på exakt `/`; `/landing.html` och `/landing` omdirigeras till `/` (landing-entry/README). Fullappens klientrenderade landning (`pages/Index`) används för `/login` och för inloggade omdirigeringar. Featuren ska därför klara serverrendering: inget `window`/`document` på modulnivå eller i renderingen, inga val på bredd i JS, ingen `Date`/`Math.random`/`Intl` i renderingen.
 - **Smala telefoner.** Banan är en smal ruta (`--rq-landing-track-w`, 100 px) bredvid rubriken. Under 380 px rymmer rubrikkolumnen (viewport − marginaler − banan) inte "LEADERBOARD" i full storlek, och ordet får aldrig brytas — då ligger banan under rubriken i stället för bredvid (CSS-media i `landing.css`). Radbrytningen är mätt i Chromium på 320–1440 px (`getClientRects()` = 1 rektangel för "leaderboard"): 380–390 px ger "Your group / chat deserves / a leaderboard", och ingen bredd lämnar ett ensamt "a". Rubriken har ingen `overflow-wrap`. Sifferraden (nowrap) bryts inte på 320 px, inte ens med 1 000 000 km.
 - **Vilopositioner.** Löparnas `offset-distance` (0/35/70/15/50/85 %) gäller bara när rörelsen är avstängd; loopen skriver över den. Därför visar reducerad rörelse spridda löpare (sex på desktop, tre på mobil), inte en klump.
 - **Sign in-knappen och adressen.** Knappen (headern, alla bredder) är en vanlig `<Link to={paths.login} state={FROM_LANDING_STATE}>`: adressen blir `/login` (push), `pages/Index` monterar `LoginDialog` ovanpå, och Landing ligger kvar under (samma element på samma plats i routerträdet — ingen ommontering, banan startar inte om). Back stänger dialogen; ✕/Esc/scrim gör samma sak (`useCloseLogin`: ett steg bakåt när dialogen öppnades härifrån, annars `replace` till `/`).

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent, type RefObject } from 'react';
-import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { cssVars } from '@/features/leaderboard/cssVars';
+import { track } from '@/shared/analytics/track';
+import { prefersReducedMotion } from '@/shared/utils/prefersReducedMotion';
+import { FILM_ID, FILM_MOBILE_ID } from '../landingModel';
 import '../landingFilm.css';
 
 // Filmen "RunQuest Mixed" (49 s, inget ljudspår, påhittade namn). Den startar först vid tryck på play (preload="none", ingen autoplay, ingen
@@ -114,6 +116,8 @@ function useFilmPlayer() {
   const videoHandlers = {
     onPlaying: () => {
       keepFocus();
+      // 'loading' sätts bara av ett tryck på play från postern: en återupptagen paus och en sökning ger 'paused'/'playing' och räknas inte.
+      if (status === 'loading') track('film-started');
       setFailed(false);
       setStatus('playing');
     },
@@ -159,12 +163,17 @@ function FilmVideo({ player, stepsId, toggleOnClick }: { player: FilmPlayer; ste
   );
 }
 
-/** Postern: mobilen hämtar bara 480-filen. Dekor — knappens etikett beskriver filmen. */
-function FilmPoster() {
+/**
+ * Postern: mobilen hämtar bara 480-filen. Dekor — knappens etikett beskriver filmen. Mobilpostern är LCP-elementet på mobil (mätt i RUN-328:
+ * 71–77 % av LCP var väntan på att den begärdes), så den hämtas direkt; på desktop är LCP-elementet h1, så desktopens förblir lat som förut.
+ * Ingen fetchpriority här: prioriteten sätts av <link rel="preload"> med mobil media-fråga i landing.html (ADR 006-addendum 2026-10-19), så att
+ * den dolda mobilpostern på desktop inte tar prioritet från desktopens LCP (h1).
+ */
+function FilmPoster({ eager }: { eager: boolean }) {
   return (
     <picture className="rq-film__poster">
       <source media={DESKTOP_MEDIA} srcSet={POSTER_720} />
-      <img src={POSTER_480} alt="" width={POSTER_480_WIDTH} height={POSTER_480_HEIGHT} loading="lazy" decoding="async" />
+      <img src={POSTER_480} alt="" width={POSTER_480_WIDTH} height={POSTER_480_HEIGHT} loading={eager ? 'eager' : 'lazy'} decoding="async" />
     </picture>
   );
 }
@@ -201,7 +210,7 @@ function DesktopFilm() {
   const playing = status === 'playing';
 
   return (
-    <section id="film" ref={player.rootRef} className="rq-film rq-film--desktop" aria-labelledby={titleId}>
+    <section id={FILM_ID} ref={player.rootRef} className="rq-film rq-film--desktop" aria-labelledby={titleId}>
       <div className="rq-film__head">
         <div>
           <p className="rq-film__eyebrow">Watch the film</p>
@@ -219,7 +228,7 @@ function DesktopFilm() {
         <span className="rq-film__corner" data-corner="br" aria-hidden="true" />
         <div className="rq-film__stage">
           <FilmVideo player={player} stepsId={stepsId} toggleOnClick />
-          {showPoster && <FilmPoster />}
+          {showPoster && <FilmPoster eager={false} />}
           {showPoster && (
             <button type="button" className="rq-film__overlay" data-film-play aria-label={DESKTOP_POSTER_LABEL} aria-busy={status === 'loading'} onClick={player.play}>
               <span className="rq-film__play-box" aria-hidden="true">
@@ -269,10 +278,10 @@ function MobileFilm() {
   const playing = status === 'playing';
 
   return (
-    <div id="film" ref={player.rootRef as RefObject<HTMLDivElement>} className="rq-film rq-film--mobile">
+    <div id={FILM_MOBILE_ID} ref={player.rootRef as RefObject<HTMLDivElement>} className="rq-film rq-film--mobile">
       <div className="rq-film__stage">
         <FilmVideo player={player} stepsId={stepsId} toggleOnClick={false} />
-        {showPoster && <FilmPoster />}
+        {showPoster && <FilmPoster eager={true} />}
         {/* En enda knapp över hela rutan: tryck på filmen pausar och startar, och knappen finns kvar medan filmen spelar. */}
         <button
           type="button"
@@ -302,23 +311,25 @@ function MobileFilm() {
 }
 
 /**
- * Filmen i en av två vyer. Bara varianten som matchar skärmbredden renderas (desktop från 1024 px), så `#film` alltid har ett mål
- * och bara en spelare finns i tillgänglighetsträdet. Lead monterar desktop på A:s plats för filmen och mobil i hjältens `mobileFilm`.
+ * Filmen i en av två vyer. Båda ligger i HTML (förrenderingen vet inte skärmbredden) och CSS döljer den som inte passar: desktop syns från
+ * 1024 px, mobil under. Den dolda är display: none, alltså utanför tillgänglighetsträdet och tab-ordningen, och hämtar ingenting (preload="none",
+ * lat poster). Varje vy har eget ankar-id (`film` / `film-mobile`). Lead monterar desktop på A:s plats för filmen och mobil i hjältens `mobileFilm`.
  */
 export function LandingFilm({ variant }: { variant: 'desktop' | 'mobile' }) {
-  const isDesktop = useIsDesktop();
-  if (isDesktop === undefined || (variant === 'desktop') !== isDesktop) return null;
   return variant === 'desktop' ? <DesktopFilm /> : <MobileFilm />;
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Filmen som syns just nu: den vars ankare CSS inte har dolt (en dold vy har inga rutor). Undviker att välja på bredd i JS. */
+function visibleFilm(): HTMLElement | undefined {
+  return [FILM_ID, FILM_MOBILE_ID]
+    .map((id) => document.getElementById(id))
+    .find((film): film is HTMLElement => film !== null && film.getClientRects().length > 0);
 }
 
-/** "Watch the film" i hjälten: scrollar till filmen och lägger fokus på play-knappen. Filmen startar inte. */
+/** "Watch the film" i hjälten: scrollar till filmen som syns och lägger fokus på dess play-knapp. Filmen startar inte. */
 export function WatchFilmButton() {
   const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    const film = document.getElementById('film');
+    const film = visibleFilm();
     if (!film) return;
     event.preventDefault();
     film.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
@@ -327,7 +338,7 @@ export function WatchFilmButton() {
   };
 
   return (
-    <a href="#film" className="rq-btn rq-btn--ghost rq-btn--lg" onClick={onClick}>
+    <a href={`#${FILM_ID}`} className="rq-btn rq-btn--ghost rq-btn--lg" onClick={onClick}>
       {`Watch the film — ${FILM_LENGTH}`}
     </a>
   );

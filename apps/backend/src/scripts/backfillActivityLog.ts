@@ -31,6 +31,7 @@ import { pathToFileURL } from 'node:url';
 import { getSupabaseClient } from '../config/database.js';
 import { ACTIVITY_LOG_TABLE, toActivityRow } from '../services/activityLog.js';
 import { isIsoCalendarDate, todayStockholm } from '../utils/dateUtils.js';
+import { supabaseHost } from './lib/supabaseHost.js';
 import {
   ACTIVITY_TYPES,
   FALLBACK_LEVEL_REQUIREMENTS,
@@ -223,15 +224,6 @@ async function existingKeys(supabase: Client, keys: string[]): Promise<Set<strin
     for (const r of data ?? []) found.add(r.dedupe_key);
   }
   return found;
-}
-
-/** Hostname ur SUPABASE_URL (aldrig nycklar/sökväg). 'unknown' om variabeln saknas eller är ogiltig. */
-export function supabaseHost(url: string | undefined = process.env.SUPABASE_URL): string {
-  try {
-    return (url && new URL(url).host) || 'unknown';
-  } catch {
-    return 'unknown';
-  }
 }
 
 export async function runBackfill(supabase: Client, options: BackfillOptions): Promise<BackfillReport> {

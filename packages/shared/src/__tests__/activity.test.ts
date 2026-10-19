@@ -171,21 +171,21 @@ describe('streak-brott', () => {
   });
 });
 
-const holder = (title_id: string, user_id: string, value: number): TitleHolder => ({ title_id, user_id, value });
+const holder = (title_id: string, user_id: string, value: number, group_id = 'g1'): TitleHolder => ({ group_id, title_id, user_id, value });
 const always = () => true;
 const never = () => false;
 
 describe('diffTitleHolders', () => {
   it('ingen → någon = unlocked', () => {
     expect(diffTitleHolders([], [holder('t1', 'a', 10)], always)).toEqual([
-      { kind: 'unlocked', title_id: 't1', user_id: 'a', value: 10 },
+      { kind: 'unlocked', group_id: 'g1', title_id: 't1', user_id: 'a', value: 10 },
     ]);
   });
 
   it('A → B där A behåller sin rad = taken/overtaken', () => {
     const out = diffTitleHolders([holder('t1', 'a', 10)], [holder('t1', 'b', 12)], always);
     expect(out).toEqual([
-      { kind: 'taken', title_id: 't1', new_holder_id: 'b', old_holder_id: 'a', value: 12, previous_value: 10, reason: 'overtaken' },
+      { kind: 'taken', group_id: 'g1', title_id: 't1', new_holder_id: 'b', old_holder_id: 'a', value: 12, previous_value: 10, reason: 'overtaken' },
     ]);
   });
 
@@ -196,7 +196,7 @@ describe('diffTitleHolders', () => {
 
   it('någon → ingen = revoked (den förra innehavaren)', () => {
     expect(diffTitleHolders([holder('t1', 'a', 10)], [], never)).toEqual([
-      { kind: 'revoked', title_id: 't1', user_id: 'a' },
+      { kind: 'revoked', group_id: 'g1', title_id: 't1', user_id: 'a' },
     ]);
   });
 
@@ -219,24 +219,87 @@ describe('diffTitleHolders', () => {
   });
 
   it('numeriska strängvärden (numeric från PostgREST) normaliseras till tal', () => {
-    const out = diffTitleHolders([], [{ title_id: 't1', user_id: 'a', value: '12.5000' as unknown as number }], always);
+    const out = diffTitleHolders([], [{ group_id: 'g1', title_id: 't1', user_id: 'a', value: '12.5000' as unknown as number }], always);
     expect(out[0]).toMatchObject({ value: 12.5 });
   });
 
-  it('stillHolds anropas med (titleId, förra innehavaren)', () => {
-    const seen: Array<[string, string]> = [];
-    diffTitleHolders([holder('t1', 'a', 1)], [holder('t1', 'b', 2)], (t, u) => { seen.push([t, u]); return true; });
-    expect(seen).toEqual([['t1', 'a']]);
+  it('stillHolds anropas med (titleId, förra innehavaren, gruppen)', () => {
+    const seen: Array<[string, string, string]> = [];
+    diffTitleHolders([holder('t1', 'a', 1, 'g2')], [holder('t1', 'b', 2, 'g2')], (t, u, g) => { seen.push([t, u, g]); return true; });
+    expect(seen).toEqual([['t1', 'a', 'g2']]);
+  });
+
+  describe('tvåan i bilden', () => {
+    const withRunnerUp = (h: TitleHolder, user_id: string, value: number): TitleHolder => ({ ...h, runner_up: { user_id, value } });
+
+    it('en ändrad eller ny tvåa med samma innehavare ger ingen händelse (diffen går bara på position 1)', () => {
+      const out = diffTitleHolders(
+        [withRunnerUp(holder('t1', 'a', 10), 'b', 8)],
+        [withRunnerUp(holder('t1', 'a', 10), 'c', 9)],
+        always,
+      );
+      expect(out).toEqual([]);
+    });
+
+    it('ett innehavarbyte bär inte tvåan i ändringen (payload och nycklar oförändrade)', () => {
+      const out = diffTitleHolders(
+        [withRunnerUp(holder('t1', 'a', 10), 'b', 8)],
+        [withRunnerUp(holder('t1', 'b', 12), 'a', 10)],
+        always,
+      );
+      expect(out).toEqual([
+        { kind: 'taken', group_id: 'g1', title_id: 't1', new_holder_id: 'b', old_holder_id: 'a', value: 12, previous_value: 10, reason: 'overtaken' },
+      ]);
+    });
+  });
+
+  describe('två grupper', () => {
+    it('samma titel i två grupper är två oberoende innehavare: ett byte i grupp 2 rör inte grupp 1', () => {
+      const out = diffTitleHolders(
+        [holder('t1', 'a', 10, 'g1'), holder('t1', 'c', 5, 'g2')],
+        [holder('t1', 'a', 11, 'g1'), holder('t1', 'd', 8, 'g2')],
+        always,
+      );
+      expect(out).toEqual([
+        { kind: 'taken', group_id: 'g2', title_id: 't1', new_holder_id: 'd', old_holder_id: 'c', value: 8, previous_value: 5, reason: 'overtaken' },
+      ]);
+    });
+
+    it('en titel som bara är ledig i en grupp ger unlocked bara där, med den gruppens id', () => {
+      const out = diffTitleHolders(
+        [holder('t1', 'a', 10, 'g1')],
+        [holder('t1', 'a', 10, 'g1'), holder('t1', 'c', 3, 'g2')],
+        always,
+      );
+      expect(out).toEqual([{ kind: 'unlocked', group_id: 'g2', title_id: 't1', user_id: 'c', value: 3 }]);
+    });
+
+    it('samma innehavare i två grupper (framtida flermedlemskap) räknas per grupp: revoked i en grupp rör inte den andra', () => {
+      const out = diffTitleHolders(
+        [holder('t1', 'a', 10, 'g1'), holder('t1', 'a', 4, 'g2')],
+        [holder('t1', 'a', 10, 'g1')],
+        never,
+      );
+      expect(out).toEqual([{ kind: 'revoked', group_id: 'g2', title_id: 't1', user_id: 'a' }]);
+    });
+
+    it('ordningen är deterministisk: grupp först, sedan titel, oavsett indataordning', () => {
+      const out = diffTitleHolders(
+        [],
+        [holder('t2', 'x', 1, 'g2'), holder('t1', 'y', 1, 'g2'), holder('t2', 'z', 1, 'g1')],
+        always,
+      );
+      expect(out.map((c) => [c.group_id, c.title_id])).toEqual([['g1', 't2'], ['g2', 't1'], ['g2', 't2']]);
+    });
   });
 });
 
 describe('buildTitleDrafts', () => {
   const titles = new Map([['t1', { id: 't1', name: 'The Marathoner', metric_key: 'fastest_marathon' }]]);
-  const groups = new Map<string, string | null>([['a', 'g1'], ['b', 'g1'], ['x', null]]);
   const at = '2026-10-05T10:00:00.000Z';
 
   it('title_unlocked: aktör = ny innehavare, ingen target, titelnamn som ögonblicksbild', () => {
-    const [d] = buildTitleDrafts([{ kind: 'unlocked', title_id: 't1', user_id: 'a', value: 7 }], titles, groups, at, '2026-10-05');
+    const [d] = buildTitleDrafts([{ kind: 'unlocked', group_id: 'g1', title_id: 't1', user_id: 'a', value: 7 }], titles, at, '2026-10-05');
     expect(d).toMatchObject({
       type: 'title_unlocked', group_id: 'g1', actor_user_id: 'a', target_user_id: null, is_backfill: false,
       payload: { title_id: 't1', title_name: 'The Marathoner', metric_key: 'fastest_marathon', value: 7 },
@@ -246,26 +309,125 @@ describe('buildTitleDrafts', () => {
 
   it('title_taken: aktör = ny, target = förra; payload bär previous_value och reason', () => {
     const [d] = buildTitleDrafts(
-      [{ kind: 'taken', title_id: 't1', new_holder_id: 'b', old_holder_id: 'a', value: 9, previous_value: 7, reason: 'revoked' }],
-      titles, groups, at, '2026-10-05',
+      [{ kind: 'taken', group_id: 'g1', title_id: 't1', new_holder_id: 'b', old_holder_id: 'a', value: 9, previous_value: 7, reason: 'revoked' }],
+      titles, at, '2026-10-05',
     );
     expect(d).toMatchObject({
-      type: 'title_taken', actor_user_id: 'b', target_user_id: 'a',
+      type: 'title_taken', group_id: 'g1', actor_user_id: 'b', target_user_id: 'a',
       payload: { value: 9, previous_value: 7, reason: 'revoked' }, dedupe_key: 'title_taken:t1:b:a:9:2026-10-05',
     });
   });
 
   it('title_revoked: aktör = förra innehavaren, dagen ingår i nyckeln', () => {
-    const [d] = buildTitleDrafts([{ kind: 'revoked', title_id: 't1', user_id: 'a' }], titles, groups, at, '2026-10-05');
-    expect(d).toMatchObject({ type: 'title_revoked', actor_user_id: 'a', dedupe_key: 'title_revoked:t1:a:2026-10-05' });
+    const [d] = buildTitleDrafts([{ kind: 'revoked', group_id: 'g1', title_id: 't1', user_id: 'a' }], titles, at, '2026-10-05');
+    expect(d).toMatchObject({ type: 'title_revoked', group_id: 'g1', actor_user_id: 'a', dedupe_key: 'title_revoked:t1:a:2026-10-05' });
+  });
+
+  it('gruppen på raden är hållarens egen grupp, per ändring', () => {
+    const drafts = buildTitleDrafts(
+      [
+        { kind: 'unlocked', group_id: 'g1', title_id: 't1', user_id: 'a', value: 7 },
+        { kind: 'unlocked', group_id: 'g2', title_id: 't1', user_id: 'c', value: 3 },
+        { kind: 'taken', group_id: 'g2', title_id: 't1', new_holder_id: 'd', old_holder_id: 'c', value: 9, previous_value: 3, reason: 'overtaken' },
+        { kind: 'revoked', group_id: 'g2', title_id: 't1', user_id: 'e' },
+      ],
+      titles, at, '2026-10-05',
+    );
+    expect(drafts.map((d) => [d.type, d.group_id, d.actor_user_id])).toEqual([
+      ['title_unlocked', 'g1', 'a'],
+      ['title_unlocked', 'g2', 'c'],
+      ['title_taken', 'g2', 'd'],
+      ['title_revoked', 'g2', 'e'],
+    ]);
   });
 
   it('hoppar över rader utan grupp eller utan titelmeta', () => {
-    const noGroup = buildTitleDrafts([{ kind: 'unlocked', title_id: 't1', user_id: 'x', value: 1 }], titles, groups, at, 'd');
-    const unknownUser = buildTitleDrafts([{ kind: 'unlocked', title_id: 't1', user_id: 'nobody', value: 1 }], titles, groups, at, 'd');
-    const noTitle = buildTitleDrafts([{ kind: 'unlocked', title_id: 'tX', user_id: 'a', value: 1 }], titles, groups, at, 'd');
-    expect([noGroup, unknownUser, noTitle]).toEqual([[], [], []]);
+    const noGroup = buildTitleDrafts([{ kind: 'unlocked', group_id: '', title_id: 't1', user_id: 'x', value: 1 }], titles, at, 'd');
+    const nullGroup = buildTitleDrafts([{ kind: 'revoked', group_id: null as unknown as string, title_id: 't1', user_id: 'x' }], titles, at, 'd');
+    const noTitle = buildTitleDrafts([{ kind: 'unlocked', group_id: 'g1', title_id: 'tX', user_id: 'a', value: 1 }], titles, at, 'd');
+    expect([noGroup, nullGroup, noTitle]).toEqual([[], [], []]);
   });
+});
+
+// Låg tvåa (ADR 011 beslut 7, ADR 012 beslut 5.4): R = position 2 i FÖRE-bilden för B:s grupp. Diffen och bilderna går genom
+// de riktiga rena funktionerna; bara titelnamn och dag är fasta.
+const lowTitles = new Map([['t1', { id: 't1', name: 'The Marathoner', metric_key: 'fastest_marathon' }]]);
+const lowAt = '2026-10-05T10:00:00.000Z';
+const lowDay = '2026-10-05';
+const withSecond = (h: TitleHolder, user_id: string, value: number): TitleHolder => ({ ...h, runner_up: { user_id, value } });
+const draftsFor = (before: TitleHolder[], after: TitleHolder[], stillHolds: () => boolean = always) =>
+  buildTitleDrafts(diffTitleHolders(before, after, stillHolds), lowTitles, lowAt, lowDay, before);
+
+it('tvåan ur före-bilden i nya innehavarens grupp får runner_up_user_id', () => {
+  const [draft] = draftsFor([withSecond(holder('t1', 'a', 10), 'r', 8)], [holder('t1', 'b', 12)]);
+  expect(draft).toMatchObject({
+    type: 'title_taken', group_id: 'g1', actor_user_id: 'b', target_user_id: 'a',
+    payload: { value: 12, previous_value: 10, reason: 'overtaken', runner_up_user_id: 'r' },
+  });
+  // R ingår inte i nyckeln: samma byte upptäckt två gånger ger fortfarande en rad.
+  expect(draft.dedupe_key).toBe('title_taken:t1:b:a:12:2026-10-05');
+});
+
+it('en tvåa i annan grupp ignoreras', () => {
+  const before = [withSecond(holder('t1', 'a', 10, 'g1'), 'r1', 8), withSecond(holder('t1', 'c', 5, 'g2'), 'r2', 3)];
+  const both = draftsFor(before, [holder('t1', 'b', 12, 'g1'), holder('t1', 'd', 6, 'g2')]);
+  expect(both.map((d) => [d.group_id, (d.payload as { runner_up_user_id?: string }).runner_up_user_id]))
+    .toEqual([['g1', 'r1'], ['g2', 'r2']]);
+
+  // Grupp 1 saknar tvåa: grupp 2:s tvåa läcker inte över.
+  const onlyG2 = draftsFor(
+    [holder('t1', 'a', 10, 'g1'), withSecond(holder('t1', 'c', 5, 'g2'), 'r2', 3)],
+    [holder('t1', 'b', 12, 'g1'), holder('t1', 'c', 5, 'g2')],
+  );
+  expect(onlyG2).toHaveLength(1);
+  expect('runner_up_user_id' in onlyG2[0].payload).toBe(false);
+});
+
+it('om B själv var tvåa sätts inget fält', () => {
+  const [draft] = draftsFor([withSecond(holder('t1', 'a', 10), 'b', 9)], [holder('t1', 'b', 12)]);
+  expect(draft.type).toBe('title_taken');
+  expect('runner_up_user_id' in draft.payload).toBe(false);
+});
+
+it('title_unlocked och reason revoked ger inget fält', () => {
+  const second = (h: TitleHolder) => withSecond(h, 'r', 8);
+  const unlocked = draftsFor([], [second(holder('t1', 'a', 10))]);
+  const revokedReason = draftsFor([second(holder('t1', 'a', 10))], [holder('t1', 'b', 3)], never);
+  const revokedRow = draftsFor([second(holder('t1', 'a', 10))], []);
+  expect(unlocked.map((d) => d.type)).toEqual(['title_unlocked']);
+  expect(revokedReason.map((d) => [d.type, (d.payload as { reason?: string }).reason])).toEqual([['title_taken', 'revoked']]);
+  expect(revokedRow.map((d) => d.type)).toEqual(['title_revoked']);
+  for (const draft of [...unlocked, ...revokedReason, ...revokedRow]) {
+    expect('runner_up_user_id' in draft.payload, draft.type).toBe(false);
+  }
+});
+
+it('bara en gruppmedlem på listan ger inget fält', () => {
+  for (const lone of [holder('t1', 'a', 10), { ...holder('t1', 'a', 10), runner_up: null }]) {
+    const [draft] = draftsFor([lone], [holder('t1', 'b', 12)]);
+    expect(draft.type).toBe('title_taken');
+    expect('runner_up_user_id' in draft.payload).toBe(false);
+  }
+  // Utan före-bild alls (befintliga anropare) skrivs aldrig fältet.
+  const changes = diffTitleHolders([withSecond(holder('t1', 'a', 10), 'r', 8)], [holder('t1', 'b', 12)], always);
+  const [legacy] = buildTitleDrafts(changes, lowTitles, lowAt, lowDay);
+  expect('runner_up_user_id' in legacy.payload).toBe(false);
+});
+
+it('diffTitleHolders har oförändrat beteende för befintliga fall (regressionssviten grön)', () => {
+  // Samma före/efter med och utan tvåor i bilderna ger identiska ändringar: tvåan är bara bagage för buildTitleDrafts.
+  const cases: Array<[TitleHolder[], TitleHolder[], () => boolean]> = [
+    [[], [holder('t1', 'a', 10)], always],
+    [[holder('t1', 'a', 10)], [holder('t1', 'b', 12)], always],
+    [[holder('t1', 'a', 10)], [holder('t1', 'b', 3)], never],
+    [[holder('t1', 'a', 10)], [], never],
+    [[holder('t1', 'a', 10)], [holder('t1', 'a', 14)], always],
+    [[holder('t1', 'a', 10, 'g1'), holder('t1', 'c', 5, 'g2')], [holder('t1', 'a', 11, 'g1'), holder('t1', 'd', 8, 'g2')], always],
+  ];
+  const decorate = (list: TitleHolder[]) => list.map((h) => withSecond(h, 'r', 1));
+  for (const [before, after, stillHolds] of cases) {
+    expect(diffTitleHolders(decorate(before), decorate(after), stillHolds)).toEqual(diffTitleHolders(before, after, stillHolds));
+  }
 });
 
 describe('level-/milstolpe-/streakbyggare', () => {

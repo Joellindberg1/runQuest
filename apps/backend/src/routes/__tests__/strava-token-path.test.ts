@@ -1,5 +1,5 @@
 /**
- * The routes that share the token path (getValidAccessToken): GET /status, GET /debug-activities, POST /backfill-extended and the sync,
+ * The routes that share the token path (getValidAccessToken): GET /status, POST /backfill-extended and the manual sync,
  * seen from the outside. A user without a connection, an expired token that renews, one that cannot be renewed and one that has no
  * refresh token to renew with each give the answer the endpoint always gave. Also: a duplicate insert (23505) inside the sync is neither
  * an imported run nor a failure.
@@ -41,6 +41,7 @@ vi.mock('../../services/xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
+import { tokenCols, plainRow } from '../../test-utils/stravaTokens.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
@@ -65,7 +66,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const TOKEN_ROW = { user_id: 'user-1', access_token: 'old-at', refresh_token: 'old-rt', expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } };
+const TOKEN_ROW = { user_id: 'user-1', ...tokenCols('user-1', 'old-at', 'old-rt'), expires_at: 9999999999, connection_date: '2026-09-01', users: { name: 'Test' } };
 const EXPIRED = { ...TOKEN_ROW, expires_at: 100 };
 
 function use(
@@ -125,64 +126,63 @@ describe('GET /api/strava/status', () => {
   });
 });
 
-describe('GET /api/strava/debug-activities', () => {
-  it('debug-activities and the sync fail with a refresh error when Strava rejects the refresh token, and with a read error when the row cannot be read', async () => {
+describe('POST /api/strava/sync token path', () => {
+  const sync = () => server.request('POST', '/api/strava/sync', { token: token() });
+
+  it('sync fails with a refresh error when Strava rejects the refresh token, and with a read error when the row cannot be read', async () => {
     strava = installFakeStravaFetch({ oauthToken: stravaError(401, { body: { message: 'Authorization Error', errors: [{ resource: 'RefreshToken', field: 'refresh_token', code: 'invalid' }] } }) });
     use({ strava_tokens: [{ ...EXPIRED }] });
-    const rejected = await get('/api/strava/debug-activities');
+    const rejected = await sync();
     expect(rejected.status).toBe(400);
     expect(rejected.body.error).toBe('Failed to refresh Strava token');
-    const syncRejected = await server.request('POST', '/api/strava/sync', { token: token() });
-    expect(syncRejected.body.error).toBe('Failed to refresh Strava token');
 
     use({}, { failWhen: (q) => (q.table === 'strava_tokens' && q.select?.includes('access_token') ? { message: 'connection reset' } : null) });
-    const unreadable = await get('/api/strava/debug-activities');
+    const unreadable = await sync();
     expect(unreadable.status).toBe(400);
     expect(unreadable.body.error).toBe('Failed to read Strava connection');
-    const syncUnreadable = await server.request('POST', '/api/strava/sync', { token: token() });
-    expect(syncUnreadable.body.error).toBe('Failed to read Strava connection');
     expect(strava.calls.athleteActivities).toBe(0);
   });
 
-  it('debug-activities reports a user without a Strava connection', async () => {
+  it('sync reports a user without a Strava connection', async () => {
     strava = installFakeStravaFetch({});
     use({ strava_tokens: [] });
 
-    const res = await get('/api/strava/debug-activities');
+    const res = await sync();
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('User not connected to Strava');
     expect(strava.requests).toHaveLength(0);
   });
 
-  it('debug-activities renews an expired token and lists with the new one', async () => {
-    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt' }), athleteActivities: [stravaActivity({ id: 9001 })] });
+  it('sync renews an expired token and lists with the new one', async () => {
+    const activity = stravaActivity({ id: 9001 });
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt' }), athleteActivities: [activity], activities: { 9001: activity } });
     const { t } = use({ strava_tokens: [{ ...EXPIRED }] });
 
-    const res = await get('/api/strava/debug-activities');
+    const res = await sync();
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ connection_date: '2026-09-01', total_activities: 1, running_activities: 1, new_runs_count: 1 });
+    expect(res.body).toMatchObject({ success: true, newRuns: 1, totalActivities: 1 });
     expect(strava.requests.find((r) => r.route === 'athleteActivities')?.headers.authorization).toBe('Bearer new-at');
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
   });
 
-  it('debug-activities fails with a refresh error when the token cannot be renewed', async () => {
+  it('sync fails with a refresh error when the token cannot be renewed', async () => {
     strava = installFakeStravaFetch({ oauthToken: stravaError(400, { body: { message: 'Bad Request' } }) });
     use({ strava_tokens: [{ ...EXPIRED }] });
 
-    const res = await get('/api/strava/debug-activities');
+    const res = await sync();
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Failed to refresh Strava token');
     expect(strava.calls.athleteActivities).toBe(0);
   });
 
-  it('debug-activities fails with a refresh error, without calling Strava, when an expired token has no refresh token', async () => {
+  it('sync fails with a refresh error, without calling Strava, when an expired token has no refresh token', async () => {
     strava = installFakeStravaFetch({});
     use({ strava_tokens: [{ ...EXPIRED, refresh_token: null }] });
 
-    const res = await get('/api/strava/debug-activities');
+    const res = await sync();
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Failed to refresh Strava token');
@@ -206,7 +206,7 @@ describe('POST /api/strava/backfill-extended', () => {
 
     expect(res.body).toMatchObject({ success: true, totalUpdated: 1, summary: [{ user: 'Test', updated: 1 }] });
     expect(strava.requests.find((r) => r.route === 'activity')?.headers.authorization).toBe('Bearer new-at');
-    expect(t.strava_tokens[0]).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
     expect(t.runs[0]).toMatchObject({ suffer_score: 33, sport_type: 'Run' });
 
     // The listing query no longer carries the secrets; the token path reads them per user.

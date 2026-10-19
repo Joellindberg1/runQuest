@@ -8,6 +8,7 @@ import { getSupabaseClient } from '../../config/database.js';
 import { reprocessRunsFromDate } from '../../routes/runs.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
+import { errorCode, errorWithCode } from '../../utils/errorCode.js';
 import { checkEventQualification } from '../eventService.js';
 import { getValidAccessToken, refreshAccessToken, stravaFetch } from '../stravaClient.js';
 import { extractExtendedFields } from '../stravaImport.js';
@@ -20,9 +21,9 @@ import type { Recompute, RunStore, StravaApi, WebhookEventRow, WebhookEventStore
 const EVENTS = 'strava_webhook_events';
 const STRAVA_API = 'https://www.strava.com/api/v3';
 
-function databaseError(operation: string, error: { code?: string }): Error {
-  const code = error.code ?? 'unknown';
-  return Object.assign(new Error(`${operation} failed (${code})`), { code });
+/** supabase-js gives `code: ''` when the connection breaks, so the code comes from errorCode (the network cause), not from `error.code`. */
+function databaseError(operation: string, error: unknown): Error {
+  return errorWithCode(`${operation} failed (${errorCode(error)})`, error);
 }
 
 export function createWebhookEventStore(): WebhookEventStore {
@@ -146,9 +147,7 @@ export function createRunStore(): RunStore {
 export function createRecompute(): Recompute {
   return {
     reprocessFrom: (userId, fromDate) => reprocessRunsFromDate(userId, fromDate),
-    recalculateTotals: async (userId) => {
-      await calculateUserTotals(userId);
-    },
+    recalculateTotals: (userId) => calculateUserTotals(userId),
     fetchWeather: (runs) => WeatherService.fetchAndSaveWeatherForRuns(runs),
     async qualifyEvents(userId, runs) {
       // The polling's arguments (routes/strava.ts): the runs are independent, so one failing does not stop the others.
@@ -159,8 +158,7 @@ export function createRecompute(): Recompute {
       );
       for (const result of results) {
         if (result.status === 'rejected') {
-          const code = String((result.reason as { code?: unknown } | null)?.code ?? 'unknown').replace(/[^\w.:-]/g, '').slice(0, 40) || 'unknown';
-          logger.error(`❌ Strava webhook: checkEventQualification failed for user ${userId} (${code})`);
+          logger.error(`❌ Strava webhook: checkEventQualification failed for user ${userId} (${errorCode(result.reason)})`);
         }
       }
     },

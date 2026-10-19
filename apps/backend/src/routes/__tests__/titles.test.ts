@@ -127,7 +127,7 @@ afterAll(() => {
 
 function mintTestToken(userId = 'user-uuid-test') {
   return jwt.sign(
-    { user_id: userId, name: 'TestUser', email: 'test@example.com' },
+    { user_id: userId, name: 'TestUser', email: 'test@example.com', group_id: 'group-uuid-test' },
     process.env.JWT_SECRET as string,
     { expiresIn: '1h' }
   );
@@ -203,6 +203,7 @@ describe('GET /api/titles/leaderboard', () => {
     expect(body.meta.total_titles).toBe(FAKE_LEADERBOARD.length);
     expect(body.meta.cache_optimized).toBe(true);
     expect(typeof body.meta.timestamp).toBe('string');
+    expect(mockGetTitleLeaderboard).toHaveBeenCalledWith('group-uuid-test');
   });
 
   it('returns each leaderboard entry with required fields', async () => {

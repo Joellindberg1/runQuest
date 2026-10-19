@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Run, User, UserTitle } from '@runquest/types';
-import type { ChallengeHistoryItem, HeadToHeadResponse } from '@runquest/shared';
-import type { TitleLeaderboard } from '@/shared/services/backendApi';
+import type { Run, User } from '@runquest/types';
+import type { ChallengeHistoryItem, HeadToHeadResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import {
   DOUBLE_RUN_MIN_GAP_MS, buildDistanceRows, buildFunRows, buildHeadToHead, buildHero, buildMeeting, buildStatCells,
@@ -257,10 +256,10 @@ describe('fun facts', () => {
 });
 
 describe('titlar', () => {
-  const ut = (over: Partial<UserTitle> & Pick<UserTitle, 'title_id' | 'title_name'>): UserTitle => ({
+  const ut = (over: Partial<UserTitleEntry> & Pick<UserTitleEntry, 'title_id' | 'title_name'>): UserTitleEntry => ({
     title_description: '', position: 1, value: 0, earned_at: '', is_current_holder: true, status: 'holder', ...over,
   });
-  const entry = (id: string, metric: string | undefined, holder?: { name: string; value: number }): TitleLeaderboard => ({
+  const entry = (id: string, metric: string | undefined, holder?: { name: string; value: number }): TitleLeaderboardEntry => ({
     id, name: id, description: '', unlock_requirement: 0, metric_key: metric,
     holder: holder ? { user_id: 'h', user_name: holder.name, value: holder.value, earned_at: '' } : null,
     runners_up: [],
@@ -293,7 +292,7 @@ describe('titlar', () => {
         ut({ title_id: 't-rooster', title_name: 'The Rooster', value: 51, position: 3, is_current_holder: false, status: 'runner_up' }),
         ut({ title_id: 't-long', title_name: 'The Longest Run', value: 28.3, position: 2, is_current_holder: false, status: 'runner_up' }),
         ut({ title_id: 't-nokey', title_name: 'The Ten', value: 3, position: 4, is_current_holder: false, status: 'top_10' }),
-        ut({ title_id: 't-nopos', title_name: 'The Participant', value: 1, position: null as unknown as number, is_current_holder: false, status: 'participant' as UserTitle['status'] }),
+        ut({ title_id: 't-nopos', title_name: 'The Participant', value: 1, position: null, is_current_holder: false, status: 'participant' }),
       ],
       board,
       null,

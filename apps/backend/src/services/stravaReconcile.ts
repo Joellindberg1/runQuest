@@ -20,6 +20,15 @@
  *   5. After the checks: ONE reprocessRunsFromDate from the earliest changed date and ONE calculateUserTotals (-> evaluateBadges,
  *      titles), the worker's own recalculation through the same Recompute port, tried once more if it fails.
  *
+ * ── A NIGHT THAT DIES IN THE MIDDLE (RUN-322, migration 057) ────────────────────────────────────────────────────────────────
+ *   A run that is deleted is gone for good: no later night finds it to compare, so a recalculation that never ran (the process died,
+ *   or both tries failed) would leave the XP and the streak of every later run wrong. Before the handler deletes or changes a run, the
+ *   user is MARKED ("recalculate from this date", services/recalculationMarks); after the recalculation worked the mark is cleared,
+ *   but only if nothing has marked the user since (its version). A mark that is left is taken by the recovery job, at the next
+ *   start and at 04:05 every night. A mark that cannot be written stops the change: the run stays, is counted as failed, and is
+ *   looked at again another night. The marking is done in markedRuns() below, around the handler's RunStore, because that is the one
+ *   place between "Strava says it is gone" and the delete; the handler itself is the webhook's, unchanged.
+ *
  * ── THE RULES THIS KEEPS ────────────────────────────────────────────────────────────────────────────────────────────────────
  *   - The user lock (withUserLock) is held while a user's runs are checked, changed and recalculated, the same lock the polling, the
  *     webhook batch and the disconnect take, so a poll can never bring back a run that was just deleted. The list is read before the
@@ -50,8 +59,12 @@ import {
 } from './stravaReconcile/constants.js';
 import { nightIndex, planUser, reconcileWindow, rotationSlice, type ListedActivity, type StoredRun } from './stravaReconcile/plan.js';
 import type { ReconcilePorts, ReconcileUser } from './stravaReconcile/ports.js';
+import { tryClear } from './recalculationMarks/bestEffort.js';
+import { assertTotalsWritten } from './recalculationMarks/totals.js';
+import type { RecalculationMarkStore } from './recalculationMarks/ports.js';
 import type { RateBudget, Recompute, RunStore, StravaApi, WebhookEventRow } from './stravaWebhook/ports.js';
 import { createActivityUpdateHandler } from './stravaWebhook/handlers/activityUpdate.js';
+import { checkSealingReady } from './stravaTokenStore.js';
 import type { WebhookHandler } from './stravaWebhookWorker.js';
 
 export interface ReconcileDeps {
@@ -60,6 +73,11 @@ export interface ReconcileDeps {
   strava: StravaApi;
   runs: RunStore;
   recompute: Recompute;
+  /**
+   * The marks of "recalculate from date X" (migration 057). Required, not optional: a reconcile that deletes without a way to
+   * finish the recalculation after a crash is the fault this exists to remove.
+   */
+  marks: RecalculationMarkStore;
   /** Strava's read budget: over its soft limit the night stops. Absent = no check. */
   budget?: RateBudget;
   /** Injectable clock. */
@@ -185,7 +203,7 @@ function madeUpUpdateEvent(userId: string, externalId: string, at: Date): Webhoo
 const isActivityId = (externalId: string): boolean => Number.isSafeInteger(Number(externalId)) && Number(externalId) > 0 && String(Number(externalId)) === externalId;
 
 export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
-  const { ports, runs, recompute, budget } = deps;
+  const { ports, runs, recompute, marks, budget } = deps;
   const now = deps.now ?? (() => new Date());
   const requestBudget = deps.requestBudget ?? RECONCILE_NIGHTLY_REQUEST_BUDGET;
   const oldRunsPerUser = deps.oldRunsPerUser ?? RECONCILE_OLD_RUNS_PER_USER;
@@ -197,7 +215,8 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
         await recompute.reprocessFrom(userId, from);
-        await recompute.recalculateTotals(userId);
+        // calculateUserTotals never throws: a failed totals run is a returned false, which counts as a failed try (and keeps the mark).
+        assertTotalsWritten(await recompute.recalculateTotals(userId));
         return true;
       } catch (error) {
         logger.error(`❌ Strava reconcile: the recalculation for user ${userId} failed, try ${attempt} of 2 (${errorCode(error)})`);
@@ -206,9 +225,53 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
     return false;
   }
 
+  /** What the marks of one user's checks have come to: the newest version written, and the error of the first mark that could not be. */
+  interface MarkState {
+    version: number | null;
+    failure: unknown;
+  }
+
+  /**
+   * The handler's RunStore with the mark written first. `stored` is the run as it is right now (read under the lock, so the handler sees
+   * the same): a removal marks its date; an update marks the earlier of its date and the new one, since a run moved to an earlier day
+   * makes the days from there on wrong. A mark that fails throws before anything is written, and the caller counts the check as
+   * failed. `latest` is the newest version the marks returned: the clear after the recalculation uses it.
+   */
+  function markedRuns(userId: string, stored: { date: string }, latest: MarkState): RunStore {
+    const mark = async (fromDate: string) => {
+      try {
+        latest.version = await marks.mark(userId, fromDate);
+      } catch (error) {
+        latest.failure = error; // checkRuns ends this user's checks: marks.mark does not work, and every further check would fail the same way
+        throw error;
+      }
+    };
+    return {
+      ...runs,
+      async removeStravaRun(uid, externalId) {
+        await mark(stored.date);
+        return runs.removeStravaRun(uid, externalId);
+      },
+      async updateStravaRun(uid, externalId, patch, options) {
+        await mark(patch.date !== undefined && patch.date < stored.date ? patch.date : stored.date);
+        return runs.updateStravaRun(uid, externalId, patch, options);
+      },
+    };
+  }
+
   async function run(): Promise<ReconcileSummary> {
     const started = now();
     const summary: ReconcileSummary = { users: 0, pausedUsers: 0, skippedUnavailable: 0, checked: 0, removed: 0, updated: 0, failed: 0, requests: 0, stopped: null };
+
+    // Without a usable token key no user can get a token (ADR 013, fail-closed): the night does not start. One line for the night instead
+    // of a warning and an error per user; the startup alarm (tokenKeyStartup) is the critical one and this is its nightly reminder.
+    const sealing = checkSealingReady();
+    if (!sealing.ok) {
+      summary.stopped = 'token_key';
+      logger.error(`❌ Strava reconcile skipped: the token key is not usable (${sealing.code}); no user was tried tonight`);
+      return summary;
+    }
+
     const ledger = createLedger(requestBudget);
     const strava = countedStrava(deps.strava, ledger);
     const night = nightIndex(started);
@@ -256,6 +319,7 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
 
       let recalculateFrom: string | null = null;
       let removedForUser = 0;
+      const latestMark: MarkState = { version: null, failure: undefined };
       for (const externalId of externalIds) {
         if (stopBeforeRequest()) break;
         if (removedForUser >= RECONCILE_MAX_REMOVALS_PER_USER) {
@@ -277,9 +341,24 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
         summary.checked += 1;
         let result;
         try {
-          result = await handler({ event: madeUpUpdateEvent(userId, externalId, started), userId, attempts: 0, strava, runs, now });
+          result = await handler({
+            event: madeUpUpdateEvent(userId, externalId, started),
+            userId,
+            attempts: 0,
+            strava,
+            runs: markedRuns(userId, existing, latestMark),
+            now,
+          });
         } catch (error) {
           summary.failed += 1;
+          if (latestMark.failure !== undefined) {
+            // The mark could not be written, so nothing was changed. Every further check of this user would ask Strava and then fail the
+            // same way: stop here, say it once, and leave the rest for the next night instead of spending the budget every night.
+            logger.warn(
+              `⚠️ Strava reconcile: the recalculation mark of user ${userId} could not be written (${errorCode(latestMark.failure)}); nothing was changed and the rest of the user's checks wait for the next night`,
+            );
+            break;
+          }
           logger.warn(`⚠️ Strava reconcile: a run of user ${userId} could not be checked (${errorCode(error)}); it stays`);
           continue;
         }
@@ -305,9 +384,13 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
         }
       }
 
-      if (recalculateFrom !== null && !(await recalculate(userId, recalculateFrom))) {
-        summary.failed += 1;
-        logger.error(`❌ Strava reconcile: the totals of user ${userId} may be out of date until their next run`);
+      if (recalculateFrom !== null) {
+        if (await recalculate(userId, recalculateFrom)) {
+          if (latestMark.version !== null) await tryClear(marks, userId, latestMark.version, 'Strava reconcile');
+        } else {
+          summary.failed += 1;
+          logger.error(`❌ Strava reconcile: the totals of user ${userId} are out of date; the mark stays and the recovery job recalculates them`);
+        }
       }
     }
 

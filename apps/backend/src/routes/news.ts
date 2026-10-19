@@ -23,6 +23,7 @@ import {
   type NewsSeenApiResponse,
   type NewsUserRef,
 } from '@runquest/shared';
+import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
 
@@ -78,6 +79,7 @@ function postgrestQuote(value: string): string {
 /**
  * Villkoret för ?involves=me (ADR 011 beslut 9), ett `.or(...)`-uttryck som läggs som extra AND ovanpå gruppfiltret:
  *   actor = jag ELLER target = jag ELLER (type = event_closed OCH payload @> {"entrant_ids":["<jag>"]})
+ *   ELLER (type = title_taken OCH payload @> {"runner_up_user_id":"<jag>"})  -- låg tvåa, ADR 011 beslut 7
  * `userId` MÅSTE vara ett validerat UUID (anroparen kontrollerar det): id:t interpoleras i filtersträngen. Containment-värdet
  * citeras dessutom, så att ett id aldrig kan lägga till villkor ens om valideringen skulle glömmas.
  *
@@ -89,7 +91,8 @@ function involvesFilter(rawUserId: string): string {
   // Små bokstäver: UUID-regexen är skiftlägesokänslig, men jsonb-containment jämför strängar exakt och entrant_ids skrivs med små.
   const userId = rawUserId.toLowerCase();
   const entrants = postgrestQuote(JSON.stringify({ entrant_ids: [userId] }));
-  return `actor_user_id.eq.${userId},target_user_id.eq.${userId},and(type.eq.event_closed,payload.cs.${entrants})`;
+  const runnerUp = postgrestQuote(JSON.stringify({ runner_up_user_id: userId }));
+  return `actor_user_id.eq.${userId},target_user_id.eq.${userId},and(type.eq.event_closed,payload.cs.${entrants}),and(type.eq.title_taken,payload.cs.${runnerUp})`;
 }
 
 // GET /api/news[?limit=&before=&after=&type=&involves=me]
@@ -209,7 +212,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     };
     res.json(body);
   } catch (error) {
-    logger.error('❌ Error fetching news:', error);
+    logger.error(`❌ Error fetching news (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to fetch news' });
   }
 });
@@ -274,7 +277,7 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     };
     res.json(result);
   } catch (error) {
-    logger.error('❌ Error marking news as seen:', error);
+    logger.error(`❌ Error marking news as seen (${errorCode(error)})`);
     res.status(500).json({ error: 'Failed to update news state' });
   }
 });
@@ -334,7 +337,7 @@ export function createNewsRouter(): express.Router {
       };
       res.json(body);
     } catch (error) {
-      logger.error('❌ Error marking news rows as read:', error);
+      logger.error(`❌ Error marking news rows as read (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to update news state' });
     }
   });

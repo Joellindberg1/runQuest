@@ -2,6 +2,7 @@
 import { logger } from '../utils/logger.js';
 import { Request, Response, NextFunction } from 'express';
 import { getSupabaseClient } from '../config/database.js';
+import { errorCode } from '../utils/errorCode.js';
 
 export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -13,7 +14,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    logger.info(`🔍 Admin check for user: ${user.name}`);
+    logger.info(`🔍 Admin check for user_id: ${user.user_id}`);
     
     const supabase = getSupabaseClient();
     
@@ -25,22 +26,22 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
       .single();
 
     if (error) {
-      logger.error('❌ Error checking admin status:', error.message);
+      logger.error(`❌ Error checking admin status (${errorCode(error)})`);
       res.status(500).json({ error: 'Failed to verify admin status' });
       return;
     }
 
     if (!userData?.is_admin) {
-      logger.info(`❌ Access denied: ${user.name} is not admin`);
+      logger.info(`❌ Access denied: user_id ${user.user_id} is not admin`);
       res.status(403).json({ error: 'Admin access required' });
       return;
     }
 
-    logger.info(`✅ Admin access granted for: ${user.name}`);
+    logger.info(`✅ Admin access granted for user_id: ${user.user_id}`);
     next();
     
   } catch (error) {
-    logger.error('❌ Admin middleware error:', error);
+    logger.error(`❌ Admin middleware error (${errorCode(error)})`);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

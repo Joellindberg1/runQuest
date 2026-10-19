@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
-import type { Run, User, UserTitle } from '@runquest/types';
+import type { Run, User } from '@runquest/types';
 import ProfilePage from './ProfilePage';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
 import { run as makeRun } from '@/features/profile/profile.fixture';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import type { UserTitleEntry } from '@runquest/shared';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turen startar driver.js efter en timer; ankar-vakten nedan kollar DOM:en i stället.
@@ -34,7 +35,7 @@ const RUNS: Run[] = [
 
 const mine = (over: Partial<User> = {}): User => ({ ...ME, total_km: 942.7, current_streak: 4, longest_streak: 44, wins: 11, losses: 6, runs: RUNS, ...over });
 
-const title = (id: string, name: string, holder: boolean, position = 1): UserTitle => ({
+const title = (id: string, name: string, holder: boolean, position = 1): UserTitleEntry => ({
   title_id: id, title_name: name, title_description: '', position, value: 10, earned_at: '', is_current_holder: holder, status: holder ? 'holder' : 'runner_up',
 });
 const HELD = ['a', 'b', 'c', 'd', 'e'].map((id) => title(id, `Title ${id.toUpperCase()}`, true));
@@ -50,7 +51,7 @@ const uploadPicture = vi.fn();
 const usersCalls = vi.fn();
 const history = { current: [] as Run[] };
 
-function setup({ runs = RUNS, titles = [...HELD, ...RUNNERS_UP] }: { runs?: Run[]; titles?: UserTitle[] } = {}) {
+function setup({ runs = RUNS, titles = [...HELD, ...RUNNERS_UP] }: { runs?: Run[]; titles?: UserTitleEntry[] } = {}) {
   history.current = runs;
   updateRun.mockReset();
   deleteRun.mockReset();

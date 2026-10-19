@@ -16,6 +16,9 @@
 //     inside the one outermost withUserLock they already hold (never a second lock from in here).
 //   The two differ on one point on purpose: the worker skips the totals when the reprocess fails, because it retries the event and the
 //   retry recalculates; recomputeAfterRemoval still tries the totals and then rethrows, because S16 has no retry.
+//   The disconnect also writes a RECALCULATION MARK before the delete and clears it after a recalculation that worked
+//   (services/recalculationMarks, migration 057; the nightly reconcile does the same through its own Recompute port), so a crash between
+//   the two halves is finished by the recovery job. recomputeAfterRemoval's answer (totals done or not) decides whether the disconnect may clear it.
 //
 // What the database does with the rest (not done here, see migrations): event_entries.run_id becomes NULL and the entry keeps its XP
 // (047, ON DELETE SET NULL), run_weather goes (000_baseline, ON DELETE CASCADE) and user_badges.source_run_id becomes NULL (035,
@@ -131,9 +134,11 @@ export async function countStravaRuns(userId: string): Promise<number> {
  * run's date), then recalculates the totals, level, badges and titles.
  * A reprocess error is thrown to the caller AFTER the totals have been tried: the deleted runs must leave the totals even when the
  * XP of the later runs could not be recomputed, and the caller's retry repeats the reprocess. The totals themselves are best-effort
- * (ADR 010 8.5, as in the polling): a failure is logged with its code and never thrown.
+ * (ADR 010 8.5, as in the polling): a failure is logged with its code and never thrown, but it is REPORTED: the answer is true when the
+ * totals were recalculated and false when they were not, so a caller that has a recalculation mark (RUN-322) leaves it for the
+ * recovery job instead of clearing it. A reprocess failure is still thrown, after the totals have been tried.
  */
-export async function recomputeAfterRemoval(userId: string, fromDate: string): Promise<void> {
+export async function recomputeAfterRemoval(userId: string, fromDate: string): Promise<boolean> {
   if (typeof userId !== 'string' || userId === '') throw new TypeError('recomputeAfterRemoval needs a user id');
   if (typeof fromDate !== 'string' || !DATE.test(fromDate)) throw new TypeError('recomputeAfterRemoval needs a YYYY-MM-DD date');
 
@@ -145,12 +150,17 @@ export async function recomputeAfterRemoval(userId: string, fromDate: string): P
     logger.error(`❌ Strava removal: the reprocess failed for user ${userId} (${errorCode(error)})`);
   }
 
+  let totalsDone = true;
   try {
     // A bulk path (the disconnect and the deauthorize purge): no rank_passed is written or retracted (ADR 011 decision 6, mass recalculation).
-    await calculateUserTotals(userId, { emitRankNews: false });
+    // calculateUserTotals never throws; it returns false when the totals were not written (RUN-322), which is a failure here too.
+    totalsDone = (await calculateUserTotals(userId, { emitRankNews: false })) !== false;
+    if (!totalsDone) logger.error(`❌ Strava removal: the totals were not written for user ${userId}`);
   } catch (error) {
+    totalsDone = false;
     logger.error(`❌ Strava removal: the totals could not be recalculated for user ${userId} (${errorCode(error)})`);
   }
 
   if (reprocessFailure) throw reprocessFailure.error;
+  return totalsDone;
 }

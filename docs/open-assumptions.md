@@ -89,7 +89,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   (390 px). Måtten ligger i temafilens sektion 1.27 (desktopvärdena är designens). Avvikelser från designen, alla ägarbeslut 2026-10-13: knappar (en guldknapp,
   "Join the waitlist"), siffror (sanna, se nedan), exempelgruppen ("Sample pack"), footern och funktionsrutnätet (se de följande raderna).
 - **Siffrorna är sanna:** "4 551 km logged · 6 runners · 4 challenges" kommer från `GET /api/public/stats` (landningens enda anrop, ADR 006-addendum 2026-10-13).
-  Ingen uppräkning, inga reservsiffror: laddar visas "—" (aria-busy), vid fel döljs hela raden. "Packs running" visas först när grupperna är fler än en.
+  Ingen uppräkning, inga reservsiffror: laddar visas "—" (aria-busy); vid fel står raden kvar osynlig (aria-hidden, visibility: hidden) med samma höjd, så ingenting flyttas (ADR 006-addendum 2026-10-19, ägarbeslut B). "Packs running" visas först när grupperna är fler än en.
   Svaret cachas i backenden i 5 min (`PUBLIC_STATS_TTL_MS`); klienten speglar tiden i `PUBLIC_STATS_MAX_AGE_MS` (shared) och hämtar en gång per sidvisning.
 - **Exempelgruppen är påhittad och märkt "Example", inte "Live":** kortet heter "Sample pack" och återanvänder den påhittade flocken från `/preview`
   (Anna, Erik, Maria …; bara förnamn). Designens "Wolfpack · week 34", "Göteborgsvarvet", nedräkningen och foten "Next event" är borta. Guldringen och sweepen
@@ -120,7 +120,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   (`enabled: !!user`, även efter SPA-inloggning); utloggad och vid fel gäller `FALLBACK_LEVEL_REQUIREMENTS`. Onboarding-prefetchen gör INGET nätverksanrop utan
   token (onboardingApi kastar utan token och prefetchen sväljer felet). [RÄTTAT efter RUN-110/111: tidigare stod här att appskalet gjorde ETT Supabase-anrop för `level_requirements` även för
   utloggade — frontend har ingen Supabase-klient längre, och gating på `user` är gjord. Migration 040 (RUN-112) tar bort den sista anon-policyn på `level_requirements`; anon läser därefter ingenting.]
-- Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
+- ~~Inget `<title>`/meta per route och ingen statisk rendering av `/`~~ [Inaktuellt sedan RUN-205 och RUN-260: `index.html` och `landing.html` bär samma statiska metadata (title, description, Open Graph, canonical, ikoner, manifest) och `/` förrenderas vid bygget till `landing.html` (ADR 006, addendum 2026-10-19; Caddy-regeln för `/` är påslagen sedan S6, RUN-333). Metadatan är gemensam för hela sajten, inte per route: övriga adresser är inloggade sidor med `index.html`:s head.]
 
 ## Restsidor: Playbook, Settings, Admin, Login (inkrement 11, spår B)
 - **Playbook har nio kapitel (prototypens), inte de gamla sju flikarna.** Strava-fliken är inlagd i "What counts as a run"; Levels-tabellen och Titles
@@ -192,6 +192,10 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 - `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU —
   nya datumformat använder egna månadsnamn (eventsFormat gör rätt; titleFormat
   använder en-GB och är stabil i test men kan skilja mellan miljöer).
+- Stadion-ovalens löparprickar (`TrackLoader`) har ingen negativ marginal, till skillnad från designfilen (`RunQuest Loaders.dc.html`, `marginLeft/marginTop: -dotR`).
+  Avvikelse från designen, medveten: `offset-path` placerar redan prickens mitt på banan (offset-anchor = rutans mitt), så designens marginal räknar av radien en
+  gång för mycket och prickarna hamnar 2-14 px vid sidan om banlinjen vid 192 px (mätt i fyra faser av varvet). Designfilen har samma fel och är orörd. Bevis:
+  `tests/loader-runners.spec.ts` (e2e). Blir fel om designen en dag byter till ett ankare som inte är rutans mitt (`offset-anchor`).
 
 ## Backend-kontraktsfrågor
 Lösta frågor står under Historik längst ned. Öppet och orört: en bakdaterad POST kan kvalificera ett pågående event (POST och Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
@@ -231,6 +235,25 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **News-radens ikonkolumn är 30 px på mobil men övriga rader har 26 px** (spec §5: `--rq-badge-news-icon-w`, "när den bär ett sm-emblem"), så texten på badge-rader börjar 4 px längre in än på övriga rader. Tokenen heter `--rq-news-row-icon-badge-w` (news-vakten läser `--rq-news-*`; badges-vakten läser bara `badges.css`). Desktop 34 px = som övriga rader. Vill ägaren ha utlinjering bör `--rq-news-row-cols` (26 px) höjas till 30 px för alla rader.
 - **Flavor-storleken är `--rq-fs-body`** (15 px mobil, 17 desktop): första `--rq-fs-*`-steget ≥ 14 px som inte är en knappstorlek (`--rq-fs-btn-sm` = 14 px finns men är en knappkonstant).
 - **Skelettet är en loop (`infinite`)** — F8 anger `rqSkel` 1.6 s och det är en laddare som pulserar tills datan kommer. Vakttestet "inget infinite i badges.css" gäller bara emblemreglerna (undantag för `.rq-badge-skel`).
+## Grupper och titlar per grupp (v0.8.0, ADR 012)
+
+- **`onGroupSettingsChanged` loggar bara.** Sömmen i `PUT /api/groups/settings` anropas en gång per effektiv ändring men gör inget utöver att logga. Utskicket till
+  gruppen (Pack News och notis, ägarbeslut F4) kopplas av en senare story, som ska deduplicera på innehåll (groupId + nyckel + från→till), eftersom två
+  samtidiga PUT kan ge meddelanden i omvänd ordning. Blir fel om den storyn dedupar på tid eller på anrop.
+- **Inga gruppnycklar är registrerade i `SETTING_DEFINITIONS`** (ägarbeslut F1: infrastrukturen byggs nu, inte nycklarna). Varje PUT med en nyckel ger 400 och
+  `group_settings` är tom i prod. Blir fel om något räknar med att en gruppinställning har effekt innan första nyckeln är registrerad.
+- **Eventtypen `group_setting_changed` är reserverad men inte i `ACTIVITY_TYPES` eller CHECK-constrainten.** Den story som registrerar första nyckeln lägger typ,
+  CHECK-migration (efter deploy, som 050), klassificering, newsModel och notisslag; ett vakttest fäller bygget om en gruppnyckel registreras utan typen.
+- **Att gå med i en grupp har ingen UI.** `POST /api/groups/join` finns och ger 409 vid aktivt medlemskap, men ingen skärm anropar den (ADR 012 N3). Flera medlemskap,
+  lämna grupp och gruppbyte hör till RUN-95.
+- **JWT:s `group_id` är inaktuell efter join.** Titelrutterna och `GET /api/groups/my` tar gruppen ur token tills ny inloggning (`/groups/my` kontrollerar dessutom
+  färskt att medlemskapet finns i just den gruppen och ger annars 404). Skrivvägarna (`resolveActingGroupForWrite`, gruppinställningar) läser medlemskapet
+  färskt. Blir fel om en användare går med utan att logga in igen: hen ser tomt tills dess.
+- **Låtsasgruppens admin har rollen `admin` i `group_members` men inte `users.is_admin`** (N6, ADR 012 beslut 2.6). `requireAdmin`-rutterna och admin-UI:t visas därför inte för
+  det kontot; `PUT /api/groups/settings` fungerar. Ägaren sätter `is_admin` i staging om en test behöver det. Löses när gruppnära rutter flyttas till rollen (RUN-267/RUN-95).
+- **`activity_log.dedupe_key` saknar grupp.** Nyckeln för `title_taken`, `title_unlocked` och `title_revoked` bär användare, titel, värde och dag men inte gruppen. Med flera
+  medlemskap (RUN-95) kan samma användare, titel, värde och dag i två grupper kollidera och den andra raden tappas. Ofarligt med ett medlemskap per användare i v0.8.0.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).

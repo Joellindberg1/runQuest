@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import postcss from 'postcss';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { isInaccessible } from '@testing-library/dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { formatInt } from '@/features/log/logFormat';
@@ -23,9 +26,24 @@ const items = () => within(screen.getByRole('region', { name: 'RunQuest in numbe
 const plain = (value: number) => formatInt(value).replace(/\s/g, ' ');
 const normalised = (node: HTMLElement) => (node.textContent ?? '').replace(/\s+/g, ' ').trim();
 
+/** jsdom kör ingen CSS (vitest css: false). Sifferradens egna regler läses ur landing.css och läggs in, så att det som döljer raden är den riktiga regeln. */
+// Variabel i stället för literal: Vite skriver om new URL('literal', import.meta.url) till en dev-adress som inte är en filsökväg.
+const LANDING_CSS = '../landing.css';
+function applyStatsStyles() {
+  const sheet = postcss.parse(readFileSync(fileURLToPath(new URL(LANDING_CSS, import.meta.url)), 'utf8'));
+  const rules: string[] = [];
+  sheet.walkRules((rule) => {
+    if (rule.parent?.type === 'root' && rule.selector.includes('.rq-landing-stat')) rules.push(rule.toString());
+  });
+  const style = document.createElement('style');
+  style.textContent = rules.join('\n');
+  document.head.appendChild(style);
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  document.head.querySelectorAll('style').forEach((style) => style.remove());
 });
 
 describe('LandingStats', () => {
@@ -70,5 +88,26 @@ describe('LandingStats', () => {
     expect(container.querySelector('[aria-live]')).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('vid fel står raden kvar, gömd för alla (aria-hidden och visibility: hidden), så att sidan under inte flyttar sig', async () => {
+    applyStatsStyles();
+    const { container } = renderStats(vi.fn(() => Promise.resolve(new Response('{}', { status: 500 }))));
+    const row = container.querySelector('section') as HTMLElement;
+    await waitFor(() => expect(row).toHaveAttribute('aria-hidden', 'true'));
+    expect(row).toHaveStyle({ visibility: 'hidden' });
+    expect(row.querySelectorAll('li')).toHaveLength(3);
+    expect(screen.queryByRole('region', { name: 'RunQuest in numbers' })).toBeNull();
+  });
+
+  it('medan svaret laddas och när det har kommit är raden synlig för alla', async () => {
+    applyStatsStyles();
+    const { container } = renderStats(respondWith({ runners: 6, challenges: 4, km: 4551 }));
+    const row = container.querySelector('section') as HTMLElement;
+    expect(row).not.toHaveAttribute('aria-hidden');
+    expect(row).not.toHaveStyle({ visibility: 'hidden' });
+    await screen.findByText(plain(4551));
+    expect(row).not.toHaveAttribute('aria-hidden');
+    expect(row).not.toHaveStyle({ visibility: 'hidden' });
   });
 });

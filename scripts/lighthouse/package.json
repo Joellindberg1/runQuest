@@ -1,0 +1,9 @@
+{
+  "name": "@runquest/lighthouse-ci-tooling",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Lighthouse CI för landningen (RUN-259). Eget beroendeträd utanför workspaces så att de andra CI-jobbens npm ci och cache inte växer.",
+  "devDependencies": {
+    "@lhci/cli": "0.15.1"
+  }
+}

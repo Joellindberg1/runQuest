@@ -30,6 +30,9 @@ afterEach(() => { vi.clearAllMocks(); });
 
 const G1 = 'group-1';
 const G2 = 'group-2';
+// Riktiga uuid: /send avvisar opponent_id som inte är ett uuid.
+const A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const B_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function use(tables: Record<string, Row[]>) {
   const db = createFakeDb(tables, { autoIds: true, numericIds: ['activity_log'] });
@@ -143,8 +146,8 @@ describe('GET /api/challenges/group-stats', () => {
 describe('POST /api/challenges/send', () => {
   const sendTables = (opponentGroup: string): Record<string, Row[]> => ({
     activity_log: [],
-    user_challenge_tokens: [{ id: 't1', user_id: 'a', tier: 'major', metric: 'km', duration_days: 5, reward_id: 'rw1', sent_at: null, challenge_id: null }],
-    users: [{ id: 'a', current_level: 6, group_id: G1 }, { id: 'b', current_level: 7, group_id: opponentGroup }],
+    user_challenge_tokens: [{ id: 't1', user_id: A_ID, tier: 'major', metric: 'km', duration_days: 5, reward_id: 'rw1', sent_at: null, challenge_id: null }],
+    users: [{ id: A_ID, current_level: 6, group_id: G1 }, { id: B_ID, current_level: 7, group_id: opponentGroup }],
     challenges: [],
     challenge_rewards: [{
       id: 'rw1', winner_type: 'multiplier_days', winner_delta: 0.2, winner_duration: 3,
@@ -153,8 +156,8 @@ describe('POST /api/challenges/send', () => {
   });
   const send = (group_id: string | null) =>
     server.request('POST', '/api/challenges/send', {
-      token: mintToken({ user_id: 'a', group_id }),
-      body: { token_id: 't1', opponent_id: 'b' },
+      token: mintToken({ user_id: A_ID, group_id }),
+      body: { token_id: 't1', opponent_id: B_ID },
     });
 
   it('token utan group_id kan inte utmana någon: 400 och ingen utmaning skapas', async () => {
@@ -173,7 +176,7 @@ describe('POST /api/challenges/send', () => {
     const res = await send(G1);
     expect(res.status).toBe(201);
     expect(tables.challenges).toHaveLength(1);
-    expect(tables.challenges[0]).toMatchObject({ group_id: G1, challenger_id: 'a', opponent_id: 'b' });
+    expect(tables.challenges[0]).toMatchObject({ group_id: G1, challenger_id: A_ID, opponent_id: B_ID });
   });
 
   it('token med group_id och motståndare i en annan grupp: 400, oförändrat', async () => {

@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
+import { track } from '@/shared/analytics/track';
 import { useChallengeActions } from './useChallengeActions';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
+vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 
 function setup() {
   resetFakeBackend();
@@ -35,5 +37,36 @@ describe('utmaningsmutationerna uppdaterar Pack News direkt (klockan väntar int
     handlers.sendChallenge = async () => ({ success: false, error: 'No token' });
     await expect(result.current.send.mutateAsync({ tokenId: 't1', opponentId: 'u2' })).rejects.toThrow('No token');
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('utmaningsmutationerna: webbanalys', () => {
+  beforeEach(() => {
+    vi.mocked(track).mockClear();
+  });
+
+  it('reports challenge-accepted, and nothing about the challenge, when an accept has gone through', async () => {
+    const { result } = setup();
+    handlers.respondToChallenge = async () => ({ success: true });
+    await result.current.accept.mutateAsync('c1');
+    expect(track).toHaveBeenCalledExactlyOnceWith('challenge-accepted');
+  });
+
+  it('reports nothing when the accept fails', async () => {
+    const { result } = setup();
+    handlers.respondToChallenge = async () => ({ success: false, error: 'Too late' });
+    await expect(result.current.accept.mutateAsync('c1')).rejects.toThrow('Too late');
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it('reports nothing for send, decline and withdraw', async () => {
+    const { result } = setup();
+    handlers.sendChallenge = async () => ({ success: true });
+    handlers.respondToChallenge = async () => ({ success: true });
+    handlers.withdrawChallenge = async () => ({ success: true });
+    await result.current.send.mutateAsync({ tokenId: 't1', opponentId: 'u2' });
+    await result.current.decline.mutateAsync('c1');
+    await result.current.withdraw.mutateAsync('c1');
+    expect(track).not.toHaveBeenCalled();
   });
 });

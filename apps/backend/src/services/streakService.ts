@@ -5,6 +5,7 @@ import { recordActivity } from './activityLog.js';
 import {
   buildStreakBrokenDraft, currentStreak, isStreakBroken, longestStreak, stockholmDay, streakBrokenThreshold, streakDayForRun,
 } from '@runquest/shared';
+import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 export interface StreakResult {
   currentStreak: number;
@@ -39,8 +40,8 @@ export class StreakService {
     if (error) {
       // Kastar i stället för att returnera 0/0: anroparna skriver resultatet rakt in i users, och ett läsfel
       // är inte detsamma som "användaren har ingen streak" (RUN-215).
-      logger.error('Error fetching runs:', error);
-      throw new Error(`Failed to fetch runs for streak calculation (user ${userId}): ${error.message}`);
+      logger.error(`Error fetching runs (${errorCode(error)})`);
+      throw errorWithCode(`Failed to fetch runs for streak calculation (user ${userId})`, error);
     }
 
     // Om vi kollar en specifik run, inkludera den i beräkningen (temporärt)
@@ -79,8 +80,8 @@ export class StreakService {
 
     // PGRST116 = användaren finns inte (då finns inget att uppdatera). Andra fel hade tyst släckt streak_broken-loggen.
     if (beforeError && beforeError.code !== 'PGRST116') {
-      logger.error('Error fetching user streak before update:', beforeError);
-      throw new Error(`Failed to fetch current streak (user ${userId}): ${beforeError.message}`);
+      logger.error(`Error fetching user streak before update (${errorCode(beforeError)})`);
+      throw errorWithCode(`Failed to fetch current streak (user ${userId})`, beforeError);
     }
 
     const { error } = await supabase
@@ -93,8 +94,8 @@ export class StreakService {
 
     if (error) {
       // Kastas så att schedulern räknar användaren som misslyckad (och inte loggar streak_broken för en streak som aldrig skrevs).
-      logger.error('Error updating user streak:', error);
-      throw new Error(`Failed to update streak (user ${userId}): ${error.message}`);
+      logger.error(`Error updating user streak (${errorCode(error)})`);
+      throw errorWithCode(`Failed to update streak (user ${userId})`, error);
     }
 
     await this.recordStreakBroken(userId, before?.current_streak, streakResult.currentStreak, before?.group_id);
@@ -121,7 +122,7 @@ export class StreakService {
 
       await recordActivity(buildStreakBrokenDraft(userId, groupId, prevStreak, lastRunDate));
     } catch (e) {
-      logger.error('❌ [StreakService] Failed to record streak_broken:', e);
+      logger.error(`❌ [StreakService] Failed to record streak_broken (${errorCode(e)})`);
     }
   }
 }
