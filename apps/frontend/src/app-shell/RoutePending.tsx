@@ -6,7 +6,7 @@ import './shell-pending.css';
  * Storleken sätts här och inte i TrackLoader, så övriga platser (paneler, knappar, Week/Streaks) behåller sina egna storlekar. Banlinjen och prickarna följer storleken
  * (track-geometry), så ovalen ser likadan ut, bara större.
  */
-const LOADING_VIEW_SIZE = 192;
+export const LOADING_VIEW_SIZE = 192;
 
 /**
  * Appens enda laddningsvy (ADR 006, addendum 2026-10-19, punkt 11): stadion-ovalen mitt på skalets bakgrund. Den visas medan sessionen läses (App.tsx),

@@ -272,7 +272,7 @@ test.describe('a signed-in visitor', () => {
     expectNoBlankFrames(log, script, '/board');
   });
 
-  // Laddaren är tre gånger så stor som förut (192 px bred ruta, lutad -16 grader: omslutande rektangel 217,4 x 167,3 px) och står på exakt samma plats i index.html före
+  // Laddaren är tre gånger så stor som förut (192 px bred ruta, höjd 192 x 0,62 = 119,04 px, lutad -16 grader: omslutande rektangel 192 x cos16 + 119,04 x sin16 = 217,4 px bred och 192 x sin16 + 119,04 x cos16 = 167,3 px hög) och står på exakt samma plats i index.html före
   // JS som i gaten efter React. 320 px är den smalaste mobilen: ovalen ryms utan sidled scroll.
   for (const width of [320, 390, 1440]) {
     test.describe(`at ${width} px`, () => {

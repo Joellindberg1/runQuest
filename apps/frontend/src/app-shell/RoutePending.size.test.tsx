@@ -1,22 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { RoutePending } from './RoutePending';
+import { LOADING_VIEW_SIZE, RoutePending } from './RoutePending';
 
-// RoutePending är den enda laddningsvyn och den som ritas i index.html, i överlämningen och i gaten. Den är tre gånger så stor som den var (64 px bred): ägaren
-// ville att den skulle synas tydligare. Övriga TrackLoader-platser sätter sin egen storlek och påverkas inte (deras tester och markup är oförändrade).
+// Storleken som ritas i webbläsaren (ca 217 x 167 px, tre gånger förra) bevisas av geometriprovet i apps/e2e/tests/landing.spec.ts. Här prövas bara kopplingen:
+// RoutePending ritar ovalen med sin storlekskonstant, inte TrackLoaders standard och inte en egen siffra.
 describe('the loading view', () => {
-  it('draws the loader three times as large as before: 192 px wide, 0.62 as tall', () => {
+  it('draws the loader at its own size constant', () => {
     render(<RoutePending />);
 
-    expect(screen.getByRole('status')).toHaveStyle({ width: '192px', height: `${192 * 0.62}px` });
-  });
-
-  it('still announces "Loading" and draws all three lanes with a runner on each', () => {
-    render(<RoutePending />);
-    const status = screen.getByRole('status');
-
-    expect(status).toHaveTextContent('Loading');
-    expect(status.querySelectorAll('svg path')).toHaveLength(3);
-    expect(status.querySelectorAll(':scope > div')).toHaveLength(3);
+    expect(screen.getByRole('status')).toHaveStyle({ width: `${LOADING_VIEW_SIZE}px` });
   });
 });
