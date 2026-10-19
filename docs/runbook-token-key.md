@@ -190,7 +190,7 @@ rätt databas innan du fortsätter.
    dekrypterar inget, så bevisa också att det går att öppna: en manuell synk lyckas och en webhook-händelse bearbetas. Först då är det
    dags för migrationen (CHECK-constraint, egen `ask`) och sedan S7 (legacy-läsningen bort).
 
-5. **Nödutgång `--decrypt`** (bara om en release måste backas till kod före S2 efter att `--apply` körts; ADR 013 beslut 13.5). Den
+5. **Nödutgång `--decrypt`** (om en release måste backas till kod före S2 och någon rad är krypterad; ADR 013 beslut 13.5). Det gäller redan från deployen av v0.8.0: `stravaTokenStore` skriver alltid krypterat, så varje ny eller förnyad token blir `enc:v1:` även innan backfillens `--apply` körts. Kör alltså dry-run först och se om raderna är fler än noll. Den
    **skriver klartext-tokens till databasen** och kräver därför två saker: `--apply` och den uttryckliga bekräftelsen
    `--confirm-write-plaintext`. Utan dem är `--decrypt` en dry-run:
 

@@ -1,6 +1,6 @@
 -- 052: Supabase-säkerhetsråd (advisors): fast search_path på increment_event_xp, det döda cron-jobbet och pg_net bort,
 -- security_invoker på title_leaderboard_view (RUN-226, säkerhetsgenomgång RUN-96).
--- Datum: 2026-10-18. Kräver ägar-ja per miljö: först staging (supabase-staging), sedan prod. Körs av Lead, aldrig av en builder.
+-- Datum: 2026-10-18. APPLICERAD i staging 2026-10-18 och i prod 2026-10-19 (ägar-ja i chatten). Kräver ägar-ja per miljö: först staging (supabase-staging), sedan prod. Körs av Lead, aldrig av en builder.
 --
 -- SYFTE
 -- Lead körde get_advisors (security) mot prod 2026-10-18. Två WARN som koden själv kan åtgärda, plus ett härdningsbeslut om vyn:

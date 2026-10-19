@@ -1,5 +1,5 @@
 -- 054: group_settings — gles lagring av gruppinställningar, en rad per (grupp, nyckel). ADR 012 beslut 6 (RUN-296, v0.8.0).
--- Datum: 2026-10-18. Kräver ägar-ja per miljö: först staging (supabase-staging), sedan prod. Körs av Lead, aldrig av en builder.
+-- Datum: 2026-10-18. APPLICERAD i staging 2026-10-18 och i prod 2026-10-19 (ägar-ja i chatten). Kräver ägar-ja per miljö: först staging (supabase-staging), sedan prod. Körs av Lead, aldrig av en builder.
 -- (Nummer 054: 053 är group_members, RUN-294, som byggs på en annan gren. Den här filen beror inte på den.)
 --
 -- Bakgrund: gruppens admin ska kunna ändra gruppens inställningar (säsongslängd, XP-regelpaket m.fl. i senare ADR:er). Lagringen
