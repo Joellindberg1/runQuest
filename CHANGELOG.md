@@ -2,7 +2,7 @@
 
 ## v0.8.0 — Titlar per grupp, förrenderad landning, Sentry och Umami (2026-10-19)
 
-Användarversion (minor). What's new-posten i `changelog.json` har ingen `announce` än; ägaren avgör om den ska annonseras (då `"announce": true` och `announce:release`, Prod-steg 7). Releasedatumet sätts till deploydagen om den inte är 2026-10-19. Grundversionen för flera grupper: epic RUN-229 (ADR 012), tokenkrypteringens kod (epic RUN-96, ADR 013; utrullningen RUN-314–316 görs efter deploy), Sentry, Umami, staging med e2e och lasttest, förrendering av landningen (RUN-260, ADR 006 addendum 2026-10-19), säkerhetsfixar och felhygien. Migrationerna 052–057 är redan applicerade och verifierade i prod (Prod-steg 1). RUN-334 (skärpt Lighthouse-budget, S7) är flyttad till v0.8.1.
+Användarversion (minor). What's new-posten i `changelog.json` har ingen `announce` (ägarbeslut 2026-10-19: ingen popup och ingen Pack News-rad). Releasedatumet sätts till deploydagen om den inte är 2026-10-19. Grundversionen för flera grupper: epic RUN-229 (ADR 012), tokenkrypteringens kod (epic RUN-96, ADR 013; utrullningen RUN-314–316 görs efter deploy), Sentry, Umami, staging med e2e och lasttest, förrendering av landningen (RUN-260, ADR 006 addendum 2026-10-19), säkerhetsfixar och felhygien. Migrationerna 052–057 är redan applicerade och verifierade i prod (Prod-steg 1). RUN-334 (skärpt Lighthouse-budget, S7) är flyttad till v0.8.1.
 
 ### Nytt — titlar och inställningar per grupp (RUN-229, ADR 012)
 - Medlemskap med roll (RUN-294, migration 053): tabellen `group_members` (roll `admin` eller `member`, `starts_on`, ett aktivt medlemskap per användare och en admin per grupp) och funktionerna `join_group` och `create_group_with_admin` (bara `service_role`). `users.group_id` är nu en pekare som bara de två funktionerna skriver; ci-guards regel 14 fäller direkta skrivningar i backend. Backfill: en aktiv rad per användare (`starts_on` null = hela historiken), gruppens skapare som admin.
@@ -40,7 +40,7 @@ Användarversion (minor). What's new-posten i `changelog.json` har ingen `announ
 ### Nytt — Umami (RUN-291–293)
 - Sidvisningar (RUN-291): skriptet laddas från koden efter `load`, bara med `VITE_UMAMI_WEBSITE_ID` och aldrig i ett stagingbygge, låst till `www.runquest.dev` och `runquest.dev`. Cookiefritt, Do Not Track respekteras, adressen skickas som routemönster (`/runner/:id`), och bara vitlistade `utm_`-värden följer med på landningen.
 - Egna händelser (RUN-292): en fast lista med åtta händelser i `packages/shared/src/analytics.ts` och en vakt som avvisar allt utanför den. `setting-changed` skickar bara nyckeln, aldrig värdet; `run-logged-manual` är medvetet utelämnad (ingen rundata).
-- Integritetstexten (RUN-293): avsnitten `statistics` (Umami, EU/Frankfurt) och `errors` (Sentry), `DATA_POLICY_VERSION` och därmed `STRAVA_CONSENT_VERSION` = `2026-10-19`. Releasegrinden `RUNQUEST_RELEASE_CHECK=1` fäller om en ägarplatshållare finns kvar.
+- Integritetstexten (RUN-293): avsnitten `statistics` (Umami, EU/Frankfurt) och `errors` (Sentry), `DATA_POLICY_VERSION` och därmed `STRAVA_CONSENT_VERSION` = `2026-10-19.1` (Sentry är inställt på att inte spara IP-adresser; ägaren slog på det 2026-10-19). Releasegrinden `RUNQUEST_RELEASE_CHECK=1` fäller om en ägarplatshållare finns kvar.
 
 ### Nytt — förrenderad landning (RUN-260, ADR 006 addendum 2026-10-19)
 - Två HTML-ingångar (RUN-331): `landing.html` med en lean ingång (`landing-main.tsx`, landningen eager, inloggningsdialogen och `/legal` lazy) och `index.html` för hela appen. `npm run build` kör `scripts/prerender-landing.mjs` efter `vite build`: landningen renderas till `landing.html` och laddningsvyn (`RoutePending`, appens enda laddningsvy) till `#root` i `index.html`. Bygget faller om en markör saknas eller en modul rör `window` vid import.
@@ -48,13 +48,14 @@ Användarversion (minor). What's new-posten i `changelog.json` har ingen `announ
 - Inloggning från landningen är en full sidladdning till appen, med laddningsvyn i stället för en blank sida (ägarbeslut A). En inloggad besökare på `/` skickas vidare av ett sessionstips i `<head>` innan något ritas (RUN-332).
 - Landningen gör inga val på bredd i JS (RUN-329; båda varianterna i HTML, CSS väljer), och sifferraden flyttar inget när talen kommer och behåller sin höjd vid fel (RUN-330, ägarbeslut B).
 - Sidvisningar i lean ingången (RUN-335) utan dubbelräkning vid överlämningen till appen. Väntelistformuläret är `inert` tills landningen hydrerats (RUN-336).
+- Laddningsvyn står kvar vid första öppningen av Board tills topplistan och podiekortens titlar, rank-pilar och badges finns (RUN-337, ägarens fynd i previewn): ingen bildruta med tomt eller halvfyllt podium. Tak 8 s för hela kedjan, släpper vid första fel och när man lämnar Board; senare navigering visar ingen laddare. `users-with-runs` har `staleTime` 10 s (invalideringarna efter runda, utmaning och profilbild gäller som förut).
 - Mätt lokalt (Windows/Edge, `docs/performance.md`): `/` prestanda 0,81 → 0,91, LCP 4 347 → 3 011 ms, JS 237 → 141,6 kB, CSS 42 → 23,7 kB, totalt 428 → 319 kB. Målet 2 500 ms nås inte lokalt; CI-taket sätts i RUN-334 (v0.8.1). Baslinjen är RUN-328.
 
 ### Nytt — staging, e2e och lasttest (RUN-272–274, RUN-289, RUN-290)
 - Stagingskript (RUN-272): `staging:migrate`, `staging:seed-reference`, `staging:seed-group` och `staging:schema-diff`; skriver bara till staging och läser prod bara med `--read-prod` via den skrivskyddade endpointen. `docs/staging.md`.
 - Stagingskydd (RUN-273): `VITE_APP_ENV=staging` ger STAGING-remsan (egen chunk, finns inte i prodbygget), `noindex` i båda HTML-ingångarna och en `robots.txt` som blockerar allt.
 - E2E-rök med Playwright (RUN-290): ny workspace `apps/e2e` och workflowen `e2e-staging.yml` (manuell och nattlig, mot staging, aldrig mot prod, blockerar inte PR:ar). Vakten `scripts/e2e-guard.mjs` vägrar allt utom staging och localhost. `docs/e2e.md`.
-- Lasttest (RUN-289): `scripts/loadtest/` mot stagingbackenden med vakt mot prod, märkta rundor och städning. `docs/loadtest.md`.
+- Lasttest (RUN-289): `scripts/loadtest/` mot stagingbackenden med vakt mot prod, märkta rundor och städning. `docs/loadtest.md`. Inte kört: ägarbeslut 2026-10-19, körs när det finns två eller fler grupper.
 
 ### Nytt — Lighthouse i CI (RUN-259)
 - Jobbet `Lighthouse — prestandabudget` mäter `/` och `/legal` (mobil, 3 körningar, median) mot det byggda `dist/` med Caddy på 127.0.0.1, med API:et både felande och falskt. Budgeten i `scripts/lighthouse/lighthouserc.json` är fäst i `scripts/lighthouse-ci.test.mjs`. Icke-blockerande första veckan (`LIGHTHOUSE_BLOCKING: 'false'`); omslaget står i `docs/release.md`.
@@ -69,7 +70,7 @@ Användarversion (minor). What's new-posten i `changelog.json` har ingen `announ
 - `calculateUserTotals` (RUN-327) skriver ingenting och svarar `false` när läsningen av `users` felar; webhook-workern behandlar det som en misslyckad omräkning och försöker igen.
 - Pack News: `title_taken` kan bära `runner_up_user_id`; nytt notisslag (se låg tvåa).
 - Nya schemalagda jobb: återhämtningen 04:05 Europe/Stockholm och vid start.
-- Integritetstexten och samtyckesversionen är `2026-10-19`. Redan kopplade användare berörs inte; en ny koppling skickar den nya versionen.
+- Integritetstexten och samtyckesversionen är `2026-10-19.1`. Redan kopplade användare berörs inte; en ny koppling skickar den nya versionen.
 - `engines.node` är `>=20.19.0`. Backendens bygge går via `apps/backend/build.mjs` (samma esbuild-inställningar, releasen inbakad).
 - Nya miljövariabler: backend `TOKEN_ENCRYPTION_KEY`, `TOKEN_ENCRYPTION_KEYS_RETIRED` (valfri), `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE` (valfri); frontend (bygget) `VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_UMAMI_WEBSITE_ID` (bara prod), `VITE_APP_ENV` (bara staging, står därför inte i `.env.example`); båda byggena `SENTRY_AUTH_TOKEN`. Se `.env.example`.
 
@@ -87,7 +88,7 @@ Användarversion (minor). What's new-posten i `changelog.json` har ingen `announ
 
 ### Kodhälsa
 - Felhygien (RUN-324, RUN-325): hela backend loggar `errorCode(error)` i stället för felobjekt och `error.message`; kastade fel bär databasens kod men aldrig dess text (`errorWithCode`); ett fel loggas en gång, på fångstället (`GET /titles` gav tre Sentry-händelser, nu en). `errorCode` ger orsakens kod vid nätverksfel (supabase-js ger `code: ''`). Vakten `logHygiene.test.ts` läser källan som syntaxträd. Id ur URL och body kontrolleras med `isUuid`. Ogiltig JWT loggas som `warn`.
-- Nya runbooks: `docs/runbook-backup.md` (RUN-286, med skrivskyddad jämförelse-SQL och CI-vakt; övningen görs i slutet av versionen), `docs/runbook-token-key.md`, `docs/performance.md`, `docs/e2e.md`, `docs/loadtest.md`, `docs/staging.md`.
+- Nya runbooks: `docs/runbook-backup.md` (RUN-286, med skrivskyddad jämförelse-SQL och CI-vakt; återställningsövningen gjord 2026-10-19: lyckades, ca 5 minuter till ett nytt projekt, dagliga backuper 03:30 UTC i 8 dagar, PITR av), `docs/runbook-token-key.md`, `docs/performance.md`, `docs/e2e.md`, `docs/loadtest.md`, `docs/staging.md`.
 - ADR 012 och 013 (godkända 2026-10-17) med noter, ADR 006 addendum 2026-10-19, ADR 010 addendum om Sentry och källkartor, `docs/permissions.md`.
 - ci-guards regel 11–16 och CI-steg för Sentry-bygget, backup-SQL:en, lasttestet, Lighthouse-verktyget och e2e-vakten.
 
@@ -95,18 +96,19 @@ Användarversion (minor). What's new-posten i `changelog.json` har ingen `announ
 Ett ägar-ja per migration, per skrivande skript och per Railway-variabel (`docs/permissions.md`). Hemliga värden klistras aldrig i chatten. Läge före start: v0.7.1 i prod, 1 grupp (Wolfpack), 6 användare.
 1. **KÖRT FÖRE DEPLOY 2026-10-19.** Migrationerna 052, 053, 054, 055, 056 och 057 är applicerade och verifierade i prod (bevisfrågorna i filhuvudena, `list_migrations`, `get_advisors`), efter staging. 055 med ägarbeslutet att exakt lika rader får byta plats (The Hamster). Alla är bakåtkompatibla med v0.7.1-koden (055:s avsnitt BAKÅTKOMPATIBILITET; 053:s pekare och 057 som gammal kod inte känner till). 051 är i prod sedan 2026-10-17.
 2. **KÖRT FÖRE DEPLOY 2026-10-19.** Ägaren har satt `TOKEN_ENCRYPTION_KEY` (nyckel-id `prod-1`), Sentry-DSN och Sentry-miljövariablerna samt `SENTRY_AUTH_TOKEN` i Railway prod. v0.7.1 ignorerar dem.
-3. **Före merge, ägar-ja:** `VITE_UMAMI_WEBSITE_ID` = `f69b618e-a134-4cd9-af69-d4479c418de8` (inte hemligt) som byggvariabel på `runquest-frontend` i prod. v0.7.1 ignorerar den; v0.8.0-bygget bakar in den.
+3. **KÖRT FÖRE MERGE 2026-10-19 (ägar-ja).** `VITE_UMAMI_WEBSITE_ID` = `f69b618e-a134-4cd9-af69-d4479c418de8` (inte hemligt) som byggvariabel på `runquest-frontend` i prod. v0.7.1 ignorerar den; v0.8.0-bygget bakar in den.
 4. PR release/v0.8.0 → main, grön CI (Backend, Shared och Frontend; titta på Lighthouse-sammanfattningen), merge (= deploy). Vänta tills båda tjänsterna är klara. Därefter rök:
    - backend `GET /health` 200, och startloggen visar `🔐 Strava token encryption on: active key prod-1, 0 retired key(s)` och `🛰️ Sentry on (environment: production)`, inget `🚨 KRITISKT` med `token_key`;
    - `/` ger den förrenderade landningen (`landing-title` i HTML:en) med `Cache-Control: no-cache`; `//` och `/board` ger laddningsvyn (`rq-shell__pending`); `/landing` ger 307 till `/`; `/legal` laddar;
    - Umami-scriptet (`cloud.umami.is/script.js`) laddas på www, utan cookies och lagring (kontrollen i `docs/release.md`, "Webbanalys");
    - `GET /api/groups/settings` ger 401 utan token och gruppens värden inloggad;
    - titlar per grupp: `/titles` och Runner card visar samma innehavare som före deployen;
+   - inloggad: Board visas först när podiet är helt ifyllt (laddaren står kvar till dess, RUN-337);
    - Sentry i frontend: frontendens JS-chunkar innehåller `ingest.de.sentry.io` (byggvariablerna `VITE_SENTRY_DSN` och `VITE_SENTRY_ENVIRONMENT` är satta på `runquest-frontend`; saknas de är frontend-Sentry tyst av). Källkartsprovet `sentry:test:built` (`docs/release.md`, "Källkartor till Sentry") görs mot det bygge som laddade upp kartorna, inte mot en lokal `dist`;
    - Sentry-alertregeln för kritiska larm skapas i projektet `runquest-backend` enligt `docs/release.md` ("Sentry-alertregeln för kritiska larm": `alert:critical`, mejl till ägaren, varje händelse) och provas en gång, så att ett `🚨 KRITISKT` med `source:token_key` når ägaren.
 5. Kör workflowen `e2e-staging.yml` (manuellt). Den finns på `main` först nu och kunde därför inte köras före releasen.
 6. Prod-delen av RUN-307: konsistenskontrollen från 053 (inga avvikelser mellan `users.group_id` och aktivt medlemskap) och release-röken enligt `docs/release.md` avsnitt 5. Ingen testgrupp i prod.
-7. `announce:release --version=0.8.0` (dry-run, sedan `--apply` med ägar-ja), bara om posten i `changelog.json` har fått `"announce": true`.
+7. Ingen `announce:release` (ägarbeslut 2026-10-19: ingen popup).
 8. Tagg `v0.8.0` på merge-commiten.
 9. Peka om stagingtjänsterna till `integration/v0.8.1`.
 10. Docs-PR "live" (`docs/release.md` steg 8): STATE och CHANGELOG med deploydatum och utfall per steg.
@@ -115,7 +117,6 @@ Senare, enligt ägarens beslut (inte en del av deployen):
 - Tokenutrullningen RUN-314–316: några dygn utan `token_unreadable`, därefter `backfill:strava-token-encryption` dry-run → ägar-ja → `--apply`, verifiering (`plaintext_rows: 0`), CHECK-migrationen och borttagen klartextläsning (ADR 013 beslut 13, `docs/runbook-token-key.md`).
 - Umami-trattarna (ägaren i Umami-panelen, `docs/release.md`).
 - RUN-270 (Strava-rök del B mot riktig Strava).
-- Backupövningen RUN-286 i slutet av versionen.
 - Valfri Postgres-uppgradering.
 
 ### Rollback
