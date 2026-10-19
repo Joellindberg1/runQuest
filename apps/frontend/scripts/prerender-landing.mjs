@@ -3,6 +3,8 @@
 //   - landing.html:  <!--app-session-hint--> i <head>         ->  sessionstipset (punkt 4): ett litet inline-skript som skickar en inloggad besökare vidare till appen
 //                    innan första ritning. Texten kommer ur landing-entry/sessionHint.ts, aldrig handskriven i HTML.
 //   - index.html:    <div id="root"><!--app-loader--></div>   ->  appens laddningsvy (RoutePending), så en sidladdning aldrig visar en tom sida
+//   - index.html:    <!--app-loader-phase--> i <head>         ->  ett litet inline-skript som lägger laddarens prickar på klockan (shared/components/loaders/runnerPhase.ts). Det står i
+//                    head före stilmallen och väntar därför inte på den, så laddaren finns i DOM:en lika tidigt som förut.
 //
 // Ingen webbläsare och inget nytt beroende: landing-ssr.tsx byggs med `vite build --ssr` till en tillfällig katalog UTANFÖR dist/, importeras en gång,
 // anropas och raderas. Inget serverkod når dist/ och därmed inte produktion. Bygget faller (kastar) om en markör saknas eller inte ligger i #root, om en
@@ -16,6 +18,7 @@ import { build } from 'vite';
 export const LANDING_MARKER = '<!--app-landing-->';
 export const LOADER_MARKER = '<!--app-loader-->';
 export const SESSION_HINT_MARKER = '<!--app-session-hint-->';
+export const LOADER_PHASE_MARKER = '<!--app-loader-phase-->';
 
 const DEFAULT_SSR_ENTRY = 'src/landing-ssr.tsx';
 const SSR_BUNDLE = 'landing-ssr.mjs';
@@ -30,17 +33,17 @@ function assertMarker(html, marker, file) {
   }
 }
 
-/** Sessionstipsets markör ska stå exakt en gång och i <head>: ett tips i kroppen körs först efter att landningen målats. */
-function assertHintMarker(html, file) {
-  const occurrences = html.split(SESSION_HINT_MARKER).length - 1;
+/** Ett skripts markör ska stå exakt en gång och i <head>: ett skript i kroppen körs först efter att sidan målats (sessionstipset) eller väntar på stilmallen (prickarnas fas). */
+function assertHeadMarker(html, marker, file) {
+  const occurrences = html.split(marker).length - 1;
   const head = /<head[\s>][\s\S]*?<\/head>/.exec(html)?.[0] ?? '';
-  if (occurrences !== 1 || head.split(SESSION_HINT_MARKER).length - 1 !== 1) {
-    throw new Error(`${file}: förväntade exakt en ${SESSION_HINT_MARKER} och den ska stå i <head> (före stilar och skript), hittade ${occurrences} (se ADR 006, addendum 2026-10-19, punkt 4)`);
+  if (occurrences !== 1 || head.split(marker).length - 1 !== 1) {
+    throw new Error(`${file}: förväntade exakt en ${marker} och den ska stå i <head> (före stilar och skript), hittade ${occurrences} (se ADR 006, addendum 2026-10-19, punkt 4 och 11)`);
   }
 }
 
 const fill = (html, marker, markup) => html.replace(rootWith(marker), () => rootWith(markup));
-const fillHint = (html, script) => html.replace(SESSION_HINT_MARKER, () => `<script>${script}</script>`);
+const fillScript = (html, marker, script) => html.replace(marker, () => `<script>${script}</script>`);
 
 /** Läget ur kommandoraden (`--mode x`, `--mode=x`, `-m x`), samma flaggor som `vite build`; undefined om inget anges. */
 export function modeFromArgs(argv) {
@@ -63,8 +66,9 @@ export async function prerenderLanding({ root, distDir, ssrEntry = DEFAULT_SSR_E
   const landingHtml = readFileSync(landingPath, 'utf8');
   const indexHtml = readFileSync(indexPath, 'utf8');
   assertMarker(landingHtml, LANDING_MARKER, 'landing.html');
-  assertHintMarker(landingHtml, 'landing.html');
+  assertHeadMarker(landingHtml, SESSION_HINT_MARKER, 'landing.html');
   assertMarker(indexHtml, LOADER_MARKER, 'index.html');
+  assertHeadMarker(indexHtml, LOADER_PHASE_MARKER, 'index.html');
 
   // Inne i node_modules/.cache: bundlen importerar react, react-router-dom m.fl. som externa paket och hittar dem uppåt från sin egen katalog.
   const cacheDir = join(root, 'node_modules', '.cache');
@@ -88,8 +92,9 @@ export async function prerenderLanding({ root, distDir, ssrEntry = DEFAULT_SSR_E
     const landingMarkup = server.renderLanding();
     const loaderMarkup = server.renderLoader();
     const sessionHint = server.renderSessionHint();
-    writeFileSync(landingPath, fillHint(fill(landingHtml, LANDING_MARKER, landingMarkup), sessionHint));
-    writeFileSync(indexPath, fill(indexHtml, LOADER_MARKER, loaderMarkup));
+    const loaderPhase = server.renderLoaderPhase();
+    writeFileSync(landingPath, fillScript(fill(landingHtml, LANDING_MARKER, landingMarkup), SESSION_HINT_MARKER, sessionHint));
+    writeFileSync(indexPath, fillScript(fill(indexHtml, LOADER_MARKER, loaderMarkup), LOADER_PHASE_MARKER, loaderPhase));
   } finally {
     rmSync(workDir, { recursive: true, force: true });
   }

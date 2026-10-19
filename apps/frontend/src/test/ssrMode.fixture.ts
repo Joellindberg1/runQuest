@@ -3,3 +3,4 @@
 export const renderLanding = (): string => import.meta.env.MODE;
 export const renderLoader = (): string => '';
 export const renderSessionHint = (): string => 'void 0';
+export const renderLoaderPhase = (): string => 'void 0';

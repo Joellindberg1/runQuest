@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { TrackLoader } from "./TrackLoader";
+import { RUNNER_PHASE_SELECTOR } from "./runnerPhase";
 import { ovalPath, trackLaneCount } from "./track-geometry";
 
 function renderTrack(size: number) {
@@ -129,5 +132,41 @@ describe("ovalPath", () => {
 
   it("pulls inner lanes in horizontally by 0.4x and vertically by the inset", () => {
     expect(ovalPath(10)).toBe("M30 17 H70 A14 14 0 0 1 70 45 H30 A14 14 0 0 1 30 17 Z");
+  });
+});
+
+describe("TrackLoader phase", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(Element.prototype, "getAnimations");
+    vi.restoreAllMocks();
+  });
+
+  function stubOrbit() {
+    const orbit = { animationName: "rqOrbit", startTime: null as number | null, effect: { getComputedTiming: () => ({ duration: 2400, iterations: Infinity }) } };
+    Object.defineProperty(Element.prototype, "getAnimations", { configurable: true, value: () => [orbit] });
+    return orbit;
+  }
+
+  it("puts its runners on the document clock when it mounts, so a loader that replaces another continues where it was", () => {
+    const orbit = stubOrbit();
+
+    render(<TrackLoader size={192} />);
+
+    expect(orbit.startTime).toBe(-(performance.timeOrigin % 2400));
+    expect(screen.getByRole("status")).toSatisfy((loader: Element) => loader.matches(RUNNER_PHASE_SELECTOR));
+  });
+
+  it("hydrates the pre-rendered markup without a warning and then puts the runners on the clock", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(<TrackLoader size={192} />);
+    const orbit = stubOrbit();
+
+    act(() => {
+      hydrateRoot(container, <TrackLoader size={192} />);
+    });
+
+    expect(errors).not.toHaveBeenCalled();
+    expect(orbit.startTime).toBe(-(performance.timeOrigin % 2400));
   });
 });
