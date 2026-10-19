@@ -131,3 +131,43 @@ describe('unlockText', () => {
     expect(unlockText('lastRunOfWeek', 1)).toBeNull();
   });
 });
+
+// Referensen är formlerna som låg inbäddade i formatTitleValue före samlingen i shared/titleMetrics. Värdena är numeric(15,4) i
+// databasen, så svepet prövar både orunda värden och värden avrundade till fyra decimaler.
+describe('visningen av kodade värden är oförändrad mot de gamla formlerna', () => {
+  const clock = (value: number, reference: number) => {
+    if (value < -100) return '—';
+    const mins = Math.round(reference - value);
+    return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}m`;
+  };
+  const stored = (value: number) => Number(value.toFixed(4));
+
+  it('maraton och halvmaraton: varje heltalssekund upp till referenstiden', () => {
+    for (let seconds = 1; seconds <= 43200; seconds++) {
+      for (const raw of [720 - seconds / 60, stored(720 - seconds / 60)]) {
+        expect(formatTitleValue('fastestMarathon', raw)).toBe(clock(raw, 720));
+      }
+      for (const raw of [360 - seconds / 60, stored(360 - seconds / 60)]) {
+        expect(formatTitleValue('fastestHalfMarathon', raw)).toBe(clock(raw, 360));
+      }
+    }
+  });
+
+  it('5 km: varje heltalssekund upp till referenstiden', () => {
+    for (let seconds = 1; seconds <= 9600; seconds++) {
+      for (const raw of [60 - seconds / 60, stored(60 - seconds / 60)]) {
+        const total = Math.round((60 - raw) * 60);
+        expect(formatTitleValue('fastest5km', raw)).toBe(`${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`);
+      }
+    }
+  });
+
+  it('spridning: varje tiondels sekund per km', () => {
+    for (let tenths = 1; tenths <= 3000; tenths++) {
+      for (const raw of [10000 / (tenths / 10), stored(10000 / (tenths / 10))]) {
+        expect(formatTitleValue('lowestPaceStdDev', raw)).toBe(`${(10000 / raw).toFixed(1)}s/km std`);
+        expect(formatTitleValue('avgPaceStdDev', raw)).toBe(`${(10000 / raw).toFixed(1)}s/km std`);
+      }
+    }
+  });
+});

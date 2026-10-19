@@ -1,6 +1,6 @@
 import type { Run, User } from '@runquest/types';
 import type { ChallengeHistoryItem, HeadToHeadResponse, XpConfigResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
-import { calculateStreakMultiplier, dayOfWeek, stockholmClock } from '@runquest/shared';
+import { MARATHON_DISTANCE_KM, calculateStreakMultiplier, dayOfWeek, hasDoubleRunGap, stockholmClock } from '@runquest/shared';
 import { formatDecimal, formatInt } from '@/features/leaderboard/boardFormat';
 import { buildStreakRow, formatMultiplier } from '@/features/leaderboard/streakModel';
 import { hasLinearGap, resolveGenderedTitle, titleValueText } from '@/features/titles/titleFormat';
@@ -8,10 +8,6 @@ import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
 // Runner cardens vymodeller: allt kortet visar, härlett ur users-with-runs + titlar + head-to-head + XP-config.
 // Ren logik — ingen DOM, ingen datahämtning. `now` skickas alltid in så att tiderna går att testa.
-
-export const MARATHON_KM = 42.195;
-/** Två rundor räknas som ett dubbelpass först när de startat minst så här långt ifrån varandra. */
-export const DOUBLE_RUN_MIN_GAP_MS = 4 * 60 * 60 * 1000;
 
 export type Tone = 'default' | 'gold' | 'up' | 'down' | 'muted';
 
@@ -132,7 +128,7 @@ export function buildStreakRows(user: User, now: Date, ladder: LadderStep[]): St
 }
 
 export function marathonEquivalents(km: number): number {
-  return Math.floor(km / MARATHON_KM);
+  return Math.floor(km / MARATHON_DISTANCE_KM);
 }
 
 /**
@@ -153,9 +149,8 @@ export function countDoubleRunDays(runs: Pick<Run, 'date' | 'start_time'>[]): nu
 
   let days = 0;
   for (const starts of startsByDay.values()) {
-    if (starts.length < 2) continue;
-    // Är någon start minst 4 h från den tidigaste har det funnits ett dubbelpass den dagen.
-    if (Math.max(...starts) - Math.min(...starts) >= DOUBLE_RUN_MIN_GAP_MS) days += 1;
+    // Fönstret (4 h) är shared/titleMetrics, samma som titeln The Double Trouble använder.
+    if (hasDoubleRunGap(starts)) days += 1;
   }
   return days;
 }

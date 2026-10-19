@@ -125,7 +125,6 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
       'apps/backend/src/routes/challenges.ts': ['groupNextMidnight'],
       'apps/frontend/src/app-shell/rightNowItems.ts': ['addDays', 'stockholmWallClockToInstant'],
       'apps/backend/src/titleEngines/maxRunsOneWeek.ts': ['mondayOf'],
-      'apps/backend/src/titleEngines/weekendAvg.ts': ['dayOfWeek', 'mondayOf'],
       'apps/backend/src/titleEngines/earlyRunCount.ts': ['wallClockMinutes'],
       'apps/frontend/src/features/leaderboard/boardFormat.ts': ['daysBetween', 'stockholmClock'],
       'apps/frontend/src/features/news/newsModel.ts': ['daysBetween', 'mondayOf', 'stockholmClock'],
