@@ -19,10 +19,10 @@ import {
   type ShowcaseApiResponse,
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { isUuid } from '../utils/uuid.js';
 
 const router = express.Router();
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /**
  * Serienas ordning i koden = visningsordningen i svaret (radordningen i databasen är ointressant).
  * Byggs vid första anropet, inte vid import: flera route-tester ersätter @runquest/shared med en
@@ -52,7 +52,7 @@ router.get('/user/:userId', authenticateJWT, async (req, res): Promise<void> => 
   try {
     const me = req.user!.user_id;
     const targetId = req.params.userId;
-    if (!UUID_RE.test(targetId)) { res.status(400).json({ error: 'userId must be a valid uuid' }); return; }
+    if (!isUuid(targetId)) { res.status(400).json({ error: 'userId must be a valid uuid' }); return; }
 
     // Samma svar för "finns inte" och "annan grupp".
     const notFound = () => res.status(404).json({ error: 'User not found' });

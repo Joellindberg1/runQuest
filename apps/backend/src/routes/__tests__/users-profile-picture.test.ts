@@ -19,7 +19,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { getSupabaseClient } from '../../config/database.js';
 import { createApp } from '../../app.js';
-import { MAX_FILE_SIZE } from '../users.js';
+import { PROFILE_PICTURE_MAX_BYTES } from '@runquest/shared';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken } from './helpers/http.js';
 
@@ -116,9 +116,9 @@ describe('POST /api/users/profile-picture', () => {
 
   it('accepts a file of exactly the size limit and rejects one byte more with 413', async () => {
     const { uploads } = use();
-    expect((await upload(image(MAX_FILE_SIZE), 'image/png')).status).toBe(200);
+    expect((await upload(image(PROFILE_PICTURE_MAX_BYTES), 'image/png')).status).toBe(200);
     expect(uploads).toHaveLength(1);
-    const over = await upload(image(MAX_FILE_SIZE + 1), 'image/png');
+    const over = await upload(image(PROFILE_PICTURE_MAX_BYTES + 1), 'image/png');
     expect(over.status).toBe(413);
     expect(over.body).toEqual({ error: 'Request body too large' });
     expect(uploads).toHaveLength(1);

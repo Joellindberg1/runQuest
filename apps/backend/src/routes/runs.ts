@@ -6,13 +6,13 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import {
-  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, MANUAL_RUN_MIN_DISTANCE_KM,
+  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, MIN_RUN_DATE_LABEL, isCalendarDay,
   type AdminSettings, type StreakMultiplier, type BoostSpec, type PreviousRunDay,
 } from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import { isIsoCalendarDate, toStockholmDate, todayStockholm } from '../utils/dateUtils.js';
+import { toStockholmDate, todayStockholm } from '../utils/dateUtils.js';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../utils/idempotencyKey.js';
 import type { GroupRunHistoryResponse } from '@runquest/shared';
 
@@ -261,9 +261,6 @@ function toRunDay(date: string): string {
   return isDateOnly(date) ? date : toStockholmDate(new Date(date).toISOString());
 }
 
-/** Äldsta tillåtna rundedatum (kalenderdag). */
-const MIN_RUN_DAY = '2025-06-01';
-
 /**
  * Gemensam indatavalidering för POST och PUT (bugg #8: PUT saknade POST:ens
  * regler). Returnerar felmeddelande eller null + parsad distans.
@@ -282,9 +279,9 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
     const runDate = new Date(date);
     if (isNaN(runDate.getTime())) return { error: 'Invalid date', distanceNum };
     // new Date('2026-02-30') rullar över till 2 mars — en ren dag måste vara en riktig kalenderdag.
-    if (isDateOnly(date) && !isIsoCalendarDate(date)) return { error: 'Invalid date', distanceNum };
+    if (isDateOnly(date) && !isCalendarDay(date)) return { error: 'Invalid date', distanceNum };
     const runDay = toRunDay(date);
-    if (runDay < MIN_RUN_DAY) return { error: 'Cannot log runs before June 1, 2025', distanceNum };
+    if (runDay < MIN_RUN_DATE) return { error: `Cannot log runs before ${MIN_RUN_DATE_LABEL}`, distanceNum };
     if (runDay > todayStockholm()) return { error: 'Cannot log runs for future dates', distanceNum };
   }
   return { error: null, distanceNum };

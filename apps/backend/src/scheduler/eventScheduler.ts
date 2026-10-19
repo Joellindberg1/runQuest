@@ -1,7 +1,7 @@
 // 📅 Event Scheduler
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
-import { addDays, stockholmWallClockToInstant } from '@runquest/shared';
+import { STOCKHOLM_TZ, addDays, stockholmWallClockToInstant } from '@runquest/shared';
 import { tomorrowStockholm, todayStockholm } from '../utils/dateUtils.js';
 import {
   maybeCreateEvent,
@@ -230,7 +230,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] Daily participation draw error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Fredag + Lördag 22:00 Stockholm — Hangover Run (20% spawn chance)
   cron.schedule('0 22 * * 5,6', async () => {
@@ -240,7 +240,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] Hangover Run draw error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Torsdag 18:00 Stockholm — 5K Friday (30% spawn chance)
   cron.schedule('0 18 * * 4', async () => {
@@ -250,7 +250,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] 5K Friday draw error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Lördag 20:00 Stockholm — Weekly km + Weekly elevation (deterministisk)
   cron.schedule('0 20 * * 6', async () => {
@@ -260,7 +260,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] Weekly competition error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Måndag 00:05 Stockholm — alltid strikt efter weekly events ends_at (sön 23:59
   // Stockholm). settleCompetitionEvents settlar bara events vars ends_at passerat.
@@ -271,7 +271,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] Competition settlement error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Var 5:e minut — aktiverar schemalagda events + settlar utgångna
   cron.schedule('*/5 * * * *', async () => {

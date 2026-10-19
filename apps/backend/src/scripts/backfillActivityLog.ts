@@ -30,7 +30,7 @@
 import { pathToFileURL } from 'node:url';
 import { getSupabaseClient } from '../config/database.js';
 import { ACTIVITY_LOG_TABLE, toActivityRow } from '../services/activityLog.js';
-import { isIsoCalendarDate, todayStockholm } from '../utils/dateUtils.js';
+import { todayStockholm } from '../utils/dateUtils.js';
 import { supabaseHost } from './lib/supabaseHost.js';
 import {
   ACTIVITY_TYPES,
@@ -43,6 +43,7 @@ import {
   buildXpLedger,
   defaultSinceDay,
   filterSince,
+  isCalendarDay,
   sortChronologically,
   streakBrokenThreshold,
   type ActivityDraft,
@@ -268,7 +269,7 @@ export function parseArgs(argv: string[], today: string = todayStockholm()): Bac
     if (arg === '--apply') options.apply = true;
     else if (arg.startsWith('--since=')) {
       const since = arg.slice('--since='.length);
-      if (!isIsoCalendarDate(since)) throw new Error(`--since must be a date YYYY-MM-DD (got "${since}")`);
+      if (!isCalendarDay(since)) throw new Error(`--since must be a date YYYY-MM-DD (got "${since}")`);
       options.since = since;
     } else if (arg.startsWith('--group=')) {
       const group = arg.slice('--group='.length).trim();
