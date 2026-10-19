@@ -5,7 +5,11 @@ import { waitForStylesApplied } from './stylesApplied';
 
 /** Hur långt en prickes mitt ligger från sin banlinje i en given fas av varvet. */
 export interface RunnerDeviation {
-  /** Fasen av varvet, 0 till 1 (andel av prickens varvtid). */
+  /**
+   * Animationens egen tid, 0 till 1 (andel av prickens varvtid), alltså `currentTime / duration`. Det är inte prickens plats på banan: prickarna har negativ `animationDelay`
+   * (TrackLoader: -i * 0.7 s för prick i), som skjuter varje prick fram ett eget stycke av varvet, så platsen är fasen plus den förskjutningen (modulo ett varv).
+   * Mätningen bryr sig inte, eftersom varje prick jämförs med sin egen banlinje i vilket läge den än står; fasen sprider bara proverna över raksträckor och kurvor.
+   */
   phase: number;
   /** Banan, 0 = yttersta. */
   lane: number;
@@ -13,7 +17,7 @@ export interface RunnerDeviation {
   deviationPx: number;
 }
 
-/** Fyra faser som sprider prickarna över raksträckor och kurvor. */
+/** Fyra faser (animationstid, se `RunnerDeviation.phase`) som sprider prickarna över raksträckor och kurvor; prickarnas negativa `animationDelay` förskjuter dem dessutom åt olika håll. */
 export const LAP_PHASES = [0, 0.25, 0.5, 0.75] as const;
 
 /**

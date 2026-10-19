@@ -292,6 +292,14 @@ export default tseslint.config(
     },
   },
 
+  // Testerna ska ge samma resultat oavsett var vitest startas (i appen eller från repo-roten med --root): sökvägar räknas från filen (import.meta.url), aldrig från arbetskatalogen.
+  {
+    files: ["**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-properties": ["error", { object: "process", property: "cwd", message: "Läs filer relativt testfilen (new URL('…', import.meta.url)), inte relativt arbetskatalogen." }],
+    },
+  },
+
   // Gränser för all produktionskod: lazy-sidorna och changelog.json (changelogData.ts får läsa JSON-filen).
   {
     files: ["src/**/*.{ts,tsx}"],

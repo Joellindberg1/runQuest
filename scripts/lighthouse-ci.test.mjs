@@ -3,7 +3,7 @@
 // beroenden, före npm ci); frontend-jobbet kör inte scripts/*.test.mjs som helhet.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -232,6 +232,63 @@ describe('run.sh guards', () => {
     } finally {
       busy.kill();
     }
+  });
+});
+
+// En Caddy som bara finns till för att skriptet ska nå sidhämtningarna: den svarar på /health och låter / eller /legal fela, så felmeddelandet kan provas utan riktig Caddy eller lhci.
+describe('run.sh when a served page cannot be fetched', () => {
+  const repoRoot = join(here, '..');
+  const posix = (path) => path.replaceAll('\\', '/');
+  let work;
+  let dist;
+  before(() => {
+    work = mkdtempSync(join(tmpdir(), 'lh-fetch-'));
+    dist = join(work, 'dist');
+    mkdirSync(dist);
+    writeFileSync(join(dist, 'index.html'), '<!doctype html>');
+    writeFileSync(join(dist, 'landing.html'), '<!doctype html>');
+    // run.sh hittar lhci och sina grannar via sin egen katalog, så en kopia i work/lighthouse får en låtsas-lhci utan att repots node_modules behövs.
+    mkdirSync(join(work, 'lighthouse', 'node_modules', '.bin'), { recursive: true });
+    copyFileSync(join(repoRoot, 'scripts', 'lighthouse', 'run.sh'), join(work, 'lighthouse', 'run.sh'));
+    writeFileSync(join(work, 'lighthouse', 'node_modules', '.bin', 'lhci'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(work, 'lighthouse', 'node_modules', '.bin', 'lhci'), 0o755);
+    copyFileSync(join(repoRoot, 'Caddyfile'), join(work, 'Caddyfile'));
+    writeFileSync(
+      join(work, 'fake-server.mjs'),
+      `import { createServer } from 'node:http';
+const pages = { '/health': 'ok', '/': '<h1 id="landing-title">x</h1>', '/legal': '<div class="rq-shell__pending"></div>' };
+createServer((req, res) => {
+  const failing = { root: '/', legal: '/legal' }[process.env.FAKE_FAILING_PAGE] === req.url;
+  res.statusCode = failing || !(req.url in pages) ? 500 : 200;
+  res.end(pages[req.url] ?? 'nope');
+}).listen(Number(process.env.PORT), '127.0.0.1');
+`,
+    );
+    writeFileSync(
+      join(work, 'fake-caddy'),
+      `#!/usr/bin/env bash\nif [[ "$1" == "validate" ]]; then exit 0; fi\nexec "${posix(process.execPath)}" "${posix(join(work, 'fake-server.mjs'))}"\n`,
+    );
+    chmodSync(join(work, 'fake-caddy'), 0o755);
+  });
+  after(() => rmSync(work, { recursive: true, force: true }));
+
+  const run = (failingPage) =>
+    spawnSync('bash', ['lighthouse/run.sh'], {
+      cwd: work,
+      encoding: 'utf8',
+      env: { ...process.env, STATS_MODE: 'error', DIST_DIR: posix(dist), CADDY_BIN: posix(join(work, 'fake-caddy')), FAKE_FAILING_PAGE: failingPage },
+    });
+
+  it('says that / could not be fetched instead of exiting without a word', () => {
+    const res = run('root');
+    assert.equal(res.status, 1, res.stdout + res.stderr);
+    assert.match(res.stdout, /FAIL .*\/ .*(svarade inte|kunde inte hämtas)/);
+  });
+
+  it('says that /legal could not be fetched instead of exiting without a word', () => {
+    const res = run('legal');
+    assert.equal(res.status, 1, res.stdout + res.stderr);
+    assert.match(res.stdout, /FAIL .*\/legal .*(svarade inte|kunde inte hämtas)/);
   });
 });
 

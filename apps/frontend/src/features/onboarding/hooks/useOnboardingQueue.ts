@@ -2,6 +2,7 @@
 // Priority order: onboarding_v1 → patch notes → feature tours
 // Only one item is surfaced at a time. Next item appears after markSeen.
 import { useQuery } from '@tanstack/react-query';
+import { FEATURE_TOUR_SLUGS, ONBOARDING_TOUR_SLUG } from '@runquest/shared';
 import { ONBOARDING_QUERY_KEY, ONBOARDING_STALE_TIME } from './useOnboarding';
 import { fetchOnboardingStatus } from '../onboardingApi';
 import { changelog } from '@/features/changelog/changelogData';
@@ -13,7 +14,7 @@ function buildQueue(): string[] {
   const queue: string[] = [];
 
   // 1. First-login onboarding tour
-  queue.push('onboarding_v1');
+  queue.push(ONBOARDING_TOUR_SLUG);
 
   // 2. "What's new" — the changelog.json posts marked announce: true, most recent first
   for (const note of announcedNotes(changelog.releases)) {
@@ -23,12 +24,7 @@ function buildQueue(): string[] {
   // 3. Feature tours — handled by FeatureTour on each page, listed here
   //    so useOnboardingQueue knows they exist and won't show something else
   //    while a page tour is active. Pages check currentItem themselves.
-  queue.push('tour_leaderboard_v2');
-  queue.push('tour_titles_v2');
-  queue.push('tour_duels_v2');
-  queue.push('tour_events_v2');
-  queue.push('tour_profile_v2');
-  queue.push('tour_news_v2');
+  queue.push(...FEATURE_TOUR_SLUGS);
 
   return queue;
 }

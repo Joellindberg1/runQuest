@@ -10,6 +10,8 @@ export const E2E_RUN_KM = 1.5;
 export interface Session {
   token: string;
   userId: string;
+  /** Namnet som Board visar för kontot. */
+  userName: string;
 }
 
 interface StorageState {
@@ -22,9 +24,9 @@ export function readSession(): Session {
   const stored = state.origins.flatMap((origin) => origin.localStorage);
   const token = stored.find((item) => item.name === 'runquest_token')?.value;
   const userJson = stored.find((item) => item.name === 'runquest_user')?.value;
-  const userId = userJson ? (JSON.parse(userJson) as { id?: string }).id : undefined;
-  if (!token || !userId) throw new Error('The saved sign-in has no session. Run the setup project first.');
-  return { token, userId };
+  const user = userJson ? (JSON.parse(userJson) as { id?: string; name?: string }) : undefined;
+  if (!token || !user?.id || !user.name) throw new Error('The saved sign-in has no session. Run the setup project first.');
+  return { token, userId: user.id, userName: user.name };
 }
 
 async function call(session: Session, method: string, path: string): Promise<{ status: number; body: unknown }> {
