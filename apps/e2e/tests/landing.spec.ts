@@ -5,11 +5,13 @@ import { submitSignIn } from '../support/signIn';
 import { userCredentials } from '../support/targets';
 import { capturePageviews, umamiBuildExpected } from '../support/analytics';
 import { stylesheetTransferBytes } from '../support/transfer';
+import { apiIsStubbed } from '../support/stubApi';
 import {
   delayAppScript,
   failStandings,
   holdLandingScript,
   holdStandings,
+  holdTitles,
   isBlankFrame,
   isBoardWithoutStandings,
   logFrames,
@@ -46,6 +48,8 @@ const STANDINGS_WAIT_MS = 750;
 /** Laddningsvyns tak i appen (FirstBoardGate: 8 s) och marginalen innan provet säger att den hängt kvar. */
 const LOADER_CAP_MS = 8_000;
 const LOADER_CAP_MARGIN_MS = 4_000;
+/** Laddaren ska ge vika vid första misslyckade försöket: långt före omförsökens slut (ca 7 s), så den här gränsen skiljer "släpper vid första felet" från "väntar ut omförsöken". */
+const FIRST_FAILURE_MS = 3_000;
 /** Antal Tab-tryck som kritikern använde för att nå tourens stängknapp (driver.js lägger fokus i popovern). */
 const TAB_PRESSES_TO_CLOSE_BUTTON = 6;
 
@@ -78,7 +82,10 @@ async function expectLoaderUntilStandingsArrive(page: Page, standings: HeldRespo
   standings.release();
 }
 
-/** Podiet är ifyllt när Board syns, och ingen bildruta visade Board utan det eller skalet innan svaret kom. */
+/**
+ * Podiet är ifyllt när Board syns, och ingen bildruta visade Board utan det eller skalet innan svaret kom. Med stubbat API ger svaren varje kort en titel, en rank-pil och
+ * en badge-mini, så ingen bildruta får heller visa ett kort med motsvarande tomläge. Mot staging kan en riktig löpare sakna dem, så där prövas bara podiet.
+ */
 async function expectBoardDrawnWithStandings(page: Page, log: FrameLog, standings: HeldResponse): Promise<void> {
   await expect(shellOf(page)).toBeVisible();
   await expect(page.getByTestId('podium-1')).toBeVisible();
@@ -88,6 +95,9 @@ async function expectBoardDrawnWithStandings(page: Page, log: FrameLog, standing
   const requestedAt = standings.requestedAt() ?? Number.POSITIVE_INFINITY;
   const releasedAt = standings.releasedAt() ?? Number.POSITIVE_INFINITY;
   expect(frames.filter(isBoardWithoutStandings), 'frames with Board drawn but no podium').toEqual([]);
+  if (apiIsStubbed()) {
+    expect(frames.filter((frame) => frame.podiumPlaceholders > 0), 'frames with a podium card that still shows "No titles held yet", a flat arrow or no badge mini').toEqual([]);
+  }
   expect(frames.filter((frame) => frame.shell && frame.at < releasedAt), 'frames with the shell drawn before the standings arrived').toEqual([]);
   expect(
     frames.some((frame) => frame.loader && frame.at > requestedAt && frame.at < releasedAt),
@@ -258,6 +268,27 @@ test.describe('a signed-in visitor', () => {
     expectNoBlankFrames(log, script, '/board');
   });
 
+  test('the loader stays after the standings arrive until the titles have arrived too, and nothing is fetched twice', async ({ page }) => {
+    test.skip(!apiIsStubbed(), 'Needs the stubbed answers that give every podium card its title, rank arrow and badge mini.');
+    const log = await logFrames(page);
+    const titles = await holdTitles(page, STANDINGS_HOLD_MAX_MS);
+    const asked = new Map<string, number>();
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      const resource = ['/auth/users-with-runs', '/leaderboard/rank-delta', '/badges/group', '/titles/user/'].find((candidate) => path.includes(candidate));
+      if (request.method() === 'GET' && resource) asked.set(resource, (asked.get(resource) ?? 0) + 1);
+    });
+    await page.goto('/board');
+
+    await expectLoaderUntilStandingsArrive(page, titles);
+    await expectBoardDrawnWithStandings(page, log, titles);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(SETTLE_MS);
+
+    // Gaten och Board delar frågorna och cache-nycklarna: en hämtning var (en löpare i stubben, alltså en titelförfrågan).
+    expect(Object.fromEntries(asked)).toEqual({ '/auth/users-with-runs': 1, '/leaderboard/rank-delta': 1, '/badges/group': 1, '/titles/user/': 1 });
+  });
+
   test('moving on inside the app does not show the loader again', async ({ page }) => {
     const log = await logFrames(page);
     await page.goto('/board');
@@ -278,8 +309,9 @@ test.describe('a signed-in visitor', () => {
     await failStandings(page);
     await page.goto('/board');
 
-    // Laddaren ger vika vid det första misslyckade försöket; Board tar över med sin vanliga väg, och felvyn kommer när omförsöken (1 + 2 + 4 s) är slut.
-    await expect(shellOf(page)).toBeVisible({ timeout: LOADER_CAP_MS });
+    // Laddaren ger vika vid det första misslyckade försöket, långt före omförsökens slut (1 + 2 + 4 s): hade gaten väntat på dem vore skalet inte här än.
+    // Board tar sedan över med sin vanliga väg, och felvyn kommer när omförsöken är slut.
+    await expect(shellOf(page)).toBeVisible({ timeout: FIRST_FAILURE_MS });
     await expect(loaderOf(page)).toBeHidden();
     await expect(page.getByText("Couldn't load the standings")).toBeVisible({ timeout: LOADER_CAP_MS + LOADER_CAP_MARGIN_MS });
   });

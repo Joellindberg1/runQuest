@@ -3,7 +3,10 @@ import type { BrowserContext, Route } from '@playwright/test';
 // Svarsformerna är kontraktstyperna ur shared (en relativ sökväg: e2e har inget beroende på paketet). Ändras en form i kontraktet fäller `tsc -p apps/e2e` stuben här.
 // Undantag: config/xp (XpConfigApiResponse). Dess fil drar in levelCalculation.ts, som inte klarar e2e:s strängare flaggor (noUncheckedIndexedAccess), så den formen är handskriven efter kontraktet.
 import type { OnboardingStatusResponse } from '../../../packages/shared/src/contracts/onboarding';
+import type { BadgeGroupApiResponse } from '../../../packages/shared/src/contracts/badges';
+import type { RankDeltaApiResponse } from '../../../packages/shared/src/contracts/leaderboard';
 import type { PublicStatsApiResponse } from '../../../packages/shared/src/contracts/publicStats';
+import type { UserTitlesResponse } from '../../../packages/shared/src/contracts/titles';
 import { targets, userCredentials } from './targets';
 
 /**
@@ -13,7 +16,7 @@ import { targets, userCredentials } from './targets';
  * med de svar nedan, och inget lämnar maskinen. Det gör att specerna för landningen och laddningsvyn (`tests/landing.spec.ts`) och inloggningen (`login.spec.ts`)
  * kan bevisas mot ett lokalt bygge (`apps/frontend/dist` serverat av repo-rotens Caddyfile) utan staging, konto eller backend. Kontot är det som står i
  * E2E_USER_LOGIN/E2E_USER_PASSWORD; allt annat lösenord ger 401. Svarsformerna är de som routerna i `apps/backend/src/routes` skickar (login, users-with-runs,
- * onboarding/status) eller kontraktstyperna i shared (public/stats, config/xp), bara så mycket som Board och landningen läser. Specer som läser data via
+ * titles/user, leaderboard/rank-delta, badges/group, onboarding/status) eller kontraktstyperna i shared (public/stats, config/xp), bara så mycket som Board och landningen läser. Specer som läser data via
  * Node-`fetch` (`support/api.ts`) eller kräver nyhetsflödet och rundor hoppar över sig själva när stuben är påslagen (`test.skip(apiIsStubbed(), …)`).
  */
 export const STUB_ENV_NAME = 'E2E_STUB_API';
@@ -72,6 +75,36 @@ export function seenEverything(): OnboardingStatusResponse {
 
 const publicStats: PublicStatsApiResponse = { success: true, data: { runners: 6, challenges: 42, km: 1234 } };
 
+// Podiekortets dekor ur svar som ger alla tre: en innehavd titel, en rank-pil som inte är platt och en badge-mini. Specerna kräver att inget kort någonsin ritas
+// med motsvarande tomläge ("No titles held yet", —, ingen mini) när datan finns i svaren.
+const userTitles: UserTitlesResponse = {
+  success: true,
+  data: [
+    {
+      title_id: 'stub-title-1',
+      title_name: 'Stub Title',
+      title_description: 'A title for the stubbed runner',
+      position: 1,
+      value: 1,
+      earned_at: '2026-10-01T00:00:00.000Z',
+      is_current_holder: true,
+      status: 'holder',
+    },
+  ],
+  meta: { user_id: STUB_USER.id, total_titles: 1, current_holder_count: 1, timestamp: '2026-10-19T00:00:00.000Z' },
+};
+
+const rankDelta: RankDeltaApiResponse = {
+  success: true,
+  data: { as_of: '2026-10-12', users: [{ user_id: STUB_USER.id, xp: stubRunner.total_xp, rank: 1, previous_xp: 1100, previous_rank: 2, rank_delta: 1 }] },
+};
+
+const groupBadges: BadgeGroupApiResponse = {
+  success: true,
+  data: { members: [{ user_id: STUB_USER.id, showcase: [{ series: 'milestoner', tier: 2 }] }], holders: {} },
+  meta: { member_count: 1 },
+};
+
 const xpConfig = {
   success: true,
   data: {
@@ -103,6 +136,9 @@ async function answer(route: Route): Promise<void> {
   }
   if (method === 'GET' && path === '/public/stats') return json(route, 200, publicStats);
   if (method === 'GET' && path === '/auth/users-with-runs') return json(route, 200, { success: true, data: [stubRunner] });
+  if (method === 'GET' && path.startsWith('/titles/user/')) return json(route, 200, userTitles);
+  if (method === 'GET' && path === '/leaderboard/rank-delta') return json(route, 200, rankDelta);
+  if (method === 'GET' && path === '/badges/group') return json(route, 200, groupBadges);
   if (method === 'GET' && path === '/onboarding/status') return json(route, 200, seenEverything());
   if (method === 'POST' && path === '/onboarding/mark-seen') return json(route, 200, { ok: true });
   if (method === 'GET' && path === '/config/xp') return json(route, 200, xpConfig);

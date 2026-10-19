@@ -54,16 +54,27 @@ export interface HeldResponse {
 
 /** Svarsvägen för gruppens topplista (`GET /auth/users-with-runs`), som Board väntar på. Utan stub går förfrågan till det riktiga API:et när den släppts. */
 const STANDINGS_URL = '**/auth/users-with-runs';
+/** Titlarna per löpare (`GET /titles/user/:id`): podiekorten ritas ur dem, och gaten väntar in dem. */
+const TITLES_URL = '**/titles/user/*';
 
 /** Topplistans svar hålls tillbaka: förfrågan når API:et (eller stuben) först när `release()` anropas. Provar att laddningsvyn står kvar medan appen väntar på datan. */
-export async function holdStandings(page: Page, maxMs: number): Promise<HeldResponse> {
+export function holdStandings(page: Page, maxMs: number): Promise<HeldResponse> {
+  return holdResponse(page, STANDINGS_URL, maxMs);
+}
+
+/** Titlarnas svar hålls tillbaka (alla löpares förfrågningar släpps tillsammans). Provar att laddningsvyn också väntar in korten, inte bara topplistan. */
+export function holdTitles(page: Page, maxMs: number): Promise<HeldResponse> {
+  return holdResponse(page, TITLES_URL, maxMs);
+}
+
+async function holdResponse(page: Page, url: string, maxMs: number): Promise<HeldResponse> {
   let requestedAt: number | null = null;
   let releasedAt: number | null = null;
   let open!: () => void;
   const opened = new Promise<void>((resolve) => {
     open = resolve;
   });
-  await page.route(STANDINGS_URL, async (route) => {
+  await page.route(url, async (route) => {
     requestedAt ??= Date.now();
     const timer = setTimeout(open, maxMs);
     await opened;
@@ -105,6 +116,8 @@ export interface FrameSample {
   board: boolean;
   /** Antal podiekort (`data-testid="podium-<plats>"`) i #root: topplistans ifyllda platser. */
   podium: number;
+  /** Podiekort som visar ett tomläge som fylls på: "No titles held yet", en platt rank-pil (—) eller ingen badge-mini. */
+  podiumPlaceholders: number;
 }
 
 /** En bildruta är blank om #root inte har något, eller bara tomma element utan text. Laddningsvyn har texten "Loading" för skärmläsare, så den räknas som innehåll. */
@@ -148,6 +161,9 @@ export async function logFrames(page: Page): Promise<FrameLog> {
         landing: root?.querySelector('.rq-landing') != null,
         board: root?.querySelector('.rq-board') != null,
         podium: root?.querySelectorAll('[data-testid^="podium-"]').length ?? 0,
+        podiumPlaceholders: Array.from(root?.querySelectorAll('[data-testid^="podium-"]') ?? []).filter(
+          (card) => card.querySelector('.rq-board-titleline[data-empty="true"]') || card.querySelector('.rq-board-delta[data-dir="flat"]') || !card.querySelector('[data-minis]'),
+        ).length,
       });
     };
     // Varje bildruta, och varje ändring av DOM:en: en commit som tömmer #root kan ritas innan nästa bildruta provas, och just den tomma rutan ska synas i loggen.
