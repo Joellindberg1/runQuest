@@ -179,8 +179,11 @@ async function getJson(url: string, accessToken: string, readBody: boolean): Pro
   }
   try {
     return { kind: 'http', status: 200, activity: await response.json() };
-  } catch {
-    return { kind: 'http', status: 200, activity: null };
+  } catch (error) {
+    // Only a body that arrived and is not JSON is an answer without an activity. A body that never finished (the timeout of stravaFetch,
+    // a connection cut off) is no answer at all, and the handler retries it under the right reason.
+    if (error instanceof SyntaxError) return { kind: 'http', status: 200, activity: null };
+    return { kind: 'network_error' };
   }
 }
 

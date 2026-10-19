@@ -39,6 +39,10 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # Testet som jämför frontendens fejkade news-server med de riktiga rutterna importerar frontendens fixturer; vitest typkontrollerar inte.
+      - name: Typecheck (tests that import across packages)
+        run: npx tsc --noEmit -p tsconfig.test.json
+
       - name: Build
         run: npm run build --workspace=@runquest/backend
         working-directory: .

@@ -19,7 +19,6 @@ export interface StravaSubscriptionRow {
 export interface ListStravaSubscriptionsInput {
   clientId: string;
   clientSecret: string;
-  timeoutMs: number;
 }
 
 /**
@@ -43,13 +42,13 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-/** Always one request, no retry: the caller decides what a failure means. Goes through stravaFetch, so the rate budget counts it. */
-export async function listStravaSubscriptions({ clientId, clientSecret, timeoutMs }: ListStravaSubscriptionsInput): Promise<ListStravaSubscriptionsResult> {
+/** Always one request, no retry: the caller decides what a failure means. Goes through stravaFetch, so the rate budget counts it and its timeout (headers and body) applies. */
+export async function listStravaSubscriptions({ clientId, clientSecret }: ListStravaSubscriptionsInput): Promise<ListStravaSubscriptionsResult> {
   const query = new URLSearchParams({ client_id: clientId, client_secret: clientSecret }).toString();
   let response: Response;
   let body: unknown;
   try {
-    response = await stravaFetch(`${PUSH_SUBSCRIPTIONS_URL}?${query}`, { method: 'GET', signal: AbortSignal.timeout(timeoutMs) });
+    response = await stravaFetch(`${PUSH_SUBSCRIPTIONS_URL}?${query}`, { method: 'GET' });
     if (!response.ok) return { ok: false, reason: `HTTP ${response.status}`, status: response.status };
     body = await readJson(response);
   } catch (err) {

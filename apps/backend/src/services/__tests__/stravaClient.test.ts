@@ -605,6 +605,47 @@ describe('timeouts and the shared token refresh', () => {
     expect(await reading).toBe('TimeoutError');
   });
 
+  it('stravaFetch lets go of its timer once the body has been read', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{"ok":true}', { status: 200 }));
+    const callerAbort = new AbortController();
+
+    const response = await stravaFetch(ACTIVITY_URL, { signal: callerAbort.signal });
+    expect(vi.getTimerCount()).toBe(1); // still running: the body is not read yet
+    await expect(response.json()).resolves.toEqual({ ok: true });
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('stravaFetch lets go of its timer for an answer without a body, a text body and a cancelled body', async () => {
+    vi.useFakeTimers();
+    const answers = [() => new Response(null, { status: 204 }), () => new Response('text', { status: 200 }), () => new Response('x', { status: 404 })];
+    const reads = [async (r: Response) => r, async (r: Response) => r.text(), async (r: Response) => r.body?.cancel()];
+    for (const [index, answer] of answers.entries()) {
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => answer());
+      const response = await stravaFetch(ACTIVITY_URL);
+      await reads[index](response);
+      expect(vi.getTimerCount(), `answer ${index}`).toBe(0);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('stravaFetch still times out a body that stalls, and then holds no timer', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const signal = init?.signal;
+      const body = new ReadableStream({ start(controller) { signal?.addEventListener('abort', () => controller.error(signal.reason)); } });
+      return new Response(body, { status: 200 });
+    });
+    const response = await stravaFetch(ACTIVITY_URL);
+    const reading = response.text().then(() => 'read', (error: Error) => error.name);
+
+    await vi.advanceTimersByTimeAsync(STRAVA_API_TIMEOUT_MS);
+
+    expect(await reading).toBe('TimeoutError');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('a refresh with a new refresh token does not join an older refresh in progress', async () => {
     const tokens = (n: string) => new Response(JSON.stringify({ access_token: `${n}-at`, refresh_token: `${n}-rt`, expires_at: 9999999990 }));
     let releaseOld!: () => void;

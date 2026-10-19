@@ -64,14 +64,13 @@ function buildFeed(): NewsItem[] {
   return rows;
 }
 
-const toDbRow = (row: NewsItem): Row => ({
+const toDbRow = (row: NewsItem, createdAt?: string): Row => ({
   id: row.id, group_id: GROUP, type: row.type, actor_user_id: row.actor?.id ?? null, target_user_id: row.target?.id ?? null,
   // payload_version läses INTE ur fejkens rad: saknar fejken fältet ska den riktiga rutten ändå skicka det, så att jämförelsen faller.
   payload: row.payload, payload_version: ACTIVITY_PAYLOAD_VERSION, dedupe_key: `k${row.id}`, is_backfill: row.is_backfill,
-  // KÄND BEGRÄNSNING: backend avgör "efter registreringen" på activity_log.created_at, fejken på occurred_at (NewsItem har inget created_at).
-  // Här sätts de lika, så paritet gäller bara rader där de två tiderna hamnar på samma sida av användarens registrering. En rad som
-  // hände före registreringen men loggades efter (t.ex. backfill-liknande) kan skilja och täcks inte av det här testet.
-  occurred_at: row.occurred_at, created_at: row.occurred_at,
+  // Backend avgör "efter registreringen" på activity_log.created_at. NewsItem har inget created_at, så det är occurred_at om raden inte
+  // anges i World.createdAt (en rad som hände före registreringen men loggades efter); samma värde går då till fejken.
+  occurred_at: row.occurred_at, created_at: createdAt ?? row.occurred_at,
 });
 
 interface World {
@@ -79,23 +78,28 @@ interface World {
   lastSeen?: number | null;
   readIds?: number[];
   settings?: Record<string, boolean>;
+  /** activity_log.created_at per rad-id, för rader som loggades senare än de hände. */
+  createdAt?: Record<number, string>;
 }
 
-/** Bygger samma värld åt båda sidor: riktiga rutten mot fakeDb, och fejken. */
-function useWorld({ feed, lastSeen = null, readIds = [], settings = {} }: World) {
+/** Bygger samma värld åt båda sidor: riktiga rutten mot fakeDb, och fejken. `tables` är databasens läge, som rutterna skriver i. */
+function useWorld({ feed, lastSeen = null, readIds = [], settings = {}, createdAt = {} }: World) {
   const refs = new Map<string, NewsUserRef>([[ME.id, ME], [KARL.id, KARL]]);
-  const db = createFakeDb({
-    activity_log: feed.map(toDbRow),
+  const tables: Record<'activity_log' | 'users' | 'news_read' | 'user_settings', Row[]> = {
+    activity_log: feed.map((row) => toDbRow(row, createdAt[row.id])),
     users: [...refs.values()].map((u) => ({ id: u.id, name: u.name, profile_picture: u.profile_picture, group_id: GROUP, created_at: USER_CREATED, news_last_seen_id: u.id === ME.id ? lastSeen : null })),
     news_read: readIds.map((activity_id) => ({ user_id: ME.id, activity_id })),
     user_settings: Object.entries(settings).map(([key, value]) => ({ user_id: ME.id, key, value })),
-  });
+  };
+  // Samma primärnycklar som migrationerna: en upsert utan krock ger en ny rad, annars ingen.
+  const db = createFakeDb(tables, { primaryKeys: { news_read: ['user_id', 'activity_id'], user_settings: ['user_id', 'key'] } });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
 
   const fake = newsServer(feed, lastSeen, ME.id);
   for (const id of readIds) fake.server.readIds.add(id);
+  for (const [id, at] of Object.entries(createdAt)) fake.server.createdAt.set(Number(id), at);
   Object.assign(fake.server.settings, settings);
-  return fake;
+  return { ...fake, tables };
 }
 
 const queryString = (query: NewsQuery): string =>
@@ -222,5 +226,133 @@ describe('newsServer parity with GET /api/news', () => {
       expect(Object.keys(body.meta).sort()).toEqual([...NEWS_META_FIELDS].sort());
       for (const row of body.data.items) expect(Object.keys(row).sort()).toEqual([...NEWS_ITEM_FIELDS].sort());
     }
+  });
+});
+
+describe('newsServer parity with the unread time of the route', () => {
+  it('treats a row that happened before the registration but was logged after it as unread, like the route', async () => {
+    const early = newsSamples.level_up(1, { actor: KARL, occurred_at: '2025-12-01T10:00:00.000Z' });
+    const late = newsSamples.level_up(2, { actor: KARL, occurred_at: '2025-12-01T10:00:00.000Z' });
+    const fake = useWorld({ feed: [early, late], createdAt: { 1: '2026-02-01T10:00:00.000Z' } }); // row 2 was logged when it happened: before the registration
+    const real = await realGet({ limit: 100 });
+    const mine = await fake.getNews({ limit: 100 });
+
+    expect(real.body.data.items.map((row: NewsItem) => [row.id, row.is_unread])).toEqual([[2, false], [1, true]]);
+    expect(wire(mine)).toEqual(real.body);
+  });
+});
+
+const sorted = (values: Iterable<number>): number[] => [...values].sort((a, b) => a - b);
+describe('newsServer parity with the write endpoints', () => {
+  const token = () => mintToken({ user_id: ME.id, group_id: GROUP });
+  const realSeen = (body: unknown) => server.request('POST', '/api/news/seen', { token: token(), body });
+  const realRead = (body: unknown) => server.request('POST', '/api/news/read', { token: token(), body });
+  const realSettings = () => server.request('GET', '/api/settings', { token: token() });
+  const realPutSettings = (values: unknown) => server.request('PUT', '/api/settings', { token: token(), body: { values } });
+
+  /** Same answer from both sides: the body of a 200, or the message of an error (the fake says `{ success: false, error }`, the route `{ error }`). */
+  function expectSameAnswer(real: { status: number; body: any }, mine: unknown, expectedStatus: number): void {
+    expect(real.status).toBe(expectedStatus);
+    if (expectedStatus === 200) expect(wire(mine)).toEqual(real.body);
+    else expect(mine).toEqual({ success: false, error: real.body.error });
+  }
+
+  const floorOf = (world: ReturnType<typeof useWorld>) => {
+    const me = world.tables.users.find((user) => user.id === ME.id);
+    return me?.news_last_seen_id == null ? null : Number(me.news_last_seen_id);
+  };
+  const receiptsOf = (world: ReturnType<typeof useWorld>) => sorted(world.tables.news_read.filter((r) => r.user_id === ME.id).map((r) => Number(r.activity_id)));
+
+  const NEWEST = buildFeed().length;
+
+  it.each<[string, unknown, number | null]>([
+    ['no id (mark all read)', {}, null],
+    ['an id in the middle', { up_to_id: 10 }, null],
+    ['an id past the newest row', { up_to_id: 100_000 }, null],
+    ['an id below the current floor, which never lowers it', { up_to_id: 5 }, 20],
+    ['no id when everything is already seen', {}, NEWEST],
+  ])('POST /news/seen with %s leaves the same floor and unread count as the route', async (_name, body, floor) => {
+    const world = useWorld({ feed: buildFeed(), lastSeen: floor, readIds: floor === null ? [3, 25] : [] });
+    const real = await realSeen(body);
+    const mine = await world.markNewsSeen((body as { up_to_id?: number }).up_to_id);
+
+    expectSameAnswer(real, mine, 200);
+    expect(world.server.lastSeen).toBe(floorOf(world));
+    expect(sorted(world.server.readIds)).toEqual(receiptsOf(world)); // the route prunes the receipts the new floor makes inert
+  });
+
+  it.each<[string, number]>([['zero', 0], ['negative', -3], ['fractional', 1.5]])('POST /news/seen rejects an id that is %s with the same message as the route', async (_name, id) => {
+    const world = useWorld({ feed: buildFeed() });
+    const real = await realSeen({ up_to_id: id });
+    const mine = await world.markNewsSeen(id);
+
+    expectSameAnswer(real, mine, 400);
+    expect(world.server.lastSeen).toBe(floorOf(world));
+  });
+
+  it.each<[string, number[], number | null]>([
+    ['ids above the floor', [4, 9, 30], 2],
+    ['ids at and below the floor, which are ignored', [1, 2, 3], 2],
+    ['ids of rows that do not exist, which are ignored', [999_999], null],
+    ['a single id and no floor', [7], null],
+  ])('POST /news/read with %s answers and records receipts like the route', async (_name, ids, floor) => {
+    const world = useWorld({ feed: buildFeed(), lastSeen: floor });
+    const real = await realRead({ ids });
+    const mine = await world.markNewsRead(ids);
+
+    expectSameAnswer(real, mine, 200);
+    expect(sorted(world.server.readIds)).toEqual(receiptsOf(world));
+  });
+
+  it.each<[string, number[]]>([
+    ['no ids', []],
+    ['more than 50 ids', Array.from({ length: 51 }, (_, i) => i + 1)],
+    ['a repeated id', [4, 4]],
+    ['a zero id', [0]],
+    ['a fractional id', [1.5]],
+  ])('POST /news/read rejects %s with the same message as the route', async (_name, ids) => {
+    const world = useWorld({ feed: buildFeed() });
+    const real = await realRead({ ids });
+    const mine = await world.markNewsRead(ids);
+
+    expectSameAnswer(real, mine, 400);
+    expect(world.server.readIds.size).toBe(0);
+    expect(receiptsOf(world)).toEqual([]);
+  });
+
+  it('GET /settings answers with the same values and customised keys as the route', async () => {
+    const world = useWorld({ feed: [], settings: { [notifyKey('level_up_others')]: false } });
+    const real = await realSettings();
+    const mine = await world.getSettings();
+
+    expectSameAnswer(real, mine, 200);
+    expect(real.body.meta.customised).toContain(notifyKey('level_up_others'));
+  });
+
+  it.each<[string, Record<string, boolean | null>]>([
+    ['a switch turned off', { [notifyKey('level_up_others')]: false }],
+    ['a switch reset to its default', { [notifyKey('title_taken_from_me')]: null }],
+    ['a switch turned off and another reset', { [notifyKey('level_up_others')]: false, [notifyKey('title_taken_from_me')]: null }],
+  ])('PUT /settings with %s answers and stores like the route', async (_name, values) => {
+    const world = useWorld({ feed: [], settings: { [notifyKey('title_taken_from_me')]: false } });
+    const real = await realPutSettings(values);
+    const mine = await world.putSettings(values);
+
+    expectSameAnswer(real, mine, 200);
+    const stored = Object.fromEntries(world.tables.user_settings.filter((r) => r.user_id === ME.id).map((r) => [r.key, r.value]));
+    expect(world.server.settings).toEqual(stored);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ['an unknown key', { 'notify.not_a_kind': true }],
+    ['a value of the wrong type', { [notifyKey('level_up_others')]: 'yes' }],
+  ])('PUT /settings rejects %s with the same message as the route and stores nothing', async (_name, values) => {
+    const world = useWorld({ feed: [] });
+    const real = await realPutSettings(values);
+    const mine = await world.putSettings(values as never);
+
+    expectSameAnswer(real, mine, 400);
+    expect(world.tables.user_settings).toEqual([]);
+    expect(world.server.settings).toEqual({});
   });
 });
