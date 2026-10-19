@@ -37,7 +37,7 @@ Schemat lever i produktionsdatabasen (Supabase-projekt
    - Innehåll: extensions som används, tabeller (kolumner, typer, defaults,
      constraints inkl. unika/främmande nycklar), index, vyer (inkl.
      `title_leaderboard_view`), funktioner/RPC (`increment_event_xp`,
-     `update_all_title_leaderboards`, `handle_new_user` m.fl.), triggers,
+     `update_all_title_leaderboards` (historik: släppt i 058), `handle_new_user` m.fl.), triggers,
      `ENABLE ROW LEVEL SECURITY` + alla kvarvarande policyer. Storage ingår inte
      i baslinjen: bucketen `profile-pictures` skapas av migration 051 (RUN-276,
      publik, 5 MB, jpeg/png/webp/gif) och `storage.objects` ska ha inga policyer
@@ -169,5 +169,5 @@ Beslutet ovan står kvar (baslinje + migrationer ≥ 032, via MCP `apply_migrati
 - **034–039** är applicerade i prod enligt STATE.md och CHANGELOG.md (034 `activity_log`, 035 `user_badges`, 036 `badge_earned` i CHECK, 037 väder- och vintertitlarna, 038/039 säkerhetshotfixen 2026-10-11). **032** (`drop_user_totals_triggers`) och **033** (`unique_external_id`) är applicerade 2026-10-04, och likaså 030 (`remove_anonymous_write_policies`) och 031 (`close_remaining_anon_reads`); Lead kontrollerade prod-ledgern med `list_migrations` 2026-10-12.
 - **040** (RUN-112, stäng anon-läsning av `level_requirements`) skrevs 2026-10-12 och appliceras med ägar-ja (se CHANGELOG v0.6.1.2). Numret återanvänds inte: nästa fria nummer för en annan ändring är därför 043, inte 040. Regeln "nästa lediga över både repo och ledger" i beslut 3 läses så att reserverade nummer räknas som tagna.
 - **041** (`release_published` i `activity_log_type_check`, RUN-161) är applicerad i prod 2026-10-12 efter v0.6.1-deployen.
-- **042** (`pg_advisory_xact_lock` i `update_title_leaderboard`, RUN-158, intern v0.6.1.1) är **inte applicerad ännu**. Filen ligger i repot; Lead applicerar den via `apply_migration` efter ägar-ja (ett ja per migration, `docs/release.md`).
+- **042** (`pg_advisory_xact_lock` i `update_title_leaderboard` (HISTORIK: ersatt av `update_group_title_leaderboard` i 055, omslaget släppt i 058), RUN-158, intern v0.6.1.1) är **inte applicerad ännu**. Filen ligger i repot; Lead applicerar den via `apply_migration` efter ägar-ja (ett ja per migration, `docs/release.md`).
 - Luckan 040 och en fil som ligger före sin applicering är avsiktliga och bryter inte drift-kontrollen i beslut 4: jämförelsen `list_migrations` mot filerna ≥ 032 ska då förklara exakt de två avvikelserna (040 saknar fil, 042 saknar ledgerpost) tills de är körda.

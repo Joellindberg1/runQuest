@@ -7,7 +7,6 @@ import { evaluateBadges } from '../services/badgeService.js';
 import { recordRankPassesForXp } from '../services/rankNews.js';
 import { errorCode } from './errorCode.js';
 import { getActiveMembership } from './membership.js';
-import { rebuildGroupTitleRanking } from '../services/groupRanking.js';
 
 export interface CalculateUserTotalsOptions {
   /**
@@ -158,15 +157,7 @@ export async function calculateUserTotals(userId: string, options: CalculateUser
         } else {
           logger.info('✅ Group titles processed successfully');
         }
-
-        // Gruppens ranking byggs om ur fullständiga user_titles. Bara den här gruppen: ingen global ombyggnad i skrivvägen.
-        logger.info('🏆 Refreshing group title leaderboard...');
-        try {
-          await rebuildGroupTitleRanking(groupId, supabase);
-          logger.info('✅ Title leaderboard refreshed successfully');
-        } catch (leaderboardError) {
-          logger.error(`❌ Failed to refresh title leaderboard (${errorCode(leaderboardError)})`);
-        }
+        // Gruppens ranking byggs om av processGroupTitles själv, en gång efter att alla medlemmar skrivits (ADR 012 beslut 4.4, migration 058).
       }
     } catch (titleError) {
       logger.error(`❌ Error processing titles (${errorCode(titleError)})`);

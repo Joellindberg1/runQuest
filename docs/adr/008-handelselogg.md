@@ -15,8 +15,8 @@ namn/regler) gäller: loggen OBSERVERAR spelet, den ändrar inget.
 Verifierat i koden/schemat 2026-10-04:
 
 - **Ingen händelsehistorik finns.** Titelrankingen i `title_leaderboard`
-  skrivs över (`update_title_leaderboard` gör `DELETE` + `INSERT` för
-  titeln, triggad av varje `user_titles`-ändring) och `user_titles.earned_at`
+  skrivs över (HISTORIK 2026-10-04: `update_title_leaderboard` gjorde `DELETE` + `INSERT` för
+  titeln, triggad av varje `user_titles`-ändring; funktionen och triggern är borta sedan migration 058, se ADR 012 addendum 2026-10-19: gruppens ranking byggs om en gång per gruppomräkning) och `user_titles.earned_at`
   sätts om vid varje värdeändring i `EnhancedTitleService` — ett titelbyte
   går därför inte att återskapa i efterhand. Övriga händelser finns delvis
   kvar i tabeller: `challenges` (completed, `outcome`, `determine_at`,
@@ -345,7 +345,7 @@ reparation, inte rutin. Migrationen måste ligga före kod som skriver
   hybridflöde (vissa typer lagrade, andra härledda) ger två paginerings-/
   oläst-/ordningsmekanismer och ingen enhetlig ström att bygga realtid på.
 - **DB-triggrar som skriver loggen** (på `challenges`, `user_titles`/
-  `update_title_leaderboard`, `events`, `users`). Fördel: fångar även
+  `update_title_leaderboard` (historik, släppt i 058), `events`, `users`). Fördel: fångar även
   ändringar utanför appkoden. Bortvalt: ADR 005 tog bort triggrar som
   skrev härledd data av goda skäl (domänlogik i PL/pgSQL, osynlig, otestad,
   två skribenter); level-/milstolpe-/streak-detektion kräver appens

@@ -1,6 +1,6 @@
 // 🏆 Titelhändelser för Pack News (ADR 008 beslut 6, ADR 012 beslut 5.3) — snapshot-diff på appnivå, per grupp.
 //
-// title_leaderboard skrivs över (DELETE + INSERT per grupp och titel via trigger) och user_titles.earned_at sätts
+// title_leaderboard skrivs över (DELETE + INSERT per grupp och titel, en gång per gruppomräkning i processGroupTitles, migration 058) och user_titles.earned_at sätts
 // om vid varje värdeändring, så ett holderskifte går inte att återskapa i efterhand. Därför tas en
 // ögonblicksbild av gruppens position 1–2 FÖRE och EFTER en titelbearbetning, och den rena
 // diffTitleHolders (shared) avgör vad som hänt (bara position 1; tvåan bärs med för "låg tvåa", ADR 011 beslut 7).

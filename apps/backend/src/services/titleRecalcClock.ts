@@ -10,9 +10,9 @@ import { errorCode, errorWithCode } from '../utils/errorCode.js';
  *
  * Klockan är GRUPPENS (ADR 012 beslut 5.6): max(title_leaderboard.updated_at) för gruppen. Raderna skrivs om av
  * update_group_title_leaderboard (DELETE + INSERT, så updated_at får kolumnens default now()) varje gång gruppens topplista för en titel
- * byggs om, och calculateUserTotals kör alltid update_group_title_leaderboards efter gruppens titelomräkning, så varje omräkning stämplar
- * gruppens alla topplistor med innehavare. En annan grupps omräkning rör inte gruppens rader. titles.updated_at, som alla grupper delar,
- * duger därför inte som källa (migration 055 stämplar den kvar bara för äldre kod). Saknas en giltig tidsstämpel (gruppen har ingen
+ * byggs om, och processGroupTitles kör alltid update_group_title_leaderboards efter gruppens titelomräkning (varje anropare: rundloggning,
+ * nattens synk, reprocess-all), så varje omräkning stämplar gruppens alla topplistor med innehavare. En annan grupps omräkning rör inte
+ * gruppens rader. titles.updated_at stämplas inte längre (migration 058) och duger inte som källa. Saknas en giltig tidsstämpel (gruppen har ingen
  * innehavare i någon titel, alltså inga lagrade värden att stämma av mot), eller går läsningen fel, används request-tiden (förra beteendet):
  * eligibility är en bonus och får aldrig fälla svaret. Klockan klampas till högst request-tiden.
  *

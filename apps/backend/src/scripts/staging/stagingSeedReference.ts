@@ -46,8 +46,8 @@ export const REFERENCE_TABLES: Readonly<Record<string, string>> = {
   level_requirements: '*',
   streak_multipliers: '*',
   titles:
-    // current_holder_id and current_value are not read at all (no holder data leaves prod); the insert names its columns, so staging
-    // gives them their defaults (NULL and 0).
+    // The two frozen holder columns (dropped by migration 058) are not read at all (no holder data leaves prod); the insert names its
+    // columns, so a staging that still has them gives them their defaults (NULL and 0).
     'id,name,description,unlock_requirement,created_at,updated_at,metric_key,outdoor_only',
   admin_settings:
     "id,'staging-ej-anvand'::text as admin_password_hash,min_run_distance,base_xp,xp_per_km,bonus_5km,bonus_10km,bonus_15km,bonus_20km,created_at,updated_at,min_run_date",
