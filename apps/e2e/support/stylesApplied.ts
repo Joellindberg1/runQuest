@@ -8,7 +8,7 @@ const STYLESHEETS_TIMEOUT_MS = 15_000;
  *
  * Stilmallar blockerar ritningen men inte DOMContentLoaded (och inte heller `expect(...).toBeVisible()`): laddaren finns i DOM:en och har en storlek innan stilmallen
  * kommit, men den layouten målas aldrig. Ett mått taget då är ett mått på ett läge ingen användare ser (på ett långsamt nät: laddarens x-läge som skillnad).
- * Därför väntar mätningen först in att varje `link[rel=stylesheet]` är laddad (`sheet` satt: en stilmall som misslyckats får aldrig någon) och sedan två bildrutor, så att
+ * Därför väntar mätningen först in att varje `link[rel=stylesheet]` är laddad (`sheet` satt; obs: Chrome sätter `sheet` även för en stilmall som inte gick att hämta, så en saknad stilmall syns som ett geometrifel, inte här — tidsgränsen är en säkerhetsmarginal) och sedan två bildrutor, så att
  * layouten räknats om med stilen. Ett mått före det ska aldrig tas; den som mäter anropar den här först.
  */
 export async function waitForStylesApplied(page: Page): Promise<void> {
