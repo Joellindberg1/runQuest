@@ -5,6 +5,7 @@ import path from "path";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { stagingGuard } from "./stagingGuard";
 import { stripSourceMaps } from "./stripSourceMaps";
+import { stylesheetOrder, THEME_CHUNK_NAME } from "./stylesheetOrder";
 import { currentSentryRelease, sentryUploadOptions, uploadNotice } from "../../scripts/sentry-build.mjs";
 
 const SENTRY_PROJECT = "runquest-frontend";
@@ -39,6 +40,7 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
             // Uppladdningen körs i writeBundle och tas bort-steget i closeBundle: kartorna ska finnas kvar tills uppladdningen är klar.
             ...(upload ? [sentryVitePlugin(upload)] : []),
             stripSourceMaps(),
+            stylesheetOrder(),
             {
               name: "rq-sentry-upload-notice",
               apply: "build" as const,
@@ -66,6 +68,8 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
                 react: ['react', 'react-dom'],
                 router: ['react-router-dom'],
                 'react-query': ['@tanstack/react-query'],
+                // Temat (Tailwind, tokens, globala regler) delas av båda ingångarna. Egen fil gör att stylesheetOrder.ts kan placera den: sist i appen, först i landningen.
+                [THEME_CHUNK_NAME]: [path.resolve(__dirname, "src/index.css")],
               },
             },
           },

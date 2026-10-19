@@ -9,7 +9,7 @@ import { legacyChallengesTarget } from '@/app-shell/legacyRedirects';
 import { ShellErrorBoundary } from '@/app-shell/ShellErrorBoundary';
 import { readBackground, useCloseRunner } from '@/shared/hooks/useOpenRunner';
 import { RoutePending } from '@/app-shell/RoutePending';
-// Skalets delade lager (.rq-scrim, .rq-modal, .rq-shell__pending) används även av landningens inloggningsdialog och App.tsx:s laddningsbild.
+// Skalets delade lager (.rq-scrim, .rq-modal) används även av landningens inloggningsdialog. Laddningsvyns ram (.rq-shell__pending) ligger i shell-pending.css och följer med RoutePending.
 // Det är den enda statiska CSS-importen här (se routes.guard.test.ts); övrig feature-CSS följer med sina moduler.
 import '@/app-shell/app-shell.css';
 import BoardPage from '@/pages/BoardPage';
