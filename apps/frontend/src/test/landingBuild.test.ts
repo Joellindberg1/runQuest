@@ -86,7 +86,7 @@ function inlineScripts(html: string): Array<{ index: number; body: string }> {
 /** Var i filen det första av mönstren dyker upp; -1 om inget gör det. */
 const firstIndexOf = (html: string, patterns: RegExp[]) => Math.min(...patterns.map((pattern) => html.search(pattern)).filter((index) => index >= 0));
 
-const stylesheetHrefs =(html: string) => Array.from(html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"/g), (match) => match[1]);
+const stylesheetHrefs = (html: string) => Array.from(html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"/g), (match) => match[1]);
 const stylesheetText = (dist: string, html: string) => stylesheetHrefs(html).map((href) => read(dist, href)).join('\n');
 
 /** `start` och alla chunkar den laddar statiskt (import, inte import()). */
@@ -212,6 +212,38 @@ describe('the production build', () => {
     const firstVisitCss = cssOf(dist, landingClosure('prod'));
     expect(firstVisitCss).not.toMatch(SCRIM_RULE);
     expect(firstVisitCss).not.toMatch(MODAL_RULE);
+  });
+
+  // Kaskadordningen (RUN-331, integrationskritiken): före S4 låg temat (index.css: Tailwind, tokens, den globala fokusringen) sist i appens enda stilmall, efter
+  // vendor- och feature-CSS. Med två HTML-ingångar delas index.css, och Rollup lägger delade moduler i en egen fil som länkas före ingångens egen CSS: då vann
+  // driver.js egna `all: unset` över temats `:focus-visible` (lika specificitet, senare regel vinner) och tourens stängknapp tappade sin fokusring. Provet läser
+  // byggets länkordning, inte källan: det är ordningen i dist som avgör kaskaden.
+  describe('the cascade order of the linked stylesheets', () => {
+    const THEME_RULE = /(?:^|[,}])\s*:focus-visible\s*\{[^}]*--rq-focus-ring/;
+    const VENDOR_RULE = /\.driver-popover-close-btn\s*\{[^}]*all:\s*unset/;
+    const linked = (file: string) => stylesheetHrefs(read(dist, file)).map((href) => ({ href, css: read(dist, href) }));
+
+    it('index.html links the theme stylesheet after the vendor and feature CSS it used to override', () => {
+      const sheets = linked('index.html');
+      const themeAt = sheets.findIndex((sheet) => THEME_RULE.test(sheet.css));
+      const vendorAt = sheets.findIndex((sheet) => VENDOR_RULE.test(sheet.css));
+      expect(sheets.filter((sheet) => THEME_RULE.test(sheet.css))).toHaveLength(1);
+      expect(vendorAt, 'driver.js CSS ligger i en länkad stilmall').toBeGreaterThanOrEqual(0);
+      expect(themeAt).toBe(sheets.length - 1);
+      expect(vendorAt).toBeLessThan(themeAt);
+    });
+
+    it('landing.html links the theme stylesheet first, before the landing CSS, as the landing has always had it', () => {
+      const sheets = linked('landing.html');
+      expect(sheets.length).toBeGreaterThan(1);
+      expect(THEME_RULE.test(sheets[0].css)).toBe(true);
+      expect(sheets.slice(1).filter((sheet) => THEME_RULE.test(sheet.css))).toEqual([]);
+    });
+
+    it("the tour's close button gets the theme's focus ring whatever the order, because its own rule is more specific than driver.js's", () => {
+      const theme = linked('index.html').find((sheet) => THEME_RULE.test(sheet.css))!.css;
+      expect(theme).toMatch(/\.rq-tour-popover \.driver-popover-close-btn:focus-visible\s*\{[^}]*outline:\s*var\(--rq-focus-ring\)/);
+    });
   });
 
   it('#root in index.html is exactly the loading view, with no landing text and no marker left', () => {

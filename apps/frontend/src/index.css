@@ -1469,6 +1469,13 @@
   color: var(--rq-text-2) !important;
 }
 
+/* driver.js nollställer knappen med `all: unset` (lika specificitet som temats globala :focus-visible, så ordningen mellan stilmallarna avgjorde). Egen regel gör
+   fokusringen oberoende av ordning; landingBuild.test.ts prövar både regeln och länkordningen. */
+.rq-tour-popover .driver-popover-close-btn:focus-visible {
+  outline: var(--rq-focus-ring);
+  outline-offset: var(--rq-focus-offset);
+}
+
 .rq-tour-popover .driver-popover-footer {
   margin-top: var(--rq-sp-16) !important;
   border-top: var(--rq-hair) solid var(--rq-line-4) !important;

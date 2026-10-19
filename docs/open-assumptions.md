@@ -120,7 +120,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   (`enabled: !!user`, även efter SPA-inloggning); utloggad och vid fel gäller `FALLBACK_LEVEL_REQUIREMENTS`. Onboarding-prefetchen gör INGET nätverksanrop utan
   token (onboardingApi kastar utan token och prefetchen sväljer felet). [RÄTTAT efter RUN-110/111: tidigare stod här att appskalet gjorde ETT Supabase-anrop för `level_requirements` även för
   utloggade — frontend har ingen Supabase-klient längre, och gating på `user` är gjord. Migration 040 (RUN-112) tar bort den sista anon-policyn på `level_requirements`; anon läser därefter ingenting.]
-- Inget `<title>`/meta per route och ingen statisk rendering av `/` (ADR 006 revisit-trigger om SEO) — sidan är en klientrenderad SPA-route.
+- ~~Inget `<title>`/meta per route och ingen statisk rendering av `/`~~ [Inaktuellt sedan RUN-205 och RUN-260: `index.html` och `landing.html` bär samma statiska metadata (title, description, Open Graph, canonical, ikoner, manifest) och `/` förrenderas vid bygget till `landing.html` (ADR 006, addendum 2026-10-19; Caddy-regeln för `/` kommer i S6, tills dess serverar `/` fortfarande den klientrenderade landningen). Metadatan är gemensam för hela sajten, inte per route: övriga adresser är inloggade sidor med `index.html`:s head.]
 
 ## Restsidor: Playbook, Settings, Admin, Login (inkrement 11, spår B)
 - **Playbook har nio kapitel (prototypens), inte de gamla sju flikarna.** Strava-fliken är inlagd i "What counts as a run"; Levels-tabellen och Titles
