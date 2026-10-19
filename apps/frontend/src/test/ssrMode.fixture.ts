@@ -2,3 +2,4 @@
 // klientbygget (annars läser de olika .env.<mode>-filer och förrenderingen kan skilja sig från klienten, vilket ger en hydreringsmismatch).
 export const renderLanding = (): string => import.meta.env.MODE;
 export const renderLoader = (): string => '';
+export const renderSessionHint = (): string => 'void 0';
