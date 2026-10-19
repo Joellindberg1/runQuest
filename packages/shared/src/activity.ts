@@ -547,7 +547,7 @@ export function buildChallengeReceivedDraft(c: ChallengeActivityRow, occurredAt:
   };
 }
 
-/** Den accepterade utmaningen: raden som den aktiverades till, med `start_date` satt (tomorrowStockholm vid accept). */
+/** Den accepterade utmaningen: raden som den aktiverades till, med `start_date` satt (groupNextMidnight vid accept). */
 export type ChallengeAcceptedRow = ChallengeActivityRow & { start_date: string };
 
 /**

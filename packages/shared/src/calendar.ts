@@ -172,6 +172,30 @@ export function stockholmMidnightIso(day: string): string {
   return stockholmWallClockToInstant(day, 0).toISOString();
 }
 
+export interface GroupMidnight {
+  /** Kalenderdagen (YYYY-MM-DD) som börjar vid midnatten — den nya dagens datum i gruppens tid. */
+  day: string;
+  /** Själva ögonblicket då klockan i gruppens tidszon slår 00:00 den dagen. */
+  instant: Date;
+}
+
+/**
+ * Gruppens nästa midnatt (00:00) efter ögonblicket `at`, i gruppens lokala tid. DEN enda definitionen av när en duell startar:
+ * en accepterad duell börjar vid nästa midnatt och aldrig i samma ögonblick som den accepteras (ägarens regel 2026-10-19),
+ * annars går det att utnyttja. Midnatten är alltid strikt efter `at` — är klockan exakt 00:00:00 är nästa midnatt dagen efter.
+ *
+ * `timeZone` är Europe/Stockholm tills tidszon per grupp finns (RUN-21): då skickas gruppens zon hit, och backend (start_date vid
+ * accept) och frontend (duellfönstret) följer med utan att ändras. Oberoende av processens tidszon; sommartidens 23- och
+ * 25-timmarsdygn hanteras eftersom offseten tas vid själva midnatten.
+ */
+export function groupNextMidnight(at: Date, timeZone = STOCKHOLM_TZ): GroupMidnight {
+  const today = new Date(wallClockMsAt(at.getTime(), timeZone)).toISOString().slice(0, 10);
+  const day = addDays(today, 1);
+  const ms = wallClockToInstantMs(`${day}T00:00:00Z`, timeZone);
+  if (Number.isNaN(ms)) throw new RangeError(`Ogiltig midnatt: ${day} i ${timeZone}`);
+  return { day, instant: new Date(ms) };
+}
+
 /**
  * Minuter sedan midnatt i löparens lokala väggklocka, ur `start_time`.
  * `start_time` är Strava `start_date_local` lagrad med falskt 'Z' (ADR 009 beslut 2): siffrorna ÄR

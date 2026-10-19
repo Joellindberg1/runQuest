@@ -66,8 +66,8 @@ const challenge = (over: Partial<Challenge> & Pick<Challenge, 'id' | 'challenger
 };
 
 const ACTIVE: Challenge[] = [
-  challenge({ id: 'c1', tier: 'major', challenger_id: 'u1', opponent_id: 'u2', metric: 'km', start_date: isoDay(-5), end_date: isoDay(5) }),
-  challenge({ id: 'c3', tier: 'major', challenger_id: 'u3', opponent_id: 'u4', metric: 'runs', start_date: isoDay(-7), end_date: isoDay(3) }),
+  challenge({ id: 'c1', tier: 'major', challenger_id: 'u1', opponent_id: 'u2', metric: 'km', start_date: isoDay(-5), end_date: isoDay(4) }),
+  challenge({ id: 'c3', tier: 'major', challenger_id: 'u3', opponent_id: 'u4', metric: 'runs', start_date: isoDay(-7), end_date: isoDay(2) }),
   challenge({ id: 'c4', tier: 'minor', challenger_id: 'u5', opponent_id: 'u6', metric: 'runs', duration_days: 5, start_date: isoDay(-3), end_date: isoDay(1) }),
 ];
 

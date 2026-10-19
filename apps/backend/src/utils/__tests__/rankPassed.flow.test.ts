@@ -325,10 +325,10 @@ describe('rank_passed i flödet: challenge_points', () => {
     const t = challengeWorld();
     use(t);
 
-    // Anna tackar ja: utmaningen startar imorgon 2026-10-16 och löper ett dygn.
+    // Anna tackar ja: utmaningen startar imorgon 2026-10-16 och löper ett dygn (en dags duell: start och slut är samma kalenderdag).
     const accept = await request('PUT', '/api/challenges/ch-1/respond', W, { action: 'accept' });
     expect(accept.status).toBe(200);
-    expect(accept.body.data).toEqual({ start_date: '2026-10-16', end_date: '2026-10-17' });
+    expect(accept.body.data).toEqual({ start_date: '2026-10-16', end_date: '2026-10-16' });
     expect(t.activity_log.map((r) => r.type)).toEqual(['challenge_accepted']);
 
     // Under utmaningen springer Anna 8 km och Cecilia 3 km. Därefter har determine_at (2026-10-18 03:00 Stockholm) passerat.

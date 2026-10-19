@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { buildRightNow, formatRemaining, streakDeadline, type RightNowInput, type ShellEvent } from './rightNowItems';
 
 // 2026-10-04 20:00 i Stockholm (sommartid, +02:00 till 25 okt) = 18:00 UTC.
@@ -126,5 +126,51 @@ describe('buildRightNow', () => {
       strava: { connected: false },
     });
     expect(items.map((i) => i.kind)).toEqual(['streak', 'event', 'duel', 'strava']);
+  });
+});
+
+describe('duellfönstret räknas i gruppens tid (Stockholm), inte webbläsarens', () => {
+  const originalTz = process.env.TZ;
+  afterEach(() => {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  });
+
+  // Vinterns offset i minuter (getTimezoneOffset): vaktar att TZ-bytet slog igenom, annars bevisar testet ingenting.
+  const zones: Array<[string, number]> = [['America/New_York', 300], ['Asia/Tokyo', -540], ['Europe/Stockholm', -60]];
+  const duelValue = (now: string, startDate: string | undefined, endDate: string) =>
+    buildRightNow({ ...baseInput, now: new Date(now), duel: { id: 'd1', opponentName: 'Adam', metric: 'km', startDate, endDate } })[0].value;
+
+  for (const [tz, winterOffset] of zones) {
+    describe(`webbläsare i ${tz}`, () => {
+      const useZone = () => {
+        process.env.TZ = tz;
+        expect(new Date(Date.UTC(2026, 0, 10, 12)).getTimezoneOffset()).toBe(winterOffset);
+      };
+
+      it('en duell som startar vid nästa Stockholm-midnatt står 30 minuter före midnatt som "in 30 m"', () => {
+        useZone();
+        // 23:30 i Stockholm den 4 okt (sommartid) = 21:30 UTC. Duellen startar 00:00 Stockholm = 22:00 UTC.
+        expect(duelValue('2026-10-04T21:30:00Z', '2026-10-05', '2026-10-10')).toBe('in 30 m');
+      });
+
+      it('pågående duell: tiden kvar räknas till 00:00 Stockholm dagen efter slutdatumet', () => {
+        useZone();
+        // 12:00 Stockholm den 5 okt = 10:00 UTC. Slutdatum 5 okt slutar 00:00 den 6:e Stockholm = 22:00 UTC, 12 h senare.
+        expect(duelValue('2026-10-05T10:00:00Z', '2026-10-05', '2026-10-05')).toBe('12h');
+      });
+
+      it('sommartidsbytet 25 okt (dygnet är 25 h) räknas med Stockholms klocka, inte som +24 h', () => {
+        useZone();
+        // Slutdatum 25 okt slutar 00:00 den 26:e Stockholm = 25 okt 23:00 UTC. Från 00:30 Stockholm den 25:e (22:30 UTC den 24:e) är det 24,5 h.
+        expect(duelValue('2026-10-24T22:30:00Z', '2026-10-24', '2026-10-25')).toBe('1 d');
+        expect(duelValue('2026-10-25T21:30:00Z', '2026-10-24', '2026-10-25')).toBe('1h');
+      });
+    });
+  }
+
+  it('utan startdatum räknas bara slutet, i Stockholm-tid', () => {
+    process.env.TZ = 'America/New_York';
+    expect(duelValue('2026-10-05T10:00:00Z', undefined, '2026-10-05')).toBe('12h');
   });
 });

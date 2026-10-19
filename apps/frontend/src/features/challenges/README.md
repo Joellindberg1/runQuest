@@ -33,7 +33,17 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
 - **EN guldknapp per vy:** "Send" är guld bara när det går att skicka (och då finns ingen inkommande); annars är första inkommande "Accept" guld
   (övriga sekundära) och Send sekundär. Saknas båda är vyn utan guldknapp.
 - **Legendary** kan varken avböjas (Decline saknas) eller dras tillbaka, och startar av sig själv fyra dagar efter att den skickats; minor/major
-  förfaller efter tre dagar utan svar och tokenet återgår (challengeScheduler).
+  förfaller efter tre dagar utan svar och tokenet återgår (challengeScheduler). Autostarten följer samma start- och längdregel som en accept
+  (nedan), är villkorad på `status = pending` (idempotent, schemat körs var sjätte timme) och skriver ingen `challenge_accepted` (ADR 011 beslut 7).
+- **När en duell startar (ägarregel 2026-10-19).** Vid gruppens nästa midnatt (00:00) efter accepten, aldrig i samma ögonblick, annars går det att utnyttja:
+  rundor från acceptansdagen räknas aldrig. Regeln är `groupNextMidnight` i `packages/shared/src/calendar.ts` (Stockholm tills tidszon per grupp finns, RUN-21,
+  då byter bara zonen där). Backend (accept och legendary-autostart) och frontend (Right nows duellfönster räknas med `stockholmWallClockToInstant`, inte
+  webbläsarens `new Date(`${dag}T00:00:00`)`) går via shared; datumvakten i `calendarSingleSource.test.ts` fäller lokala klockslagsmallar.
+- **Exakt N dagar (ägarregel 2026-10-19).** En duell på N dagar räknar exakt N kalenderdagar, från startdagens 00:00 till och med dag N:
+  `end_date = start_date + N − 1`, avgörande 03:00 Stockholm dagen efter slutdagen (`challengeWindow` i `packages/shared`). En 5-dagarsduell som startar
+  måndag slutar fredag 24:00. `end_date` är alltså sista dagen som räknas (inklusive); all visning (`timeLeft`, Right now) läser det värdet och räknar
+  aldrig själv ut slutet ur längden. Gäller bara nya dueller: pågående dueller behåller sitt lagrade `end_date` (ingen migration, ingen omräkning), så
+  en äldre duell kan ha en dag mer än sin längd.
 - **Bekräftelser är statusmeddelanden på sidan** (`role="status"`/`"alert"`), inte `toast()`: samma mönster som Log och Profile, och texten finns kvar och läses upp pålitligt. (Toastern är monterad i `AppProviders`; äldre features använder den fortfarande.)
   guards.test förbjuder `sonner` i featuren.
 - **Boost-panelen på mobil är en avvikelse från mobilprototypen** (som bara har tokens under vyn). Lead har beslutat att den får vara kvar; väntande ägarbeslut om den ska bort/ritas om i designen.
