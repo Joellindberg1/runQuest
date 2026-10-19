@@ -108,6 +108,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 - **Footern:** Privacy och Legal (→ `/legal`), Strava-attribution och versionen (`v` + `version` i `apps/frontend/package.json`). Playbook, FAQ och Bug report är borta
   (inloggade sidor och ingen FAQ finns). Stravas "Compatible with Strava" visas oförändrad i footern, vit på mörk botten och svart på ljus (`data-theme="light"` kan
   nås av den som valt ljust tema i appen och sedan loggat ut).
+- **Väntelistformuläret finns i den förrenderade HTML:en men är `inert` tills komponenten har hydrerats** (`LandingWaitlist.tsx`, kommentaren på rad 36-37 och attributet på rad 97): före hydreringen går inget att skriva eller skicka, så ingenting ifyllt skrivs över av tomt state och Enter i fältet ger ingen nativ GET-submit som laddar om sidan.
 - **Mobilens header** har Sign in som konturknapp bredvid wordmarken (designens mobil hade den under hjälten). Wordmarken är ingen länk (en tabbstopp till samma sida).
 - **Rutnätet `rqGrid`** ligger över hela sidan även på mobil (designens mobilram har det inte), och reducerad rörelse stoppar det.
 - **Desktopbanans "+XP"-text** följer ovalens lutning (−31°) som i designen; mobilens text (−72°) vrids tillbaka och läses upprätt (som före v0.6.2).
