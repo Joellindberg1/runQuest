@@ -42,6 +42,8 @@ function nextSyncAfterAttempt(attempt: Date): string {
   return nextStravaPollSlot(attempt).toISOString();
 }
 
+// Kept on purpose, for the tests only: no route reads it since GET /strava/last-sync was removed in v0.7.1. syncState itself is
+// live (the catch-up reads nextSyncEstimated), and the schedule tests assert the slot arithmetic and the poll status through this copy.
 export function getSyncInfo(): SyncState {
   return { ...syncState };
 }

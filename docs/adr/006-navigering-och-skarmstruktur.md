@@ -207,7 +207,7 @@ skal blir den första frontend-sviten, RTL är redan beslutat), **004**
    `Sidebar`, `TopBar`, `ProfileMenu` (→ `AvatarMenu`), `GlobalSidebarWidget`,
    `EventWidget`, `SidebarActivityWidget` (→ "Right now"-pills/-panel, data ur
    befintliga endpoints: streak ur `users-with-runs`, event ur `/events`,
-   duell ur `/challenges/my`, Strava ur `/strava/last-sync`; streak-deadline
+   duell ur `/challenges/my`, Strava ur `/strava/last-sync` (borttagen i v0.7.1, RUN-319; `last_import_at` i `/strava/status` ersätter den); streak-deadline
    härleds i klient — STATE/plan inkrement 1), `sidebarBridge`.
    Sidorna slutar anropa `AppLayout` och returnerar bara sitt innehåll.
 10. **Leverans i etapper (strangler).** Routeträdet, `AppShell`, redirects,

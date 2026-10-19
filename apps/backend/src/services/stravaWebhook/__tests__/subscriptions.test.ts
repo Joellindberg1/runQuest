@@ -12,11 +12,12 @@ vi.mock('../../../config/database.js', () => ({
 }));
 
 import { installFakeStravaFetch, stravaError, stravaSubscription, type FakeStrava } from '../../../test-utils/fakeStrava.js';
+import { STRAVA_API_TIMEOUT_MS } from '../../stravaClient.js';
 import { listStravaSubscriptions } from '../subscriptions.js';
 
 const CLIENT_ID = '123456';
 const CLIENT_SECRET = 'client-secret-0f9e8d7c6b5a';
-const input = { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, timeoutMs: 5_000 };
+const input = { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET };
 
 let strava: FakeStrava | undefined;
 afterEach(() => {
@@ -98,19 +99,47 @@ describe('listStravaSubscriptions', () => {
     }
   });
 
-  it('gives up when the answer does not come within the timeout', async () => {
+  it('gives up when the answer does not come within the central Strava timeout', async () => {
+    vi.useFakeTimers();
     const original = globalThis.fetch;
     globalThis.fetch = ((_target: unknown, init?: RequestInit) =>
       new Promise((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
       })) as typeof fetch;
     try {
-      const result = await listStravaSubscriptions({ ...input, timeoutMs: 20 });
+      const pending = listStravaSubscriptions(input);
+      await vi.advanceTimersByTimeAsync(STRAVA_API_TIMEOUT_MS - 1);
+      let settled = false;
+      void pending.then(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await pending;
 
       expect(result).toMatchObject({ ok: false, unanswered: true });
       expect(result.ok === false && result.reason).toContain('TimeoutError');
     } finally {
       globalThis.fetch = original;
+      vi.useRealTimers();
+    }
+  });
+
+  it('fails closed when the body of the answer stalls past the central Strava timeout', async () => {
+    vi.useFakeTimers();
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (_target: unknown, init?: RequestInit) => {
+      const signal = init?.signal;
+      const body = new ReadableStream({ start(controller) { signal?.addEventListener('abort', () => controller.error(signal.reason)); } });
+      return new Response(body, { status: 200 });
+    }) as typeof fetch;
+    try {
+      const pending = listStravaSubscriptions(input);
+      await vi.advanceTimersByTimeAsync(STRAVA_API_TIMEOUT_MS);
+
+      expect(await pending).toMatchObject({ ok: false }); // fail-closed; the stalled body ends at the central timeout
+    } finally {
+      globalThis.fetch = original;
+      vi.useRealTimers();
     }
   });
 });

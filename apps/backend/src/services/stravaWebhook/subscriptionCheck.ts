@@ -11,7 +11,6 @@ import { listStravaSubscriptions, type StravaSubscriptionRow } from './subscript
 
 /** The prefix of the alarm lines (decision 11); the same one the worker uses for a dead event. */
 const ALARM = '🚨 KRITISKT: Strava-webhook';
-const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_SHOWN_CALLBACK_LENGTH = 200;
 
 export type SubscriptionCheckOutcome =
@@ -60,7 +59,7 @@ export async function runStravaSubscriptionCheck(env: NodeJS.ProcessEnv = proces
     return 'missing_credentials';
   }
 
-  const listed = await listStravaSubscriptions({ clientId, clientSecret, timeoutMs: REQUEST_TIMEOUT_MS });
+  const listed = await listStravaSubscriptions({ clientId, clientSecret });
   if (!listed.ok) {
     logger.warn(`⚠️ Strava subscription check could not be made (${listed.reason}); one failed night is not proof, it is tried again tomorrow night`);
     return 'check_failed';
