@@ -43,7 +43,7 @@ import {
   type TokenRewriteOutcome,
 } from '../services/stravaTokenStore.js';
 import { supabaseHost } from './lib/supabaseHost.js';
-import { missingStravaCredentials } from './backfillStravaAthleteIds.js';
+import { missingStravaCredentials } from './lib/stravaCredentials.js';
 
 export interface BackfillOptions {
   /** Write. Without it nothing is written and Strava is not called. */

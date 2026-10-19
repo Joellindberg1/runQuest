@@ -31,8 +31,7 @@
  *      prod-DB redan skrivit rader med seen_tier < tier — använd --apply --silent. Rapporten varnar med
  *      "existing row(s) have seen_tier < tier" när en körning utan --silent lämnar sådana rader.
  *   3. Kör om (dry-run → --apply) EFTER allt som ändrar runs utan att räkna om badges: admin-routen
- *      POST /strava/backfill-extended och skripten backfill:treadmill och convert:wind-ms uppdaterar rundor
- *      men anropar inte evaluateBadges.
+ *      POST /strava/backfill-extended uppdaterar rundor men anropar inte evaluateBadges.
  *   4. Kör om (dry-run → --apply --silent) efter varje tröskeländring i packages/shared/src/badges.ts
  *      (ADR 009: trösklarna är startvärden som justeras efter dry-run). Nedgraderingar och raderingar
  *      tillämpas; observera att skriptet inte retractar redan skrivna badge_earned-news (det gör bara den
