@@ -142,19 +142,9 @@ skillnader listas som "normaliserade bort" men räknas inte som skillnad.
 default-privilegier (`pg_default_acl`), extensions, event-triggers, constraints på domäntyper, data och sekvensvärden, roller.
 
 Utskriften visar "Unexplained differences" och "Known differences". Exit 0 betyder att inget oförklarat finns. En känd
-skillnad har en regel med förklaring i `KNOWN_DIFFERENCES` (`schemaFingerprint.ts`):
-
-- Det finns just nu en enda regel, och den är TILLFÄLLIG: `temporary-056-client-execute-in-prod` (RUN-326). Migration 056
-  stänger PUBLIC-, anon- och authenticated-execute på fyra funktioner i båda projekten: `increment_event_xp(p_user_id uuid,
-  p_xp integer)`, `trigger_update_title_leaderboard()`, `update_all_title_leaderboards()` och
-  `update_title_leaderboard(p_title_id uuid)`. Före 056 saknade prod PUBLIC-execute på just de fyra medan staging hade det (drift
-  utanför repot, RUN-226, verifierad av Lead 2026-10-17); den regeln är borttagen eftersom PUBLIC är stängt i båda efter 056.
-  Står PUBLIC-execute på någon av de fyra kvar i staging är 056 inte applicerad där, och det visas som oförklarad skillnad.
-- Mellan 056:s apply i staging och i prod har bara prod kvar anon- och authenticated-execute på de fyra (åtta poster,
-  `only in prod`). Regeln gäller bara om det är exakt de åtta; har prod redan tappat någon, eller har en annan funktion en
-  klientgrant som bara prod har, räknas ingen som känd. Tas bort (regeln, `CLOSED_BY_056` och `CLIENT_ROLES` i
-  `schemaFingerprint.ts`, samt det här stycket) när 056 är applicerad i prod; då saknar båda sidor grantsen, regeln har inga träffar
-  och är tyst, och diffen visar ingenting nytt.
+skillnad har en regel med förklaring i `KNOWN_DIFFERENCES` (`schemaFingerprint.ts`). Listan är tom: migration 056 finns i både
+staging och prod sedan 2026-10-19, så den tillfälliga regeln för klientgrants på de fyra funktionerna är borttagen, och varje skillnad
+räknas som oförklarad tills en regel med skäl läggs till. En regel gäller bara när träffarna är exakt de nycklar den namnger.
 
 Hittar diffen något nytt: antingen är det drift i prod (ticket), eller ett fel i migrationerna (ny migration), eller en
 känd skillnad som ska in i listan med förklaring.

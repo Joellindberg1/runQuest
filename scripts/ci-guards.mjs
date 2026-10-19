@@ -72,7 +72,11 @@
 //     `if (process.env.NODE_ENV === 'production') { … }` som regel 9 och 10 (samma vakt, samma begränsningar). Utan anropet plockar ingenting upp
 //     en omräkning som en kraschad avstämning eller ett fel lämnade efter en radering.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|media|fonts|all]   (standard: all)
+// 17. Frontend utan Supabase (ADR 006, RUN-347): klienten pratar bara med backend-API:t. Inget under apps/frontend (källkod, typdeklarationer, `.env.example`,
+//     `package.json`, `vite.config.ts`) får nämna `VITE_SUPABASE_*` eller paketet `@supabase/…`. Variablerna ligger kvar i hostingen tills ägaren tar bort
+//     dem; vakten hindrar att koden börjar läsa dem igen. Textbaserad: den läser raderna och ser inte skillnad på kod och kommentar.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -613,6 +617,24 @@ function checkSchedulerStart(files, { call, missingFile, missingCall }) {
   return call.test(block) ? [] : [`${SERVER_FILE}: ${missingCall}`];
 }
 
+const FRONTEND_FILE = /^apps\/frontend\//;
+const FRONTEND_SUPABASE = /VITE_SUPABASE_\w*|@supabase\//;
+// Filer utanför src/ där en Supabase-variabel eller ett Supabase-paket kunde smyga in igen.
+const FRONTEND_EXTRA_FILES = ['apps/frontend/.env.example', 'apps/frontend/package.json', 'apps/frontend/vite.config.ts'];
+
+/** Regel 17. `files`: [{ path, content }]. Returnerar "path:rad: text" för varje rad under apps/frontend som nämner VITE_SUPABASE_* eller @supabase/. */
+export function checkNoFrontendSupabase(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!FRONTEND_FILE.test(path)) continue;
+    content.split(/\r?\n/).forEach((text, index) => {
+      const match = FRONTEND_SUPABASE.exec(text);
+      if (match) errors.push(`${path}:${index + 1}: frontend nämner ${match[0]} — klienten pratar bara med backend-API:t (ADR 006), ingen Supabase-klient eller -nyckel`);
+    });
+  }
+  return errors;
+}
+
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -732,8 +754,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -803,6 +825,15 @@ function runCli(argv = process.argv.slice(2)) {
       errors.push(...checkTestNames(testFiles));
       summary.push(`${testFiles.length} testfiler utan Jira-ID i testnamn`);
     }
+  }
+
+  if (mode === 'all' || mode === 'frontend-supabase') {
+    const files = collectSourceFiles(root, workspaces);
+    for (const path of FRONTEND_EXTRA_FILES) {
+      if (existsSync(join(root, path))) files.push({ path, content: readFileSync(join(root, path), 'utf8') });
+    }
+    errors.push(...checkNoFrontendSupabase(files));
+    summary.push('frontend nämner ingen Supabase-variabel eller -klient');
   }
 
   if (mode === 'media' || (mode === 'all' && existsSync(join(root, 'apps/frontend/public')))) {

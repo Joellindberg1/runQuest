@@ -376,7 +376,7 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
    - **056:** kör katalogfrågan (`QUERY-START` i huvudet) FÖRE apply i varje miljö och spara `proacl` per funktion: rollbacken ska ge exakt
      utgångsläget tillbaka, och miljöerna skiljer sig (staging har PUBLIC-execute, prod saknar det). Efter apply samma fråga igen (förväntat: public_execute,
      anon och authenticated false, service_role true), triggerkontrollen i huvudet och `get_advisors` (security). Rök: en runda som bygger om topplistan
-     och en event-utbetalning går igenom. När 056 är applicerad i båda miljöerna tas den tillfälliga schemadiff-regeln bort (`docs/staging.md`, avsnitt 4).
+     och en event-utbetalning går igenom. Den tillfälliga schemadiff-regeln för 056 är borttagen sedan 056 finns i båda miljöerna (`docs/staging.md`, avsnitt 4).
    - **057 `create_recalculation_marks`** (RUN-322, återhämtning av omräkning efter en radering) är additiv och körs FÖRE backend-deployen, efter 056
      (ny kod anropar `mark_recalculation`; saknas den raderar avstämningen ingenting). Efter apply: katalogfrågorna Q1–Q5 och Q4b i huvudet (RLS på,
      0 policyer, ingen klientåtkomst till tabellen, funktionerna och sekvensen bara för `service_role`, Q5 = 0 rader) och `get_advisors` (security).

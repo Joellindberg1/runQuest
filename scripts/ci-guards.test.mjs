@@ -15,6 +15,7 @@ import {
   checkGroupSettingsWrites,
   checkGitignoreForVideo,
   checkMediaFiles,
+  checkNoFrontendSupabase,
   checkNoTrackedVideoOriginals,
   checkRateBudgetHook,
   checkReconcileSchedulerStart,
@@ -633,6 +634,31 @@ describe('checkRecoverySchedulerStart', () => {
   });
 });
 
+describe('checkNoFrontendSupabase', () => {
+  const scan = (content, path = 'apps/frontend/src/shared/services/backendApi.ts') => checkNoFrontendSupabase([{ path, content }]);
+
+  it('passes frontend code that only talks to the backend API', () => {
+    assert.deepEqual(scan("const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';\n"), []);
+  });
+
+  it('flags a read of the Supabase URL or the publishable key, in code, in the env example and in the type declarations', () => {
+    assert.equal(scan('const url = import.meta.env.VITE_SUPABASE_URL;\n').length, 1);
+    assert.equal(scan('VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_x\n', 'apps/frontend/.env.example').length, 1);
+    assert.equal(scan('readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;\n', 'apps/frontend/src/vite-env.d.ts').length, 1);
+    assert.match(scan('\n\nconst k = import.meta.env.VITE_SUPABASE_ANON_KEY;\n')[0], /^apps\/frontend\/src\/shared\/services\/backendApi\.ts:3: /);
+  });
+
+  it('flags the Supabase client package, as an import and as a dependency', () => {
+    assert.equal(scan("import { createClient } from '@supabase/supabase-js';\n").length, 1);
+    assert.equal(scan('{ "dependencies": { "@supabase/supabase-js": "^2.0.0" } }', 'apps/frontend/package.json').length, 1);
+  });
+
+  it('leaves the backend and other workspaces alone', () => {
+    assert.deepEqual(scan('const url = process.env.SUPABASE_URL;\n', 'apps/backend/src/config.ts'), []);
+    assert.deepEqual(scan("import { createClient } from '@supabase/supabase-js';\n", 'apps/backend/src/db.ts'), []);
+  });
+});
+
 describe('checkTokenKeyStartupCheck', () => {
   const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
 
@@ -1231,6 +1257,32 @@ describe('CLI', () => {
     }
     const good = makeBackend('reconcile-good', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  startStravaWebhookScheduler();\n  startStravaReconcileScheduler();\n}\n");
     assert.equal(runCli('reconcile-scheduler-start', good).status, 0);
+  });
+
+  it('exits 1 when frontend code reads a Supabase variable (also under all) and 0 once it is gone', () => {
+    const makeFrontend = (name, envExample) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'frontend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'frontend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, '.env.example'), envExample);
+      return root;
+    };
+    const bad = makeFrontend('supabase-bad', 'VITE_API_URL=x\nVITE_SUPABASE_URL=https://example.invalid\n');
+    for (const mode of ['frontend-supabase', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/frontend\/\.env\.example:2: /);
+    }
+    assert.equal(runCli('frontend-supabase', makeFrontend('supabase-good', 'VITE_API_URL=x\n')).status, 0);
+  });
+
+  it('exits 0 on the current repo in frontend-supabase mode', () => {
+    const result = runCli('frontend-supabase');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Supabase/);
   });
 
   it('exits 1 when server.ts does not start the recalculation recovery in the production block (also under all) and 0 once it does', () => {

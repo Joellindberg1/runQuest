@@ -179,8 +179,8 @@ export function diffFingerprints(prod: SideFingerprint, staging: SideFingerprint
 }
 
 /**
- * Known, explained differences. A rule names the exact keys it explains. It applies only when the set of entries of its kind (here: every
- * anon or authenticated EXECUTE grant that exists only in prod) is EXACTLY that set: one more difference of the same kind, or one of them having been fixed,
+ * Known, explained differences. A rule names the exact keys it explains. It applies only when the set of entries of its kind (for example every
+ * EXECUTE grant to one role that exists only in prod) is EXACTLY that set: one more difference of the same kind, or one of them having been fixed,
  * means that none of them is treated as known and the person reading the diff has to look again.
  */
 export interface KnownRule {
@@ -192,31 +192,11 @@ export interface KnownRule {
 }
 
 /**
- * The four functions that migration 056 closes for public, anon and authenticated (RUN-326). Used by the temporary rule below.
- * (Until 056, prod lacked PUBLIC execute on exactly these four while staging had it: drift outside the repo, RUN-226. 056 closes PUBLIC in both,
- * so that permanent rule is gone.)
+ * Empty on purpose: both projects have 056 since 2026-10-19, so every difference is unexplained until a rule with a reason is added here.
+ * (Until 056, prod lacked PUBLIC execute on four title/xp functions while staging had it, RUN-226; a temporary rule covered the anon and
+ * authenticated grants between the two applies. Both rules are gone.)
  */
-const CLOSED_BY_056: readonly string[] = [
-  'public.increment_event_xp(p_user_id uuid, p_xp integer)',
-  'public.trigger_update_title_leaderboard()',
-  'public.update_all_title_leaderboards()',
-  'public.update_title_leaderboard(p_title_id uuid)',
-];
-const CLIENT_ROLES: readonly string[] = ['anon', 'authenticated'];
-
-export const KNOWN_DIFFERENCES: readonly KnownRule[] = [
-  // TEMPORARY, removed when 056 is applied in prod (RUN-326). Migration 056 revokes execute from anon and authenticated on the four
-  // functions. Between its apply in staging and its apply in prod, only prod still has those eight grants. The rule needs exactly those
-  // eight keys: if prod already lost one, or has a ninth, none is treated as known. When 056 is in both, the rule has no candidates and
-  // stays silent; delete it, CLOSED_BY_056 and CLIENT_ROLES then.
-  {
-    id: 'temporary-056-client-execute-in-prod',
-    explanation:
-      'Temporary (RUN-326): migration 056 has closed anon and authenticated execute on increment_event_xp and the three old title functions in staging but not yet in prod. This rule is removed when 056 is applied in prod.',
-    candidate: (e) => e.category === 'function_grants' && e.kind === 'only_in_prod' && CLIENT_ROLES.some((role) => e.key.endsWith(` -> ${role} EXECUTE`)),
-    expectedKeys: CLOSED_BY_056.flatMap((signature) => CLIENT_ROLES.map((role) => `${signature} -> ${role} EXECUTE`)),
-  },
-];
+export const KNOWN_DIFFERENCES: readonly KnownRule[] = [];
 
 const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && new Set(a).size === a.length && a.every((k) => b.includes(k));
 
