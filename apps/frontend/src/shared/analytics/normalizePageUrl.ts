@@ -16,7 +16,8 @@ export const NOT_FOUND_PAGE = '/(not-found)';
 // bär aldrig några, och resten av query-strängen (next, opponent, token, id …) kan bära id eller personuppgifter och tas alltid bort.
 
 // Alla adresser i `paths` som är strängar. Matchningen (skiftlägesokänslig som routern, fasta adresser före dynamiska) ligger i den gemensamma kärnan.
-const matchRoute = createRouteMatcher(Object.values(paths).filter((value): value is string => typeof value === 'string'));
+const pathValues: readonly unknown[] = Object.values(paths);
+const matchRoute = createRouteMatcher(pathValues.filter((value): value is string => typeof value === 'string'));
 
 /**
  * Adressen som skickas till webbanalysen för en sida: routens mönster, utan id, query eller fragment. På landningen behålls enbart
