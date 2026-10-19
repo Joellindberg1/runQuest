@@ -49,6 +49,7 @@ Användarversion (minor). What's new-posten i `changelog.json` har ingen `announ
 - Landningen gör inga val på bredd i JS (RUN-329; båda varianterna i HTML, CSS väljer), och sifferraden flyttar inget när talen kommer och behåller sin höjd vid fel (RUN-330, ägarbeslut B).
 - Sidvisningar i lean ingången (RUN-335) utan dubbelräkning vid överlämningen till appen. Väntelistformuläret är `inert` tills landningen hydrerats (RUN-336).
 - Laddningsvyn står kvar vid första öppningen av Board tills topplistan och podiekortens titlar, rank-pilar och badges finns (RUN-337, ägarens fynd i previewn): ingen bildruta med tomt eller halvfyllt podium. Tak 8 s för hela kedjan, släpper vid första fel och när man lämnar Board; senare navigering visar ingen laddare. `users-with-runs` har `staleTime` 10 s (invalideringarna efter runda, utmaning och profilbild gäller som förut).
+- Laddningsvyn är tre gånger så stor (RUN-338, ägarbeslut): ovalen ca 217×167 px i stället för 72×56, banlinjen växer med storleken (6 px vid 192 px); samma plats och storlek i `index.html`, överlämningen och Board-gaten (e2e-geometriprov på 320, 390 och 1440 px). Övriga laddare i appen är oförändrade.
 - Mätt lokalt (Windows/Edge, `docs/performance.md`): `/` prestanda 0,81 → 0,91, LCP 4 347 → 3 011 ms, JS 237 → 141,6 kB, CSS 42 → 23,7 kB, totalt 428 → 319 kB. Målet 2 500 ms nås inte lokalt; CI-taket sätts i RUN-334 (v0.8.1). Baslinjen är RUN-328.
 
 ### Nytt — staging, e2e och lasttest (RUN-272–274, RUN-289, RUN-290)
