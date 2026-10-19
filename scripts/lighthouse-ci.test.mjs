@@ -270,7 +270,7 @@ createServer((req, res) => {
     );
     chmodSync(join(work, 'fake-caddy'), 0o755);
   });
-  after(() => rmSync(work, { recursive: true, force: true }));
+  after(() => rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
 
   const run = (failingPage) =>
     spawnSync('bash', ['lighthouse/run.sh'], {
