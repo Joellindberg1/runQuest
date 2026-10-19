@@ -3,3 +3,4 @@
 export const width = window.innerWidth;
 export const renderLanding = (): string => String(width);
 export const renderLoader = (): string => '';
+export const renderSessionHint = (): string => 'void 0';

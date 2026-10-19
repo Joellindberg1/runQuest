@@ -10,6 +10,7 @@ import path from "path";
 const NEEDS_DOM = [
   "src/app-shell/legacyRedirects.test.ts",
   "src/features/badges/api.test.ts",
+  "src/landing-entry/sessionHint.test.ts",
   "src/landing-entry/signedInTarget.test.ts",
   "src/shared/analytics/track.test.ts",
   "src/shared/analytics/umamiPageviews.test.ts",

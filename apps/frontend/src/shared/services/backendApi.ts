@@ -12,6 +12,16 @@ import type {
   GroupEligibilityEntry, TitleLeaderboardEntry, UserTitleEntry,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
+import { SESSION_TOKEN_KEY, SESSION_USER_KEY } from './sessionStorageKeys';
+
+/** Sessionsnyckeln ur localStorage; blockerad lagring (webbläsarinställning, vissa privata lägen) kastar vid åtkomst och räknas som utloggad. */
+function readStoredSession(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
 
 const HTTP_NOT_FOUND = 404;
 const HTTP_SERVER_ERROR = 500;
@@ -121,8 +131,8 @@ class BackendApiService {
 
       // Store JWT token in localStorage
       if (data.token) {
-        localStorage.setItem('runquest_token', data.token);
-        localStorage.setItem('runquest_user', JSON.stringify(data.user));
+        localStorage.setItem(SESSION_TOKEN_KEY, data.token);
+        localStorage.setItem(SESSION_USER_KEY, JSON.stringify(data.user));
       }
 
       return {
@@ -143,7 +153,7 @@ class BackendApiService {
   // 🔄 Token refresh (placeholder)
   async refreshToken(): Promise<ApiResponse> {
     try {
-      const token = localStorage.getItem('runquest_token');
+      const token = localStorage.getItem(SESSION_TOKEN_KEY);
       if (!token) {
         return { success: false, error: 'No token found' };
       }
@@ -485,20 +495,20 @@ class BackendApiService {
 
   // 🚪 Logout
   logout(): void {
-    localStorage.removeItem('runquest_token');
-    localStorage.removeItem('runquest_user');
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem(SESSION_USER_KEY);
   }
 
   // 🔍 Check if user is authenticated
   isAuthenticated(): boolean {
-    const token = localStorage.getItem('runquest_token');
-    const user = localStorage.getItem('runquest_user');
+    const token = readStoredSession(SESSION_TOKEN_KEY);
+    const user = readStoredSession(SESSION_USER_KEY);
     return !!(token && user);
   }
 
   // 👤 Get current user from localStorage
   getCurrentUser(): { id: string; name: string; email: string } | null {
-    const userStr = localStorage.getItem('runquest_user');
+    const userStr = readStoredSession(SESSION_USER_KEY);
     if (!userStr) return null;
 
     try {
@@ -510,7 +520,7 @@ class BackendApiService {
 
   // 🔑 Get auth token
   getToken(): string | null {
-    return localStorage.getItem('runquest_token');
+    return readStoredSession(SESSION_TOKEN_KEY);
   }
 
   // 📡 Make authenticated API request

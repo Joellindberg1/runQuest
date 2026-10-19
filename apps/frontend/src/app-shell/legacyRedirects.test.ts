@@ -12,6 +12,11 @@ describe('resolveLegacyRedirect', () => {
     ['?tab=log-run', '/log'],
     ['?tab=okänd', '/board'],
     ['?tab=', '/board'],
+    // Namn som finns på varje objekt är inga flikar: tabellen slås upp på egna nycklar.
+    ['?tab=constructor', '/board'],
+    ['?tab=toString', '/board'],
+    ['?tab=__proto__', '/board'],
+    ['?tab=hasOwnProperty', '/board'],
   ])('%s → %s', (search, target) => {
     expect(resolveLegacyRedirect(search)).toBe(target);
   });

@@ -7,7 +7,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { build, type Plugin } from 'vite';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RoutePending } from '@/app-shell/RoutePending';
-import { LANDING_MARKER, LOADER_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
+import { sessionHintScript } from '@/landing-entry/sessionHint';
+import { LANDING_MARKER, LOADER_MARKER, SESSION_HINT_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
 
 // Bygget av de två HTML-ingångarna (ADR 006, addendum 2026-10-19, punkt 1, 2 och 11): `vite build` följt av prerender-landing, med samma konfiguration som
 // `npm run build`, mot en tillfällig utkatalog (public/ hoppas över, filmen är stor). Landningens rubrik, stegen och sifferraden prövas i sin modell och
@@ -75,7 +76,17 @@ function rootMarkup(html: string): string {
   return inner.slice(0, end);
 }
 
-const stylesheetHrefs = (html: string) => Array.from(html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"/g), (match) => match[1]);
+/** Skripten utan `src` i filen, med var de börjar och vad de innehåller. Modulskriptet och andra skript med `src` är inte inline. */
+function inlineScripts(html: string): Array<{ index: number; body: string }> {
+  return Array.from(html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g))
+    .filter((match) => !/\bsrc=/.test(match[1]))
+    .map((match) => ({ index: match.index, body: match[2] }));
+}
+
+/** Var i filen det första av mönstren dyker upp; -1 om inget gör det. */
+const firstIndexOf = (html: string, patterns: RegExp[]) => Math.min(...patterns.map((pattern) => html.search(pattern)).filter((index) => index >= 0));
+
+const stylesheetHrefs =(html: string) => Array.from(html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"/g), (match) => match[1]);
 const stylesheetText = (dist: string, html: string) => stylesheetHrefs(html).map((href) => read(dist, href)).join('\n');
 
 /** `start` och alla chunkar den laddar statiskt (import, inte import()). */
@@ -133,6 +144,30 @@ describe('the production build', () => {
     expect(stats.match(/>—</g)).toHaveLength(3);
     expect(root).not.toContain(LANDING_MARKER);
     expect(stylesheetHrefs(html.slice(0, html.indexOf('</head>'))).length).toBeGreaterThan(0);
+  });
+
+  it('landing.html has exactly two inline scripts: the session hint in the head, then the theme script from the provider in #root', () => {
+    const html = read(dist, 'landing.html');
+    const scripts = inlineScripts(html);
+    expect(scripts).toHaveLength(2);
+    expect(scripts[0].body).toBe(sessionHintScript());
+    expect(scripts[0].index).toBeLessThan(html.indexOf('</head>'));
+    expect(scripts[1].index).toBeGreaterThan(html.indexOf('<div id="root">'));
+    expect(html).not.toContain(SESSION_HINT_MARKER);
+  });
+
+  it('the session hint stands before every stylesheet, preload and module script in landing.html, so it runs before the first paint', () => {
+    const html = read(dist, 'landing.html');
+    const hint = inlineScripts(html)[0].index;
+    const firstResource = firstIndexOf(html, [/<link\b[^>]*rel="(?:stylesheet|modulepreload|preload)"/, /<script\b[^>]*\bsrc=/]);
+    expect(firstResource, 'ett första stilmall, förladdning eller modulskript').toBeGreaterThan(-1);
+    expect(hint).toBeLessThan(firstResource);
+  });
+
+  it('index.html has no session hint: the app itself never redirects away from itself', () => {
+    const html = read(dist, 'index.html');
+    expect(html).not.toContain(sessionHintScript());
+    expect(html).not.toContain(SESSION_HINT_MARKER);
   });
 
   it('dist holds no server bundle: no SSR entry, no server renderer in any script', () => {
@@ -205,19 +240,20 @@ describe('the staging build', () => {
       expect(read(dist, file)).toContain('<meta name="robots" content="noindex, nofollow">');
     }
     expect(rootMarkup(read(dist, 'landing.html'))).toContain('Staging environment');
+    expect(inlineScripts(read(dist, 'landing.html'))[0].body).toBe(sessionHintScript());
     expect(rootMarkup(read(dist, 'index.html'))).not.toContain('Staging environment');
   }, BUILD_TIMEOUT_MS);
 });
 
 describe('the build guards', () => {
-  const page = (root: string) => `<!doctype html><html lang="en"><head></head><body>${root}</body></html>`;
+  const page = (root: string, head = '') => `<!doctype html><html lang="en"><head>${head}</head><body>${root}</body></html>`;
 
-  /** En minimal dist med de två filerna; guarden prövas utan ett helt bygge eftersom markörerna kontrolleras före SSR-steget. */
-  function fakeDist(name: string, files: { index: string; landing: string }): string {
+  /** En minimal dist med de två filerna; guarden prövas utan ett helt bygge eftersom markörerna kontrolleras före SSR-steget. Landningens head har sessionstipsets markör om inget annat anges. */
+  function fakeDist(name: string, files: { index: string; landing: string; landingHead?: string; landingTail?: string }): string {
     const dist = join(workDir, name);
     mkdirSync(dist, { recursive: true });
     writeFileSync(join(dist, 'index.html'), page(files.index));
-    writeFileSync(join(dist, 'landing.html'), page(files.landing));
+    writeFileSync(join(dist, 'landing.html'), page(files.landing + (files.landingTail ?? ''), files.landingHead ?? SESSION_HINT_MARKER));
     return dist;
   }
   const inRoot = (marker: string) => `<div id="root">${marker}</div>`;
@@ -230,6 +266,21 @@ describe('the build guards', () => {
   it('fails when the landing marker is missing from landing.html', async () => {
     const distDir = fakeDist('no-landing-marker', { index: inRoot(LOADER_MARKER), landing: inRoot('') });
     await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(LANDING_MARKER);
+  });
+
+  it('fails when the session hint marker is missing from the head of landing.html', async () => {
+    const distDir = fakeDist('no-hint-marker', { index: inRoot(LOADER_MARKER), landing: inRoot(LANDING_MARKER), landingHead: '' });
+    await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(SESSION_HINT_MARKER);
+  });
+
+  it('fails when the session hint marker is in the body instead of the head, where it would run after the first paint', async () => {
+    const distDir = fakeDist('hint-marker-in-body', { index: inRoot(LOADER_MARKER), landing: inRoot(LANDING_MARKER), landingHead: '', landingTail: SESSION_HINT_MARKER });
+    await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(SESSION_HINT_MARKER);
+  });
+
+  it('fails when the session hint marker appears twice', async () => {
+    const distDir = fakeDist('two-hint-markers', { index: inRoot(LOADER_MARKER), landing: inRoot(LANDING_MARKER), landingHead: SESSION_HINT_MARKER + SESSION_HINT_MARKER });
+    await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(SESSION_HINT_MARKER);
   });
 
   it('fails when a marker is outside #root', async () => {
