@@ -1,6 +1,7 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/providers/authContext';
 import { paths } from '@/paths';
+import { PendingNavigate } from './PendingNavigate';
 
 /**
  * Utloggad → /login?next=<path> (ADR 006 beslut 1). /login är Landing med inloggningsdialogen öppen (RUN-145): efter inloggning går man vidare
@@ -13,7 +14,7 @@ export function RequireAuth() {
 
   if (!user) {
     const next = encodeURIComponent(`${location.pathname}${location.search}`);
-    return <Navigate to={`${paths.login}?next=${next}`} replace />;
+    return <PendingNavigate to={`${paths.login}?next=${next}`} />;
   }
   return <Outlet />;
 }
