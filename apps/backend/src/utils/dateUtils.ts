@@ -1,7 +1,7 @@
 // Backendens datumhjälpare i Stockholm-tid. Själva kalender- och tidszonsaritmetiken (addDays, mondayOf, stockholmDay,
 // klockslag -> ögonblick) ligger i packages/shared/src/calendar.ts (RUN-218); här finns bara det som är specifikt för
 // backend: "idag" ur systemklockan och veckointervallet.
-import { addDays, mondayOf, stockholmDay, stockholmWallClockToInstant } from '@runquest/shared';
+import { addDays, mondayOf, stockholmDay } from '@runquest/shared';
 
 /** Returns today's date in Stockholm timezone as "YYYY-MM-DD" */
 export function todayStockholm(): string {
@@ -16,11 +16,6 @@ export function tomorrowStockholm(): string {
 /** Konverterar en UTC ISO-sträng (timestamptz) till "YYYY-MM-DD" i Stockholm-tid. */
 export function toStockholmDate(isoString: string): string {
   return stockholmDay(new Date(isoString));
-}
-
-/** Returns a Date representing 03:00 Stockholm time on the given "YYYY-MM-DD" date */
-export function at3amStockholm(dateStr: string): Date {
-  return stockholmWallClockToInstant(dateStr, 3);
 }
 
 /** True för ett riktigt kalenderdatum på formen "YYYY-MM-DD" (avvisar t.ex. 2026-02-30). */

@@ -5,9 +5,9 @@
  * packages/shared/src/__tests__/calendarCharacterization.test.ts. Etiketterna är de gamla namnen; efter sammanslagningen
  * pekar de på delade funktioner och tabellerna ska vara oförändrade.
  */
-import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { addDays, dayOfWeek, daysBetween, mondayOf } from '@runquest/shared';
-import { at3amStockholm, todayStockholm, toStockholmDate, tomorrowStockholm, weekRange } from '../dateUtils.js';
+import { todayStockholm, toStockholmDate, tomorrowStockholm, weekRange } from '../dateUtils.js';
 import { wallClockMinutes as utcMinutes } from '@runquest/shared';
 import { earlyRunCountEngine } from '../../titleEngines/earlyRunCount.js';
 import { lunchRunCountEngine } from '../../titleEngines/lunchRunCount.js';
@@ -160,30 +160,6 @@ describe('todayStockholm / tomorrowStockholm / toStockholmDate (dateUtils)', () 
     expect(todayStockholm()).toBe(today);
     expect(toStockholmDate(iso)).toBe(today);
     expect(tomorrowStockholm()).toBe(addDays(today, 1));
-  });
-});
-
-describe('at3amStockholm (dateUtils) — 03:00 Stockholm som UTC-ögonblick', () => {
-  // Kopian tolkar middagens Stockholm-klockslag med `new Date(<lokal sträng>)`, alltså i PROCESSENS tidszon, och är bara
-  // korrekt i en UTC-process (Railway). Den karaktäriseras därför i UTC; med TZ=Europe/Stockholm ger den 03:00Z året runt.
-  const originalTz = process.env.TZ;
-  beforeAll(() => { process.env.TZ = 'UTC'; });
-  afterAll(() => {
-    if (originalTz === undefined) delete process.env.TZ;
-    else process.env.TZ = originalTz;
-  });
-
-  it.each([
-    ['2026-01-15', '2026-01-15T02:00:00.000Z'], // vinter, +1
-    ['2026-07-01', '2026-07-01T01:00:00.000Z'], // sommar, +2
-    ['2026-03-28', '2026-03-28T02:00:00.000Z'],
-    ['2026-03-29', '2026-03-29T01:00:00.000Z'], // vårens DST-dag: 03:00 ligger efter växlingen
-    ['2026-03-30', '2026-03-30T01:00:00.000Z'],
-    ['2026-10-24', '2026-10-24T01:00:00.000Z'],
-    ['2026-10-25', '2026-10-25T02:00:00.000Z'], // höstens DST-dag: 03:00 ligger efter växlingen (+1)
-    ['2026-10-26', '2026-10-26T02:00:00.000Z'],
-  ])('%s -> %s', (day, expected) => {
-    expect(at3amStockholm(day).toISOString()).toBe(expected);
   });
 });
 

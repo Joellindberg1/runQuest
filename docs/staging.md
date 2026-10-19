@@ -146,10 +146,11 @@ skillnad har en regel med förklaring i `KNOWN_DIFFERENCES` (`schemaFingerprint.
 staging och prod sedan 2026-10-19, så den tillfälliga regeln för klientgrants på de fyra funktionerna är borttagen, och varje skillnad
 räknas som oförklarad tills en regel med skäl läggs till. En regel gäller bara när träffarna är exakt de nycklar den namnger.
 
-Migration 058 (RUN-309, contract) släpper fyra funktioner, två triggrar på `user_titles` och två kolumner på `titles`. Mellan
-dess apply i staging och i prod visar diffen dem som `only in prod` (oförklarat och väntat: apply i prod stänger det). Regeln
-`temporary-056-client-execute-in-prod` är verkningslös sedan 056 är applicerad i prod (2026-10-19); den och `CLOSED_BY_056`
-kan tas bort (och `retiredTitleObjects.test.ts` ha ett undantag mindre) när Lead vill.
+Migration 058 (RUN-309, contract) släpper fyra funktioner, två triggrar på `user_titles` och två kolumner på `titles` (med
+främmande nyckeln `titles_current_holder_id_fkey` och indexet `idx_titles_current_holder_id`), och skriver om
+`update_group_title_leaderboard` utan slutstämplingen av `titles`. Mellan dess apply i staging och i prod visar diffen därför,
+oförklarat och väntat (apply i prod stänger det): de fyra funktionerna, deras grants, de två triggrarna, de två kolumnerna, nyckeln och
+indexet som `only in prod`, och `update_group_title_leaderboard` som `different`.
 
 Hittar diffen något nytt: antingen är det drift i prod (ticket), eller ett fel i migrationerna (ny migration), eller en
 känd skillnad som ska in i listan med förklaring.
