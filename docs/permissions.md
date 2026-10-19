@@ -36,6 +36,11 @@ att sänka kraven.
 
 ## Supabase-åtkomst
 
+- **Inga AI på Strava-data gäller också agenterna** (ägarkrav; Release Council v0.8.0). Lead och agenter som når prod- eller
+  stagingdatabasen (Supabase-MCP) eller tjänsternas loggar (Railway-MCP) läser aldrig innehåll i `runs`, `strava_tokens`,
+  `strava_webhook_events` eller `run_weather`, och aldrig loggrader med Strava-aktivitetsnummer eller koordinater. Tillåtet är antal,
+  kontrollsummor över icke-Strava-kolumner, katalogfrågor (schema, behörigheter, index), statuskoder, räknarna i
+  `GET /api/strava/webhook/health` och fasta loggrader som `🔐 …` och `🛰️ …`. Behövs mer för en felsökning gör ägaren det själv.
 - Backend använder secret-nyckeln (env i Railway). Frontend har ingen
   Supabase-klient och inga Supabase-nycklar (RUN-105) — den pratar bara med
   backenden (`VITE_API_URL`) med backend-JWT.
