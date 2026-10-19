@@ -62,3 +62,15 @@ export interface EventsHistoryResponse {
   /** Additivt block (ADR 007 A2/A5). */
   meta: OffsetPageMeta;
 }
+
+/**
+ * Svar från POST /api/events/admin/trigger-daily-draw (admin): utfallet av den dagliga lottningen. Ingen kuvert (äldre endpoint, ADR 007 A2).
+ * Samma form som schedulern loggar: `fired` = ett event skapades, `picked` = dess namn, `pool` = kandidaterna med vikt och andel.
+ */
+export interface DailyDrawResponse {
+  fired: boolean;
+  picked: string | null;
+  stormQualifies: boolean;
+  totalWeight: number;
+  pool: Array<{ name: string; weight: number; sharePct: number }>;
+}
