@@ -2,7 +2,7 @@
  * Gruppens titelranking byggs om per grupp (ADR 012 beslut 4.3): update_group_title_leaderboards(groupId), aldrig en global
  * ombyggnad av alla grupper. Efter en join byggs den om utan att det ger titelnyheter, och ett fel fäller aldrig joinen.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../config/database.js', () => ({
   default: {},
@@ -13,18 +13,20 @@ vi.mock('../../config/database.js', () => ({
 import { rebuildGroupRankingAfterJoin, rebuildGroupTitleRanking } from '../groupRanking.js';
 import { errorCode } from '../../utils/errorCode.js';
 import { logger } from '../../utils/logger.js';
-import { createFakeDb } from '../../routes/__tests__/helpers/fakeDb.js';
+import { createFakeDb, expectNoUnexpectedRpc, GROUP_TITLE_RANKING_RPC } from '../../routes/__tests__/helpers/fakeDb.js';
 
 function fakeRpc(result: { data?: unknown; error?: { message: string; code?: string } | null } = {}) {
   const calls: Array<{ name: string; args: unknown }> = [];
   const rpc = (name: string) => (args: unknown) => { calls.push({ name, args }); return result; };
   const db = createFakeDb({}, {
-    rpc: { update_group_title_leaderboards: rpc('update_group_title_leaderboards'), rebuild_all_groups: rpc('rebuild_all_groups') },
+    allowedRpc: GROUP_TITLE_RANKING_RPC,
+    rpc: { update_group_title_leaderboards: rpc('update_group_title_leaderboards') },
   });
   return { calls, db: db.client as never };
 }
 
 beforeEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { expectNoUnexpectedRpc(); });
 
 describe('rebuildGroupTitleRanking', () => {
   it('anropar update_group_title_leaderboards med gruppen och aldrig den globala funktionen', async () => {

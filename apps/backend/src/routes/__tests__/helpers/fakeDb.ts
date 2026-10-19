@@ -8,8 +8,9 @@
  * Select-projektion tillämpas medvetet INTE: läckagetester ska visa att
  * routen själv inte vidarebefordrar fält den inte valt.
  */
+import { expect } from 'vitest';
 
-export type Row = Record<string, any>;
+export type Row =Record<string, any>;
 
 export interface RecordedQuery {
   table: string;
@@ -46,6 +47,23 @@ export interface FakeDbOptions {
   beforeInsert?: (table: string, tables: Record<string, Row[]>) => void;
   /** Svar för supabase.rpc(namn, args). Okänd rpc → { data: null, error: null }. */
   rpc?: Record<string, (args: any) => { data?: unknown; error?: { message: string; code?: string; details?: string; hint?: string } | null }>;
+  /**
+   * Valfritt: de rpc-namn som koden får anropa (utöver dem som har en hanterare i `rpc`). Ett anrop till något annat namn registreras i
+   * en lista som `expectNoUnexpectedRpc()` kräver är tom, så ett test fäller en kod som anropar en rpc den inte ska, även när koden
+   * sväljer felet. Utan `allowedRpc` är rpc-anropen obegränsade som förut.
+   */
+  allowedRpc?: string[];
+}
+
+const unexpectedRpc: string[] = [];
+
+/** Gruppens titelranking byggs om med dessa rpc och inga andra. Ges som `allowedRpc` i tester som ska fälla ett anrop till en annan ombyggnad. */
+export const GROUP_TITLE_RANKING_RPC: string[] = ['update_group_title_leaderboards', 'update_group_title_leaderboard'];
+
+/** Fäller testet om en fakeDb med `allowedRpc` fått ett anrop utanför listan. Kör den i `afterEach` i filer som använder `allowedRpc`. */
+export function expectNoUnexpectedRpc(): void {
+  const calls = unexpectedRpc.splice(0);
+  expect(calls, 'rpc som koden inte får anropa').toEqual([]);
 }
 
 function pick(row: Row, path: string): unknown {
@@ -314,6 +332,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
   }
 
   function rpc(name: string, args?: any) {
+    if (options.allowedRpc && !options.allowedRpc.includes(name) && !options.rpc?.[name]) unexpectedRpc.push(name);
     const result = options.rpc?.[name]?.(args) ?? { data: null, error: null };
     return Promise.resolve({ data: result.data ?? null, error: result.error ?? null });
   }
