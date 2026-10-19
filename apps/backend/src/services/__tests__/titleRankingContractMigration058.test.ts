@@ -28,9 +28,10 @@ const extract = (re: RegExp): string => code.match(re)?.[0] ?? '';
 
 const groupFn = extract(/create or replace function public\.update_group_title_leaderboard\([^)]*\)[\s\S]*?\$function\$;/i);
 const preflight = extract(/do \$preflight\$[\s\S]*?\$preflight\$;/i);
+const lockBlock = extract(/do \$lock\$[\s\S]*?\$lock\$;/i);
 const snapshot = extract(/do \$snapshot\$[\s\S]*?\$snapshot\$;/i);
 const postcheck = extract(/do \$postcheck\$[\s\S]*?\$postcheck\$;/i);
-const statements = [groupFn, preflight, snapshot, postcheck]
+const statements = [groupFn, lockBlock, preflight, snapshot, postcheck]
   .reduce((rest, block) => (block ? rest.replace(block, ' ') : rest), code)
   .split(';')
   .map(normalize)
@@ -59,6 +60,35 @@ describe(`migration ${file}: form och ordning`, () => {
   it('börjar med lock_timeout 5 s och har ingen egen transaktion', () => {
     expect(statements[0]).toBe("set local lock_timeout = '5s'");
     expect(code).not.toMatch(/\bbegin\s*;|\bcommit\b|\brollback\b/i);
+  });
+
+  it('tar alla lås direkt efter lock_timeout, före förkontrollen: alla fyra tabellerna i en sats, i funktionens ordning, med nowait och omförsök', () => {
+    const lockBody = normalize(lockBlock);
+    // En sats, fyra tabeller, ordningen är rebuild-funktionens första beröring: titles, title_leaderboard, user_titles, users.
+    expect(lockBody).toContain('lock table public.titles, public.title_leaderboard, public.user_titles, public.users in access exclusive mode nowait;');
+    expect((lockBody.match(/\block table\b/g) ?? [])).toHaveLength(1);
+    // Upptaget lås: undertransaktionen släpper de redan tagna, vi väntar utanför satsen och försöker igen; efter 20 försök stoppar den.
+    expect(lockBody).toContain('exception when lock_not_available then');
+    expect(lockBody).toContain('if v_attempt >= 20 then raise exception');
+    expect(lockBody).toContain('perform pg_sleep(0.25);');
+    expect(lockBody).toContain('nothing was changed');
+    expect(lockBody).toMatch(/^do \$lock\$ declare v_attempt integer := 0; begin loop v_attempt := v_attempt \+ 1; begin lock table/);
+    // Låset kommer före allt som läser eller ändrar, och inget annat lock table finns i filen.
+    expect(at(code, /do \$lock\$/i)).toBeGreaterThan(at(code, /set local lock_timeout/i));
+    expect(at(code, /do \$lock\$/i)).toBeLessThan(at(code, /do \$preflight\$/i));
+    expect((code.match(/\block\s+table\b/gi) ?? [])).toHaveLength(1);
+    expect(code).not.toMatch(/\block table\b(?![^;]*\bnowait\b)/i);
+  });
+
+  it('huvudet säger att users får ACCESS EXCLUSIVE (inte SHARE ROW EXCLUSIVE), att migrationen aldrig väntar medan den håller lås, och att rollbacken inte återställer kolumnordningen', () => {
+    expect(sql).not.toMatch(/SHARE ROW EXCLUSIVE på users/);
+    expect(sql).toMatch(/ACCESS EXCLUSIVE på users/);
+    expect(sql).toContain('verifierat i PGlite med pg_locks');
+    expect(sql).toContain('VÄNTAR ALDRIG medan den håller ett lås');
+    expect(sql).toContain('återställer SCHEMA OCH CONSTRAINTS');
+    expect(sql).toContain('INTE kolumnordningen');
+    const rollbackIntro = sql.slice(sql.indexOf('-- ROLLBACK (körs'), sql.indexOf('-- ROLLBACK-START'));
+    expect(rollbackIntro).not.toMatch(/\bexakt/i);
   });
 
   it('förkontroll, snapshot, triggrar, funktioner, ersatt funktion, kolumner och slutkontroll kommer i den ordningen', () => {
@@ -148,6 +178,12 @@ describe(`migration ${file}: förkontrollen`, () => {
   it('stoppar på text som nämner namnen: funktioner, vyer, materialiserade vyer, policyer och triggrar (plpgsql syns inte i pg_depend)', () => {
     for (const source of ['from pg_proc p', 'from pg_views v', 'from pg_matviews m', 'from pg_policies pol', 'from pg_trigger t']) expect(preflightBody, source).toContain(source);
     expect((preflightBody.match(/~ v_names/g) ?? []).length).toBeGreaterThanOrEqual(5);
+    // Alla scheman utom systemscheman, inte bara public; undantaget för de fyra funktionerna gäller bara public.
+    expect(preflightBody).toContain("p.pronamespace not in ('pg_catalog'::regnamespace, 'information_schema'::regnamespace)");
+    expect(preflightBody).toContain("and not (p.pronamespace = 'public'::regnamespace and p.proname in ('update_title_leaderboard', 'update_all_title_leaderboards', 'trigger_update_title_leaderboard', 'user_titles_fill_group_id'))");
+    for (const alias of ['v.schemaname', 'm.schemaname', 'pol.schemaname']) expect(preflightBody, alias).toContain(`${alias} not in ('pg_catalog', 'information_schema')`);
+    expect(preflightBody).not.toMatch(/(v|m|pol)\.schemaname = 'public'/);
+    expect(preflightBody).toContain("t.tgrelid = 'public.user_titles'::regclass and t.tgname in ('title_leaderboard_update_trigger', 'user_titles_group_id_shim')");
     for (const name of ['current_holder_id', 'current_value', 'update_title_leaderboard', 'update_all_title_leaderboards', 'trigger_update_title_leaderboard', 'user_titles_fill_group_id']) {
       expect(preflightBody).toContain(name);
     }

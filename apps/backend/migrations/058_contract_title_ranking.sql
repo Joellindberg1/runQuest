@@ -44,12 +44,15 @@
 --
 -- VAD MIGRATIONEN GÖR (i den här ordningen, allt i en transaktion; ett fel rullar tillbaka HELA migrationen)
 --   1. lock_timeout 5 s (som 048 och 053-057): misslyckas hellre än att köa skrivtrafiken. Misslyckas den: kör om.
+--   1b. $lock$: tar ALLA lås som resten av migrationen behöver, direkt och på en gång, i fast ordning: lock table public.titles, public.title_leaderboard, public.user_titles,
+--      public.users in access exclusive mode nowait (se LÅS OCH TID). Allt som följer (förkontroll, snapshot, drop, postcheck) körs alltså med skrivningar utestängda, så förkontrollen och
+--      före-snapshoten kan inte gå sönder mellan läsning och drop. Får den inte alla fyra släpper den dem igen och försöker på nytt (högst 20 försök med 0,25 s mellanrum), sedan stoppar den.
 --   2. $preflight$: ändrar och raderar ingenting. Stoppar om (a) 055 inte är körd (update_group_title_leaderboard(s) eller user_titles.group_id saknas),
 --      (b) något annat än de två kända triggrarna (title_leaderboard_update_trigger och user_titles_group_id_shim på user_titles) beror på de fyra
 --      funktionerna som släpps, enligt pg_depend (vyer, triggrar på andra tabeller, policyer, standardvärden), (c) något annat än den kända främmande nyckeln
 --      titles_current_holder_id_fkey, indexet idx_titles_current_holder_id och kolumnens egna standardvärde beror på titles.current_holder_id/current_value (pg_depend: vyer,
---      policyer, kontroller, genererade kolumner), (d) någon annan funktion, vy, materialiserad vy, policy eller trigger nämner funktionsnamnen eller kolumnnamnen i sin text
---      (plpgsql-kroppar syns inte i pg_depend), eller (e) ett cron-jobb (om schemat cron finns) nämner dem. Ett stopp betyder: fråga ägaren, släpp inget med CASCADE.
+--      policyer, kontroller, genererade kolumner), (d) någon annan funktion, vy, materialiserad vy, policy eller trigger nämner funktionsnamnen eller kolumnnamnen i sin text,
+--      i NÅGOT schema utom pg_catalog och information_schema, inte bara public (plpgsql-kroppar syns inte i pg_depend), eller (e) ett cron-jobb (om schemat cron finns) nämner dem. Ett stopp betyder: fråga ägaren, släpp inget med CASCADE.
 --   3. $snapshot$: före-snapshot som temporära tabeller (mig058_before_tl = title_leaderboard med position, mig058_before_ut = user_titles, mig058_before_t =
 --      titles utan de två kolumnerna). Inte "on commit drop", så att en körning utan omslutande transaktion inte släpper dem direkt (som 055).
 --   4. Släpper de två triggrarna på user_titles (drop trigger if exists): user_titles_group_id_shim (shimmen för v0.7.x-koden) och
@@ -69,9 +72,17 @@
 --   Rörs INTE: user_titles/title_leaderboard (rader, nycklar, index), vyn title_leaderboard_view (14 kolumner, security_invoker, rör inga släppta objekt),
 --   update_group_title_leaderboards(uuid), grants på andra objekt, RLS och policyer (ingen ny tabell, ingen ny policy, ingen ny funktion).
 --
--- LÅS OCH TID: drop trigger tar ACCESS EXCLUSIVE på user_titles; drop column tar ACCESS EXCLUSIVE på titles och, för att ta bort främmande nyckeln,
--- SHARE ROW EXCLUSIVE på users; alla några millisekunder (tabellerna har tiotals rader). lock_timeout (steg 1) gör att den misslyckas i stället för att köa.
--- KÖR NÄR INGET ANNAT SKRIVER TITLAR (som 055): ingen Strava-synk, cron eller titelomräkning ska pågå. Får migrationen 40P01 (deadlock) eller lock_timeout (55P03) rullas hela
+-- LÅS OCH TID (verifierat i PGlite med pg_locks, builderns körning): drop trigger tar ACCESS EXCLUSIVE på user_titles; drop column tar ACCESS EXCLUSIVE på titles OCH, för att ta
+-- bort främmande nyckeln mot users (dess RI-triggrar sitter på users), ACCESS EXCLUSIVE på users (inte SHARE ROW EXCLUSIVE, som en tidigare version av den här texten sa). Under de
+-- millisekunder DDL:n tar blockeras alltså också läsningar av users, alltså varje inloggning och varje autentiserad förfrågan.
+-- DEADLOCK: låsen kommer inte stegvis. Steg 1b tar alla fyra (titles, title_leaderboard, user_titles, users) med NOWAIT i en sats och släpper dem om något är upptaget, så
+-- migrationen VÄNTAR ALDRIG medan den håller ett lås och kan därför inte ingå i en väntecykel, vad andra transaktioner än gör. (Ett vanligt lock table utan nowait väntar på det
+-- första upptagna låset medan det redan håller de tidigare, och två ordningar förekommer samtidigt i systemet: rebuild-funktionen rör titles, title_leaderboard, user_titles, users i
+-- den ordningen (radlåset på titles först, 055), medan triggern i v0.8.0 skriver user_titles först och sedan kommer åt titles. Ingen ordning är därför säker med väntan.) Ordningen i
+-- lock table är ändå funktionens, titles först, så att även ett oväntat tillfälle att vänta följer den. Förlorar en rebuild eller en titelskrivning mot migrationen får den 55P03/40P01
+-- som vilken omräkning som helst: skrivningen eller ombyggnaden misslyckas med kod, och nästa omräkning (varje rundloggning, nattens synk) bygger om listan. Förlorar MIGRATIONEN
+-- (20 försök utan att få alla lås) stoppar den utan att något ändrats.
+-- KÖR NÄR INGET ANNAT SKRIVER TITLAR (som 055): ingen Strava-synk, cron eller titelomräkning ska pågå. Får migrationen 55P03 eller stopp av steg 1b rullas hela
 -- transaktionen tillbaka utan att något ändrats: vänta en stund och KÖR OM filen, ingen annan åtgärd behövs.
 --
 -- IDEMPOTENS: drop ... if exists, create or replace, drop column if exists. En omkörning efter lyckad körning ändrar inget (förkontrollen hittar inget att stoppa på,
@@ -103,9 +114,11 @@
 --      and not (d.classid = 'pg_class'::regclass and d.objid = coalesce(to_regclass('public.idx_titles_current_holder_id')::oid, 0))
 --      and not (d.classid = 'pg_attrdef'::regclass and d.objid in (select ad.oid from pg_attrdef ad where ad.adrelid = 'public.titles'::regclass and ad.adnum = d.refobjsubid))
 --   union all
---   select 'namnger i text: function ' || p.proname from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname not in ('update_title_leaderboard', 'update_all_title_leaderboards', 'trigger_update_title_leaderboard', 'user_titles_fill_group_id') and p.prosrc ~ '\y(current_holder_id|current_value|update_title_leaderboard|update_all_title_leaderboards|trigger_update_title_leaderboard|user_titles_fill_group_id)\y'
---   union all select 'namnger i text: view ' || v.viewname from pg_views v where v.schemaname = 'public' and v.definition ~ '\y(current_holder_id|current_value|update_title_leaderboard|update_all_title_leaderboards|trigger_update_title_leaderboard|user_titles_fill_group_id)\y'
---   union all select 'namnger i text: policy ' || pol.policyname from pg_policies pol where pol.schemaname = 'public' and coalesce(pol.qual, '') || ' ' || coalesce(pol.with_check, '') ~ '\y(current_holder_id|current_value|update_title_leaderboard|update_all_title_leaderboards|trigger_update_title_leaderboard|user_titles_fill_group_id)\y';
+--   select 'namnger i text: function ' || p.pronamespace::regnamespace::text || '.' || p.proname from pg_proc p where p.pronamespace not in ('pg_catalog'::regnamespace, 'information_schema'::regnamespace) and not (p.pronamespace = 'public'::regnamespace and p.proname in ('update_title_leaderboard', 'update_all_title_leaderboards', 'trigger_update_title_leaderboard', 'user_titles_fill_group_id')) and p.prosrc ~ '\y(current_holder_id|current_value|update_title_leaderboard|update_all_title_leaderboards|trigger_update_title_leaderboard|user_titles_fill_group_id)\y'
+--   union all select 'namnger i text: view ' || v.schemaname || '.' || v.viewname from pg_views v where v.schemaname not in ('pg_catalog', 'information_schema') and v.definition ~ '\y(current_holder_id|current_value|update_title_leaderboard|update_all_title_leaderboards|trigger_update_title_leaderboard|user_titles_fill_group_id)\y'
+--   union all select 'namnger i text: materialized view ' || m.schemaname || '.' || m.matviewname from pg_matviews m where m.schemaname not in ('pg_catalog', 'information_schema') and m.definition ~ '\y(current_holder_id|current_value|update_title_leaderboard|update_all_title_leaderboards|trigger_update_title_leaderboard|user_titles_fill_group_id)\y'
+--   union all select 'namnger i text: policy ' || pol.schemaname || '.' || pol.tablename || '.' || pol.policyname from pg_policies pol where pol.schemaname not in ('pg_catalog', 'information_schema') and coalesce(pol.qual, '') || ' ' || coalesce(pol.with_check, '') ~ '\y(current_holder_id|current_value|update_title_leaderboard|update_all_title_leaderboards|trigger_update_title_leaderboard|user_titles_fill_group_id)\y'
+--   union all select 'namnger i text: trigger ' || t.tgrelid::regclass::text || '.' || t.tgname from pg_trigger t where not t.tgisinternal and not (t.tgrelid = 'public.user_titles'::regclass and t.tgname in ('title_leaderboard_update_trigger', 'user_titles_group_id_shim')) and pg_get_triggerdef(t.oid) ~ '\y(current_holder_id|current_value|update_title_leaderboard|update_all_title_leaderboards|trigger_update_title_leaderboard|user_titles_fill_group_id)\y';
 --   -- A3. FÖRE och EFTER (och efter röken): rankingen är exakt vad en ombyggnad ger ur user_titles och aktiva medlemskap (förväntat: 0 och 0). Visar att ingenting
 --   -- behövde triggern för att hålla listan rätt, och är beviset att listan inte driver innan triggern släpps. Avviker den FÖRE: stanna och fråga, 058 orsakar det inte men tar bort det som höll listan rätt
 --   with expected as (
@@ -127,7 +140,7 @@
 --   -- B1. EFTER: funktionerna som finns kvar (förväntat: update_group_title_leaderboard(p_group_id uuid, p_title_id uuid) och update_group_title_leaderboards(p_group_id uuid), prosecdef false, proconfig {search_path=""}, public/anon/authenticated false, service_role true)
 --   select p.proname, pg_get_function_identity_arguments(p.oid) as args, p.prosecdef, p.proconfig, has_function_privilege('public', p.oid, 'execute') as public_exec, has_function_privilege('anon', p.oid, 'execute') as anon_exec, has_function_privilege('authenticated', p.oid, 'execute') as authenticated_exec, has_function_privilege('service_role', p.oid, 'execute') as service_role_exec from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('update_group_title_leaderboard', 'update_group_title_leaderboards') order by p.proname;
 --   -- B2. EFTER: rebuilden stämplar inte titles längre (förväntat: 0 för båda)
---   select (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'update_group_title_leaderboard' and p.prosrc ~* 'update\s+public\.titles') as stamplar_titles, (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosrc ~ 'current_holder_id|current_value') as funktioner_som_nanner_kolumnerna;
+--   select (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'update_group_title_leaderboard' and p.prosrc ~* 'update\s+public\.titles') as stamplar_titles, (select count(*) from pg_proc p where p.pronamespace not in ('pg_catalog'::regnamespace, 'information_schema'::regnamespace) and p.prosrc ~ 'current_holder_id|current_value') as funktioner_som_nanner_kolumnerna;
 --   -- B3. EFTER: user_titles har inga triggrar kvar, kolumnerna på titles är katalogen och vyn är orörd (förväntat: 0 triggrar; kolumnerna id, name, description, unlock_requirement, created_at, updated_at, metric_key, outdoor_only; reloptions {security_invoker=true}, 14 kolumner)
 --   select count(*) as triggrar_pa_user_titles from pg_trigger where tgrelid = 'public.user_titles'::regclass and not tgisinternal;
 --   select column_name from information_schema.columns where table_schema = 'public' and table_name = 'titles' order by ordinal_position;
@@ -142,9 +155,11 @@
 -- grupp A flyttar klockan för A och bygger A:s lista, och ändrar inget i grupp B.
 --
 -- ROLLBACK (körs manuellt och bara efter ägar-ja, som EN transaktion: ett apply_migration-anrop, eller begin; ... commit; i ett svep; första raden sätter lock_timeout och ett
--- fel rullar tillbaka allt). Återställer 055/056-läget: kolumnerna (med nyckel och index; värdena är NULL/0 tills de återställs ur sparade A6), rebuild-triggern, shim-triggern, de
--- fyra funktionerna med 055:s kroppar och update_group_title_leaderboard med slutstämplingen. Funktionernas grants återställs till 056:s läge (bara service_role). Koden i v0.8.1
--- fungerar mot det återställda läget (triggern gör då bara dubbelarbete, som före 058). Rollbacken har körts mot en riktig Postgres (PGlite) av buildern, inte i Supabases egen miljö.
+-- fel rullar tillbaka allt). Rollbacken återställer SCHEMA OCH CONSTRAINTS till 055/056-läget: kolumnerna (med typ, standardvärde, främmande nyckel och index), rebuild-triggern, shim-triggern,
+-- de fyra funktionerna med 055:s kroppar och update_group_title_leaderboard med slutstämplingen, och funktionernas grants (bara service_role). Den återställer INTE kolumnordningen
+-- (add column hamnar sist i titles; ingen kod väljer med select * eller position, men en psql-visning ser annorlunda ut) och INTE värdena: kolumnerna är NULL/0 tills de fylls ur den
+-- sparade A6 (sista raden i blocket). Koden i v0.8.1 fungerar mot det återställda läget (triggern gör då bara dubbelarbete, som före 058). Rollbacken har körts mot en riktig
+-- Postgres (PGlite) av buildern, inte i Supabases egen miljö.
 -- ROLLBACK-START
 --   set local lock_timeout = '5s';
 --   alter table public.titles add column if not exists current_holder_id uuid;
@@ -265,6 +280,27 @@
 
 set local lock_timeout = '5s';
 
+-- Alla lås som resten behöver, direkt, på en gång och utan att vänta medan något lås hålls (se LÅS OCH TID i huvudet). Ordningen följer rebuild-funktionens: titles först.
+-- NOWAIT: är något av de fyra upptaget misslyckas satsen direkt (55P03) och undertransaktionen släpper de redan tagna, så ingen väntecykel kan uppstå. Högst 20 försök.
+do $lock$
+declare
+  v_attempt integer := 0;
+begin
+  loop
+    v_attempt := v_attempt + 1;
+    begin
+      lock table public.titles, public.title_leaderboard, public.user_titles, public.users in access exclusive mode nowait;
+      exit;
+    exception when lock_not_available then
+      if v_attempt >= 20 then
+        raise exception 'migration 058 stopped: could not lock titles, title_leaderboard, user_titles and users after % attempts (a title recalculation, a sync or a request is running). Nothing was changed; run it again when nothing writes titles.', v_attempt;
+      end if;
+      perform pg_sleep(0.25);
+    end;
+  end loop;
+end;
+$lock$;
+
 -- Förkontroll: ändrar och raderar ingenting. Ett stopp rullar tillbaka hela migrationen.
 do $preflight$
 declare
@@ -304,21 +340,22 @@ begin
     raise exception 'migration 058 stopped: % depends on titles.current_holder_id or titles.current_value. Nothing was changed; ask the owner before continuing.', v_blockers;
   end if;
 
-  -- (d) Text som nämner funktionerna eller kolumnerna (plpgsql-kroppar syns inte i pg_depend). De fyra funktionerna som släpps och de två kända triggrarna räknas inte.
+  -- (d) Text som nämner funktionerna eller kolumnerna (plpgsql-kroppar syns inte i pg_depend), i alla scheman utom pg_catalog och information_schema (Supabase har egna scheman som
+  -- extensions, auth och storage). Undantaget för de fyra funktionerna som släpps gäller bara schemat public; de två kända triggrarna räknas inte.
   select string_agg(r.reader, ', ' order by r.reader) into v_blockers from (
-    select 'function ' || p.proname as reader from pg_proc p
-     where p.pronamespace = 'public'::regnamespace
-       and p.proname not in ('update_title_leaderboard', 'update_all_title_leaderboards', 'trigger_update_title_leaderboard', 'user_titles_fill_group_id')
+    select 'function ' || p.pronamespace::regnamespace::text || '.' || p.proname as reader from pg_proc p
+     where p.pronamespace not in ('pg_catalog'::regnamespace, 'information_schema'::regnamespace)
+       and not (p.pronamespace = 'public'::regnamespace and p.proname in ('update_title_leaderboard', 'update_all_title_leaderboards', 'trigger_update_title_leaderboard', 'user_titles_fill_group_id'))
        and p.prosrc ~ v_names
     union all
-    select 'view ' || v.viewname from pg_views v where v.schemaname = 'public' and v.definition ~ v_names
+    select 'view ' || v.schemaname || '.' || v.viewname from pg_views v where v.schemaname not in ('pg_catalog', 'information_schema') and v.definition ~ v_names
     union all
-    select 'materialized view ' || m.matviewname from pg_matviews m where m.schemaname = 'public' and m.definition ~ v_names
+    select 'materialized view ' || m.schemaname || '.' || m.matviewname from pg_matviews m where m.schemaname not in ('pg_catalog', 'information_schema') and m.definition ~ v_names
     union all
-    select 'policy ' || pol.policyname from pg_policies pol where pol.schemaname = 'public' and coalesce(pol.qual, '') || ' ' || coalesce(pol.with_check, '') ~ v_names
+    select 'policy ' || pol.schemaname || '.' || pol.tablename || '.' || pol.policyname from pg_policies pol where pol.schemaname not in ('pg_catalog', 'information_schema') and coalesce(pol.qual, '') || ' ' || coalesce(pol.with_check, '') ~ v_names
     union all
-    select 'trigger ' || t.tgname from pg_trigger t
-     where not t.tgisinternal and t.tgname not in ('title_leaderboard_update_trigger', 'user_titles_group_id_shim') and pg_get_triggerdef(t.oid) ~ v_names
+    select 'trigger ' || t.tgrelid::regclass::text || '.' || t.tgname from pg_trigger t
+     where not t.tgisinternal and not (t.tgrelid = 'public.user_titles'::regclass and t.tgname in ('title_leaderboard_update_trigger', 'user_titles_group_id_shim')) and pg_get_triggerdef(t.oid) ~ v_names
   ) r;
   if v_blockers is not null then
     raise exception 'migration 058 stopped: % names a function or a column this migration drops. Nothing was changed; ask the owner before continuing.', v_blockers;

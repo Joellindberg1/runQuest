@@ -32,6 +32,9 @@ export class EnhancedTitleService {
    * Process titles for one member of a group after run updates. `runs` är ALLA användarens rundor; medlemmens fönster
    * avgör vilka som räknas (titleInputs). user_titles skrivs med gruppen. Rankingen byggs INTE om här: det görs en gång per
    * gruppomräkning i processGroupTitles, efter att alla medlemmar skrivits (ADR 012 beslut 4.4, migration 058).
+   *
+   * VARNING: anropa den inte utanför processGroupTitles. En skrivning här utan att gruppens ranking byggs om efteråt lämnar title_leaderboard
+   * gammal (migration 058 släppte triggern som förr höll den rätt). Metoden är publik bara för att testerna ska kunna spionera på den.
    */
   async processUserTitlesAfterRun(
     member: TitleMember,
