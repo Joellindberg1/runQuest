@@ -49,7 +49,7 @@ const STANDINGS_WAIT_MS = 750;
 const LOADER_CAP_MS = 8_000;
 const LOADER_CAP_MARGIN_MS = 4_000;
 /** Laddaren ska ge vika vid första misslyckade försöket: långt före omförsökens slut (ca 7 s), så den här gränsen skiljer "släpper vid första felet" från "väntar ut omförsöken". */
-const FIRST_FAILURE_MS = 3_000;
+const FIRST_FAILURE_MS = 5_000;
 /** Antal Tab-tryck som kritikern använde för att nå tourens stängknapp (driver.js lägger fokus i popovern). */
 const TAB_PRESSES_TO_CLOSE_BUTTON = 6;
 
