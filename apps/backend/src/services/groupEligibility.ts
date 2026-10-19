@@ -4,7 +4,7 @@
 // medlemmarna läses ur group_members (aktivt medlemskap), aldrig ur users.group_id; rundorna räknas inom medlemskapets fönster
 // (titleWindow/titleInputs); klockan är gruppens (getTitleRecalcContext).
 import { titleWindow, type GroupEligibilityEntry } from '@runquest/shared';
-import { supabase } from '../config/database';
+import { supabase } from '../config/database.js';
 import { errorWithCode } from '../utils/errorCode.js';
 import { enhancedTitleService } from './enhancedTitleService';
 import { titleInputs } from './titleInputs.js';

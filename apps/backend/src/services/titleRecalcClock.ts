@@ -1,4 +1,4 @@
-import { supabase } from '../config/database';
+import { supabase } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import type { TitleContext } from '../titleEngines/types';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
