@@ -2,7 +2,7 @@
  * stravaWebhookSubscription.ts — view, create and delete the one Strava push subscription of the app (ADR 010 decisions 2 and 16).
  * There is one subscription per Strava app. Creating it makes Strava call GET on the callback url at once, so the backend with the
  * webhook route and STRAVA_WEBHOOK_VERIFY_TOKEN must already be live (decision 16 step 4), and every connection must already have an
- * athlete id (npm run backfill:strava-athlete). `delete` is the rollback (decision 16 step 6).
+ * athlete id (filled in once by the one-off backfillStravaAthleteIds script, now only in git history). `delete` is the rollback (decision 16 step 6).
  *
  * Run:  npm run strava:webhook --workspace=@runquest/backend -- [view|create|delete] [--apply] [--id <subscription id>]
  *   view     (default) lists the subscription(s) Strava has for this app. Read-only.

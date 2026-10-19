@@ -19,7 +19,7 @@ const api = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 vi.mock('@/shared/hooks/useAppInit', () => ({ useAppInit: () => {} }));
 vi.mock('@/features/onboarding/components/OnboardingOrchestrator', () => ({ OnboardingOrchestrator: () => null }));
 vi.mock('@/app-shell/AppShell', async () => {

@@ -59,5 +59,3 @@ export const duelsSendPath = (opponentId?: string): string => {
 export const FROM_LANDING_STATE = { fromLanding: true } as const;
 
 export const isFromLanding = (state: unknown): boolean => (state as { fromLanding?: unknown } | null)?.fromLanding === true;
-
-export const DEFAULT_LANDING_PATH = paths.board;

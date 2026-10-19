@@ -20,7 +20,7 @@ const api = vi.hoisted(() => ({
   logout: vi.fn(),
   onUnauthorized: undefined as undefined | (() => void),
 }));
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 
 const KEYS: QueryKey[] = [
   BADGE_QUERY_KEYS.group,

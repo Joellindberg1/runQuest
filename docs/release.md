@@ -357,7 +357,7 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
    gäller inleder migrationsfilens huvud med körordningen.
 3. Körs via Supabase MCP `apply_migration` med `name` = `NNN_kort_beskrivning`. Därefter `list_migrations` (posten
    finns) och, efter RLS- eller policyändring, `get_advisors` (security). Filen ligger redan i release-PR:en.
-4. Backfill- och omräkningsskript (`backfill:*`, `reveal:badges`, `convert:wind-ms`): dry-run fritt, `--apply` kräver
+4. Backfill- och omräkningsskript (`backfill:*`, `reveal:badges`): dry-run fritt, `--apply` kräver
    ägar-ja med dry-run-rapporten som underlag. Skripten skriver ut måldatabasens host.
 5. **Migrationerna 053–057 i v0.8.0 (ADR 012; 057 är RUN-322)** körs i den här ordningen, först i staging och sedan i prod med ett ja per migration:
    053 `group_members`, 054 `group_settings`, 055 `title_scope_group`, 056 `revoke_legacy_title_function_execute`, 057 `create_recalculation_marks`.

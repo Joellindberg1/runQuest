@@ -16,7 +16,6 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-popover": "^1.1.1",
-    "@radix-ui/react-tooltip": "^1.1.4",
     "@runquest/shared": "file:../../packages/shared",
     "@runquest/types": "file:../../packages/types",
     "@sentry/react": "^11.8.0",

@@ -16,7 +16,7 @@ const api = vi.hoisted(() => ({
   onUnauthorized: undefined as undefined | (() => void),
 }));
 
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 vi.mock('./leaveForApp', () => ({ leaveForApp: vi.fn() }));
 

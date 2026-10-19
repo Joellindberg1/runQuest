@@ -121,4 +121,4 @@ const fake = new Proxy({} as Record<string, unknown>, {
   },
 });
 
-export const backendApiModule = { backendApi: fake, default: fake };
+export const backendApiModule = { backendApi: fake };

@@ -67,6 +67,19 @@ describe('removed endpoints', () => {
     expect(mockPopulateTitleLeaderboard).not.toHaveBeenCalled();
   });
 
+  it('POST /api/auth/refresh returns 404', async () => {
+    const res = await server.request('POST', '/api/auth/refresh', { token: token() });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('the API info does not list a token refresh endpoint', async () => {
+    const res = await server.request('GET', '/api');
+
+    expect(res.status).toBe(200);
+    expect(res.body.endpoints.auth).toEqual({ login: '/api/auth/login' });
+  });
+
   it('the refresh of all title leaderboards is refused for a user who is not an admin', async () => {
     const res = await server.request('POST', '/api/titles/refresh', { token: mintToken({ user_id: 'user-2', group_id: 'group-1' }) });
 

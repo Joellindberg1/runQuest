@@ -200,8 +200,6 @@ export interface ActivityPayloadMap {
   challenge_accepted: ChallengeAcceptedPayload;
 }
 
-export type ActivityPayload<T extends ActivityType = ActivityType> = ActivityPayloadMap[T];
-
 /** En färdig rad att skriva till activity_log (allt utom id/created_at). Diskriminerad på `type`. */
 export type ActivityDraft = {
   [T in ActivityType]: {

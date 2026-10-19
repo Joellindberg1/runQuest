@@ -17,15 +17,6 @@ declare module 'express-serve-static-core' {
   }
 }
 
-export interface AuthenticatedRequest extends Request {
-  user: {
-    user_id: string;
-    name: string;
-    email: string;
-    group_id?: string;
-  };
-}
-
 export const authenticateJWT = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
   

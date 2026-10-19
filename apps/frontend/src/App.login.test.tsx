@@ -15,7 +15,7 @@ const api = vi.hoisted(() => ({
   onUnauthorized: undefined as undefined | (() => void),
 }));
 
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 vi.mock('@/shared/hooks/useAppInit', () => ({ useAppInit: () => {} }));
 vi.mock('@/features/onboarding/components/OnboardingOrchestrator', () => ({ OnboardingOrchestrator: () => null }));
 vi.mock('@/app-shell/AppShell', () => ({ AppShell: () => <div data-testid="shell"><Outlet /></div> }));

@@ -92,7 +92,7 @@ export function createApp(): express.Express {
       endpoints: {
         health: '/health',
         api: '/api',
-        auth: { login: '/api/auth/login', refresh: '/api/auth/refresh' },
+        auth: { login: '/api/auth/login' },
         public: { stats: '/api/public/stats' },
         strava: { config: '/api/strava/config', status: '/api/strava/status', callback: '/api/strava/callback', webhook: STRAVA_WEBHOOK_PATH },
         waitlist: { join: 'POST /api/waitlist', adminList: 'GET /api/admin/waitlist' }

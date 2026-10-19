@@ -83,8 +83,6 @@ export const formatMetres = (value: number): string => `${WHOLE.format(Math.roun
 /** Måttets värde i tävlingstabellen: km som standard, annars höjdmeter (backend räknar `metric === 'km'`, annars elevation). */
 export const formatEventValue = (metric: string | null, value: number): string => (metric === 'km' ? formatKm(value) : formatMetres(value));
 
-export const formatXp = (value: number): string => `${WHOLE.format(value)} XP`;
-
 /** "5 km" / "2.5 km" — minsta distans utan onödig decimal. */
 export const formatMinKm = (value: number): string => `${Number(value.toFixed(1))} km`;
 

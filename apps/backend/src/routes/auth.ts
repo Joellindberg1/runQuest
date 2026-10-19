@@ -112,12 +112,6 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
   }
 });
 
-// POST /api/auth/refresh (placeholder for now)
-router.post('/refresh', async (_req, res) => {
-  logger.info('🔄 Token refresh requested (not implemented yet)');
-  res.json({ message: 'Token refresh - to be implemented' });
-});
-
 // POST /api/auth/change-password
 router.post('/change-password', authenticateJWT, async (req, res): Promise<void> => {
   try {

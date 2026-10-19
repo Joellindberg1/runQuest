@@ -215,7 +215,7 @@ export class WeatherService {
     const supabase = getSupabaseClient();
     const { error } = await supabase
       .from('run_weather')
-      // fetched_at = senaste skrivningen: rader före v0.5.3 har vind i km/h, och omräkningen (scripts/convertWindToMs.ts) skiljer dem åt på den.
+      // fetched_at = senaste skrivningen: rader före v0.5.3 har vind i km/h, och engångsomräkningen (convertWindToMs, nu bara i git-historiken) skilde dem åt på den.
       .upsert({ run_id: runId, ...weather, fetched_at: new Date().toISOString() }, { onConflict: 'run_id' });
 
     if (error) {

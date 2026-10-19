@@ -3,7 +3,7 @@ import type { Run, User } from '@runquest/types'
 import { MS_DAY, weekendAverageKm } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { MAX_LEVEL } from '@/constants/appConstants';
-export { getInitials, formatXPForDisplay } from '@/shared/utils/formatters';
+export { getInitials } from '@/shared/utils/formatters';
 
 export const leaderboardUtils = {
   filterAndSortUsers(users: User[]): User[] {
