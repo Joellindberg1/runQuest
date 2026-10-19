@@ -20,7 +20,7 @@ vi.mock('../../config/database.js', () => ({
 
 import app from '../../app.js';
 import { logger } from '../../utils/logger.js';
-import { createFakeDb, type Row, type RecordedQuery } from './helpers/fakeDb.js';
+import { createFakeDb, expectNoUnexpectedRpc, GROUP_TITLE_RANKING_RPC, type Row, type RecordedQuery } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
 const G1 = 'group-1';
@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.spyOn(logger, 'warn').mockImplementation(() => {});
   vi.spyOn(logger, 'error').mockImplementation(() => {});
 });
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { vi.restoreAllMocks(); expectNoUnexpectedRpc(); });
 
 function viewRow(titleId: string, titleName: string, groupId: string, position: number, userId: string, userName: string, value: number): Row {
   return {
@@ -73,10 +73,8 @@ const tables = (): Record<string, Row[]> => ({
 function use() {
   const rpcCalls: Array<{ name: string; args: unknown }> = [];
   const record = (name: string) => (args: unknown) => { rpcCalls.push({ name, args }); return { data: null }; };
-  const db = createFakeDb(tables(), { rpc: {
+  const db = createFakeDb(tables(), { allowedRpc: GROUP_TITLE_RANKING_RPC, rpc: {
     update_group_title_leaderboards: record('update_group_title_leaderboards'),
-    update_all_title_leaderboards: record('update_all_title_leaderboards'),
-    update_title_leaderboard: record('update_title_leaderboard'),
   } });
   holder.client = db.client;
   return { queries: db.queries, rpcCalls };

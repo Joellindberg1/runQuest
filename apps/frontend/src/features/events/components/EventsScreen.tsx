@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { EVENTS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
@@ -103,7 +104,7 @@ export function EventsScreen() {
 
   return (
     <>
-      {view && <FeatureTour slug="tour_events_v2" steps={TOUR_EVENTS_V2} />}
+      {view && <FeatureTour slug={EVENTS_TOUR_SLUG} steps={TOUR_EVENTS_V2} />}
       <div className="rq-events">
         <header className="rq-events__head">
           <h1 className="rq-display rq-events__title">Events</h1>

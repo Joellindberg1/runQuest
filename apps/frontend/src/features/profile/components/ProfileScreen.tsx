@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { PROFILE_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { paths } from '@/paths';
@@ -76,7 +77,7 @@ export function ProfileScreen() {
 
   return (
     <div className="rq-profile rq-rise">
-      <FeatureTour slug="tour_profile_v2" steps={TOUR_PROFILE_V2} />
+      <FeatureTour slug={PROFILE_TOUR_SLUG} steps={TOUR_PROFILE_V2} />
       <div className="rq-profile__split">
         <div className="rq-profile__main">
           <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} showcase={isDesktop ? badges.showcase : undefined} />

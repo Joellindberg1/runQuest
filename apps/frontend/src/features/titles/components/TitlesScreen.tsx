@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { TITLES_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_TITLES_V2 } from '@/features/onboarding/featureTourSteps';
@@ -135,7 +136,7 @@ export function TitlesScreen() {
 
   return (
     <div className="rq-titles">
-      <FeatureTour slug="tour_titles_v2" steps={TOUR_TITLES_V2} />
+      <FeatureTour slug={TITLES_TOUR_SLUG} steps={TOUR_TITLES_V2} />
 
       <header className="rq-titles__head">
         <div>

@@ -110,7 +110,7 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
 .rq-landing-stat[data-tone="gold"] .rq-landing-stat__value { color: var(--rq-gold-text); }
 .rq-landing-stat__label { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 /* Talen som anländer får inte flytta grannarna (ADR 006-addendum 2026-10-19, punkt 6): varje tal reserverar bredden av det bredaste rimliga värdet
-   i sin egen teckenbredd (ch i Bebas): km till "99 999" (5,4 ch), löpare och utmaningar till "999". Tankstrecket före svaret står i samma ruta. */
+   i sin egen teckenbredd (ch i Bebas): km till "99 999" (ungefär 5,4 ch, så min-width: 5.5ch ger 0,1 ch marginal), löpare och utmaningar till "999" (3ch). Tankstrecket före svaret står i samma ruta. */
 .rq-landing-stat[data-stat="km"] .rq-landing-stat__value { min-width: 5.5ch; }
 .rq-landing-stat[data-stat="runners"] .rq-landing-stat__value,
 .rq-landing-stat[data-stat="challenges"] .rq-landing-stat__value { min-width: 3ch; }

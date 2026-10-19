@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { NEWS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_NEWS_V2 } from '@/features/onboarding/featureTourSteps';
@@ -178,7 +179,7 @@ export function NewsScreen() {
   return (
     <>
       {/* Bara när det finns något att visa: över ett tomt flöde blir stegen flytande rutor, och turen skulle ändå markeras sedd för alltid. */}
-      {tourSteps && <FeatureTour slug="tour_news_v2" steps={tourSteps} />}
+      {tourSteps && <FeatureTour slug={NEWS_TOUR_SLUG} steps={tourSteps} />}
       <div className="rq-news">
         <header className="rq-news__head">
           <div>

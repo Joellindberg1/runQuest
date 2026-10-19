@@ -16,7 +16,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { EnhancedTitleService } from '../enhancedTitleService.js';
-import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
+import { createFakeDb, expectNoUnexpectedRpc, GROUP_TITLE_RANKING_RPC, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 
 const SPY_KEY = '__scopeSpy';
 const NOW = new Date('2026-10-18T10:00:00Z');
@@ -71,11 +71,10 @@ function setup(data: Record<string, Row[]> = tables()) {
   const db = createFakeDb(data, {
     autoIds: true,
     numericIds: ['activity_log'],
+    allowedRpc: GROUP_TITLE_RANKING_RPC,
     rpc: {
       update_group_title_leaderboard: rpc('update_group_title_leaderboard'),
       update_group_title_leaderboards: rpc('update_group_title_leaderboards'),
-      update_title_leaderboard: rpc('update_title_leaderboard'),
-      update_all_title_leaderboards: rpc('update_all_title_leaderboards'),
     },
   });
   holder.client = db.client;
@@ -92,6 +91,7 @@ beforeEach(() => {
 afterEach(() => {
   titleEngineRegistry.delete(SPY_KEY);
   vi.useRealTimers();
+  expectNoUnexpectedRpc();
 });
 
 describe('processGroupTitles — fail-closed omfång', () => {

@@ -19,7 +19,7 @@ vi.mock('../../config/database.js', () => ({
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
-import { createFakeDb, type FakeDbOptions, type Row } from './helpers/fakeDb.js';
+import { createFakeDb, expectNoUnexpectedRpc, GROUP_TITLE_RANKING_RPC, type FakeDbOptions, type Row } from './helpers/fakeDb.js';
 import { membershipRpc, type MembershipRpcCall } from './helpers/fakeMembership.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
@@ -39,7 +39,7 @@ beforeEach(() => {
   vi.spyOn(logger, 'warn').mockImplementation(capture);
   vi.spyOn(logger, 'error').mockImplementation(capture);
 });
-afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); expectNoUnexpectedRpc(); });
 
 const INVITE = 'SECRET42';
 const G1 = 'group-1';
@@ -52,7 +52,7 @@ function use(tables: Record<string, Row[]>, options: FakeDbOptions = {}, beforeR
   const rpc: NonNullable<FakeDbOptions['rpc']> = Object.fromEntries(
     Object.entries(fakes).map(([name, fake]) => [name, (args: any) => { beforeRpc?.(name, args, state); return fake(args); }]),
   );
-  const db = createFakeDb(state, { autoIds: true, ...options, rpc: { ...rpc, ...options.rpc } });
+  const db = createFakeDb(state, { autoIds: true, allowedRpc: GROUP_TITLE_RANKING_RPC, ...options, rpc: { ...rpc, ...options.rpc } });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   return { tables: state, calls, queries: db.queries };
 }
@@ -60,9 +60,7 @@ function use(tables: Record<string, Row[]>, options: FakeDbOptions = {}, beforeR
 /** Fejkar rpc update_group_title_leaderboards och samlar anropen (i ordning med join_group via samma lista). */
 function rebuildRpc(order: string[] = [], result: { error?: { code: string; message: string } } = {}): NonNullable<FakeDbOptions['rpc']> {
   return {
-    update_group_title_leaderboards: (args: any) => { order.push('rebuild:' + args.p_group_id); return result.error ? { error: result.error } : { data: null }; },
-    update_all_title_leaderboards: () => { order.push('rebuild:ALL'); return { data: null }; },
-  };
+    update_group_title_leaderboards: (args: any) => { order.push('rebuild:' + args.p_group_id); return result.error ? { error: result.error } : { data: null }; },  };
 }
 
 const groups = (): Row[] => [

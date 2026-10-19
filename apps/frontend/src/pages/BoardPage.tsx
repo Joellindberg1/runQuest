@@ -1,5 +1,5 @@
 import React from 'react';
-import { stockholmClock } from '@runquest/shared';
+import { LEADERBOARD_TOUR_SLUG, stockholmClock } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
@@ -45,7 +45,7 @@ const BoardPage: React.FC = () => {
   return (
     <div className="rq-board">
       {/* Ankaret (leaderboard-card) finns först när podiet är ritat, och bara i Season-vyn. */}
-      {view === 'season' && usersQuery.data && <FeatureTour slug="tour_leaderboard_v2" steps={TOUR_LEADERBOARD_V1} />}
+      {view === 'season' && usersQuery.data && <FeatureTour slug={LEADERBOARD_TOUR_SLUG} steps={TOUR_LEADERBOARD_V1} />}
 
       <header className="rq-board__head">
         {isDesktop ? (
