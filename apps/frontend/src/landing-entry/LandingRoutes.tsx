@@ -5,6 +5,7 @@ import { paths } from '@/paths';
 import { UnknownAddressHandoff } from './AppHandoff';
 import { LandingIndex } from './LandingIndex';
 import { LANDING_FILE_PATHS } from './landingAddress';
+import { LandingPageviews } from './LandingPageviews';
 
 const LegalPage = lazy(() => import('@/pages/LegalPage'));
 
@@ -18,22 +19,26 @@ const LegalPage = lazy(() => import('@/pages/LegalPage'));
  */
 export function LandingRoutes() {
   return (
-    <Routes>
-      <Route path={paths.landing} element={<LandingIndex />} />
-      <Route path={paths.login} element={<LandingIndex loginOpen />} />
-      {/* Caddys try_files ger landing.html också här. Samma element på samma plats: landningen ritas inte om när adressen skrivs om till /. */}
-      {LANDING_FILE_PATHS.map((path) => (
-        <Route key={path} path={path} element={<LandingIndex canonicalizeAddress />} />
-      ))}
-      <Route
-        path={paths.legal}
-        element={
-          <Suspense fallback={<RoutePending />}>
-            <LegalPage />
-          </Suspense>
-        }
-      />
-      <Route path="*" element={<UnknownAddressHandoff />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path={paths.landing} element={<LandingIndex />} />
+        <Route path={paths.login} element={<LandingIndex loginOpen />} />
+        {/* Caddys try_files ger landing.html också här. Samma element på samma plats: landningen ritas inte om när adressen skrivs om till /. */}
+        {LANDING_FILE_PATHS.map((path) => (
+          <Route key={path} path={path} element={<LandingIndex canonicalizeAddress />} />
+        ))}
+        <Route
+          path={paths.legal}
+          element={
+            <Suspense fallback={<RoutePending />}>
+              <LegalPage />
+            </Suspense>
+          }
+        />
+        <Route path="*" element={<UnknownAddressHandoff />} />
+      </Routes>
+      {/* Efter Routes: överlämningens effekt (som stänger sändaren) körs då före sidvisningens. Renderar ingenting, så förrenderingen berörs inte. */}
+      <LandingPageviews />
+    </>
   );
 }

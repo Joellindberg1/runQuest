@@ -10,21 +10,26 @@ import { createDefaultPageviewSender, type PageviewSender } from './umamiPagevie
  */
 export const PAGEVIEW_SETTLE_MS = 150;
 
+/** Gör om sidans adress till den som skickas. Standard: fullappens normalisering. */
+type PageUrlOf = (pathname: string, search: string) => string;
+
 interface PageviewTrackingOptions {
   /** Appen har inte bestämt vad den ska visa än (inloggningen kontrolleras): ingen sida är visad, så ingen räknas. */
   paused?: boolean;
-  /** Finns för tester; appen använder standardsändaren. */
+  /** Finns för tester och för lean landningen (som stänger sändaren under en överlämning); fullappen använder standardsändaren. */
   sender?: PageviewSender;
+  /** Finns för ingångar med egna adresser (lean landningens filadresser). Standard: normalizePageUrl. */
+  normalize?: PageUrlOf;
 }
 
 /**
  * Skickar en sidvisning till webbanalysen varje gång användaren kommer till en ny sida, med adressen normaliserad (routemönster, inga id,
  * ingen query utom utm_ på landningen). Måste ligga i routern. Utan webbplats-id i bygget (staging, lokalt, CI) gör sändaren ingenting.
  */
-export function usePageviewTracking({ paused = false, sender }: PageviewTrackingOptions = {}): void {
+export function usePageviewTracking({ paused = false, sender, normalize = normalizePageUrl }: PageviewTrackingOptions = {}): void {
   const [activeSender] = useState<PageviewSender>(() => sender ?? createDefaultPageviewSender());
   const { pathname, search } = useLocation();
-  const url = normalizePageUrl(pathname, search);
+  const url = normalize(pathname, search);
 
   useEffect(() => {
     if (paused) return undefined;
