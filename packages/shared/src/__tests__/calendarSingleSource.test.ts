@@ -120,7 +120,7 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
         .flatMap((m) => m[1].split(',').map((name) => name.trim().replace(/^type\s+/, '')).filter(Boolean));
     };
     const expected: Record<string, string[]> = {
-      'apps/backend/src/utils/dateUtils.ts': ['addDays', 'mondayOf', 'stockholmDay', 'stockholmWallClockToInstant'],
+      'apps/backend/src/utils/dateUtils.ts': ['addDays', 'mondayOf', 'stockholmDay'],
       'apps/backend/src/scheduler/eventScheduler.ts': ['addDays', 'stockholmWallClockToInstant'],
       'apps/backend/src/routes/challenges.ts': ['groupNextMidnight'],
       'apps/frontend/src/app-shell/rightNowItems.ts': ['addDays', 'stockholmWallClockToInstant'],
