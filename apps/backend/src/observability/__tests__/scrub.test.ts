@@ -378,6 +378,28 @@ describe('Strava numbers in JSON text, camelCase, quotes and database errors', (
     expect(messageOf(text)).toBe(text);
   });
 
+  it.each([
+    'athlete_id=1234567a-1234-5678-9abc-def012345678 not found',
+    'activity 1234567a-1234-5678-9abc-def012345678 not found',
+    'activity 12345678-ABCD-5678-9ABC-DEF012345678 not found',
+    'owner_id=7c9e6679-7425-40de-944b-e07fc1f90ae7 not found',
+  ])('leaves a UUID that starts with digits and a hex letter alone: %s', (text) => {
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it.each([
+    ['activity 12345678901-retry', 'activity [Filtered]-retry'],
+    ['activities 12345678901-12345678902', 'activities [Filtered]'],
+    ['athlete 424242424-x', 'athlete [Filtered]-x'],
+    ['GET /activities/12345678901-copy', 'GET /activities/:id-copy'],
+    ['activity_id=12345678901-2', 'activity_id=[Filtered]-2'],
+    ['object_id=12345678901-2', 'object_id=[Filtered]-2'],
+    ['activity 12345678901abc', 'activity [Filtered]abc'],
+    ['object_id=12345678901x', 'object_id=[Filtered]x'],
+  ])('masks a Strava number that is followed by a hyphen or a letter, as it did before: %s', (text, expected) => {
+    expect(messageOf(text)).toBe(expected);
+  });
+
   it('still masks a real number next to a UUID in the same text', () => {
     const out = messageOf('activity 12345678901 and athlete_id=424242424 belong to 12345678-1234-5678-9abc-def012345678');
     expect(out).not.toMatch(/12345678901|424242424/);
@@ -423,6 +445,9 @@ describe('the scrubber is bounded in time and size', () => {
     ['repeated "1."', '1.'.repeat(50_000)],
     ['letters', 'a'.repeat(100_000)],
     ['repeated eyJ-', 'eyJ-'.repeat(25_000)],
+    ['repeated JWT header with a dashed body', 'eyJaaaaa.aaaaa-'.repeat(6_600)],
+    ['repeated JWT header and payload', 'eyJaaaaa.eyJaaaaa-'.repeat(5_500)],
+    ['one long JWT payload without a second dot', 'eyJaaaaa.' + 'b'.repeat(100_000)],
     ['repeated Bearer', 'Bearer '.repeat(14_000)],
     ['repeated a@', 'a@'.repeat(50_000)],
     ['dotted local part without @', 'a.'.repeat(50_000)],
@@ -473,6 +498,13 @@ describe('the scrubber is bounded in time and size', () => {
       const out = scrubString(text(kept), []);
       expect(leaks(out)).toBe(false);
       expect(out.endsWith('…[truncated]')).toBe(true);
+    });
+
+    it.each([2_500, MAX_SCRUBBED_STRING_LENGTH - 400])('masks a whole JWT with a %i character payload, and one cut inside such a payload', (payloadLength) => {
+      const long = `${HEADER}.eyJ${'A'.repeat(payloadLength)}.${SIGNATURE}`;
+      expect(scrubString(`token was ${long} done`, [])).toBe('token was [Filtered] done');
+      const cut = scrubString(`${' '.repeat(MAX_SCRUBBED_STRING_LENGTH - 2_000)}${long}`, []);
+      expect(cut).not.toMatch(/eyJ|AAAA/);
     });
 
     it.each(KEPT)('masks all of it when %i characters of the token are inside the cut (whole event)', (kept) => {
