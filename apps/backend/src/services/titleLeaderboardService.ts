@@ -1,4 +1,4 @@
-import { supabase } from '../config/database';
+import { supabase } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 import { rebuildGroupTitleRanking } from './groupRanking.js';
