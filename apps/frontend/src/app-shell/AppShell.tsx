@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { enableErrorReporting } from '@/shared/observability/errorReporting';
-import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
 import { BadgeUpgradeHost } from '@/features/badges/components/BadgeUpgradeHost';
 import { DesktopShell } from './DesktopShell';
 import { MobileShell } from './MobileShell';
+import { RoutePending } from './RoutePending';
 import { useIsDesktop } from './useIsDesktop';
 import './app-shell.css';
 
@@ -19,13 +19,7 @@ export function AppShell() {
     void enableErrorReporting();
   }, []);
 
-  if (isDesktop === undefined) {
-    return (
-      <div className="rq-shell__pending">
-        <TrackLoader size={64} label="Loading" />
-      </div>
-    );
-  }
+  if (isDesktop === undefined) return <RoutePending />;
   return (
     <>
       {isDesktop ? <DesktopShell /> : <MobileShell />}

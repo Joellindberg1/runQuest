@@ -39,11 +39,13 @@
 
   <body>
     <noscript>
+      <!-- #root bär appens laddningsvy förrenderad (prerender-landing); utan JavaScript skulle ovalen snurra för alltid. -->
+      <style>#root { display: none }</style>
       <h1>Your group chat deserves a leaderboard</h1>
       <p>RunQuest turns every run into XP. XP becomes levels, levels become titles, and Strava syncs the runs while your group brings the arguing.</p>
       <p>RunQuest needs JavaScript to run. Turn it on in your browser to see the leaderboard.</p>
     </noscript>
-    <div id="root"></div>
+    <div id="root"><!--app-loader--></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

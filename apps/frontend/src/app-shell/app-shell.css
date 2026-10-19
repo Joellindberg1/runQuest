@@ -26,7 +26,6 @@
 .rq-shell--desktop .rq-shell__main { max-width: var(--rq-content-max); padding-block: var(--rq-sp-24) var(--rq-sp-32); }
 /* Desktop: bakgrunden täcker sidan, inte sidnavens genomskinliga yta (Web Prototypen lägger den i <main>). */
 .rq-shell--desktop > .rq-track-bg { left: var(--rq-sidebar-w); }
-.rq-shell__pending { min-height: calc(100dvh - var(--rq-staging-banner-h)); display: flex; align-items: center; justify-content: center; background: var(--rq-bg-shell); }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .rq-header {

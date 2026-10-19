@@ -1,0 +1,2 @@
+/* Laddningsvyns ram (RoutePending). Egen fil så att lean landningen kan rita vyn utan hela skalets layout (app-shell.css); ENDAST tokens ur index.css. */
+.rq-shell__pending { min-height: calc(100dvh - var(--rq-staging-banner-h)); display: flex; align-items: center; justify-content: center; background: var(--rq-bg-shell); }

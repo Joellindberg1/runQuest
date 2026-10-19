@@ -4,7 +4,7 @@ import { AppProviders } from '@/providers/AppProviders';
 import { useAuth } from '@/providers/authContext';
 import { useAppInit } from '@/shared/hooks/useAppInit';
 import { usePageviewTracking } from '@/shared/analytics/usePageviewTracking';
-import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
+import { RoutePending } from '@/app-shell/RoutePending';
 import { AppRoutes } from './routes';
 // Touren (driver.js) behövs först för inloggade användare, så den ligger i en egen chunk.
 const OnboardingOrchestrator = lazy(() =>
@@ -32,13 +32,7 @@ const AppContent = () => {
     return null;
   }
 
-  if (loading) {
-    return (
-      <div className="rq-shell__pending">
-        <TrackLoader size={64} label="Loading" />
-      </div>
-    );
-  }
+  if (loading) return <RoutePending />;
 
   return (
     <>
