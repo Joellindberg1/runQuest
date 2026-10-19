@@ -22,6 +22,10 @@ describe('signedInTarget', () => {
     ['/login?next=/landing.html?utm=x keeps nothing of it', true, '?next=%2Flanding.html%3Futm%3Dx', '/board'],
     ['/login?next=/Landing.HTML#top, any case', true, '?next=%2FLanding.HTML%23top', '/board'],
     ['/login?next=/landing/ with a trailing slash', true, '?next=%2Flanding%2F', '/board'],
+    ['/login?next=// is not an address to leave for', true, '?next=%2F%2F', '/board'],
+    ['/login?next=///x is not an address to leave for', true, '?next=%2F%2F%2Fx', '/board'],
+    ['/login?next=/%2f is left as it is (the app shows its not-found page)', true, '?next=%2F%252f', '/%2f'],
+    ['/login?next=/./ would reload the landing', true, '?next=%2F.%2F', '/board'],
   ])('%s', (_name, loginOpen, search, expected) => {
     expect(signedInTarget(loginOpen, search)).toBe(expected);
   });

@@ -13,6 +13,10 @@ describe('the address the lean landing reports', () => {
     ['/landing', '?utm_source=x&ref=anna', '/?utm_source=x'],
     ['/login', '?next=%2Ftitles', '/login'],
     ['/legal', '', '/legal'],
+    ['//', '', '/'],
+    ['///x', '', '/(not-found)'],
+    ['/%2f', '', '/(not-found)'],
+    ['/./', '', '/'],
   ])('%s%s is reported as %s', (pathname, search, expected) => {
     expect(landingPageUrl(pathname, search)).toBe(expected);
   });

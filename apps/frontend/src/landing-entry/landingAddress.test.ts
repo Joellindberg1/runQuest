@@ -42,6 +42,25 @@ describe('isLandingAddress', () => {
     },
   );
 
+  // Adresser som Caddy slår ihop eller rensar (path-matcharen) eller som URL-parsern tolkar som värd. De ska aldrig kasta: ett kast i renderingen lämnade sidan vit.
+  it.each([
+    ['//', true],
+    ['///', true],
+    ['///x', false],
+    ['//evil.example', false],
+    ['/%2f', false],
+    ['/%2F//', false],
+    ['/./', true],
+    ['/./landing', true],
+    ['/x/../landing.html', true],
+    ['', true],
+    ['landing', true],
+    ['http://[', false],
+  ])('%s does not throw and is %s', (address, expected) => {
+    expect(() => isLandingAddress(address)).not.toThrow();
+    expect(isLandingAddress(address)).toBe(expected);
+  });
+
   it('counts every address that the Caddyfile try_files resolves to landing.html', () => {
     const line = /^\s*try_files\s+(.+)$/m.exec(caddyfile)?.[1];
     expect(line, 'en try_files-rad i Caddyfile').toBeDefined();

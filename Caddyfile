@@ -78,11 +78,13 @@
 		@landingfile path /landing /landing.html
 		redir @landingfile / 307
 
-		# Förrenderad landning på exakt / (path / är exakt rotsökvägen; frågesträngen ignoreras, så /?utm_source=… och gamla /?tab=… får också landningen).
+		# Förrenderad landning på exakt / (frågesträngen ignoreras, så /?utm_source=… och gamla /?tab=… får också landningen). Sökvägen jämförs som den kom
+		# (placeholdern {http.request.uri.path}), inte med path-matcharen: den slår ihop snedstreck och rensar punktsegment, så "path /" matchade också //, ///, /./ och /%2f.
+		# De fick då landing.html, och lean routern (landingAddress.ts) kastade på dem och lämnade sidan vit. Nu faller de på SPA-blocket och får index.html som före S6.
 		# `file` gör att ett bygge utan landing.html faller tillbaka på SPA-blocket nedan i stället för att ge 404. no-cache som för index.html: en deploy ska aldrig
 		# fastna bakom en gammal fil som pekar på borttagna kodfiler. encode gäller som för övriga svar.
 		@landing {
-			path /
+			expression `{http.request.uri.path} == "/"`
 			file /landing.html
 		}
 		handle @landing {

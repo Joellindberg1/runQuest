@@ -192,7 +192,7 @@ PORT="$MAIN_PORT"
 # laddningsvyn, och ett bygge utan landing.html faller tillbaka på index.html i stället för 404. body_check läser kroppen (curl -s), same_body jämför två svar.
 body_check() {
   local desc="$1" path="$2" want_pattern="$3" reject_pattern="${4:-}" body
-  body="$(curl -s "http://127.0.0.1:$PORT$path")"
+  body="$(curl -s --path-as-is "http://127.0.0.1:$PORT$path")"
   if ! printf '%s' "$body" | grep -qE "$want_pattern"; then
     echo "FAIL $desc: $path saknar /$want_pattern/ i kroppen"; failures=$((failures + 1)); return
   fi
@@ -220,6 +220,11 @@ same_body "/?utm_source=x ger samma fil som /"             "/"                  
 check "/?utm_source=x är HTML, no-cache"                  "/?utm_source=x"        200 "^cache-control: no-cache"
 for spa in /titles /login /runner/x /board /legal; do
   body_check "$spa ger index.html med bara laddningsvyn i #root" "$spa" "$LOADER_ONLY" "$LANDING_MARKUP"
+done
+# Bara den råa sökvägen / är landningen. Caddys path-matchare slår ihop snedstreck och rensar punktsegment, så "path /" gav landing.html också på //, ///, /./ och /%2f;
+# där kastar lean routern (en tom värd i new URL) och sidan blir vit. De ska få index.html med bara laddningsvyn, som före S6. --path-as-is hindrar curl från att städa adressen.
+for odd in // /// /./ /%2f /%2F//; do
+  body_check "$odd ger index.html med bara laddningsvyn, inte landningen" "$odd" "$LOADER_ONLY" "$LANDING_MARKUP"
 done
 # /landing.html och /landing löses av SPA-blockets try_files till samma fil. De omdirigeras till / (frågan följer med) i stället för att ge en andra adress till landningen.
 host_check "/landing.html omdirigeras till /"              "www.runquest.dev"      "/landing.html"           307 "/"

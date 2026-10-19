@@ -1,6 +1,6 @@
 # landing-entry — lean ingång för `/`
 
-Landningens egen ingång (ADR 006, addendum 2026-10-19). `landing.html` + `landing-main.tsx` ger exakt `/` en förrenderad landning som hydreras av en liten kodmängd; fullappen (`index.html` + `main.tsx` + `routes.tsx`) är orörd i sin struktur. Sedan S6 (RUN-333) serverar Caddyfilens regel `landing.html` på exakt `/` (med valfri fråga); saknas filen i bygget faller `/` tillbaka på `index.html`. SPA-blockets `try_files {path} {path}.html {path}/index.html /index.html` löser `/landing.html` och `/landing` till samma fil, men Caddy omdirigerar dem (307) till `/` innan (se "Filadresserna" nedan).
+Landningens egen ingång (ADR 006, addendum 2026-10-19). `landing.html` + `landing-main.tsx` ger exakt `/` en förrenderad landning som hydreras av en liten kodmängd; fullappen (`index.html` + `main.tsx` + `routes.tsx`) är orörd i sin struktur. Sedan S6 (RUN-333) serverar Caddyfilens regel `landing.html` på exakt `/` (med valfri fråga; sökvägen jämförs rå med `{http.request.uri.path}`, inte med path-matcharen, som även matchar `//`, `/./` och `/%2f`); saknas filen i bygget faller `/` tillbaka på `index.html`. SPA-blockets `try_files {path} {path}.html {path}/index.html /index.html` löser `/landing.html` och `/landing` till samma fil, men Caddy omdirigerar dem (307) till `/` innan (se "Filadresserna" nedan).
 
 ## Delar
 
