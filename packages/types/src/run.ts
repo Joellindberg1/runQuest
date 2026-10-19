@@ -1,58 +1,11 @@
+// Klientens namn för rundor och användare. Formerna är serverns svar och bor i @runquest/shared (contracts/); här finns bara aliasen.
+import type { RunRow, UserWithRuns } from '@runquest/shared';
 
-export interface User {
-  id: string;
-  name: string;
-  total_xp: number;
-  current_level: number;
-  total_km: number;
-  current_streak: number;
-  longest_streak: number;
-  profile_picture?: string;
-  group_id?: string;
-  runs?: Run[];
-  wins?: number;
-  draws?: number;
-  losses?: number;
-  challenge_active?: boolean;
-  challenge_counts?: { minor?: number; major?: number; legendary?: number };
-  displayed_title_ids?: string[];
-  gender?: string | null;
-}
+/** En rad ur `runs` som servern skickar (RunRow i @runquest/shared). */
+export type Run = RunRow;
 
-export interface Run {
-  id: string;
-  user_id: string;
-  date: string;
-  distance: number;
-  xp_gained: number;
-  multiplier: number;
-  streak_day: number;
-  base_xp: number;
-  km_xp: number;
-  distance_bonus: number;
-  streak_bonus: number;
-  /**
-   * Ursprung: 'manual' (default) eller 'strava'. Med i users-with-runs sedan i9 (additivt). Profile blockerar
-   * Delete för 'strava'-rundor — DELETE saknar gravsten och synken återimporterar inom 7-dagarsfönstret
-   * (open-assumptions, backend-fråga 6). null/saknas = äldre rad → behandla som 'manual'.
-   */
-  source?: string | null;
-  external_id?: string;
-  // Extended Strava data — all nullable (not all devices/users share this)
-  start_time?: string | null;
-  /** När raden skapades (users-with-runs, ADR 007 B3): "X h ago" för manuellt loggade rundor utan start_time. */
-  created_at?: string | null;
-  moving_time?: number | null;
-  total_elevation_gain?: number | null;
-  sport_type?: string | null;
-  avg_heartrate?: number | null;
-  max_heartrate?: number | null;
-  suffer_score?: number | null;
-  start_lat?: number | null;
-  start_lng?: number | null;
-  pace_std_dev?: number | null;
-  is_treadmill?: boolean | null;
-}
+/** En gruppmedlem med sina rundor, som GET /auth/users-with-runs skickar den (UserWithRuns i @runquest/shared). */
+export type User = UserWithRuns;
 
 export interface RunData {
   date: string;
