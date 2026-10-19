@@ -23,3 +23,4 @@ export * from './titleWindow.js';
 export * from './groupRoles.js';
 export * from './analytics.js';
 export * from './onboardingSlugs.js';
+export * from './titleMetrics.js';
