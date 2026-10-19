@@ -47,7 +47,8 @@ import { logger } from '../../utils/logger.js';
 import { withUserLock } from '../../utils/keyedMutex.js';
 import { buildStravaRunRow } from '../stravaImport.js';
 import { createStravaRateBudget } from '../stravaRateBudget.js';
-import { setStravaRequestHooks } from '../stravaClient.js';
+import { STRAVA_API_TIMEOUT_MS, setStravaRequestHooks } from '../stravaClient.js';
+import { RECONCILE_MAX_CONSECUTIVE_NETWORK_ERRORS } from '../stravaReconcile/constants.js';
 import { createStravaReconciler, type ReconcileDeps } from '../stravaReconcile.js';
 import { createRecalculationRecovery } from '../recalculationMarks/recovery.js';
 import { createInMemoryMarkStore, type InMemoryMarkStore } from '../../test-utils/inMemoryRecalculationMarks.js';
@@ -1178,6 +1179,110 @@ describe('nightly reconcile and the recalculation marks', () => {
 
     expect(t.runs.map((r) => r.user_id)).toEqual(['user-1']);
     expect(summary).toMatchObject({ removed: 1, failed: 1 });
+  });
+});
+
+describe('nightly reconcile when Strava stops answering', () => {
+  const MAX = RECONCILE_MAX_CONSECUTIVE_NETWORK_ERRORS;
+  const manyRuns = (userId: string, firstId: number, count: number) =>
+    Array.from({ length: count }, (_, index) => storedRun(activityOf(firstId + index, { start_date: '2026-10-13T05:30:00Z', start_date_local: '2026-10-13T07:30:00Z' }), userId));
+  const connectionReset = () => {
+    throw new Error('connection reset');
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('reconcile gives up on a user after consecutive network errors and leaves the rest of the runs for the next night', async () => {
+    const { t, reconciler, strava } = build({
+      tables: { runs: manyRuns('user-1', 7345001, 8) },
+      routes: { athleteActivities: [], activities: Object.fromEntries(Array.from({ length: 8 }, (_, i) => [7345001 + i, connectionReset])) },
+    });
+
+    const summary = await reconciler.run();
+
+    expect(strava.calls.activity).toBe(MAX);
+    expect(t.runs).toHaveLength(8);
+    expect(summary).toMatchObject({ checked: MAX, removed: 0, failed: MAX });
+    expect(logLines.join('\n')).toMatch(/Strava stopped answering for user user-1/);
+    expect(logLines.join('\n')).not.toContain('7345001');
+  });
+
+  it('reconcile goes on with the next user when one user is given up on', async () => {
+    const { t, reconciler, strava } = build({
+      tables: {
+        strava_tokens: [tokenRow('user-1'), tokenRow('user-2')],
+        runs: [...manyRuns('user-1', 7345001, 5), ...manyRuns('user-2', 7346001, 1)],
+      },
+      routes: {
+        athleteActivities: [],
+        activities: { ...Object.fromEntries(Array.from({ length: 5 }, (_, i) => [7345001 + i, connectionReset])), 7346001: stravaError(404) },
+      },
+    });
+
+    const summary = await reconciler.run();
+
+    expect(strava.activityCalls(7346001)).toBe(1);
+    expect(t.runs.filter((run) => run.user_id === 'user-2')).toHaveLength(0);
+    expect(t.runs.filter((run) => run.user_id === 'user-1')).toHaveLength(5);
+    expect(summary).toMatchObject({ removed: 1, failed: MAX });
+  });
+
+  it('reconcile counts only network errors in a row: an answer in between starts the count again', async () => {
+    const { t, reconciler, strava } = build({
+      tables: { runs: manyRuns('user-1', 7345001, MAX + 3) },
+      routes: {
+        athleteActivities: [],
+        // Two without an answer, one 404 (the run is removed), then two without an answer again, and a server error does not count at all.
+        activities: Object.fromEntries(
+          Array.from({ length: MAX + 3 }, (_, i) => [7345001 + i, (call: { count: number }) => (call.count === 3 ? stravaError(404) : call.count === 6 ? stravaError(500) : connectionReset())]),
+        ),
+      },
+    });
+
+    const summary = await reconciler.run();
+
+    expect(strava.calls.activity).toBe(MAX + 3);
+    expect(summary).toMatchObject({ checked: MAX + 3, removed: 1 });
+    expect(t.runs).toHaveLength(MAX + 2);
+  });
+
+  it('reconcile releases the user lock after MAX timeouts of stravaFetch instead of holding it for every run in doubt', async () => {
+    vi.useFakeTimers();
+    const { t, reconciler, strava } = build({
+      tables: { runs: manyRuns('user-1', 7345001, 8) },
+      routes: { athleteActivities: [], activities: {} },
+    });
+    // The list answers as the fake does; every detail call hangs until the signal of stravaFetch is aborted by its own timeout.
+    const answering = globalThis.fetch;
+    let hanging = 0;
+    globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+      if (!/\/api\/v3\/activities\/\d+/.test(String(input))) return answering(input, init);
+      hanging += 1;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      });
+    }) as typeof fetch;
+
+    let settled = false;
+    const night = reconciler.run().then((summary) => {
+      settled = true;
+      return summary;
+    });
+    let waited = 0;
+    while (!settled && waited < 8) {
+      await vi.advanceTimersByTimeAsync(STRAVA_API_TIMEOUT_MS);
+      waited += 1;
+    }
+    const summary = await night;
+
+    expect(waited).toBe(MAX); // MAX x 30 s under the lock, not 8 x 30 s
+    expect(hanging).toBe(MAX);
+    expect(summary).toMatchObject({ checked: MAX, removed: 0, failed: MAX });
+    expect(t.runs).toHaveLength(8);
+    expect(strava.calls.athleteActivities).toBe(1);
+    await expect(withUserLock('user-1', async () => 'free')).resolves.toBe('free');
   });
 });
 
