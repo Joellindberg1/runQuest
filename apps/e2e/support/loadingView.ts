@@ -56,6 +56,8 @@ export interface HeldResponse {
 const STANDINGS_URL = '**/auth/users-with-runs';
 /** Titlarna per löpare (`GET /titles/user/:id`): podiekorten ritas ur dem, och gaten väntar in dem. */
 const TITLES_URL = '**/titles/user/*';
+/** Veckovyns svar (`GET /leaderboard/week?week_start=…`): frågan bär ett datum, så adressen provas som mönster. */
+const WEEK_URL = /\/leaderboard\/week(\?|$)/;
 
 /** Topplistans svar hålls tillbaka: förfrågan når API:et (eller stuben) först när `release()` anropas. Provar att laddningsvyn står kvar medan appen väntar på datan. */
 export function holdStandings(page: Page, maxMs: number): Promise<HeldResponse> {
@@ -67,7 +69,12 @@ export function holdTitles(page: Page, maxMs: number): Promise<HeldResponse> {
   return holdResponse(page, TITLES_URL, maxMs);
 }
 
-async function holdResponse(page: Page, url: string, maxMs: number): Promise<HeldResponse> {
+/** Veckovyns svar hålls tillbaka: Week-fliken står med sin 64 px-laddare tills `release()` anropas. */
+export function holdWeek(page: Page, maxMs: number): Promise<HeldResponse> {
+  return holdResponse(page, WEEK_URL, maxMs);
+}
+
+async function holdResponse(page: Page, url: string | RegExp, maxMs: number): Promise<HeldResponse> {
   let requestedAt: number | null = null;
   let releasedAt: number | null = null;
   let open!: () => void;

@@ -192,6 +192,10 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 - `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU —
   nya datumformat använder egna månadsnamn (eventsFormat gör rätt; titleFormat
   använder en-GB och är stabil i test men kan skilja mellan miljöer).
+- Stadion-ovalens löparprickar (`TrackLoader`) har ingen negativ marginal, till skillnad från designfilen (`RunQuest Loaders.dc.html`, `marginLeft/marginTop: -dotR`).
+  Avvikelse från designen, medveten: `offset-path` placerar redan prickens mitt på banan (offset-anchor = rutans mitt), så designens marginal räknar av radien en
+  gång för mycket och prickarna hamnar 2-14 px vid sidan om banlinjen vid 192 px (mätt i fyra faser av varvet). Designfilen har samma fel och är orörd. Bevis:
+  `tests/loader-runners.spec.ts` (e2e). Blir fel om designen en dag byter till ett ankare som inte är rutans mitt (`offset-anchor`).
 
 ## Backend-kontraktsfrågor
 Lösta frågor står under Historik längst ned. Öppet och orört: en bakdaterad POST kan kvalificera ett pågående event (POST och Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
