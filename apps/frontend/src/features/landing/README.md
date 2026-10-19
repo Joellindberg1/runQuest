@@ -31,6 +31,7 @@ Rörelsepreferensen vid klick läses via `shared/utils/prefersReducedMotion`. En
 
 - `LandingHero` tar `watchFilm` (`<WatchFilmButton />`) och `mobileFilm` (`<LandingFilm variant="mobile" />`). Ordning i textspalten: knappraden (Join the waitlist + Watch the film), filmen (mobil), sifferraden.
 - `<LandingFilm variant="desktop" />` ligger mellan hjälten och previewn och `<LandingWaitlist />` efter funktionsrutnätet, före footern. Komponenterna bär själva ankar-id:t: desktopfilmen `#film`, mobilfilmen `#film-mobile` (båda ligger i HTML, CSS döljer den som inte passar; ett id får bara finnas en gång) och `#waitlist`. "Watch the film" scrollar till den film vars ankare har rutor (`getClientRects`), alltså den CSS visar, och faller annars tillbaka på länkens `#film`.
+- `LandingWaitlist`s `<form>` är `inert` tills sidan hydrerat (`useHydrated`, `shared/hooks`): formuläret ligger i den förrenderade HTML:en och får varken fyllas i eller skickas före det, se `landing-entry/README.md`. Nya delar av landningen som tar emot inmatning i den förrenderade HTML:en ska göra likadant.
 
 ## Regler värda att komma ihåg
 
