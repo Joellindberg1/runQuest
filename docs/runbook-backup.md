@@ -308,20 +308,52 @@ Radantal (BLOCK A och B i `docs/runbook-backup-compare.sql`):
 | migrationer (antal, senaste) | | (ej i B) | | |
 | storage.objects (profile-pictures) | | (ej i B) | | |
 
+### Övning 1: 2026-10-19 (RUN-286, före v0.8.0)
+
+| Fält | Värde |
+|---|---|
+| Datum | 2026-10-19 |
+| Utfört av | Ägaren (Lead hjälpte i chatten: ja; Lead körde BLOCK A, B och C i prod via Supabase-MCP, bara räknefrågor) |
+| Backupens tidpunkt (senaste dagliga) | 2026-10-19 03:30 UTC (05:30 Stockholm) |
+| Dagar som listades under Scheduled backups | 8 (inklusive natten till 2026-10-19); runbooken förväntade 7 |
+| Väg (1 nytt projekt / 2 nedladdad dump) | 1, "Restore to new project" (egen flik på Backups-sidan; den vanliga "Restore" på samma sida återställer över prod och trycktes inte) |
+| `TEMP_REF` och namn på det tillfälliga projektet | `runquest-restore-test` (ref antecknad av ägaren, skild från prod och staging) |
+| Databasens storlek i prod (BLOCK C) | 20 MB (20 491 411 byte) |
+| Raderingar i prod sedan backupen (steg 9) | Inga: varje tabell i kopian är lika med prods antal vid backupen |
+| STOPP-kontroll 3 före radering: namn och ref stämde | Ja (ägaren) |
+| Kostnad som dialogen visade | Ca 10 USD/månad för Micro compute, debiteras per timme; i praktiken några cent för övningen (Billing efteråt: inget extra projekt) |
+| **Uppmätt återställningstid (nytt projekt friskt)** | **Ca 5 minuter** |
+| **Faktisk dataålder vid övningen** | Ca 9 timmar (backup 03:30 UTC, övningen ca 12:30 UTC) |
+| Resultat | **Lyckades** |
+| Projektet raderat | Ja, samma dag (ägaren) |
+| Anmärkningar | 8 listade dagar i stället för 7 (fynd i dokumentationen, inte i backupen). PITR är av. |
+
+| Tabell | Prod före övningen | Förväntat i kopian (BLOCK B) | Kopia (BLOCK A) | Klass |
+|---|---|---|---|---|
+| users | 6 | 6 | 6 | Lika |
+| runs | 741 | 740 | 740 | Lika (en runda 04:45 UTC efter backupen) |
+| user_titles | 83 | 67 | 83 | Förklarad avvikelse (titelomräkningen 04:45 UTC gav nya `earned_at`) |
+| activity_log | 75 | 75 | 75 | Lika |
+| strava_tokens (bara antal) | 6 | 6 | 6 | Lika |
+| events | 68 | 68 | 68 | Lika |
+| event_entries | 85 | 85 | 85 | Lika |
+| migrationer (antal, senaste) | 94, 20261018233625 | (ej i B) | 94, 20261018233625 | Lika (055 och 056 kom med) |
+| storage.objects (profile-pictures) | 6 | (ej i B) | 6 | Lika (bara metadata; filerna ingår inte i databasbackupen) |
+
 ## 9. Det ägaren måste bekräfta (okänt för oss tills ifyllt)
 
 | # | Att bekräfta | Var | Svar och datum |
 |---|---|---|---|
-| 1 | Prod är på Supabase Pro och Database → Backups visar dagliga backuper | Dashboard (prod) | |
-| 2 | Antal dagar som listas (förväntat sju) | Dashboard → Backups → Scheduled backups | |
-| 3 | Klockslaget för den dagliga backupen | samma | |
-| 4 | PITR: på eller av (förväntat av), och kostnaden om man väljer att slå på det | Dashboard → Backups → Point in time | |
-| 5 | Finns "Restore to new project", och vad det nya projektet kostar | samma, dialogen | |
+| 1 | Prod är på Supabase Pro och Database → Backups visar dagliga backuper | Dashboard (prod) | Ja, 2026-10-19 |
+| 2 | Antal dagar som listas (förväntat sju) | Dashboard → Backups → Scheduled backups | 8, 2026-10-19 |
+| 3 | Klockslaget för den dagliga backupen | samma | 03:30 UTC (05:30 Stockholm), 2026-10-19 |
+| 4 | PITR: på eller av (förväntat av), och kostnaden om man väljer att slå på det | Dashboard → Backups → Point in time | Av, 2026-10-19 (kostnad ej undersökt) |
+| 5 | Finns "Restore to new project", och vad det nya projektet kostar | samma, dialogen | Ja (egen flik); Micro ca 10 USD/månad per timme, 2026-10-19 |
 | 6 | Går backupen att ladda ner | samma | |
 | 7 | Lösenordshanteraren har en kopia av varje hemlighet som inte kan hämtas på nytt: `TOKEN_ENCRYPTION_KEY` (med `kid`, se [`runbook-token-key.md`](runbook-token-key.md)), `JWT_SECRET`, `STRAVA_WEBHOOK_VERIFY_TOKEN`, GitHub-secrets | Ägarens egen | |
 | 8 | Stravas callback-domän och att klient-id/hemlighet går att hämta på strava.com | Strava → Settings → My API Application | |
 | 9 | Var Umami körs och om det har en egen backup | Umami-tjänsten | |
 | 10 | Beslut om RUN-288 (schemalagd export av databas och profilbilder: plats, kostnad, hur länge, kryptering) | Jira RUN-288 | |
-| 11 | Datum för övningen (förslag: före v0.8.0 går live, eftersom den släppet ändrar `user_titles`, `title_leaderboard` och Strava-tokens) | – | |
+| 11 | Datum för övningen (förslag: före v0.8.0 går live, eftersom den släppet ändrar `user_titles`, `title_leaderboard` och Strava-tokens) | – | Gjord 2026-10-19, se Övning 1 i avsnitt 8 |
 
 Lead för in svaren i avsnitt 2 och 6 (byt ut "förväntat" mot det bekräftade) när de finns.
