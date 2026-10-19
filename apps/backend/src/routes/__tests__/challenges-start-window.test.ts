@@ -71,12 +71,35 @@ describe('accepterad duell: start_date och fönstret', () => {
     expect(data.challenges[0].start_date).toBe('2026-07-05');
   });
 
-  it('end_date och determine_at följer startdagen: slut efter duration_days, avgörande 03:00 Stockholm dagen efter slutet', async () => {
-    const data = tables();
-    await acceptAt('2026-07-04T21:59:00Z', data);
+  it('end_date och determine_at följer startdagen: exakt duration_days kalenderdagar, avgörande 03:00 Stockholm dagen efter slutet', async () => {
+    const data = tables(); // duration_days 2
+    await acceptAt('2026-07-04T21:59:00Z', data); // startar 2026-07-05
 
-    expect(data.challenges[0].end_date).toBe('2026-07-07');
-    expect(data.challenges[0].determine_at).toBe('2026-07-08T01:00:00.000Z'); // 2026-07-08 03:00 sommartid
+    expect(data.challenges[0].end_date).toBe('2026-07-06');
+    expect(data.challenges[0].determine_at).toBe('2026-07-07T01:00:00.000Z'); // 2026-07-07 03:00 sommartid
+  });
+
+  it.each([
+    [1, '2026-07-06', '2026-07-07T01:00:00.000Z'],
+    [5, '2026-07-10', '2026-07-11T01:00:00.000Z'], // måndag till fredag
+    [7, '2026-07-12', '2026-07-13T01:00:00.000Z'],
+  ])('en duell på %i dagar som accepteras söndag 23:59 startar måndag och slutar %s', async (days, endDate, determineAt) => {
+    const data = tables();
+    data.challenges[0].duration_days = days;
+    await acceptAt('2026-07-05T21:59:00Z', data); // söndag 2026-07-05 23:59 sommartid -> start måndag 2026-07-06
+
+    expect(data.challenges[0].start_date).toBe('2026-07-06');
+    expect(data.challenges[0].end_date).toBe(endDate);
+    expect(data.challenges[0].determine_at).toBe(determineAt);
+  });
+
+  it('sommartidsbyte under duellen: slutet är kalenderdagar och avgörandet 03:00 vintertid', async () => {
+    const data = tables(); // duration_days 2
+    await acceptAt('2026-10-24T21:30:00Z', data); // 2026-10-24 23:30 sommartid -> start 25 okt (dygnet är 25 h)
+
+    expect(data.challenges[0].start_date).toBe('2026-10-25');
+    expect(data.challenges[0].end_date).toBe('2026-10-26');
+    expect(data.challenges[0].determine_at).toBe('2026-10-27T02:00:00.000Z'); // 03:00 vintertid
   });
 
   it('vintertid: 00:30 Stockholm (23:30 UTC dagen innan) startar också nästa dag', async () => {
@@ -95,8 +118,8 @@ describe('rundräkningen i en accepterad duell', () => {
         { id: 'r1', user_id: 'a', date: '2026-07-04', distance: 10 },  // acceptansdagen: räknas aldrig
         { id: 'r2', user_id: 'b', date: '2026-07-04', distance: 20 },  // acceptansdagen: räknas aldrig
         { id: 'r3', user_id: 'a', date: '2026-07-05', distance: 3 },   // startdagen
-        { id: 'r4', user_id: 'b', date: '2026-07-07', distance: 4 },   // slutdagen
-        { id: 'r5', user_id: 'b', date: '2026-07-08', distance: 50 },  // efter slutdagen
+        { id: 'r4', user_id: 'b', date: '2026-07-06', distance: 4 },   // slutdagen (duration_days 2: 5 och 6 juli)
+        { id: 'r5', user_id: 'b', date: '2026-07-07', distance: 50 },  // efter slutdagen
       ],
     });
     await acceptAt('2026-07-04T21:59:00Z', data); // accepterad 23:59 samma dag som r1 och r2

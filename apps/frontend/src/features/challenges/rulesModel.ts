@@ -62,7 +62,7 @@ export interface HowItWorksItem {
 export const HOW_IT_WORKS: readonly HowItWorksItem[] = [
   { title: 'One token, one duel', body: 'A token fixes the metric and the length. You choose who to point it at.' },
   { title: 'One at a time', body: 'You can only have one challenge going: sent, waiting on you or live.' },
-  { title: 'Metrics', body: 'Most km, most runs or most XP over the duration. A duel starts the day after it is accepted.' },
+  { title: 'Metrics', body: 'Most km, most runs or most XP over the duration. A duel starts at the next midnight (00:00, Stockholm time) after it is accepted, and lasts exactly its number of days.' },
   { title: 'The boost', body: "The winner's boost and the loser's penalty are added to the streak multiplier on every run until they run out. A draw changes nothing." },
   { title: 'Unanswered', body: 'A minor or major challenge lapses after three days and the token comes back to you.' },
 ];

@@ -130,9 +130,9 @@ describe('challenge_accepted i flödet', () => {
     const accept = await request('PUT', '/api/challenges/ch-1/respond', W, { action: 'accept' });
 
     expect(accept.status).toBe(200);
-    expect(accept.body).toEqual({ success: true, message: 'Challenge accepted', data: { start_date: '2026-10-16', end_date: '2026-10-23' } });
+    expect(accept.body).toEqual({ success: true, message: 'Challenge accepted', data: { start_date: '2026-10-16', end_date: '2026-10-22' } });
     // Aktiverad, och exakt en rad i loggen: Anna (motståndaren) är aktör, Bertil (utmanaren) är mål.
-    expect(t.challenges[0]).toMatchObject({ status: 'active', start_date: '2026-10-16', end_date: '2026-10-23' });
+    expect(t.challenges[0]).toMatchObject({ status: 'active', start_date: '2026-10-16', end_date: '2026-10-22' });
     expect(t.activity_log).toEqual([
       expect.objectContaining({
         type: 'challenge_accepted', group_id: G, actor_user_id: W, target_user_id: M, is_backfill: false, occurred_at: NOW.toISOString(),
