@@ -5,14 +5,22 @@
 /** Förstagångsturen. Först i kön. */
 export const ONBOARDING_TOUR_SLUG = 'onboarding_v1';
 
-/** Sidoturerna i köns ordning. Varje sida visar sin egen tur med samma slug (`<FeatureTour slug=…>`). */
+// Sidoturernas slugs, ett namn per sida. Sidan skickar sin konstant till `<FeatureTour slug=…>`, så sidan och kön kan inte glida isär.
+export const LEADERBOARD_TOUR_SLUG = 'tour_leaderboard_v2';
+export const TITLES_TOUR_SLUG = 'tour_titles_v2';
+export const DUELS_TOUR_SLUG = 'tour_duels_v2';
+export const EVENTS_TOUR_SLUG = 'tour_events_v2';
+export const PROFILE_TOUR_SLUG = 'tour_profile_v2';
+export const NEWS_TOUR_SLUG = 'tour_news_v2';
+
+/** Sidoturerna i köns ordning. */
 export const FEATURE_TOUR_SLUGS = [
-  'tour_leaderboard_v2',
-  'tour_titles_v2',
-  'tour_duels_v2',
-  'tour_events_v2',
-  'tour_profile_v2',
-  'tour_news_v2',
+  LEADERBOARD_TOUR_SLUG,
+  TITLES_TOUR_SLUG,
+  DUELS_TOUR_SLUG,
+  EVENTS_TOUR_SLUG,
+  PROFILE_TOUR_SLUG,
+  NEWS_TOUR_SLUG,
 ] as const;
 
 /** Slugarna som inte beror på changelog.json: förstagångsturen och sidoturerna. "What's new"-slugarna (`patch_v<version>`) kommer ur changelogen. */

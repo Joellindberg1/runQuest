@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import type { ChallengeTier } from '@runquest/types';
+import { DUELS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
@@ -163,7 +164,7 @@ export function DuelsScreen() {
 
   return (
     <>
-      <FeatureTour slug="tour_duels_v2" steps={TOUR_DUELS_V2} />
+      <FeatureTour slug={DUELS_TOUR_SLUG} steps={TOUR_DUELS_V2} />
       <DuelsLayout
         isDesktop={isDesktop}
         view={view}
