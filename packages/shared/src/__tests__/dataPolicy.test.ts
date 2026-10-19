@@ -20,7 +20,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-19', sha256: '9222b801005b1c1f650481c6a703ce13e40b4b7a4bc50be98fe64e06f2347186' };
+const PINNED_POLICY = { version: '2026-10-19.1', sha256: '8f7aefb84a22457a0c2d7696804f51cb6217e160332a901c85a3da69e8bb8a7c' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -318,7 +318,7 @@ describe('dataPolicy', () => {
     expectSentence(text, /do not hold/i, /name/i, /email address/i, /tokens/i);
     expectSentence(text, /removes? email addresses, login tokens and passwords it recognises/i);
     expectSentence(text, /no cookies/i, /no IP address/i);
-    expectSentence(text, /IP address reaches Sentry/i, /may store it under its own rules/i);
+    expectSentence(text, /IP address reaches Sentry/i, /Sentry is set not to store it/i);
     expectSentence(text, /server/i, /user ID/i, /not your name or email/i);
     expectSentence(text, /one in ten/i, /never with an ID/i);
     // "one in ten" i texten är taket för provtagningen; ändras taket ska texten följa.

@@ -31,7 +31,7 @@ export interface LegalDocument {
 }
 
 /** Version av integritetstexten, 'YYYY-MM-DD[.N]'. Höjs vid varje innehållsändring. Väntelistans samtyckesversion är samma värde. */
-export const DATA_POLICY_VERSION = '2026-10-19';
+export const DATA_POLICY_VERSION = '2026-10-19.1';
 
 /**
  * Var Umami Cloud lagrar statistiken: EU, Frankfurt (ägaren bekräftade regionen i Umami-kontot 2026-10-19).
@@ -211,7 +211,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'A report holds the type of error, its message, where in the code it happened, the version of RunQuest, the kind of browser and operating system, and the name of the page or route (such as /runner/:id), never an address with an ID, a query or a fragment.',
       'Reports do not hold your name, email address or tokens. RunQuest does not attach them, and it removes email addresses, login tokens and passwords it recognises in the text of a report before the report is sent.',
       // PLATSHÅLLARE: slår ägaren på "Prevent Storing of IP Addresses" i båda Sentry-projekten blir andra meningen "Sentry is set not to store it." (Lead ändrar då texten och versionen.)
-      'RunQuest adds no cookies, no request contents and no IP address to a report. Your IP address reaches Sentry as part of every request, as with any web page; Sentry may store it under its own rules.',
+      'RunQuest adds no cookies, no request contents and no IP address to a report. Your IP address reaches Sentry as part of every request, as with any web page; Sentry is set not to store it.',
       'A report about an error on the server can carry your RunQuest user ID, an internal identifier that is not your name or email, so that the fault can be traced.',
       'To follow how fast the app is, Sentry also receives timings for a sample of page loads and server requests (at most one in ten), labelled with the page name or route and never with an ID.',
       'There are no session recordings.',
