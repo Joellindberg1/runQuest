@@ -331,7 +331,7 @@ describe('rank_passed i flödet: challenge_points', () => {
     expect(accept.body.data).toEqual({ start_date: '2026-10-16', end_date: '2026-10-16' });
     expect(t.activity_log.map((r) => r.type)).toEqual(['challenge_accepted']);
 
-    // Under utmaningen springer Anna 8 km och Cecilia 3 km. Därefter har determine_at (2026-10-18 03:00 Stockholm) passerat.
+    // Under utmaningen springer Anna 8 km och Cecilia 3 km. Därefter har determine_at (2026-10-17 03:00 Stockholm, dagen efter den enda dagen) passerat.
     t.runs.push(
       { id: 'run-w-ch', user_id: W, date: '2026-10-16', distance: 8, xp_gained: 0, streak_day: 1, source: 'manual', is_treadmill: false },
       { id: 'run-c-ch', user_id: C, date: '2026-10-16', distance: 3, xp_gained: 0, streak_day: 1, source: 'manual', is_treadmill: false },
