@@ -33,6 +33,10 @@ export interface TrackLoaderProps {
  * Banorna är statisk SVG; prickarna följer samma oval via CSS offset-path +
  * keyframes `rqOrbit` (temafilen), så det blir skarpt ner till ~26 px.
  * Rörelse hanteras av temafilens globala prefers-reduced-motion.
+ *
+ * Prickarna har ingen negativ marginal: `offset-path` placerar redan prickens mitt (offset-anchor är rutans mitt) på banan, och en marginal ovanpå det
+ * flyttar den en gång till (2-14 px vid 192 px). Designfilen (RunQuest Loaders.dc.html) har marginalerna och därmed samma fel; avvikelsen är medveten,
+ * se docs/open-assumptions.md.
  */
 export function TrackLoader({
   size = 48,
@@ -82,8 +86,6 @@ export function TrackLoader({
           style={{
             width: dotRadius * 2,
             height: dotRadius * 2,
-            marginLeft: -dotRadius,
-            marginTop: -dotRadius,
             background: color,
             opacity: RUNNER_OPACITY[i],
             offsetPath: `path("${ovalPath(LANE_INSETS[i], scale)}")`,

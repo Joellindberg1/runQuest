@@ -91,12 +91,23 @@ describe("TrackLoader runners", () => {
     render(<TrackLoader size={100} />);
     const big = screen.getByRole("status").querySelector(":scope > div") as HTMLElement;
     expect(big.style.width).toBe("11px");
-    expect(big.style.marginLeft).toBe("-5.5px");
+    expect(big.style.height).toBe("11px");
 
     render(<TrackLoader size={26} />);
     const small = screen.getAllByRole("status")[1].querySelector(":scope > div") as HTMLElement;
     expect(small.style.width).toBe("4px");
-    expect(small.style.marginLeft).toBe("-2px");
+    expect(small.style.height).toBe("4px");
+  });
+
+  it.each([26, 40, 64, 192])("leaves centring the %i px runner dots to the offset path, with no margin on top", (size) => {
+    render(<TrackLoader size={size} />);
+    const runners = Array.from(screen.getByRole("status").querySelectorAll(":scope > div")) as HTMLElement[];
+
+    expect(runners.length).toBeGreaterThan(0);
+    for (const runner of runners) {
+      expect(runner.style.marginLeft).toBe("");
+      expect(runner.style.marginTop).toBe("");
+    }
   });
 
   it("fades runners 1 / .6 / .38 from the outer lane in", () => {
