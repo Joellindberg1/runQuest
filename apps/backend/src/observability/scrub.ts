@@ -68,7 +68,19 @@ const KEY_VALUE = /(?<![A-Za-z0-9])((?:access|refresh|id)[_-]?token|client[_-]?s
 // Strava-id (ADR 010 beslut 8.6): en andra försvarslinje om en rad som skrivits som `object_id=123` ändå skulle hamna i en händelse.
 // Lookbehind och inte \b: `_` är ett ordtecken, så det fanns ingen ordgräns före `athlete_id` i `strava_athlete_id=123`.
 const STRAVA_ID = /(?<![A-Za-z0-9])((?:object|owner|athlete)_id)(\s*[=:]\s*)\d+/gi;
-const HEX_40 = /\b[0-9a-f]{40}\b/gi;
+// Strava-aktivitets- och atletnummer i löpande text (`activity 12345678901 not found`, `activities 1…, 2… and 3…`, `activity_id=1…`).
+// Minst sju siffror: Stravas nummer är nio till elva siffror, och våra egna löpnummer (t.ex. nyhetsraders activity_id) ska inte maskas.
+const STRAVA_WORD_ID = /(?<![A-Za-z0-9])(activit(?:y|ies)(?:[_-]id)?|athletes?(?:[_-]id)?)((?:\s+id)?(?:\s*[=:]\s*|\s+)#?)(\d{7,}(?:\s*(?:,|and|&)\s*#?\d{7,})*)/gi;
+// Numret i en Strava-URL eller ett routeanrop (`GET /activities/123`). Blir `:id` som routemönstren, så transaktionsnamnen fortsätter att stämma.
+const STRAVA_PATH_ID = /(?<=\/(?:activities|athletes)\/)\d+/g;
+// Koordinater i text: `lat 57.7, lng 11.9`, `"longitude":11.9`, `start_latlng=[57.7, 11.9]` och ett löst par `57.70887, 11.97456`.
+const COORDINATE_KEYWORD = /(?<![A-Za-z0-9])(lat(?:itude)?|lng|lon(?:gitude)?)(["']?\s*[=:]?\s*["']?)-?\d{1,3}\.\d+/gi;
+const LATLNG_PAIR = /(?<![A-Za-z0-9])((?:start_|end_)?latlng)(["']?\s*[=:]\s*)\[[^\]]*\]/gi;
+const COORDINATE_PAIR = /(?<![\d.])(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})(?![\d.])/g;
+// Fält som bär ett Strava-nummer eller en koordinat. `owner_id` på en grupp är ett UUID (en sträng med bokstäver) och rensas därför bara när värdet är siffror.
+const STRAVA_NUMBER_KEY = /^(?:(?:strava_)?(?:object|owner|athlete)_id|strava_(?:activity|athlete)_id)$/i;
+const COORDINATE_KEY = /^(?:lat|lng|lon|latitude|longitude|(?:start_|end_)?latlng)$/i;
+const HEX_40 =/\b[0-9a-f]{40}\b/gi;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 const MIN_SECRET_LENGTH = 8;
@@ -111,6 +123,15 @@ export function secretsFromEnv(env: NodeJS.ProcessEnv): string[] {
   return [...secrets];
 }
 
+/** Ett löst decimalpar är en koordinat bara om det ryms på jorden; annars är det två tal som råkar stå intill varandra. */
+function isCoordinate(lat: string, lng: string): boolean {
+  return Math.abs(Number(lat)) <= 90 && Math.abs(Number(lng)) <= 180;
+}
+
+function isStravaNumberField(key: string, value: unknown): boolean {
+  return STRAVA_NUMBER_KEY.test(key) && (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)));
+}
+
 function scrubString(value: string, secrets: readonly string[]): string {
   let out = value;
   for (const secret of secrets) out = out.split(secret).join(FILTERED);
@@ -120,6 +141,11 @@ function scrubString(value: string, secrets: readonly string[]): string {
     .replace(JWT_LIKE, FILTERED)
     .replace(KEY_VALUE, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
     .replace(STRAVA_ID, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(STRAVA_WORD_ID, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(STRAVA_PATH_ID, ':id')
+    .replace(LATLNG_PAIR, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(COORDINATE_KEYWORD, (_m, key: string, sep: string) => `${key}${sep}${FILTERED}`)
+    .replace(COORDINATE_PAIR, (pair: string, lat: string, lng: string) => (isCoordinate(lat, lng) ? FILTERED : pair))
     .replace(HEX_40, FILTERED)
     .replace(EMAIL, FILTERED);
 }
@@ -136,6 +162,7 @@ const MAX_DEPTH = 12;
 
 function walk(value: unknown, secrets: readonly string[], ancestors: object[], key?: string): unknown {
   if (key !== undefined && SENSITIVE_KEY.test(key)) return value === null || value === undefined ? value : FILTERED;
+  if (key !== undefined && (COORDINATE_KEY.test(key) || isStravaNumberField(key, value))) return value === null || value === undefined ? value : FILTERED;
   if (typeof value === 'string') return scrubString(value, secrets);
   if (value === null || typeof value !== 'object') return value;
   if (value instanceof Date) return value;

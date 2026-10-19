@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { backendApi } from '@/shared/services/backendApi';
+import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { log } from '@/shared/utils/logger';
 import { validatePassword } from '@/shared/utils/validation';
 import type { AdminUser } from '@/shared/services/backendApi';
@@ -46,6 +48,7 @@ export interface AdminNotice {
 export type AdminNotices = Partial<Record<AdminSection, AdminNotice>>;
 
 export function useAdminData() {
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
   // Save skickar hela trappan och servern tar bort steg som saknas — sparas DEFAULT_SETTINGS
   // (inläsningen misslyckades) skulle prod-trappan skrivas över. Därför låst tills båda läsningarna lyckats.
@@ -187,6 +190,8 @@ export function useAdminData() {
       if (result.success && result.data) {
         const created = result.data;
         setUsers(prev => [...prev, created]);
+        // Board läser gruppen ur users-with-runs (staleTime 10 s): utan invalidering visar den listan från före kontot.
+        void queryClient.invalidateQueries({ queryKey: USERS_WITH_RUNS_QUERY_KEY });
         setNewUser({ name: '', email: '', password: '' });
         notify('users', { status: 'Member added.' });
       } else {

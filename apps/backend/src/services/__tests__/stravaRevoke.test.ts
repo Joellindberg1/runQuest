@@ -180,10 +180,13 @@ describe('revokeStravaAuthorization', () => {
       return new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)));
     });
 
-    const started = Date.now();
+    // Counts calls instead of measuring wall time: the deadline is built from the injected limit, never from the 10 s default,
+    // so a hanging Strava is cut off at the limit the caller chose. A slow runner cannot make that fail.
+    const deadlines = vi.spyOn(AbortSignal, 'timeout');
     await expect(revokeStravaAuthorization('user-1', { timeoutMs: 30 })).rejects.toMatchObject({ code: 'strava_timeout' });
 
-    expect(Date.now() - started).toBeLessThan(2000);
+    expect(deadlines).toHaveBeenCalledWith(30);
+    expect(deadlines).not.toHaveBeenCalledWith(REVOKE_TIMEOUT_MS);
     expect(signal).toBeDefined();
     expect(signal?.aborted).toBe(true);
   });

@@ -236,3 +236,87 @@ describe('encrypted values and key material in events', () => {
     expect(out).not.toContain(retired);
   });
 });
+
+describe('Strava activity numbers and coordinates in free text', () => {
+  const messageOf = (text: string) => (scrubSentryEvent({ message: text } as never, []) as { message: string }).message;
+
+  it.each([
+    ['activity 12345678901 not found', '12345678901', 'not found'],
+    ['Activity #12345678901 could not be fetched', '12345678901', 'could not be fetched'],
+    ['no run for activity_id=12345678901 (attempt 2)', '12345678901', 'attempt 2'],
+    ['athlete 424242424 is not connected', '424242424', 'is not connected'],
+    ['Strava answered 404 for activity 12345678901: Record Not Found', '12345678901', 'Record Not Found'],
+  ])('masks the number in "%s" and keeps the rest of the sentence', (text, number, rest) => {
+    const out = messageOf(text);
+    expect(out).not.toContain(number);
+    expect(out).toContain(rest);
+  });
+
+  it('masks every number of a list of activities', () => {
+    const out = messageOf('activities 12345678901 and 12345678902 skipped');
+    expect(out).not.toMatch(/\d{8,}/);
+    expect(out).toContain('skipped');
+  });
+
+  it.each([
+    ['GET /activities/12345678901', 'GET /activities/:id'],
+    ['GET https://www.strava.com/api/v3/activities/12345678901?include_all_efforts=false 404', 'GET https://www.strava.com/api/v3/activities/:id?include_all_efforts=false 404'],
+    ['GET /api/v3/activities/12345678901/streams failed', 'GET /api/v3/activities/:id/streams failed'],
+    ['GET /api/v3/athletes/424242424/stats failed', 'GET /api/v3/athletes/:id/stats failed'],
+  ])('turns the id in the path of "%s" into :id', (text, expected) => {
+    expect(messageOf(text)).toBe(expected);
+  });
+
+  it.each([
+    ['lat 57.70887, lng 11.97456', '57.70887', '11.97456'],
+    ['lat=57.70887 lon=11.97456', '57.70887', '11.97456'],
+    ['latitude: -33.86882, longitude: 151.20929', '33.86882', '151.20929'],
+    ['{"lat":57.70887,"lng":11.97456}', '57.70887', '11.97456'],
+    ['start_latlng=[57.70887, 11.97456]', '57.70887', '11.97456'],
+    ['weather lookup failed at 57.70887, 11.97456 (status 503)', '57.70887', '11.97456'],
+    ['weather lookup failed at [57.70887,11.97456]', '57.70887', '11.97456'],
+  ])('masks the coordinates in "%s"', (text, first, second) => {
+    const out = messageOf(text);
+    expect(out).not.toContain(first);
+    expect(out).not.toContain(second);
+  });
+
+  it('keeps what debugging needs: status codes, error codes, route patterns and counts', () => {
+    const text = 'GET /api/v3/activities/:id 503 (strava_503, PGRST116, ECONNRESET) after 3 attempts, 12.5 s, 4 activities, v1.2.3';
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it('keeps ordinary decimals and the word "activity" when no number follows', () => {
+    const text = 'no activity found; took 1.2345 s, 2.3456 s; lag 120 ms; response 404';
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it('masks the same things in exception values, extra and nested lists', () => {
+    const event = {
+      exception: { values: [{ type: 'Error', value: 'activity 12345678901 not found' }] },
+      extra: { note: 'GET /activities/12345678901', where: ['lat 57.70887, lng 11.97456'] },
+    };
+    const out = JSON.stringify(scrubSentryEvent(event, []));
+    expect(out).not.toMatch(/12345678901|57\.70887|11\.97456/);
+  });
+
+  it.each(['object_id', 'owner_id', 'athlete_id', 'strava_activity_id', 'strava_athlete_id'])('masks a numeric %s field and keeps its neighbours', (key) => {
+    const out = scrubSentryEvent({ extra: { [key]: 12345678901, attempts: 3 } } as never, []) as { extra: Record<string, unknown> };
+    expect(out.extra[key]).toBe('[Filtered]');
+    expect(out.extra.attempts).toBe(3);
+  });
+
+  it('keeps our own ids that share a name with Strava ones: a group owner_id (UUID) and a news activity_id (small running number)', () => {
+    const event = { extra: { owner_id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', activity_id: 4711 }, message: 'news row activity_id=4711 and activity 4711 missing' };
+    const out = scrubSentryEvent(event as never, []) as typeof event;
+    expect(out.extra).toEqual(event.extra);
+    expect(out.message).toBe(event.message);
+  });
+
+  it.each(['lat', 'lng', 'latlng', 'start_latlng', 'end_latlng', 'latitude', 'longitude'])('masks a %s field', (key) => {
+    const value = key.includes('latlng') ? [57.70887, 11.97456] : 57.70887;
+    const out = scrubSentryEvent({ extra: { [key]: value, status: 503 } } as never, []) as { extra: Record<string, unknown> };
+    expect(out.extra[key]).toBe('[Filtered]');
+    expect(out.extra.status).toBe(503);
+  });
+});
