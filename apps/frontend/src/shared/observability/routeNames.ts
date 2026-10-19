@@ -1,4 +1,5 @@
 import { paths } from '@/paths';
+import { createRouteMatcher } from '@/shared/utils/routeMatcher';
 
 // Sidnamn för prestandaspårningen: samma princip som sidnamnen i Umami. Ett namn visar vilken sida det var, aldrig vems. Därför
 // finns det bara ett fast antal namn: skalets sidor (`paths`) och `/runner/:id`. Allt annat får ett enda namn, så en adress med ett
@@ -15,22 +16,19 @@ const SHELL_PAGES: readonly string[] = [
   paths.playbook, paths.features, paths.settings, paths.admin,
 ];
 
-const RUNNER_PREFIX = paths.runnerPattern.slice(0, paths.runnerPattern.indexOf(':'));
+// Matchningen delas med Umami-sidnamnen (shared/utils/routeMatcher.ts) och följer routern: skiftläget och ett avslutande eller dubblerat
+// snedstreck spelar ingen roll. Före den delade kärnan var routenamnen skiftlägeskänsliga och `/Board` blev `/(other)`; nu får den
+// samma namn som `/board`. Skillnaden gör bara att färre adresser hamnar under det okända namnet, och namnet är fortfarande alltid ett
+// av mönstren ovan, aldrig adressen.
+const matchShellRoute = createRouteMatcher([...SHELL_PAGES, paths.runnerPattern]);
 
 function pathOnly(address: string): string {
-  const path = address.split(/[?#]/)[0] ?? '';
-  return path.length > 1 ? path.replace(/\/$/, '') : path;
+  return address.split(/[?#]/)[0] ?? '';
 }
 
 /** Routens namn för en adress: `/board`, `/runner/:id` eller `/(other)`. Tar bara sökvägen; query och fragment berörs inte. */
 export function routeNameOf(address: string): string {
-  const path = pathOnly(address);
-  if (SHELL_PAGES.includes(path)) return path;
-  if (path.startsWith(RUNNER_PREFIX)) {
-    const id = path.slice(RUNNER_PREFIX.length);
-    if (id.length > 0 && !id.includes('/')) return paths.runnerPattern;
-  }
-  return UNKNOWN_ROUTE;
+  return matchShellRoute(pathOnly(address)) ?? UNKNOWN_ROUTE;
 }
 
 /** Är adressen en sida i det inloggade skalet (där prestandan mäts)? Landning, inloggning, villkor och preview är det inte. */

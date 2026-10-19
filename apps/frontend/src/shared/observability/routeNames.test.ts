@@ -26,6 +26,13 @@ describe('routeNameOf', () => {
     expect(routeNameOf('/runner/abc?from=board')).toBe('/runner/:id');
   });
 
+  it('names an address the way the router matches it, whatever its case, so fewer pages fall under the unknown name and none gets an id', () => {
+    expect(routeNameOf('/Board')).toBe('/board');
+    expect(routeNameOf('/RUNNER/abc')).toBe('/runner/:id');
+    expect(routeNameOf('/board//')).toBe('/board');
+    expect(routeNameOf('/RUNNER/3f2b8c1e-9d4a-4e7b-8a61-5c0d2e9f7a14/extra')).toBe(UNKNOWN_ROUTE);
+  });
+
   it('gives one fixed name to anything it does not know, so a path can never leak into a name', () => {
     expect(routeNameOf('/something/else/3f2b8c1e-9d4a-4e7b-8a61-5c0d2e9f7a14')).toBe(UNKNOWN_ROUTE);
     expect(routeNameOf('/board/extra')).toBe(UNKNOWN_ROUTE);
