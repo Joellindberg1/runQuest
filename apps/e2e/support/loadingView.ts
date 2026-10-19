@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { waitForStylesApplied } from './stylesApplied';
 
 // Hjälpare för specerna som bevisar förrenderingen och laddningsvyn (tests/landing.spec.ts, ADR 006 addendum 2026-10-19, punkt 11).
 
@@ -8,6 +9,22 @@ export const APP_SCRIPT_DELAY_MS = 2_000;
 /** Fullappens ingångsfil (`/assets/index-<hash>.js`), landningens (`/assets/landing-<hash>.js`). Hashen är okänd, så prov går på mönstret. */
 const APP_ENTRY = '**/assets/index-*.js';
 const LANDING_ENTRY = '**/assets/landing-*.js';
+
+/** Hur länge stilmallarna hålls tillbaka i proven som härmar ett långsamt nät (stagings stilmallar kommer sent nog för att index.html ska hinna mätas ostylad). */
+export const STYLESHEET_DELAY_MS = 800;
+
+/**
+ * Varje stilmall (`/assets/*.css`) levereras först efter `delayMs`. Stilmallar blockerar inte DOMContentLoaded, bara ritningen: sidan har alltså hunnit få sin DOM
+ * (och sin laddare) innan någon stil är tillämpad, och ett mått taget då är en layout som aldrig målas. Med fördröjningen blir det läget synligt även lokalt.
+ * `fallback` släpper vidare till andra rutter (stubben, hållna skript) i stället för att gå direkt mot nätet.
+ */
+export async function delayStylesheets(page: Page, delayMs: number = STYLESHEET_DELAY_MS): Promise<void> {
+  if (delayMs <= 0) return;
+  await page.route('**/assets/*.css', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    await route.fallback();
+  });
+}
 
 /** Håller tillbaka en ingångsfil tills `release()` anropas (eller `maxMs` gått). `releasedAt` är väggklockan då filen släpptes, annars null. */
 export interface HeldScript {
@@ -117,8 +134,12 @@ export interface LoaderRect {
   stagingBannerHeight: number;
 }
 
-/** Mäter laddarens rektangel just nu; null om ingen laddare finns i sidan. Samma mått i index.html före JS och i gaten efter React = ingen hoppande bild. */
-export function measureLoader(page: Page): Promise<LoaderRect | null> {
+/**
+ * Mäter laddarens rektangel när sidans stil är tillämpad (se `waitForStylesApplied`); null om ingen laddare finns i sidan. Samma mått i index.html före JS och i gaten efter React
+ * = ingen hoppande bild. Ett mått före stilmallen vore ett läge som aldrig målas.
+ */
+export async function measureLoader(page: Page): Promise<LoaderRect | null> {
+  await waitForStylesApplied(page);
   return page.evaluate(() => {
     const status = document.querySelector('#root .rq-shell__pending [role="status"]');
     if (!status) return null;
@@ -148,6 +169,10 @@ export interface FrameSample {
   textLength: number;
   /** Laddningsvyn: `.rq-shell__pending` med en `role="status"` i #root. */
   loader: boolean;
+  /** Sant om provet togs i sidans egen rAF-slinga, alltså i en bildruta som ritas. Prov efter en DOM-ändring (MutationObserver) kan ligga före första ritningen och är inte ritade. */
+  painted: boolean;
+  /** Laddarens rektangel (sidans koordinater, lutningen inräknad) i en ritad bildruta; null i en bildruta utan laddare och i prov som inte är ritade. */
+  loaderRect: { x: number; y: number; width: number; height: number } | null;
   /** Appens inloggade skal (`.rq-shell[data-shell]`) i #root. */
   shell: boolean;
   /** Landningen (`.rq-landing`) i #root. */
@@ -186,10 +211,12 @@ export async function logFrames(page: Page): Promise<FrameLog> {
     if (sample.rootChildren !== -1) frames.push({ ...sample, at: Date.now() });
   });
   await page.addInitScript(() => {
-    const sample = () => {
+    const sample = (painted: boolean) => {
       const root = document.getElementById('root');
       // Stagingbannern, aviseringsytan och temaskriptet (next-themes) står kvar vid varje övergång och räknas inte som innehåll: bredvid dem kan sidan ändå vara tom.
       const content = root ? Array.from(root.children).filter((child) => !child.matches('script, [aria-label="Staging environment"], section[aria-label^="Notifications"]')) : [];
+      // Måttet tas bara i en ritad bildruta: en layout som räknats före stilmallen (som blockerar ritningen men inte DOMContentLoaded) målas aldrig och ska inte räknas.
+      const box = painted ? root?.querySelector('.rq-shell__pending [role="status"]')?.getBoundingClientRect() : undefined;
       (window as unknown as { __rqReportFrame: (sample: unknown) => void }).__rqReportFrame({
         document: performance.timeOrigin,
         path: location.pathname,
@@ -197,6 +224,8 @@ export async function logFrames(page: Page): Promise<FrameLog> {
         rootChildren: root?.nextSibling ? content.length : -1,
         textLength: content.map((child) => child.textContent ?? '').join('').trim().length,
         loader: root?.querySelector('.rq-shell__pending [role="status"]') != null,
+        painted,
+        loaderRect: box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null,
         shell: root?.querySelector('.rq-shell[data-shell]') != null,
         landing: root?.querySelector('.rq-landing') != null,
         board: root?.querySelector('.rq-board') != null,
@@ -208,10 +237,10 @@ export async function logFrames(page: Page): Promise<FrameLog> {
     };
     // Varje bildruta, och varje ändring av DOM:en: en commit som tömmer #root kan ritas innan nästa bildruta provas, och just den tomma rutan ska synas i loggen.
     // Ändringarna följs först efter den första bildrutan, annars syns ett halvtolkat dokument (#root öppnat men barnen ännu inte tolkade) som en tom ruta.
-    const observer = new MutationObserver(sample);
+    const observer = new MutationObserver(() => sample(false));
     let observing = false;
     const tick = () => {
-      sample();
+      sample(true);
       if (!observing) {
         observing = true;
         observer.observe(document, { childList: true, subtree: true, characterData: true });

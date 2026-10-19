@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { dismissOverlays } from '../support/overlays';
-import { delayAppScript, holdWeek } from '../support/loadingView';
+import { delayAppScript, delayStylesheets, holdWeek } from '../support/loadingView';
 import { LAP_PHASES, measureRunnerDeviations } from '../support/loaderGeometry';
 
 // Löparprickarna i stadion-ovalen (TrackLoader) ska ligga på sina banlinjer under hela varvet, i laddningsvyns 192 px och i sidornas 64 px.
@@ -25,6 +25,7 @@ async function expectRunnersOnTheirLanes(page: Page, scope: string, lanes: numbe
 
 test.describe('the runner dots of the stadium oval', () => {
   test('sit on their lane lines in four phases of the lap in the 192 px loading view', async ({ page }) => {
+    await delayStylesheets(page);
     const script = await delayAppScript(page, HOLD_MAX_MS);
     await page.goto('/board', { waitUntil: 'commit' });
     await expect(page.locator(LOADING_VIEW)).toBeVisible();
