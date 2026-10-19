@@ -1,11 +1,13 @@
 import { expect, test } from '../support/test';
 import { fetchRunners, readSession } from '../support/api';
 import { dismissOverlays } from '../support/overlays';
+import { apiIsStubbed } from '../support/stubApi';
 
 const PODIUM_SIZE = 3;
 
 test.describe('the standings', () => {
   test('the board lists the whole group in the order the server ranks it', async ({ page }) => {
+    test.skip(apiIsStubbed(), 'Reads the group through the real API with Node fetch (support/api.ts); the stubbed API has one runner.');
     // Servern rankar efter XP (nivån följer XP), Board visar samma ordning: podiet (topp 3) och sedan tabellen "Rest of the pack". "admin" visas inte.
     const names = (await fetchRunners(readSession())).map((runner) => runner.name).filter((name) => name.toLowerCase() !== 'admin');
     expect(names.length, 'the staging group needs at least one runner').toBeGreaterThan(0);

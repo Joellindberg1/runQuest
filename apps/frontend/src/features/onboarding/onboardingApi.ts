@@ -1,4 +1,5 @@
 // 🎓 Onboarding API — thin wrappers around /api/onboarding
+import type { OnboardingStatusResponse } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
 
 const BASE = '/onboarding';
@@ -15,8 +16,8 @@ export async function fetchOnboardingStatus(): Promise<string[]> {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!res.ok) throw new Error(`Onboarding status failed (${res.status})`);
-  const data = await res.json();
-  return (data.seen as string[]) ?? [];
+  const data = (await res.json()) as Partial<OnboardingStatusResponse>;
+  return data.seen ?? [];
 }
 
 export async function markOnboardingSeen(slug: string): Promise<void> {

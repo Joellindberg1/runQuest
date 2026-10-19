@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import type { OnboardingStatusResponse } from '../../../packages/shared/src/contracts/onboarding';
 import { expect, test } from '../support/test';
 import { submitSignIn } from '../support/signIn';
 import { userCredentials } from '../support/targets';
@@ -99,6 +100,21 @@ test.describe('the prerendered landing page', () => {
     await page.goto('/login');
     await expect(page.getByRole('dialog', { name: 'Sign in' })).toBeVisible();
     await expect(landingHeadline(page)).toBeVisible();
+  });
+
+  test('/landing.html/ with a trailing slash ends on / without a reload loop', async ({ page }) => {
+    // Caddy omdirigerar bara /landing och /landing.html; med avslutande snedstreck serveras index.html, och adressen ska ändå landa på landningen utan att sidan laddar om sig själv.
+    const documents: string[] = [];
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents.push(new URL(request.url()).pathname);
+    });
+    await page.goto('/landing.html/');
+    await expect(landingHeadline(page)).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await page.waitForTimeout(SETTLE_MS);
+
+    expect(new URL(page.url()).pathname).toBe('/');
+    expect(documents.length, `document requests: ${documents.join(', ')}`).toBeLessThanOrEqual(3);
   });
 
   test('signing in from / shows the loader until the board is drawn, with no blank frame', async ({ page }) => {
@@ -261,7 +277,7 @@ test.describe('the onboarding tour', () => {
   test('the close button shows a focus ring when it is reached with the keyboard', async ({ page }) => {
     // Kontot har sett turen. Statusen byts ut mot "inget sett" så att förstagångsturen startar; ingenting skrivs (turen stängs aldrig här).
     await page.route('**/onboarding/status', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }, body: JSON.stringify({ seen: [] }) }),
+      route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }, body: JSON.stringify({ seen: [] } satisfies OnboardingStatusResponse) }),
     );
     await page.goto('/board');
     await page.locator('.driver-popover').waitFor({ state: 'visible', timeout: 15_000 });
