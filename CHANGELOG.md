@@ -115,6 +115,15 @@ Ett ägar-ja per migration, per skrivande skript och per Railway-variabel (`docs
 9. Peka om stagingtjänsterna till `integration/v0.8.1`.
 10. Docs-PR "live" (`docs/release.md` steg 8): STATE och CHANGELOG med deploydatum och utfall per steg.
 
+**Utfall 2026-10-19 (v0.8.0 live, PR #50 = e3dbc015, tagg `v0.8.0`):**
+- Steg 4: CI grön (Backend, Shared, Frontend och Lighthouse), squash-merge 16:36 UTC; båda tjänsterna SUCCESS på e3dbc015 16:44 UTC. Rollback-deployer antecknade (v0.7.1: frontend `08f59258`, backend `90715e0a`). Rök godkänd: startloggen `🔐 Strava token encryption on: active key prod-1, 0 retired key(s)` och `🛰️ Sentry on (environment: production)`, inget `🚨 KRITISKT`; `/health` 200; `/` förrenderad med `no-cache`; `//` och `/board` laddningsvyn; `/landing` 307 till `/`; `/legal` 200; `.map` 404; `/api/groups/settings` 401 utan token; `/api/strava/debug-activities` 404; Umami-id i bygget; Sentry-DSN i den lazy chunken efter inloggning. Titelinnehavarna oförändrade (22 innehavare, samma kontrollsumma före och efter), webhookkön tom. Ej gjort av Lead: inloggade kontroller (gruppinställningar, Board-laddaren i prod), Umamis cookiekontroll i webbläsaren och `sentry:test:built`; Sentry-alertregeln väntar på ägarens ja.
+- Steg 5: e2e-staging körd (run 39288386517): 32 gröna, 5 överhoppade, 4 röda. De röda var laddarens geometri- och prickprov, som mätte laddaren i `index.html` innan stilmallen hade tillämpats (stilmallar blockerar inte `DOMContentLoaded`; det läget målas aldrig). Rättat i den här PR:en (`waitForStylesApplied`, `delayStylesheets` och ett prov på målade bildrutor); körs om efter merge.
+- Steg 6: konsistenskontrollen från 053 i prod före och efter merge: 0 användare utan medlemskap, 0 medlemskap utan pekare, 6 aktiva medlemskap. Ingen testgrupp i prod.
+- Steg 7: ingen announce (ägarbeslut).
+- Steg 8: tagg `v0.8.0` på e3dbc015.
+- Steg 9: `integration/v0.8.1` skapad från e3dbc015; stagingtjänsterna deployar den.
+- Steg 10: den här PR:en.
+
 Senare, enligt ägarens beslut (inte en del av deployen):
 - Tokenutrullningen RUN-314–316: några dygn utan `token_unreadable`, därefter `backfill:strava-token-encryption` dry-run → ägar-ja → `--apply`, verifiering (`plaintext_rows: 0`), CHECK-migrationen och borttagen klartextläsning (ADR 013 beslut 13, `docs/runbook-token-key.md`).
 - Umami-trattarna (ägaren i Umami-panelen, `docs/release.md`).
