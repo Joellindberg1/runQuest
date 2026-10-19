@@ -1,6 +1,10 @@
 // 🔗 Backend API Service - Production Ready
-import type { Run, User, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
+import type { Run, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
+  AdminSettingsResponse, AdminUsersResponse, ApiError, ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, CreateUserResponse,
+  LoginRequest, LoginResponse, LoginUser, ResetUserPasswordRequest, ResetUserPasswordResponse, StreakMultipliersResponse,
+  TitlesRefreshResponse, UpdateAdminSettingsRequest, UpdateAdminSettingsResponse, UpdateDisplayedTitlesRequest, UpdateDisplayedTitlesResponse,
+  UpdateStreakMultipliersRequest, UpdateStreakMultipliersResponse, UploadProfilePictureResponse, UsersWithRunsResponse,
   WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
   PublicStatsData, PublicStatsApiResponse,
   ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
@@ -27,42 +31,8 @@ const HTTP_NOT_FOUND = 404;
 const HTTP_SERVER_ERROR = 500;
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-export interface LoginResponse {
-  success: boolean;
-  token?: string;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  error?: string;
-}
-
-export interface AdminSettings {
-  base_xp: number;
-  xp_per_km: number;
-  bonus_5km: number;
-  bonus_10km: number;
-  bonus_15km: number;
-  bonus_20km: number;
-  min_run_distance: number;
-  min_streak_distance?: number;
-  min_run_date?: string;
-}
-
-/** Shape of GET /auth/users (admin user list). */
-export interface AdminUser {
-  id: string;
-  name: string;
-  email: string;
-  total_xp: number;
-  current_level: number;
-  total_km: number;
-  current_streak: number;
-  longest_streak: number;
-  created_at: string;
-  total_runs: number;
-}
+/** Utfallet av login() hos klienten: serverns svar (LoginResponse) eller ett fel. Aldrig serverns `{ error }` rått. */
+export type LoginResult = LoginResponse | { success: false; error: string };
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -102,33 +72,37 @@ class BackendApiService {
   }
 
   // 🔐 Authentication methods
-  async login(name: string, password: string): Promise<LoginResponse> {
+  async login(name: string, password: string): Promise<LoginResult> {
     try {
+      const request: LoginRequest = { name, password };
       const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, password }),
+        body: JSON.stringify(request),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        logHttpFailure('Backend login failed:', response.status, data.error);
-        return { success: false, error: data.error || 'Login failed' };
+        const failure: ApiError = data;
+        logHttpFailure('Backend login failed:', response.status, failure.error);
+        return { success: false, error: failure.error || 'Login failed' };
       }
 
+      const login: LoginResponse = data;
+
       // Store JWT token in localStorage
-      if (data.token) {
-        localStorage.setItem(SESSION_TOKEN_KEY, data.token);
-        localStorage.setItem(SESSION_USER_KEY, JSON.stringify(data.user));
+      if (login.token) {
+        localStorage.setItem(SESSION_TOKEN_KEY, login.token);
+        localStorage.setItem(SESSION_USER_KEY, JSON.stringify(login.user));
       }
 
       return {
         success: true,
-        token: data.token,
-        user: data.user
+        token: login.token,
+        user: login.user
       };
 
     } catch (error) {
@@ -141,7 +115,7 @@ class BackendApiService {
   }
 
   // 🔐 Change password
-  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse> {
+  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse<ChangePasswordResponse>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -154,7 +128,7 @@ class BackendApiService {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword } satisfies ChangePasswordRequest),
       });
 
       const data = await response.json();
@@ -180,7 +154,7 @@ class BackendApiService {
   }
 
   // 👥 Admin: Get all users
-  async getAllUsers(): Promise<ApiResponse<AdminUser[]>> {
+  async getAllUsers(): Promise<ApiResponse<AdminUsersResponse['data']>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -218,7 +192,7 @@ class BackendApiService {
   }
 
   // 👥 Get all users with their runs (for leaderboard)
-  async getUsersWithRuns(): Promise<ApiResponse<User[]>> {
+  async getUsersWithRuns(): Promise<ApiResponse<UsersWithRunsResponse['data']>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -381,7 +355,7 @@ class BackendApiService {
   }
 
   // 👤 Admin: Create new user
-  async createUser(name: string, email: string, password: string): Promise<ApiResponse<AdminUser>> {
+  async createUser(name: string, email: string, password: string): Promise<ApiResponse<CreateUserResponse['data']>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -394,7 +368,7 @@ class BackendApiService {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password } satisfies CreateUserRequest),
       });
 
       const data = await response.json();
@@ -420,7 +394,7 @@ class BackendApiService {
   }
 
   // 🔐 Admin: Reset user password
-  async resetUserPassword(userId: string, newPassword: string): Promise<ApiResponse> {
+  async resetUserPassword(userId: string, newPassword: string): Promise<ApiResponse<ResetUserPasswordResponse>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -433,7 +407,7 @@ class BackendApiService {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ newPassword }),
+        body: JSON.stringify({ newPassword } satisfies ResetUserPasswordRequest),
       });
 
       const data = await response.json();
@@ -472,7 +446,7 @@ class BackendApiService {
   }
 
   // 👤 Get current user from localStorage
-  getCurrentUser(): { id: string; name: string; email: string } | null {
+  getCurrentUser(): LoginUser | null {
     const userStr = readStoredSession(SESSION_USER_KEY);
     if (!userStr) return null;
 
@@ -593,7 +567,7 @@ class BackendApiService {
   }
 
   // 👤 User Methods
-  async uploadProfilePicture(file: File): Promise<ApiResponse<{ profile_picture: string }>> {
+  async uploadProfilePicture(file: File): Promise<ApiResponse<UploadProfilePictureResponse['data']>> {
     try {
       const token = this.getToken();
       if (!token) {
@@ -647,17 +621,18 @@ class BackendApiService {
     return this.getEnvelope<GroupEligibilityEntry[]>('/titles/group-eligibility', 'Failed to fetch title progress');
   }
 
-  async updateDisplayedTitles(titleIds: string[]): Promise<ApiResponse<void>> {
-    return this.authenticatedRequest<void>('/auth/me/displayed-titles', {
+  async updateDisplayedTitles(titleIds: string[]): Promise<ApiResponse<UpdateDisplayedTitlesResponse>> {
+    const body: UpdateDisplayedTitlesRequest = { title_ids: titleIds };
+    return this.authenticatedRequest<UpdateDisplayedTitlesResponse>('/auth/me/displayed-titles', {
       method: 'PUT',
-      body: JSON.stringify({ title_ids: titleIds }),
+      body: JSON.stringify(body),
     });
   }
 
-  // 🔄 Refresh title leaderboards after data changes
-  async refreshTitleLeaderboards(): Promise<ApiResponse<{ message: string; updated: number }>> {
+  // 🔄 Refresh title leaderboards after data changes. Servern svarar { success, message, timestamp } (ingen räknare); klienten använder bara utfallet.
+  async refreshTitleLeaderboards(): Promise<ApiResponse<TitlesRefreshResponse>> {
     try {
-      const response = await this.authenticatedRequest<{ message: string; updated: number }>('/titles/refresh', {
+      const response = await this.authenticatedRequest<TitlesRefreshResponse>('/titles/refresh', {
         method: 'POST'
       });
 
@@ -675,7 +650,7 @@ class BackendApiService {
   }
 
   // 🔧 Admin Settings Management
-  async getAdminSettings(): Promise<ApiResponse<AdminSettings>> {
+  async getAdminSettings(): Promise<ApiResponse<AdminSettingsResponse['data']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/admin-settings`, {
         method: 'GET',
@@ -702,15 +677,7 @@ class BackendApiService {
     }
   }
 
-  async updateAdminSettings(settings: {
-    base_xp: number;
-    xp_per_km: number;
-    bonus_5km: number;
-    bonus_10km: number;
-    bonus_15km: number;
-    bonus_20km: number;
-    min_run_distance: number;
-  }): Promise<ApiResponse<AdminSettings>> {
+  async updateAdminSettings(settings: UpdateAdminSettingsRequest): Promise<ApiResponse<UpdateAdminSettingsResponse['data']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/admin-settings`, {
         method: 'PUT',
@@ -738,7 +705,7 @@ class BackendApiService {
     }
   }
 
-  async getStreakMultipliers(): Promise<ApiResponse<Array<{ days: number; multiplier: number }>>> {
+  async getStreakMultipliers(): Promise<ApiResponse<StreakMultipliersResponse['data']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/streak-multipliers`, {
         method: 'GET',
@@ -765,15 +732,16 @@ class BackendApiService {
     }
   }
 
-  async updateStreakMultipliers(multipliers: Array<{days: number, multiplier: number}>): Promise<ApiResponse<Array<{ days: number; multiplier: number }>>> {
+  async updateStreakMultipliers(multipliers: UpdateStreakMultipliersRequest['multipliers']): Promise<ApiResponse<UpdateStreakMultipliersResponse['data']>> {
     try {
+      const body: UpdateStreakMultipliersRequest = { multipliers };
       const response = await fetch(`${API_BASE_URL}/auth/streak-multipliers`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${this.getToken()}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ multipliers }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();

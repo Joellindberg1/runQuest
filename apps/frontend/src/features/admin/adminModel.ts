@@ -1,7 +1,7 @@
 import { MULTIPLIER_MAX, MULTIPLIER_MIN, isValidMultiplier } from '@runquest/shared';
 import { formatInt } from '@/features/log/logFormat';
-import type { AdminUser } from '@/shared/services/backendApi';
-import type { AdminSettings } from './hooks/useAdminData';
+import type { AdminUser } from '@runquest/shared';
+import type { AdminSettingsForm } from './hooks/useAdminData';
 
 // Admin-skärmens vymodeller: vilka XP-fält som finns och hur de grupperas, medlemsraden och en sista kontroll före Save.
 // Ren logik — ingen DOM, ingen datahämtning. Servern validerar allt på riktigt (400 med skäl); kontrollen här fångar bara
@@ -77,7 +77,7 @@ export interface MultiplierRow {
 }
 
 /** Trappan i stigande dagordning (talnycklar sorteras redan så, men ordningen är ett krav, inte en tillfällighet). */
-export function multiplierRows(multipliers: AdminSettings['multipliers']): MultiplierRow[] {
+export function multiplierRows(multipliers: AdminSettingsForm['multipliers']): MultiplierRow[] {
   return Object.entries(multipliers)
     .map(([days, multiplier]) => ({ days: Number(days), multiplier }))
     .sort((a, b) => a.days - b.days)
@@ -89,7 +89,7 @@ export function multiplierRows(multipliers: AdminSettings['multipliers']): Multi
  * grundinställningarna först och trappan sen, så en trappa som servern avvisar i efterhand lämnar sparningen halv. Därför
  * kontrolleras både tomma fält och trappans intervall (1–9.99, högst två decimaler) här. Svarar med en mening eller null.
  */
-export function findSettingsProblem(settings: AdminSettings): string | null {
+export function findSettingsProblem(settings: AdminSettingsForm): string | null {
   const numbers = [
     settings.xpPerRun, settings.xpPerKm, settings.minKmForRun,
     settings.bonus5km, settings.bonus10km, settings.bonus15km, settings.bonus20km,

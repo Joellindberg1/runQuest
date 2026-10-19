@@ -6,6 +6,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { errorCode } from '../utils/errorCode.js';
 import { PROFILE_PICTURE_EXTENSIONS, PROFILE_PICTURE_MAX_BYTES } from '@runquest/shared';
+import type { ApiError, UploadProfilePictureResponse } from '@runquest/shared';
 
 const router = express.Router();
 
@@ -21,11 +22,11 @@ router.post(
       const ext = PROFILE_PICTURE_EXTENSIONS[contentType];
 
       if (!ext) {
-        res.status(400).json({ error: 'Only jpeg, png, webp or gif images are allowed' });
+        res.status(400).json({ error: 'Only jpeg, png, webp or gif images are allowed' } satisfies ApiError);
         return;
       }
       if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-        res.status(400).json({ error: 'Empty image body' });
+        res.status(400).json({ error: 'Empty image body' } satisfies ApiError);
         return;
       }
 
@@ -45,7 +46,7 @@ router.post(
 
       if (uploadError) {
         logger.error(`❌ Profile picture upload failed (${errorCode(uploadError)})`);
-        res.status(500).json({ error: 'Failed to upload profile picture' });
+        res.status(500).json({ error: 'Failed to upload profile picture' } satisfies ApiError);
         return;
       }
 
@@ -60,7 +61,7 @@ router.post(
 
       if (updateError) {
         logger.error(`❌ Profile picture user update failed (${errorCode(updateError)})`);
-        res.status(500).json({ error: 'Failed to update profile picture' });
+        res.status(500).json({ error: 'Failed to update profile picture' } satisfies ApiError);
         return;
       }
 
@@ -69,17 +70,17 @@ router.post(
       }
 
       logger.info(`🖼️ Profile picture updated for user ${userId}`);
-      res.json({ success: true, data: { profile_picture: publicUrlData.publicUrl } });
+      res.json({ success: true, data: { profile_picture: publicUrlData.publicUrl } } satisfies UploadProfilePictureResponse);
     } catch (error) {
       logger.error(`❌ Profile picture error (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to upload profile picture' });
+      res.status(500).json({ error: 'Failed to upload profile picture' } satisfies ApiError);
     }
   }
 );
 
 // Fel från body-parsern (för stor bild) som JSON i ADR 007-formen i stället för Express HTML-felsida (som väntelistan).
 router.use((err: { type?: string }, _req: Request, res: Response, next: NextFunction): void => {
-  if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' }); return; }
+  if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' } satisfies ApiError); return; }
   next(err);
 });
 

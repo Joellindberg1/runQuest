@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import AdminPage from '@/pages/AdminPage';
-import type { AdminUser } from '@/shared/services/backendApi';
+import type { AdminUser } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import type { TitleLeaderboardEntry } from '@runquest/shared';

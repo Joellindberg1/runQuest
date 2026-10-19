@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { MIN_RUN_DATE } from '@runquest/shared';
-import type { AdminUser } from '@/shared/services/backendApi';
+import type { AdminUser } from '@runquest/shared';
 import {
   XP_GROUPS, fieldValue, findSettingsProblem, memberCountText, memberMeta, multiplierRows, parseField,
 } from './adminModel';
-import type { AdminSettings } from './hooks/useAdminData';
+import type { AdminSettingsForm } from './hooks/useAdminData';
 
-const SETTINGS: AdminSettings = {
+const SETTINGS: AdminSettingsForm = {
   xpPerRun: 15, xpPerKm: 2, bonus5km: 5, bonus10km: 15, bonus15km: 25, bonus20km: 50, minKmForRun: 1,
   minRunDate: MIN_RUN_DATE, multipliers: { 21: 2, 3: 1.3, 7: 1.5 },
 };

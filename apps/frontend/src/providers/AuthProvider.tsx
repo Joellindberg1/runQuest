@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: 'Login cancelled' };
       }
 
-      if (loginResult.success && loginResult.user) {
+      if (loginResult.success) {
         log.success('Backend login successful', loginResult.user.name);
         // Cachen hör till en användare: inget gammalt (t.ex. utloggad prefetch eller förra användarens badges/grupp/sett-lista) får finnas kvar när nästa läses.
         clearUserCaches();
