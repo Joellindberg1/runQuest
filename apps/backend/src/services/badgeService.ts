@@ -18,6 +18,7 @@
 // ett tidigare fel städas vid nästa körning.
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
+import { readUserGroupId } from './userGroupId.js';
 import { recordActivities, retractActivity } from './activityLog.js';
 import {
   badgeNewsChanges,
@@ -27,7 +28,7 @@ import {
   type BadgeRun,
   type ExistingBadgeRow,
 } from '@runquest/shared';
-import { errorCode, errorWithCode } from '../utils/errorCode.js';
+import { errorCode } from '../utils/errorCode.js';
 
 export const USER_BADGES_TABLE = 'user_badges';
 
@@ -273,13 +274,6 @@ export async function applyBadgeDiff(
   return { written: result.written, complete: result.complete && showcaseOk };
 }
 
-/** users.group_id för news-raderna (ADR 009 beslut 5); null = ingen grupp. Kastar vid läsfel (fångas av writeBadgeNews). */
-async function readGroupId(userId: string): Promise<string | null> {
-  const { data, error } = await getSupabaseClient().from('users').select('group_id').eq('id', userId).single();
-  if (error || !data) throw errorWithCode(`read users.group_id of user ${userId} failed`, error ?? { code: 'user_not_found' });
-  return data.group_id ?? null;
-}
-
 /**
  * Pack News för det som FAKTISKT skrevs (ADR 009 beslut 5): badge_earned för nya/uppgraderade tiers, retract av
  * raderna för förlorade tiers. Best-effort och icke-kastande — user_badges är redan skriven och står kvar vid fel.
@@ -289,7 +283,8 @@ async function readGroupId(userId: string): Promise<string | null> {
 async function writeBadgeNews(userId: string, written: BadgeDiff, now: Date): Promise<void> {
   try {
     const needsGroup = written.inserts.length > 0 || written.upgrades.length > 0;
-    const groupId = needsGroup ? await readGroupId(userId) : null;
+    // News-raderna bär användarens grupp (ADR 009 beslut 5). Ett läsfel, och en användare som saknas, kastas hit och loggas nedan: ingen news utan en läst grupp.
+    const groupId = needsGroup ? await readUserGroupId(userId, { onError: (error) => { throw error; } }) : null;
     const { drafts, retractKeys } = badgeNewsChanges(written, { userId, groupId, occurredAt: now.toISOString() });
     await Promise.all(retractKeys.map((key) => retractActivity(key)));
     await recordActivities(drafts);

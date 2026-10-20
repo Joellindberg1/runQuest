@@ -16,6 +16,7 @@ import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagina
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../utils/idempotencyKey.js';
 import type { CreateRunRequest, CreateRunResponse, DeleteRunResponse, GroupRunHistoryResponse, UpdateRunRequest, UpdateRunResponse } from '@runquest/shared';
 import { fail, failWritten, okWithLegacy } from '../utils/respond.js';
+import { groupIdOrRespondEmpty, tokenGroupId } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -190,10 +191,9 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
     const { limit, offset } = page;
 
     // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
-    const groupId = req.user!.group_id;
-    if (!groupId) {
-      okWithLegacy<GroupRunHistoryResponse>(res, { runs: [] }, { runs: [] }, buildPageMeta(0, limit, offset)); return;
-    }
+    const emptyBody = { success: true, runs: [], data: { runs: [] }, meta: buildPageMeta(0, limit, offset) } satisfies GroupRunHistoryResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
 
@@ -323,7 +323,10 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       fail(res, 400, 'Date and distance are required'); return;
     }
 
-    const timeZone = groupTimeZone(req.user!.group_id);
+    // Rundor loggas även utan grupp i token (token kan vara inaktuell efter join): gruppen ger bara zonen och eventkvalificeringen,
+    // som läser den färskt när den saknas. Den filtrerar ingen läsning.
+    const groupId = tokenGroupId(req);
+    const timeZone = groupTimeZone(groupId);
     const { error: invalidInput, distanceNum } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
       fail(res, 400, invalidInput); return;
@@ -410,7 +413,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       runId: newRun.id,
       runDate: toRunDay(date, timeZone), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
       distanceKm: distanceNum,
-      groupId: req.user!.group_id,
+      groupId,
     }).catch(e => logger.error(`❌ checkEventQualification error for user ${userId} (${errorCode(e)})`));
 
     if (!reprocessed) {
@@ -452,7 +455,8 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       fail(res, 400, 'Distance is required'); return;
     }
 
-    const timeZone = groupTimeZone(req.user!.group_id);
+    const groupId = tokenGroupId(req); // se POST: zonen och eventkvalificeringen, aldrig ett filter
+    const timeZone = groupTimeZone(groupId);
     const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
       fail(res, 400, invalidInput); return;
@@ -531,7 +535,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
         runId: id,
         runDate: toRunDay(date || existingRun.date, timeZone),
         distanceKm: newDistance,
-        groupId: req.user!.group_id,
+        groupId,
         // Bara events vars dagar rundans (nya) datum faller inom — annars kvalificerar en redigering av
         // en gammal runda ett event som pågår just nu.
         enforceRunDateWindow: true,

@@ -100,7 +100,13 @@
 //     de spårade filerna. Avsiktliga undantag (byggutdata, mönster som NNN_namn.sql, tredjepartsfiler) står i DOC_PATH_EXEMPT med skäl, och ett undantag som inte längre
 //     träffar något fäller bygget. Textbaserad (se checkDocPaths för vad den inte fångar). Hoppas över när listan över spårade filer inte går att hämta.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|error-responses|doc-paths|media|fonts|all]   (standard: all)
+// 22. Gruppen i token läses på ett ställe (RUN-358, ADR 012 anteckningen "Var gruppen kommer ifrån"): ingen fil under apps/backend/src/{routes,services,middleware} läser
+//     `req.user.group_id` direkt (`req.user!.group_id`, `req.user?.group_id`, `req.user['group_id']`, ett alias som `const u = req.user; u.group_id`, eller destructuring som
+//     `const { group_id } = req.user`). Läsningen ligger i `utils/groupScope.ts` (`groupIdOrRespondEmpty`, `groupIdOrRespondForbidden`, `tokenGroupId`), så en användare utan
+//     grupp får samma fail-closed-svar överallt (ADR 007 A6). Undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester. Textbaserad (se checkTokenGroupIdReads
+//     för vad den inte fångar).
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|error-responses|token-group-id|doc-paths|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -767,6 +773,91 @@ export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT
   return errors;
 }
 
+const TOKEN_GROUP_FILE = /^apps\/backend\/src\/(?:routes|services|middleware)\/.+\.[cm]?ts$/;
+/** auth.ts sätter req.user (och därmed group_id) ur token; groupScope.ts är den enda läsaren (regel 22). */
+const TOKEN_GROUP_EXEMPT_FILES = new Set(['apps/backend/src/middleware/auth.ts', 'apps/backend/src/utils/groupScope.ts']);
+const IDENT = '[A-Za-z_$][\\w$]*';
+const escapeRegExp = (text) => text.replace(/[$^\\.*+?()[\]{}|]/g, '\\$&');
+// req.user.group_id, req.user?.group_id, req.user!.group_id, req.user!?.group_id och req.user!['group_id'] (blanksteg tillåtna).
+const TOKEN_GROUP_DIRECT = [
+  /\b(?:req|request)\s*\.\s*user\s*!?\s*(?:\?\.|\.)\s*group_id\b/g,
+  /\b(?:req|request)\s*\.\s*user\s*!?\s*(?:\?\.)?\s*\[\s*['"`]group_id['"`]\s*\]/g,
+];
+// const u = req.user!;   let me: AuthUser = req.user as AuthUser;
+const TOKEN_USER_ALIAS = new RegExp(`(?:const|let|var)\\s+(${IDENT})\\s*(?::[^=;]+)?=\\s*(?:req|request)\\s*\\.\\s*user\\s*!?\\s*(?:as\\s+[^;\\n]+)?\\s*(?:;|$)`, 'gm');
+// const { user } = req;   const { user: me } = req;
+const TOKEN_USER_DESTRUCTURED = /\{([^{}]*)\}\s*=(?![=>])\s*(?:req|request)\b(?!\s*\.)/g;
+// const r = req;   const r = req as Request;
+const TOKEN_REQ_ALIAS = new RegExp(`(?:const|let|var)\\s+(${IDENT})\\s*(?::[^=;]+)?=\\s*(?:req|request)\\s*(?:as\\s+[^;\\n]+)?\\s*(?:;|$)`, 'gm');
+// { group_id } = <höger sida>, med en nivå av nästlade klamrar: { user: { group_id } } = req.
+const DESTRUCTURING = /\{((?:[^{}]|\{[^{}]*\})*)\}\s*=(?![=>])\s*([^;\n]*)/g;
+
+/**
+ * Regel 22 (ADR 012, anteckningen "Var gruppen kommer ifrån"). Gruppen i token (`req.user.group_id`) läses på ETT ställe: `apps/backend/src/utils/groupScope.ts`
+ * (`groupIdOrRespondEmpty`, `groupIdOrRespondForbidden`, `tokenGroupId`). Annars glider routes tillbaka till egna kontroller som svarar olika för en användare
+ * utan grupp (fail-closed, ADR 007 A6). Granskar apps/backend/src/{routes,services,middleware}; undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester.
+ * `files`: [{ path, content }]. Returnerar "path:rad: text". Fångar `req.user!.group_id`, `req.user?.group_id`, `req.user.group_id`, `req.user!['group_id']`,
+ * alias i samma fil (`const u = req.user; u.group_id`, `const { user } = req; user.group_id`, `const r = req; r.user.group_id`) och destructuring
+ * (`const { group_id } = req.user`, `{ group_id: g } = req.user!`, `{ user: { group_id } } = req`, `const { group_id } = u`). Kommentarer räknas inte.
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: ett alias i en annan fil, req eller req.user som skickas som argument till en funktion som läser fältet
+ * (`readGroup(req.user)`), en parameterlista som destrukturerar (`({ group_id }: AuthUser) => …`), en sträng som byggs ihop av delar (`req.user[key]`), och ett alias som
+ * får ett annat namn av en kedja (`const a = u;`). Ett alias räknas i hela filen, så en annan variabel med samma namn (`user.group_id` ur en databasrad) fälls
+ * om filen någonstans gör `const user = req.user` — byt namn.
+ */
+export function checkTokenGroupIdReads(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!TOKEN_GROUP_FILE.test(path) || TOKEN_GROUP_EXEMPT_FILES.has(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
+    const code = withoutComments(content);
+    const lineAt = (index) => code.slice(0, index).split(/\r?\n/).length;
+    const lines = new Set();
+
+    const userAliases = new Set([...code.matchAll(TOKEN_USER_ALIAS)].map((match) => match[1]));
+    for (const match of code.matchAll(TOKEN_USER_DESTRUCTURED)) {
+      for (const entry of match[1].split(',')) {
+        const renamed = /^\s*user\s*(?::\s*([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
+        if (renamed) userAliases.add(renamed[1] ?? 'user');
+      }
+    }
+    const reqAliases = new Set([...code.matchAll(TOKEN_REQ_ALIAS)].map((match) => match[1]));
+
+    for (const pattern of TOKEN_GROUP_DIRECT) {
+      for (const match of code.matchAll(pattern)) lines.add(lineAt(match.index));
+    }
+    for (const alias of reqAliases) {
+      const name = escapeRegExp(alias);
+      const reads = [
+        new RegExp(`(?<![\\w$.])${name}\\s*\\.\\s*user\\s*!?\\s*(?:\\?\\.|\\.)\\s*group_id\\b`, 'g'),
+        new RegExp(`(?<![\\w$.])${name}\\s*\\.\\s*user\\s*!?\\s*(?:\\?\\.)?\\s*\\[\\s*['"\`]group_id['"\`]\\s*\\]`, 'g'),
+      ];
+      for (const read of reads) for (const match of code.matchAll(read)) lines.add(lineAt(match.index));
+    }
+    for (const alias of userAliases) {
+      const name = escapeRegExp(alias);
+      const reads = [
+        new RegExp(`(?<![\\w$.])${name}\\s*!?\\s*(?:\\?\\.|\\.)\\s*group_id\\b`, 'g'),
+        new RegExp(`(?<![\\w$.])${name}\\s*!?\\s*(?:\\?\\.)?\\s*\\[\\s*['"\`]group_id['"\`]\\s*\\]`, 'g'),
+      ];
+      for (const read of reads) for (const match of code.matchAll(read)) lines.add(lineAt(match.index));
+    }
+    for (const match of code.matchAll(DESTRUCTURING)) {
+      const pattern = match[1];
+      const source = match[2].replace(/^[\s(]+/, '');
+      const fromUser = /^(?:req|request)\s*\.\s*user\b/.test(source) || [...userAliases].some((alias) => new RegExp(`^${escapeRegExp(alias)}\\b(?!\\s*[.(\\[])`).test(source));
+      const fromReq = /^(?:req|request)\b(?!\s*\.)/.test(source);
+      const reads = fromUser ? /\bgroup_id\b/.exec(pattern) : fromReq ? /\buser\s*:\s*\{[^{}]*?(\bgroup_id\b)/.exec(pattern) : null;
+      if (!reads) continue;
+      const offset = match.index + match[0].indexOf(pattern) + (reads[1] === undefined ? reads.index : reads.index + reads[0].lastIndexOf('group_id'));
+      lines.add(lineAt(offset));
+    }
+
+    for (const line of [...lines].sort((a, b) => a - b)) {
+      errors.push(`${path}:${line}: gruppen i token läses utanför utils/groupScope.ts — använd groupIdOrRespondEmpty (läsning), groupIdOrRespondForbidden (adminskrivning) eller tokenGroupId (egna data, tidszon) (ADR 012, "Var gruppen kommer ifrån")`);
+    }
+  }
+  return errors;
+}
+
 // Dokumentens filhänvisningar (RUN-361): ett backtick-spann som ser ut som en filsökväg måste peka på en spårad fil eller mapp.
 // Dokumenten som läses är README.md, STATE.md, docs/*.md (inte undermappar som docs/archive, docs/adr och docs/design) och README.md i varje
 // feature under apps/frontend/src/features. Ett spann räknas som en sökväg när det slutar på en känd filändelse eller på `/`. En sökväg finns när en
@@ -958,8 +1049,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'error-responses', 'doc-paths', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | error-responses | doc-paths | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'error-responses', 'token-group-id', 'doc-paths', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | error-responses | token-group-id | doc-paths | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -974,7 +1065,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'dummy-hash-warmup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'route-contracts' || mode === 'error-responses') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'dummy-hash-warmup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'route-contracts' || mode === 'error-responses' || mode === 'token-group-id') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -1027,6 +1118,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'error-responses') {
       errors.push(...checkErrorResponsesViaFail(files));
       summary.push('alla felsvar går via fail');
+    }
+    if (mode === 'all' || mode === 'token-group-id') {
+      errors.push(...checkTokenGroupIdReads(files));
+      summary.push('gruppen i token läses bara i groupScope');
     }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));

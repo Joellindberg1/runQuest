@@ -11,6 +11,7 @@ import { type DailyDrawResponse, type EventsHistoryResponse, type EventsResponse
 import { errorCode } from '../utils/errorCode.js';
 import { UNKNOWN_NAME, fetchUserNames, scoreCompetitionEntries } from '../services/eventService.js';
 import { fail, okWithLegacy } from '../utils/respond.js';
+import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -46,12 +47,9 @@ async function fetchEventCounts(
 router.get('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId  = req.user!.user_id;
-    const groupId = req.user!.group_id;
-
-    if (!groupId) {
-      okWithLegacy<EventsResponse>(res, { events: [] }, { events: [] });
-      return;
-    }
+    const emptyBody = { success: true, events: [], data: { events: [] } } satisfies EventsResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
 
@@ -197,7 +195,6 @@ const HISTORY_PAGE = { defaultLimit: 30, maxLimit: 50 };
 router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId  = req.user!.user_id;
-    const groupId = req.user!.group_id;
 
     const page = parseOffsetPage(req.query, HISTORY_PAGE);
     if (!page.ok) {
@@ -206,10 +203,9 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
     }
     const { limit, offset } = page;
 
-    if (!groupId) {
-      okWithLegacy<EventsHistoryResponse>(res, { events: [] }, { events: [] }, buildPageMeta(0, limit, offset));
-      return;
-    }
+    const emptyBody = { success: true, events: [], data: { events: [] }, meta: buildPageMeta(0, limit, offset) } satisfies EventsHistoryResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
 

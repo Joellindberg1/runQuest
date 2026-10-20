@@ -9,7 +9,7 @@ import {
 } from '../services/challengeService.js';
 import { challengeScore, challengeWindow, compareChallengeStandings, groupNextMidnight } from '@runquest/shared';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
+import { groupIdOrRespondEmpty, tokenGroupId } from '../utils/groupScope.js';
 import { recordChallengeAccepted, recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
 import {
   CHALLENGE_HISTORY_COLUMNS,
@@ -55,7 +55,8 @@ async function restoreAfterDecline(
 router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
-    const groupId = req.user!.group_id;
+    // Anroparens egna marker, utmaningar och boostar visas även utan grupp; bara gruppens pågående utmaningar kräver en.
+    const groupId = tokenGroupId(req);
     const supabase = getSupabaseClient();
 
     const [tokensRes, activeChallengeRes, receivedRes, historyRes, boostsRes, groupActiveRes] = await Promise.all([
@@ -162,7 +163,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
 router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
-    const groupId = req.user!.group_id;
+    const groupId = tokenGroupId(req);
     const { token_id, opponent_id } = req.body;
 
     if (!token_id || !opponent_id) {
@@ -486,10 +487,8 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
     if (!page.ok) { fail(res, 400, page.error); return; }
     const { limit, offset } = page;
 
-    const groupId = req.user!.group_id;
-    if (!groupId) {
-      ok<ChallengeGroupHistoryApiResponse>(res, { items: [] }, buildPageMeta(0, limit, offset)); return;
-    }
+    const groupId = groupIdOrRespondEmpty(req, res, { success: true, data: { items: [] }, meta: buildPageMeta(0, limit, offset) } satisfies ChallengeGroupHistoryApiResponse);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
     const { rows, total } = await fetchOffsetPage(
@@ -531,7 +530,7 @@ router.get('/head-to-head/:userId', authenticateJWT, async (req, res): Promise<v
 
     // Samma svar för "finns inte" och "annan grupp" — läcker inte existens.
     const notFound = () => fail(res, 404, 'User not found');
-    const groupId = req.user!.group_id;
+    const groupId = tokenGroupId(req);
     if (!groupId) { notFound(); return; }
 
     const supabase = getSupabaseClient();

@@ -8,6 +8,7 @@ import { MembershipError, getActiveMembership, joinGroup } from '../utils/member
 import { rebuildGroupRankingAfterJoin } from '../services/groupRanking.js';
 import type { JoinGroupRequest, JoinGroupResponse, MyGroupResponse } from '@runquest/shared';
 import { fail, ok, okWithLegacy } from '../utils/respond.js';
+import { tokenGroupId } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -15,7 +16,8 @@ const router = express.Router();
 router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
-    const groupId = req.user!.group_id;
+    // Tom grupp i token: 404 här (inte tom data), för "min grupp" finns inte; klienten läser det som "inte med i någon grupp".
+    const groupId = tokenGroupId(req);
 
     if (!groupId) {
       fail(res, 404, 'You are not a member of any group'); return;

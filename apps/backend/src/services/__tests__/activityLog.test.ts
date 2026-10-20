@@ -2,7 +2,7 @@
  * services/activityLog.ts (ADR 008 beslut 3–4): dedupe via dedupe_key, icke-kastande skrivning,
  * retract, samt level-/milstolpehjälparna. Kör mot fakeDb som tillämpar ON CONFLICT DO NOTHING.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../config/database.js', () => ({
   default: {},
@@ -11,6 +11,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { logger } from '../../utils/logger.js';
 import {
   recordActivity,
   recordActivities,
@@ -222,5 +223,40 @@ describe('recordRunMilestones', () => {
     await recordRunMilestones('u1', 101, 120, 'g1');
     await recordRunMilestones('u1', 300, 120, 'g1');
     expect(tables.activity_log).toHaveLength(0);
+  });
+});
+
+describe('läsfel på users.group_id (fail-closed: ett läsfel är inte "ingen grupp" som skriver eller tiger)', () => {
+  const groupReadFails = { failWhen: (q: { table: string }) => (q.table === 'users' ? { message: 'row value secret-4711 leaked', code: '57014' } : null) };
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => { errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined); });
+  afterEach(() => { errorSpy.mockRestore(); });
+  const logged = () => errorSpy.mock.calls.map((c: unknown[]) => c.map(String).join(' ')).join('\n');
+
+  it.each([
+    ['recordLevelUps', () => recordLevelUps('u1', 1, 3)],
+    ['recordRunMilestones', () => recordRunMilestones('u1', 90, 120)],
+  ])('%s writes no row when the group cannot be read, and logs the database code but not its text', async (_name, call) => {
+    const tables: Record<string, Row[]> = { activity_log: [], users: [{ id: 'u1', group_id: 'g1' }] };
+    setup(tables, groupReadFails);
+
+    await expect(call()).resolves.toBeUndefined();
+
+    expect(tables.activity_log).toHaveLength(0);
+    expect(logged()).toContain('57014');
+    expect(logged()).not.toContain('secret-4711');
+  });
+
+  it.each([
+    ['recordLevelUps', () => recordLevelUps('ghost', 1, 3)],
+    ['recordRunMilestones', () => recordRunMilestones('ghost', 90, 120)],
+  ])('%s for a user who does not exist writes no row and logs nothing', async (_name, call) => {
+    const tables: Record<string, Row[]> = { activity_log: [], users: [{ id: 'u1', group_id: 'g1' }] };
+    setup(tables);
+
+    await expect(call()).resolves.toBeUndefined();
+
+    expect(tables.activity_log).toHaveLength(0);
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

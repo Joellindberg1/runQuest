@@ -5,6 +5,7 @@ import { getLevelFromXP } from './levelService.js';
 import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
 import { recordRankPassesForXp } from './rankNews.js';
+import { readUserGroupId } from './userGroupId.js';
 import {
   STORM_EVENT_GUST_MS, addDays, buildEventClosedDraft, buildEventOpenDraft, prizeForRank, scoreCompetition, stockholmDay, zoneDay, zoneMidnightIso,
   type ActivityDraft, type CompetitionParticipant, type CompetitionRun, type EventActivityRow, type ScoredParticipant,
@@ -161,16 +162,11 @@ export async function checkEventQualification(params: {
 }): Promise<void> {
   const supabase = getSupabaseClient();
 
-  // Hämta groupId om det inte skickades med
-  let groupId = params.groupId;
-  if (!groupId) {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('group_id')
-      .eq('id', params.userId)
-      .single();
-    groupId = userData?.group_id;
-  }
+  // Hämta groupId om det inte skickades med. En användare som saknas, eller som saknar grupp, kvalificerar inget (fail-closed). Ett läsfel kastas
+  // (anroparna loggar via .catch): förut avbröts kvalificeringen tyst, som om användaren saknade grupp.
+  const groupId = params.groupId || await readUserGroupId(params.userId, {
+    onError: (error) => { if (error.code !== 'user_not_found') throw error; },
+  });
   if (!groupId) return;
 
   // Eventets dygn räknas i gruppens tidszon: rundans dag (runDate) börjar vid gruppens midnatt, inte vid UTC-midnatt.

@@ -146,13 +146,11 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     const involvesMe = rawInvolves === 'me';
 
     const userId = req.user!.user_id;
-    const groupId = req.user!.group_id;
     const emptyMeta: NewsMeta = { unread_count: 0, last_seen_id: null, has_more: false, next_before: null };
 
     // Saknad grupp ger tom data, aldrig alla grupper (ADR 007 A6)
-    if (!groupId) {
-      ok<NewsApiResponse>(res, { items: [] }, emptyMeta); return;
-    }
+    const groupId = groupIdOrRespondEmpty(req, res, { success: true, data: { items: [] }, meta: emptyMeta } satisfies NewsApiResponse);
+    if (!groupId) return;
 
     // Id:t kommer ur JWT men interpoleras i filtersträngen nedan: bara ett riktigt UUID släpps igenom.
     if (involvesMe && !isUuid(userId)) {
@@ -224,15 +222,14 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     const userId = req.user!.user_id;
-    const groupId = req.user!.group_id;
     const supabase = getSupabaseClient();
 
     const reader = await readReader(userId);
     if (!reader) { fail(res, 404, 'User not found'); return; }
 
-    if (!groupId) {
-      ok<NewsSeenApiResponse>(res, { last_seen_id: reader.news_last_seen_id, unread_count: 0 }); return;
-    }
+    // Utan grupp finns inget flöde att kvittera: svaret bär märket anroparen redan har, och inget skrivs.
+    const groupId = groupIdOrRespondEmpty(req, res, { success: true, data: { last_seen_id: reader.news_last_seen_id, unread_count: 0 } } satisfies NewsSeenApiResponse);
+    if (!groupId) return;
 
     // Senaste raden i gruppen. up_to_id kläms till den: ett id bortom flödet får inte tysta framtida nyheter.
     const { data: latestRows, error: latestError } = await supabase
