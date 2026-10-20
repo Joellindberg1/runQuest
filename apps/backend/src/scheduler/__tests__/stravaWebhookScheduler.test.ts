@@ -127,6 +127,55 @@ describe('webhook scheduler', () => {
     expect(worker.drain).not.toHaveBeenCalled();
   });
 
+  describe('a sweep that fails', () => {
+    const leaky = () => Object.assign(new Error('insert failed for strava_athlete_9876543210'), { code: '57014' });
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+
+    beforeEach(() => {
+      unhandled.length = 0;
+      process.on('unhandledRejection', onUnhandled);
+    });
+    afterEach(() => { process.off('unhandledRejection', onUnhandled); });
+
+    it('is logged by error code and leaves no rejected promise, from the minute sweep and from the wake-up', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+      const worker = fakeWorker();
+      worker.drain.mockRejectedValue(leaky());
+      stopScheduler = startStravaWebhookScheduler({ worker });
+
+      expect(() => h.callbacks.get('* * * * *')!()).not.toThrow();
+      wakeStravaWebhookWorker();
+      await flushImmediates();
+      await flushImmediates();
+
+      expect(worker.drain).toHaveBeenCalledTimes(2);
+      expect(error).toHaveBeenCalledTimes(2);
+      for (const call of error.mock.calls) {
+        expect(call).toHaveLength(1);
+        expect(String(call[0])).toContain('57014');
+        expect(String(call[0])).not.toContain('strava_athlete');
+      }
+      expect(unhandled).toEqual([]);
+    });
+
+    it('is logged by error code when drain throws at once', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+      const worker = fakeWorker();
+      worker.drain.mockImplementation(() => { throw leaky(); });
+      stopScheduler = startStravaWebhookScheduler({ worker });
+
+      expect(() => h.callbacks.get('* * * * *')!()).not.toThrow();
+      await flushImmediates();
+
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(String(error.mock.calls[0][0])).toContain('57014');
+      expect(unhandled).toEqual([]);
+    });
+  });
+
   describe('the nightly subscription check', () => {
     it('runs in the 03:30 job, once per run, and not in the sweep', async () => {
       vi.stubEnv('NODE_ENV', 'production');

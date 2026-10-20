@@ -18,6 +18,18 @@ import { errorCode } from '../utils/errorCode.js';
 let activeWorker: StravaWebhookWorker | null = null;
 
 /**
+ * One drain of the worker that never throws or rejects: a failure is logged by error code (never the message, which may hold a Strava id
+ * or a url) and the next sweep tries again. Without it a rejected drain would be an unhandled rejection.
+ */
+async function drainSafely(worker: StravaWebhookWorker): Promise<void> {
+  try {
+    await worker.drain();
+  } catch (err) {
+    logger.error(`❌ Strava webhook drain failed (${errorCode(err)})`);
+  }
+}
+
+/**
  * The route calls this after it has stored an event (createStravaWebhookRouter({ onEventStored })). The loop starts on the next
  * turn of the event loop, so the call never runs inside the caller's work; the worker's own "already running" flag makes
  * several wake-ups one loop. It must never be called from inside the user lock.
@@ -26,7 +38,7 @@ export function wakeStravaWebhookWorker(): void {
   const worker = activeWorker;
   if (!worker) return;
   setImmediate(() => {
-    void worker.drain();
+    void drainSafely(worker);
   });
 }
 
@@ -56,7 +68,7 @@ export function startStravaWebhookScheduler(options: { worker?: StravaWebhookWor
   logger.info('🕐 Starting Strava webhook worker (sweep every minute, retention and subscription check 03:30 Europe/Stockholm)...');
 
   const sweep = cron.schedule(WEBHOOK_SWEEP_CRON, () => {
-    void worker.drain();
+    void drainSafely(worker);
   });
   const retention = cron.schedule(
     WEBHOOK_RETENTION_CRON,
